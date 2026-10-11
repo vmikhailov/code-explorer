@@ -516,6 +516,10 @@ public static class WorkspaceConventions
         @"^[A-Za-z0-9][A-Za-z0-9_\-\.:/]*[A-Za-z0-9_]$|^[A-Za-z0-9]$",
         RegexOptions.Compiled);
 
+    private static readonly Regex GarbageVersionRegex = new(
+        @"^v\d+(\.\d+)?$",
+        RegexOptions.Compiled);
+
     /// <summary>
     /// Checks whether an identifier, token, or string is a placeholder dummy name (e.g. QUEUE_NAME, TOPIC_NAME, etc.).
     /// </summary>
@@ -844,5 +848,59 @@ public static class WorkspaceConventions
         if (string.IsNullOrWhiteSpace(canonicalDomain)) return "Core Domain";
         var withSpaces = Regex.Replace(canonicalDomain, "([a-z])([A-Z])", "$1 $2");
         return withSpaces.Replace(" And ", " & ");
+    }
+
+    /// <summary>
+    /// Checks whether an external service candidate or host domain is considered garbage/phantom.
+    /// </summary>
+    public static bool IsGarbageExternalService(string domain)
+    {
+        if (string.IsNullOrWhiteSpace(domain)) return true;
+        var lower = domain.Trim().ToLowerInvariant();
+        if (lower is "*" or "unknown-service" or "httprequest" or "pageurl" or "string" or "undefined" or "null" or "void" or "any" or "never") return true;
+        if (lower.EndsWith(":*") || lower.EndsWith("/*") || lower is "127.0.0.1:*" or "localhost:*") return true;
+        if (lower.EndsWith('.') || lower.StartsWith('.')) return true;
+        if (lower.Contains('!') || lower.EndsWith(".value") || lower.EndsWith(".id") || lower.EndsWith(".key") || lower.StartsWith("config.")) return true;
+        if (lower.Contains("global_env", StringComparison.OrdinalIgnoreCase) || lower.Contains("process.env", StringComparison.OrdinalIgnoreCase)) return true;
+        if (lower is "service" or "services" or "host" or "hostname" or "url" or "uri" or "base" or "base_url" or "base_url_v3" or "dynadot_base_url_v3"
+            or "http-call" or "not-supported" or "urlquery" or "swagger" or "api" or "app" or "prod" or "dev" or "stage" or "event" or "assets"
+            or "zones" or "realms" or "conversion" or "impression" or "antifraud" or "rtb") return true;
+        if (GarbageVersionRegex.IsMatch(lower)) return true;
+        if (lower.EndsWith(".test") || lower.EndsWith(".example") || lower.EndsWith(".mock") || lower == "test") return true;
+        return false;
+    }
+
+    /// <summary>
+    /// Returns the pipeline stage order index for a given component or symbol path, or null if not a pipeline component.
+    /// Stage 1: Layer 1 (Physical Parser / Workspace files)
+    /// Stage 2: Layer 2 (Project &amp; Boundary Parser)
+    /// Stage 3: Layer 3 (Syntactic AST Parser)
+    /// Stage 4: Layer 4 (Semantic Graph Parser)
+    /// Stage 5: Layer 5 (Analysis &amp; Linker Parser, Post-Index Analyzer)
+    /// </summary>
+    public static int? GetPipelineStageOrder(string? symbolOrPath, string? typeName = null)
+    {
+        if (string.IsNullOrWhiteSpace(symbolOrPath) && string.IsNullOrWhiteSpace(typeName)) return null;
+
+        var text = (symbolOrPath ?? "") + " " + (typeName ?? "");
+
+        // Only pipeline parser stages (e.g. in Parser/Layers/ or parser implementations), not ontology models in Common/Nodes
+        if (text.Contains("Common/Nodes", StringComparison.OrdinalIgnoreCase) || text.Contains("Common\\Nodes", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (text.Contains("PostIndexAnalyzer", StringComparison.OrdinalIgnoreCase))
+        {
+            return 5;
+        }
+
+        if (text.Contains("Parser/Layers/Layer5", StringComparison.OrdinalIgnoreCase) || text.Contains("Parser\\Layers\\Layer5", StringComparison.OrdinalIgnoreCase) || text.Contains("Layer5AnalysisParser", StringComparison.OrdinalIgnoreCase)) return 5;
+        if (text.Contains("Parser/Layers/Layer4", StringComparison.OrdinalIgnoreCase) || text.Contains("Parser\\Layers\\Layer4", StringComparison.OrdinalIgnoreCase) || text.Contains("Layer4SemanticParser", StringComparison.OrdinalIgnoreCase)) return 4;
+        if (text.Contains("Parser/Layers/Layer3", StringComparison.OrdinalIgnoreCase) || text.Contains("Parser\\Layers\\Layer3", StringComparison.OrdinalIgnoreCase) || text.Contains("Layer3SyntacticParser", StringComparison.OrdinalIgnoreCase)) return 3;
+        if (text.Contains("Parser/Layers/Layer2", StringComparison.OrdinalIgnoreCase) || text.Contains("Parser\\Layers\\Layer2", StringComparison.OrdinalIgnoreCase) || text.Contains("Layer2ProjectParser", StringComparison.OrdinalIgnoreCase)) return 2;
+        if (text.Contains("Parser/Layers/Layer1", StringComparison.OrdinalIgnoreCase) || text.Contains("Parser\\Layers\\Layer1", StringComparison.OrdinalIgnoreCase) || text.Contains("Layer1PhysicalParser", StringComparison.OrdinalIgnoreCase)) return 1;
+
+        return null;
     }
 }

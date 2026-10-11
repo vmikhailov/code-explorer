@@ -108,9 +108,19 @@ public class FileGateRepository : IGateRepository
         {
             cancellationToken.ThrowIfCancellationRequested();
             var fileName = $"{gate.Id.ToLowerInvariant()}-{gate.Name.ToLowerInvariant().Replace(' ', '-')}.yaml";
-            var targetPath = Path.Combine(_gatesDir, fileName);
+            var subDir = gate.Category == GateCategory.Architectural
+                ? Path.Combine(_gatesDir, "architectural")
+                : Path.Combine(_gatesDir, "platform", gate.Platform.ToLowerInvariant());
 
-            if (File.Exists(targetPath) && !overwrite)
+            if (!Directory.Exists(subDir))
+            {
+                Directory.CreateDirectory(subDir);
+            }
+
+            var targetPath = Path.Combine(subDir, fileName);
+            var legacyPath = Path.Combine(_gatesDir, fileName);
+
+            if ((File.Exists(targetPath) || File.Exists(legacyPath)) && !overwrite)
             {
                 continue;
             }

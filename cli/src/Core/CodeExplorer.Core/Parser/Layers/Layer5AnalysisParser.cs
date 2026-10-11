@@ -249,6 +249,7 @@ public class Layer5AnalysisParser
         // Pre-split GlobalSymbols into single-string dictionaries for O(1) single-hash lookups
         var typeSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
         var functionSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
+        var functionSymbolsByFile = new Dictionary<(string FilePath, string FuncName), string>();
         var procedureSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
         var tableSymbols = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var endpointSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -263,6 +264,11 @@ public class Layer5AnalysisParser
                     break;
                 case OntologyConstants.NodeLabels.Function:
                     functionSymbols[key.Name] = id;
+                    var funcFile = ExtractFilePathFromSymbolId(id);
+                    if (funcFile != null)
+                    {
+                        functionSymbolsByFile[(funcFile, key.Name)] = id;
+                    }
                     break;
                 case OntologyConstants.NodeLabels.Procedure:
                     procedureSymbols[key.Name] = id;
@@ -432,6 +438,8 @@ public class Layer5AnalysisParser
                 var targetName = refItem.TargetName;
                 string? targetTypeName = null;
                 string? methodName = null;
+                var isExternalStaticClass = false;
+                var callerFile = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId);
 
                 if (targetName.Contains('.'))
                 {
@@ -439,11 +447,9 @@ public class Layer5AnalysisParser
                     var varName = targetName[..dotIdx];
                     methodName = targetName[(dotIdx + 1)..];
 
-                    var filePath = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId);
-
-                    if (filePath != null)
+                    if (callerFile != null)
                     {
-                        if (bindingsLookup.TryGetValue((filePath, varName), out var candidates))
+                        if (bindingsLookup.TryGetValue((callerFile, varName), out var candidates))
                         {
                             // Priority 1: Match by scope name or scope ID
                             for (int i = 0; i < candidates.Count; i++)
@@ -486,6 +492,16 @@ public class Layer5AnalysisParser
                         {
                             targetName = $"{targetTypeName}.{methodName}";
                         }
+                        else if (typeSymbols.ContainsKey(varName))
+                        {
+                            targetName = $"{varName}.{methodName}";
+                        }
+                        else if (!string.IsNullOrEmpty(varName) && char.IsUpper(varName[0]))
+                        {
+                            // External static class (e.g. Regex, Math, Console, File)
+                            targetName = $"{varName}.{methodName}";
+                            isExternalStaticClass = true;
+                        }
                         else
                         {
                             targetName = methodName;
@@ -493,12 +509,39 @@ public class Layer5AnalysisParser
                     }
                     else
                     {
-                        targetName = methodName;
+                        if (typeSymbols.ContainsKey(varName))
+                        {
+                            targetName = $"{varName}.{methodName}";
+                        }
+                        else if (!string.IsNullOrEmpty(varName) && char.IsUpper(varName[0]))
+                        {
+                            targetName = $"{varName}.{methodName}";
+                            isExternalStaticClass = true;
+                        }
+                        else
+                        {
+                            targetName = methodName;
+                        }
                     }
                 }
 
                 var callAdded = false;
-                if (functionSymbols.TryGetValue(targetName, out var targetNodeId))
+                string? targetNodeId = null;
+                if (callerFile != null && ctx.FileScopedSymbols.TryGetValue((callerFile, OntologyConstants.NodeLabels.Function, targetName), out var localTargetId))
+                {
+                    referenceRelationships.Add(
+                        Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, localTargetId)));
+                    callAdded = true;
+                    targetNodeId = localTargetId;
+                }
+                else if (callerFile != null && functionSymbolsByFile.TryGetValue((callerFile, targetName), out localTargetId))
+                {
+                    referenceRelationships.Add(
+                        Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, localTargetId)));
+                    callAdded = true;
+                    targetNodeId = localTargetId;
+                }
+                else if (functionSymbols.TryGetValue(targetName, out targetNodeId))
                 {
                     referenceRelationships.Add(
                         Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, targetNodeId)));
@@ -525,19 +568,33 @@ public class Layer5AnalysisParser
                     }
                 }
 
-                if (!callAdded && methodName != null && functionSymbols.TryGetValue(methodName, out var fallbackNodeId))
+                if (!callAdded && !isExternalStaticClass && methodName != null)
                 {
-                    // Guard against accidental cross-project fallback matches for bare method names
-                    var callerFile = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId);
-                    var targetFile = ExtractFilePathFromSymbolId(fallbackNodeId);
-                    var isSameProjectOrFile = callerFile != null && targetFile != null &&
-                        (callerFile.Equals(targetFile, StringComparison.OrdinalIgnoreCase) ||
-                         string.Equals(ConstantRegistry.ExtractProjectName(callerFile), ConstantRegistry.ExtractProjectName(targetFile), StringComparison.OrdinalIgnoreCase));
-
-                    if (isSameProjectOrFile || (callerFile == null && targetFile == null))
+                    if (callerFile != null && ctx.FileScopedSymbols.TryGetValue((callerFile, OntologyConstants.NodeLabels.Function, methodName), out var localFallbackId))
                     {
                         referenceRelationships.Add(
-                            Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, fallbackNodeId)));
+                            Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, localFallbackId)));
+                        callAdded = true;
+                    }
+                    else if (callerFile != null && functionSymbolsByFile.TryGetValue((callerFile, methodName), out localFallbackId))
+                    {
+                        referenceRelationships.Add(
+                            Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, localFallbackId)));
+                        callAdded = true;
+                    }
+                    else if (functionSymbols.TryGetValue(methodName, out var fallbackNodeId))
+                    {
+                        // Guard against accidental cross-project fallback matches for bare method names
+                        var targetFile = ExtractFilePathFromSymbolId(fallbackNodeId);
+                        var isSameProjectOrFile = callerFile != null && targetFile != null &&
+                            (callerFile.Equals(targetFile, StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(ConstantRegistry.ExtractProjectName(callerFile), ConstantRegistry.ExtractProjectName(targetFile), StringComparison.OrdinalIgnoreCase));
+
+                        if (isSameProjectOrFile || (callerFile == null && targetFile == null))
+                        {
+                            referenceRelationships.Add(
+                                Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, fallbackNodeId)));
+                        }
                     }
                 }
             }

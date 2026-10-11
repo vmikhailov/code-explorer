@@ -5,7 +5,7 @@
 CodeExplorer maps complex polyglot repositories, microservices, and monorepos into an **interactive visual knowledge graph** directly inside Visual Studio Code. It is powered by an **embedded SQLite graph database with native Cypher query compilation** and requires no external dependencies, Docker containers, or complex configuration.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/vmikhailov/code-explorer/main/docs/all_services.png" alt="CodeExplorer Macro Architecture Concentric Orbits" width="100%" />
+  <img src="https://raw.githubusercontent.com/vmikhailov/code-explorer/main/site/all_services.png" alt="CodeExplorer Macro Architecture Concentric Orbits" width="100%" />
 </p>
 <p align="center">
   <em>Full-system microservice topology projected across 5 Concentric Architectural Orbits with live transitive dependency routing.</em>
@@ -25,7 +25,7 @@ CodeExplorer provides an interactive visual architecture view inside VS Code (`C
 *   **Real-Time WebSocket Engine**: Communicates over low-latency WebSockets with the local `ce` engine, supporting live graph patching and scan progress reporting.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/vmikhailov/code-explorer/main/docs/selected_services.png" alt="Focused Service Sub-Graph & Orbit Customization" width="100%" />
+  <img src="https://raw.githubusercontent.com/vmikhailov/code-explorer/main/site/selected_services.png" alt="Focused Service Sub-Graph & Orbit Customization" width="100%" />
 </p>
 <p align="center">
   <em>Focused sub-graph inspection with live HUD metrics, orbit reordering, and edge curvature sliders.</em>

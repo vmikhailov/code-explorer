@@ -39,6 +39,8 @@ public static class GateSerializer
             throw new InvalidOperationException($"Gate '{raw.Id}' must contain a 'query' field.");
         }
 
+        var category = Enum.TryParse<GateCategory>(raw.Category, true, out var cat) ? cat : GateCategory.Architectural;
+        var platform = !string.IsNullOrWhiteSpace(raw.Platform) ? raw.Platform.Trim().ToLowerInvariant() : "agnostic";
         var scope = Enum.TryParse<InvariantScope>(raw.Scope, true, out var sc) ? sc : InvariantScope.Module;
         var dim = Enum.TryParse<InvariantDimension>(raw.Dimension, true, out var dm) ? dm : InvariantDimension.Boundaries;
         var sev = Enum.TryParse<GateSeverity>(raw.Severity, true, out var sv) ? sv : GateSeverity.Error;
@@ -46,6 +48,8 @@ public static class GateSerializer
         return new SemanticGate
         {
             Id = raw.Id.Trim(),
+            Category = category,
+            Platform = platform,
             Scope = scope,
             Dimension = dim,
             Name = !string.IsNullOrWhiteSpace(raw.Name) ? raw.Name.Trim() : raw.Id.Trim(),
@@ -68,6 +72,8 @@ public static class GateSerializer
         var raw = new RawGateDefinition
         {
             Id = gate.Id,
+            Category = gate.Category.ToString(),
+            Platform = gate.Platform,
             Scope = gate.Scope.ToString(),
             Dimension = gate.Dimension.ToString(),
             Name = gate.Name,
@@ -100,6 +106,8 @@ public static class GateSerializer
     private class RawGateDefinition
     {
         public string? Id { get; set; }
+        public string? Category { get; set; }
+        public string? Platform { get; set; }
         public string? Scope { get; set; }
         public string? Dimension { get; set; }
         public string? Name { get; set; }

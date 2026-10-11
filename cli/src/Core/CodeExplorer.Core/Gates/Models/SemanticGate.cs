@@ -19,6 +19,13 @@ public record GateRatchetSettings
 public record SemanticGate
 {
     public required string Id { get; init; }
+    public GateCategory Category { get; init; } = GateCategory.Architectural;
+
+    /// <summary>
+    /// Target platform or language ecosystem (e.g. "agnostic", "dotnet", "typescript", "python", "go", "java").
+    /// </summary>
+    public string Platform { get; init; } = "agnostic";
+
     public InvariantScope Scope { get; init; } = InvariantScope.Module;
     public InvariantDimension Dimension { get; init; } = InvariantDimension.Boundaries;
     public required string Name { get; init; }

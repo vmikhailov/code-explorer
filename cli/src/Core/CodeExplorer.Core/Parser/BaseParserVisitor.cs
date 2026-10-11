@@ -516,13 +516,18 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
     private static readonly HashSet<string> ExcludedMethodNames = new(StringComparer.OrdinalIgnoreCase)
     {
-        // 1. Logging framework methods
+        // 1. Logging and console output methods
         "Log", "LogError", "LogWarning", "LogInformation", "LogDebug", "LogTrace", "LogCritical",
         "WriteLine", "Write", "Print", "Printf", "Println", "Debug", "Trace", "Fail",
-        // 2. String & Path manipulation / formatting
+        "PrintSuccess", "PrintError", "PrintWarning", "Markup", "MarkupLine", "MarkupLineInterpolated",
+
+        // 2. String, StringBuilder & Path manipulation / formatting
         "Format", "Join", "Concat", "Split", "Replace", "StartsWith", "EndsWith", "Contains",
         "Includes", "IndexOf", "LastIndexOf", "Trim", "TrimStart", "TrimEnd", "ToString",
         "PadLeft", "PadRight", "Substring", "Slice", "Combine", "Match", "Matches",
+        "Append", "AppendLine", "AppendFormat", "AppendJoin",
+        "Equals", "Compare", "CompareTo", "ReferenceEquals",
+
         // 3. Reflection / Type checking
         "nameof", "GetType", "typeof"
     };
@@ -542,6 +547,9 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
         if (callName.Contains("Logger", StringComparison.OrdinalIgnoreCase) ||
             callName.Contains("Console", StringComparison.OrdinalIgnoreCase) ||
+            callName.Contains("StringBuilder", StringComparison.OrdinalIgnoreCase) ||
+            callName.StartsWith("sb.", StringComparison.OrdinalIgnoreCase) ||
+            callName.StartsWith("builder.", StringComparison.OrdinalIgnoreCase) ||
             callName.StartsWith("Debug.", StringComparison.OrdinalIgnoreCase) ||
             callName.StartsWith("Trace.", StringComparison.OrdinalIgnoreCase) ||
             callName.StartsWith("Path.", StringComparison.OrdinalIgnoreCase) ||

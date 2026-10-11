@@ -12,21 +12,7 @@ using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser;
 
-public record PostIndexGraphData(
-    Dictionary<string, List<string>> CallsAdjacency,
-    Dictionary<string, string> Sinks,
-    Dictionary<string, string?> SinkDomains,
-    List<string> Callers,
-    Dictionary<string, List<string>> Implements,
-    List<string> EntryPointIds,
-    Dictionary<string, List<string>> ProjectToEntryPoints
-);
 
-public record PostIndexAnalysisResult(
-    List<(string From, string To, int Hops)> TransitivelyCalls,
-    List<(string EpId, string SinkId, int Hops, string SinkKind)> AttributedTo,
-    Dictionary<string, List<string>> ProjectExternalApis
-);
 
 public record CanonicalizeDatabasesResult(int CanonicalNodesCount, int MaterializedRelationshipsCount);
 
@@ -41,11 +27,11 @@ public class PostIndexAnalyzer(IGraphClient db)
         await PurgePhantomExternalServicesAsync(db, widPrefix);
         await DeduplicateProjectNodesAsync(db, widPrefix);
 
-        if (db is SqliteGraphClient sqliteClient)
+        var graphData = await db.LoadPostIndexGraphDataAsync(widPrefix);
+        if (graphData.CallsAdjacency.Count > 0 || graphData.Sinks.Count > 0 || graphData.Callers.Count > 0)
         {
-            var graphData = await sqliteClient.LoadPostIndexGraphDataAsync(widPrefix);
             var result = Analyze(graphData, widPrefix);
-            await sqliteClient.SavePostIndexResultsAsync(widPrefix, result);
+            await db.SavePostIndexResultsAsync(widPrefix, result);
         }
         else
         {
@@ -211,29 +197,7 @@ public class PostIndexAnalyzer(IGraphClient db)
             }
         }
 
-        if (db is SqliteGraphClient sqliteClient)
-        {
-            await sqliteClient.SavePostIndexResultsAsync(widPrefix, result);
-        }
-        else
-        {
-            var tcRels = result.TransitivelyCalls.Select(tc => new Relationship(
-                tc.From,
-                tc.To,
-                OntologyConstants.Relationships.TransitivelyCalls,
-                new Dictionary<string, object> { ["hops"] = tc.Hops }
-            )).ToList();
-
-            var attrRels = result.AttributedTo.Select(attr => new Relationship(
-                attr.EpId,
-                attr.SinkId,
-                OntologyConstants.Relationships.AttributedTo,
-                new Dictionary<string, object> { ["hops"] = attr.Hops, ["sink_kind"] = attr.SinkKind }
-            )).ToList();
-
-            if (tcRels.Count > 0) await db.UploadRelationshipsAsync(tcRels);
-            if (attrRels.Count > 0) await db.UploadRelationshipsAsync(attrRels);
-        }
+        await db.SavePostIndexResultsAsync(widPrefix, result);
 
         // Materialize direct architectural relationships (C4 Macro-Edges)
         var allCombinedRels = new List<Relationship>();
@@ -1878,40 +1842,37 @@ public class PostIndexAnalyzer(IGraphClient db)
             ctx.AddRelsCount(canonicalRels.Count);
         }
 
-        // Clean up duplicate non-canonical database nodes in SQLite
-        if (ctx.DbClient is SqliteGraphClient)
+        // Clean up duplicate non-canonical database nodes
+        foreach (var (rawId, canonicalId) in rawToCanonical)
         {
-            foreach (var (rawId, canonicalId) in rawToCanonical)
+            if (!string.Equals(rawId, canonicalId, StringComparison.Ordinal))
             {
-                if (!string.Equals(rawId, canonicalId, StringComparison.Ordinal))
-                {
-                    await ctx.DbClient.ExecuteWriteAsync("UPDATE OR IGNORE edges SET to_id = @canonicalId WHERE to_id = @rawId;", new { canonicalId, rawId });
-                    await ctx.DbClient.ExecuteWriteAsync("DELETE FROM edges WHERE to_id = @rawId;", new { rawId });
-                    await ctx.DbClient.ExecuteWriteAsync("UPDATE OR IGNORE edges SET from_id = @canonicalId WHERE from_id = @rawId;", new { canonicalId, rawId });
-                    await ctx.DbClient.ExecuteWriteAsync("DELETE FROM edges WHERE from_id = @rawId;", new { rawId });
-                    await ctx.DbClient.ExecuteWriteAsync("DELETE FROM nodes WHERE id = @rawId;", new { rawId });
-                }
+                await ctx.DbClient.ExecuteWriteAsync("UPDATE OR IGNORE edges SET to_id = @canonicalId WHERE to_id = @rawId;", new { canonicalId, rawId });
+                await ctx.DbClient.ExecuteWriteAsync("DELETE FROM edges WHERE to_id = @rawId;", new { rawId });
+                await ctx.DbClient.ExecuteWriteAsync("UPDATE OR IGNORE edges SET from_id = @canonicalId WHERE from_id = @rawId;", new { canonicalId, rawId });
+                await ctx.DbClient.ExecuteWriteAsync("DELETE FROM edges WHERE from_id = @rawId;", new { rawId });
+                await ctx.DbClient.ExecuteWriteAsync("DELETE FROM nodes WHERE id = @rawId;", new { rawId });
             }
+        }
 
-            // Remove any improper CONTAINS edges pointing to Database nodes (Databases are infrastructure, only contained in semantic_structure)
+        // Remove any improper CONTAINS edges pointing to Database nodes (Databases are infrastructure, only contained in semantic_structure)
+        await ctx.DbClient.ExecuteWriteAsync(
+            "DELETE FROM edges WHERE kind = 'CONTAINS' AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database') AND from_id NOT LIKE '%semantic_structure%';");
+
+        // Purge any remaining phantom Database nodes that were not canonicalized
+        var validIds = canonicalDbNodes.Keys.ToList();
+        if (validIds.Count > 0)
+        {
+            var placeholders = string.Join(",", validIds.Select((_, i) => $"@p{i}"));
+            var paramDict = new Dictionary<string, object>();
+            for (int i = 0; i < validIds.Count; i++) paramDict[$"p{i}"] = validIds[i];
+
             await ctx.DbClient.ExecuteWriteAsync(
-                "DELETE FROM edges WHERE kind = 'CONTAINS' AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database') AND from_id NOT LIKE '%semantic_structure%';");
-
-            // Purge any remaining phantom Database nodes that were not canonicalized
-            var validIds = canonicalDbNodes.Keys.ToList();
-            if (validIds.Count > 0)
-            {
-                var placeholders = string.Join(",", validIds.Select((_, i) => $"@p{i}"));
-                var paramDict = new Dictionary<string, object>();
-                for (int i = 0; i < validIds.Count; i++) paramDict[$"p{i}"] = validIds[i];
-
-                await ctx.DbClient.ExecuteWriteAsync(
-                    $"DELETE FROM edges WHERE kind = 'USES_DB' AND to_id NOT IN ({placeholders}) AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database');",
-                    paramDict);
-                await ctx.DbClient.ExecuteWriteAsync(
-                    $"DELETE FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders});",
-                    paramDict);
-            }
+                $"DELETE FROM edges WHERE kind = 'USES_DB' AND to_id NOT IN ({placeholders}) AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database');",
+                paramDict);
+            await ctx.DbClient.ExecuteWriteAsync(
+                $"DELETE FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders});",
+                paramDict);
         }
 
         return (canonicalRels, rawToCanonical);
@@ -2137,54 +2098,51 @@ public class PostIndexAnalyzer(IGraphClient db)
                     await db.UploadRelationshipsAsync(relationshipsToUpload);
                 }
 
-                // 5. Clean up duplicate / project-scoped database nodes where id != canonicalId in SQLite
-                if (db is SqliteGraphClient)
+                // 5. Clean up duplicate / project-scoped database nodes where id != canonicalId
+                foreach (var (rawId, canonicalId) in rawToCanonical)
                 {
-                    foreach (var (rawId, canonicalId) in rawToCanonical)
+                    if (!string.Equals(rawId, canonicalId, StringComparison.Ordinal))
                     {
-                        if (!string.Equals(rawId, canonicalId, StringComparison.Ordinal))
-                        {
-                            await db.ExecuteWriteAsync(
-                                "UPDATE OR IGNORE edges SET to_id = @canonicalId WHERE to_id = @rawId;",
-                                new { canonicalId, rawId }, cancellationToken);
+                        await db.ExecuteWriteAsync(
+                            "UPDATE OR IGNORE edges SET to_id = @canonicalId WHERE to_id = @rawId;",
+                            new { canonicalId, rawId }, cancellationToken);
 
-                            await db.ExecuteWriteAsync("DELETE FROM edges WHERE to_id = @rawId;", new { rawId },
-                                cancellationToken);
-
-                            await db.ExecuteWriteAsync(
-                                "UPDATE OR IGNORE edges SET from_id = @canonicalId WHERE from_id = @rawId;",
-                                new { canonicalId, rawId }, cancellationToken);
-
-                            await db.ExecuteWriteAsync("DELETE FROM edges WHERE from_id = @rawId;", new { rawId },
-                                cancellationToken);
-
-                            await db.ExecuteWriteAsync("DELETE FROM nodes WHERE id = @rawId;", new { rawId },
-                                cancellationToken);
-                        }
-                    }
-
-                    // Remove any improper CONTAINS edges pointing to Database nodes (Databases are infrastructure, only contained in semantic_structure)
-                    await db.ExecuteWriteAsync(
-                        "DELETE FROM edges WHERE kind = 'CONTAINS' AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database') AND from_id NOT LIKE '%semantic_structure%';",
-                        null, cancellationToken);
-
-                    // Purge any remaining phantom Database nodes that were not canonicalized
-                    var validIds = canonicalNodes.Keys.ToList();
-
-                    if (validIds.Count > 0)
-                    {
-                        var placeholders = string.Join(",", validIds.Select((_, i) => $"@p{i}"));
-                        var paramDict = new Dictionary<string, object>();
-                        for (int i = 0; i < validIds.Count; i++) paramDict[$"p{i}"] = validIds[i];
+                        await db.ExecuteWriteAsync("DELETE FROM edges WHERE to_id = @rawId;", new { rawId },
+                            cancellationToken);
 
                         await db.ExecuteWriteAsync(
-                            $"DELETE FROM edges WHERE kind = 'USES_DB' AND to_id NOT IN ({placeholders}) AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database');",
-                            paramDict, cancellationToken);
+                            "UPDATE OR IGNORE edges SET from_id = @canonicalId WHERE from_id = @rawId;",
+                            new { canonicalId, rawId }, cancellationToken);
 
-                        await db.ExecuteWriteAsync(
-                            $"DELETE FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders});", paramDict,
+                        await db.ExecuteWriteAsync("DELETE FROM edges WHERE from_id = @rawId;", new { rawId },
+                            cancellationToken);
+
+                        await db.ExecuteWriteAsync("DELETE FROM nodes WHERE id = @rawId;", new { rawId },
                             cancellationToken);
                     }
+                }
+
+                // Remove any improper CONTAINS edges pointing to Database nodes (Databases are infrastructure, only contained in semantic_structure)
+                await db.ExecuteWriteAsync(
+                    "DELETE FROM edges WHERE kind = 'CONTAINS' AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database') AND from_id NOT LIKE '%semantic_structure%';",
+                    null, cancellationToken);
+
+                // Purge any remaining phantom Database nodes that were not canonicalized
+                var validIds = canonicalNodes.Keys.ToList();
+
+                if (validIds.Count > 0)
+                {
+                    var placeholders = string.Join(",", validIds.Select((_, i) => $"@p{i}"));
+                    var paramDict = new Dictionary<string, object>();
+                    for (int i = 0; i < validIds.Count; i++) paramDict[$"p{i}"] = validIds[i];
+
+                    await db.ExecuteWriteAsync(
+                        $"DELETE FROM edges WHERE kind = 'USES_DB' AND to_id NOT IN ({placeholders}) AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database');",
+                        paramDict, cancellationToken);
+
+                    await db.ExecuteWriteAsync(
+                        $"DELETE FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders});", paramDict,
+                        cancellationToken);
                 }
 
                 return new CanonicalizeDatabasesResult(nodesToUpload.Count, relationshipsToUpload.Count);
@@ -2409,22 +2367,19 @@ public class PostIndexAnalyzer(IGraphClient db)
                     props["dependency_type"] = depType;
                     props["category"] = category;
 
-                    if (db is SqliteGraphClient)
-                    {
-                        var propsJson = JsonSerializer.Serialize(props);
+                    var propsJson = JsonSerializer.Serialize(props);
 
-                        await db.ExecuteWriteAsync(
-                            "UPDATE OR IGNORE edges SET kind = @normalizedKind, properties = @propsJson WHERE from_id = @src AND to_id = @tgt AND kind = @rawKind;",
-                            new
-                            {
-                                normalizedKind,
-                                propsJson,
-                                src,
-                                tgt,
-                                rawKind
-                            }, cancellationToken);
-                        updatedCount++;
-                    }
+                    await db.ExecuteWriteAsync(
+                        "UPDATE OR IGNORE edges SET kind = @normalizedKind, properties = @propsJson WHERE from_id = @src AND to_id = @tgt AND kind = @rawKind;",
+                        new
+                        {
+                            normalizedKind,
+                            propsJson,
+                            src,
+                            tgt,
+                            rawKind
+                        }, cancellationToken);
+                    updatedCount++;
                 }
             }
 
@@ -2590,22 +2545,7 @@ public class PostIndexAnalyzer(IGraphClient db)
         return extId;
     }
 
-    public static bool IsGarbageExternalService(string domain)
-    {
-        if (string.IsNullOrWhiteSpace(domain)) return true;
-        var lower = domain.Trim().ToLowerInvariant();
-        if (lower is "*" or "unknown-service" or "httprequest" or "pageurl" or "string" or "undefined" or "null" or "void" or "any" or "never") return true;
-        if (lower.EndsWith(":*") || lower.EndsWith("/*") || lower is "127.0.0.1:*" or "localhost:*") return true;
-        if (lower.EndsWith('.') || lower.StartsWith('.')) return true;
-        if (lower.Contains('!') || lower.EndsWith(".value") || lower.EndsWith(".id") || lower.EndsWith(".key") || lower.StartsWith("config.")) return true;
-        if (lower.Contains("global_env", StringComparison.OrdinalIgnoreCase) || lower.Contains("process.env", StringComparison.OrdinalIgnoreCase)) return true;
-        if (lower is "service" or "services" or "host" or "hostname" or "url" or "uri" or "base" or "base_url" or "base_url_v3" or "dynadot_base_url_v3"
-            or "http-call" or "not-supported" or "urlquery" or "swagger" or "api" or "app" or "prod" or "dev" or "stage" or "event" or "assets"
-            or "zones" or "realms" or "conversion" or "impression" or "antifraud" or "rtb") return true;
-        if (Regex.IsMatch(lower, @"^v\d+(\.\d+)?$")) return true;
-        if (lower.EndsWith(".test") || lower.EndsWith(".example") || lower.EndsWith(".mock") || lower == "test") return true;
-        return false;
-    }
+    public static bool IsGarbageExternalService(string domain) => WorkspaceConventions.IsGarbageExternalService(domain);
 
     public static async Task PurgePhantomExternalServicesAsync(
         IGraphClient db,

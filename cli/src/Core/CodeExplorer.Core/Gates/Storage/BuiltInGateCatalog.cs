@@ -12,6 +12,8 @@ public static class BuiltInGateCatalog
         new SemanticGate
         {
             Id = "SIG-P-B-001",
+            Category = GateCategory.Architectural,
+            Platform = "agnostic",
             Scope = InvariantScope.Module,
             Dimension = InvariantDimension.Boundaries,
             Name = "Pipeline Layer Strict Hierarchy",
@@ -20,11 +22,10 @@ public static class BuiltInGateCatalog
             Remediation = "Remove references to higher pipeline layers. Use decoupled events, abstractions, or move shared data structures into Core/Common.",
             Query = """
                 MATCH (src)-[:CALLS|USES_TYPE]->(tgt)
-                WHERE NOT (src.file_path CONTAINS 'Test' OR src.symbol CONTAINS 'Test')
-                  AND (((src.symbol CONTAINS 'Parser/Layers/Layer1' OR src.file_path CONTAINS 'Layer1') AND (tgt.symbol CONTAINS 'Layer2' OR tgt.symbol CONTAINS 'Layer3' OR tgt.symbol CONTAINS 'Layer4' OR tgt.symbol CONTAINS 'Layer5'))
-                   OR ((src.symbol CONTAINS 'Parser/Layers/Layer2' OR src.file_path CONTAINS 'Layer2') AND (tgt.symbol CONTAINS 'Layer3' OR tgt.symbol CONTAINS 'Layer4' OR tgt.symbol CONTAINS 'Layer5'))
-                   OR ((src.symbol CONTAINS 'Parser/Layers/Layer3' OR src.file_path CONTAINS 'Layer3') AND (tgt.symbol CONTAINS 'Layer4' OR tgt.symbol CONTAINS 'Layer5' OR tgt.name = 'PostIndexAnalyzer'))
-                   OR ((src.symbol CONTAINS 'Parser/Layers/Layer4' OR src.file_path CONTAINS 'Layer4') AND (tgt.symbol CONTAINS 'Layer5')))
+                WHERE NOT coalesce(src.is_test, false)
+                  AND src.stage_order IS NOT NULL
+                  AND tgt.stage_order IS NOT NULL
+                  AND src.stage_order < tgt.stage_order
                 RETURN 
                   coalesce(src.symbol, src.file_path) AS file,
                   coalesce(src.start_line, 0) AS line,
@@ -43,6 +44,8 @@ public static class BuiltInGateCatalog
         new SemanticGate
         {
             Id = "SIG-P-B-002",
+            Category = GateCategory.Architectural,
+            Platform = "agnostic",
             Scope = InvariantScope.Module,
             Dimension = InvariantDimension.Boundaries,
             Name = "Database Driver Isolation",
@@ -53,7 +56,7 @@ public static class BuiltInGateCatalog
                 MATCH (driver)-[:CALLS|USES_TYPE]->(domain:Type)
                 WHERE (driver.symbol CONTAINS 'Database/' OR driver.file_path CONTAINS 'Database/')
                   AND (domain.symbol CONTAINS 'CodeExplorer.Core/Parser/' OR domain.name IN ['PostIndexAnalyzer', 'WorkspaceIndexer'])
-                  AND NOT (driver.symbol CONTAINS 'Test' OR driver.file_path CONTAINS 'Test')
+                  AND NOT coalesce(driver.is_test, false)
                 RETURN 
                   coalesce(driver.symbol, driver.file_path) AS file,
                   coalesce(driver.start_line, 0) AS line,
@@ -72,6 +75,8 @@ public static class BuiltInGateCatalog
         new SemanticGate
         {
             Id = "SIG-S-B-001",
+            Category = GateCategory.Platform,
+            Platform = "dotnet",
             Scope = InvariantScope.Service,
             Dimension = InvariantDimension.Boundaries,
             Name = "Storage Interface Abstraction Invariance",
@@ -82,7 +87,7 @@ public static class BuiltInGateCatalog
                 MATCH (parser)-[:CALLS|USES_TYPE]->(concreteDb:Type)
                 WHERE (parser.symbol CONTAINS 'Parser/' OR parser.file_path CONTAINS 'Parser/')
                   AND concreteDb.name IN ['SqliteGraphClient', 'SqliteConnection', 'SqliteCommand']
-                  AND NOT (parser.symbol CONTAINS 'Test' OR parser.file_path CONTAINS 'Test')
+                  AND NOT coalesce(parser.is_test, false)
                 RETURN 
                   coalesce(parser.symbol, parser.file_path) AS file,
                   coalesce(parser.start_line, 0) AS line,
@@ -102,19 +107,28 @@ public static class BuiltInGateCatalog
         new SemanticGate
         {
             Id = "SIG-C-I-001",
+            Category = GateCategory.Architectural,
+            Platform = "agnostic",
             Scope = InvariantScope.Class,
             Dimension = InvariantDimension.Rules,
             Name = "In-Memory AST Visitor IO Purity",
             Severity = GateSeverity.Error,
-            Description = "Syntax visitors and enrichers must operate purely on in-memory ASTs and avoid ambient disk I/O.",
-            Remediation = "Eliminate direct File.ReadAllText calls inside AST traversal. Pass file text or AST nodes from the pipeline context.",
+            Description = "Syntax visitors and enrichers must operate purely on in-memory ASTs and avoid ambient disk I/O across any language.",
+            Remediation = "Eliminate direct filesystem read/write calls (e.g. File/Directory in .NET, fs in Node, os/ioutil in Go, pathlib in Python, Files in Java) inside AST traversal. Pass file text or AST nodes from the pipeline context.",
             Query = """
                 MATCH (visitor:Type)-[:CALLS]->(io:Type)
                 WHERE (visitor.symbol CONTAINS 'SyntaxEnricher' OR visitor.symbol CONTAINS 'Visitor' OR visitor.file_path CONTAINS 'SyntaxEnricher')
-                  AND io.name IN ['File', 'Directory', 'FileStream']
+                  AND io.name IN [
+                    'File', 'Directory', 'FileStream', 'StreamReader', 'StreamWriter',
+                    'fs', 'promises', 'fs-extra',
+                    'os', 'ioutil',
+                    'pathlib', 'shutil',
+                    'Files', 'Paths', 'FileInputStream', 'FileOutputStream'
+                  ]
                 RETURN 
                   coalesce(visitor.symbol, visitor.file_path) AS file,
                   coalesce(visitor.start_line, 0) AS line,
+                  coalesce(visitor.start_col, 0) AS column,
                   visitor.name AS symbol,
                   io.name AS target,
                   'AST enricher/visitor performs ambient disk I/O instead of operating on memory AST' AS message
@@ -130,6 +144,8 @@ public static class BuiltInGateCatalog
         new SemanticGate
         {
             Id = "SIG-P-C-001",
+            Category = GateCategory.Architectural,
+            Platform = "agnostic",
             Scope = InvariantScope.Module,
             Dimension = InvariantDimension.Contract,
             Name = "Project Identity Bijection",
@@ -157,6 +173,8 @@ public static class BuiltInGateCatalog
         new SemanticGate
         {
             Id = "SIG-A-B-001",
+            Category = GateCategory.Architectural,
+            Platform = "agnostic",
             Scope = InvariantScope.System,
             Dimension = InvariantDimension.Boundaries,
             Name = "Call Lineage Provenance",
@@ -185,6 +203,8 @@ public static class BuiltInGateCatalog
         new SemanticGate
         {
             Id = "SIG-P-B-003",
+            Category = GateCategory.Architectural,
+            Platform = "agnostic",
             Scope = InvariantScope.Module,
             Dimension = InvariantDimension.Boundaries,
             Name = "Clean Architecture Transport Purity",
@@ -211,6 +231,8 @@ public static class BuiltInGateCatalog
         new SemanticGate
         {
             Id = "SIG-P-I-001",
+            Category = GateCategory.Architectural,
+            Platform = "agnostic",
             Scope = InvariantScope.Module,
             Dimension = InvariantDimension.Rules,
             Name = "Circular Package Dependency Shield",
@@ -238,6 +260,8 @@ public static class BuiltInGateCatalog
         new SemanticGate
         {
             Id = "SIG-M-I-001",
+            Category = GateCategory.Architectural,
+            Platform = "agnostic",
             Scope = InvariantScope.Method,
             Dimension = InvariantDimension.Rules,
             Name = "Disallow Hardcoded Call Arguments",
@@ -246,14 +270,14 @@ public static class BuiltInGateCatalog
             Remediation = "Replace raw string literals with domain enums, strongly-typed IDs, named constants, or external configuration.",
             Query = """
                 MATCH (caller)-[:PASSES_LITERAL]->(lit:CallLiteral)
-                WHERE NOT (coalesce(caller.symbol, '') CONTAINS 'Test' OR coalesce(caller.file_path, '') CONTAINS 'Test' OR coalesce(caller.file_path, '') CONTAINS 'test' OR lit.file_path CONTAINS 'Test' OR lit.file_path CONTAINS 'test')
+                WHERE NOT coalesce(caller.is_test, false) AND NOT coalesce(lit.is_test, false)
                 RETURN 
                   lit.file_path AS file,
                   lit.line AS line,
                   lit.column AS column,
                   coalesce(caller.name, 'unknown') AS symbol,
-                  lit.callee + '(' + lit.value + ')' AS target,
-                  'Hardcoded string literal "' + lit.value + '" passed to ' + lit.callee AS message
+                  lit.callee AS target,
+                  'Hardcoded string literal "' + (CASE WHEN size(lit.value) > 40 THEN substring(lit.value, 0, 37) + '...' ELSE lit.value END) + '" passed to ' + lit.callee AS message
                 """,
             Ratchet = new GateRatchetSettings
             {

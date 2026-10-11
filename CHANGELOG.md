@@ -5,6 +5,39 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.0] - 2026-10-11
+
+### Added
+- **Semantic Invariant Gates (SIG) & Architectural Ratchets (`ce gate`)**:
+  - Declarative architectural invariant guardrails evaluated via sub-millisecond OpenCypher queries directly over SQLite `graph.db`.
+  - Monotonic Technical Debt Ratchets: baselines (`.codeexplorer/baselines/*.json`) enforce that technical debt strictly decreases ($N_{t+1} \le N_t$), blocking new architectural violations while tolerating legacy debt.
+  - Fractal Orthogonal Invariant Matrix (FOIM) taxonomy spanning 5 Scopes (Method, Class, Module, Service, System) and 4 Dimensions (Contract, Rules, Resources, Boundaries).
+  - Dual-tier gate categorization: `Architectural` (language-agnostic boundaries and layering) vs. `Platform` (runtime/language-specific idioms for .NET, TypeScript, Go, Python, Java, Kotlin, SQL, ColdFusion).
+  - New CLI commands:
+    - `ce gate check` (`ce gate`): Runs zero-match invariant checks with colored Spectre.Console violation tables, formatted separators, and actionable remediation steps. Supports `--category`, `--platform`, `--format table|json|sarif`, `--group-by`, `--limit`, and `--offset`.
+    - `ce gate list`: Lists all active gates, scopes, categories, and tolerated debt counts.
+    - `ce gate ratchet [--update]`: Inspects debt ratchets and burns down baselines automatically when debt is resolved.
+    - `ce gate init`: Scaffolds organized starter gates in `.codeexplorer/gates/architectural/` and `.codeexplorer/gates/platform/<platform>/`.
+  - Autonomous AI-Agent MCP Tool `check_semantic_gates`: Enables AI coding agents to self-verify architectural invariants before committing changes.
+  - Shipped built-in starter catalog: `SIG-P-B-001` (Pipeline Layer Hierarchy), `SIG-P-B-002` (Database Driver Isolation), `SIG-S-B-001` (Storage Driver Abstraction), `SIG-C-I-001` (In-Memory AST Visitor IO Purity), `SIG-P-C-001` (Project Identity Bijection), `SIG-A-B-001` (Call Lineage Provenance), `SIG-P-B-003` (Transport Purity), `SIG-P-I-001` (Circular Package Dependency Shield), `SIG-M-I-001` (Disallow Hardcoded Arguments).
+  - Published comprehensive "Gates on Growth" catalog with 34 polyglot gates across 8 platforms in `docs/proposals/semantic-invariant-gates-proposal.md`.
+
+---
+
+## [1.19.0] - 2026-10-02
+
+### Added
+- **Typed Cypher Queries & LINQ Provider (`GraphContext`)**:
+  - Introduced zero-allocation, strongly-typed Cypher query execution via `GraphContext` and `CypherQueryable<T>`.
+  - Added LINQ expression tree compiler (`CypherExpressionVisitor`) translating C# LINQ expressions (`client.Graph.Services.Where(...)`) into optimized OpenCypher ASTs.
+  - Implemented `ICypherQueryExecutor` interface and integrated typed graph access directly into `IGraphClient.Graph`.
+  - Added strongly-typed graph entity models: `ServiceEntity`, `AppEntity`, `WorkerEntity`, `CliToolEntity`, `DatabaseEntity`, `TopicEntity`, `ExternalServiceEntity`, `LibraryEntity`, `EndpointEntity`, and `GraphEntity`.
+  - Added full test suites for LINQ AST translation and SQLite execution in `CodeExplorer.Cypher.Tests/LinqTests.cs` and `LinqSqliteExecutionTests.cs`.
+- **Intelligent Endpoint Scoring Engine**:
+  - Score-based resolution for ambiguous cross-service endpoints and domain routing.
+- **Node Classification Enums**:
+  - Replaced raw string literals with typed enums across ontology node entities.
+
 ---
 
 ## [1.18.10] - 2026-10-02

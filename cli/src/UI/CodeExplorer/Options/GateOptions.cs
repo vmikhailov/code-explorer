@@ -11,6 +11,12 @@ public class GateOptions : ITargetOption
     [Option('g', "gate", Required = false, HelpText = "Optional specific Gate ID to evaluate (e.g. 'SIG-P-B-001').")]
     public string? GateId { get; set; }
 
+    [Option('c', "category", Required = false, HelpText = "Category filter ('Architectural', 'Platform').")]
+    public string? Category { get; set; }
+
+    [Option('p', "platform", Required = false, HelpText = "Platform filter (e.g. 'agnostic', 'dotnet', 'typescript', 'python', 'go', 'java').")]
+    public string? Platform { get; set; }
+
     [Option('s', "scope", Required = false, HelpText = "Scope filter ('Method', 'Class', 'Module', 'Service', 'System').")]
     public string? Scope { get; set; }
 

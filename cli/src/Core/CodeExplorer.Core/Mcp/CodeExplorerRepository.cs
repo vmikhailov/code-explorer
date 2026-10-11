@@ -15,6 +15,10 @@ namespace CodeExplorer.Core.Mcp;
 public class CodeExplorerRepository
 {
     private static readonly JsonSerializerOptions CompactJsonOptions = new() { WriteIndented = false };
+    private const string GateCatalogTableHeader = "| ID | Category | Platform | Scope | Dimension | Name | Severity | Source |";
+    private const string GateCatalogTableSeparator = "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |";
+    private const string GateSuiteTableHeader = "| ID | Category | Platform | Scope | Dimension | Gate Name | Status | Violations |";
+    private const string GateSuiteTableSeparator = "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |";
     private readonly ProjectQueryManager _queryManager;
     private readonly IGraphClient _defaultDbClient;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, IGraphClient> _clientCache = new(StringComparer.OrdinalIgnoreCase);
@@ -1145,7 +1149,7 @@ public class CodeExplorerRepository
             return TestIntelligenceService.FormatImpactMarkdown(report);
         }
 
-        var query = Queries.Get("get_affected_tests");
+        var query = Queries.Get(Queries.QueryGetAffectedTests);
         var parameters = new Dictionary<string, object?>
         {
             ["filePath"] = filePath,
@@ -1170,7 +1174,7 @@ public class CodeExplorerRepository
             return TestIntelligenceService.FormatCoverageMarkdown(report);
         }
 
-        var query = Queries.Get("get_test_coverage");
+        var query = Queries.Get(Queries.QueryGetTestCoverage);
         var parameters = new Dictionary<string, object?>
         {
             ["projectName"] = projectName
@@ -1870,6 +1874,8 @@ public class CodeExplorerRepository
 
     public async Task<string> CheckSemanticGatesAsync(
         string? gateId = null,
+        string? category = null,
+        string? platform = null,
         string? scope = null,
         string? dimension = null,
         bool includeTolerated = false,
@@ -1895,6 +1901,8 @@ public class CodeExplorerRepository
 
         InvariantScope? scopeFilter = !string.IsNullOrWhiteSpace(scope) && Enum.TryParse<InvariantScope>(scope, true, out var s) ? s : null;
         InvariantDimension? dimFilter = !string.IsNullOrWhiteSpace(dimension) && Enum.TryParse<InvariantDimension>(dimension, true, out var d) ? d : null;
+        GateCategory? categoryFilter = !string.IsNullOrWhiteSpace(category) && Enum.TryParse<GateCategory>(category, true, out var c) ? c : null;
+        string? platformFilter = !string.IsNullOrWhiteSpace(platform) ? platform.Trim() : null;
 
         if (!string.IsNullOrWhiteSpace(gateId))
         {
@@ -1910,11 +1918,19 @@ public class CodeExplorerRepository
             return FormatSingleGateResult(singleResult, includeTolerated, limit, fileFilter, groupBy, format);
         }
 
-        var suiteResult = await engine.CheckSuiteAsync(null, scopeFilter, dimFilter, cancellationToken);
+        var suiteResult = await engine.CheckSuiteAsync(
+            null,
+            scopeFilter,
+            dimFilter,
+            categoryFilter,
+            platformFilter,
+            cancellationToken);
         return FormatSuiteResult(suiteResult, format);
     }
 
     public async Task<string> ListSemanticGatesAsync(
+        string? category = null,
+        string? platform = null,
         string format = "markdown",
         string? workspacePath = null,
         CancellationToken cancellationToken = default)
@@ -1926,6 +1942,15 @@ public class CodeExplorerRepository
         var gateRepo = new FileGateRepository(effectivePath);
         var allGates = await gateRepo.GetAllGatesAsync(cancellationToken);
 
+        if (!string.IsNullOrWhiteSpace(category) && Enum.TryParse<GateCategory>(category, true, out var cat))
+        {
+            allGates = allGates.Where(g => g.Category == cat).ToList();
+        }
+        if (!string.IsNullOrWhiteSpace(platform))
+        {
+            allGates = allGates.Where(g => string.Equals(g.Platform, platform.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+
         if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
         {
             return JsonSerializer.Serialize(new
@@ -1934,6 +1959,8 @@ public class CodeExplorerRepository
                 gates = allGates.Select(g => new
                 {
                     g.Id,
+                    Category = g.Category.ToString(),
+                    g.Platform,
                     Scope = g.Scope.ToString(),
                     Dimension = g.Dimension.ToString(),
                     Coordinate = g.CoordinateCode,
@@ -1948,11 +1975,11 @@ public class CodeExplorerRepository
 
         var sb = new System.Text.StringBuilder();
         sb.AppendLine($"# Semantic Invariant Gates ({allGates.Count})\n");
-        sb.AppendLine("| ID | Scope | Dimension | Name | Severity | Source |");
-        sb.AppendLine("| :--- | :--- | :--- | :--- | :--- | :--- |");
+        sb.AppendLine(GateCatalogTableHeader);
+        sb.AppendLine(GateCatalogTableSeparator);
         foreach (var g in allGates)
         {
-            sb.AppendLine($"| `{g.Id}` | {g.Scope} | {g.Dimension} | **{g.Name}** | `{g.Severity}` | {g.Source} |");
+            sb.AppendLine($"| `{g.Id}` | {g.Category} | `{g.Platform}` | {g.Scope} | {g.Dimension} | **{g.Name}** | `{g.Severity}` | {g.Source} |");
         }
         sb.AppendLine();
         sb.AppendLine("> Use `check_semantic_gates` tool with `gateId` or `scope` to evaluate these architectural invariants.");
@@ -2104,8 +2131,8 @@ public class CodeExplorerRepository
         sb.AppendLine($"- **New Violations**: {suite.NewViolationsCount} | **Tolerated Baseline Debt**: {suite.ToleratedViolationsCount}");
         sb.AppendLine($"- **Evaluation Time**: {suite.TotalDuration.TotalMilliseconds:F1}ms\n");
 
-        sb.AppendLine("| ID | Scope | Dimension | Gate Name | Status | Violations |");
-        sb.AppendLine("| :--- | :--- | :--- | :--- | :--- | :--- |");
+        sb.AppendLine(GateSuiteTableHeader);
+        sb.AppendLine(GateSuiteTableSeparator);
         foreach (var r in suite.Results)
         {
             var stIcon = r.Status switch
@@ -2116,7 +2143,7 @@ public class CodeExplorerRepository
                 _ => "💥 ERR"
             };
             var vCount = r.NewViolations.Count > 0 ? $"**{r.NewViolations.Count} new**" : $"{r.Violations.Count}";
-            sb.AppendLine($"| `{r.Gate.Id}` | {r.Gate.Scope} | {r.Gate.Dimension} | {r.Gate.Name} | {stIcon} | {vCount} |");
+            sb.AppendLine($"| `{r.Gate.Id}` | {r.Gate.Category} | `{r.Gate.Platform}` | {r.Gate.Scope} | {r.Gate.Dimension} | {r.Gate.Name} | {stIcon} | {vCount} |");
         }
         sb.AppendLine();
 

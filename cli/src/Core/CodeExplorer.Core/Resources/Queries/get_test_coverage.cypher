@@ -1,9 +1,9 @@
 MATCH (item)
 WHERE (item:Function OR item:Type)
-  AND (item.is_test IS NULL OR item.is_test <> 'true')
+  AND (item.is_test IS NULL OR (item.is_test <> true AND item.is_test <> 'true'))
   AND ($projectName IS NULL OR item.project = $projectName)
 OPTIONAL MATCH (test:Function)-[:CALLS*1..10]->(item)
-WHERE test.is_test = 'true'
+WHERE test.is_test = true OR test.is_test = 'true'
 WITH item, count(DISTINCT test) AS coveringTestCount, collect(DISTINCT test.name) AS coveringTests
 RETURN
     item.name AS name,

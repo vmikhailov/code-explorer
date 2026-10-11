@@ -4,78 +4,37 @@ This document tracks active epics, immediate architectural refactoring plans, an
 
 ---
 
-## 🚨 IMMEDIATE PRIORITY: First-Class Semantic Entities (`Service`, `App`, `Library`, `Worker`, `CliTool`)
+## 🚨 IMMEDIATE FOCUS: Structural Graph Invariants & Gate Hardening (v1.32.0)
+
+> Context & Detailed Specification: [**`semantic-invariant-gates-plan.md`**](./semantic-invariant-gates-plan.md) (Phase 6)
 
 ### 1. Architectural Goal
-Replace abstract `Project` with a `role` field in JSON with specialized first-class node types in SQLite (`kind = 'Service'`, `kind = 'App'`, `kind = 'Library'`, `kind = 'Worker'`, `kind = 'CliTool'`).
-At the same time, ensure transparent polymorphism in the Cypher compiler: `MATCH (p:Project)` matches any of them.
+1. **Eliminate brittle string heuristics** (`WHERE NOT file_path CONTAINS 'Test'`) across all gates by propagating `is_test: bool`, `project_kind: string`, and `project_name: string` onto `FileNode`, `CallLiteralNode`, `TypeNode`, and `FunctionNode`.
+2. **Connect projects directly to files** via `(p:Project)-[:CONTAINS]->(f:File)` and `(f:File)-[:BELONGS_TO]->(p:Project)`.
+3. **Connect call literals to files** via `(lit:CallLiteral)-[:DECLARED_IN]->(f:File)`.
+4. **Order pipeline layers (`stage_order`)** to replace $O(N^2)$ combinatorial string queries in `SIG-P-B-001` with direct scalar comparison (`WHERE src.stage_order < tgt.stage_order`).
 
-```
-                  ┌──────────────────────┐
-                  │     ProjectNode      │ (base type / unclassified)
-                  └──────────┬───────────┘
-         ┌─────────────┬─────┴───────┬─────────────┬─────────────┐
-         ▼             ▼             ▼             ▼             ▼
-   ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐
-   │ServiceNode│ │  AppNode  │ │LibraryNode│ │WorkerNode │ │CliToolNode│
-   └───────────┘ └───────────┘ └───────────┘ └───────────┘ └───────────┘
-   kind:Service  kind:App      kind:Library  kind:Worker   kind:CliTool
-```
-
-### 2. Step-by-Step Implementation Plan
-
-#### Phase 1. Data Model & C# Node Classes (`CodeExplorer.Core`)
-- [x] **1.1 Base `ProjectNode`**:
-  - Preserve common fields: `Id`, `Name`, `Path`, `ProjectType` (language: csharp, typescript, etc.), `Extensions`.
-- [x] **1.2 New Node Classes in `Common/Nodes/Layer2_Boundaries/`**:
-  - `ServiceNode.cs` (`[OntologyNode(label: "Service")]`):
-    - Relationships: `SERVICE_CALL`, `PUBLISHES_TO`, `SUBSCRIBES_TO`, `USES_DB`, `CONTAINS (Endpoint, EntryPoint, ApiInUse, CloudService)`.
-  - `AppNode.cs` (`[OntologyNode(label: "App")]`):
-    - Relationships: `SERVICE_CALL`, `CONTAINS (Endpoint, EntryPoint, ApiInUse)`.
-  - `LibraryNode.cs` (`[OntologyNode(label: "Library")]`):
-    - Relationships: `DEPENDS_ON`, `CONTAINS (Type, Function)`.
-  - `WorkerNode.cs` (`[OntologyNode(label: "Worker")]`):
-    - Relationships: `SUBSCRIBES_TO`, `PUBLISHES_TO`, `USES_DB`.
-  - `CliToolNode.cs` (`[OntologyNode(label: "CliTool")]`):
-    - Relationships: `USES_DB`, `DEPENDS_ON`.
-- [x] **1.3 Constants**:
-  - Lock names in `OntologyConstants.NodeLabels`.
-
-#### Phase 2. Factory and Classification During Scanning (`Layer2` & `PostIndexAnalyzer`)
-- [x] **2.1 Project Factory `ProjectNodeFactory`**:
-  - In `Layer2ProjectParser`, detect role upon discovering a project (via `ProjectRoleDetector`) and immediately instantiate the concrete type (`ServiceNode`, `AppNode`, `LibraryNode`, `WorkerNode`, `CliToolNode`).
-- [x] **2.2 SQLite Persistence (`kind`)**:
-  - In the `nodes` table, write the actual type into the `kind` column (`Service`, `App`, `Library`, `Worker`, `CliTool`).
-  - Type lookups become native via SQLite B-Tree index (`CREATE INDEX idx_nodes_kind ON nodes(kind)`).
-
-#### Phase 3. Polymorphism in Cypher Compiler (`CodeExplorer.Cypher`)
-- [x] **3.1 Direct Fast Lookup**:
-  - Translate `MATCH (s:Service)` into pure SQL: `WHERE s.kind = 'Service'` (no calls to `json_extract(properties, '$.role')`).
-- [x] **3.2 Hierarchical Polymorphism for `Project`**:
-  - Translate `MATCH (p:Project)` into:
-    `WHERE p.kind IN ('Project', 'Service', 'App', 'Library', 'Worker', 'CliTool')`.
-- [x] **3.3 Function `labels(n)`**:
-  - If `n.kind IN ('Service', 'App', 'Library', 'Worker', 'CliTool')`, return `json_array(n.kind, 'Project')`.
-
-#### Phase 4. Projection Engine & Queries (`ArchitectureViewEngine`)
-- [x] **4.1 Simplify C1 / C2 / C3 Queries**:
-  - Replace compound checks `WHERE p.kind = 'Project' AND json_extract(...)` with direct type matching: `MATCH (s:Service)`, `MATCH (l:Library)`.
-  - In C1 System Context, display only `Service`, `App`, `Worker`, `Database`, `Topic` (cleanly excluding `Library`).
-
-#### Phase 5. Ontology Auto-Generation (`OntologyGen`) & Tests
-- [x] **5.1 Regenerate `ontology.md`**:
-  - Run `OntologyGen`. Automatically generates separate sections with diagrams and properties for `Service`, `App`, `Library`, `Worker`, `CliTool`.
-- [x] **5.2 Tests**:
-  - Test suite in `CodeExplorer.Cypher.Tests`:
-    - `MATCH (s:Service)` matches only services.
-    - `MATCH (p:Project)` polymorphically matches all projects.
-  - Regression tests in `CodeExplorer.Tests`.
+### 2. Immediate Tasks
+- [x] **6.7.1 Node Properties & Serialization**: Add `is_test`, `project_kind`, `project_name` to `FileNode`, `CallLiteralNode`, `TypeNode`, `FunctionNode`.
+- [x] **6.7.2 Layer 3 Ingestion**: Emit `(Project)-[:CONTAINS]->(File)`, `(File)-[:BELONGS_TO]->(Project)`, and `(CallLiteral)-[:DECLARED_IN]->(File)` using `filesByProjectId`.
+- [x] **6.7.3 Pipeline Stage Ordering**: Add `GetPipelineStageOrder` in `WorkspaceConventions` and attach `stage_order` to stage types.
+- [x] **6.8.1 Gate Queries Refactoring**: Simplify `SIG-P-B-001`, `SIG-M-I-001`, `SIG-P-B-002`, `SIG-S-B-001` in `BuiltInGateCatalog.cs` and `.codeexplorer/gates/`.
+- [x] **6.8.2 Verification**: Run `dotnet test`, rebuild index, and run `ce gate check`.
 
 ---
 
-## 🎯 EPIC 0: Universal Semantic Value Resolution & Zero-Hack Cleanup
+## 🎯 EPIC 0: Universal Semantic Value Resolution & Zero-Hack Cleanup ✅ DELIVERED
 
 > **Detailed Specification:** See [**`semantic-resolution-and-hacks-cleanup-plan.md`**](../archive/semantic-resolution-and-hacks-cleanup-plan.md).
+
+### 0.1 - 0.5: First-Class Semantic Entities (`Service`, `App`, `Library`, `Worker`, `CliTool`)
+- [x] **0.1 Base `ProjectNode`**: Preserve common fields `Id`, `Name`, `Path`, `ProjectType`, `Extensions`.
+- [x] **0.2 New Node Classes**: `ServiceNode`, `AppNode`, `LibraryNode`, `WorkerNode`, `CliToolNode` with dedicated relationships.
+- [x] **0.3 SQLite Persistence**: Native indexing on `kind` column (`CREATE INDEX idx_nodes_kind ON nodes(kind)`).
+- [x] **0.4 Cypher Polymorphism**: Transparent fallback `MATCH (p:Project)` matching any subtype, and direct `MATCH (s:Service)`.
+- [x] **0.5 Projection & Taxonomy**: Simplified C1/C2/C3 projections in `ArchitectureViewEngine` and auto-generated `ontology.md`.
+
+### 0.6 - 0.12: Value Resolution & Core Cleanups
 
 - [x] **0.6 Unified ConfigStore in Layer 2/3**:
   - Relocate configuration parsing (`appsettings*.json`, `.env*`, `application*.yml/properties`) before AST file parsing.
@@ -184,7 +143,7 @@ At the same time, ensure transparent polymorphism in the Cypher compiler: `MATCH
 
 ## 🛡️ EPIC 6: Semantic Invariant Gates (SIG) & Architectural Ratchets
 
-> Full specification: [semantic-invariant-gates-plan.md](semantic-invariant-gates-plan.md) | Architectural Theory: [fractal-orthogonal-invariant-matrix.md](fractal-orthogonal-invariant-matrix.md)
+> Full specification: [semantic-invariant-gates-plan.md](semantic-invariant-gates-plan.md) | Architectural Theory: [../architecture/fractal-orthogonal-invariant-matrix.md](../architecture/fractal-orthogonal-invariant-matrix.md) | Polyglot Proposal & Catalog: [docs/proposals/semantic-invariant-gates-proposal.md](../proposals/semantic-invariant-gates-proposal.md)
 
 - [x] **6.1 Core Models & Serialization (`CodeExplorer.Core`)**:
   - `SemanticGate`, `GateViolation`, `GateCheckResult`, `GateBaseline` models.
@@ -200,6 +159,15 @@ At the same time, ensure transparent polymorphism in the Cypher compiler: `MATCH
   - Expose fast gate checks to AI agents via `ce mcp` with actionable remediation guidance.
 - [x] **6.5 Standard Built-in Gate Library**:
   - Clean Architecture transport purity, mutation chokepoints, dead endpoints, circular dependencies, AST visitor IO purity, and hardcoded call arguments (`SIG-M-I-001`).
+- [x] **6.6 Gate Taxonomy & Category Architecture (`CodeExplorer.Core`)**:
+  - Introduced `Category` (`Architectural` vs `Platform`) and `Platform` (`agnostic`, `dotnet`, `typescript`, etc.).
+  - Organized starter gates into `.codeexplorer/gates/architectural/` and `.codeexplorer/gates/platform/<platform>/`.
+  - Added `--category` and `--platform` flags to CLI and MCP tool.
+- [ ] **6.7 Structural Graph Links & Semantic Flags (`Project` $\leftrightarrow$ `File`, `is_test`, `project_kind`)**:
+  - Emit `(p:Project)-[:CONTAINS]->(f:File)` and `(f:File)-[:BELONGS_TO]->(p:Project)` during Layer 3 indexing.
+  - Propagate `is_test` and `project_kind` to replace fragile string `CONTAINS 'Test'` heuristics.
+- [ ] **6.8 Ordered Layer & Pipeline Stage Invariants (`LayerNode`, `[:PRECEDES]`, `stage_order`)**:
+  - Replace combinatorial $O(N^2)$ `OR` clauses in `SIG-P-B-001` with clean `WHERE src.stage_order < tgt.stage_order`.
 
 ---
 
@@ -239,3 +207,6 @@ At the same time, ensure transparent polymorphism in the Cypher compiler: `MATCH
 | **6.3** | CLI | Implement `ce gate check/list/ratchet/init` CLI commands | High | ✅ Completed |
 | **6.4** | Agent/MCP | Implement `check_semantic_gates` MCP tool with actionable remediation | High | ✅ Completed |
 | **6.5** | Library | Built-in starter gates (transport purity, chokepoint, dead endpoints, hardcoded call strings) | Medium | ✅ Completed |
+| **6.6** | Core/Gates | Gate taxonomy (`Category`, `Platform`, `--category`, `--platform`, organized directories) | High | ✅ Completed |
+| **6.7** | Core/Graph | Structural `Project` $\leftrightarrow$ `File` edges, `is_test`, and `project_kind` propagation | High | ⏳ In Progress |
+| **6.8** | Core/Graph | Ordered layer & pipeline stage relationships (`LayerNode`, `[:PRECEDES]`, `stage_order`) | Medium | ⏳ In Progress |

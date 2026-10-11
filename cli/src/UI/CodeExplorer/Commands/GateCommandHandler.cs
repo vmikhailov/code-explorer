@@ -9,6 +9,10 @@ namespace CodeExplorer.Commands;
 
 public class GateCommandHandler : BaseCommandHandler
 {
+    private const string FormatMarkdown = "markdown";
+    private const string MsgNoViolationsMatchingFilter = "No violations matching the specified filter across evaluated gates.";
+    private const string MsgNoViolationsDetectedAcrossGates = "No violations detected across evaluated gates.";
+
     public static async Task<int> HandleAsync(GateOptions opts)
     {
         var action = (opts.Action ?? "check").ToLowerInvariant();
@@ -30,12 +34,16 @@ public class GateCommandHandler : BaseCommandHandler
 
         InvariantScope? scopeFilter = !string.IsNullOrWhiteSpace(opts.Scope) && Enum.TryParse<InvariantScope>(opts.Scope, true, out var s) ? s : null;
         InvariantDimension? dimFilter = !string.IsNullOrWhiteSpace(opts.Dimension) && Enum.TryParse<InvariantDimension>(opts.Dimension, true, out var d) ? d : null;
+        GateCategory? categoryFilter = !string.IsNullOrWhiteSpace(opts.Category) && Enum.TryParse<GateCategory>(opts.Category, true, out var c) ? c : null;
+        string? platformFilter = !string.IsNullOrWhiteSpace(opts.Platform) ? opts.Platform.Trim() : null;
 
         if (action == "list")
         {
             var allGates = await repo.GetAllGatesAsync();
             if (scopeFilter.HasValue) allGates = allGates.Where(g => g.Scope == scopeFilter.Value).ToList();
             if (dimFilter.HasValue) allGates = allGates.Where(g => g.Dimension == dimFilter.Value).ToList();
+            if (categoryFilter.HasValue) allGates = allGates.Where(g => g.Category == categoryFilter.Value).ToList();
+            if (!string.IsNullOrWhiteSpace(platformFilter)) allGates = allGates.Where(g => string.Equals(g.Platform, platformFilter, StringComparison.OrdinalIgnoreCase)).ToList();
 
             if (opts.Format.Equals("json", StringComparison.OrdinalIgnoreCase))
             {
@@ -43,14 +51,26 @@ public class GateCommandHandler : BaseCommandHandler
                 return 0;
             }
 
+            if (opts.Format.Equals(FormatMarkdown, StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine($"### Registered Semantic Invariant Gates ({allGates.Count})\n");
+                Console.WriteLine("| ID | Category | Platform | Scope | Dimension | Severity | Source | Name |");
+                Console.WriteLine("| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |");
+                foreach (var g in allGates)
+                {
+                    Console.WriteLine($"| `{g.Id}` | {g.Category} | `{g.Platform}` | {g.Scope} | {g.Dimension} | {g.Severity} | {g.Source} | {g.Name} |");
+                }
+                return 0;
+            }
+
             Console.WriteLine($"\nRegistered Semantic Invariant Gates ({allGates.Count}):\n");
-            Console.WriteLine($"{"ID",-15} {"SCOPE",-10} {"DIMENSION",-12} {"SEVERITY",-10} {"SOURCE",-12} {"NAME"}");
-            Console.WriteLine(new string('-', 85));
+            Console.WriteLine($"{"ID",-15} {"CATEGORY",-15} {"PLATFORM",-10} {"SCOPE",-9} {"DIM",-12} {"SEVERITY",-10} {"SOURCE",-12} {"NAME"}");
+            Console.WriteLine(new string('-', 100));
 
             foreach (var g in allGates)
             {
                 var sevColor = g.Severity == GateSeverity.Error ? ConsoleColor.Red : ConsoleColor.Yellow;
-                Console.Write($"{g.Id,-15} {g.Scope,-10} {g.Dimension,-12} ");
+                Console.Write($"{g.Id,-15} {g.Category,-15} {g.Platform,-10} {g.Scope,-9} {g.Dimension,-12} ");
                 Console.ForegroundColor = sevColor;
                 Console.Write($"{g.Severity,-10} ");
                 Console.ResetColor();
@@ -62,7 +82,19 @@ public class GateCommandHandler : BaseCommandHandler
 
         if (action == "ratchet")
         {
-            var suite = await engine.CheckSuiteAsync(null, scopeFilter, dimFilter);
+            List<SemanticGate>? targetGates = null;
+            if (!string.IsNullOrWhiteSpace(opts.GateId))
+            {
+                var g = await repo.GetGateByIdAsync(opts.GateId);
+                if (g == null)
+                {
+                    PrintError($"Error: Gate '{opts.GateId}' not found.");
+                    return 1;
+                }
+                targetGates = [g];
+            }
+
+            var suite = await engine.CheckSuiteAsync(targetGates, scopeFilter, dimFilter, categoryFilter, platformFilter);
 
             if (opts.Update)
             {
@@ -115,7 +147,7 @@ public class GateCommandHandler : BaseCommandHandler
             }
             else
             {
-                var suite = await engine.CheckSuiteAsync(null, scopeFilter, dimFilter);
+                var suite = await engine.CheckSuiteAsync(null, scopeFilter, dimFilter, categoryFilter, platformFilter);
                 resultsToInspect.AddRange(suite.Results);
             }
 
@@ -136,7 +168,7 @@ public class GateCommandHandler : BaseCommandHandler
             return RenderSingleGate(singleResult, opts);
         }
 
-        var fullSuite = await engine.CheckSuiteAsync(null, scopeFilter, dimFilter);
+        var fullSuite = await engine.CheckSuiteAsync(null, scopeFilter, dimFilter, categoryFilter, platformFilter);
         return RenderSuite(fullSuite, opts);
     }
 
@@ -162,7 +194,11 @@ public class GateCommandHandler : BaseCommandHandler
         };
 
         Console.Write($"{label} ", color);
-        Console.WriteLine($"{r.Gate.Id} - {r.Gate.Name} ({r.Duration.TotalMilliseconds:F0}ms)");
+        Console.WriteLine($"{r.Gate.Id} [{r.Gate.Category}/{r.Gate.Platform}] - {r.Gate.Name} ({r.Duration.TotalMilliseconds:F0}ms)");
+        if (!string.IsNullOrEmpty(r.Gate.Description))
+        {
+            Console.WriteLine($"  Rule: {r.Gate.Description}");
+        }
 
         if (r.NewViolations.Count > 0)
         {
@@ -208,9 +244,31 @@ public class GateCommandHandler : BaseCommandHandler
             return suite.IsSuccess ? 0 : 1;
         }
 
+        if (opts.Format.Equals(FormatMarkdown, StringComparison.OrdinalIgnoreCase))
+        {
+            Console.WriteLine("### Semantic Invariant Gates Evaluation\n");
+            Console.WriteLine("| Status | ID | Category | Platform | Scope | Violations | Name |");
+            Console.WriteLine("| :--- | :--- | :--- | :--- | :--- | :--- | :--- |");
+            foreach (var r in suite.Results)
+            {
+                var st = r.Status switch
+                {
+                    GateCheckStatus.Passed => "PASS",
+                    GateCheckStatus.PassedTolerated => "TOLERATED",
+                    GateCheckStatus.FailedNew => "FAIL",
+                    _ => "ERROR"
+                };
+                var vText = r.NewViolations.Count > 0 ? $"{r.NewViolations.Count} new" : $"{r.Violations.Count} tol";
+                if (r.Violations.Count == 0) vText = "0";
+                Console.WriteLine($"| {st} | `{r.Gate.Id}` | {r.Gate.Category} | `{r.Gate.Platform}` | {r.Gate.Scope} | {vText} | {r.Gate.Name} |");
+            }
+            Console.WriteLine($"\n**Total**: {suite.TotalGates} gates | Passed: {suite.PassedCount} | Failed: {suite.FailedCount} | Duration: {suite.TotalDuration.TotalMilliseconds:F0}ms\n");
+            return suite.IsSuccess ? 0 : 1;
+        }
+
         Console.WriteLine("\n--- Semantic Invariant Gates Evaluation ---\n");
-        Console.WriteLine($"{"STATUS",-14} {"ID",-15} {"SCOPE",-10} {"DIM",-12} {"VIOLATIONS",-15} {"NAME"}");
-        Console.WriteLine(new string('-', 90));
+        Console.WriteLine($"{"STATUS",-14} {"ID",-15} {"CATEGORY",-15} {"PLATFORM",-10} {"SCOPE",-9} {"VIOLATIONS",-15} {"NAME"}");
+        Console.WriteLine(new string('-', 105));
 
         foreach (var r in suite.Results)
         {
@@ -229,10 +287,10 @@ public class GateCommandHandler : BaseCommandHandler
             var vText = r.NewViolations.Count > 0 ? $"{r.NewViolations.Count} new" : $"{r.Violations.Count} tol";
             if (r.Violations.Count == 0) vText = "0";
 
-            Console.WriteLine($"{r.Gate.Id,-15} {r.Gate.Scope,-10} {r.Gate.Dimension,-12} {vText,-15} {r.Gate.Name}");
+            Console.WriteLine($"{r.Gate.Id,-15} {r.Gate.Category,-15} {r.Gate.Platform,-10} {r.Gate.Scope,-9} {vText,-15} {r.Gate.Name}");
         }
 
-        Console.WriteLine(new string('-', 90));
+        Console.WriteLine(new string('-', 105));
         Console.WriteLine($"Total: {suite.TotalGates} gates | Passed: {suite.PassedCount} | Failed: {suite.FailedCount} | Duration: {suite.TotalDuration.TotalMilliseconds:F0}ms\n");
 
         var failed = suite.Results.Where(r => r.Status is GateCheckStatus.FailedNew or GateCheckStatus.Error).ToList();
@@ -245,6 +303,10 @@ public class GateCommandHandler : BaseCommandHandler
             foreach (var fg in failed)
             {
                 Console.WriteLine($"Gate [{fg.Gate.Id}] {fg.Gate.Name}:");
+                if (!string.IsNullOrEmpty(fg.Gate.Description))
+                {
+                    Console.WriteLine($"  Rule: {fg.Gate.Description}");
+                }
                 foreach (var v in fg.NewViolations)
                 {
                     var loc = v.Location != "-" ? v.Location : "";
@@ -316,6 +378,74 @@ public class GateCommandHandler : BaseCommandHandler
         var isJson = opts.Format.Equals("json", StringComparison.OrdinalIgnoreCase);
         var isMarkdown = opts.Format.Equals("markdown", StringComparison.OrdinalIgnoreCase);
 
+        var targetGate = ResolveTargetGate(results, opts);
+
+        if (items.Count == 0 && string.IsNullOrWhiteSpace(opts.GroupBy))
+        {
+            if (isJson)
+            {
+                var payload = new Dictionary<string, object?>
+                {
+                    ["total"] = 0,
+                    ["offset"] = opts.Offset,
+                    ["limit"] = opts.Limit,
+                    ["violations"] = Array.Empty<object>()
+                };
+                if (!string.IsNullOrWhiteSpace(opts.GroupBy))
+                {
+                    payload["groupBy"] = opts.GroupBy.Trim().ToLowerInvariant();
+                    payload["totalViolations"] = 0;
+                    payload["totalGroups"] = 0;
+                    payload["groups"] = Array.Empty<object>();
+                }
+                if (targetGate != null)
+                {
+                    payload["gate"] = new
+                    {
+                        targetGate.Id,
+                        targetGate.Name,
+                        Category = targetGate.Category.ToString(),
+                        targetGate.Platform,
+                        Scope = targetGate.Scope.ToString(),
+                        Dimension = targetGate.Dimension.ToString(),
+                        Severity = targetGate.Severity.ToString(),
+                        targetGate.Description,
+                        targetGate.Remediation
+                    };
+                }
+                Console.WriteLine(JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }));
+                return 0;
+            }
+
+            if (isMarkdown)
+            {
+                if (targetGate != null)
+                {
+                    RenderGateMarkdownHeader(targetGate);
+                }
+                else
+                {
+                    var gateCount = results.Select(r => r.Gate.Id).Distinct().Count();
+                    Console.WriteLine($"### Architectural Violations Across {gateCount} Gates\n");
+                }
+                Console.WriteLine("**No violations detected.**\n");
+                return 0;
+            }
+
+            if (targetGate != null)
+            {
+                RenderGateConsoleHeader(targetGate, "Architectural Violations");
+                PrintNoViolationsMessage(targetGate, results, opts);
+            }
+            else
+            {
+                var gateCount = results.Select(r => r.Gate.Id).Distinct().Count();
+                Console.WriteLine($"\n--- Architectural Violations Across {gateCount} Gates ---\n");
+                PrintNoViolationsMessageMultiGate(results, opts);
+            }
+            return 0;
+        }
+
         // Grouped summary view
         if (!string.IsNullOrWhiteSpace(opts.GroupBy))
         {
@@ -346,19 +476,44 @@ public class GateCommandHandler : BaseCommandHandler
 
             if (isJson)
             {
-                Console.WriteLine(JsonSerializer.Serialize(new
+                var payload = new Dictionary<string, object?>
                 {
-                    groupBy,
-                    totalViolations = items.Count,
-                    totalGroups = groups.Count,
-                    groups
-                }, new JsonSerializerOptions { WriteIndented = true }));
+                    ["groupBy"] = groupBy,
+                    ["totalViolations"] = items.Count,
+                    ["totalGroups"] = groups.Count,
+                    ["groups"] = groups
+                };
+                if (targetGate != null)
+                {
+                    payload["gate"] = new
+                    {
+                        targetGate.Id,
+                        targetGate.Name,
+                        Category = targetGate.Category.ToString(),
+                        targetGate.Platform,
+                        Scope = targetGate.Scope.ToString(),
+                        Dimension = targetGate.Dimension.ToString(),
+                        Severity = targetGate.Severity.ToString(),
+                        targetGate.Description,
+                        targetGate.Remediation
+                    };
+                }
+                Console.WriteLine(JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }));
                 return 0;
             }
 
             if (isMarkdown)
             {
-                Console.WriteLine($"### Violations Summary Grouped by `{groupBy}`");
+                if (targetGate != null)
+                {
+                    RenderGateMarkdownHeader(targetGate, $"Violations Summary Grouped by `{groupBy}`");
+                }
+                else
+                {
+                    var gateCount = results.Select(r => r.Gate.Id).Distinct().Count();
+                    Console.WriteLine($"### Violations Summary Grouped by `{groupBy}` Across {gateCount} Gates\n");
+                }
+
                 Console.WriteLine($"- **Total Violations**: {items.Count} across {groups.Count} unique `{groupBy}` targets\n");
                 Console.WriteLine($"| Violations | New | Tolerated | {groupBy.ToUpperInvariant()} |");
                 Console.WriteLine("| :--- | :--- | :--- | :--- |");
@@ -369,7 +524,16 @@ public class GateCommandHandler : BaseCommandHandler
                 return 0;
             }
 
-            Console.WriteLine($"\n--- Violations Summary Grouped by '{groupBy}' ---\n");
+            if (targetGate != null)
+            {
+                RenderGateConsoleHeader(targetGate, $"Violations Summary Grouped by '{groupBy}'");
+            }
+            else
+            {
+                var gateCount = results.Select(r => r.Gate.Id).Distinct().Count();
+                Console.WriteLine($"\n--- Violations Summary Grouped by '{groupBy}' Across {gateCount} Gates ---\n");
+            }
+
             Console.WriteLine($"Total Violations: {items.Count} across {groups.Count} unique {groupBy} targets\n");
 
             var displayGroups = opts.Limit > 0 ? groups.Take(opts.Limit).ToList() : groups;
@@ -411,7 +575,8 @@ public class GateCommandHandler : BaseCommandHandler
                 Console.WriteLine($"\n... and {groups.Count - displayGroups.Count} more groups. Use '--limit 0' to show all.");
             }
 
-            Console.WriteLine($"\nTip: Drill down into a specific file: ce gate violations -g {opts.GateId ?? "<gate-id>"} --file <filename>");
+            var drilldownGate = targetGate?.Id ?? opts.GateId ?? "<gate-id>";
+            Console.WriteLine($"\nTip: Drill down into a specific file: ce gate violations -g {drilldownGate} --file <filename>");
             return 0;
         }
 
@@ -423,12 +588,12 @@ public class GateCommandHandler : BaseCommandHandler
 
         if (isJson)
         {
-            Console.WriteLine(JsonSerializer.Serialize(new
+            var payload = new Dictionary<string, object?>
             {
-                total,
-                offset = opts.Offset,
-                limit = opts.Limit,
-                violations = pageList.Select(x => new
+                ["total"] = total,
+                ["offset"] = opts.Offset,
+                ["limit"] = opts.Limit,
+                ["violations"] = pageList.Select(x => new
                 {
                     x.Violation.GateId,
                     File = GateViolation.CleanFilePath(x.Violation.File) != "-" ? GateViolation.CleanFilePath(x.Violation.File) : x.Violation.File,
@@ -441,62 +606,148 @@ public class GateCommandHandler : BaseCommandHandler
                     x.Violation.Fingerprint,
                     isTolerated = x.IsTolerated
                 })
-            }, new JsonSerializerOptions { WriteIndented = true }));
+            };
+            if (targetGate != null)
+            {
+                payload["gate"] = new
+                {
+                    targetGate.Id,
+                    targetGate.Name,
+                    Category = targetGate.Category.ToString(),
+                    targetGate.Platform,
+                    Scope = targetGate.Scope.ToString(),
+                    Dimension = targetGate.Dimension.ToString(),
+                    Severity = targetGate.Severity.ToString(),
+                    targetGate.Description,
+                    targetGate.Remediation
+                };
+            }
+            Console.WriteLine(JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }));
             return 0;
         }
 
-        var gateLabel = !string.IsNullOrWhiteSpace(opts.GateId) ? $"[{opts.GateId}]" : "All Gates";
         var tolCount = items.Count(x => x.IsTolerated);
         var newCount = items.Count(x => !x.IsTolerated);
 
         if (isMarkdown)
         {
-            Console.WriteLine($"### Architectural Violations for {gateLabel}");
+            if (targetGate != null)
+            {
+                RenderGateMarkdownHeader(targetGate);
+            }
+            else
+            {
+                var gateCount = results.Select(r => r.Gate.Id).Distinct().Count();
+                Console.WriteLine($"### Architectural Violations Across {gateCount} Gates\n");
+            }
+
             Console.WriteLine($"- **Total**: {total} (New: {newCount}, Tolerated: {tolCount})");
             Console.WriteLine($"- **Showing**: {(total == 0 ? 0 : opts.Offset + 1)}..{opts.Offset + pageList.Count} of {total}\n");
-            Console.WriteLine("| Status | Location | Symbol | Target / Details |");
-            Console.WriteLine("| :--- | :--- | :--- | :--- |");
-            foreach (var (v, isTol) in pageList)
+
+            if (targetGate != null)
             {
-                var st = isTol ? "TOLERATED" : "NEW";
-                var loc = v.Location != "-" ? $"`{v.Location}`" : "-";
-                var sym = !string.IsNullOrEmpty(v.Symbol) ? $"`{v.Symbol}`" : "-";
-                var tgt = !string.IsNullOrEmpty(v.Target) ? $"`{v.Target}`" : (v.Message ?? "");
-                Console.WriteLine($"| {st} | {loc} | {sym} | {tgt} |");
+                Console.WriteLine("| Status | Location | Symbol | Target / Details |");
+                Console.WriteLine("| :--- | :--- | :--- | :--- |");
+                foreach (var (v, isTol) in pageList)
+                {
+                    var st = isTol ? "TOLERATED" : "NEW";
+                    var loc = v.Location != "-" ? $"`{v.Location}`" : "-";
+                    var sym = !string.IsNullOrEmpty(v.Symbol) ? $"`{v.Symbol}`" : "-";
+                    var tgt = !string.IsNullOrEmpty(v.Target) ? $"`{v.Target}`" : (v.Message ?? "");
+                    Console.WriteLine($"| {st} | {loc} | {sym} | {tgt} |");
+                }
+            }
+            else
+            {
+                Console.WriteLine("| Gate | Status | Location | Symbol | Target / Details |");
+                Console.WriteLine("| :--- | :--- | :--- | :--- | :--- |");
+                foreach (var (v, isTol) in pageList)
+                {
+                    var st = isTol ? "TOLERATED" : "NEW";
+                    var loc = v.Location != "-" ? $"`{v.Location}`" : "-";
+                    var sym = !string.IsNullOrEmpty(v.Symbol) ? $"`{v.Symbol}`" : "-";
+                    var tgt = !string.IsNullOrEmpty(v.Target) ? $"`{v.Target}`" : (v.Message ?? "");
+                    Console.WriteLine($"| `{v.GateId}` | {st} | {loc} | {sym} | {tgt} |");
+                }
             }
             return 0;
         }
 
-        Console.WriteLine($"\n--- Architectural Violations for {gateLabel} ---\n");
-        Console.WriteLine($"Total: {total} (New: {newCount}, Tolerated: {tolCount}) | Showing: {(total == 0 ? 0 : opts.Offset + 1)}..{opts.Offset + pageList.Count}\n");
-
-        var statusWidth = Math.Max("STATUS".Length, pageList.Count > 0 ? pageList.Max(x => (x.IsTolerated ? "[TOL]" : "[NEW]").Length) : 6);
-        var locWidth = Math.Max("LOCATION".Length, pageList.Count > 0 ? pageList.Max(x => (x.Violation.Location != "-" ? x.Violation.Location : "").Length) : 8);
-        var symWidth = Math.Max("SYMBOL".Length, pageList.Count > 0 ? pageList.Max(x => (x.Violation.Symbol ?? "").Length) : 6);
-        var tgtWidth = Math.Max("TARGET / CALL".Length, pageList.Count > 0 ? pageList.Max(x => (!string.IsNullOrEmpty(x.Violation.Target) ? x.Violation.Target : (x.Violation.Message ?? "")).Length) : 13);
-
-        var headerLine = $"{"STATUS".PadRight(statusWidth)} | {"LOCATION".PadRight(locWidth)} | {"SYMBOL".PadRight(symWidth)} | {"TARGET / CALL".PadRight(tgtWidth)}";
-        var dividerLine = $"{new string('-', statusWidth)}-+-{new string('-', locWidth)}-+-{new string('-', symWidth)}-+-{new string('-', tgtWidth)}";
-
-        Console.WriteLine(headerLine);
-        Console.WriteLine(dividerLine);
-
-        foreach (var (v, isTol) in pageList)
+        if (targetGate != null)
         {
-            var st = isTol ? "[TOL]" : "[NEW]";
-            var loc = v.Location != "-" ? v.Location : "";
-            var sym = v.Symbol ?? "";
-            var tgt = !string.IsNullOrEmpty(v.Target) ? v.Target : (v.Message ?? "");
-
-            var color = isTol ? ConsoleColor.Yellow : ConsoleColor.Red;
-            Console.ForegroundColor = color;
-            Console.Write(st.PadRight(statusWidth));
-            Console.ResetColor();
-
-            Console.WriteLine($" | {loc.PadRight(locWidth)} | {sym.PadRight(symWidth)} | {tgt}");
+            RenderGateConsoleHeader(targetGate, "Architectural Violations");
+        }
+        else
+        {
+            var gateCount = results.Select(r => r.Gate.Id).Distinct().Count();
+            Console.WriteLine($"\n--- Architectural Violations Across {gateCount} Gates ---\n");
         }
 
-        Console.WriteLine(dividerLine);
+        Console.WriteLine($"Total: {total} (New: {newCount}, Tolerated: {tolCount}) | Showing: {(total == 0 ? 0 : opts.Offset + 1)}..{opts.Offset + pageList.Count}\n");
+
+        if (targetGate != null)
+        {
+            var statusWidth = Math.Max("STATUS".Length, pageList.Count > 0 ? pageList.Max(x => (x.IsTolerated ? "[TOL]" : "[NEW]").Length) : 6);
+            var locWidth = Math.Max("LOCATION".Length, pageList.Count > 0 ? pageList.Max(x => (x.Violation.Location != "-" ? x.Violation.Location : "").Length) : 8);
+            var symWidth = Math.Max("SYMBOL".Length, pageList.Count > 0 ? pageList.Max(x => (x.Violation.Symbol ?? "").Length) : 6);
+            var tgtWidth = Math.Max("TARGET / CALL".Length, pageList.Count > 0 ? pageList.Max(x => (!string.IsNullOrEmpty(x.Violation.Target) ? x.Violation.Target : (x.Violation.Message ?? "")).Length) : 13);
+
+            var headerLine = $"{"STATUS".PadRight(statusWidth)} | {"LOCATION".PadRight(locWidth)} | {"SYMBOL".PadRight(symWidth)} | {"TARGET / CALL".PadRight(tgtWidth)}";
+            var dividerLine = $"{new string('-', statusWidth)}-+-{new string('-', locWidth)}-+-{new string('-', symWidth)}-+-{new string('-', tgtWidth)}";
+
+            Console.WriteLine(headerLine);
+            Console.WriteLine(dividerLine);
+
+            foreach (var (v, isTol) in pageList)
+            {
+                var st = isTol ? "[TOL]" : "[NEW]";
+                var loc = v.Location != "-" ? v.Location : "";
+                var sym = v.Symbol ?? "";
+                var tgt = !string.IsNullOrEmpty(v.Target) ? v.Target : (v.Message ?? "");
+
+                var color = isTol ? ConsoleColor.Yellow : ConsoleColor.Red;
+                Console.ForegroundColor = color;
+                Console.Write(st.PadRight(statusWidth));
+                Console.ResetColor();
+
+                Console.WriteLine($" | {loc.PadRight(locWidth)} | {sym.PadRight(symWidth)} | {tgt}");
+            }
+
+            Console.WriteLine(dividerLine);
+        }
+        else
+        {
+            var gateWidth = Math.Max("GATE".Length, pageList.Count > 0 ? pageList.Max(x => x.Violation.GateId.Length) : 4);
+            var statusWidth = Math.Max("STATUS".Length, pageList.Count > 0 ? pageList.Max(x => (x.IsTolerated ? "[TOL]" : "[NEW]").Length) : 6);
+            var locWidth = Math.Max("LOCATION".Length, pageList.Count > 0 ? pageList.Max(x => (x.Violation.Location != "-" ? x.Violation.Location : "").Length) : 8);
+            var symWidth = Math.Max("SYMBOL".Length, pageList.Count > 0 ? pageList.Max(x => (x.Violation.Symbol ?? "").Length) : 6);
+            var tgtWidth = Math.Max("TARGET / CALL".Length, pageList.Count > 0 ? pageList.Max(x => (!string.IsNullOrEmpty(x.Violation.Target) ? x.Violation.Target : (x.Violation.Message ?? "")).Length) : 13);
+
+            var headerLine = $"{"GATE".PadRight(gateWidth)} | {"STATUS".PadRight(statusWidth)} | {"LOCATION".PadRight(locWidth)} | {"SYMBOL".PadRight(symWidth)} | {"TARGET / CALL".PadRight(tgtWidth)}";
+            var dividerLine = $"{new string('-', gateWidth)}-+-{new string('-', statusWidth)}-+-{new string('-', locWidth)}-+-{new string('-', symWidth)}-+-{new string('-', tgtWidth)}";
+
+            Console.WriteLine(headerLine);
+            Console.WriteLine(dividerLine);
+
+            foreach (var (v, isTol) in pageList)
+            {
+                var st = isTol ? "[TOL]" : "[NEW]";
+                var loc = v.Location != "-" ? v.Location : "";
+                var sym = v.Symbol ?? "";
+                var tgt = !string.IsNullOrEmpty(v.Target) ? v.Target : (v.Message ?? "");
+
+                Console.Write($"{v.GateId.PadRight(gateWidth)} | ");
+
+                var color = isTol ? ConsoleColor.Yellow : ConsoleColor.Red;
+                Console.ForegroundColor = color;
+                Console.Write(st.PadRight(statusWidth));
+                Console.ResetColor();
+
+                Console.WriteLine($" | {loc.PadRight(locWidth)} | {sym.PadRight(symWidth)} | {tgt}");
+            }
+
+            Console.WriteLine(dividerLine);
+        }
 
         if (total > opts.Offset + pageList.Count)
         {
@@ -505,10 +756,116 @@ public class GateCommandHandler : BaseCommandHandler
         Console.WriteLine("Use '--group-by file' or '--group-by callee' for aggregated overview.");
         if (string.IsNullOrWhiteSpace(opts.FileFilter))
         {
-            Console.WriteLine("Use '--file <pattern>' to filter by file path (e.g. '--file TypeScriptParser').");
+            var filterHint = targetGate != null ? $"ce gate violations -g {targetGate.Id} --file <filename>" : "ce gate violations --file <filename>";
+            Console.WriteLine($"Use '--file <pattern>' to filter by file path (e.g. '{filterHint}').");
         }
 
         return 0;
+    }
+
+    private static SemanticGate? ResolveTargetGate(IReadOnlyList<GateCheckResult> results, GateOptions opts)
+    {
+        if (!string.IsNullOrWhiteSpace(opts.GateId))
+        {
+            return results.FirstOrDefault(r => r.Gate.Id.Equals(opts.GateId, StringComparison.OrdinalIgnoreCase))?.Gate;
+        }
+
+        if (results.Count == 1)
+        {
+            return results[0].Gate;
+        }
+
+        var distinctGates = results.Select(r => r.Gate).DistinctBy(g => g.Id).ToList();
+        return distinctGates.Count == 1 ? distinctGates[0] : null;
+    }
+
+    private static void RenderGateConsoleHeader(SemanticGate gate, string? prefix = null)
+    {
+        var title = string.IsNullOrEmpty(prefix)
+            ? $"[{gate.Id}] {gate.Name}"
+            : $"{prefix} for [{gate.Id}] {gate.Name}";
+
+        Console.WriteLine($"\n--- {title} ---");
+        Console.WriteLine($"Category: {gate.Category} | Platform: {gate.Platform} | Scope: {gate.Scope} | Dimension: {gate.Dimension} | Severity: {gate.Severity}");
+        if (!string.IsNullOrWhiteSpace(gate.Description))
+        {
+            Console.WriteLine($"Rule: {gate.Description}");
+        }
+        if (!string.IsNullOrWhiteSpace(gate.Remediation))
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"Remediation: {gate.Remediation}");
+            Console.ResetColor();
+        }
+        Console.WriteLine();
+    }
+
+    private static void RenderGateMarkdownHeader(SemanticGate gate, string? prefix = null)
+    {
+        var title = string.IsNullOrEmpty(prefix)
+            ? $"Architectural Violations for `[{gate.Id}]` {gate.Name}"
+            : $"{prefix} for `[{gate.Id}]` {gate.Name}";
+
+        Console.WriteLine($"### {title}\n");
+        Console.WriteLine($"> **Category**: {gate.Category} | **Platform**: `{gate.Platform}` | **Scope**: {gate.Scope} | **Dimension**: {gate.Dimension} | **Severity**: {gate.Severity}");
+        if (!string.IsNullOrWhiteSpace(gate.Description))
+        {
+            Console.WriteLine($">\n> **Rule**: {gate.Description}");
+        }
+        if (!string.IsNullOrWhiteSpace(gate.Remediation))
+        {
+            Console.WriteLine($">\n> **Remediation**: {gate.Remediation}");
+        }
+        Console.WriteLine();
+    }
+
+    private static void PrintNoViolationsMessage(SemanticGate gate, IReadOnlyList<GateCheckResult> results, GateOptions opts)
+    {
+        var hasActiveViolations = results.Any(r => r.Violations.Count > 0);
+        var hasActiveTolerated = results.Any(r => r.ToleratedViolations.Count > 0);
+        var hasFilters = !string.IsNullOrWhiteSpace(opts.FileFilter) ||
+                         !string.IsNullOrWhiteSpace(opts.SymbolFilter) ||
+                         !string.IsNullOrWhiteSpace(opts.TargetFilter);
+
+        if (hasFilters)
+        {
+            PrintSuccess($"No violations matching the specified filter for [{gate.Id}] {gate.Name}.");
+        }
+        else if (opts.OnlyNew && hasActiveTolerated)
+        {
+            var tolCount = results.Sum(r => r.ToleratedViolations.Count);
+            PrintSuccess($"No new violations detected for [{gate.Id}] {gate.Name} ({tolCount} active violation(s) tolerated by baseline).");
+        }
+        else if (opts.OnlyTolerated && !hasActiveTolerated)
+        {
+            PrintSuccess($"No tolerated violations for [{gate.Id}] {gate.Name}.");
+        }
+        else
+        {
+            PrintSuccess($"No violations detected for [{gate.Id}] {gate.Name}.");
+        }
+    }
+
+    private static void PrintNoViolationsMessageMultiGate(IReadOnlyList<GateCheckResult> results, GateOptions opts)
+    {
+        var hasActiveTolerated = results.Any(r => r.ToleratedViolations.Count > 0);
+        var hasFilters = !string.IsNullOrWhiteSpace(opts.FileFilter) ||
+                         !string.IsNullOrWhiteSpace(opts.SymbolFilter) ||
+                         !string.IsNullOrWhiteSpace(opts.TargetFilter);
+
+        if (hasFilters)
+        {
+            PrintSuccess(MsgNoViolationsMatchingFilter);
+        }
+        else if (opts.OnlyNew && hasActiveTolerated)
+        {
+            var tolCount = results.Sum(r => r.ToleratedViolations.Count);
+            PrintSuccess($"No new violations detected across evaluated gates ({tolCount} active violation(s) tolerated by baseline).");
+        }
+        else
+        {
+            PrintSuccess(MsgNoViolationsDetectedAcrossGates);
+        }
     }
 
     private static string ExtractCallee(string? target)

@@ -83,6 +83,7 @@ graph TD
     EntryPoint -->|EXPOSED_BY| Type
     ExternalService -->|CALLS_ENDPOINT| Endpoint
     ExternalService -->|CALLED_BY| Function
+    File -->|BELONGS_TO| Project
     FilesStructure -->|CONTAINS| Folder
     FilesStructure -->|CONTAINS| File
     Folder -->|CONTAINS| Folder
@@ -112,6 +113,7 @@ graph TD
     Project -->|DEPLOYS| Worker
     Project -->|DEPLOYS| Library
     Project -->|DEPLOYS| CliTool
+    Project -->|CONTAINS| File
     ProjectsStructure -->|CONTAINS| Project
     ProjectSyntax -->|CONTAINS| Type
     ProjectSyntax -->|CONTAINS| Function
@@ -273,6 +275,12 @@ graph TD
 
 > Represents a source code file containing parsable content.
 
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `BELONGS_TO` | `Project` |
+
 **Incoming edges** *(derived from other nodes' declarations)*:
 
 | From | Relationship |
@@ -282,6 +290,7 @@ graph TD
 | `Folder` | `CONTAINS` |
 | `Function` | `DECLARED_IN` |
 | `Member` | `DECLARED_IN` |
+| `Project` | `CONTAINS` |
 | `Type` | `DECLARED_IN` |
 
 **Properties:**
@@ -290,6 +299,9 @@ graph TD
 | :--- | :--- | :--- |
 | `Name` | `string` | The name of the entity. |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
+| `IsTest` | `bool` | Indicates whether the file is part of a test suite or test project. |
+| `ProjectKind` | `string?` | The architectural kind of the enclosing project. |
+| `ProjectName` | `string?` | The name of the enclosing project. |
 
 ---
 
@@ -428,6 +440,7 @@ graph TD
 | `DEPLOYS` | `Worker` |
 | `DEPLOYS` | `Library` |
 | `DEPLOYS` | `CliTool` |
+| `CONTAINS` | `File` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -435,6 +448,7 @@ graph TD
 | :--- | :--- |
 | `App` | `DEPLOYED_BY` |
 | `CliTool` | `DEPLOYED_BY` |
+| `File` | `BELONGS_TO` |
 | `Library` | `DEPLOYED_BY` |
 | `Package` | `PRODUCES` |
 | `Package` | `IMPLEMENTED_BY` |
@@ -463,6 +477,8 @@ graph TD
 | `IsLibrary` | `bool` | Indicates whether the project is a shared library rather than an executable application. |
 | `EntityKind` | `ProjectEntityKind` | The physical entity classification (e.g. Service, App, Worker, FunctionApp, Library, DatabaseMigration, Test). |
 | `SubKind` | `ProjectEntitySubKind` | Sub-classification for apps (e.g. None, Web, Mobile, Desktop, Cli). |
+| `IsTest` | `bool` | Indicates whether this project is a test project. |
+| `ProjectKind` | `string` | The physical entity classification kind. |
 
 ---
 
@@ -514,6 +530,9 @@ graph TD
 | `FilePath` | `string` | The relative file path where the call occurs. |
 | `Line` | `int` | The 1-indexed line number of the argument. |
 | `Column` | `int` | The 1-indexed column number of the argument. |
+| `IsTest` | `bool` | Indicates whether the call occurs within test code. |
+| `ProjectKind` | `string?` | The architectural kind of the enclosing project. |
+| `ProjectName` | `string?` | The name of the enclosing project. |
 
 ---
 
@@ -559,6 +578,10 @@ graph TD
 | `EndLine` | `int` | The ending line number (1-indexed) of the declaration. |
 | `StartCol` | `int` | The starting column number of the declaration. |
 | `EndCol` | `int` | The ending column number of the declaration. |
+| `IsTest` | `bool` | Indicates whether the function is declared within test code. |
+| `ProjectKind` | `string?` | The architectural kind of the enclosing project. |
+| `ProjectName` | `string?` | The name of the enclosing project. |
+| `StageOrder` | `int?` | Strict pipeline stage ordering index (e.g. 1=Layer1, 2=Layer2, 3=Layer3, 4=Layer4, 5=Layer5, 6=PostIndex). |
 
 ---
 
@@ -693,6 +716,10 @@ graph TD
 | `StartCol` | `int` | The starting column number of the declaration. |
 | `EndCol` | `int` | The ending column number of the declaration. |
 | `TypeKind` | `string` | The specific type kind (class, interface, struct, record, enum). |
+| `IsTest` | `bool` | Indicates whether the type is declared within test code. |
+| `ProjectKind` | `string?` | The architectural kind of the enclosing project. |
+| `ProjectName` | `string?` | The name of the enclosing project. |
+| `StageOrder` | `int?` | Strict pipeline stage ordering index (e.g. 1=Layer1, 2=Layer2, 3=Layer3, 4=Layer4, 5=Layer5, 6=PostIndex). |
 
 ---
 

@@ -5,6 +5,9 @@ namespace CodeExplorer.Core.Mcp;
 
 public static class Queries
 {
+    public const string QueryGetAffectedTests = "get_affected_tests";
+    public const string QueryGetTestCoverage = "get_test_coverage";
+
     private static readonly Assembly Assembly = typeof(Queries).Assembly;
     private static readonly string[] ResourceNames = Assembly.GetManifestResourceNames();
     private static readonly ConcurrentDictionary<string, string> Cache = new(StringComparer.OrdinalIgnoreCase);

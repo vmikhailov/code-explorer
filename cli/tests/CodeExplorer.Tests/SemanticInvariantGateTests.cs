@@ -72,6 +72,8 @@ public class SemanticInvariantGateTests
 
         Assert.That(gate.Id, Is.EqualTo("SIG-TEST-001"));
         Assert.That(gate.Scope, Is.EqualTo(InvariantScope.Module));
+        Assert.That(gate.Category, Is.EqualTo(GateCategory.Architectural));
+        Assert.That(gate.Platform, Is.EqualTo("agnostic"));
         Assert.That(gate.Dimension, Is.EqualTo(InvariantDimension.Boundaries));
         Assert.That(gate.Name, Is.EqualTo("Test Layer Invariant"));
         Assert.That(gate.Severity, Is.EqualTo(GateSeverity.Error));
@@ -79,6 +81,30 @@ public class SemanticInvariantGateTests
         Assert.That(gate.Ratchet.Enabled, Is.True);
         Assert.That(gate.Ratchet.Baseline, Is.EqualTo("baselines/SIG-TEST-001.json"));
         Assert.That(gate.Query, Does.Contain("MATCH (a:Type)"));
+    }
+
+    [Test]
+    public void GateSerializer_RoundTripsCategoryAndPlatform()
+    {
+        var original = new SemanticGate
+        {
+            Id = "SIG-PLAT-001",
+            Category = GateCategory.Platform,
+            Platform = "dotnet",
+            Scope = InvariantScope.Service,
+            Dimension = InvariantDimension.Boundaries,
+            Name = "Platform Gate",
+            Severity = GateSeverity.Warning,
+            Query = "MATCH (n) RETURN n"
+        };
+
+        var yaml = GateSerializer.SerializeGate(original);
+        Assert.That(yaml, Does.Contain("category: Platform"));
+        Assert.That(yaml, Does.Contain("platform: dotnet"));
+
+        var restored = GateSerializer.DeserializeGate(yaml);
+        Assert.That(restored.Category, Is.EqualTo(GateCategory.Platform));
+        Assert.That(restored.Platform, Is.EqualTo("dotnet"));
     }
 
     [Test]
@@ -238,6 +264,53 @@ public class SemanticInvariantGateTests
     }
 
     [Test]
+    public async Task FileGateRepository_InitStarterGates_OrganizesIntoCategories()
+    {
+        var repo = new FileGateRepository(_tempWorkspace);
+        var count = await repo.InitStarterGatesAsync();
+        Assert.That(count, Is.GreaterThanOrEqualTo(8));
+
+        var archDir = Path.Combine(_tempWorkspace, ".codeexplorer", "gates", "architectural");
+        var platDir = Path.Combine(_tempWorkspace, ".codeexplorer", "gates", "platform", "dotnet");
+
+        Assert.That(Directory.Exists(archDir), Is.True);
+        Assert.That(Directory.Exists(platDir), Is.True);
+
+        Assert.That(Directory.GetFiles(archDir, "*.yaml").Length, Is.GreaterThanOrEqualTo(7));
+        Assert.That(Directory.GetFiles(platDir, "*.yaml").Length, Is.GreaterThanOrEqualTo(1));
+    }
+
+    [Test]
+    public async Task GateExecutionEngine_FiltersByCategoryAndPlatform()
+    {
+        var mockDb = new MockGateDbClient();
+        var repo = new FileGateRepository(_tempWorkspace);
+        var engine = new GateExecutionEngine(mockDb, repo);
+
+        var gates = new List<SemanticGate>
+        {
+            new() { Id = "G1", Category = GateCategory.Architectural, Platform = "agnostic", Name = "A1", Query = "MATCH (n) RETURN n" },
+            new() { Id = "G2", Category = GateCategory.Architectural, Platform = "agnostic", Name = "A2", Query = "MATCH (n) RETURN n" },
+            new() { Id = "G3", Category = GateCategory.Platform, Platform = "dotnet", Name = "P1", Query = "MATCH (n) RETURN n" },
+            new() { Id = "G4", Category = GateCategory.Platform, Platform = "typescript", Name = "P2", Query = "MATCH (n) RETURN n" }
+        };
+
+        // Filter by Category
+        var archSuite = await engine.CheckSuiteAsync(gates, categoryFilter: GateCategory.Architectural);
+        Assert.That(archSuite.Results.Select(r => r.Gate.Id), Is.EquivalentTo(new[] { "G1", "G2" }));
+
+        var platSuite = await engine.CheckSuiteAsync(gates, categoryFilter: GateCategory.Platform);
+        Assert.That(platSuite.Results.Select(r => r.Gate.Id), Is.EquivalentTo(new[] { "G3", "G4" }));
+
+        // Filter by Platform
+        var dotnetSuite = await engine.CheckSuiteAsync(gates, platformFilter: "dotnet");
+        Assert.That(dotnetSuite.Results.Select(r => r.Gate.Id), Is.EquivalentTo(new[] { "G3" }));
+
+        var tsSuite = await engine.CheckSuiteAsync(gates, platformFilter: "typescript");
+        Assert.That(tsSuite.Results.Select(r => r.Gate.Id), Is.EquivalentTo(new[] { "G4" }));
+    }
+
+    [Test]
     public async Task GateExecutionEngine_EvaluatesGateWithZeroMatchContract()
     {
         var mockDb = new MockGateDbClient();
@@ -349,9 +422,9 @@ public class SemanticInvariantGateTests
         Assert.That(res1.Violations.Count, Is.EqualTo(3));
 
         var targets = res1.Violations.Select(v => v.Target).ToList();
-        Assert.That(targets, Does.Contain("AssignRole(SuperAdmin)"));
-        Assert.That(targets, Does.Contain("InvokeTarget(https://api.internal/v1)"));
-        Assert.That(targets, Does.Contain("new ParamHolder(secret-key)"));
+        Assert.That(targets, Does.Contain("AssignRole"));
+        Assert.That(targets, Does.Contain("InvokeTarget"));
+        Assert.That(targets, Does.Contain("new ParamHolder"));
 
         var messages = res1.Violations.Select(v => v.Message).ToList();
         Assert.That(messages.Any(m => m != null && m.Contains("SuperAdmin")), Is.True);

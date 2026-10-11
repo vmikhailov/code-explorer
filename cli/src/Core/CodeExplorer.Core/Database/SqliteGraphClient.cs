@@ -9,7 +9,6 @@ using CodeExplorer.Cypher.Parser;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
 namespace CodeExplorer.Core.Database;
@@ -903,13 +902,6 @@ public class SqliteGraphClient : IGraphClient, IDisposable
     {
         var sw = Stopwatch.StartNew();
         var paramDict = ExtractParameters(parameters);
-        if (await TryExecutePostIndexWriteAsync(query, paramDict))
-        {
-            sw.Stop();
-            _logger.LogDebug("[DB:Write] PostIndex write completed in {ElapsedMs:F1}ms: {QueryPreview}",
-                sw.Elapsed.TotalMilliseconds, GetQueryPreview(query));
-            return;
-        }
 
         await _lock.WaitAsync(cancellationToken);
         try
@@ -941,36 +933,6 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         {
             _lock.Release();
         }
-    }
-
-    private async Task<bool> TryExecutePostIndexWriteAsync(string query, Dictionary<string, object?> paramDict)
-    {
-        if (query.Contains("external_apis") || query.Contains("TRANSITIVELY_CALLS") || query.Contains("ATTRIBUTED_TO"))
-        {
-            var widPrefix = ResolveWidPrefix(query, paramDict);
-            var graphData = await LoadPostIndexGraphDataAsync(widPrefix);
-            var result = PostIndexAnalyzer.Analyze(graphData, widPrefix);
-            await SavePostIndexResultsAsync(widPrefix, result);
-            return true;
-        }
-
-        return false;
-    }
-
-    private static string ResolveWidPrefix(string query, Dictionary<string, object?> paramDict)
-    {
-        if (paramDict.TryGetValue("widPrefix", out var wpObj) && wpObj != null)
-        {
-            return wpObj.ToString() ?? "";
-        }
-
-        var match = Regex.Match(query, @"STARTS WITH\s*['""]([^'""]*)['""]", RegexOptions.IgnoreCase);
-        if (match.Success)
-        {
-            return match.Groups[1].Value;
-        }
-
-        return "";
     }
 
     public async Task<Dictionary<(string Kind, string Name), string>> LoadSymbolsByNamesAsync(

@@ -23,6 +23,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 [OntologyEdge<WorkerNode>(OntologyConstants.Relationships.Deploys)]
 [OntologyEdge<LibraryNode>(OntologyConstants.Relationships.Deploys)]
 [OntologyEdge<CliToolNode>(OntologyConstants.Relationships.Deploys)]
+[OntologyEdge<FileNode>(OntologyConstants.Relationships.Contains)]
 public record ProjectNode(
     string Id,
     string Name,
@@ -77,6 +78,12 @@ public record ProjectNode(
 
     [JsonPropertyName("sub_kind"), OntologyProperty("Sub-classification for apps (e.g. None, Web, Mobile, Desktop, Cli).")]
     public ProjectEntitySubKind SubKind { get; set; } = ProjectEntitySubKind.None;
+
+    [JsonPropertyName("is_test"), OntologyProperty("Indicates whether this project is a test project.")]
+    public bool IsTest => EntityKind == ProjectEntityKind.Test || Role.Equals(OntologyConstants.ProjectRoles.Test, StringComparison.OrdinalIgnoreCase) || WorkspaceConventions.IsTestFilePath(Path);
+
+    [JsonPropertyName("project_kind"), OntologyProperty("The physical entity classification kind.")]
+    public string ProjectKind => KindValue;
 
     [JsonIgnore]
     public override string Kind => OntologyConstants.NodeLabels.Project;

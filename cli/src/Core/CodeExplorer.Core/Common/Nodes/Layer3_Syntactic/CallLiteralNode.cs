@@ -22,9 +22,26 @@ public record CallLiteralNode(
     [property: OntologyProperty("The relative file path where the call occurs.")] string FilePath,
     [property: OntologyProperty("The 1-indexed line number of the argument.")] int Line,
     [property: OntologyProperty("The 1-indexed column number of the argument.")] int Column,
+    bool IsTest,
+    string? ProjectKind = null,
+    string? ProjectName = null,
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {
+    public CallLiteralNode(string id, string name, string value, string callee, int argIndex, string filePath, int line, int column, Dictionary<string, string>? extensions = null)
+        : this(id, name, value, callee, argIndex, filePath, line, column, false, null, null, extensions)
+    {
+    }
+
+    [JsonPropertyName("is_test"), OntologyProperty("Indicates whether the call occurs within test code.")]
+    public bool IsTest { get; set; } = IsTest;
+
+    [JsonPropertyName("project_kind"), OntologyProperty("The architectural kind of the enclosing project.")]
+    public string? ProjectKind { get; set; } = ProjectKind;
+
+    [JsonPropertyName("project_name"), OntologyProperty("The name of the enclosing project.")]
+    public string? ProjectName { get; set; } = ProjectName;
+
     [JsonIgnore]
     public override string Kind => OntologyConstants.NodeLabels.CallLiteral;
 

@@ -1,3 +1,4 @@
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Cypher.Ast;
 using CodeExplorer.Cypher.Linq;
@@ -148,9 +149,43 @@ public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
         CancellationToken cancellationToken = default) =>
         Task.CompletedTask;
 
+    const int CurrentSchemaVersion = 3;
     int SchemaVersion => 0;
     bool IsSchemaOutdated => false;
     Task SetSchemaVersionAsync(int version) => Task.CompletedTask;
+
+    Task<PostIndexGraphData> LoadPostIndexGraphDataAsync(string widPrefix) =>
+        Task.FromResult(new PostIndexGraphData(
+            new Dictionary<string, List<string>>(),
+            new Dictionary<string, string>(),
+            new Dictionary<string, string?>(),
+            new List<string>(),
+            new Dictionary<string, List<string>>(),
+            new List<string>(),
+            new Dictionary<string, List<string>>()
+        ));
+
+    Task SavePostIndexResultsAsync(string widPrefix, PostIndexAnalysisResult result)
+    {
+        var tcRels = result.TransitivelyCalls.Select(tc => new Relationship(
+            tc.From,
+            tc.To,
+            OntologyConstants.Relationships.TransitivelyCalls,
+            new Dictionary<string, object> { ["hops"] = tc.Hops }
+        )).ToList();
+
+        var attrRels = result.AttributedTo.Select(attr => new Relationship(
+            attr.EpId,
+            attr.SinkId,
+            OntologyConstants.Relationships.AttributedTo,
+            new Dictionary<string, object> { ["hops"] = attr.Hops, ["sink_kind"] = attr.SinkKind }
+        )).ToList();
+
+        var tasks = new List<Task>();
+        if (tcRels.Count > 0) tasks.Add(UploadRelationshipsAsync(tcRels));
+        if (attrRels.Count > 0) tasks.Add(UploadRelationshipsAsync(attrRels));
+        return Task.WhenAll(tasks);
+    }
 
     Task<Dictionary<string, int>> GetNodesBreakdownAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(new Dictionary<string, int>());

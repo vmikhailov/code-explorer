@@ -73,6 +73,75 @@
       padding: 0;
     }
 
+    /* Custom Sleek Dark Scrollbar (Standard & WebKit) */
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+    }
+
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.18);
+      border-radius: 9999px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.35);
+    }
+
+    ::-webkit-scrollbar-corner {
+      background: transparent;
+    }
+
+    /* Terminal & code cards specific polish */
+    .term-body, pre, .yaml-code-block, .query-code-area, .gate-violation-list {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.22) rgba(0, 0, 0, 0.25);
+    }
+
+    .term-body::-webkit-scrollbar,
+    pre::-webkit-scrollbar,
+    .yaml-code-block::-webkit-scrollbar,
+    .query-code-area::-webkit-scrollbar,
+    .gate-violation-list::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+
+    .term-body::-webkit-scrollbar-track,
+    pre::-webkit-scrollbar-track,
+    .yaml-code-block::-webkit-scrollbar-track,
+    .query-code-area::-webkit-scrollbar-track,
+    .gate-violation-list::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 9999px;
+    }
+
+    .term-body::-webkit-scrollbar-thumb,
+    pre::-webkit-scrollbar-thumb,
+    .yaml-code-block::-webkit-scrollbar-thumb,
+    .query-code-area::-webkit-scrollbar-thumb,
+    .gate-violation-list::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.22);
+      border-radius: 9999px;
+    }
+
+    .term-body::-webkit-scrollbar-thumb:hover,
+    pre::-webkit-scrollbar-thumb:hover,
+    .yaml-code-block::-webkit-scrollbar-thumb:hover,
+    .query-code-area::-webkit-scrollbar-thumb:hover,
+    .gate-violation-list::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.45);
+    }
+
     html {
       scroll-behavior: smooth;
       background-color: var(--bg-base);
@@ -839,6 +908,329 @@
     }
 
     /* ==========================================================================
+       Semantic Invariant Gates (SIG) Section
+       ========================================================================== */
+    .gate-dimensions-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 18px;
+      margin-bottom: 40px;
+    }
+
+    .gate-dim-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-standard);
+      border-radius: var(--radius-xl);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      transition: var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .gate-dim-card:hover {
+      border-color: var(--border-hover);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .gate-dim-badge {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--accent-violet);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .gate-dim-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+      letter-spacing: -0.3px;
+    }
+
+    .gate-dim-desc {
+      font-size: 13px;
+      color: var(--text-tertiary);
+      line-height: 1.5;
+      flex-grow: 1;
+    }
+
+    .gate-dim-footer {
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border-subtle);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-quaternary);
+    }
+
+    .gate-playground {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-standard);
+      border-radius: var(--radius-2xl);
+      overflow: hidden;
+      box-shadow: var(--shadow-lg);
+      margin-bottom: 40px;
+    }
+
+    .gate-toolbar {
+      padding: 14px 20px;
+      background: var(--bg-surface-elevated);
+      border-bottom: 1px solid var(--border-standard);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .gate-presets {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .gate-preset-btn {
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: var(--radius-pill);
+      color: var(--text-tertiary);
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-subtle);
+      transition: var(--transition);
+      cursor: pointer;
+    }
+
+    .gate-preset-btn:hover {
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .gate-preset-btn.active {
+      background: var(--accent-dim);
+      border-color: var(--border-accent);
+      color: #ffffff;
+      font-weight: 600;
+    }
+
+    .gate-split {
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      min-height: 400px;
+    }
+
+    .gate-editor-pane {
+      padding: 24px;
+      background: #060708;
+      border-right: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .gate-result-pane {
+      padding: 24px;
+      background: #090a0c;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .badge-status-fail {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .badge-status-pass {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .gate-violations-wrap {
+      flex-grow: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      max-height: 320px;
+    }
+
+    .gate-violation-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 13px;
+    }
+
+    .gate-v-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    .gate-v-file {
+      color: var(--text-secondary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .gate-v-badge-new {
+      padding: 2px 6px;
+      border-radius: var(--radius-sm);
+      font-size: 10px;
+      font-weight: 600;
+      background: rgba(239, 68, 68, 0.2);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      flex-shrink: 0;
+    }
+
+    .gate-v-badge-tolerated {
+      padding: 2px 6px;
+      border-radius: var(--radius-sm);
+      font-size: 10px;
+      font-weight: 600;
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      flex-shrink: 0;
+    }
+
+    .gate-v-msg {
+      color: var(--text-primary);
+      line-height: 1.45;
+    }
+
+    .gate-v-msg code {
+      background: rgba(255, 255, 255, 0.06);
+      padding: 1px 5px;
+      border-radius: var(--radius-sm);
+      color: #38bdf8;
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+
+    .gate-v-remediation {
+      font-size: 12px;
+      color: var(--accent-hover);
+      background: rgba(113, 112, 255, 0.06);
+      border-left: 2px solid var(--accent-violet);
+      padding: 6px 10px;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      margin-top: 4px;
+    }
+
+    .yaml-code-block {
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      line-height: 1.6;
+      color: #e2e8f0;
+      white-space: pre-wrap;
+      flex-grow: 1;
+      overflow-x: auto;
+    }
+
+    /* YAML Syntax Highlighting Theme */
+    .yaml-key { color: #818cf8; font-weight: 600; }
+    .yaml-colon { color: #94a3b8; }
+    .yaml-str { color: #34d399; }
+    .yaml-num { color: #fbbf24; }
+    .yaml-bool { color: #f43f5e; font-weight: 600; }
+    .yaml-pipe { color: #f472b6; font-weight: 600; }
+    .yaml-bullet { color: #818cf8; font-weight: 700; }
+    .yaml-comment { color: #64748b; font-style: italic; }
+    .yaml-val { color: #f1f5f9; }
+    .yaml-cypher-kw { color: #38bdf8; font-weight: 600; }
+    .yaml-cypher-label { color: #fbbf24; }
+    .yaml-cypher-arrow { color: #f472b6; font-weight: bold; }
+
+    .ratchet-box {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-standard);
+      border-radius: var(--radius-xl);
+      padding: 36px;
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 36px;
+      align-items: center;
+    }
+
+    .ratchet-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .ratchet-step-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+
+    .ratchet-step-num {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: var(--accent-dim);
+      border: 1px solid var(--border-accent);
+      color: var(--accent-violet);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .ratchet-step-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 2px;
+    }
+
+    .ratchet-step-desc {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      line-height: 1.45;
+    }
+
+    /* ==========================================================================
        AI Agent & MCP Section
        ========================================================================== */
     .mcp-box {
@@ -1197,7 +1589,11 @@
     @media (max-width: 992px) {
       .hero-title { font-size: 42px; letter-spacing: -1.2px; }
       .grid-3 { grid-template-columns: repeat(2, 1fr); }
-      .query-split { grid-template-columns: 1fr; }
+            .query-split { grid-template-columns: 1fr; }
+      .gate-dimensions-grid { grid-template-columns: repeat(2, 1fr); }
+      .gate-split { grid-template-columns: 1fr; }
+      .gate-editor-pane { border-right: none; border-bottom: 1px solid var(--border-subtle); }
+      .ratchet-box { grid-template-columns: 1fr; gap: 28px; }
       .query-editor-pane { border-right: none; border-bottom: 1px solid var(--border-subtle); }
       .mcp-box { grid-template-columns: 1fr; gap: 32px; padding: 28px; }
       .layer-row { grid-template-columns: 100px 1fr; gap: 10px; }
@@ -1213,6 +1609,7 @@
       .nav-links { display: none; }
       .grid-3 { grid-template-columns: 1fr; }
       .grid-2 { grid-template-columns: 1fr; }
+      .gate-dimensions-grid { grid-template-columns: 1fr; }
       .lang-matrix { grid-template-columns: repeat(2, 1fr); }
       .footer-grid { grid-template-columns: 1fr; }
       .showcase-header { flex-direction: column; align-items: flex-start; }
@@ -1249,6 +1646,7 @@
         <li><a href="#cockpit" class="nav-link">VS Code Cockpit</a></li>
         <li><a href="#features" class="nav-link">Features</a></li>
         <li><a href="#playground" class="nav-link">Cypher Engine</a></li>
+        <li><a href="#gates" class="nav-link">Invariant Gates</a></li>
         <li><a href="#ai-mcp" class="nav-link">AI & MCP</a></li>
         <li><a href="#ontology" class="nav-link">Ontology</a></li>
         <li><a href="#install" class="nav-link">Installation</a></li>
@@ -1310,6 +1708,8 @@
         <span class="hero-badge-item">•</span>
         <span class="hero-badge-item">✓ 100% Embedded SQLite</span>
         <span class="hero-badge-item">•</span>
+        <span class="hero-badge-item">✓ Semantic Invariant Gates</span>
+        <span class="hero-badge-item">•</span>
         <span class="hero-badge-item">✓ Tree-sitter AST Polyglot</span>
         <span class="hero-badge-item">•</span>
         <span class="hero-badge-item">✓ Model Context Protocol (MCP)</span>
@@ -1347,7 +1747,7 @@
 
         <div class="showcase-body">
           <div class="showcase-img-container" onclick="openLightbox()">
-            <img id="showcaseImage" class="showcase-img" src="all_services.png" alt="CodeExplorer Macro Architecture Concentric Orbits">
+            <img id="showcaseImage" class="showcase-img" src="all_services.png?v=clean" alt="CodeExplorer Macro Architecture Concentric Orbits">
           </div>
 
           <div class="showcase-overlay-bar">
@@ -1368,7 +1768,7 @@
   <!-- Lightbox Modal for zooming screenshots -->
   <div id="lightboxModal" class="lightbox-modal" onclick="closeLightbox(event)">
     <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
-    <img id="lightboxImg" class="lightbox-content" src="all_services.png" alt="Enlarged Screenshot">
+    <img id="lightboxImg" class="lightbox-content" src="all_services.png?v=clean" alt="Enlarged Screenshot">
   </div>
 
   <!-- ==========================================================================
@@ -1614,6 +2014,222 @@
   </section>
 
   <!-- ==========================================================================
+       Semantic Invariant Gates (SIG) — Architecture Governance & CI/CD Guardrails
+       ========================================================================== -->
+  <section id="gates" class="section">
+    <div class="container">
+      <div class="section-header">
+        <div class="section-eyebrow">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+          Architecture Governance & CI/CD
+        </div>
+        <h2 class="section-title">Semantic Invariant Gates (SIG)</h2>
+        <p class="section-desc">
+          Transform openCypher queries from passive codebase observation into active, automated architectural guardrails.
+          Enforce layer boundaries, eliminate cyclic package coupling, block breaking contract changes, and freeze legacy debt with monotonic ratchets directly in CI/CD and AI agent loops.
+        </p>
+      </div>
+
+      <!-- 4 Invariant Dimensions Grid -->
+      <div class="gate-dimensions-grid">
+        <!-- Dimension 1: Boundaries -->
+        <div class="gate-dim-card">
+          <div class="gate-dim-badge">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>
+            Dimension: Boundaries
+          </div>
+          <h3 class="gate-dim-title">Clean Architecture & Purity</h3>
+          <p class="gate-dim-desc">
+            Enforce strict hexagonal and DDD bounded context isolation. Prohibit Domain and Core layers from referencing Web, UI, or direct persistence drivers.
+          </p>
+          <div class="gate-dim-footer">
+            <code>:Library -[:DEPENDS_ON]-> :Package</code>
+          </div>
+        </div>
+
+        <!-- Dimension 2: Topology -->
+        <div class="gate-dim-card">
+          <div class="gate-dim-badge">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V8"/></svg>
+            Dimension: Topology
+          </div>
+          <h3 class="gate-dim-title">Cyclic Shield & DAG Ranking</h3>
+          <p class="gate-dim-desc">
+            Detect direct and transitive circular references across modules (<code>A ➔ B ➔ A</code>). Preserve strict acyclic DAG project compilation structures before merge.
+          </p>
+          <div class="gate-dim-footer">
+            <code>(a:Project)-[:DEPENDS_ON*2..6]->(a)</code>
+          </div>
+        </div>
+
+        <!-- Dimension 3: Contracts -->
+        <div class="gate-dim-card">
+          <div class="gate-dim-badge">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            Dimension: Contracts
+          </div>
+          <h3 class="gate-dim-title">API & Schema Integrity</h3>
+          <p class="gate-dim-desc">
+            Detect breaking API signature alterations, unversioned route drift, and direct leaking of internal ORM entity models through public REST/gRPC response endpoints.
+          </p>
+          <div class="gate-dim-footer">
+            <code>:Endpoint -[:RETURNS]-> :Entity</code>
+          </div>
+        </div>
+
+        <!-- Dimension 4: Resilience -->
+        <div class="gate-dim-card">
+          <div class="gate-dim-badge">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            Dimension: Resilience
+          </div>
+          <h3 class="gate-dim-title">Direct Egress & Coupling</h3>
+          <p class="gate-dim-desc">
+            Catch controller handlers issuing raw SQL queries directly against physical database tables, bypassing application service layers and transaction managers.
+          </p>
+          <div class="gate-dim-footer">
+            <code>:Endpoint -[:CALLS*]-> :Query</code>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interactive Gate Playground -->
+      <div class="gate-playground">
+        <div class="gate-toolbar">
+          <div class="gate-presets">
+            <button class="gate-preset-btn active" onclick="loadGatePreset('boundaries', this)">Layer Boundaries (SIG-B-004)</button>
+            <button class="gate-preset-btn" onclick="loadGatePreset('topology', this)">Cyclic Coupling (SIG-T-001)</button>
+            <button class="gate-preset-btn" onclick="loadGatePreset('egress', this)">Direct DB Access (SIG-R-003)</button>
+            <button class="gate-preset-btn" onclick="loadGatePreset('ratchet', this)">Monotonic Ratchet (SIG-B-002)</button>
+          </div>
+
+          <div class="query-controls">
+            <button class="btn btn-ghost btn-sm" onclick="runGateCheckAnimation()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <span>Execute Gate Check</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="gate-split">
+          <!-- Gate YAML Definition -->
+          <div class="gate-editor-pane">
+            <div class="query-pane-header">
+              <span>Gate Contract Definition</span>
+              <span style="color: var(--text-tertiary);">.codeexplorer/gates/*.yaml</span>
+            </div>
+            <pre class="yaml-code-block" id="gateYamlDisplay"></pre>
+          </div>
+
+          <!-- Gate Execution / CI Output -->
+          <div class="gate-result-pane">
+            <div class="query-pane-header">
+              <span>CLI & CI Gate Evaluation</span>
+              <span id="gateExecStatus" style="color: var(--status-amber);">● Evaluated in 11.2ms (Exit Code 1)</span>
+            </div>
+
+            <div class="result-stats-bar" style="margin-bottom: 16px;">
+              <div class="result-stat-item">
+                <span>Status:</span>
+                <span id="gateStatusBadge"></span>
+              </div>
+              <div class="result-stat-item">
+                <span>New:</span>
+                <span class="result-stat-val" id="gateStatNew" style="color: #f87171;">1</span>
+              </div>
+              <div class="result-stat-item">
+                <span>Tolerated:</span>
+                <span class="result-stat-val" id="gateStatTolerated" style="color: #fbbf24;">0</span>
+              </div>
+              <div class="result-stat-item">
+                <span>Engine:</span>
+                <span style="color: var(--text-secondary);">Ratchet SHA-256</span>
+              </div>
+            </div>
+
+            <div class="gate-violations-wrap" id="gateViolationsContainer">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Monotonic Ratchet Architecture Box -->
+      <div class="ratchet-box">
+        <div>
+          <div class="section-eyebrow" style="margin-bottom: 12px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            Zero Tolerance for New Debt
+          </div>
+          <h3 style="font-size: 24px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px; letter-spacing: -0.5px;">
+            Monotonic Ratchet Engine
+          </h3>
+          <p style="font-size: 14px; color: var(--text-tertiary); line-height: 1.6; margin-bottom: 20px;">
+            Architectural rules shouldn't require resolving 500 legacy violations before being introduced to CI.
+            CodeExplorer freezes existing violations into stable SHA-256 baseline snapshots — tolerating legacy debt while strictly failing builds on any newly introduced violation.
+          </p>
+
+          <div class="ratchet-steps">
+            <div class="ratchet-step-item">
+              <div class="ratchet-step-num">1</div>
+              <div>
+                <div class="ratchet-step-title">Declare Invariant Contract</div>
+                <div class="ratchet-step-desc">Write an openCypher rule in <code>.codeexplorer/gates/*.yaml</code> matching forbidden patterns with remediation instructions.</div>
+              </div>
+            </div>
+            <div class="ratchet-step-item">
+              <div class="ratchet-step-num">2</div>
+              <div>
+                <div class="ratchet-step-title">Freeze Baseline Snapshot</div>
+                <div class="ratchet-step-desc"><code>ce gate ratchet --update</code> captures structural hashes of existing debt into baseline JSON.</div>
+              </div>
+            </div>
+            <div class="ratchet-step-item">
+              <div class="ratchet-step-num">3</div>
+              <div>
+                <div class="ratchet-step-title">Enforce in CI/CD & AI Agent Loops</div>
+                <div class="ratchet-step-desc"><code>ce gate check</code> passes legacy debt (<code>[TOLERATED]</code>) but immediately rejects new debt (<code>[FAIL]</code>).</div>
+              </div>
+            </div>
+            <div class="ratchet-step-item">
+              <div class="ratchet-step-num">4</div>
+              <div>
+                <div class="ratchet-step-title">Monotonic Ratchet Descent</div>
+                <div class="ratchet-step-desc">As technical debt is refactored away, baseline snapshots automatically lower the ceiling. Debt cannot increase.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="code-terminal-card">
+          <div class="term-top">
+            <span>.github/workflows/architecture-gates.yml</span>
+            <button class="btn btn-ghost btn-sm" style="padding: 2px 8px; font-size: 11px;" onclick="copySnippet('ce scan && ce gate check', 'CI Command Copied!')">Copy YAML</button>
+          </div>
+          <pre class="term-body"><span class="yaml-comment"># Pull Request Architectural Guardrail</span>
+<span class="yaml-key">name</span><span class="yaml-colon">:</span> <span class="yaml-val">Architectural Invariant Gates</span>
+<span class="yaml-key">on</span><span class="yaml-colon">:</span> [<span class="yaml-str">pull_request</span>]
+
+<span class="yaml-key">jobs</span><span class="yaml-colon">:</span>
+  <span class="yaml-key">verify-architecture</span><span class="yaml-colon">:</span>
+    <span class="yaml-key">runs-on</span><span class="yaml-colon">:</span> <span class="yaml-val">ubuntu-latest</span>
+    <span class="yaml-key">steps</span><span class="yaml-colon">:</span>
+      <span class="yaml-bullet">-</span> <span class="yaml-key">uses</span><span class="yaml-colon">:</span> <span class="yaml-str">actions/checkout@v4</span>
+      <span class="yaml-bullet">-</span> <span class="yaml-key">name</span><span class="yaml-colon">:</span> <span class="yaml-val">Install CodeExplorer CLI</span>
+        <span class="yaml-key">run</span><span class="yaml-colon">:</span> <span class="yaml-str">curl -fsSL https://raw.githubusercontent.com/vmikhailov/code-explorer/main/cli/scripts/install.sh | bash</span>
+      <span class="yaml-bullet">-</span> <span class="yaml-key">name</span><span class="yaml-colon">:</span> <span class="yaml-val">Scan AST & Compile SQLite Graph</span>
+        <span class="yaml-key">run</span><span class="yaml-colon">:</span> <span class="yaml-str">ce scan</span>
+      <span class="yaml-bullet">-</span> <span class="yaml-key">name</span><span class="yaml-colon">:</span> <span class="yaml-val">Evaluate Semantic Invariant Gates</span>
+        <span class="yaml-key">run</span><span class="yaml-colon">:</span> <span class="yaml-str">ce gate check --fail-on-new</span>
+      <span class="yaml-comment"># Exits with non-zero exit code if PR introduces any new architecture violations</span></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
        Model Context Protocol (MCP) & AI Integration
        ========================================================================== -->
   <section id="ai-mcp" class="section">
@@ -1637,6 +2253,10 @@
             <li class="mcp-feature-item">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
               <span><strong>ce_blast_radius</strong> — Determine exact downstream impact of changing an interface or class.</span>
+            </li>
+            <li class="mcp-feature-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+              <span><strong>ce_gate_check</strong> — Validate architecture invariant gates and monotonic ratchets before commit.</span>
             </li>
             <li class="mcp-feature-item">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
@@ -1769,6 +2389,11 @@
             <div class="lang-name">SQL</div>
             <div class="lang-meta">T-SQL ScriptDom</div>
           </div>
+          <div class="lang-item">
+            <div class="lang-icon" style="font-size: 14px; font-weight: 700; font-family: var(--font-mono); color: #c084fc;">KT</div>
+            <div class="lang-name">Kotlin</div>
+            <div class="lang-meta">Android / KMP / AST</div>
+          </div>
         </div>
       </div>
     </div>
@@ -1870,6 +2495,18 @@
             <div class="cli-cmd-name">ce schema</div>
             <div class="cli-cmd-desc">Inspect active ontology node labels, relationships, and property dictionary.</div>
           </div>
+          <div class="cli-cmd-card">
+            <div class="cli-cmd-name">ce gate check</div>
+            <div class="cli-cmd-desc">Evaluate semantic invariant gates against SQLite graph; exits non-zero on new debt.</div>
+          </div>
+          <div class="cli-cmd-card">
+            <div class="cli-cmd-name">ce gate ratchet --update</div>
+            <div class="cli-cmd-desc">Freeze current violations into baseline snapshots, enforcing monotonic debt reduction.</div>
+          </div>
+          <div class="cli-cmd-card">
+            <div class="cli-cmd-name">ce gate violations -g &lt;id&gt;</div>
+            <div class="cli-cmd-desc">Inspect, group by file, and export structured violation reports and remediation hints.</div>
+          </div>
         </div>
       </div>
     </div>
@@ -1902,6 +2539,7 @@
           <ul class="footer-col-links">
             <li><a href="ontology.md">Live Ontology (32 Nodes)</a></li>
             <li><a href="architecture/ontology-model.md">5-Layer Architecture Model</a></li>
+            <li><a href="roadmap/semantic-invariant-gates-plan.md">Semantic Invariant Gates</a></li>
             <li><a href="architecture/ingestion-pipeline.md">Ingestion Pipeline</a></li>
             <li><a href="benchmarks/README.md">Benchmark Repositories</a></li>
           </ul>
@@ -1930,7 +2568,7 @@
 
       <div class="footer-bottom">
         <div>© 2026 Viacheslav Mikhailov. Open source under the MIT License.</div>
-        <div style="font-family: var(--font-mono);">ce v1.25.0 • .NET 10.0 • SQLite Graph</div>
+        <div style="font-family: var(--font-mono);">ce v1.28.0 • .NET 10.0 • SQLite Graph</div>
       </div>
     </div>
   </footer>
@@ -1945,17 +2583,17 @@
     // Data for Showcase Tabs
     const showcaseData = {
       orbits: {
-        img: 'all_services.png',
+        img: 'all_services.png?v=clean',
         desc: '<strong>Macro Architecture Topology:</strong> Concentric rings project Ingress Gateways (Tier 0), Public APIs (Tier 1), Brokers (Tier 2), Domain Services (Tier 3), and Databases (Tier 4).',
         pills: ['Live Transitive Routing', 'Orbit Drag-and-Drop', 'Curvature: +65']
       },
       transitive: {
-        img: 'selected_services.png',
+        img: 'selected_services.png?v=clean',
         desc: '<strong>Sub-Graph Neighborhood & Broker Contraction:</strong> Filter out Kafka/SQS message brokers to automatically synthesize direct dashed <code>[SUBSCRIBES (via Topic)]</code> links.',
         pills: ['Smart Broker Contraction', 'HUD Category Filters', 'Depth: 2 Hops']
       },
       projectflow: {
-        img: 'project_flow.png',
+        img: 'project_flow.png?v=clean',
         desc: '<strong>Project Flow & C1 System Context:</strong> Structured service cards with incoming/outgoing metrics, registered databases, and double-click Click-to-Code jump directly into source lines.',
         pills: ['Click-to-Code Jump', 'C1 System Context', 'Dependency Counts']
       }
@@ -2093,6 +2731,376 @@ LIMIT 5`,
       tableBody.innerHTML = preset.data.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('');
     }
 
+    // Data for Semantic Invariant Gates (SIG) Presets
+    const gatePresets = {
+      boundaries: {
+        id: 'SIG-P-B-004',
+        yaml: `id: SIG-P-B-004
+scope: Module
+dimension: Boundaries
+severity: Error
+description: "Domain and Core libraries must remain storage-agnostic. Direct references to database drivers violate Clean Architecture."
+remediation: "Move database drivers (EF Core, Npgsql, SqlClient) to Infrastructure or Data layer projects."
+
+query: |
+  MATCH (l:Library)-[:DEPENDS_ON]->(pkg:Package)
+  WHERE (l.name CONTAINS 'Core' OR l.name CONTAINS 'Domain')
+    AND pkg.name IN ['Microsoft.Data.Sqlite', 'Npgsql', 'System.Data.SqlClient']
+  RETURN 
+    l.path AS file,
+    0 AS line,
+    l.name AS symbol,
+    pkg.name AS target,
+    'Core library ' + l.name + ' must not depend on database driver ' + pkg.name AS message
+
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-P-B-004.json`,
+        statusBadge: '<span class="badge-status-fail">FAILED NEW [1 NEW VIOLATION]</span>',
+        execStatus: '● Evaluated in 11.2ms (Exit Code 1)',
+        execColor: 'var(--status-amber)',
+        statNew: '1 (Fails CI)',
+        statTolerated: '0 (Baseline)',
+        violations: [
+          {
+            file: 'src/Domain/Orders/OrderService.csproj',
+            badge: '<span class="gate-v-badge-new">NEW VIOLATION</span>',
+            symbol: 'Domain.Orders',
+            msg: 'Core library Domain.Orders references forbidden persistence package <code>Npgsql (v8.0.3)</code>',
+            remediation: 'Relocate database driver reference to <code>src/Infrastructure/Data/Data.csproj</code>'
+          }
+        ]
+      },
+      topology: {
+        id: 'SIG-P-T-001',
+        yaml: `id: SIG-P-T-001
+scope: System
+dimension: Topology
+severity: Error
+description: "Detect multi-hop circular dependencies between workspace projects and libraries to preserve DAG compilation."
+remediation: "Extract shared interfaces or data transfer objects into a lower-tier shared contracts library."
+
+query: |
+  MATCH (a:Project)-[:DEPENDS_ON]->(b:Project)-[:DEPENDS_ON]->(a)
+  WHERE a.name < b.name
+  RETURN 
+    a.path AS file,
+    0 AS line,
+    a.name AS symbol,
+    b.name AS target,
+    'Circular project coupling detected between ' + a.name + ' and ' + b.name AS message
+
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-P-T-001.json`,
+        statusBadge: '<span class="badge-status-fail">FAILED NEW [1 CYCLE DETECTED]</span>',
+        execStatus: '● Evaluated in 16.8ms (Exit Code 1)',
+        execColor: 'var(--status-amber)',
+        statNew: '1 (Fails CI)',
+        statTolerated: '0 (Baseline)',
+        violations: [
+          {
+            file: 'services/Billing/Billing.Core.csproj',
+            badge: '<span class="gate-v-badge-new">NEW VIOLATION</span>',
+            symbol: 'Billing.Core ⇄ Order.Contracts',
+            msg: 'Cyclic dependency cycle: <code>Billing.Core ➔ Order.Contracts ➔ Billing.Core</code>',
+            remediation: 'Extract common invoice models into independent <code>Shared.Kernel</code> package'
+          }
+        ]
+      },
+      egress: {
+        id: 'SIG-P-R-003',
+        yaml: `id: SIG-P-R-003
+scope: Component
+dimension: Resilience
+severity: Error
+description: "Inbound REST/gRPC endpoints must not issue direct SQL queries to persistence tables, bypassing repository abstractions."
+remediation: "Delegate database operations through repository interfaces or MediatR command handlers."
+
+query: |
+  MATCH (ep:Endpoint)-[:CALLS*1..2]->(q:Query)-[:TARGETS_TABLE]->(t:Table)
+  WHERE ep.route STARTS WITH '/api/v1'
+  RETURN 
+    ep.file_path AS file,
+    ep.line AS line,
+    ep.route AS symbol,
+    t.name AS target,
+    'Endpoint ' + ep.route + ' directly executes SQL against table ' + t.name AS message
+
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-P-R-003.json`,
+        statusBadge: '<span class="badge-status-fail">FAILED NEW [2 NEW VIOLATIONS]</span>',
+        execStatus: '● Evaluated in 14.5ms (Exit Code 1)',
+        execColor: 'var(--status-amber)',
+        statNew: '2 (Fails CI)',
+        statTolerated: '0 (Baseline)',
+        violations: [
+          {
+            file: 'src/Controllers/CustomerController.cs:42',
+            badge: '<span class="gate-v-badge-new">NEW VIOLATION</span>',
+            symbol: 'GET /api/v1/customers',
+            msg: 'Controller directly queries table <code>users_table</code> via raw SQL statement',
+            remediation: 'Inject <code>ICustomerRepository.GetByIdAsync()</code> instead of raw query'
+          },
+          {
+            file: 'src/Controllers/OrderController.cs:88',
+            badge: '<span class="gate-v-badge-new">NEW VIOLATION</span>',
+            symbol: 'POST /api/v1/orders',
+            msg: 'Controller directly queries table <code>inventory_stock</code> via raw SQL statement',
+            remediation: 'Dispatch <code>PlaceOrderCommand</code> via mediator pipeline'
+          }
+        ]
+      },
+      ratchet: {
+        id: 'SIG-P-B-002',
+        yaml: `id: SIG-P-B-002
+scope: Module
+dimension: Boundaries
+severity: Error
+description: "Monotonic Ratchet Active: existing legacy architecture debt is tolerated from baseline snapshot; zero new debt permitted."
+remediation: "Do not add new violations. Legacy violations decrease monotonically as refactoring merges."
+
+query: |
+  MATCH (c:Class)-[:USES_TYPE]->(target:Class)
+  WHERE c.namespace STARTS WITH 'App.Core' 
+    AND target.namespace STARTS WITH 'App.Legacy'
+  RETURN 
+    c.file_path AS file,
+    c.line AS line,
+    c.name AS symbol,
+    target.name AS target,
+    'Forbidden dependency from Core to Legacy: ' + target.name AS message
+
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-P-B-002.json  # 3 legacy violations frozen in baseline`,
+        statusBadge: '<span class="badge-status-pass">PASSED [0 NEW, 3 TOLERATED]</span>',
+        execStatus: '● Evaluated in 8.9ms (Exit Code 0)',
+        execColor: 'var(--status-green)',
+        statNew: '0 (Passed CI)',
+        statTolerated: '3 (Frozen Debt)',
+        violations: [
+          {
+            file: 'src/Core/Auth/LegacyTokenBridge.cs:19',
+            badge: '<span class="gate-v-badge-tolerated">TOLERATED DEBT</span>',
+            symbol: 'App.Core.AuthToken',
+            msg: 'References <code>App.Legacy.V1Auth</code> (baseline fingerprint: <code>a8f4c...</code>)',
+            remediation: 'Exempt from CI failure. Baseline ceiling lowers monotonically upon removal.'
+          },
+          {
+            file: 'src/Core/Config/OldSettingsProvider.cs:34',
+            badge: '<span class="gate-v-badge-tolerated">TOLERATED DEBT</span>',
+            symbol: 'App.Core.Config',
+            msg: 'References <code>App.Legacy.ConfigReader</code> (baseline fingerprint: <code>7c21b...</code>)',
+            remediation: 'Exempt from CI failure. Baseline ceiling lowers monotonically upon removal.'
+          },
+          {
+            file: 'src/Core/Sync/LegacyDataSync.cs:51',
+            badge: '<span class="gate-v-badge-tolerated">TOLERATED DEBT</span>',
+            symbol: 'App.Core.DataSync',
+            msg: 'References <code>App.Legacy.SyncAdapter</code> (baseline fingerprint: <code>e4129...</code>)',
+            remediation: 'Exempt from CI failure. Baseline ceiling lowers monotonically upon removal.'
+          }
+        ]
+      }
+    };
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function highlightCypher(code) {
+      const lines = code.split('\n');
+      const cypherKw = [
+        'OPTIONAL MATCH', 'MATCH', 'WHERE', 'RETURN', 'WITH', 'AS',
+        'AND', 'OR', 'NOT', 'IN', 'CONTAINS', 'STARTS WITH', 'ENDS WITH',
+        'ORDER BY', 'COUNT', 'DISTINCT', 'LIMIT', 'SKIP', 'UNWIND'
+      ];
+      cypherKw.sort((a, b) => b.length - a.length);
+
+      return lines.map(line => {
+        const m = line.match(/^(\s*)(.*)$/);
+        const indent = m ? m[1] : '';
+        let content = m ? m[2] : line;
+        if (!content) return line;
+
+        if (content.startsWith('//') || content.startsWith('#')) {
+          return indent + `<span class="yaml-comment">${escapeHtml(content)}</span>`;
+        }
+
+        const strings = [];
+        content = content.replace(/("[^"]*"|'[^']*')/g, (match) => {
+          strings.push(match);
+          return `___CYPHER_STR_${strings.length - 1}___`;
+        });
+
+        content = escapeHtml(content);
+
+        // Arrows: ->, <-
+        content = content.replace(/(-&gt;|&lt;-)/g, '<span class="yaml-cypher-arrow">$1</span>');
+
+        // Node / Relationship labels: :Word
+        content = content.replace(/(:[A-Za-z0-9_]+)/g, '<span class="yaml-cypher-label">$1</span>');
+
+        // Keywords
+        for (const kw of cypherKw) {
+          const re = new RegExp('\\b' + kw + '\\b', 'g');
+          content = content.replace(re, `<span class="yaml-cypher-kw">${kw}</span>`);
+        }
+
+        // Restore strings
+        for (let i = 0; i < strings.length; i++) {
+          content = content.replace(`___CYPHER_STR_${i}___`, `<span class="yaml-str">${escapeHtml(strings[i])}</span>`);
+        }
+
+        return indent + content;
+      }).join('\n');
+    }
+
+    function highlightYaml(raw) {
+      if (!raw) return '';
+      const lines = raw.split('\n');
+      let inCypher = false;
+      let cypherIndent = -1;
+      const result = [];
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const indentMatch = line.match(/^(\s*)/);
+        const indent = indentMatch ? indentMatch[1].length : 0;
+        const trimmed = line.trim();
+
+        if (!trimmed) {
+          result.push('');
+          continue;
+        }
+
+        if (inCypher) {
+          if (indent <= cypherIndent && trimmed) {
+            inCypher = false;
+          } else {
+            result.push(highlightCypher(line));
+            continue;
+          }
+        }
+
+        if (trimmed.startsWith('#')) {
+          result.push(line.replace(trimmed, `<span class="yaml-comment">${escapeHtml(trimmed)}</span>`));
+          continue;
+        }
+
+        const keyMatch = line.match(/^(\s*)(-\s+)?([A-Za-z0-9_-]+):(\s*)(.*)$/);
+        if (keyMatch) {
+          const leadingSpaces = keyMatch[1];
+          const bullet = keyMatch[2] ? `<span class="yaml-bullet">${escapeHtml(keyMatch[2])}</span>` : '';
+          const keyText = escapeHtml(keyMatch[3]);
+          const colon = `<span class="yaml-colon">:</span>`;
+          const keySpan = `<span class="yaml-key">${keyText}</span>${colon}`;
+          const afterColon = keyMatch[4];
+          const rest = keyMatch[5];
+
+          if (rest.trim() === '|' || rest.trim() === '|-' || rest.trim() === '>') {
+            inCypher = true;
+            cypherIndent = indent;
+            result.push(`${leadingSpaces}${bullet}${keySpan}${afterColon}<span class="yaml-pipe">${escapeHtml(rest)}</span>`);
+            continue;
+          }
+
+          if (!rest.trim()) {
+            result.push(`${leadingSpaces}${bullet}${keySpan}`);
+            continue;
+          }
+
+          let valHtml = '';
+          const trimmedVal = rest.trim();
+          if (/^(".*"|'.*')$/.test(trimmedVal)) {
+            valHtml = rest.replace(trimmedVal, `<span class="yaml-str">${escapeHtml(trimmedVal)}</span>`);
+          } else if (/^(true|false|yes|no)$/i.test(trimmedVal)) {
+            valHtml = rest.replace(trimmedVal, `<span class="yaml-bool">${escapeHtml(trimmedVal)}</span>`);
+          } else if (/^-?\d+(\.\d+)?$/.test(trimmedVal)) {
+            valHtml = rest.replace(trimmedVal, `<span class="yaml-num">${escapeHtml(trimmedVal)}</span>`);
+          } else {
+            valHtml = `<span class="yaml-val">${escapeHtml(rest)}</span>`;
+          }
+
+          result.push(`${leadingSpaces}${bullet}${keySpan}${afterColon}${valHtml}`);
+          continue;
+        }
+
+        const listMatch = line.match(/^(\s*)(-\s+)(.*)$/);
+        if (listMatch) {
+          const leadingSpaces = listMatch[1];
+          const bullet = `<span class="yaml-bullet">${escapeHtml(listMatch[2])}</span>`;
+          let val = escapeHtml(listMatch[3]);
+          if (/^(".*"|'.*')$/.test(listMatch[3].trim())) {
+            val = `<span class="yaml-str">${escapeHtml(listMatch[3].trim())}</span>`;
+          }
+          result.push(`${leadingSpaces}${bullet}${val}`);
+          continue;
+        }
+
+        result.push(escapeHtml(line));
+      }
+
+      return result.join('\n');
+    }
+
+    function loadGatePreset(key, btn) {
+      if (btn) {
+        document.querySelectorAll('.gate-preset-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      }
+
+      const preset = gatePresets[key];
+      if (!preset) return;
+
+      const editor = document.getElementById('gateYamlDisplay');
+      if (editor) editor.innerHTML = highlightYaml(preset.yaml);
+
+      const execStatus = document.getElementById('gateExecStatus');
+      if (execStatus) {
+        execStatus.innerText = preset.execStatus;
+        execStatus.style.color = preset.execColor;
+      }
+
+      const badge = document.getElementById('gateStatusBadge');
+      if (badge) badge.innerHTML = preset.statusBadge;
+
+      const statNew = document.getElementById('gateStatNew');
+      if (statNew) statNew.innerText = preset.statNew;
+
+      const statTolerated = document.getElementById('gateStatTolerated');
+      if (statTolerated) statTolerated.innerText = preset.statTolerated;
+
+      const container = document.getElementById('gateViolationsContainer');
+      if (container) {
+        container.innerHTML = preset.violations.map(v => `
+          <div class="gate-violation-card">
+            <div class="gate-v-header">
+              <span class="gate-v-file">${v.file}</span>
+              ${v.badge}
+            </div>
+            <div class="gate-v-msg">${v.msg}</div>
+            <div class="gate-v-remediation"><strong>Remediation:</strong> ${v.remediation}</div>
+          </div>
+        `).join('');
+      }
+    }
+
+    function runGateCheckAnimation() {
+      const status = document.getElementById('gateExecStatus');
+      if (!status) return;
+      status.style.color = 'var(--status-amber)';
+      status.innerText = '⟳ Evaluating AST semantic invariants against SQLite graph...';
+
+      setTimeout(() => {
+        status.style.color = 'var(--status-green)';
+        status.innerText = '● Evaluated in 10.4ms';
+        showToast('Semantic Invariant Gates evaluated successfully!');
+      }, 350);
+    }
+
     function runQueryAnimation() {
       const status = document.getElementById('execStatus');
       status.style.color = 'var(--status-amber)';
@@ -2139,6 +3147,9 @@ LIMIT 5`,
     }
 
     // Keyboard support for Lightbox
+    // Initialize default gate preset
+    loadGatePreset('boundaries');
+
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') closeLightbox();
     });

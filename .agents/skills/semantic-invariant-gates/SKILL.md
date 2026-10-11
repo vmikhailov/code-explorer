@@ -52,7 +52,36 @@ Examples:
 
 ---
 
-### 2. The Zero-Match Contract
+### 2. Architectural vs. Platform Categorization
+
+Every invariant belongs to one of two categories:
+
+1. **`category: Architectural` (`platform: agnostic`)**:
+   - Universal structural rules and design principles applicable regardless of language or framework.
+   - Examples: Unidirectional layer hierarchy, clean architecture transport purity, package acyclicity, in-memory AST visitor I/O purity.
+   - Directory: `.codeexplorer/gates/architectural/*.yaml`
+   - *Cross-Language Best Practice*: For general architectural rules (like I/O purity in AST visitors), design Cypher queries to match standard I/O abstractions across all supported ecosystems (.NET `File`/`Directory`, Node `fs`, Go `os`/`ioutil`, Python `pathlib`, Java `Files`).
+
+2. **`category: Platform` (`platform: <ecosystem>`)**:
+   - Runtime, framework, or technology-specific rules.
+   - Examples: Prohibiting domain coupling to SQLite drivers (`SqliteGraphClient`, `SqliteConnection`) rather than `IGraphClient` (`platform: dotnet`).
+   - Directory: `.codeexplorer/gates/platform/<platform>/*.yaml` (e.g. `.codeexplorer/gates/platform/dotnet/`).
+
+#### Category & Platform Filtering:
+```bash
+# List only architectural gates
+ce gate list --category architectural
+
+# List only dotnet platform gates
+ce gate list --platform dotnet
+
+# Evaluate only platform gates
+ce gate check --category platform
+```
+
+---
+
+### 3. The Zero-Match Contract
 
 A Semantic Invariant Gate operates on a strict **Zero-Match Contract**:
 - **0 rows returned** $\implies$ **PASS** (Invariant holds across the codebase).
@@ -82,7 +111,7 @@ RETURN
 
 ---
 
-### 3. Line-Shift Immune Fingerprinting
+### 4. Line-Shift Immune Fingerprinting
 
 CodeExplorer calculates violation fingerprints without depending on volatile line numbers:
 $$\text{Fingerprint} = \text{SHA256}(\text{GateId} + \text{FilePath} + \text{Symbol} + \text{Target})$$
@@ -102,7 +131,8 @@ $$\text{Fingerprint} = \text{SHA256}(\text{GateId} + \text{FilePath} + \text{Sym
 ### Step 1: Formulate the Rule
 1. Clearly state what is forbidden.
 2. Select the FOIM `Scope` and `Dimension`.
-3. Pick the next available ID: `SIG-<Scope>-<Dimension>-NNN`.
+3. Determine category (`Architectural` vs `Platform`) and target `platform` (`agnostic` vs `<platform>`).
+4. Pick the next available ID: `SIG-<Scope>-<Dimension>-NNN`.
 
 ### Step 2: Prototype and Test the Cypher Query
 Run your query interactively using `ce query` to test against the current workspace:
@@ -118,10 +148,14 @@ Verify that:
   ```
 
 ### Step 3: Create Gate Manifest YAML
-Create `.codeexplorer/gates/<gate-id-in-kebab-case>.yaml`:
+Place the YAML manifest in the appropriate categorized directory:
+- Architectural gates: `.codeexplorer/gates/architectural/<gate-id-in-kebab-case>.yaml`
+- Platform-specific gates: `.codeexplorer/gates/platform/<platform>/<gate-id-in-kebab-case>.yaml`
 
 ```yaml
 id: SIG-P-B-004
+category: Architectural
+platform: agnostic
 scope: Module
 dimension: Boundaries
 name: "Disallow Direct Database Packages in Domain Libraries"
@@ -130,8 +164,8 @@ description: "Domain and Core libraries must remain storage-agnostic. Direct ref
 remediation: "Move database drivers and EF Core dependencies to Infrastructure/Data layer projects."
 query: |
   MATCH (l:Library)-[:DEPENDS_ON]->(pkg:Package)
-  WHERE l.name CONTAINS 'Core' OR l.name CONTAINS 'Domain'
-    AND pkg.name IN ['Microsoft.Data.Sqlite', 'Npgsql', 'System.Data.SqlClient', 'MySqlConnector']
+  WHERE (l.name CONTAINS 'Core' OR l.name CONTAINS 'Domain')
+    AND pkg.name IN ['Microsoft.Data.Sqlite', 'Npgsql', 'System.Data.SqlClient', 'MySqlConnector', 'better-sqlite3', 'pg', 'mysql2']
   RETURN 
     l.path AS file,
     0 AS line,
@@ -151,6 +185,12 @@ ce gate check -g SIG-P-B-004
 
 # Run all gates
 ce gate check
+
+# Run only architectural gates
+ce gate check --category architectural
+
+# Run only platform gates for dotnet
+ce gate check --platform dotnet
 ```
 
 ### Step 5: Freeze Existing Debt into Baseline

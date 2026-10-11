@@ -183,7 +183,7 @@ public class WorkspaceIndexer
 
         LogPersistenceSummary(ctx);
         await SyncFileRegistryAsync(indexedFiles, projects, syntaxTrees, ctx);
-        await _dbClient.SetSchemaVersionAsync(SqliteGraphClient.CurrentSchemaVersion);
+        await _dbClient.SetSchemaVersionAsync(IGraphClient.CurrentSchemaVersion);
     }
 
 

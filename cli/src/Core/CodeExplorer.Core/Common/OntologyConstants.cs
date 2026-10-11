@@ -168,5 +168,13 @@ public static class OntologyConstants
         public const string CliTool = "CliTool";
         public const string Test = "Test";
     }
+
+    public static class PropertyNames
+    {
+        public const string IsTest = "is_test";
+        public const string ProjectKind = "project_kind";
+        public const string ProjectName = "project_name";
+        public const string StageOrder = "stage_order";
+    }
 }
 

@@ -61,6 +61,7 @@ public class ParsingContext
     }
 
     public Dictionary<(string Kind, string Name), string> GlobalSymbols { get; }
+    public Dictionary<(string FilePath, string Kind, string Name), string> FileScopedSymbols { get; } = new();
     public List<Reference> GlobalReferences { get; }
     public List<Relationship> GlobalProjectDependencies { get; }
     public List<Relationship> TreeRelationships { get; } = [];
@@ -107,6 +108,11 @@ public class ParsingContext
     public void AddGlobalSymbol(string kind, string name, string id)
     {
         GlobalSymbols[(kind, name)] = id;
+    }
+
+    public void AddFileScopedSymbol(string filePath, string kind, string name, string id)
+    {
+        FileScopedSymbols[(filePath, kind, name)] = id;
     }
 
     public void AddGlobalReferences(IEnumerable<Reference> references)

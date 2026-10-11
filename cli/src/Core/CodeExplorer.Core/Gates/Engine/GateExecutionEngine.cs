@@ -70,6 +70,8 @@ public class GateExecutionEngine
         IEnumerable<SemanticGate>? gates = null,
         InvariantScope? scopeFilter = null,
         InvariantDimension? dimFilter = null,
+        GateCategory? categoryFilter = null,
+        string? platformFilter = null,
         CancellationToken cancellationToken = default)
     {
         var sw = Stopwatch.StartNew();
@@ -82,6 +84,14 @@ public class GateExecutionEngine
         if (dimFilter.HasValue)
         {
             allGates = allGates.Where(g => g.Dimension == dimFilter.Value).ToList();
+        }
+        if (categoryFilter.HasValue)
+        {
+            allGates = allGates.Where(g => g.Category == categoryFilter.Value).ToList();
+        }
+        if (!string.IsNullOrWhiteSpace(platformFilter))
+        {
+            allGates = allGates.Where(g => string.Equals(g.Platform, platformFilter.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
         }
 
         var results = new List<GateCheckResult>();

@@ -130,7 +130,14 @@ public class OrderProcessorTests
         var array = doc.RootElement.EnumerateArray().ToList();
 
         Assert.That(array.Count, Is.EqualTo(1), "Expected 1 Test_ProcessPayment_Success function node");
-        var isTest = array[0].GetProperty("isTest").GetString();
+        var isTestProp = array[0].GetProperty("isTest");
+        var isTest = isTestProp.ValueKind switch
+        {
+            JsonValueKind.True => "true",
+            JsonValueKind.False => "false",
+            JsonValueKind.Number => isTestProp.GetInt32() == 1 ? "true" : "false",
+            _ => isTestProp.GetString()
+        };
         Assert.That(isTest, Is.EqualTo("true"));
         var framework = array[0].GetProperty("framework").GetString();
         Assert.That(framework, Is.EqualTo("xunit"));

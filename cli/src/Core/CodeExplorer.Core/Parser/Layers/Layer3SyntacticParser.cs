@@ -44,6 +44,7 @@ public class Layer3SyntacticParser
         }
         IndexPhysicalTree(l2Result.Prev.Workspace);
 
+        var projectRels = new List<Relationship>();
         // O(F * P) pre-grouping of files to enclosing projects (runs once in <2ms, eliminates 167M comparisons in inner loops)
         var filesByProjectId = new Dictionary<string, List<FileNode>>(l2Result.Projects.Count);
         foreach (var file in l2Result.Prev.Files)
@@ -72,6 +73,14 @@ public class Layer3SyntacticParser
 
             if (bestMatch != null)
             {
+                var isTest = bestMatch.IsTest || file.Path.Contains("test", StringComparison.OrdinalIgnoreCase) || file.Path.Contains("Test", StringComparison.OrdinalIgnoreCase);
+                file.IsTest = isTest;
+                file.ProjectKind = bestMatch.KindValue;
+                file.ProjectName = bestMatch.Name;
+
+                projectRels.Add(new Relationship(bestMatch.Id, file.Id, OntologyConstants.Relationships.Contains));
+                projectRels.Add(new Relationship(file.Id, bestMatch.Id, OntologyConstants.Relationships.BelongsTo));
+
                 if (!filesByProjectId.TryGetValue(bestMatch.Id, out var list))
                 {
                     list = [];
@@ -79,6 +88,16 @@ public class Layer3SyntacticParser
                 }
                 list.Add(file);
             }
+            else
+            {
+                file.IsTest = file.Path.Contains("test", StringComparison.OrdinalIgnoreCase) || file.Path.Contains("Test", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        if (projectRels.Count > 0)
+        {
+            await ctx.EnqueueUploadRelationshipsAsync(projectRels);
+            ctx.AddRelsCount(projectRels.Count);
         }
 
         // Phase 0: Unified ConfigStore early initialization
@@ -205,6 +224,9 @@ public class Layer3SyntacticParser
                 try
                 {
                     var syntaxTree = await fileParser.ParseAsync(file.FullPath, parentId, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+                    syntaxTree.FileNode.IsTest = file.IsTest;
+                    syntaxTree.FileNode.ProjectKind = file.ProjectKind;
+                    syntaxTree.FileNode.ProjectName = file.ProjectName;
                     if (syntaxTree.Tree != null)
                     {
                         AstConstantExtractor.ExtractAndRegister(syntaxTree, project.Name);
@@ -276,12 +298,12 @@ public class Layer3SyntacticParser
                 var item = parsedResults[i];
                 if (item == null) return ValueTask.CompletedTask;
 
-                var (_, syntaxTree, _) = item.Value;
+                var (file, syntaxTree, _) = item.Value;
                 if (syntaxTree.Tree != null)
                 {
                     try
                     {
-                        ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, ctx, project.Name);
+                        ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, ctx, project.Name, file.IsTest, project.KindValue);
 
                         if (componentParsers.Count > 0)
                         {
@@ -379,7 +401,14 @@ public class Layer3SyntacticParser
 
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<IFileParser, (List<ISemanticExtension> Active, SemanticExtensionRegistry Registry)> _parserRegistryCache = new();
 
-    public static void ProcessVisitor(SyntaxTree syntaxTree, string workspaceId, string absoluteWorkspacePath, ParsingContext? ctx = null, string? projectName = null)
+    public static void ProcessVisitor(
+        SyntaxTree syntaxTree,
+        string workspaceId,
+        string absoluteWorkspacePath,
+        ParsingContext? ctx = null,
+        string? projectName = null,
+        bool isTest = false,
+        string? projectKind = null)
     {
         if (syntaxTree.Tree == null) return;
 
@@ -402,6 +431,13 @@ public class Layer3SyntacticParser
 
         mainVisitor.Visit(syntaxTree.Tree.RootNode);
 
+        var effectiveIsTest = isTest ||
+            (syntaxTree.FileNode != null && syntaxTree.FileNode.IsTest) ||
+            relativePath.Contains("test", StringComparison.OrdinalIgnoreCase) ||
+            relativePath.Contains("Test", StringComparison.OrdinalIgnoreCase);
+        var effectiveProjectKind = projectKind ?? syntaxTree.FileNode?.ProjectKind;
+        var effectiveProjectName = projectName ?? syntaxTree.FileNode?.ProjectName;
+
         var rootCounts = new Dictionary<(string Kind, string Name), int>();
         foreach (var childSyntactic in mainVisitor.RootSymbol.Children)
         {
@@ -411,13 +447,13 @@ public class Layer3SyntacticParser
             rootCounts[key] = count;
 
             var childNode = MapSyntacticSymbolToOntology(childSyntactic, Path.GetFileName(syntaxTree.FilePath),
-                relativePath, workspaceId, syntaxTree.FileNode.Id, ctx, count > 1 ? count : 0, projectName);
-            syntaxTree.FileNode.Children.Add(childNode);
+                relativePath, workspaceId, syntaxTree.FileNode!.Id, ctx, count > 1 ? count : 0, effectiveProjectName, effectiveIsTest, effectiveProjectKind);
+            syntaxTree.FileNode!.Children.Add(childNode);
         }
 
         foreach (var reference in mainVisitor.RootSymbol.References)
         {
-            syntaxTree.FileNode.References.Add(reference with { ScopeSymbolId = syntaxTree.FileNode.Id });
+            syntaxTree.FileNode!.References.Add(reference with { ScopeSymbolId = syntaxTree.FileNode!.Id });
         }
 
         var rawImports = mainVisitor.RawImports.Select(ri => ri with
@@ -442,11 +478,17 @@ public class Layer3SyntacticParser
         string parentScopeId,
         ParsingContext? ctx = null,
         int overloadIndex = 0,
-        string? projectName = null)
+        string? projectName = null,
+        bool isTest = false,
+        string? projectKind = null)
     {
         var node = syntactic.Node;
         var kind = syntactic.Kind;
         var name = syntactic.Name;
+
+        var symbolIsTest = isTest ||
+            (syntactic.Properties.TryGetValue(OntologyConstants.PropertyNames.IsTest, out var propIsTest) && bool.TryParse(propIsTest, out var b) && b);
+        var stageOrder = WorkspaceConventions.GetPipelineStageOrder(relativePath, name);
 
         var isType = kind == "Class" || kind == "Interface" || kind == OntologyConstants.NodeLabels.Type;
         var mappedKind = isType ? "Type" : kind;
@@ -457,17 +499,20 @@ public class Layer3SyntacticParser
         if (kind == "Class")
         {
             typedNode = new TypeNode(symbolId, name, symbolId, fileName, relativePath,
-                node.StartPosition.Row + 1, node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1, "class");
+                node.StartPosition.Row + 1, node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1, "class",
+                symbolIsTest, projectKind, projectName, stageOrder);
         }
         else if (kind == "Interface")
         {
             typedNode = new TypeNode(symbolId, name, symbolId, fileName, relativePath,
-                node.StartPosition.Row + 1, node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1, "interface");
+                node.StartPosition.Row + 1, node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1, "interface",
+                symbolIsTest, projectKind, projectName, stageOrder);
         }
         else if (kind == OntologyConstants.NodeLabels.Function)
         {
             typedNode = new FunctionNode(symbolId, name, symbolId, fileName, relativePath,
-                node.StartPosition.Row + 1, node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1);
+                node.StartPosition.Row + 1, node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1,
+                symbolIsTest, projectKind, projectName, stageOrder);
         }
         else if (kind == OntologyConstants.NodeLabels.Query)
         {
@@ -545,7 +590,7 @@ public class Layer3SyntacticParser
             var col = int.TryParse(syntactic.Properties.GetValueOrDefault("column"), out var cl) ? cl : node.StartPosition.Column + 1;
             var litId = $"{workspaceId}:{OntologyConstants.IdPrefixes.CallLiteral}:{relativePath}:{line}:{col}";
 
-            typedNode = new CallLiteralNode(litId, name, val, callee, argIdx, relativePath, line, col);
+            typedNode = new CallLiteralNode(litId, name, val, callee, argIdx, relativePath, line, col, symbolIsTest, projectKind, projectName);
         }
         else
         {
@@ -560,7 +605,7 @@ public class Layer3SyntacticParser
             count++;
             childCounts[key] = count;
 
-            var childNode = MapSyntacticSymbolToOntology(childSyntactic, fileName, relativePath, workspaceId, symbolId, ctx, count > 1 ? count : 0, projectName);
+            var childNode = MapSyntacticSymbolToOntology(childSyntactic, fileName, relativePath, workspaceId, symbolId, ctx, count > 1 ? count : 0, projectName, symbolIsTest, projectKind);
             typedNode.Children.Add(childNode);
         }
 
@@ -823,7 +868,7 @@ public class Layer3SyntacticParser
             domainOrService = normalizedDomain;
         }
 
-        if (PostIndexAnalyzer.IsGarbageExternalService(domainOrService))
+        if (WorkspaceConventions.IsGarbageExternalService(domainOrService))
         {
             domainOrService = "unknown-service";
         }

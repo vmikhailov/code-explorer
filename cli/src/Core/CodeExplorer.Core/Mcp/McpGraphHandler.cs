@@ -651,6 +651,8 @@ public class McpGraphHandler(
     [Description("Evaluate Semantic Invariant Gates (SIG) across the workspace or against specific changed files. Returns zero-match status, new vs tolerated violations, and remediation guidance.")]
     public async Task<CallToolResult> CheckSemanticGatesAsync(
         [Description("Optional specific Gate ID to run (e.g. 'SIG-P-B-001').")] string? gateId = null,
+        [Description("Optional category filter: 'Architectural' or 'Platform'.")] string? category = null,
+        [Description("Optional platform filter: e.g. 'agnostic', 'dotnet', 'typescript', 'python', 'go', 'java'.")] string? platform = null,
         [Description("Optional scope filter: 'Method', 'Class', 'Module', 'Service', 'System'.")] string? scope = null,
         [Description("Optional dimension filter: 'Contract', 'Rules', 'Resources', 'Boundaries'.")] string? dimension = null,
         [Description("Include tolerated baseline debt in results. Default: false.")] bool includeTolerated = false,
@@ -661,17 +663,19 @@ public class McpGraphHandler(
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteAsync(() => repository.CheckSemanticGatesAsync(gateId, scope, dimension, includeTolerated, limit, fileFilter, groupBy, format, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteAsync(() => repository.CheckSemanticGatesAsync(gateId, category, platform, scope, dimension, includeTolerated, limit, fileFilter, groupBy, format, GetCurrentWorkspacePath(workspacePath), cancellationToken));
     }
 
     [UsedImplicitly]
     [McpServerTool]
     [Description("List all available Semantic Invariant Gates (both built-in and workspace-specific) with FOIM coordinates and debt status.")]
     public async Task<CallToolResult> ListSemanticGatesAsync(
+        [Description("Optional category filter: 'Architectural' or 'Platform'.")] string? category = null,
+        [Description("Optional platform filter: e.g. 'agnostic', 'dotnet', 'typescript', 'python', 'go', 'java'.")] string? platform = null,
         [Description("Format: 'markdown', 'json'. Default: 'markdown'.")] string format = "markdown",
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
-        return await ExecuteAsync(() => repository.ListSemanticGatesAsync(format, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteAsync(() => repository.ListSemanticGatesAsync(category, platform, format, GetCurrentWorkspacePath(workspacePath), cancellationToken));
     }
 }

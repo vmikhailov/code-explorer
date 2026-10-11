@@ -27,9 +27,30 @@ public record FunctionNode(
     [property: OntologyProperty("The ending line number (1-indexed) of the declaration.")] int EndLine,
     [property: OntologyProperty("The starting column number of the declaration.")] int StartCol,
     [property: OntologyProperty("The ending column number of the declaration.")] int EndCol,
+    bool IsTest,
+    string? ProjectKind = null,
+    string? ProjectName = null,
+    int? StageOrder = null,
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {
+    public FunctionNode(string id, string name, string symbol, string filePath, string path, int startLine, int endLine, int startCol, int endCol, Dictionary<string, string>? extensions = null)
+        : this(id, name, symbol, filePath, path, startLine, endLine, startCol, endCol, false, null, null, null, extensions)
+    {
+    }
+
+    [JsonPropertyName("is_test"), OntologyProperty("Indicates whether the function is declared within test code.")]
+    public bool IsTest { get; set; } = IsTest;
+
+    [JsonPropertyName("project_kind"), OntologyProperty("The architectural kind of the enclosing project.")]
+    public string? ProjectKind { get; set; } = ProjectKind;
+
+    [JsonPropertyName("project_name"), OntologyProperty("The name of the enclosing project.")]
+    public string? ProjectName { get; set; } = ProjectName;
+
+    [JsonPropertyName("stage_order"), OntologyProperty("Strict pipeline stage ordering index (e.g. 1=Layer1, 2=Layer2, 3=Layer3, 4=Layer4, 5=Layer5, 6=PostIndex).")]
+    public int? StageOrder { get; set; } = StageOrder;
+
     [JsonIgnore]
     public override string Kind => OntologyConstants.NodeLabels.Function;
 }

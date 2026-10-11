@@ -1,6 +1,7 @@
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Relationships;
 using CodeExplorer.Core.Database;
 
@@ -79,6 +80,11 @@ public static class OntologyUploader
             if (dbNode.Properties.TryGetValue("name", out var nameVal) && nameVal is string nameStr)
             {
                 ctx.AddGlobalSymbol(node.Kind, nameStr, node.Id);
+                var filePath = node.Path ?? (node as FunctionNode)?.FilePath ?? (node as TypeNode)?.FilePath;
+                if (!string.IsNullOrEmpty(filePath))
+                {
+                    ctx.AddFileScopedSymbol(filePath.Replace('\\', '/'), node.Kind, nameStr, node.Id);
+                }
                 if (node.Kind == OntologyConstants.NodeLabels.Endpoint || node.Kind == OntologyConstants.NodeLabels.EntryPoint)
                 {
                     ctx.AddGlobalSymbol(node.Kind, nameStr.Replace(":", " "), node.Id);
@@ -90,7 +96,31 @@ public static class OntologyUploader
                     if (!string.IsNullOrEmpty(parentName))
                     {
                         ctx.AddGlobalSymbol(node.Kind, $"{parentName}.{nameStr}", node.Id);
+                        if (!string.IsNullOrEmpty(filePath))
+                        {
+                            ctx.AddFileScopedSymbol(filePath.Replace('\\', '/'), node.Kind, $"{parentName}.{nameStr}", node.Id);
+                        }
                     }
+                }
+            }
+        }
+
+        // Special: If CallLiteral, link it to File via DECLARED_IN
+        if (node.Kind == OntologyConstants.NodeLabels.CallLiteral)
+        {
+            var filePath = node.Path;
+            if (string.IsNullOrEmpty(filePath) && node is CallLiteralNode cln)
+            {
+                filePath = cln.FilePath;
+            }
+            if (!string.IsNullOrEmpty(filePath))
+            {
+                var fileId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.File}:{filePath}";
+                var declaredInRel = Relationship.FromRelationship(new DeclaredInRelationship(node.Id, fileId));
+                if (visitedRelKeys.Add((declaredInRel.From, declaredInRel.To, declaredInRel.Kind)))
+                {
+                    collectedRelationships.Add(declaredInRel);
+                    ctx.AddRelsCount(1);
                 }
             }
         }

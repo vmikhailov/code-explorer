@@ -1,4 +1,4 @@
-# Visual Code Explorer — VS Code & Antigravity Extension Design
+# Visual Code Explorer — VS Code & Antigravity Extension Architecture
 
 This document details the architectural design, frontend stack, user experience, and distribution strategy for the **CodeExplorer VS Code / Antigravity Extension**.
 
