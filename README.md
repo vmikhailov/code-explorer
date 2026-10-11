@@ -15,7 +15,7 @@ CodeExplorer combines **interactive architecture visualization in VS Code**, a f
 ---
 
 <p align="center">
-  <img src="site/all_services.png" alt="CodeExplorer Macro Architecture Concentric Orbits" width="100%" />
+  <img src="docs/all_services.png" alt="CodeExplorer Macro Architecture Concentric Orbits" width="100%" />
 </p>
 <p align="center">
   <em>Figure 1: Full-system microservice topology projected across 5 Concentric Architectural Orbits (Tiers 0–4: Ingress Gateways, Public Services, Message Brokers, Domain Services, and Databases) with live transitive dependency routing.</em>
@@ -53,7 +53,7 @@ CodeExplorer provides an interactive visual architecture view inside VS Code (`C
 ### 1. Focused Neighborhood & Transitive Contraction
 
 <p align="center">
-  <img src="site/selected_services.png" alt="Focused Service Sub-Graph & Orbit Customization" width="100%" />
+  <img src="docs/selected_services.png" alt="Focused Service Sub-Graph & Orbit Customization" width="100%" />
 </p>
 <p align="center">
   <em>Figure 2: Focused sub-graph inspection with live HUD metrics, orbit reordering, edge curvature sliders, and dashed transitive links resolving broker-mediated message flows.</em>
