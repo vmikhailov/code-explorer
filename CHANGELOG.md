@@ -5,6 +5,17 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.34.4] - 2026-10-11
+
+### Refactored
+- **Architectural Gate Remediation: Method Length Ceiling (`SIG-M-R-001`)**:
+  - Eliminated root causes for architectural gate `SIG-M-R-001` across all workspace components (all methods now strictly <= 500 LOC, achieving 0 gate violations):
+    - **`ArchitectureViewEngine.cs:GetSystemContextViewAsync`**: Reduced from 831 LOC to 55 LOC by decomposing node discovery, candidate resolution, node canonicalization, package count enrichment, edge processing, and database filtering into dedicated, focused sub-routines (`DiscoverSystemContextCandidatesAsync`, `PopulateSystemContextNodes`, `PopulatePackageCountsAsync`, `PopulateSystemContextEdgesAsync`, `FilterSharedDatabases`).
+    - **`Layer5AnalysisParser.cs:ResolveAndUploadGlobalReferencesAsync`**: Reduced from 631 LOC to 76 LOC by extracting symbol dictionary builders, inheritance resolution, type binding indexes, and specialized reference dispatch handlers (`ResolveCallsReference`, `ResolveDependsOnReference`, `ResolveTriggersReference`, `ResolveMessagingReference`, `ResolvePersistedInReference`).
+    - **`vscode-extension/src/extension.ts:activate`**: Reduced from 917 LOC to 88 LOC by modularizing command registration into `commands.ts` (`registerGraphCommands`, `registerWorkspaceCommands`, `registerIntentCommands`).
+
+---
+
 ## [1.34.3] - 2026-10-11
 
 ### Fixed

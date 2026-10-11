@@ -1,3 +1,4 @@
+using CodeExplorer.Common;
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
@@ -236,17 +237,22 @@ public class Layer5AnalysisParser
         ctx.Log($"[Layer5] Targeted preloading complete: preloaded {addedCount} external symbols into memory.");
     }
 
-    private async Task<List<Relationship>> ResolveAndUploadGlobalReferencesAsync(ParsingContext ctx)
+    private record SymbolLookups(
+        Dictionary<string, string> TypeSymbols,
+        Dictionary<string, string> FunctionSymbols,
+        Dictionary<(string FilePath, string FuncName), string> FunctionSymbolsByFile,
+        Dictionary<string, string> ProcedureSymbols,
+        Dictionary<string, string> TableSymbols,
+        Dictionary<string, string> EndpointSymbols,
+        Dictionary<string, string> EntryPointSymbols);
+
+    private record BindingLookups(
+        Dictionary<(string FilePath, string VarName), List<IndexedBinding>> BindingsLookup,
+        Dictionary<string, List<IndexedBinding>> GlobalBindingsLookup,
+        Dictionary<string, string> ConstantLookup);
+
+    private static SymbolLookups BuildSymbolLookups(ParsingContext ctx)
     {
-        var totalReferences = ctx.GlobalReferences.Count;
-        ctx.Log($"[Layer5] Resolving {totalReferences} global cross-references...");
-        var referenceRelationships = new List<Relationship>(totalReferences > 0 ? Math.Min(totalReferences, 2000000) : 0);
-        var inheritanceRels = new HashSet<(string From, string To)>();
-        var interfaceToImplementors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-
-        await PreloadTargetedSymbolsAsync(ctx, interfaceToImplementors);
-
-        // Pre-split GlobalSymbols into single-string dictionaries for O(1) single-hash lookups
         var typeSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
         var functionSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
         var functionSymbolsByFile = new Dictionary<(string FilePath, string FuncName), string>();
@@ -285,7 +291,23 @@ public class Layer5AnalysisParser
             }
         }
 
-        // Pass 1: Resolve all inheritance (Implements / InheritsFrom) relationships first and cache them in a HashSet.
+        return new SymbolLookups(
+            typeSymbols,
+            functionSymbols,
+            functionSymbolsByFile,
+            procedureSymbols,
+            tableSymbols,
+            endpointSymbols,
+            entryPointSymbols);
+    }
+
+    private static void ResolveInheritanceReferences(
+        ParsingContext ctx,
+        SymbolLookups symbols,
+        List<Relationship> referenceRelationships,
+        HashSet<(string From, string To)> inheritanceRels,
+        Dictionary<string, List<string>> interfaceToImplementors)
+    {
         foreach (var refItem in ctx.GlobalReferences)
         {
             ctx.CancellationToken.ThrowIfCancellationRequested();
@@ -295,7 +317,7 @@ public class Layer5AnalysisParser
                 if (refItem.Kind == OntologyConstants.Relationships.Implements ||
                     refItem.Kind == OntologyConstants.Relationships.InheritsFrom)
                 {
-                    if (typeSymbols.TryGetValue(refItem.TargetName, out var targetNodeId) && refItem.ScopeSymbolId != targetNodeId)
+                    if (symbols.TypeSymbols.TryGetValue(refItem.TargetName, out var targetNodeId) && refItem.ScopeSymbolId != targetNodeId)
                     {
                         if (refItem.Kind == OntologyConstants.Relationships.Implements)
                         {
@@ -312,22 +334,19 @@ public class Layer5AnalysisParser
                     }
                     else if (refItem.Kind == OntologyConstants.Relationships.Implements)
                     {
-                        if (endpointSymbols.TryGetValue(refItem.TargetName, out var targetEndpointId))
+                        if (symbols.EndpointSymbols.TryGetValue(refItem.TargetName, out var targetEndpointId))
                         {
                             referenceRelationships.Add(
-                                Relationship.FromRelationship(new ExposedByRelationship(targetEndpointId,
-                                    refItem.ScopeSymbolId)));
+                                Relationship.FromRelationship(new ExposedByRelationship(targetEndpointId, refItem.ScopeSymbolId)));
                         }
-                        else if (entryPointSymbols.TryGetValue(refItem.TargetName, out var targetEpId))
+                        else if (symbols.EntryPointSymbols.TryGetValue(refItem.TargetName, out var targetEpId))
                         {
                             referenceRelationships.Add(
-                                Relationship.FromRelationship(new ImplementedByRelationship(targetEpId,
-                                    refItem.ScopeSymbolId)));
+                                Relationship.FromRelationship(new ImplementedByRelationship(targetEpId, refItem.ScopeSymbolId)));
                             inheritanceRels.Add((targetEpId, refItem.ScopeSymbolId));
                         }
                     }
 
-                    // Always map interface to implementors even if interface symbol is from an external assembly
                     var className = ExtractSymbolNameFromId(refItem.ScopeSymbolId);
                     if (!string.IsNullOrEmpty(className))
                     {
@@ -348,8 +367,10 @@ public class Layer5AnalysisParser
                 ctx.LogDebug($"[Layer5] Failed to resolve inheritance reference '{refItem.TargetName}': {ex.Message}");
             }
         }
+    }
 
-        // Index RawTypeBindings by (FilePath, VariableName) for O(1) fast member-call lookup
+    private static BindingLookups BuildBindingLookups(ParsingContext ctx)
+    {
         var bindingsLookup = new Dictionary<(string FilePath, string VarName), List<IndexedBinding>>(ctx.RawTypeBindings.Count);
         var globalBindingsLookup = new Dictionary<string, List<IndexedBinding>>(StringComparer.Ordinal);
         foreach (var b in ctx.RawTypeBindings)
@@ -372,7 +393,6 @@ public class Layer5AnalysisParser
             gList.Add(ib);
         }
 
-        // Index RawVariables constants for resolving constant topic/queue names across files
         var constantLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var v in ctx.RawVariables)
         {
@@ -409,7 +429,23 @@ public class Layer5AnalysisParser
             }
         }
 
-        // Pass 2: Resolve all other relationships using the cached inheritance relationships and bindings index.
+        return new BindingLookups(bindingsLookup, globalBindingsLookup, constantLookup);
+    }
+
+    private async Task<List<Relationship>> ResolveAndUploadGlobalReferencesAsync(ParsingContext ctx)
+    {
+        var totalReferences = ctx.GlobalReferences.Count;
+        ctx.Log($"[Layer5] Resolving {totalReferences} global cross-references...");
+        var referenceRelationships = new List<Relationship>(totalReferences > 0 ? Math.Min(totalReferences, 2000000) : 0);
+        var inheritanceRels = new HashSet<(string From, string To)>();
+        var interfaceToImplementors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+
+        await PreloadTargetedSymbolsAsync(ctx, interfaceToImplementors);
+
+        var symbols = BuildSymbolLookups(ctx);
+        ResolveInheritanceReferences(ctx, symbols, referenceRelationships, inheritanceRels, interfaceToImplementors);
+        var bindings = BuildBindingLookups(ctx);
+
         var resolvedCount = 0;
         var createdTopicIds = new HashSet<string>(StringComparer.Ordinal);
         var newTopicNodes = new List<TopicNode>();
@@ -432,418 +468,25 @@ public class Layer5AnalysisParser
 
             try
             {
-
-            if (refItem.Kind == OntologyConstants.Relationships.Calls)
-            {
-                var targetName = refItem.TargetName;
-                string? targetTypeName = null;
-                string? methodName = null;
-                var isExternalStaticClass = false;
-                var callerFile = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId);
-
-                if (targetName.Contains('.'))
+                switch (refItem.Kind)
                 {
-                    var dotIdx = targetName.LastIndexOf('.');
-                    var varName = targetName[..dotIdx];
-                    methodName = targetName[(dotIdx + 1)..];
-
-                    if (callerFile != null)
-                    {
-                        if (bindingsLookup.TryGetValue((callerFile, varName), out var candidates))
-                        {
-                            // Priority 1: Match by scope name or scope ID
-                            for (int i = 0; i < candidates.Count; i++)
-                            {
-                                var candidate = candidates[i];
-                                if (!string.IsNullOrEmpty(candidate.ScopeMarker) && !string.IsNullOrEmpty(candidate.ScopeId) &&
-                                    (refItem.ScopeSymbolId.Contains(candidate.ScopeMarker, StringComparison.Ordinal) ||
-                                     refItem.ScopeSymbolId.Contains($":{candidate.ScopeId}:", StringComparison.OrdinalIgnoreCase) ||
-                                     refItem.ScopeSymbolId.Contains($"/{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase) ||
-                                     refItem.ScopeSymbolId.Contains($"\\{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase)))
-                                {
-                                    targetTypeName = candidate.TypeName;
-                                    break;
-                                }
-                            }
-
-                            // Priority 2: Fallback to any binding in the same file
-                            targetTypeName ??= candidates[0].TypeName;
-                        }
-                        else if (globalBindingsLookup.TryGetValue(varName, out var globalCandidates))
-                        {
-                            // Priority 3: Fallback across project/workspace
-                            for (int i = 0; i < globalCandidates.Count; i++)
-                            {
-                                var candidate = globalCandidates[i];
-                                if (!string.IsNullOrEmpty(candidate.ScopeMarker) && !string.IsNullOrEmpty(candidate.ScopeId) &&
-                                    (refItem.ScopeSymbolId.Contains(candidate.ScopeMarker, StringComparison.Ordinal) ||
-                                     refItem.ScopeSymbolId.Contains($":{candidate.ScopeId}:", StringComparison.OrdinalIgnoreCase) ||
-                                     refItem.ScopeSymbolId.Contains($"/{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase) ||
-                                     refItem.ScopeSymbolId.Contains($"\\{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase)))
-                                {
-                                    targetTypeName = candidate.TypeName;
-                                    break;
-                                }
-                            }
-                            targetTypeName ??= globalCandidates[0].TypeName;
-                        }
-
-                        if (targetTypeName != null)
-                        {
-                            targetName = $"{targetTypeName}.{methodName}";
-                        }
-                        else if (typeSymbols.ContainsKey(varName))
-                        {
-                            targetName = $"{varName}.{methodName}";
-                        }
-                        else if (!string.IsNullOrEmpty(varName) && char.IsUpper(varName[0]))
-                        {
-                            // External static class (e.g. Regex, Math, Console, File)
-                            targetName = $"{varName}.{methodName}";
-                            isExternalStaticClass = true;
-                        }
-                        else
-                        {
-                            targetName = methodName;
-                        }
-                    }
-                    else
-                    {
-                        if (typeSymbols.ContainsKey(varName))
-                        {
-                            targetName = $"{varName}.{methodName}";
-                        }
-                        else if (!string.IsNullOrEmpty(varName) && char.IsUpper(varName[0]))
-                        {
-                            targetName = $"{varName}.{methodName}";
-                            isExternalStaticClass = true;
-                        }
-                        else
-                        {
-                            targetName = methodName;
-                        }
-                    }
+                    case OntologyConstants.Relationships.Calls:
+                        ResolveCallsReference(refItem, ctx, symbols, bindings, interfaceToImplementors, referenceRelationships);
+                        break;
+                    case OntologyConstants.Relationships.DependsOn:
+                        ResolveDependsOnReference(refItem, symbols, referenceRelationships);
+                        break;
+                    case OntologyConstants.Relationships.Triggers:
+                        ResolveTriggersReference(refItem, symbols, referenceRelationships);
+                        break;
+                    case OntologyConstants.Relationships.PublishesTo:
+                    case OntologyConstants.Relationships.SubscribesTo:
+                        ResolveMessagingReference(refItem, ctx, symbols, bindings, newTopicNodes, createdTopicIds, referenceRelationships);
+                        break;
+                    case OntologyConstants.Relationships.PersistedIn:
+                        ResolvePersistedInReference(refItem, ctx, symbols, referenceRelationships);
+                        break;
                 }
-
-                var callAdded = false;
-                string? targetNodeId = null;
-                if (callerFile != null && ctx.FileScopedSymbols.TryGetValue((callerFile, OntologyConstants.NodeLabels.Function, targetName), out var localTargetId))
-                {
-                    referenceRelationships.Add(
-                        Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, localTargetId)));
-                    callAdded = true;
-                    targetNodeId = localTargetId;
-                }
-                else if (callerFile != null && functionSymbolsByFile.TryGetValue((callerFile, targetName), out localTargetId))
-                {
-                    referenceRelationships.Add(
-                        Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, localTargetId)));
-                    callAdded = true;
-                    targetNodeId = localTargetId;
-                }
-                else if (functionSymbols.TryGetValue(targetName, out targetNodeId))
-                {
-                    referenceRelationships.Add(
-                        Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, targetNodeId)));
-                    callAdded = true;
-                }
-                else if (procedureSymbols.TryGetValue(targetName, out var targetProcId))
-                {
-                    referenceRelationships.Add(
-                        Relationship.FromRelationship(new CalledByRelationship(targetProcId, refItem.ScopeSymbolId)));
-                    callAdded = true;
-                }
-
-                // If targetTypeName is an interface or base class with implementations, link to the concrete implementations
-                if (targetTypeName != null && !string.IsNullOrEmpty(methodName) && interfaceToImplementors.TryGetValue(targetTypeName, out var implementors))
-                {
-                    foreach (var implClass in implementors)
-                    {
-                        if (functionSymbols.TryGetValue($"{implClass}.{methodName}", out var implNodeId) && implNodeId != targetNodeId)
-                        {
-                            referenceRelationships.Add(
-                                Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, implNodeId)));
-                            callAdded = true;
-                        }
-                    }
-                }
-
-                if (!callAdded && !isExternalStaticClass && methodName != null)
-                {
-                    if (callerFile != null && ctx.FileScopedSymbols.TryGetValue((callerFile, OntologyConstants.NodeLabels.Function, methodName), out var localFallbackId))
-                    {
-                        referenceRelationships.Add(
-                            Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, localFallbackId)));
-                        callAdded = true;
-                    }
-                    else if (callerFile != null && functionSymbolsByFile.TryGetValue((callerFile, methodName), out localFallbackId))
-                    {
-                        referenceRelationships.Add(
-                            Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, localFallbackId)));
-                        callAdded = true;
-                    }
-                    else if (functionSymbols.TryGetValue(methodName, out var fallbackNodeId))
-                    {
-                        // Guard against accidental cross-project fallback matches for bare method names
-                        var targetFile = ExtractFilePathFromSymbolId(fallbackNodeId);
-                        var isSameProjectOrFile = callerFile != null && targetFile != null &&
-                            (callerFile.Equals(targetFile, StringComparison.OrdinalIgnoreCase) ||
-                             string.Equals(ConstantRegistry.ExtractProjectName(callerFile), ConstantRegistry.ExtractProjectName(targetFile), StringComparison.OrdinalIgnoreCase));
-
-                        if (isSameProjectOrFile || (callerFile == null && targetFile == null))
-                        {
-                            referenceRelationships.Add(
-                                Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, fallbackNodeId)));
-                        }
-                    }
-                }
-            }
-            else if (refItem.Kind == OntologyConstants.Relationships.DependsOn)
-            {
-                var found = tableSymbols.TryGetValue(refItem.TargetName, out var targetTableId);
-                if (!found && refItem.TargetName.Contains('.'))
-                {
-                    var dotIdx = refItem.TargetName.LastIndexOf('.');
-                    found = tableSymbols.TryGetValue(refItem.TargetName[(dotIdx + 1)..], out targetTableId);
-                }
-
-                if (found && targetTableId != null)
-                {
-                    referenceRelationships.Add(
-                        Relationship.FromRelationship(new QueriedByRelationship(targetTableId, refItem.ScopeSymbolId)));
-                    if (refItem.ScopeSymbolId.Contains($":{OntologyConstants.IdPrefixes.Query}:") || refItem.ScopeSymbolId.Contains(":query:"))
-                    {
-                        referenceRelationships.Add(Relationship.FromRelationship(new DependsOnRelationship(refItem.ScopeSymbolId, targetTableId)));
-                    }
-                }
-            }
-            else if (refItem.Kind == OntologyConstants.Relationships.UsesType)
-            {
-                if (typeSymbols.TryGetValue(refItem.TargetName, out var targetNodeId))
-                {
-                    referenceRelationships.Add(
-                        Relationship.FromRelationship(new UsesTypeRelationship(refItem.ScopeSymbolId, targetNodeId)));
-                }
-            }
-            else if (refItem.Kind == OntologyConstants.Relationships.PotentialType)
-            {
-                if (typeSymbols.TryGetValue(refItem.TargetName, out var targetNodeId))
-                {
-                    if (refItem.ScopeSymbolId != targetNodeId)
-                    {
-                        if (!inheritanceRels.Contains((refItem.ScopeSymbolId, targetNodeId)))
-                        {
-                            referenceRelationships.Add(
-                                Relationship.FromRelationship(new UsesTypeRelationship(refItem.ScopeSymbolId,
-                                    targetNodeId)));
-                        }
-                    }
-                }
-            }
-            else if (refItem.Kind == OntologyConstants.Relationships.Triggers)
-            {
-                var targetId = functionSymbols.GetValueOrDefault(refItem.TargetName);
-                if (targetId == null && refItem.TargetName.Contains('.'))
-                {
-                    var shortName = refItem.TargetName[(refItem.TargetName.LastIndexOf('.') + 1)..];
-                    targetId = functionSymbols.GetValueOrDefault(shortName);
-                }
-
-                if (targetId != null)
-                {
-                    if (!referenceRelationships.Any(r => r.From == refItem.ScopeSymbolId && r.To == targetId && r.Kind == OntologyConstants.Relationships.Triggers))
-                    {
-                        referenceRelationships.Add(
-                            Relationship.FromRelationship(new TriggersRelationship(refItem.ScopeSymbolId, targetId)));
-                    }
-                }
-            }
-            else if (refItem.Kind == OntologyConstants.Relationships.PublishesTo ||
-                     refItem.Kind == OntologyConstants.Relationships.SubscribesTo)
-            {
-                var topicName = refItem.TargetName;
-                var brokerType = "event";
-                (brokerType, topicName) = topicName switch
-                {
-                    _ when topicName.StartsWith("rabbitmq:", StringComparison.OrdinalIgnoreCase) => ("rabbitmq", topicName["rabbitmq:".Length..]),
-                    _ when topicName.StartsWith("kafka:", StringComparison.OrdinalIgnoreCase) => ("kafka", topicName["kafka:".Length..]),
-                    _ when topicName.StartsWith("gcp:", StringComparison.OrdinalIgnoreCase) => ("gcp", topicName["gcp:".Length..]),
-                    _ when topicName.StartsWith("pubsub:", StringComparison.OrdinalIgnoreCase) => ("gcp", topicName["pubsub:".Length..]),
-                    _ when topicName.StartsWith("mediatr:", StringComparison.OrdinalIgnoreCase) => ("mediatr", topicName["mediatr:".Length..]),
-                    _ when topicName.StartsWith("masstransit:", StringComparison.OrdinalIgnoreCase) => ("masstransit", topicName["masstransit:".Length..]),
-                    _ when topicName.StartsWith("spring:", StringComparison.OrdinalIgnoreCase) => ("spring", topicName["spring:".Length..]),
-                    _ when topicName.StartsWith("cqrs:", StringComparison.OrdinalIgnoreCase) => ("cqrs", topicName["cqrs:".Length..]),
-                    _ when topicName.StartsWith("event:", StringComparison.OrdinalIgnoreCase) => ("event", topicName["event:".Length..]),
-                    _ => (brokerType, topicName)
-                };
-
-                if (brokerType == "gcp")
-                {
-                    if (topicName.EndsWith("-SUB", StringComparison.OrdinalIgnoreCase))
-                    {
-                        topicName = topicName[..^4];
-                    }
-                    else if (topicName.EndsWith("_SUBSCRIPTION_NAME", StringComparison.OrdinalIgnoreCase))
-                    {
-                        topicName = topicName[..^"_SUBSCRIPTION_NAME".Length] + "_TOPIC_NAME";
-                    }
-                    else if (topicName.EndsWith("_SUBSCRIPTION", StringComparison.OrdinalIgnoreCase))
-                    {
-                        topicName = topicName[..^"_SUBSCRIPTION".Length] + "_TOPIC";
-                    }
-                    else if (topicName.EndsWith("_SUB", StringComparison.OrdinalIgnoreCase))
-                    {
-                        topicName = topicName[..^"_SUB".Length];
-                    }
-                }
-
-                if (topicName.Contains("await", StringComparison.OrdinalIgnoreCase) || topicName.Contains('('))
-                {
-                    var innerMatch = System.Text.RegularExpressions.Regex.Match(topicName, @"\(\s*([^,\)]+)\s*\)");
-                    if (innerMatch.Success)
-                    {
-                        var inner = innerMatch.Groups[1].Value.Trim().Trim('\'', '"', '`');
-                        if (!string.IsNullOrEmpty(inner) && !inner.Equals("topic", StringComparison.OrdinalIgnoreCase))
-                        {
-                            topicName = inner;
-                        }
-                    }
-                    else
-                    {
-                        continue;
-                    }
-                }
-
-                // Strip member access prefixes
-                if (topicName.StartsWith("this.config.", StringComparison.OrdinalIgnoreCase))
-                {
-                    var prop = topicName["this.config.".Length..];
-                    if (ConstantRegistry.TryResolve(null, prop, out var resolved) && !string.IsNullOrEmpty(resolved))
-                    {
-                        topicName = resolved;
-                    }
-                    else
-                    {
-                        topicName = prop;
-                    }
-                }
-                else if (topicName.StartsWith("config.", StringComparison.OrdinalIgnoreCase))
-                {
-                    var prop = topicName["config.".Length..];
-                    if (ConstantRegistry.TryResolve(null, prop, out var resolved) && !string.IsNullOrEmpty(resolved))
-                    {
-                        topicName = resolved;
-                    }
-                    else
-                    {
-                        topicName = prop;
-                    }
-                }
-                else if (topicName.StartsWith("this.", StringComparison.OrdinalIgnoreCase))
-                {
-                    var prop = topicName["this.".Length..];
-                    if (ConstantRegistry.TryResolve(null, prop, out var resolved) && !string.IsNullOrEmpty(resolved))
-                    {
-                        topicName = resolved;
-                    }
-                }
-
-                var scopeFilePath = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId);
-                var scopeProject = ConstantRegistry.ExtractProjectName(scopeFilePath);
-                string? globalConst = null;
-
-                if (constantLookup.TryGetValue(topicName, out var resolvedConst) &&
-                    WorkspaceConventions.IsValidTopicOrQueueName(resolvedConst))
-                {
-                    topicName = resolvedConst;
-                }
-                else if (ConstantRegistry.TryResolve(scopeProject ?? scopeFilePath, topicName, out var regConst) &&
-                         WorkspaceConventions.IsValidTopicOrQueueName(regConst))
-                {
-                    topicName = regConst;
-                }
-                else if (System.Text.RegularExpressions.Regex.IsMatch(topicName, @"^[A-Z0-9_]{3,}$") &&
-                         ConstantRegistry.TryResolve(null, topicName, out globalConst) &&
-                         WorkspaceConventions.IsValidTopicOrQueueName(globalConst))
-                {
-                    topicName = globalConst;
-                }
-
-                if (topicName.Equals("topicName", StringComparison.OrdinalIgnoreCase) ||
-                    topicName.Equals("topicNameOrId", StringComparison.OrdinalIgnoreCase))
-                {
-                    if (ConstantRegistry.TryResolve(scopeFilePath, "DEFAULT_TOPIC", out var defaultTopic) &&
-                        WorkspaceConventions.IsValidTopicOrQueueName(defaultTopic))
-                    {
-                        topicName = defaultTopic;
-                    }
-                    else
-                    {
-                        topicName = string.Empty;
-                    }
-                }
-
-                if (brokerType == "gcp")
-                {
-                    topicName = WorkspaceConventions.NormalizeTopicName(topicName);
-                }
-
-                if (!WorkspaceConventions.IsValidTopicOrQueueName(topicName))
-                {
-                    continue;
-                }
-
-                var isInternal = string.Equals(brokerType, "mediatr", StringComparison.OrdinalIgnoreCase) ||
-                                 string.Equals(brokerType, "in-memory", StringComparison.OrdinalIgnoreCase);
-
-                var topicId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Topic}:{brokerType}:{topicName}";
-
-                if (!createdTopicIds.Contains(topicId))
-                {
-                    createdTopicIds.Add(topicId);
-                    var topicExt = new Dictionary<string, string>
-                    {
-                        ["is_internal"] = isInternal ? "true" : "false",
-                        ["scope"] = isInternal ? "internal" : "external",
-                        ["message_type"] = isInternal ? "internal" : "external",
-                        ["is_semantic_entity"] = isInternal ? "false" : "true"
-                    };
-                    var topicNode = new TopicNode(topicId, topicName, "", brokerType, topicExt);
-                    newTopicNodes.Add(topicNode);
-                    ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Topic, refItem.TargetName, topicId);
-                }
-
-                var relKind = refItem.Kind == OntologyConstants.Relationships.PublishesTo
-                    ? OntologyConstants.Relationships.PublishedBy
-                    : OntologyConstants.Relationships.SubscribedBy;
-
-                var relProps = new Dictionary<string, object>
-                {
-                    ["is_internal"] = isInternal ? "true" : "false",
-                    ["scope"] = isInternal ? "internal" : "external",
-                    ["category"] = "messaging",
-                    ["dependency_type"] = "messaging",
-                    ["broker_type"] = brokerType
-                };
-                if (isInternal)
-                {
-                    relProps["is_semantic"] = "false";
-                }
-
-                referenceRelationships.Add(new Relationship(topicId, refItem.ScopeSymbolId, relKind, relProps));
-                referenceRelationships.Add(new Relationship(refItem.ScopeSymbolId, topicId, refItem.Kind, relProps));
-            }
-            else if (refItem.Kind == OntologyConstants.Relationships.PersistedIn)
-            {
-                if (typeSymbols.TryGetValue(refItem.ScopeSymbolId, out var tid))
-                {
-                    var targetTableId = tableSymbols.TryGetValue(refItem.TargetName, out var tblId) ? tblId : $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Table}:{refItem.TargetName.ToLowerInvariant()}";
-                    if (tid != targetTableId && !referenceRelationships.Any(r => r.From == tid && r.To == targetTableId && r.Kind == OntologyConstants.Relationships.PersistedIn))
-                    {
-                        referenceRelationships.Add(Relationship.FromRelationship(new PersistedInRelationship(tid, targetTableId)));
-                    }
-                }
-            }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -866,6 +509,390 @@ public class Layer5AnalysisParser
         }
 
         return referenceRelationships;
+    }
+
+    private static void ResolveCallsReference(
+        Reference refItem,
+        ParsingContext ctx,
+        SymbolLookups symbols,
+        BindingLookups bindings,
+        Dictionary<string, List<string>> interfaceToImplementors,
+        List<Relationship> referenceRelationships)
+    {
+        var targetName = refItem.TargetName;
+        string? targetTypeName = null;
+        string? methodName = null;
+        var isExternalStaticClass = false;
+        var callerFile = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId);
+
+        if (targetName.Contains('.'))
+        {
+            var dotIdx = targetName.LastIndexOf('.');
+            var varName = targetName[..dotIdx];
+            methodName = targetName[(dotIdx + 1)..];
+
+            if (callerFile != null)
+            {
+                if (bindings.BindingsLookup.TryGetValue((callerFile, varName), out var candidates))
+                {
+                    for (int i = 0; i < candidates.Count; i++)
+                    {
+                        var candidate = candidates[i];
+                        if (!string.IsNullOrEmpty(candidate.ScopeMarker) && !string.IsNullOrEmpty(candidate.ScopeId) &&
+                            (refItem.ScopeSymbolId.Contains(candidate.ScopeMarker, StringComparison.Ordinal) ||
+                             refItem.ScopeSymbolId.Contains($":{candidate.ScopeId}:", StringComparison.OrdinalIgnoreCase) ||
+                             refItem.ScopeSymbolId.Contains($"/{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase) ||
+                             refItem.ScopeSymbolId.Contains($"\\{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            targetTypeName = candidate.TypeName;
+                            break;
+                        }
+                    }
+                    targetTypeName ??= candidates[0].TypeName;
+                }
+                else if (bindings.GlobalBindingsLookup.TryGetValue(varName, out var globalCandidates))
+                {
+                    foreach (var candidate in globalCandidates)
+                    {
+                        if (!string.IsNullOrEmpty(candidate.ScopeMarker) && !string.IsNullOrEmpty(candidate.ScopeId) &&
+                            (refItem.ScopeSymbolId.Contains(candidate.ScopeMarker, StringComparison.Ordinal) ||
+                             refItem.ScopeSymbolId.Contains($":{candidate.ScopeId}:", StringComparison.OrdinalIgnoreCase) ||
+                             refItem.ScopeSymbolId.Contains($"/{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase) ||
+                             refItem.ScopeSymbolId.Contains($"\\{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            targetTypeName = candidate.TypeName;
+                            break;
+                        }
+                    }
+
+                    targetTypeName ??= globalCandidates[0].TypeName;
+                }
+
+                if (targetTypeName != null)
+                {
+                    targetName = $"{targetTypeName}.{methodName}";
+                }
+                else if (symbols.TypeSymbols.ContainsKey(varName))
+                {
+                    targetName = $"{varName}.{methodName}";
+                }
+                else if (!string.IsNullOrEmpty(varName) && char.IsUpper(varName[0]))
+                {
+                    targetName = $"{varName}.{methodName}";
+                    isExternalStaticClass = true;
+                }
+                else
+                {
+                    targetName = methodName;
+                }
+            }
+            else
+            {
+                if (symbols.TypeSymbols.ContainsKey(varName))
+                {
+                    targetName = $"{varName}.{methodName}";
+                }
+                else if (!string.IsNullOrEmpty(varName) && char.IsUpper(varName[0]))
+                {
+                    targetName = $"{varName}.{methodName}";
+                    isExternalStaticClass = true;
+                }
+                else
+                {
+                    targetName = methodName;
+                }
+            }
+        }
+
+        var callAdded = false;
+        string? targetNodeId = null;
+        if (callerFile != null && ctx.FileScopedSymbols.TryGetValue((callerFile, OntologyConstants.NodeLabels.Function, targetName), out var localTargetId))
+        {
+            referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, localTargetId)));
+            callAdded = true;
+            targetNodeId = localTargetId;
+        }
+        else if (callerFile != null && symbols.FunctionSymbolsByFile.TryGetValue((callerFile, targetName), out localTargetId))
+        {
+            referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, localTargetId)));
+            callAdded = true;
+            targetNodeId = localTargetId;
+        }
+        else if (symbols.FunctionSymbols.TryGetValue(targetName, out targetNodeId))
+        {
+            referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, targetNodeId)));
+            callAdded = true;
+        }
+        else if (symbols.ProcedureSymbols.TryGetValue(targetName, out var targetProcId))
+        {
+            referenceRelationships.Add(Relationship.FromRelationship(new CalledByRelationship(targetProcId, refItem.ScopeSymbolId)));
+            callAdded = true;
+        }
+
+        if (targetTypeName != null && !string.IsNullOrEmpty(methodName) && interfaceToImplementors.TryGetValue(targetTypeName, out var implementors))
+        {
+            foreach (var implClass in implementors)
+            {
+                if (symbols.FunctionSymbols.TryGetValue($"{implClass}.{methodName}", out var implNodeId) && implNodeId != targetNodeId)
+                {
+                    referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, implNodeId)));
+                    callAdded = true;
+                }
+            }
+        }
+
+        if (!callAdded && !isExternalStaticClass && methodName != null)
+        {
+            if (callerFile != null && ctx.FileScopedSymbols.TryGetValue((callerFile, OntologyConstants.NodeLabels.Function, methodName), out var localFallbackId))
+            {
+                referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, localFallbackId)));
+            }
+            else if (callerFile != null && symbols.FunctionSymbolsByFile.TryGetValue((callerFile, methodName), out localFallbackId))
+            {
+                referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, localFallbackId)));
+            }
+            else if (symbols.FunctionSymbols.TryGetValue(methodName, out var fallbackNodeId))
+            {
+                var targetFile = ExtractFilePathFromSymbolId(fallbackNodeId);
+                var isSameProjectOrFile = callerFile != null && targetFile != null &&
+                    (callerFile.Equals(targetFile, StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(ConstantRegistry.ExtractProjectName(callerFile), ConstantRegistry.ExtractProjectName(targetFile), StringComparison.OrdinalIgnoreCase));
+
+                if (isSameProjectOrFile || (callerFile == null && targetFile == null))
+                {
+                    referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, fallbackNodeId)));
+                }
+            }
+        }
+    }
+
+    private static void ResolveDependsOnReference(
+        Reference refItem,
+        SymbolLookups symbols,
+        List<Relationship> referenceRelationships)
+    {
+        var found = symbols.TableSymbols.TryGetValue(refItem.TargetName, out var targetTableId);
+        if (!found && refItem.TargetName.Contains('.'))
+        {
+            var dotIdx = refItem.TargetName.LastIndexOf('.');
+            found = symbols.TableSymbols.TryGetValue(refItem.TargetName[(dotIdx + 1)..], out targetTableId);
+        }
+
+        if (found && targetTableId != null)
+        {
+            referenceRelationships.Add(
+                Relationship.FromRelationship(new QueriedByRelationship(targetTableId, refItem.ScopeSymbolId)));
+            if (refItem.ScopeSymbolId.Contains($":{OntologyConstants.IdPrefixes.Query}:") || refItem.ScopeSymbolId.Contains(":query:"))
+            {
+                referenceRelationships.Add(Relationship.FromRelationship(new DependsOnRelationship(refItem.ScopeSymbolId, targetTableId)));
+            }
+        }
+    }
+
+    private static void ResolveTriggersReference(
+        Reference refItem,
+        SymbolLookups symbols,
+        List<Relationship> referenceRelationships)
+    {
+        var targetId = symbols.FunctionSymbols.GetValueOrDefault(refItem.TargetName);
+        if (targetId == null && refItem.TargetName.Contains('.'))
+        {
+            var shortName = refItem.TargetName[(refItem.TargetName.LastIndexOf('.') + 1)..];
+            targetId = symbols.FunctionSymbols.GetValueOrDefault(shortName);
+        }
+
+        if (targetId != null)
+        {
+            if (!referenceRelationships.Any(r => r.From == refItem.ScopeSymbolId && r.To == targetId && r.Kind == OntologyConstants.Relationships.Triggers))
+            {
+                referenceRelationships.Add(
+                    Relationship.FromRelationship(new TriggersRelationship(refItem.ScopeSymbolId, targetId)));
+            }
+        }
+    }
+
+    private static void ResolveMessagingReference(
+        Reference refItem,
+        ParsingContext ctx,
+        SymbolLookups symbols,
+        BindingLookups bindings,
+        List<TopicNode> newTopicNodes,
+        HashSet<string> createdTopicIds,
+        List<Relationship> referenceRelationships)
+    {
+        var topicName = refItem.TargetName;
+        var brokerType = "event";
+        (brokerType, topicName) = topicName switch
+        {
+            _ when topicName.StartsWith("rabbitmq:", StringComparison.OrdinalIgnoreCase) => ("rabbitmq", topicName["rabbitmq:".Length..]),
+            _ when topicName.StartsWith("kafka:", StringComparison.OrdinalIgnoreCase) => ("kafka", topicName["kafka:".Length..]),
+            _ when topicName.StartsWith("gcp:", StringComparison.OrdinalIgnoreCase) => ("gcp", topicName["gcp:".Length..]),
+            _ when topicName.StartsWith("pubsub:", StringComparison.OrdinalIgnoreCase) => ("gcp", topicName["pubsub:".Length..]),
+            _ when topicName.StartsWith("mediatr:", StringComparison.OrdinalIgnoreCase) => ("mediatr", topicName["mediatr:".Length..]),
+            _ when topicName.StartsWith("masstransit:", StringComparison.OrdinalIgnoreCase) => ("masstransit", topicName["masstransit:".Length..]),
+            _ when topicName.StartsWith("spring:", StringComparison.OrdinalIgnoreCase) => ("spring", topicName["spring:".Length..]),
+            _ when topicName.StartsWith("cqrs:", StringComparison.OrdinalIgnoreCase) => ("cqrs", topicName["cqrs:".Length..]),
+            _ when topicName.StartsWith("event:", StringComparison.OrdinalIgnoreCase) => ("event", topicName["event:".Length..]),
+            _ => (brokerType, topicName)
+        };
+
+        if (brokerType == "gcp")
+        {
+            if (topicName.EndsWith("-SUB", StringComparison.OrdinalIgnoreCase))
+            {
+                topicName = topicName[..^4];
+            }
+            else if (topicName.EndsWith("_SUBSCRIPTION_NAME", StringComparison.OrdinalIgnoreCase))
+            {
+                topicName = topicName[..^"_SUBSCRIPTION_NAME".Length] + "_TOPIC_NAME";
+            }
+            else if (topicName.EndsWith("_SUBSCRIPTION", StringComparison.OrdinalIgnoreCase))
+            {
+                topicName = topicName[..^"_SUBSCRIPTION".Length] + "_TOPIC";
+            }
+            else if (topicName.EndsWith("_SUB", StringComparison.OrdinalIgnoreCase))
+            {
+                topicName = topicName[..^"_SUB".Length];
+            }
+        }
+
+        if (topicName.Contains("await", StringComparison.OrdinalIgnoreCase) || topicName.Contains('('))
+        {
+            var innerMatch = System.Text.RegularExpressions.Regex.Match(topicName, @"\(\s*([^,\)]+)\s*\)");
+            if (innerMatch.Success)
+            {
+                var inner = innerMatch.Groups[1].Value.Trim().Trim('\'', '"', '`');
+                if (!string.IsNullOrEmpty(inner) && !inner.Equals("topic", StringComparison.OrdinalIgnoreCase))
+                {
+                    topicName = inner;
+                }
+            }
+            else
+            {
+                return;
+            }
+        }
+
+        if (topicName.StartsWith("this.config.", StringComparison.OrdinalIgnoreCase))
+        {
+            var prop = topicName["this.config.".Length..];
+            if (ConstantRegistry.TryResolve(null, prop, out var resolved) && !string.IsNullOrEmpty(resolved))
+            {
+                topicName = resolved;
+            }
+            else
+            {
+                topicName = prop;
+            }
+        }
+        else if (topicName.StartsWith("config.", StringComparison.OrdinalIgnoreCase))
+        {
+            var prop = topicName["config.".Length..];
+            if (ConstantRegistry.TryResolve(null, prop, out var resolved) && !string.IsNullOrEmpty(resolved))
+            {
+                topicName = resolved;
+            }
+            else
+            {
+                topicName = prop;
+            }
+        }
+        else if (topicName.StartsWith("this.", StringComparison.OrdinalIgnoreCase))
+        {
+            var prop = topicName["this.".Length..];
+            if (ConstantRegistry.TryResolve(null, prop, out var resolved) && !string.IsNullOrEmpty(resolved))
+            {
+                topicName = resolved;
+            }
+        }
+
+        var scopeFilePath = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId);
+        var scopeProject = ConstantRegistry.ExtractProjectName(scopeFilePath);
+        string? globalConst = null;
+
+        if (bindings.ConstantLookup.TryGetValue(topicName, out var resolvedConst) &&
+            WorkspaceConventions.IsValidTopicOrQueueName(resolvedConst))
+        {
+            topicName = resolvedConst;
+        }
+        else if (ConstantRegistry.TryResolve(scopeProject ?? scopeFilePath, topicName, out var regConst) &&
+                 WorkspaceConventions.IsValidTopicOrQueueName(regConst))
+        {
+            topicName = regConst;
+        }
+        else if (System.Text.RegularExpressions.Regex.IsMatch(topicName, @"^[A-Z0-9_]{3,}$") &&
+                 ConstantRegistry.TryResolve(null, topicName, out globalConst) &&
+                 WorkspaceConventions.IsValidTopicOrQueueName(globalConst))
+        {
+            topicName = globalConst;
+        }
+
+        topicName = topicName.Trim('\'', '"', '`');
+
+        if (symbols.TypeSymbols.TryGetValue(topicName, out var targetTopicTypeId))
+        {
+            var rel = refItem.Kind == OntologyConstants.Relationships.PublishesTo
+                ? (IOntologyRelationship)new PublishesToRelationship(refItem.ScopeSymbolId, targetTopicTypeId)
+                : (IOntologyRelationship)new SubscribesToRelationship(refItem.ScopeSymbolId, targetTopicTypeId);
+            referenceRelationships.Add(Relationship.FromRelationship(rel));
+            return;
+        }
+
+        var isInternal = brokerType is "mediatr" or "cqrs";
+        var topicId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Topic}:{brokerType}:{topicName}";
+
+        if (!createdTopicIds.Contains(topicId))
+        {
+            createdTopicIds.Add(topicId);
+            var topicExt = new Dictionary<string, string>
+            {
+                ["is_internal"] = isInternal ? "true" : "false",
+                ["scope"] = isInternal ? "internal" : "external",
+                ["message_type"] = isInternal ? "internal" : "external",
+                ["is_semantic_entity"] = isInternal ? "false" : "true"
+            };
+            var topicNode = new TopicNode(topicId, topicName, "", brokerType, topicExt);
+            newTopicNodes.Add(topicNode);
+            ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Topic, refItem.TargetName, topicId);
+        }
+
+        var relKind = refItem.Kind == OntologyConstants.Relationships.PublishesTo
+            ? OntologyConstants.Relationships.PublishedBy
+            : OntologyConstants.Relationships.SubscribedBy;
+
+        var relProps = new Dictionary<string, object>
+        {
+            ["is_internal"] = isInternal ? "true" : "false",
+            ["scope"] = isInternal ? "internal" : "external",
+            ["category"] = "messaging",
+            ["dependency_type"] = "messaging",
+            ["broker_type"] = brokerType
+        };
+        if (isInternal)
+        {
+            relProps["is_semantic"] = "false";
+        }
+
+        referenceRelationships.Add(new Relationship(topicId, refItem.ScopeSymbolId, relKind, relProps));
+        referenceRelationships.Add(new Relationship(refItem.ScopeSymbolId, topicId, refItem.Kind, relProps));
+    }
+
+    private static void ResolvePersistedInReference(
+        Reference refItem,
+        ParsingContext ctx,
+        SymbolLookups symbols,
+        List<Relationship> referenceRelationships)
+    {
+        if (symbols.TypeSymbols.TryGetValue(refItem.ScopeSymbolId, out var tid))
+        {
+            var targetTableId = symbols.TableSymbols.TryGetValue(refItem.TargetName, out var tblId)
+                ? tblId
+                : $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Table}:{refItem.TargetName.ToLowerInvariant()}";
+            if (tid != targetTableId && !referenceRelationships.Any(r => r.From == tid && r.To == targetTableId && r.Kind == OntologyConstants.Relationships.PersistedIn))
+            {
+                referenceRelationships.Add(Relationship.FromRelationship(new PersistedInRelationship(tid, targetTableId)));
+            }
+        }
     }
     private async Task<List<Relationship>> PerformLateBindingAsync(Layer4Result l4Result, ParsingContext ctx)
     {

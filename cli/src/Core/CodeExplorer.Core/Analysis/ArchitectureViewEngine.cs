@@ -59,41 +59,16 @@ public class ArchitectureViewEngine(IGraphClient db)
     /// C1: System Context View.
     /// Retrieves top-level executable services, external APIs, databases, and message topics with materialized macro-edges.
     /// </summary>
-    public async Task<GraphDataDto> GetSystemContextViewAsync(
-        bool includeLibraries = false,
-        string? projectFilter = null,
-        bool sharedDatabasesOnly = false,
-        CancellationToken ct = default)
+    private sealed record SystemContextDiscoveryState(
+        Dictionary<string, string> InternalProjectsLookup,
+        List<ProjectMatchCandidate> ProjectCandidates,
+        List<EndpointMatchCandidate> EndpointCandidates,
+        string? PrimaryRelationalEngine);
+
+    private async Task<SystemContextDiscoveryState> DiscoverSystemContextCandidatesAsync(
+        JsonDocument nodesDoc,
+        CancellationToken ct)
     {
-        var cacheKey = $"c1:libs={includeLibraries}:filter={projectFilter ?? ""}:sharedDbs={sharedDatabasesOnly}";
-        if (SystemContextCache.TryGetValue(cacheKey, out var cached))
-        {
-            return cached;
-        }
-
-        var graph = new GraphDataDto
-        {
-            Metadata = new Dictionary<string, string>
-            {
-                ["view"] = "SystemContext",
-                ["level"] = "C1",
-                ["graphType"] = "architecture"
-            }
-        };
-
-        var nodeMap = new Dictionary<string, GraphNodeDto>(StringComparer.OrdinalIgnoreCase);
-        var dbIdToCanonicalId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var projectToWorkloadMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-        // Query macro nodes: Services, Apps, Libraries, Workers, CliTools, Databases, Topics (excluding in-memory MediatR), ExternalServices, Packages
-        var nodesQuery = includeLibraries
-            ? "MATCH (n) WHERE labels(n)[0] IN ['Project', 'Service', 'App', 'Library', 'Worker', 'CliTool', 'Database', 'ExternalService'] OR (labels(n)[0] = 'Topic' AND (n.broker_type IS NULL OR (n.broker_type <> 'mediatr' AND n.broker_type <> 'in-memory')) AND (n.is_internal IS NULL OR n.is_internal <> 'true')) OR (labels(n)[0] = 'Package' AND (n.is_external = 'true' OR n.is_external = true OR (n.is_external IS NULL AND NOT (n)-[:IMPLEMENTED_BY]->(:Project)))) RETURN n.id AS id, labels(n)[0] AS kind, n.name AS name, n.display_name AS display_name, n.path AS path, n.framework AS framework, n.role AS role, n.is_library AS is_library, n.db_type AS db_type, n.project_type AS project_type, n.package_type AS package_type, n.type AS pkg_type, n.version AS version, n.properties AS properties, n.layer AS layer, n.layerId AS layerId, n.layerName AS layerName, n.layerOrder AS layerOrder, n.layerColor AS layerColor, n.layerIcon AS layerIcon, n.package_count AS package_count"
-            : "MATCH (n) WHERE labels(n)[0] IN ['Service', 'App', 'Worker', 'CliTool', 'Database', 'ExternalService'] OR (labels(n)[0] = 'Topic' AND (n.broker_type IS NULL OR (n.broker_type <> 'mediatr' AND n.broker_type <> 'in-memory')) AND (n.is_internal IS NULL OR n.is_internal <> 'true')) OR (labels(n)[0] = 'Project' AND (n.is_library <> 'true' OR n.is_library IS NULL) AND (n.role <> 'SharedLibrary' AND n.role <> 'Test' OR n.role IS NULL)) RETURN n.id AS id, labels(n)[0] AS kind, n.name AS name, n.display_name AS display_name, n.path AS path, n.framework AS framework, n.role AS role, n.is_library AS is_library, n.db_type AS db_type, n.project_type AS project_type, n.package_type AS package_type, n.type AS pkg_type, n.version AS version, n.properties AS properties, n.layer AS layer, n.layerId AS layerId, n.layerName AS layerName, n.layerOrder AS layerOrder, n.layerColor AS layerColor, n.layerIcon AS layerIcon, n.package_count AS package_count";
-
-        var nodesJson = await db.ExecuteQueryAsync(nodesQuery, null, ct);
-
-        using var nodesDoc = JsonDocument.Parse(nodesJson);
-
         var internalProjectsLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var projectCandidates = new List<ProjectMatchCandidate>();
 
@@ -202,6 +177,542 @@ public class ArchitectureViewEngine(IGraphClient db)
             }
         }
 
+        return new SystemContextDiscoveryState(internalProjectsLookup, projectCandidates, endpointCandidates, primaryRelationalEngine);
+    }
+
+    private static Dictionary<string, string> ExtractBaseNodeProperties(JsonElement elem)
+    {
+        var props = elem.ExtractProperties();
+        var role = elem.GetStringProp("role", props.GetValueOrDefault("role", ""));
+        if (!string.IsNullOrEmpty(role)) props["role"] = role;
+        var isLib = elem.GetStringProp("is_library", props.GetValueOrDefault("is_library", ""));
+        if (!string.IsNullOrEmpty(isLib)) props["is_library"] = isLib;
+        var dbType = elem.GetStringProp("db_type", props.GetValueOrDefault("db_type", ""));
+        if (!string.IsNullOrEmpty(dbType)) props["db_type"] = dbType;
+        var projType = elem.GetStringProp("project_type", props.GetValueOrDefault("project_type", ""));
+        if (!string.IsNullOrEmpty(projType)) props["project_type"] = projType;
+        var framework = elem.GetStringProp("framework", props.GetValueOrDefault("framework", ""));
+        if (!string.IsNullOrEmpty(framework)) props["framework"] = framework;
+        var path = elem.GetStringProp("path", props.GetValueOrDefault("path", props.GetValueOrDefault("file_path", "")));
+        if (!string.IsNullOrEmpty(path)) props["path"] = path;
+        var layer = elem.GetStringProp("layer", props.GetValueOrDefault("layer", ""));
+
+        if (!string.IsNullOrEmpty(layer))
+        {
+            props["layer"] = layer;
+            props["layerId"] = elem.GetStringProp("layerId", props.GetValueOrDefault("layerId", layer));
+            props["layerName"] = elem.GetStringProp("layerName", props.GetValueOrDefault("layerName", ""));
+            props["layerOrder"] = elem.GetStringProp("layerOrder", props.GetValueOrDefault("layerOrder", ""));
+            props["layerColor"] = elem.GetStringProp("layerColor", props.GetValueOrDefault("layerColor", ""));
+            props["layerIcon"] = elem.GetStringProp("layerIcon", props.GetValueOrDefault("layerIcon", ""));
+        }
+
+        var pkgCount = elem.GetStringProp("package_count", props.GetValueOrDefault("package_count", ""));
+        if (!string.IsNullOrEmpty(pkgCount)) props["package_count"] = pkgCount;
+
+        return props;
+    }
+
+    private static void ProcessDatabaseNode(
+        JsonElement elem,
+        string id,
+        string name,
+        Dictionary<string, string> props,
+        string? primaryRelationalEngine,
+        Dictionary<string, string> dbIdToCanonicalId,
+        Dictionary<string, GraphNodeDto> nodeMap,
+        GraphDataDto graph)
+    {
+        var dbType = props.GetValueOrDefault("db_type", "");
+        var engineProp = elem.GetStringProp("engine", props.GetValueOrDefault("engine", ""));
+        var schemaProp = elem.GetStringProp("schema", props.GetValueOrDefault("schema", ""));
+
+        var (cName, cType, cKey) = PostIndexAnalyzer.CanonicalizeDatabase(name, dbType, engineProp,
+            schemaProp, primaryRelationalEngine);
+
+        var isExplicitResource = id.Contains(":res:db:", StringComparison.OrdinalIgnoreCase) ||
+                                 id.StartsWith("urn:", StringComparison.OrdinalIgnoreCase);
+        var isStandaloneDb = id.StartsWith("db:", StringComparison.OrdinalIgnoreCase);
+
+        string canonicalId = isExplicitResource || isStandaloneDb
+            ? id
+            : $"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Database}:{cType.ToLowerInvariant()}:{cKey.ToLowerInvariant()}";
+
+        dbIdToCanonicalId[id] = canonicalId;
+
+        if (!nodeMap.TryGetValue(canonicalId, out var existingDbNode))
+        {
+            props["entity_type"] = "database";
+            props["db_type"] = cType;
+            props["role"] = "database";
+            props["is_canonical"] = "true";
+            props["is_semantic_entity"] = "true";
+            props["is_library"] = "false";
+
+            if (!props.ContainsKey("layer"))
+            {
+                props["layer"] = StandardLayers.Foundation.LayerId;
+                props["layerId"] = StandardLayers.Foundation.LayerId;
+                props["layerName"] = StandardLayers.Foundation.LayerName;
+                props["layerOrder"] = StandardLayers.Foundation.Order.ToString();
+                props["layerColor"] = StandardLayers.Foundation.Color;
+                props["layerIcon"] = StandardLayers.Foundation.Icon;
+            }
+
+            var engine = !string.IsNullOrEmpty(engineProp)
+                ? engineProp
+                : (cName.Contains('.') ? cName.Split('.', 2)[0] : cName);
+            props["engine"] = engine;
+            props["technology"] = engine;
+            props["schema"] = cName.Contains('.') ? cName.Split('.', 2)[1] : schemaProp;
+
+            var dispName = elem.GetStringProp("display_name");
+
+            if (string.IsNullOrEmpty(dispName))
+            {
+                dispName = cName.Contains('.')
+                    ? cName
+                    : (!string.IsNullOrEmpty(engine) &&
+                       !engine.Equals(cName, StringComparison.OrdinalIgnoreCase)
+                        ? $"{cName} ({engine}) [{cType}]"
+                        : $"{cName} [{cType}]");
+            }
+
+            var path = props.GetValueOrDefault("path");
+            var lineStart = elem.GetNullableIntProp("start_line")
+                ?? (props.TryGetValue("start_line", out var slStr) && int.TryParse(slStr, out var sl) ? sl : null);
+            var lineEnd = elem.GetNullableIntProp("end_line")
+                ?? (props.TryGetValue("end_line", out var elStr) && int.TryParse(elStr, out var el) ? el : null);
+
+            var node = new GraphNodeDto
+            {
+                Id = canonicalId,
+                Kind = NodeKind.Database,
+                Name = cName,
+                DisplayName = dispName,
+                FilePath = string.IsNullOrEmpty(path) ? null : path,
+                LineStart = lineStart,
+                LineEnd = lineEnd,
+                Properties = props
+            };
+            nodeMap[canonicalId] = node;
+            graph.Nodes.Add(node);
+        }
+        else
+        {
+            var engine = elem.GetStringProp("engine", props.GetValueOrDefault("engine", ""));
+
+            if (!string.IsNullOrEmpty(engine) && existingDbNode.Properties != null &&
+                !existingDbNode.Properties.ContainsKey("engine"))
+            {
+                existingDbNode.Properties["engine"] = engine;
+
+                if (existingDbNode.DisplayName != null &&
+                    !existingDbNode.DisplayName.Contains(engine, StringComparison.OrdinalIgnoreCase))
+                {
+                    existingDbNode.DisplayName =
+                        $"{existingDbNode.Name} ({engine}) [{existingDbNode.Properties.GetValueOrDefault("db_type")}]";
+                }
+            }
+        }
+    }
+
+    private static void ProcessPackageNode(
+        JsonElement elem,
+        string id,
+        string name,
+        Dictionary<string, string> props,
+        Dictionary<string, GraphNodeDto> nodeMap,
+        GraphDataDto graph)
+    {
+        if (nodeMap.ContainsKey(id)) return;
+
+        var ver = elem.GetStringProp("version", props.GetValueOrDefault("version", ""));
+        var pType = elem.GetStringProp("package_type",
+            elem.GetStringProp("pkg_type", props.GetValueOrDefault("package_type", "package")));
+        props["is_library"] = "true";
+        props["is_external"] = "true";
+        props["entity_type"] = "library";
+        props["is_semantic_entity"] = "false";
+        props["package_type"] = pType;
+        if (!string.IsNullOrEmpty(ver)) props["version"] = ver;
+
+        if (!props.ContainsKey("layer"))
+        {
+            props["layer"] = StandardLayers.Foundation.LayerId;
+            props["layerId"] = StandardLayers.Foundation.LayerId;
+            props["layerName"] = StandardLayers.Foundation.LayerName;
+            props["layerColor"] = StandardLayers.Foundation.Color;
+        }
+
+        var dispName = elem.GetStringProp("display_name");
+
+        if (string.IsNullOrEmpty(dispName))
+        {
+            dispName = string.IsNullOrEmpty(ver) ? name : $"{name}@{ver}";
+        }
+
+        var pkgNode = new GraphNodeDto
+        {
+            Id = id,
+            Kind = NodeKind.Package,
+            Name = name,
+            DisplayName = dispName,
+            Properties = props
+        };
+        nodeMap[id] = pkgNode;
+        graph.Nodes.Add(pkgNode);
+    }
+
+    private static void ProcessTopicNode(
+        JsonElement elem,
+        string id,
+        string name,
+        Dictionary<string, string> props,
+        Dictionary<string, GraphNodeDto> nodeMap,
+        GraphDataDto graph)
+    {
+        if (nodeMap.ContainsKey(id)) return;
+
+        var broker = elem.GetStringProp("broker_type", props.GetValueOrDefault("broker_type", "Topic"));
+
+        var isInternal = string.Equals(broker, "mediatr", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(broker, "in-memory", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(props.GetValueOrDefault("is_internal"), "true",
+                             StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(props.GetValueOrDefault("scope"), "internal",
+                             StringComparison.OrdinalIgnoreCase) ||
+                         id.Contains(":mediatr:", StringComparison.OrdinalIgnoreCase) ||
+                         id.Contains(":in-memory:", StringComparison.OrdinalIgnoreCase);
+        if (isInternal) return;
+
+        props["broker_type"] = broker;
+        props["role"] = "topic";
+        props["entity_type"] = "topic";
+        props["is_semantic_entity"] = "true";
+        props["is_library"] = "false";
+
+        if (!props.ContainsKey("layer"))
+        {
+            props["layer"] = StandardLayers.Foundation.LayerId;
+            props["layerId"] = StandardLayers.Foundation.LayerId;
+            props["layerName"] = StandardLayers.Foundation.LayerName;
+            props["layerOrder"] = StandardLayers.Foundation.Order.ToString();
+            props["layerColor"] = StandardLayers.Foundation.Color;
+            props["layerIcon"] = StandardLayers.Foundation.Icon;
+        }
+
+        var dispName = elem.GetStringProp("display_name");
+
+        if (string.IsNullOrEmpty(dispName))
+        {
+            dispName = $"{name} [{broker}]";
+        }
+
+        var path = props.GetValueOrDefault("path");
+        var lineStart = elem.GetNullableIntProp("start_line")
+            ?? (props.TryGetValue("start_line", out var slStr) && int.TryParse(slStr, out var sl) ? sl : null);
+        var lineEnd = elem.GetNullableIntProp("end_line")
+            ?? (props.TryGetValue("end_line", out var elStr) && int.TryParse(elStr, out var el) ? el : null);
+
+        var topicNode = new GraphNodeDto
+        {
+            Id = id,
+            Kind = NodeKind.Topic,
+            Name = name,
+            DisplayName = dispName,
+            FilePath = string.IsNullOrEmpty(path) ? null : path,
+            LineStart = lineStart,
+            LineEnd = lineEnd,
+            Properties = props
+        };
+        nodeMap[id] = topicNode;
+        graph.Nodes.Add(topicNode);
+    }
+
+    private static void ProcessExternalServiceNode(
+        JsonElement elem,
+        string id,
+        string name,
+        Dictionary<string, string> props,
+        SystemContextDiscoveryState discovery,
+        Dictionary<string, string> projectToWorkloadMap,
+        Dictionary<string, GraphNodeDto> nodeMap,
+        GraphDataDto graph)
+    {
+        if (nodeMap.ContainsKey(id)) return;
+
+        if (name is "*" or "unknown-service" or "httprequest" ||
+            PostIndexAnalyzer.IsGarbageExternalService(name)) return;
+
+        var isExplicitExternal = props.GetValueOrDefault("is_external") == "true";
+
+        if (!isExplicitExternal)
+        {
+            var domain = SyntaxEnricher.CleanProjectNameToDomain(name);
+            var extIdDomain = PostIndexAnalyzer.ExtractDomainFromExternalServiceId(id);
+            var normName = EndpointScoringEngine.NormalizeAlphanumeric(name);
+            var normDomain = EndpointScoringEngine.NormalizeAlphanumeric(domain);
+            var normExtIdDomain = EndpointScoringEngine.NormalizeAlphanumeric(extIdDomain);
+
+            string? matchedProjId = null;
+
+            if (discovery.InternalProjectsLookup.TryGetValue(name, out var mpId) ||
+                discovery.InternalProjectsLookup.TryGetValue(domain, out mpId) ||
+                discovery.InternalProjectsLookup.TryGetValue(name.ToLowerInvariant(), out mpId) ||
+                discovery.InternalProjectsLookup.TryGetValue(extIdDomain, out mpId) ||
+                (!string.IsNullOrEmpty(normName) && discovery.InternalProjectsLookup.TryGetValue(normName, out mpId)) ||
+                (!string.IsNullOrEmpty(normDomain) && discovery.InternalProjectsLookup.TryGetValue(normDomain, out mpId)) ||
+                (!string.IsNullOrEmpty(normExtIdDomain) && discovery.InternalProjectsLookup.TryGetValue(normExtIdDomain, out mpId)))
+            {
+                matchedProjId = mpId;
+            }
+            else if (name.Contains('.'))
+            {
+                var sub = name.Split('.', 2)[0];
+                var normSub = EndpointScoringEngine.NormalizeAlphanumeric(sub);
+                if (discovery.InternalProjectsLookup.TryGetValue(sub, out mpId) ||
+                    (!string.IsNullOrEmpty(normSub) && discovery.InternalProjectsLookup.TryGetValue(normSub, out mpId)))
+                {
+                    matchedProjId = mpId;
+                }
+            }
+
+            if (matchedProjId == null && (discovery.ProjectCandidates.Count > 0 || discovery.EndpointCandidates.Count > 0))
+            {
+                var svcPath = props.GetValueOrDefault("path");
+                var effectiveCall = !string.IsNullOrEmpty(svcPath) && svcPath != "/" ? svcPath : name;
+                var match = EndpointScoringEngine.MatchCall(effectiveCall, null, null, discovery.ProjectCandidates, discovery.EndpointCandidates);
+                if (match.IsInternal && match.Project != null)
+                {
+                    matchedProjId = match.Project.ProjectId;
+                }
+            }
+
+            if (matchedProjId != null)
+            {
+                projectToWorkloadMap[id] = matchedProjId;
+                return;
+            }
+        }
+
+        var st = elem.GetStringProp("service_type", props.GetValueOrDefault("service_type", "Service"));
+
+        var isMsg = st.Equals("MessageBroker", StringComparison.OrdinalIgnoreCase) ||
+                    st.Equals("Kafka", StringComparison.OrdinalIgnoreCase) ||
+                    st.Equals("RabbitMQ", StringComparison.OrdinalIgnoreCase);
+        props["service_type"] = st;
+        props["entity_type"] = isMsg ? "topic" : "external";
+        props["is_semantic_entity"] = "true";
+        props["is_library"] = "false";
+
+        if (!props.ContainsKey("layer"))
+        {
+            var targetLayer = isMsg ? StandardLayers.Foundation : StandardLayers.Egress;
+            props["layer"] = targetLayer.LayerId;
+            props["layerId"] = targetLayer.LayerId;
+            props["layerName"] = targetLayer.LayerName;
+            props["layerOrder"] = targetLayer.Order.ToString();
+            props["layerColor"] = targetLayer.Color;
+            props["layerIcon"] = targetLayer.Icon;
+        }
+
+        var dispName = elem.GetStringProp("display_name");
+
+        if (string.IsNullOrEmpty(dispName))
+        {
+            dispName = $"{name} [{st}]";
+        }
+
+        var path = props.GetValueOrDefault("path");
+        var lineStart = elem.GetNullableIntProp("start_line")
+            ?? (props.TryGetValue("start_line", out var slStr) && int.TryParse(slStr, out var sl) ? sl : null);
+        var lineEnd = elem.GetNullableIntProp("end_line")
+            ?? (props.TryGetValue("end_line", out var elStr) && int.TryParse(elStr, out var el) ? el : null);
+
+        var esNode = new GraphNodeDto
+        {
+            Id = id,
+            Kind = NodeKind.ExternalService,
+            Name = name,
+            DisplayName = dispName,
+            FilePath = string.IsNullOrEmpty(path) ? null : path,
+            LineStart = lineStart,
+            LineEnd = lineEnd,
+            Properties = props
+        };
+        nodeMap[id] = esNode;
+        graph.Nodes.Add(esNode);
+    }
+
+    private void ProcessProjectOrWorkloadNode(
+        JsonElement elem,
+        string id,
+        string kind,
+        string name,
+        Dictionary<string, string> props,
+        bool includeLibraries,
+        Dictionary<string, string> projectToWorkloadMap,
+        Dictionary<string, GraphNodeDto> nodeMap,
+        GraphDataDto graph)
+    {
+        var isWorkload = kind is "Service" or "App" or "Worker" or "Library" or "CliTool" or "FrontendApp"
+            or "SharedLibrary";
+        var associatedProjectId = props.GetValueOrDefault("project_id");
+
+        if (string.IsNullOrEmpty(associatedProjectId))
+        {
+            associatedProjectId =
+                (id.Contains($":{OntologyConstants.IdPrefixes.Project}:",
+                     StringComparison.OrdinalIgnoreCase) ||
+                 id.Contains(":project:", StringComparison.OrdinalIgnoreCase))
+                    ? id
+                    : $"{id.Split(':')[0]}:{OntologyConstants.IdPrefixes.Project}:{name}";
+        }
+
+        if (isWorkload)
+        {
+            projectToWorkloadMap[associatedProjectId] = id;
+
+            if (nodeMap.TryGetValue(associatedProjectId, out var rawProj))
+            {
+                if (rawProj.Properties != null)
+                {
+                    foreach (var key in new[]
+                             {
+                                 "layer", "layerId", "layerName", "layerOrder", "layerColor",
+                                 "layerIcon"
+                             })
+                    {
+                        if (!props.ContainsKey(key) && rawProj.Properties.TryGetValue(key, out var val))
+                        {
+                            props[key] = val;
+                        }
+                    }
+                }
+
+                graph.Nodes.Remove(rawProj);
+                nodeMap.Remove(associatedProjectId);
+            }
+        }
+        else if (kind == "Project")
+        {
+            if (projectToWorkloadMap.TryGetValue(id, out var workloadId) &&
+                nodeMap.TryGetValue(workloadId, out var existingWorkload))
+            {
+                if (existingWorkload.Properties != null && props != null)
+                {
+                    foreach (var key in new[]
+                             {
+                                 "layer", "layerId", "layerName", "layerOrder", "layerColor",
+                                 "layerIcon"
+                             })
+                    {
+                        if (!existingWorkload.Properties.ContainsKey(key) &&
+                            props.TryGetValue(key, out var val))
+                        {
+                            existingWorkload.Properties[key] = val;
+                        }
+                    }
+                }
+
+                return;
+            }
+
+            if (projectToWorkloadMap.ContainsKey(id))
+            {
+                return;
+            }
+        }
+
+        if (nodeMap.ContainsKey(id)) return;
+
+        var framework = props.GetValueOrDefault("framework", "");
+        var dispName = elem.GetStringProp("display_name");
+
+        if (string.IsNullOrEmpty(dispName))
+        {
+            dispName = string.IsNullOrEmpty(framework) ? name : $"{name} ({framework})";
+        }
+
+        var path = props.GetValueOrDefault("path");
+        var lineStart = elem.GetNullableIntProp("start_line")
+            ?? (props.TryGetValue("start_line", out var slStr) && int.TryParse(slStr, out var sl) ? sl : null);
+        var lineEnd = elem.GetNullableIntProp("end_line")
+            ?? (props.TryGetValue("end_line", out var elStr) && int.TryParse(elStr, out var el) ? el : null);
+
+        var projNode = new GraphNodeDto
+        {
+            Id = id,
+            Kind = !string.IsNullOrEmpty(kind) ? EnumExtensions.ParseNodeKind(kind) : NodeKind.Project,
+            Name = name,
+            DisplayName = dispName,
+            FilePath = string.IsNullOrEmpty(path) ? null : path,
+            LineStart = lineStart,
+            LineEnd = lineEnd,
+            Properties = props
+        };
+        var isLibProject = IsLibraryProject(projNode);
+
+        if (!includeLibraries && isLibProject)
+        {
+            return;
+        }
+
+        props["is_library"] = isLibProject ? "true" : "false";
+        props["entity_type"] = isLibProject ? "library" : "service";
+        props["is_semantic_entity"] = isLibProject ? "false" : "true";
+
+        if (!props.ContainsKey("layer"))
+        {
+            var isAppOrFrontend = kind is "App" or "FrontendApp" ||
+                                  string.Equals(props.GetValueOrDefault("role"), "FrontendApp",
+                                      StringComparison.OrdinalIgnoreCase) ||
+                                  string.Equals(props.GetValueOrDefault("role"), "App",
+                                      StringComparison.OrdinalIgnoreCase) ||
+                                  (name?.ToLowerInvariant().Contains("gateway") == true);
+
+            var defaultLayer = isLibProject ? StandardLayers.Foundation :
+                isAppOrFrontend ? StandardLayers.Ingress : StandardLayers.Components;
+            props["layer"] = defaultLayer.LayerId;
+            props["layerId"] = defaultLayer.LayerId;
+            props["layerName"] = defaultLayer.LayerName;
+            props["layerOrder"] = defaultLayer.Order.ToString();
+            props["layerColor"] = defaultLayer.Color;
+            props["layerIcon"] = defaultLayer.Icon;
+        }
+
+        var (domKey, domDisp, _) = ExtractDomainKey(projNode);
+        if (!props.ContainsKey("domainId"))
+        {
+            props["domainId"] = domKey;
+        }
+        if (!props.ContainsKey("domain"))
+        {
+            var cleanDomName = domKey.StartsWith("domain:", StringComparison.OrdinalIgnoreCase)
+                ? domKey["domain:".Length..]
+                : domKey;
+            props["domain"] = ToPascalCase(cleanDomName);
+        }
+        if (!props.ContainsKey("domainDisplayName"))
+        {
+            props["domainDisplayName"] = domDisp;
+        }
+
+        nodeMap[id] = projNode;
+        graph.Nodes.Add(projNode);
+    }
+
+    private void PopulateSystemContextNodes(
+        JsonDocument nodesDoc,
+        GraphDataDto graph,
+        Dictionary<string, GraphNodeDto> nodeMap,
+        Dictionary<string, string> dbIdToCanonicalId,
+        Dictionary<string, string> projectToWorkloadMap,
+        SystemContextDiscoveryState discovery,
+        bool includeLibraries,
+        string? projectFilter)
+    {
         foreach (var elem in nodesDoc.RootElement.EnumerateArray())
         {
             var id = elem.GetStringProp("id");
@@ -216,479 +727,34 @@ public class ArchitectureViewEngine(IGraphClient db)
                 continue;
             }
 
-            var props = elem.ExtractProperties();
-            var role = elem.GetStringProp("role", props.GetValueOrDefault("role", ""));
-            if (!string.IsNullOrEmpty(role)) props["role"] = role;
-            var isLib = elem.GetStringProp("is_library", props.GetValueOrDefault("is_library", ""));
-            if (!string.IsNullOrEmpty(isLib)) props["is_library"] = isLib;
-            var dbType = elem.GetStringProp("db_type", props.GetValueOrDefault("db_type", ""));
-            if (!string.IsNullOrEmpty(dbType)) props["db_type"] = dbType;
-            var projType = elem.GetStringProp("project_type", props.GetValueOrDefault("project_type", ""));
-            if (!string.IsNullOrEmpty(projType)) props["project_type"] = projType;
-            var framework = elem.GetStringProp("framework", props.GetValueOrDefault("framework", ""));
-            if (!string.IsNullOrEmpty(framework)) props["framework"] = framework;
-            var path = elem.GetStringProp("path", props.GetValueOrDefault("path", props.GetValueOrDefault("file_path", "")));
-            if (!string.IsNullOrEmpty(path)) props["path"] = path;
-            var lineStart = elem.GetNullableIntProp("start_line")
-                ?? (props.TryGetValue("start_line", out var slStr) && int.TryParse(slStr, out var sl) ? sl : null);
-            var lineEnd = elem.GetNullableIntProp("end_line")
-                ?? (props.TryGetValue("end_line", out var elStr) && int.TryParse(elStr, out var el) ? el : null);
-            var layer = elem.GetStringProp("layer", props.GetValueOrDefault("layer", ""));
+            var props = ExtractBaseNodeProperties(elem);
 
-            if (!string.IsNullOrEmpty(layer))
+            switch (kind)
             {
-                props["layer"] = layer;
-                props["layerId"] = elem.GetStringProp("layerId", props.GetValueOrDefault("layerId", layer));
-                props["layerName"] = elem.GetStringProp("layerName", props.GetValueOrDefault("layerName", ""));
-                props["layerOrder"] = elem.GetStringProp("layerOrder", props.GetValueOrDefault("layerOrder", ""));
-                props["layerColor"] = elem.GetStringProp("layerColor", props.GetValueOrDefault("layerColor", ""));
-                props["layerIcon"] = elem.GetStringProp("layerIcon", props.GetValueOrDefault("layerIcon", ""));
-            }
-
-            var pkgCount = elem.GetStringProp("package_count", props.GetValueOrDefault("package_count", ""));
-            if (!string.IsNullOrEmpty(pkgCount)) props["package_count"] = pkgCount;
-
-            if (kind == "Database")
-            {
-                var engineProp = elem.GetStringProp("engine", props.GetValueOrDefault("engine", ""));
-                var schemaProp = elem.GetStringProp("schema", props.GetValueOrDefault("schema", ""));
-
-                var (cName, cType, cKey) = PostIndexAnalyzer.CanonicalizeDatabase(name, dbType, engineProp,
-                    schemaProp, primaryRelationalEngine);
-
-                var isExplicitResource = id.Contains(":res:db:", StringComparison.OrdinalIgnoreCase) ||
-                                         id.StartsWith("urn:", StringComparison.OrdinalIgnoreCase);
-                var isStandaloneDb = id.StartsWith("db:", StringComparison.OrdinalIgnoreCase);
-
-                string canonicalId;
-
-                if (isExplicitResource)
-                {
-                    canonicalId = id;
-                }
-                else if (isStandaloneDb)
-                {
-                    canonicalId = id;
-                }
-                else
-                {
-                    canonicalId =
-                        $"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Database}:{cType.ToLowerInvariant()}:{cKey.ToLowerInvariant()}";
-                }
-
-                dbIdToCanonicalId[id] = canonicalId;
-
-                if (!nodeMap.TryGetValue(canonicalId, out var existingDbNode))
-                {
-                    props["entity_type"] = "database";
-                    props["db_type"] = cType;
-                    props["role"] = "database";
-                    props["is_canonical"] = "true";
-                    props["is_semantic_entity"] = "true";
-                    props["is_library"] = "false";
-
-                    if (!props.ContainsKey("layer"))
-                    {
-                        props["layer"] = StandardLayers.Foundation.LayerId;
-                        props["layerId"] = StandardLayers.Foundation.LayerId;
-                        props["layerName"] = StandardLayers.Foundation.LayerName;
-                        props["layerOrder"] = StandardLayers.Foundation.Order.ToString();
-                        props["layerColor"] = StandardLayers.Foundation.Color;
-                        props["layerIcon"] = StandardLayers.Foundation.Icon;
-                    }
-
-                    var engine = !string.IsNullOrEmpty(engineProp)
-                        ? engineProp
-                        : (cName.Contains('.') ? cName.Split('.', 2)[0] : cName);
-                    props["engine"] = engine;
-                    props["technology"] = engine;
-                    props["schema"] = cName.Contains('.') ? cName.Split('.', 2)[1] : schemaProp;
-
-                    var dispName = elem.GetStringProp("display_name");
-
-                    if (string.IsNullOrEmpty(dispName))
-                    {
-                        dispName = cName.Contains('.')
-                            ? cName
-                            : (!string.IsNullOrEmpty(engine) &&
-                               !engine.Equals(cName, StringComparison.OrdinalIgnoreCase)
-                                ? $"{cName} ({engine}) [{cType}]"
-                                : $"{cName} [{cType}]");
-                    }
-
-                    var node = new GraphNodeDto
-                    {
-                        Id = canonicalId,
-                        Kind = NodeKind.Database,
-                        Name = cName,
-                        DisplayName = dispName,
-                        FilePath = string.IsNullOrEmpty(path) ? null : path,
-                        LineStart = lineStart,
-                        LineEnd = lineEnd,
-                        Properties = props
-                    };
-                    nodeMap[canonicalId] = node;
-                    graph.Nodes.Add(node);
-                }
-                else
-                {
-                    var engine = elem.GetStringProp("engine", props.GetValueOrDefault("engine", ""));
-
-                    if (!string.IsNullOrEmpty(engine) && existingDbNode.Properties != null &&
-                        !existingDbNode.Properties.ContainsKey("engine"))
-                    {
-                        existingDbNode.Properties["engine"] = engine;
-
-                        if (existingDbNode.DisplayName != null &&
-                            !existingDbNode.DisplayName.Contains(engine, StringComparison.OrdinalIgnoreCase))
-                        {
-                            existingDbNode.DisplayName =
-                                $"{existingDbNode.Name} ({engine}) [{existingDbNode.Properties.GetValueOrDefault("db_type")}]";
-                        }
-                    }
-                }
-            }
-            else if (kind == "Package")
-            {
-                if (nodeMap.ContainsKey(id)) continue;
-
-                var ver = elem.GetStringProp("version", props.GetValueOrDefault("version", ""));
-
-                var pType = elem.GetStringProp("package_type",
-                    elem.GetStringProp("pkg_type", props.GetValueOrDefault("package_type", "package")));
-                props["is_library"] = "true";
-                props["is_external"] = "true";
-                props["entity_type"] = "library";
-                props["is_semantic_entity"] = "false";
-                props["package_type"] = pType;
-                if (!string.IsNullOrEmpty(ver)) props["version"] = ver;
-
-                if (!props.ContainsKey("layer"))
-                {
-                    props["layer"] = StandardLayers.Foundation.LayerId;
-                    props["layerId"] = StandardLayers.Foundation.LayerId;
-                    props["layerName"] = StandardLayers.Foundation.LayerName;
-                    props["layerColor"] = StandardLayers.Foundation.Color;
-                }
-
-                var dispName = elem.GetStringProp("display_name");
-
-                if (string.IsNullOrEmpty(dispName))
-                {
-                    dispName = string.IsNullOrEmpty(ver) ? name : $"{name}@{ver}";
-                }
-
-                var pkgNode = new GraphNodeDto
-                {
-                    Id = id,
-                    Kind = NodeKind.Package,
-                    Name = name,
-                    DisplayName = dispName,
-                    Properties = props
-                };
-                nodeMap[id] = pkgNode;
-                graph.Nodes.Add(pkgNode);
-            }
-            else if (kind == "Topic")
-            {
-                if (nodeMap.ContainsKey(id)) continue;
-
-                var broker = elem.GetStringProp("broker_type", props.GetValueOrDefault("broker_type", "Topic"));
-
-                var isInternal = string.Equals(broker, "mediatr", StringComparison.OrdinalIgnoreCase) ||
-                                 string.Equals(broker, "in-memory", StringComparison.OrdinalIgnoreCase) ||
-                                 string.Equals(props.GetValueOrDefault("is_internal"), "true",
-                                     StringComparison.OrdinalIgnoreCase) ||
-                                 string.Equals(props.GetValueOrDefault("scope"), "internal",
-                                     StringComparison.OrdinalIgnoreCase) ||
-                                 id.Contains(":mediatr:", StringComparison.OrdinalIgnoreCase) ||
-                                 id.Contains(":in-memory:", StringComparison.OrdinalIgnoreCase);
-                if (isInternal) continue;
-
-                props["broker_type"] = broker;
-                props["role"] = "topic";
-                props["entity_type"] = "topic";
-                props["is_semantic_entity"] = "true";
-                props["is_library"] = "false";
-
-                if (!props.ContainsKey("layer"))
-                {
-                    props["layer"] = StandardLayers.Foundation.LayerId;
-                    props["layerId"] = StandardLayers.Foundation.LayerId;
-                    props["layerName"] = StandardLayers.Foundation.LayerName;
-                    props["layerOrder"] = StandardLayers.Foundation.Order.ToString();
-                    props["layerColor"] = StandardLayers.Foundation.Color;
-                    props["layerIcon"] = StandardLayers.Foundation.Icon;
-                }
-
-                var dispName = elem.GetStringProp("display_name");
-
-                if (string.IsNullOrEmpty(dispName))
-                {
-                    dispName = $"{name} [{broker}]";
-                }
-
-                var topicNode = new GraphNodeDto
-                {
-                    Id = id,
-                    Kind = NodeKind.Topic,
-                    Name = name,
-                    DisplayName = dispName,
-                    FilePath = string.IsNullOrEmpty(path) ? null : path,
-                    LineStart = lineStart,
-                    LineEnd = lineEnd,
-                    Properties = props
-                };
-                nodeMap[id] = topicNode;
-                graph.Nodes.Add(topicNode);
-            }
-            else if (kind == "ExternalService")
-            {
-                if (nodeMap.ContainsKey(id)) continue;
-
-                if (name is "*" or "unknown-service" or "httprequest" ||
-                    PostIndexAnalyzer.IsGarbageExternalService(name)) continue;
-
-                var isExplicitExternal = props.GetValueOrDefault("is_external") == "true";
-
-                if (!isExplicitExternal)
-                {
-                    var domain = SyntaxEnricher.CleanProjectNameToDomain(name);
-                    var extIdDomain = PostIndexAnalyzer.ExtractDomainFromExternalServiceId(id);
-                    var normName = EndpointScoringEngine.NormalizeAlphanumeric(name);
-                    var normDomain = EndpointScoringEngine.NormalizeAlphanumeric(domain);
-                    var normExtIdDomain = EndpointScoringEngine.NormalizeAlphanumeric(extIdDomain);
-
-                    string? matchedProjId = null;
-
-                    if (internalProjectsLookup.TryGetValue(name, out var mpId) ||
-                        internalProjectsLookup.TryGetValue(domain, out mpId) ||
-                        internalProjectsLookup.TryGetValue(name.ToLowerInvariant(), out mpId) ||
-                        internalProjectsLookup.TryGetValue(extIdDomain, out mpId) ||
-                        (!string.IsNullOrEmpty(normName) && internalProjectsLookup.TryGetValue(normName, out mpId)) ||
-                        (!string.IsNullOrEmpty(normDomain) && internalProjectsLookup.TryGetValue(normDomain, out mpId)) ||
-                        (!string.IsNullOrEmpty(normExtIdDomain) && internalProjectsLookup.TryGetValue(normExtIdDomain, out mpId)))
-                    {
-                        matchedProjId = mpId;
-                    }
-                    else if (name.Contains('.'))
-                    {
-                        var sub = name.Split('.', 2)[0];
-                        var normSub = EndpointScoringEngine.NormalizeAlphanumeric(sub);
-                        if (internalProjectsLookup.TryGetValue(sub, out mpId) ||
-                            (!string.IsNullOrEmpty(normSub) && internalProjectsLookup.TryGetValue(normSub, out mpId)))
-                        {
-                            matchedProjId = mpId;
-                        }
-                    }
-
-                    if (matchedProjId == null && (projectCandidates.Count > 0 || endpointCandidates.Count > 0))
-                    {
-                        var svcPath = props.GetValueOrDefault("path");
-                        var effectiveCall = !string.IsNullOrEmpty(svcPath) && svcPath != "/" ? svcPath : name;
-                        var match = EndpointScoringEngine.MatchCall(effectiveCall, null, null, projectCandidates, endpointCandidates);
-                        if (match.IsInternal && match.Project != null)
-                        {
-                            matchedProjId = match.Project.ProjectId;
-                        }
-                    }
-
-                    if (matchedProjId != null)
-                    {
-                        projectToWorkloadMap[id] = matchedProjId;
-                        continue; // Do NOT add as external service cloud!
-                    }
-                }
-
-                var st = elem.GetStringProp("service_type", props.GetValueOrDefault("service_type", "Service"));
-
-                var isMsg = st.Equals("MessageBroker", StringComparison.OrdinalIgnoreCase) ||
-                            st.Equals("Kafka", StringComparison.OrdinalIgnoreCase) ||
-                            st.Equals("RabbitMQ", StringComparison.OrdinalIgnoreCase);
-                props["service_type"] = st;
-                props["entity_type"] = isMsg ? "topic" : "external";
-                props["is_semantic_entity"] = "true";
-                props["is_library"] = "false";
-
-                if (!props.ContainsKey("layer"))
-                {
-                    var targetLayer = isMsg ? StandardLayers.Foundation : StandardLayers.Egress;
-                    props["layer"] = targetLayer.LayerId;
-                    props["layerId"] = targetLayer.LayerId;
-                    props["layerName"] = targetLayer.LayerName;
-                    props["layerOrder"] = targetLayer.Order.ToString();
-                    props["layerColor"] = targetLayer.Color;
-                    props["layerIcon"] = targetLayer.Icon;
-                }
-
-                var dispName = elem.GetStringProp("display_name");
-
-                if (string.IsNullOrEmpty(dispName))
-                {
-                    dispName = $"{name} [{st}]";
-                }
-
-                var esNode = new GraphNodeDto
-                {
-                    Id = id,
-                    Kind = NodeKind.ExternalService,
-                    Name = name,
-                    DisplayName = dispName,
-                    FilePath = string.IsNullOrEmpty(path) ? null : path,
-                    LineStart = lineStart,
-                    LineEnd = lineEnd,
-                    Properties = props
-                };
-                nodeMap[id] = esNode;
-                graph.Nodes.Add(esNode);
-            }
-            else
-            {
-                // Project or Workload (Service, App, Worker, Library, CliTool)
-                var isWorkload = kind is "Service" or "App" or "Worker" or "Library" or "CliTool" or "FrontendApp"
-                    or "SharedLibrary";
-                var associatedProjectId = props.GetValueOrDefault("project_id");
-
-                if (string.IsNullOrEmpty(associatedProjectId))
-                {
-                    associatedProjectId =
-                        (id.Contains($":{OntologyConstants.IdPrefixes.Project}:",
-                             StringComparison.OrdinalIgnoreCase) ||
-                         id.Contains(":project:", StringComparison.OrdinalIgnoreCase))
-                            ? id
-                            : $"{id.Split(':')[0]}:{OntologyConstants.IdPrefixes.Project}:{name}";
-                }
-
-                if (isWorkload)
-                {
-                    projectToWorkloadMap[associatedProjectId] = id;
-
-                    // If raw project was already added, replace it with this higher-level semantic workload
-                    if (nodeMap.TryGetValue(associatedProjectId, out var rawProj))
-                    {
-                        if (rawProj.Properties != null)
-                        {
-                            foreach (var key in new[]
-                                     {
-                                         "layer", "layerId", "layerName", "layerOrder", "layerColor",
-                                         "layerIcon"
-                                     })
-                            {
-                                if (!props.ContainsKey(key) && rawProj.Properties.TryGetValue(key, out var val))
-                                {
-                                    props[key] = val;
-                                }
-                            }
-                        }
-
-                        graph.Nodes.Remove(rawProj);
-                        nodeMap.Remove(associatedProjectId);
-                    }
-                }
-                else if (kind == "Project")
-                {
-                    // If semantic workload for this project already exists, copy layer properties and skip redundant raw Project node
-                    if (projectToWorkloadMap.TryGetValue(id, out var workloadId) &&
-                        nodeMap.TryGetValue(workloadId, out var existingWorkload))
-                    {
-                        if (existingWorkload.Properties != null && props != null)
-                        {
-                            foreach (var key in new[]
-                                     {
-                                         "layer", "layerId", "layerName", "layerOrder", "layerColor",
-                                         "layerIcon"
-                                     })
-                            {
-                                if (!existingWorkload.Properties.ContainsKey(key) &&
-                                    props.TryGetValue(key, out var val))
-                                {
-                                    existingWorkload.Properties[key] = val;
-                                }
-                            }
-                        }
-
-                        continue;
-                    }
-
-                    if (projectToWorkloadMap.ContainsKey(id))
-                    {
-                        continue;
-                    }
-                }
-
-                if (nodeMap.ContainsKey(id)) continue;
-
-                var dispName = elem.GetStringProp("display_name");
-
-                if (string.IsNullOrEmpty(dispName))
-                {
-                    dispName = string.IsNullOrEmpty(framework) ? name : $"{name} ({framework})";
-                }
-
-                var projNode = new GraphNodeDto
-                {
-                    Id = id,
-                    Kind = !string.IsNullOrEmpty(kind) ? EnumExtensions.ParseNodeKind(kind) : NodeKind.Project,
-                    Name = name,
-                    DisplayName = dispName,
-                    FilePath = string.IsNullOrEmpty(path) ? null : path,
-                    LineStart = lineStart,
-                    LineEnd = lineEnd,
-                    Properties = props
-                };
-                var isLibProject = IsLibraryProject(projNode);
-
-                if (!includeLibraries && isLibProject)
-                {
-                    continue;
-                }
-
-                props["is_library"] = isLibProject ? "true" : "false";
-                props["entity_type"] = isLibProject ? "library" : "service";
-                props["is_semantic_entity"] = isLibProject ? "false" : "true";
-
-                if (!props.ContainsKey("layer"))
-                {
-                    var isAppOrFrontend = kind is "App" or "FrontendApp" ||
-                                          string.Equals(props.GetValueOrDefault("role"), "FrontendApp",
-                                              StringComparison.OrdinalIgnoreCase) ||
-                                          string.Equals(props.GetValueOrDefault("role"), "App",
-                                              StringComparison.OrdinalIgnoreCase) ||
-                                          (name?.ToLowerInvariant().Contains("gateway") == true);
-
-                    var defaultLayer = isLibProject ? StandardLayers.Foundation :
-                        isAppOrFrontend ? StandardLayers.Ingress : StandardLayers.Components;
-                    props["layer"] = defaultLayer.LayerId;
-                    props["layerId"] = defaultLayer.LayerId;
-                    props["layerName"] = defaultLayer.LayerName;
-                    props["layerOrder"] = defaultLayer.Order.ToString();
-                    props["layerColor"] = defaultLayer.Color;
-                    props["layerIcon"] = defaultLayer.Icon;
-                }
-
-                var (domKey, domDisp, _) = ExtractDomainKey(projNode);
-                if (!props.ContainsKey("domainId"))
-                {
-                    props["domainId"] = domKey;
-                }
-                if (!props.ContainsKey("domain"))
-                {
-                    var cleanDomName = domKey.StartsWith("domain:", StringComparison.OrdinalIgnoreCase)
-                        ? domKey["domain:".Length..]
-                        : domKey;
-                    props["domain"] = ToPascalCase(cleanDomName);
-                }
-                if (!props.ContainsKey("domainDisplayName"))
-                {
-                    props["domainDisplayName"] = domDisp;
-                }
-
-                nodeMap[id] = projNode;
-                graph.Nodes.Add(projNode);
+                case "Database":
+                    ProcessDatabaseNode(elem, id, name, props, discovery.PrimaryRelationalEngine, dbIdToCanonicalId, nodeMap, graph);
+                    break;
+                case "Package":
+                    ProcessPackageNode(elem, id, name, props, nodeMap, graph);
+                    break;
+                case "Topic":
+                    ProcessTopicNode(elem, id, name, props, nodeMap, graph);
+                    break;
+                case "ExternalService":
+                    ProcessExternalServiceNode(elem, id, name, props, discovery, projectToWorkloadMap, nodeMap, graph);
+                    break;
+                default:
+                    ProcessProjectOrWorkloadNode(elem, id, kind, name, props, includeLibraries, projectToWorkloadMap, nodeMap, graph);
+                    break;
             }
         }
+    }
 
-        // Fallback package count query if needed
+    private async Task PopulatePackageCountsAsync(
+        GraphDataDto graph,
+        Dictionary<string, GraphNodeDto> nodeMap,
+        CancellationToken ct)
+    {
         var needsPkgCount = graph.Nodes.Any(n =>
             IsProjectNodeKind(n.Kind) && (n.Properties == null || !n.Properties.ContainsKey("package_count")));
 
@@ -722,10 +788,16 @@ public class ArchitectureViewEngine(IGraphClient db)
             {
             }
         }
+    }
 
-        var projectNodes = graph.Nodes.Where(n => IsProjectNodeKind(n.Kind)).ToList();
-
-        // Query macro relationships: INTEGRATES_WITH, USES_DB, TRIGGERS, PUBLISHES_TO, DEPENDS_ON, SERVICE_CALL, CALLS_ENDPOINT, LIBRARY
+    private async Task PopulateSystemContextEdgesAsync(
+        GraphDataDto graph,
+        Dictionary<string, GraphNodeDto> nodeMap,
+        Dictionary<string, string> dbIdToCanonicalId,
+        Dictionary<string, string> projectToWorkloadMap,
+        List<GraphNodeDto> projectNodes,
+        CancellationToken ct)
+    {
         var edgesQuery =
             "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['SERVICE_CALL', 'DEPENDS_ON', 'USES_DB', 'PUBLISHES_TO', 'TRIGGERS', 'SUBSCRIBES_TO', 'INTEGRATES_WITH', 'CALLS_ENDPOINT', 'LIBRARY'] RETURN src.id AS from_id, tgt.id AS to_id, r.kind AS kind, r.properties AS properties";
         var edgesJson = await db.ExecuteQueryAsync(edgesQuery, null, ct);
@@ -779,8 +851,6 @@ public class ArchitectureViewEngine(IGraphClient db)
 
             if (isBothProjects)
             {
-                // In event-driven architectures, services cannot directly subscribe to/publish to other services.
-                // Drop phantom direct pub/sub edges between services when no topic is involved.
                 if (rKind is "SUBSCRIBES_TO" or "SUBSCRIBED_BY" or "PUBLISHES_TO" or "PUBLISHED_BY")
                 {
                     continue;
@@ -832,7 +902,6 @@ public class ArchitectureViewEngine(IGraphClient db)
             }
         }
 
-        // Synthesize project -> database edges from project prefix (for unmaterialized project-scoped databases)
         foreach (var (rawDbId, canonicalId) in dbIdToCanonicalId)
         {
             var owningProj = FindOwningProject(rawDbId, projectNodes);
@@ -854,32 +923,81 @@ public class ArchitectureViewEngine(IGraphClient db)
                 });
             }
         }
+    }
+
+    private static void FilterSharedDatabases(GraphDataDto graph)
+    {
+        var dbInDegree = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var edge in graph.Edges)
+        {
+            if (edge.Category == "database" || edge.Kind == "USES_DB")
+            {
+                dbInDegree[edge.Target] = dbInDegree.GetValueOrDefault(edge.Target) + 1;
+            }
+        }
+
+        var singleConnDbIds = graph.Nodes
+            .Where(n => n.Kind == NodeKind.Database && dbInDegree.GetValueOrDefault(n.Id) <= 1).Select(n => n.Id)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (singleConnDbIds.Count > 0)
+        {
+            graph.Nodes.RemoveAll(n => singleConnDbIds.Contains(n.Id));
+
+            graph.Edges.RemoveAll(e =>
+                singleConnDbIds.Contains(e.Target) || singleConnDbIds.Contains(e.Source));
+        }
+    }
+
+    public async Task<GraphDataDto> GetSystemContextViewAsync(
+        bool includeLibraries = false,
+        string? projectFilter = null,
+        bool sharedDatabasesOnly = false,
+        CancellationToken ct = default)
+    {
+        var cacheKey = $"c1:libs={includeLibraries}:filter={projectFilter ?? ""}:sharedDbs={sharedDatabasesOnly}";
+        if (SystemContextCache.TryGetValue(cacheKey, out var cached))
+        {
+            return cached;
+        }
+
+        var graph = new GraphDataDto
+        {
+            Metadata = new Dictionary<string, string>
+            {
+                ["view"] = "SystemContext",
+                ["level"] = "C1",
+                ["graphType"] = "architecture"
+            }
+        };
+
+        var nodeMap = new Dictionary<string, GraphNodeDto>(StringComparer.OrdinalIgnoreCase);
+        var dbIdToCanonicalId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var projectToWorkloadMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        var nodesQuery = includeLibraries
+            ? "MATCH (n) WHERE labels(n)[0] IN ['Project', 'Service', 'App', 'Library', 'Worker', 'CliTool', 'Database', 'ExternalService'] OR (labels(n)[0] = 'Topic' AND (n.broker_type IS NULL OR (n.broker_type <> 'mediatr' AND n.broker_type <> 'in-memory')) AND (n.is_internal IS NULL OR n.is_internal <> 'true')) OR (labels(n)[0] = 'Package' AND (n.is_external = 'true' OR n.is_external = true OR (n.is_external IS NULL AND NOT (n)-[:IMPLEMENTED_BY]->(:Project)))) RETURN n.id AS id, labels(n)[0] AS kind, n.name AS name, n.display_name AS display_name, n.path AS path, n.framework AS framework, n.role AS role, n.is_library AS is_library, n.db_type AS db_type, n.project_type AS project_type, n.package_type AS package_type, n.type AS pkg_type, n.version AS version, n.properties AS properties, n.layer AS layer, n.layerId AS layerId, n.layerName AS layerName, n.layerOrder AS layerOrder, n.layerColor AS layerColor, n.layerIcon AS layerIcon, n.package_count AS package_count"
+            : "MATCH (n) WHERE labels(n)[0] IN ['Service', 'App', 'Worker', 'CliTool', 'Database', 'ExternalService'] OR (labels(n)[0] = 'Topic' AND (n.broker_type IS NULL OR (n.broker_type <> 'mediatr' AND n.broker_type <> 'in-memory')) AND (n.is_internal IS NULL OR n.is_internal <> 'true')) OR (labels(n)[0] = 'Project' AND (n.is_library <> 'true' OR n.is_library IS NULL) AND (n.role <> 'SharedLibrary' AND n.role <> 'Test' OR n.role IS NULL)) RETURN n.id AS id, labels(n)[0] AS kind, n.name AS name, n.display_name AS display_name, n.path AS path, n.framework AS framework, n.role AS role, n.is_library AS is_library, n.db_type AS db_type, n.project_type AS project_type, n.package_type AS package_type, n.type AS pkg_type, n.version AS version, n.properties AS properties, n.layer AS layer, n.layerId AS layerId, n.layerName AS layerName, n.layerOrder AS layerOrder, n.layerColor AS layerColor, n.layerIcon AS layerIcon, n.package_count AS package_count";
+
+        var nodesJson = await db.ExecuteQueryAsync(nodesQuery, null, ct);
+        using var nodesDoc = JsonDocument.Parse(nodesJson);
+
+        var discovery = await DiscoverSystemContextCandidatesAsync(nodesDoc, ct);
+
+        PopulateSystemContextNodes(nodesDoc, graph, nodeMap, dbIdToCanonicalId, projectToWorkloadMap, discovery, includeLibraries, projectFilter);
+
+        await PopulatePackageCountsAsync(graph, nodeMap, ct);
+
+        var projectNodes = graph.Nodes.Where(n => IsProjectNodeKind(n.Kind)).ToList();
+
+        await PopulateSystemContextEdgesAsync(graph, nodeMap, dbIdToCanonicalId, projectToWorkloadMap, projectNodes, ct);
 
         LiftTransitiveSemanticRelations(graph);
 
         if (sharedDatabasesOnly)
         {
-            var dbInDegree = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var edge in graph.Edges)
-            {
-                if (edge.Category == "database" || edge.Kind == "USES_DB")
-                {
-                    dbInDegree[edge.Target] = dbInDegree.GetValueOrDefault(edge.Target) + 1;
-                }
-            }
-
-            var singleConnDbIds = graph.Nodes
-                .Where(n => n.Kind == NodeKind.Database && dbInDegree.GetValueOrDefault(n.Id) <= 1).Select(n => n.Id)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-            if (singleConnDbIds.Count > 0)
-            {
-                graph.Nodes.RemoveAll(n => singleConnDbIds.Contains(n.Id));
-
-                graph.Edges.RemoveAll(e =>
-                    singleConnDbIds.Contains(e.Target) || singleConnDbIds.Contains(e.Source));
-            }
+            FilterSharedDatabases(graph);
         }
 
         var allProjects = await GetAllProjectsAsync(ct);

@@ -160,12 +160,17 @@ jobs:
           sha256sum * > checksums.txt || true
           cat checksums.txt
 
+      - name: Generate Rich Release Notes
+        run: |
+          python3 .github/scripts/generate-release-notes.py "${{ github.ref_name }}" CHANGELOG.md RELEASE_BODY.md
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          name: "CodeExplorer ${{ github.ref_name }}"
+          body_path: RELEASE_BODY.md
           files: |
             ./dist/*
-          generate_release_notes: true
           draft: false
           prerelease: false
 
