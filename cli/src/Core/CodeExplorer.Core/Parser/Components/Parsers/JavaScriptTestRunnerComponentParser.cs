@@ -17,7 +17,7 @@ public class JavaScriptTestRunnerComponentParser : IComponentLibraryParser
         "mocha", "@types/mocha",
         "cypress",
         "@playwright/test", "playwright",
-        "jasmine", "supertest"
+        "jasmine", "jasmine-core", "@types/jasmine", "karma", "supertest"
     };
 
     public bool CanHandle(ProjectContext context)
@@ -46,6 +46,37 @@ public class JavaScriptTestRunnerComponentParser : IComponentLibraryParser
     {
         "it", "test", "describe", "suite", "specify", "it.only", "it.skip", "test.only", "test.skip", "it.each", "test.each"
     };
+
+    private static readonly string[] TestFileSuffixes =
+    [
+        ".spec.ts", ".spec.tsx", ".spec.js", ".spec.jsx", ".test.ts", ".test.tsx", ".test.js", ".test.jsx"
+    ];
+
+    /// <inheritdoc />
+    public bool IsTestSource(SyntaxTree syntaxTree)
+    {
+        if (TestFileSuffixes.Any(sfx => syntaxTree.RelativePath.EndsWith(sfx, StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        if (syntaxTree.Tree == null) return false;
+
+        // A runner file without the conventional suffix: a top-level describe()/it()/test() call.
+        foreach (var stmt in syntaxTree.Tree.RootNode.Children)
+        {
+            if (!stmt.IsValid() || !stmt.Is("expression_statement")) continue;
+            var call = stmt.Children.FirstOrDefault(c => c.IsValid() && c.Is(TreeSitterSyntax.Common.CallExpression));
+            if (!call.IsValid()) continue;
+            var func = call.GetChildForField(TreeSitterSyntax.Fields.Function);
+            if (func.IsValid() && TestFunctions.Contains(func.Text))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     public void EnrichWithSyntax(ComponentAnalysisResult? result, SyntaxTree syntaxTree, ParsingContext ctx)
     {

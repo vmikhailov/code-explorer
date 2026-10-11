@@ -296,7 +296,10 @@ public class Layer3SyntacticParser
                 project.Name,
                 project.ProjectType,
                 filesInProjectDir,
-                [],
+                // Package dependencies resolved at Layer 2 — CanHandle() of component parsers
+                // (e.g. the JS test runner keyed on jest/jasmine) used to receive an empty list
+                // and therefore never matched.
+                project.Children.OfType<PackageNode>().Select(p => p.Name).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
                 project.Extensions ?? new Dictionary<string, string>());
             var componentParsers = Components.ComponentLibraryParserRegistry.GetParsers(projectContext);
 
@@ -310,7 +313,20 @@ public class Layer3SyntacticParser
                 {
                     try
                     {
-                        ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, ctx, project.Name, file.IsTest, project.KindValue);
+                        // File category comes from the parser that owns it (test framework component),
+                        // and must be known before symbols are mapped so they inherit is_test.
+                        var isTestFile = file.IsTest;
+                        for (int cp = 0; !isTestFile && cp < componentParsers.Count; cp++)
+                        {
+                            isTestFile = componentParsers[cp].IsTestSource(syntaxTree);
+                        }
+                        if (isTestFile)
+                        {
+                            file.IsTest = true;
+                            syntaxTree.FileNode.IsTest = true;
+                        }
+
+                        ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, ctx, project.Name, isTestFile, project.KindValue);
 
                         if (componentParsers.Count > 0)
                         {

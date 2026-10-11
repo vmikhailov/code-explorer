@@ -32,4 +32,12 @@ public interface IComponentLibraryParser
     /// during syntactic and semantic parsing (Layers 3/4).
     /// </summary>
     void EnrichWithSyntax(ComponentAnalysisResult? result, SyntaxTree syntaxTree, ParsingContext ctx) { }
+
+    /// <summary>
+    /// True when this component (a test framework parser) classifies the file as a test source.
+    /// Called BEFORE the language visitor maps symbols, so every node of the file (functions,
+    /// call literals, external calls) inherits <c>is_test</c> from the file classification
+    /// instead of guessing by path.
+    /// </summary>
+    bool IsTestSource(SyntaxTree syntaxTree) => false;
 }

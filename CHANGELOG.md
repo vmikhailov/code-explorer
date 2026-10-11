@@ -5,6 +5,21 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.34.1] - 2026-10-11
+
+### Added
+- **Component-Driven Test Source Classification (`IComponentLibraryParser.IsTestSource`)**:
+  - Added `IsTestSource(SyntaxTree syntaxTree)` to `IComponentLibraryParser`, enabling framework parsers to classify test sources authoritatively before AST symbol mapping.
+  - Implemented `IsTestSource` in `JavaScriptTestRunnerComponentParser` for Jest, Vitest, Mocha, Cypress, Playwright, Jasmine, and Karma, checking standard test suffixes (`.spec.ts`, `.test.ts`, `.spec.js`, etc.) and top-level runner invocations (`describe`, `it`, `test`, `suite`).
+  - Added package dependencies to `KnownPackages` in `JavaScriptTestRunnerComponentParser`: `"jasmine-core"`, `"@types/jasmine"`, `"karma"`.
+
+### Fixed
+- **Component Parser Package Dependencies in Layer 3 Syntactic Parser**:
+  - Fixed `ProjectContext` initialization in Pass 2 of `Layer3SyntacticParser` to supply actual Layer 2 package dependencies instead of an empty list (`[]`), restoring component parser evaluation (`CanHandle`) across projects.
+  - Automatically sets `file.IsTest = true` and `syntaxTree.FileNode.IsTest = true` prior to visitor processing when recognized by any active test component parser, ensuring all symbols, calls, and call literals in spec files inherit `is_test = true`.
+
+---
+
 ## [1.34.0] - 2026-10-11
 
 ### Added
