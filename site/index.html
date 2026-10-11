@@ -7,11 +7,6 @@
   <meta name="description" content="Visual knowledge graph and codebase intelligence tool for developers and AI agents. Embedded SQLite graph database with native Cypher query compilation.">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
 
-  <!-- Google Fonts: Inter & JetBrains Mono -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap" rel="stylesheet">
-
   <style>
     /* ==========================================================================
        Linear-Inspired Design System Tokens (Achromatic + Precision Violet)
@@ -45,8 +40,8 @@
       --status-amber: #f59e0b;
       --status-purple: #c084fc;
 
-      --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
       --radius-sm: 4px;
       --radius-md: 6px;
@@ -147,9 +142,9 @@
       background-color: var(--bg-base);
       color: var(--text-primary);
       font-family: var(--font-sans);
-      font-feature-settings: "cv01", "ss03";
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
       line-height: 1.5;
     }
 
