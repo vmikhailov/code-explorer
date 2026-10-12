@@ -25,6 +25,12 @@ public class GoFileVisitor : BaseParserVisitor
 
     protected override string? MapNodeType(Node node)
     {
+        foreach (var libParser in LibraryParsers)
+        {
+            var kind = libParser.MapNodeType(node, Context!);
+            if (kind != null) return kind;
+        }
+
         if (IsGoHttpClientCall(node))
         {
             return OntologyConstants.NodeLabels.ExternalService;
@@ -66,6 +72,12 @@ public class GoFileVisitor : BaseParserVisitor
 
     protected override string? ExtractIdentifier(Node node)
     {
+        foreach (var libParser in LibraryParsers)
+        {
+            var ident = libParser.ExtractIdentifier(node, Context!, ProjectName, RelativePath);
+            if (ident != null) return ident;
+        }
+
         if (IsGoHttpClientCall(node))
         {
             return ExtractGoHttpClientTarget(node);
@@ -296,7 +308,10 @@ public class GoFileVisitor : BaseParserVisitor
         {
             var operand = func.GetChildForField(TreeSitterSyntax.Fields.Operand);
             var field = func.GetChildForField(TreeSitterSyntax.Fields.Field);
-            if (operand.IsValid() && (operand.Text == "http" || operand.Text.Contains("client", StringComparison.OrdinalIgnoreCase)))
+            if (operand.IsValid() && (operand.Text == "http" ||
+                                      operand.Text.Contains("client", StringComparison.OrdinalIgnoreCase) ||
+                                      operand.Text.Contains("resty", StringComparison.OrdinalIgnoreCase) ||
+                                      operand.Text.Contains(".R()")))
             {
                 if (field.IsValid() && field.Text is not ("HandleFunc" or "Handle"))
                 {

@@ -37,7 +37,10 @@ public class GoParser : IProjectParser, IFileParser
         new Libraries.LibPqLibraryParser(),
         new Libraries.MongoGoLibraryParser(),
         new Libraries.PubSubGoLibraryParser(),
-        new Libraries.RabbitMqGoLibraryParser()
+        new Libraries.RabbitMqGoLibraryParser(),
+        new Libraries.PgxLibraryParser(),
+        new Libraries.RestyLibraryParser(),
+        new Libraries.GoHttpClientLibraryParser()
     ];
 
     public bool UsesTreeSitter => true;
@@ -52,7 +55,6 @@ public class GoParser : IProjectParser, IFileParser
         // Unimplemented / Backlog packages (commented out until AST semantic extensions are implemented):
         // Additional Databases
         new PackageDescriptor("clickhouse", "ClickHouse", LibraryRole.OrmOrDatabase, "library", ["github.com/ClickHouse/clickhouse-go*"]),
-        new PackageDescriptor("postgres-pgx", "PostgreSQL (pgx)", LibraryRole.OrmOrDatabase, "library", ["github.com/jackc/pgx*"]),
         new PackageDescriptor("bigquery", "BigQuery", LibraryRole.OrmOrDatabase, "library", ["cloud.google.com/go/bigquery*"]),
 
         // Generic Cloud Services
@@ -65,8 +67,6 @@ public class GoParser : IProjectParser, IFileParser
         new PackageDescriptor("testify", "Testify", LibraryRole.TestFramework, "library", ["github.com/stretchr/testify*"]),
 
         // API Clients
-        new PackageDescriptor("net/http", "http/https", LibraryRole.General, "library", ["net/http*"]),
-        new PackageDescriptor("resty", "Resty", LibraryRole.General, "library", ["github.com/go-resty/resty*"]),
         new PackageDescriptor("req", "req", LibraryRole.General, "library", ["github.com/imroc/req*"]),
         new PackageDescriptor("grequests", "grequests", LibraryRole.General, "library", ["github.com/levigross/grequests*"]),
         new PackageDescriptor("gorequest", "gorequest", LibraryRole.General, "library", ["github.com/parnurzeal/gorequest*"]),

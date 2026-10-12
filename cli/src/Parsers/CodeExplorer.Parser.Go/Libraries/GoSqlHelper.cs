@@ -27,15 +27,35 @@ public static class GoSqlHelper
             {
                 methodName = m;
                 var args = GoAstHelper.GetCallArguments(node);
-                var isContext = m.EndsWith("Context", StringComparison.Ordinal);
-                var sqlArgIdx = isContext ? 1 : 0;
-                if (args.Count > sqlArgIdx)
+                for (var i = 0; i < Math.Min(args.Count, 3); i++)
                 {
-                    sqlText = GoAstHelper.ResolveStringOrVariable(args[sqlArgIdx]);
+                    var candidate = ResolveSqlCandidate(args[i]);
+                    if (!string.IsNullOrEmpty(candidate))
+                    {
+                        if (NestedSqlParser.TryParseSql(candidate, out _, out _))
+                        {
+                            sqlText = candidate;
+                            return true;
+                        }
+                        if (sqlText == null && !candidate.Equals("ctx", StringComparison.OrdinalIgnoreCase) && !candidate.Equals("context.Background()", StringComparison.OrdinalIgnoreCase) && !candidate.Equals("context.TODO()", StringComparison.OrdinalIgnoreCase))
+                        {
+                            sqlText = candidate;
+                        }
+                    }
                 }
                 return true;
             }
         }
         return false;
+    }
+
+    private static string? ResolveSqlCandidate(Node node)
+    {
+        if (!node.IsValid()) return null;
+        if (node.IsAny(TreeSitterSyntax.Go.InterpretedStringLiteral, TreeSitterSyntax.Go.RawStringLiteral, TreeSitterSyntax.Go.StringLiteral))
+        {
+            return node.Text.Trim('"', '`');
+        }
+        return GoAstHelper.ResolveStringOrVariable(node);
     }
 }

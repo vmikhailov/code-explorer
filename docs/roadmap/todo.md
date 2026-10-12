@@ -211,7 +211,7 @@ This document tracks active epics, immediate architectural refactoring plans, an
 | **6.7** | Core/Graph | Structural `Project` $\leftrightarrow$ `File` edges, `is_test`, and `project_kind` propagation | High | ⏳ In Progress |
 | **6.8** | Core/Graph | Ordered layer & pipeline stage relationships (`LayerNode`, `[:PRECEDES]`, `stage_order`) | Medium | ⏳ In Progress |
 | **7.1** | Go/Ingress | Go Web Frameworks (`gin`, `fiber`, `echo`) with route groups & sample projects | 🚨 Urgent | ✅ Completed |
-| **7.2** | Go/Egress | Go HTTP Clients (`net/http`, `resty`) & Postgres Driver (`pgx`) | High | ⏳ In Progress |
+| **7.2** | Go/Egress | Go HTTP Clients (`net/http`, `resty`) & Postgres Driver (`pgx`) | High | ✅ Completed |
 | **7.3** | Python/Ingress | Python Web Frameworks (`flask`, `django`) route & blueprint mapping | High | ⏳ In Progress |
 | **7.4** | Python/Egress | Python HTTP Clients (`requests`, `httpx`, `aiohttp`) service-to-service calls | High | ⏳ In Progress |
 | **7.5** | Java/Messaging | Java Messaging (`kafka` / Spring Kafka, `rabbitmq` / Spring AMQP) | High | ⏳ In Progress |
@@ -234,14 +234,15 @@ This document tracks active epics, immediate architectural refactoring plans, an
   - Sample projects: `cli/tests/SampleProjects/go/gin-service`, `fiber-service`, `echo-service`.
   - Comprehensive unit & integration tests in `CodeExplorer.Tests`.
 
-### Phase 7.2: Go Egress & Data Access — Target `v1.37.7`
-- [ ] **Go HTTP Clients (`net/http`, `resty`)**:
+### Phase 7.2: Go Egress & Data Access — Target `v1.37.7` ✅ DELIVERED
+- [x] **Go HTTP Clients (`net/http`, `resty`)**:
   - `GoHttpClientLibraryParser`: standard library `http.Get`, `http.Post`, `http.NewRequest` URI string / constant extraction.
   - `RestyLibraryParser`: `resty.New()`, `.R().Get(url)`, `.Post(url)`.
-- [ ] **Go Database Drivers (`pgx`)**:
+- [x] **Go Database Drivers (`pgx`)**:
   - `PgxLibraryParser`: `pgxpool`, `pgx.Connect`, SQL queries, table references.
-- [ ] **Artifacts & Verification**:
-  - Sample projects & test suite.
+- [x] **Artifacts & Verification**:
+  - Sample project: `cli/tests/SampleProjects/go/pgx-resty-service`.
+  - Comprehensive unit & integration tests in `GoEgressAndDatabaseTests.cs`.
 
 ### Phase 7.3: Python Web Frameworks (Ingress) — Target `v1.37.8`
 - [ ] **Flask (`flask`)**:
