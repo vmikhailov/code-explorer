@@ -7,12 +7,13 @@ namespace CodeExplorer.Parser.CSharp.Libraries;
 
 public class GrpcCSharpLibraryParser : ISemanticExtension
 {
-    public string Name => "gRPC C#";
-    public string Id => "grpc-csharp";
+    public string Name => "gRPC";
+    public string Id => "grpc";
     public string Type => "framework";
-    public IReadOnlyList<string> SupportedPatterns => ["Grpc.Core", "Grpc.Net.Client", "Grpc.AspNetCore.Server"];
+    public IReadOnlyList<string> SupportedPatterns => ["Grpc.Core", "Grpc.Net.Client", "Grpc.AspNetCore", "Grpc.AspNetCore.Server", "Grpc.AspNetCore.*", "Grpc.Net.*"];
     public bool IsImplemented => true;
     public bool IsBuiltIn => true;
+    public LibraryRole LibraryRole => LibraryRole.WebService;
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

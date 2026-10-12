@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -13,6 +13,7 @@ public class MediatRLibraryParser : ISemanticExtension
     public IReadOnlyList<string> SupportedPatterns => ["MediatR", "MediatR.*", "*Mediator*"];
     public bool IsImplemented => true;
     public bool IsBuiltIn => true;
+    public LibraryRole LibraryRole => LibraryRole.General;
 
     private static readonly HashSet<string> HandlerInterfaces =
     [

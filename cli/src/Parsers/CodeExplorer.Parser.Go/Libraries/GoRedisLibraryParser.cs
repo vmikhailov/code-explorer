@@ -10,8 +10,9 @@ public class GoRedisLibraryParser : ISemanticExtension
     public string Type => "db:keyvalue";
     public string Name => "Redis (go-redis)";
     public string Id => "go-redis";
-    public IReadOnlyList<string> SupportedPatterns => ["github.com/redis/go-redis/v9", "github.com/redis/go-redis"];
+    public IReadOnlyList<string> SupportedPatterns => ["github.com/redis/go-redis/v9*", "github.com/redis/go-redis*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     private static readonly HashSet<string> RedisMethods = new(StringComparer.Ordinal)
     {

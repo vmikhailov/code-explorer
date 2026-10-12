@@ -10,8 +10,9 @@ public class GoSqlDriverMysqlLibraryParser : ISemanticExtension
     public string Type => "db:relational";
     public string Name => "MySQL";
     public string Id => "mysql";
-    public IReadOnlyList<string> SupportedPatterns => ["github.com/go-sql-driver/mysql"];
+    public IReadOnlyList<string> SupportedPatterns => ["github.com/go-sql-driver/mysql*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

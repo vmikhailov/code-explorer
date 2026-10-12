@@ -10,10 +10,11 @@ public class AspNetCoreLibraryParser : ISemanticExtension
     public string Name => "ASP.NET Core";
     public string Id => "aspnetcore";
     public string Type => "framework";
-    public IReadOnlyList<string> SupportedPatterns => ["Microsoft.AspNetCore", "Microsoft.AspNetCore.Mvc"];
+    public IReadOnlyList<string> SupportedPatterns => ["Microsoft.AspNetCore", "Microsoft.AspNetCore.*", "Microsoft.AspNetCore.Mvc", "Microsoft.AspNetCore.Mvc.*"];
     public bool IsImplemented => true;
     public bool IsBuiltIn => true;
     public LibraryRole LibraryRole => LibraryRole.WebService;
+    public Func<ProjectContext, bool>? CustomMatch => ctx => ctx.ManifestProperties?.GetValueOrDefault("sdk") == "Microsoft.NET.Sdk.Web";
 
     public bool MatchesProject(ProjectContext project)
     {

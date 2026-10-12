@@ -164,7 +164,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
                 return true;
             }
         }
-        catch
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
         {
             // Ignore parse errors
         }
@@ -205,7 +205,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
                     }
                 }
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
             {
                 // Fallback to directory name
             }
@@ -537,7 +537,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
                 return new ProducedPackageInfo(name, version, "npm");
             }
         }
-        catch
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
         {
             // Ignore
         }
@@ -599,7 +599,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
                                         continue;
                                     }
                                 }
-                                catch
+                                catch (Exception ex) when (ex is ArgumentException or PathTooLongException)
                                 {
                                     // Fallback to external package
                                 }
@@ -612,7 +612,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
                 }
             }
         }
-        catch
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
         {
             // Ignore
         }
@@ -744,7 +744,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
                 }
             }
         }
-        catch
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
         {
             // Ignore
         }

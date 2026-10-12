@@ -10,9 +10,10 @@ public class HotChocolateLibraryParser : ISemanticExtension
     public string Name => "HotChocolate GraphQL";
     public string Id => "hotchocolate";
     public string Type => "framework";
-    public IReadOnlyList<string> SupportedPatterns => ["HotChocolate", "HotChocolate.Types", "HotChocolate.AspNetCore"];
+    public IReadOnlyList<string> SupportedPatterns => ["HotChocolate", "HotChocolate.*", "HotChocolate.Types", "HotChocolate.AspNetCore"];
     public bool IsImplemented => true;
     public bool IsBuiltIn => true;
+    public LibraryRole LibraryRole => LibraryRole.WebService;
 
     private static readonly HashSet<string> GraphQlAttributes =
     [

@@ -17,6 +17,7 @@ public class PubSubGoLibraryParser : ISemanticExtension
         "cloud.google.com/go/pubsub/*"
     ];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.MessageBroker;
 
     public string? MapNodeType(Node node, ParsingContext ctx) => null;
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => null;

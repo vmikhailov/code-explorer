@@ -552,7 +552,9 @@ public class SyntaxEnricher : ISyntaxEnricher
                 }
             }
         }
-        catch { }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
         return null;
     }
 
@@ -720,7 +722,9 @@ public class SyntaxEnricher : ISyntaxEnricher
                         return res;
                     }
                 }
-                catch { }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+                {
+                }
             }
 
             // 3. Python (requirements.txt, pyproject.toml)
@@ -869,7 +873,9 @@ public class SyntaxEnricher : ISyntaxEnricher
                 }
             }
         }
-        catch { }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException)
+        {
+        }
 
         return (null, null);
     }
@@ -901,7 +907,9 @@ public class SyntaxEnricher : ISyntaxEnricher
                 curr = curr.Parent;
             }
         }
-        catch { }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
 
         return (null, null);
     }

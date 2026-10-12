@@ -243,7 +243,7 @@ public class PythonParser : IProjectParser, IFileParser
                     return new ProducedPackageInfo(name, version, "pip");
                 }
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 // Ignore
             }
@@ -265,7 +265,7 @@ public class PythonParser : IProjectParser, IFileParser
                     return new ProducedPackageInfo(name, version, "pip");
                 }
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 // Ignore
             }
@@ -316,7 +316,7 @@ public class PythonParser : IProjectParser, IFileParser
                     }
                 }
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 // Ignore
             }
@@ -347,7 +347,7 @@ public class PythonParser : IProjectParser, IFileParser
                         }
                     }
                 }
-                catch
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
                     // Ignore
                 }
@@ -441,7 +441,7 @@ public class PythonParser : IProjectParser, IFileParser
                 }
             }
         }
-        catch
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Ignore
         }

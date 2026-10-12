@@ -12,6 +12,7 @@ public class MySqlDataLibraryParser : ISemanticExtension
     public string Id => "mysql";
     public IReadOnlyList<string> SupportedPatterns => ["MySql.Data", "MySql.Data.*", "MySqlConnector", "MySqlConnector.*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

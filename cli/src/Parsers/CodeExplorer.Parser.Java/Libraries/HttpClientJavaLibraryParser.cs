@@ -13,17 +13,18 @@ public class HttpClientJavaLibraryParser : ISemanticExtension
 
     public IReadOnlyList<string> SupportedPatterns =>
     [
-        "java.net.http",
-        "org.springframework.web.client",
-        "org.springframework.web.reactive.function.client",
-        "okhttp3",
-        "org.apache.http",
-        "org.apache.hc.client5",
-        "org.springframework.cloud.openfeign",
-        "feign"
+        "java.net.http*",
+        "org.springframework.web.client*",
+        "org.springframework.web.reactive.function.client*",
+        "okhttp3*",
+        "org.apache.http*",
+        "org.apache.hc.client5*",
+        "org.springframework.cloud.openfeign*",
+        "feign*"
     ];
 
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.General;
 
     private static readonly HashSet<string> HttpCallMethods = new(StringComparer.OrdinalIgnoreCase)
     {

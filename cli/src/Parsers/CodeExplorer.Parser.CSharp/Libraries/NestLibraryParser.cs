@@ -12,6 +12,7 @@ public class NestLibraryParser : ISemanticExtension
     public string Id => "elasticsearch-nest";
     public IReadOnlyList<string> SupportedPatterns => ["Nest", "Nest.*", "Elastic.Clients.Elasticsearch", "Elastic.Clients.Elasticsearch.*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     private static readonly HashSet<string> EsMethods = new(StringComparer.Ordinal)
     {

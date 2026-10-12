@@ -412,7 +412,7 @@ public class ResourceReconciliationService
                "database" or "db" or "datasource" or "main" or "default" or
                "relational" or "keyvalue" or "document" or
                "spring.datasource.url" or "spring-datasource" or "database_url" or
-               "typeorm" or "ef-core" or "microsoft.entityframeworkcore" or "dapper" or
+               "typeorm" or "ef-core" or "efcore" or "ef core" or "microsoft.entityframeworkcore" or "dapper" or
                "prisma" or "sequelize" or "drizzle" or "hibernate" or "sqlalchemy" or
                "peewee" or "gorm" or "jpa" or "jdbctemplate" or "knex" ||
                lower.Contains("jpa") || lower.Contains("hibernate") || lower.Contains("spring data");

@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -12,10 +12,11 @@ public class RabbitMqGoLibraryParser : ISemanticExtension
     public string Id => "rabbitmq";
     public IReadOnlyList<string> SupportedPatterns =>
     [
-        "github.com/rabbitmq/amqp091-go",
-        "github.com/streadway/amqp"
+        "github.com/rabbitmq/amqp091-go*",
+        "github.com/streadway/amqp*"
     ];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.MessageBroker;
 
     public string? MapNodeType(Node node, ParsingContext ctx) => null;
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => null;

@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -10,8 +10,9 @@ public class MongoDbCsLibraryParser : ISemanticExtension
     public string Type => "db:document";
     public string Name => "MongoDB";
     public string Id => "mongodb";
-    public IReadOnlyList<string> SupportedPatterns => ["MongoDB.Driver", "MongoDB.Bson"];
+    public IReadOnlyList<string> SupportedPatterns => ["MongoDB.Driver", "MongoDB.Driver.*", "MongoDB.Bson", "MongoDB.Bson.*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     private static readonly HashSet<string> MongoMethods =
     [

@@ -12,6 +12,7 @@ public class StackExchangeRedisLibraryParser : ISemanticExtension
     public string Id => "redis";
     public IReadOnlyList<string> SupportedPatterns => ["StackExchange.Redis", "StackExchange.Redis.*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     private static readonly HashSet<string> RedisMethods = new(StringComparer.Ordinal)
     {

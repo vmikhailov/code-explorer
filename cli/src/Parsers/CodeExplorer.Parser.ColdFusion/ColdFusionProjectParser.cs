@@ -62,7 +62,7 @@ public class ColdFusionProjectParser : IProjectParser
                     }
                 }
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 // Fallback to directory name
             }
@@ -81,7 +81,7 @@ public class ColdFusionProjectParser : IProjectParser
                     return match.Groups[1].Value.Trim();
                 }
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 // Fallback
             }
@@ -100,7 +100,7 @@ public class ColdFusionProjectParser : IProjectParser
                     return match.Groups[1].Value.Trim();
                 }
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 // Fallback
             }
@@ -136,7 +136,7 @@ public class ColdFusionProjectParser : IProjectParser
                     return directMatch.Groups[1].Value.Trim();
                 }
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 // Ignore
             }

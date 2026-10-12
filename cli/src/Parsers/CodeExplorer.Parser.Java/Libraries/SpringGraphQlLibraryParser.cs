@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -14,10 +14,12 @@ public class SpringGraphQlLibraryParser : ISemanticExtension
     public IReadOnlyList<string> SupportedPatterns =>
     [
         "org.springframework.graphql",
+        "org.springframework.graphql.*",
         "org.springframework.graphql.data.method.annotation"
     ];
 
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.WebService;
 
     private static readonly HashSet<string> GraphQlAnnotations = new(StringComparer.OrdinalIgnoreCase)
     {

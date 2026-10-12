@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -14,11 +14,14 @@ public class GrpcJavaLibraryParser : ISemanticExtension
     public IReadOnlyList<string> SupportedPatterns =>
     [
         "io.grpc",
+        "io.grpc.*",
         "net.devh.boot.grpc",
+        "net.devh.boot.grpc.*",
         "io.grpc.stub"
     ];
 
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.WebService;
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

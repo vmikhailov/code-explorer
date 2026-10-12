@@ -10,8 +10,9 @@ public class MongoGoLibraryParser : ISemanticExtension
     public string Type => "db:document";
     public string Name => "MongoDB";
     public string Id => "mongodb";
-    public IReadOnlyList<string> SupportedPatterns => ["go.mongodb.org/mongo-driver/mongo", "go.mongodb.org/mongo-driver"];
+    public IReadOnlyList<string> SupportedPatterns => ["go.mongodb.org/mongo-driver/mongo*", "go.mongodb.org/mongo-driver*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     private static readonly HashSet<string> MongoMethods = new(StringComparer.Ordinal)
     {

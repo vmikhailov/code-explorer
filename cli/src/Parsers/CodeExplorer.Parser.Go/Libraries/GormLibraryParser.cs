@@ -10,8 +10,9 @@ public class GormLibraryParser : ISemanticExtension
     public string Type => "db:relational";
     public string Name => "GORM";
     public string Id => "gorm";
-    public IReadOnlyList<string> SupportedPatterns => ["gorm.io/gorm", "github.com/jinzhu/gorm"];
+    public IReadOnlyList<string> SupportedPatterns => ["gorm.io/gorm*", "github.com/jinzhu/gorm*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     private static readonly HashSet<string> GormMethods = new(StringComparer.Ordinal)
     {
