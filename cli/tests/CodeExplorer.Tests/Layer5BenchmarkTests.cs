@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Threading.Channels;
+using AwesomeAssertions;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
@@ -88,7 +89,7 @@ public class Layer5BenchmarkTests
             ctx.GlobalReferences.Add(new Reference(scope, $"Table_{i % 50000}", OntologyConstants.Relationships.DependsOn));
         }
 
-        Assert.That(ctx.GlobalReferences.Count, Is.EqualTo(3_100_000));
+        ctx.GlobalReferences.Count.Should().Be(3_100_000);
 
         var parser = new Layer5AnalysisParser();
         var method = typeof(Layer5AnalysisParser).GetMethod("ResolveAndUploadGlobalReferencesAsync",
@@ -99,6 +100,6 @@ public class Layer5BenchmarkTests
         var results = await task;
         sw.Stop();
 
-        Assert.That(results.Count, Is.GreaterThan(0));
+        results.Count.Should().BeGreaterThan(0);
     }
 }

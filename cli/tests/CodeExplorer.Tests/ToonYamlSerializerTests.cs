@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Mcp;
 using NUnit.Framework;
 
@@ -18,9 +19,9 @@ public class ToonYamlSerializerTests
 
         var toon = ToonYamlSerializer.SerializeToon(json);
 
-        Assert.That(toon, Does.StartWith("[name,type,startLine,endLine]:"));
-        Assert.That(toon, Does.Contain("  OrdersController,Class,3,7"));
-        Assert.That(toon, Does.Contain("  chargeOrder,Function,5,6"));
+        toon.Should().StartWith("[name,type,startLine,endLine]:");
+        toon.Should().Contain("  OrdersController,Class,3,7");
+        toon.Should().Contain("  chargeOrder,Function,5,6");
     }
 
     [Test]
@@ -34,8 +35,8 @@ public class ToonYamlSerializerTests
 
         var toon = ToonYamlSerializer.SerializeToon(json);
 
-        Assert.That(toon, Does.Contain("\"hello, world\""));
-        Assert.That(toon, Does.Contain("\"says \"\"hi\"\"\""));
+        toon.Should().Contain("\"hello, world\"");
+        toon.Should().Contain("\"says \"\"hi\"\"\"");
     }
 
     [Test]
@@ -49,7 +50,7 @@ public class ToonYamlSerializerTests
 
         var toon = ToonYamlSerializer.SerializeToon(json);
 
-        Assert.That(toon, Does.Contain("  1,true,-"));
+        toon.Should().Contain("  1,true,-");
     }
 
     [Test]
@@ -67,10 +68,10 @@ public class ToonYamlSerializerTests
 
         var yaml = ToonYamlSerializer.SerializeYaml(json);
 
-        Assert.That(yaml, Does.Contain("workspace: Demo"));
-        Assert.That(yaml, Does.Contain("projects:"));
-        Assert.That(yaml, Does.Contain("- name: Core"));
-        Assert.That(yaml, Does.Contain("  lang: \"C#\""));
+        yaml.Should().Contain("workspace: Demo");
+        yaml.Should().Contain("projects:");
+        yaml.Should().Contain("- name: Core");
+        yaml.Should().Contain("  lang: \"C#\"");
     }
 
     [Test]
@@ -81,9 +82,9 @@ public class ToonYamlSerializerTests
         var jsonMsg = CodeExplorerRepository.GetStandbyMessage("json");
         var mdMsg = CodeExplorerRepository.GetStandbyMessage("markdown");
 
-        Assert.That(yamlMsg, Does.StartWith("status: standby"));
-        Assert.That(toonMsg, Does.StartWith("status: standby"));
-        Assert.That(jsonMsg, Does.Contain("\"status\":\"standby\""));
-        Assert.That(mdMsg, Does.Contain("⚠️ **CodeExplorer Standby Mode**"));
+        yamlMsg.Should().StartWith("status: standby");
+        toonMsg.Should().StartWith("status: standby");
+        jsonMsg.Should().Contain("\"status\":\"standby\"");
+        mdMsg.Should().Contain("⚠️ **CodeExplorer Standby Mode**");
     }
 }

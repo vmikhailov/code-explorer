@@ -1,11 +1,12 @@
 using System.Threading.Channels;
+using AwesomeAssertions;
+using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
-using CodeExplorer.Core.Analysis;
 using CodeExplorer.Cypher.Common;
 using CodeExplorer.Parser.CSharp;
 using CodeExplorer.Parser.Go;
@@ -68,9 +69,9 @@ public class CrossLanguageCommunicationDetectionTests
         {
             var extServices = new List<ExternalServiceNode>();
             FindAllNodes(httpTree.FileNode.Children, extServices);
-            Assert.That(extServices, Has.Count.GreaterThan(0), "TypeScript should detect ExternalServiceNode from axios.get");
+            extServices.Should().HaveCountGreaterThan(0, "TypeScript should detect ExternalServiceNode from axios.get");
             var svc = extServices.First();
-            Assert.That(svc.DomainOrService, Is.EqualTo("user-service"));
+            svc.DomainOrService.Should().Be("user-service");
         }
         finally
         {
@@ -96,7 +97,7 @@ public class CrossLanguageCommunicationDetectionTests
             var enricher = parser.GetSyntaxEnricher(ormTree);
             await enricher.EnrichAsync(proj, ormCtx);
 
-            Assert.That(ormCtx.GlobalProjectDependencies.Any(d => d.Kind == "USES_DB"), Is.True, "TypeScript TypeORM should produce USES_DB relationship");
+            (ormCtx.GlobalProjectDependencies.Any(d => d.Kind == "USES_DB")).Should().BeTrue("TypeScript TypeORM should produce USES_DB relationship");
         }
         finally
         {
@@ -134,9 +135,9 @@ public class CrossLanguageCommunicationDetectionTests
         {
             var extServices = new List<ExternalServiceNode>();
             FindAllNodes(httpTree.FileNode.Children, extServices);
-            Assert.That(extServices, Has.Count.GreaterThan(0), "C# should detect ExternalServiceNode from HttpClient.PostAsync");
+            extServices.Should().HaveCountGreaterThan(0, "C# should detect ExternalServiceNode from HttpClient.PostAsync");
             var svc = extServices.First();
-            Assert.That(svc.DomainOrService, Is.EqualTo("payment-service"));
+            svc.DomainOrService.Should().Be("payment-service");
         }
         finally
         {
@@ -161,7 +162,7 @@ public class CrossLanguageCommunicationDetectionTests
             var enricher = parser.GetSyntaxEnricher(ormTree);
             await enricher.EnrichAsync(proj, ormCtx);
 
-            Assert.That(ormCtx.GlobalProjectDependencies.Any(d => d.Kind == "USES_DB"), Is.True, "C# EF Core should produce USES_DB relationship");
+            (ormCtx.GlobalProjectDependencies.Any(d => d.Kind == "USES_DB")).Should().BeTrue("C# EF Core should produce USES_DB relationship");
         }
         finally
         {
@@ -192,9 +193,9 @@ public class CrossLanguageCommunicationDetectionTests
         {
             var extServices = new List<ExternalServiceNode>();
             FindAllNodes(httpTree.FileNode.Children, extServices);
-            Assert.That(extServices, Has.Count.GreaterThan(0), "Go should detect ExternalServiceNode from http.Get");
+            extServices.Should().HaveCountGreaterThan(0, "Go should detect ExternalServiceNode from http.Get");
             var svc = extServices.First();
-            Assert.That(svc.DomainOrService, Is.EqualTo("profile-service"));
+            svc.DomainOrService.Should().Be("profile-service");
         }
         finally
         {
@@ -216,8 +217,8 @@ public class CrossLanguageCommunicationDetectionTests
         {
             var endpoints = new List<EndpointNode>();
             FindAllNodes(epTree.FileNode.Children, endpoints);
-            Assert.That(endpoints, Has.Count.GreaterThan(0), "Go should detect EndpointNode from http.HandleFunc");
-            Assert.That(endpoints.Any(ep => ep.RouteTemplate.Contains("/api/v1/orders")), Is.True);
+            endpoints.Should().HaveCountGreaterThan(0, "Go should detect EndpointNode from http.HandleFunc");
+            endpoints.Any(ep => ep.RouteTemplate.Contains("/api/v1/orders")).Should().BeTrue();
         }
         finally
         {
@@ -246,9 +247,9 @@ public class CrossLanguageCommunicationDetectionTests
         {
             var extServices = new List<ExternalServiceNode>();
             FindAllNodes(httpTree.FileNode.Children, extServices);
-            Assert.That(extServices, Has.Count.GreaterThan(0), "Python should detect ExternalServiceNode from requests.get");
+            extServices.Should().HaveCountGreaterThan(0, "Python should detect ExternalServiceNode from requests.get");
             var svc = extServices.First();
-            Assert.That(svc.DomainOrService, Is.EqualTo("inventory-service"));
+            svc.DomainOrService.Should().Be("inventory-service");
         }
         finally
         {
@@ -275,7 +276,7 @@ public class CrossLanguageCommunicationDetectionTests
             var enricher = parser.GetSyntaxEnricher(ormTree);
             await enricher.EnrichAsync(proj, ormCtx);
 
-            Assert.That(ormCtx.GlobalProjectDependencies.Any(d => d.Kind == "USES_DB"), Is.True, "Python SQLAlchemy should produce USES_DB relationship");
+            (ormCtx.GlobalProjectDependencies.Any(d => d.Kind == "USES_DB")).Should().BeTrue("Python SQLAlchemy should produce USES_DB relationship");
         }
         finally
         {
@@ -310,9 +311,9 @@ public class CrossLanguageCommunicationDetectionTests
         {
             var extServices = new List<ExternalServiceNode>();
             FindAllNodes(httpTree.FileNode.Children, extServices);
-            Assert.That(extServices, Has.Count.GreaterThan(0), "Java should detect ExternalServiceNode from RestTemplate call");
+            extServices.Should().HaveCountGreaterThan(0, "Java should detect ExternalServiceNode from RestTemplate call");
             var svc = extServices.First();
-            Assert.That(svc.DomainOrService, Is.EqualTo("alert-service"));
+            svc.DomainOrService.Should().Be("alert-service");
         }
         finally
         {
@@ -341,7 +342,7 @@ public class CrossLanguageCommunicationDetectionTests
             var enricher = parser.GetSyntaxEnricher(ormTree);
             await enricher.EnrichAsync(proj, ormCtx);
 
-            Assert.That(ormCtx.GlobalProjectDependencies.Any(d => d.Kind == "USES_DB"), Is.True, "Java JPA should produce USES_DB relationship");
+            (ormCtx.GlobalProjectDependencies.Any(d => d.Kind == "USES_DB")).Should().BeTrue("Java JPA should produce USES_DB relationship");
         }
         finally
         {
@@ -375,8 +376,8 @@ public class CrossLanguageCommunicationDetectionTests
         {
             var tables = new List<TableNode>();
             FindAllNodes(sqlTree.FileNode.Children, tables);
-            Assert.That(tables, Has.Count.GreaterThan(0), "SQL should detect TableNode from CREATE TABLE");
-            Assert.That(tables.First().Name, Does.Contain("orders"));
+            tables.Should().HaveCountGreaterThan(0, "SQL should detect TableNode from CREATE TABLE");
+            tables.First().Name.Should().Contain("orders");
         }
         finally
         {
@@ -488,41 +489,40 @@ public class CrossLanguageCommunicationDetectionTests
             var dbNodes = graph.Nodes.Where(n => n.Name.Equals("Database", StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
-            Assert.That(dbNodes, Has.Count.EqualTo(1),
-                "Duplicate database nodes MUST be collapsed into 1 canonical node");
+            dbNodes.Should().HaveCount(1, "Duplicate database nodes MUST be collapsed into 1 canonical node");
             var canonicalDb = dbNodes.First();
-            Assert.That(canonicalDb.Id, Is.EqualTo("ws:db:relational:database"));
+            canonicalDb.Id.Should().Be("ws:db:relational:database");
 
             // 2. Verify Standalone Redis DB node preserved
             var redisNode = graph.Nodes.FirstOrDefault(n => n.Id == "db:redis_cache");
-            Assert.That(redisNode, Is.Not.Null, "Standalone database node must be preserved");
+            redisNode.Should().NotBeNull("Standalone database node must be preserved");
 
             // 3. Verify Edge Categories
             // Service Call
             var svcCallEdge =
                 graph.Edges.FirstOrDefault(e => e.Source == "proj:gateway" && e.Target == "proj:auth");
-            Assert.That(svcCallEdge, Is.Not.Null);
-            Assert.That(svcCallEdge!.Properties?["dependency_type"], Is.EqualTo("service_call"));
+            svcCallEdge.Should().NotBeNull();
+            svcCallEdge!.Properties?["dependency_type"].Should().Be("service_call");
 
             // Library
             var libEdge = graph.Edges.FirstOrDefault(e => e.Source == "proj:auth" && e.Target == "proj:common_lib");
-            Assert.That(libEdge, Is.Not.Null);
-            Assert.That(libEdge!.Properties?["dependency_type"], Is.EqualTo("library"));
+            libEdge.Should().NotBeNull();
+            libEdge!.Properties?["dependency_type"].Should().Be("library");
 
             // Consolidated Database edges
             var gwDbEdge =
                 graph.Edges.FirstOrDefault(e => e.Source == "proj:gateway" && e.Target == canonicalDb.Id);
-            Assert.That(gwDbEdge, Is.Not.Null, "Gateway should connect to canonical Database node");
-            Assert.That(gwDbEdge!.Properties?["dependency_type"], Is.EqualTo("database"));
+            gwDbEdge.Should().NotBeNull("Gateway should connect to canonical Database node");
+            gwDbEdge!.Properties?["dependency_type"].Should().Be("database");
 
             var authDbEdge = graph.Edges.FirstOrDefault(e => e.Source == "proj:auth" && e.Target == canonicalDb.Id);
-            Assert.That(authDbEdge, Is.Not.Null, "Auth should connect to canonical Database node");
-            Assert.That(authDbEdge!.Properties?["dependency_type"], Is.EqualTo("database"));
+            authDbEdge.Should().NotBeNull("Auth should connect to canonical Database node");
+            authDbEdge!.Properties?["dependency_type"].Should().Be("database");
 
             // Messaging edge
             var msgEdge = graph.Edges.FirstOrDefault(e => e.Source == "proj:order" && e.Target == "svc:kafka");
-            Assert.That(msgEdge, Is.Not.Null, "Order should connect to Kafka ExternalService");
-            Assert.That(msgEdge!.Properties?["dependency_type"], Is.EqualTo("messaging"));
+            msgEdge.Should().NotBeNull("Order should connect to Kafka ExternalService");
+            msgEdge!.Properties?["dependency_type"].Should().Be("messaging");
         }
         finally
         {
@@ -621,30 +621,27 @@ public class CrossLanguageCommunicationDetectionTests
             // Assert Entity Classifications
             var orderNode = graph.Nodes.First(n => n.Id == "proj:svc_order");
 
-            Assert.That(orderNode.Properties?["entity_type"], Is.EqualTo("service"),
-                "Order service must be classified as service");
-            Assert.That(orderNode.Properties?["is_semantic_entity"], Is.EqualTo("true"));
-            Assert.That(orderNode.Properties?["is_library"], Is.EqualTo("false"));
+            orderNode.Properties?["entity_type"].Should().Be("service", "Order service must be classified as service");
+            orderNode.Properties?["is_semantic_entity"].Should().Be("true");
+            orderNode.Properties?["is_library"].Should().Be("false");
 
             var dataLibNode = graph.Nodes.First(n => n.Id == "proj:lib_data");
 
-            Assert.That(dataLibNode.Properties?["entity_type"], Is.EqualTo("library"),
-                "Data access must be classified as library");
-            Assert.That(dataLibNode.Properties?["is_semantic_entity"], Is.EqualTo("false"));
-            Assert.That(dataLibNode.Properties?["is_library"], Is.EqualTo("true"));
+            dataLibNode.Properties?["entity_type"].Should().Be("library", "Data access must be classified as library");
+            dataLibNode.Properties?["is_semantic_entity"].Should().Be("false");
+            dataLibNode.Properties?["is_library"].Should().Be("true");
 
             var pgNode = graph.Nodes.First(n => n.Name.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase));
-            Assert.That(pgNode.Properties?["entity_type"], Is.EqualTo("database"));
-            Assert.That(pgNode.Properties?["is_semantic_entity"], Is.EqualTo("true"));
+            pgNode.Properties?["entity_type"].Should().Be("database");
+            pgNode.Properties?["is_semantic_entity"].Should().Be("true");
 
             // 4. Assert Direct File-to-Project DB Resolution:
             // order.entity.ts used db:postgres -> order-service must have USES_DB -> PostgreSQL
             var orderToPg = graph.Edges.FirstOrDefault(e =>
                 e.Source == "proj:svc_order" && e.Target == pgNode.Id && e.Kind == "USES_DB");
 
-            Assert.That(orderToPg, Is.Not.Null,
-                "File-level database usage must resolve directly to owning order-service");
-            Assert.That(orderToPg!.Properties?["is_semantic"], Is.EqualTo("true"));
+            orderToPg.Should().NotBeNull("File-level database usage must resolve directly to owning order-service");
+            orderToPg!.Properties?["is_semantic"].Should().Be("true");
 
             // 5. Assert Transitive Database Lifting:
             // order-service -> data-access-lib -> MySQL => order-service -[:USES_DB]-> MySQL
@@ -653,33 +650,29 @@ public class CrossLanguageCommunicationDetectionTests
             var orderToMysql = graph.Edges.FirstOrDefault(e =>
                 e.Source == "proj:svc_order" && e.Target == mysqlNode.Id && e.Kind == "USES_DB");
 
-            Assert.That(orderToMysql, Is.Not.Null,
-                "Transitive database access via data-access-lib must be lifted to order-service");
-            Assert.That(orderToMysql!.Properties?["semantic_lifted"], Is.EqualTo("true"));
-            Assert.That(orderToMysql.Properties?["via_library"], Is.EqualTo("data-access-lib"));
-            Assert.That(orderToMysql.Properties?["is_semantic"], Is.EqualTo("true"));
+            orderToMysql.Should().NotBeNull("Transitive database access via data-access-lib must be lifted to order-service");
+            orderToMysql!.Properties?["semantic_lifted"].Should().Be("true");
+            orderToMysql.Properties?["via_library"].Should().Be("data-access-lib");
+            orderToMysql.Properties?["is_semantic"].Should().Be("true");
 
             // 6. Assert Transitive Service-to-Service Lifting:
             // order-service -> billing-client -> billing-service => order-service -[:SERVICE_CALL]-> billing-service
             var orderToBilling = graph.Edges.FirstOrDefault(e =>
                 e.Source == "proj:svc_order" && e.Target == "proj:svc_billing" && e.Kind == "SERVICE_CALL");
 
-            Assert.That(orderToBilling, Is.Not.Null,
-                "Transitive service call via billing-client must be lifted to order-service -> billing-service");
-            Assert.That(orderToBilling!.Properties?["semantic_lifted"], Is.EqualTo("true"));
-            Assert.That(orderToBilling.Properties?["via_library"], Is.EqualTo("billing-client"));
-            Assert.That(orderToBilling.Properties?["is_semantic"], Is.EqualTo("true"));
+            orderToBilling.Should().NotBeNull("Transitive service call via billing-client must be lifted to order-service -> billing-service");
+            orderToBilling!.Properties?["semantic_lifted"].Should().Be("true");
+            orderToBilling.Properties?["via_library"].Should().Be("billing-client");
+            orderToBilling.Properties?["is_semantic"].Should().Be("true");
 
             // 7. Verify Project Neighborhood (Flow View)
             var flow = await new ArchitectureViewEngine(db).GetServiceFlowViewAsync("proj:svc_order",
                 includeLibraries: true);
             var flowDatabases = flow.Nodes.Where(n => n.Kind == NodeKind.Database).ToList();
 
-            Assert.That(flowDatabases.Any(d => d.Name.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase)),
-                Is.True, "Flow must include resolved PostgreSQL");
+            flowDatabases.Any(d => d.Name.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase)).Should().BeTrue("Flow must include resolved PostgreSQL");
 
-            Assert.That(flowDatabases.Any(d => d.Name.Equals("MySQL", StringComparison.OrdinalIgnoreCase)), Is.True,
-                "Flow must include lifted MySQL");
+            flowDatabases.Any(d => d.Name.Equals("MySQL", StringComparison.OrdinalIgnoreCase)).Should().BeTrue("Flow must include lifted MySQL");
         }
         finally
         {

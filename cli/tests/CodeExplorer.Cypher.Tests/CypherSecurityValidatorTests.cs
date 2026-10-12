@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using CodeExplorer.Cypher.Parser;
 using NUnit.Framework;
 
@@ -39,6 +40,6 @@ public class CypherSecurityValidatorTests
     public void ValidateReadOnly_MutatingQueries_ThrowsSecurityViolation(string query)
     {
         var ex = Assert.Throws<InvalidOperationException>(() => CypherSecurityValidator.ValidateReadOnly(query));
-        Assert.That(ex!.Message, Does.Contain("Security violation: Mutating queries are not allowed."));
+        ex!.Message.Should().Contain("Security violation: Mutating queries are not allowed.");
     }
 }

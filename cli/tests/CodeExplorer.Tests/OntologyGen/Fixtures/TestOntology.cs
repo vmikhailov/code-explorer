@@ -6,9 +6,9 @@
 // independently of the phase-2 OntologyNodeAttribute signature changes (which
 // haven't been applied to the real nodes yet).
 
+using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Relationships;
-using System.Text.Json.Serialization;
 
 namespace CodeExplorer.Tests.OntologyGen.Fixtures;
 

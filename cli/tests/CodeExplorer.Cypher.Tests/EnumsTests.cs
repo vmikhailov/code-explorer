@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using CodeExplorer.Cypher.Common;
 using NUnit.Framework;
 
@@ -9,36 +10,36 @@ public class EnumsTests
     [Test]
     public void NodeKind_ToCypherLabel_CoversAllKnownValues()
     {
-        Assert.That(NodeKind.Service.ToCypherLabel(), Is.EqualTo("Service"));
-        Assert.That(NodeKind.App.ToCypherLabel(), Is.EqualTo("App"));
-        Assert.That(NodeKind.Worker.ToCypherLabel(), Is.EqualTo("Worker"));
-        Assert.That(NodeKind.CliTool.ToCypherLabel(), Is.EqualTo("CliTool"));
-        Assert.That(NodeKind.Library.ToCypherLabel(), Is.EqualTo("Library"));
-        Assert.That(NodeKind.SharedLibrary.ToCypherLabel(), Is.EqualTo("SharedLibrary"));
-        Assert.That(NodeKind.Database.ToCypherLabel(), Is.EqualTo("Database"));
-        Assert.That(NodeKind.Topic.ToCypherLabel(), Is.EqualTo("Topic"));
-        Assert.That(NodeKind.ExternalService.ToCypherLabel(), Is.EqualTo("ExternalService"));
-        Assert.That(NodeKind.Project.ToCypherLabel(), Is.EqualTo("Project"));
-        Assert.That(NodeKind.Endpoint.ToCypherLabel(), Is.EqualTo("Endpoint"));
-        Assert.That(NodeKind.EntryPoint.ToCypherLabel(), Is.EqualTo("EntryPoint"));
-        Assert.That(NodeKind.Table.ToCypherLabel(), Is.EqualTo("Table"));
-        Assert.That(NodeKind.Query.ToCypherLabel(), Is.EqualTo("Query"));
-        Assert.That(NodeKind.Type.ToCypherLabel(), Is.EqualTo("Type"));
-        Assert.That(NodeKind.Function.ToCypherLabel(), Is.EqualTo("Function"));
-        Assert.That(NodeKind.Member.ToCypherLabel(), Is.EqualTo("Member"));
-        Assert.That(NodeKind.File.ToCypherLabel(), Is.EqualTo("File"));
-        Assert.That(NodeKind.Folder.ToCypherLabel(), Is.EqualTo("Folder"));
-        Assert.That(NodeKind.Package.ToCypherLabel(), Is.EqualTo("Package"));
-        Assert.That(NodeKind.DataSet.ToCypherLabel(), Is.EqualTo("DataSet"));
-        Assert.That(NodeKind.CloudService.ToCypherLabel(), Is.EqualTo("CloudService"));
-        Assert.That(NodeKind.ApiInUse.ToCypherLabel(), Is.EqualTo("ApiInUse"));
-        Assert.That(NodeKind.TestSuite.ToCypherLabel(), Is.EqualTo("TestSuite"));
-        Assert.That(NodeKind.Test.ToCypherLabel(), Is.EqualTo("Test"));
-        Assert.That(NodeKind.Procedure.ToCypherLabel(), Is.EqualTo("Procedure"));
-        Assert.That(NodeKind.Workspace.ToCypherLabel(), Is.EqualTo("Workspace"));
-        Assert.That(NodeKind.Domain.ToCypherLabel(), Is.EqualTo("Domain"));
-        Assert.That(NodeKind.BoundedContext.ToCypherLabel(), Is.EqualTo("BoundedContext"));
-        Assert.That(NodeKind.Ingress.ToCypherLabel(), Is.EqualTo("Ingress"));
+        NodeKind.Service.ToCypherLabel().Should().Be("Service");
+        NodeKind.App.ToCypherLabel().Should().Be("App");
+        NodeKind.Worker.ToCypherLabel().Should().Be("Worker");
+        NodeKind.CliTool.ToCypherLabel().Should().Be("CliTool");
+        NodeKind.Library.ToCypherLabel().Should().Be("Library");
+        NodeKind.SharedLibrary.ToCypherLabel().Should().Be("SharedLibrary");
+        NodeKind.Database.ToCypherLabel().Should().Be("Database");
+        NodeKind.Topic.ToCypherLabel().Should().Be("Topic");
+        NodeKind.ExternalService.ToCypherLabel().Should().Be("ExternalService");
+        NodeKind.Project.ToCypherLabel().Should().Be("Project");
+        NodeKind.Endpoint.ToCypherLabel().Should().Be("Endpoint");
+        NodeKind.EntryPoint.ToCypherLabel().Should().Be("EntryPoint");
+        NodeKind.Table.ToCypherLabel().Should().Be("Table");
+        NodeKind.Query.ToCypherLabel().Should().Be("Query");
+        NodeKind.Type.ToCypherLabel().Should().Be("Type");
+        NodeKind.Function.ToCypherLabel().Should().Be("Function");
+        NodeKind.Member.ToCypherLabel().Should().Be("Member");
+        NodeKind.File.ToCypherLabel().Should().Be("File");
+        NodeKind.Folder.ToCypherLabel().Should().Be("Folder");
+        NodeKind.Package.ToCypherLabel().Should().Be("Package");
+        NodeKind.DataSet.ToCypherLabel().Should().Be("DataSet");
+        NodeKind.CloudService.ToCypherLabel().Should().Be("CloudService");
+        NodeKind.ApiInUse.ToCypherLabel().Should().Be("ApiInUse");
+        NodeKind.TestSuite.ToCypherLabel().Should().Be("TestSuite");
+        NodeKind.Test.ToCypherLabel().Should().Be("Test");
+        NodeKind.Procedure.ToCypherLabel().Should().Be("Procedure");
+        NodeKind.Workspace.ToCypherLabel().Should().Be("Workspace");
+        NodeKind.Domain.ToCypherLabel().Should().Be("Domain");
+        NodeKind.BoundedContext.ToCypherLabel().Should().Be("BoundedContext");
+        NodeKind.Ingress.ToCypherLabel().Should().Be("Ingress");
     }
 
     [TestCase("Domain", NodeKind.Domain)]
@@ -93,26 +94,26 @@ public class EnumsTests
     [TestCase("NonExistentLabel", NodeKind.Unspecified)]
     public void ParseNodeKind_MapsCorrectly(string? label, NodeKind expected)
     {
-        Assert.That(EnumExtensions.ParseNodeKind(label), Is.EqualTo(expected));
+        EnumExtensions.ParseNodeKind(label).Should().Be(expected);
     }
 
     [Test]
     public void RelationshipKind_ToCypherType_CoversAllKnownValues()
     {
-        Assert.That(RelationshipKind.Calls.ToCypherType(), Is.EqualTo("CALLS"));
-        Assert.That(RelationshipKind.DependsOn.ToCypherType(), Is.EqualTo("DEPENDS_ON"));
-        Assert.That(RelationshipKind.ServiceCall.ToCypherType(), Is.EqualTo("SERVICE_CALL"));
-        Assert.That(RelationshipKind.UsesDb.ToCypherType(), Is.EqualTo("USES_DB"));
-        Assert.That(RelationshipKind.Produces.ToCypherType(), Is.EqualTo("PRODUCES"));
-        Assert.That(RelationshipKind.Consumes.ToCypherType(), Is.EqualTo("CONSUMES"));
-        Assert.That(RelationshipKind.CallsEndpoint.ToCypherType(), Is.EqualTo("CALLS_ENDPOINT"));
-        Assert.That(RelationshipKind.Contains.ToCypherType(), Is.EqualTo("CONTAINS"));
-        Assert.That(RelationshipKind.Implements.ToCypherType(), Is.EqualTo("IMPLEMENTS"));
-        Assert.That(RelationshipKind.WritesTo.ToCypherType(), Is.EqualTo("WRITES_TO"));
-        Assert.That(RelationshipKind.ReadsFrom.ToCypherType(), Is.EqualTo("READS_FROM"));
-        Assert.That(RelationshipKind.Exposes.ToCypherType(), Is.EqualTo("EXPOSES"));
-        Assert.That(RelationshipKind.AttributedTo.ToCypherType(), Is.EqualTo("ATTRIBUTED_TO"));
-        Assert.That(RelationshipKind.Configures.ToCypherType(), Is.EqualTo("CONFIGURES"));
+        RelationshipKind.Calls.ToCypherType().Should().Be("CALLS");
+        RelationshipKind.DependsOn.ToCypherType().Should().Be("DEPENDS_ON");
+        RelationshipKind.ServiceCall.ToCypherType().Should().Be("SERVICE_CALL");
+        RelationshipKind.UsesDb.ToCypherType().Should().Be("USES_DB");
+        RelationshipKind.Produces.ToCypherType().Should().Be("PRODUCES");
+        RelationshipKind.Consumes.ToCypherType().Should().Be("CONSUMES");
+        RelationshipKind.CallsEndpoint.ToCypherType().Should().Be("CALLS_ENDPOINT");
+        RelationshipKind.Contains.ToCypherType().Should().Be("CONTAINS");
+        RelationshipKind.Implements.ToCypherType().Should().Be("IMPLEMENTS");
+        RelationshipKind.WritesTo.ToCypherType().Should().Be("WRITES_TO");
+        RelationshipKind.ReadsFrom.ToCypherType().Should().Be("READS_FROM");
+        RelationshipKind.Exposes.ToCypherType().Should().Be("EXPOSES");
+        RelationshipKind.AttributedTo.ToCypherType().Should().Be("ATTRIBUTED_TO");
+        RelationshipKind.Configures.ToCypherType().Should().Be("CONFIGURES");
     }
 
     [TestCase("CALLS", RelationshipKind.Calls)]
@@ -138,7 +139,7 @@ public class EnumsTests
     [TestCase("UNKNOWN_REL", RelationshipKind.Unspecified)]
     public void ParseRelationshipKind_MapsCorrectly(string? rel, RelationshipKind expected)
     {
-        Assert.That(EnumExtensions.ParseRelationshipKind(rel), Is.EqualTo(expected));
+        EnumExtensions.ParseRelationshipKind(rel).Should().Be(expected);
     }
 
     [TestCase("service", ProjectRole.Service)]
@@ -154,7 +155,7 @@ public class EnumsTests
     [TestCase(null, ProjectRole.Unspecified)]
     public void ParseProjectRole_MapsCorrectly(string? role, ProjectRole expected)
     {
-        Assert.That(EnumExtensions.ParseProjectRole(role), Is.EqualTo(expected));
+        EnumExtensions.ParseProjectRole(role).Should().Be(expected);
     }
 
     [TestCase("relational", DatabaseType.Relational)]
@@ -175,7 +176,7 @@ public class EnumsTests
     [TestCase(null, DatabaseType.Unspecified)]
     public void ParseDatabaseType_MapsCorrectly(string? dbType, DatabaseType expected)
     {
-        Assert.That(EnumExtensions.ParseDatabaseType(dbType), Is.EqualTo(expected));
+        EnumExtensions.ParseDatabaseType(dbType).Should().Be(expected);
     }
 
     [TestCase("http", NetworkProtocol.Http)]
@@ -190,7 +191,7 @@ public class EnumsTests
     [TestCase(null, NetworkProtocol.Unspecified)]
     public void ParseNetworkProtocol_MapsCorrectly(string? protocol, NetworkProtocol expected)
     {
-        Assert.That(EnumExtensions.ParseNetworkProtocol(protocol), Is.EqualTo(expected));
+        EnumExtensions.ParseNetworkProtocol(protocol).Should().Be(expected);
     }
 
     [TestCase("systemcontext", ArchitectureViewType.SystemContext)]
@@ -208,6 +209,6 @@ public class EnumsTests
     [TestCase(null, ArchitectureViewType.Unspecified)]
     public void ParseArchitectureViewType_MapsCorrectly(string? viewType, ArchitectureViewType expected)
     {
-        Assert.That(EnumExtensions.ParseArchitectureViewType(viewType), Is.EqualTo(expected));
+        EnumExtensions.ParseArchitectureViewType(viewType).Should().Be(expected);
     }
 }

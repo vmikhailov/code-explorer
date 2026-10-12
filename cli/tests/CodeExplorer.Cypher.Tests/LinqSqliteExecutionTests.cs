@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AwesomeAssertions;
 using CodeExplorer.Cypher.Ast;
 using CodeExplorer.Cypher.Compiler;
 using CodeExplorer.Cypher.Linq;
@@ -289,8 +290,8 @@ public class LinqSqliteExecutionTests
             .Where(s => s.Framework == "aspnetcore")
             .ToListAsync();
 
-        Assert.That(services, Has.Count.EqualTo(3));
-        Assert.That(services.Select(s => s.Name), Is.EquivalentTo(new[] { "billing", "inventory", "auth" }));
+        services.Should().HaveCount(3);
+        services.Select(s => s.Name).Should().BeEquivalentTo(new[] { "billing", "inventory", "auth" });
     }
 
     [Test]
@@ -300,9 +301,9 @@ public class LinqSqliteExecutionTests
             .OrderBy(s => s.Name)
             .ToListAsync();
 
-        Assert.That(services, Has.Count.EqualTo(4));
+        services.Should().HaveCount(4);
         var names = services.Select(s => s.Name).ToList();
-        Assert.That(names, Is.EqualTo(new[] { "auth", "bff", "billing", "inventory" }));
+        names.Should().Equal(new[] { "auth", "bff", "billing", "inventory" });
     }
 
     [Test]
@@ -312,9 +313,9 @@ public class LinqSqliteExecutionTests
             .OrderByDescending(s => s.Name)
             .ToListAsync();
 
-        Assert.That(services, Has.Count.EqualTo(4));
+        services.Should().HaveCount(4);
         var names = services.Select(s => s.Name).ToList();
-        Assert.That(names, Is.EqualTo(new[] { "inventory", "billing", "bff", "auth" }));
+        names.Should().Equal(new[] { "inventory", "billing", "bff", "auth" });
     }
 
     [Test]
@@ -326,16 +327,16 @@ public class LinqSqliteExecutionTests
             .Take(2)
             .ToListAsync();
 
-        Assert.That(services, Has.Count.EqualTo(2));
+        services.Should().HaveCount(2);
         var names = services.Select(s => s.Name).ToList();
-        Assert.That(names, Is.EqualTo(new[] { "bff", "billing" }));
+        names.Should().Equal(new[] { "bff", "billing" });
     }
 
     [Test]
     public async Task Services_CountAsync_AllServices()
     {
         var count = await _graph.Services.CountAsync();
-        Assert.That(count, Is.EqualTo(4));
+        count.Should().Be(4);
     }
 
     [Test]
@@ -345,7 +346,7 @@ public class LinqSqliteExecutionTests
             .Where(s => s.Language == "csharp")
             .CountAsync();
 
-        Assert.That(count, Is.EqualTo(3));
+        count.Should().Be(3);
     }
 
     [Test]
@@ -355,7 +356,7 @@ public class LinqSqliteExecutionTests
             .Where(s => s.Name == "bff")
             .AnyAsync();
 
-        Assert.That(found, Is.True);
+        found.Should().BeTrue();
     }
 
     [Test]
@@ -365,7 +366,7 @@ public class LinqSqliteExecutionTests
             .Where(s => s.Name == "nonexistent")
             .AnyAsync();
 
-        Assert.That(found, Is.False);
+        found.Should().BeFalse();
     }
 
     [Test]
@@ -375,10 +376,10 @@ public class LinqSqliteExecutionTests
             .Where(d => d.DbType == "relational")
             .FirstOrDefaultAsync();
 
-        Assert.That(db, Is.Not.Null);
-        Assert.That(db!.Name, Is.EqualTo("main_postgres"));
-        Assert.That(db.Engine, Is.EqualTo("postgresql"));
-        Assert.That(db.Port, Is.EqualTo(5432));
+        db.Should().NotBeNull();
+        db!.Name.Should().Be("main_postgres");
+        db.Engine.Should().Be("postgresql");
+        db.Port.Should().Be(5432);
     }
 
     [Test]
@@ -388,9 +389,9 @@ public class LinqSqliteExecutionTests
             .Where(e => e.Category == "Payment")
             .ToListAsync();
 
-        Assert.That(ext, Has.Count.EqualTo(1));
-        Assert.That(ext[0].Name, Is.EqualTo("stripe"));
-        Assert.That(ext[0].BaseUrl, Is.EqualTo("https://api.stripe.com"));
+        ext.Should().HaveCount(1);
+        ext[0].Name.Should().Be("stripe");
+        ext[0].BaseUrl.Should().Be("https://api.stripe.com");
     }
 
     [Test]
@@ -400,9 +401,9 @@ public class LinqSqliteExecutionTests
             .Where(a => a.AppType == "spa")
             .ToListAsync();
 
-        Assert.That(apps, Has.Count.EqualTo(1));
-        Assert.That(apps[0].Name, Is.EqualTo("web-portal"));
-        Assert.That(apps[0].Port, Is.EqualTo(8080));
+        apps.Should().HaveCount(1);
+        apps[0].Name.Should().Be("web-portal");
+        apps[0].Port.Should().Be(8080);
     }
 
     [Test]
@@ -412,8 +413,8 @@ public class LinqSqliteExecutionTests
             .Where(w => w.QueueType == "rabbitmq")
             .ToListAsync();
 
-        Assert.That(workers, Has.Count.EqualTo(1));
-        Assert.That(workers[0].Name, Is.EqualTo("order-worker"));
+        workers.Should().HaveCount(1);
+        workers[0].Name.Should().Be("order-worker");
     }
 
     [Test]
@@ -423,9 +424,9 @@ public class LinqSqliteExecutionTests
             .Where(t => t.PartitionCount > 5)
             .ToListAsync();
 
-        Assert.That(topics, Has.Count.EqualTo(1));
-        Assert.That(topics[0].Name, Is.EqualTo("orders-topic"));
-        Assert.That(topics[0].BrokerType, Is.EqualTo("kafka"));
+        topics.Should().HaveCount(1);
+        topics[0].Name.Should().Be("orders-topic");
+        topics[0].BrokerType.Should().Be("kafka");
     }
 
     [Test]
@@ -435,10 +436,10 @@ public class LinqSqliteExecutionTests
             .Where(l => l.PackageName == "ui-context-menu")
             .FirstOrDefaultAsync();
 
-        Assert.That(lib, Is.Not.Null);
-        Assert.That(lib!.Name, Is.EqualTo("context-menu"));
-        Assert.That(lib.Version, Is.EqualTo("1.0.0"));
-        Assert.That(lib.IsLibrary, Is.True);
+        lib.Should().NotBeNull();
+        lib!.Name.Should().Be("context-menu");
+        lib.Version.Should().Be("1.0.0");
+        lib.IsLibrary.Should().BeTrue();
     }
 
     [Test]
@@ -448,9 +449,9 @@ public class LinqSqliteExecutionTests
             .Where(ep => ep.HttpMethod == "POST")
             .ToListAsync();
 
-        Assert.That(endpoints, Has.Count.EqualTo(1));
-        Assert.That(endpoints[0].Name, Is.EqualTo("CreateOrder"));
-        Assert.That(endpoints[0].Route, Is.EqualTo("/api/v1/orders"));
+        endpoints.Should().HaveCount(1);
+        endpoints[0].Name.Should().Be("CreateOrder");
+        endpoints[0].Route.Should().Be("/api/v1/orders");
     }
 
     [Test]
@@ -460,6 +461,6 @@ public class LinqSqliteExecutionTests
             .Where(s => !s.IsLibrary)
             .ToListAsync();
 
-        Assert.That(nonLibServices, Has.Count.EqualTo(4));
+        nonLibServices.Should().HaveCount(4);
     }
 }

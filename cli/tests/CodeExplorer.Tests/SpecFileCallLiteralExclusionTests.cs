@@ -1,5 +1,5 @@
 using System.Threading.Channels;
-using NUnit.Framework;
+using AwesomeAssertions;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
@@ -7,6 +7,7 @@ using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Components.Parsers;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.TypeScript;
+using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
 
@@ -55,12 +56,12 @@ public class SpecFileCallLiteralExclusionTests
     public async Task RegularSource_ProducesCallLiterals()
     {
         const string prodCode = "const link = helper.generateLink('campaign-42');";
-        Assert.That(await CountCallLiteralsAsync("src/helpers", "target-url-generator.helper.ts", prodCode), Is.GreaterThan(0));
+        (await CountCallLiteralsAsync("src/helpers", "target-url-generator.helper.ts", prodCode)).Should().BeGreaterThan(0);
     }
 
     [Test]
     public async Task SpecSource_ProducesNoCallLiterals()
     {
-        Assert.That(await CountCallLiteralsAsync("src/helpers", "target-url-generator.helper.spec.ts"), Is.EqualTo(0));
+        (await CountCallLiteralsAsync("src/helpers", "target-url-generator.helper.spec.ts")).Should().Be(0);
     }
 }

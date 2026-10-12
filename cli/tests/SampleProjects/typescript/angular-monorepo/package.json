@@ -1,0 +1,11 @@
+{
+  "name": "angular-monorepo",
+  "version": "1.0.0",
+  "dependencies": {
+    "@angular/core": "^18.0.0",
+    "@angular/common": "^18.0.0"
+  },
+  "devDependencies": {
+    "ng-packagr": "^18.0.0"
+  }
+}

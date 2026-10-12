@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -23,39 +24,39 @@ public class ResourceReconciliationTests
     public void BuildCanonicalDatabaseId_FormatsConsistentUrn()
     {
         var id = ResourceReconciliationService.BuildCanonicalDatabaseId("ws1", "relational", "Orders_Db");
-        Assert.That(id, Is.EqualTo("ws1:res:db:relational:orders_db"));
+        id.Should().Be("ws1:res:db:relational:orders_db");
 
         var specialCharsId = ResourceReconciliationService.BuildCanonicalDatabaseId("ws1", "cache", "my.redis-instance@1");
-        Assert.That(specialCharsId, Is.EqualTo("ws1:res:db:cache:my_redis-instance_1"));
+        specialCharsId.Should().Be("ws1:res:db:cache:my_redis-instance_1");
     }
 
     [Test]
     public void BuildCanonicalTopicId_FormatsConsistentUrn()
     {
         var id = ResourceReconciliationService.BuildCanonicalTopicId("ws1", "rabbitmq", "orders.created");
-        Assert.That(id, Is.EqualTo("ws1:res:topic:rabbitmq:orders.created"));
+        id.Should().Be("ws1:res:topic:rabbitmq:orders.created");
     }
 
     [Test]
     public void BuildCanonicalServiceId_FormatsConsistentUrn()
     {
         var id = ResourceReconciliationService.BuildCanonicalServiceId("ws1", "external", "api.stripe.com");
-        Assert.That(id, Is.EqualTo("ws1:res:service:external:api.stripe.com"));
+        id.Should().Be("ws1:res:service:external:api.stripe.com");
     }
 
     [Test]
     public void NormalizeResourceName_StripsGenericKeys()
     {
-        Assert.That(ResourceReconciliationService.NormalizeResourceName("DefaultConnection", "PostgreSQL"), Is.EqualTo("PostgreSQL"));
-        Assert.That(ResourceReconciliationService.NormalizeResourceName("ConnectionString", "SQL Server"), Is.EqualTo("SQL Server"));
-        Assert.That(ResourceReconciliationService.NormalizeResourceName("spring.datasource.url", "MySQL"), Is.EqualTo("MySQL"));
-        Assert.That(ResourceReconciliationService.NormalizeResourceName("database", "Redis"), Is.EqualTo("Redis"));
+        ResourceReconciliationService.NormalizeResourceName("DefaultConnection", "PostgreSQL").Should().Be("PostgreSQL");
+        ResourceReconciliationService.NormalizeResourceName("ConnectionString", "SQL Server").Should().Be("SQL Server");
+        ResourceReconciliationService.NormalizeResourceName("spring.datasource.url", "MySQL").Should().Be("MySQL");
+        ResourceReconciliationService.NormalizeResourceName("database", "Redis").Should().Be("Redis");
 
-        Assert.That(ResourceReconciliationService.NormalizeResourceName("orders_db", "PostgreSQL"), Is.EqualTo("orders_db"));
-        Assert.That(ResourceReconciliationService.NormalizeResourceName("PaymentServiceDb", "SQL Server"), Is.EqualTo("PaymentServiceDb"));
-        Assert.That(ResourceReconciliationService.NormalizeResourceName("BillingConnectionString", "PostgreSQL"), Is.EqualTo("Billing"));
-        Assert.That(ResourceReconciliationService.NormalizeResourceName("OrdersDbContext", "SQL Server"), Is.EqualTo("Orders"));
-        Assert.That(ResourceReconciliationService.NormalizeResourceName("CatalogConnection", "MySQL"), Is.EqualTo("Catalog"));
+        ResourceReconciliationService.NormalizeResourceName("orders_db", "PostgreSQL").Should().Be("orders_db");
+        ResourceReconciliationService.NormalizeResourceName("PaymentServiceDb", "SQL Server").Should().Be("PaymentServiceDb");
+        ResourceReconciliationService.NormalizeResourceName("BillingConnectionString", "PostgreSQL").Should().Be("Billing");
+        ResourceReconciliationService.NormalizeResourceName("OrdersDbContext", "SQL Server").Should().Be("Orders");
+        ResourceReconciliationService.NormalizeResourceName("CatalogConnection", "MySQL").Should().Be("Catalog");
     }
 
     [Test]
@@ -71,8 +72,8 @@ public class ResourceReconciliationTests
             aliases: ["postgres", "postgres:5432/orders_db"]
         );
 
-        Assert.That(res1.Id, Is.EqualTo("ws1:res:db:relational:orders_db"));
-        Assert.That(res1.Name, Is.EqualTo("orders_db"));
+        res1.Id.Should().Be("ws1:res:db:relational:orders_db");
+        res1.Name.Should().Be("orders_db");
 
         // Register from appsettings.json with an alias
         var res2 = _service.RegisterResource(
@@ -85,21 +86,21 @@ public class ResourceReconciliationTests
             aliases: ["DefaultConnection", "MainDb"]
         );
 
-        Assert.That(res2.Id, Is.EqualTo(res1.Id), "Must resolve to identical canonical resource ID");
-        Assert.That(_service.AllResources.Count, Is.EqualTo(1), "Resource count must remain 1 after re-registration");
+        res2.Id.Should().Be(res1.Id, "Must resolve to identical canonical resource ID");
+        _service.AllResources.Count.Should().Be(1, "Resource count must remain 1 after re-registration");
 
         // Lookup by aliases
         var byDefaultConn = _service.ResolveResource("DefaultConnection");
-        Assert.That(byDefaultConn, Is.Not.Null);
-        Assert.That(byDefaultConn!.Id, Is.EqualTo(res1.Id));
+        byDefaultConn.Should().NotBeNull();
+        byDefaultConn!.Id.Should().Be(res1.Id);
 
         var byUrl = _service.ResolveResource("postgres://localhost:5432/orders_db");
-        Assert.That(byUrl, Is.Not.Null);
-        Assert.That(byUrl!.Id, Is.EqualTo(res1.Id));
+        byUrl.Should().NotBeNull();
+        byUrl!.Id.Should().Be(res1.Id);
 
         var byName = _service.ResolveResource("orders_db");
-        Assert.That(byName, Is.Not.Null);
-        Assert.That(byName!.Id, Is.EqualTo(res1.Id));
+        byName.Should().NotBeNull();
+        byName!.Id.Should().Be(res1.Id);
     }
 
     [Test]
@@ -116,8 +117,8 @@ public class ResourceReconciliationTests
         );
 
         var resolved = _service.ResolveResource("redis_client", expectedEngine: "Redis");
-        Assert.That(resolved, Is.Not.Null);
-        Assert.That(resolved!.Name, Is.EqualTo("redis_cache"));
+        resolved.Should().NotBeNull();
+        resolved!.Name.Should().Be("redis_cache");
     }
 
     [Test]
@@ -136,11 +137,11 @@ public class ResourceReconciliationTests
         var ctx = new ParsingContext("ws1", "ws1", _service);
 
         var queryNode = NestedSqlParser.ParseNestedSql("SELECT id, name FROM customers WHERE active = 1", "ws1:query:1", "repo/query.sql", ctx);
-        Assert.That(queryNode, Is.Not.Null);
+        queryNode.Should().NotBeNull();
 
         var dbNode = queryNode!.Children.OfType<DatabaseNode>().FirstOrDefault();
-        Assert.That(dbNode, Is.Not.Null);
-        Assert.That(dbNode!.Name, Is.EqualTo("orders_db"), "SQL query without explicit DB prefix must bind to canonical relational DB");
+        dbNode.Should().NotBeNull();
+        dbNode!.Name.Should().Be("orders_db", "SQL query without explicit DB prefix must bind to canonical relational DB");
     }
 
     [Test]
@@ -156,47 +157,47 @@ public class ResourceReconciliationTests
         var rel = new UsesDbRelationship("from:1", "to:1", relExt);
         var dbRel = Relationship.FromRelationship(rel);
 
-        Assert.That(dbRel.Kind, Is.EqualTo(OntologyConstants.Relationships.UsesDb));
-        Assert.That(dbRel.Properties, Is.Not.Null);
-        Assert.That(dbRel.Properties!["via"]?.ToString(), Is.EqualTo("TypeORM"));
-        Assert.That(dbRel.Properties!["provider"]?.ToString(), Is.EqualTo("typeorm"));
-        Assert.That(dbRel.Properties!["is_orm"]?.ToString(), Is.EqualTo("true"));
+        dbRel.Kind.Should().Be(OntologyConstants.Relationships.UsesDb);
+        dbRel.Properties.Should().NotBeNull();
+        dbRel.Properties!["via"]?.ToString().Should().Be("TypeORM");
+        dbRel.Properties!["provider"]?.ToString().Should().Be("typeorm");
+        dbRel.Properties!["is_orm"]?.ToString().Should().Be("true");
     }
 
     [Test]
     public void CleanProjectNameToDomain_CleansMicroservicePrefixesAndSuffixes()
     {
-        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("internal-service-networks"), Is.EqualTo("networks"));
-        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("internal-service-landers"), Is.EqualTo("landers"));
-        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("internal-service-sources"), Is.EqualTo("sources"));
-        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("internal-service-splits"), Is.EqualTo("splits"));
-        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("internal-service-action-scheduler"), Is.EqualTo("action-scheduler"));
-        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("integration-service-postback-partner"), Is.EqualTo("postback-partner"));
-        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("integration-service-smart-cpa"), Is.EqualTo("smart-cpa"));
-        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("internal-bundle-scheduler"), Is.EqualTo("bundle-scheduler"));
-        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("tournament-service"), Is.EqualTo("tournament"));
-        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("orders-api"), Is.EqualTo("orders"));
-        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("Lidoma.Tournament"), Is.EqualTo("tournament"));
-        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("service-billing"), Is.EqualTo("billing"));
-        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("srv-users"), Is.EqualTo("users"));
-        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("internal--service-networks"), Is.EqualTo("networks"));
-        Assert.That(SyntaxEnricher.CleanProjectNameToDomain("integration--smart-cpa"), Is.EqualTo("smart-cpa"));
+        SyntaxEnricher.CleanProjectNameToDomain("internal-service-networks").Should().Be("networks");
+        SyntaxEnricher.CleanProjectNameToDomain("internal-service-landers").Should().Be("landers");
+        SyntaxEnricher.CleanProjectNameToDomain("internal-service-sources").Should().Be("sources");
+        SyntaxEnricher.CleanProjectNameToDomain("internal-service-splits").Should().Be("splits");
+        SyntaxEnricher.CleanProjectNameToDomain("internal-service-action-scheduler").Should().Be("action-scheduler");
+        SyntaxEnricher.CleanProjectNameToDomain("integration-service-postback-partner").Should().Be("postback-partner");
+        SyntaxEnricher.CleanProjectNameToDomain("integration-service-smart-cpa").Should().Be("smart-cpa");
+        SyntaxEnricher.CleanProjectNameToDomain("internal-bundle-scheduler").Should().Be("bundle-scheduler");
+        SyntaxEnricher.CleanProjectNameToDomain("tournament-service").Should().Be("tournament");
+        SyntaxEnricher.CleanProjectNameToDomain("orders-api").Should().Be("orders");
+        SyntaxEnricher.CleanProjectNameToDomain("Lidoma.Tournament").Should().Be("tournament");
+        SyntaxEnricher.CleanProjectNameToDomain("service-billing").Should().Be("billing");
+        SyntaxEnricher.CleanProjectNameToDomain("srv-users").Should().Be("users");
+        SyntaxEnricher.CleanProjectNameToDomain("internal--service-networks").Should().Be("networks");
+        SyntaxEnricher.CleanProjectNameToDomain("integration--smart-cpa").Should().Be("smart-cpa");
     }
 
     [Test]
     public void NormalizeServiceName_StrictStrippingAndLowercase()
     {
-        Assert.That(WorkspaceConventions.NormalizeServiceName("internal--service-networks"), Is.EqualTo("networks"));
-        Assert.That(WorkspaceConventions.NormalizeServiceName("internal--networks"), Is.EqualTo("networks"));
-        Assert.That(WorkspaceConventions.NormalizeServiceName("integration--smart-cpa"), Is.EqualTo("smart-cpa"));
-        Assert.That(WorkspaceConventions.NormalizeServiceName("integration--service-smart-cpa"), Is.EqualTo("smart-cpa"));
-        Assert.That(WorkspaceConventions.NormalizeServiceName("service-billing"), Is.EqualTo("billing"));
-        Assert.That(WorkspaceConventions.NormalizeServiceName("ATSAnalyticsDepartment"), Is.EqualTo("atsanalyticsdepartment"));
-        Assert.That(WorkspaceConventions.NormalizeServiceName("internal-service-networks"), Is.EqualTo("networks"));
-        Assert.That(WorkspaceConventions.NormalizeServiceName("internal-service-action-scheduler"), Is.EqualTo("action-scheduler"));
-        Assert.That(WorkspaceConventions.NormalizeServiceName("internal--service-bff"), Is.EqualTo("bff"));
-        Assert.That(WorkspaceConventions.NormalizeServiceName("service-"), Is.EqualTo("service-"));
-        Assert.That(WorkspaceConventions.NormalizeServiceName(""), Is.EqualTo(""));
+        WorkspaceConventions.NormalizeServiceName("internal--service-networks").Should().Be("networks");
+        WorkspaceConventions.NormalizeServiceName("internal--networks").Should().Be("networks");
+        WorkspaceConventions.NormalizeServiceName("integration--smart-cpa").Should().Be("smart-cpa");
+        WorkspaceConventions.NormalizeServiceName("integration--service-smart-cpa").Should().Be("smart-cpa");
+        WorkspaceConventions.NormalizeServiceName("service-billing").Should().Be("billing");
+        WorkspaceConventions.NormalizeServiceName("ATSAnalyticsDepartment").Should().Be("atsanalyticsdepartment");
+        WorkspaceConventions.NormalizeServiceName("internal-service-networks").Should().Be("networks");
+        WorkspaceConventions.NormalizeServiceName("internal-service-action-scheduler").Should().Be("action-scheduler");
+        WorkspaceConventions.NormalizeServiceName("internal--service-bff").Should().Be("bff");
+        WorkspaceConventions.NormalizeServiceName("service-").Should().Be("service-");
+        WorkspaceConventions.NormalizeServiceName("").Should().Be("");
     }
 
     [Test]
@@ -204,36 +205,36 @@ public class ResourceReconciliationTests
     {
         // 1. NestedSqlParser in BigQuery context without schema defaults to 'default'
         var q1 = NestedSqlParser.ParseNestedSql("SELECT * FROM networks", "ws:q:1", "bq-calc/src/repo.ts");
-        Assert.That(q1, Is.Not.Null);
+        q1.Should().NotBeNull();
         var dbNode1 = q1!.Children.OfType<DatabaseNode>().FirstOrDefault();
-        Assert.That(dbNode1, Is.Not.Null);
-        Assert.That(dbNode1!.Name, Is.EqualTo("BigQuery.default"));
-        Assert.That(dbNode1.Extensions!["schema"], Is.EqualTo("default"));
+        dbNode1.Should().NotBeNull();
+        dbNode1!.Name.Should().Be("BigQuery.default");
+        dbNode1.Extensions!["schema"].Should().Be("default");
 
         // 2. NestedSqlParser in BigQuery context with explicit 'default.' stays 'default'
         var q2 = NestedSqlParser.ParseNestedSql("SELECT * FROM default.networks", "ws:q:2", "bq-calc/src/repo.ts");
-        Assert.That(q2, Is.Not.Null);
+        q2.Should().NotBeNull();
         var dbNode2 = q2!.Children.OfType<DatabaseNode>().FirstOrDefault();
-        Assert.That(dbNode2, Is.Not.Null);
-        Assert.That(dbNode2!.Name, Is.EqualTo("BigQuery.default"));
-        Assert.That(dbNode2.Extensions!["schema"], Is.EqualTo("default"));
+        dbNode2.Should().NotBeNull();
+        dbNode2!.Name.Should().Be("BigQuery.default");
+        dbNode2.Extensions!["schema"].Should().Be("default");
 
         // 3. NestedSqlParser in BigQuery context with explicit 'defaults.' stays 'defaults'
         var q3 = NestedSqlParser.ParseNestedSql("SELECT * FROM defaults.networks", "ws:q:3", "bq-calc/src/repo.ts");
-        Assert.That(q3, Is.Not.Null);
+        q3.Should().NotBeNull();
         var dbNode3 = q3!.Children.OfType<DatabaseNode>().FirstOrDefault();
-        Assert.That(dbNode3, Is.Not.Null);
-        Assert.That(dbNode3!.Name, Is.EqualTo("BigQuery.defaults"));
-        Assert.That(dbNode3.Extensions!["schema"], Is.EqualTo("defaults"));
+        dbNode3.Should().NotBeNull();
+        dbNode3!.Name.Should().Be("BigQuery.defaults");
+        dbNode3.Extensions!["schema"].Should().Be("defaults");
 
         // 4. PostIndexAnalyzer CanonicalizeDatabase BigQuery.default -> BigQuery.default
         var (cName1, _, cKey1) = PostIndexAnalyzer.CanonicalizeDatabase("BigQuery", "analytics", rawSchema: "default");
-        Assert.That(cName1, Is.EqualTo("BigQuery.default"));
-        Assert.That(cKey1, Is.EqualTo("bigquery:default"));
+        cName1.Should().Be("BigQuery.default");
+        cKey1.Should().Be("bigquery:default");
 
         var (cName2, _, cKey2) = PostIndexAnalyzer.CanonicalizeDatabase("BigQuery.default", "analytics");
-        Assert.That(cName2, Is.EqualTo("BigQuery.default"));
-        Assert.That(cKey2, Is.EqualTo("bigquery:default"));
+        cName2.Should().Be("BigQuery.default");
+        cKey2.Should().Be("bigquery:default");
     }
 
     [Test]
@@ -261,24 +262,24 @@ public class ResourceReconciliationTests
             aliases: ["billing"]
         );
 
-        Assert.That(_service.AllResources.Count, Is.EqualTo(2));
-        Assert.That(db1.Id, Is.Not.EqualTo(db2.Id));
+        _service.AllResources.Count.Should().Be(2);
+        db1.Id.Should().NotBe(db2.Id);
 
         // Looking up by specific schema/alias resolves to correct DB
         var resolvedAction = _service.ResolveResource("action-scheduler");
-        Assert.That(resolvedAction, Is.Not.Null);
-        Assert.That(resolvedAction!.Id, Is.EqualTo(db1.Id));
+        resolvedAction.Should().NotBeNull();
+        resolvedAction!.Id.Should().Be(db1.Id);
 
         var resolvedBilling = _service.ResolveResource("billing");
-        Assert.That(resolvedBilling, Is.Not.Null);
-        Assert.That(resolvedBilling!.Id, Is.EqualTo(db2.Id));
+        resolvedBilling.Should().NotBeNull();
+        resolvedBilling!.Id.Should().Be(db2.Id);
 
         // Generic engine lookup must NOT guess or collapse when multiple databases exist
         var ambiguous = _service.ResolveResource("PostgreSQL");
-        Assert.That(ambiguous, Is.Null, "Ambiguous engine lookup across multiple databases must not guess");
+        ambiguous.Should().BeNull("Ambiguous engine lookup across multiple databases must not guess");
 
         var ambiguousWithExpected = _service.ResolveResource(null, expectedDbType: "relational", expectedEngine: "PostgreSQL");
-        Assert.That(ambiguousWithExpected, Is.Null, "Ambiguous engine lookup across multiple databases must not guess");
+        ambiguousWithExpected.Should().BeNull("Ambiguous engine lookup across multiple databases must not guess");
     }
 
     [Test]
@@ -305,8 +306,8 @@ public class ResourceReconciliationTests
             aliases: ["service-b"]
         );
 
-        Assert.That(_service.AllResources.Count, Is.EqualTo(2), "Concrete DB in project B must not retire placeholder in project A");
-        Assert.That(_service.ResolveResource(placeholderA.Id), Is.EqualTo(placeholderA));
-        Assert.That(_service.ResolveResource("service-b"), Is.EqualTo(concreteB));
+        _service.AllResources.Count.Should().Be(2, "Concrete DB in project B must not retire placeholder in project A");
+        _service.ResolveResource(placeholderA.Id).Should().Be(placeholderA);
+        _service.ResolveResource("service-b").Should().Be(concreteB);
     }
 }

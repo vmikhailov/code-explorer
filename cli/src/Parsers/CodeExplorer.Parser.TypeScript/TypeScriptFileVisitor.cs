@@ -57,7 +57,8 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 
     protected override string? MapNodeType(Node node)
     {
-        if (node.IsAny(TreeSitterSyntax.TypeScript.String, TreeSitterSyntax.TypeScript.TemplateString))
+        if (!WorkspaceConventions.IsFrontendFilePath(RelativePath) &&
+            node.IsAny(TreeSitterSyntax.TypeScript.String, TreeSitterSyntax.TypeScript.TemplateString))
         {
             if (NestedSqlParser.TryParseSql(node.Text, out _, out _))
             {
@@ -86,7 +87,8 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 
     protected override string? ExtractIdentifier(Node node)
     {
-        if (node.IsAny(TreeSitterSyntax.TypeScript.String, TreeSitterSyntax.TypeScript.TemplateString))
+        if (!WorkspaceConventions.IsFrontendFilePath(RelativePath) &&
+            node.IsAny(TreeSitterSyntax.TypeScript.String, TreeSitterSyntax.TypeScript.TemplateString))
         {
             if (NestedSqlParser.TryParseSql(node.Text, out var firstWord, out _))
             {

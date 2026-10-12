@@ -1,10 +1,9 @@
 using System.Text.Json;
-using NUnit.Framework;
+using AwesomeAssertions;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Mcp;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Parser.CSharp;
-using CodeExplorer.Parser.TypeScript;
+using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
 
@@ -76,8 +75,7 @@ export class OrdersController {
         _dbPath = Path.Combine(_tempWorkspace, "test_queries.db");
         _client = new SqliteGraphClient(_dbPath);
 
-        WorkspaceIndexer.Register(new CSharpParser());
-        WorkspaceIndexer.Register(new TypeScriptParser());
+        WorkspaceIndexer.AutoRegisterParsers();
 
         var indexer = new WorkspaceIndexer(_client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
@@ -103,9 +101,9 @@ export class OrdersController {
 
         var array = doc.RootElement.EnumerateArray().ToList();
 
-        Assert.That(array.Count, Is.GreaterThan(0), "get_project_entry_points returned 0 rows for ProjectB!");
+        array.Count.Should().BeGreaterThan(0, "get_project_entry_points returned 0 rows for ProjectB!");
         var names = array.Select(x => x.GetProperty("entryPoint").GetString()).ToList();
-        Assert.That(names, Does.Contain("chargeOrder").Or.Contain("getOrderStatus"));
+        names.Any(n => n is "chargeOrder" or "getOrderStatus").Should().BeTrue();
     }
 
     [Test]
@@ -118,9 +116,9 @@ export class OrdersController {
 
         var array = doc.RootElement.EnumerateArray().ToList();
 
-        Assert.That(array.Count, Is.GreaterThan(0), "find_refactor_god_objects returned 0 rows for ProjectA!");
+        array.Count.Should().BeGreaterThan(0, "find_refactor_god_objects returned 0 rows for ProjectA!");
         var firstName = array[0].GetProperty("name").GetString();
-        Assert.That(firstName, Is.EqualTo("OrderGodObject"));
+        firstName.Should().Be("OrderGodObject");
     }
 
     [Test]
@@ -133,9 +131,9 @@ export class OrdersController {
 
         var array = doc.RootElement.EnumerateArray().ToList();
 
-        Assert.That(array.Count, Is.GreaterThan(0), "find_refactor_dead_code returned 0 rows for ProjectA!");
+        array.Count.Should().BeGreaterThan(0, "find_refactor_dead_code returned 0 rows for ProjectA!");
         var names = array.Select(x => x.GetProperty("name").GetString()).ToList();
-        Assert.That(names, Does.Contain("DeadClass").Or.Contain("UnusedMethod"));
+        names.Any(n => n is "DeadClass" or "UnusedMethod").Should().BeTrue();
     }
 
     [Test]
@@ -148,9 +146,9 @@ export class OrdersController {
 
         var array = doc.RootElement.EnumerateArray().ToList();
 
-        Assert.That(array.Count, Is.GreaterThan(0), "get_file_outline returned 0 rows for OrdersController.ts!");
+        array.Count.Should().BeGreaterThan(0, "get_file_outline returned 0 rows for OrdersController.ts!");
         var names = array.Select(x => x.GetProperty("name").GetString()).ToList();
-        Assert.That(names, Does.Contain("OrdersController"));
+        names.Should().Contain("OrdersController");
     }
 
     [Test]
@@ -160,21 +158,21 @@ export class OrdersController {
         var resClass = await _client.ExecuteQueryAsync(qClass, new Dictionary<string, object?> { ["name"] = "OrdersController" });
         using (var doc = JsonDocument.Parse(resClass))
         {
-            Assert.That(doc.RootElement.GetArrayLength(), Is.GreaterThan(0), "find_symbol_class failed");
+            doc.RootElement.GetArrayLength().Should().BeGreaterThan(0, "find_symbol_class failed");
         }
 
         var qInterface = Queries.Get("find_symbol_interface");
         var resInterface = await _client.ExecuteQueryAsync(qInterface, new Dictionary<string, object?> { ["name"] = "IOrderService" });
         using (var doc = JsonDocument.Parse(resInterface))
         {
-            Assert.That(doc.RootElement.GetArrayLength(), Is.GreaterThan(0), "find_symbol_interface failed");
+            doc.RootElement.GetArrayLength().Should().BeGreaterThan(0, "find_symbol_interface failed");
         }
 
         var qFunc = Queries.Get("find_symbol_function");
         var resFunc = await _client.ExecuteQueryAsync(qFunc, new Dictionary<string, object?> { ["name"] = "chargeOrder" });
         using (var doc = JsonDocument.Parse(resFunc))
         {
-            Assert.That(doc.RootElement.GetArrayLength(), Is.GreaterThan(0), "find_symbol_function failed");
+            doc.RootElement.GetArrayLength().Should().BeGreaterThan(0, "find_symbol_function failed");
         }
     }
 }

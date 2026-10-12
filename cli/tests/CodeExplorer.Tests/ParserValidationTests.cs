@@ -1,5 +1,4 @@
 using System.Threading.Channels;
-using NUnit.Framework;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
@@ -14,6 +13,7 @@ using CodeExplorer.Parser.Go;
 using CodeExplorer.Parser.Python;
 using CodeExplorer.Parser.TypeScript;
 using CodeExplorer.Tests.Shared;
+using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
 
@@ -47,8 +47,8 @@ public class ParserValidationTests
 
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var fileNode = syntaxTree.FileNode;
-            Assert.That(fileNode, Is.Not.Null);
-            Assert.That(fileNode.Children, Is.Not.Empty);
+            fileNode.Should().NotBeNull();
+            fileNode.Children.Should().NotBeEmpty();
         }
     }
 
@@ -72,21 +72,20 @@ public class ParserValidationTests
 
         Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
         var fileNode = syntaxTree.FileNode;
-        Assert.That(fileNode, Is.Not.Null);
+        fileNode.Should().NotBeNull();
 
         var queryNodes = FindQueryNodes(fileNode.Children);
-        Assert.That(queryNodes, Is.Not.Empty, "Should have detected the embedded SQL query");
+        queryNodes.Should().NotBeEmpty("Should have detected the embedded SQL query");
 
         var sqlQuery = queryNodes[0];
-        Assert.That(sqlQuery.Name, Is.EqualTo("DELETE Query"));
+        sqlQuery.Name.Should().Be("DELETE Query");
 
-        Assert.That(sqlQuery.QueryText,
-            Contains.Substring("DELETE FROM tracking.data_all_leads WHERE bundle_id in"));
+        sqlQuery.QueryText.Should().Contain("DELETE FROM tracking.data_all_leads WHERE bundle_id in");
 
         var dependsOn = sqlQuery.References.Where(r => r.Kind == "DEPENDS_ON").Select(r => r.TargetName)
             .ToList();
-        Assert.That(dependsOn, Contains.Item("tracking"));
-        Assert.That(dependsOn, Contains.Item("data_all_leads"));
+        dependsOn.Should().Contain("tracking");
+        dependsOn.Should().Contain("data_all_leads");
 
         AssertSqlHierarchy(sqlQuery, "default", "tracking", "data_all_leads");
     }
@@ -112,14 +111,14 @@ public class ParserValidationTests
         Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
         var fileNode = syntaxTree.FileNode;
         var queryNodes = FindQueryNodes(fileNode.Children);
-        Assert.That(queryNodes, Is.Not.Empty);
+        queryNodes.Should().NotBeEmpty();
         var sqlQuery = queryNodes[0];
-        Assert.That(sqlQuery.Name, Is.EqualTo("SELECT Query"));
-        Assert.That(sqlQuery.QueryText, Contains.Substring("SELECT id, name FROM users"));
+        sqlQuery.Name.Should().Be("SELECT Query");
+        sqlQuery.QueryText.Should().Contain("SELECT id, name FROM users");
 
         var dependsOn = sqlQuery.References.Where(r => r.Kind == "DEPENDS_ON").Select(r => r.TargetName)
             .ToList();
-        Assert.That(dependsOn, Contains.Item("users"));
+        dependsOn.Should().Contain("users");
 
         AssertSqlHierarchy(sqlQuery, "default", "dbo", "users");
     }
@@ -145,14 +144,14 @@ public class ParserValidationTests
         Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
         var fileNode = syntaxTree.FileNode;
         var queryNodes = FindQueryNodes(fileNode.Children);
-        Assert.That(queryNodes, Is.Not.Empty);
+        queryNodes.Should().NotBeEmpty();
         var sqlQuery = queryNodes[0];
-        Assert.That(sqlQuery.Name, Is.EqualTo("INSERT Query"));
-        Assert.That(sqlQuery.QueryText, Contains.Substring("INSERT INTO logs"));
+        sqlQuery.Name.Should().Be("INSERT Query");
+        sqlQuery.QueryText.Should().Contain("INSERT INTO logs");
 
         var dependsOn = sqlQuery.References.Where(r => r.Kind == "DEPENDS_ON").Select(r => r.TargetName)
             .ToList();
-        Assert.That(dependsOn, Contains.Item("logs"));
+        dependsOn.Should().Contain("logs");
 
         AssertSqlHierarchy(sqlQuery, "default", "dbo", "logs");
     }
@@ -178,14 +177,14 @@ public class ParserValidationTests
         Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
         var fileNode = syntaxTree.FileNode;
         var queryNodes = FindQueryNodes(fileNode.Children);
-        Assert.That(queryNodes, Is.Not.Empty);
+        queryNodes.Should().NotBeEmpty();
         var sqlQuery = queryNodes[0];
-        Assert.That(sqlQuery.Name, Is.EqualTo("UPDATE Query"));
-        Assert.That(sqlQuery.QueryText, Contains.Substring("UPDATE transactions SET status"));
+        sqlQuery.Name.Should().Be("UPDATE Query");
+        sqlQuery.QueryText.Should().Contain("UPDATE transactions SET status");
 
         var dependsOn = sqlQuery.References.Where(r => r.Kind == "DEPENDS_ON").Select(r => r.TargetName)
             .ToList();
-        Assert.That(dependsOn, Contains.Item("transactions"));
+        dependsOn.Should().Contain("transactions");
 
         AssertSqlHierarchy(sqlQuery, "default", "dbo", "transactions");
     }
@@ -195,16 +194,16 @@ public class ParserValidationTests
         var dbNode = queryNode.Children.OfType<DatabaseNode>()
             .FirstOrDefault(d => d.Name.Equals(expectedDb, StringComparison.OrdinalIgnoreCase) ||
                                 (expectedDb.Equals("default", StringComparison.OrdinalIgnoreCase) && d.Name.EndsWith("." + expectedSchema, StringComparison.OrdinalIgnoreCase)));
-        Assert.That(dbNode, Is.Not.Null, $"Should contain DB node: {expectedDb}");
-        Assert.That(dbNode.DbType, Is.EqualTo("relational"));
+        dbNode.Should().NotBeNull($"Should contain DB node: {expectedDb}");
+        dbNode.DbType.Should().Be("relational");
 
         var schemaNode = dbNode.Children.OfType<DataSetNode>()
             .FirstOrDefault(s => s.Name.Equals(expectedSchema, StringComparison.OrdinalIgnoreCase));
-        Assert.That(schemaNode, Is.Not.Null, $"Should contain Schema/DataSet node: {expectedSchema}");
+        schemaNode.Should().NotBeNull($"Should contain Schema/DataSet node: {expectedSchema}");
 
         var tableNode = schemaNode.Children.OfType<TableNode>()
             .FirstOrDefault(t => t.Name.Equals(expectedTable, StringComparison.OrdinalIgnoreCase));
-        Assert.That(tableNode, Is.Not.Null, $"Should contain Table node: {expectedTable}");
+        tableNode.Should().NotBeNull($"Should contain Table node: {expectedTable}");
     }
 
     [Test]
@@ -212,16 +211,16 @@ public class ParserValidationTests
     {
         var input = "\"'SELECT * FROM my_table'\"";
         var cleaned = NestedSqlParser.CleanQueryText(input);
-        Assert.That(cleaned, Is.EqualTo("SELECT * FROM my_table"));
+        cleaned.Should().Be("SELECT * FROM my_table");
     }
 
     [Test]
     public void Test_NestedSqlParser_CleanSqlIdentifier_UnbalancedBrackets()
     {
-        Assert.That(NestedSqlParser.CleanSqlIdentifier("[calculation_history"), Is.EqualTo("calculation_history"));
-        Assert.That(NestedSqlParser.CleanSqlIdentifier("[calculation_history]"), Is.EqualTo("calculation_history"));
-        Assert.That(NestedSqlParser.CleanSqlIdentifier("`calculation_history`"), Is.EqualTo("calculation_history"));
-        Assert.That(NestedSqlParser.CleanSqlIdentifier("\"calculation_history\""), Is.EqualTo("calculation_history"));
+        NestedSqlParser.CleanSqlIdentifier("[calculation_history").Should().Be("calculation_history");
+        NestedSqlParser.CleanSqlIdentifier("[calculation_history]").Should().Be("calculation_history");
+        NestedSqlParser.CleanSqlIdentifier("`calculation_history`").Should().Be("calculation_history");
+        NestedSqlParser.CleanSqlIdentifier("\"calculation_history\"").Should().Be("calculation_history");
     }
 
     [Test]
@@ -230,22 +229,22 @@ public class ParserValidationTests
         var rawSql = "SELECT DISTINCT _TABLE_SUFFIX AS suffix FROM `calculation_history.expect_site_cpm_*`";
         var queryNode = NestedSqlParser.ParseNestedSql(rawSql, "ws:query:1", "bq-routes-calculation/src/repository/history.repository.ts");
         
-        Assert.That(queryNode, Is.Not.Null);
+        queryNode.Should().NotBeNull();
         var dbNode = queryNode!.Children.OfType<DatabaseNode>().FirstOrDefault();
-        Assert.That(dbNode, Is.Not.Null);
-        Assert.That(dbNode!.Name, Is.EqualTo("BigQuery.calculation_history"));
-        Assert.That(dbNode.DbType, Is.EqualTo("analytics"));
-        Assert.That(dbNode.Extensions!["engine"], Is.EqualTo("BigQuery"));
-        Assert.That(dbNode.Extensions!["schema"], Is.EqualTo("calculation_history"));
-        Assert.That(dbNode.Name.Contains('['), Is.False, "DatabaseNode name must not contain bracket '['");
+        dbNode.Should().NotBeNull();
+        dbNode!.Name.Should().Be("BigQuery.calculation_history");
+        dbNode.DbType.Should().Be("analytics");
+        dbNode.Extensions!["engine"].Should().Be("BigQuery");
+        dbNode.Extensions!["schema"].Should().Be("calculation_history");
+        dbNode.Name.Contains('[').Should().BeFalse("DatabaseNode name must not contain bracket '['");
 
         var datasetNode = dbNode.Children.OfType<DataSetNode>().FirstOrDefault();
-        Assert.That(datasetNode, Is.Not.Null);
-        Assert.That(datasetNode!.Name, Is.EqualTo("calculation_history"));
+        datasetNode.Should().NotBeNull();
+        datasetNode!.Name.Should().Be("calculation_history");
 
         var tableNode = datasetNode.Children.OfType<TableNode>().FirstOrDefault();
-        Assert.That(tableNode, Is.Not.Null);
-        Assert.That(tableNode!.Name, Is.EqualTo("expect_site_cpm_*"));
+        tableNode.Should().NotBeNull();
+        tableNode!.Name.Should().Be("expect_site_cpm_*");
     }
 
     [Test]
@@ -254,7 +253,7 @@ public class ParserValidationTests
         var rawSql = "SELECT * FROM `tracker.data_tracker_${tableSuffix}` JOIN `analytics.impressions_tb_{shard}` ON id = ref_id";
         var queryNode = NestedSqlParser.ParseNestedSql(rawSql, "ws:query:2", "bq-routes-calculation/src/repository/tracker.repository.ts");
 
-        Assert.That(queryNode, Is.Not.Null);
+        queryNode.Should().NotBeNull();
         var tables = queryNode!.Children
             .OfType<DatabaseNode>()
             .SelectMany(db => db.Children.OfType<DataSetNode>())
@@ -262,9 +261,9 @@ public class ParserValidationTests
             .Select(t => t.Name)
             .ToList();
 
-        Assert.That(tables, Contains.Item("data_tracker_*"));
-        Assert.That(tables, Contains.Item("impressions_tb_*"));
-        Assert.That(tables.Any(t => t.Contains("tableSuffix") || t.Contains("shard")), Is.False, "Dynamic template variable names must not become phantom tables");
+        tables.Should().Contain("data_tracker_*");
+        tables.Should().Contain("impressions_tb_*");
+        (tables.Any(t => t.Contains("tableSuffix") || t.Contains("shard"))).Should().BeFalse("Dynamic template variable names must not become phantom tables");
     }
 
     [Test]
@@ -300,7 +299,7 @@ public class ParserValidationTests
             using var syntax = await sqlParser.ParseAsync(tempFile, "parent", "ws", Path.GetTempPath());
 
             var fileNode = syntax.FileNode;
-            Assert.That(fileNode, Is.Not.Null);
+            fileNode.Should().NotBeNull();
 
             var allTables = new List<TableNode>();
 
@@ -313,30 +312,22 @@ public class ParserValidationTests
             CollectTables(fileNode);
 
             // Assert "IF", "NOT", "EXISTS", "EXIST" are NEVER created as TableNodes
-            Assert.That(allTables.Any(t => t.Name.Equals("IF", StringComparison.OrdinalIgnoreCase)), Is.False,
-                "Table 'IF' must never be created!");
+            allTables.Any(t => t.Name.Equals("IF", StringComparison.OrdinalIgnoreCase)).Should().BeFalse("Table 'IF' must never be created!");
 
-            Assert.That(allTables.Any(t => t.Name.Equals("NOT", StringComparison.OrdinalIgnoreCase)), Is.False,
-                "Table 'NOT' must never be created!");
+            allTables.Any(t => t.Name.Equals("NOT", StringComparison.OrdinalIgnoreCase)).Should().BeFalse("Table 'NOT' must never be created!");
 
-            Assert.That(allTables.Any(t => t.Name.Equals("EXISTS", StringComparison.OrdinalIgnoreCase)), Is.False,
-                "Table 'EXISTS' must never be created!");
+            allTables.Any(t => t.Name.Equals("EXISTS", StringComparison.OrdinalIgnoreCase)).Should().BeFalse("Table 'EXISTS' must never be created!");
 
-            Assert.That(allTables.Any(t => t.Name.Equals("EXIST", StringComparison.OrdinalIgnoreCase)), Is.False,
-                "Table 'EXIST' must never be created!");
+            allTables.Any(t => t.Name.Equals("EXIST", StringComparison.OrdinalIgnoreCase)).Should().BeFalse("Table 'EXIST' must never be created!");
 
             // Assert templated and legacy tables are correctly recognized
-            Assert.That(allTables.Any(t => t.Name == "main_query_result"), Is.True,
-                "Table 'main_query_result' should be recognized");
+            (allTables.Any(t => t.Name == "main_query_result")).Should().BeTrue("Table 'main_query_result' should be recognized");
 
-            Assert.That(allTables.Any(t => t.Name == "bundle_placements"), Is.True,
-                "Table 'bundle_placements' should be recognized");
+            (allTables.Any(t => t.Name == "bundle_placements")).Should().BeTrue("Table 'bundle_placements' should be recognized");
 
-            Assert.That(allTables.Any(t => t.Name == "clicktype_rates_history"), Is.True,
-                "Table 'clicktype_rates_history' should be recognized");
+            (allTables.Any(t => t.Name == "clicktype_rates_history")).Should().BeTrue("Table 'clicktype_rates_history' should be recognized");
 
-            Assert.That(allTables.Any(t => t.Name == "legacy_table"), Is.True,
-                "Table 'legacy_table' should be recognized");
+            (allTables.Any(t => t.Name == "legacy_table")).Should().BeTrue("Table 'legacy_table' should be recognized");
         }
         finally
         {
@@ -355,7 +346,7 @@ public class ParserValidationTests
             )
             """;
         var queryNode = NestedSqlParser.ParseNestedSql(rawSql, "ws:query:1", "calculation.controller.ts");
-        Assert.That(queryNode, Is.Not.Null);
+        queryNode.Should().NotBeNull();
 
         var allTables = new List<TableNode>();
         void CollectTables(IOntologyNode node)
@@ -366,11 +357,11 @@ public class ParserValidationTests
         CollectTables(queryNode!);
 
         // "EXTERNAL_QUERY" should NEVER be recognized as a TableNode
-        Assert.That(allTables.Any(t => t.Name.Equals("EXTERNAL_QUERY", StringComparison.OrdinalIgnoreCase)), Is.False, "EXTERNAL_QUERY must not be recognized as a table!");
+        allTables.Any(t => t.Name.Equals("EXTERNAL_QUERY", StringComparison.OrdinalIgnoreCase)).Should().BeFalse("EXTERNAL_QUERY must not be recognized as a table!");
         
         // "sources" and "cost_loss_all_sources" should be recognized
-        Assert.That(allTables.Any(t => t.Name == "cost_loss_all_sources"), Is.True, "Table 'cost_loss_all_sources' should be recognized");
-        Assert.That(allTables.Any(t => t.Name == "sources"), Is.True, "Table 'sources' should be recognized");
+        (allTables.Any(t => t.Name == "cost_loss_all_sources")).Should().BeTrue("Table 'cost_loss_all_sources' should be recognized");
+        (allTables.Any(t => t.Name == "sources")).Should().BeTrue("Table 'sources' should be recognized");
     }
 
     [Test]
@@ -395,15 +386,14 @@ public class ParserValidationTests
         var fileNode = syntaxTree.FileNode;
 
         var queryNodes = FindQueryNodes(fileNode.Children);
-        Assert.That(queryNodes, Is.Not.Empty);
+        queryNodes.Should().NotBeEmpty();
         var sqlQuery = queryNodes[0];
-        Assert.That(sqlQuery.Name, Is.EqualTo("SELECT Query"));
+        sqlQuery.Name.Should().Be("SELECT Query");
 
         // Since tableName is a variable, it should be skipped and no database node hierarchy should be created for it.
         var hasDbNode = sqlQuery.Children.OfType<DatabaseNode>().Any();
 
-        Assert.That(hasDbNode, Is.False,
-            "Should have skipped tableName because it is a template variable placeholder.");
+        hasDbNode.Should().BeFalse("Should have skipped tableName because it is a template variable placeholder.");
     }
 
     private List<QueryNode> FindQueryNodes(IEnumerable<IOntologyNode> nodes)
@@ -493,16 +483,16 @@ public class ParserValidationTests
         var fileNode = syntaxTree.FileNode;
 
         var endpoints = FindEndpointNodes(fileNode.Children);
-        Assert.That(endpoints, Is.Not.Empty);
+        endpoints.Should().NotBeEmpty();
         var ep = endpoints.FirstOrDefault(e => e.RouteTemplate.Contains("charge"));
-        Assert.That(ep, Is.Not.Null);
-        Assert.That(ep.HttpMethod, Is.EqualTo("POST"));
+        ep.Should().NotBeNull();
+        ep.HttpMethod.Should().Be("POST");
 
         var externalServices = FindExternalServiceNodes(fileNode.Children);
-        Assert.That(externalServices, Is.Not.Empty);
+        externalServices.Should().NotBeEmpty();
         var es = externalServices.FirstOrDefault(e => e.DomainOrService == "api.stripe.com");
-        Assert.That(es, Is.Not.Null);
-        Assert.That(es.Protocol, Is.EqualTo("http"));
+        es.Should().NotBeNull();
+        es.Protocol.Should().Be("http");
     }
 
     [Test]
@@ -527,21 +517,21 @@ public class ParserValidationTests
         var fileNode = syntaxTree.FileNode;
 
         var endpoints = FindEndpointNodes(fileNode.Children);
-        Assert.That(endpoints, Is.Not.Empty);
+        endpoints.Should().NotBeEmpty();
         var ep = endpoints.FirstOrDefault(e => e.RouteTemplate.Contains("charge"));
-        Assert.That(ep, Is.Not.Null);
-        Assert.That(ep.HttpMethod, Is.EqualTo("POST"));
+        ep.Should().NotBeNull();
+        ep.HttpMethod.Should().Be("POST");
 
         var entryPoints = FindEntryPointNodes(fileNode.Children);
         var wsEp = entryPoints.FirstOrDefault(e => e.EntryType == "queue-listener");
-        Assert.That(wsEp, Is.Not.Null);
-        Assert.That(wsEp.Name, Is.EqualTo("ping"));
+        wsEp.Should().NotBeNull();
+        wsEp.Name.Should().Be("ping");
 
         var externalServices = FindExternalServiceNodes(fileNode.Children);
-        Assert.That(externalServices, Is.Not.Empty);
+        externalServices.Should().NotBeEmpty();
         var es = externalServices.FirstOrDefault(e => e.DomainOrService == "api.stripe.com");
-        Assert.That(es, Is.Not.Null);
-        Assert.That(es.Protocol, Is.EqualTo("http"));
+        es.Should().NotBeNull();
+        es.Protocol.Should().Be("http");
     }
 
 
@@ -565,8 +555,7 @@ public class ParserValidationTests
         var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
         ctx.WorkspaceId = "1";
 
-        // Register CSharp parser
-        WorkspaceIndexer.Register(new CSharpParser());
+        WorkspaceIndexer.AutoRegisterParsers();
         var l1Result = await new Layer1PhysicalParser().ParseAsync(ctx);
         var l2Result = await new Layer2ProjectParser().ParseAsync(l1Result, ctx);
         var l3Result = await new Layer3SyntacticParser().ParseAsync(l2Result, ctx);
@@ -575,111 +564,109 @@ public class ParserValidationTests
         var workspaceNode = l1Result.Workspace;
 
         var projectsStructure = workspaceNode.Children.OfType<ProjectsStructureNode>().FirstOrDefault();
-        Assert.That(projectsStructure, Is.Not.Null);
+        projectsStructure.Should().NotBeNull();
 
         var filesStructure = workspaceNode.Children.OfType<FilesStructureNode>().FirstOrDefault();
-        Assert.That(filesStructure, Is.Not.Null);
+        filesStructure.Should().NotBeNull();
 
         // Before pruning, ProjectB and EmptyFolder are in the tree
-        Assert.That(projectsStructure.Children.Any(c => c is ProjectNode pn && pn.Name == "ProjectB"), Is.True);
+        (projectsStructure.Children.Any(c => c is ProjectNode pn && pn.Name == "ProjectB")).Should().BeTrue();
 
         var projectA =
             projectsStructure.Children.FirstOrDefault(c => c is ProjectNode pn && pn.Name == "ProjectA") as
                 ProjectNode;
-        Assert.That(projectA, Is.Not.Null);
+        projectA.Should().NotBeNull();
 
         var projectAFolder = filesStructure.Children.OfType<FolderNode>()
             .FirstOrDefault(f => f.Name == "ProjectA");
-        Assert.That(projectAFolder, Is.Not.Null);
+        projectAFolder.Should().NotBeNull();
 
-        Assert.That(projectAFolder.Children.Any(c => c is FolderNode pfn && pfn.Name == "EmptyFolder"),
-            Is.True);
+        (projectAFolder.Children.Any(c => c is FolderNode pfn && pfn.Name == "EmptyFolder")).Should().BeTrue();
 
         // 2. Perform pruning
         OntologyPruner.PruneEmptyFolders(workspaceNode);
 
         // After pruning:
         // ProjectB is removed because it is an empty project
-        Assert.That(projectsStructure.Children.Any(c => c is ProjectNode pn && pn.Name == "ProjectB"),
-            Is.False);
+        (projectsStructure.Children.Any(c => c is ProjectNode pn && pn.Name == "ProjectB")).Should().BeFalse();
 
         // EmptyFolder is removed
         var folderA =
             projectAFolder.Children.FirstOrDefault(c => c is FolderNode pfn && pfn.Name == "EmptyFolder");
-        Assert.That(folderA, Is.Null);
+        folderA.Should().BeNull();
 
         // Verify project framework detection
-        Assert.That(projectA.Extensions, Is.Not.Null);
-        Assert.That(projectA.Extensions.ContainsKey("framework"), Is.True);
-        Assert.That(projectA.Extensions["framework"], Is.EqualTo("ASP.NET Core"));
+        projectA.Extensions.Should().NotBeNull();
+        projectA.Extensions.ContainsKey("framework").Should().BeTrue();
+        projectA.Extensions["framework"].Should().Be("ASP.NET Core");
 
         // Verify SemanticStructure node grouping
         var semanticNode = workspaceNode.Children.OfType<SemanticStructureNode>().FirstOrDefault();
-        Assert.That(semanticNode, Is.Not.Null);
+        semanticNode.Should().NotBeNull();
 
         // Verify external packages are inside ProjectNode directly (Layer 1)
         var extPackages = projectA.Children.OfType<PackageNode>().Where(p => p.Name != "ProjectA").ToList();
-        Assert.That(extPackages, Has.Count.EqualTo(3));
-        Assert.That(extPackages.Any(p => p.Name == "Dapper"), Is.True);
-        Assert.That(extPackages.Any(p => p.Name == "Stripe.net"), Is.True);
-        Assert.That(extPackages.Any(p => p.Name == "Microsoft.AspNetCore.App"), Is.True);
+        extPackages.Should().HaveCount(3);
+        (extPackages.Any(p => p.Name == "Dapper")).Should().BeTrue();
+        (extPackages.Any(p => p.Name == "Stripe.net")).Should().BeTrue();
+        (extPackages.Any(p => p.Name == "Microsoft.AspNetCore.App")).Should().BeTrue();
 
         // Verify semanticNode does NOT contain those external packages as children
         var semPackages = semanticNode.Children.OfType<PackageNode>().ToList();
-        Assert.That(semPackages.Any(p => p.Name == "Dapper"), Is.False);
-        Assert.That(semPackages.Any(p => p.Name == "Stripe.net"), Is.False);
-        Assert.That(semPackages.Any(p => p.Name == "Microsoft.AspNetCore.App"), Is.False);
+        (semPackages.Any(p => p.Name == "Dapper")).Should().BeFalse();
+        (semPackages.Any(p => p.Name == "Stripe.net")).Should().BeFalse();
+        (semPackages.Any(p => p.Name == "Microsoft.AspNetCore.App")).Should().BeFalse();
 
         // Verify projectA contains the produced package directly as child (Layer 1)
         var directPackages = projectA.Children.OfType<PackageNode>().ToList();
-        Assert.That(directPackages.Any(p => p.Name == "ProjectA"), Is.True);
+        (directPackages.Any(p => p.Name == "ProjectA")).Should().BeTrue();
 
         var fileNode = projectAFolder.Children.OfType<FileNode>()
             .FirstOrDefault(f => f.Name == "Repository.cs");
-        Assert.That(fileNode, Is.Not.Null);
+        fileNode.Should().NotBeNull();
 
         // Check Repository.cs extensions (file-level extensions are removed)
         if (fileNode.Extensions != null)
         {
-            Assert.That(fileNode.Extensions.ContainsKey("db_type"), Is.False);
-            Assert.That(fileNode.Extensions.ContainsKey("cloud_service"), Is.False);
+            fileNode.Extensions.ContainsKey("db_type").Should().BeFalse();
+            fileNode.Extensions.ContainsKey("cloud_service").Should().BeFalse();
         }
 
         // Check if DatabaseNode child was added at the project level (under SemanticStructureNode)
         var dbNode = semanticNode.Children.OfType<DatabaseNode>().FirstOrDefault();
-        Assert.That(dbNode, Is.Not.Null);
-        Assert.That(dbNode.Name, Does.StartWith("PostgreSQL"));
-        Assert.That(dbNode.DbType, Is.EqualTo("relational"));
+        dbNode.Should().NotBeNull();
+        dbNode.Name.Should().StartWith("PostgreSQL");
+        dbNode.DbType.Should().Be("relational");
 
         // Check if CloudServiceNode child was added at the project level (under SemanticStructureNode)
         var cloudNode = semanticNode.Children.OfType<CloudServiceNode>().FirstOrDefault();
-        Assert.That(cloudNode, Is.Not.Null);
-        Assert.That(cloudNode.Name, Is.EqualTo("Stripe"));
+        cloudNode.Should().NotBeNull();
+        cloudNode.Name.Should().Be("Stripe");
 
         // Check that file-to-library relationships are created in the context
         var usesDb =
             ctx.GlobalProjectDependencies.FirstOrDefault(r => r.From == fileNode.Id && r.Kind == "USES_DB");
-        Assert.That(usesDb, Is.Not.Null);
-        Assert.That(usesDb.To, Is.EqualTo(dbNode.Id));
+        usesDb.Should().NotBeNull();
+        usesDb.To.Should().Be(dbNode.Id);
 
         var usesCloud =
             ctx.GlobalProjectDependencies.FirstOrDefault(r => r.From == fileNode.Id && r.Kind == "USES_CLOUD");
-        Assert.That(usesCloud, Is.Not.Null);
-        Assert.That(usesCloud.To, Is.EqualTo(cloudNode.Id));
+        usesCloud.Should().NotBeNull();
+        usesCloud.To.Should().Be(cloudNode.Id);
 
         // Check member nodes under TypeNode (Repository)
         var classNode = fileNode.Children.OfType<TypeNode>().FirstOrDefault();
-        Assert.That(classNode, Is.Not.Null);
+        classNode.Should().NotBeNull();
 
         var variables = classNode.Children.OfType<MemberNode>().ToList();
-        Assert.That(variables.Any(v => v.Name == "CONNECTION_STRING_URL"), Is.True);
-        Assert.That(variables.Any(v => v.Name == "MAX_RETRIES"), Is.True);
-        Assert.That(variables.Any(v => v.Name == "timeoutSeconds"), Is.False); // local non-config is ignored
+        (variables.Any(v => v.Name == "CONNECTION_STRING_URL")).Should().BeTrue();
+        (variables.Any(v => v.Name == "MAX_RETRIES")).Should().BeTrue();
+        (variables.Any(v => v.Name == "timeoutSeconds")).Should().BeFalse(); // local non-config is ignored
 
         var connStrVar = variables.First(v => v.Name == "CONNECTION_STRING_URL");
-        Assert.That(connStrVar.Extensions, Is.Not.Null);
-        Assert.That(connStrVar.Extensions["variable_type"], Contains.Substring("config"));
-        Assert.That(connStrVar.Extensions["variable_type"], Contains.Substring("constant"));
+        connStrVar.Extensions.Should().NotBeNull();
+        connStrVar.Extensions["variable_type"].Should().Contain("config");
+        connStrVar.Extensions["variable_type"].Should().Contain("constant");
     }
 
     [Test]
@@ -705,20 +692,20 @@ public class ParserValidationTests
 
         Layer3SyntacticParser.ProcessVisitor(pySyntax, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
         var pyNode = pySyntax.FileNode;
-        Assert.That(pyNode, Is.Not.Null);
+        pyNode.Should().NotBeNull();
 
         var pyEndpoints = FindEndpointNodes(pyNode.Children);
-        Assert.That(pyEndpoints, Has.Count.EqualTo(1));
-        Assert.That(pyEndpoints[0].RouteTemplate, Is.EqualTo("/charge"));
-        Assert.That(pyEndpoints[0].HttpMethod, Is.EqualTo("POST"));
+        pyEndpoints.Should().HaveCount(1);
+        pyEndpoints[0].RouteTemplate.Should().Be("/charge");
+        pyEndpoints[0].HttpMethod.Should().Be("POST");
 
         var pyExtServices = FindExternalServiceNodes(pyNode.Children);
-        Assert.That(pyExtServices, Has.Count.EqualTo(1));
-        Assert.That(pyExtServices[0].Name, Is.EqualTo("api.stripe.com"));
+        pyExtServices.Should().HaveCount(1);
+        pyExtServices[0].Name.Should().Be("api.stripe.com");
 
         // Verify reference from process_payment function to Endpoint POST:/charge is collected
         var pyRefs = FindReferences(pyNode.Children);
-        Assert.That(pyRefs.Any(r => r.TargetName == "POST /charge" && r.Kind == "IMPLEMENTS"), Is.True);
+        (pyRefs.Any(r => r.TargetName == "POST /charge" && r.Kind == "IMPLEMENTS")).Should().BeTrue();
 
         // 2. Go Parser - Gin & HTTP Get calls
         var goParser = new GoParser();
@@ -729,20 +716,19 @@ public class ParserValidationTests
 
         Layer3SyntacticParser.ProcessVisitor(goSyntax, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
         var goNode = goSyntax.FileNode;
-        Assert.That(goNode, Is.Not.Null);
+        goNode.Should().NotBeNull();
 
         var goEndpoints = FindEndpointNodes(goNode.Children);
-        Assert.That(goEndpoints, Has.Count.EqualTo(1));
-        Assert.That(goEndpoints[0].RouteTemplate, Is.EqualTo("/api/v1/users"));
-        Assert.That(goEndpoints[0].HttpMethod, Is.EqualTo("GET"));
+        goEndpoints.Should().HaveCount(1);
+        goEndpoints[0].RouteTemplate.Should().Be("/api/v1/users");
+        goEndpoints[0].HttpMethod.Should().Be("GET");
 
         // Verify Go references
         var goRefs = FindReferences(goNode.Children);
 
-        Assert.That(
-            goRefs.Any(r =>
+        (goRefs.Any(r =>
                 r.TargetName == "GET /api/v1/users" && r.Kind == "IMPLEMENTS" &&
-                r.ScopeSymbolId == "GetUsers"), Is.True);
+                r.ScopeSymbolId == "GetUsers")).Should().BeTrue();
 
         // 3. SQL Parser - CREATE OR REPLACE PROCEDURE, IF NOT EXISTS, backticks
         var sqlParser = new Parser.SQL.SqlParser();
@@ -752,31 +738,29 @@ public class ParserValidationTests
             ctx.AbsoluteWorkspacePath);
 
         var sqlNode = sqlSyntax.FileNode;
-        Assert.That(sqlNode, Is.Not.Null);
+        sqlNode.Should().NotBeNull();
 
         // Schema and DB hierarchy check
         var dbNode = sqlNode.Children.OfType<DatabaseNode>().FirstOrDefault();
-        Assert.That(dbNode, Is.Not.Null);
-        Assert.That(dbNode.DbType, Is.EqualTo("relational"));
+        dbNode.Should().NotBeNull();
+        dbNode.DbType.Should().Be("relational");
 
         var schemaNode = dbNode.Children.OfType<DataSetNode>()
             .FirstOrDefault(s => s.Name == "my_schema");
-        Assert.That(schemaNode, Is.Not.Null);
+        schemaNode.Should().NotBeNull();
 
         var procNode = schemaNode.Children.OfType<ProcedureNode>()
             .FirstOrDefault(p => p.Name == "my_proc");
-        Assert.That(procNode, Is.Not.Null);
+        procNode.Should().NotBeNull();
 
         var tableNode = schemaNode.Children.OfType<TableNode>()
             .FirstOrDefault(t => t.Name == "my_table");
-        Assert.That(tableNode, Is.Not.Null);
+        tableNode.Should().NotBeNull();
 
         var queryNode = procNode.Children.OfType<QueryNode>().FirstOrDefault();
-        Assert.That(queryNode, Is.Not.Null);
+        queryNode.Should().NotBeNull();
 
-        Assert.That(
-            queryNode.References.Any(r => r.TargetName == "another_proc" && r.Kind == "CALLS"),
-            Is.True);
+        (queryNode.References.Any(r => r.TargetName == "another_proc" && r.Kind == "CALLS")).Should().BeTrue();
     }
 
     [Test]
@@ -813,15 +797,14 @@ public class ParserValidationTests
             await csModel.EnrichAsync(csProj, ctx);
 
             var csDbGroup = ctx.SemanticStructure;
-            Assert.That(csDbGroup, Is.Not.Null);
+            csDbGroup.Should().NotBeNull();
             var csDbNode = csDbGroup.Children.OfType<DatabaseNode>().FirstOrDefault(d => d.DbType == "relational");
-            Assert.That(csDbNode, Is.Not.Null);
-            Assert.That(csDbNode.Name, Does.StartWith("PostgreSQL"));
-            Assert.That(csDbNode.DbType, Is.EqualTo("relational"));
+            csDbNode.Should().NotBeNull();
+            csDbNode.Name.Should().StartWith("PostgreSQL");
+            csDbNode.DbType.Should().Be("relational");
 
-            Assert.That(
-                ctx.GlobalProjectDependencies.Any(r =>
-                    r.From == csFile.Id && r.To == csDbNode.Id && r.Kind == "USES_DB"), Is.True);
+            (ctx.GlobalProjectDependencies.Any(r =>
+                    r.From == csFile.Id && r.To == csDbNode.Id && r.Kind == "USES_DB")).Should().BeTrue();
 
             // Test C# Semantic Model with graph (Neo4j.Driver)
             var csGraphProj = new ProjectNode("cs_graph_project", "cs_graph_project", "cs_graph_project", "csharp");
@@ -837,17 +820,16 @@ public class ParserValidationTests
             await csGraphModel.EnrichAsync(csGraphProj, ctx);
 
             var csGraphDbGroup = ctx.SemanticStructure;
-            Assert.That(csGraphDbGroup, Is.Not.Null);
+            csGraphDbGroup.Should().NotBeNull();
 
             var csGraphDbNode = csGraphDbGroup.Children.OfType<DatabaseNode>()
                 .FirstOrDefault(d => d.Name == "Neo4j");
-            Assert.That(csGraphDbNode, Is.Not.Null);
-            Assert.That(csGraphDbNode.Name, Is.EqualTo("Neo4j"));
-            Assert.That(csGraphDbNode.DbType, Is.EqualTo("graph"));
+            csGraphDbNode.Should().NotBeNull();
+            csGraphDbNode.Name.Should().Be("Neo4j");
+            csGraphDbNode.DbType.Should().Be("graph");
 
-            Assert.That(
-                ctx.GlobalProjectDependencies.Any(r =>
-                    r.From == csGraphFile.Id && r.To == csGraphDbNode.Id && r.Kind == "USES_DB"), Is.True);
+            (ctx.GlobalProjectDependencies.Any(r =>
+                    r.From == csGraphFile.Id && r.To == csGraphDbNode.Id && r.Kind == "USES_DB")).Should().BeTrue();
 
             // Test TypeScript Semantic Model with document (mongoose)
             var tsProj = new ProjectNode("ts_project", "ts_project", "ts_project", "typescript");
@@ -861,15 +843,14 @@ public class ParserValidationTests
             await tsModel.EnrichAsync(tsProj, ctx);
 
             var tsDbGroup = ctx.SemanticStructure;
-            Assert.That(tsDbGroup, Is.Not.Null);
+            tsDbGroup.Should().NotBeNull();
             var tsDbNode = tsDbGroup.Children.OfType<DatabaseNode>().FirstOrDefault(d => d.Name == "MongoDB");
-            Assert.That(tsDbNode, Is.Not.Null);
-            Assert.That(tsDbNode.Name, Is.EqualTo("MongoDB"));
-            Assert.That(tsDbNode.DbType, Is.EqualTo("document"));
+            tsDbNode.Should().NotBeNull();
+            tsDbNode.Name.Should().Be("MongoDB");
+            tsDbNode.DbType.Should().Be("document");
 
-            Assert.That(
-                ctx.GlobalProjectDependencies.Any(r =>
-                    r.From == tsFile.Id && r.To == tsDbNode.Id && r.Kind == "USES_DB"), Is.True);
+            (ctx.GlobalProjectDependencies.Any(r =>
+                    r.From == tsFile.Id && r.To == tsDbNode.Id && r.Kind == "USES_DB")).Should().BeTrue();
 
             // Test Python Semantic Model with keyvalue (redis)
             var pyProj = new ProjectNode("py_project", "py_project", "py_project", "python");
@@ -883,15 +864,14 @@ public class ParserValidationTests
             await pyModel.EnrichAsync(pyProj, ctx);
 
             var pyDbGroup = ctx.SemanticStructure;
-            Assert.That(pyDbGroup, Is.Not.Null);
+            pyDbGroup.Should().NotBeNull();
             var pyDbNode = pyDbGroup.Children.OfType<DatabaseNode>().FirstOrDefault(d => d.Name == "Redis");
-            Assert.That(pyDbNode, Is.Not.Null);
-            Assert.That(pyDbNode.Name, Is.EqualTo("Redis"));
-            Assert.That(pyDbNode.DbType, Is.EqualTo("keyvalue"));
+            pyDbNode.Should().NotBeNull();
+            pyDbNode.Name.Should().Be("Redis");
+            pyDbNode.DbType.Should().Be("keyvalue");
 
-            Assert.That(
-                ctx.GlobalProjectDependencies.Any(r =>
-                    r.From == pyFile.Id && r.To == pyDbNode.Id && r.Kind == "USES_DB"), Is.True);
+            (ctx.GlobalProjectDependencies.Any(r =>
+                    r.From == pyFile.Id && r.To == pyDbNode.Id && r.Kind == "USES_DB")).Should().BeTrue();
         }
         finally
         {
@@ -929,14 +909,14 @@ public class ParserValidationTests
         // Verify Dapper query extraction
         var csQueries = FindQueryNodes([csFileNode]);
         var dapperNode = csQueries.FirstOrDefault(q => q.Name.Contains("SELECT"));
-        Assert.That(dapperNode, Is.Not.Null);
-        Assert.That(dapperNode.Name, Is.EqualTo("SELECT Query: SELECT name FROM users WHERE id = @id"));
+        dapperNode.Should().NotBeNull();
+        dapperNode.Name.Should().Be("SELECT Query: SELECT name FROM users WHERE id = @id");
 
         // Verify Flurl external service extraction
         var csExtServices = FindExternalServiceNodes([csFileNode]);
         var flurlNode = csExtServices.FirstOrDefault();
-        Assert.That(flurlNode, Is.Not.Null);
-        Assert.That(flurlNode.Name, Is.EqualTo("api.github.com"));
+        flurlNode.Should().NotBeNull();
+        flurlNode.Name.Should().Be("api.github.com");
 
         // 2. TS file parsing test (Mongoose and Redis)
         var tsFilePath = ws.GetFilePath("app.ts");
@@ -952,15 +932,15 @@ public class ParserValidationTests
 
         // Verify Mongoose model & query extraction
         var modelNode = tsQueries.FirstOrDefault(q => q.Name.Contains("Mongoose Model"));
-        Assert.That(modelNode, Is.Not.Null);
-        Assert.That(modelNode.Name, Is.EqualTo("Mongoose Model: Product"));
+        modelNode.Should().NotBeNull();
+        modelNode.Name.Should().Be("Mongoose Model: Product");
 
         var findNode = tsQueries.FirstOrDefault(q => q.Name.Contains("Mongoose: Product.find"));
-        Assert.That(findNode, Is.Not.Null);
+        findNode.Should().NotBeNull();
 
         // Verify Redis query extraction
         var redisNode = tsQueries.FirstOrDefault(q => q.Name.Contains("Redis: client.set"));
-        Assert.That(redisNode, Is.Not.Null);
+        redisNode.Should().NotBeNull();
     }
 
     private record TestSemanticExtension(string Id, string Name, string Type, IReadOnlyList<string> SupportedPatterns) : ISemanticExtension;
@@ -985,19 +965,19 @@ public class ParserValidationTests
         ]);
 
         // Scoped wildcard /*
-        Assert.That(registry.Match("@nestjs/common"), Is.SameAs(parserNest));
-        Assert.That(registry.Match("@nestjs/core"), Is.SameAs(parserNest));
-        Assert.That(registry.Match("@nestjs"), Is.SameAs(parserNest));
+        registry.Match("@nestjs/common").Should().BeSameAs(parserNest);
+        registry.Match("@nestjs/core").Should().BeSameAs(parserNest);
+        registry.Match("@nestjs").Should().BeSameAs(parserNest);
 
         // Prefix priority matching
-        Assert.That(registry.Match("firebase-admin"), Is.SameAs(parserFirebaseSpecific));
-        Assert.That(registry.Match("firebase"), Is.SameAs(parserFirebaseGeneric));
+        registry.Match("firebase-admin").Should().BeSameAs(parserFirebaseSpecific);
+        registry.Match("firebase").Should().BeSameAs(parserFirebaseGeneric);
 
         // Fallback namespace match
-        Assert.That(registry.Match("System.Data.SqlClient"), Is.SameAs(parserSql));
-        Assert.That(registry.Match("Google.Cloud.Translation"), Is.SameAs(parserGoogleCloud));
+        registry.Match("System.Data.SqlClient").Should().BeSameAs(parserSql);
+        registry.Match("Google.Cloud.Translation").Should().BeSameAs(parserGoogleCloud);
         // Unmatched
-        Assert.That(registry.Match("stripe"), Is.Null);
+        registry.Match("stripe").Should().BeNull();
     }
 
 
@@ -1029,7 +1009,7 @@ public class ParserValidationTests
 
         Layer3SyntacticParser.ProcessVisitor(syntaxTreeTs, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
         var tsEp = FindEndpointNode(syntaxTreeTs.FileNode.Children, "POST:/orders/charge");
-        Assert.That(tsEp, Is.Not.Null, "Should aggregate Controller route prefix for NestJS");
+        tsEp.Should().NotBeNull("Should aggregate Controller route prefix for NestJS");
 
         using var syntaxTreeCs = await csParser.ParseAsync(csFile, "parent-id", ctx.WorkspaceId,
             ctx.AbsoluteWorkspacePath);
@@ -1037,8 +1017,7 @@ public class ParserValidationTests
         Layer3SyntacticParser.ProcessVisitor(syntaxTreeCs, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
         var csEp = FindEndpointNode(syntaxTreeCs.FileNode.Children, "POST:/api/Payments/charge-card");
 
-        Assert.That(csEp, Is.Not.Null,
-            "Should aggregate Controller route prefix and resolve [controller] for C#");
+        csEp.Should().NotBeNull("Should aggregate Controller route prefix and resolve [controller] for C#");
 
         using var syntaxTreeAxios = await tsParser.ParseAsync(axiosFile, "parent-id", ctx.WorkspaceId,
             ctx.AbsoluteWorkspacePath);
@@ -1046,10 +1025,9 @@ public class ParserValidationTests
         Layer3SyntacticParser.ProcessVisitor(syntaxTreeAxios, ctx.WorkspaceId,
             ctx.AbsoluteWorkspacePath);
         var axiosEs = FindExternalServiceNode(syntaxTreeAxios.FileNode.Children, "payment-service");
-        Assert.That(axiosEs, Is.Not.Null, "Should resolve variable initializer in Axios call");
+        axiosEs.Should().NotBeNull("Should resolve variable initializer in Axios call");
 
-        Assert.That(axiosEs.Path, Is.EqualTo("/api/payments/charge-card"),
-            "Should resolve variable initializer path");
+        axiosEs.Path.Should().Be("/api/payments/charge-card", "Should resolve variable initializer path");
 
         using var syntaxTreePubsub = await tsParser.ParseAsync(pubsubFile, "parent-id",
             ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -1060,8 +1038,8 @@ public class ParserValidationTests
 
         var pubsubPub = pubsubRefs.FirstOrDefault(r =>
             r.Kind == OntologyConstants.Relationships.PublishesTo);
-        Assert.That(pubsubPub, Is.Not.Null);
-        Assert.That(pubsubPub.TargetName, Is.EqualTo("gcp:negative-profit-topic"));
+        pubsubPub.Should().NotBeNull();
+        pubsubPub.TargetName.Should().Be("gcp:negative-profit-topic");
 
         using var syntaxTreeRabbit = await tsParser.ParseAsync(rabbitFile, "parent-id",
             ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -1072,8 +1050,8 @@ public class ParserValidationTests
 
         var rabbitPub = rabbitRefs.FirstOrDefault(r =>
             r.Kind == OntologyConstants.Relationships.PublishesTo);
-        Assert.That(rabbitPub, Is.Not.Null);
-        Assert.That(rabbitPub.TargetName, Is.EqualTo("rabbitmq:calc-done-queue"));
+        rabbitPub.Should().NotBeNull();
+        rabbitPub.TargetName.Should().Be("rabbitmq:calc-done-queue");
 
         using var syntaxTreeSocket = await tsParser.ParseAsync(socketFile, "parent-id",
             ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -1083,7 +1061,7 @@ public class ParserValidationTests
 
         var socketEs = FindExternalServiceNode(syntaxTreeSocket.FileNode.Children,
             "ws:ping-event");
-        Assert.That(socketEs, Is.Not.Null, "Should map socket.emit to ExternalService");
+        socketEs.Should().NotBeNull("Should map socket.emit to ExternalService");
     }
 
     private EndpointNode? FindEndpointNode(IEnumerable<IOntologyNode> nodes, string identifier)
@@ -1164,20 +1142,20 @@ public class MyHub {}
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 
             var fileNode = syntaxTree.FileNode;
-            Assert.That(fileNode, Is.Not.Null);
+            fileNode.Should().NotBeNull();
 
             var endpoints = FindEndpointNodes(fileNode.Children);
             var entryPoints = FindEntryPointNodes(fileNode.Children);
 
             // Verify [controller] was resolved to HealtCheck and method is GET
             var getEndpoint = endpoints.FirstOrDefault(e => e.HttpMethod == "GET");
-            Assert.That(getEndpoint, Is.Not.Null);
-            Assert.That(getEndpoint!.RouteTemplate, Is.EqualTo("/HealtCheck"));
+            getEndpoint.Should().NotBeNull();
+            getEndpoint!.RouteTemplate.Should().Be("/HealtCheck");
 
             // Verify SignalR MapHub was captured as EntryPoint with /hub (MyHub)
             var hubEntryPoint = entryPoints.FirstOrDefault(ep => ep.Name.Contains("/hub"));
-            Assert.That(hubEntryPoint, Is.Not.Null);
-            Assert.That(hubEntryPoint!.Name, Does.Contain("MyHub"));
+            hubEntryPoint.Should().NotBeNull();
+            hubEntryPoint!.Name.Should().Contain("MyHub");
         }
         finally
         {
@@ -1234,22 +1212,20 @@ public class DicomClient {
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 
             var fileNode = syntaxTree.FileNode;
-            Assert.That(fileNode, Is.Not.Null);
+            fileNode.Should().NotBeNull();
 
             var extServices = FindExternalServiceNodes(fileNode.Children);
 
             // Verify dicomClient and CancellationToken were rejected
-            Assert.That(extServices.Any(es => es.Name.Contains("cMoveCancellationToken")), Is.False,
-                "CancellationToken should never be captured as ExternalService");
+            extServices.Any(es => es.Name.Contains("cMoveCancellationToken")).Should().BeFalse("CancellationToken should never be captured as ExternalService");
 
-            Assert.That(extServices.Any(es => es.Name == "unknown-service"), Is.False,
-                "Unknown service should not be emitted for non-HTTP calls");
+            (extServices.Any(es => es.Name == "unknown-service")).Should().BeFalse("Unknown service should not be emitted for non-HTTP calls");
 
             // Verify Spryng URI was successfully extracted from HttpRequestMessage -> Uri declaration
             var spryng = extServices.FirstOrDefault(es => es.Name == "rest.spryngsms.com");
-            Assert.That(spryng, Is.Not.Null, "Should resolve variable URI from HttpRequestMessage");
-            Assert.That(spryng!.Path, Is.EqualTo("/v1/messages"));
-            Assert.That(spryng.Protocol, Is.EqualTo("https"));
+            spryng.Should().NotBeNull("Should resolve variable URI from HttpRequestMessage");
+            spryng!.Path.Should().Be("/v1/messages");
+            spryng.Protocol.Should().Be("https");
         }
         finally
         {
@@ -1295,17 +1271,17 @@ public class RestService {
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 
             var fileNode = syntaxTree.FileNode;
-            Assert.That(fileNode, Is.Not.Null);
+            fileNode.Should().NotBeNull();
 
             var extServices = FindExternalServiceNodes(fileNode.Children);
 
             var clientEs = extServices.FirstOrDefault(es => es.Name == "api.icometrix.com");
-            Assert.That(clientEs, Is.Not.Null, "Should capture RestClient base URI");
-            Assert.That(clientEs!.Protocol, Is.EqualTo("https"));
+            clientEs.Should().NotBeNull("Should capture RestClient base URI");
+            clientEs!.Protocol.Should().Be("https");
 
             var reqEs = extServices.FirstOrDefault(es => es.Name == "authentication-service");
-            Assert.That(reqEs, Is.Not.Null, "Should capture RestRequest service name");
-            Assert.That(reqEs!.Path, Is.EqualTo("/authentication-service/api/v1/sessions"));
+            reqEs.Should().NotBeNull("Should capture RestRequest service name");
+            reqEs!.Path.Should().Be("/authentication-service/api/v1/sessions");
         }
         finally
         {
@@ -1352,27 +1328,27 @@ func registerRoutes() {
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 
             var fileNode = syntaxTree.FileNode;
-            Assert.That(fileNode, Is.Not.Null);
+            fileNode.Should().NotBeNull();
 
             var endpoints = FindEndpointNodes(fileNode.Children);
-            Assert.That(endpoints, Has.Count.EqualTo(3));
+            endpoints.Should().HaveCount(3);
 
             var getBundle = endpoints.FirstOrDefault(e =>
                 e.RouteTemplate == "/api/v1/bundles" && e.HttpMethod == "GET");
-            Assert.That(getBundle, Is.Not.Null);
-            Assert.That(getBundle!.Name, Is.EqualTo("GET:/api/v1/bundles"));
-            Assert.That(getBundle.Name, Does.Not.Contain("GET:GET"));
+            getBundle.Should().NotBeNull();
+            getBundle!.Name.Should().Be("GET:/api/v1/bundles");
+            getBundle.Name.Should().NotContain("GET:GET");
 
             var postBundle = endpoints.FirstOrDefault(e =>
                 e.RouteTemplate == "/api/v1/bundles" && e.HttpMethod == "POST");
-            Assert.That(postBundle, Is.Not.Null);
-            Assert.That(postBundle!.Name, Is.EqualTo("POST:/api/v1/bundles"));
-            Assert.That(postBundle.Name, Does.Not.Contain("GET:POST"));
+            postBundle.Should().NotBeNull();
+            postBundle!.Name.Should().Be("POST:/api/v1/bundles");
+            postBundle.Name.Should().NotContain("GET:POST");
 
             var legacy = endpoints.FirstOrDefault(e => e.RouteTemplate == "/api/v1/legacy");
-            Assert.That(legacy, Is.Not.Null);
-            Assert.That(legacy!.HttpMethod, Is.EqualTo("GET"));
-            Assert.That(legacy.Name, Is.EqualTo("GET:/api/v1/legacy"));
+            legacy.Should().NotBeNull();
+            legacy!.HttpMethod.Should().Be("GET");
+            legacy.Name.Should().Be("GET:/api/v1/legacy");
         }
         finally
         {
@@ -1392,6 +1368,7 @@ func registerRoutes() {
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using Refit;
+using AwesomeAssertions;
 
 namespace Clients;
 
@@ -1420,18 +1397,18 @@ public interface IUsersApi
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 
             var fileNode = syntaxTree.FileNode;
-            Assert.That(fileNode, Is.Not.Null);
+            fileNode.Should().NotBeNull();
 
             var extServices = FindExternalServiceNodes(fileNode.Children);
-            Assert.That(extServices, Has.Count.EqualTo(2));
+            extServices.Should().HaveCount(2);
 
             var getUsers = extServices.FirstOrDefault(es => es.Path == "/api/v1/users");
-            Assert.That(getUsers, Is.Not.Null);
-            Assert.That(getUsers!.DomainOrService, Is.EqualTo("users"));
+            getUsers.Should().NotBeNull();
+            getUsers!.DomainOrService.Should().Be("users");
 
             var createProfile = extServices.FirstOrDefault(es => es.Path == "/api/v1/profiles");
-            Assert.That(createProfile, Is.Not.Null);
-            Assert.That(createProfile!.DomainOrService, Is.EqualTo("users"));
+            createProfile.Should().NotBeNull();
+            createProfile!.DomainOrService.Should().Be("users");
         }
         finally
         {
@@ -1461,10 +1438,10 @@ public interface IUsersApi
             var parser = new CSharpParser();
             var prod = await parser.GetProducedPackageAsync(tempDir);
 
-            Assert.That(prod, Is.Not.Null);
-            Assert.That(prod!.Name, Is.EqualTo("MyLib"));
+            prod.Should().NotBeNull();
+            prod!.Name.Should().Be("MyLib");
             // Must default to 1.0.0 because project has no <Version>, NOT 6.5.2 from EntityFramework!
-            Assert.That(prod.Version, Is.EqualTo("1.0.0"));
+            prod.Version.Should().Be("1.0.0");
         }
         finally
         {

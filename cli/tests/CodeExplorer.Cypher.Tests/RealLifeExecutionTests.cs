@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AwesomeAssertions;
 using CodeExplorer.Cypher.Compiler;
 using CodeExplorer.Cypher.Parser;
 using CodeExplorer.Cypher.Tests.Shared;
@@ -423,9 +424,9 @@ public class RealLifeExecutionTests
     {
         var rows = ExecuteCypher("MATCH (w:Workspace) RETURN w.id AS id, w.path AS path");
 
-        Assert.That(rows, Has.Count.EqualTo(1));
-        Assert.That(rows[0]["id"], Is.EqualTo("ws:1"));
-        Assert.That(rows[0]["path"], Is.EqualTo("c:/work/shop"));
+        rows.Should().HaveCount(1);
+        rows[0]["id"].Should().Be("ws:1");
+        rows[0]["path"].Should().Be("c:/work/shop");
     }
 
     [Test]
@@ -437,28 +438,28 @@ public class RealLifeExecutionTests
             ["wsIdPrefix"] = "ws:1:"
         });
 
-        Assert.That(rows, Has.Count.EqualTo(1));
+        rows.Should().HaveCount(1);
         var row = rows[0];
 
-        Assert.That(row["project"], Is.EqualTo("OrdersService"));
-        Assert.That(row["language"], Is.EqualTo("csharp"));
+        row["project"].Should().Be("OrdersService");
+        row["language"].Should().Be("csharp");
 
         var folders = row["folders"]?.ToString() ?? "";
-        Assert.That(folders, Contains.Substring("Controllers"));
-        Assert.That(folders, Contains.Substring("Repositories"));
+        folders.Should().Contain("Controllers");
+        folders.Should().Contain("Repositories");
 
         var deps = row["dependencies"]?.ToString() ?? "";
-        Assert.That(deps, Contains.Substring("PaymentsService"));
+        deps.Should().Contain("PaymentsService");
 
         var dbs = row["databases"]?.ToString() ?? "";
-        Assert.That(dbs, Contains.Substring("PostgreSQL"));
+        dbs.Should().Contain("PostgreSQL");
 
         var ingress = row["ingress"]?.ToString() ?? "";
-        Assert.That(ingress, Contains.Substring("POST /api/orders"));
-        Assert.That(ingress, Contains.Substring("orders-queue-consumer"));
+        ingress.Should().Contain("POST /api/orders");
+        ingress.Should().Contain("orders-queue-consumer");
 
         var egress = row["egress"]?.ToString() ?? "";
-        Assert.That(egress, Contains.Substring("api.stripe.com"));
+        egress.Should().Contain("api.stripe.com");
     }
 
     [Test]
@@ -469,11 +470,11 @@ public class RealLifeExecutionTests
             ["wsIdPrefix"] = "ws:1:"
         });
 
-        Assert.That(rows, Has.Count.GreaterThanOrEqualTo(1));
+        rows.Should().HaveCountGreaterThanOrEqualTo(1);
         var dep = rows.Find(r => (string?)r["project"] == "OrdersService");
-        Assert.That(dep, Is.Not.Null);
-        Assert.That(dep!["dependency"], Is.EqualTo("PaymentsService"));
-        Assert.That(dep["dependencyType"], Is.EqualTo("Project"));
+        dep.Should().NotBeNull();
+        dep!["dependency"].Should().Be("PaymentsService");
+        dep["dependencyType"].Should().Be("Project");
     }
 
     [Test]
@@ -485,17 +486,17 @@ public class RealLifeExecutionTests
             ["wsIdPrefix"] = "ws:1:"
         });
 
-        Assert.That(rows, Has.Count.GreaterThanOrEqualTo(2));
+        rows.Should().HaveCountGreaterThanOrEqualTo(2);
 
         var classItem = rows.Find(r => (string?)r["name"] == "OrdersController");
-        Assert.That(classItem, Is.Not.Null);
-        Assert.That(classItem!["type"], Is.EqualTo("Class"));
-        Assert.That(classItem["symbol"], Is.EqualTo("Shop.OrdersController"));
+        classItem.Should().NotBeNull();
+        classItem!["type"].Should().Be("Class");
+        classItem["symbol"].Should().Be("Shop.OrdersController");
 
         var methodItem = rows.Find(r => (string?)r["name"] == "CreateOrder");
-        Assert.That(methodItem, Is.Not.Null);
-        Assert.That(methodItem!["type"], Is.EqualTo("Function"));
-        Assert.That(methodItem["symbol"], Is.EqualTo("Shop.OrdersController.CreateOrder"));
+        methodItem.Should().NotBeNull();
+        methodItem!["type"].Should().Be("Function");
+        methodItem["symbol"].Should().Be("Shop.OrdersController.CreateOrder");
     }
 
     [Test]
@@ -507,10 +508,10 @@ public class RealLifeExecutionTests
             ["wsIdPrefix"] = "ws:1:"
         });
 
-        Assert.That(rows, Has.Count.GreaterThanOrEqualTo(2));
+        rows.Should().HaveCountGreaterThanOrEqualTo(2);
         var names = rows.ConvertAll(r => (string?)r["name"]);
-        Assert.That(names, Contains.Item("CreateOrder"));
-        Assert.That(names, Contains.Item("SaveOrder"));
+        names.Should().Contain("CreateOrder");
+        names.Should().Contain("SaveOrder");
     }
 
     [Test]
@@ -523,11 +524,11 @@ public class RealLifeExecutionTests
             ["wsIdPrefix"] = "ws:1:"
         });
 
-        Assert.That(rows, Has.Count.EqualTo(1));
+        rows.Should().HaveCount(1);
         var chain = rows[0]["chain"]?.ToString() ?? "";
-        Assert.That(chain, Contains.Substring("ws:1:fn:create_order"));
-        Assert.That(chain, Contains.Substring("ws:1:fn:process_pmt"));
-        Assert.That(chain, Contains.Substring("ws:1:fn:save_order"));
+        chain.Should().Contain("ws:1:fn:create_order");
+        chain.Should().Contain("ws:1:fn:process_pmt");
+        chain.Should().Contain("ws:1:fn:save_order");
     }
 
     [Test]
@@ -540,10 +541,10 @@ public class RealLifeExecutionTests
             ["wsIdPrefix"] = "ws:1:"
         });
 
-        Assert.That(rows, Has.Count.EqualTo(1));
-        Assert.That(rows[0]["className"], Is.EqualTo("OrderRepository"));
-        Assert.That(rows[0]["methodName"], Is.EqualTo("SaveOrder"));
-        Assert.That(rows[0]["methodSymbol"], Is.EqualTo("Shop.OrderRepository.SaveOrder"));
+        rows.Should().HaveCount(1);
+        rows[0]["className"].Should().Be("OrderRepository");
+        rows[0]["methodName"].Should().Be("SaveOrder");
+        rows[0]["methodSymbol"].Should().Be("Shop.OrderRepository.SaveOrder");
     }
 
     [Test]
@@ -555,10 +556,10 @@ public class RealLifeExecutionTests
             ["wsIdPrefix"] = "ws:1:"
         });
 
-        Assert.That(rows, Has.Count.GreaterThanOrEqualTo(1));
+        rows.Should().HaveCountGreaterThanOrEqualTo(1);
         var dependent = rows.Find(r => (string?)r["dependentName"] == "ProcessPayment");
-        Assert.That(dependent, Is.Not.Null);
-        Assert.That(dependent!["dependentType"], Is.EqualTo("Function"));
+        dependent.Should().NotBeNull();
+        dependent!["dependentType"].Should().Be("Function");
     }
 
     [Test]
@@ -570,15 +571,15 @@ public class RealLifeExecutionTests
             ["wsIdPrefix"] = "ws:1:"
         });
 
-        Assert.That(rows, Has.Count.EqualTo(1));
-        Assert.That(rows[0]["tableName"], Is.EqualTo("orders"));
-        Assert.That(rows[0]["queryName"], Is.EqualTo("INSERT orders"));
+        rows.Should().HaveCount(1);
+        rows[0]["tableName"].Should().Be("orders");
+        rows[0]["queryName"].Should().Be("INSERT orders");
 
         var parent = rows[0]["parentName"]?.ToString() ?? "";
-        Assert.That(parent, Contains.Substring("SaveOrder"));
+        parent.Should().Contain("SaveOrder");
 
         var callers = rows[0]["callingSymbols"]?.ToString() ?? "";
-        Assert.That(callers.Contains("CreateOrder") || callers.Contains("ProcessPayment"), Is.True);
+        (callers.Contains("CreateOrder") || callers.Contains("ProcessPayment")).Should().BeTrue();
     }
 
     [Test]
@@ -591,10 +592,10 @@ public class RealLifeExecutionTests
             ["wsIdPrefix"] = "ws:1:"
         });
 
-        Assert.That(deadCodeRows, Has.Count.GreaterThanOrEqualTo(1));
+        deadCodeRows.Should().HaveCountGreaterThanOrEqualTo(1);
         var deadFunc = deadCodeRows.Find(r => (string?)r["name"] == "UnusedLegacyHelper");
-        Assert.That(deadFunc, Is.Not.Null);
-        Assert.That(deadFunc!["anomalyType"], Is.EqualTo("dead_code"));
+        deadFunc.Should().NotBeNull();
+        deadFunc!["anomalyType"].Should().Be("dead_code");
 
         // 2. God Object detection (> 15 members)
         var godObjectRows = ExecuteQuery("find_refactor_god_objects.cypher", new()
@@ -603,11 +604,11 @@ public class RealLifeExecutionTests
             ["wsIdPrefix"] = "ws:1:"
         });
 
-        Assert.That(godObjectRows, Has.Count.GreaterThanOrEqualTo(1));
+        godObjectRows.Should().HaveCountGreaterThanOrEqualTo(1);
         var godClass = godObjectRows.Find(r => (string?)r["name"] == "MonolithicGodClass");
-        Assert.That(godClass, Is.Not.Null);
-        Assert.That(godClass!["anomalyType"], Is.EqualTo("god_object"));
-        Assert.That(Convert.ToInt64(godClass["metricValue"]), Is.GreaterThan(15));
+        godClass.Should().NotBeNull();
+        godClass!["anomalyType"].Should().Be("god_object");
+        Convert.ToInt64(godClass["metricValue"]).Should().BeGreaterThan(15);
     }
 
     [Test]
@@ -627,14 +628,14 @@ public class RealLifeExecutionTests
 
         using var reader = cmd.ExecuteReader();
 
-        Assert.That(reader.Read(), Is.True);
+        reader.Read().Should().BeTrue();
         var rawJson = reader.GetString(0);
 
         using var doc = JsonDocument.Parse(rawJson);
 
         var typesProp = doc.RootElement.GetProperty("types");
-        Assert.That(typesProp.ValueKind, Is.EqualTo(JsonValueKind.Array));
-        Assert.That(typesProp.GetArrayLength(), Is.GreaterThan(0));
+        typesProp.ValueKind.Should().Be(JsonValueKind.Array);
+        typesProp.GetArrayLength().Should().BeGreaterThan(0);
     }
 
     [Test]
@@ -650,15 +651,15 @@ public class RealLifeExecutionTests
             ["workspaceId"] = "ws:1"
         });
 
-        Assert.That(rows, Has.Count.EqualTo(1));
+        rows.Should().HaveCount(1);
         var projectsRaw = rows[0]["projects"]?.ToString() ?? "";
 
         using var doc = JsonDocument.Parse(projectsRaw);
 
         var proj = doc.RootElement[0];
         var dbs = proj.GetProperty("databases");
-        Assert.That(dbs.ValueKind, Is.EqualTo(JsonValueKind.Array));
-        Assert.That(dbs.GetArrayLength(), Is.GreaterThanOrEqualTo(1));
+        dbs.ValueKind.Should().Be(JsonValueKind.Array);
+        dbs.GetArrayLength().Should().BeGreaterThanOrEqualTo(1);
     }
 
     [Test]
@@ -689,11 +690,11 @@ public class RealLifeExecutionTests
 
         using var reader = cmd.ExecuteReader();
 
-        Assert.That(reader.Read(), Is.True);
-        Assert.That(reader["kind"], Is.EqualTo("Library"));
-        Assert.That(reader["language"], Is.EqualTo("csharp"));
-        Assert.That(reader["entityKind"], Is.EqualTo("Library"));
-        Assert.That(reader["subKind"], Is.EqualTo("SharedLibrary"));
+        reader.Read().Should().BeTrue();
+        reader["kind"].Should().Be("Library");
+        reader["language"].Should().Be("csharp");
+        reader["entityKind"].Should().Be("Library");
+        reader["subKind"].Should().Be("SharedLibrary");
     }
 
     [Test]
@@ -722,15 +723,15 @@ public class RealLifeExecutionTests
 
         using var reader1 = cmd1.ExecuteReader();
 
-        Assert.That(reader1.Read(), Is.True);
-        Assert.That(reader1["name"], Is.EqualTo("BillingService"));
+        reader1.Read().Should().BeTrue();
+        reader1["name"].Should().Be("BillingService");
         var lblsJson = reader1.GetString(1);
 
         using var doc = JsonDocument.Parse(lblsJson);
 
         var labels = doc.RootElement.EnumerateArray().Select(e => e.GetString()).ToList();
-        Assert.That(labels, Does.Contain("Project"));
-        Assert.That(labels, Does.Contain("Service"));
+        labels.Should().Contain("Project");
+        labels.Should().Contain("Service");
     }
 
     [Test]
@@ -755,8 +756,8 @@ public class RealLifeExecutionTests
         }
 
         using var reader = cmd.ExecuteReader();
-        Assert.That(reader.Read(), Is.True);
-        Assert.That(reader["name"], Is.EqualTo("localhost"));
+        reader.Read().Should().BeTrue();
+        reader["name"].Should().Be("localhost");
     }
 }
 

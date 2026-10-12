@@ -505,20 +505,29 @@ public class Layer3SyntacticParser
         }
         else if (kind == OntologyConstants.NodeLabels.Query)
         {
-            var sqlCandidate = syntactic.Text ?? node.Text;
-            if (!NestedSqlParser.TryParseSql(sqlCandidate, out _, out _))
+            if (WorkspaceConventions.IsFrontendFilePath(relativePath))
             {
-                if (name.Contains(':'))
+                // Frontend UI strings containing SQL keywords must not be treated as SQL queries or linked to DBs
+                var litId = $"{workspaceId}:{OntologyConstants.IdPrefixes.CallLiteral}:{relativePath}:{node.StartPosition.Row + 1}:{node.StartPosition.Column + 1}";
+                typedNode = new CallLiteralNode(litId, name, syntactic.Text ?? node.Text, "", 0, relativePath, node.StartPosition.Row + 1, node.StartPosition.Column + 1, symbolIsTest, projectKind, projectName, "UI", false);
+            }
+            else
+            {
+                var sqlCandidate = syntactic.Text ?? node.Text;
+                if (!NestedSqlParser.TryParseSql(sqlCandidate, out _, out _))
                 {
-                    var afterColon = name[(name.IndexOf(':') + 1)..].Trim();
-                    if (NestedSqlParser.TryParseSql(afterColon, out _, out _))
+                    if (name.Contains(':'))
                     {
-                        sqlCandidate = afterColon;
+                        var afterColon = name[(name.IndexOf(':') + 1)..].Trim();
+                        if (NestedSqlParser.TryParseSql(afterColon, out _, out _))
+                        {
+                            sqlCandidate = afterColon;
+                        }
                     }
                 }
+                typedNode = NestedSqlParser.ParseNestedSql(sqlCandidate, symbolId, relativePath, ctx, name) ??
+                            new QueryNode(symbolId, name, NestedSqlParser.CleanQueryText(sqlCandidate), relativePath);
             }
-            typedNode = NestedSqlParser.ParseNestedSql(sqlCandidate, symbolId, relativePath, ctx, name) ??
-                        new QueryNode(symbolId, name, NestedSqlParser.CleanQueryText(sqlCandidate), relativePath);
         }
         else if (kind == OntologyConstants.NodeLabels.EntryPoint)
         {

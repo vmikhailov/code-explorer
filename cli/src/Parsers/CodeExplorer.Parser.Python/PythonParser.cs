@@ -1,5 +1,5 @@
-using System.Text.RegularExpressions;
 using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
@@ -97,12 +97,70 @@ public class PythonParser : IProjectParser, IFileParser
         foreach (var file in filesInDirectory)
         {
             var fileName = Path.GetFileName(file).ToLowerInvariant();
-            if (fileName is "requirements.txt" or "pyproject.toml" or "setup.py" or "setup.cfg")
+            if (fileName is "requirements.txt" or "pyproject.toml" or "setup.py" or "setup.cfg" or "pipfile" or "alembic.ini")
             {
                 return true;
             }
         }
         return false;
+    }
+
+    public Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory)
+    {
+        var props = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        // 1. Alembic migrations
+        if (filesInDirectory.Any(f => Path.GetFileName(f).Equals("alembic.ini", StringComparison.OrdinalIgnoreCase)))
+        {
+            props["manifest_type"] = "migration";
+            return props;
+        }
+
+        // 2. Read dependencies / content from manifest files
+        var allText = new System.Text.StringBuilder();
+        foreach (var file in filesInDirectory)
+        {
+            var fn = Path.GetFileName(file).ToLowerInvariant();
+            if (fn is "pyproject.toml" or "requirements.txt" or "setup.py" or "setup.cfg" or "pipfile")
+            {
+                try
+                {
+                    allText.AppendLine(File.ReadAllText(file));
+                }
+                catch { }
+            }
+        }
+
+        var text = allText.ToString().ToLowerInvariant();
+
+        // Check for Web frameworks
+        if (text.Contains("fastapi") || text.Contains("flask") || text.Contains("django") ||
+            text.Contains("uvicorn") || text.Contains("gunicorn") || text.Contains("tornado") || text.Contains("sanic"))
+        {
+            props["manifest_type"] = "application";
+            props["framework_type"] = "web";
+            return props;
+        }
+
+        // Check for Workers
+        if (text.Contains("celery") || text.Contains("rq") || text.Contains("dramatiq") || text.Contains("huey"))
+        {
+            props["manifest_type"] = "worker";
+            props["framework_type"] = "worker";
+            return props;
+        }
+
+        // Check for CLI
+        if (text.Contains("[project.scripts]") || text.Contains("click") || text.Contains("typer") || text.Contains("argparse"))
+        {
+            props["manifest_type"] = "cli";
+            props["has_cli_bin"] = "true";
+            return props;
+        }
+
+        // Default Python standalone package without web frameworks is a Library
+        props["manifest_type"] = "library";
+        return props;
     }
 
     public BaseParserVisitor CreateVisitor(

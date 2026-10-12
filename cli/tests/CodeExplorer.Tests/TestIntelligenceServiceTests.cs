@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Analysis.Testing;
 using CodeExplorer.Core.Database;
 using NUnit.Framework;
@@ -54,14 +55,14 @@ public class TestIntelligenceServiceTests
 
         var hunks = GitDiffHelper.ParseDiffHunks(sampleDiff);
 
-        Assert.That(hunks, Has.Count.EqualTo(2));
-        Assert.That(hunks[0].File, Is.EqualTo("src/Core/UserService.cs"));
-        Assert.That(hunks[0].StartLine, Is.EqualTo(45));
-        Assert.That(hunks[0].EndLine, Is.EqualTo(52));
+        hunks.Should().HaveCount(2);
+        hunks[0].File.Should().Be("src/Core/UserService.cs");
+        hunks[0].StartLine.Should().Be(45);
+        hunks[0].EndLine.Should().Be(52);
 
-        Assert.That(hunks[1].File, Is.EqualTo("src/Core/UserService.cs"));
-        Assert.That(hunks[1].StartLine, Is.EqualTo(122));
-        Assert.That(hunks[1].EndLine, Is.EqualTo(126));
+        hunks[1].File.Should().Be("src/Core/UserService.cs");
+        hunks[1].StartLine.Should().Be(122);
+        hunks[1].EndLine.Should().Be(126);
     }
 
     [Test]
@@ -153,24 +154,24 @@ public class TestIntelligenceServiceTests
 
         var report = await _service.AnalyzeCoverageAsync(new TestCoverageFilter());
 
-        Assert.That(report, Is.Not.Null);
-        Assert.That(report.Summary.TotalClasses, Is.EqualTo(2));
-        Assert.That(report.Summary.CoveredClasses, Is.EqualTo(1));
-        Assert.That(report.Summary.UncoveredClasses, Is.EqualTo(1));
-        Assert.That(report.Summary.ClassCoveragePercentage, Is.EqualTo(50.0));
+        report.Should().NotBeNull();
+        report.Summary.TotalClasses.Should().Be(2);
+        report.Summary.CoveredClasses.Should().Be(1);
+        report.Summary.UncoveredClasses.Should().Be(1);
+        report.Summary.ClassCoveragePercentage.Should().Be(50.0);
 
-        Assert.That(report.Summary.TotalMethods, Is.EqualTo(3));
-        Assert.That(report.Summary.CoveredMethods, Is.EqualTo(1));
-        Assert.That(report.Summary.UncoveredMethods, Is.EqualTo(2));
-        Assert.That(Math.Round(report.Summary.MethodCoveragePercentage, 1), Is.EqualTo(33.3));
+        report.Summary.TotalMethods.Should().Be(3);
+        report.Summary.CoveredMethods.Should().Be(1);
+        report.Summary.UncoveredMethods.Should().Be(2);
+        Math.Round(report.Summary.MethodCoveragePercentage, 1).Should().Be(33.3);
 
-        Assert.That(report.CoveredClasses, Has.Count.EqualTo(1));
-        Assert.That(report.CoveredClasses[0].Name, Is.EqualTo("UserService"));
-        Assert.That(report.CoveredClasses[0].CoveredMethodsCount, Is.EqualTo(1));
+        report.CoveredClasses.Should().HaveCount(1);
+        report.CoveredClasses[0].Name.Should().Be("UserService");
+        report.CoveredClasses[0].CoveredMethodsCount.Should().Be(1);
 
-        Assert.That(report.UncoveredClasses, Has.Count.EqualTo(1));
-        Assert.That(report.UncoveredClasses[0].Name, Is.EqualTo("OrderService"));
-        Assert.That(report.UncoveredClasses[0].MethodCount, Is.EqualTo(1));
+        report.UncoveredClasses.Should().HaveCount(1);
+        report.UncoveredClasses[0].Name.Should().Be("OrderService");
+        report.UncoveredClasses[0].MethodCount.Should().Be(1);
     }
 
     [Test]
@@ -219,14 +220,14 @@ public class TestIntelligenceServiceTests
             SymbolNames = new List<string> { "SaveEntity" }
         });
 
-        Assert.That(reportRepo.AffectedTestMethods, Has.Count.EqualTo(1));
+        reportRepo.AffectedTestMethods.Should().HaveCount(1);
         var test = reportRepo.AffectedTestMethods[0];
-        Assert.That(test.TestMethodName, Is.EqualTo("Test_ProcessOrder_EmitsEvent"));
-        Assert.That(test.Depth, Is.EqualTo(2));
-        Assert.That(test.TargetSymbol, Is.EqualTo("SaveEntity"));
-        Assert.That(test.TestFramework, Is.EqualTo("nunit"));
-        Assert.That(reportRepo.RunnerCommands, Contains.Key("dotnet"));
-        Assert.That(reportRepo.RunnerCommands["dotnet"], Does.Contain("OrderServiceTests"));
+        test.TestMethodName.Should().Be("Test_ProcessOrder_EmitsEvent");
+        test.Depth.Should().Be(2);
+        test.TargetSymbol.Should().Be("SaveEntity");
+        test.TestFramework.Should().Be("nunit");
+        reportRepo.RunnerCommands.Should().ContainKey("dotnet");
+        reportRepo.RunnerCommands["dotnet"].Should().Contain("OrderServiceTests");
 
         // 2. When tested directly via changed file line range
         var reportFile = await _service.AnalyzeImpactAsync(new TestImpactRequest
@@ -234,9 +235,9 @@ public class TestIntelligenceServiceTests
             ChangedFiles = new List<string> { "src/Core/OrderService.cs" }
         });
 
-        Assert.That(reportFile.AffectedTestMethods, Has.Count.EqualTo(1));
-        Assert.That(reportFile.AffectedTestMethods[0].TestMethodName, Is.EqualTo("Test_ProcessOrder_EmitsEvent"));
-        Assert.That(reportFile.AffectedTestMethods[0].Depth, Is.EqualTo(1));
+        reportFile.AffectedTestMethods.Should().HaveCount(1);
+        reportFile.AffectedTestMethods[0].TestMethodName.Should().Be("Test_ProcessOrder_EmitsEvent");
+        reportFile.AffectedTestMethods[0].Depth.Should().Be(1);
     }
 
     [Test]
@@ -274,13 +275,13 @@ public class TestIntelligenceServiceTests
         });
 
         var mdImpact = TestIntelligenceService.FormatImpactMarkdown(impactReport);
-        Assert.That(mdImpact, Does.Contain("Test Impact Analysis"));
-        Assert.That(mdImpact, Does.Contain("Test_ExecuteAction_Ok"));
-        Assert.That(mdImpact, Does.Contain("dotnet test"));
+        mdImpact.Should().Contain("Test Impact Analysis");
+        mdImpact.Should().Contain("Test_ExecuteAction_Ok");
+        mdImpact.Should().Contain("dotnet test");
 
         var covReport = await _service.AnalyzeCoverageAsync(new TestCoverageFilter());
         var mdCov = TestIntelligenceService.FormatCoverageMarkdown(covReport);
-        Assert.That(mdCov, Does.Contain("Test Coverage Report"));
+        mdCov.Should().Contain("Test Coverage Report");
     }
 
     [Test]
@@ -307,20 +308,20 @@ public class TestIntelligenceServiceTests
 
         // 1. Filter by Project P1
         var reportP1 = await _service.AnalyzeCoverageAsync(new TestCoverageFilter(Project: "P1"));
-        Assert.That(reportP1.Summary.TotalClasses, Is.EqualTo(1));
-        Assert.That(reportP1.CoveredClasses.Select(c => c.Name), Does.Contain("Class1"));
-        Assert.That(reportP1.UncoveredClasses, Is.Empty);
+        reportP1.Summary.TotalClasses.Should().Be(1);
+        reportP1.CoveredClasses.Select(c => c.Name).Should().Contain("Class1");
+        reportP1.UncoveredClasses.Should().BeEmpty();
 
         // 2. Filter by Status covered
         var reportCovered = await _service.AnalyzeCoverageAsync(new TestCoverageFilter(Status: "covered"));
-        Assert.That(reportCovered.CoveredClasses, Has.Count.EqualTo(1));
-        Assert.That(reportCovered.UncoveredClasses, Is.Empty);
+        reportCovered.CoveredClasses.Should().HaveCount(1);
+        reportCovered.UncoveredClasses.Should().BeEmpty();
 
         // 3. Filter by Status uncovered
         var reportUncovered = await _service.AnalyzeCoverageAsync(new TestCoverageFilter(Status: "uncovered"));
-        Assert.That(reportUncovered.CoveredClasses, Is.Empty);
-        Assert.That(reportUncovered.UncoveredClasses, Has.Count.EqualTo(1));
-        Assert.That(reportUncovered.UncoveredClasses[0].Name, Is.EqualTo("Class2"));
+        reportUncovered.CoveredClasses.Should().BeEmpty();
+        reportUncovered.UncoveredClasses.Should().HaveCount(1);
+        reportUncovered.UncoveredClasses[0].Name.Should().Be("Class2");
     }
 
     [Test]
@@ -344,12 +345,12 @@ public class TestIntelligenceServiceTests
             SymbolNames = new List<string> { "calc", "Handle" }
         });
 
-        Assert.That(report.AffectedTestMethods, Has.Count.EqualTo(2));
-        Assert.That(report.RunnerCommands, Contains.Key("pytest"));
-        Assert.That(report.RunnerCommands["pytest"], Does.Contain("pytest tests/test_calc.py -k \"test_calc\""));
+        report.AffectedTestMethods.Should().HaveCount(2);
+        report.RunnerCommands.Should().ContainKey("pytest");
+        report.RunnerCommands["pytest"].Should().Contain("pytest tests/test_calc.py -k \"test_calc\"");
 
-        Assert.That(report.RunnerCommands, Contains.Key("go"));
-        Assert.That(report.RunnerCommands["go"], Does.Contain("go test ./... -run \"^(TestHandle)$\""));
+        report.RunnerCommands.Should().ContainKey("go");
+        report.RunnerCommands["go"].Should().Contain("go test ./... -run \"^(TestHandle)$\"");
     }
 
     [Test]
@@ -411,22 +412,22 @@ public class TestIntelligenceServiceTests
             SymbolNames = new List<string> { "Add" }
         });
 
-        Assert.That(report.AffectedTestMethods, Has.Count.EqualTo(2));
-        Assert.That(report.Groups, Is.Not.Null);
-        Assert.That(report.Groups!, Has.Count.EqualTo(1));
+        report.AffectedTestMethods.Should().HaveCount(2);
+        report.Groups.Should().NotBeNull();
+        report.Groups!.Should().HaveCount(1);
 
         var group = report.Groups![0];
-        Assert.That(group.ClassName, Is.EqualTo("CalculatorTests"));
-        Assert.That(group.AffectedTestCount, Is.EqualTo(2));
-        Assert.That(group.TotalTestCount, Is.EqualTo(2));
-        Assert.That(group.AllTestsAffected, Is.True);
+        group.ClassName.Should().Be("CalculatorTests");
+        group.AffectedTestCount.Should().Be(2);
+        group.TotalTestCount.Should().Be(2);
+        group.AllTestsAffected.Should().BeTrue();
 
-        Assert.That(report.RunnerCommands, Contains.Key("dotnet"));
-        Assert.That(report.RunnerCommands["dotnet"], Is.EqualTo("dotnet test --filter \"FullyQualifiedName~CalculatorTests\""));
+        report.RunnerCommands.Should().ContainKey("dotnet");
+        report.RunnerCommands["dotnet"].Should().Be("dotnet test --filter \"FullyQualifiedName~CalculatorTests\"");
 
         var md = TestIntelligenceService.FormatImpactMarkdown(report);
-        Assert.That(md, Does.Contain("All tests affected"));
-        Assert.That(md, Does.Contain("CalculatorTests"));
+        md.Should().Contain("All tests affected");
+        md.Should().Contain("CalculatorTests");
     }
 
     [Test]
@@ -491,18 +492,18 @@ public class TestIntelligenceServiceTests
             SymbolNames = new List<string> { "Add" }
         });
 
-        Assert.That(report.AffectedTestMethods, Has.Count.EqualTo(1));
-        Assert.That(report.Groups, Is.Not.Null);
-        Assert.That(report.Groups!, Has.Count.EqualTo(1));
+        report.AffectedTestMethods.Should().HaveCount(1);
+        report.Groups.Should().NotBeNull();
+        report.Groups!.Should().HaveCount(1);
 
         var group = report.Groups![0];
-        Assert.That(group.ClassName, Is.EqualTo("CalculatorTests"));
-        Assert.That(group.AffectedTestCount, Is.EqualTo(1));
-        Assert.That(group.TotalTestCount, Is.EqualTo(2));
-        Assert.That(group.AllTestsAffected, Is.False);
+        group.ClassName.Should().Be("CalculatorTests");
+        group.AffectedTestCount.Should().Be(1);
+        group.TotalTestCount.Should().Be(2);
+        group.AllTestsAffected.Should().BeFalse();
 
-        Assert.That(report.RunnerCommands, Contains.Key("dotnet"));
-        Assert.That(report.RunnerCommands["dotnet"], Is.EqualTo("dotnet test --filter \"FullyQualifiedName~Test_Add\""));
+        report.RunnerCommands.Should().ContainKey("dotnet");
+        report.RunnerCommands["dotnet"].Should().Be("dotnet test --filter \"FullyQualifiedName~Test_Add\"");
     }
 
     [Test]
@@ -574,24 +575,24 @@ public class TestIntelligenceServiceTests
         });
 
         // Only Test_DoWork_Success should be in AffectedTestMethods
-        Assert.That(report.AffectedTestMethods, Has.Count.EqualTo(1));
+        report.AffectedTestMethods.Should().HaveCount(1);
         var test = report.AffectedTestMethods[0];
-        Assert.That(test.TestMethodName, Is.EqualTo("Test_DoWork_Success"));
-        Assert.That(test.Depth, Is.EqualTo(2));
-        Assert.That(string.Join(" → ", test.CallChain), Is.EqualTo("Test_DoWork_Success → RunCliAsync → DoWork"));
+        test.TestMethodName.Should().Be("Test_DoWork_Success");
+        test.Depth.Should().Be(2);
+        string.Join(" → ", test.CallChain).Should().Be("Test_DoWork_Success → RunCliAsync → DoWork");
 
         // Groups: WorkerTests should have TotalTestCount = 1 (excluding OneTimeSetUp and RunCliAsync)
-        Assert.That(report.Groups, Is.Not.Null);
-        Assert.That(report.Groups!, Has.Count.EqualTo(1));
+        report.Groups.Should().NotBeNull();
+        report.Groups!.Should().HaveCount(1);
         var group = report.Groups![0];
-        Assert.That(group.ClassName, Is.EqualTo("WorkerTests"));
-        Assert.That(group.AffectedTestCount, Is.EqualTo(1));
-        Assert.That(group.TotalTestCount, Is.EqualTo(1));
-        Assert.That(group.AllTestsAffected, Is.True);
+        group.ClassName.Should().Be("WorkerTests");
+        group.AffectedTestCount.Should().Be(1);
+        group.TotalTestCount.Should().Be(1);
+        group.AllTestsAffected.Should().BeTrue();
 
         // Command should target the class since all tests in it are affected
-        Assert.That(report.RunnerCommands, Contains.Key("dotnet"));
-        Assert.That(report.RunnerCommands["dotnet"], Is.EqualTo("dotnet test --filter \"FullyQualifiedName~WorkerTests\""));
+        report.RunnerCommands.Should().ContainKey("dotnet");
+        report.RunnerCommands["dotnet"].Should().Be("dotnet test --filter \"FullyQualifiedName~WorkerTests\"");
     }
 }
 

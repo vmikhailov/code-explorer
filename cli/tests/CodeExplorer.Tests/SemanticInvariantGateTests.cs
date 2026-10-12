@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Gates.Engine;
@@ -38,16 +39,16 @@ public class SemanticInvariantGateTests
         var fp1 = GateFingerprintGenerator.Generate("SIG-001", "src/Core/Parser.cs", "MyParser", "TargetType");
         var fp2 = GateFingerprintGenerator.Generate("SIG-001", "src/Core/Parser.cs", "MyParser", "TargetType");
 
-        Assert.That(fp2, Is.EqualTo(fp1));
-        Assert.That(fp1, Is.Not.Empty);
+        fp2.Should().Be(fp1);
+        fp1.Should().NotBeEmpty();
 
         // Path normalization
         var fp3 = GateFingerprintGenerator.Generate("SIG-001", @".\src\Core\Parser.cs", "MyParser", "TargetType");
-        Assert.That(fp3, Is.EqualTo(fp1));
+        fp3.Should().Be(fp1);
 
         // Distinct symbols produce distinct fingerprints
         var fpOther = GateFingerprintGenerator.Generate("SIG-001", "src/Core/Parser.cs", "OtherParser", "TargetType");
-        Assert.That(fpOther, Is.Not.EqualTo(fp1));
+        fpOther.Should().NotBe(fp1);
     }
 
     [Test]
@@ -71,17 +72,17 @@ public class SemanticInvariantGateTests
 
         var gate = GateSerializer.DeserializeGate(yaml, "custom.yaml");
 
-        Assert.That(gate.Id, Is.EqualTo("SIG-TEST-001"));
-        Assert.That(gate.Scope, Is.EqualTo(InvariantScope.Module));
-        Assert.That(gate.Category, Is.EqualTo(GateCategory.Architectural));
-        Assert.That(gate.Platform, Is.EqualTo("agnostic"));
-        Assert.That(gate.Dimension, Is.EqualTo(InvariantDimension.Boundaries));
-        Assert.That(gate.Name, Is.EqualTo("Test Layer Invariant"));
-        Assert.That(gate.Severity, Is.EqualTo(GateSeverity.Error));
-        Assert.That(gate.CoordinateCode, Is.EqualTo("[M, B]"));
-        Assert.That(gate.Ratchet.Enabled, Is.True);
-        Assert.That(gate.Ratchet.Baseline, Is.EqualTo("baselines/SIG-TEST-001.json"));
-        Assert.That(gate.Query, Does.Contain("MATCH (a:Type)"));
+        gate.Id.Should().Be("SIG-TEST-001");
+        gate.Scope.Should().Be(InvariantScope.Module);
+        gate.Category.Should().Be(GateCategory.Architectural);
+        gate.Platform.Should().Be("agnostic");
+        gate.Dimension.Should().Be(InvariantDimension.Boundaries);
+        gate.Name.Should().Be("Test Layer Invariant");
+        gate.Severity.Should().Be(GateSeverity.Error);
+        gate.CoordinateCode.Should().Be("[M, B]");
+        gate.Ratchet.Enabled.Should().BeTrue();
+        gate.Ratchet.Baseline.Should().Be("baselines/SIG-TEST-001.json");
+        gate.Query.Should().Contain("MATCH (a:Type)");
     }
 
     [Test]
@@ -100,12 +101,12 @@ public class SemanticInvariantGateTests
         };
 
         var yaml = GateSerializer.SerializeGate(original);
-        Assert.That(yaml, Does.Contain("category: Platform"));
-        Assert.That(yaml, Does.Contain("platform: dotnet"));
+        yaml.Should().Contain("category: Platform");
+        yaml.Should().Contain("platform: dotnet");
 
         var restored = GateSerializer.DeserializeGate(yaml);
-        Assert.That(restored.Category, Is.EqualTo(GateCategory.Platform));
-        Assert.That(restored.Platform, Is.EqualTo("dotnet"));
+        restored.Category.Should().Be(GateCategory.Platform);
+        restored.Platform.Should().Be("dotnet");
     }
 
     [Test]
@@ -138,10 +139,10 @@ public class SemanticInvariantGateTests
         var json = GateSerializer.SerializeBaseline(baseline);
         var restored = GateSerializer.DeserializeBaseline(json);
 
-        Assert.That(restored.GateId, Is.EqualTo(baseline.GateId));
-        Assert.That(restored.AllowedViolations, Is.EqualTo(2));
-        Assert.That(restored.Entries.Count, Is.EqualTo(2));
-        Assert.That(restored.Entries[0].Fingerprint, Is.EqualTo("hash1"));
+        restored.GateId.Should().Be(baseline.GateId);
+        restored.AllowedViolations.Should().Be(2);
+        restored.Entries.Count.Should().Be(2);
+        restored.Entries[0].Fingerprint.Should().Be("hash1");
     }
 
     [Test]
@@ -156,8 +157,8 @@ public class SemanticInvariantGateTests
 
         // 1. Zero violations = Passed
         var (status1, new1, tol1, _) = RatchetService.Evaluate(gate, [], null);
-        Assert.That(status1, Is.EqualTo(GateCheckStatus.Passed));
-        Assert.That(new1, Is.Empty);
+        status1.Should().Be(GateCheckStatus.Passed);
+        new1.Should().BeEmpty();
 
         // 2. Violations without baseline = FailedNew
         var v1 = new GateViolation
@@ -170,8 +171,8 @@ public class SemanticInvariantGateTests
             Fingerprint = "fp1"
         };
         var (status2, new2, _, _) = RatchetService.Evaluate(gate, [v1], null);
-        Assert.That(status2, Is.EqualTo(GateCheckStatus.FailedNew));
-        Assert.That(new2.Count, Is.EqualTo(1));
+        status2.Should().Be(GateCheckStatus.FailedNew);
+        new2.Count.Should().Be(1);
 
         // 3. Violations recognized in baseline = PassedTolerated
         var baseline = new GateBaseline
@@ -181,10 +182,10 @@ public class SemanticInvariantGateTests
             Entries = [new GateBaselineEntry { Fingerprint = "fp1" }]
         };
         var (status3, new3, tol3, count3) = RatchetService.Evaluate(gate, [v1], baseline);
-        Assert.That(status3, Is.EqualTo(GateCheckStatus.PassedTolerated));
-        Assert.That(new3, Is.Empty);
-        Assert.That(tol3.Count, Is.EqualTo(1));
-        Assert.That(count3, Is.EqualTo(1));
+        status3.Should().Be(GateCheckStatus.PassedTolerated);
+        new3.Should().BeEmpty();
+        tol3.Count.Should().Be(1);
+        count3.Should().Be(1);
 
         // 4. Additional un-baselined violation = FailedNew
         var v2 = new GateViolation
@@ -197,10 +198,10 @@ public class SemanticInvariantGateTests
             Fingerprint = "fp2"
         };
         var (status4, new4, tol4, _) = RatchetService.Evaluate(gate, [v1, v2], baseline);
-        Assert.That(status4, Is.EqualTo(GateCheckStatus.FailedNew));
-        Assert.That(new4.Count, Is.EqualTo(1));
-        Assert.That(new4[0].Fingerprint, Is.EqualTo("fp2"));
-        Assert.That(tol4.Count, Is.EqualTo(1));
+        status4.Should().Be(GateCheckStatus.FailedNew);
+        new4.Count.Should().Be(1);
+        new4[0].Fingerprint.Should().Be("fp2");
+        tol4.Count.Should().Be(1);
     }
 
     [Test]
@@ -226,9 +227,9 @@ public class SemanticInvariantGateTests
         };
 
         var updated = RatchetService.CreateUpdatedBaseline(gate, currentViolations, initialBaseline);
-        Assert.That(updated.AllowedViolations, Is.EqualTo(1));
-        Assert.That(updated.Entries.Count, Is.EqualTo(1));
-        Assert.That(updated.Entries[0].Fingerprint, Is.EqualTo("fp1"));
+        updated.AllowedViolations.Should().Be(1);
+        updated.Entries.Count.Should().Be(1);
+        updated.Entries[0].Fingerprint.Should().Be("fp1");
     }
 
     [Test]
@@ -238,12 +239,12 @@ public class SemanticInvariantGateTests
 
         // No surprise built-ins out of the box (workspace is clean by default)
         var allBuiltIns = await repo.GetAllGatesAsync();
-        Assert.That(allBuiltIns, Is.Empty);
+        allBuiltIns.Should().BeEmpty();
 
         // Init starter gates directory and template
         var createdCount = await repo.InitStarterGatesAsync();
-        Assert.That(createdCount, Is.EqualTo(1));
-        Assert.That(File.Exists(Path.Combine(_tempWorkspace, ".codeexplorer", "gates", "example-gate.yaml.example")), Is.True);
+        createdCount.Should().Be(1);
+        File.Exists(Path.Combine(_tempWorkspace, ".codeexplorer", "gates", "example-gate.yaml.example")).Should().BeTrue();
 
         // Add custom workspace gate
         var customGatePath = Path.Combine(_tempWorkspace, ".codeexplorer", "gates", "SIG-CUSTOM-001.yaml");
@@ -257,11 +258,11 @@ public class SemanticInvariantGateTests
         await File.WriteAllTextAsync(customGatePath, customYaml);
 
         var refreshed = await repo.GetAllGatesAsync();
-        Assert.That(refreshed.Any(g => g.Id == "SIG-CUSTOM-001"), Is.True);
+        (refreshed.Any(g => g.Id == "SIG-CUSTOM-001")).Should().BeTrue();
 
         var fetched = await repo.GetGateByIdAsync("SIG-CUSTOM-001");
-        Assert.That(fetched, Is.Not.Null);
-        Assert.That(fetched!.Name, Is.EqualTo("Custom Gate"));
+        fetched.Should().NotBeNull();
+        fetched!.Name.Should().Be("Custom Gate");
     }
 
     [Test]
@@ -269,14 +270,14 @@ public class SemanticInvariantGateTests
     {
         var repo = new FileGateRepository(_tempWorkspace);
         var count = await repo.InitStarterGatesAsync();
-        Assert.That(count, Is.EqualTo(1));
+        count.Should().Be(1);
 
         var gatesDir = Path.Combine(_tempWorkspace, ".codeexplorer", "gates");
         var baselinesDir = Path.Combine(_tempWorkspace, ".codeexplorer", "baselines");
 
-        Assert.That(Directory.Exists(gatesDir), Is.True);
-        Assert.That(Directory.Exists(baselinesDir), Is.True);
-        Assert.That(File.Exists(Path.Combine(gatesDir, "example-gate.yaml.example")), Is.True);
+        Directory.Exists(gatesDir).Should().BeTrue();
+        Directory.Exists(baselinesDir).Should().BeTrue();
+        File.Exists(Path.Combine(gatesDir, "example-gate.yaml.example")).Should().BeTrue();
     }
 
     [Test]
@@ -296,17 +297,17 @@ public class SemanticInvariantGateTests
 
         // Filter by Category
         var archSuite = await engine.CheckSuiteAsync(gates, categoryFilter: GateCategory.Architectural);
-        Assert.That(archSuite.Results.Select(r => r.Gate.Id), Is.EquivalentTo(new[] { "G1", "G2" }));
+        archSuite.Results.Select(r => r.Gate.Id).Should().BeEquivalentTo(new[] { "G1", "G2" });
 
         var platSuite = await engine.CheckSuiteAsync(gates, categoryFilter: GateCategory.Platform);
-        Assert.That(platSuite.Results.Select(r => r.Gate.Id), Is.EquivalentTo(new[] { "G3", "G4" }));
+        platSuite.Results.Select(r => r.Gate.Id).Should().BeEquivalentTo(new[] { "G3", "G4" });
 
         // Filter by Platform
         var dotnetSuite = await engine.CheckSuiteAsync(gates, platformFilter: "dotnet");
-        Assert.That(dotnetSuite.Results.Select(r => r.Gate.Id), Is.EquivalentTo(new[] { "G3" }));
+        dotnetSuite.Results.Select(r => r.Gate.Id).Should().BeEquivalentTo(new[] { "G3" });
 
         var tsSuite = await engine.CheckSuiteAsync(gates, platformFilter: "typescript");
-        Assert.That(tsSuite.Results.Select(r => r.Gate.Id), Is.EquivalentTo(new[] { "G4" }));
+        tsSuite.Results.Select(r => r.Gate.Id).Should().BeEquivalentTo(new[] { "G4" });
     }
 
     [Test]
@@ -326,8 +327,8 @@ public class SemanticInvariantGateTests
         // 1. Zero rows returned -> Passed
         mockDb.QueryResponse = "[]";
         var res1 = await engine.CheckGateAsync(gate);
-        Assert.That(res1.Status, Is.EqualTo(GateCheckStatus.Passed));
-        Assert.That(res1.Violations, Is.Empty);
+        res1.Status.Should().Be(GateCheckStatus.Passed);
+        res1.Violations.Should().BeEmpty();
 
         // 2. Rows returned without baseline -> FailedNew
         mockDb.QueryResponse = """
@@ -342,20 +343,20 @@ public class SemanticInvariantGateTests
             ]
             """;
         var res2 = await engine.CheckGateAsync(gate);
-        Assert.That(res2.Status, Is.EqualTo(GateCheckStatus.FailedNew));
-        Assert.That(res2.Violations.Count, Is.EqualTo(1));
-        Assert.That(res2.Violations[0].File, Is.EqualTo("src/Core/Parser.cs"));
-        Assert.That(res2.Violations[0].Line, Is.EqualTo(42));
-        Assert.That(res2.Violations[0].Symbol, Is.EqualTo("MyParser"));
+        res2.Status.Should().Be(GateCheckStatus.FailedNew);
+        res2.Violations.Count.Should().Be(1);
+        res2.Violations[0].File.Should().Be("src/Core/Parser.cs");
+        res2.Violations[0].Line.Should().Be(42);
+        res2.Violations[0].Symbol.Should().Be("MyParser");
 
         // 3. Save baseline -> PassedTolerated
         var baseline = RatchetService.CreateUpdatedBaseline(gate, res2.Violations);
         await repo.SaveBaselineAsync(baseline, gate);
 
         var res3 = await engine.CheckGateAsync(gate);
-        Assert.That(res3.Status, Is.EqualTo(GateCheckStatus.PassedTolerated));
-        Assert.That(res3.NewViolations, Is.Empty);
-        Assert.That(res3.ToleratedViolations.Count, Is.EqualTo(1));
+        res3.Status.Should().Be(GateCheckStatus.PassedTolerated);
+        res3.NewViolations.Should().BeEmpty();
+        res3.ToleratedViolations.Count.Should().Be(1);
     }
 
     [Test]
@@ -405,7 +406,7 @@ public class SemanticInvariantGateTests
         var dbPath = Path.Combine(_tempWorkspace, "graph.db");
         await using var client = new SqliteGraphClient(dbPath);
 
-        CodeExplorer.Core.Parser.WorkspaceIndexer.Register(new CodeExplorer.Parser.CSharp.CSharpParser());
+        CodeExplorer.Core.Parser.WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new CodeExplorer.Core.Parser.WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
 
@@ -413,29 +414,29 @@ public class SemanticInvariantGateTests
         var engine = new GateExecutionEngine(client, repo);
 
         var gate = BuiltInGateCatalog.GetExampleGates().First(g => g.Id == "SIG-M-I-001");
-        Assert.That(gate, Is.Not.Null);
+        gate.Should().NotBeNull();
 
         // 1. Check without baseline -> fails with exactly 3 new violations
         var res1 = await engine.CheckGateAsync(gate!);
-        Assert.That(res1.Status, Is.EqualTo(GateCheckStatus.FailedNew));
-        Assert.That(res1.Violations.Count, Is.EqualTo(3));
+        res1.Status.Should().Be(GateCheckStatus.FailedNew);
+        res1.Violations.Count.Should().Be(3);
 
         var targets = res1.Violations.Select(v => v.Target).ToList();
-        Assert.That(targets, Does.Contain("AssignRole"));
-        Assert.That(targets, Does.Contain("InvokeTarget"));
-        Assert.That(targets, Does.Contain("new ParamHolder"));
+        targets.Should().Contain("AssignRole");
+        targets.Should().Contain("InvokeTarget");
+        targets.Should().Contain("new ParamHolder");
 
         var messages = res1.Violations.Select(v => v.Message).ToList();
-        Assert.That(messages.Any(m => m != null && m.Contains("SuperAdmin")), Is.True);
+        (messages.Any(m => m != null && m.Contains("SuperAdmin"))).Should().BeTrue();
 
         // 2. Save baseline -> passes as tolerated
         var baseline = RatchetService.CreateUpdatedBaseline(gate!, res1.Violations);
         await repo.SaveBaselineAsync(baseline, gate!);
 
         var res2 = await engine.CheckGateAsync(gate!);
-        Assert.That(res2.Status, Is.EqualTo(GateCheckStatus.PassedTolerated));
-        Assert.That(res2.NewViolations, Is.Empty);
-        Assert.That(res2.ToleratedViolations.Count, Is.EqualTo(3));
+        res2.Status.Should().Be(GateCheckStatus.PassedTolerated);
+        res2.NewViolations.Should().BeEmpty();
+        res2.ToleratedViolations.Count.Should().Be(3);
     }
 
     [Test]
@@ -464,7 +465,7 @@ public class SemanticInvariantGateTests
         var dbPath = Path.Combine(_tempWorkspace, "graph.db");
         await using var client = new SqliteGraphClient(dbPath);
 
-        CodeExplorer.Core.Parser.WorkspaceIndexer.Register(new CodeExplorer.Parser.CSharp.CSharpParser());
+        CodeExplorer.Core.Parser.WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new CodeExplorer.Core.Parser.WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
 
@@ -472,23 +473,23 @@ public class SemanticInvariantGateTests
         var engine = new GateExecutionEngine(client, repo);
 
         var gate = BuiltInGateCatalog.GetExampleGates().First(g => g.Id == "SIG-M-I-002");
-        Assert.That(gate, Is.Not.Null);
+        gate.Should().NotBeNull();
 
         var res1 = await engine.CheckGateAsync(gate!);
-        Assert.That(res1.Status, Is.EqualTo(GateCheckStatus.FailedNew));
-        Assert.That(res1.Violations.Count, Is.EqualTo(1));
-        Assert.That(res1.Violations[0].Symbol, Is.EqualTo("MonsterMethod"));
-        Assert.That(res1.Violations[0].Target, Does.Contain("lines"));
-        Assert.That(res1.Violations[0].Message, Does.Contain("MonsterMethod"));
+        res1.Status.Should().Be(GateCheckStatus.FailedNew);
+        res1.Violations.Count.Should().Be(1);
+        res1.Violations[0].Symbol.Should().Be("MonsterMethod");
+        res1.Violations[0].Target.Should().Contain("lines");
+        res1.Violations[0].Message.Should().Contain("MonsterMethod");
 
         // Save baseline -> passes as tolerated
         var baseline = RatchetService.CreateUpdatedBaseline(gate!, res1.Violations);
         await repo.SaveBaselineAsync(baseline, gate!);
 
         var res2 = await engine.CheckGateAsync(gate!);
-        Assert.That(res2.Status, Is.EqualTo(GateCheckStatus.PassedTolerated));
-        Assert.That(res2.NewViolations, Is.Empty);
-        Assert.That(res2.ToleratedViolations.Count, Is.EqualTo(1));
+        res2.Status.Should().Be(GateCheckStatus.PassedTolerated);
+        res2.NewViolations.Should().BeEmpty();
+        res2.ToleratedViolations.Count.Should().Be(1);
     }
 
     [Test]
@@ -517,7 +518,7 @@ public class SemanticInvariantGateTests
         var dbPath = Path.Combine(_tempWorkspace, "graph_r.db");
         await using var client = new SqliteGraphClient(dbPath);
 
-        CodeExplorer.Core.Parser.WorkspaceIndexer.Register(new CodeExplorer.Parser.CSharp.CSharpParser());
+        CodeExplorer.Core.Parser.WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new CodeExplorer.Core.Parser.WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
 
@@ -525,23 +526,23 @@ public class SemanticInvariantGateTests
         var engine = new GateExecutionEngine(client, repo);
 
         var gate = BuiltInGateCatalog.GetExampleGates().First(g => g.Id == "SIG-M-R-001");
-        Assert.That(gate, Is.Not.Null);
+        gate.Should().NotBeNull();
 
         var res1 = await engine.CheckGateAsync(gate!);
-        Assert.That(res1.Status, Is.EqualTo(GateCheckStatus.FailedNew));
-        Assert.That(res1.Violations.Count, Is.EqualTo(1));
-        Assert.That(res1.Violations[0].Symbol, Is.EqualTo("MonsterMethod"));
-        Assert.That(res1.Violations[0].Target, Does.Contain("lines"));
-        Assert.That(res1.Violations[0].Message, Does.Contain("MonsterMethod"));
+        res1.Status.Should().Be(GateCheckStatus.FailedNew);
+        res1.Violations.Count.Should().Be(1);
+        res1.Violations[0].Symbol.Should().Be("MonsterMethod");
+        res1.Violations[0].Target.Should().Contain("lines");
+        res1.Violations[0].Message.Should().Contain("MonsterMethod");
 
         // Save baseline -> passes as tolerated
         var baseline = RatchetService.CreateUpdatedBaseline(gate!, res1.Violations);
         await repo.SaveBaselineAsync(baseline, gate!);
 
         var res2 = await engine.CheckGateAsync(gate!);
-        Assert.That(res2.Status, Is.EqualTo(GateCheckStatus.PassedTolerated));
-        Assert.That(res2.NewViolations, Is.Empty);
-        Assert.That(res2.ToleratedViolations.Count, Is.EqualTo(1));
+        res2.Status.Should().Be(GateCheckStatus.PassedTolerated);
+        res2.NewViolations.Should().BeEmpty();
+        res2.ToleratedViolations.Count.Should().Be(1);
     }
 
     [Test]
@@ -593,7 +594,7 @@ public class SemanticInvariantGateTests
         var dbPath = Path.Combine(_tempWorkspace, "graph.db");
         await using var client = new SqliteGraphClient(dbPath);
 
-        CodeExplorer.Core.Parser.WorkspaceIndexer.Register(new CodeExplorer.Parser.CSharp.CSharpParser());
+        CodeExplorer.Core.Parser.WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new CodeExplorer.Core.Parser.WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
 
@@ -601,13 +602,13 @@ public class SemanticInvariantGateTests
         var engine = new GateExecutionEngine(client, repo);
 
         var gate = BuiltInGateCatalog.GetExampleGates().First(g => g.Id == "SIG-M-I-001");
-        Assert.That(gate, Is.Not.Null);
+        gate.Should().NotBeNull();
 
         var res = await engine.CheckGateAsync(gate!);
-        Assert.That(res.Status, Is.EqualTo(GateCheckStatus.FailedNew));
-        Assert.That(res.Violations.Count, Is.EqualTo(1));
-        Assert.That(res.Violations[0].Symbol, Is.EqualTo("GetOrder"));
-        Assert.That(res.Violations[0].Message, Does.Contain("HARDCODED_PAYMENT_STATUS"));
+        res.Status.Should().Be(GateCheckStatus.FailedNew);
+        res.Violations.Count.Should().Be(1);
+        res.Violations[0].Symbol.Should().Be("GetOrder");
+        res.Violations[0].Message.Should().Contain("HARDCODED_PAYMENT_STATUS");
     }
 
     [Test]
@@ -663,7 +664,7 @@ public class SemanticInvariantGateTests
         var dbPath = Path.Combine(_tempWorkspace, "graph.db");
         await using var client = new SqliteGraphClient(dbPath);
 
-        CodeExplorer.Core.Parser.WorkspaceIndexer.Register(new CodeExplorer.Parser.CSharp.CSharpParser());
+        CodeExplorer.Core.Parser.WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new CodeExplorer.Core.Parser.WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
 
@@ -673,10 +674,10 @@ public class SemanticInvariantGateTests
         var gate = BuiltInGateCatalog.GetExampleGates().First(g => g.Id == "SIG-M-I-005");
 
         var res = await engine.CheckGateAsync(gate);
-        Assert.That(res.Status, Is.EqualTo(GateCheckStatus.FailedNew));
-        Assert.That(res.Violations.Count, Is.EqualTo(1));
-        Assert.That(res.Violations[0].Symbol, Is.EqualTo("Exception"));
-        Assert.That(res.Violations[0].Message, Does.Contain("Empty catch block without an explanatory comment"));
+        res.Status.Should().Be(GateCheckStatus.FailedNew);
+        res.Violations.Count.Should().Be(1);
+        res.Violations[0].Symbol.Should().Be("Exception");
+        res.Violations[0].Message.Should().Contain("Empty catch block without an explanatory comment");
     }
 
     [Test]
@@ -744,14 +745,14 @@ public class SemanticInvariantGateTests
         var engine = new GateExecutionEngine(client, repo);
 
         var gate = BuiltInGateCatalog.GetExampleGates().First(g => g.Id == "SIG-A-C-001");
-        Assert.That(gate, Is.Not.Null);
+        gate.Should().NotBeNull();
 
         var res = await engine.CheckGateAsync(gate);
-        Assert.That(res.Status, Is.EqualTo(GateCheckStatus.FailedNew));
-        Assert.That(res.Violations.Count, Is.EqualTo(1));
-        Assert.That(res.Violations[0].Symbol, Is.EqualTo("FetchOrders"));
-        Assert.That(res.Violations[0].Target, Is.EqualTo("/api/v1/non-existent-orders"));
-        Assert.That(res.Violations[0].Message, Does.Contain("Internal HTTP call to non-existent endpoint /api/v1/non-existent-orders"));
+        res.Status.Should().Be(GateCheckStatus.FailedNew);
+        res.Violations.Count.Should().Be(1);
+        res.Violations[0].Symbol.Should().Be("FetchOrders");
+        res.Violations[0].Target.Should().Be("/api/v1/non-existent-orders");
+        res.Violations[0].Message.Should().Contain("Internal HTTP call to non-existent endpoint /api/v1/non-existent-orders");
     }
 
     [Test]
@@ -795,9 +796,9 @@ public class SemanticInvariantGateTests
         var gate = BuiltInGateCatalog.EndpointIdentityUniquenessGate;
         var res = await engine.CheckGateAsync(gate);
 
-        Assert.That(res.Status, Is.EqualTo(GateCheckStatus.FailedNew));
-        Assert.That(res.Violations.Count, Is.EqualTo(1));
-        Assert.That(res.Violations[0].Message, Does.Contain("Duplicate endpoint route declared in project order-service"));
+        res.Status.Should().Be(GateCheckStatus.FailedNew);
+        res.Violations.Count.Should().Be(1);
+        res.Violations[0].Message.Should().Contain("Duplicate endpoint route declared in project order-service");
     }
 
     [Test]
@@ -825,10 +826,10 @@ public class SemanticInvariantGateTests
         var gate = BuiltInGateCatalog.SqlTableSanitizationGate;
         var res = await engine.CheckGateAsync(gate);
 
-        Assert.That(res.Status, Is.EqualTo(GateCheckStatus.FailedNew));
-        Assert.That(res.Violations.Count, Is.EqualTo(1));
-        Assert.That(res.Violations[0].Symbol, Is.EqualTo("SKIP"));
-        Assert.That(res.Violations[0].Message, Does.Contain("Invalid or keyword SQL Table entity detected in graph: SKIP"));
+        res.Status.Should().Be(GateCheckStatus.FailedNew);
+        res.Violations.Count.Should().Be(1);
+        res.Violations[0].Symbol.Should().Be("SKIP");
+        res.Violations[0].Message.Should().Contain("Invalid or keyword SQL Table entity detected in graph: SKIP");
     }
 
     [Test]
@@ -862,10 +863,10 @@ public class SemanticInvariantGateTests
         var gate = BuiltInGateCatalog.UnmountedExpressRouteGate;
         var res = await engine.CheckGateAsync(gate);
 
-        Assert.That(res.Status, Is.EqualTo(GateCheckStatus.FailedNew));
-        Assert.That(res.Violations.Count, Is.EqualTo(1));
-        Assert.That(res.Violations[0].Symbol, Is.EqualTo("DELETE:/:id"));
-        Assert.That(res.Violations[0].Message, Does.Contain("Unmounted parameter root route detected: DELETE /:id"));
+        res.Status.Should().Be(GateCheckStatus.FailedNew);
+        res.Violations.Count.Should().Be(1);
+        res.Violations[0].Symbol.Should().Be("DELETE:/:id");
+        res.Violations[0].Message.Should().Contain("Unmounted parameter root route detected: DELETE /:id");
     }
 
     private class MockGateDbClient : IGraphClient

@@ -2,7 +2,6 @@ using System.Text.Json;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Mcp;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Parser.CSharp;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -64,6 +63,7 @@ public class OrderProcessor
 
 using OrderService;
 using Xunit;
+using AwesomeAssertions;
 
 public class OrderProcessorTests
 {
@@ -79,7 +79,7 @@ public class OrderProcessorTests
         _dbPath = Path.Combine(_tempWorkspace, "test_tia.db");
         _client = new SqliteGraphClient(_dbPath);
 
-        WorkspaceIndexer.Register(new CSharpParser());
+        WorkspaceIndexer.AutoRegisterParsers();
 
         var indexer = new WorkspaceIndexer(_client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
@@ -105,9 +105,9 @@ public class OrderProcessorTests
 
         var array = doc.RootElement.EnumerateArray().ToList();
 
-        Assert.That(array.Count, Is.GreaterThan(0), "No TestSuite node materialized!");
+        array.Count.Should().BeGreaterThan(0, "No TestSuite node materialized!");
         var suiteName = array[0].GetProperty("name").GetString();
-        Assert.That(suiteName, Does.Contain("OrderService.Tests").IgnoreCase);
+        suiteName.Should().ContainEquivalentOf("OrderService.Tests");
 
         // Check TESTS relationship from TestSuite to target
         var testsRelRes =
@@ -117,7 +117,7 @@ public class OrderProcessorTests
         using var relDoc = JsonDocument.Parse(testsRelRes);
 
         var relArray = relDoc.RootElement.EnumerateArray().ToList();
-        Assert.That(relArray.Count, Is.GreaterThan(0), "TestSuite does not have a TESTS relationship!");
+        relArray.Count.Should().BeGreaterThan(0, "TestSuite does not have a TESTS relationship!");
     }
 
     [Test]
@@ -129,7 +129,7 @@ public class OrderProcessorTests
 
         var array = doc.RootElement.EnumerateArray().ToList();
 
-        Assert.That(array.Count, Is.EqualTo(1), "Expected 1 Test_ProcessPayment_Success function node");
+        array.Count.Should().Be(1, "Expected 1 Test_ProcessPayment_Success function node");
         var isTestProp = array[0].GetProperty("isTest");
         var isTest = isTestProp.ValueKind switch
         {
@@ -138,9 +138,9 @@ public class OrderProcessorTests
             JsonValueKind.Number => isTestProp.GetInt32() == 1 ? "true" : "false",
             _ => isTestProp.GetString()
         };
-        Assert.That(isTest, Is.EqualTo("true"));
+        isTest.Should().Be("true");
         var framework = array[0].GetProperty("framework").GetString();
-        Assert.That(framework, Is.EqualTo("xunit"));
+        framework.Should().Be("xunit");
     }
 
     [Test]
@@ -157,9 +157,9 @@ public class OrderProcessorTests
 
         var array = doc.RootElement.EnumerateArray().ToList();
 
-        Assert.That(array.Count, Is.GreaterThan(0), "Expected at least 1 affected test for OrderProcessor.cs");
+        array.Count.Should().BeGreaterThan(0, "Expected at least 1 affected test for OrderProcessor.cs");
         var testNames = array.Select(x => x.GetProperty("testName").GetString()).ToList();
-        Assert.That(testNames, Does.Contain("Test_ProcessPayment_Success"));
+        testNames.Should().Contain("Test_ProcessPayment_Success");
     }
 
     [Test]
@@ -176,8 +176,8 @@ public class OrderProcessorTests
 
         var array = doc.RootElement.EnumerateArray().ToList();
 
-        Assert.That(array.Count, Is.GreaterThan(0), "Expected at least 1 affected test for OrderProcessorTests.cs");
+        array.Count.Should().BeGreaterThan(0, "Expected at least 1 affected test for OrderProcessorTests.cs");
         var testNames = array.Select(x => x.GetProperty("testName").GetString()).ToList();
-        Assert.That(testNames, Does.Contain("Test_ProcessPayment_Success"));
+        testNames.Should().Contain("Test_ProcessPayment_Success");
     }
 }

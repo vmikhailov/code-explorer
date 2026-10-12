@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Analysis;
 using NUnit.Framework;
 
@@ -35,32 +36,32 @@ public class IntentProcessManagerTests
     public void LockFilePath_ShouldBeInCodeExplorerDirectory()
     {
         var lockPath = IntentProcessManager.GetLockFilePath(_tempWorkspace);
-        Assert.That(lockPath, Is.EqualTo(Path.Combine(_tempWorkspace, ".codeexplorer", "intent.lock")));
+        lockPath.Should().Be(Path.Combine(_tempWorkspace, ".codeexplorer", "intent.lock"));
     }
 
     [Test]
     public void AcquireLock_ShouldCreateLockFile_AndReleaseOnDispose()
     {
         var lockPath = IntentProcessManager.GetLockFilePath(_tempWorkspace);
-        Assert.That(File.Exists(lockPath), Is.False);
+        File.Exists(lockPath).Should().BeFalse();
 
         using (var handle = IntentProcessManager.TryAcquireLock(_tempWorkspace, out var error))
         {
-            Assert.That(handle, Is.Not.Null);
-            Assert.That(error, Is.Null);
-            Assert.That(File.Exists(lockPath), Is.True);
+            handle.Should().NotBeNull();
+            error.Should().BeNull();
+            File.Exists(lockPath).Should().BeTrue();
 
             var (isRunning, lockInfo, elapsed) = IntentProcessManager.GetStatus(_tempWorkspace);
-            Assert.That(isRunning, Is.True);
-            Assert.That(lockInfo, Is.Not.Null);
-            Assert.That(lockInfo!.ProcessId, Is.EqualTo(Environment.ProcessId));
-            Assert.That(elapsed, Is.Not.Null);
+            isRunning.Should().BeTrue();
+            lockInfo.Should().NotBeNull();
+            lockInfo!.ProcessId.Should().Be(Environment.ProcessId);
+            elapsed.Should().NotBeNull();
         }
 
         // After dispose, lock file must be cleaned up
-        Assert.That(File.Exists(lockPath), Is.False);
+        File.Exists(lockPath).Should().BeFalse();
         var (afterRunning, _, _) = IntentProcessManager.GetStatus(_tempWorkspace);
-        Assert.That(afterRunning, Is.False);
+        afterRunning.Should().BeFalse();
     }
 
     [Test]
@@ -68,14 +69,14 @@ public class IntentProcessManagerTests
     {
         using var firstHandle = IntentProcessManager.TryAcquireLock(_tempWorkspace, out var firstError);
 
-        Assert.That(firstHandle, Is.Not.Null);
-        Assert.That(firstError, Is.Null);
+        firstHandle.Should().NotBeNull();
+        firstError.Should().BeNull();
 
         using var secondHandle = IntentProcessManager.TryAcquireLock(_tempWorkspace, out var secondError);
 
-        Assert.That(secondHandle, Is.Null);
-        Assert.That(secondError, Is.Not.Null);
-        Assert.That(secondError, Does.Contain(Environment.ProcessId.ToString()));
+        secondHandle.Should().BeNull();
+        secondError.Should().NotBeNull();
+        secondError.Should().Contain(Environment.ProcessId.ToString());
     }
 
     [Test]
@@ -85,8 +86,8 @@ public class IntentProcessManagerTests
 
         // Case 1: no file exists
         var (stopped1, pid1, _) = IntentProcessManager.StopRunningProcess(_tempWorkspace);
-        Assert.That(stopped1, Is.False);
-        Assert.That(pid1, Is.EqualTo(0));
+        stopped1.Should().BeFalse();
+        pid1.Should().Be(0);
 
         // Case 2: stale lock file with dead PID
         File.WriteAllText(lockPath, """
@@ -99,9 +100,9 @@ public class IntentProcessManagerTests
         }
         """);
 
-        Assert.That(File.Exists(lockPath), Is.True);
+        File.Exists(lockPath).Should().BeTrue();
         var (stopped2, _, _) = IntentProcessManager.StopRunningProcess(_tempWorkspace);
-        Assert.That(stopped2, Is.True); // Cleans up stale lock
-        Assert.That(File.Exists(lockPath), Is.False);
+        stopped2.Should().BeTrue(); // Cleans up stale lock
+        File.Exists(lockPath).Should().BeFalse();
     }
 }

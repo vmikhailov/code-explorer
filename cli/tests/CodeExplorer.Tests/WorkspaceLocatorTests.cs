@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Common;
 using NUnit.Framework;
 
@@ -36,11 +37,11 @@ public class WorkspaceLocatorTests
     {
         var ws = WorkspaceLocator.Initialize(_tempDir, "TestWorkspace");
 
-        Assert.That(ws, Is.Not.Null);
-        Assert.That(ws.RootDirectory, Is.EqualTo(_tempDir));
-        Assert.That(Directory.Exists(Path.Combine(_tempDir, ".codeexplorer")), Is.True);
-        Assert.That(Directory.Exists(ws.QueriesDirectory), Is.True);
-        Assert.That(ws.DbPath, Is.EqualTo(Path.Combine(_tempDir, ".codeexplorer", "graph.db")));
+        ws.Should().NotBeNull();
+        ws.RootDirectory.Should().Be(_tempDir);
+        Directory.Exists(Path.Combine(_tempDir, ".codeexplorer")).Should().BeTrue();
+        Directory.Exists(ws.QueriesDirectory).Should().BeTrue();
+        ws.DbPath.Should().Be(Path.Combine(_tempDir, ".codeexplorer", "graph.db"));
     }
 
     [Test]
@@ -55,9 +56,9 @@ public class WorkspaceLocatorTests
 
         var found = WorkspaceLocator.Find(nested);
 
-        Assert.That(found, Is.Not.Null);
-        Assert.That(found!.RootDirectory, Is.EqualTo(_tempDir));
-        Assert.That(found.DbPath, Is.EqualTo(Path.Combine(_tempDir, ".codeexplorer", "graph.db")));
+        found.Should().NotBeNull();
+        found!.RootDirectory.Should().Be(_tempDir);
+        found.DbPath.Should().Be(Path.Combine(_tempDir, ".codeexplorer", "graph.db"));
     }
 
     [Test]
@@ -68,7 +69,7 @@ public class WorkspaceLocatorTests
 
         var found = WorkspaceLocator.Find(nonWs);
 
-        Assert.That(found, Is.Null);
+        found.Should().BeNull();
     }
 
     [Test]
@@ -79,8 +80,8 @@ public class WorkspaceLocatorTests
 
         var ex = Assert.Throws<InvalidOperationException>(() => WorkspaceLocator.FindOrThrow(nonWs));
 
-        Assert.That(ex!.Message, Does.Contain("No '.codeexplorer' workspace found"));
-        Assert.That(ex.Message, Does.Contain("ce init"));
+        ex!.Message.Should().Contain("No '.codeexplorer' workspace found");
+        ex.Message.Should().Contain("ce init");
     }
 
     [Test]
@@ -89,8 +90,8 @@ public class WorkspaceLocatorTests
         WorkspaceLocator.Initialize(_tempDir, "ExplicitWs");
         var found = WorkspaceLocator.FindWithFallbacks(_tempDir);
 
-        Assert.That(found, Is.Not.Null);
-        Assert.That(found!.RootDirectory, Is.EqualTo(_tempDir));
+        found.Should().NotBeNull();
+        found!.RootDirectory.Should().Be(_tempDir);
     }
 
     [Test]
@@ -101,7 +102,7 @@ public class WorkspaceLocatorTests
 
         var found = WorkspaceLocator.FindWithFallbacks(nonWs);
 
-        Assert.That(found, Is.Null, "Explicit invalid path should not fall back to CWD");
+        found.Should().BeNull("Explicit invalid path should not fall back to CWD");
     }
 
     [Test]
@@ -114,8 +115,8 @@ public class WorkspaceLocatorTests
             Environment.SetEnvironmentVariable("WORKSPACE_ROOT", _tempDir);
             var found = WorkspaceLocator.FindWithFallbacks();
 
-            Assert.That(found, Is.Not.Null);
-            Assert.That(found!.RootDirectory, Is.EqualTo(_tempDir));
+            found.Should().NotBeNull();
+            found!.RootDirectory.Should().Be(_tempDir);
         }
         finally
         {
@@ -129,7 +130,7 @@ public class WorkspaceLocatorTests
         var ws = WorkspaceLocator.Initialize(_tempDir, "DbPathWs");
         var found = WorkspaceLocator.FindFromDbPath(ws.DbPath);
 
-        Assert.That(found, Is.Not.Null);
-        Assert.That(found!.RootDirectory, Is.EqualTo(_tempDir));
+        found.Should().NotBeNull();
+        found!.RootDirectory.Should().Be(_tempDir);
     }
 }

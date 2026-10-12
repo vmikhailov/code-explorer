@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using NUnit.Framework;
@@ -19,12 +20,12 @@ public class ProjectNodeFactoryTests
             ["/workspace/services/orders/Program.cs", "/workspace/services/orders/Orders.csproj"]
         );
 
-        Assert.That(node, Is.InstanceOf<ProjectNode>());
-        Assert.That(node.Kind, Is.EqualTo("Project"));
-        Assert.That(node.Role, Is.EqualTo("Service"));
-        Assert.That(node.IsLibrary, Is.False);
-        Assert.That(node.Extensions?["role"], Is.EqualTo("Service"));
-        Assert.That(node.Extensions?["entity_type"], Is.EqualTo("service"));
+        node.Should().BeOfType<ProjectNode>();
+        node.Kind.Should().Be("Project");
+        node.Role.Should().Be("Service");
+        node.IsLibrary.Should().BeFalse();
+        node.Extensions?["role"].Should().Be("Service");
+        node.Extensions?["entity_type"].Should().Be("service");
     }
 
     [Test]
@@ -40,10 +41,10 @@ public class ProjectNodeFactoryTests
             ["react", "react-dom"]
         );
 
-        Assert.That(node, Is.InstanceOf<ProjectNode>());
-        Assert.That(node.Kind, Is.EqualTo("Project"));
-        Assert.That(node.Role, Is.EqualTo("FrontendApp"));
-        Assert.That(node.IsLibrary, Is.False);
+        node.Should().BeOfType<ProjectNode>();
+        node.Kind.Should().Be("Project");
+        node.Role.Should().Be("FrontendApp");
+        node.IsLibrary.Should().BeFalse();
     }
 
     [Test]
@@ -58,11 +59,11 @@ public class ProjectNodeFactoryTests
             ["/workspace/libs/common/Common.csproj"]
         );
 
-        Assert.That(node, Is.InstanceOf<ProjectNode>());
-        Assert.That(node.Kind, Is.EqualTo("Project"));
-        Assert.That(node.Role, Is.EqualTo("SharedLibrary"));
-        Assert.That(node.IsLibrary, Is.True);
-        Assert.That(node.Extensions?["entity_type"], Is.EqualTo("library"));
+        node.Should().BeOfType<ProjectNode>();
+        node.Kind.Should().Be("Project");
+        node.Role.Should().Be("SharedLibrary");
+        node.IsLibrary.Should().BeTrue();
+        node.Extensions?["entity_type"].Should().Be("library");
     }
 
     [Test]
@@ -77,10 +78,10 @@ public class ProjectNodeFactoryTests
             ["/workspace/workers/email-worker/Worker.cs"]
         );
 
-        Assert.That(node, Is.InstanceOf<ProjectNode>());
-        Assert.That(node.Kind, Is.EqualTo("Project"));
-        Assert.That(node.Role, Is.EqualTo("Worker"));
-        Assert.That(node.IsLibrary, Is.False);
+        node.Should().BeOfType<ProjectNode>();
+        node.Kind.Should().Be("Project");
+        node.Role.Should().Be("Worker");
+        node.IsLibrary.Should().BeFalse();
     }
 
     [Test]
@@ -95,10 +96,10 @@ public class ProjectNodeFactoryTests
             ["/workspace/tools/db-migrator-cli/Program.cs"]
         );
 
-        Assert.That(node, Is.InstanceOf<ProjectNode>());
-        Assert.That(node.Kind, Is.EqualTo("Project"));
-        Assert.That(node.Role, Is.EqualTo("CliTool"));
-        Assert.That(node.IsLibrary, Is.False);
+        node.Should().BeOfType<ProjectNode>();
+        node.Kind.Should().Be("Project");
+        node.Role.Should().Be("CliTool");
+        node.IsLibrary.Should().BeFalse();
     }
 
     [Test]
@@ -114,8 +115,8 @@ public class ProjectNodeFactoryTests
             ["nunit"]
         );
 
-        Assert.That(node, Is.InstanceOf<ProjectNode>());
-        Assert.That(node.Role, Is.EqualTo("Test"));
-        Assert.That(node.IsLibrary, Is.True);
+        node.Should().BeOfType<ProjectNode>();
+        node.Role.Should().Be("Test");
+        node.IsLibrary.Should().BeTrue();
     }
 }

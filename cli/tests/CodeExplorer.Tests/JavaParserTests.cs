@@ -1,5 +1,5 @@
 using System.Threading.Channels;
-using NUnit.Framework;
+using AwesomeAssertions;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -7,6 +7,7 @@ using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.Java;
 using CodeExplorer.Tests.Shared;
+using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
 
@@ -23,20 +24,20 @@ public class JavaParserTests
         var dir = workspace.WorkspacePath;
         var files = Directory.GetFiles(dir);
 
-        Assert.That(parser.IsProjectDirectory(dir, files), Is.True);
+        parser.IsProjectDirectory(dir, files).Should().BeTrue();
 
         var producedPkg = await parser.GetProducedPackageAsync(dir);
-        Assert.That(producedPkg, Is.Not.Null);
-        Assert.That(producedPkg!.Name, Is.EqualTo("com.example:demo-service"));
-        Assert.That(producedPkg.Version, Is.EqualTo("1.0.0-SNAPSHOT"));
-        Assert.That(producedPkg.Type, Is.EqualTo("maven"));
+        producedPkg.Should().NotBeNull();
+        producedPkg!.Name.Should().Be("com.example:demo-service");
+        producedPkg.Version.Should().Be("1.0.0-SNAPSHOT");
+        producedPkg.Type.Should().Be("maven");
 
         var deps = await parser.ParseDependenciesAsync(dir);
-        Assert.That(deps, Is.Not.Null);
+        deps.Should().NotBeNull();
         var pkgNames = deps.ExternalPackages.Select(p => p.Name).ToList();
-        Assert.That(pkgNames, Contains.Item("org.springframework.boot:spring-boot-starter-web"));
-        Assert.That(pkgNames, Contains.Item("org.postgresql:postgresql"));
-        Assert.That(pkgNames, Contains.Item("org.springframework.kafka:spring-kafka"));
+        pkgNames.Should().Contain("org.springframework.boot:spring-boot-starter-web");
+        pkgNames.Should().Contain("org.postgresql:postgresql");
+        pkgNames.Should().Contain("org.springframework.kafka:spring-kafka");
     }
 
     [Test]
@@ -49,20 +50,20 @@ public class JavaParserTests
         var dir = workspace.WorkspacePath;
         var files = Directory.GetFiles(dir);
 
-        Assert.That(parser.IsProjectDirectory(dir, files), Is.True);
+        parser.IsProjectDirectory(dir, files).Should().BeTrue();
 
         var producedPkg = await parser.GetProducedPackageAsync(dir);
-        Assert.That(producedPkg, Is.Not.Null);
-        Assert.That(producedPkg!.Name, Contains.Substring("com.example.gradle"));
-        Assert.That(producedPkg.Version, Is.EqualTo("2.1.0"));
-        Assert.That(producedPkg.Type, Is.EqualTo("gradle"));
+        producedPkg.Should().NotBeNull();
+        producedPkg!.Name.Should().Contain("com.example.gradle");
+        producedPkg.Version.Should().Be("2.1.0");
+        producedPkg.Type.Should().Be("gradle");
 
         var deps = await parser.ParseDependenciesAsync(dir);
-        Assert.That(deps, Is.Not.Null);
+        deps.Should().NotBeNull();
         var pkgNames = deps.ExternalPackages.Select(p => p.Name).ToList();
-        Assert.That(pkgNames, Contains.Item("org.springframework.boot:spring-boot-starter-web"));
-        Assert.That(pkgNames, Contains.Item("org.postgresql:postgresql"));
-        Assert.That(pkgNames, Contains.Item("redis.clients:jedis"));
+        pkgNames.Should().Contain("org.springframework.boot:spring-boot-starter-web");
+        pkgNames.Should().Contain("org.postgresql:postgresql");
+        pkgNames.Should().Contain("redis.clients:jedis");
     }
 
     [Test]
@@ -86,28 +87,26 @@ public class JavaParserTests
         Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 
         var fileNode = syntaxTree.FileNode;
-        Assert.That(fileNode, Is.Not.Null);
+        fileNode.Should().NotBeNull();
 
         var typeNodes = FindNodes<TypeNode>(fileNode.Children);
-        Assert.That(typeNodes, Is.Not.Empty);
+        typeNodes.Should().NotBeEmpty();
         var userController = typeNodes.FirstOrDefault(c => c.Name == "UserController");
-        Assert.That(userController, Is.Not.Null);
+        userController.Should().NotBeNull();
 
         var functions = FindNodes<FunctionNode>(fileNode.Children);
         var functionNames = functions.Select(m => m.Name).ToList();
-        Assert.That(functionNames, Contains.Item("getAllUsers"));
-        Assert.That(functionNames, Contains.Item("getUserById"));
-        Assert.That(functionNames, Contains.Item("createUser"));
-        Assert.That(functionNames, Contains.Item("deleteUser"));
+        functionNames.Should().Contain("getAllUsers");
+        functionNames.Should().Contain("getUserById");
+        functionNames.Should().Contain("createUser");
+        functionNames.Should().Contain("deleteUser");
 
         var endpoints = FindNodes<EndpointNode>(fileNode.Children);
         var entryPoints = FindNodes<EntryPointNode>(fileNode.Children);
-        Assert.That(endpoints.Count + entryPoints.Count, Is.GreaterThan(0));
+        (endpoints.Count + entryPoints.Count).Should().BeGreaterThan(0);
         var routeNames = endpoints.Select(e => e.Name).Concat(entryPoints.Select(e => e.Name)).ToList();
 
-        Assert.That(routeNames,
-            Contains.Item("GET:/api/v1/users").Or.Contains("GET:/").Or.Contains("GET:/{id}").Or
-                .Contains("/api/v1/users"));
+        routeNames.Any(r => r is "GET:/api/v1/users" or "GET:/" or "GET:/{id}" or "/api/v1/users").Should().BeTrue();
     }
 
     [Test]
@@ -131,23 +130,23 @@ public class JavaParserTests
         Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 
         var fileNode = syntaxTree.FileNode;
-        Assert.That(fileNode, Is.Not.Null);
+        fileNode.Should().NotBeNull();
 
         var interfaces = FindNodes<TypeNode>(fileNode.Children);
-        Assert.That(interfaces, Is.Not.Empty);
+        interfaces.Should().NotBeEmpty();
         var userRepo = interfaces.FirstOrDefault(i => i.Name == "UserRepository");
-        Assert.That(userRepo, Is.Not.Null);
+        userRepo.Should().NotBeNull();
 
         var queryNodes = FindNodes<QueryNode>(fileNode.Children);
-        Assert.That(queryNodes, Is.Not.Empty, "Should detect @Query embedded SQL queries");
+        queryNodes.Should().NotBeEmpty("Should detect @Query embedded SQL queries");
 
         var hasSelectUsers = queryNodes.Any(q =>
             q.QueryText.Contains("users", StringComparison.OrdinalIgnoreCase));
-        Assert.That(hasSelectUsers, Is.True);
+        hasSelectUsers.Should().BeTrue();
 
         var tableDeps = queryNodes.SelectMany(q => q.References).Where(r => r.Kind == "DEPENDS_ON")
             .Select(r => r.TargetName).ToList();
-        Assert.That(tableDeps, Contains.Item("users"));
+        tableDeps.Should().Contain("users");
     }
 
     [Test]
@@ -171,15 +170,15 @@ public class JavaParserTests
         Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 
         var fileNode = syntaxTree.FileNode;
-        Assert.That(fileNode, Is.Not.Null);
+        fileNode.Should().NotBeNull();
 
         var classNodes = FindNodes<TypeNode>(fileNode.Children);
-        Assert.That(classNodes.Any(c => c.Name == "OrderService"), Is.True);
+        (classNodes.Any(c => c.Name == "OrderService")).Should().BeTrue();
 
         var functions = FindNodes<FunctionNode>(fileNode.Children);
         var functionNames = functions.Select(m => m.Name).ToList();
-        Assert.That(functionNames, Contains.Item("placeOrder"));
-        Assert.That(functionNames, Contains.Item("verifyPayment"));
+        functionNames.Should().Contain("placeOrder");
+        functionNames.Should().Contain("verifyPayment");
     }
 
     private static List<T> FindNodes<T>(IEnumerable<IOntologyNode> nodes) where T : IOntologyNode

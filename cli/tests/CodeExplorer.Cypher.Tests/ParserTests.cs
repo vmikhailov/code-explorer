@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using CodeExplorer.Cypher.Ast;
 using CodeExplorer.Cypher.Parser;
 using NUnit.Framework;
@@ -13,22 +14,22 @@ public class ParserTests
         var cypher = "MATCH (n:File) RETURN n.path AS filePath";
         var query = CypherQueryParser.Parse(cypher);
 
-        Assert.That(query.Matches, Has.Count.EqualTo(1));
+        query.Matches.Should().HaveCount(1);
         var match = query.Matches[0];
-        Assert.That(match.IsOptional, Is.False);
-        Assert.That(match.Paths, Has.Count.EqualTo(1));
+        match.IsOptional.Should().BeFalse();
+        match.Paths.Should().HaveCount(1);
 
         var head = match.Paths[0].Head;
-        Assert.That(head.Variable, Is.EqualTo("n"));
-        Assert.That(head.Labels, Contains.Item("File"));
+        head.Variable.Should().Be("n");
+        head.Labels.Should().Contain("File");
 
-        Assert.That(query.Return.Items, Has.Count.EqualTo(1));
+        query.Return.Items.Should().HaveCount(1);
         var ret = query.Return.Items[0];
-        Assert.That(ret.Alias, Is.EqualTo("filePath"));
-        Assert.That(ret.Expression, Is.InstanceOf<PropertyAccessExpression>());
+        ret.Alias.Should().Be("filePath");
+        ret.Expression.Should().BeOfType<PropertyAccessExpression>();
         var prop = (PropertyAccessExpression)ret.Expression;
-        Assert.That(prop.Variable, Is.EqualTo("n"));
-        Assert.That(prop.PropertyName, Is.EqualTo("path"));
+        prop.Variable.Should().Be("n");
+        prop.PropertyName.Should().Be("path");
     }
 
     [Test]
@@ -38,17 +39,17 @@ public class ParserTests
         var query = CypherQueryParser.Parse(cypher);
 
         var path = query.Matches[0].Paths[0];
-        Assert.That(path.Head.Variable, Is.EqualTo("f"));
-        Assert.That(path.Chain, Has.Count.EqualTo(1));
+        path.Head.Variable.Should().Be("f");
+        path.Chain.Should().HaveCount(1);
 
         var link = path.Chain[0];
-        Assert.That(link.Relationship.Types, Is.EqualTo(new[] { "DEFINES", "DECLARES" }));
-        Assert.That(link.Relationship.Direction, Is.EqualTo(Direction.Outgoing));
+        link.Relationship.Types.Should().Equal(new[] { "DEFINES", "DECLARES" });
+        link.Relationship.Direction.Should().Be(Direction.Outgoing);
 
-        Assert.That(link.Target.Variable, Is.EqualTo("c"));
-        Assert.That(link.Target.Labels, Contains.Item("Type"));
-        Assert.That(link.Target.Properties, Is.Not.Null);
-        Assert.That(link.Target.Properties!["kind"], Is.InstanceOf<StringLiteralExpression>());
+        link.Target.Variable.Should().Be("c");
+        link.Target.Labels.Should().Contain("Type");
+        link.Target.Properties.Should().NotBeNull();
+        link.Target.Properties!["kind"].Should().BeOfType<StringLiteralExpression>();
     }
 
     [Test]
@@ -58,14 +59,14 @@ public class ParserTests
         var query = CypherQueryParser.Parse(cypher);
 
         var path = query.Matches[0].Paths[0];
-        Assert.That(path.PathVariable, Is.EqualTo("path"));
-        Assert.That(path.Chain, Has.Count.EqualTo(1));
+        path.PathVariable.Should().Be("path");
+        path.Chain.Should().HaveCount(1);
 
         var rel = path.Chain[0].Relationship;
-        Assert.That(rel.Types, Contains.Item("CALLS"));
-        Assert.That(rel.Range.HasValue, Is.True);
-        Assert.That(rel.Range!.Value.Min, Is.EqualTo(1));
-        Assert.That(rel.Range!.Value.Max, Is.EqualTo(5));
+        rel.Types.Should().Contain("CALLS");
+        rel.Range.HasValue.Should().BeTrue();
+        rel.Range!.Value.Min.Should().Be(1);
+        rel.Range!.Value.Max.Should().Be(5);
     }
 
     [Test]
@@ -78,9 +79,9 @@ public class ParserTests
         ";
         var query = CypherQueryParser.Parse(cypher);
 
-        Assert.That(query.Matches[0].Where, Is.Not.Null);
+        query.Matches[0].Where.Should().NotBeNull();
         var pred = query.Matches[0].Where!.Predicate;
-        Assert.That(pred, Is.InstanceOf<BinaryExpression>());
+        pred.Should().BeOfType<BinaryExpression>();
     }
 
     [Test]
@@ -94,12 +95,12 @@ public class ParserTests
         ";
         var query = CypherQueryParser.Parse(cypher);
 
-        Assert.That(query.Return.Items, Has.Count.EqualTo(1));
-        Assert.That(query.Return.Items[0].Expression, Is.InstanceOf<CaseExpression>());
-        Assert.That(query.OrderBy, Is.Not.Null);
-        Assert.That(query.OrderBy!.Items[0].IsDescending, Is.False);
-        Assert.That(query.Limit, Is.Not.Null);
-        Assert.That(query.Limit!.Count, Is.EqualTo(50));
+        query.Return.Items.Should().HaveCount(1);
+        query.Return.Items[0].Expression.Should().BeOfType<CaseExpression>();
+        query.OrderBy.Should().NotBeNull();
+        query.OrderBy!.Items[0].IsDescending.Should().BeFalse();
+        query.Limit.Should().NotBeNull();
+        query.Limit!.Count.Should().Be(50);
     }
 
     [Test]
@@ -109,12 +110,12 @@ public class ParserTests
         var query = CypherQueryParser.Parse(cypher);
 
         var pred = query.Matches[0].Where!.Predicate;
-        Assert.That(pred, Is.InstanceOf<UnaryExpression>());
+        pred.Should().BeOfType<UnaryExpression>();
         var unary = (UnaryExpression)pred;
-        Assert.That(unary.Operator, Is.EqualTo(UnaryOperator.Not));
-        Assert.That(unary.Operand, Is.InstanceOf<BinaryExpression>());
+        unary.Operator.Should().Be(UnaryOperator.Not);
+        unary.Operand.Should().BeOfType<BinaryExpression>();
         var bin = (BinaryExpression)unary.Operand;
-        Assert.That(bin.Operator, Is.EqualTo(BinaryOperator.Contains));
+        bin.Operator.Should().Be(BinaryOperator.Contains);
     }
 
     [Test]
@@ -124,12 +125,12 @@ public class ParserTests
         var query = CypherQueryParser.Parse(cypher);
 
         var pred = query.Matches[0].Where!.Predicate;
-        Assert.That(pred, Is.InstanceOf<UnaryExpression>());
+        pred.Should().BeOfType<UnaryExpression>();
         var unary = (UnaryExpression)pred;
-        Assert.That(unary.Operator, Is.EqualTo(UnaryOperator.Not));
-        Assert.That(unary.Operand, Is.InstanceOf<BinaryExpression>());
+        unary.Operator.Should().Be(UnaryOperator.Not);
+        unary.Operand.Should().BeOfType<BinaryExpression>();
         var bin = (BinaryExpression)unary.Operand;
-        Assert.That(bin.Operator, Is.EqualTo(BinaryOperator.Equal));
+        bin.Operator.Should().Be(BinaryOperator.Equal);
     }
 
     [Test]
@@ -139,11 +140,11 @@ public class ParserTests
         var query = CypherQueryParser.Parse(cypher);
 
         var pred = query.Matches[0].Where!.Predicate;
-        Assert.That(pred, Is.InstanceOf<BinaryExpression>());
+        pred.Should().BeOfType<BinaryExpression>();
         var andExpr = (BinaryExpression)pred;
-        Assert.That(andExpr.Operator, Is.EqualTo(BinaryOperator.And));
-        Assert.That(andExpr.Left, Is.InstanceOf<UnaryExpression>());
+        andExpr.Operator.Should().Be(BinaryOperator.And);
+        andExpr.Left.Should().BeOfType<UnaryExpression>();
         var unary = (UnaryExpression)andExpr.Left;
-        Assert.That(unary.Operator, Is.EqualTo(UnaryOperator.Not));
+        unary.Operator.Should().Be(UnaryOperator.Not);
     }
 }

@@ -1,5 +1,5 @@
 using System.Threading.Channels;
-using NUnit.Framework;
+using AwesomeAssertions;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -10,6 +10,7 @@ using CodeExplorer.Parser.Go;
 using CodeExplorer.Parser.Java;
 using CodeExplorer.Parser.Python;
 using CodeExplorer.Parser.TypeScript;
+using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
 
@@ -78,10 +79,10 @@ public class MultiLanguageHttpResolutionTests
 
         var services = await ParseAndGetExternalServicesAsync(new PythonParser(), code, "client.py");
 
-        Assert.That(services, Has.Count.GreaterThan(0));
+        services.Should().HaveCountGreaterThan(0);
         var svc = services.First();
-        Assert.That(svc.DomainOrService, Is.EqualTo("bundle-service"));
-        Assert.That(svc.Path, Is.EqualTo("/api/v1/bundles/*"));
+        svc.DomainOrService.Should().Be("bundle-service");
+        svc.Path.Should().Be("/api/v1/bundles/*");
     }
 
     [Test]
@@ -100,10 +101,10 @@ public class MultiLanguageHttpResolutionTests
 
         var services = await ParseAndGetExternalServicesAsync(new PythonParser(), code, "client.py");
 
-        Assert.That(services, Has.Count.GreaterThan(0));
+        services.Should().HaveCountGreaterThan(0);
         var svc = services.First();
-        Assert.That(svc.DomainOrService, Is.EqualTo("order-service"));
-        Assert.That(svc.Path, Is.EqualTo("/api/v1/orders/*"));
+        svc.DomainOrService.Should().Be("order-service");
+        svc.Path.Should().Be("/api/v1/orders/*");
     }
 
     [Test]
@@ -120,9 +121,9 @@ public class MultiLanguageHttpResolutionTests
 
         var services = await ParseAndGetExternalServicesAsync(new PythonParser(), code, "client.py");
 
-        Assert.That(services, Has.Count.GreaterThan(0));
+        services.Should().HaveCountGreaterThan(0);
         var svc = services.First();
-        Assert.That(svc.Path, Is.EqualTo("/api/v1/items"));
+        svc.Path.Should().Be("/api/v1/items");
     }
 
     [Test]
@@ -147,8 +148,8 @@ public class MultiLanguageHttpResolutionTests
         {
             TestContext.Progress.WriteLine($"SERVICE: {s.DomainOrService} | {s.Id} | {s.Path}");
         }
-        Assert.That(services, Has.Count.GreaterThan(0));
-        Assert.That(services.Any(s => s.DomainOrService == "api.telegram.org"), Is.True);
+        services.Should().HaveCountGreaterThan(0);
+        (services.Any(s => s.DomainOrService == "api.telegram.org")).Should().BeTrue();
     }
 
     // ==========================================
@@ -174,10 +175,10 @@ public class MultiLanguageHttpResolutionTests
 
         var services = await ParseAndGetExternalServicesAsync(new GoParser(), code, "client.go");
 
-        Assert.That(services, Has.Count.GreaterThan(0));
+        services.Should().HaveCountGreaterThan(0);
         var svc = services.First();
-        Assert.That(svc.DomainOrService, Is.EqualTo("bundle-service"));
-        Assert.That(svc.Path, Is.EqualTo("/api/v1/bundles/*"));
+        svc.DomainOrService.Should().Be("bundle-service");
+        svc.Path.Should().Be("/api/v1/bundles/*");
     }
 
     [Test]
@@ -201,10 +202,10 @@ public class MultiLanguageHttpResolutionTests
 
         var services = await ParseAndGetExternalServicesAsync(new GoParser(), code, "client.go");
 
-        Assert.That(services, Has.Count.GreaterThan(0));
+        services.Should().HaveCountGreaterThan(0);
         var svc = services.First();
-        Assert.That(svc.DomainOrService, Is.EqualTo("user-service"));
-        Assert.That(svc.Path, Is.EqualTo("/api/v1/users"));
+        svc.DomainOrService.Should().Be("user-service");
+        svc.Path.Should().Be("/api/v1/users");
     }
 
     // ==========================================
@@ -234,10 +235,10 @@ public class MultiLanguageHttpResolutionTests
 
         var services = await ParseAndGetExternalServicesAsync(new CSharpParser(), code, "BundleClient.cs");
 
-        Assert.That(services, Has.Count.GreaterThan(0));
+        services.Should().HaveCountGreaterThan(0);
         var svc = services.First();
-        Assert.That(svc.DomainOrService, Is.EqualTo("bundle-service"));
-        Assert.That(svc.Path, Is.EqualTo("/api/v1/bundles/*"));
+        svc.DomainOrService.Should().Be("bundle-service");
+        svc.Path.Should().Be("/api/v1/bundles/*");
     }
 
     [Test]
@@ -260,10 +261,10 @@ public class MultiLanguageHttpResolutionTests
 
         var services = await ParseAndGetExternalServicesAsync(new CSharpParser(), code, "OrderClient.cs");
 
-        Assert.That(services, Has.Count.GreaterThan(0));
+        services.Should().HaveCountGreaterThan(0);
         var svc = services.First();
-        Assert.That(svc.DomainOrService, Is.EqualTo("order-service"));
-        Assert.That(svc.Path, Is.EqualTo("/api/v1/orders/*"));
+        svc.DomainOrService.Should().Be("order-service");
+        svc.Path.Should().Be("/api/v1/orders/*");
     }
 
     // ==========================================
@@ -285,10 +286,10 @@ public class MultiLanguageHttpResolutionTests
 
         var services = await ParseAndGetExternalServicesAsync(new JavaParser(), code, "BundleClient.java");
 
-        Assert.That(services, Has.Count.GreaterThan(0));
+        services.Should().HaveCountGreaterThan(0);
         var svc = services.First();
-        Assert.That(svc.DomainOrService, Is.EqualTo("bundle-service"));
-        Assert.That(svc.Path, Is.EqualTo("/api/bundles"));
+        svc.DomainOrService.Should().Be("bundle-service");
+        svc.Path.Should().Be("/api/bundles");
     }
 
     [Test]
@@ -311,10 +312,10 @@ public class MultiLanguageHttpResolutionTests
 
         var services = await ParseAndGetExternalServicesAsync(new JavaParser(), code, "OrderClient.java");
 
-        Assert.That(services, Has.Count.GreaterThan(0));
+        services.Should().HaveCountGreaterThan(0);
         var svc = services.First();
-        Assert.That(svc.DomainOrService, Is.EqualTo("order-service"));
-        Assert.That(svc.Path, Is.EqualTo("/api/v1/orders/*"));
+        svc.DomainOrService.Should().Be("order-service");
+        svc.Path.Should().Be("/api/v1/orders/*");
     }
 
     // ==========================================
@@ -335,7 +336,7 @@ public class MultiLanguageHttpResolutionTests
         """;
 
         var services = await ParseAndGetExternalServicesAsync(new PythonParser(), pythonCode, "client.py");
-        Assert.That(services, Has.Count.GreaterThan(0));
+        services.Should().HaveCountGreaterThan(0);
         var pythonSvc = services.First();
 
         var goEndpoint = new EndpointNode(
@@ -352,7 +353,7 @@ public class MultiLanguageHttpResolutionTests
             [typeof(ExternalServiceNode), typeof(EndpointNode)])!;
 
         var isMatch = (bool)isMatchMethod.Invoke(layer5, [pythonSvc, goEndpoint])!;
-        Assert.That(isMatch, Is.True, "Python client external service should late-bind to Go endpoint");
+        isMatch.Should().BeTrue("Python client external service should late-bind to Go endpoint");
     }
 
     [Test]
@@ -373,7 +374,7 @@ public class MultiLanguageHttpResolutionTests
         """;
 
         var services = await ParseAndGetExternalServicesAsync(new JavaParser(), javaCode, "OrderClient.java");
-        Assert.That(services, Has.Count.GreaterThan(0));
+        services.Should().HaveCountGreaterThan(0);
         var javaSvc = services.First();
 
         var csharpEndpoint = new EndpointNode(
@@ -390,7 +391,7 @@ public class MultiLanguageHttpResolutionTests
             [typeof(ExternalServiceNode), typeof(EndpointNode)])!;
 
         var isMatch = (bool)isMatchMethod.Invoke(layer5, [javaSvc, csharpEndpoint])!;
-        Assert.That(isMatch, Is.True, "Java RestTemplate external service should late-bind to C# endpoint");
+        isMatch.Should().BeTrue("Java RestTemplate external service should late-bind to C# endpoint");
     }
 
     [Test]
@@ -411,7 +412,7 @@ public class MultiLanguageHttpResolutionTests
         """;
 
         var services = await ParseAndGetExternalServicesAsync(new GoParser(), goCode, "client.go");
-        Assert.That(services, Has.Count.GreaterThan(0));
+        services.Should().HaveCountGreaterThan(0);
         var goSvc = services.First();
 
         var tsEndpoint = new EndpointNode(
@@ -428,7 +429,7 @@ public class MultiLanguageHttpResolutionTests
             [typeof(ExternalServiceNode), typeof(EndpointNode)])!;
 
         var isMatch = (bool)isMatchMethod.Invoke(layer5, [goSvc, tsEndpoint])!;
-        Assert.That(isMatch, Is.True, "Go HTTP client external service should late-bind to TypeScript endpoint");
+        isMatch.Should().BeTrue("Go HTTP client external service should late-bind to TypeScript endpoint");
     }
 
     [Test]
@@ -464,7 +465,7 @@ public class MultiLanguageHttpResolutionTests
         """;
 
         var services = await ParseAndGetExternalServicesAsync(new TypeScriptParser(), angularCode, "games.component.ts");
-        Assert.That(services, Has.Count.GreaterThan(0));
+        services.Should().HaveCountGreaterThan(0);
         var angularSvc = services.First();
 
         var dotNetEndpoint = new EndpointNode(
@@ -481,7 +482,7 @@ public class MultiLanguageHttpResolutionTests
             [typeof(ExternalServiceNode), typeof(EndpointNode)])!;
 
         var isMatch = (bool)isMatchMethod.Invoke(layer5, [angularSvc, dotNetEndpoint])!;
-        Assert.That(isMatch, Is.True, "Angular HttpClient external service should late-bind to .NET backend endpoint");
+        isMatch.Should().BeTrue("Angular HttpClient external service should late-bind to .NET backend endpoint");
     }
 
     [Test]
@@ -533,7 +534,7 @@ public class MultiLanguageHttpResolutionTests
         }
         """;
         var identityServices = await ParseAndGetExternalServicesAsync(new TypeScriptParser(), accountsCode, "accounts.component.ts");
-        Assert.That(identityServices, Has.Count.EqualTo(1));
+        identityServices.Should().HaveCount(1);
         var identitySvc = identityServices.First();
 
         // 4. PlayersComponent (Player)
@@ -551,7 +552,7 @@ public class MultiLanguageHttpResolutionTests
         }
         """;
         var playerServices = await ParseAndGetExternalServicesAsync(new TypeScriptParser(), playersCode, "players.component.ts");
-        Assert.That(playerServices, Has.Count.EqualTo(1));
+        playerServices.Should().HaveCount(1);
         var playerSvc = playerServices.First();
 
         // 5. GamesComponent (Tournament)
@@ -570,7 +571,7 @@ public class MultiLanguageHttpResolutionTests
         }
         """;
         var gameServices = await ParseAndGetExternalServicesAsync(new TypeScriptParser(), gamesCode, "games.component.ts");
-        Assert.That(gameServices, Has.Count.EqualTo(1));
+        gameServices.Should().HaveCount(1);
         var gameSvc = gameServices.First();
 
         // Verify Late-Binding to real .NET controllers (which have action names in route)
@@ -583,9 +584,9 @@ public class MultiLanguageHttpResolutionTests
         var playerEndpoint = new EndpointNode("id:ep2", "GET:/api/v1/Profiles/GetAllProfiles", "ProfilesController.cs", "GET", "/api/v1/Profiles/GetAllProfiles");
         var tournamentEndpoint = new EndpointNode("id:ep3", "GET:/api/v1/Games/GetGames", "GamesController.cs", "GET", "/api/v1/Games/GetGames");
 
-        Assert.That((bool)isMatchMethod.Invoke(layer5, [identitySvc, identityEndpoint])!, Is.True, "Admin AccountsComponent should match Lidoma.Services.Identity");
-        Assert.That((bool)isMatchMethod.Invoke(layer5, [playerSvc, playerEndpoint])!, Is.True, "Admin PlayersComponent should match Lidoma.Services.Player");
-        Assert.That((bool)isMatchMethod.Invoke(layer5, [gameSvc, tournamentEndpoint])!, Is.True, "Admin GamesComponent should match Lidoma.Services.Tournament");
+        ((bool)isMatchMethod.Invoke(layer5, [identitySvc, identityEndpoint])!).Should().BeTrue("Admin AccountsComponent should match Lidoma.Services.Identity");
+        ((bool)isMatchMethod.Invoke(layer5, [playerSvc, playerEndpoint])!).Should().BeTrue("Admin PlayersComponent should match Lidoma.Services.Player");
+        ((bool)isMatchMethod.Invoke(layer5, [gameSvc, tournamentEndpoint])!).Should().BeTrue("Admin GamesComponent should match Lidoma.Services.Tournament");
     }
 
     [Test]
@@ -605,14 +606,14 @@ public class MultiLanguageHttpResolutionTests
 
         // 1. Verify DoesProjectMatchServiceDomain allows internal domain despite .biz / .com suffix
         var matched = (bool)doesProjectMatchMethod.Invoke(null, [ruleConfigProj, "rule-configurator.at-systems.biz"])!;
-        Assert.That(matched, Is.True, "rule-configurator.at-systems.biz should match rule-configurator project");
+        matched.Should().BeTrue("rule-configurator.at-systems.biz should match rule-configurator project");
 
         var matchedPostback = (bool)doesProjectMatchMethod.Invoke(null, [postbackPartnerProj, "http://postback-partner.at-systems.biz/api"])!;
-        Assert.That(matchedPostback, Is.True, "postback-partner.at-systems.biz should match postback-partner project");
+        matchedPostback.Should().BeTrue("postback-partner.at-systems.biz should match postback-partner project");
 
         // 2. Verify third-party real domain is still rejected
         var googleMatch = (bool)doesProjectMatchMethod.Invoke(null, [ruleConfigProj, "google.com"])!;
-        Assert.That(googleMatch, Is.False, "google.com should NOT match internal project");
+        googleMatch.Should().BeFalse("google.com should NOT match internal project");
 
         // 3. Verify endpoint late-binding with /api global prefix and /v1 versioning
         var extSvc = new ExternalServiceNode(
@@ -633,7 +634,7 @@ public class MultiLanguageHttpResolutionTests
         );
 
         var isMatch = (bool)isMatchWithProjMethod.Invoke(layer5, [extSvc, endpoint, ruleConfigProj])!;
-        Assert.That(isMatch, Is.True, "Caller calling /api/v1/kv/form-full-rule should match endpoint /v1/kv/form-full-rule on rule-configurator");
+        isMatch.Should().BeTrue("Caller calling /api/v1/kv/form-full-rule should match endpoint /v1/kv/form-full-rule on rule-configurator");
     }
 
     [Test]
@@ -664,7 +665,7 @@ public class MultiLanguageHttpResolutionTests
         var analyticsProj = new ProjectNode("ws:p:analytics:", "analytics", "analytics", "typescript");
 
         var isMatch = (bool)isMatchWithProjMethod.Invoke(layer5, [extSvc, endpoint, analyticsProj])!;
-        Assert.That(isMatch, Is.False, "unknown-service with root path / must NOT match foreign project root endpoint");
+        isMatch.Should().BeFalse("unknown-service with root path / must NOT match foreign project root endpoint");
     }
 }
 

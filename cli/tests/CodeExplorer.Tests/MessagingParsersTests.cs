@@ -88,7 +88,7 @@ public class SubmitOrderConsumer : IConsumer<SubmitOrder>
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 
             var fileNode = syntaxTree.FileNode;
-            Assert.That(fileNode, Is.Not.Null);
+            fileNode.Should().NotBeNull();
 
             var entryPoints = FindEntryPointNodes(fileNode.Children);
             var externalServices = FindExternalServiceNodes(fileNode.Children);
@@ -96,18 +96,18 @@ public class SubmitOrderConsumer : IConsumer<SubmitOrder>
 
             // Verify EntryPoint created for IConsumer Consume
             var consumerEp = entryPoints.FirstOrDefault(e => e.EntryType == "Consumer");
-            Assert.That(consumerEp, Is.Not.Null, "Expected MassTransit EntryPointNode for IConsumer");
-            Assert.That(consumerEp!.Name, Does.Contain("SubmitOrder"));
+            consumerEp.Should().NotBeNull("Expected MassTransit EntryPointNode for IConsumer");
+            consumerEp!.Name.Should().Contain("SubmitOrder");
 
             // Verify SubscribesTo relationship to SubmitOrder
             var subRel = refs.FirstOrDefault(r =>
                 r.Kind == "SUBSCRIBES_TO" && r.TargetName == "masstransit:SubmitOrder");
-            Assert.That(subRel, Is.Not.Null, "Expected SUBSCRIBES_TO reference for SubmitOrder message");
+            subRel.Should().NotBeNull("Expected SUBSCRIBES_TO reference for SubmitOrder message");
 
             // Verify PublishesTo relationship to OrderSubmitted
             var pubRel = refs.FirstOrDefault(r =>
                 r.Kind == "PUBLISHES_TO" && r.TargetName == "masstransit:OrderSubmitted");
-            Assert.That(pubRel, Is.Not.Null, "Expected PUBLISHES_TO reference for OrderSubmitted message");
+            pubRel.Should().NotBeNull("Expected PUBLISHES_TO reference for OrderSubmitted message");
         }
         finally
         {
@@ -170,7 +170,7 @@ public class UserCreatedNotificationHandler : INotificationHandler<UserCreatedEv
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 
             var fileNode = syntaxTree.FileNode;
-            Assert.That(fileNode, Is.Not.Null);
+            fileNode.Should().NotBeNull();
 
             var entryPoints = FindEntryPointNodes(fileNode.Children);
             var externalServices = FindExternalServiceNodes(fileNode.Children);
@@ -179,22 +179,21 @@ public class UserCreatedNotificationHandler : INotificationHandler<UserCreatedEv
             // Verify EntryPoint created for IRequestHandler and INotificationHandler
             var handlers = entryPoints.Where(e => e.EntryType == "Handler").ToList();
 
-            Assert.That(handlers.Count, Is.GreaterThanOrEqualTo(2),
-                "Expected at least 2 MediatR Handler EntryPointNodes");
+            handlers.Count.Should().BeGreaterThanOrEqualTo(2, "Expected at least 2 MediatR Handler EntryPointNodes");
 
             // Verify SubscribesTo relationships
             var subCmd = refs.FirstOrDefault(r =>
                 r.Kind == "SUBSCRIBES_TO" && r.TargetName == "mediatr:CreateUserCommand");
-            Assert.That(subCmd, Is.Not.Null, "Expected SUBSCRIBES_TO reference for CreateUserCommand");
+            subCmd.Should().NotBeNull("Expected SUBSCRIBES_TO reference for CreateUserCommand");
 
             var subNotification = refs.FirstOrDefault(r =>
                 r.Kind == "SUBSCRIBES_TO" && r.TargetName == "mediatr:UserCreatedEvent");
-            Assert.That(subNotification, Is.Not.Null, "Expected SUBSCRIBES_TO reference for UserCreatedEvent");
+            subNotification.Should().NotBeNull("Expected SUBSCRIBES_TO reference for UserCreatedEvent");
 
             // Verify PublishesTo relationship
             var pubRel = refs.FirstOrDefault(r =>
                 r.Kind == "PUBLISHES_TO" && r.TargetName == "mediatr:UserCreatedEvent");
-            Assert.That(pubRel, Is.Not.Null, "Expected PUBLISHES_TO reference for UserCreatedEvent");
+            pubRel.Should().NotBeNull("Expected PUBLISHES_TO reference for UserCreatedEvent");
         }
         finally
         {
@@ -213,6 +212,7 @@ public class UserCreatedNotificationHandler : INotificationHandler<UserCreatedEv
         var code = @"
 using KafkaFlow;
 using System.Threading.Tasks;
+using AwesomeAssertions;
 
 namespace MyApp.Handlers;
 
@@ -242,20 +242,20 @@ public class OrderDirectiveHandler : IMessageHandler<OrderDirectiveMessage>
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 
             var fileNode = syntaxTree.FileNode;
-            Assert.That(fileNode, Is.Not.Null);
+            fileNode.Should().NotBeNull();
 
             var entryPoints = FindEntryPointNodes(fileNode.Children);
             var refs = FindReferences(fileNode.Children);
 
             // Verify EntryPoint created for IMessageHandler
             var consumerEp = entryPoints.FirstOrDefault(e => e.EntryType == "Consumer");
-            Assert.That(consumerEp, Is.Not.Null, "Expected KafkaFlow EntryPointNode for IMessageHandler");
-            Assert.That(consumerEp!.Name, Does.Contain("OrderDirectiveMessage"));
+            consumerEp.Should().NotBeNull("Expected KafkaFlow EntryPointNode for IMessageHandler");
+            consumerEp!.Name.Should().Contain("OrderDirectiveMessage");
 
             // Verify SubscribesTo relationship to OrderDirectiveMessage
             var subRel = refs.FirstOrDefault(r =>
                 r.Kind == "SUBSCRIBES_TO" && r.TargetName == "kafka:OrderDirectiveMessage");
-            Assert.That(subRel, Is.Not.Null, "Expected SUBSCRIBES_TO reference for OrderDirectiveMessage");
+            subRel.Should().NotBeNull("Expected SUBSCRIBES_TO reference for OrderDirectiveMessage");
         }
         finally
         {
@@ -303,23 +303,22 @@ func consumeRabbit(ctx context.Context, ch *amqp.Channel, q string, h any) {}
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 
             var fileNode = syntaxTree.FileNode;
-            Assert.That(fileNode, Is.Not.Null);
+            fileNode.Should().NotBeNull();
 
             var refs = FindReferences(fileNode.Children);
 
             var pubRel = refs.FirstOrDefault(r =>
                 r.Kind == "PUBLISHES_TO" && r.TargetName == "rabbitmq:orders_queue");
-            Assert.That(pubRel, Is.Not.Null, "Expected PUBLISHES_TO reference for rabbitmq:orders_queue");
+            pubRel.Should().NotBeNull("Expected PUBLISHES_TO reference for rabbitmq:orders_queue");
 
             var subRel = refs.FirstOrDefault(r =>
                 r.Kind == "SUBSCRIBES_TO" && r.TargetName == "rabbitmq:orders_queue");
-            Assert.That(subRel, Is.Not.Null, "Expected SUBSCRIBES_TO reference for rabbitmq:orders_queue");
+            subRel.Should().NotBeNull("Expected SUBSCRIBES_TO reference for rabbitmq:orders_queue");
 
             var helperSub = refs.FirstOrDefault(r =>
                 r.Kind == "SUBSCRIBES_TO" && r.TargetName == "rabbitmq:impression_queue");
 
-            Assert.That(helperSub, Is.Not.Null,
-                "Expected SUBSCRIBES_TO reference for rabbitmq:impression_queue via consumeRabbit helper");
+            helperSub.Should().NotBeNull("Expected SUBSCRIBES_TO reference for rabbitmq:impression_queue via consumeRabbit helper");
         }
         finally
         {
@@ -377,23 +376,22 @@ func RunPubSub(ctx context.Context, client *pubsub.Client) {
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 
             var fileNode = syntaxTree.FileNode;
-            Assert.That(fileNode, Is.Not.Null);
+            fileNode.Should().NotBeNull();
 
             var refs = FindReferences(fileNode.Children);
 
             var pubRel =
                 refs.FirstOrDefault(r => r.Kind == "PUBLISHES_TO" && r.TargetName == "gcp:events_topic");
-            Assert.That(pubRel, Is.Not.Null, "Expected PUBLISHES_TO reference for gcp:events_topic");
+            pubRel.Should().NotBeNull("Expected PUBLISHES_TO reference for gcp:events_topic");
 
             var subRel =
                 refs.FirstOrDefault(r => r.Kind == "SUBSCRIBES_TO" && r.TargetName == "gcp:events_sub");
-            Assert.That(subRel, Is.Not.Null, "Expected SUBSCRIBES_TO reference for gcp:events_sub");
+            subRel.Should().NotBeNull("Expected SUBSCRIBES_TO reference for gcp:events_sub");
 
             var workerSub = refs.FirstOrDefault(r =>
                 r.Kind == "SUBSCRIBES_TO" && r.TargetName == "gcp:streaming_topic");
 
-            Assert.That(workerSub, Is.Not.Null,
-                "Expected SUBSCRIBES_TO reference for gcp:streaming_topic from WorkerDef");
+            workerSub.Should().NotBeNull("Expected SUBSCRIBES_TO reference for gcp:streaming_topic from WorkerDef");
         }
         finally
         {
@@ -442,17 +440,17 @@ func EnsureSubscription(ctx context.Context, client *pubsub.Client) {
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 
             var fileNode = syntaxTree.FileNode;
-            Assert.That(fileNode, Is.Not.Null);
+            fileNode.Should().NotBeNull();
 
             var refs = FindReferences(fileNode.Children);
 
             // Must NOT have any PUBLISHES_TO because client.Topic was only retrieved for subscription setup, never published to!
             var pubRel = refs.FirstOrDefault(r => r.Kind == "PUBLISHES_TO");
-            Assert.That(pubRel, Is.Null, "Expected NO PUBLISHES_TO relationship when .Publish() is never called");
+            pubRel.Should().BeNull("Expected NO PUBLISHES_TO relationship when .Publish() is never called");
 
             // Should have SUBSCRIBES_TO for subscription
             var subRel = refs.FirstOrDefault(r => r.Kind == "SUBSCRIBES_TO" && r.TargetName == "gcp:incoming_sub");
-            Assert.That(subRel, Is.Not.Null, "Expected SUBSCRIBES_TO reference for gcp:incoming_sub");
+            subRel.Should().NotBeNull("Expected SUBSCRIBES_TO reference for gcp:incoming_sub");
         }
         finally
         {
@@ -501,19 +499,18 @@ export async function sendPartner() {
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 
             var fileNode = syntaxTree.FileNode;
-            Assert.That(fileNode, Is.Not.Null);
+            fileNode.Should().NotBeNull();
 
             var refs = FindReferences(fileNode.Children);
 
             var subRel = refs.FirstOrDefault(r =>
                 r.Kind == "SUBSCRIBES_TO" && r.TargetName == "rabbitmq:PA_PARTNER_QUEUE");
-            Assert.That(subRel, Is.Not.Null, "Expected SUBSCRIBES_TO reference for rabbitmq:PA_PARTNER_QUEUE");
+            subRel.Should().NotBeNull("Expected SUBSCRIBES_TO reference for rabbitmq:PA_PARTNER_QUEUE");
 
             var pubRel = refs.FirstOrDefault(r =>
                 r.Kind == "PUBLISHES_TO" && r.TargetName == "rabbitmq:PA_PARTNER_QUEUE");
 
-            Assert.That(pubRel, Is.Not.Null,
-                "Expected PUBLISHES_TO reference for rabbitmq:PA_PARTNER_QUEUE via send");
+            pubRel.Should().NotBeNull("Expected PUBLISHES_TO reference for rabbitmq:PA_PARTNER_QUEUE via send");
         }
         finally
         {
@@ -564,24 +561,23 @@ export class AppService {
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 
             var fileNode = syntaxTree.FileNode;
-            Assert.That(fileNode, Is.Not.Null);
+            fileNode.Should().NotBeNull();
 
             var refs = FindReferences(fileNode.Children);
 
             var pubRel = refs.FirstOrDefault(r =>
                 r.Kind == "PUBLISHES_TO" && (r.TargetName == "gcp:event-bus-topic" ||
                                              r.TargetName == "gcp:EVENT_BUS_TOPIC_NAME"));
-            Assert.That(pubRel, Is.Not.Null, "Expected PUBLISHES_TO reference for gcp:event-bus-topic");
+            pubRel.Should().NotBeNull("Expected PUBLISHES_TO reference for gcp:event-bus-topic");
 
             var subRel = refs.FirstOrDefault(r =>
                 r.Kind == "SUBSCRIBES_TO" && r.TargetName == "gcp:event-bus-topic-SUB");
-            Assert.That(subRel, Is.Not.Null, "Expected SUBSCRIBES_TO reference for gcp:event-bus-topic-SUB");
+            subRel.Should().NotBeNull("Expected SUBSCRIBES_TO reference for gcp:event-bus-topic-SUB");
 
             var listenSub = refs.FirstOrDefault(r =>
                 r.Kind == "SUBSCRIBES_TO" && r.TargetName == "gcp:CHANGE_DOMAIN_SUBSCRIPTION_NAME");
 
-            Assert.That(listenSub, Is.Not.Null,
-                "Expected SUBSCRIBES_TO reference for gcp:CHANGE_DOMAIN_SUBSCRIPTION_NAME via listenSubscription");
+            listenSub.Should().NotBeNull("Expected SUBSCRIBES_TO reference for gcp:CHANGE_DOMAIN_SUBSCRIPTION_NAME via listenSubscription");
         }
         finally
         {
@@ -635,28 +631,26 @@ export class RuleTreeService {
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 
             var fileNode = syntaxTree.FileNode;
-            Assert.That(fileNode, Is.Not.Null);
+            fileNode.Should().NotBeNull();
 
             var refs = FindReferences(fileNode.Children);
 
             // Assert no bogus references to type annotations
-            Assert.That(
-                refs.Any(r => r.TargetName != null && (r.TargetName.Contains(": Topic") ||
+            (refs.Any(r => r.TargetName != null && (r.TargetName.Contains(": Topic") ||
                                                        r.TargetName.Contains(": string") ||
                                                        r.TargetName == "gcp:Topic" ||
-                                                       r.TargetName == "gcp:string")), Is.False,
-                "Type annotations must never become topic names");
+                                                       r.TargetName == "gcp:string"))).Should().BeFalse("Type annotations must never become topic names");
 
             // Assert resolved or config-extracted topics
             var ruleTreeRef = refs.FirstOrDefault(r =>
                 r.Kind == "PUBLISHES_TO" && (r.TargetName == "gcp:RULE_TREE_TOPIC" ||
                                              r.TargetName == "gcp:rule-tree-topic"));
-            Assert.That(ruleTreeRef, Is.Not.Null, "Expected reference for RULE_TREE_TOPIC");
+            ruleTreeRef.Should().NotBeNull("Expected reference for RULE_TREE_TOPIC");
 
             var eventBusRef = refs.FirstOrDefault(r =>
                 r.Kind == "PUBLISHES_TO" && (r.TargetName == "gcp:EVENT_BUS_TOPIC_NAME" ||
                                              r.TargetName == "gcp:event-bus-topic"));
-            Assert.That(eventBusRef, Is.Not.Null, "Expected reference for EVENT_BUS_TOPIC_NAME");
+            eventBusRef.Should().NotBeNull("Expected reference for EVENT_BUS_TOPIC_NAME");
         }
         finally
         {
@@ -705,24 +699,21 @@ export class LegacyQueueService {
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 
             var fileNode = syntaxTree.FileNode;
-            Assert.That(fileNode, Is.Not.Null);
+            fileNode.Should().NotBeNull();
 
             var refs = FindReferences(fileNode.Children);
 
             // Assert no URLs or type annotations
-            Assert.That(
-                refs.Any(r =>
+            (refs.Any(r =>
                     r.TargetName != null &&
-                    (r.TargetName.Contains("http://") || r.TargetName.Contains("https://"))), Is.False,
-                "URLs must never become queue names");
+                    (r.TargetName.Contains("http://") || r.TargetName.Contains("https://")))).Should().BeFalse("URLs must never become queue names");
 
-            Assert.That(refs.Any(r => r.TargetName != null && r.TargetName.Contains(": string")), Is.False,
-                "Type annotations must not become queue names");
+            (refs.Any(r => r.TargetName != null && r.TargetName.Contains(": string"))).Should().BeFalse("Type annotations must not become queue names");
 
             // Assert valid queue is captured
             var validRef = refs.FirstOrDefault(r =>
                 r.Kind == "PUBLISHES_TO" && r.TargetName == "rabbitmq:legacy_orders_queue");
-            Assert.That(validRef, Is.Not.Null, "Expected PUBLISHES_TO reference for legacy_orders_queue");
+            validRef.Should().NotBeNull("Expected PUBLISHES_TO reference for legacy_orders_queue");
         }
         finally
         {
@@ -764,15 +755,13 @@ export class HelperService {
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 
             var fileNode = syntaxTree.FileNode;
-            Assert.That(fileNode, Is.Not.Null);
+            fileNode.Should().NotBeNull();
 
             var refs = FindReferences(fileNode.Children);
 
-            Assert.That(
-                refs.Any(r =>
+            (refs.Any(r =>
                     r.TargetName == "rabbitmq:queueName" || r.TargetName == "rabbitmq:queue" ||
-                    r.TargetName == "rabbitmq:string"), Is.False,
-                "Method parameters must NEVER become queue names");
+                    r.TargetName == "rabbitmq:string")).Should().BeFalse("Method parameters must NEVER become queue names");
         }
         finally
         {
@@ -822,15 +811,14 @@ export class OrderPublisher {
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 
             var fileNode = syntaxTree.FileNode;
-            Assert.That(fileNode, Is.Not.Null);
+            fileNode.Should().NotBeNull();
 
             var refs = FindReferences(fileNode.Children);
 
             var pubRel = refs.FirstOrDefault(r =>
                 r.Kind == "PUBLISHES_TO" && r.TargetName == "gcp:orders-completed-v2");
 
-            Assert.That(pubRel, Is.Not.Null,
-                "Expected cross-file exported constant to resolve to 'gcp:orders-completed-v2'");
+            pubRel.Should().NotBeNull("Expected cross-file exported constant to resolve to 'gcp:orders-completed-v2'");
         }
         finally
         {

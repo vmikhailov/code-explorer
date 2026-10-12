@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using NUnit.Framework;
 using OntologyGen;
 
@@ -84,28 +85,28 @@ public class OntologyGenTests
 
     [Test]
     public void ExtractsExpectedNodeCount() =>
-        Assert.That(_nodes, Has.Count.EqualTo(3), "Zoo, Animal, Habitat");
+        _nodes.Should().HaveCount(3, "Zoo, Animal, Habitat");
 
     [Test]
     public void ExtractsZooNode()
     {
         var zoo = _nodes!.Single(n => n.Label == "Zoo");
-        Assert.That(zoo.IdScheme, Is.EqualTo("{workspaceId}:zoo:{name}"));
-        Assert.That(zoo.Purpose, Is.EqualTo("Represents a zoo that contains animals."));
+        zoo.IdScheme.Should().Be("{workspaceId}:zoo:{name}");
+        zoo.Purpose.Should().Be("Represents a zoo that contains animals.");
     }
 
     [Test]
     public void ExtractsAnimalNode()
     {
         var animal = _nodes!.Single(n => n.Label == "Animal");
-        Assert.That(animal.IdScheme, Is.EqualTo("{workspaceId}:animal:{name}"));
+        animal.IdScheme.Should().Be("{workspaceId}:animal:{name}");
     }
 
     [Test]
     public void HabitatNodeHasNoOutboundEdges()
     {
         var habitat = _nodes!.Single(n => n.Label == "Habitat");
-        Assert.That(habitat.OutEdges, Is.Empty, "Habitat is a pure leaf node");
+        habitat.OutEdges.Should().BeEmpty("Habitat is a pure leaf node");
     }
 
     // ── Edge extraction ──────────────────────────────────────────────────────
@@ -116,9 +117,9 @@ public class OntologyGenTests
         var zoo = _nodes!.Single(n => n.Label == "Zoo");
         var edge = zoo.OutEdges.SingleOrDefault(e => e.Rel == "OWNS");
 
-        Assert.That(edge, Is.Not.Null);
-        Assert.That(edge!.ToTypeName, Is.EqualTo("AnimalNode"));
-        Assert.That(edge.FromLabel, Is.EqualTo("Zoo"));
+        edge.Should().NotBeNull();
+        edge!.ToTypeName.Should().Be("AnimalNode");
+        edge.FromLabel.Should().Be("Zoo");
     }
 
     [Test]
@@ -127,8 +128,8 @@ public class OntologyGenTests
         var animal = _nodes!.Single(n => n.Label == "Animal");
         var edge = animal.OutEdges.SingleOrDefault(e => e.Rel == "LIVES_IN");
 
-        Assert.That(edge, Is.Not.Null);
-        Assert.That(edge!.ToTypeName, Is.EqualTo("HabitatNode"));
+        edge.Should().NotBeNull();
+        edge!.ToTypeName.Should().Be("HabitatNode");
     }
 
     // ── Property extraction ──────────────────────────────────────────────────
@@ -139,30 +140,30 @@ public class OntologyGenTests
         var animal = _nodes!.Single(n => n.Label == "Animal");
         var speciesProp = animal.Properties.SingleOrDefault(p => p.Name == "Species");
 
-        Assert.That(speciesProp, Is.Not.Null);
-        Assert.That(speciesProp!.Description, Is.EqualTo("The species of the animal."));
-        Assert.That(speciesProp.Type, Is.EqualTo("string"));
+        speciesProp.Should().NotBeNull();
+        speciesProp!.Description.Should().Be("The species of the animal.");
+        speciesProp.Type.Should().Be("string");
     }
 
     [Test]
     public void PropertiesWithoutAttributeAreExcluded()
     {
         var zoo = _nodes!.Single(n => n.Label == "Zoo");
-        Assert.That(zoo.Properties.Any(p => p.Name == "Id"), Is.False);
+        (zoo.Properties.Any(p => p.Name == "Id")).Should().BeFalse();
     }
 
     // ── Relationship extraction ──────────────────────────────────────────────
 
     [Test]
     public void ExtractsExpectedRelationshipCount() =>
-        Assert.That(_rels, Has.Count.EqualTo(2), "OWNS, LIVES_IN");
+        _rels.Should().HaveCount(2, "OWNS, LIVES_IN");
 
     [Test]
     public void ExtractsOwnsRelationship()
     {
         var owns = _rels!.SingleOrDefault(r => r.Label == "OWNS");
-        Assert.That(owns, Is.Not.Null);
-        Assert.That(owns!.Description, Is.EqualTo("Links a Zoo to an Animal it owns."));
+        owns.Should().NotBeNull();
+        owns!.Description.Should().Be("Links a Zoo to an Animal it owns.");
     }
 
     // ── Markdown rendering ───────────────────────────────────────────────────
@@ -171,46 +172,46 @@ public class OntologyGenTests
     public void RenderedMarkdownContainsNodeLabels()
     {
         var md = MarkdownRenderer.Render(_nodes!, _rels!);
-        Assert.That(md, Does.Contain("### `Zoo`"));
-        Assert.That(md, Does.Contain("### `Animal`"));
-        Assert.That(md, Does.Contain("### `Habitat`"));
+        md.Should().Contain("### `Zoo`");
+        md.Should().Contain("### `Animal`");
+        md.Should().Contain("### `Habitat`");
     }
 
     [Test]
     public void RenderedMarkdownContainsOutboundEdge()
     {
         var md = MarkdownRenderer.Render(_nodes!, _rels!);
-        Assert.That(md, Does.Contain("OWNS"));
+        md.Should().Contain("OWNS");
     }
 
     [Test]
     public void RenderedMarkdownContainsIncomingEdgeForAnimal()
     {
         var md = MarkdownRenderer.Render(_nodes!, _rels!);
-        Assert.That(md, Does.Contain("Incoming edges"));
-        Assert.That(md, Does.Contain("Zoo"));
+        md.Should().Contain("Incoming edges");
+        md.Should().Contain("Zoo");
     }
 
     [Test]
     public void RenderedMarkdownContainsIdSchemeTable()
     {
         var md = MarkdownRenderer.Render(_nodes!, _rels!);
-        Assert.That(md, Does.Contain("Uniform Resource Name (URN) & ID Schemes"));
-        Assert.That(md, Does.Contain("{workspaceId}:zoo:{name}"));
+        md.Should().Contain("Uniform Resource Name (URN) & ID Schemes");
+        md.Should().Contain("{workspaceId}:zoo:{name}");
     }
 
     [Test]
     public void RenderedMarkdownContainsRelationshipsSection()
     {
         var md = MarkdownRenderer.Render(_nodes!, _rels!);
-        Assert.That(md, Does.Contain("Layer 5: SystemBindings (Integration Links)"));
-        Assert.That(md, Does.Contain("Links a Zoo to an Animal it owns."));
+        md.Should().Contain("Layer 5: SystemBindings (Integration Links)");
+        md.Should().Contain("Links a Zoo to an Animal it owns.");
     }
 
     [Test]
     public void RenderedMarkdownContainsAutoGeneratedHeader()
     {
         var md = MarkdownRenderer.Render(_nodes!, _rels!);
-        Assert.That(md, Does.Contain("AUTO-GENERATED"));
+        md.Should().Contain("AUTO-GENERATED");
     }
 }

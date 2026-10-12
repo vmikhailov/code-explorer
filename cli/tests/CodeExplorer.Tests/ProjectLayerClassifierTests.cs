@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Analysis;
 using NUnit.Framework;
 
@@ -29,11 +30,11 @@ public class ProjectLayerClassifierTests
 
         var layers = ProjectLayerClassifier.Classify(projects, dependencies);
 
-        Assert.That(layers["p1"].LayerId, Is.EqualTo(StandardLayers.Ingress.LayerId));
-        Assert.That(layers["p2"].LayerId, Is.EqualTo(StandardLayers.Components.LayerId));
-        Assert.That(layers["p3"].LayerId, Is.EqualTo(StandardLayers.Components.LayerId));
-        Assert.That(layers["p4"].LayerId, Is.EqualTo(StandardLayers.Components.LayerId));
-        Assert.That(layers["p5"].LayerId, Is.EqualTo(StandardLayers.Tests.LayerId));
+        layers["p1"].LayerId.Should().Be(StandardLayers.Ingress.LayerId);
+        layers["p2"].LayerId.Should().Be(StandardLayers.Components.LayerId);
+        layers["p3"].LayerId.Should().Be(StandardLayers.Components.LayerId);
+        layers["p4"].LayerId.Should().Be(StandardLayers.Components.LayerId);
+        layers["p5"].LayerId.Should().Be(StandardLayers.Tests.LayerId);
     }
 
     [Test]
@@ -57,11 +58,11 @@ public class ProjectLayerClassifierTests
 
         var layers = ProjectLayerClassifier.Classify(projects, dependencies);
 
-        Assert.That(layers["s1"].LayerId, Is.EqualTo(StandardLayers.Ingress.LayerId));
-        Assert.That(layers["s2"].LayerId, Is.EqualTo(StandardLayers.Components.LayerId));
-        Assert.That(layers["s3"].LayerId, Is.EqualTo(StandardLayers.Egress.LayerId));
-        Assert.That(layers["s4"].LayerId, Is.EqualTo(StandardLayers.Foundation.LayerId));
-        Assert.That(layers["s5"].LayerId, Is.EqualTo(StandardLayers.Tests.LayerId));
+        layers["s1"].LayerId.Should().Be(StandardLayers.Ingress.LayerId);
+        layers["s2"].LayerId.Should().Be(StandardLayers.Components.LayerId);
+        layers["s3"].LayerId.Should().Be(StandardLayers.Egress.LayerId);
+        layers["s4"].LayerId.Should().Be(StandardLayers.Foundation.LayerId);
+        layers["s5"].LayerId.Should().Be(StandardLayers.Tests.LayerId);
     }
 
     [Test]
@@ -79,9 +80,9 @@ public class ProjectLayerClassifierTests
 
         var layers = ProjectLayerClassifier.Classify(projects, new List<DependencyItem>());
 
-        Assert.That(layers["lib1"].LayerId, Is.EqualTo(StandardLayers.Foundation.LayerId));
-        Assert.That(layers["lib2"].LayerId, Is.EqualTo(StandardLayers.Foundation.LayerId));
-        Assert.That(layers["lib3"].LayerId, Is.EqualTo(StandardLayers.Foundation.LayerId));
+        layers["lib1"].LayerId.Should().Be(StandardLayers.Foundation.LayerId);
+        layers["lib2"].LayerId.Should().Be(StandardLayers.Foundation.LayerId);
+        layers["lib3"].LayerId.Should().Be(StandardLayers.Foundation.LayerId);
     }
 
     [Test]
@@ -99,9 +100,9 @@ public class ProjectLayerClassifierTests
 
         var layers = ProjectLayerClassifier.Classify(projects, new List<DependencyItem>());
 
-        Assert.That(layers["w1"].LayerId, Is.EqualTo(StandardLayers.Components.LayerId));
-        Assert.That(layers["w2"].LayerId, Is.EqualTo(StandardLayers.Components.LayerId));
-        Assert.That(layers["w3"].LayerId, Is.EqualTo(StandardLayers.Components.LayerId));
+        layers["w1"].LayerId.Should().Be(StandardLayers.Components.LayerId);
+        layers["w2"].LayerId.Should().Be(StandardLayers.Components.LayerId);
+        layers["w3"].LayerId.Should().Be(StandardLayers.Components.LayerId);
     }
 
     [Test]
@@ -116,9 +117,9 @@ public class ProjectLayerClassifierTests
 
         var layers = ProjectLayerClassifier.Classify(projects, new List<DependencyItem>());
 
-        Assert.That(layers["e1"].LayerId, Is.EqualTo(StandardLayers.Egress.LayerId));
-        Assert.That(layers["e2"].LayerId, Is.EqualTo(StandardLayers.Egress.LayerId));
-        Assert.That(layers["e3"].LayerId, Is.EqualTo(StandardLayers.Egress.LayerId));
+        layers["e1"].LayerId.Should().Be(StandardLayers.Egress.LayerId);
+        layers["e2"].LayerId.Should().Be(StandardLayers.Egress.LayerId);
+        layers["e3"].LayerId.Should().Be(StandardLayers.Egress.LayerId);
     }
 
     [Test]
@@ -140,9 +141,9 @@ public class ProjectLayerClassifierTests
 
         var layers = ProjectLayerClassifier.Classify(projects, dependencies);
 
-        Assert.That(layers["s1"].LayerId, Is.EqualTo(StandardLayers.Components.LayerId));
-        Assert.That(layers["s2"].LayerId, Is.EqualTo(StandardLayers.Components.LayerId));
-        Assert.That(layers["s3"].LayerId, Is.EqualTo(StandardLayers.Components.LayerId));
+        layers["s1"].LayerId.Should().Be(StandardLayers.Components.LayerId);
+        layers["s2"].LayerId.Should().Be(StandardLayers.Components.LayerId);
+        layers["s3"].LayerId.Should().Be(StandardLayers.Components.LayerId);
     }
 
     [Test]
@@ -198,11 +199,11 @@ public class ProjectLayerClassifierTests
 
         var layers = ProjectLayerClassifier.Classify(projects, new List<DependencyItem>());
 
-        Assert.That(layers["p_cli"].LayerId, Is.EqualTo(StandardLayers.Ingress.LayerId));
-        Assert.That(layers["p_web"].LayerId, Is.EqualTo(StandardLayers.Ingress.LayerId));
-        Assert.That(layers["p_worker"].LayerId, Is.EqualTo(StandardLayers.Components.LayerId));
-        Assert.That(layers["p_egress"].LayerId, Is.EqualTo(StandardLayers.Egress.LayerId));
-        Assert.That(layers["p_lib"].LayerId, Is.EqualTo(StandardLayers.Foundation.LayerId));
+        layers["p_cli"].LayerId.Should().Be(StandardLayers.Ingress.LayerId);
+        layers["p_web"].LayerId.Should().Be(StandardLayers.Ingress.LayerId);
+        layers["p_worker"].LayerId.Should().Be(StandardLayers.Components.LayerId);
+        layers["p_egress"].LayerId.Should().Be(StandardLayers.Egress.LayerId);
+        layers["p_lib"].LayerId.Should().Be(StandardLayers.Foundation.LayerId);
     }
 
     [Test]
@@ -324,24 +325,24 @@ public class ProjectLayerClassifierTests
         var layers = ProjectLayerClassifier.Classify(projects, new List<DependencyItem>());
 
         // UI Libraries -> Foundation
-        Assert.That(layers["ui_inputtext"].LayerId, Is.EqualTo(StandardLayers.Foundation.LayerId));
-        Assert.That(layers["ui_tooltip"].LayerId, Is.EqualTo(StandardLayers.Foundation.LayerId));
-        Assert.That(layers["ui_modal"].LayerId, Is.EqualTo(StandardLayers.Foundation.LayerId));
-        Assert.That(layers["ui_textarea"].LayerId, Is.EqualTo(StandardLayers.Foundation.LayerId));
+        layers["ui_inputtext"].LayerId.Should().Be(StandardLayers.Foundation.LayerId);
+        layers["ui_tooltip"].LayerId.Should().Be(StandardLayers.Foundation.LayerId);
+        layers["ui_modal"].LayerId.Should().Be(StandardLayers.Foundation.LayerId);
+        layers["ui_textarea"].LayerId.Should().Be(StandardLayers.Foundation.LayerId);
 
         // Schedulers and Workers -> Components
-        Assert.That(layers["srv_scheduler"].LayerId, Is.EqualTo(StandardLayers.Components.LayerId));
-        Assert.That(layers["srv_stage_worker"].LayerId, Is.EqualTo(StandardLayers.Components.LayerId));
+        layers["srv_scheduler"].LayerId.Should().Be(StandardLayers.Components.LayerId);
+        layers["srv_stage_worker"].LayerId.Should().Be(StandardLayers.Components.LayerId);
 
         // Internal Microservices -> Components
-        Assert.That(layers["srv_journal"].LayerId, Is.EqualTo(StandardLayers.Components.LayerId));
-        Assert.That(layers["srv_kv"].LayerId, Is.EqualTo(StandardLayers.Components.LayerId));
-        Assert.That(layers["srv_splits"].LayerId, Is.EqualTo(StandardLayers.Components.LayerId));
+        layers["srv_journal"].LayerId.Should().Be(StandardLayers.Components.LayerId);
+        layers["srv_kv"].LayerId.Should().Be(StandardLayers.Components.LayerId);
+        layers["srv_splits"].LayerId.Should().Be(StandardLayers.Components.LayerId);
 
         // Frontend App -> Ingress
-        Assert.That(layers["app_front"].LayerId, Is.EqualTo(StandardLayers.Ingress.LayerId));
+        layers["app_front"].LayerId.Should().Be(StandardLayers.Ingress.LayerId);
 
         // Integration -> Egress
-        Assert.That(layers["egr_nrt"].LayerId, Is.EqualTo(StandardLayers.Egress.LayerId));
+        layers["egr_nrt"].LayerId.Should().Be(StandardLayers.Egress.LayerId);
     }
 }

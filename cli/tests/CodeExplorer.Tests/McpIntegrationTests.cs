@@ -1,9 +1,9 @@
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using AwesomeAssertions;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Parser.TypeScript;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -53,7 +53,7 @@ public class McpIntegrationTests
             query: "MATCH (ep:Endpoint) RETURN ep.path AS file, 1 AS line, ep.name AS symbol, 'target' AS target, 'msg' AS message"
             """);
 
-        WorkspaceIndexer.Register(new TypeScriptParser());
+        WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
 
@@ -100,7 +100,7 @@ public class McpIntegrationTests
 
         var sseRequest = new HttpRequestMessage(HttpMethod.Get, sseUrl);
         var sseResponse = await _httpClient.SendAsync(sseRequest, HttpCompletionOption.ResponseHeadersRead);
-        Assert.That(sseResponse.IsSuccessStatusCode, Is.True, $"SSE GET returned {sseResponse.StatusCode}");
+        sseResponse.IsSuccessStatusCode.Should().BeTrue($"SSE GET returned {sseResponse.StatusCode}");
 
         _sseStream = await sseResponse.Content.ReadAsStreamAsync();
         _sseReader = new StreamReader(_sseStream);
@@ -109,16 +109,16 @@ public class McpIntegrationTests
         var eventLine = await _sseReader.ReadLineAsync();
         var dataLine = await _sseReader.ReadLineAsync();
 
-        Assert.That(eventLine, Does.StartWith("event:"));
-        Assert.That(dataLine, Does.StartWith("data:"));
+        eventLine.Should().StartWith("event:");
+        dataLine.Should().StartWith("data:");
 
         var relativeEndpoint = dataLine["data:".Length..].Trim();
         var queryIndex = relativeEndpoint.IndexOf('?');
-        Assert.That(queryIndex, Is.GreaterThan(0));
+        queryIndex.Should().BeGreaterThan(0);
         var queryString = relativeEndpoint[(queryIndex + 1)..];
         var queryParams = System.Web.HttpUtility.ParseQueryString(queryString);
         _sessionId = queryParams["sessionId"];
-        Assert.That(_sessionId, Is.Not.Null.And.Not.Empty);
+        _sessionId.Should().NotBeNullOrEmpty();
 
         // Console.WriteLine($"Established SSE session: {_sessionId}");
 
@@ -139,14 +139,13 @@ public class McpIntegrationTests
 
         var responsePost = await PostMessageAsync(initJson);
 
-        Assert.That(responsePost.IsSuccessStatusCode, Is.True,
-            $"Initialize POST returned {responsePost.StatusCode}");
+        responsePost.IsSuccessStatusCode.Should().BeTrue($"Initialize POST returned {responsePost.StatusCode}");
 
         var initResponseStr = await ReadNextSseResponseAsync();
 
         using var doc = JsonDocument.Parse(initResponseStr);
 
-        Assert.That(doc.RootElement.GetProperty("id").GetInt32(), Is.EqualTo(100));
+        doc.RootElement.GetProperty("id").GetInt32().Should().Be(100);
 
         // Console.WriteLine("Initialization handshake completed successfully!");
 
@@ -157,7 +156,7 @@ public class McpIntegrationTests
             ""params"": {}
         }";
         responsePost = await PostMessageAsync(initializedJson);
-        Assert.That(responsePost.IsSuccessStatusCode, Is.True);
+        responsePost.IsSuccessStatusCode.Should().BeTrue();
     }
 
     [OneTimeTearDown]
@@ -248,16 +247,16 @@ public class McpIntegrationTests
         """;
 
         var responsePost = await PostMessageAsync(payload);
-        Assert.That(responsePost.IsSuccessStatusCode, Is.True, $"Calling {toolName} returned POST status {responsePost.StatusCode}");
+        responsePost.IsSuccessStatusCode.Should().BeTrue($"Calling {toolName} returned POST status {responsePost.StatusCode}");
 
         var responseStr = await ReadNextSseResponseAsync();
-        Assert.That(responseStr, Is.Not.Null);
+        responseStr.Should().NotBeNull();
 
         using var doc = JsonDocument.Parse(responseStr);
 
         var root = doc.RootElement;
 
-        Assert.That(root.GetProperty("id").GetInt32(), Is.EqualTo(responseId));
+        root.GetProperty("id").GetInt32().Should().Be(responseId);
 
         // Assert no error field on jsonrpc response
         if (root.TryGetProperty("error", out var errorElement))
@@ -266,7 +265,7 @@ public class McpIntegrationTests
         }
 
         // Verify result exists
-        Assert.That(root.TryGetProperty("result", out var resultElement), Is.True);
+        root.TryGetProperty("result", out var resultElement).Should().BeTrue();
 
         // Verify isError is false in result content
         if (resultElement.TryGetProperty("isError", out var isErrorElement))
@@ -422,8 +421,7 @@ public class McpIntegrationTests
         var resultJson = await repo.InspectDataLineageAsync("campaigns");
         sw.Stop();
 
-        Assert.That(sw.ElapsedMilliseconds, Is.LessThan(2000),
-            $"Query took too long: {sw.ElapsedMilliseconds}ms (expected < 2000ms)");
-        Assert.That(resultJson, Does.Contain("campaigns"));
+        sw.ElapsedMilliseconds.Should().BeLessThan(2000, $"Query took too long: {sw.ElapsedMilliseconds}ms (expected < 2000ms)");
+        resultJson.Should().Contain("campaigns");
     }
 }

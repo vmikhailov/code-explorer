@@ -1,11 +1,12 @@
 using System.Threading.Channels;
-using NUnit.Framework;
+using AwesomeAssertions;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Components.Parsers;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.Python;
+using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
 
@@ -87,20 +88,20 @@ public class FastApiParserTests
 
         var (endpoints, _) = await ParsePythonFileAsync(_parser, code);
 
-        Assert.That(endpoints, Has.Count.EqualTo(4));
+        endpoints.Should().HaveCount(4);
 
         var getRoot = endpoints.FirstOrDefault(e => e.HttpMethod == "GET" && e.RouteTemplate == "/");
-        Assert.That(getRoot, Is.Not.Null);
-        Assert.That(getRoot!.Protocol, Is.EqualTo("REST"));
+        getRoot.Should().NotBeNull();
+        getRoot!.Protocol.Should().Be("REST");
 
         var postItem = endpoints.FirstOrDefault(e => e.HttpMethod == "POST" && e.RouteTemplate == "/items");
-        Assert.That(postItem, Is.Not.Null);
+        postItem.Should().NotBeNull();
 
         var putItem = endpoints.FirstOrDefault(e => e.HttpMethod == "PUT" && e.RouteTemplate == "/items/{item_id}");
-        Assert.That(putItem, Is.Not.Null);
+        putItem.Should().NotBeNull();
 
         var delItem = endpoints.FirstOrDefault(e => e.HttpMethod == "DELETE" && e.RouteTemplate == "/items/{item_id}");
-        Assert.That(delItem, Is.Not.Null);
+        delItem.Should().NotBeNull();
     }
 
     [Test]
@@ -122,15 +123,15 @@ public class FastApiParserTests
 
         var (endpoints, _) = await ParsePythonFileAsync(_parser, code, "users.py");
 
-        Assert.That(endpoints, Has.Count.EqualTo(2));
+        endpoints.Should().HaveCount(2);
 
         var listEp = endpoints.FirstOrDefault(e => e.HttpMethod == "GET");
-        Assert.That(listEp, Is.Not.Null);
-        Assert.That(listEp!.RouteTemplate, Is.EqualTo("/api/v1/users"));
+        listEp.Should().NotBeNull();
+        listEp!.RouteTemplate.Should().Be("/api/v1/users");
 
         var actEp = endpoints.FirstOrDefault(e => e.HttpMethod == "POST");
-        Assert.That(actEp, Is.Not.Null);
-        Assert.That(actEp!.RouteTemplate, Is.EqualTo("/api/v1/users/{user_id}/activate"));
+        actEp.Should().NotBeNull();
+        actEp!.RouteTemplate.Should().Be("/api/v1/users/{user_id}/activate");
     }
 
     [Test]
@@ -151,10 +152,10 @@ public class FastApiParserTests
 
         var (endpoints, _) = await ParsePythonFileAsync(_parser, code);
 
-        Assert.That(endpoints, Has.Count.EqualTo(1));
+        endpoints.Should().HaveCount(1);
         var ep = endpoints[0];
-        Assert.That(ep.HttpMethod, Is.EqualTo("GET"));
-        Assert.That(ep.RouteTemplate, Is.EqualTo("/orders/{order_id}"));
+        ep.HttpMethod.Should().Be("GET");
+        ep.RouteTemplate.Should().Be("/orders/{order_id}");
     }
 
     [Test]
@@ -177,11 +178,11 @@ public class FastApiParserTests
         var (endpoints, allNodes) = await ParsePythonFileAsync(_parser, code);
 
         var wsEp = allNodes.OfType<EntryPointNode>().FirstOrDefault(e => e.Name.Contains("/ws/notifications"));
-        Assert.That(wsEp, Is.Not.Null);
+        wsEp.Should().NotBeNull();
 
         var syncEp = endpoints.FirstOrDefault(e => e.RouteTemplate == "/sync");
-        Assert.That(syncEp, Is.Not.Null);
-        Assert.That(syncEp!.HttpMethod, Is.EqualTo("GET,POST"));
+        syncEp.Should().NotBeNull();
+        syncEp!.HttpMethod.Should().Be("GET,POST");
     }
 
     [Test]
@@ -219,24 +220,24 @@ public class FastApiParserTests
 
         var (endpoints, _) = await ParsePythonFileAsync(_parser, code);
 
-        Assert.That(endpoints, Has.Count.EqualTo(3));
+        endpoints.Should().HaveCount(3);
 
         var createEp = endpoints.FirstOrDefault(e => e.HttpMethod == "POST" && e.RouteTemplate == "/users");
-        Assert.That(createEp, Is.Not.Null);
-        Assert.That(createEp!.RequestType, Is.EqualTo("UserCreate"));
-        Assert.That(createEp.ResponseType, Is.EqualTo("UserResponse"));
-        Assert.That(createEp.Extensions, Is.Not.Null);
-        Assert.That(createEp.Extensions!.GetValueOrDefault("status_code"), Is.EqualTo("201"));
-        Assert.That(createEp.Extensions!.GetValueOrDefault("summary"), Is.EqualTo("Create a user"));
+        createEp.Should().NotBeNull();
+        createEp!.RequestType.Should().Be("UserCreate");
+        createEp.ResponseType.Should().Be("UserResponse");
+        createEp.Extensions.Should().NotBeNull();
+        createEp.Extensions!.GetValueOrDefault("status_code").Should().Be("201");
+        createEp.Extensions!.GetValueOrDefault("summary").Should().Be("Create a user");
 
         var listOrdersEp = endpoints.FirstOrDefault(e => e.HttpMethod == "GET" && e.RouteTemplate == "/orders");
-        Assert.That(listOrdersEp, Is.Not.Null);
-        Assert.That(listOrdersEp!.ResponseType, Is.EqualTo("OrderDto"));
+        listOrdersEp.Should().NotBeNull();
+        listOrdersEp!.ResponseType.Should().Be("OrderDto");
 
         var customEp = endpoints.FirstOrDefault(e => e.HttpMethod == "PUT" && e.RouteTemplate == "/custom");
-        Assert.That(customEp, Is.Not.Null);
-        Assert.That(customEp!.RequestType, Is.EqualTo("dict"));
-        Assert.That(customEp.ResponseType, Is.EqualTo("UserResponse"));
+        customEp.Should().NotBeNull();
+        customEp!.RequestType.Should().Be("dict");
+        customEp.ResponseType.Should().Be("UserResponse");
     }
 
     [Test]
@@ -263,19 +264,19 @@ public class FastApiParserTests
 
         var (endpoints, _) = await ParsePythonFileAsync(_parser, code);
 
-        Assert.That(endpoints, Has.Count.EqualTo(1));
+        endpoints.Should().HaveCount(1);
         var ep = endpoints[0];
 
-        Assert.That(ep.RequiredRoles, Is.EqualTo("admin,metrics:read"));
+        ep.RequiredRoles.Should().Be("admin,metrics:read");
 
         var callsRefs = ep.References.Where(r => r.Kind == Core.Common.OntologyConstants.Relationships.Calls).ToList();
         var depNames = callsRefs.Select(r => r.TargetName).ToList();
-        Assert.That(depNames, Does.Contain("get_db"));
-        Assert.That(depNames, Does.Contain("get_current_user"));
+        depNames.Should().Contain("get_db");
+        depNames.Should().Contain("get_current_user");
 
         var triggerRef = ep.References.FirstOrDefault(r => r.Kind == Core.Common.OntologyConstants.Relationships.Triggers);
-        Assert.That(triggerRef, Is.Not.Null);
-        Assert.That(triggerRef!.TargetName, Is.EqualTo("admin_view"));
+        triggerRef.Should().NotBeNull();
+        triggerRef!.TargetName.Should().Be("admin_view");
     }
 
     [Test]
@@ -292,12 +293,12 @@ public class FastApiParserTests
             ManifestProperties: new Dictionary<string, string>()
         );
 
-        Assert.That(componentParser.CanHandle(context), Is.True);
+        componentParser.CanHandle(context).Should().BeTrue();
 
         var result = componentParser.AnalyzeManifest(context);
-        Assert.That(result.ComponentId, Is.EqualTo("fastapi"));
-        Assert.That(result.Role, Is.EqualTo(LibraryRole.WebService));
-        Assert.That(result.Capabilities, Is.EqualTo(Core.Parser.Components.ComponentCapabilities.HttpEndpoints));
-        Assert.That(result.Metadata["web_framework"], Is.EqualTo("fastapi"));
+        result.ComponentId.Should().Be("fastapi");
+        result.Role.Should().Be(LibraryRole.WebService);
+        result.Capabilities.Should().Be(Core.Parser.Components.ComponentCapabilities.HttpEndpoints);
+        result.Metadata["web_framework"].Should().Be("fastapi");
     }
 }

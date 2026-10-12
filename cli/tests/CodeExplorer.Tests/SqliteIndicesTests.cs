@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Database;
 using Microsoft.Data.Sqlite;
 using NUnit.Framework;
@@ -56,7 +57,7 @@ public class SqliteIndicesTests
 
         foreach (var expected in expectedIndices)
         {
-            Assert.That(indices, Does.Contain(expected), $"Index '{expected}' should exist in database.");
+            indices.Should().Contain(expected, $"Index '{expected}' should exist in database.");
         }
     }
 
@@ -86,8 +87,7 @@ public class SqliteIndicesTests
 
         var fullPlan = string.Join("\n", planOutput);
 
-        Assert.That(fullPlan, Does.Contain(expectedIndex),
-            $"Query '{query}' should utilize index '{expectedIndex}'. Query plan was:\n{fullPlan}");
+        fullPlan.Should().Contain(expectedIndex, $"Query '{query}' should utilize index '{expectedIndex}'. Query plan was:\n{fullPlan}");
     }
 
     [TestCase("SELECT to_id FROM edges WHERE from_id = 'a' AND kind = 'CONTAINS'")]
@@ -113,7 +113,6 @@ public class SqliteIndicesTests
 
         var fullPlan = string.Join("\n", planOutput);
 
-        Assert.That(fullPlan, Does.Contain("COVERING INDEX"),
-            $"Query '{query}' should utilize a covering index. Query plan was:\n{fullPlan}");
+        fullPlan.Should().Contain("COVERING INDEX", $"Query '{query}' should utilize a covering index. Query plan was:\n{fullPlan}");
     }
 }

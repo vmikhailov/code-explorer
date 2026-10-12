@@ -1,7 +1,7 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Incremental;
 using CodeExplorer.Options;
-using CodeExplorer.Parser.CSharp;
 using CommandLine;
 using NUnit.Framework;
 
@@ -19,8 +19,8 @@ public class IncrementalIndexingTests
         var hashCrlf = HashUtility.ComputeSha256(crlf);
         var hashLf = HashUtility.ComputeSha256(lf);
 
-        Assert.That(hashCrlf, Is.EqualTo(hashLf));
-        Assert.That(hashCrlf.Length, Is.EqualTo(64));
+        hashCrlf.Should().Be(hashLf);
+        hashCrlf.Length.Should().Be(64);
     }
 
     [Test]
@@ -61,13 +61,13 @@ public class IncrementalIndexingTests
         var patch = SemanticGraphDiffer.ComputeDiff(oldSnapshot, newSnapshot);
 
         // CRITICAL: There must be ZERO structural changes in the graph!
-        Assert.That(patch.HasGraphStructuralChanges, Is.False, "Logic-only edit (2+2) should NOT produce any graph structural changes!");
-        Assert.That(patch.AddedSymbols, Is.Empty);
-        Assert.That(patch.RemovedSymbols, Is.Empty);
-        Assert.That(patch.OutgoingCallDiffs, Is.Empty);
-        Assert.That(patch.OutgoingTypeDiffs, Is.Empty);
-        Assert.That(patch.LogicOnlyChangedSymbols, Has.Count.EqualTo(1));
-        Assert.That(patch.LogicOnlyChangedSymbols[0].SymbolId, Is.EqualTo(oldSymbol.SymbolId));
+        patch.HasGraphStructuralChanges.Should().BeFalse("Logic-only edit (2+2) should NOT produce any graph structural changes!");
+        patch.AddedSymbols.Should().BeEmpty();
+        patch.RemovedSymbols.Should().BeEmpty();
+        patch.OutgoingCallDiffs.Should().BeEmpty();
+        patch.OutgoingTypeDiffs.Should().BeEmpty();
+        patch.LogicOnlyChangedSymbols.Should().HaveCount(1);
+        patch.LogicOnlyChangedSymbols[0].SymbolId.Should().Be(oldSymbol.SymbolId);
     }
 
     [Test]
@@ -106,14 +106,14 @@ public class IncrementalIndexingTests
 
         var patch = SemanticGraphDiffer.ComputeDiff(oldSnapshot, newSnapshot);
 
-        Assert.That(patch.HasGraphStructuralChanges, Is.True);
-        Assert.That(patch.AddedSymbols, Is.Empty);
-        Assert.That(patch.RemovedSymbols, Is.Empty);
-        Assert.That(patch.OutgoingCallDiffs, Contains.Key(oldSymbol.SymbolId));
+        patch.HasGraphStructuralChanges.Should().BeTrue();
+        patch.AddedSymbols.Should().BeEmpty();
+        patch.RemovedSymbols.Should().BeEmpty();
+        patch.OutgoingCallDiffs.Should().ContainKey(oldSymbol.SymbolId);
 
         var (addedCalls, removedCalls) = patch.OutgoingCallDiffs[oldSymbol.SymbolId];
-        Assert.That(addedCalls, Does.Contain("_emailSender.SendNotification"));
-        Assert.That(removedCalls, Is.Empty);
+        addedCalls.Should().Contain("_emailSender.SendNotification");
+        removedCalls.Should().BeEmpty();
     }
 
     [Test]
@@ -152,9 +152,9 @@ public class IncrementalIndexingTests
 
         var patch = SemanticGraphDiffer.ComputeDiff(oldSnapshot, newSnapshot);
 
-        Assert.That(patch.HasGraphStructuralChanges, Is.False);
-        Assert.That(patch.LineShiftedSymbols, Has.Count.EqualTo(1));
-        Assert.That(patch.LineShiftedSymbols[0].StartLine, Is.EqualTo(11));
+        patch.HasGraphStructuralChanges.Should().BeFalse();
+        patch.LineShiftedSymbols.Should().HaveCount(1);
+        patch.LineShiftedSymbols[0].StartLine.Should().Be(11);
     }
 
     [Test]
@@ -186,10 +186,10 @@ public class IncrementalIndexingTests
             var currentFiles = new[] { "file1.cs", "file2.cs", "file3.cs" };
             var changeset = registry.ComputeChangeset(tempDir, currentFiles);
 
-            Assert.That(changeset.Added, Does.Contain("file3.cs"));
-            Assert.That(changeset.Modified, Does.Contain("file2.cs"));
-            Assert.That(changeset.Deleted, Does.Contain("old_deleted.cs"));
-            Assert.That(changeset.Modified, Does.Not.Contain("file1.cs"));
+            changeset.Added.Should().Contain("file3.cs");
+            changeset.Modified.Should().Contain("file2.cs");
+            changeset.Deleted.Should().Contain("old_deleted.cs");
+            changeset.Modified.Should().NotContain("file1.cs");
         }
         finally
         {
@@ -225,16 +225,15 @@ public class IncrementalIndexingTests
 
             // Wait for debounce timer to fire once
             var completed = await Task.WhenAny(tcs.Task, Task.Delay(1000));
-            Assert.That(completed, Is.EqualTo(tcs.Task), "Watcher debounce timer should fire.");
+            completed.Should().Be(tcs.Task, "Watcher debounce timer should fire.");
 
             // Allow any extra trailing timer delay
             await Task.Delay(200);
 
             // Should be debounced into 1 batch (or max 2 depending on OS filesystem delay)
-            Assert.That(batchesReceived, Is.GreaterThanOrEqualTo(1));
+            batchesReceived.Should().BeGreaterThanOrEqualTo(1);
 
-            Assert.That(batchesReceived, Is.LessThanOrEqualTo(2),
-                "Events should be debounced into a single or very few batches.");
+            batchesReceived.Should().BeLessThanOrEqualTo(2, "Events should be debounced into a single or very few batches.");
         }
         finally
         {
@@ -245,7 +244,7 @@ public class IncrementalIndexingTests
     [Test]
     public async Task Test_TryBuildSnapshot_ExtractsMethodsAndReferencesFromCSharpSource()
     {
-        WorkspaceIndexer.Register(new CSharpParser());
+        WorkspaceIndexer.AutoRegisterParsers();
 
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_snapshot_test_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
@@ -272,14 +271,14 @@ public class IncrementalIndexingTests
             var snapshot = await WorkspaceIndexer.TryBuildSnapshotAsync(
                 csFile, "SampleService.cs", "ws_test", tempDir, hash, lastMod);
 
-            Assert.That(snapshot, Is.Not.Null);
-            Assert.That(snapshot!.Symbols.Count, Is.GreaterThanOrEqualTo(2), "Should extract Class and Method symbols");
+            snapshot.Should().NotBeNull();
+            snapshot!.Symbols.Count.Should().BeGreaterThanOrEqualTo(2, "Should extract Class and Method symbols");
 
             var methodSym = snapshot.Symbols.Values.FirstOrDefault(s => s.QualifiedName == "Process");
-            Assert.That(methodSym, Is.Not.Null);
-            Assert.That(methodSym!.Kind, Is.EqualTo("Function"));
-            Assert.That(methodSym.StartLine, Is.GreaterThan(0));
-            Assert.That(methodSym.OutgoingCalls, Does.Contain("System.Console.WriteLine").Or.Contain("Console.WriteLine"));
+            methodSym.Should().NotBeNull();
+            methodSym!.Kind.Should().Be("Function");
+            methodSym.StartLine.Should().BeGreaterThan(0);
+            methodSym.OutgoingCalls.Any(c => c is "System.Console.WriteLine" or "Console.WriteLine").Should().BeTrue();
         }
         finally
         {
@@ -290,7 +289,7 @@ public class IncrementalIndexingTests
     [Test]
     public async Task Test_EndToEnd_LogicOnlyEdit_SkipsGraphChanges()
     {
-        WorkspaceIndexer.Register(new CSharpParser());
+        WorkspaceIndexer.AutoRegisterParsers();
 
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_logic_test_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
@@ -334,17 +333,16 @@ public class IncrementalIndexingTests
             var mod2 = File.GetLastWriteTimeUtc(csFile);
             var snapshot2 = await WorkspaceIndexer.TryBuildSnapshotAsync(csFile, "Calculator.cs", "ws_test", tempDir, hash2, mod2);
 
-            Assert.That(snapshot1, Is.Not.Null);
-            Assert.That(snapshot2, Is.Not.Null);
+            snapshot1.Should().NotBeNull();
+            snapshot2.Should().NotBeNull();
 
             var patch = SemanticGraphDiffer.ComputeDiff(snapshot1!, snapshot2!);
 
-            Assert.That(patch.HasGraphStructuralChanges, Is.False,
-                "A 2+2 internal logic change must produce zero graph structural changes!");
-            Assert.That(patch.AddedSymbols, Is.Empty);
-            Assert.That(patch.RemovedSymbols, Is.Empty);
-            Assert.That(patch.OutgoingCallDiffs, Is.Empty);
-            Assert.That(patch.OutgoingTypeDiffs, Is.Empty);
+            patch.HasGraphStructuralChanges.Should().BeFalse("A 2+2 internal logic change must produce zero graph structural changes!");
+            patch.AddedSymbols.Should().BeEmpty();
+            patch.RemovedSymbols.Should().BeEmpty();
+            patch.OutgoingCallDiffs.Should().BeEmpty();
+            patch.OutgoingTypeDiffs.Should().BeEmpty();
         }
         finally
         {
@@ -358,18 +356,18 @@ public class IncrementalIndexingTests
         var parser = new CommandLine.Parser(with => with.CaseInsensitiveEnumValues = true);
 
         var resultScan = parser.ParseArguments<ScanOptions, IndexOptions>(["scan", "--watch"]);
-        Assert.That(resultScan.Errors, Is.Empty);
-        Assert.That(((ScanOptions)resultScan.Value).Watch, Is.True);
+        resultScan.Errors.Should().BeEmpty();
+        ((ScanOptions)resultScan.Value).Watch.Should().BeTrue();
 
         var resultIndex = parser.ParseArguments<ScanOptions, IndexOptions>(["index", "--watch"]);
-        Assert.That(resultIndex.Errors, Is.Empty);
-        Assert.That(((IndexOptions)resultIndex.Value).Watch, Is.True);
+        resultIndex.Errors.Should().BeEmpty();
+        ((IndexOptions)resultIndex.Value).Watch.Should().BeTrue();
     }
 
     [Test]
     public async Task Test_TypeScript_NewlineInsertion_ZeroStructuralChanges()
     {
-        WorkspaceIndexer.Register(new Parser.TypeScript.TypeScriptParser());
+        WorkspaceIndexer.AutoRegisterParsers();
 
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_ts_newline_test_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
@@ -413,17 +411,16 @@ public class IncrementalIndexingTests
             var mod2 = File.GetLastWriteTimeUtc(tsFile);
             var snapshot2 = await WorkspaceIndexer.TryBuildSnapshotAsync(tsFile, "response.ts", "ws_test", tempDir, hash2, mod2);
 
-            Assert.That(snapshot1, Is.Not.Null);
-            Assert.That(snapshot2, Is.Not.Null);
+            snapshot1.Should().NotBeNull();
+            snapshot2.Should().NotBeNull();
 
             var patch = SemanticGraphDiffer.ComputeDiff(snapshot1!, snapshot2!);
 
-            Assert.That(patch.HasGraphStructuralChanges, Is.False,
-                "Inserting a newline must produce ZERO graph structural changes!");
-            Assert.That(patch.AddedSymbols, Is.Empty);
-            Assert.That(patch.RemovedSymbols, Is.Empty);
-            Assert.That(patch.OutgoingCallDiffs, Is.Empty);
-            Assert.That(patch.OutgoingTypeDiffs, Is.Empty);
+            patch.HasGraphStructuralChanges.Should().BeFalse("Inserting a newline must produce ZERO graph structural changes!");
+            patch.AddedSymbols.Should().BeEmpty();
+            patch.RemovedSymbols.Should().BeEmpty();
+            patch.OutgoingCallDiffs.Should().BeEmpty();
+            patch.OutgoingTypeDiffs.Should().BeEmpty();
         }
         finally
         {
@@ -434,40 +431,28 @@ public class IncrementalIndexingTests
     [Test]
     public void Test_IsCandidateSourceFile_Preserves_test_env_js_And_test_calculation_ts()
     {
-        WorkspaceIndexer.Register(new Parser.TypeScript.TypeScriptParser());
-        WorkspaceIndexer.Register(new Parser.TypeScript.JavaScriptParser());
-        WorkspaceIndexer.Register(new Parser.Python.PythonParser());
-        WorkspaceIndexer.Register(new Parser.Go.GoParser());
+        WorkspaceIndexer.AutoRegisterParsers();
 
         // Files that MUST be recognized as candidate source files
-        Assert.That(WorkspaceFileFilter.IsCandidateSourceFile("bq-routes-calculation/test_env.js"), Is.True,
-            "test_env.js should be recognized as a valid JavaScript file, not pruned as a test!");
-        Assert.That(WorkspaceFileFilter.IsCandidateSourceFile("stage-worker/src/models/test_calculation.ts"), Is.True,
-            "test_calculation.ts should be recognized as a valid TypeScript file, not pruned as a test!");
+        WorkspaceFileFilter.IsCandidateSourceFile("bq-routes-calculation/test_env.js").Should().BeTrue("test_env.js should be recognized as a valid JavaScript file, not pruned as a test!");
+        WorkspaceFileFilter.IsCandidateSourceFile("stage-worker/src/models/test_calculation.ts").Should().BeTrue("test_calculation.ts should be recognized as a valid TypeScript file, not pruned as a test!");
 
         // Test files are now first-class candidate source files
-        Assert.That(WorkspaceFileFilter.IsCandidateSourceFile("tests/test_calculator.py"), Is.True,
-            "test_*.py should be included for test indexing");
-        Assert.That(WorkspaceFileFilter.IsCandidateSourceFile("src/services/order.test.ts"), Is.True,
-            "*.test.ts should be included for test indexing");
-        Assert.That(WorkspaceFileFilter.IsCandidateSourceFile("src/services/order.spec.js"), Is.True,
-            "*.spec.js should be included for test indexing");
-        Assert.That(WorkspaceFileFilter.IsCandidateSourceFile("pkg/calc/calc_test.go"), Is.True,
-            "*_test.go should be included for test indexing");
+        WorkspaceFileFilter.IsCandidateSourceFile("tests/test_calculator.py").Should().BeTrue("test_*.py should be included for test indexing");
+        WorkspaceFileFilter.IsCandidateSourceFile("src/services/order.test.ts").Should().BeTrue("*.test.ts should be included for test indexing");
+        WorkspaceFileFilter.IsCandidateSourceFile("src/services/order.spec.js").Should().BeTrue("*.spec.js should be included for test indexing");
+        WorkspaceFileFilter.IsCandidateSourceFile("pkg/calc/calc_test.go").Should().BeTrue("*_test.go should be included for test indexing");
 
         // Non-source files and mocks that MUST be skipped
-        Assert.That(WorkspaceFileFilter.IsCandidateSourceFile("src/mocks/mock_service.ts"), Is.False,
-            "mock files must be skipped");
-        Assert.That(WorkspaceFileFilter.IsCandidateSourceFile("src/bundle.min.js"), Is.False,
-            "minified files must be skipped");
-        Assert.That(WorkspaceFileFilter.IsCandidateSourceFile("src/types.d.ts"), Is.False,
-            "d.ts files must be skipped");
+        WorkspaceFileFilter.IsCandidateSourceFile("src/mocks/mock_service.ts").Should().BeFalse("mock files must be skipped");
+        WorkspaceFileFilter.IsCandidateSourceFile("src/bundle.min.js").Should().BeFalse("minified files must be skipped");
+        WorkspaceFileFilter.IsCandidateSourceFile("src/types.d.ts").Should().BeFalse("d.ts files must be skipped");
     }
 
     [Test]
     public async Task Test_Sqlite_Persists_AstSnapshot_And_SeparateProcessIncrementalScan_PreservesGraph_OnNewline()
     {
-        WorkspaceIndexer.Register(new Parser.TypeScript.TypeScriptParser());
+        WorkspaceIndexer.AutoRegisterParsers();
 
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_sqlite_incremental_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
@@ -497,9 +482,9 @@ public class IncrementalIndexingTests
 
             // Verify SQLite file_registry table has entry and snapshot_json
             var registry1 = await client1.LoadFileRegistryAsync();
-            Assert.That(registry1, Contains.Key("src/calculator.ts"));
+            registry1.Should().ContainKey("src/calculator.ts");
             var entry1 = registry1["src/calculator.ts"];
-            Assert.That(entry1.SnapshotJson, Is.Not.Null.And.Not.Empty, "SnapshotJson must be persisted in SQLite!");
+            entry1.SnapshotJson.Should().NotBeNullOrEmpty("SnapshotJson must be persisted in SQLite!");
 
             await client1.DisposeAsync();
 
@@ -523,19 +508,19 @@ public class IncrementalIndexingTests
 
             var countsBefore = await client2.GetGraphCountsAsync();
             var changed = await indexer2.IndexIncrementalAsync(tempDir);
-            Assert.That(changed, Is.True, "Incremental scan should detect and process the modified file.");
+            changed.Should().BeTrue("Incremental scan should detect and process the modified file.");
             var countsAfter = await client2.GetGraphCountsAsync();
-            Assert.That(countsAfter.NodesCount, Is.EqualTo(countsBefore.NodesCount), "Graph nodes count must be preserved for logic-only edit!");
+            countsAfter.NodesCount.Should().Be(countsBefore.NodesCount, "Graph nodes count must be preserved for logic-only edit!");
 
             // Second incremental scan without file edits: must detect 0 changes
             var changedAgain = await indexer2.IndexIncrementalAsync(tempDir);
-            Assert.That(changedAgain, Is.False, "Workspace should be up to date on subsequent check.");
+            changedAgain.Should().BeFalse("Workspace should be up to date on subsequent check.");
 
             // Verify registry in SQLite was updated with new hash and preserved/updated snapshot
             var registry2 = await client2.LoadFileRegistryAsync();
             var entry2 = registry2["src/calculator.ts"];
-            Assert.That(entry2.ContentHash, Is.Not.EqualTo(entry1.ContentHash), "Content hash should be updated");
-            Assert.That(entry2.SnapshotJson, Is.Not.Null.And.Not.Empty, "SnapshotJson must remain populated");
+            entry2.ContentHash.Should().NotBe(entry1.ContentHash, "Content hash should be updated");
+            entry2.SnapshotJson.Should().NotBeNullOrEmpty("SnapshotJson must remain populated");
 
             await client2.DisposeAsync();
         }

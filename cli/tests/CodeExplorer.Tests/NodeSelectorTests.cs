@@ -1,8 +1,9 @@
-using NUnit.Framework;
-using TreeSitter;
+using AwesomeAssertions;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Parser.TypeScript;
 using CodeExplorer.Tests.Shared;
+using NUnit.Framework;
+using TreeSitter;
 
 namespace CodeExplorer.Tests;
 
@@ -23,17 +24,17 @@ public class NodeSelectorTests
         var root = syntaxTree.Tree?.RootNode;
 
         var decoratorNode = FindNode(root, "decorator");
-        Assert.That(decoratorNode, Is.Not.Null);
+        decoratorNode.Should().NotBeNull();
 
         var selector = NodeSelector.New().HasType("decorator").FirstChild.HasType("call_expression")
             .GetChildForField("function").Text("Controller|Get|Post|Put|Delete|Patch|SubscribeMessage");
 
-        Assert.That(selector.Matches(decoratorNode), Is.True);
+        selector.Matches(decoratorNode).Should().BeTrue();
 
         var selectorFalse = NodeSelector.New().HasType("decorator").FirstChild.HasType("call_expression")
             .GetChildForField("function").Text("Get|Post");
 
-        Assert.That(selectorFalse.Matches(decoratorNode), Is.False);
+        selectorFalse.Matches(decoratorNode).Should().BeFalse();
     }
 
     [Test]
@@ -49,29 +50,29 @@ public class NodeSelectorTests
 
         // Express route selector test
         var expressCallNode = FindNode(root, "call_expression");
-        Assert.That(expressCallNode, Is.Not.Null);
+        expressCallNode.Should().NotBeNull();
 
         var expressSelector = NodeSelector.New().HasType("call_expression").FunctionNode
             .HasType("member_expression").HasChild("object", NodeSelector.New().TextContains("app|router|express"))
             .HasChild("property", NodeSelector.New().Text("get|post|put|delete"));
 
-        Assert.That(expressSelector.Matches(expressCallNode), Is.True);
+        expressSelector.Matches(expressCallNode).Should().BeTrue();
 
         // HttpClientCallSelector test
         var fetchCallNode = FindNode(root, "call_expression", "fetch");
-        Assert.That(fetchCallNode, Is.Not.Null);
+        fetchCallNode.Should().NotBeNull();
 
         var axiosCallNode = FindNode(root, "call_expression", "axios.post");
-        Assert.That(axiosCallNode, Is.Not.Null);
+        axiosCallNode.Should().NotBeNull();
 
         var httpClientCallSelector = NodeSelector.New().HasType("call_expression").FunctionNode.Where(
             NodeSelector.Or(NodeSelector.New().HasType("identifier").Text("fetch"),
                 NodeSelector.New().HasType("member_expression").HasChild("object", NodeSelector.New().Text("axios"))
                     .HasChild("property", NodeSelector.New().Text("get|post|put|delete|request"))));
 
-        Assert.That(httpClientCallSelector.Matches(fetchCallNode), Is.True);
-        Assert.That(httpClientCallSelector.Matches(axiosCallNode), Is.True);
-        Assert.That(httpClientCallSelector.Matches(expressCallNode), Is.False);
+        httpClientCallSelector.Matches(fetchCallNode).Should().BeTrue();
+        httpClientCallSelector.Matches(axiosCallNode).Should().BeTrue();
+        httpClientCallSelector.Matches(expressCallNode).Should().BeFalse();
     }
 
     [Test]
@@ -86,13 +87,13 @@ public class NodeSelectorTests
         var root = syntaxTree.Tree?.RootNode;
 
         var callNode = FindNode(root, "call_expression");
-        Assert.That(callNode, Is.Not.Null);
+        callNode.Should().NotBeNull();
 
         var propertySelector = NodeSelector.New().FunctionNode.GetChildForField("property");
 
         var propNode = propertySelector.Select(callNode);
-        Assert.That(propNode, Is.Not.Null);
-        Assert.That(propNode!.Text, Is.EqualTo("get"));
+        propNode.Should().NotBeNull();
+        propNode!.Text.Should().Be("get");
     }
 
     private Node? FindNode(Node? node, string type, string? functionTextName = null)

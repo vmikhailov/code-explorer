@@ -159,4 +159,25 @@ public class ColdFusionProjectParser : IProjectParser
     {
         return new ColdFusionSyntaxEnricher(syntaxTree);
     }
+
+    public Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory)
+    {
+        var props = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        // If Application.cfc or Application.cfm exists, it's a Web Application (serves pages/endpoints)
+        if (filesInDirectory.Any(f =>
+            Path.GetFileName(f).Equals("Application.cfc", StringComparison.OrdinalIgnoreCase) ||
+            Path.GetFileName(f).Equals("Application.cfm", StringComparison.OrdinalIgnoreCase) ||
+            Path.GetFileName(f).Equals("box.json", StringComparison.OrdinalIgnoreCase) ||
+            Path.GetFileName(f).Equals("coldfusion.json", StringComparison.OrdinalIgnoreCase)))
+        {
+            props["manifest_type"] = "application";
+            props["framework_type"] = "frontend";
+            return props;
+        }
+
+        // Standalone CFC components library without Application boundary is a Library
+        props["manifest_type"] = "library";
+        return props;
+    }
 }

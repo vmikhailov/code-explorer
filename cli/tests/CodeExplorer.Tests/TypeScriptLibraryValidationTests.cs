@@ -1,5 +1,5 @@
 using System.Threading.Channels;
-using NUnit.Framework;
+using AwesomeAssertions;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
@@ -10,6 +10,7 @@ using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.TypeScript;
+using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
 
@@ -102,21 +103,21 @@ async function insertAudit() {
         using var ws = await TestWorkspace.CreateAsync(code);
 
         var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
+        queries.Should().NotBeEmpty();
 
         var selectQuery = queries.FirstOrDefault(q => q.Name.Contains("SELECT") && q.Name.Contains("users"));
-        Assert.That(selectQuery, Is.Not.Null);
+        selectQuery.Should().NotBeNull();
 
         var selectDeps = selectQuery!.References.Where(r => r.Kind == "DEPENDS_ON").Select(r => r.TargetName)
             .ToList();
-        Assert.That(selectDeps, Contains.Item("users"));
+        selectDeps.Should().Contain("users");
 
         var insertQuery = queries.FirstOrDefault(q => q.Name.Contains("INSERT") && q.Name.Contains("audit_logs"));
-        Assert.That(insertQuery, Is.Not.Null);
+        insertQuery.Should().NotBeNull();
 
         var insertDeps = insertQuery!.References.Where(r => r.Kind == "DEPENDS_ON").Select(r => r.TargetName)
             .ToList();
-        Assert.That(insertDeps, Contains.Item("audit_logs"));
+        insertDeps.Should().Contain("audit_logs");
     }
 
     [Test]
@@ -134,21 +135,20 @@ async function test() {
         using var ws = await TestWorkspace.CreateAsync(code);
 
         var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
+        queries.Should().NotBeEmpty();
 
         var selectQuery = queries.FirstOrDefault(q =>
             (q.Name.Contains("accounts") || q.QueryText.Contains("accounts")) &&
             (q.Name.Contains("SELECT") || q.QueryText.Contains("SELECT")));
-        Assert.That(selectQuery, Is.Not.Null);
+        selectQuery.Should().NotBeNull();
 
-        Assert.That(selectQuery!.References.Any(r => r.TargetName == "accounts" && r.Kind == "DEPENDS_ON"),
-            Is.True);
+        (selectQuery!.References.Any(r => r.TargetName == "accounts" && r.Kind == "DEPENDS_ON")).Should().BeTrue();
 
         var updateQuery = queries.FirstOrDefault(q =>
             (q.Name.Contains("orders") || q.QueryText.Contains("orders")) &&
             (q.Name.Contains("UPDATE") || q.QueryText.Contains("UPDATE")));
-        Assert.That(updateQuery, Is.Not.Null);
-        Assert.That(updateQuery!.References.Any(r => r.TargetName == "orders" && r.Kind == "DEPENDS_ON"), Is.True);
+        updateQuery.Should().NotBeNull();
+        (updateQuery!.References.Any(r => r.TargetName == "orders" && r.Kind == "DEPENDS_ON")).Should().BeTrue();
     }
 
     [Test]
@@ -166,16 +166,16 @@ function runOps() {
         using var ws = await TestWorkspace.CreateAsync(code);
 
         var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
+        queries.Should().NotBeEmpty();
 
         var selectQuery = queries.FirstOrDefault(q => q.Name.Contains("SELECT") && q.Name.Contains("tasks"));
-        Assert.That(selectQuery, Is.Not.Null);
-        Assert.That(selectQuery!.References.Any(r => r.TargetName == "tasks"), Is.True);
+        selectQuery.Should().NotBeNull();
+        (selectQuery!.References.Any(r => r.TargetName == "tasks")).Should().BeTrue();
 
         var deleteQuery =
             queries.FirstOrDefault(q => q.Name.Contains("DELETE") && q.Name.Contains("expired_tokens"));
-        Assert.That(deleteQuery, Is.Not.Null);
-        Assert.That(deleteQuery!.References.Any(r => r.TargetName == "expired_tokens"), Is.True);
+        deleteQuery.Should().NotBeNull();
+        (deleteQuery!.References.Any(r => r.TargetName == "expired_tokens")).Should().BeTrue();
     }
 
     [Test]
@@ -193,19 +193,17 @@ async function getProducts() {
         using var ws = await TestWorkspace.CreateAsync(code);
 
         var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
+        queries.Should().NotBeEmpty();
 
         var knexTableQuery = queries.FirstOrDefault(q => q.Name.Contains("products"));
-        Assert.That(knexTableQuery, Is.Not.Null);
+        knexTableQuery.Should().NotBeNull();
 
-        Assert.That(knexTableQuery!.References.Any(r => r.TargetName == "products" && r.Kind == "USES_DB"),
-            Is.True);
+        (knexTableQuery!.References.Any(r => r.TargetName == "products" && r.Kind == "USES_DB")).Should().BeTrue();
 
         var rawQuery = queries.FirstOrDefault(q => q.Name.Contains("SELECT") && q.Name.Contains("system_events"));
-        Assert.That(rawQuery, Is.Not.Null);
+        rawQuery.Should().NotBeNull();
 
-        Assert.That(rawQuery!.References.Any(r => r.TargetName == "system_events" && r.Kind == "DEPENDS_ON"),
-            Is.True);
+        (rawQuery!.References.Any(r => r.TargetName == "system_events" && r.Kind == "DEPENDS_ON")).Should().BeTrue();
     }
 
     [Test]
@@ -224,17 +222,17 @@ async function run() {
         using var ws = await TestWorkspace.CreateAsync(code);
 
         var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
+        queries.Should().NotBeEmpty();
 
         var findQuery = queries.FirstOrDefault(q => q.Name.Contains("find"));
-        Assert.That(findQuery, Is.Not.Null);
-        Assert.That(findQuery!.Name, Does.Contain("TypeORM"));
+        findQuery.Should().NotBeNull();
+        findQuery!.Name.Should().Contain("TypeORM");
 
         var rawQuery = queries.FirstOrDefault(q =>
             (q.Name.Contains("SELECT") || q.QueryText.Contains("SELECT")) &&
             (q.Name.Contains("transactions") || q.QueryText.Contains("transactions")));
-        Assert.That(rawQuery, Is.Not.Null);
-        Assert.That(rawQuery!.References.Any(r => r.TargetName == "transactions"), Is.True);
+        rawQuery.Should().NotBeNull();
+        (rawQuery!.References.Any(r => r.TargetName == "transactions")).Should().BeTrue();
     }
 
     [Test]
@@ -252,15 +250,15 @@ async function test() {
         using var ws = await TestWorkspace.CreateAsync(code);
 
         var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
+        queries.Should().NotBeEmpty();
 
         var findAllQuery = queries.FirstOrDefault(q => q.Name.Contains("User.findAll"));
-        Assert.That(findAllQuery, Is.Not.Null);
-        Assert.That(findAllQuery!.References.Any(r => r.TargetName == "User" && r.Kind == "USES_DB"), Is.True);
+        findAllQuery.Should().NotBeNull();
+        (findAllQuery!.References.Any(r => r.TargetName == "User" && r.Kind == "USES_DB")).Should().BeTrue();
 
         var rawQuery = queries.FirstOrDefault(q => q.Name.Contains("SELECT") && q.Name.Contains("passwords"));
-        Assert.That(rawQuery, Is.Not.Null);
-        Assert.That(rawQuery!.References.Any(r => r.TargetName == "passwords"), Is.True);
+        rawQuery.Should().NotBeNull();
+        (rawQuery!.References.Any(r => r.TargetName == "passwords")).Should().BeTrue();
     }
 
     [Test]
@@ -278,15 +276,15 @@ async function main() {
         using var ws = await TestWorkspace.CreateAsync(code);
 
         var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
+        queries.Should().NotBeEmpty();
 
         var userFind = queries.FirstOrDefault(q => q.Name.Contains("user.findMany"));
-        Assert.That(userFind, Is.Not.Null);
-        Assert.That(userFind!.References.Any(r => r.TargetName == "user" && r.Kind == "USES_DB"), Is.True);
+        userFind.Should().NotBeNull();
+        (userFind!.References.Any(r => r.TargetName == "user" && r.Kind == "USES_DB")).Should().BeTrue();
 
         var orderCreate = queries.FirstOrDefault(q => q.Name.Contains("order.create"));
-        Assert.That(orderCreate, Is.Not.Null);
-        Assert.That(orderCreate!.References.Any(r => r.TargetName == "order" && r.Kind == "USES_DB"), Is.True);
+        orderCreate.Should().NotBeNull();
+        (orderCreate!.References.Any(r => r.TargetName == "order" && r.Kind == "USES_DB")).Should().BeTrue();
     }
 
     [Test]
@@ -303,15 +301,14 @@ async function queryDb() {
         using var ws = await TestWorkspace.CreateAsync(code);
 
         var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
+        queries.Should().NotBeEmpty();
 
         var rawQuery = queries.FirstOrDefault(q =>
             (q.Name.Contains("metrics_log") || q.QueryText.Contains("metrics_log")) &&
             q.References.Any(r => r.TargetName == "metrics_log"));
-        Assert.That(rawQuery, Is.Not.Null);
+        rawQuery.Should().NotBeNull();
 
-        Assert.That(rawQuery!.References.Any(r => r.TargetName == "metrics_log" && r.Kind == "DEPENDS_ON"),
-            Is.True);
+        (rawQuery!.References.Any(r => r.TargetName == "metrics_log" && r.Kind == "DEPENDS_ON")).Should().BeTrue();
     }
 
     [Test]
@@ -329,15 +326,15 @@ async function run() {
         using var ws = await TestWorkspace.CreateAsync(code);
 
         var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
+        queries.Should().NotBeEmpty();
 
         var selectOp = queries.FirstOrDefault(q => q.Name.Contains("usersTable"));
-        Assert.That(selectOp, Is.Not.Null);
-        Assert.That(selectOp!.References.Any(r => r.TargetName == "usersTable" && r.Kind == "USES_DB"), Is.True);
+        selectOp.Should().NotBeNull();
+        (selectOp!.References.Any(r => r.TargetName == "usersTable" && r.Kind == "USES_DB")).Should().BeTrue();
 
         var insertOp = queries.FirstOrDefault(q => q.Name.Contains("ordersTable"));
-        Assert.That(insertOp, Is.Not.Null);
-        Assert.That(insertOp!.References.Any(r => r.TargetName == "ordersTable" && r.Kind == "USES_DB"), Is.True);
+        insertOp.Should().NotBeNull();
+        (insertOp!.References.Any(r => r.TargetName == "ordersTable" && r.Kind == "USES_DB")).Should().BeTrue();
     }
 
     [Test]
@@ -351,11 +348,11 @@ const query = sql`SELECT id, created_at FROM audit_trail WHERE severity = 'high'
         using var ws = await TestWorkspace.CreateAsync(code);
 
         var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
+        queries.Should().NotBeEmpty();
 
         var q = queries.FirstOrDefault(q => q.Name.Contains("audit_trail") || q.QueryText.Contains("audit_trail"));
-        Assert.That(q, Is.Not.Null);
-        Assert.That(q!.References.Any(r => r.TargetName == "audit_trail" && r.Kind == "DEPENDS_ON"), Is.True);
+        q.Should().NotBeNull();
+        (q!.References.Any(r => r.TargetName == "audit_trail" && r.Kind == "DEPENDS_ON")).Should().BeTrue();
     }
 
     [Test]
@@ -374,13 +371,13 @@ async function test() {
         using var ws = await TestWorkspace.CreateAsync(code);
 
         var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
+        queries.Should().NotBeEmpty();
 
         var findQuery = queries.FirstOrDefault(q => q.Name.Contains("customers.find"));
-        Assert.That(findQuery, Is.Not.Null);
+        findQuery.Should().NotBeNull();
 
         var updateQuery = queries.FirstOrDefault(q => q.Name.Contains("orders.updateOne"));
-        Assert.That(updateQuery, Is.Not.Null);
+        updateQuery.Should().NotBeNull();
     }
 
     [Test]
@@ -398,15 +395,15 @@ async function search() {
         using var ws = await TestWorkspace.CreateAsync(code);
 
         var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
+        queries.Should().NotBeEmpty();
 
         var searchOp = queries.FirstOrDefault(q => q.Name.Contains("articles"));
-        Assert.That(searchOp, Is.Not.Null);
-        Assert.That(searchOp!.Name, Is.EqualTo("Elasticsearch: search (articles)"));
+        searchOp.Should().NotBeNull();
+        searchOp!.Name.Should().Be("Elasticsearch: search (articles)");
 
         var indexOp = queries.FirstOrDefault(q => q.Name.Contains("server_logs"));
-        Assert.That(indexOp, Is.Not.Null);
-        Assert.That(indexOp!.Name, Is.EqualTo("Elasticsearch: index (server_logs)"));
+        indexOp.Should().NotBeNull();
+        indexOp!.Name.Should().Be("Elasticsearch: index (server_logs)");
     }
 
     [Test]
@@ -424,11 +421,11 @@ async function queryGraph() {
         using var ws = await TestWorkspace.CreateAsync(code);
 
         var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
+        queries.Should().NotBeEmpty();
 
         var neoQuery = queries.FirstOrDefault(q => q.Name.Contains("Neo4j"));
-        Assert.That(neoQuery, Is.Not.Null);
-        Assert.That(neoQuery!.Name, Does.Contain("MATCH"));
+        neoQuery.Should().NotBeNull();
+        neoQuery!.Name.Should().Contain("MATCH");
     }
 
     [Test]
@@ -448,13 +445,13 @@ async function test() {
         using var ws = await TestWorkspace.CreateAsync(code);
 
         var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
+        queries.Should().NotBeEmpty();
 
         var queryCall = queries.FirstOrDefault(q => q.Name.Contains("queryRows"));
-        Assert.That(queryCall, Is.Not.Null);
+        queryCall.Should().NotBeNull();
 
         var writeCall = queries.FirstOrDefault(q => q.Name.Contains("writePoint"));
-        Assert.That(writeCall, Is.Not.Null);
+        writeCall.Should().NotBeNull();
     }
 
     [Test]
@@ -470,15 +467,15 @@ app.post('/api/v1/users', async (req, reply) => ({ created: true }));
         using var ws = await TestWorkspace.CreateAsync(code);
 
         var endpoints = FindNodes<EndpointNode>(ws.FileNode.Children);
-        Assert.That(endpoints, Has.Count.EqualTo(2));
+        endpoints.Should().HaveCount(2);
 
         var getEp = endpoints.FirstOrDefault(e => e.HttpMethod == "GET");
-        Assert.That(getEp, Is.Not.Null);
-        Assert.That(getEp!.RouteTemplate, Is.EqualTo("/api/v1/health"));
+        getEp.Should().NotBeNull();
+        getEp!.RouteTemplate.Should().Be("/api/v1/health");
 
         var postEp = endpoints.FirstOrDefault(e => e.HttpMethod == "POST");
-        Assert.That(postEp, Is.Not.Null);
-        Assert.That(postEp!.RouteTemplate, Is.EqualTo("/api/v1/users"));
+        postEp.Should().NotBeNull();
+        postEp!.RouteTemplate.Should().Be("/api/v1/users");
     }
 
     [Test]
@@ -497,11 +494,11 @@ server.route({
         using var ws = await TestWorkspace.CreateAsync(code);
 
         var endpoints = FindNodes<EndpointNode>(ws.FileNode.Children);
-        Assert.That(endpoints, Has.Count.EqualTo(1));
+        endpoints.Should().HaveCount(1);
 
         var ep = endpoints[0];
-        Assert.That(ep.HttpMethod, Is.EqualTo("DELETE"));
-        Assert.That(ep.RouteTemplate, Is.EqualTo("/api/v1/items/:id"));
+        ep.HttpMethod.Should().Be("DELETE");
+        ep.RouteTemplate.Should().Be("/api/v1/items/:id");
     }
 
     [Test]
@@ -517,15 +514,15 @@ router.post('/checkout', async ctx => { ctx.body = {}; });
         using var ws = await TestWorkspace.CreateAsync(code);
 
         var endpoints = FindNodes<EndpointNode>(ws.FileNode.Children);
-        Assert.That(endpoints, Has.Count.EqualTo(2));
+        endpoints.Should().HaveCount(2);
 
         var getEp = endpoints.FirstOrDefault(e => e.HttpMethod == "GET");
-        Assert.That(getEp, Is.Not.Null);
-        Assert.That(getEp!.RouteTemplate, Is.EqualTo("/users/:id"));
+        getEp.Should().NotBeNull();
+        getEp!.RouteTemplate.Should().Be("/users/:id");
 
         var postEp = endpoints.FirstOrDefault(e => e.HttpMethod == "POST");
-        Assert.That(postEp, Is.Not.Null);
-        Assert.That(postEp!.RouteTemplate, Is.EqualTo("/checkout"));
+        postEp.Should().NotBeNull();
+        postEp!.RouteTemplate.Should().Be("/checkout");
     }
 
     [Test]
@@ -544,13 +541,13 @@ export async function POST(request: Request) {
         using var ws = await TestWorkspace.CreateAsync(code);
 
         var endpoints = FindNodes<EndpointNode>(ws.FileNode.Children);
-        Assert.That(endpoints, Has.Count.EqualTo(2));
+        endpoints.Should().HaveCount(2);
 
         var getEp = endpoints.FirstOrDefault(e => e.HttpMethod == "GET");
-        Assert.That(getEp, Is.Not.Null);
+        getEp.Should().NotBeNull();
 
         var postEp = endpoints.FirstOrDefault(e => e.HttpMethod == "POST");
-        Assert.That(postEp, Is.Not.Null);
+        postEp.Should().NotBeNull();
     }
 
     [Test]
@@ -566,11 +563,11 @@ async function fetchRemote() {
         using var ws = await TestWorkspace.CreateAsync(code);
 
         var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
-        Assert.That(extServices, Has.Count.EqualTo(1));
-        Assert.That(extServices[0].Name, Is.EqualTo("api.paymentservice.com"));
+        extServices.Should().HaveCount(1);
+        extServices[0].Name.Should().Be("api.paymentservice.com");
 
         var refs = FindAllReferences(ws.FileNode);
-        Assert.That(refs.Any(r => r.TargetName == "api.paymentservice.com" && r.Kind == "CALLS"), Is.True);
+        (refs.Any(r => r.TargetName == "api.paymentservice.com" && r.Kind == "CALLS")).Should().BeTrue();
     }
 
     [Test]
@@ -586,11 +583,11 @@ async function fetchRemote() {
         using var ws = await TestWorkspace.CreateAsync(code);
 
         var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
-        Assert.That(extServices, Has.Count.EqualTo(1));
-        Assert.That(extServices[0].Name, Is.EqualTo("inventory.internal.net"));
+        extServices.Should().HaveCount(1);
+        extServices[0].Name.Should().Be("inventory.internal.net");
 
         var refs = FindAllReferences(ws.FileNode);
-        Assert.That(refs.Any(r => r.TargetName == "inventory.internal.net" && r.Kind == "CALLS"), Is.True);
+        (refs.Any(r => r.TargetName == "inventory.internal.net" && r.Kind == "CALLS")).Should().BeTrue();
     }
 
     [Test]
@@ -613,10 +610,10 @@ async function messaging() {
         var refs = FindAllReferences(ws.FileNode);
 
         var pubRef = refs.FirstOrDefault(r => r.TargetName == "kafka:orders-topic" && r.Kind == "PUBLISHES_TO");
-        Assert.That(pubRef, Is.Not.Null, "Should capture Kafka publisher reference");
+        pubRef.Should().NotBeNull("Should capture Kafka publisher reference");
 
         var subRef = refs.FirstOrDefault(r => r.TargetName == "kafka:payment-events" && r.Kind == "SUBSCRIBES_TO");
-        Assert.That(subRef, Is.Not.Null, "Should capture Kafka consumer reference");
+        subRef.Should().NotBeNull("Should capture Kafka consumer reference");
     }
 
     [Test]
@@ -640,10 +637,10 @@ const worker = new Worker('mail-queue', async job => {
         var refs = FindAllReferences(ws.FileNode);
 
         var subRef = refs.FirstOrDefault(r => r.TargetName == "bullmq:mail-queue" && r.Kind == "SUBSCRIBES_TO");
-        Assert.That(subRef, Is.Not.Null, "Should capture BullMQ worker subscription");
+        subRef.Should().NotBeNull("Should capture BullMQ worker subscription");
 
         var pubRef = refs.FirstOrDefault(r => r.TargetName.Contains("send-invoice") && r.Kind == "PUBLISHES_TO");
-        Assert.That(pubRef, Is.Not.Null, "Should capture BullMQ queue.add job publishing");
+        pubRef.Should().NotBeNull("Should capture BullMQ queue.add job publishing");
     }
 
     [Test]
@@ -659,15 +656,15 @@ app.delete('/api/v1/sessions', (req, res) => res.json({}));
         using var ws = await TestWorkspace.CreateAsync(code);
 
         var endpoints = FindNodes<EndpointNode>(ws.FileNode.Children);
-        Assert.That(endpoints, Has.Count.EqualTo(2));
+        endpoints.Should().HaveCount(2);
 
         var patchEp = endpoints.FirstOrDefault(e => e.HttpMethod == "PATCH");
-        Assert.That(patchEp, Is.Not.Null);
-        Assert.That(patchEp!.RouteTemplate, Is.EqualTo("/api/v1/users/:id"));
+        patchEp.Should().NotBeNull();
+        patchEp!.RouteTemplate.Should().Be("/api/v1/users/:id");
 
         var deleteEp = endpoints.FirstOrDefault(e => e.HttpMethod == "DELETE");
-        Assert.That(deleteEp, Is.Not.Null);
-        Assert.That(deleteEp!.RouteTemplate, Is.EqualTo("/api/v1/sessions"));
+        deleteEp.Should().NotBeNull();
+        deleteEp!.RouteTemplate.Should().Be("/api/v1/sessions");
     }
 
     [Test]
@@ -688,7 +685,7 @@ async function bootstrap() {
         using var ws = await TestWorkspace.CreateAsync(code, "main.ts");
 
         var endpoints = FindNodes<EndpointNode>(ws.FileNode.Children);
-        Assert.That(endpoints, Is.Empty);
+        endpoints.Should().BeEmpty();
     }
 
     [Test]
@@ -710,13 +707,13 @@ export class UsersController {
         using var ws = await TestWorkspace.CreateAsync(code);
 
         var endpoints = FindNodes<EndpointNode>(ws.FileNode.Children);
-        Assert.That(endpoints, Has.Count.EqualTo(2));
+        endpoints.Should().HaveCount(2);
 
         var getEp = endpoints.FirstOrDefault(e => e.HttpMethod == "GET" && e.RouteTemplate == "/users/all");
-        Assert.That(getEp, Is.Not.Null);
+        getEp.Should().NotBeNull();
 
         var postEp = endpoints.FirstOrDefault(e => e.HttpMethod == "POST" && e.RouteTemplate == "/users/create");
-        Assert.That(postEp, Is.Not.Null);
+        postEp.Should().NotBeNull();
     }
 
     [Test]
@@ -761,7 +758,7 @@ export class SmartCpaController {
             var controllerFile = Path.Combine(tempDir, "smart-cpa.controller.ts");
             await File.WriteAllTextAsync(controllerFile, controllerCode);
 
-            WorkspaceIndexer.Register(new TypeScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
 
             // Pre-register constants from config.ts with project name
             AstConstantExtractor.ExtractAndRegister(configFile, configCode, "integration-service-helper-nest");
@@ -781,19 +778,19 @@ export class SmartCpaController {
             }
 
             // Must NOT create an entry point for @Controller
-            Assert.That(endpoints.Any(e => e.HttpMethod == "GET" && e.RouteTemplate == "/smart-cpa"), Is.False, "Controller decorator itself should not be an Endpoint");
+            (endpoints.Any(e => e.HttpMethod == "GET" && e.RouteTemplate == "/smart-cpa")).Should().BeFalse("Controller decorator itself should not be an Endpoint");
 
             var startEp = endpoints.FirstOrDefault(e => e.RouteTemplate.Contains("start"));
-            Assert.That(startEp, Is.Not.Null, "Should find start endpoint");
-            Assert.That(startEp!.RouteTemplate, Is.EqualTo("/smart-cpa/campaigns/start"));
+            startEp.Should().NotBeNull("Should find start endpoint");
+            startEp!.RouteTemplate.Should().Be("/smart-cpa/campaigns/start");
 
             var stopEp = endpoints.FirstOrDefault(e => e.RouteTemplate.Contains("stop"));
-            Assert.That(stopEp, Is.Not.Null, "Should find stop endpoint");
-            Assert.That(stopEp!.RouteTemplate, Is.EqualTo("/smart-cpa/campaigns/stop"));
+            stopEp.Should().NotBeNull("Should find stop endpoint");
+            stopEp!.RouteTemplate.Should().Be("/smart-cpa/campaigns/stop");
 
             var updateEp = endpoints.FirstOrDefault(e => e.RouteTemplate.Contains("update"));
-            Assert.That(updateEp, Is.Not.Null, "Should find update endpoint");
-            Assert.That(updateEp!.RouteTemplate, Is.EqualTo("/smart-cpa/campaigns/update"));
+            updateEp.Should().NotBeNull("Should find update endpoint");
+            updateEp!.RouteTemplate.Should().Be("/smart-cpa/campaigns/update");
         }
         finally
         {
@@ -863,7 +860,7 @@ export class SmartCpaController {
             var smartCpaControllerFile = Path.Combine(tempDir, "smart-cpa.controller.ts");
             await File.WriteAllTextAsync(smartCpaControllerFile, smartCpaControllerCode);
 
-            WorkspaceIndexer.Register(new TypeScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
 
             var projectName = "integration-service-helper-nest";
             AstConstantExtractor.ExtractAndRegister(configFile, configCode, projectName);
@@ -889,21 +886,21 @@ export class SmartCpaController {
 
             // Verify other controller routes
             var otherStart = otherEndpoints.FirstOrDefault(e => e.HttpMethod == "POST");
-            Assert.That(otherStart, Is.Not.Null);
-            Assert.That(otherStart!.RouteTemplate, Is.EqualTo("/api/v1/other/start"));
+            otherStart.Should().NotBeNull();
+            otherStart!.RouteTemplate.Should().Be("/api/v1/other/start");
 
             // Verify smart-cpa controller routes - MUST NOT be /other/... or /start
             var startEp = smartCpaEndpoints.FirstOrDefault(e => e.RouteTemplate.Contains("start"));
-            Assert.That(startEp, Is.Not.Null);
-            Assert.That(startEp!.RouteTemplate, Is.EqualTo("/api/v1/smart-cpa/campaigns/start"));
+            startEp.Should().NotBeNull();
+            startEp!.RouteTemplate.Should().Be("/api/v1/smart-cpa/campaigns/start");
 
             var stopEp = smartCpaEndpoints.FirstOrDefault(e => e.RouteTemplate.Contains("stop"));
-            Assert.That(stopEp, Is.Not.Null);
-            Assert.That(stopEp!.RouteTemplate, Is.EqualTo("/api/v1/smart-cpa/campaigns/stop"));
+            stopEp.Should().NotBeNull();
+            stopEp!.RouteTemplate.Should().Be("/api/v1/smart-cpa/campaigns/stop");
 
             var updateEp = smartCpaEndpoints.FirstOrDefault(e => e.RouteTemplate.Contains("update"));
-            Assert.That(updateEp, Is.Not.Null);
-            Assert.That(updateEp!.RouteTemplate, Is.EqualTo("/api/v1/smart-cpa/campaigns/update"));
+            updateEp.Should().NotBeNull();
+            updateEp!.RouteTemplate.Should().Be("/api/v1/smart-cpa/campaigns/update");
 
             // Verify Inter-Service linking: ExternalService call from bundle to helper-nest
             var extService = new ExternalServiceNode(
@@ -923,11 +920,11 @@ export class SmartCpaController {
             var l5Parser = new Layer5AnalysisParser();
             var doesMatchProjMethod = typeof(Layer5AnalysisParser).GetMethod("DoesProjectMatchServiceDomain", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static, [typeof(CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode), typeof(string)])!;
             var projMatches = (bool)doesMatchProjMethod.Invoke(null, [helperNestProject, extService.DomainOrService])!;
-            Assert.That(projMatches, Is.True, "id_helper_nest should match project integration-service-helper-nest");
+            projMatches.Should().BeTrue("id_helper_nest should match project integration-service-helper-nest");
 
             var isMatchMethod = typeof(Layer5AnalysisParser).GetMethod("IsMatch", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance, [typeof(ExternalServiceNode), typeof(EndpointNode), typeof(CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode)])!;
             var endpointMatches = (bool)isMatchMethod.Invoke(l5Parser, [extService, startEp, helperNestProject])!;
-            Assert.That(endpointMatches, Is.True, "ExternalService /api/v1/smart-cpa/campaigns/start should match smart-cpa endpoint");
+            endpointMatches.Should().BeTrue("ExternalService /api/v1/smart-cpa/campaigns/start should match smart-cpa endpoint");
         }
         finally
         {
@@ -957,10 +954,10 @@ export class TrafficRoutingRulesController {
 
         var endpoints = FindNodes<EndpointNode>(ws.FileNode.Children);
         var postEp = endpoints.FirstOrDefault(e => e.HttpMethod == "POST" && e.RouteTemplate == "/v1/kv/form-full-rule");
-        Assert.That(postEp, Is.Not.Null, "Expected /v1/kv/form-full-rule endpoint with POST method");
+        postEp.Should().NotBeNull("Expected /v1/kv/form-full-rule endpoint with POST method");
 
         var getEp = endpoints.FirstOrDefault(e => e.HttpMethod == "GET" && e.RouteTemplate == "/v1/kv/rules");
-        Assert.That(getEp, Is.Not.Null, "Expected /v1/kv/rules endpoint with GET method");
+        getEp.Should().NotBeNull("Expected /v1/kv/rules endpoint with GET method");
     }
 
     [Test]
@@ -977,11 +974,11 @@ async function test() {
         using var ws = await TestWorkspace.CreateAsync(code);
 
         var queries = FindNodes<QueryNode>(ws.FileNode.Children);
-        Assert.That(queries, Is.Not.Empty);
+        queries.Should().NotBeEmpty();
 
         var q = queries.FirstOrDefault(q => q.Name.Contains("accounts") || q.QueryText.Contains("accounts"));
-        Assert.That(q, Is.Not.Null);
-        Assert.That(q!.References.Any(r => r.TargetName == "accounts" && r.Kind == "DEPENDS_ON"), Is.True);
+        q.Should().NotBeNull();
+        (q!.References.Any(r => r.TargetName == "accounts" && r.Kind == "DEPENDS_ON")).Should().BeTrue();
     }
 
     [Test]
@@ -1009,14 +1006,14 @@ export class GamesComponent {
         using var ws = await TestWorkspace.CreateAsync(code, "games.component.ts");
 
         var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
-        Assert.That(extServices, Has.Count.EqualTo(2));
+        extServices.Should().HaveCount(2);
 
         var gamesSvc = extServices.FirstOrDefault(s => s.Path == "/api/v1/games");
-        Assert.That(gamesSvc, Is.Not.Null);
-        Assert.That(gamesSvc!.DomainOrService, Is.EqualTo("localhost"));
+        gamesSvc.Should().NotBeNull();
+        gamesSvc!.DomainOrService.Should().Be("localhost");
 
         var profileSvc = extServices.FirstOrDefault(s => s.Path == "/api/v1/profiles");
-        Assert.That(profileSvc, Is.Not.Null);
+        profileSvc.Should().NotBeNull();
     }
 
     [Test]
@@ -1072,16 +1069,16 @@ export class AdminComponent implements OnInit {
         using var ws = await TestWorkspace.CreateAsync(componentCode, "admin.component.ts");
 
         var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
-        Assert.That(extServices, Has.Count.EqualTo(3));
+        extServices.Should().HaveCount(3);
 
         var gamesSvc = extServices.FirstOrDefault(s => s.Path == "/api/v1/games");
-        Assert.That(gamesSvc, Is.Not.Null);
+        gamesSvc.Should().NotBeNull();
 
         var playerSvc = extServices.FirstOrDefault(s => s.Path == "/api/v1/profiles");
-        Assert.That(playerSvc, Is.Not.Null);
+        playerSvc.Should().NotBeNull();
 
         var userSvc = extServices.FirstOrDefault(s => s.Path.EndsWith("/api/v1/users"));
-        Assert.That(userSvc, Is.Not.Null);
+        userSvc.Should().NotBeNull();
     }
 
     [Test]
@@ -1116,13 +1113,13 @@ export class TestComponent {
         using var ws = await TestWorkspace.CreateAsync(componentCode, "test.component.ts");
 
         var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
-        Assert.That(extServices, Has.Count.EqualTo(2));
+        extServices.Should().HaveCount(2);
 
         var gamesSvc = extServices.FirstOrDefault(s => s.Path == "/api/v1/games");
-        Assert.That(gamesSvc, Is.Not.Null);
+        gamesSvc.Should().NotBeNull();
 
         var playerSvc = extServices.FirstOrDefault(s => s.Path == "/api/v1/profiles");
-        Assert.That(playerSvc, Is.Not.Null);
+        playerSvc.Should().NotBeNull();
     }
 
     [Test]
@@ -1146,12 +1143,12 @@ export const authCodeFlowConfig: AuthConfig = {
         using var wsConfig = await TestWorkspace.CreateAsync(authConfigCode, "auth.config.ts");
 
         var extServicesConfig = FindNodes<ExternalServiceNode>(wsConfig.FileNode.Children);
-        Assert.That(extServicesConfig, Has.Count.GreaterThan(0));
+        extServicesConfig.Should().HaveCountGreaterThan(0);
 
         var oidcConfigEs =
             extServicesConfig.FirstOrDefault(s => s.Path.Contains(".well-known/openid-configuration"));
-        Assert.That(oidcConfigEs, Is.Not.Null);
-        Assert.That(oidcConfigEs!.DomainOrService, Is.EqualTo("localhost"));
+        oidcConfigEs.Should().NotBeNull();
+        oidcConfigEs!.DomainOrService.Should().Be("localhost");
 
         var authServiceCode = @"
 import { Injectable } from '@angular/core';
@@ -1170,11 +1167,11 @@ export class AuthService {
         using var wsService = await TestWorkspace.CreateAsync(authServiceCode, "auth.service.ts");
 
         var extServicesService = FindNodes<ExternalServiceNode>(wsService.FileNode.Children);
-        Assert.That(extServicesService, Has.Count.GreaterThan(0));
+        extServicesService.Should().HaveCountGreaterThan(0);
 
         var oidcCallEs =
             extServicesService.FirstOrDefault(s => s.Path.Contains(".well-known/openid-configuration"));
-        Assert.That(oidcCallEs, Is.Not.Null);
+        oidcCallEs.Should().NotBeNull();
     }
 
     [Test]
@@ -1198,11 +1195,11 @@ export class RealtimeService {
         using var ws = await TestWorkspace.CreateAsync(code, "realtime.service.ts");
 
         var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
-        Assert.That(extServices, Has.Count.EqualTo(1));
+        extServices.Should().HaveCount(1);
 
         var hubSvc = extServices.First();
-        Assert.That(hubSvc.Protocol, Is.EqualTo("ws"));
-        Assert.That(hubSvc.Path, Is.EqualTo("/hub/games"));
+        hubSvc.Protocol.Should().Be("ws");
+        hubSvc.Path.Should().Be("/hub/games");
     }
 
     [Test]
@@ -1221,10 +1218,10 @@ const client = new ApolloClient({
         using var ws = await TestWorkspace.CreateAsync(code, "apollo.ts");
 
         var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
-        Assert.That(extServices, Has.Count.EqualTo(1));
+        extServices.Should().HaveCount(1);
 
         var gqlSvc = extServices.First();
-        Assert.That(gqlSvc.Path, Is.EqualTo("/graphql"));
+        gqlSvc.Path.Should().Be("/graphql");
     }
 
     [Test]
@@ -1279,24 +1276,24 @@ export async function fetchTrafficBacks(baseUrl: string) {
         // Verify that ExternalService IDs are canonical (no :line:col row suffix)
         foreach (var es in extServices)
         {
-            Assert.That(es.Id, Does.Not.Match(@":\d+$"),
+            es.Id.Should().NotMatchRegex(@":\d+$",
                 "ExternalService ID should be canonical and not end with row number");
         }
 
         // Verify CF API resolution: both executeQuery and putKv should resolve to api.cloudflare.com
         var cfSvc = extServices.FirstOrDefault(s => s.DomainOrService == "api.cloudflare.com");
-        Assert.That(cfSvc, Is.Not.Null, "Should resolve this.baseUrl to api.cloudflare.com");
-        Assert.That(cfSvc!.Protocol, Is.EqualTo("https"));
+        cfSvc.Should().NotBeNull("Should resolve this.baseUrl to api.cloudflare.com");
+        cfSvc!.Protocol.Should().Be("https");
 
         // Verify Hub Ingest resolution: should resolve to hub.at-systems.biz
         var hubSvc = extServices.FirstOrDefault(s => s.DomainOrService == "hub.at-systems.biz");
-        Assert.That(hubSvc, Is.Not.Null, "Should resolve getHubUrl() to hub.at-systems.biz");
-        Assert.That(hubSvc!.Protocol, Is.EqualTo("https"));
+        hubSvc.Should().NotBeNull("Should resolve getHubUrl() to hub.at-systems.biz");
+        hubSvc!.Protocol.Should().Be("https");
 
         // Verify Bundles resolution: should resolve options.apiUrl || https://bundles.${domain} to bundles
         var bundlesSvc = extServices.FirstOrDefault(s => s.DomainOrService == "bundles");
-        Assert.That(bundlesSvc, Is.Not.Null, "Should resolve baseUrl to bundles");
-        Assert.That(bundlesSvc!.Protocol, Is.EqualTo("https"));
+        bundlesSvc.Should().NotBeNull("Should resolve baseUrl to bundles");
+        bundlesSvc!.Protocol.Should().Be("https");
     }
 
     [Test]
@@ -1317,17 +1314,17 @@ export async function fetchTrafficBacks(baseUrl: string) {
             await using var client = new InMemoryGraphClient();
 
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-            WorkspaceIndexer.Register(new TypeScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
 
             var l1Result = await new Layer1PhysicalParser().ParseAsync(ctx);
             var files = l1Result.Files;
 
             var fileNames = files.Select(f => f.Name).ToList();
-            Assert.That(fileNames, Does.Contain("main.ts"));
-            Assert.That(fileNames, Does.Not.Contain("scratch_debug.ts"));
-            Assert.That(fileNames, Does.Not.Contain("temp_worker.ts"));
-            Assert.That(fileNames, Does.Not.Contain("feature_debug.ts"));
-            Assert.That(fileNames, Does.Not.Contain("worker.scratch.ts"));
+            fileNames.Should().Contain("main.ts");
+            fileNames.Should().NotContain("scratch_debug.ts");
+            fileNames.Should().NotContain("temp_worker.ts");
+            fileNames.Should().NotContain("feature_debug.ts");
+            fileNames.Should().NotContain("worker.scratch.ts");
         }
         finally
         {
@@ -1362,7 +1359,7 @@ export class IdHelperService {
             var serviceFile = Path.Combine(tempDir, "id-helper.service.ts");
             await File.WriteAllTextAsync(serviceFile, serviceCode);
 
-            WorkspaceIndexer.Register(new TypeScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
 
             var parser = new TypeScriptParser();
             var channel = Channel.CreateUnbounded<Func<Task>>();
@@ -1373,14 +1370,14 @@ export class IdHelperService {
             Layer3SyntacticParser.ProcessVisitor(tree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, ctx, "listener");
 
             var extServices = FindNodes<ExternalServiceNode>(tree.FileNode.Children);
-            Assert.That(extServices, Has.Count.EqualTo(1));
+            extServices.Should().HaveCount(1);
 
             var es = extServices[0];
-            Assert.That(es.DomainOrService, Is.EqualTo("id_helper_nest"), "BaseURL from this._baseUrl and config.get('ID_HELPER_NEST') must be resolved");
-            Assert.That(es.Path, Is.EqualTo("/api/v1/smart-cpa/campaigns/start"));
-            Assert.That(es.Extensions, Is.Not.Null);
-            Assert.That(es.Extensions!.ContainsKey("caller_symbol_id"), Is.True);
-            Assert.That(es.Extensions["caller_symbol_id"], Does.Contain("startCampaign"));
+            es.DomainOrService.Should().Be("id_helper_nest", "BaseURL from this._baseUrl and config.get('ID_HELPER_NEST') must be resolved");
+            es.Path.Should().Be("/api/v1/smart-cpa/campaigns/start");
+            es.Extensions.Should().NotBeNull();
+            es.Extensions!.ContainsKey("caller_symbol_id").Should().BeTrue();
+            es.Extensions["caller_symbol_id"].Should().Contain("startCampaign");
 
             // Test LateBinding generates direct CALLS_ENDPOINT from calling function
             var targetEp = new EndpointNode(
@@ -1400,7 +1397,7 @@ export class IdHelperService {
             var l5Parser = new Layer5AnalysisParser();
             var isMatchMethod = typeof(Layer5AnalysisParser).GetMethod("IsMatch", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance, [typeof(ExternalServiceNode), typeof(EndpointNode), typeof(CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode)])!;
             var matches = (bool)isMatchMethod.Invoke(l5Parser, [es, targetEp, helperNestProj])!;
-            Assert.That(matches, Is.True);
+            matches.Should().BeTrue();
         }
         finally
         {
@@ -1432,7 +1429,7 @@ export class IdHelperService {
             Assert.DoesNotThrowAsync(async () =>
             {
                 var rels = (List<Relationship>)await (Task<List<Relationship>>)resolveMethod.Invoke(l5Parser, [ctx])!;
-                Assert.That(rels, Is.Not.Null);
+                rels.Should().NotBeNull();
             });
         }
         finally
@@ -1472,9 +1469,9 @@ export class IdHelperService {
             var repo = new Core.Mcp.CodeExplorerRepository(client);
             var result = await repo.GetCallChainAsync("getWeightedPayoutToPostbackLinks", "getPostbackLink", format: "json");
             
-            Assert.That(result, Does.Contain("getWeightedPayoutToPostbackLinks"));
-            Assert.That(result, Does.Contain("getPostbackLink"));
-            Assert.That(result, Does.Not.Contain("No call chain found"));
+            result.Should().Contain("getWeightedPayoutToPostbackLinks");
+            result.Should().Contain("getPostbackLink");
+            result.Should().NotContain("No call chain found");
         }
         finally
         {
@@ -1518,7 +1515,7 @@ export class CampaignsController {
             await File.WriteAllTextAsync(Path.Combine(srcDir, "main.ts"), mainCode);
             await File.WriteAllTextAsync(Path.Combine(srcDir, "campaigns.controller.ts"), controllerCode);
 
-            WorkspaceIndexer.Register(new TypeScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphClient();
@@ -1530,12 +1527,12 @@ export class CampaignsController {
 
             var ctrlTree = l3.SyntaxTrees.First(t => t.FilePath.Contains("campaigns.controller.ts"));
             var endpoints = FindNodes<EndpointNode>(ctrlTree.FileNode.Children);
-            Assert.That(endpoints, Has.Count.EqualTo(1));
+            endpoints.Should().HaveCount(1);
 
             var ep = endpoints[0];
-            Assert.That(ep.RouteTemplate, Is.EqualTo("/api/v1/campaigns/min-bid"));
-            Assert.That(ep.RouteTemplate, Does.Not.Contain("${apiVersion}"));
-            Assert.That(ep.Name, Is.EqualTo("POST:/api/v1/campaigns/min-bid"));
+            ep.RouteTemplate.Should().Be("/api/v1/campaigns/min-bid");
+            ep.RouteTemplate.Should().NotContain("${apiVersion}");
+            ep.Name.Should().Be("POST:/api/v1/campaigns/min-bid");
         }
         finally
         {
@@ -1554,7 +1551,7 @@ export class CampaignsController {
             // Manifest has copied template name
             await File.WriteAllTextAsync(Path.Combine(repoDir, "package.json"), "{\"name\": \"integration-service-adsterra-nest\"}");
 
-            WorkspaceIndexer.Register(new TypeScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphClient();
@@ -1563,10 +1560,10 @@ export class CampaignsController {
             var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
             var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
 
-            Assert.That(l2.Projects, Has.Count.EqualTo(1));
+            l2.Projects.Should().HaveCount(1);
             var proj = l2.Projects[0];
             // Must align to actual folder name instead of stale template manifest name
-            Assert.That(proj.Name, Is.EqualTo("integration-service-adsterra-sc-nest"));
+            proj.Name.Should().Be("integration-service-adsterra-sc-nest");
         }
         finally
         {
@@ -1607,7 +1604,7 @@ export class CampaignsController {
             await File.WriteAllTextAsync(Path.Combine(srcDir, "main.ts"), mainCode);
             await File.WriteAllTextAsync(Path.Combine(srcDir, "campaigns.controller.ts"), controllerCode);
 
-            WorkspaceIndexer.Register(new TypeScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphClient();
@@ -1618,17 +1615,17 @@ export class CampaignsController {
             var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
             var l4 = await new Layer4SemanticParser().ParseAsync(l3, ctx);
 
-            Assert.That(l2.Projects, Has.Count.EqualTo(1));
+            l2.Projects.Should().HaveCount(1);
             var proj = l2.Projects[0];
-            Assert.That(proj.Name, Is.EqualTo("adsterra-sc-nest"));
+            proj.Name.Should().Be("adsterra-sc-nest");
 
             var endpoints = l3.SyntaxTrees.SelectMany(t => FindNodes<EndpointNode>(t.FileNode.Children)).ToList();
-            Assert.That(endpoints, Has.Count.EqualTo(1));
+            endpoints.Should().HaveCount(1);
             var ep = endpoints[0];
-            Assert.That(ep.RouteTemplate, Is.EqualTo("/api/v1/campaigns/min-bid"));
-            Assert.That(ep.RouteTemplate, Does.Not.Contain("${apiVersion}"));
-            Assert.That(ep.Id, Does.Contain("adsterra-sc-nest"));
-            Assert.That(ep.Id, Does.Not.Contain("integration-service-adsterra-nest"));
+            ep.RouteTemplate.Should().Be("/api/v1/campaigns/min-bid");
+            ep.RouteTemplate.Should().NotContain("${apiVersion}");
+            ep.Id.Should().Contain("adsterra-sc-nest");
+            ep.Id.Should().NotContain("integration-service-adsterra-nest");
         }
         finally
         {
@@ -1671,7 +1668,7 @@ export class CampaignsController {
             await File.WriteAllTextAsync(Path.Combine(srcDir, "main.ts"), mainCode);
             await File.WriteAllTextAsync(Path.Combine(srcDir, "campaigns.controller.ts"), controllerCode);
 
-            WorkspaceIndexer.Register(new TypeScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphClient();
@@ -1681,17 +1678,17 @@ export class CampaignsController {
             var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
             var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
 
-            Assert.That(l2.Projects, Has.Count.EqualTo(1));
+            l2.Projects.Should().HaveCount(1);
             var proj = l2.Projects[0];
             // Must align to folder name 'adsterra-sc-nest' despite being nested at services/adsterra-sc-nest
-            Assert.That(proj.Name, Is.EqualTo("adsterra-sc-nest"));
+            proj.Name.Should().Be("adsterra-sc-nest");
 
             var endpoints = l3.SyntaxTrees.SelectMany(t => FindNodes<EndpointNode>(t.FileNode.Children)).ToList();
-            Assert.That(endpoints, Has.Count.EqualTo(1));
+            endpoints.Should().HaveCount(1);
             var ep = endpoints[0];
-            Assert.That(ep.RouteTemplate, Is.EqualTo("/api/v1/campaigns/min-bid"));
-            Assert.That(ep.RouteTemplate, Does.Not.Contain("${apiVersion}"));
-            Assert.That(ep.Id, Does.Contain("adsterra-sc-nest"));
+            ep.RouteTemplate.Should().Be("/api/v1/campaigns/min-bid");
+            ep.RouteTemplate.Should().NotContain("${apiVersion}");
+            ep.Id.Should().Contain("adsterra-sc-nest");
         }
         finally
         {
@@ -1731,7 +1728,7 @@ export class CampaignsController {
             await File.WriteAllTextAsync(Path.Combine(srcDir, "main.ts"), mainCode);
             await File.WriteAllTextAsync(Path.Combine(srcDir, "campaigns.controller.ts"), controllerCode);
 
-            WorkspaceIndexer.Register(new TypeScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphClient();
@@ -1742,10 +1739,10 @@ export class CampaignsController {
             var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
 
             var endpoints = l3.SyntaxTrees.SelectMany(t => FindNodes<EndpointNode>(t.FileNode.Children)).ToList();
-            Assert.That(endpoints, Has.Count.EqualTo(1));
+            endpoints.Should().HaveCount(1);
             var ep = endpoints[0];
-            Assert.That(ep.RouteTemplate, Is.EqualTo("/api/v1/campaigns/min-bid"));
-            Assert.That(ep.RouteTemplate, Does.Not.Contain("${apiVersion}"));
+            ep.RouteTemplate.Should().Be("/api/v1/campaigns/min-bid");
+            ep.RouteTemplate.Should().NotContain("${apiVersion}");
         }
         finally
         {
@@ -1772,17 +1769,17 @@ export class TrackerApiService {
 
         var functions = FindNodes<FunctionNode>(ws.FileNode.Children);
         var loaderFunc = functions.FirstOrDefault(f => f.Name == "cpmStats.loader");
-        Assert.That(loaderFunc, Is.Not.Null, "Expected 'cpmStats.loader' to be registered as a Function symbol");
+        loaderFunc.Should().NotBeNull("Expected 'cpmStats.loader' to be registered as a Function symbol");
 
         var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
-        Assert.That(extServices, Is.Not.Empty);
+        extServices.Should().NotBeEmpty();
 
         var bffService = extServices.FirstOrDefault(e => e.Name.Contains("bff.at-systems.biz"));
-        Assert.That(bffService, Is.Not.Null);
-        Assert.That(bffService!.Path, Does.Contain("cpm-stats"));
-        Assert.That(bffService.Extensions, Is.Not.Null);
-        Assert.That(bffService.Extensions!.ContainsKey("caller_symbol_id"), Is.True);
-        Assert.That(bffService.Extensions["caller_symbol_id"], Does.Contain("cpmStats.loader"));
+        bffService.Should().NotBeNull();
+        bffService!.Path.Should().Contain("cpm-stats");
+        bffService.Extensions.Should().NotBeNull();
+        bffService.Extensions!.ContainsKey("caller_symbol_id").Should().BeTrue();
+        bffService.Extensions["caller_symbol_id"].Should().Contain("cpmStats.loader");
     }
 
     [Test]
@@ -1808,38 +1805,38 @@ export class CampaignsController {
 
         // Decorators @Controller, @Get and @Param are classified into Routing and ParamBinding roles
         var controllerLit = literals.FirstOrDefault(l => l.Value == "campaigns");
-        Assert.That(controllerLit, Is.Not.Null);
-        Assert.That(controllerLit!.Role, Is.EqualTo(CallSemanticRole.Routing));
-        Assert.That(controllerLit.IsDecorator, Is.True);
+        controllerLit.Should().NotBeNull();
+        controllerLit!.Role.Should().Be(CallSemanticRole.Routing);
+        controllerLit.IsDecorator.Should().BeTrue();
 
         var getLit = literals.FirstOrDefault(l => l.Value == ":id");
-        Assert.That(getLit, Is.Not.Null);
-        Assert.That(getLit!.Role, Is.EqualTo(CallSemanticRole.Routing));
-        Assert.That(getLit.IsDecorator, Is.True);
+        getLit.Should().NotBeNull();
+        getLit!.Role.Should().Be(CallSemanticRole.Routing);
+        getLit.IsDecorator.Should().BeTrue();
 
         var paramLit = literals.FirstOrDefault(l => l.Value == "id");
-        Assert.That(paramLit, Is.Not.Null);
-        Assert.That(paramLit!.Role, Is.EqualTo(CallSemanticRole.ParamBinding));
-        Assert.That(paramLit.IsDecorator, Is.True);
+        paramLit.Should().NotBeNull();
+        paramLit!.Role.Should().Be(CallSemanticRole.ParamBinding);
+        paramLit.IsDecorator.Should().BeTrue();
 
         // Logger, Config and QueryBuilder literals are classified into their respective roles
         var logLit = literals.FirstOrDefault(l => l.Value == "fetching campaign");
-        Assert.That(logLit, Is.Not.Null);
-        Assert.That(logLit!.Role, Is.EqualTo(CallSemanticRole.Logging));
+        logLit.Should().NotBeNull();
+        logLit!.Role.Should().Be(CallSemanticRole.Logging);
 
         var configLit = literals.FirstOrDefault(l => l.Value == "DATABASE_URL");
-        Assert.That(configLit, Is.Not.Null);
-        Assert.That(configLit!.Role, Is.EqualTo(CallSemanticRole.Config));
+        configLit.Should().NotBeNull();
+        configLit!.Role.Should().Be(CallSemanticRole.Config);
 
         var qbLit = literals.FirstOrDefault(l => l.Value == "c");
-        Assert.That(qbLit, Is.Not.Null);
-        Assert.That(qbLit!.Role, Is.EqualTo(CallSemanticRole.QueryBuilder));
+        qbLit.Should().NotBeNull();
+        qbLit!.Role.Should().Be(CallSemanticRole.QueryBuilder);
 
         // Only the legitimate business argument literal is classified as Business
         var businessLiterals = literals.Where(l => l.Role == CallSemanticRole.Business).ToList();
-        Assert.That(businessLiterals, Has.Count.EqualTo(1));
-        Assert.That(businessLiterals[0].Value, Is.EqualTo("HARDCODED_BUSINESS_STATUS"));
-        Assert.That(businessLiterals[0].Callee, Does.Contain("processOrder"));
+        businessLiterals.Should().HaveCount(1);
+        businessLiterals[0].Value.Should().Be("HARDCODED_BUSINESS_STATUS");
+        businessLiterals[0].Callee.Should().Contain("processOrder");
     }
 
     [Test]
@@ -1862,28 +1859,28 @@ export class SampleComponent {
         var literals = FindNodes<CallLiteralNode>(ws.FileNode.Children);
 
         var formLit = literals.FirstOrDefault(l => l.Value == "email");
-        Assert.That(formLit, Is.Not.Null);
-        Assert.That(formLit!.Role, Is.EqualTo(CallSemanticRole.FormAccess));
+        formLit.Should().NotBeNull();
+        formLit!.Role.Should().Be(CallSemanticRole.FormAccess);
 
         var storageLit = literals.FirstOrDefault(l => l.Value == "auth_token");
-        Assert.That(storageLit, Is.Not.Null);
-        Assert.That(storageLit!.Role, Is.EqualTo(CallSemanticRole.Storage));
+        storageLit.Should().NotBeNull();
+        storageLit!.Role.Should().Be(CallSemanticRole.Storage);
 
         var webApiLit = literals.FirstOrDefault(l => l.Value == "https://example.com/help");
-        Assert.That(webApiLit, Is.Not.Null);
-        Assert.That(webApiLit!.Role, Is.EqualTo(CallSemanticRole.WebAPI));
+        webApiLit.Should().NotBeNull();
+        webApiLit!.Role.Should().Be(CallSemanticRole.WebAPI);
 
         var testIdLit = literals.FirstOrDefault(l => l.Value == "navbar_menu_id");
-        Assert.That(testIdLit, Is.Not.Null);
-        Assert.That(testIdLit!.Role, Is.EqualTo(CallSemanticRole.TestIdentifier));
+        testIdLit.Should().NotBeNull();
+        testIdLit!.Role.Should().Be(CallSemanticRole.TestIdentifier);
 
         var stateLit = literals.FirstOrDefault(l => l.Value == "default_state");
-        Assert.That(stateLit, Is.Not.Null);
-        Assert.That(stateLit!.Role, Is.EqualTo(CallSemanticRole.State));
+        stateLit.Should().NotBeNull();
+        stateLit!.Role.Should().Be(CallSemanticRole.State);
 
         var businessLits = literals.Where(l => l.Role == CallSemanticRole.Business).ToList();
-        Assert.That(businessLits, Has.Count.EqualTo(1));
-        Assert.That(businessLits[0].Value, Is.EqualTo("VALID_BUSINESS_ID"));
+        businessLits.Should().HaveCount(1);
+        businessLits[0].Value.Should().Be("VALID_BUSINESS_ID");
     }
 
     [Test]
@@ -1899,10 +1896,10 @@ export async function importScenarios() {
 ";
         using var ws = await TestWorkspace.CreateAsync(code);
         var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
-        Assert.That(extServices, Has.Count.EqualTo(1));
+        extServices.Should().HaveCount(1);
         var es = extServices[0];
-        Assert.That(es.DomainOrService, Is.EqualTo("localhost"));
-        Assert.That(es.Path, Is.EqualTo("/api/v1/config/scenarios"));
-        Assert.That(es.Extensions?["is_internal"], Is.EqualTo("true"));
+        es.DomainOrService.Should().Be("localhost");
+        es.Path.Should().Be("/api/v1/config/scenarios");
+        es.Extensions?["is_internal"].Should().Be("true");
     }
 }

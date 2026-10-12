@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using CodeExplorer.Cypher.Ast;
 using CodeExplorer.Cypher.Compiler;
 using CodeExplorer.Cypher.Linq;
@@ -36,23 +37,23 @@ public class LinqTests
         var query = graph.Services.Where(s => s.Framework == "aspnetcore");
         var ast = query.ToCypherAst();
 
-        Assert.That(ast.Matches, Has.Count.EqualTo(1));
+        ast.Matches.Should().HaveCount(1);
         var match = ast.Matches[0];
-        Assert.That(match.Paths[0].Head.Labels, Contains.Item("Service"));
+        match.Paths[0].Head.Labels.Should().Contain("Service");
 
-        Assert.That(ast.Where, Is.Not.Null);
-        Assert.That(ast.Where!.Predicate, Is.TypeOf<BinaryExpression>());
+        ast.Where.Should().NotBeNull();
+        ast.Where!.Predicate.Should().BeOfType<BinaryExpression>();
         var bin = (BinaryExpression)ast.Where.Predicate;
-        Assert.That(bin.Operator, Is.EqualTo(BinaryOperator.Equal));
-        Assert.That(bin.Left, Is.TypeOf<PropertyAccessExpression>());
+        bin.Operator.Should().Be(BinaryOperator.Equal);
+        bin.Left.Should().BeOfType<PropertyAccessExpression>();
         var leftProp = (PropertyAccessExpression)bin.Left;
-        Assert.That(leftProp.PropertyName, Is.EqualTo("framework"));
-        Assert.That(bin.Right, Is.TypeOf<ParameterExpression>());
+        leftProp.PropertyName.Should().Be("framework");
+        bin.Right.Should().BeOfType<ParameterExpression>();
 
         // Check SQL compilation
         var compiled = SqliteCompiler.Compile(ast);
-        Assert.That(compiled.Sql, Does.Contain("SELECT"));
-        Assert.That(compiled.Sql, Does.Contain("framework"));
+        compiled.Sql.Should().Contain("SELECT");
+        compiled.Sql.Should().Contain("framework");
     }
 
     [Test]
@@ -64,10 +65,10 @@ public class LinqTests
         var query = graph.Services.Where(s => s.Framework == "aspnetcore" && s.Language == "csharp");
         var ast = query.ToCypherAst();
 
-        Assert.That(ast.Where, Is.Not.Null);
-        Assert.That(ast.Where!.Predicate, Is.TypeOf<BinaryExpression>());
+        ast.Where.Should().NotBeNull();
+        ast.Where!.Predicate.Should().BeOfType<BinaryExpression>();
         var bin = (BinaryExpression)ast.Where.Predicate;
-        Assert.That(bin.Operator, Is.EqualTo(BinaryOperator.And));
+        bin.Operator.Should().Be(BinaryOperator.And);
     }
 
     [Test]
@@ -78,15 +79,15 @@ public class LinqTests
 
         var q1 = graph.Services.Where(s => s.Name.Contains("hub")).ToCypherAst();
         var bin1 = (BinaryExpression)q1.Where!.Predicate;
-        Assert.That(bin1.Operator, Is.EqualTo(BinaryOperator.Contains));
+        bin1.Operator.Should().Be(BinaryOperator.Contains);
 
         var q2 = graph.Services.Where(s => s.Name.StartsWith("ad-")).ToCypherAst();
         var bin2 = (BinaryExpression)q2.Where!.Predicate;
-        Assert.That(bin2.Operator, Is.EqualTo(BinaryOperator.StartsWith));
+        bin2.Operator.Should().Be(BinaryOperator.StartsWith);
 
         var q3 = graph.Services.Where(s => s.Name.EndsWith("-service")).ToCypherAst();
         var bin3 = (BinaryExpression)q3.Where!.Predicate;
-        Assert.That(bin3.Operator, Is.EqualTo(BinaryOperator.EndsWith));
+        bin3.Operator.Should().Be(BinaryOperator.EndsWith);
     }
 
     [Test]
@@ -103,20 +104,20 @@ public class LinqTests
 
         var ast = query.ToCypherAst();
 
-        Assert.That(ast.OrderBy, Is.Not.Null);
-        Assert.That(ast.OrderBy!.Items, Has.Count.EqualTo(1));
-        Assert.That(ast.OrderBy.Items[0].IsDescending, Is.False);
+        ast.OrderBy.Should().NotBeNull();
+        ast.OrderBy!.Items.Should().HaveCount(1);
+        ast.OrderBy.Items[0].IsDescending.Should().BeFalse();
 
-        Assert.That(ast.Skip, Is.Not.Null);
-        Assert.That(ast.Skip!.Count, Is.EqualTo(10));
+        ast.Skip.Should().NotBeNull();
+        ast.Skip!.Count.Should().Be(10);
 
-        Assert.That(ast.Limit, Is.Not.Null);
-        Assert.That(ast.Limit!.Count, Is.EqualTo(25));
+        ast.Limit.Should().NotBeNull();
+        ast.Limit!.Count.Should().Be(25);
 
         // Compile with SqliteCompiler
         var compiled = SqliteCompiler.Compile(ast);
-        Assert.That(compiled.Sql, Does.Contain("LIMIT 25"));
-        Assert.That(compiled.Sql, Does.Contain("OFFSET 10"));
+        compiled.Sql.Should().Contain("LIMIT 25");
+        compiled.Sql.Should().Contain("OFFSET 10");
     }
 
     [Test]
@@ -130,8 +131,8 @@ public class LinqTests
 
         var ast = query.ToCypherAst();
 
-        Assert.That(ast.OrderBy, Is.Not.Null);
-        Assert.That(ast.OrderBy!.Items[0].IsDescending, Is.True);
+        ast.OrderBy.Should().NotBeNull();
+        ast.OrderBy!.Items[0].IsDescending.Should().BeTrue();
     }
 
     [Test]
@@ -145,9 +146,9 @@ public class LinqTests
 
         var count = await graph.Services.Where(s => !s.IsLibrary).CountAsync();
 
-        Assert.That(count, Is.EqualTo(42));
-        Assert.That(fake.LastQuery, Is.Not.Null);
-        Assert.That(fake.LastQuery!.Return.Items[0].Alias, Is.EqualTo("count"));
+        count.Should().Be(42);
+        fake.LastQuery.Should().NotBeNull();
+        fake.LastQuery!.Return.Items[0].Alias.Should().Be("count");
     }
 
     [Test]
@@ -161,9 +162,9 @@ public class LinqTests
 
         var hasBff = await graph.Services.Where(s => s.Name == "bff").AnyAsync();
 
-        Assert.That(hasBff, Is.True);
-        Assert.That(fake.LastQuery, Is.Not.Null);
-        Assert.That(fake.LastQuery!.Return.Items[0].Alias, Is.EqualTo("any"));
+        hasBff.Should().BeTrue();
+        fake.LastQuery.Should().NotBeNull();
+        fake.LastQuery!.Return.Items[0].Alias.Should().Be("any");
     }
 
     [Test]
@@ -172,16 +173,16 @@ public class LinqTests
         var fake = new FakeQueryExecutor();
         var graph = new GraphContext(fake);
 
-        Assert.That(graph.Services.ToCypherAst().Matches[0].Paths[0].Head.Labels, Contains.Item("Service"));
-        Assert.That(graph.Apps.ToCypherAst().Matches[0].Paths[0].Head.Labels, Contains.Item("App"));
-        Assert.That(graph.Workers.ToCypherAst().Matches[0].Paths[0].Head.Labels, Contains.Item("Worker"));
-        Assert.That(graph.CliTools.ToCypherAst().Matches[0].Paths[0].Head.Labels, Contains.Item("CliTool"));
-        Assert.That(graph.Databases.ToCypherAst().Matches[0].Paths[0].Head.Labels, Contains.Item("Database"));
-        Assert.That(graph.Topics.ToCypherAst().Matches[0].Paths[0].Head.Labels, Contains.Item("Topic"));
-        Assert.That(graph.ExternalServices.ToCypherAst().Matches[0].Paths[0].Head.Labels, Contains.Item("ExternalService"));
-        Assert.That(graph.Libraries.ToCypherAst().Matches[0].Paths[0].Head.Labels, Contains.Item("Library"));
-        Assert.That(graph.Endpoints.ToCypherAst().Matches[0].Paths[0].Head.Labels, Contains.Item("Endpoint"));
-        Assert.That(graph.Nodes.ToCypherAst().Matches[0].Paths[0].Head.Labels, Is.Empty);
+        graph.Services.ToCypherAst().Matches[0].Paths[0].Head.Labels.Should().Contain("Service");
+        graph.Apps.ToCypherAst().Matches[0].Paths[0].Head.Labels.Should().Contain("App");
+        graph.Workers.ToCypherAst().Matches[0].Paths[0].Head.Labels.Should().Contain("Worker");
+        graph.CliTools.ToCypherAst().Matches[0].Paths[0].Head.Labels.Should().Contain("CliTool");
+        graph.Databases.ToCypherAst().Matches[0].Paths[0].Head.Labels.Should().Contain("Database");
+        graph.Topics.ToCypherAst().Matches[0].Paths[0].Head.Labels.Should().Contain("Topic");
+        graph.ExternalServices.ToCypherAst().Matches[0].Paths[0].Head.Labels.Should().Contain("ExternalService");
+        graph.Libraries.ToCypherAst().Matches[0].Paths[0].Head.Labels.Should().Contain("Library");
+        graph.Endpoints.ToCypherAst().Matches[0].Paths[0].Head.Labels.Should().Contain("Endpoint");
+        graph.Nodes.ToCypherAst().Matches[0].Paths[0].Head.Labels.Should().BeEmpty();
     }
 
     [Test]
@@ -224,20 +225,20 @@ public class LinqTests
 
         var services = await graph.Services.ToListAsync();
 
-        Assert.That(services, Has.Count.EqualTo(2));
+        services.Should().HaveCount(2);
 
-        Assert.That(services[0].Id, Is.EqualTo("ws:s:bff"));
-        Assert.That(services[0].Name, Is.EqualTo("bff"));
-        Assert.That(services[0].DisplayName, Is.EqualTo("BFF Service"));
-        Assert.That(services[0].Framework, Is.EqualTo("nestjs"));
-        Assert.That(services[0].Language, Is.EqualTo("typescript"));
-        Assert.That(services[0].IsLibrary, Is.False);
+        services[0].Id.Should().Be("ws:s:bff");
+        services[0].Name.Should().Be("bff");
+        services[0].DisplayName.Should().Be("BFF Service");
+        services[0].Framework.Should().Be("nestjs");
+        services[0].Language.Should().Be("typescript");
+        services[0].IsLibrary.Should().BeFalse();
 
-        Assert.That(services[1].Id, Is.EqualTo("ws:s:billing"));
-        Assert.That(services[1].Name, Is.EqualTo("billing"));
-        Assert.That(services[1].Framework, Is.EqualTo("aspnetcore"));
-        Assert.That(services[1].Language, Is.EqualTo("csharp"));
-        Assert.That(services[1].IsLibrary, Is.False);
+        services[1].Id.Should().Be("ws:s:billing");
+        services[1].Name.Should().Be("billing");
+        services[1].Framework.Should().Be("aspnetcore");
+        services[1].Language.Should().Be("csharp");
+        services[1].IsLibrary.Should().BeFalse();
     }
 
     [Test]
@@ -262,12 +263,12 @@ public class LinqTests
 
         var db = await graph.Databases.Where(d => d.Name == "main_postgres").FirstOrDefaultAsync();
 
-        Assert.That(db, Is.Not.Null);
-        Assert.That(db!.Id, Is.EqualTo("ws:db:main"));
-        Assert.That(db.Name, Is.EqualTo("main_postgres"));
-        Assert.That(db.DbType, Is.EqualTo("relational"));
-        Assert.That(db.Engine, Is.EqualTo("postgresql"));
-        Assert.That(fake.LastQuery!.Limit!.Count, Is.EqualTo(1));
+        db.Should().NotBeNull();
+        db!.Id.Should().Be("ws:db:main");
+        db.Name.Should().Be("main_postgres");
+        db.DbType.Should().Be("relational");
+        db.Engine.Should().Be("postgresql");
+        fake.LastQuery!.Limit!.Count.Should().Be(1);
     }
 
     [Test]
@@ -278,19 +279,19 @@ public class LinqTests
 
         var qLt = graph.Services.Where(s => s.Port < 8080).ToCypherAst();
         var binLt = (BinaryExpression)qLt.Where!.Predicate;
-        Assert.That(binLt.Operator, Is.EqualTo(BinaryOperator.LessThan));
+        binLt.Operator.Should().Be(BinaryOperator.LessThan);
 
         var qLte = graph.Services.Where(s => s.Port <= 8080).ToCypherAst();
         var binLte = (BinaryExpression)qLte.Where!.Predicate;
-        Assert.That(binLte.Operator, Is.EqualTo(BinaryOperator.LessOrEqual));
+        binLte.Operator.Should().Be(BinaryOperator.LessOrEqual);
 
         var qGt = graph.Services.Where(s => s.Port > 8080).ToCypherAst();
         var binGt = (BinaryExpression)qGt.Where!.Predicate;
-        Assert.That(binGt.Operator, Is.EqualTo(BinaryOperator.GreaterThan));
+        binGt.Operator.Should().Be(BinaryOperator.GreaterThan);
 
         var qGte = graph.Services.Where(s => s.Port >= 8080).ToCypherAst();
         var binGte = (BinaryExpression)qGte.Where!.Predicate;
-        Assert.That(binGte.Operator, Is.EqualTo(BinaryOperator.GreaterOrEqual));
+        binGte.Operator.Should().Be(BinaryOperator.GreaterOrEqual);
     }
 
     [Test]
@@ -301,7 +302,7 @@ public class LinqTests
 
         var query = graph.Services.Where(s => s.Framework != "aspnetcore").ToCypherAst();
         var bin = (BinaryExpression)query.Where!.Predicate;
-        Assert.That(bin.Operator, Is.EqualTo(BinaryOperator.NotEqual));
+        bin.Operator.Should().Be(BinaryOperator.NotEqual);
     }
 
     [Test]
@@ -312,7 +313,7 @@ public class LinqTests
 
         var query = graph.Services.Where(s => s.Framework == "aspnetcore" || s.Framework == "nestjs").ToCypherAst();
         var bin = (BinaryExpression)query.Where!.Predicate;
-        Assert.That(bin.Operator, Is.EqualTo(BinaryOperator.Or));
+        bin.Operator.Should().Be(BinaryOperator.Or);
     }
 
     [Test]
@@ -327,9 +328,9 @@ public class LinqTests
         ).ToCypherAst();
 
         var bin = (BinaryExpression)query.Where!.Predicate;
-        Assert.That(bin.Operator, Is.EqualTo(BinaryOperator.Or));
-        Assert.That(((BinaryExpression)bin.Left).Operator, Is.EqualTo(BinaryOperator.And));
-        Assert.That(((BinaryExpression)bin.Right).Operator, Is.EqualTo(BinaryOperator.And));
+        bin.Operator.Should().Be(BinaryOperator.Or);
+        ((BinaryExpression)bin.Left).Operator.Should().Be(BinaryOperator.And);
+        ((BinaryExpression)bin.Right).Operator.Should().Be(BinaryOperator.And);
     }
 
     [Test]
@@ -340,11 +341,11 @@ public class LinqTests
 
         var q1 = graph.Services.Where(s => s.Name.Equals("bff")).ToCypherAst();
         var bin1 = (BinaryExpression)q1.Where!.Predicate;
-        Assert.That(bin1.Operator, Is.EqualTo(BinaryOperator.Equal));
+        bin1.Operator.Should().Be(BinaryOperator.Equal);
 
         var q2 = graph.Services.Where(s => string.Equals(s.Name, "bff")).ToCypherAst();
         var bin2 = (BinaryExpression)q2.Where!.Predicate;
-        Assert.That(bin2.Operator, Is.EqualTo(BinaryOperator.Equal));
+        bin2.Operator.Should().Be(BinaryOperator.Equal);
     }
 
     private class SampleFilterConfig
@@ -368,11 +369,11 @@ public class LinqTests
         var ast = queryable.ToCypherAst();
 
         var where = ast.Where;
-        Assert.That(where, Is.Not.Null);
+        where.Should().NotBeNull();
 
         var compiled = SqliteCompiler.Compile(ast, queryable.GetParameters());
-        Assert.That(compiled.Parameters.Values, Contains.Item("order-service"));
-        Assert.That(compiled.Parameters.Values, Contains.Item("grpc-dotnet"));
+        compiled.Parameters.Values.Should().Contain("order-service");
+        compiled.Parameters.Values.Should().Contain("grpc-dotnet");
     }
 
     [Test]
@@ -383,19 +384,19 @@ public class LinqTests
 
         var q1 = graph.Services.Where(s => s.DisplayName == null).ToCypherAst();
         var un1 = (UnaryExpression)q1.Where!.Predicate;
-        Assert.That(un1.Operator, Is.EqualTo(UnaryOperator.IsNull));
+        un1.Operator.Should().Be(UnaryOperator.IsNull);
 
         var q2 = graph.Services.Where(s => s.DisplayName != null).ToCypherAst();
         var un2 = (UnaryExpression)q2.Where!.Predicate;
-        Assert.That(un2.Operator, Is.EqualTo(UnaryOperator.IsNotNull));
+        un2.Operator.Should().Be(UnaryOperator.IsNotNull);
 
         var q3 = graph.Services.Where(s => null == s.DisplayName).ToCypherAst();
         var un3 = (UnaryExpression)q3.Where!.Predicate;
-        Assert.That(un3.Operator, Is.EqualTo(UnaryOperator.IsNull));
+        un3.Operator.Should().Be(UnaryOperator.IsNull);
 
         var q4 = graph.Services.Where(s => null != s.DisplayName).ToCypherAst();
         var un4 = (UnaryExpression)q4.Where!.Predicate;
-        Assert.That(un4.Operator, Is.EqualTo(UnaryOperator.IsNotNull));
+        un4.Operator.Should().Be(UnaryOperator.IsNotNull);
     }
 
     [Test]
@@ -409,9 +410,9 @@ public class LinqTests
             .Where(s => s.Language == "csharp");
 
         var ast = query.ToCypherAst();
-        Assert.That(ast.Where, Is.Not.Null);
+        ast.Where.Should().NotBeNull();
         var bin = (BinaryExpression)ast.Where!.Predicate;
-        Assert.That(bin.Operator, Is.EqualTo(BinaryOperator.And));
+        bin.Operator.Should().Be(BinaryOperator.And);
     }
 
     [Test]
@@ -425,20 +426,20 @@ public class LinqTests
             .ThenBy(s => s.Name)
             .ToCypherAst();
 
-        Assert.That(q1.OrderBy, Is.Not.Null);
-        Assert.That(q1.OrderBy!.Items, Has.Count.EqualTo(2));
-        Assert.That(q1.OrderBy.Items[0].IsDescending, Is.False);
-        Assert.That(q1.OrderBy.Items[1].IsDescending, Is.False);
+        q1.OrderBy.Should().NotBeNull();
+        q1.OrderBy!.Items.Should().HaveCount(2);
+        q1.OrderBy.Items[0].IsDescending.Should().BeFalse();
+        q1.OrderBy.Items[1].IsDescending.Should().BeFalse();
 
         var q2 = graph.Services
             .OrderBy(s => s.Framework)
             .ThenByDescending(s => s.Name)
             .ToCypherAst();
 
-        Assert.That(q2.OrderBy, Is.Not.Null);
-        Assert.That(q2.OrderBy!.Items, Has.Count.EqualTo(2));
-        Assert.That(q2.OrderBy.Items[0].IsDescending, Is.False);
-        Assert.That(q2.OrderBy.Items[1].IsDescending, Is.True);
+        q2.OrderBy.Should().NotBeNull();
+        q2.OrderBy!.Items.Should().HaveCount(2);
+        q2.OrderBy.Items[0].IsDescending.Should().BeFalse();
+        q2.OrderBy.Items[1].IsDescending.Should().BeTrue();
     }
 
     [Test]
@@ -448,18 +449,18 @@ public class LinqTests
         var graph = new GraphContext(fake);
 
         var qSkip = graph.Services.Skip(15).ToCypherAst();
-        Assert.That(qSkip.Skip!.Count, Is.EqualTo(15));
-        Assert.That(qSkip.Limit, Is.Null);
+        qSkip.Skip!.Count.Should().Be(15);
+        qSkip.Limit.Should().BeNull();
 
         var qTake = graph.Services.Take(30).ToCypherAst();
-        Assert.That(qTake.Limit!.Count, Is.EqualTo(30));
-        Assert.That(qTake.Skip, Is.Null);
+        qTake.Limit!.Count.Should().Be(30);
+        qTake.Skip.Should().BeNull();
 
         var compiledSkip = SqliteCompiler.Compile(qSkip);
-        Assert.That(compiledSkip.Sql, Does.Contain("OFFSET 15"));
+        compiledSkip.Sql.Should().Contain("OFFSET 15");
 
         var compiledTake = SqliteCompiler.Compile(qTake);
-        Assert.That(compiledTake.Sql, Does.Contain("LIMIT 30"));
+        compiledTake.Sql.Should().Contain("LIMIT 30");
     }
 
     [Test]
@@ -470,21 +471,21 @@ public class LinqTests
 
         // s => s.IsLibrary
         var qTrue = graph.Services.Where(s => s.IsLibrary).ToCypherAst();
-        Assert.That(qTrue.Where, Is.Not.Null);
+        qTrue.Where.Should().NotBeNull();
         var binTrue = (BinaryExpression)qTrue.Where!.Predicate;
-        Assert.That(binTrue.Operator, Is.EqualTo(BinaryOperator.Equal));
-        Assert.That(((PropertyAccessExpression)binTrue.Left).PropertyName, Is.EqualTo("is_library"));
-        Assert.That(((BooleanLiteralExpression)binTrue.Right).Value, Is.True);
+        binTrue.Operator.Should().Be(BinaryOperator.Equal);
+        ((PropertyAccessExpression)binTrue.Left).PropertyName.Should().Be("is_library");
+        ((BooleanLiteralExpression)binTrue.Right).Value.Should().BeTrue();
 
         // s => !s.IsLibrary
         var qFalse = graph.Services.Where(s => !s.IsLibrary).ToCypherAst();
-        Assert.That(qFalse.Where, Is.Not.Null);
+        qFalse.Where.Should().NotBeNull();
         var binFalse = (BinaryExpression)qFalse.Where!.Predicate;
-        Assert.That(binFalse.Operator, Is.EqualTo(BinaryOperator.Or));
-        Assert.That(binFalse.Left, Is.TypeOf<UnaryExpression>());
-        Assert.That(((UnaryExpression)binFalse.Left).Operator, Is.EqualTo(UnaryOperator.IsNull));
-        Assert.That(binFalse.Right, Is.TypeOf<BinaryExpression>());
-        Assert.That(((BinaryExpression)binFalse.Right).Operator, Is.EqualTo(BinaryOperator.Equal));
+        binFalse.Operator.Should().Be(BinaryOperator.Or);
+        binFalse.Left.Should().BeOfType<UnaryExpression>();
+        ((UnaryExpression)binFalse.Left).Operator.Should().Be(UnaryOperator.IsNull);
+        binFalse.Right.Should().BeOfType<BinaryExpression>();
+        ((BinaryExpression)binFalse.Right).Operator.Should().Be(BinaryOperator.Equal);
     }
 
     [Test]
@@ -502,9 +503,9 @@ public class LinqTests
         var graph = new GraphContext(fake);
 
         var arr = await graph.Services.ToArrayAsync();
-        Assert.That(arr, Has.Length.EqualTo(2));
-        Assert.That(arr[0].Name, Is.EqualTo("service-one"));
-        Assert.That(arr[1].Name, Is.EqualTo("service-two"));
+        arr.Should().HaveCount(2);
+        arr[0].Name.Should().Be("service-one");
+        arr[1].Name.Should().Be("service-two");
     }
 
     [Test]
@@ -516,57 +517,57 @@ public class LinqTests
         // Apps
         var appAst = graph.Apps.Where(a => a.AppType == "spa" && a.Port == 3000).ToCypherAst();
         var appSql = SqliteCompiler.Compile(appAst).Sql;
-        Assert.That(appSql, Does.Contain("app_type"));
-        Assert.That(appSql, Does.Contain("port"));
+        appSql.Should().Contain("app_type");
+        appSql.Should().Contain("port");
 
         // Workers
         var workerAst = graph.Workers.Where(w => w.QueueType == "rabbitmq").ToCypherAst();
         var workerSql = SqliteCompiler.Compile(workerAst).Sql;
-        Assert.That(workerSql, Does.Contain("queue_type"));
+        workerSql.Should().Contain("queue_type");
 
         // CliTools
         var cliAst = graph.CliTools.Where(c => c.CommandName == "ce").ToCypherAst();
         var cliSql = SqliteCompiler.Compile(cliAst).Sql;
-        Assert.That(cliSql, Does.Contain("command_name"));
+        cliSql.Should().Contain("command_name");
 
         // Databases
         var dbAst = graph.Databases.Where(d => d.DbType == "relational" && d.Engine == "postgres" && d.Port == 5432).ToCypherAst();
         var dbSql = SqliteCompiler.Compile(dbAst).Sql;
-        Assert.That(dbSql, Does.Contain("db_type"));
-        Assert.That(dbSql, Does.Contain("engine"));
-        Assert.That(dbSql, Does.Contain("port"));
+        dbSql.Should().Contain("db_type");
+        dbSql.Should().Contain("engine");
+        dbSql.Should().Contain("port");
 
         // Topics
         var topicAst = graph.Topics.Where(t => t.BrokerType == "kafka" && t.PartitionCount == 12).ToCypherAst();
         var topicSql = SqliteCompiler.Compile(topicAst).Sql;
-        Assert.That(topicSql, Does.Contain("broker_type"));
-        Assert.That(topicSql, Does.Contain("partition_count"));
+        topicSql.Should().Contain("broker_type");
+        topicSql.Should().Contain("partition_count");
 
         // ExternalServices
         var extAst = graph.ExternalServices.Where(e => e.Protocol == "https" && e.BaseUrl == "https://api.stripe.com" && e.Category == "Payment").ToCypherAst();
         var extSql = SqliteCompiler.Compile(extAst).Sql;
-        Assert.That(extSql, Does.Contain("protocol"));
-        Assert.That(extSql, Does.Contain("base_url"));
-        Assert.That(extSql, Does.Contain("category"));
+        extSql.Should().Contain("protocol");
+        extSql.Should().Contain("base_url");
+        extSql.Should().Contain("category");
 
         // Libraries
         var libAst = graph.Libraries.Where(l => l.PackageName == "Newtonsoft.Json" && l.Version == "13.0.3").ToCypherAst();
         var libSql = SqliteCompiler.Compile(libAst).Sql;
-        Assert.That(libSql, Does.Contain("package_name"));
-        Assert.That(libSql, Does.Contain("version"));
+        libSql.Should().Contain("package_name");
+        libSql.Should().Contain("version");
 
         // Endpoints
         var epAst = graph.Endpoints.Where(ep => ep.Route == "/api/v1/orders" && ep.HttpMethod == "POST" && ep.Protocol == "http").ToCypherAst();
         var epSql = SqliteCompiler.Compile(epAst).Sql;
-        Assert.That(epSql, Does.Contain("route"));
-        Assert.That(epSql, Does.Contain("http_method"));
-        Assert.That(epSql, Does.Contain("protocol"));
+        epSql.Should().Contain("route");
+        epSql.Should().Contain("http_method");
+        epSql.Should().Contain("protocol");
 
         // Generic Nodes
         var nodeAst = graph.Nodes.Where(n => n.FilePath == "src/index.ts" && n.LineStart == 10 && n.LineEnd == 50).ToCypherAst();
         var nodeSql = SqliteCompiler.Compile(nodeAst).Sql;
-        Assert.That(nodeSql, Does.Contain("file_path"));
-        Assert.That(nodeSql, Does.Contain("line_start"));
-        Assert.That(nodeSql, Does.Contain("line_end"));
+        nodeSql.Should().Contain("file_path");
+        nodeSql.Should().Contain("line_start");
+        nodeSql.Should().Contain("line_end");
     }
 }

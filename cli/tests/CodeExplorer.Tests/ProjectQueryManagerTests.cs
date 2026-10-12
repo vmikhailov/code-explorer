@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AwesomeAssertions;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Mcp;
 using CodeExplorer.Core.Mcp.Models;
@@ -55,21 +56,21 @@ public class ProjectQueryManagerTests
 
         var item = _manager.SaveQuery(_tempDir, "find_kafka_consumers", cypher, metadata);
 
-        Assert.That(item, Is.Not.Null);
-        Assert.That(item.Name, Is.EqualTo("find_kafka_consumers"));
-        Assert.That(File.Exists(item.CypherPath), Is.True);
-        Assert.That(File.Exists(item.MetadataPath), Is.True);
+        item.Should().NotBeNull();
+        item.Name.Should().Be("find_kafka_consumers");
+        File.Exists(item.CypherPath).Should().BeTrue();
+        File.Exists(item.MetadataPath).Should().BeTrue();
 
         var savedCypher = File.ReadAllText(item.CypherPath);
-        Assert.That(savedCypher, Is.EqualTo(cypher));
+        savedCypher.Should().Be(cypher);
 
         var metaJson = File.ReadAllText(item.MetadataPath);
         var readMeta = JsonSerializer.Deserialize<ProjectQueryMetadata>(metaJson);
-        Assert.That(readMeta, Is.Not.Null);
-        Assert.That(readMeta!.Description, Is.EqualTo(metadata.Description));
-        Assert.That(readMeta.Parameters.Count, Is.EqualTo(1));
-        Assert.That(readMeta.Parameters[0].Name, Is.EqualTo("topicFilter"));
-        Assert.That(readMeta.Tags, Does.Contain("kafka"));
+        readMeta.Should().NotBeNull();
+        readMeta!.Description.Should().Be(metadata.Description);
+        readMeta.Parameters.Count.Should().Be(1);
+        readMeta.Parameters[0].Name.Should().Be("topicFilter");
+        readMeta.Tags.Should().Contain("kafka");
     }
 
     [Test]
@@ -85,11 +86,11 @@ public class ProjectQueryManagerTests
         var ex = Assert.Throws<InvalidOperationException>(() =>
             _manager.SaveQuery(_tempDir, "bad_syntax", invalidCypher, metadata));
 
-        Assert.That(ex!.Message, Does.Contain("syntax validation failed"));
+        ex!.Message.Should().Contain("syntax validation failed");
 
         var queriesDir = _manager.GetQueriesDirectory(_tempDir);
         var cypherFile = Path.Combine(queriesDir, "bad_syntax.cypher");
-        Assert.That(File.Exists(cypherFile), Is.False);
+        File.Exists(cypherFile).Should().BeFalse();
     }
 
     [Test]
@@ -105,7 +106,7 @@ public class ProjectQueryManagerTests
         var ex = Assert.Throws<InvalidOperationException>(() =>
             _manager.SaveQuery(_tempDir, "mutating", mutatingCypher, metadata));
 
-        Assert.That(ex!.Message, Does.Contain("Security violation"));
+        ex!.Message.Should().Contain("Security violation");
     }
 
     [Test]
@@ -124,16 +125,16 @@ public class ProjectQueryManagerTests
 
         var list = _manager.ListQueries(_tempDir);
 
-        Assert.That(list.Count, Is.EqualTo(2));
+        list.Count.Should().Be(2);
         var withMeta = list.FirstOrDefault(x => x.Name == "query_with_meta");
         var bare = list.FirstOrDefault(x => x.Name == "bare_query");
 
-        Assert.That(withMeta, Is.Not.Null);
-        Assert.That(withMeta!.Description, Is.EqualTo("Has metadata"));
-        Assert.That(withMeta.Tags, Does.Contain("custom"));
+        withMeta.Should().NotBeNull();
+        withMeta!.Description.Should().Be("Has metadata");
+        withMeta.Tags.Should().Contain("custom");
 
-        Assert.That(bare, Is.Not.Null);
-        Assert.That(bare!.Description, Does.Contain("bare_query"));
+        bare.Should().NotBeNull();
+        bare!.Description.Should().Contain("bare_query");
     }
 
     [Test]
@@ -144,13 +145,13 @@ public class ProjectQueryManagerTests
             Description = "Temporary"
         });
 
-        Assert.That(File.Exists(item.CypherPath), Is.True);
-        Assert.That(File.Exists(item.MetadataPath), Is.True);
+        File.Exists(item.CypherPath).Should().BeTrue();
+        File.Exists(item.MetadataPath).Should().BeTrue();
 
         var deleted = _manager.DeleteQuery(_tempDir, "to_delete");
-        Assert.That(deleted, Is.True);
-        Assert.That(File.Exists(item.CypherPath), Is.False);
-        Assert.That(File.Exists(item.MetadataPath), Is.False);
+        deleted.Should().BeTrue();
+        File.Exists(item.CypherPath).Should().BeFalse();
+        File.Exists(item.MetadataPath).Should().BeFalse();
     }
 
     [Test]
@@ -178,19 +179,19 @@ public class ProjectQueryManagerTests
         var saveResultJson = await repo.SaveProjectQueryAsync("find_workspace_by_name",
             "Finds a workspace by its exact name", cypher, paramSchema, "id, name", "workspace,lookup", _tempDir);
 
-        Assert.That(saveResultJson, Does.Contain("successfully validated and saved"));
+        saveResultJson.Should().Contain("successfully validated and saved");
 
         // 2. List queries
         var listJson = await repo.ListProjectQueriesAsync(_tempDir);
-        Assert.That(listJson, Does.Contain("find_workspace_by_name"));
-        Assert.That(listJson, Does.Contain("wsName"));
+        listJson.Should().Contain("find_workspace_by_name");
+        listJson.Should().Contain("wsName");
 
         // 3. Execute query with matching parameter
         var execJson = await repo.ExecuteProjectQueryAsync("find_workspace_by_name",
             JsonSerializer.Serialize(new { wsName = "main_ws" }), _tempDir);
 
-        Assert.That(execJson, Does.Contain("main_ws"));
-        Assert.That(execJson, Does.Contain("ws1"));
+        execJson.Should().Contain("main_ws");
+        execJson.Should().Contain("ws1");
 
         // 4. Missing required parameter throws ArgumentException
         Assert.ThrowsAsync<ArgumentException>(async () =>

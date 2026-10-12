@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Cypher.Linq;
@@ -71,20 +72,20 @@ public class GraphContextIntegrationTests
     public async Task GraphContext_Services_FilterAndCount()
     {
         var allServices = await _client.Graph.Services.ToListAsync();
-        Assert.That(allServices, Has.Count.EqualTo(3));
+        allServices.Should().HaveCount(3);
 
         var csharpServices = await _client.Graph.Services
             .Where(s => s.Language == "csharp")
             .ToListAsync();
 
-        Assert.That(csharpServices, Has.Count.EqualTo(2));
-        Assert.That(csharpServices.Select(s => s.Name), Is.EquivalentTo(new[] { "billing", "inventory" }));
+        csharpServices.Should().HaveCount(2);
+        csharpServices.Select(s => s.Name).Should().BeEquivalentTo(new[] { "billing", "inventory" });
 
         var count = await _client.Graph.Services
             .Where(s => s.Framework == "aspnetcore")
             .CountAsync();
 
-        Assert.That(count, Is.EqualTo(2));
+        count.Should().Be(2);
     }
 
     [Test]
@@ -94,49 +95,49 @@ public class GraphContextIntegrationTests
             .Where(s => s.Name == "bff")
             .AnyAsync();
 
-        Assert.That(hasBff, Is.True);
+        hasBff.Should().BeTrue();
 
         var hasGhost = await _client.Graph.Services
             .Where(s => s.Name == "ghost-service")
             .AnyAsync();
 
-        Assert.That(hasGhost, Is.False);
+        hasGhost.Should().BeFalse();
     }
 
     [Test]
     public async Task GraphContext_QueryAllEntityTypes()
     {
         var apps = await _client.Graph.Apps.ToListAsync();
-        Assert.That(apps, Has.Count.EqualTo(1));
-        Assert.That(apps[0].Name, Is.EqualTo("web-portal"));
+        apps.Should().HaveCount(1);
+        apps[0].Name.Should().Be("web-portal");
 
         var workers = await _client.Graph.Workers.ToListAsync();
-        Assert.That(workers, Has.Count.EqualTo(1));
-        Assert.That(workers[0].Name, Is.EqualTo("job-runner"));
+        workers.Should().HaveCount(1);
+        workers[0].Name.Should().Be("job-runner");
 
         var cliTools = await _client.Graph.CliTools.ToListAsync();
-        Assert.That(cliTools, Has.Count.EqualTo(1));
-        Assert.That(cliTools[0].Name, Is.EqualTo("ce"));
+        cliTools.Should().HaveCount(1);
+        cliTools[0].Name.Should().Be("ce");
 
         var databases = await _client.Graph.Databases.ToListAsync();
-        Assert.That(databases, Has.Count.EqualTo(1));
-        Assert.That(databases[0].Name, Is.EqualTo("main_postgres"));
+        databases.Should().HaveCount(1);
+        databases[0].Name.Should().Be("main_postgres");
 
         var topics = await _client.Graph.Topics.ToListAsync();
-        Assert.That(topics, Has.Count.EqualTo(1));
-        Assert.That(topics[0].Name, Is.EqualTo("events-topic"));
+        topics.Should().HaveCount(1);
+        topics[0].Name.Should().Be("events-topic");
 
         var externals = await _client.Graph.ExternalServices.ToListAsync();
-        Assert.That(externals, Has.Count.EqualTo(1));
-        Assert.That(externals[0].Name, Is.EqualTo("stripe"));
+        externals.Should().HaveCount(1);
+        externals[0].Name.Should().Be("stripe");
 
         var libraries = await _client.Graph.Libraries.ToListAsync();
-        Assert.That(libraries, Has.Count.EqualTo(1));
-        Assert.That(libraries[0].Name, Is.EqualTo("ui-kit"));
+        libraries.Should().HaveCount(1);
+        libraries[0].Name.Should().Be("ui-kit");
 
         var endpoints = await _client.Graph.Endpoints.ToListAsync();
-        Assert.That(endpoints, Has.Count.EqualTo(1));
-        Assert.That(endpoints[0].Name, Is.EqualTo("CreateOrder"));
+        endpoints.Should().HaveCount(1);
+        endpoints[0].Name.Should().Be("CreateOrder");
     }
 
     [Test]
@@ -148,8 +149,8 @@ public class GraphContextIntegrationTests
             .Take(1)
             .ToListAsync();
 
-        Assert.That(paged, Has.Count.EqualTo(1));
-        Assert.That(paged[0].Name, Is.EqualTo("billing"));
+        paged.Should().HaveCount(1);
+        paged[0].Name.Should().Be("billing");
     }
 
     [Test]
@@ -159,6 +160,6 @@ public class GraphContextIntegrationTests
             .Where(s => !s.IsLibrary)
             .ToListAsync();
 
-        Assert.That(nonLibs, Has.Count.EqualTo(3));
+        nonLibs.Should().HaveCount(3);
     }
 }

@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
@@ -102,24 +103,24 @@ public class ArchitectureViewEngineTests
     {
         var view = await _engine.GetSystemContextViewAsync(includeLibraries: false);
 
-        Assert.That(view.Metadata!["view"], Is.EqualTo("SystemContext"));
-        Assert.That(view.Metadata!["level"], Is.EqualTo("C1"));
+        view.Metadata!["view"].Should().Be("SystemContext");
+        view.Metadata!["level"].Should().Be("C1");
 
         // Must contain services, db, topic, external service
         var nodeIds = view.Nodes.Select(n => n.Id).ToList();
-        Assert.That(nodeIds, Does.Contain("ws:project:order-service:"));
-        Assert.That(nodeIds, Does.Contain("ws:project:payment-service:"));
-        Assert.That(nodeIds, Does.Contain("ws:res:db:relational:orders_db"));
-        Assert.That(nodeIds, Does.Contain("ws:res:topic:kafka:orders"));
-        Assert.That(nodeIds, Does.Contain("ws:res:service:external:api.stripe.com"));
+        nodeIds.Should().Contain("ws:project:order-service:");
+        nodeIds.Should().Contain("ws:project:payment-service:");
+        nodeIds.Should().Contain("ws:res:db:relational:orders_db");
+        nodeIds.Should().Contain("ws:res:topic:kafka:orders");
+        nodeIds.Should().Contain("ws:res:service:external:api.stripe.com");
 
         // Must NOT contain SharedLibrary
-        Assert.That(nodeIds, Does.Not.Contain("ws:project:common-dto:"));
+        nodeIds.Should().NotContain("ws:project:common-dto:");
 
         // Edges between services, DB, topic, external service
-        Assert.That(view.Edges.Any(e => e.Source == "ws:project:order-service:" && e.Target == "ws:project:payment-service:"), Is.True);
-        Assert.That(view.Edges.Any(e => e.Source == "ws:project:order-service:" && e.Target == "ws:res:db:relational:orders_db"), Is.True);
-        Assert.That(view.Edges.Any(e => e.Source == "ws:res:topic:kafka:orders" && e.Target == "ws:project:payment-service:"), Is.True);
+        (view.Edges.Any(e => e.Source == "ws:project:order-service:" && e.Target == "ws:project:payment-service:")).Should().BeTrue();
+        (view.Edges.Any(e => e.Source == "ws:project:order-service:" && e.Target == "ws:res:db:relational:orders_db")).Should().BeTrue();
+        (view.Edges.Any(e => e.Source == "ws:res:topic:kafka:orders" && e.Target == "ws:project:payment-service:")).Should().BeTrue();
     }
 
     [Test]
@@ -127,18 +128,18 @@ public class ArchitectureViewEngineTests
     {
         var view = await _engine.GetServiceFlowViewAsync("order-service");
 
-        Assert.That(view.Metadata!["view"], Is.EqualTo("ServiceFlow"));
-        Assert.That(view.Metadata!["level"], Is.EqualTo("C2"));
+        view.Metadata!["view"].Should().Be("ServiceFlow");
+        view.Metadata!["level"].Should().Be("C2");
 
         var center = view.Nodes.FirstOrDefault(n => n.Properties?.GetValueOrDefault("column") == "center");
-        Assert.That(center, Is.Not.Null);
-        Assert.That(center!.Id, Is.EqualTo("ws:project:order-service:"));
+        center.Should().NotBeNull();
+        center!.Id.Should().Be("ws:project:order-service:");
 
         // Outbound nodes in right column
         var rightNodes = view.Nodes.Where(n => n.Properties?.GetValueOrDefault("column") == "right").Select(n => n.Id).ToList();
-        Assert.That(rightNodes, Does.Contain("ws:project:payment-service:"));
-        Assert.That(rightNodes, Does.Contain("ws:res:db:relational:orders_db"));
-        Assert.That(rightNodes, Does.Contain("ws:project:common-dto:"));
+        rightNodes.Should().Contain("ws:project:payment-service:");
+        rightNodes.Should().Contain("ws:res:db:relational:orders_db");
+        rightNodes.Should().Contain("ws:project:common-dto:");
     }
 
     [Test]
@@ -146,12 +147,12 @@ public class ArchitectureViewEngineTests
     {
         var view = await _engine.GetComponentViewAsync("order-service");
 
-        Assert.That(view.Metadata!["view"], Is.EqualTo("Component"));
-        Assert.That(view.Metadata!["level"], Is.EqualTo("C3"));
+        view.Metadata!["view"].Should().Be("Component");
+        view.Metadata!["level"].Should().Be("C3");
 
         var compIds = view.Nodes.Select(n => n.Id).ToList();
-        Assert.That(compIds, Does.Contain("ws:endpoint:orders:POST"));
-        Assert.That(compIds, Does.Contain("ws:type:orders:Order"));
+        compIds.Should().Contain("ws:endpoint:orders:POST");
+        compIds.Should().Contain("ws:type:orders:Order");
     }
 
     [Test]
@@ -174,13 +175,13 @@ public class ArchitectureViewEngineTests
         {
             foreach (var category in layer.Categories)
             {
-                Assert.That(category.Kind, Is.Not.EqualTo("Counter"), "Counter should be filtered out from layers");
-                Assert.That(category.Kind, Is.Not.EqualTo("FilesStructure"), "FilesStructure should be filtered out from layers");
-                Assert.That(category.Kind, Is.Not.EqualTo("ProjectsStructure"), "ProjectsStructure should be filtered out from layers");
-                Assert.That(category.Kind, Is.Not.EqualTo("SyntaxStructure"), "SyntaxStructure should be filtered out from layers");
-                Assert.That(category.Kind, Is.Not.EqualTo("SemanticStructure"), "SemanticStructure should be filtered out from layers");
-                Assert.That(category.Kind, Is.Not.EqualTo("DataSet"), "DataSet should be filtered out from layers (Databases & Storage is used instead)");
-                Assert.That(category.Kind.EndsWith("Structure", StringComparison.OrdinalIgnoreCase), Is.False, $"No structure nodes should be in category list: {category.Kind}");
+                category.Kind.Should().NotBe("Counter", "Counter should be filtered out from layers");
+                category.Kind.Should().NotBe("FilesStructure", "FilesStructure should be filtered out from layers");
+                category.Kind.Should().NotBe("ProjectsStructure", "ProjectsStructure should be filtered out from layers");
+                category.Kind.Should().NotBe("SyntaxStructure", "SyntaxStructure should be filtered out from layers");
+                category.Kind.Should().NotBe("SemanticStructure", "SemanticStructure should be filtered out from layers");
+                category.Kind.Should().NotBe("DataSet", "DataSet should be filtered out from layers (Databases & Storage is used instead)");
+                category.Kind.EndsWith("Structure", StringComparison.OrdinalIgnoreCase).Should().BeFalse($"No structure nodes should be in category list: {category.Kind}");
             }
         }
     }
@@ -196,16 +197,16 @@ public class ArchitectureViewEngineTests
         await _db.UploadNodesAsync(systemNodes);
 
         var meta = await _engine.GetMetadataAsync();
-        Assert.That(meta.NodeCounts.ContainsKey("Counter"), Is.False, "NodeCounts must not contain Counter");
-        Assert.That(meta.NodeCounts.ContainsKey("FilesStructure"), Is.False, "NodeCounts must not contain FilesStructure");
+        meta.NodeCounts.ContainsKey("Counter").Should().BeFalse("NodeCounts must not contain Counter");
+        meta.NodeCounts.ContainsKey("FilesStructure").Should().BeFalse("NodeCounts must not contain FilesStructure");
 
         var counterNodes = await _engine.GetNodesAsync(kind: "Counter");
-        Assert.That(counterNodes.Total, Is.EqualTo(0), "GetNodes for Counter must return 0 total");
-        Assert.That(counterNodes.Nodes, Is.Empty, "GetNodes for Counter must be empty");
+        counterNodes.Total.Should().Be(0, "GetNodes for Counter must return 0 total");
+        counterNodes.Nodes.Should().BeEmpty("GetNodes for Counter must be empty");
 
         var filesStructureNodes = await _engine.GetNodesAsync(kind: "FilesStructure");
-        Assert.That(filesStructureNodes.Total, Is.EqualTo(0), "GetNodes for FilesStructure must return 0 total");
-        Assert.That(filesStructureNodes.Nodes, Is.Empty, "GetNodes for FilesStructure must be empty");
+        filesStructureNodes.Total.Should().Be(0, "GetNodes for FilesStructure must return 0 total");
+        filesStructureNodes.Nodes.Should().BeEmpty("GetNodes for FilesStructure must be empty");
     }
 
     [Test]
@@ -237,32 +238,32 @@ public class ArchitectureViewEngineTests
             await db.UploadNodesAsync(sampleNodes);
 
             var meta = await engine.GetMetadataAsync();
-            Assert.That(meta.NodeCounts["Service"], Is.EqualTo(1), "Service node count must be 1, not doubled");
-            Assert.That(meta.NodeCounts["Worker"], Is.EqualTo(1), "Worker node count must be 1, not doubled");
-            Assert.That(meta.NodeCounts["App"], Is.EqualTo(1), "App node count must be 1, not doubled");
-            Assert.That(meta.NodeCounts["CliTool"], Is.EqualTo(1), "CliTool node count must be 1, not doubled");
-            Assert.That(meta.NodeCounts["Project"], Is.EqualTo(4), "Project node count must be 4, not doubled");
-            Assert.That(meta.TotalNodes, Is.EqualTo(8), "Total nodes must be 8");
+            meta.NodeCounts["Service"].Should().Be(1, "Service node count must be 1, not doubled");
+            meta.NodeCounts["Worker"].Should().Be(1, "Worker node count must be 1, not doubled");
+            meta.NodeCounts["App"].Should().Be(1, "App node count must be 1, not doubled");
+            meta.NodeCounts["CliTool"].Should().Be(1, "CliTool node count must be 1, not doubled");
+            meta.NodeCounts["Project"].Should().Be(4, "Project node count must be 4, not doubled");
+            meta.TotalNodes.Should().Be(8, "Total nodes must be 8");
 
             var layers = await engine.GetOntologyLayersAsync();
             var l4 = layers.Layers.FirstOrDefault(l => l.LayerId == 4);
-            Assert.That(l4, Is.Not.Null);
+            l4.Should().NotBeNull();
 
             var appCat = l4!.Categories.FirstOrDefault(c => c.Kind == "App");
-            Assert.That(appCat, Is.Not.Null);
-            Assert.That(appCat!.Count, Is.EqualTo(1));
+            appCat.Should().NotBeNull();
+            appCat!.Count.Should().Be(1);
 
             var svcCat = l4.Categories.FirstOrDefault(c => c.Kind == "Service");
-            Assert.That(svcCat, Is.Not.Null);
-            Assert.That(svcCat!.Count, Is.EqualTo(1));
+            svcCat.Should().NotBeNull();
+            svcCat!.Count.Should().Be(1);
 
             var workerCat = l4.Categories.FirstOrDefault(c => c.Kind == "Worker");
-            Assert.That(workerCat, Is.Not.Null);
-            Assert.That(workerCat!.Count, Is.EqualTo(1));
+            workerCat.Should().NotBeNull();
+            workerCat!.Count.Should().Be(1);
 
             var cliCat = l4.Categories.FirstOrDefault(c => c.Kind == "CliTool");
-            Assert.That(cliCat, Is.Not.Null);
-            Assert.That(cliCat!.Count, Is.EqualTo(1));
+            cliCat.Should().NotBeNull();
+            cliCat!.Count.Should().Be(1);
         }
         finally
         {
@@ -277,15 +278,15 @@ public class ArchitectureViewEngineTests
         var orderSummary = summaries.FirstOrDefault(s => s.ServiceName == "order-service");
         var paymentSummary = summaries.FirstOrDefault(s => s.ServiceName == "payment-service");
 
-        Assert.That(orderSummary, Is.Not.Null);
-        Assert.That(orderSummary!.ServiceCount, Is.EqualTo(1), "order-service should have 1 downstream service (payment-service)");
-        Assert.That(orderSummary.ExternalCount, Is.EqualTo(0), "order-service should have 0 external APIs");
-        Assert.That(orderSummary.DatabaseCount, Is.EqualTo(1), "order-service should have 1 database (orders_db)");
+        orderSummary.Should().NotBeNull();
+        orderSummary!.ServiceCount.Should().Be(1, "order-service should have 1 downstream service (payment-service)");
+        orderSummary.ExternalCount.Should().Be(0, "order-service should have 0 external APIs");
+        orderSummary.DatabaseCount.Should().Be(1, "order-service should have 1 database (orders_db)");
 
-        Assert.That(paymentSummary, Is.Not.Null);
-        Assert.That(paymentSummary!.ServiceCount, Is.EqualTo(0), "payment-service has 0 downstream services");
-        Assert.That(paymentSummary.ExternalCount, Is.EqualTo(1), "payment-service should have 1 external API (api.stripe.com)");
-        Assert.That(paymentSummary.TopicCount, Is.EqualTo(1), "payment-service should have 1 topic (orders_topic)");
+        paymentSummary.Should().NotBeNull();
+        paymentSummary!.ServiceCount.Should().Be(0, "payment-service has 0 downstream services");
+        paymentSummary.ExternalCount.Should().Be(1, "payment-service should have 1 external API (api.stripe.com)");
+        paymentSummary.TopicCount.Should().Be(1, "payment-service should have 1 topic (orders_topic)");
     }
 
     [Test]
@@ -317,8 +318,8 @@ public class ArchitectureViewEngineTests
 
         var details = await _engine.GetServiceCapabilitiesAsync("order-service");
 
-        Assert.That(details, Is.Not.Null);
-        Assert.That(details.Groups.Count, Is.EqualTo(5));
+        details.Should().NotBeNull();
+        details.Groups.Count.Should().Be(5);
 
         var epGroup = details.Groups.First(g => g.CategoryKey == "endpoints");
         var svcGroup = details.Groups.First(g => g.CategoryKey == "services");
@@ -326,28 +327,28 @@ public class ArchitectureViewEngineTests
         var extGroup = details.Groups.First(g => g.CategoryKey == "external");
 
         // Verify group headers
-        Assert.That(svcGroup.Label, Is.EqualTo("Downstream Services"));
-        Assert.That(svcGroup.Icon, Is.EqualTo("zap"));
+        svcGroup.Label.Should().Be("Downstream Services");
+        svcGroup.Icon.Should().Be("zap");
 
         // Verify downstream services contain auth-service and payment-service, and environment.auth was resolved
         var svcNames = svcGroup.Items.Select(i => i.Name).ToList();
-        Assert.That(svcNames, Does.Contain("auth-service"));
-        Assert.That(svcNames, Does.Contain("payment-service"));
-        Assert.That(svcGroup.Count, Is.EqualTo(2));
+        svcNames.Should().Contain("auth-service");
+        svcNames.Should().Contain("payment-service");
+        svcGroup.Count.Should().Be(2);
 
         // Verify external APIs contain api.cloudflare.com and api.github.com, and NOT internal services
         var extNames = extGroup.Items.Select(i => i.Name).ToList();
-        Assert.That(extNames, Does.Contain("api.cloudflare.com"));
-        Assert.That(extNames, Does.Contain("api.github.com"));
-        Assert.That(extNames, Does.Not.Contain("auth-service"));
-        Assert.That(extNames, Does.Not.Contain("payment-service"));
-        Assert.That(extNames, Does.Not.Contain("environment.auth"));
+        extNames.Should().Contain("api.cloudflare.com");
+        extNames.Should().Contain("api.github.com");
+        extNames.Should().NotContain("auth-service");
+        extNames.Should().NotContain("payment-service");
+        extNames.Should().NotContain("environment.auth");
 
         // Verify alphabetical sorting within EACH capability group
-        Assert.That(epGroup.Items.Select(i => i.Name).ToList(), Is.EqualTo(epGroup.Items.Select(i => i.Name).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList()), "Endpoints must be sorted alphabetically by Name");
-        Assert.That(svcGroup.Items.Select(i => i.Name).ToList(), Is.EqualTo(svcGroup.Items.Select(i => i.Name).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList()), "Services must be sorted alphabetically by Name");
-        Assert.That(dbGroup.Items.Select(i => i.Name).ToList(), Is.EqualTo(dbGroup.Items.Select(i => i.Name).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList()), "Databases must be sorted alphabetically by Name");
-        Assert.That(extGroup.Items.Select(i => i.Name).ToList(), Is.EqualTo(extGroup.Items.Select(i => i.Name).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList()), "External APIs must be sorted alphabetically by Name");
+        epGroup.Items.Select(i => i.Name).ToList().Should().Equal(epGroup.Items.Select(i => i.Name).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList(), "Endpoints must be sorted alphabetically by Name");
+        svcGroup.Items.Select(i => i.Name).ToList().Should().Equal(svcGroup.Items.Select(i => i.Name).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList(), "Services must be sorted alphabetically by Name");
+        dbGroup.Items.Select(i => i.Name).ToList().Should().Equal(dbGroup.Items.Select(i => i.Name).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList(), "Databases must be sorted alphabetically by Name");
+        extGroup.Items.Select(i => i.Name).ToList().Should().Equal(extGroup.Items.Select(i => i.Name).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList(), "External APIs must be sorted alphabetically by Name");
     }
 
     [Test]
@@ -356,17 +357,17 @@ public class ArchitectureViewEngineTests
         // Setup already created order-service (Service), payment-service (Service), and common-dto (Library)
         var domain = await _engine.GetDomainArchitectureAsync();
 
-        Assert.That(domain.Nodes.Any(n => n.Name == "common-dto" || n.DisplayName == "common-dto"), Is.False, "Libraries must NOT appear on Domain Service Map");
-        Assert.That(domain.Nodes.Any(n => n.Kind == NodeKind.Library), Is.False, "No nodes with kind 'Library' should exist on Domain Service Map");
-        Assert.That(domain.Stats.Libraries, Is.EqualTo(0));
+        (domain.Nodes.Any(n => n.Name == "common-dto" || n.DisplayName == "common-dto")).Should().BeFalse("Libraries must NOT appear on Domain Service Map");
+        (domain.Nodes.Any(n => n.Kind == NodeKind.Library)).Should().BeFalse("No nodes with kind 'Library' should exist on Domain Service Map");
+        domain.Stats.Libraries.Should().Be(0);
 
         // Verify runnable services are present
-        Assert.That(domain.Nodes.Any(n => n.Name == "order-service"), Is.True, "order-service should be present on Domain Service Map");
-        Assert.That(domain.Nodes.Any(n => n.Name == "payment-service"), Is.True, "payment-service should be present on Domain Service Map");
+        (domain.Nodes.Any(n => n.Name == "order-service")).Should().BeTrue("order-service should be present on Domain Service Map");
+        (domain.Nodes.Any(n => n.Name == "payment-service")).Should().BeTrue("payment-service should be present on Domain Service Map");
 
         // Also verify GraphDataDto representation
         var graph = await _engine.GetDomainArchitectureGraphAsync();
-        Assert.That(graph.Nodes.Any(n => n.Name == "common-dto" || n.Kind == NodeKind.Library), Is.False, "Libraries must not appear in DomainMap GraphDataDto");
+        (graph.Nodes.Any(n => n.Name == "common-dto" || n.Kind == NodeKind.Library)).Should().BeFalse("Libraries must not appear in DomainMap GraphDataDto");
     }
 
     [Test]
@@ -451,44 +452,44 @@ public class ArchitectureViewEngineTests
         // 2. Query Bounded Context map
         var map = await _engine.GetBoundedContextMapAsync();
 
-        Assert.That(map.HasIntents, Is.True);
-        Assert.That(map.TotalIntents, Is.EqualTo(3));
-        Assert.That(map.Contexts.Count, Is.EqualTo(2));
+        map.HasIntents.Should().BeTrue();
+        map.TotalIntents.Should().Be(3);
+        map.Contexts.Count.Should().Be(2);
 
         var orderCtx = map.Contexts.FirstOrDefault(c => c.Name == "OrderManagement");
-        Assert.That(orderCtx, Is.Not.Null);
-        Assert.That(orderCtx!.FileCount, Is.EqualTo(2));
-        Assert.That(orderCtx.PureDomainCount, Is.EqualTo(1));
-        Assert.That(orderCtx.PurityPercentage, Is.EqualTo(50.0));
-        Assert.That(orderCtx.TargetEntities, Does.Contain("Order"));
-        Assert.That(orderCtx.TargetEntities, Does.Contain("OrderItem"));
-        Assert.That(orderCtx.Capabilities, Does.Contain("PlaceOrder"));
-        Assert.That(orderCtx.EmittedEvents, Does.Contain("OrderPlacedEvent"));
+        orderCtx.Should().NotBeNull();
+        orderCtx!.FileCount.Should().Be(2);
+        orderCtx.PureDomainCount.Should().Be(1);
+        orderCtx.PurityPercentage.Should().Be(50.0);
+        orderCtx.TargetEntities.Should().Contain("Order");
+        orderCtx.TargetEntities.Should().Contain("OrderItem");
+        orderCtx.Capabilities.Should().Contain("PlaceOrder");
+        orderCtx.EmittedEvents.Should().Contain("OrderPlacedEvent");
 
         var payCtx = map.Contexts.FirstOrDefault(c => c.Name == "Payments");
-        Assert.That(payCtx, Is.Not.Null);
-        Assert.That(payCtx!.FileCount, Is.EqualTo(1));
-        Assert.That(payCtx.TargetEntities, Does.Contain("PaymentTransaction"));
+        payCtx.Should().NotBeNull();
+        payCtx!.FileCount.Should().Be(1);
+        payCtx.TargetEntities.Should().Contain("PaymentTransaction");
 
         // 3. Verify cross-domain interactions
-        Assert.That(map.Interactions.Count, Is.GreaterThanOrEqualTo(1));
+        map.Interactions.Count.Should().BeGreaterThanOrEqualTo(1);
         var callEdge = map.Interactions.FirstOrDefault(i => i.Source == "context:ordermanagement" && i.Target == "context:payments");
-        Assert.That(callEdge, Is.Not.Null);
+        callEdge.Should().NotBeNull();
         if (callEdge != null)
         {
-            Assert.That(callEdge.InteractionType, Is.EqualTo("service_call"));
+            callEdge.InteractionType.Should().Be("service_call");
         }
 
         // 4. Verify Graph Projection (GraphDataDto)
         var graph = await _engine.GetBoundedContextGraphAsync();
-        Assert.That(graph.Metadata, Is.Not.Null);
-        Assert.That(graph.Metadata!["view"], Is.EqualTo("BoundedContexts"));
-        Assert.That(graph.Nodes.Count, Is.EqualTo(2));
-        Assert.That(graph.Edges.Count, Is.GreaterThanOrEqualTo(1));
+        graph.Metadata.Should().NotBeNull();
+        graph.Metadata!["view"].Should().Be("BoundedContexts");
+        graph.Nodes.Count.Should().Be(2);
+        graph.Edges.Count.Should().BeGreaterThanOrEqualTo(1);
 
         // 5. Verify Serialization
         var mermaid = ArchitectureViewEngine.SerializeBoundedContextMap(map, "mermaid");
-        Assert.That(mermaid, Does.Contain("Order Management"));
-        Assert.That(mermaid, Does.Contain("Payments"));
+        mermaid.Should().Contain("Order Management");
+        mermaid.Should().Contain("Payments");
     }
 }

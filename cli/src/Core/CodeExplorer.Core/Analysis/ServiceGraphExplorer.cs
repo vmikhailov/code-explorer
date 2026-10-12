@@ -132,9 +132,9 @@ public class ServiceGraphExplorer : IServiceGraphExplorer
     {
         var query = """
             MATCH (s) WHERE (s:Project OR s:Service OR s:Worker OR s:App) AND s.name = $name
-            OPTIONAL MATCH (s)-[:DEPENDS_ON]->(lib) WHERE NOT lib:Package
-            OPTIONAL MATCH (s)-[:SERVICE_CALL]->(target) WHERE target:Project OR target:Service OR target:Worker
-            OPTIONAL MATCH (caller)-[:SERVICE_CALL]->(s) WHERE caller:Project OR caller:Service OR caller:Worker
+            OPTIONAL MATCH (s)-[r1:DEPENDS_ON]->(lib) WHERE NOT lib:Package AND coalesce(r1.dependency_type, '') != 'service_call' AND (lib:Library OR lib.is_library = true OR lib.role = 'SharedLibrary' OR lib.role = 'Library')
+            OPTIONAL MATCH (s)-[r2:SERVICE_CALL|DEPENDS_ON]->(target) WHERE (target:Project OR target:Service OR target:Worker) AND (r2.kind = 'SERVICE_CALL' OR r2.dependency_type = 'service_call')
+            OPTIONAL MATCH (caller)-[r3:SERVICE_CALL|DEPENDS_ON]->(s) WHERE (caller:Project OR caller:Service OR caller:Worker) AND (r3.kind = 'SERVICE_CALL' OR r3.dependency_type = 'service_call')
             RETURN collect(DISTINCT lib.name) AS referenced_libraries,
                    collect(DISTINCT target.name) AS calls_services,
                    collect(DISTINCT caller.name) AS called_by

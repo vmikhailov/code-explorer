@@ -1,6 +1,6 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Parser.TypeScript;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -23,11 +23,11 @@ Scripts/vendor/
 
             var matcher = new GitIgnoreMatcher(tempDir);
 
-            Assert.That(matcher.IsIgnored("Scripts/vendor/bundle.js", false), Is.True);
-            Assert.That(matcher.IsIgnored("Scripts/vendor", true), Is.True);
-            Assert.That(matcher.IsIgnored("Foo.generated.cs", false), Is.True);
-            Assert.That(matcher.IsIgnored("Scripts/app.js", false), Is.False);
-            Assert.That(matcher.IsIgnored("Foo.cs", false), Is.False);
+            matcher.IsIgnored("Scripts/vendor/bundle.js", false).Should().BeTrue();
+            matcher.IsIgnored("Scripts/vendor", true).Should().BeTrue();
+            matcher.IsIgnored("Foo.generated.cs", false).Should().BeTrue();
+            matcher.IsIgnored("Scripts/app.js", false).Should().BeFalse();
+            matcher.IsIgnored("Foo.cs", false).Should().BeFalse();
         }
         finally
         {
@@ -71,7 +71,7 @@ Scripts/vendor/
 
             await using var client = new SqliteGraphClient(dbPath);
 
-            WorkspaceIndexer.Register(new JavaScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
 
             var indexer = new WorkspaceIndexer(client);
             var results = await indexer.IndexAsync(tempDir, tempDir, clear: true);
@@ -79,9 +79,9 @@ Scripts/vendor/
             var filesQuery = "MATCH (f:File) RETURN f.path AS path";
             var queryResult = await client.ExecuteQueryAsync(filesQuery);
 
-            Assert.That(queryResult, Contains.Substring("MyController.js"));
-            Assert.That(queryResult, Does.Not.Contain("editor.js"));
-            Assert.That(queryResult, Does.Not.Contain("app.d.ts"));
+            queryResult.Should().Contain("MyController.js");
+            queryResult.Should().NotContain("editor.js");
+            queryResult.Should().NotContain("app.d.ts");
         }
         finally
         {
@@ -99,13 +99,13 @@ Scripts/vendor/
             // No .gitignore or .codeexplorerignore created
             var matcher = new GitIgnoreMatcher(tempDir);
 
-            Assert.That(matcher.IsIgnored("node_modules/express/index.js", false), Is.True);
-            Assert.That(matcher.IsIgnored("bin/Debug/net10.0/app.dll", false), Is.True);
-            Assert.That(matcher.IsIgnored("obj/Release/app.pdb", false), Is.True);
-            Assert.That(matcher.IsIgnored(".next/cache/turbopack.js", false), Is.True);
-            Assert.That(matcher.IsIgnored(".turbo/build.log", false), Is.True);
-            Assert.That(matcher.IsIgnored("dist/bundle.js", false), Is.True);
-            Assert.That(matcher.IsIgnored("src/app.ts", false), Is.False);
+            matcher.IsIgnored("node_modules/express/index.js", false).Should().BeTrue();
+            matcher.IsIgnored("bin/Debug/net10.0/app.dll", false).Should().BeTrue();
+            matcher.IsIgnored("obj/Release/app.pdb", false).Should().BeTrue();
+            matcher.IsIgnored(".next/cache/turbopack.js", false).Should().BeTrue();
+            matcher.IsIgnored(".turbo/build.log", false).Should().BeTrue();
+            matcher.IsIgnored("dist/bundle.js", false).Should().BeTrue();
+            matcher.IsIgnored("src/app.ts", false).Should().BeFalse();
         }
         finally
         {
@@ -131,12 +131,12 @@ Scripts/vendor/
             matcher.LoadScopedFile(nestedIgnore, "services/auth");
 
             // Should be ignored inside services/auth
-            Assert.That(matcher.IsIgnored("services/auth/local_cache/data.bin", false), Is.True);
-            Assert.That(matcher.IsIgnored("services/auth/test.tmp", false), Is.True);
+            matcher.IsIgnored("services/auth/local_cache/data.bin", false).Should().BeTrue();
+            matcher.IsIgnored("services/auth/test.tmp", false).Should().BeTrue();
 
             // Should NOT be ignored outside services/auth
-            Assert.That(matcher.IsIgnored("services/billing/local_cache/data.bin", false), Is.False);
-            Assert.That(matcher.IsIgnored("root.tmp", false), Is.False);
+            matcher.IsIgnored("services/billing/local_cache/data.bin", false).Should().BeFalse();
+            matcher.IsIgnored("root.tmp", false).Should().BeFalse();
         }
         finally
         {

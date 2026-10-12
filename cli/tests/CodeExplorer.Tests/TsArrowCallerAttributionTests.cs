@@ -1,11 +1,12 @@
 using System.Threading.Channels;
-using NUnit.Framework;
+using AwesomeAssertions;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.TypeScript;
+using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
 
@@ -76,13 +77,13 @@ public class TsArrowCallerAttributionTests
 
         var services = await ParseAsync(code, "tracker-api.service.ts");
 
-        Assert.That(services, Has.Count.EqualTo(2));
+        services.Should().HaveCount(2);
         foreach (var es in services)
         {
-            Assert.That(Caller(es), Does.Contain(":Function:"), $"call to {es.Path} must belong to a Function, got '{Caller(es)}'");
+            Caller(es).Should().Contain(":Function:", $"call to {es.Path} must belong to a Function, got '{Caller(es)}'");
         }
-        Assert.That(services.Select(Caller), Has.Some.Contains("plansResource.loader"));
-        Assert.That(services.Select(Caller), Has.Some.Contains("partnerTbsResource.stream"));
+        services.Select(Caller).Should().Contain(x => x.Contains("plansResource.loader"));
+        services.Select(Caller).Should().Contain(x => x.Contains("partnerTbsResource.stream"));
     }
 
     [Test]
@@ -100,8 +101,8 @@ public class TsArrowCallerAttributionTests
 
         var services = await ParseAsync(code, "store.ts");
 
-        Assert.That(services, Has.Count.EqualTo(1));
-        Assert.That(Caller(services[0]), Does.EndWith(":Function:load"));
+        services.Should().HaveCount(1);
+        Caller(services[0]).Should().EndWith(":Function:load");
     }
 
     [Test]
@@ -122,7 +123,7 @@ public class TsArrowCallerAttributionTests
 
         var services = await ParseAsync(code, "svc.ts");
 
-        Assert.That(services, Has.Count.EqualTo(1));
-        Assert.That(Caller(services[0]), Does.EndWith(":Function:loadAll"));
+        services.Should().HaveCount(1);
+        Caller(services[0]).Should().EndWith(":Function:loadAll");
     }
 }

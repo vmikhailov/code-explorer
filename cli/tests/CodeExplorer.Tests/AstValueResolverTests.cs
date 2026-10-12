@@ -1,9 +1,5 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Parser.CSharp;
-using CodeExplorer.Parser.Go;
-using CodeExplorer.Parser.Java;
-using CodeExplorer.Parser.Python;
-using CodeExplorer.Parser.TypeScript;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -14,11 +10,7 @@ public class AstValueResolverTests
     [OneTimeSetUp]
     public void OneTimeSetUp()
     {
-        WorkspaceIndexer.Register(new CSharpParser());
-        WorkspaceIndexer.Register(new TypeScriptParser());
-        WorkspaceIndexer.Register(new GoParser());
-        WorkspaceIndexer.Register(new PythonParser());
-        WorkspaceIndexer.Register(new JavaParser());
+        WorkspaceIndexer.AutoRegisterParsers();
     }
 
     [SetUp]
@@ -47,24 +39,24 @@ public static class TopicNames
 
         AstConstantExtractor.ExtractAndRegister("src/TopicNames.cs", code, "TestApp");
 
-        Assert.That(ConstantRegistry.TryResolve("TestApp", "Environment", out var env), Is.True);
-        Assert.That(env, Is.EqualTo("production"));
+        ConstantRegistry.TryResolve("TestApp", "Environment", out var env).Should().BeTrue();
+        env.Should().Be("production");
 
-        Assert.That(ConstantRegistry.TryResolve("TestApp", "OrderBase", out var orderBase), Is.True);
-        Assert.That(orderBase, Is.EqualTo("company.production.orders"));
+        ConstantRegistry.TryResolve("TestApp", "OrderBase", out var orderBase).Should().BeTrue();
+        orderBase.Should().Be("company.production.orders");
 
-        Assert.That(ConstantRegistry.TryResolve("TestApp", "OrderCreated", out var orderCreated), Is.True);
-        Assert.That(orderCreated, Is.EqualTo("company.production.orders.created"));
+        ConstantRegistry.TryResolve("TestApp", "OrderCreated", out var orderCreated).Should().BeTrue();
+        orderCreated.Should().Be("company.production.orders.created");
 
-        Assert.That(ConstantRegistry.TryResolve("TestApp", "OrderCancelled", out var orderCancelled), Is.True);
-        Assert.That(orderCancelled, Is.EqualTo("company.production.orders.cancelled"));
+        ConstantRegistry.TryResolve("TestApp", "OrderCancelled", out var orderCancelled).Should().BeTrue();
+        orderCancelled.Should().Be("company.production.orders.cancelled");
 
-        Assert.That(ConstantRegistry.TryResolve("TestApp", "PaymentQueue", out var paymentQueue), Is.True);
-        Assert.That(paymentQueue, Is.EqualTo("company.production.orders.payments"));
+        ConstantRegistry.TryResolve("TestApp", "PaymentQueue", out var paymentQueue).Should().BeTrue();
+        paymentQueue.Should().Be("company.production.orders.payments");
 
         // Qualified lookup
-        Assert.That(ConstantRegistry.TryResolve("TestApp", "TopicNames.OrderCreated", out var qualCreated), Is.True);
-        Assert.That(qualCreated, Is.EqualTo("company.production.orders.created"));
+        ConstantRegistry.TryResolve("TestApp", "TopicNames.OrderCreated", out var qualCreated).Should().BeTrue();
+        qualCreated.Should().Be("company.production.orders.created");
     }
 
     [Test]
@@ -86,20 +78,20 @@ export enum Queues {
 ";
         AstConstantExtractor.ExtractAndRegister("src/topics.ts", code, "BillingService");
 
-        Assert.That(ConstantRegistry.TryResolve("BillingService", "DOMAIN", out var domain), Is.True);
-        Assert.That(domain, Is.EqualTo("billing"));
+        ConstantRegistry.TryResolve("BillingService", "DOMAIN", out var domain).Should().BeTrue();
+        domain.Should().Be("billing");
 
-        Assert.That(ConstantRegistry.TryResolve("BillingService", "INVOICE_PREFIX", out var prefix), Is.True);
-        Assert.That(prefix, Is.EqualTo("billing.invoices"));
+        ConstantRegistry.TryResolve("BillingService", "INVOICE_PREFIX", out var prefix).Should().BeTrue();
+        prefix.Should().Be("billing.invoices");
 
-        Assert.That(ConstantRegistry.TryResolve("BillingService", "Topics.InvoiceCreated", out var created), Is.True);
-        Assert.That(created, Is.EqualTo("billing.invoices.created"));
+        ConstantRegistry.TryResolve("BillingService", "Topics.InvoiceCreated", out var created).Should().BeTrue();
+        created.Should().Be("billing.invoices.created");
 
-        Assert.That(ConstantRegistry.TryResolve("BillingService", "Topics.InvoicePaid", out var paid), Is.True);
-        Assert.That(paid, Is.EqualTo("billing.invoices.paid"));
+        ConstantRegistry.TryResolve("BillingService", "Topics.InvoicePaid", out var paid).Should().BeTrue();
+        paid.Should().Be("billing.invoices.paid");
 
-        Assert.That(ConstantRegistry.TryResolve("BillingService", "Queues.PaymentProcessing", out var queue), Is.True);
-        Assert.That(queue, Is.EqualTo("payment-processing-queue"));
+        ConstantRegistry.TryResolve("BillingService", "Queues.PaymentProcessing", out var queue).Should().BeTrue();
+        queue.Should().Be("payment-processing-queue");
     }
 
     [Test]
@@ -115,11 +107,11 @@ const (
 ";
         AstConstantExtractor.ExtractAndRegister("messaging/topics.go", code, "StoreService");
 
-        Assert.That(ConstantRegistry.TryResolve("StoreService", "Prefix", out var prefix), Is.True);
-        Assert.That(prefix, Is.EqualTo("store"));
+        ConstantRegistry.TryResolve("StoreService", "Prefix", out var prefix).Should().BeTrue();
+        prefix.Should().Be("store");
 
-        Assert.That(ConstantRegistry.TryResolve("StoreService", "OrdersTopic", out var topic), Is.True);
-        Assert.That(topic, Is.EqualTo("store.orders"));
+        ConstantRegistry.TryResolve("StoreService", "OrdersTopic", out var topic).Should().BeTrue();
+        topic.Should().Be("store.orders");
     }
 
     [Test]
@@ -132,11 +124,11 @@ ITEM_CREATED_TOPIC = BASE_TOPIC + '.created'
 ";
         AstConstantExtractor.ExtractAndRegister("catalog/topics.py", code, "CatalogService");
 
-        Assert.That(ConstantRegistry.TryResolve("CatalogService", "SERVICE_NAME", out var svc), Is.True);
-        Assert.That(svc, Is.EqualTo("catalog"));
+        ConstantRegistry.TryResolve("CatalogService", "SERVICE_NAME", out var svc).Should().BeTrue();
+        svc.Should().Be("catalog");
 
-        Assert.That(ConstantRegistry.TryResolve("CatalogService", "ITEM_CREATED_TOPIC", out var topic), Is.True);
-        Assert.That(topic, Is.EqualTo("catalog.items.created"));
+        ConstantRegistry.TryResolve("CatalogService", "ITEM_CREATED_TOPIC", out var topic).Should().BeTrue();
+        topic.Should().Be("catalog.items.created");
     }
 
     [Test]
@@ -157,19 +149,19 @@ function setupRabbit(rabbit: any) {
 
         using var tree = parser.Parse(tsCode);
 
-        Assert.That(tree, Is.Not.Null);
+        tree.Should().NotBeNull();
 
         // Find the call expression rabbit.createQueue(queueName)
         var call = tree!.RootNode.FindDescendantOfType("call_expression");
-        Assert.That(call.IsValid(), Is.True);
+        call.IsValid().Should().BeTrue();
 
         var args = call!.FindChildOfType("arguments");
-        Assert.That(args.IsValid(), Is.True);
+        args.IsValid().Should().BeTrue();
         var firstArg = args!.Children.FirstOrDefault(c => c.Type == "identifier");
-        Assert.That(firstArg.IsValid(), Is.True);
+        firstArg.IsValid().Should().BeTrue();
 
         var resolved = AstValueResolver.ResolveString(firstArg!);
-        Assert.That(resolved, Is.EqualTo("orders-v2-queue"));
+        resolved.Should().Be("orders-v2-queue");
     }
 
     [Test]
@@ -192,40 +184,39 @@ class Worker {
 
         using var tree = parser.Parse(csharpCode);
 
-        Assert.That(tree, Is.Null.Or.Not.Null);
+        tree.Should().NotBeNull();
 
         var subscript = tree!.RootNode.FindDescendantOfType("element_access_expression");
-        Assert.That(subscript!.IsValid(), Is.True);
-        Assert.That(AstValueResolver.ResolveString(subscript!), Is.EqualTo("payments-v1"));
+        subscript!.IsValid().Should().BeTrue();
+        AstValueResolver.ResolveString(subscript!).Should().Be("payments-v1");
 
         var member = tree!.RootNode.FindDescendantsOfType("member_access_expression")
             .FirstOrDefault(m => m.Text.Contains("ORDER_TOPIC"));
-        Assert.That(member!.IsValid(), Is.True);
-        Assert.That(AstValueResolver.ResolveString(member!), Is.EqualTo("orders-stream"));
+        member!.IsValid().Should().BeTrue();
+        AstValueResolver.ResolveString(member!).Should().Be("orders-stream");
     }
 
     [Test]
     public void AstValueResolver_UnquotesAndUnescapesStringsCorrectly()
     {
-        Assert.That(AstValueResolver.Unquote("\"hello\""), Is.EqualTo("hello"));
-        Assert.That(AstValueResolver.Unquote("'world'"), Is.EqualTo("world"));
-        Assert.That(AstValueResolver.Unquote("`template`"), Is.EqualTo("template"));
-        Assert.That(AstValueResolver.Unquote("@\"escaped\"\"quote\"\"\""), Is.EqualTo("escaped\"quote\""));
-        Assert.That(AstValueResolver.Unquote("\"\"\"raw string\"\"\""), Is.EqualTo("raw string"));
-        Assert.That(AstValueResolver.Unquote("\"line1\\nline2\\tcol\""), Is.EqualTo("line1\nline2\tcol"));
+        AstValueResolver.Unquote("\"hello\"").Should().Be("hello");
+        AstValueResolver.Unquote("'world'").Should().Be("world");
+        AstValueResolver.Unquote("`template`").Should().Be("template");
+        AstValueResolver.Unquote("@\"escaped\"\"quote\"\"\"").Should().Be("escaped\"quote\"");
+        AstValueResolver.Unquote("\"\"\"raw string\"\"\"").Should().Be("raw string");
+        AstValueResolver.Unquote("\"line1\\nline2\\tcol\"").Should().Be("line1\nline2\tcol");
     }
 
     [Test]
     public void AstValueResolver_HandlesRegexPatternsAndRawStringsWithoutThrowing()
     {
         // Go raw string literals in backticks must preserve literal backslashes without Regex.Unescape
-        Assert.That(AstValueResolver.Unquote("`[\\s`"), Is.EqualTo("[\\s"));
-        Assert.That(AstValueResolver.Unquote("`<html>\r\n<div>{{name}}</div>`"), Is.EqualTo("<html>\n<div>{{name}}</div>"));
+        AstValueResolver.Unquote("`[\\s`").Should().Be("[\\s");
+        AstValueResolver.Unquote("`<html>\r\n<div>{{name}}</div>`").Should().Be("<html>\n<div>{{name}}</div>");
 
         // Quoted strings with regex escape sequences like \s, \d must not throw RegexParseException
-        Assert.That(AstValueResolver.Unquote("\"[\\s\""), Is.EqualTo("[\\s"));
-        Assert.That(AstValueResolver.Unquote("\"^(\\+\\d{1,2}\\s)?\\(?\\d{3}\\)?[\\s.-]\\d{3}[\\s.-]\\d{4}$\""),
-            Is.EqualTo("^(\\+\\d{1,2}\\s)?\\(?\\d{3}\\)?[\\s.-]\\d{3}[\\s.-]\\d{4}$"));
+        AstValueResolver.Unquote("\"[\\s\"").Should().Be("[\\s");
+        AstValueResolver.Unquote("\"^(\\+\\d{1,2}\\s)?\\(?\\d{3}\\)?[\\s.-]\\d{3}[\\s.-]\\d{4}$\"").Should().Be("^(\\+\\d{1,2}\\s)?\\(?\\d{3}\\)?[\\s.-]\\d{3}[\\s.-]\\d{4}$");
     }
 
     [Test]
@@ -242,17 +233,17 @@ func Fetch() {
         var language = SyntaxTree.GetLanguage("go");
         using var parser = new TreeSitter.Parser(language);
         using var tree = parser.Parse(goCode);
-        Assert.That(tree, Is.Not.Null);
+        tree.Should().NotBeNull();
 
         var call = tree!.RootNode.FindDescendantOfType("call_expression");
-        Assert.That(call.IsValid(), Is.True);
+        call.IsValid().Should().BeTrue();
 
         var args = Parser.Go.Libraries.GoAstHelper.GetCallArguments(call);
-        Assert.That(args.Count, Is.GreaterThan(0));
+        args.Count.Should().BeGreaterThan(0);
 
         // Must terminate safely without StackOverflowException
         var res = Parser.Go.Libraries.GoAstHelper.ResolveStringOrVariable(args[0]);
-        Assert.That(res, Is.EqualTo("/api/v1/orders"));
+        res.Should().Be("/api/v1/orders");
     }
 
     [Test]
@@ -266,17 +257,17 @@ def fetch():
         var language = SyntaxTree.GetLanguage("python");
         using var parser = new TreeSitter.Parser(language);
         using var tree = parser.Parse(pyCode);
-        Assert.That(tree, Is.Not.Null);
+        tree.Should().NotBeNull();
 
         var call = tree!.RootNode.FindDescendantOfType(TreeSitterSyntax.Python.Call);
-        Assert.That(call.IsValid(), Is.True);
+        call.IsValid().Should().BeTrue();
 
         var args = Parser.Python.Libraries.PythonAstHelper.GetCallArguments(call);
-        Assert.That(args.Count, Is.GreaterThan(0));
+        args.Count.Should().BeGreaterThan(0);
 
         // Must terminate safely without StackOverflowException
         var res = Parser.Python.Libraries.PythonAstHelper.ResolveStringOrVariable(args[0]);
-        Assert.That(res, Is.EqualTo("/api/v1/items"));
+        res.Should().Be("/api/v1/items");
     }
 
     [Test]
@@ -291,23 +282,23 @@ function fetch() {
         var language = SyntaxTree.GetLanguage("typescript");
         using var parser = new TreeSitter.Parser(language);
         using var tree = parser.Parse(tsCode);
-        Assert.That(tree, Is.Not.Null);
+        tree.Should().NotBeNull();
 
         var call = tree!.RootNode.FindDescendantOfType(TreeSitterSyntax.TypeScript.CallExpression);
-        Assert.That(call.IsValid(), Is.True);
+        call.IsValid().Should().BeTrue();
 
         var args = Parser.TypeScript.Libraries.AstHelper.GetCallArguments(call);
-        Assert.That(args.Count, Is.GreaterThan(0));
+        args.Count.Should().BeGreaterThan(0);
 
         // Must terminate safely without StackOverflowException
         var res = Parser.TypeScript.Libraries.AstHelper.ResolveStringOrTemplate(args[0]);
-        Assert.That(res, Is.EqualTo("/api/v1/users"));
+        res.Should().Be("/api/v1/users");
     }
 
     [Test]
     public void Test_HttpApiPrefixConfig_AtsExactContent()
     {
-        WorkspaceIndexer.Register(new TypeScriptParser());
+        WorkspaceIndexer.AutoRegisterParsers();
         var code = @"
 export const HTTP_API_PREFIX_CONFIG = {
   API_GLOBAL_PREFIX: 'api/v1',
@@ -325,7 +316,7 @@ export const HTTP_API_PREFIX_CONFIG = {
         {
             TestContext.WriteLine($"  {kvp.Key} = {kvp.Value}");
         }
-        Assert.That(ConstantRegistry.TryResolve("integration-service-helper-nest", "HTTP_API_PREFIX_CONFIG.SMART_CPA.GLOBAL_PREFIX", out var val), Is.True);
-        Assert.That(val, Is.EqualTo("smart-cpa"));
+        ConstantRegistry.TryResolve("integration-service-helper-nest", "HTTP_API_PREFIX_CONFIG.SMART_CPA.GLOBAL_PREFIX", out var val).Should().BeTrue();
+        val.Should().Be("smart-cpa");
     }
 }

@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Analysis;
 using NUnit.Framework;
 
@@ -18,24 +19,24 @@ public class EndpointScoringEngineTests
 
         // 1. traffictypes call
         var matchTraffic = EndpointScoringEngine.MatchCall("http://traffictypes", "/api/v1/types", "GET", candidates);
-        Assert.That(matchTraffic.IsInternal, Is.True);
-        Assert.That(matchTraffic.Project, Is.Not.Null);
-        Assert.That(matchTraffic.Project!.ProjectId, Is.EqualTo("p1"));
-        Assert.That(matchTraffic.ProjectScore, Is.GreaterThanOrEqualTo(80.0));
+        matchTraffic.IsInternal.Should().BeTrue();
+        matchTraffic.Project.Should().NotBeNull();
+        matchTraffic.Project!.ProjectId.Should().Be("p1");
+        matchTraffic.ProjectScore.Should().BeGreaterThanOrEqualTo(80.0);
 
         // 2. postbackpartner call
         var matchPostback = EndpointScoringEngine.MatchCall("http://postbackpartner", "/postback", "POST", candidates);
-        Assert.That(matchPostback.IsInternal, Is.True);
-        Assert.That(matchPostback.Project, Is.Not.Null);
-        Assert.That(matchPostback.Project!.ProjectId, Is.EqualTo("p2"));
-        Assert.That(matchPostback.ProjectScore, Is.GreaterThanOrEqualTo(80.0));
+        matchPostback.IsInternal.Should().BeTrue();
+        matchPostback.Project.Should().NotBeNull();
+        matchPostback.Project!.ProjectId.Should().Be("p2");
+        matchPostback.ProjectScore.Should().BeGreaterThanOrEqualTo(80.0);
 
         // 3. FQDN subdomain call
         var matchRule = EndpointScoringEngine.MatchCall("http://rule-configurator.at-systems.biz", "/rules", "GET", candidates);
-        Assert.That(matchRule.IsInternal, Is.True);
-        Assert.That(matchRule.Project, Is.Not.Null);
-        Assert.That(matchRule.Project!.ProjectId, Is.EqualTo("p3"));
-        Assert.That(matchRule.ProjectScore, Is.GreaterThanOrEqualTo(80.0));
+        matchRule.IsInternal.Should().BeTrue();
+        matchRule.Project.Should().NotBeNull();
+        matchRule.Project!.ProjectId.Should().Be("p3");
+        matchRule.ProjectScore.Should().BeGreaterThanOrEqualTo(80.0);
     }
 
     [Test]
@@ -48,12 +49,12 @@ public class EndpointScoringEngineTests
 
         // Public external domain should not match internal project
         var matchStripe = EndpointScoringEngine.MatchCall("https://api.stripe.com", "/v1/charges", "POST", candidates);
-        Assert.That(matchStripe.IsInternal, Is.False);
-        Assert.That(matchStripe.ProjectScore, Is.LessThan(40.0));
+        matchStripe.IsInternal.Should().BeFalse();
+        matchStripe.ProjectScore.Should().BeLessThan(40.0);
 
         var matchTelegram = EndpointScoringEngine.MatchCall("https://api.telegram.org", "/bot123/sendMessage", "POST", candidates);
-        Assert.That(matchTelegram.IsInternal, Is.False);
-        Assert.That(matchTelegram.ProjectScore, Is.LessThan(40.0));
+        matchTelegram.IsInternal.Should().BeFalse();
+        matchTelegram.ProjectScore.Should().BeLessThan(40.0);
     }
 
     [Test]
@@ -64,8 +65,8 @@ public class EndpointScoringEngineTests
         var scoreMatch = EndpointScoringEngine.ScoreEndpointMatch("/api/v1/traffic-types/123", "GET", epCandidate);
         var scoreMismatchMethod = EndpointScoringEngine.ScoreEndpointMatch("/api/v1/traffic-types/123", "POST", epCandidate);
 
-        Assert.That(scoreMatch, Is.GreaterThan(50.0));
-        Assert.That(scoreMatch, Is.GreaterThan(scoreMismatchMethod));
+        scoreMatch.Should().BeGreaterThan(50.0);
+        scoreMatch.Should().BeGreaterThan(scoreMismatchMethod);
     }
 
     [Test]
@@ -80,17 +81,17 @@ public class EndpointScoringEngineTests
 
         // Short token "rtb" should NOT match arbitrary projects by substring
         var matchRtb = EndpointScoringEngine.MatchCall("http://rtb", "/", "POST", candidates);
-        Assert.That(matchRtb.IsInternal, Is.False);
-        Assert.That(matchRtb.ProjectScore, Is.LessThan(40.0));
+        matchRtb.IsInternal.Should().BeFalse();
+        matchRtb.ProjectScore.Should().BeLessThan(40.0);
 
         // Generic placeholders should score 0
         var matchStar = EndpointScoringEngine.MatchCall("*", "/", "GET", candidates);
-        Assert.That(matchStar.IsInternal, Is.False);
-        Assert.That(matchStar.ProjectScore, Is.EqualTo(0.0));
+        matchStar.IsInternal.Should().BeFalse();
+        matchStar.ProjectScore.Should().Be(0.0);
 
         var matchUnknown = EndpointScoringEngine.MatchCall("unknown-service", "/", "GET", candidates);
-        Assert.That(matchUnknown.IsInternal, Is.False);
-        Assert.That(matchUnknown.ProjectScore, Is.EqualTo(0.0));
+        matchUnknown.IsInternal.Should().BeFalse();
+        matchUnknown.ProjectScore.Should().Be(0.0);
     }
 
     [Test]
@@ -105,14 +106,14 @@ public class EndpointScoringEngineTests
 
         // adhub-cf-worker's workers.dev URL should match adhub-cf-worker, but NOT atscfworkers or workers-site
         var matchSelf = EndpointScoringEngine.MatchCall("https://adhub-cf-worker.mikhailov-v-atsystems.workers.dev", "/endpoint", "POST", candidates);
-        Assert.That(matchSelf.Project, Is.Not.Null);
-        Assert.That(matchSelf.Project!.ProjectId, Is.EqualTo("p3"));
+        matchSelf.Project.Should().NotBeNull();
+        matchSelf.Project!.ProjectId.Should().Be("p3");
 
         var scoreWorkersSite = EndpointScoringEngine.ScoreProjectMatch("adhub-cf-worker.mikhailov-v-atsystems.workers.dev", candidates[1]);
-        Assert.That(scoreWorkersSite, Is.LessThan(40.0));
+        scoreWorkersSite.Should().BeLessThan(40.0);
 
         var scoreCfWorkers = EndpointScoringEngine.ScoreProjectMatch("adhub-cf-worker.mikhailov-v-atsystems.workers.dev", candidates[0]);
-        Assert.That(scoreCfWorkers, Is.LessThan(40.0));
+        scoreCfWorkers.Should().BeLessThan(40.0);
     }
 
     [Test]
@@ -133,24 +134,24 @@ public class EndpointScoringEngineTests
 
         // Relative path without host: should match the internal endpoint and infer owning project hearai
         var match = EndpointScoringEngine.MatchCall("/supervisor/onboarding", null, "POST", projects, endpoints);
-        Assert.That(match.IsInternal, Is.True);
-        Assert.That(match.Endpoint, Is.Not.Null);
-        Assert.That(match.Endpoint!.EndpointId, Is.EqualTo("ep_supervisor_onboarding"));
-        Assert.That(match.EndpointScore, Is.GreaterThanOrEqualTo(50.0));
-        Assert.That(match.Project, Is.Not.Null);
-        Assert.That(match.Project!.ProjectId, Is.EqualTo("ws:p::"));
+        match.IsInternal.Should().BeTrue();
+        match.Endpoint.Should().NotBeNull();
+        match.Endpoint!.EndpointId.Should().Be("ep_supervisor_onboarding");
+        match.EndpointScore.Should().BeGreaterThanOrEqualTo(50.0);
+        match.Project.Should().NotBeNull();
+        match.Project!.ProjectId.Should().Be("ws:p::");
     }
 
     [Test]
     public void IsRelativeOrInternalPath_ValidatesPathsCorrectly()
     {
-        Assert.That(EndpointScoringEngine.IsRelativeOrInternalPath("/supervisor/onboarding"), Is.True);
-        Assert.That(EndpointScoringEngine.IsRelativeOrInternalPath("/auth/me"), Is.True);
-        Assert.That(EndpointScoringEngine.IsRelativeOrInternalPath("https://api.telegram.org"), Is.False);
-        Assert.That(EndpointScoringEngine.IsRelativeOrInternalPath("http://localhost:8000"), Is.False);
-        Assert.That(EndpointScoringEngine.IsRelativeOrInternalPath("//protocol-relative"), Is.False);
-        Assert.That(EndpointScoringEngine.IsRelativeOrInternalPath(""), Is.False);
-        Assert.That(EndpointScoringEngine.IsRelativeOrInternalPath(null), Is.False);
+        EndpointScoringEngine.IsRelativeOrInternalPath("/supervisor/onboarding").Should().BeTrue();
+        EndpointScoringEngine.IsRelativeOrInternalPath("/auth/me").Should().BeTrue();
+        EndpointScoringEngine.IsRelativeOrInternalPath("https://api.telegram.org").Should().BeFalse();
+        EndpointScoringEngine.IsRelativeOrInternalPath("http://localhost:8000").Should().BeFalse();
+        EndpointScoringEngine.IsRelativeOrInternalPath("//protocol-relative").Should().BeFalse();
+        EndpointScoringEngine.IsRelativeOrInternalPath("").Should().BeFalse();
+        EndpointScoringEngine.IsRelativeOrInternalPath(null).Should().BeFalse();
     }
 
     [Test]
@@ -168,9 +169,9 @@ public class EndpointScoringEngineTests
             out var matchedEp,
             out var score);
 
-        Assert.That(isMatch, Is.True);
-        Assert.That(matchedEp, Is.Not.Null);
-        Assert.That(matchedEp!.EndpointId, Is.EqualTo("ep_flags"));
-        Assert.That(score, Is.GreaterThanOrEqualTo(50.0));
+        isMatch.Should().BeTrue();
+        matchedEp.Should().NotBeNull();
+        matchedEp!.EndpointId.Should().Be("ep_flags");
+        score.Should().BeGreaterThanOrEqualTo(50.0);
     }
 }

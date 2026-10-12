@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using AwesomeAssertions;
 using CodeExplorer.Cypher.Compiler;
 using CodeExplorer.Cypher.Parser;
 using CodeExplorer.Cypher.Tests.Shared;
@@ -52,19 +53,19 @@ public class FileBasedCypherTests
     [CypherFileSource("TestData/Queries")]
     public void Should_Parse_And_Compile_Cypher_Query(string filePath)
     {
-        Assert.That(File.Exists(filePath), Is.True, $"File does not exist: {filePath}");
+        File.Exists(filePath).Should().BeTrue($"File does not exist: {filePath}");
 
         var queryText = File.ReadAllText(filePath);
 
         // 1. Parse into AST
         var ast = CypherQueryParser.Parse(queryText);
-        Assert.That(ast, Is.Not.Null, "AST must not be null");
-        Assert.That(ast.Matches, Is.Not.Empty, "Query must have at least one MATCH clause");
-        Assert.That(ast.Return, Is.Not.Null, "Query must have a RETURN clause");
+        ast.Should().NotBeNull("AST must not be null");
+        ast.Matches.Should().NotBeEmpty("Query must have at least one MATCH clause");
+        ast.Return.Should().NotBeNull("Query must have a RETURN clause");
 
         // 2. Compile to SQLite SQL
         var compiled = SqliteCompiler.Compile(ast);
-        Assert.That(compiled.Sql, Is.Not.Null.And.Not.Empty, "Compiled SQL must not be empty");
+        compiled.Sql.Should().NotBeNullOrEmpty("Compiled SQL must not be empty");
 
         // 3. Verify SQLite validity via EXPLAIN QUERY PLAN and direct execution
 

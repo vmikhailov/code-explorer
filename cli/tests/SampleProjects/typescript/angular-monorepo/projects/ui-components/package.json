@@ -1,0 +1,5 @@
+{
+  "name": "@myorg/ui-components",
+  "version": "1.0.0",
+  "ngPackage": "./ng-package.json"
+}

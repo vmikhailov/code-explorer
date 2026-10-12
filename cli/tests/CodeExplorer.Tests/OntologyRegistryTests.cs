@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Mcp;
 using NUnit.Framework;
 
@@ -11,22 +12,22 @@ public class OntologyRegistryTests
     {
         var mapping = OntologyRegistry.KindMapping;
 
-        Assert.That(mapping, Is.Not.Null);
-        Assert.That(mapping.ContainsKey("workspace"), Is.True, "Should contain 'workspace'");
-        Assert.That(mapping.ContainsKey("project"), Is.True, "Should contain 'project'");
-        Assert.That(mapping.ContainsKey("file"), Is.True, "Should contain 'file'");
-        Assert.That(mapping.ContainsKey("function"), Is.True, "Should contain 'function'");
+        mapping.Should().NotBeNull();
+        mapping.ContainsKey("workspace").Should().BeTrue("Should contain 'workspace'");
+        mapping.ContainsKey("project").Should().BeTrue("Should contain 'project'");
+        mapping.ContainsKey("file").Should().BeTrue("Should contain 'file'");
+        mapping.ContainsKey("function").Should().BeTrue("Should contain 'function'");
     }
 
     [Test]
     public void ToSnakeCase_ConvertsCorrectly()
     {
-        Assert.That(OntologyRegistry.ToSnakeCase("Id"), Is.EqualTo("id"));
-        Assert.That(OntologyRegistry.ToSnakeCase("Name"), Is.EqualTo("name"));
-        Assert.That(OntologyRegistry.ToSnakeCase("ProjectType"), Is.EqualTo("project_type"));
-        Assert.That(OntologyRegistry.ToSnakeCase("StartLine"), Is.EqualTo("start_line"));
-        Assert.That(OntologyRegistry.ToSnakeCase(""), Is.EqualTo(""));
-        Assert.That(OntologyRegistry.ToSnakeCase(null!), Is.Null);
+        OntologyRegistry.ToSnakeCase("Id").Should().Be("id");
+        OntologyRegistry.ToSnakeCase("Name").Should().Be("name");
+        OntologyRegistry.ToSnakeCase("ProjectType").Should().Be("project_type");
+        OntologyRegistry.ToSnakeCase("StartLine").Should().Be("start_line");
+        OntologyRegistry.ToSnakeCase("").Should().Be("");
+        OntologyRegistry.ToSnakeCase(null!).Should().BeNull();
     }
 
     [Test]
@@ -34,15 +35,15 @@ public class OntologyRegistryTests
     {
         var definition = OntologyRegistry.GetNodeDefinition("Workspace");
 
-        Assert.That(definition, Is.Not.Null);
-        Assert.That(definition, Does.Contain("### Kind: Workspace"));
-        Assert.That(definition, Does.Contain("**Purpose**:"));
-        Assert.That(definition, Does.Contain("**Key Properties**:"));
-        Assert.That(definition, Does.Contain("`name` (string)"));
-        Assert.That(definition, Does.Contain("`path` (string)"));
-        Assert.That(definition, Does.Contain("**Relationships**:"));
-        Assert.That(definition, Does.Contain("Outbound:"));
-        Assert.That(definition, Does.Contain("- `-CONTAINS->` FilesStructure"));
+        definition.Should().NotBeNull();
+        definition.Should().Contain("### Kind: Workspace");
+        definition.Should().Contain("**Purpose**:");
+        definition.Should().Contain("**Key Properties**:");
+        definition.Should().Contain("`name` (string)");
+        definition.Should().Contain("`path` (string)");
+        definition.Should().Contain("**Relationships**:");
+        definition.Should().Contain("Outbound:");
+        definition.Should().Contain("- `-CONTAINS->` FilesStructure");
     }
 
     [Test]
@@ -51,11 +52,11 @@ public class OntologyRegistryTests
         // 'File' node has inbound relationships like 'Folder -CONTAINS-> File' or 'FilesStructure -CONTAINS-> File'
         var definition = OntologyRegistry.GetNodeDefinition("File");
 
-        Assert.That(definition, Is.Not.Null);
-        Assert.That(definition, Does.Contain("### Kind: File"));
-        Assert.That(definition, Does.Contain("Inbound:"));
-        Assert.That(definition, Does.Contain("Folder `-CONTAINS->` File"));
-        Assert.That(definition, Does.Contain("FilesStructure `-CONTAINS->` File"));
+        definition.Should().NotBeNull();
+        definition.Should().Contain("### Kind: File");
+        definition.Should().Contain("Inbound:");
+        definition.Should().Contain("Folder `-CONTAINS->` File");
+        definition.Should().Contain("FilesStructure `-CONTAINS->` File");
     }
 
     [Test]
@@ -63,11 +64,11 @@ public class OntologyRegistryTests
     {
         var definition = OntologyRegistry.GetNodeDefinition("SuperUnknownKindXYZ");
 
-        Assert.That(definition, Is.Not.Null);
-        Assert.That(definition, Does.Contain("Unknown node kind: 'SuperUnknownKindXYZ'"));
-        Assert.That(definition, Does.Contain("Active ontological kinds in CodeExplorer are:"));
-        Assert.That(definition, Does.Contain("'Workspace'"));
-        Assert.That(definition, Does.Contain("'Project'"));
+        definition.Should().NotBeNull();
+        definition.Should().Contain("Unknown node kind: 'SuperUnknownKindXYZ'");
+        definition.Should().Contain("Active ontological kinds in CodeExplorer are:");
+        definition.Should().Contain("'Workspace'");
+        definition.Should().Contain("'Project'");
     }
 
     [TestCase(null)]
@@ -76,7 +77,7 @@ public class OntologyRegistryTests
     public void GetNodeDefinition_ReturnsErrorForInvalidKind(string? kind)
     {
         var definition = OntologyRegistry.GetNodeDefinition(kind!);
-        Assert.That(definition, Is.EqualTo("Invalid node kind."));
+        definition.Should().Be("Invalid node kind.");
     }
 
     [Test]
@@ -87,9 +88,9 @@ public class OntologyRegistryTests
         foreach (var kind in expectedSystemKinds)
         {
             var node = OntologyRegistry.AllNodes.FirstOrDefault(n => string.Equals(n.Kind, kind, StringComparison.OrdinalIgnoreCase));
-            Assert.That(node, Is.Not.Null, $"Node '{kind}' should exist in AllNodes");
-            Assert.That(node!.Attribute.IsSystemNode, Is.True, $"Node '{kind}' should have IsSystemNode = true");
-            Assert.That(OntologyRegistry.IsSystemNode(kind), Is.True, $"IsSystemNode('{kind}') should return true");
+            node.Should().NotBeNull($"Node '{kind}' should exist in AllNodes");
+            node!.Attribute.IsSystemNode.Should().BeTrue($"Node '{kind}' should have IsSystemNode = true");
+            OntologyRegistry.IsSystemNode(kind).Should().BeTrue($"IsSystemNode('{kind}') should return true");
         }
     }
 
@@ -101,9 +102,9 @@ public class OntologyRegistryTests
         foreach (var kind in domainKinds)
         {
             var node = OntologyRegistry.AllNodes.FirstOrDefault(n => string.Equals(n.Kind, kind, StringComparison.OrdinalIgnoreCase));
-            Assert.That(node, Is.Not.Null, $"Node '{kind}' should exist in AllNodes");
-            Assert.That(node!.Attribute.IsSystemNode, Is.False, $"Node '{kind}' should have IsSystemNode = false");
-            Assert.That(OntologyRegistry.IsSystemNode(kind), Is.False, $"IsSystemNode('{kind}') should return false");
+            node.Should().NotBeNull($"Node '{kind}' should exist in AllNodes");
+            node!.Attribute.IsSystemNode.Should().BeFalse($"Node '{kind}' should have IsSystemNode = false");
+            OntologyRegistry.IsSystemNode(kind).Should().BeFalse($"IsSystemNode('{kind}') should return false");
         }
     }
 }

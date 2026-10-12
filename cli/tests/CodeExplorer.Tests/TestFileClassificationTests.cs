@@ -1,7 +1,7 @@
-using NUnit.Framework;
+using AwesomeAssertions;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Parser.TypeScript;
+using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
 
@@ -40,7 +40,7 @@ public class TestFileClassificationTests
             await File.WriteAllTextAsync(Path.Combine(src, "target-url-generator.helper.spec.ts"), SpecCode);
 
             await using var client = new SqliteGraphClient(Path.Combine(ws, "graph.db"));
-            WorkspaceIndexer.Register(new TypeScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
             await new WorkspaceIndexer(client).IndexAsync(ws, ws, clear: true);
             return await client.ExecuteQueryAsync(query);
         }
@@ -59,11 +59,11 @@ public class TestFileClassificationTests
     {
         var files = await IndexAndQueryAsync(pkg,
             "MATCH (f:File) WHERE f.name ENDS WITH '.spec.ts' RETURN f.is_test AS t");
-        Assert.That(files, Does.Contain("\"t\": true").Or.Contain("\"t\": 1"), files);
+        (files.Contains("\"t\": true") || files.Contains("\"t\": 1")).Should().BeTrue();
 
         var lits = await IndexAndQueryAsync(pkg,
             "MATCH (l:CallLiteral) WHERE l.file_path ENDS WITH '.spec.ts' AND NOT coalesce(l.is_test, false) RETURN count(l) AS c");
-        Assert.That(lits, Does.Contain("\"c\": 0"), lits);
+        lits.Should().Contain("\"c\": 0", lits);
     }
 
     [Test]
@@ -71,6 +71,6 @@ public class TestFileClassificationTests
     {
         var res = await IndexAndQueryAsync(JestPkg,
             "MATCH (f:File) WHERE f.name = 'target-url-generator.helper.ts' RETURN f.is_test AS t");
-        Assert.That(res, Does.Contain("\"t\": false").Or.Contain("\"t\": 0"), res);
+        (res.Contains("\"t\": false") || res.Contains("\"t\": 0")).Should().BeTrue();
     }
 }

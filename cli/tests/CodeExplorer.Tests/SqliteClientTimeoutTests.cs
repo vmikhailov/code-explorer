@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Database;
 using NUnit.Framework;
 
@@ -29,7 +30,7 @@ public class SqliteClientTimeoutTests
     [Test]
     public void Test_DefaultCommandTimeout_IsConfigured()
     {
-        Assert.That(_client.CommandTimeoutSeconds, Is.EqualTo(15));
+        _client.CommandTimeoutSeconds.Should().Be(15);
     }
 
     [Test]

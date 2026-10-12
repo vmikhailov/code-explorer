@@ -138,14 +138,57 @@ public class TypeScriptParser : IProjectParser, IFileParser
 
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
     {
+        var packageJson = filesInDirectory.FirstOrDefault(f => Path.GetFileName(f).Equals("package.json", StringComparison.OrdinalIgnoreCase));
+        if (packageJson != null)
+        {
+            if (IsNgSecondaryEntryPoint(packageJson, directoryPath))
+            {
+                return false;
+            }
+            return true;
+        }
+
         foreach (var file in filesInDirectory)
         {
             var fileName = Path.GetFileName(file).ToLowerInvariant();
-            if (fileName == "package.json" || fileName == "tsconfig.json")
+            if (fileName == "tsconfig.json")
+            {
+                var norm = directoryPath.Replace('\\', '/').ToLowerInvariant();
+                if (norm.Contains("/src/lib/") || norm.Contains("/projects/ui/src/lib/"))
+                {
+                    return false;
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool IsNgSecondaryEntryPoint(string packageJsonPath, string directoryPath)
+    {
+        var normPath = directoryPath.Replace('\\', '/').ToLowerInvariant();
+        if (!normPath.Contains("/src/lib/") && !normPath.Contains("/lib/"))
+        {
+            return false;
+        }
+
+        try
+        {
+            var content = File.ReadAllText(packageJsonPath);
+            using var doc = System.Text.Json.JsonDocument.Parse(content);
+            var root = doc.RootElement;
+            // If it has ngPackage and does not have a valid "name" property, it's a secondary entry point
+            if (root.TryGetProperty("ngPackage", out _) &&
+                (!root.TryGetProperty("name", out var nameProp) || string.IsNullOrWhiteSpace(nameProp.GetString())))
             {
                 return true;
             }
         }
+        catch
+        {
+            // Ignore parse errors
+        }
+
         return false;
     }
 
@@ -300,7 +343,56 @@ public class TypeScriptParser : IProjectParser, IFileParser
                     Path.GetFileName(f).Equals("ng-package.json", StringComparison.OrdinalIgnoreCase));
 
                 var hasIndexHtml = filesInDirectory.Any(f =>
-                    Path.GetFileName(f).Equals("index.html", StringComparison.OrdinalIgnoreCase));
+                    Path.GetFileName(f).Equals("index.html", StringComparison.OrdinalIgnoreCase))
+                    || File.Exists(Path.Combine(directoryPath, "src", "index.html"))
+                    || File.Exists(Path.Combine(directoryPath, "public", "index.html"));
+
+                // If inside a monorepo, check ancestor angular.json or nx.json
+                var parentDir = Path.GetDirectoryName(directoryPath);
+                while (parentDir != null && parentDir.Length >= 3)
+                {
+                    var ancestorAngularJson = Path.Combine(parentDir, "angular.json");
+                    if (File.Exists(ancestorAngularJson))
+                    {
+                        try
+                        {
+                            var json = File.ReadAllText(ancestorAngularJson);
+                            using var angDoc = System.Text.Json.JsonDocument.Parse(json);
+                            if (angDoc.RootElement.TryGetProperty("projects", out var projectsObj))
+                            {
+                                foreach (var pProp in projectsObj.EnumerateObject())
+                                {
+                                    var projVal = pProp.Value;
+                                    var rootPath = projVal.TryGetProperty("root", out var r) ? r.GetString() : null;
+                                    if (!string.IsNullOrEmpty(rootPath) && directoryPath.Replace('\\', '/').EndsWith(rootPath.Replace('\\', '/').Trim('/')))
+                                    {
+                                        if (projVal.TryGetProperty("projectType", out var ptProp))
+                                        {
+                                            var pt = ptProp.GetString()?.ToLowerInvariant();
+                                            if (pt == "application")
+                                            {
+                                                props["manifest_type"] = "application";
+                                                props["framework_type"] = "frontend";
+                                                hasIndexHtml = true;
+                                            }
+                                            else if (pt == "library")
+                                            {
+                                                props["manifest_type"] = "library";
+                                                props["framework_type"] = "frontend";
+                                                props["is_ui_library"] = "true";
+                                                props["is_library"] = "true";
+                                            }
+                                        }
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        catch { }
+                        break;
+                    }
+                    parentDir = Path.GetDirectoryName(parentDir);
+                }
 
                 if (hasNgPackage)
                 {

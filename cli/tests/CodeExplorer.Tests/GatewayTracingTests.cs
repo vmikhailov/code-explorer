@@ -1,7 +1,6 @@
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Mcp;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Parser.CSharp;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -39,6 +38,7 @@ public class GatewayTracingTests
 using Microsoft.AspNetCore.Mvc;
 using System.Net.Http;
 using System.Threading.Tasks;
+using AwesomeAssertions;
 
 namespace Lightning.Gateways.WebAppGateway;
 
@@ -66,7 +66,7 @@ public class RideGatewayController : ControllerBase
 
         await using var client = new SqliteGraphClient(dbPath);
 
-        WorkspaceIndexer.Register(new CSharpParser());
+        WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
 
@@ -74,10 +74,10 @@ public class RideGatewayController : ControllerBase
         var cypher = Queries.Get("trace_ingress_to_egress");
         var result = await client.ExecuteQueryAsync(cypher);
 
-        Assert.That(result, Does.Contain("WebAppGateway"));
-        Assert.That(result, Does.Contain("POST"));
-        Assert.That(result, Does.Contain("StartRide"));
-        Assert.That(result, Does.Contain("StartRideRequest"));
-        Assert.That(result, Does.Contain("RideDto"));
+        result.Should().Contain("WebAppGateway");
+        result.Should().Contain("POST");
+        result.Should().Contain("StartRide");
+        result.Should().Contain("StartRideRequest");
+        result.Should().Contain("RideDto");
     }
 }

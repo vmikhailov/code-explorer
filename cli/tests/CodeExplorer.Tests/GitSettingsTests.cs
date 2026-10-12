@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
@@ -48,18 +49,18 @@ public class GitSettingsTests
         File.WriteAllText(Path.Combine(clientDir, ".git", "config"), "[remote \"origin\"]\n\turl = https://example.com/client.git\n");
 
         var backendGit = GitSettingsParser.Parse("testws", _tempDir, backendDir);
-        Assert.That(backendGit, Is.Not.Null);
-        Assert.That(backendGit!.Id, Is.EqualTo("testws:git:Backend"));
-        Assert.That(backendGit.Branch, Is.EqualTo("feature/super-api"));
-        Assert.That(backendGit.OriginUrl, Is.EqualTo("https://example.com/backend.git"));
-        Assert.That(backendGit.Name, Is.EqualTo("Git Settings (Backend)"));
+        backendGit.Should().NotBeNull();
+        backendGit!.Id.Should().Be("testws:git:Backend");
+        backendGit.Branch.Should().Be("feature/super-api");
+        backendGit.OriginUrl.Should().Be("https://example.com/backend.git");
+        backendGit.Name.Should().Be("Git Settings (Backend)");
 
         var clientGit = GitSettingsParser.Parse("testws", _tempDir, clientDir);
-        Assert.That(clientGit, Is.Not.Null);
-        Assert.That(clientGit!.Id, Is.EqualTo("testws:git:Client"));
-        Assert.That(clientGit.Branch, Is.EqualTo("release/v2"));
-        Assert.That(clientGit.OriginUrl, Is.EqualTo("https://example.com/client.git"));
-        Assert.That(clientGit.Name, Is.EqualTo("Git Settings (Client)"));
+        clientGit.Should().NotBeNull();
+        clientGit!.Id.Should().Be("testws:git:Client");
+        clientGit.Branch.Should().Be("release/v2");
+        clientGit.OriginUrl.Should().Be("https://example.com/client.git");
+        clientGit.Name.Should().Be("Git Settings (Client)");
     }
 
     [Test]
@@ -97,14 +98,14 @@ public class GitSettingsTests
         Directory.CreateDirectory(nestedOrderService);
 
         var resolvedBackend = ctx.FindGitSettingsForPath("Backend/Services/OrderService");
-        Assert.That(resolvedBackend, Is.Not.Null);
-        Assert.That(resolvedBackend!.Id, Is.EqualTo("testws:git:Backend"));
-        Assert.That(resolvedBackend.Branch, Is.EqualTo("dev"));
+        resolvedBackend.Should().NotBeNull();
+        resolvedBackend!.Id.Should().Be("testws:git:Backend");
+        resolvedBackend.Branch.Should().Be("dev");
 
         var resolvedClient = ctx.FindGitSettingsForPath("Client/src/components");
-        Assert.That(resolvedClient, Is.Not.Null);
-        Assert.That(resolvedClient!.Id, Is.EqualTo("testws:git:Client"));
-        Assert.That(resolvedClient.Branch, Is.EqualTo("main"));
+        resolvedClient.Should().NotBeNull();
+        resolvedClient!.Id.Should().Be("testws:git:Client");
+        resolvedClient.Branch.Should().Be("main");
     }
 
     [Test]
@@ -132,13 +133,13 @@ public class GitSettingsTests
         // 1. Run Layer 1 Physical scan
         var layer1Parser = new Layer1PhysicalParser();
         var layer1 = await layer1Parser.ParseAsync(ctx);
-        Assert.That(layer1, Is.Not.Null);
+        layer1.Should().NotBeNull();
 
         // Verify subrepo GitSettings was discovered and registered in ctx
         var backendSettings = ctx.FindGitSettingsForPath(projDir);
-        Assert.That(backendSettings, Is.Not.Null);
-        Assert.That(backendSettings!.Branch, Is.EqualTo("release/1.0"));
-        Assert.That(backendSettings.OriginUrl, Is.EqualTo("https://git.company.com/backend.git"));
+        backendSettings.Should().NotBeNull();
+        backendSettings!.Branch.Should().Be("release/1.0");
+        backendSettings.OriginUrl.Should().Be("https://git.company.com/backend.git");
 
         // 2. Create ProjectNode in Layer 2
         var projNode = new ProjectNode(
@@ -153,15 +154,15 @@ public class GitSettingsTests
         await OntologyUploader.UploadNodeTreeAsync(projNode, null, ctx);
 
         // Verify git properties were populated on the project node
-        Assert.That(projNode.Extensions, Is.Not.Null);
-        Assert.That(projNode.Extensions!.GetValueOrDefault("git_branch"), Is.EqualTo("release/1.0"));
-        Assert.That(projNode.Extensions!.GetValueOrDefault("git_origin"), Is.EqualTo("https://git.company.com/backend.git"));
-        Assert.That(projNode.Extensions!.GetValueOrDefault("git_repo"), Is.EqualTo("Backend"));
+        projNode.Extensions.Should().NotBeNull();
+        projNode.Extensions!.GetValueOrDefault("git_branch").Should().Be("release/1.0");
+        projNode.Extensions!.GetValueOrDefault("git_origin").Should().Be("https://git.company.com/backend.git");
+        projNode.Extensions!.GetValueOrDefault("git_repo").Should().Be("Backend");
 
         // Verify USES_GIT relationship exists in ctx.TreeRelationships
         var usesGitRels = ctx.TreeRelationships.Where(r => r.Kind == "USES_GIT").ToList();
-        Assert.That(usesGitRels, Has.Count.EqualTo(1));
-        Assert.That(usesGitRels[0].From, Is.EqualTo(projNode.Id));
-        Assert.That(usesGitRels[0].To, Is.EqualTo($"{ctx.WorkspaceId}:git:Backend"));
+        usesGitRels.Should().HaveCount(1);
+        usesGitRels[0].From.Should().Be(projNode.Id);
+        usesGitRels[0].To.Should().Be($"{ctx.WorkspaceId}:git:Backend");
     }
 }

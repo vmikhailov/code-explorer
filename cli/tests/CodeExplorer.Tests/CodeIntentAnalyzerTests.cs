@@ -1,3 +1,4 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
@@ -48,9 +49,9 @@ public class CodeIntentAnalyzerTests
 
         var candidates = await client.LoadIntentCandidatesAsync("ws");
 
-        Assert.That(candidates.Any(c => c.Name == "ScheduledActionService"), Is.True);
-        Assert.That(candidates.Any(c => c.Name == "OrderController"), Is.True);
-        Assert.That(candidates.Any(c => c.Name == "SomeHelperUtilsSpec"), Is.False);
+        (candidates.Any(c => c.Name == "ScheduledActionService")).Should().BeTrue();
+        (candidates.Any(c => c.Name == "OrderController")).Should().BeTrue();
+        (candidates.Any(c => c.Name == "SomeHelperUtilsSpec")).Should().BeFalse();
     }
 
     [Test]
@@ -84,19 +85,19 @@ public class CodeIntentAnalyzerTests
         // Verify updated properties via Cypher query
         var queryResult = await client.ExecuteQueryAsync(
             "MATCH (n:Type {id: 'ws:type:svc'}) RETURN n.intent_domain AS domain, n.intent_layer AS layer, n.intent_summary AS summary");
-        Assert.That(queryResult.Contains("Billing"), Is.True);
-        Assert.That(queryResult.Contains("Application"), Is.True);
-        Assert.That(queryResult.Contains("Handles invoices and payment execution."), Is.True);
+        queryResult.Contains("Billing").Should().BeTrue();
+        queryResult.Contains("Application").Should().BeTrue();
+        queryResult.Contains("Handles invoices and payment execution.").Should().BeTrue();
 
         // Verify Domain node creation and relationship
         var domainResult = await client.ExecuteQueryAsync("MATCH (d:Domain) RETURN d.id AS id, d.name AS name");
-        Assert.That(domainResult.Contains("Billing"), Is.True);
+        domainResult.Contains("Billing").Should().BeTrue();
 
         var relResult =
             await client.ExecuteQueryAsync(
                 "MATCH (n:Type)-[r:BELONGS_TO_DOMAIN]->(d:Domain) RETURN n.id AS from_id, d.id AS to_id");
-        Assert.That(relResult.Contains("ws:type:svc"), Is.True);
-        Assert.That(domainResult.ToLowerInvariant().Contains("ws:dom:billing"), Is.True);
+        relResult.Contains("ws:type:svc").Should().BeTrue();
+        domainResult.ToLowerInvariant().Contains("ws:dom:billing").Should().BeTrue();
     }
 
     [Test]
@@ -123,8 +124,8 @@ public class CodeIntentAnalyzerTests
         var path = ModelManager.ResolveModelPath();
         if (File.Exists(ModelManager.DefaultModelPath))
         {
-            Assert.That(path, Is.Not.Null);
-            Assert.That(File.Exists(path), Is.True);
+            path.Should().NotBeNull();
+            File.Exists(path).Should().BeTrue();
         }
         else
         {
@@ -163,9 +164,9 @@ public class OrderPlacementService : IOrderService
         var (result, raw) = await predictor.PredictWithRawAsync("OrderPlacementService.cs", sampleCode);
         TestContext.Out.WriteLine($"RAW MODEL OUTPUT:\n{raw}");
 
-        Assert.That(result, Is.Not.Null);
-        Assert.That(result!.Domain, Is.Not.Null.Or.Empty);
-        Assert.That(result.IntentSummary, Is.Not.Null.Or.Empty);
+        result.Should().NotBeNull();
+        result!.Domain.Should().NotBeNullOrEmpty();
+        result.IntentSummary.Should().NotBeNullOrEmpty();
 
         TestContext.Out.WriteLine(
             $"Inferred Domain: {result.Domain}, Layer: {result.Layer}, Pattern: {result.Pattern}, Summary: {result.IntentSummary}");
@@ -276,44 +277,44 @@ Domain Entities:
 
         // Verify loaded
         var existing = await client.LoadExistingIntentsAsync("ws");
-        Assert.That(existing.Count, Is.EqualTo(1));
-        Assert.That(existing[0].Domain, Is.EqualTo("Payments"));
+        existing.Count.Should().Be(1);
+        existing[0].Domain.Should().Be("Payments");
 
         // Apply to graph
         var applied = await client.ApplyCachedIntentsToGraphAsync("ws");
-        Assert.That(applied, Is.GreaterThanOrEqualTo(1));
+        applied.Should().BeGreaterThanOrEqualTo(1);
 
         var domainQuery = await client.ExecuteQueryAsync("MATCH (d:Domain) RETURN d.id AS id, d.name AS name");
-        Assert.That(domainQuery.Contains("Payments"), Is.True);
+        domainQuery.Contains("Payments").Should().BeTrue();
 
         // Clear database (e.g. ce scan --clear)
         await client.ClearDatabaseAsync();
 
         // Node should be deleted
         var candidatesAfterClear = await client.LoadIntentCandidatesAsync("ws");
-        Assert.That(candidatesAfterClear.Count, Is.EqualTo(0));
+        candidatesAfterClear.Count.Should().Be(0);
 
         // BUT Intent record should STILL BE PRESERVED
         var intentsAfterClear = await client.LoadExistingIntentsAsync("ws");
-        Assert.That(intentsAfterClear.Count, Is.EqualTo(1));
-        Assert.That(intentsAfterClear[0].ContentHash, Is.EqualTo("hash123"));
+        intentsAfterClear.Count.Should().Be(1);
+        intentsAfterClear[0].ContentHash.Should().Be("hash123");
 
         // Test error increment & reset
         await client.IncrementIntentErrorAsync("src/service.ts", "ws", "ws:f:src/service.ts", "hash123",
             DateTime.UtcNow, "LLM timeout");
         var withError = await client.LoadExistingIntentsAsync("ws");
-        Assert.That(withError[0].ErrorCount, Is.EqualTo(1));
-        Assert.That(withError[0].LastError, Is.EqualTo("LLM timeout"));
+        withError[0].ErrorCount.Should().Be(1);
+        withError[0].LastError.Should().Be("LLM timeout");
 
         await client.ResetIntentErrorsAsync("ws");
         var resetErrors = await client.LoadExistingIntentsAsync("ws");
-        Assert.That(resetErrors[0].ErrorCount, Is.EqualTo(0));
-        Assert.That(resetErrors[0].LastError, Is.Null);
+        resetErrors[0].ErrorCount.Should().Be(0);
+        resetErrors[0].LastError.Should().BeNull();
 
         // Test explicit ClearIntents
         await client.ClearIntentsAsync("ws");
         var emptyIntents = await client.LoadExistingIntentsAsync("ws");
-        Assert.That(emptyIntents.Count, Is.EqualTo(0));
+        emptyIntents.Count.Should().Be(0);
     }
 
     [Test]
@@ -326,8 +327,8 @@ Domain Entities:
             executionDevice: "GPU (Metal)",
             gpuLayers: 99
         );
-        Assert.That(cExplicit, Is.EqualTo(3));
-        Assert.That(rExplicit, Does.Contain("explicitly requested"));
+        cExplicit.Should().Be(3);
+        rExplicit.Should().Contain("explicitly requested");
 
         // 2. Apple Silicon Metal with typical memory (8 cores, 24 GB) -> 1
         var (cM2, rM2) = NativeIntentPredictor.CalculateOptimalConcurrency(
@@ -340,8 +341,8 @@ Domain Entities:
         );
         if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX))
         {
-            Assert.That(cM2, Is.EqualTo(1));
-            Assert.That(rM2, Does.Contain("single stream prevents command queue contention"));
+            cM2.Should().Be(1);
+            rM2.Should().Contain("single stream prevents command queue contention");
         }
 
         // 3. Apple Silicon Metal Max/Ultra (16 cores, 64 GB) -> 2
@@ -355,8 +356,8 @@ Domain Entities:
         );
         if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX))
         {
-            Assert.That(cMax, Is.EqualTo(2));
-            Assert.That(rMax, Does.Contain("Max/Ultra"));
+            cMax.Should().Be(2);
+            rMax.Should().Contain("Max/Ultra");
         }
 
         // 4. Discrete GPU (CUDA) on 16-core workstation with 32 GB RAM -> 4
@@ -370,7 +371,7 @@ Domain Entities:
         );
         if (!System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX))
         {
-            Assert.That(cCudaHigh, Is.EqualTo(4));
+            cCudaHigh.Should().Be(4);
         }
 
         // 5. CPU-only with low resources (4 cores, 8 GB RAM) -> 1
@@ -382,7 +383,7 @@ Domain Entities:
             cpuCoreCount: 4,
             memoryBytes: 8UL * 1024 * 1024 * 1024
         );
-        Assert.That(cCpuLow, Is.EqualTo(1));
+        cCpuLow.Should().Be(1);
 
         // 6. CPU-only with high resources (16 cores, 32 GB RAM) -> 3
         var (cCpuHigh, _) = NativeIntentPredictor.CalculateOptimalConcurrency(
@@ -393,7 +394,7 @@ Domain Entities:
             cpuCoreCount: 16,
             memoryBytes: 32UL * 1024 * 1024 * 1024
         );
-        Assert.That(cCpuHigh, Is.EqualTo(3));
+        cCpuHigh.Should().Be(3);
     }
 
     [Test]
@@ -411,9 +412,9 @@ Domain Entities:
         var lfHash = CodeIntentAnalyzer.ComputeSha256(lfBytes);
         var diffHash = CodeIntentAnalyzer.ComputeSha256(diffBytes);
 
-        Assert.That(crlfHash, Is.EqualTo(lfHash));
-        Assert.That(crlfHash, Is.Not.EqualTo(diffHash));
-        Assert.That(crlfHash.Length, Is.EqualTo(64));
+        crlfHash.Should().Be(lfHash);
+        crlfHash.Should().NotBe(diffHash);
+        crlfHash.Length.Should().Be(64);
     }
 
     [Test]
@@ -451,38 +452,38 @@ Domain Entities:
 
         // 1. Configured business profiles matched
         var integrations = result.Domains.FirstOrDefault(d => d.Name == "Integrations");
-        Assert.That(integrations, Is.Not.Null);
-        Assert.That(integrations!.Services, Does.Contain("IntegrationServiceNrt"));
+        integrations.Should().NotBeNull();
+        integrations!.Services.Should().Contain("IntegrationServiceNrt");
 
         var ops = result.Domains.FirstOrDefault(d => d.Name == "Ops");
-        Assert.That(ops, Is.Not.Null);
-        Assert.That(ops!.Services, Does.Contain("InternalServiceApproval"));
-        Assert.That(ops.Services, Does.Contain("InternalServiceJournal"));
+        ops.Should().NotBeNull();
+        ops!.Services.Should().Contain("InternalServiceApproval");
+        ops.Services.Should().Contain("InternalServiceJournal");
 
         var edge = result.Domains.FirstOrDefault(d => d.Name == "Edge");
-        Assert.That(edge, Is.Not.Null);
-        Assert.That(edge!.Services, Does.Contain("InternalServiceKvV2"));
+        edge.Should().NotBeNull();
+        edge!.Services.Should().Contain("InternalServiceKvV2");
 
         var auctions = result.Domains.FirstOrDefault(d => d.Name == "Auctions");
-        Assert.That(auctions, Is.Not.Null);
-        Assert.That(auctions!.Services, Does.Contain("AuctionService"));
+        auctions.Should().NotBeNull();
+        auctions!.Services.Should().Contain("AuctionService");
 
         // 2. UI widgets collapsed into UserInterface
         var ui = result.Domains.FirstOrDefault(d => d.Name == "UserInterface");
-        Assert.That(ui, Is.Not.Null);
-        Assert.That(ui!.Services, Does.Contain("Button"));
-        Assert.That(ui.Services, Does.Contain("Modal"));
-        Assert.That(ui.Services, Does.Contain("SelectButton"));
-        Assert.That(ui.Services, Does.Contain("ContextMenu"));
-        Assert.That(ui.Services, Does.Contain("ProgressBar"));
-        Assert.That(ui.Services, Does.Contain("Toast"));
-        Assert.That(ui.Services, Does.Contain("Table"));
+        ui.Should().NotBeNull();
+        ui!.Services.Should().Contain("Button");
+        ui.Services.Should().Contain("Modal");
+        ui.Services.Should().Contain("SelectButton");
+        ui.Services.Should().Contain("ContextMenu");
+        ui.Services.Should().Contain("ProgressBar");
+        ui.Services.Should().Contain("Toast");
+        ui.Services.Should().Contain("Table");
 
         // 3. Ensure NO micro-domains created for individual UI widgets
-        Assert.That(domainNames, Does.Not.Contain("Button"));
-        Assert.That(domainNames, Does.Not.Contain("Modal"));
-        Assert.That(domainNames, Does.Not.Contain("SelectButton"));
-        Assert.That(domainNames, Does.Not.Contain("ProgressBar"));
+        domainNames.Should().NotContain("Button");
+        domainNames.Should().NotContain("Modal");
+        domainNames.Should().NotContain("SelectButton");
+        domainNames.Should().NotContain("ProgressBar");
     }
 
     [Test]
@@ -515,29 +516,29 @@ Domain Entities:
 
         // 1. UI components collapsed into UserInterface
         var ui = result.Domains.FirstOrDefault(d => d.Name == "UserInterface");
-        Assert.That(ui, Is.Not.Null);
-        Assert.That(ui!.Services, Does.Contain("Button"));
-        Assert.That(ui.Services, Does.Contain("ModalDialog"));
+        ui.Should().NotBeNull();
+        ui!.Services.Should().Contain("Button");
+        ui.Services.Should().Contain("ModalDialog");
 
         // 2. SharedKernel collapsed into SharedKernel
         var shared = result.Domains.FirstOrDefault(d => d.Name == "SharedKernel");
-        Assert.That(shared, Is.Not.Null);
-        Assert.That(shared!.Services, Does.Contain("SharedKernel"));
+        shared.Should().NotBeNull();
+        shared!.Services.Should().Contain("SharedKernel");
 
         // 3. DeveloperTooling collapsed into DeveloperTooling
         var tooling = result.Domains.FirstOrDefault(d => d.Name == "DeveloperTooling");
-        Assert.That(tooling, Is.Not.Null);
-        Assert.That(tooling!.Services, Does.Contain("DbMigrationTool"));
+        tooling.Should().NotBeNull();
+        tooling!.Services.Should().Contain("DbMigrationTool");
 
         // 4. Orders services clustered together via shared table & directory namespace
         var ordersDomain = result.Domains.FirstOrDefault(d => d.Services.Contains("OrderProcessingService"));
-        Assert.That(ordersDomain, Is.Not.Null);
-        Assert.That(ordersDomain!.Services, Does.Contain("OrderDispatchWorker"));
+        ordersDomain.Should().NotBeNull();
+        ordersDomain!.Services.Should().Contain("OrderDispatchWorker");
 
         // 5. Billing services clustered together via shared table & directory namespace
         var billingDomain = result.Domains.FirstOrDefault(d => d.Services.Contains("BillingService"));
-        Assert.That(billingDomain, Is.Not.Null);
-        Assert.That(billingDomain!.Services, Does.Contain("InvoiceGenerator"));
+        billingDomain.Should().NotBeNull();
+        billingDomain!.Services.Should().Contain("InvoiceGenerator");
     }
 
     [Test]
@@ -563,11 +564,11 @@ Domain Entities:
             File.WriteAllText(Path.Combine(ceDir, "domains.json"), json);
 
             var config = CodeIntentAnalyzer.LoadWorkspaceDomainsConfig(tempDir);
-            Assert.That(config, Is.Not.Null);
-            Assert.That(config!.Domains, Has.Count.EqualTo(1));
-            Assert.That(config.Domains[0].Name, Is.EqualTo("Finance"));
-            Assert.That(config.Domains[0].Description, Is.EqualTo("Accounting and ledger"));
-            Assert.That(config.Domains[0].Keywords, Does.Contain("ledger"));
+            config.Should().NotBeNull();
+            config!.Domains.Should().HaveCount(1);
+            config.Domains[0].Name.Should().Be("Finance");
+            config.Domains[0].Description.Should().Be("Accounting and ledger");
+            config.Domains[0].Keywords.Should().Contain("ledger");
         }
         finally
         {
@@ -608,8 +609,8 @@ Domain Entities:
 
         var candidates = await client.LoadIntentCandidatesAsync("ws");
 
-        Assert.That(candidates.Any(c => c.Name == "OrderQueryService"), Is.True);
-        Assert.That(candidates.Any(c => c.Name == "get-bundles.query.sql"), Is.False);
+        (candidates.Any(c => c.Name == "OrderQueryService")).Should().BeTrue();
+        (candidates.Any(c => c.Name == "get-bundles.query.sql")).Should().BeFalse();
     }
 
     [Test]
@@ -651,7 +652,7 @@ Domain Entities:
 
         // Verify GhostDomain exists before purge
         var domainsBefore = await client.ExecuteQueryAsync("MATCH (d:Domain) RETURN d.name AS name");
-        Assert.That(domainsBefore.Contains("GhostDomain"), Is.True);
+        domainsBefore.Contains("GhostDomain").Should().BeTrue();
 
         // Purge orphan intent
         await client.PurgeIntentsByPathsAsync(["scripts/orphan.js"]);
@@ -660,7 +661,7 @@ Domain Entities:
         await client.ApplyCachedIntentsToGraphAsync("ws");
 
         var domainsAfter = await client.ExecuteQueryAsync("MATCH (d:Domain) RETURN d.name AS name");
-        Assert.That(domainsAfter.Contains("GhostDomain"), Is.False);
+        domainsAfter.Contains("GhostDomain").Should().BeFalse();
     }
 
     [Test]
@@ -702,38 +703,38 @@ Domain Entities:
         await client.ApplyCachedIntentsToGraphAsync("ws");
 
         var domains = await client.ExecuteQueryAsync("MATCH (d:Domain) RETURN d.name AS name");
-        Assert.That(domains.Contains("SqlDomain"), Is.False);
+        domains.Contains("SqlDomain").Should().BeFalse();
 
         var intents = await client.LoadExistingIntentsAsync("ws");
-        Assert.That(intents.Any(i => i.FilePath.EndsWith(".sql")), Is.False);
+        intents.Any(i => i.FilePath.EndsWith(".sql")).Should().BeFalse();
     }
 
     [Test]
     public void CanonicalizeDomain_CorrectlyMapsMicroservicesAndTablesToProblemSpaces()
     {
         // 1. Service name normalization into clean PascalCase domain
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-approval"), Is.EqualTo("Approval"));
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-notifier"), Is.EqualTo("Notifier"));
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-scheduler"), Is.EqualTo("Scheduler"));
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "internal-service-billing"), Is.EqualTo("Billing"));
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "integration-service-payment"), Is.EqualTo("Payment"));
+        WorkspaceConventions.CanonicalizeDomain(null, "internal-service-approval").Should().Be("Approval");
+        WorkspaceConventions.CanonicalizeDomain(null, "internal-service-notifier").Should().Be("Notifier");
+        WorkspaceConventions.CanonicalizeDomain(null, "internal-service-scheduler").Should().Be("Scheduler");
+        WorkspaceConventions.CanonicalizeDomain(null, "internal-service-billing").Should().Be("Billing");
+        WorkspaceConventions.CanonicalizeDomain(null, "integration-service-payment").Should().Be("Payment");
 
         // 2. Directory structure extraction
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, null, "services/billing/invoicing-service"), Is.EqualTo("Billing"));
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, null, "src/identity/auth-service"), Is.EqualTo("Identity"));
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, null, "services/orders/order-processor"), Is.EqualTo("Orders"));
+        WorkspaceConventions.CanonicalizeDomain(null, null, "services/billing/invoicing-service").Should().Be("Billing");
+        WorkspaceConventions.CanonicalizeDomain(null, null, "src/identity/auth-service").Should().Be("Identity");
+        WorkspaceConventions.CanonicalizeDomain(null, null, "services/orders/order-processor").Should().Be("Orders");
 
         // 3. Technical paths and ontology roles
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "button", "packages/ui/button"), Is.EqualTo("UserInterface"));
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "common-utils", role: "SharedLibrary"), Is.EqualTo("SharedKernel"));
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "cli-tool", role: "CliTool"), Is.EqualTo("DeveloperTooling"));
-        Assert.That(WorkspaceConventions.CanonicalizeDomain(null, "unit-tests", role: "Test"), Is.EqualTo("TestingInfrastructure"));
+        WorkspaceConventions.CanonicalizeDomain(null, "button", "packages/ui/button").Should().Be("UserInterface");
+        WorkspaceConventions.CanonicalizeDomain(null, "common-utils", role: "SharedLibrary").Should().Be("SharedKernel");
+        WorkspaceConventions.CanonicalizeDomain(null, "cli-tool", role: "CliTool").Should().Be("DeveloperTooling");
+        WorkspaceConventions.CanonicalizeDomain(null, "unit-tests", role: "Test").Should().Be("TestingInfrastructure");
 
         // 4. Universal Display formatting
-        Assert.That(WorkspaceConventions.FormatDomainDisplayName("OperationsAndWorkflows"), Is.EqualTo("Operations & Workflows"));
-        Assert.That(WorkspaceConventions.FormatDomainDisplayName("BillingAndPayments"), Is.EqualTo("Billing & Payments"));
-        Assert.That(WorkspaceConventions.FormatDomainDisplayName("OrderManagement"), Is.EqualTo("Order Management"));
-        Assert.That(WorkspaceConventions.FormatDomainDisplayName("IdentityAndAccess"), Is.EqualTo("Identity & Access"));
+        WorkspaceConventions.FormatDomainDisplayName("OperationsAndWorkflows").Should().Be("Operations & Workflows");
+        WorkspaceConventions.FormatDomainDisplayName("BillingAndPayments").Should().Be("Billing & Payments");
+        WorkspaceConventions.FormatDomainDisplayName("OrderManagement").Should().Be("Order Management");
+        WorkspaceConventions.FormatDomainDisplayName("IdentityAndAccess").Should().Be("Identity & Access");
     }
 }
 

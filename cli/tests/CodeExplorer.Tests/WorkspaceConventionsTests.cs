@@ -1,5 +1,6 @@
-using NUnit.Framework;
+using AwesomeAssertions;
 using CodeExplorer.Core.Common;
+using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
 
@@ -15,10 +16,10 @@ public class WorkspaceConventionsTests
     [Test]
     public void NormalizeTopicName_AlgorithmicKebabCase_WorksGenericly()
     {
-        Assert.That(WorkspaceConventions.NormalizeTopicName("USER_CREATED_TOPIC"), Is.EqualTo("user-created-topic"));
-        Assert.That(WorkspaceConventions.NormalizeTopicName("orderStatusChangedTopicName"), Is.EqualTo("order-status-changed-topic"));
-        Assert.That(WorkspaceConventions.NormalizeTopicName("paymentReceiptSubName"), Is.EqualTo("payment-receipt-sub"));
-        Assert.That(WorkspaceConventions.NormalizeTopicName("orders-v1-stream"), Is.EqualTo("orders-v1-stream"));
+        WorkspaceConventions.NormalizeTopicName("USER_CREATED_TOPIC").Should().Be("user-created-topic");
+        WorkspaceConventions.NormalizeTopicName("orderStatusChangedTopicName").Should().Be("order-status-changed-topic");
+        WorkspaceConventions.NormalizeTopicName("paymentReceiptSubName").Should().Be("payment-receipt-sub");
+        WorkspaceConventions.NormalizeTopicName("orders-v1-stream").Should().Be("orders-v1-stream");
     }
 
     [Test]
@@ -42,10 +43,10 @@ public class WorkspaceConventionsTests
 
             WorkspaceConventions.LoadFromWorkspace(tempDir);
 
-            Assert.That(WorkspaceConventions.NormalizeTopicName("MY_CUSTOM_TOPIC"), Is.EqualTo("orders-feed-v2"));
-            Assert.That(WorkspaceConventions.NormalizeTopicName("RAW_STREAM"), Is.EqualTo("raw-events-topic"));
+            WorkspaceConventions.NormalizeTopicName("MY_CUSTOM_TOPIC").Should().Be("orders-feed-v2");
+            WorkspaceConventions.NormalizeTopicName("RAW_STREAM").Should().Be("raw-events-topic");
             // Fallback still works for unknown
-            Assert.That(WorkspaceConventions.NormalizeTopicName("OTHER_EVENT_TOPIC"), Is.EqualTo("other-event-topic"));
+            WorkspaceConventions.NormalizeTopicName("OTHER_EVENT_TOPIC").Should().Be("other-event-topic");
         }
         finally
         {
@@ -56,19 +57,19 @@ public class WorkspaceConventionsTests
     [Test]
     public void TryMatchRouteFunction_MatchesStandardPatterns()
     {
-        Assert.That(WorkspaceConventions.TryMatchRouteFunction("serviceRoute('auth')", out var r1), Is.True);
-        Assert.That(r1, Is.EqualTo("auth"));
+        WorkspaceConventions.TryMatchRouteFunction("serviceRoute('auth')", out var r1).Should().BeTrue();
+        r1.Should().Be("auth");
 
-        Assert.That(WorkspaceConventions.TryMatchRouteFunction("resolveRoute(\"billing\")", out var r2), Is.True);
-        Assert.That(r2, Is.EqualTo("billing"));
+        WorkspaceConventions.TryMatchRouteFunction("resolveRoute(\"billing\")", out var r2).Should().BeTrue();
+        r2.Should().Be("billing");
 
-        Assert.That(WorkspaceConventions.TryMatchRouteFunction("routeFor('orders')", out var r3), Is.True);
-        Assert.That(r3, Is.EqualTo("orders"));
+        WorkspaceConventions.TryMatchRouteFunction("routeFor('orders')", out var r3).Should().BeTrue();
+        r3.Should().Be("orders");
 
-        Assert.That(WorkspaceConventions.TryMatchRouteFunction("getRoute('payments')", out var r4), Is.True);
-        Assert.That(r4, Is.EqualTo("payments"));
+        WorkspaceConventions.TryMatchRouteFunction("getRoute('payments')", out var r4).Should().BeTrue();
+        r4.Should().Be("payments");
 
-        Assert.That(WorkspaceConventions.TryMatchRouteFunction("someOtherFunc('foo')", out _), Is.False);
+        WorkspaceConventions.TryMatchRouteFunction("someOtherFunc('foo')", out _).Should().BeFalse();
     }
 
     [Test]
@@ -94,20 +95,20 @@ public class WorkspaceConventionsTests
             WorkspaceConventions.LoadFromWorkspace(tempDir);
 
             // Custom route function
-            Assert.That(WorkspaceConventions.TryMatchRouteFunction("getServiceDomainByRoute('reporting')", out var r1), Is.True);
-            Assert.That(r1, Is.EqualTo("reporting"));
+            WorkspaceConventions.TryMatchRouteFunction("getServiceDomainByRoute('reporting')", out var r1).Should().BeTrue();
+            r1.Should().Be("reporting");
 
-            Assert.That(WorkspaceConventions.TryMatchRouteFunction("customRouter('telecom')", out var r2), Is.True);
-            Assert.That(r2, Is.EqualTo("telecom"));
+            WorkspaceConventions.TryMatchRouteFunction("customRouter('telecom')", out var r2).Should().BeTrue();
+            r2.Should().Be("telecom");
 
             // Custom service prefix
-            Assert.That(WorkspaceConventions.NormalizeServiceName("ats-service-tbmap"), Is.EqualTo("tbmap"));
-            Assert.That(WorkspaceConventions.NormalizeServiceName("ats_ad_manager"), Is.EqualTo("ad_manager"));
-            Assert.That(WorkspaceConventions.NormalizeServiceName("internal-bundle-optimizer"), Is.EqualTo("optimizer"));
+            WorkspaceConventions.NormalizeServiceName("ats-service-tbmap").Should().Be("tbmap");
+            WorkspaceConventions.NormalizeServiceName("ats_ad_manager").Should().Be("ad_manager");
+            WorkspaceConventions.NormalizeServiceName("internal-bundle-optimizer").Should().Be("optimizer");
 
             // Database alias
-            Assert.That(WorkspaceConventions.TryGetDatabaseAlias("BigQuery.default", out var dbAlias), Is.True);
-            Assert.That(dbAlias, Is.EqualTo("BigQuery.defaults"));
+            WorkspaceConventions.TryGetDatabaseAlias("BigQuery.default", out var dbAlias).Should().BeTrue();
+            dbAlias.Should().Be("BigQuery.defaults");
         }
         finally
         {
@@ -136,20 +137,20 @@ public class WorkspaceConventionsTests
 
             WorkspaceConventions.LoadFromWorkspace(tempDir);
 
-            Assert.That(WorkspaceConventions.TryGetConfiguredDomain("Billing.Service", null, out var d1), Is.True);
-            Assert.That(d1, Is.EqualTo("Billing"));
+            WorkspaceConventions.TryGetConfiguredDomain("Billing.Service", null, out var d1).Should().BeTrue();
+            d1.Should().Be("Billing");
 
-            Assert.That(WorkspaceConventions.TryGetConfiguredDomain("PaymentGateway", null, out var d2), Is.True);
-            Assert.That(d2, Is.EqualTo("Billing"));
+            WorkspaceConventions.TryGetConfiguredDomain("PaymentGateway", null, out var d2).Should().BeTrue();
+            d2.Should().Be("Billing");
 
-            Assert.That(WorkspaceConventions.TryGetConfiguredDomain("OrderWorker", null, out var d3), Is.True);
-            Assert.That(d3, Is.EqualTo("OrderManagement"));
+            WorkspaceConventions.TryGetConfiguredDomain("OrderWorker", null, out var d3).Should().BeTrue();
+            d3.Should().Be("OrderManagement");
 
             // Path-based match
-            Assert.That(WorkspaceConventions.TryGetConfiguredDomain(null, "src/Services/Orders.Api/Orders.Api.csproj", out var d4), Is.True);
-            Assert.That(d4, Is.EqualTo("OrderManagement"));
+            WorkspaceConventions.TryGetConfiguredDomain(null, "src/Services/Orders.Api/Orders.Api.csproj", out var d4).Should().BeTrue();
+            d4.Should().Be("OrderManagement");
 
-            Assert.That(WorkspaceConventions.TryGetConfiguredDomain("UnknownService", null, out _), Is.False);
+            WorkspaceConventions.TryGetConfiguredDomain("UnknownService", null, out _).Should().BeFalse();
         }
         finally
         {
@@ -180,9 +181,9 @@ public class WorkspaceConventionsTests
 
             WorkspaceConventions.LoadFromWorkspace(tempDir);
 
-            Assert.That(WorkspaceConventions.NormalizeTopicName("TEST_TOPIC"), Is.EqualTo("test-v1"));
-            Assert.That(WorkspaceConventions.TryGetConfiguredDomain("Inventory.Api", null, out var d), Is.True);
-            Assert.That(d, Is.EqualTo("Inventory"));
+            WorkspaceConventions.NormalizeTopicName("TEST_TOPIC").Should().Be("test-v1");
+            WorkspaceConventions.TryGetConfiguredDomain("Inventory.Api", null, out var d).Should().BeTrue();
+            d.Should().Be("Inventory");
         }
         finally
         {

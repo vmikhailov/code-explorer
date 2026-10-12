@@ -1,8 +1,7 @@
-using NUnit.Framework;
+using AwesomeAssertions;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Parser.CSharp;
-using CodeExplorer.Parser.TypeScript;
+using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
 
@@ -74,49 +73,48 @@ public class SubtreeScanCrossProjectTests
 
             await using var client = new SqliteGraphClient(dbPath);
 
-            WorkspaceIndexer.Register(new CSharpParser());
-            WorkspaceIndexer.Register(new TypeScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
 
             var indexer = new WorkspaceIndexer(client);
 
             // 1. Initial full scan
             var fullResults = await indexer.IndexAsync(tempWorkspace, tempWorkspace, clear: true);
-            Assert.That(fullResults.NodesCount, Is.GreaterThan(0));
+            fullResults.NodesCount.Should().BeGreaterThan(0);
 
             var wsId = await client.GetOrCreateWorkspaceIdAsync(tempWorkspace);
 
             // Verify cross-project CALLS and CALLS_ENDPOINT exist after full scan
             var callsJson = await client.ExecuteQueryAsync(
                 $"MATCH (f1:Function)-[:CALLS]->(f2:Function {{name: 'ProcessOrder'}}) WHERE f1.id STARTS WITH '{wsId}:' RETURN count(f1) AS count");
-            Assert.That(callsJson, Contains.Substring("\"count\": 1"));
+            callsJson.Should().Contain("\"count\": 1");
 
             var lateBoundJson = await client.ExecuteQueryAsync(
                 $"MATCH (es:ExternalService)-[:CALLS_ENDPOINT]->(ep:Endpoint) WHERE es.id STARTS WITH '{wsId}:' RETURN count(es) AS count");
-            Assert.That(lateBoundJson, Contains.Substring("\"count\": 1"));
+            lateBoundJson.Should().Contain("\"count\": 1");
 
             // 2. Subtree scan ONLY ProjectC (incremental scan of a single project)
             var subtreeResults = await indexer.IndexAsync(projCDir, tempWorkspace, clear: false);
-            Assert.That(subtreeResults.NodesCount, Is.GreaterThan(0));
+            subtreeResults.NodesCount.Should().BeGreaterThan(0);
 
             // Verify cross-project CALLS to OrderService.ProcessOrder is still resolved!
             var subtreeCallsJson = await client.ExecuteQueryAsync(
                 $"MATCH (f1:Function)-[:CALLS]->(f2:Function {{name: 'ProcessOrder'}}) WHERE f1.id STARTS WITH '{wsId}:' RETURN count(f1) AS count");
-            Assert.That(subtreeCallsJson, Contains.Substring("\"count\": 1"));
+            subtreeCallsJson.Should().Contain("\"count\": 1");
 
             // Verify late binding CALLS_ENDPOINT is still resolved!
             var subtreeLateBoundJson = await client.ExecuteQueryAsync(
                 $"MATCH (es:ExternalService)-[:CALLS_ENDPOINT]->(ep:Endpoint) WHERE es.id STARTS WITH '{wsId}:' RETURN count(es) AS count");
-            Assert.That(subtreeLateBoundJson, Contains.Substring("\"count\": 1"));
+            subtreeLateBoundJson.Should().Contain("\"count\": 1");
 
             var allEdgesJson =
                 await client.ExecuteQueryAsync(
                     "MATCH (a)-[r]->(b) RETURN a.id AS from_id, type(r) AS kind, b.id AS to_id");
-            Assert.That(allEdgesJson, Is.Not.Null);
+            allEdgesJson.Should().NotBeNull();
 
             // Verify transitive calls / post-indexing analysis wasn't wiped out across workspace
             var tcJson = await client.ExecuteQueryAsync(
                 "MATCH ()-[r:TRANSITIVELY_CALLS]->() RETURN count(r) AS count");
-            Assert.That(tcJson, Contains.Substring("\"count\": 1"));
+            tcJson.Should().Contain("\"count\": 1");
         }
         finally
         {
@@ -173,7 +171,7 @@ public class SubtreeScanCrossProjectTests
 
             await using var client = new SqliteGraphClient(dbPath);
 
-            WorkspaceIndexer.Register(new CSharpParser());
+            WorkspaceIndexer.AutoRegisterParsers();
             var indexer = new WorkspaceIndexer(client);
 
             // Step 1: Scan Project A and Project B only
@@ -183,16 +181,16 @@ public class SubtreeScanCrossProjectTests
             // Verify IMPLEMENTS relationship exists in DB
             var implJson = await client.ExecuteQueryAsync(
                 "MATCH (t:Type {name: 'StripeGateway'})-[:IMPLEMENTS]->(i:Type {name: 'IPaymentGateway'}) RETURN count(t) AS count");
-            Assert.That(implJson, Contains.Substring("\"count\": 1"));
+            implJson.Should().Contain("\"count\": 1");
 
             // Step 2: Now do an incremental subtree scan of Project C alone
             var resC = await indexer.IndexAsync(projCDir, tempWorkspace, clear: false);
-            Assert.That(resC.NodesCount, Is.GreaterThan(0));
+            resC.NodesCount.Should().BeGreaterThan(0);
 
             // Verify that CheckoutService.Checkout calls StripeGateway.Pay through polymorphic resolution!
             var callJson = await client.ExecuteQueryAsync(
                 "MATCH (f1:Function {name: 'Checkout'})-[:CALLS]->(f2:Function) RETURN f2.name AS target");
-            Assert.That(callJson, Contains.Substring("Pay"));
+            callJson.Should().Contain("Pay");
         }
         finally
         {
@@ -240,8 +238,7 @@ public class SubtreeScanCrossProjectTests
 
             await using var client = new SqliteGraphClient(dbPath);
 
-            WorkspaceIndexer.Register(new CSharpParser());
-            WorkspaceIndexer.Register(new TypeScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
             var indexer = new WorkspaceIndexer(client);
 
             // Step 1: Scan ONLY the client project first
@@ -249,11 +246,11 @@ public class SubtreeScanCrossProjectTests
 
             // At this point, no Endpoint exists yet
             var epCheck = await client.ExecuteQueryAsync("MATCH (ep:Endpoint) RETURN count(ep) AS count");
-            Assert.That(epCheck, Contains.Substring("\"count\": 0"));
+            epCheck.Should().Contain("\"count\": 0");
 
             var lateBoundBefore =
                 await client.ExecuteQueryAsync("MATCH ()-[r:CALLS_ENDPOINT]->() RETURN count(r) AS count");
-            Assert.That(lateBoundBefore, Contains.Substring("\"count\": 0"));
+            lateBoundBefore.Should().Contain("\"count\": 0");
 
             // Step 2: Now do an incremental subtree scan of the server project
             await indexer.IndexAsync(projBDir, tempWorkspace, clear: false);
@@ -261,7 +258,7 @@ public class SubtreeScanCrossProjectTests
             // Verify that CALLS_ENDPOINT was successfully created!
             var lateBoundAfter = await client.ExecuteQueryAsync(
                 "MATCH (es:ExternalService)-[:CALLS_ENDPOINT]->(ep:Endpoint) RETURN count(es) AS count");
-            Assert.That(lateBoundAfter, Contains.Substring("\"count\": 1"));
+            lateBoundAfter.Should().Contain("\"count\": 1");
         }
         finally
         {
@@ -308,7 +305,7 @@ public class SubtreeScanCrossProjectTests
 
             await using var client = new SqliteGraphClient(dbPath);
 
-            WorkspaceIndexer.Register(new CSharpParser());
+            WorkspaceIndexer.AutoRegisterParsers();
             var indexer = new WorkspaceIndexer(client);
 
             // Step 1: Initial full scan
@@ -317,7 +314,7 @@ public class SubtreeScanCrossProjectTests
             var callsV1 =
                 await client.ExecuteQueryAsync(
                     "MATCH (c:Function {name: 'Execute'})-[:CALLS]->(w:Function) RETURN count(w) AS count");
-            Assert.That(callsV1, Contains.Substring("\"count\": 1"));
+            callsV1.Should().Contain("\"count\": 1");
 
             // Step 2: Update Consumer.cs to call both TaskOne and TaskTwo
             await File.WriteAllTextAsync(consumerFile, @"
@@ -334,8 +331,8 @@ public class SubtreeScanCrossProjectTests
 
             var callsV2 = await client.ExecuteQueryAsync(
                 "MATCH (c:Function {name: 'Execute'})-[:CALLS]->(w:Function) RETURN w.name AS calledMethod ORDER BY calledMethod");
-            Assert.That(callsV2, Contains.Substring("TaskOne"));
-            Assert.That(callsV2, Contains.Substring("TaskTwo"));
+            callsV2.Should().Contain("TaskOne");
+            callsV2.Should().Contain("TaskTwo");
         }
         finally
         {
