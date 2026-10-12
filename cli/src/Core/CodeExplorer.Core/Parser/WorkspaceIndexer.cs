@@ -58,9 +58,14 @@ public class WorkspaceIndexer
             catch (ReflectionTypeLoadException ex)
             {
                 types = ex.Types.Where(t => t != null).ToArray()!;
+                foreach (var loaderEx in ex.LoaderExceptions.OfType<Exception>())
+                {
+                    Console.Error.WriteLine($"[AutoRegisterParsers] Warning: Loader error in '{assembly.GetName().Name}': {loaderEx.Message}");
+                }
             }
-            catch
+            catch (Exception ex)
             {
+                Console.Error.WriteLine($"[AutoRegisterParsers] Warning: Failed to load exported types from '{assembly.GetName().Name}': {ex.Message}");
                 continue;
             }
 
@@ -88,9 +93,11 @@ public class WorkspaceIndexer
                             registeredTypes.Add(type);
                         }
                     }
-                    catch
+                    catch (Exception ex)
                     {
-                        // Ignore instantiation issues for non-standard constructors
+                        throw new InvalidOperationException(
+                            $"[AutoRegisterParsers] Failed to instantiate parser '{type.FullName}' from assembly '{type.Assembly.GetName().Name}': {ex.Message}",
+                            ex);
                     }
                 }
             }
@@ -115,50 +122,73 @@ public class WorkspaceIndexer
         // Load referenced assemblies starting with CodeExplorer.Parser
         foreach (var loaded in loadedAssemblies)
         {
+            if (loaded.IsDynamic)
+                continue;
+
+            AssemblyName[] referencedAssemblies;
             try
             {
-                foreach (var refName in loaded.GetReferencedAssemblies())
+                referencedAssemblies = loaded.GetReferencedAssemblies();
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[DiscoverParserAssemblies] Warning: Failed to get referenced assemblies from '{loaded.GetName().Name}': {ex.Message}");
+                continue;
+            }
+
+            foreach (var refName in referencedAssemblies)
+            {
+                if (refName.Name != null &&
+                    refName.Name.StartsWith("CodeExplorer.Parser.", StringComparison.OrdinalIgnoreCase) &&
+                    !loadedNames.Contains(refName.Name))
                 {
-                    if (refName.Name != null &&
-                        refName.Name.StartsWith("CodeExplorer.Parser.", StringComparison.OrdinalIgnoreCase) &&
-                        !loadedNames.Contains(refName.Name))
+                    try
                     {
-                        try
-                        {
-                            var asm = Assembly.Load(refName);
-                            candidateAssemblies.Add(asm);
-                            loadedNames.Add(refName.Name);
-                        }
-                        catch { }
+                        var asm = Assembly.Load(refName);
+                        candidateAssemblies.Add(asm);
+                        loadedNames.Add(refName.Name);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.Error.WriteLine($"[DiscoverParserAssemblies] Warning: Could not load referenced parser assembly '{refName.Name}': {ex.Message}");
                     }
                 }
             }
-            catch { }
         }
 
         // Also probe AppContext.BaseDirectory for any CodeExplorer.Parser.*.dll not yet loaded
-        try
+        var baseDir = AppContext.BaseDirectory;
+        if (Directory.Exists(baseDir))
         {
-            var baseDir = AppContext.BaseDirectory;
-            if (Directory.Exists(baseDir))
+            string[] dllFiles;
+            try
             {
-                foreach (var dllPath in Directory.GetFiles(baseDir, "CodeExplorer.Parser.*.dll"))
+                dllFiles = Directory.GetFiles(baseDir, "CodeExplorer.Parser.*.dll");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[DiscoverParserAssemblies] Warning: Failed to enumerate directory '{baseDir}': {ex.Message}");
+                dllFiles = [];
+            }
+
+            foreach (var dllPath in dllFiles)
+            {
+                var asmName = Path.GetFileNameWithoutExtension(dllPath);
+                if (!loadedNames.Contains(asmName))
                 {
-                    var asmName = Path.GetFileNameWithoutExtension(dllPath);
-                    if (!loadedNames.Contains(asmName))
+                    try
                     {
-                        try
-                        {
-                            var asm = Assembly.LoadFrom(dllPath);
-                            candidateAssemblies.Add(asm);
-                            loadedNames.Add(asmName);
-                        }
-                        catch { }
+                        var asm = Assembly.LoadFrom(dllPath);
+                        candidateAssemblies.Add(asm);
+                        loadedNames.Add(asmName);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.Error.WriteLine($"[DiscoverParserAssemblies] Warning: Could not load parser DLL from '{dllPath}': {ex.Message}");
                     }
                 }
             }
         }
-        catch { }
 
         return candidateAssemblies
             .Where(a => a.GetCustomAttribute<ParserAssemblyAttribute>() != null ||
