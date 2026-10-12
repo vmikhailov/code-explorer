@@ -1944,7 +1944,7 @@
 
         <div class="showcase-body">
           <div class="showcase-img-container" onclick="openLightbox()">
-            <img id="showcaseImage" class="showcase-img" src="all_services.png?v=v15" alt="CodeExplorer Macro Architecture Concentric Orbits">
+            <img id="showcaseImage" class="showcase-img" src="all_services.png?v=v16" alt="CodeExplorer Macro Architecture Concentric Orbits">
           </div>
 
           <div class="showcase-overlay-bar">
@@ -1965,7 +1965,7 @@
   <!-- Lightbox Modal for zooming screenshots -->
   <div id="lightboxModal" class="lightbox-modal" onclick="closeLightbox(event)">
     <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
-    <img id="lightboxImg" class="lightbox-content" src="all_services.png?v=v15" alt="Enlarged Screenshot">
+    <img id="lightboxImg" class="lightbox-content" src="all_services.png?v=v16" alt="Enlarged Screenshot">
   </div>
 
   <!-- ==========================================================================
@@ -2619,22 +2619,38 @@
             Autonomous coding agents (Claude Code, OpenAI Codex, OpenCode, Aider, Hermes) execute <code>ce</code> directly in bash without JSON-RPC overhead or background daemons. Structured JSON and Markdown outputs provide maximum architectural signal in minimum tokens.
           </p>
 
-          <ul class="mcp-feature-list">
+          <ul class="mcp-feature-list" style="gap: 10px;">
             <li class="mcp-feature-item">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
-              <span><code>ce query -n get_architecture_map_workspace -j</code> — Macro service topology, databases, and entry points in &lt;1,000 tokens.</span>
+              <span><code>ce init [name]</code> — Initialize <code>.codeexplorer/</code> workspace and SQLite knowledge graph.</span>
             </li>
             <li class="mcp-feature-item">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
-              <span><code>ce query "MATCH ..."</code> — Ad-hoc OpenCypher queries tracing cross-service call chains and blast radiuses.</span>
+              <span><code>ce scan</code> — Parse Tree-sitter ASTs, extract dependencies, and resolve semantic layers.</span>
             </li>
             <li class="mcp-feature-item">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
-              <span><code>ce gate check --format markdown</code> — Pre-commit validation of layer boundaries and Semantic Invariant Gates.</span>
+              <span><code>ce query -n get_architecture_map_workspace -j</code> — Macro topology, databases, and ingress in &lt;1,000 tokens.</span>
             </li>
             <li class="mcp-feature-item">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
-              <span><code>ce scan</code> — Incremental sub-second AST re-indexing with cached architectural intent inferences.</span>
+              <span><code>ce query -n get_project_entry_points -p &lt;name&gt;</code> — Discover HTTP endpoints, gRPC routes, and event listeners.</span>
+            </li>
+            <li class="mcp-feature-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+              <span><code>ce query -n get_file_outline -f &lt;path&gt;</code> — Low-token AST outline (classes, methods, signatures) without reading full file.</span>
+            </li>
+            <li class="mcp-feature-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+              <span><code>ce query "MATCH (s:Service)-[:CALLS*1..3]->(t) RETURN ..."</code> — Ad-hoc multi-hop OpenCypher call graphs.</span>
+            </li>
+            <li class="mcp-feature-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+              <span><code>ce gate check --format markdown</code> — Pre-commit validation of Semantic Invariant Gates and ratchets in CI.</span>
+            </li>
+            <li class="mcp-feature-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+              <span><code>ce export --format mermaid -o arch.mmd</code> — Export C1/C2 diagrams and event pipelines from graph topology.</span>
             </li>
           </ul>
 
@@ -2642,8 +2658,11 @@
             <a href="https://github.com/vmikhailov/code-explorer#cli-command-reference" target="_blank" rel="noopener" class="btn btn-primary btn-sm">
               <span>CLI Command Reference</span>
             </a>
-            <button class="btn btn-ghost btn-sm" onclick="copySnippet('ce query -n get_architecture_map_workspace -j', 'CLI command copied!')">
-              <span>Copy ce query Command</span>
+            <button class="btn btn-ghost btn-sm" onclick="copySnippet('ce init &amp;&amp; ce scan', 'Init command copied!')">
+              <span>ce init &amp;&amp; ce scan</span>
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="copySnippet('ce query -n get_architecture_map_workspace -j', 'CLI query copied!')">
+              <span>ce query -n get_architecture_map...</span>
             </button>
           </div>
         </div>
@@ -2651,9 +2670,13 @@
         <div class="code-terminal-card">
           <div class="term-top">
             <span>Terminal AI Agent Session (Claude Code / Codex / Hermes)</span>
-            <button class="btn btn-ghost btn-sm" style="padding: 2px 8px; font-size: 11px;" onclick="copySnippet('ce query -n get_architecture_map_workspace -j\nce gate check', 'Commands copied!')">Copy</button>
+            <button class="btn btn-ghost btn-sm" style="padding: 2px 8px; font-size: 11px;" onclick="copySnippet('ce init && ce scan\nce query -n get_architecture_map_workspace -j\nce gate check', 'Commands copied!')">Copy</button>
           </div>
-          <pre class="term-body" style="font-size: 11px; line-height: 1.5; color: #cbd5e1;"><span style="color: #64748b;"># 1. Inspect architecture without reading entire files</span>
+          <pre class="term-body" style="font-size: 11px; line-height: 1.5; color: #cbd5e1;"><span style="color: #64748b;"># 1. Initialize & index repository</span>
+<span style="color: #38bdf8;">$ ce init &amp;&amp; ce scan</span>
+<span style="color: #94a3b8;">Indexed 48 projects, 1,240 files, 18 databases in 1.4s.</span>
+
+<span style="color: #64748b;"># 2. Inspect architecture in &lt;1,000 tokens</span>
 <span style="color: #38bdf8;">$ ce query -n get_architecture_map_workspace -j</span>
 {
   <span style="color: #a78bfa;">"projects"</span>: [<span style="color: #34d399;">"OrderService"</span>, <span style="color: #34d399;">"BillingCore"</span>, <span style="color: #34d399;">"AuthGateway"</span>],
@@ -2661,7 +2684,11 @@
   <span style="color: #a78bfa;">"entry_points"</span>: [<span style="color: #34d399;">"POST /api/v1/orders"</span>, <span style="color: #34d399;">"Topic: order-events"</span>]
 }
 
-<span style="color: #64748b;"># 2. Verify architectural rules before git commit</span>
+<span style="color: #64748b;"># 3. Trace multi-hop blast radius before editing</span>
+<span style="color: #38bdf8;">$ ce query "MATCH (t:Type {name: 'IOrderRepo'})&lt;-[:CALLS]-(c) RETURN c.name"</span>
+<span style="color: #94a3b8;">[ "OrderController", "BillingListener", "InvoiceWorker" ]</span>
+
+<span style="color: #64748b;"># 4. Enforce architectural invariants before commit</span>
 <span style="color: #38bdf8;">$ ce gate check</span>
 <span style="color: #34d399;">✓ PASS:</span> SIG-P-B-001 Clean Architecture Layer Isolation (0 violations)
 <span style="color: #34d399;">✓ PASS:</span> SIG-M-I-001 No Hardcoded Endpoint Literals (0 violations)
@@ -3019,12 +3046,12 @@
     // Data for Showcase Tabs
     const showcaseData = {
       orbits: {
-        img: 'all_services.png?v=v15',
+        img: 'all_services.png?v=v16',
         desc: '<strong>Macro Architecture Topology:</strong> Concentric rings project Ingress Gateways (Tier 0), Public APIs (Tier 1), Brokers (Tier 2), Domain Services (Tier 3), and Databases (Tier 4).',
         pills: ['Live Transitive Routing', 'Orbit Drag-and-Drop', 'Curvature: +65']
       },
       transitive: {
-        img: 'selected_services.png?v=v15',
+        img: 'selected_services.png?v=v16',
         desc: '<strong>Sub-Graph Neighborhood & Broker Contraction:</strong> Filter out Kafka/SQS message brokers to automatically synthesize direct dashed <code>[SUBSCRIBES (via Topic)]</code> links.',
         pills: ['Smart Broker Contraction', 'HUD Category Filters', 'Depth: 2 Hops']
       },
