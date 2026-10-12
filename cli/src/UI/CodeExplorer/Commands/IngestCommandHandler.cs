@@ -33,7 +33,7 @@ public static class IngestCommandHandler
 
             var indexer = new WorkspaceIndexer(client, indexerLogger);
 
-            var shouldClear = (opts.Clear && !opts.ClearAll) || client.IsSchemaOutdated;
+            var shouldClear = (opts.ShouldClear && !opts.ClearAll) || client.IsSchemaOutdated;
 
             if (client.IsSchemaOutdated)
             {

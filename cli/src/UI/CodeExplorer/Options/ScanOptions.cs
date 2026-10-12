@@ -11,6 +11,11 @@ public class ScanOptions
     [Option("clear", Default = false, HelpText = "Clear previous data for this path before scanning.")]
     public bool Clear { get; set; }
 
+    [Option("clean", Default = false, Hidden = true, HelpText = "Alias for --clear.")]
+    public bool Clean { get; set; }
+
+    public bool ShouldClear => Clear || Clean;
+
     [Option("intent", Default = false, HelpText = "Run LLM architectural intent distillation (cached intents are applied automatically by default).")]
     public bool Intent { get; set; }
 

@@ -14,6 +14,11 @@ public class IngestOptions
     [Option("clear", HelpText = "Whether to surgically clear only this workspace's previous data before ingestion.")]
     public bool Clear { get; set; }
 
+    [Option("clean", Default = false, Hidden = true, HelpText = "Alias for --clear.")]
+    public bool Clean { get; set; }
+
+    public bool ShouldClear => Clear || Clean;
+
     [Option("clear-all", HelpText = "Whether to perform a global database clear of all workspaces before ingestion.")]
     public bool ClearAll { get; set; }
 }

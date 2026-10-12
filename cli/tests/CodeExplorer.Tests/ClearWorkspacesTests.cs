@@ -107,4 +107,73 @@ public class ClearWorkspacesTests
         var checkWs2 = await _client.ClearWorkspaceAsync("2");
         Assert.That(checkWs2, Is.True, "Workspace 2 should remain.");
     }
+
+    [Test]
+    public async Task ClearWorkspace_Subpath_DeletesOnlySubpathHierarchy()
+    {
+        await using var client = new SqliteGraphClient($"Data Source={Guid.NewGuid():N};Mode=Memory;Cache=Shared");
+        await client.SaveEmptyWorkspaceNodeAsync("ws", "/workspace");
+
+        var nodes = new List<Node>
+        {
+            new("ws:p:service-a", "Project", new Dictionary<string, object> { ["path"] = "/workspace/src/service-a", ["name"] = "service-a" }),
+            new("ws:f:service-a/file.cs", "File", new Dictionary<string, object> { ["path"] = "/workspace/src/service-a/file.cs", ["name"] = "file.cs" }),
+            new("ws:p:service-b", "Project", new Dictionary<string, object> { ["path"] = "/workspace/src/service-b", ["name"] = "service-b" }),
+            new("ws:f:service-b/file.cs", "File", new Dictionary<string, object> { ["path"] = "/workspace/src/service-b/file.cs", ["name"] = "file.cs" })
+        };
+        await client.UploadNodesAsync(nodes);
+
+        var emptyProps = new Dictionary<string, object>();
+        var rels = new List<Relationship>
+        {
+            new("ws", "ws:p:service-a", "CONTAINS", emptyProps),
+            new("ws:p:service-a", "ws:f:service-a/file.cs", "CONTAINS", emptyProps),
+            new("ws", "ws:p:service-b", "CONTAINS", emptyProps),
+            new("ws:p:service-b", "ws:f:service-b/file.cs", "CONTAINS", emptyProps)
+        };
+        await client.UploadRelationshipsAsync(rels);
+
+        var cleared = await client.ClearWorkspaceAsync("/workspace/src/service-a");
+        Assert.That(cleared, Is.True);
+
+        var (nodeCount, relCount) = await client.GetGraphCountsAsync();
+        // ws, service-b project, service-b file = 3 nodes remain
+        Assert.That(nodeCount, Is.EqualTo(3));
+        Assert.That(relCount, Is.EqualTo(2));
+    }
+
+    [Test]
+    public async Task ClearWorkspace_SingleWorkspace_FastWipe()
+    {
+        await using var client = new SqliteGraphClient($"Data Source={Guid.NewGuid():N};Mode=Memory;Cache=Shared");
+        await client.SaveEmptyWorkspaceNodeAsync("ws", "/big-workspace");
+
+        var nodes = new List<Node>();
+        var rels = new List<Relationship>();
+        var emptyProps = new Dictionary<string, object>();
+
+        for (var i = 0; i < 2000; i++)
+        {
+            var pId = $"ws:p:{i}";
+            var fId = $"ws:f:{i}";
+            nodes.Add(new(pId, "Project", new Dictionary<string, object> { ["path"] = $"/big-workspace/proj{i}" }));
+            nodes.Add(new(fId, "File", new Dictionary<string, object> { ["path"] = $"/big-workspace/proj{i}/file.cs" }));
+            rels.Add(new("ws", pId, "CONTAINS", emptyProps));
+            rels.Add(new(pId, fId, "CONTAINS", emptyProps));
+        }
+
+        await client.UploadNodesAsync(nodes);
+        await client.UploadRelationshipsAsync(rels);
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var cleared = await client.ClearWorkspaceAsync("/big-workspace");
+        sw.Stop();
+
+        Assert.That(cleared, Is.True);
+        Assert.That(sw.ElapsedMilliseconds, Is.LessThan(2000), $"Clear took {sw.ElapsedMilliseconds} ms, expected under 2000 ms.");
+
+        var (nodeCount, relCount) = await client.GetGraphCountsAsync();
+        Assert.That(nodeCount, Is.EqualTo(0));
+        Assert.That(relCount, Is.EqualTo(0));
+    }
 }

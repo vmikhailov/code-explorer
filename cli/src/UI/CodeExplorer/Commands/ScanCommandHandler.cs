@@ -30,19 +30,13 @@ public static class ScanCommandHandler
 
             await using var client = new SqliteGraphClient(ws.DbPath, clientLogger);
 
-            var shouldClear = opts.Clear || client.IsSchemaOutdated;
+            var shouldClear = opts.ShouldClear || client.IsSchemaOutdated;
 
             if (client.IsSchemaOutdated)
             {
                 logger.LogWarning(
                     "Database schema version is outdated (v{Version} < v{Current}). Automatically performing clean rescan...",
                     client.SchemaVersion, SqliteGraphClient.CurrentSchemaVersion);
-            }
-
-            if (shouldClear)
-            {
-                logger.LogInformation("Clearing existing data for {TargetPath}...", targetPath);
-                await client.ClearWorkspaceAsync(targetPath);
             }
 
             var indexer = new WorkspaceIndexer(client, indexerLogger);

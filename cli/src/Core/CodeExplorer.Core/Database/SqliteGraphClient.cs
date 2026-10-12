@@ -327,7 +327,12 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         await _lock.WaitAsync();
         try
         {
-            await _conn.ExecuteAsync("DELETE FROM edges; DELETE FROM nodes; DELETE FROM metadata;");
+            await _conn.ExecuteAsync("""
+                DELETE FROM edges;
+                DELETE FROM nodes;
+                DELETE FROM file_registry;
+                DELETE FROM metadata;
+                """);
             await _conn.ExecuteAsync("VACUUM;");
             await _conn.ExecuteAsync("PRAGMA wal_checkpoint(TRUNCATE);");
 
@@ -349,46 +354,105 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         await _lock.WaitAsync();
         try
         {
+            var totalWorkspaces = await _conn.ExecuteScalarAsync<int>("SELECT count(DISTINCT id) FROM nodes WHERE kind = 'Workspace';");
+
             var wsId = await FindWorkspaceIdByIdOrPathAsync(raw, normalized);
             if (wsId != null)
             {
-                await DeleteWorkspaceHierarchyAsync(wsId);
+                await DeleteWorkspaceHierarchyAsync(wsId, totalWorkspaces);
                 return true;
             }
 
-            string absPath = normalized;
-            string? relPath = null;
+            // Retrieve all workspaces to find if normalized matches or is a subpath of any workspace
+            var workspaces = (await _conn.QueryAsync<(string Id, string Path)>(
+                "SELECT id, json_extract(properties, '$.path') AS Path FROM nodes WHERE kind = 'Workspace';")).AsList();
 
-            var rootVal = await _conn.QueryFirstOrDefaultAsync<string>("SELECT json_extract(properties, '$.path') FROM nodes WHERE kind = 'Workspace' LIMIT 1;");
-            if (!string.IsNullOrEmpty(rootVal))
+            (string Id, string Path)? matchingWs = null;
+
+            foreach (var ws in workspaces)
             {
-                var normRoot = rootVal.Replace('\\', '/').TrimEnd('/');
-                if (!Path.IsPathRooted(normalized))
+                if (string.IsNullOrEmpty(ws.Path)) continue;
+                var normPath = ws.Path.Replace('\\', '/').TrimEnd('/');
+
+                if (string.Equals(normalized, normPath, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(raw, ws.Id, StringComparison.OrdinalIgnoreCase))
                 {
-                    absPath = Path.GetFullPath(Path.Combine(normRoot, normalized)).Replace('\\', '/').TrimEnd('/');
-                }
-                else
-                {
-                    absPath = Path.GetFullPath(normalized).Replace('\\', '/').TrimEnd('/');
+                    matchingWs = (ws.Id, normPath);
+                    break;
                 }
 
-                if (absPath.StartsWith(normRoot, StringComparison.OrdinalIgnoreCase))
+                if (normalized.StartsWith(normPath + "/", StringComparison.OrdinalIgnoreCase))
                 {
-                    relPath = Path.GetRelativePath(normRoot, absPath).Replace('\\', '/');
-                    if (relPath == ".") relPath = "";
+                    matchingWs = (ws.Id, normPath);
+                    break;
                 }
             }
-            else if (!Path.IsPathRooted(normalized))
+
+            if (matchingWs != null)
             {
-                absPath = Path.GetFullPath(normalized).Replace('\\', '/').TrimEnd('/');
+                var normRoot = matchingWs.Value.Path;
+                if (string.Equals(normalized, normRoot, StringComparison.OrdinalIgnoreCase))
+                {
+                    await DeleteWorkspaceHierarchyAsync(matchingWs.Value.Id, totalWorkspaces);
+                    return true;
+                }
+
+                var relPath = normalized.Substring(normRoot.Length).TrimStart('/');
+                return await DeleteSubpathHierarchyAsync(normalized, relPath);
             }
 
-            return await DeleteSubpathHierarchyAsync(absPath, relPath);
+            if (totalWorkspaces <= 1 && workspaces.Count > 0 && !string.IsNullOrEmpty(workspaces[0].Path))
+            {
+                var singleWs = workspaces[0];
+                var normRoot = singleWs.Path.Replace('\\', '/').TrimEnd('/');
+
+                if (!normalized.StartsWith('/') && !normalized.Contains(':'))
+                {
+                    var absPath = normRoot + "/" + normalized.TrimStart('/');
+                    var relPath = normalized.TrimStart('/');
+                    return await DeleteSubpathHierarchyAsync(absPath, relPath);
+                }
+            }
+
+            if (totalWorkspaces == 0)
+            {
+                var anyNodes = await _conn.ExecuteScalarAsync<int>("SELECT count(*) FROM nodes LIMIT 1;");
+                if (anyNodes == 0) return false;
+
+                if (normalized.StartsWith('/') || normalized.Contains(':'))
+                {
+                    await WipeDatabaseFastAsync();
+                    return true;
+                }
+            }
+
+            return await DeleteSubpathHierarchyAsync(normalized, null);
         }
         finally
         {
             _lock.Release();
         }
+    }
+
+    private async Task WipeDatabaseFastAsync()
+    {
+        using var tx = _conn.BeginTransaction();
+        try
+        {
+            await _conn.ExecuteAsync("""
+                DELETE FROM edges;
+                DELETE FROM nodes;
+                DELETE FROM file_registry;
+                """, transaction: tx);
+            tx.Commit();
+        }
+        catch
+        {
+            tx.Rollback();
+            throw;
+        }
+
+        Analysis.ArchitectureViewEngine.InvalidateCache();
     }
 
     private async Task<bool> DeleteSubpathHierarchyAsync(string absPath, string? relPath)
@@ -408,53 +472,74 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             hasRel
         };
 
-        const string findSql = """
-            WITH RECURSIVE del_nodes(id) AS (
-                SELECT id FROM nodes
-                WHERE kind IN ('File', 'Folder', 'Project', 'Endpoint', 'EntryPoint')
-                  AND (
-                      lower(replace(json_extract(properties, '$.path'), '\', '/')) = @normPath
-                      OR lower(replace(json_extract(properties, '$.full_path'), '\', '/')) = @normPath
-                      OR lower(replace(json_extract(properties, '$.file_path'), '\', '/')) = @normPath
-                      OR lower(replace(json_extract(properties, '$.full_path'), '\', '/')) LIKE @normPathSlash
-                      OR (@hasRel = 1 AND (
-                          lower(replace(json_extract(properties, '$.path'), '\', '/')) = @relPath
-                          OR lower(replace(json_extract(properties, '$.file_path'), '\', '/')) = @relPath
-                          OR lower(json_extract(properties, '$.name')) = @relPath
-                          OR lower(replace(json_extract(properties, '$.path'), '\', '/')) LIKE @relPathSlash
-                          OR lower(replace(json_extract(properties, '$.file_path'), '\', '/')) LIKE @relPathSlash
-                      ))
-                  )
-                UNION
-                SELECT e.to_id FROM edges e
-                JOIN del_nodes d ON e.from_id = d.id
-                WHERE e.kind = 'CONTAINS'
-            )
-            SELECT id FROM del_nodes;
-            """;
-
-        var ids = (await _conn.QueryAsync<string>(findSql, parameters)).AsList();
-        if (ids.Count == 0) return false;
-
-        const int chunkSize = 500;
-        for (var i = 0; i < ids.Count; i += chunkSize)
+        using var tx = _conn.BeginTransaction();
+        try
         {
-            var chunk = ids.Skip(i).Take(chunkSize).ToList();
-            await _conn.ExecuteAsync("DELETE FROM edges WHERE from_id IN @chunk OR to_id IN @chunk;", new { chunk });
-            await _conn.ExecuteAsync("DELETE FROM nodes WHERE id IN @chunk;", new { chunk });
+            await _conn.ExecuteAsync("""
+                CREATE TEMP TABLE IF NOT EXISTS temp_del_subpath_nodes (id TEXT PRIMARY KEY);
+                DELETE FROM temp_del_subpath_nodes;
+
+                WITH RECURSIVE del_nodes(id) AS (
+                    SELECT id FROM nodes
+                    WHERE kind IN ('File', 'Folder', 'Project', 'Endpoint', 'EntryPoint')
+                      AND (
+                          lower(replace(json_extract(properties, '$.path'), '\', '/')) = @normPath
+                          OR lower(replace(json_extract(properties, '$.full_path'), '\', '/')) = @normPath
+                          OR lower(replace(json_extract(properties, '$.file_path'), '\', '/')) = @normPath
+                          OR lower(replace(json_extract(properties, '$.path'), '\', '/')) LIKE @normPathSlash
+                          OR lower(replace(json_extract(properties, '$.full_path'), '\', '/')) LIKE @normPathSlash
+                          OR lower(replace(json_extract(properties, '$.file_path'), '\', '/')) LIKE @normPathSlash
+                          OR (@hasRel = 1 AND (
+                              lower(replace(json_extract(properties, '$.path'), '\', '/')) = @relPath
+                              OR lower(replace(json_extract(properties, '$.file_path'), '\', '/')) = @relPath
+                              OR lower(json_extract(properties, '$.name')) = @relPath
+                              OR lower(replace(json_extract(properties, '$.path'), '\', '/')) LIKE @relPathSlash
+                              OR lower(replace(json_extract(properties, '$.file_path'), '\', '/')) LIKE @relPathSlash
+                          ))
+                      )
+                    UNION
+                    SELECT e.to_id FROM edges e
+                    JOIN del_nodes d ON e.from_id = d.id
+                    WHERE e.kind = 'CONTAINS'
+                )
+                INSERT OR IGNORE INTO temp_del_subpath_nodes(id)
+                SELECT DISTINCT id FROM del_nodes;
+                """, parameters, transaction: tx);
+
+            var deletedCount = await _conn.ExecuteScalarAsync<int>(
+                "SELECT count(*) FROM temp_del_subpath_nodes;", transaction: tx);
+
+            if (deletedCount == 0)
+            {
+                await _conn.ExecuteAsync("DROP TABLE IF EXISTS temp_del_subpath_nodes;", transaction: tx);
+                tx.Commit();
+                return false;
+            }
+
+            await _conn.ExecuteAsync("""
+                DELETE FROM edges WHERE from_id IN (SELECT id FROM temp_del_subpath_nodes);
+                DELETE FROM edges WHERE to_id IN (SELECT id FROM temp_del_subpath_nodes);
+                DELETE FROM nodes WHERE id IN (SELECT id FROM temp_del_subpath_nodes);
+                DROP TABLE IF EXISTS temp_del_subpath_nodes;
+
+                DELETE FROM file_registry
+                WHERE lower(replace(relative_path, '\', '/')) = @normPath
+                   OR lower(replace(relative_path, '\', '/')) LIKE @normPathSlash
+                   OR (@hasRel = 1 AND (
+                       lower(replace(relative_path, '\', '/')) = @relPath
+                       OR lower(replace(relative_path, '\', '/')) LIKE @relPathSlash
+                   ));
+                """, parameters, transaction: tx);
+
+            tx.Commit();
+            Analysis.ArchitectureViewEngine.InvalidateCache();
+            return true;
         }
-
-        await _conn.ExecuteAsync("""
-            DELETE FROM file_registry
-            WHERE lower(replace(relative_path, '\', '/')) = @normPath
-               OR lower(replace(relative_path, '\', '/')) LIKE @normPathSlash
-               OR (@hasRel = 1 AND (
-                   lower(replace(relative_path, '\', '/')) = @relPath
-                   OR lower(replace(relative_path, '\', '/')) LIKE @relPathSlash
-               ));
-            """, parameters);
-
-        return true;
+        catch
+        {
+            tx.Rollback();
+            throw;
+        }
     }
 
     private async Task<string?> FindWorkspaceIdByIdOrPathAsync(string raw, string normalized)
@@ -473,32 +558,47 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         return await _conn.QueryFirstOrDefaultAsync<string>(sql, new { raw, normalized });
     }
 
-    private async Task DeleteWorkspaceHierarchyAsync(string wsId)
+    private async Task DeleteWorkspaceHierarchyAsync(string wsId, int totalWorkspaces)
     {
+        if (totalWorkspaces <= 1)
+        {
+            await WipeDatabaseFastAsync();
+            return;
+        }
+
         var wsGlob = wsId + ":*";
 
-        const string findSql = """
-            WITH RECURSIVE del_nodes(id) AS (
-                SELECT id FROM nodes
-                WHERE id = @wsId OR id GLOB @wsGlob
-                UNION
-                SELECT e.to_id FROM edges e
-                JOIN del_nodes d ON e.from_id = d.id
-                WHERE e.kind = 'CONTAINS'
-            )
-            SELECT DISTINCT id FROM del_nodes;
-            """;
-
-        var ids = (await _conn.QueryAsync<string>(findSql, new { wsId, wsGlob })).AsList();
-        if (ids.Count > 0)
+        using var tx = _conn.BeginTransaction();
+        try
         {
-            const int chunkSize = 500;
-            for (var i = 0; i < ids.Count; i += chunkSize)
-            {
-                var chunk = ids.Skip(i).Take(chunkSize).ToList();
-                await _conn.ExecuteAsync("DELETE FROM edges WHERE from_id IN @chunk OR to_id IN @chunk;", new { chunk });
-                await _conn.ExecuteAsync("DELETE FROM nodes WHERE id IN @chunk;", new { chunk });
-            }
+            await _conn.ExecuteAsync("""
+                CREATE TEMP TABLE IF NOT EXISTS temp_del_ws_nodes (id TEXT PRIMARY KEY);
+                DELETE FROM temp_del_ws_nodes;
+
+                WITH RECURSIVE del_nodes(id) AS (
+                    SELECT id FROM nodes
+                    WHERE id = @wsId OR id GLOB @wsGlob
+                    UNION
+                    SELECT e.to_id FROM edges e
+                    JOIN del_nodes d ON e.from_id = d.id
+                    WHERE e.kind = 'CONTAINS'
+                )
+                INSERT OR IGNORE INTO temp_del_ws_nodes(id)
+                SELECT DISTINCT id FROM del_nodes;
+
+                DELETE FROM edges WHERE from_id IN (SELECT id FROM temp_del_ws_nodes);
+                DELETE FROM edges WHERE to_id IN (SELECT id FROM temp_del_ws_nodes);
+                DELETE FROM nodes WHERE id IN (SELECT id FROM temp_del_ws_nodes);
+
+                DROP TABLE IF EXISTS temp_del_ws_nodes;
+                """, new { wsId, wsGlob }, transaction: tx);
+
+            tx.Commit();
+        }
+        catch
+        {
+            tx.Rollback();
+            throw;
         }
 
         await _conn.ExecuteAsync("DELETE FROM file_registry;");
