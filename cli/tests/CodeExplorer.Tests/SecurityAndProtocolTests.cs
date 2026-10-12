@@ -30,6 +30,7 @@ public class SecurityAndProtocolTests
         var csharpCode = @"
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using AwesomeAssertions;
 
 namespace DotNetApp.Controllers;
 
@@ -129,11 +130,11 @@ export class PaymentsController {
 
         var array = doc.RootElement.EnumerateArray().ToList();
 
-        Assert.That(array.Count, Is.GreaterThan(0), "No endpoint with required_roles found for C# admin-refund!");
+        array.Count.Should().BeGreaterThan(0, "No endpoint with required_roles found for C# admin-refund!");
         var roles = array[0].GetProperty("roles").GetString();
-        Assert.That(roles, Does.Contain("Admin"));
+        roles.Should().Contain("Admin");
         var protocol = array[0].GetProperty("protocol").GetString();
-        Assert.That(protocol, Is.EqualTo("REST"));
+        protocol.Should().Be("REST");
 
         // Query anonymous endpoints
         var anonQuery =
@@ -142,8 +143,7 @@ export class PaymentsController {
 
         using var anonDoc = JsonDocument.Parse(anonRes);
 
-        Assert.That(anonDoc.RootElement.GetArrayLength(), Is.GreaterThan(0),
-            "Anonymous endpoint not flagged as is_anonymous: true in C#!");
+        anonDoc.RootElement.GetArrayLength().Should().BeGreaterThan(0, "Anonymous endpoint not flagged as is_anonymous: true in C#!");
     }
 
     [Test]
@@ -157,9 +157,9 @@ export class PaymentsController {
 
         var array = doc.RootElement.EnumerateArray().ToList();
 
-        Assert.That(array.Count, Is.GreaterThan(0), "No endpoint found in Java controller!");
+        array.Count.Should().BeGreaterThan(0, "No endpoint found in Java controller!");
         var roles = array[0].GetProperty("roles").GetString();
-        Assert.That(roles, Does.Contain("ADMIN"));
+        roles.Should().Contain("ADMIN");
 
         // Query anonymous/permit-all endpoint in Java
         var anonQuery =
@@ -168,8 +168,7 @@ export class PaymentsController {
 
         using var anonDoc = JsonDocument.Parse(anonRes);
 
-        Assert.That(anonDoc.RootElement.GetArrayLength(), Is.GreaterThan(0),
-            "Java PermitAll endpoint not flagged as is_anonymous: true!");
+        anonDoc.RootElement.GetArrayLength().Should().BeGreaterThan(0, "Java PermitAll endpoint not flagged as is_anonymous: true!");
     }
 
     [Test]
@@ -183,7 +182,7 @@ export class PaymentsController {
 
         var array = doc.RootElement.EnumerateArray().ToList();
 
-        Assert.That(array.Count, Is.GreaterThan(0), "No endpoint with required_roles found in NestJS controller!");
+        array.Count.Should().BeGreaterThan(0, "No endpoint with required_roles found in NestJS controller!");
 
         // Query public endpoint in NestJS
         var anonQuery =
@@ -192,8 +191,7 @@ export class PaymentsController {
 
         using var anonDoc = JsonDocument.Parse(anonRes);
 
-        Assert.That(anonDoc.RootElement.GetArrayLength(), Is.GreaterThan(0),
-            "NestJS @Public() endpoint not flagged as is_anonymous: true!");
+        anonDoc.RootElement.GetArrayLength().Should().BeGreaterThan(0, "NestJS @Public() endpoint not flagged as is_anonymous: true!");
     }
 
     [Test]
@@ -207,8 +205,7 @@ export class PaymentsController {
 
         var array = doc.RootElement.EnumerateArray().ToList();
 
-        Assert.That(array.Count, Is.GreaterThanOrEqualTo(3),
-            "Expected at least 3 endpoints from C#, Java, and NestJS");
+        array.Count.Should().BeGreaterThanOrEqualTo(3, "Expected at least 3 endpoints from C#, Java, and NestJS");
 
         var hasAnonymous = array.Any(x =>
             x.TryGetProperty("isAnonymous", out var prop) && (prop.ValueKind == JsonValueKind.True ||
@@ -219,7 +216,7 @@ export class PaymentsController {
             x.TryGetProperty("roles", out var prop) && prop.ValueKind == JsonValueKind.String &&
             !string.IsNullOrEmpty(prop.GetString()));
 
-        Assert.That(hasAnonymous, Is.True, "Security audit query should identify anonymous endpoints");
-        Assert.That(hasRoles, Is.True, "Security audit query should identify role-guarded endpoints");
+        hasAnonymous.Should().BeTrue("Security audit query should identify anonymous endpoints");
+        hasRoles.Should().BeTrue("Security audit query should identify role-guarded endpoints");
     }
 }

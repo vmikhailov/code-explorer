@@ -1,6 +1,7 @@
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Database;
 using NUnit.Framework;
+using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 
@@ -48,8 +49,8 @@ public class ArchitectureQueryServiceTests
             ViewType = ArchitectureViewType.SystemContext
         });
 
-        Assert.That(result, Is.Not.Null);
-        Assert.That(result.Nodes.Any(n => n.Name == "TestService"), Is.True);
+        result.Should().NotBeNull();
+        (result.Nodes.Any(n => n.Name == "TestService")).Should().BeTrue();
     }
 
     [Test]
@@ -62,8 +63,8 @@ public class ArchitectureQueryServiceTests
 
         var projects = await _service.GetAllProjectsAsync();
 
-        Assert.That(projects, Does.Contain("OrderService"));
-        Assert.That(projects, Does.Contain("BillingService"));
+        projects.Should().Contain("OrderService");
+        projects.Should().Contain("BillingService");
     }
 
     [Test]
@@ -80,9 +81,9 @@ public class ArchitectureQueryServiceTests
 
         var meta = await _service.GetMetadataAsync();
 
-        Assert.That(meta, Is.Not.Null);
-        Assert.That(meta.TotalNodes, Is.EqualTo(2));
-        Assert.That(meta.TotalEdges, Is.EqualTo(1));
+        meta.Should().NotBeNull();
+        meta.TotalNodes.Should().Be(2);
+        meta.TotalEdges.Should().Be(1);
     }
 
     [Test]
@@ -108,11 +109,11 @@ public class ArchitectureQueryServiceTests
 
         var result = await _service.GetNodeUsagesAsync("db1");
 
-        Assert.That(result, Is.Not.Null);
-        Assert.That(result.TargetName, Is.EqualTo("orders_db"));
-        Assert.That(result.Usages.Count, Is.GreaterThanOrEqualTo(3));
-        Assert.That(result.Usages.Any(u => u.SourceName == "OrderService" && u.Relationship == "USES_DB"), Is.True);
-        Assert.That(result.Usages.Any(u => u.SourceName == "BillingService" && u.Relationship == "USES_DB"), Is.True);
-        Assert.That(result.Usages.Any(u => u.SourceName == "OrderRepository.cs" && u.FilePath == "src/OrderRepository.cs"), Is.True);
+        result.Should().NotBeNull();
+        result.TargetName.Should().Be("orders_db");
+        result.Usages.Count.Should().BeGreaterThanOrEqualTo(3);
+        (result.Usages.Any(u => u.SourceName == "OrderService" && u.Relationship == "USES_DB")).Should().BeTrue();
+        (result.Usages.Any(u => u.SourceName == "BillingService" && u.Relationship == "USES_DB")).Should().BeTrue();
+        (result.Usages.Any(u => u.SourceName == "OrderRepository.cs" && u.FilePath == "src/OrderRepository.cs")).Should().BeTrue();
     }
 }

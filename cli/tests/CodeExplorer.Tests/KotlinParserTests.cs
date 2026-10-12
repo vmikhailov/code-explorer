@@ -3,6 +3,7 @@ using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Parser.Android;
 using CodeExplorer.Parser.Kotlin;
 using NUnit.Framework;
+using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 
@@ -72,27 +73,27 @@ public class KotlinParserTests
     public void Test_AndroidManifestParser_ExtractsMetadataAndDeepLinks()
     {
         var manifest = AndroidManifestParser.ParseContent(SampleAndroidManifest);
-        Assert.That(manifest, Is.Not.Null);
-        Assert.That(manifest!.AppLabel, Is.EqualTo("HearAI"));
-        Assert.That(manifest.Permissions, Contains.Item("android.permission.INTERNET"));
-        Assert.That(manifest.Permissions, Contains.Item("android.permission.RECORD_AUDIO"));
-        Assert.That(manifest.Permissions, Contains.Item("android.permission.POST_NOTIFICATIONS"));
+        manifest.Should().NotBeNull();
+        manifest!.AppLabel.Should().Be("HearAI");
+        manifest.Permissions.Should().Contain("android.permission.INTERNET");
+        manifest.Permissions.Should().Contain("android.permission.RECORD_AUDIO");
+        manifest.Permissions.Should().Contain("android.permission.POST_NOTIFICATIONS");
 
         // Activities
-        Assert.That(manifest.Activities.Count, Is.EqualTo(1));
+        manifest.Activities.Count.Should().Be(1);
         var act = manifest.Activities[0];
-        Assert.That(act.Name, Is.EqualTo(".MainActivity"));
-        Assert.That(act.IsLauncher, Is.True);
-        Assert.That(act.Exported, Is.True);
+        act.Name.Should().Be(".MainActivity");
+        act.IsLauncher.Should().BeTrue();
+        act.Exported.Should().BeTrue();
 
         // Deep links
-        Assert.That(manifest.DeepLinks.Count, Is.EqualTo(1));
+        manifest.DeepLinks.Count.Should().Be(1);
         var dl = manifest.DeepLinks[0];
-        Assert.That(dl.Scheme, Is.EqualTo("hearai"));
-        Assert.That(dl.ActivityName, Is.EqualTo(".MainActivity"));
+        dl.Scheme.Should().Be("hearai");
+        dl.ActivityName.Should().Be(".MainActivity");
 
         // Providers
-        Assert.That(manifest.Providers, Contains.Item("androidx.core.content.FileProvider"));
+        manifest.Providers.Should().Contain("androidx.core.content.FileProvider");
     }
 
     [Test]
@@ -107,22 +108,22 @@ public class KotlinParserTests
             await File.WriteAllTextAsync(manifestPath, SampleAndroidManifest);
 
             var parser = new AndroidManifestFileParser();
-            Assert.That(parser.CanParseFile("AndroidManifest.xml"), Is.True);
-            Assert.That(parser.CanParseFile("strings.xml"), Is.False);
+            parser.CanParseFile("AndroidManifest.xml").Should().BeTrue();
+            parser.CanParseFile("strings.xml").Should().BeFalse();
 
             var syntaxTree = await parser.ParseAsync(manifestPath, "parent", "test-ws", tempDir);
-            Assert.That(syntaxTree.FileNode, Is.Not.Null);
+            syntaxTree.FileNode.Should().NotBeNull();
 
             var entryPoints = syntaxTree.FileNode.Children.OfType<EntryPointNode>().ToList();
             var endpoints = syntaxTree.FileNode.Children.OfType<EndpointNode>().ToList();
 
-            Assert.That(entryPoints.Any(ep => ep.EntryType == "activity" && ep.Name.Contains("MainActivity")), Is.True);
-            Assert.That(entryPoints.Any(ep => ep.EntryType == "provider" && ep.Name.Contains("FileProvider")), Is.True);
+            (entryPoints.Any(ep => ep.EntryType == "activity" && ep.Name.Contains("MainActivity"))).Should().BeTrue();
+            (entryPoints.Any(ep => ep.EntryType == "provider" && ep.Name.Contains("FileProvider"))).Should().BeTrue();
 
-            Assert.That(endpoints.Count, Is.EqualTo(1));
+            endpoints.Count.Should().Be(1);
             var deepLinkEp = endpoints[0];
-            Assert.That(deepLinkEp.Protocol, Is.EqualTo("DeepLink"));
-            Assert.That(deepLinkEp.RouteTemplate, Contains.Substring("hearai://"));
+            deepLinkEp.Protocol.Should().Be("DeepLink");
+            deepLinkEp.RouteTemplate.Should().Contain("hearai://");
         }
         finally
         {
@@ -142,31 +143,31 @@ public class KotlinParserTests
             await File.WriteAllTextAsync(ktPath, SampleMainActivityKt);
 
             var parser = new KotlinFileParser();
-            Assert.That(parser.CanParse(".kt"), Is.True);
-            Assert.That(parser.CanParse(".kts"), Is.True);
-            Assert.That(parser.CanParse(".java"), Is.False);
+            parser.CanParse(".kt").Should().BeTrue();
+            parser.CanParse(".kts").Should().BeTrue();
+            parser.CanParse(".java").Should().BeFalse();
 
             var syntaxTree = await parser.ParseAsync(ktPath, "parent", "test-ws", tempDir);
-            Assert.That(syntaxTree.FileNode, Is.Not.Null);
+            syntaxTree.FileNode.Should().NotBeNull();
 
             // Classes
             var typeNodes = syntaxTree.FileNode.Children.OfType<TypeNode>().ToList();
-            Assert.That(typeNodes.Count, Is.EqualTo(1));
+            typeNodes.Count.Should().Be(1);
             var mainActivityClass = typeNodes[0];
-            Assert.That(mainActivityClass.Name, Is.EqualTo("MainActivity"));
-            Assert.That(mainActivityClass.Extensions?["extends"], Is.EqualTo("FlutterActivity"));
+            mainActivityClass.Name.Should().Be("MainActivity");
+            mainActivityClass.Extensions?["extends"].Should().Be("FlutterActivity");
 
             // Methods
             var methods = mainActivityClass.Children.OfType<FunctionNode>().Select(f => f.Name).ToList();
-            Assert.That(methods, Contains.Item("onCreate"));
-            Assert.That(methods, Contains.Item("onNewIntent"));
-            Assert.That(methods, Contains.Item("installApk"));
+            methods.Should().Contain("onCreate");
+            methods.Should().Contain("onNewIntent");
+            methods.Should().Contain("installApk");
 
             // MethodChannels
             var channels = syntaxTree.FileNode.Children.OfType<EntryPointNode>().Where(ep => ep.EntryType == "channel").ToList();
             var channelNames = channels.Select(c => c.Name).ToList();
-            Assert.That(channelNames, Contains.Item("MethodChannel hearai/apk_install"));
-            Assert.That(channelNames, Contains.Item("MethodChannel hearai/deep_link"));
+            channelNames.Should().Contain("MethodChannel hearai/apk_install");
+            channelNames.Should().Contain("MethodChannel hearai/deep_link");
         }
         finally
         {
@@ -233,26 +234,26 @@ public class KotlinParserTests
 
             // Root container should NOT be detected as project
             var rootFiles = Directory.GetFiles(tempDir);
-            Assert.That(parser.IsProjectDirectory(tempDir, rootFiles), Is.False, "Root Gradle multi-project container should not be detected as project node");
+            parser.IsProjectDirectory(tempDir, rootFiles).Should().BeFalse("Root Gradle multi-project container should not be detected as project node");
 
             // Subproject :app SHOULD be detected as project
             var appFiles = Directory.GetFiles(appDir);
-            Assert.That(parser.IsProjectDirectory(appDir, appFiles), Is.True, ":app subproject should be detected as project");
+            parser.IsProjectDirectory(appDir, appFiles).Should().BeTrue(":app subproject should be detected as project");
 
             // Project name should be HearAI (Android)
             var projName = parser.GetProjectName(appDir, appFiles);
-            Assert.That(projName, Is.EqualTo("HearAI (Android)"));
+            projName.Should().Be("HearAI (Android)");
 
             // Manifest properties
             var props = parser.ExtractManifestProperties(appDir, appFiles);
-            Assert.That(props["manifest_type"], Is.EqualTo("mobile"));
-            Assert.That(props["framework"], Is.EqualTo("Flutter Android"));
-            Assert.That(props["sdk"], Is.EqualTo("Android"));
-            Assert.That(props["namespace"], Is.EqualTo("com.zenaptica.hearai"));
-            Assert.That(props["application_id"], Is.EqualTo("com.zenaptica.hearai"));
-            Assert.That(props["min_sdk"], Is.EqualTo("26"));
-            Assert.That(props["target_sdk"], Is.EqualTo("35"));
-            Assert.That(props["has_deep_links"], Is.EqualTo("true"));
+            props["manifest_type"].Should().Be("mobile");
+            props["framework"].Should().Be("Flutter Android");
+            props["sdk"].Should().Be("Android");
+            props["namespace"].Should().Be("com.zenaptica.hearai");
+            props["application_id"].Should().Be("com.zenaptica.hearai");
+            props["min_sdk"].Should().Be("26");
+            props["target_sdk"].Should().Be("35");
+            props["has_deep_links"].Should().Be("true");
         }
         finally
         {

@@ -6,6 +6,7 @@ using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Protocol;
 using CodeExplorer.Parser.TypeScript;
 using NUnit.Framework;
+using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 
@@ -75,7 +76,7 @@ public class WebSocketServerTests
             }
         }
 
-        Assert.That(available, Is.True, $"WebSocket server failed to start within timeout on port {TestPort}");
+        available.Should().BeTrue($"WebSocket server failed to start within timeout on port {TestPort}");
     }
 
     [OneTimeTearDown]
@@ -116,14 +117,14 @@ public class WebSocketServerTests
     public async Task Test_HttpEndpoints_ReturnValidStatusAndArchitecture()
     {
         var statusRes = await _httpClient!.GetAsync($"http://127.0.0.1:{TestPort}/api/status");
-        Assert.That(statusRes.IsSuccessStatusCode, Is.True);
+        statusRes.IsSuccessStatusCode.Should().BeTrue();
         var statusJson = await statusRes.Content.ReadAsStringAsync();
-        Assert.That(statusJson, Does.Contain("ok"));
+        statusJson.Should().Contain("ok");
 
         var archRes = await _httpClient!.GetAsync($"http://127.0.0.1:{TestPort}/api/architecture");
-        Assert.That(archRes.IsSuccessStatusCode, Is.True);
+        archRes.IsSuccessStatusCode.Should().BeTrue();
         var archJson = await archRes.Content.ReadAsStringAsync();
-        Assert.That(archJson, Does.Contain("nodes"));
+        archJson.Should().Contain("nodes");
     }
 
     [Test]
@@ -132,7 +133,7 @@ public class WebSocketServerTests
         using var ws = new ClientWebSocket();
 
         await ws.ConnectAsync(new Uri($"ws://127.0.0.1:{TestPort}/ws"), CancellationToken.None);
-        Assert.That(ws.State, Is.EqualTo(WebSocketState.Open));
+        ws.State.Should().Be(WebSocketState.Open);
 
         var req = new WsEnvelope<HandshakeRequestDto>
         {
@@ -144,11 +145,11 @@ public class WebSocketServerTests
         await SendJsonAsync(ws, req);
         var response = await ReceiveJsonAsync<HandshakeResponseDto>(ws);
 
-        Assert.That(response, Is.Not.Null);
-        Assert.That(response.Type, Is.EqualTo(WsMessageTypes.HandshakeResponse));
-        Assert.That(response.RequestId, Is.EqualTo("test-handshake-1"));
-        Assert.That(response.Payload?.Capabilities, Does.Contain("architecture"));
-        Assert.That(response.Payload?.Capabilities, Does.Contain("cypher"));
+        response.Should().NotBeNull();
+        response.Type.Should().Be(WsMessageTypes.HandshakeResponse);
+        response.RequestId.Should().Be("test-handshake-1");
+        response.Payload?.Capabilities.Should().Contain("architecture");
+        response.Payload?.Capabilities.Should().Contain("cypher");
 
         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
     }
@@ -170,10 +171,10 @@ public class WebSocketServerTests
         await SendJsonAsync(ws, req);
         var response = await ReceiveJsonAsync<PongResponseDto>(ws);
 
-        Assert.That(response, Is.Not.Null);
-        Assert.That(response.Type, Is.EqualTo(WsMessageTypes.PongResponse));
-        Assert.That(response.Payload?.ClientTimestamp, Is.EqualTo(123456789));
-        Assert.That(response.Payload?.ServerTimestamp, Is.GreaterThan(0));
+        response.Should().NotBeNull();
+        response.Type.Should().Be(WsMessageTypes.PongResponse);
+        response.Payload?.ClientTimestamp.Should().Be(123456789);
+        response.Payload?.ServerTimestamp.Should().BeGreaterThan(0);
 
         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
     }
@@ -195,11 +196,11 @@ public class WebSocketServerTests
         await SendJsonAsync(ws, req);
         var response = await ReceiveJsonAsync<QueryResponseDto>(ws);
 
-        Assert.That(response, Is.Not.Null);
-        Assert.That(response.Type, Is.EqualTo(WsMessageTypes.QueryResponse));
-        Assert.That(response.Payload?.Success, Is.True);
-        Assert.That(response.Payload?.Graph, Is.Not.Null);
-        Assert.That(response.Payload!.Graph!.Nodes, Is.Not.Empty);
+        response.Should().NotBeNull();
+        response.Type.Should().Be(WsMessageTypes.QueryResponse);
+        response.Payload?.Success.Should().BeTrue();
+        response.Payload?.Graph.Should().NotBeNull();
+        response.Payload!.Graph!.Nodes.Should().NotBeEmpty();
 
         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
     }
@@ -221,10 +222,10 @@ public class WebSocketServerTests
         await SendJsonAsync(ws, req);
         var response = await ReceiveJsonAsync<QueryResponseDto>(ws);
 
-        Assert.That(response, Is.Not.Null);
-        Assert.That(response.Type, Is.EqualTo(WsMessageTypes.QueryResponse));
-        Assert.That(response.Payload?.Success, Is.True);
-        Assert.That(response.Payload?.RawJson, Does.Contain("SampleProject"));
+        response.Should().NotBeNull();
+        response.Type.Should().Be(WsMessageTypes.QueryResponse);
+        response.Payload?.Success.Should().BeTrue();
+        response.Payload?.RawJson.Should().Contain("SampleProject");
 
         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
     }
@@ -246,18 +247,16 @@ public class WebSocketServerTests
         await SendJsonAsync(ws, req);
         var response = await ReceiveJsonAsync<QueryResponseDto>(ws);
 
-        Assert.That(response, Is.Not.Null);
-        Assert.That(response.Type, Is.EqualTo(WsMessageTypes.QueryResponse));
-        Assert.That(response.Payload?.Success, Is.True);
-        Assert.That(response.Payload?.Graph, Is.Not.Null);
+        response.Should().NotBeNull();
+        response.Type.Should().Be(WsMessageTypes.QueryResponse);
+        response.Payload?.Success.Should().BeTrue();
+        response.Payload?.Graph.Should().NotBeNull();
 
-        Assert.That(
-            response.Payload!.Graph!.Nodes.Any(n => n.Properties != null && n.Properties.ContainsKey("column")),
-            Is.True);
+        response.Payload!.Graph!.Nodes
+            .Any(n => n.Properties != null && n.Properties.ContainsKey("column")).Should().BeTrue();
 
-        Assert.That(
-            response.Payload.Graph.Metadata != null && response.Payload.Graph.Metadata.ContainsKey("allProjects"),
-            Is.True);
+        (response.Payload.Graph.Metadata != null && response.Payload.Graph.Metadata
+            .ContainsKey("allProjects")).Should().BeTrue();
 
         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
     }
@@ -278,7 +277,7 @@ public class WebSocketServerTests
         };
         await SendJsonAsync(ws, hsReq);
         var hsResp = await ReceiveJsonAsync<HandshakeResponseDto>(ws);
-        Assert.That(hsResp.Type, Is.EqualTo(WsMessageTypes.HandshakeResponse));
+        hsResp.Type.Should().Be(WsMessageTypes.HandshakeResponse);
 
         // 2. Trigger Scan Request
         var scanReq = new WsEnvelope<TriggerScanRequestDto>
@@ -291,15 +290,15 @@ public class WebSocketServerTests
 
         // 3. Receive QueryResponse acknowledging scan started
         var ackResp = await ReceiveJsonAsync<QueryResponseDto>(ws);
-        Assert.That(ackResp.Type, Is.EqualTo(WsMessageTypes.QueryResponse));
-        Assert.That(ackResp.Payload?.Success, Is.True);
-        Assert.That(ackResp.Payload?.RawJson, Does.Contain("scanning_started"));
+        ackResp.Type.Should().Be(WsMessageTypes.QueryResponse);
+        ackResp.Payload?.Success.Should().BeTrue();
+        ackResp.Payload?.RawJson.Should().Contain("scanning_started");
 
         // 4. Receive at least one ScanProgressEvent broadcast
         var progressEnvelope = await ReceiveJsonAsync<ScanProgressEventDto>(ws);
-        Assert.That(progressEnvelope.Type, Is.EqualTo(WsMessageTypes.ScanProgressEvent));
-        Assert.That(progressEnvelope.Payload, Is.Not.Null);
-        Assert.That(progressEnvelope.Payload!.Phase, Is.Not.Empty);
+        progressEnvelope.Type.Should().Be(WsMessageTypes.ScanProgressEvent);
+        progressEnvelope.Payload.Should().NotBeNull();
+        progressEnvelope.Payload!.Phase.Should().NotBeEmpty();
 
         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
     }

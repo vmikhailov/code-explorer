@@ -8,6 +8,7 @@ using CodeExplorer.Core.Parser.Components.Parsers;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.CSharp;
 using CodeExplorer.Parser.TypeScript;
+using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 
@@ -87,10 +88,10 @@ public class CatchClauseExtractionTests
             """;
 
         var catches = await ExtractTsCatchClausesAsync(code);
-        Assert.That(catches, Has.Count.EqualTo(1));
-        Assert.That(catches[0].IsEmpty, Is.True);
-        Assert.That(catches[0].HasComment, Is.False);
-        Assert.That(catches[0].StatementCount, Is.EqualTo(0));
+        catches.Should().HaveCount(1);
+        catches[0].IsEmpty.Should().BeTrue();
+        catches[0].HasComment.Should().BeFalse();
+        catches[0].StatementCount.Should().Be(0);
     }
 
     [Test]
@@ -109,9 +110,9 @@ public class CatchClauseExtractionTests
             """;
 
         var catches = await ExtractTsCatchClausesAsync(code);
-        Assert.That(catches, Has.Count.EqualTo(1));
-        Assert.That(catches[0].IsEmpty, Is.True);
-        Assert.That(catches[0].HasComment, Is.True);
+        catches.Should().HaveCount(1);
+        catches[0].IsEmpty.Should().BeTrue();
+        catches[0].HasComment.Should().BeTrue();
     }
 
     [Test]
@@ -130,9 +131,9 @@ public class CatchClauseExtractionTests
             """;
 
         var catches = await ExtractTsCatchClausesAsync(code);
-        Assert.That(catches, Has.Count.EqualTo(1));
-        Assert.That(catches[0].IsEmpty, Is.False);
-        Assert.That(catches[0].StatementCount, Is.GreaterThan(0));
+        catches.Should().HaveCount(1);
+        catches[0].IsEmpty.Should().BeFalse();
+        catches[0].StatementCount.Should().BeGreaterThan(0);
     }
 
     [Test]
@@ -150,7 +151,7 @@ public class CatchClauseExtractionTests
             """;
 
         var catches = await ExtractTsCatchClausesAsync(code, "worker.service.spec.ts");
-        Assert.That(catches, Is.Empty);
+        catches.Should().BeEmpty();
     }
 
     [Test]
@@ -173,10 +174,10 @@ public class CatchClauseExtractionTests
             """;
 
         var catches = await ExtractCsCatchClausesAsync(code);
-        Assert.That(catches, Has.Count.EqualTo(1));
-        Assert.That(catches[0].IsEmpty, Is.True);
-        Assert.That(catches[0].HasComment, Is.False);
-        Assert.That(catches[0].StatementCount, Is.EqualTo(0));
+        catches.Should().HaveCount(1);
+        catches[0].IsEmpty.Should().BeTrue();
+        catches[0].HasComment.Should().BeFalse();
+        catches[0].StatementCount.Should().Be(0);
     }
 
     [Test]
@@ -200,8 +201,8 @@ public class CatchClauseExtractionTests
             """;
 
         var catches = await ExtractCsCatchClausesAsync(code);
-        Assert.That(catches, Has.Count.EqualTo(1));
-        Assert.That(catches[0].IsEmpty, Is.True);
-        Assert.That(catches[0].HasComment, Is.True);
+        catches.Should().HaveCount(1);
+        catches[0].IsEmpty.Should().BeTrue();
+        catches[0].HasComment.Should().BeTrue();
     }
 }

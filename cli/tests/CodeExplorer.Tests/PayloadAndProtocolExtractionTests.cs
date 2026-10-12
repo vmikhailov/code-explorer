@@ -66,10 +66,10 @@ public class RideController : ControllerBase
 
         var result = await client.ExecuteQueryAsync(
             "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.http_method AS method, ep.protocol AS protocol, ep.request_type AS req, ep.response_type AS resp");
-        Assert.That(result, Does.Contain("POST"));
-        Assert.That(result, Does.Contain("REST"));
-        Assert.That(result, Does.Contain("StartRideRequest"));
-        Assert.That(result, Does.Contain("RideDto"));
+        result.Should().Contain("POST");
+        result.Should().Contain("REST");
+        result.Should().Contain("StartRideRequest");
+        result.Should().Contain("RideDto");
     }
 
     [Test]
@@ -110,10 +110,10 @@ public class RideMutations
 
         var result = await client.ExecuteQueryAsync(
             "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.protocol AS protocol, ep.operation_type AS op, ep.request_type AS req, ep.response_type AS resp");
-        Assert.That(result, Does.Contain("GraphQL"));
-        Assert.That(result, Does.Contain("Mutation"));
-        Assert.That(result, Does.Contain("StartRideInput"));
-        Assert.That(result, Does.Contain("RidePayload"));
+        result.Should().Contain("GraphQL");
+        result.Should().Contain("Mutation");
+        result.Should().Contain("StartRideInput");
+        result.Should().Contain("RidePayload");
     }
 
     [Test]
@@ -151,10 +151,10 @@ public class OrderGrpcService : OrderServiceBase
 
         var result = await client.ExecuteQueryAsync(
             "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.protocol AS protocol, ep.operation_type AS op, ep.request_type AS req, ep.response_type AS resp");
-        Assert.That(result, Does.Contain("gRPC"));
-        Assert.That(result, Does.Contain("Unary"));
-        Assert.That(result, Does.Contain("CreateOrderRequest"));
-        Assert.That(result, Does.Contain("OrderResponse"));
+        result.Should().Contain("gRPC");
+        result.Should().Contain("Unary");
+        result.Should().Contain("CreateOrderRequest");
+        result.Should().Contain("OrderResponse");
     }
 
     [Test]
@@ -202,10 +202,10 @@ public class RideGraphQlController {
 
         var result = await client.ExecuteQueryAsync(
             "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.protocol AS protocol, ep.request_type AS req, ep.response_type AS resp");
-        Assert.That(result, Does.Contain("REST"));
-        Assert.That(result, Does.Contain("GraphQL"));
-        Assert.That(result, Does.Contain("StartRideRequest"));
-        Assert.That(result, Does.Contain("RideDto"));
+        result.Should().Contain("REST");
+        result.Should().Contain("GraphQL");
+        result.Should().Contain("StartRideRequest");
+        result.Should().Contain("RideDto");
     }
 
     [Test]
@@ -258,11 +258,11 @@ export class RidesGrpcService {
 
         var result = await client.ExecuteQueryAsync(
             "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.protocol AS protocol, ep.request_type AS req, ep.response_type AS resp ORDER BY ep.protocol");
-        Assert.That(result, Does.Contain("REST"));
-        Assert.That(result, Does.Contain("GraphQL"));
-        Assert.That(result, Does.Contain("gRPC"));
-        Assert.That(result, Does.Contain("StartRideDto"));
-        Assert.That(result, Does.Contain("RideResultDto"));
+        result.Should().Contain("REST");
+        result.Should().Contain("GraphQL");
+        result.Should().Contain("gRPC");
+        result.Should().Contain("StartRideDto");
+        result.Should().Contain("RideResultDto");
     }
 
     [Test]
@@ -276,6 +276,7 @@ export class RidesGrpcService {
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Http;
+using AwesomeAssertions;
 
 namespace Directives;
 
@@ -308,12 +309,12 @@ public static class DirectivesHandlers
         var result =
             await client.ExecuteQueryAsync(
                 "MATCH (ep:Endpoint) RETURN ep.name AS name, ep.route AS route ORDER BY ep.route");
-        Assert.That(result, Does.Contain("/directives"));
-        Assert.That(result, Does.Contain("/directives/create"));
+        result.Should().Contain("/directives");
+        result.Should().Contain("/directives/create");
 
         var triggersResult = await client.ExecuteQueryAsync(
             "MATCH (ep:Endpoint)-[:TRIGGERS]->(fn:Function) RETURN ep.name AS epName, fn.name AS fnName");
-        Assert.That(triggersResult, Does.Contain("GetAll"));
+        triggersResult.Should().Contain("GetAll");
     }
 }
 

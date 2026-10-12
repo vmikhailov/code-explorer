@@ -3,6 +3,7 @@ using CodeExplorer.Core.Diagrams;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Parser.CSharp;
 using NUnit.Framework;
+using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 
@@ -72,59 +73,59 @@ public class DiagramExportTests
     public async Task Test_ExportMermaidArchitecture()
     {
         var mermaid = await DiagramExporter.ExportAsync(_client, format: "mermaid", type: "architecture");
-        Assert.That(mermaid, Does.StartWith("flowchart TD"));
-        Assert.That(mermaid, Does.Contain("OrderService"));
-        Assert.That(mermaid, Does.Not.Contain("CommonUtils"));
-        Assert.That(mermaid, Does.Contain("Postgres").IgnoreCase);
-        Assert.That(mermaid, Does.Contain("Stripe"));
+        mermaid.Should().StartWith("flowchart TD");
+        mermaid.Should().Contain("OrderService");
+        mermaid.Should().NotContain("CommonUtils");
+        mermaid.Should().ContainEquivalentOf("Postgres");
+        mermaid.Should().Contain("Stripe");
     }
 
     [Test]
     public async Task Test_ExportMermaidArchitecture_WithLibraries_IncludesLibrariesSubgraph()
     {
         var mermaid = await DiagramExporter.ExportAsync(_client, format: "mermaid", type: "architecture", includeLibraries: true);
-        Assert.That(mermaid, Does.StartWith("flowchart TD"));
-        Assert.That(mermaid, Does.Contain("OrderService"));
-        Assert.That(mermaid, Does.Contain("CommonUtils"));
-        Assert.That(mermaid, Does.Contain("subgraph Libraries [Shared Libraries & SDKs]"));
+        mermaid.Should().StartWith("flowchart TD");
+        mermaid.Should().Contain("OrderService");
+        mermaid.Should().Contain("CommonUtils");
+        mermaid.Should().Contain("subgraph Libraries [Shared Libraries & SDKs]");
     }
 
     [Test]
     public async Task Test_ExportC4Architecture()
     {
         var c4 = await DiagramExporter.ExportAsync(_client, format: "c4", type: "architecture");
-        Assert.That(c4, Does.StartWith("C4Container"));
-        Assert.That(c4, Does.Contain("Container("));
-        Assert.That(c4, Does.Not.Contain("CommonUtils"));
-        Assert.That(c4, Does.Contain("ContainerDb("));
+        c4.Should().StartWith("C4Container");
+        c4.Should().Contain("Container(");
+        c4.Should().NotContain("CommonUtils");
+        c4.Should().Contain("ContainerDb(");
     }
 
     [Test]
     public async Task Test_ExportC4Architecture_WithLibraries()
     {
         var c4 = await DiagramExporter.ExportAsync(_client, format: "c4", type: "architecture", includeLibraries: true);
-        Assert.That(c4, Does.StartWith("C4Container"));
-        Assert.That(c4, Does.Contain("Container("));
-        Assert.That(c4, Does.Contain("CommonUtils"));
-        Assert.That(c4, Does.Contain("Shared Library"));
+        c4.Should().StartWith("C4Container");
+        c4.Should().Contain("Container(");
+        c4.Should().Contain("CommonUtils");
+        c4.Should().Contain("Shared Library");
     }
 
     [Test]
     public async Task Test_ExportDataLineage()
     {
         var lineage = await DiagramExporter.ExportAsync(_client, format: "mermaid", type: "lineage");
-        Assert.That(lineage, Does.StartWith("flowchart LR"));
-        Assert.That(lineage, Does.Contain("Order"));
-        Assert.That(lineage, Does.Contain("orders"));
-        Assert.That(lineage, Does.Contain("PERSISTED_IN"));
+        lineage.Should().StartWith("flowchart LR");
+        lineage.Should().Contain("Order");
+        lineage.Should().Contain("orders");
+        lineage.Should().Contain("PERSISTED_IN");
     }
 
     [Test]
     public async Task Test_ExportDomainMermaid()
     {
         var domain = await DiagramExporter.ExportAsync(_client, format: "mermaid", type: "domain");
-        Assert.That(domain, Does.StartWith("flowchart TD"));
-        Assert.That(domain, Does.Contain("Databases"));
-        Assert.That(domain, Does.Contain("OrderService").IgnoreCase);
+        domain.Should().StartWith("flowchart TD");
+        domain.Should().Contain("Databases");
+        domain.Should().ContainEquivalentOf("OrderService");
     }
 }

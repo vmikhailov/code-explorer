@@ -48,6 +48,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
 using Orleans;
+using AwesomeAssertions;
 
 namespace SampleApp;
 
@@ -121,8 +122,7 @@ public class GameController : ControllerBase
 
             using var grainDoc = JsonDocument.Parse(grainRes);
 
-            Assert.That(grainDoc.RootElement.GetArrayLength(), Is.GreaterThan(0),
-                "Orleans Grain GameSessionGrain should be detected as EntryPoint");
+            grainDoc.RootElement.GetArrayLength().Should().BeGreaterThan(0, "Orleans Grain GameSessionGrain should be detected as EntryPoint");
 
             // Verify no phantom controller endpoint for class
             var phantomRes =
@@ -131,8 +131,7 @@ public class GameController : ControllerBase
 
             using var phantomDoc = JsonDocument.Parse(phantomRes);
 
-            Assert.That(phantomDoc.RootElement.GetArrayLength(), Is.EqualTo(0),
-                "Phantom GET:/api/Game endpoint should NOT exist");
+            phantomDoc.RootElement.GetArrayLength().Should().Be(0, "Phantom GET:/api/Game endpoint should NOT exist");
 
             // Verify real endpoint with trimmed Async
             var methodEndpointRes =
@@ -141,8 +140,7 @@ public class GameController : ControllerBase
 
             using var methodDoc = JsonDocument.Parse(methodEndpointRes);
 
-            Assert.That(methodDoc.RootElement.GetArrayLength(), Is.GreaterThan(0),
-                "Endpoint for connect should exist");
+            methodDoc.RootElement.GetArrayLength().Should().BeGreaterThan(0, "Endpoint for connect should exist");
 
             // Verify no Table named 'DbSet'
             var dbSetTableRes = await client.ExecuteQueryAsync(
@@ -150,8 +148,7 @@ public class GameController : ControllerBase
 
             using var dbSetDoc = JsonDocument.Parse(dbSetTableRes);
 
-            Assert.That(dbSetDoc.RootElement.GetArrayLength(), Is.EqualTo(0),
-                "Table named DbSet should NOT exist");
+            dbSetDoc.RootElement.GetArrayLength().Should().Be(0, "Table named DbSet should NOT exist");
 
             // Verify real Table 'Orders' exists
             var ordersTableRes =
@@ -160,8 +157,7 @@ public class GameController : ControllerBase
 
             using var ordersDoc = JsonDocument.Parse(ordersTableRes);
 
-            Assert.That(ordersDoc.RootElement.GetArrayLength(), Is.GreaterThan(0),
-                "Table Orders should exist");
+            ordersDoc.RootElement.GetArrayLength().Should().BeGreaterThan(0, "Table Orders should exist");
 
             // Verify MongoDB collection table
             var mongoTableRes = await client.ExecuteQueryAsync(
@@ -169,8 +165,7 @@ public class GameController : ControllerBase
 
             using var mongoDoc = JsonDocument.Parse(mongoTableRes);
 
-            Assert.That(mongoDoc.RootElement.GetArrayLength(), Is.GreaterThan(0),
-                "MongoDB table orders_collection should exist");
+            mongoDoc.RootElement.GetArrayLength().Should().BeGreaterThan(0, "MongoDB table orders_collection should exist");
         }
         finally
         {

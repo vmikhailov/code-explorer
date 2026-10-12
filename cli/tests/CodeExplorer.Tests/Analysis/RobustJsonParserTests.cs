@@ -1,5 +1,6 @@
 using CodeExplorer.Core.Analysis;
 using NUnit.Framework;
+using AwesomeAssertions;
 
 namespace CodeExplorer.Tests.Analysis;
 
@@ -13,7 +14,7 @@ public class RobustJsonParserTests
     {
         var input = """{"name": "test", "value": 42}""";
         var result = RobustJsonParser.CleanAndHealJson(input);
-        Assert.That(result, Is.EqualTo(input));
+        result.Should().Be(input);
     }
 
     [Test]
@@ -28,9 +29,9 @@ public class RobustJsonParserTests
             ```
             """;
         var result = RobustJsonParser.Deserialize<SampleModel>(input);
-        Assert.That(result, Is.Not.Null);
-        Assert.That(result!.Name, Is.EqualTo("test"));
-        Assert.That(result.Value, Is.EqualTo(42));
+        result.Should().NotBeNull();
+        result!.Name.Should().Be("test");
+        result.Value.Should().Be(42);
     }
 
     [Test]
@@ -47,9 +48,9 @@ public class RobustJsonParserTests
             }
             """;
         var result = RobustJsonParser.Deserialize<SampleModel>(input);
-        Assert.That(result, Is.Not.Null);
-        Assert.That(result!.Name, Is.EqualTo("Billing"));
-        Assert.That(result.Value, Is.EqualTo(100));
+        result.Should().NotBeNull();
+        result!.Name.Should().Be("Billing");
+        result.Value.Should().Be(100);
     }
 
     [Test]
@@ -65,9 +66,9 @@ public class RobustJsonParserTests
             I hope this meets your architectural requirements! Let me know if you need more.
             """;
         var result = RobustJsonParser.Deserialize<SampleModel>(input);
-        Assert.That(result, Is.Not.Null);
-        Assert.That(result!.Name, Is.EqualTo("Core"));
-        Assert.That(result.Items, Has.Count.EqualTo(2));
+        result.Should().NotBeNull();
+        result!.Name.Should().Be("Core");
+        result.Items.Should().HaveCount(2);
     }
 
     [Test]
@@ -84,9 +85,9 @@ public class RobustJsonParserTests
             }
             """;
         var result = RobustJsonParser.Deserialize<SampleModel>(input);
-        Assert.That(result, Is.Not.Null);
-        Assert.That(result!.Name, Is.EqualTo("Trailing"));
-        Assert.That(result.Items, Has.Count.EqualTo(2));
+        result.Should().NotBeNull();
+        result!.Name.Should().Be("Trailing");
+        result.Items.Should().HaveCount(2);
     }
 
     [Test]
@@ -102,9 +103,9 @@ public class RobustJsonParserTests
             }
             """;
         var result = RobustJsonParser.Deserialize<SampleModel>(input);
-        Assert.That(result, Is.Not.Null);
-        Assert.That(result!.Name, Is.EqualTo("Commented"));
-        Assert.That(result.Value, Is.EqualTo(12));
+        result.Should().NotBeNull();
+        result!.Name.Should().Be("Commented");
+        result.Value.Should().Be(12);
     }
 
     [Test]
@@ -119,7 +120,7 @@ public class RobustJsonParserTests
                     "ite
             """;
         var result = RobustJsonParser.Deserialize<SampleModel>(input);
-        Assert.That(result, Is.Not.Null);
-        Assert.That(result!.Name, Is.EqualTo("Truncated"));
+        result.Should().NotBeNull();
+        result!.Name.Should().Be("Truncated");
     }
 }

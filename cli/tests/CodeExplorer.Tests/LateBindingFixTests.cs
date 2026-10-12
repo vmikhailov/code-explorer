@@ -2,6 +2,7 @@ using System.Reflection;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser.Layers;
 using NUnit.Framework;
+using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 
@@ -42,17 +43,17 @@ public class LateBindingFixTests
     public void MatchPaths_WildcardAgainstParam_DoesNotMatch()
     {
         // Previously "*" matched "/:source_id" because :source_id was turned to *
-        Assert.That(InvokeMatchPaths("*", ":source_id"), Is.False);
-        Assert.That(InvokeMatchPaths("anything", ":source_id"), Is.False);
-        Assert.That(InvokeMatchPaths("*", "logs"), Is.False);
+        InvokeMatchPaths("*", ":source_id").Should().BeFalse();
+        InvokeMatchPaths("anything", ":source_id").Should().BeFalse();
+        InvokeMatchPaths("*", "logs").Should().BeFalse();
     }
 
     [Test]
     public void MatchPaths_ConcreteMatchingSegments_Matches()
     {
-        Assert.That(InvokeMatchPaths("/api/users/:id", "/api/users/123"), Is.True);
-        Assert.That(InvokeMatchPaths("/api/users/123", "/api/users/:id"), Is.True);
-        Assert.That(InvokeMatchPaths("/api/users/:id", "/api/orders/:id"), Is.False);
+        InvokeMatchPaths("/api/users/:id", "/api/users/123").Should().BeTrue();
+        InvokeMatchPaths("/api/users/123", "/api/users/:id").Should().BeTrue();
+        InvokeMatchPaths("/api/users/:id", "/api/orders/:id").Should().BeFalse();
     }
 
     [Test]
@@ -73,7 +74,7 @@ public class LateBindingFixTests
             "PUT",
             "/:source_id");
 
-        Assert.That(InvokeIsMatch(extService, endpoint), Is.False);
+        InvokeIsMatch(extService, endpoint).Should().BeFalse();
     }
 
     [Test]
@@ -94,7 +95,7 @@ public class LateBindingFixTests
             "GET",
             "/ping");
 
-        Assert.That(InvokeIsMatch(extService, endpoint), Is.False);
+        InvokeIsMatch(extService, endpoint).Should().BeFalse();
     }
 
     [Test]
@@ -115,14 +116,14 @@ public class LateBindingFixTests
             "POST",
             "orders/charge");
 
-        Assert.That(InvokeIsMatch(extService, endpoint), Is.True);
+        InvokeIsMatch(extService, endpoint).Should().BeTrue();
     }
 
     [Test]
     public void MatchPaths_TrailingSuffixWithParameterVariance_Matches()
     {
-        Assert.That(InvokeMatchPaths("/api/bundles/:bundleId/single-stages", "/:bundle_id/single-stages"), Is.True);
-        Assert.That(InvokeMatchPaths("/api/v1/timetables/negative-profit-history", "/timetables/negative-profit-history"), Is.True);
+        InvokeMatchPaths("/api/bundles/:bundleId/single-stages", "/:bundle_id/single-stages").Should().BeTrue();
+        InvokeMatchPaths("/api/v1/timetables/negative-profit-history", "/timetables/negative-profit-history").Should().BeTrue();
     }
 
     [Test]
@@ -143,7 +144,7 @@ public class LateBindingFixTests
             "GET",
             "/:bundle_id/single-stages");
 
-        Assert.That(InvokeIsMatch(extService, endpoint), Is.True);
+        InvokeIsMatch(extService, endpoint).Should().BeTrue();
     }
 
     [Test]
@@ -168,13 +169,13 @@ public class LateBindingFixTests
 
         Core.Parser.RouteDictionaryRegistry.ScanAndRegister(code);
 
-        Assert.That(Core.Parser.RouteDictionaryRegistry.TryResolve("SINGLE_STAGE", out var path, out var service), Is.True);
-        Assert.That(path, Is.EqualTo("/api/bundles/:bundleId/single-stages"));
-        Assert.That(service, Is.EqualTo("bundles"));
+        Core.Parser.RouteDictionaryRegistry.TryResolve("SINGLE_STAGE", out var path, out var service).Should().BeTrue();
+        path.Should().Be("/api/bundles/:bundleId/single-stages");
+        service.Should().Be("bundles");
 
-        Assert.That(Core.Parser.RouteDictionaryRegistry.TryResolve("BUY_DOMAIN", out var buyPath, out var buyService), Is.True);
-        Assert.That(buyPath, Is.EqualTo("/api/v1/domains/buy-domain"));
-        Assert.That(buyService, Is.EqualTo("domain-v2"));
+        Core.Parser.RouteDictionaryRegistry.TryResolve("BUY_DOMAIN", out var buyPath, out var buyService).Should().BeTrue();
+        buyPath.Should().Be("/api/v1/domains/buy-domain");
+        buyService.Should().Be("domain-v2");
     }
 
     [Test]
@@ -210,10 +211,10 @@ public class LateBindingFixTests
             "go");
 
         // Should NOT match cpm-streaming-aggregator because domain is 'environment.bff'
-        Assert.That(InvokeIsMatch(bffCall, cpmEndpoint, cpmProject), Is.False);
+        InvokeIsMatch(bffCall, cpmEndpoint, cpmProject).Should().BeFalse();
 
         // Should match bff project
-        Assert.That(InvokeIsMatch(bffCall, cpmEndpoint, bffProject), Is.True);
+        InvokeIsMatch(bffCall, cpmEndpoint, bffProject).Should().BeTrue();
     }
 
     [Test]
@@ -240,16 +241,16 @@ public class LateBindingFixTests
             "cf-gateway",
             "ts");
 
-        Assert.That(InvokeIsMatch(cloudflareCall, cfGatewayEndpoint, cfGatewayProj), Is.False);
+        InvokeIsMatch(cloudflareCall, cfGatewayEndpoint, cfGatewayProj).Should().BeFalse();
     }
 
     [Test]
     public void MatchPaths_ArbitraryPathSubresource_DoesNotMatch()
     {
         // /add should NOT match /lander-skins/add
-        Assert.That(InvokeMatchPaths("/add", "/lander-skins/add"), Is.False);
-        Assert.That(InvokeMatchPaths("/pause", "/:bundle_ids/pause"), Is.False);
-        Assert.That(InvokeMatchPaths("/status", "/safebrowsing/status"), Is.False);
+        InvokeMatchPaths("/add", "/lander-skins/add").Should().BeFalse();
+        InvokeMatchPaths("/pause", "/:bundle_ids/pause").Should().BeFalse();
+        InvokeMatchPaths("/status", "/safebrowsing/status").Should().BeFalse();
     }
 
     [Test]
@@ -270,7 +271,7 @@ public class LateBindingFixTests
             "GET",
             "/api/v1");
 
-        Assert.That(InvokeIsMatch(extService, prefixEndpoint), Is.False);
+        InvokeIsMatch(extService, prefixEndpoint).Should().BeFalse();
     }
 
     [Test]
@@ -291,6 +292,6 @@ public class LateBindingFixTests
             "GET",
             "/api");
 
-        Assert.That(InvokeIsMatch(extService, prefixEndpoint), Is.False);
+        InvokeIsMatch(extService, prefixEndpoint).Should().BeFalse();
     }
 }

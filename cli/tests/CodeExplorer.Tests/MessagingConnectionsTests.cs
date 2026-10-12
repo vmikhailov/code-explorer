@@ -4,6 +4,7 @@ using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using NUnit.Framework;
+using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 
@@ -23,15 +24,15 @@ public class MessagingConnectionsTests
         var symId = "custom_ws:symbol:services/order/Controllers/OrderController.cs:Method:PostOrder:42";
         var owner = PostIndexAnalyzer.FindOwningProjectForId(symId, projects);
 
-        Assert.That(owner, Is.Not.Null);
-        Assert.That(owner!.Name, Is.EqualTo("OrderService"));
+        owner.Should().NotBeNull();
+        owner!.Name.Should().Be("OrderService");
 
         // File from BillingService with custom workspace ID
         var fileId = "custom_ws:file:services/billing/Consumers/PaymentConsumer.cs";
         var fileOwner = PostIndexAnalyzer.FindOwningProjectForId(fileId, projects);
 
-        Assert.That(fileOwner, Is.Not.Null);
-        Assert.That(fileOwner!.Name, Is.EqualTo("BillingService"));
+        fileOwner.Should().NotBeNull();
+        fileOwner!.Name.Should().Be("BillingService");
     }
 
     [Test]
@@ -44,8 +45,8 @@ public class MessagingConnectionsTests
         var symId = "ws1:symbol:src/Handlers/EventHandler.cs:Method:Handle:15";
         var owner = PostIndexAnalyzer.FindOwningProjectForId(symId, projects);
 
-        Assert.That(owner, Is.Not.Null);
-        Assert.That(owner!.Name, Is.EqualTo("RootApp"));
+        owner.Should().NotBeNull();
+        owner!.Name.Should().Be("RootApp");
     }
 
     [Test]
@@ -59,7 +60,7 @@ public class MessagingConnectionsTests
         var foreignFileId = "ws:file:cpm-streaming-aggregator/internal/repository/clickhouse_analytics.go";
         var owner = PostIndexAnalyzer.FindOwningProjectForId(foreignFileId, singleProject);
 
-        Assert.That(owner, Is.Null, "Foreign files outside project directory must not match just because single project was passed");
+        owner.Should().BeNull("Foreign files outside project directory must not match just because single project was passed");
     }
 
     [Test]
@@ -71,14 +72,14 @@ public class MessagingConnectionsTests
         var packageId = "ws:pkg:gradle:com.android.tools:desugar_jdk_libs";
         var owner = PostIndexAnalyzer.FindOwningProjectForId(packageId, projects);
 
-        Assert.That(owner, Is.Null, "Package URNs must never be resolved to an internal project");
+        owner.Should().BeNull("Package URNs must never be resolved to an internal project");
 
         var graphProjects = new List<Core.Protocol.GraphNodeDto>
         {
             new() { Id = "ws:project:root:", Name = "RootApp", FilePath = "" }
         };
         var graphOwner = Core.Analysis.ArchitectureViewEngine.FindOwningProject(packageId, graphProjects);
-        Assert.That(graphOwner, Is.Null, "ArchitectureViewEngine must never map a package node to an internal project");
+        graphOwner.Should().BeNull("ArchitectureViewEngine must never map a package node to an internal project");
     }
 
     [Test]
@@ -89,14 +90,14 @@ public class MessagingConnectionsTests
 
         var extId = "ws:externalservice:http:api.stripe.com";
         var owner = PostIndexAnalyzer.FindOwningProjectForId(extId, projects);
-        Assert.That(owner, Is.Null, "External services must never be resolved to an internal project");
+        owner.Should().BeNull("External services must never be resolved to an internal project");
 
         var graphProjects = new List<Core.Protocol.GraphNodeDto>
         {
             new() { Id = "ws:project:root:", Name = "RootApp", FilePath = "" }
         };
         var graphOwner = Core.Analysis.ArchitectureViewEngine.FindOwningProject(extId, graphProjects);
-        Assert.That(graphOwner, Is.Null);
+        graphOwner.Should().BeNull();
     }
 
     [Test]
@@ -109,26 +110,26 @@ public class MessagingConnectionsTests
         };
 
         var appMatch = PostIndexAnalyzer.FindMatchingServiceProject("app", projects);
-        Assert.That(appMatch, Is.Null, "Keyword 'app' must never match an internal app subfolder");
+        appMatch.Should().BeNull("Keyword 'app' must never match an internal app subfolder");
 
         var apiMatch = PostIndexAnalyzer.FindMatchingServiceProject("api", projects);
-        Assert.That(apiMatch, Is.Null, "Keyword 'api' must never match generic projects");
+        apiMatch.Should().BeNull("Keyword 'api' must never match generic projects");
 
-        Assert.That(PostIndexAnalyzer.IsGarbageExternalService("app"), Is.True);
+        PostIndexAnalyzer.IsGarbageExternalService("app").Should().BeTrue();
     }
 
     [Test]
     public void Test_NormalizeEdges_PreservesIncomingAndOutgoingMessaging()
     {
         var (inCat, inDep, inKind) = PostIndexAnalyzer.NormalizeEdgeCategory("TRIGGERS", "Topic", "Project", null, null, false);
-        Assert.That(inCat, Is.EqualTo("messaging"));
-        Assert.That(inKind, Is.EqualTo("SUBSCRIBES_TO"));
-        Assert.That(inDep, Is.EqualTo("messaging"));
+        inCat.Should().Be("messaging");
+        inKind.Should().Be("SUBSCRIBES_TO");
+        inDep.Should().Be("messaging");
 
         var (outCat, outDep, outKind) = PostIndexAnalyzer.NormalizeEdgeCategory("PUBLISHES_TO", "Project", "Topic", null, null, false);
-        Assert.That(outCat, Is.EqualTo("messaging"));
-        Assert.That(outKind, Is.EqualTo("PUBLISHES_TO"));
-        Assert.That(outDep, Is.EqualTo("messaging"));
+        outCat.Should().Be("messaging");
+        outKind.Should().Be("PUBLISHES_TO");
+        outDep.Should().Be("messaging");
     }
 
     [Test]
@@ -151,15 +152,15 @@ public class MessagingConnectionsTests
 
         // Verify inbound message lifted to service as SUBSCRIBES_TO
         var liftedIn = lifted.FirstOrDefault(e => e.From == "service1" && e.To == "inTopic");
-        Assert.That(liftedIn, Is.Not.Null);
-        Assert.That(liftedIn!.Kind, Is.EqualTo("SUBSCRIBES_TO"));
-        Assert.That(liftedIn.Properties.GetValueOrDefault("semantic_lifted")?.ToString(), Is.EqualTo("true"));
+        liftedIn.Should().NotBeNull();
+        liftedIn!.Kind.Should().Be("SUBSCRIBES_TO");
+        liftedIn.Properties.GetValueOrDefault("semantic_lifted")?.ToString().Should().Be("true");
 
         // Verify outbound message lifted to service as PUBLISHES_TO
         var liftedOut = lifted.FirstOrDefault(e => e.From == "service1" && e.To == "outTopic");
-        Assert.That(liftedOut, Is.Not.Null);
-        Assert.That(liftedOut!.Kind, Is.EqualTo("PUBLISHES_TO"));
-        Assert.That(liftedOut.Properties.GetValueOrDefault("semantic_lifted")?.ToString(), Is.EqualTo("true"));
+        liftedOut.Should().NotBeNull();
+        liftedOut!.Kind.Should().Be("PUBLISHES_TO");
+        liftedOut.Properties.GetValueOrDefault("semantic_lifted")?.ToString().Should().Be("true");
     }
 
     [Test]
@@ -192,13 +193,13 @@ public class MessagingConnectionsTests
         );
 
         var pubRel = materialized.FirstOrDefault(r => r.From == proj.Id && r.To == topicPubId && r.Kind == OntologyConstants.Relationships.PublishesTo);
-        Assert.That(pubRel, Is.Not.Null, "Expected project-level PUBLISHES_TO edge from publisher project to topic");
+        pubRel.Should().NotBeNull("Expected project-level PUBLISHES_TO edge from publisher project to topic");
 
         var subRel = materialized.FirstOrDefault(r => r.From == proj.Id && r.To == topicSubId && r.Kind == OntologyConstants.Relationships.SubscribesTo);
-        Assert.That(subRel, Is.Not.Null, "Expected project-level SUBSCRIBES_TO edge from publisher project to topic");
+        subRel.Should().NotBeNull("Expected project-level SUBSCRIBES_TO edge from publisher project to topic");
 
         var trigRel = materialized.FirstOrDefault(r => r.Kind == OntologyConstants.Relationships.Triggers);
-        Assert.That(trigRel, Is.Null, "Duplicate TRIGGERS edge must not be materialized on macro level");
+        trigRel.Should().BeNull("Duplicate TRIGGERS edge must not be materialized on macro level");
     }
 }
 

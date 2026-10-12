@@ -4,6 +4,7 @@ using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.CSharp;
 using NUnit.Framework;
+using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 
@@ -66,27 +67,22 @@ public class ConfigurationMappingTests
 
         var databases = l4.SemanticNodes.OfType<DatabaseNode>().ToList();
 
-        Assert.That(
-            databases.Any(d =>
-                d.DbType == "relational" && (d.Name.Contains("DefaultConnection") || d.Name.Contains("orders_db"))),
-            Is.True, "Postgres DefaultConnection / orders_db should be extracted");
+        (databases.Any(d =>
+                d.DbType == "relational" && (d.Name.Contains("DefaultConnection") || d.Name.Contains("orders_db")))).Should().BeTrue("Postgres DefaultConnection / orders_db should be extracted");
 
-        Assert.That(databases.Any(d => d.DbType == "cache" && d.Name.Contains("Redis")), Is.True,
-            "Redis database should be extracted");
+        (databases.Any(d => d.DbType == "cache" && d.Name.Contains("Redis"))).Should().BeTrue("Redis database should be extracted");
 
         var topics = l4.SemanticNodes.OfType<TopicNode>().ToList();
 
-        Assert.That(topics.Any(t => t.BrokerType == "rabbitmq"), Is.True,
-            "RabbitMQ topic/broker should be extracted");
+        (topics.Any(t => t.BrokerType == "rabbitmq")).Should().BeTrue("RabbitMQ topic/broker should be extracted");
 
         var cloud = l4.SemanticNodes.OfType<CloudServiceNode>().ToList();
-        Assert.That(cloud.Any(c => c.Name == "Stripe"), Is.True, "Stripe cloud service should be extracted");
-        Assert.That(cloud.Any(c => c.Name == "Auth0"), Is.True, "Auth0 cloud service should be extracted");
+        (cloud.Any(c => c.Name == "Stripe")).Should().BeTrue("Stripe cloud service should be extracted");
+        (cloud.Any(c => c.Name == "Auth0")).Should().BeTrue("Auth0 cloud service should be extracted");
 
         var configRels = l4.SemanticRelationships.Where(r => r.Kind == "CONFIGURES").ToList();
 
-        Assert.That(configRels.Count, Is.GreaterThanOrEqualTo(4),
-            "CONFIGURES edges should link appsettings.json to configured services");
+        configRels.Count.Should().BeGreaterThanOrEqualTo(4, "CONFIGURES edges should link appsettings.json to configured services");
     }
 
     [Test]
@@ -121,10 +117,10 @@ public class ConfigurationMappingTests
         var l4 = await new Layer4SemanticParser().ParseAsync(l3, ctx);
 
         var databases = l4.SemanticNodes.OfType<DatabaseNode>().ToList();
-        Assert.That(databases, Is.Empty, "Docker compose should not generate false DatabaseNode dependencies");
+        databases.Should().BeEmpty("Docker compose should not generate false DatabaseNode dependencies");
 
         var topics = l4.SemanticNodes.OfType<TopicNode>().ToList();
-        Assert.That(topics, Is.Empty, "Docker compose should not generate false TopicNode dependencies");
+        topics.Should().BeEmpty("Docker compose should not generate false TopicNode dependencies");
     }
 
     [Test]
@@ -151,11 +147,10 @@ public class ConfigurationMappingTests
 
         var databases = l4.SemanticNodes.OfType<DatabaseNode>().ToList();
 
-        Assert.That(databases.Any(d => d.DbType == "relational"), Is.True,
-            "Postgres DATABASE_URL in .env should be extracted");
-        Assert.That(databases.Any(d => d.DbType == "cache"), Is.True, "REDIS_URL in .env should be extracted");
+        (databases.Any(d => d.DbType == "relational")).Should().BeTrue("Postgres DATABASE_URL in .env should be extracted");
+        (databases.Any(d => d.DbType == "cache")).Should().BeTrue("REDIS_URL in .env should be extracted");
 
         var cloud = l4.SemanticNodes.OfType<CloudServiceNode>().ToList();
-        Assert.That(cloud.Any(c => c.Name == "Stripe"), Is.True, "Stripe in .env should be extracted");
+        (cloud.Any(c => c.Name == "Stripe")).Should().BeTrue("Stripe in .env should be extracted");
     }
 }

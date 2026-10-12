@@ -1,6 +1,6 @@
 using System.Threading.Channels;
 using NUnit.Framework;
-using CodeExplorer.Common;
+using AwesomeAssertions;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Parser;
@@ -58,13 +58,13 @@ public class Layer1Layer2MatrixBaselineTests
             dir = dir.Parent;
         }
 
-        Assert.That(Directory.Exists(_sampleProjectsRoot), Is.True, $"SampleProjects directory not found. Probed upwards from: {TestContext.CurrentContext.TestDirectory}");
+        Directory.Exists(_sampleProjectsRoot).Should().BeTrue($"SampleProjects directory not found. Probed upwards from: {TestContext.CurrentContext.TestDirectory}");
     }
 
     private async Task<(Layer1Result L1, Layer2Result L2)> ScanL1L2Async(string projectRelativePath)
     {
         var absPath = Path.Combine(_sampleProjectsRoot, projectRelativePath).Replace('\\', '/');
-        Assert.That(Directory.Exists(absPath), Is.True, $"Directory does not exist: {absPath}");
+        Directory.Exists(absPath).Should().BeTrue($"Directory does not exist: {absPath}");
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
         await using var client = new InMemoryGraphClient();
@@ -75,56 +75,49 @@ public class Layer1Layer2MatrixBaselineTests
         return (l1, l2);
     }
 
+    private static ProjectNode AssertSingleProject(Layer2Result l2, ProjectEntityKind expectedKind, bool expectedIsLib)
+    {
+        var proj = l2.Projects.Should().ContainSingle().Subject;
+        proj.EntityKind.Should().Be(expectedKind);
+        proj.IsLibrary.Should().Be(expectedIsLib);
+        return proj;
+    }
+
     #region C# / .NET Matrix
 
     [Test]
     public async Task CSharp_WebApi_DetectedAsService()
     {
         var (_, l2) = await ScanL1L2Async("csharp/web-api");
-        Assert.That(l2.Projects, Has.Count.EqualTo(1));
-        var proj = l2.Projects[0];
-        Assert.That(proj.EntityKind, Is.EqualTo(ProjectEntityKind.Service));
-        Assert.That(proj.IsLibrary, Is.False);
+        AssertSingleProject(l2, ProjectEntityKind.Service, expectedIsLib: false);
     }
 
     [Test]
     public async Task CSharp_ClassLibrary_DetectedAsLibrary()
     {
         var (_, l2) = await ScanL1L2Async("csharp/class-lib");
-        Assert.That(l2.Projects, Has.Count.EqualTo(1));
-        var proj = l2.Projects[0];
-        Assert.That(proj.EntityKind, Is.EqualTo(ProjectEntityKind.Library));
-        Assert.That(proj.IsLibrary, Is.True);
+        AssertSingleProject(l2, ProjectEntityKind.Library, expectedIsLib: true);
     }
 
     [Test]
     public async Task CSharp_WorkerService_DetectedAsWorker()
     {
         var (_, l2) = await ScanL1L2Async("csharp/worker-service");
-        Assert.That(l2.Projects, Has.Count.EqualTo(1));
-        var proj = l2.Projects[0];
-        Assert.That(proj.EntityKind, Is.EqualTo(ProjectEntityKind.Worker));
-        Assert.That(proj.IsLibrary, Is.False);
+        AssertSingleProject(l2, ProjectEntityKind.Worker, expectedIsLib: false);
     }
 
     [Test]
     public async Task CSharp_CliTool_DetectedAsCliTool()
     {
         var (_, l2) = await ScanL1L2Async("csharp/cli-tool");
-        Assert.That(l2.Projects, Has.Count.EqualTo(1));
-        var proj = l2.Projects[0];
-        Assert.That(proj.EntityKind, Is.EqualTo(ProjectEntityKind.CliTool));
-        Assert.That(proj.IsLibrary, Is.False);
+        AssertSingleProject(l2, ProjectEntityKind.CliTool, expectedIsLib: false);
     }
 
     [Test]
     public async Task CSharp_TestSuite_DetectedAsTest()
     {
         var (_, l2) = await ScanL1L2Async("csharp/test-suite");
-        Assert.That(l2.Projects, Has.Count.EqualTo(1));
-        var proj = l2.Projects[0];
-        Assert.That(proj.EntityKind, Is.EqualTo(ProjectEntityKind.Test));
-        Assert.That(proj.IsLibrary, Is.True);
+        AssertSingleProject(l2, ProjectEntityKind.Test, expectedIsLib: true);
     }
 
     #endregion
@@ -135,70 +128,49 @@ public class Layer1Layer2MatrixBaselineTests
     public async Task TypeScript_NestService_DetectedAsService()
     {
         var (_, l2) = await ScanL1L2Async("typescript/nest-service");
-        Assert.That(l2.Projects, Has.Count.EqualTo(1));
-        var proj = l2.Projects[0];
-        Assert.That(proj.EntityKind, Is.EqualTo(ProjectEntityKind.Service));
-        Assert.That(proj.IsLibrary, Is.False);
+        AssertSingleProject(l2, ProjectEntityKind.Service, expectedIsLib: false);
     }
 
     [Test]
     public async Task TypeScript_ExpressService_DetectedAsService()
     {
         var (_, l2) = await ScanL1L2Async("typescript/express-service");
-        Assert.That(l2.Projects, Has.Count.EqualTo(1));
-        var proj = l2.Projects[0];
-        Assert.That(proj.EntityKind, Is.EqualTo(ProjectEntityKind.Service));
-        Assert.That(proj.IsLibrary, Is.False);
+        AssertSingleProject(l2, ProjectEntityKind.Service, expectedIsLib: false);
     }
 
     [Test]
     public async Task TypeScript_ReactApp_DetectedAsApp()
     {
         var (_, l2) = await ScanL1L2Async("typescript/react-app");
-        Assert.That(l2.Projects, Has.Count.EqualTo(1));
-        var proj = l2.Projects[0];
-        Assert.That(proj.EntityKind, Is.EqualTo(ProjectEntityKind.App));
-        Assert.That(proj.IsLibrary, Is.False);
+        AssertSingleProject(l2, ProjectEntityKind.App, expectedIsLib: false);
     }
 
     [Test]
     public async Task TypeScript_UiLibrary_DetectedAsLibrary()
     {
         var (_, l2) = await ScanL1L2Async("typescript/ui-library");
-        Assert.That(l2.Projects, Has.Count.EqualTo(1));
-        var proj = l2.Projects[0];
-        Assert.That(proj.EntityKind, Is.EqualTo(ProjectEntityKind.Library));
-        Assert.That(proj.IsLibrary, Is.True);
+        AssertSingleProject(l2, ProjectEntityKind.Library, expectedIsLib: true);
     }
 
     [Test]
     public async Task TypeScript_CloudflareWorker_DetectedAsWorker()
     {
         var (_, l2) = await ScanL1L2Async("typescript/cf-worker");
-        Assert.That(l2.Projects, Has.Count.EqualTo(1));
-        var proj = l2.Projects[0];
-        Assert.That(proj.EntityKind, Is.EqualTo(ProjectEntityKind.Worker));
-        Assert.That(proj.IsLibrary, Is.False);
+        AssertSingleProject(l2, ProjectEntityKind.Worker, expectedIsLib: false);
     }
 
     [Test]
     public async Task TypeScript_CliApp_DetectedAsCliTool()
     {
         var (_, l2) = await ScanL1L2Async("typescript/cli-app");
-        Assert.That(l2.Projects, Has.Count.EqualTo(1));
-        var proj = l2.Projects[0];
-        Assert.That(proj.EntityKind, Is.EqualTo(ProjectEntityKind.CliTool));
-        Assert.That(proj.IsLibrary, Is.False);
+        AssertSingleProject(l2, ProjectEntityKind.CliTool, expectedIsLib: false);
     }
 
     [Test]
     public async Task TypeScript_JestTests_DetectedAsTest()
     {
         var (_, l2) = await ScanL1L2Async("typescript/jest-tests");
-        Assert.That(l2.Projects, Has.Count.EqualTo(1));
-        var proj = l2.Projects[0];
-        Assert.That(proj.EntityKind, Is.EqualTo(ProjectEntityKind.Test));
-        Assert.That(proj.IsLibrary, Is.True);
+        AssertSingleProject(l2, ProjectEntityKind.Test, expectedIsLib: true);
     }
 
     [Test]
@@ -208,20 +180,17 @@ public class Layer1Layer2MatrixBaselineTests
 
         var projectNames = l2.Projects.Select(p => p.Name).ToList();
 
-        Assert.That(projectNames.Any(n => n.Equals("button", StringComparison.OrdinalIgnoreCase)), Is.False,
-            "Secondary entry point 'button' should not be detected as an independent project");
-        Assert.That(projectNames.Any(n => n.Equals("modal", StringComparison.OrdinalIgnoreCase)), Is.False,
-            "Secondary entry point 'modal' should not be detected as an independent project");
+        // Secondary entry points must be excluded
+        projectNames.Should().NotContain("button")
+            .And.NotContain("modal");
 
-        var uiLib = l2.Projects.FirstOrDefault(p => p.Name.Contains("ui-components"));
-        Assert.That(uiLib, Is.Not.Null, "Expected ui-components project in monorepo");
-        Assert.That(uiLib!.EntityKind, Is.EqualTo(ProjectEntityKind.Library));
-        Assert.That(uiLib.IsLibrary, Is.True);
+        var uiLib = l2.Projects.Should().ContainSingle(p => p.Name.Contains("ui-components")).Subject;
+        uiLib.EntityKind.Should().Be(ProjectEntityKind.Library);
+        uiLib.IsLibrary.Should().BeTrue();
 
-        var portal = l2.Projects.FirstOrDefault(p => p.Name == "portal");
-        Assert.That(portal, Is.Not.Null, "Expected portal project in monorepo");
-        Assert.That(portal!.EntityKind, Is.EqualTo(ProjectEntityKind.App));
-        Assert.That(portal.IsLibrary, Is.False);
+        var portal = l2.Projects.Should().ContainSingle(p => p.Name == "portal").Subject;
+        portal.EntityKind.Should().Be(ProjectEntityKind.App);
+        portal.IsLibrary.Should().BeFalse();
     }
 
     #endregion
@@ -232,50 +201,35 @@ public class Layer1Layer2MatrixBaselineTests
     public async Task Python_FastApiService_DetectedAsService()
     {
         var (_, l2) = await ScanL1L2Async("python/fastapi-service");
-        Assert.That(l2.Projects, Has.Count.EqualTo(1));
-        var proj = l2.Projects[0];
-        Assert.That(proj.EntityKind, Is.EqualTo(ProjectEntityKind.Service));
-        Assert.That(proj.IsLibrary, Is.False);
+        AssertSingleProject(l2, ProjectEntityKind.Service, expectedIsLib: false);
     }
 
     [Test]
     public async Task Python_StandardLib_DetectedAsLibrary()
     {
         var (_, l2) = await ScanL1L2Async("python/standard-lib");
-        Assert.That(l2.Projects, Has.Count.EqualTo(1));
-        var proj = l2.Projects[0];
-        Assert.That(proj.EntityKind, Is.EqualTo(ProjectEntityKind.Library));
-        Assert.That(proj.IsLibrary, Is.True);
+        AssertSingleProject(l2, ProjectEntityKind.Library, expectedIsLib: true);
     }
 
     [Test]
     public async Task Python_CeleryWorker_DetectedAsWorker()
     {
         var (_, l2) = await ScanL1L2Async("python/celery-worker");
-        Assert.That(l2.Projects, Has.Count.EqualTo(1));
-        var proj = l2.Projects[0];
-        Assert.That(proj.EntityKind, Is.EqualTo(ProjectEntityKind.Worker));
-        Assert.That(proj.IsLibrary, Is.False);
+        AssertSingleProject(l2, ProjectEntityKind.Worker, expectedIsLib: false);
     }
 
     [Test]
     public async Task Python_ClickCli_DetectedAsCliTool()
     {
         var (_, l2) = await ScanL1L2Async("python/click-cli");
-        Assert.That(l2.Projects, Has.Count.EqualTo(1));
-        var proj = l2.Projects[0];
-        Assert.That(proj.EntityKind, Is.EqualTo(ProjectEntityKind.CliTool));
-        Assert.That(proj.IsLibrary, Is.False);
+        AssertSingleProject(l2, ProjectEntityKind.CliTool, expectedIsLib: false);
     }
 
     [Test]
     public async Task Python_Alembic_DetectedAsDatabaseMigration()
     {
         var (_, l2) = await ScanL1L2Async("python/alembic-migrations");
-        Assert.That(l2.Projects, Has.Count.EqualTo(1));
-        var proj = l2.Projects[0];
-        Assert.That(proj.EntityKind, Is.EqualTo(ProjectEntityKind.DatabaseMigration));
-        Assert.That(proj.IsLibrary, Is.False);
+        AssertSingleProject(l2, ProjectEntityKind.DatabaseMigration, expectedIsLib: false);
     }
 
     #endregion
@@ -286,40 +240,28 @@ public class Layer1Layer2MatrixBaselineTests
     public async Task Go_GinService_DetectedAsService()
     {
         var (_, l2) = await ScanL1L2Async("go/gin-service");
-        Assert.That(l2.Projects, Has.Count.EqualTo(1));
-        var proj = l2.Projects[0];
-        Assert.That(proj.EntityKind, Is.EqualTo(ProjectEntityKind.Service));
-        Assert.That(proj.IsLibrary, Is.False);
+        AssertSingleProject(l2, ProjectEntityKind.Service, expectedIsLib: false);
     }
 
     [Test]
     public async Task Go_PkgLib_DetectedAsLibrary()
     {
         var (_, l2) = await ScanL1L2Async("go/pkg-lib");
-        Assert.That(l2.Projects, Has.Count.EqualTo(1));
-        var proj = l2.Projects[0];
-        Assert.That(proj.EntityKind, Is.EqualTo(ProjectEntityKind.Library));
-        Assert.That(proj.IsLibrary, Is.True);
+        AssertSingleProject(l2, ProjectEntityKind.Library, expectedIsLib: true);
     }
 
     [Test]
     public async Task Go_CobraCli_DetectedAsCliTool()
     {
         var (_, l2) = await ScanL1L2Async("go/cobra-cli");
-        Assert.That(l2.Projects, Has.Count.EqualTo(1));
-        var proj = l2.Projects[0];
-        Assert.That(proj.EntityKind, Is.EqualTo(ProjectEntityKind.CliTool));
-        Assert.That(proj.IsLibrary, Is.False);
+        AssertSingleProject(l2, ProjectEntityKind.CliTool, expectedIsLib: false);
     }
 
     [Test]
     public async Task Go_KafkaWorker_DetectedAsWorker()
     {
         var (_, l2) = await ScanL1L2Async("go/kafka-worker");
-        Assert.That(l2.Projects, Has.Count.EqualTo(1));
-        var proj = l2.Projects[0];
-        Assert.That(proj.EntityKind, Is.EqualTo(ProjectEntityKind.Worker));
-        Assert.That(proj.IsLibrary, Is.False);
+        AssertSingleProject(l2, ProjectEntityKind.Worker, expectedIsLib: false);
     }
 
     #endregion
@@ -330,20 +272,14 @@ public class Layer1Layer2MatrixBaselineTests
     public async Task Java_SpringService_DetectedAsService()
     {
         var (_, l2) = await ScanL1L2Async("java/spring-service");
-        Assert.That(l2.Projects, Has.Count.EqualTo(1));
-        var proj = l2.Projects[0];
-        Assert.That(proj.EntityKind, Is.EqualTo(ProjectEntityKind.Service));
-        Assert.That(proj.IsLibrary, Is.False);
+        AssertSingleProject(l2, ProjectEntityKind.Service, expectedIsLib: false);
     }
 
     [Test]
     public async Task Java_JarLibrary_DetectedAsLibrary()
     {
         var (_, l2) = await ScanL1L2Async("java/jar-library");
-        Assert.That(l2.Projects, Has.Count.EqualTo(1));
-        var proj = l2.Projects[0];
-        Assert.That(proj.EntityKind, Is.EqualTo(ProjectEntityKind.Library));
-        Assert.That(proj.IsLibrary, Is.True);
+        AssertSingleProject(l2, ProjectEntityKind.Library, expectedIsLib: true);
     }
 
     #endregion
@@ -354,20 +290,14 @@ public class Layer1Layer2MatrixBaselineTests
     public async Task Kotlin_AndroidApp_DetectedAsApp()
     {
         var (_, l2) = await ScanL1L2Async("kotlin/android-app");
-        Assert.That(l2.Projects, Has.Count.EqualTo(1));
-        var proj = l2.Projects[0];
-        Assert.That(proj.EntityKind, Is.EqualTo(ProjectEntityKind.App));
-        Assert.That(proj.IsLibrary, Is.False);
+        AssertSingleProject(l2, ProjectEntityKind.App, expectedIsLib: false);
     }
 
     [Test]
     public async Task Kotlin_JvmLib_DetectedAsLibrary()
     {
         var (_, l2) = await ScanL1L2Async("kotlin/jvm-lib");
-        Assert.That(l2.Projects, Has.Count.EqualTo(1));
-        var proj = l2.Projects[0];
-        Assert.That(proj.EntityKind, Is.EqualTo(ProjectEntityKind.Library));
-        Assert.That(proj.IsLibrary, Is.True);
+        AssertSingleProject(l2, ProjectEntityKind.Library, expectedIsLib: true);
     }
 
     #endregion
@@ -378,20 +308,14 @@ public class Layer1Layer2MatrixBaselineTests
     public async Task ColdFusion_WebApp_DetectedAsApp()
     {
         var (_, l2) = await ScanL1L2Async("coldfusion/cf-web-app");
-        Assert.That(l2.Projects, Has.Count.EqualTo(1));
-        var proj = l2.Projects[0];
-        Assert.That(proj.EntityKind, Is.EqualTo(ProjectEntityKind.App));
-        Assert.That(proj.IsLibrary, Is.False);
+        AssertSingleProject(l2, ProjectEntityKind.App, expectedIsLib: false);
     }
 
     [Test]
     public async Task ColdFusion_Components_DetectedAsLibrary()
     {
         var (_, l2) = await ScanL1L2Async("coldfusion/cf-components");
-        Assert.That(l2.Projects, Has.Count.EqualTo(1));
-        var proj = l2.Projects[0];
-        Assert.That(proj.EntityKind, Is.EqualTo(ProjectEntityKind.Library));
-        Assert.That(proj.IsLibrary, Is.True);
+        AssertSingleProject(l2, ProjectEntityKind.Library, expectedIsLib: true);
     }
 
     #endregion

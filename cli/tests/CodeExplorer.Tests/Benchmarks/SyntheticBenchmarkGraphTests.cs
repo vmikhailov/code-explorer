@@ -2,6 +2,7 @@ using System.Diagnostics;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Mcp;
 using NUnit.Framework;
+using AwesomeAssertions;
 
 namespace CodeExplorer.Tests.Benchmarks;
 
@@ -38,11 +39,11 @@ public class SyntheticBenchmarkGraphTests
     [Test]
     public void Test_01_BenchmarkGraphScale_MeetsSpecification()
     {
-        Assert.That(_stats.FileCount, Is.EqualTo(10_000), "Specification requires 10,000 files.");
-        Assert.That(_stats.ClassCount, Is.EqualTo(25_000), "Specification requires 25,000 classes.");
-        Assert.That(_stats.MethodCount, Is.EqualTo(70_000), "Specification requires 70,000 methods.");
-        Assert.That(_stats.TotalNodes, Is.GreaterThanOrEqualTo(100_000), "Specification requires >= 100k nodes.");
-        Assert.That(_stats.TotalRelationships, Is.GreaterThanOrEqualTo(300_000), "Specification requires >= 300k relationships.");
+        _stats.FileCount.Should().Be(10_000, "Specification requires 10,000 files.");
+        _stats.ClassCount.Should().Be(25_000, "Specification requires 25,000 classes.");
+        _stats.MethodCount.Should().Be(70_000, "Specification requires 70,000 methods.");
+        _stats.TotalNodes.Should().BeGreaterThanOrEqualTo(100_000, "Specification requires >= 100k nodes.");
+        _stats.TotalRelationships.Should().BeGreaterThanOrEqualTo(300_000, "Specification requires >= 300k relationships.");
     }
 
     [Test]
@@ -52,7 +53,7 @@ public class SyntheticBenchmarkGraphTests
 
         // Warmup
         var warmup = await _repo.FindSymbolAsync(SyntheticBenchmarkGraphGenerator.WellKnownSearchSymbol);
-        Assert.That(warmup, Does.Contain(SyntheticBenchmarkGraphGenerator.WellKnownSearchSymbol));
+        warmup.Should().Contain(SyntheticBenchmarkGraphGenerator.WellKnownSearchSymbol);
 
         // Measured runs
         const int iterations = 5;
@@ -63,15 +64,14 @@ public class SyntheticBenchmarkGraphTests
             var result = await _repo.FindSymbolAsync(SyntheticBenchmarkGraphGenerator.WellKnownSearchSymbol);
             sw.Stop();
             times.Add(sw.ElapsedMilliseconds);
-            Assert.That(result, Does.Contain(SyntheticBenchmarkGraphGenerator.WellKnownSearchSymbol));
+            result.Should().Contain(SyntheticBenchmarkGraphGenerator.WellKnownSearchSymbol);
         }
 
         var avgMs = times.Average();
         var minMs = times.Min();
         TestContext.WriteLine($"find_symbol SLA check: min={minMs}ms, avg={avgMs:F2}ms (SLA < {slaMs}ms)");
 
-        Assert.That(minMs, Is.LessThan(slaMs),
-            $"find_symbol minimum execution time ({minMs}ms) exceeded SLA of {slaMs}ms");
+        minMs.Should().BeLessThan(slaMs, $"find_symbol minimum execution time ({minMs}ms) exceeded SLA of {slaMs}ms");
     }
 
     [Test]
@@ -84,8 +84,8 @@ public class SyntheticBenchmarkGraphTests
             SyntheticBenchmarkGraphGenerator.WellKnownStartFunction,
             SyntheticBenchmarkGraphGenerator.WellKnownEndFunction,
             maxDepth: 5);
-        Assert.That(warmup, Does.Contain("Step0"));
-        Assert.That(warmup, Does.Contain("Step4"));
+        warmup.Should().Contain("Step0");
+        warmup.Should().Contain("Step4");
 
         // Measured runs
         const int iterations = 5;
@@ -99,16 +99,15 @@ public class SyntheticBenchmarkGraphTests
                 maxDepth: 5);
             sw.Stop();
             times.Add(sw.ElapsedMilliseconds);
-            Assert.That(result, Does.Contain("Step0"));
-            Assert.That(result, Does.Contain("Step4"));
+            result.Should().Contain("Step0");
+            result.Should().Contain("Step4");
         }
 
         var avgMs = times.Average();
         var minMs = times.Min();
         TestContext.WriteLine($"get_call_chain SLA check: min={minMs}ms, avg={avgMs:F2}ms (SLA < {slaMs}ms)");
 
-        Assert.That(minMs, Is.LessThan(slaMs),
-            $"get_call_chain minimum execution time ({minMs}ms) exceeded SLA of {slaMs}ms");
+        minMs.Should().BeLessThan(slaMs, $"get_call_chain minimum execution time ({minMs}ms) exceeded SLA of {slaMs}ms");
     }
 
     [Test]
@@ -118,9 +117,9 @@ public class SyntheticBenchmarkGraphTests
 
         // Warmup
         var warmup = await _repo.InspectDataLineageAsync(SyntheticBenchmarkGraphGenerator.WellKnownTable);
-        Assert.That(warmup, Does.Contain(SyntheticBenchmarkGraphGenerator.WellKnownTable));
-        Assert.That(warmup, Does.Contain("OrderEntity"));
-        Assert.That(warmup, Does.Contain(SyntheticBenchmarkGraphGenerator.WellKnownCaller));
+        warmup.Should().Contain(SyntheticBenchmarkGraphGenerator.WellKnownTable);
+        warmup.Should().Contain("OrderEntity");
+        warmup.Should().Contain(SyntheticBenchmarkGraphGenerator.WellKnownCaller);
 
         // Measured runs
         const int iterations = 5;
@@ -131,16 +130,15 @@ public class SyntheticBenchmarkGraphTests
             var result = await _repo.InspectDataLineageAsync(SyntheticBenchmarkGraphGenerator.WellKnownTable);
             sw.Stop();
             times.Add(sw.ElapsedMilliseconds);
-            Assert.That(result, Does.Contain(SyntheticBenchmarkGraphGenerator.WellKnownTable));
-            Assert.That(result, Does.Contain("OrderEntity"));
-            Assert.That(result, Does.Contain(SyntheticBenchmarkGraphGenerator.WellKnownCaller));
+            result.Should().Contain(SyntheticBenchmarkGraphGenerator.WellKnownTable);
+            result.Should().Contain("OrderEntity");
+            result.Should().Contain(SyntheticBenchmarkGraphGenerator.WellKnownCaller);
         }
 
         var avgMs = times.Average();
         var minMs = times.Min();
         TestContext.WriteLine($"inspect_data_lineage SLA check: min={minMs}ms, avg={avgMs:F2}ms (SLA < {slaMs}ms)");
 
-        Assert.That(minMs, Is.LessThan(slaMs),
-            $"inspect_data_lineage minimum execution time ({minMs}ms) exceeded SLA of {slaMs}ms");
+        minMs.Should().BeLessThan(slaMs, $"inspect_data_lineage minimum execution time ({minMs}ms) exceeded SLA of {slaMs}ms");
     }
 }

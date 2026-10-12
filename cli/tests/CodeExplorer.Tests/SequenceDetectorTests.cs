@@ -1,5 +1,6 @@
 using NUnit.Framework;
 using CodeExplorer.Core.Parser;
+using AwesomeAssertions;
 
 namespace CodeExplorer.Tests
 {
@@ -26,24 +27,24 @@ namespace CodeExplorer.Tests
             // 1. Incomplete sequence
             detector.Push("class");
             detector.Push("method");
-            Assert.That(triggerCount, Is.EqualTo(0));
+            triggerCount.Should().Be(0);
 
             // 2. Full suffix match
             detector.Push("call");
-            Assert.That(triggerCount, Is.EqualTo(1));
-            Assert.That(matchedPath, Is.Not.Null);
-            Assert.That(matchedPath.Count, Is.EqualTo(3));
-            Assert.That(matchedPath[2], Is.EqualTo("call"));
+            triggerCount.Should().Be(1);
+            matchedPath.Should().NotBeNull();
+            matchedPath.Count.Should().Be(3);
+            matchedPath[2].Should().Be("call");
 
             // 3. Push another element (no longer a match at suffix)
             detector.Push("expression");
-            Assert.That(triggerCount, Is.EqualTo(1));
+            triggerCount.Should().Be(1);
 
             // 4. Pop back to match
             detector.Pop(); // path was ["class", "method", "call", "expression"], becomes ["class", "method", "call"]
             detector.Pop(); // becomes ["class", "method"]
             detector.Push("call"); // becomes ["class", "method", "call"] -> matches!
-            Assert.That(triggerCount, Is.EqualTo(2));
+            triggerCount.Should().Be(2);
         }
 
         [Test]
@@ -60,15 +61,15 @@ namespace CodeExplorer.Tests
 
             // Push class
             detector.Push("class");
-            Assert.That(triggerCount, Is.EqualTo(0));
+            triggerCount.Should().Be(0);
 
             // Push method -> exact match
             detector.Push("method");
-            Assert.That(triggerCount, Is.EqualTo(1));
+            triggerCount.Should().Be(1);
 
             // Push block -> no longer exact match (length mismatch)
             detector.Push("block");
-            Assert.That(triggerCount, Is.EqualTo(1));
+            triggerCount.Should().Be(1);
         }
 
         [Test]
@@ -84,17 +85,17 @@ namespace CodeExplorer.Tests
             );
 
             detector.Push("class");
-            Assert.That(triggerCount, Is.EqualTo(0));
+            triggerCount.Should().Be(0);
 
             detector.Push("method");
-            Assert.That(triggerCount, Is.EqualTo(0));
+            triggerCount.Should().Be(0);
 
             detector.Push("block");
-            Assert.That(triggerCount, Is.EqualTo(0));
+            triggerCount.Should().Be(0);
 
             // Push call -> subsequence match is triggered since "class" and then "call" are in the path
             detector.Push("call");
-            Assert.That(triggerCount, Is.EqualTo(1));
+            triggerCount.Should().Be(1);
         }
 
         [Test]
@@ -111,10 +112,10 @@ namespace CodeExplorer.Tests
 
             detector.Push(2); // even
             detector.Push(4); // even -> suffix is even, even. Not a match.
-            Assert.That(triggerCount, Is.EqualTo(0));
+            triggerCount.Should().Be(0);
 
             detector.Push(5); // odd -> suffix is even, odd. Matches!
-            Assert.That(triggerCount, Is.EqualTo(1));
+            triggerCount.Should().Be(1);
         }
     }
 }

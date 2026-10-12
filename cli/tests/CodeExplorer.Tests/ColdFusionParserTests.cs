@@ -2,6 +2,7 @@ using NUnit.Framework;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Parser.ColdFusion;
+using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 
@@ -48,9 +49,9 @@ public class ColdFusionParserTests
         var parser = new ColdFusionProjectParser();
         var files = Directory.GetFiles(_tempDir);
 
-        Assert.That(parser.IsProjectDirectory(_tempDir, files), Is.True);
-        Assert.That(parser.GetProjectName(_tempDir, files), Is.EqualTo("NSAProd"));
-        Assert.That(ColdFusionProjectParser.GetDefaultDatasource(_tempDir), Is.EqualTo("NSA_Integrated"));
+        parser.IsProjectDirectory(_tempDir, files).Should().BeTrue();
+        parser.GetProjectName(_tempDir, files).Should().Be("NSAProd");
+        ColdFusionProjectParser.GetDefaultDatasource(_tempDir).Should().Be("NSA_Integrated");
     }
 
     [Test]
@@ -64,8 +65,8 @@ public class ColdFusionParserTests
         var parser = new ColdFusionProjectParser();
         var files = Directory.GetFiles(_tempDir);
 
-        Assert.That(parser.IsProjectDirectory(_tempDir, files), Is.True);
-        Assert.That(parser.GetProjectName(_tempDir, files), Is.EqualTo("LegacyColdFusionApp"));
+        parser.IsProjectDirectory(_tempDir, files).Should().BeTrue();
+        parser.GetProjectName(_tempDir, files).Should().Be("LegacyColdFusionApp");
     }
 
     [Test]
@@ -77,9 +78,9 @@ public class ColdFusionParserTests
         var parser = new ColdFusionProjectParser();
         var files = Directory.GetFiles(_tempDir);
 
-        Assert.That(parser.IsProjectDirectory(_tempDir, files), Is.True);
+        parser.IsProjectDirectory(_tempDir, files).Should().BeTrue();
         var expectedName = Path.GetFileName(_tempDir);
-        Assert.That(parser.GetProjectName(_tempDir, files), Is.EqualTo(expectedName));
+        parser.GetProjectName(_tempDir, files).Should().Be(expectedName);
     }
 
     [Test]
@@ -107,37 +108,37 @@ public class ColdFusionParserTests
         var parser = new ColdFusionFileParser();
         var tree = await parser.ParseAsync(cfcPath, "parent", "ws", _tempDir);
 
-        Assert.That(tree, Is.Not.Null);
+        tree.Should().NotBeNull();
         var fileNode = tree.FileNode;
-        Assert.That(fileNode, Is.Not.Null);
+        fileNode.Should().NotBeNull();
 
         // 1. Verify Component
         var component = fileNode!.Children.OfType<TypeNode>().FirstOrDefault();
-        Assert.That(component, Is.Not.Null);
-        Assert.That(component!.Name, Is.EqualTo("UserService"));
-        Assert.That(component.Extensions, Is.Not.Null);
-        Assert.That(component.Extensions!["extends"], Is.EqualTo("BaseService"));
+        component.Should().NotBeNull();
+        component!.Name.Should().Be("UserService");
+        component.Extensions.Should().NotBeNull();
+        component.Extensions!["extends"].Should().Be("BaseService");
 
         // 2. Verify Function under Component
         var getUserFunc = component.Children.OfType<FunctionNode>().FirstOrDefault(f => f.Name == "getUser");
-        Assert.That(getUserFunc, Is.Not.Null);
+        getUserFunc.Should().NotBeNull();
 
         // 3. Verify Remote Endpoint
         var endpoint = fileNode.Children.OfType<EndpointNode>().FirstOrDefault(e => e.HttpMethod == "POST");
-        Assert.That(endpoint, Is.Not.Null);
-        Assert.That(endpoint!.RouteTemplate, Is.EqualTo("/UserService/getUser"));
+        endpoint.Should().NotBeNull();
+        endpoint!.RouteTemplate.Should().Be("/UserService/getUser");
 
         // 4. Verify Database and Table
         var dbNode = fileNode.Children.OfType<DatabaseNode>().FirstOrDefault(d => d.Name == "NSA_Integrated");
-        Assert.That(dbNode, Is.Not.Null);
+        dbNode.Should().NotBeNull();
         var tableNode = dbNode!.Children.OfType<DataSetNode>().SelectMany(s => s.Children.OfType<TableNode>()).FirstOrDefault(t => t.Name.Equals("Users", StringComparison.OrdinalIgnoreCase));
-        Assert.That(tableNode, Is.Not.Null);
+        tableNode.Should().NotBeNull();
 
         // 5. Verify External Service
         var extService = fileNode.Children.OfType<ExternalServiceNode>().FirstOrDefault();
-        Assert.That(extService, Is.Not.Null);
-        Assert.That(extService!.DomainOrService, Is.EqualTo("https://api.notifications.com/v1/send"));
-        Assert.That(extService.Protocol, Is.EqualTo("http"));
+        extService.Should().NotBeNull();
+        extService!.DomainOrService.Should().Be("https://api.notifications.com/v1/send");
+        extService.Protocol.Should().Be("http");
     }
 
     [Test]
@@ -161,30 +162,30 @@ public class ColdFusionParserTests
         var parser = new ColdFusionFileParser();
         var tree = await parser.ParseAsync(cfcPath, "parent", "ws", _tempDir);
 
-        Assert.That(tree, Is.Not.Null);
+        tree.Should().NotBeNull();
         var fileNode = tree.FileNode;
-        Assert.That(fileNode, Is.Not.Null);
+        fileNode.Should().NotBeNull();
 
         // 1. Verify Component
         var component = fileNode!.Children.OfType<TypeNode>().FirstOrDefault();
-        Assert.That(component, Is.Not.Null);
-        Assert.That(component!.Name, Is.EqualTo("OrderService"));
+        component.Should().NotBeNull();
+        component!.Name.Should().Be("OrderService");
 
         // 2. Verify Remote Endpoint
         var endpoint = fileNode.Children.OfType<EndpointNode>().FirstOrDefault(e => e.HttpMethod == "POST");
-        Assert.That(endpoint, Is.Not.Null);
-        Assert.That(endpoint!.RouteTemplate, Is.EqualTo("/OrderService/getOrder"));
+        endpoint.Should().NotBeNull();
+        endpoint!.RouteTemplate.Should().Be("/OrderService/getOrder");
 
         // 3. Verify Database and Table
         var dbNode = fileNode.Children.OfType<DatabaseNode>().FirstOrDefault(d => d.Name == "OrdersDb");
-        Assert.That(dbNode, Is.Not.Null);
+        dbNode.Should().NotBeNull();
         var table = dbNode!.Children.OfType<DataSetNode>().SelectMany(s => s.Children.OfType<TableNode>()).FirstOrDefault(t => t.Name.Equals("orders", StringComparison.OrdinalIgnoreCase));
-        Assert.That(table, Is.Not.Null);
+        table.Should().NotBeNull();
 
         // 4. Verify External SOAP Service
         var extSoap = fileNode.Children.OfType<ExternalServiceNode>().FirstOrDefault(s => s.Protocol == "soap");
-        Assert.That(extSoap, Is.Not.Null);
-        Assert.That(extSoap!.DomainOrService, Is.EqualTo("https://soap.shipping.com/v2/service?wsdl"));
+        extSoap.Should().NotBeNull();
+        extSoap!.DomainOrService.Should().Be("https://soap.shipping.com/v2/service?wsdl");
     }
 
     [Test]
@@ -202,22 +203,22 @@ public class ColdFusionParserTests
         var parser = new ColdFusionFileParser();
         var tree = await parser.ParseAsync(cfmPath, "parent", "ws", _tempDir);
 
-        Assert.That(tree, Is.Not.Null);
+        tree.Should().NotBeNull();
         var fileNode = tree.FileNode;
-        Assert.That(fileNode, Is.Not.Null);
+        fileNode.Should().NotBeNull();
 
         // 1. Verify Page Endpoint
         var pageEndpoint = fileNode!.Children.OfType<EndpointNode>().FirstOrDefault(e => e.HttpMethod == "GET");
-        Assert.That(pageEndpoint, Is.Not.Null);
+        pageEndpoint.Should().NotBeNull();
 
         // 2. Verify Database Stored Procedure
         var dbNode = fileNode.Children.OfType<DatabaseNode>().FirstOrDefault(d => d.Name == "TaxDb");
-        Assert.That(dbNode, Is.Not.Null);
+        dbNode.Should().NotBeNull();
         var proc = dbNode!.Children.OfType<ProcedureNode>().FirstOrDefault(p => p.Name == "usp_CalculateTaxes");
-        Assert.That(proc, Is.Not.Null);
+        proc.Should().NotBeNull();
 
         // 3. Verify Inclusions & Type Bindings
-        Assert.That(tree.RawImports.Any(i => i.Path == "shared/header.cfm"), Is.True);
-        Assert.That(tree.RawTypeBindings.Any(b => b.TypeName == "cfc.AuditLogger"), Is.True);
+        (tree.RawImports.Any(i => i.Path == "shared/header.cfm")).Should().BeTrue();
+        (tree.RawTypeBindings.Any(b => b.TypeName == "cfc.AuditLogger")).Should().BeTrue();
     }
 }

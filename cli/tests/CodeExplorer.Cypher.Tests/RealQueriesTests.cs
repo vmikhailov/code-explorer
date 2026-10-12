@@ -1,6 +1,7 @@
 using CodeExplorer.Cypher.Compiler;
 using CodeExplorer.Cypher.Parser;
 using NUnit.Framework;
+using AwesomeAssertions;
 
 namespace CodeExplorer.Cypher.Tests;
 
@@ -20,9 +21,9 @@ public class RealQueriesTests
             dir = dir.Parent;
         }
 
-        Assert.That(dir, Is.Not.Null, "Could not find solution root");
+        dir.Should().NotBeNull("Could not find solution root");
         _queriesDir = Path.Combine(dir!.FullName, "src", "Core", "CodeExplorer.Core", "Resources", "Queries");
-        Assert.That(Directory.Exists(_queriesDir), Is.True, $"Queries directory not found: {_queriesDir}");
+        Directory.Exists(_queriesDir).Should().BeTrue($"Queries directory not found: {_queriesDir}");
     }
 
     public static IEnumerable<string> GetAllCypherQueryFiles()
@@ -48,7 +49,7 @@ public class RealQueriesTests
     public void Test_AllCypherFilesDiscovered()
     {
         var files = GetAllCypherQueryFiles().ToList();
-        Assert.That(files.Count, Is.GreaterThanOrEqualTo(19), "Expected at least 19 canonical cypher files in Resources/Queries");
+        files.Count.Should().BeGreaterThanOrEqualTo(19, "Expected at least 19 canonical cypher files in Resources/Queries");
     }
 
     [TestCaseSource(nameof(GetAllCypherQueryFiles))]
@@ -66,11 +67,11 @@ public class RealQueriesTests
 
         // 1. Parse
         var ast = CypherQueryParser.Parse(preparedQuery);
-        Assert.That(ast, Is.Not.Null);
+        ast.Should().NotBeNull();
 
         // 2. Compile
         var compiled = SqliteCompiler.Compile(ast);
-        Assert.That(compiled.Sql, Is.Not.Null.And.Not.Empty);
+        compiled.Sql.Should().NotBeNullOrEmpty();
     }
 
     [Test]
@@ -80,7 +81,7 @@ public class RealQueriesTests
         var rawText = File.ReadAllText(filePath);
         var ast = CypherQueryParser.Parse(rawText);
         var compiled = SqliteCompiler.Compile(ast);
-        Assert.That(compiled.Sql, Is.Not.Null.And.Not.Empty);
+        compiled.Sql.Should().NotBeNullOrEmpty();
     }
 
     [Test]
@@ -90,7 +91,7 @@ public class RealQueriesTests
         var rawText = File.ReadAllText(filePath);
         var ast = CypherQueryParser.Parse(rawText);
         var compiled = SqliteCompiler.Compile(ast);
-        Assert.That(compiled.Sql, Does.StartWith("SELECT DISTINCT"));
+        compiled.Sql.Should().StartWith("SELECT DISTINCT");
     }
 
     [Test]
@@ -142,8 +143,7 @@ public class RealQueriesTests
                 while (reader.Read()) rows++;
                 sw.Stop();
 
-                Assert.That(sw.ElapsedMilliseconds, Is.LessThan(1000),
-                    $"Query took {sw.ElapsedMilliseconds}ms, expected under 1000ms");
+                sw.ElapsedMilliseconds.Should().BeLessThan(1000, $"Query took {sw.ElapsedMilliseconds}ms, expected under 1000ms");
             }
         }
     }
@@ -160,7 +160,7 @@ public class RealQueriesTests
 
         var ast = CypherQueryParser.Parse(cypher);
         var compiled = SqliteCompiler.Compile(ast);
-        Assert.That(compiled.Sql, Does.Contain("GROUP BY"));
-        Assert.That(compiled.Sql, Does.Contain("n.kind"));
+        compiled.Sql.Should().Contain("GROUP BY");
+        compiled.Sql.Should().Contain("n.kind");
     }
 }

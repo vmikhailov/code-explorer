@@ -1,5 +1,6 @@
 using CodeExplorer.Cypher.Parser;
 using NUnit.Framework;
+using AwesomeAssertions;
 
 namespace CodeExplorer.Cypher.Tests;
 
@@ -32,7 +33,7 @@ public class TokenizerTests
             CypherToken.Not
         };
 
-        Assert.That(tokens.Select(t => t.Kind), Is.EqualTo(expectedTokens));
+        tokens.Select(t => t.Kind).Should().Equal(expectedTokens);
     }
 
     [Test]
@@ -48,10 +49,10 @@ public class TokenizerTests
 
         var tokens = CypherTokenizer.Instance.Tokenize(input).ToList();
 
-        Assert.That(tokens.Any(t => t.Kind == CypherToken.Match), Is.True);
-        Assert.That(tokens.Any(t => t.Kind == CypherToken.Where), Is.True);
-        Assert.That(tokens.Any(t => t.Kind == CypherToken.Return), Is.True);
-        Assert.That(tokens.Count(t => t.Kind == CypherToken.Identifier), Is.GreaterThanOrEqualTo(3)); // n, File, name, n
+        (tokens.Any(t => t.Kind == CypherToken.Match)).Should().BeTrue();
+        (tokens.Any(t => t.Kind == CypherToken.Where)).Should().BeTrue();
+        (tokens.Any(t => t.Kind == CypherToken.Return)).Should().BeTrue();
+        (tokens.Count(t => t.Kind == CypherToken.Identifier)).Should().BeGreaterThanOrEqualTo(3); // n, File, name, n
     }
 
     [Test]
@@ -60,18 +61,18 @@ public class TokenizerTests
         var input = "$workspaceId 'hello world' \"escaped \\\"string\\\"\" 42 3.14 true false null";
         var tokens = CypherTokenizer.Instance.Tokenize(input).ToList();
 
-        Assert.That(tokens[0].Kind, Is.EqualTo(CypherToken.Parameter));
-        Assert.That(tokens[0].ToStringValue(), Is.EqualTo("$workspaceId"));
+        tokens[0].Kind.Should().Be(CypherToken.Parameter);
+        tokens[0].ToStringValue().Should().Be("$workspaceId");
 
-        Assert.That(tokens[1].Kind, Is.EqualTo(CypherToken.StringLiteral));
-        Assert.That(tokens[2].Kind, Is.EqualTo(CypherToken.StringLiteral));
+        tokens[1].Kind.Should().Be(CypherToken.StringLiteral);
+        tokens[2].Kind.Should().Be(CypherToken.StringLiteral);
 
-        Assert.That(tokens[3].Kind, Is.EqualTo(CypherToken.Number));
-        Assert.That(tokens[4].Kind, Is.EqualTo(CypherToken.Number));
+        tokens[3].Kind.Should().Be(CypherToken.Number);
+        tokens[4].Kind.Should().Be(CypherToken.Number);
 
-        Assert.That(tokens[5].Kind, Is.EqualTo(CypherToken.True));
-        Assert.That(tokens[6].Kind, Is.EqualTo(CypherToken.False));
-        Assert.That(tokens[7].Kind, Is.EqualTo(CypherToken.Null));
+        tokens[5].Kind.Should().Be(CypherToken.True);
+        tokens[6].Kind.Should().Be(CypherToken.False);
+        tokens[7].Kind.Should().Be(CypherToken.Null);
     }
 
     [Test]
@@ -81,17 +82,17 @@ public class TokenizerTests
         var tokens = CypherTokenizer.Instance.Tokenize(input).ToList();
 
         var kinds = tokens.Select(t => t.Kind).ToList();
-        Assert.That(kinds, Contains.Item(CypherToken.ArrowRight));
-        Assert.That(kinds, Contains.Item(CypherToken.ArrowLeft));
-        Assert.That(kinds, Contains.Item(CypherToken.Dash));
-        Assert.That(kinds, Contains.Item(CypherToken.DotDot));
-        Assert.That(kinds, Contains.Item(CypherToken.Asterisk));
-        Assert.That(kinds, Contains.Item(CypherToken.Pipe));
-        Assert.That(kinds, Contains.Item(CypherToken.Colon));
-        Assert.That(kinds, Contains.Item(CypherToken.Equal));
-        Assert.That(kinds, Contains.Item(CypherToken.NotEqual));
-        Assert.That(kinds, Contains.Item(CypherToken.LessOrEqual));
-        Assert.That(kinds, Contains.Item(CypherToken.GreaterOrEqual));
-        Assert.That(kinds, Contains.Item(CypherToken.Plus));
+        kinds.Should().Contain(CypherToken.ArrowRight);
+        kinds.Should().Contain(CypherToken.ArrowLeft);
+        kinds.Should().Contain(CypherToken.Dash);
+        kinds.Should().Contain(CypherToken.DotDot);
+        kinds.Should().Contain(CypherToken.Asterisk);
+        kinds.Should().Contain(CypherToken.Pipe);
+        kinds.Should().Contain(CypherToken.Colon);
+        kinds.Should().Contain(CypherToken.Equal);
+        kinds.Should().Contain(CypherToken.NotEqual);
+        kinds.Should().Contain(CypherToken.LessOrEqual);
+        kinds.Should().Contain(CypherToken.GreaterOrEqual);
+        kinds.Should().Contain(CypherToken.Plus);
     }
 }

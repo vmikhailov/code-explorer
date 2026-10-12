@@ -113,6 +113,7 @@ public interface IUserApiClient
         var repoCode = @"
 using Dapper;
 using System.Data;
+using AwesomeAssertions;
 
 namespace Epic2Service.Repositories;
 
@@ -187,22 +188,22 @@ public class InventoryRepository
         // Check Controller endpoints
         var getOrder = await QueryAsync(
             "MATCH (e:Endpoint) WHERE toLower(e.route_template) = '/api/orders/{id}' RETURN e.http_method AS method, e.route_template AS route");
-        Assert.That(getOrder, Has.Count.EqualTo(1));
-        Assert.That(getOrder[0]["method"], Is.EqualTo("GET"));
+        getOrder.Should().HaveCount(1);
+        getOrder[0]["method"].Should().Be("GET");
 
         var createOrder = await QueryAsync(
             "MATCH (e:Endpoint) WHERE toLower(e.route_template) = '/api/orders/createorder' RETURN e.http_method AS method, e.route_template AS route");
-        Assert.That(createOrder, Has.Count.EqualTo(1));
-        Assert.That(createOrder[0]["method"], Is.EqualTo("POST"));
+        createOrder.Should().HaveCount(1);
+        createOrder[0]["method"].Should().Be("POST");
 
         // Check Minimal API MapGroup endpoints
         var v1Products = await QueryAsync(
             "MATCH (e:Endpoint) WHERE e.route_template = '/api/v1/products' RETURN e.http_method AS method, e.route_template AS route");
-        Assert.That(v1Products, Has.Count.EqualTo(1));
+        v1Products.Should().HaveCount(1);
 
         var v2Checkout = await QueryAsync(
             "MATCH (e:Endpoint) WHERE e.route_template = '/api/v2/checkout' RETURN e.http_method AS method, e.route_template AS route");
-        Assert.That(v2Checkout, Has.Count.EqualTo(1));
+        v2Checkout.Should().HaveCount(1);
     }
 
     [Test]
@@ -215,9 +216,9 @@ public class InventoryRepository
             MATCH (parent:Type)-[:HAS_METHOD]->(callee)
             RETURN caller.name AS callerName, callee.id AS calleeId, parent.name AS parentName");
 
-        Assert.That(calls, Has.Count.GreaterThanOrEqualTo(1), "Expected CreateOrder to call ProcessOrderAsync");
+        calls.Should().HaveCountGreaterThanOrEqualTo(1, "Expected CreateOrder to call ProcessOrderAsync");
         var hasConcreteOrderService = calls.Any(r => r["parentName"] == "OrderService");
-        Assert.That(hasConcreteOrderService, Is.True, "Call should resolve through interface to concrete OrderService implementation");
+        hasConcreteOrderService.Should().BeTrue("Call should resolve through interface to concrete OrderService implementation");
     }
 
     [Test]
@@ -232,10 +233,10 @@ public class InventoryRepository
         foreach (var s in services) TestContext.WriteLine($"Service: {s["name"]} -> {s["id"]} (path: {s["path"]})");
         foreach (var kvp in ConstantRegistry.GlobalConstants) TestContext.WriteLine($"GlobalConst: {kvp.Key} = {kvp.Value}");
 
-        Assert.That(services, Has.Count.GreaterThanOrEqualTo(1));
+        services.Should().HaveCountGreaterThanOrEqualTo(1);
         var match = services.FirstOrDefault(r => r["path"] == "/api/v3/users/{id}/details");
-        Assert.That(match, Is.Not.Null, "Expected ExternalService with composed BasePath and endpoint");
-        Assert.That(match!["domain_or_service"], Is.EqualTo("user"));
+        match.Should().NotBeNull("Expected ExternalService with composed BasePath and endpoint");
+        match!["domain_or_service"].Should().Be("user");
     }
 
     [Test]
@@ -247,8 +248,8 @@ public class InventoryRepository
             OPTIONAL MATCH (t)-[:QUERIED_BY]->(func:Function)
             RETURN t.name AS tableName, func.name AS functionName");
 
-        Assert.That(lineage, Has.Count.GreaterThanOrEqualTo(1), "Expected Table 'warehouse_inventory' to be in the graph");
+        lineage.Should().HaveCountGreaterThanOrEqualTo(1, "Expected Table 'warehouse_inventory' to be in the graph");
         var hasQueriedBy = lineage.Any(r => r["functionName"] == "CheckStockAsync");
-        Assert.That(hasQueriedBy, Is.True, "Expected CheckStockAsync to be linked to warehouse_inventory table");
+        hasQueriedBy.Should().BeTrue("Expected CheckStockAsync to be linked to warehouse_inventory table");
     }
 }

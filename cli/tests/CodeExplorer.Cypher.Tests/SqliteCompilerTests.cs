@@ -3,6 +3,7 @@ using CodeExplorer.Cypher.Compiler;
 using CodeExplorer.Cypher.Parser;
 using Microsoft.Data.Sqlite;
 using NUnit.Framework;
+using AwesomeAssertions;
 
 namespace CodeExplorer.Cypher.Tests;
 
@@ -139,9 +140,9 @@ public class SqliteCompilerTests
         var cypher = "MATCH (n:Type) WHERE n.name = $name RETURN n.name AS name, n.symbol AS fullName";
         var rows = ExecuteCypher(cypher, new() { ["name"] = "OrderService" });
 
-        Assert.That(rows, Has.Count.EqualTo(1));
-        Assert.That(rows[0]["name"], Is.EqualTo("OrderService"));
-        Assert.That(rows[0]["fullName"], Is.EqualTo("MyProject.OrderService"));
+        rows.Should().HaveCount(1);
+        rows[0]["name"].Should().Be("OrderService");
+        rows[0]["fullName"].Should().Be("MyProject.OrderService");
     }
 
     [Test]
@@ -154,10 +155,10 @@ public class SqliteCompilerTests
         ";
         var rows = ExecuteCypher(cypher);
 
-        Assert.That(rows, Has.Count.EqualTo(2));
-        Assert.That(rows[0]["className"], Is.EqualTo("ICustomer"));
-        Assert.That(rows[1]["className"], Is.EqualTo("OrderService"));
-        Assert.That(rows[1]["fileName"], Is.EqualTo("Order.cs"));
+        rows.Should().HaveCount(2);
+        rows[0]["className"].Should().Be("ICustomer");
+        rows[1]["className"].Should().Be("OrderService");
+        rows[1]["fileName"].Should().Be("Order.cs");
     }
 
     [Test]
@@ -172,12 +173,12 @@ public class SqliteCompilerTests
         ";
         var rows = ExecuteCypher(cypher);
 
-        Assert.That(rows, Has.Count.EqualTo(5)); // 2 types + 3 functions
+        rows.Should().HaveCount(5); // 2 types + 3 functions
         var orderRow = rows.Find(r => (string)r["name"]! == "OrderService");
-        Assert.That(orderRow!["mappedType"], Is.EqualTo("Class"));
+        orderRow!["mappedType"].Should().Be("Class");
 
         var fnRow = rows.Find(r => (string)r["name"]! == "ProcessOrder");
-        Assert.That(fnRow!["mappedType"], Is.EqualTo("Function"));
+        fnRow!["mappedType"].Should().Be("Function");
     }
 
     [Test]
@@ -191,14 +192,14 @@ public class SqliteCompilerTests
         ";
         var rows = ExecuteCypher(cypher);
 
-        Assert.That(rows, Has.Count.EqualTo(2));
+        rows.Should().HaveCount(2);
         // Customer.cs defines ICustomer (interface, not class), so c is null!
         var customerRow = rows.Find(r => (string)r["fileName"]! == "Customer.cs");
-        Assert.That(customerRow!["className"], Is.Null);
+        customerRow!["className"].Should().BeNull();
 
         // Order.cs defines OrderService (class)
         var orderRow = rows.Find(r => (string)r["fileName"]! == "Order.cs");
-        Assert.That(orderRow!["className"], Is.EqualTo("OrderService"));
+        orderRow!["className"].Should().Be("OrderService");
     }
 
     [Test]
@@ -210,10 +211,10 @@ public class SqliteCompilerTests
         ";
         var rows = ExecuteCypher(cypher);
 
-        Assert.That(rows, Has.Count.EqualTo(2)); // ProcessOrder -> SaveToDb (depth 1), ProcessOrder -> SendNotification (depth 2)
+        rows.Should().HaveCount(2); // ProcessOrder -> SaveToDb (depth 1), ProcessOrder -> SendNotification (depth 2)
         var targets = new List<string?> { (string?)rows[0]["tgtName"], (string?)rows[1]["tgtName"] };
-        Assert.That(targets, Contains.Item("SaveToDb"));
-        Assert.That(targets, Contains.Item("SendNotification"));
+        targets.Should().Contain("SaveToDb");
+        targets.Should().Contain("SendNotification");
     }
 
     [Test]
@@ -225,9 +226,9 @@ public class SqliteCompilerTests
         ";
         var rows = ExecuteCypher(cypher);
 
-        Assert.That(rows, Has.Count.EqualTo(1));
-        Assert.That(rows[0]["className"], Is.EqualTo("OrderService"));
-        Assert.That(Convert.ToInt64(rows[0]["methodCount"]), Is.EqualTo(3));
+        rows.Should().HaveCount(1);
+        rows[0]["className"].Should().Be("OrderService");
+        Convert.ToInt64(rows[0]["methodCount"]).Should().Be(3);
     }
 
     [Test]
@@ -248,18 +249,18 @@ public class SqliteCompilerTests
         var compiled = SqliteCompiler.Compile(ast);
 
         // Verify the condition was placed into the LEFT JOIN ON clause, not dropped
-        Assert.That(compiled.Sql, Does.Contain("LEFT JOIN nodes ep ON 1=1 AND ep.kind = 'Endpoint' AND (json_extract(ep.properties, '$.path') = json_extract(f.properties, '$.path'))"));
+        compiled.Sql.Should().Contain("LEFT JOIN nodes ep ON 1=1 AND ep.kind = 'Endpoint' AND (json_extract(ep.properties, '$.path') = json_extract(f.properties, '$.path'))");
 
         var rows = ExecuteCypher(cypher);
 
         // We expect exactly 2 rows (one for each file), NOT 4 (no Cartesian product!)
-        Assert.That(rows, Has.Count.EqualTo(2));
+        rows.Should().HaveCount(2);
 
         var customerRow = rows.Find(r => (string)r["fileName"]! == "Customer.cs");
-        Assert.That(customerRow!["endpointName"], Is.Null);
+        customerRow!["endpointName"].Should().BeNull();
 
         var orderRow = rows.Find(r => (string)r["fileName"]! == "Order.cs");
-        Assert.That(orderRow!["endpointName"], Is.EqualTo("OrderEndpoint"));
+        orderRow!["endpointName"].Should().Be("OrderEndpoint");
     }
 
     [Test]
@@ -281,14 +282,14 @@ public class SqliteCompilerTests
         var compiled = SqliteCompiler.Compile(ast);
 
         // Verify the list comprehension was collapsed to an equality join in the ON clause
-        Assert.That(compiled.Sql, Does.Contain("LEFT JOIN nodes es ON 1=1 AND es.kind = 'ExternalService' AND (json_extract(es.properties, '$.file_path') = json_extract(f.properties, '$.path'))"));
+        compiled.Sql.Should().Contain("LEFT JOIN nodes es ON 1=1 AND es.kind = 'ExternalService' AND (json_extract(es.properties, '$.file_path') = json_extract(f.properties, '$.path'))");
 
         var rows = ExecuteCypher(cypher);
 
-        Assert.That(rows, Has.Count.EqualTo(1));
+        rows.Should().HaveCount(1);
         var egressJson = (string)rows[0]["egress"]!;
-        Assert.That(egressJson, Does.Contain("PaymentApi"));
-        Assert.That(egressJson, Does.Not.Contain("BillingApi"));
+        egressJson.Should().Contain("PaymentApi");
+        egressJson.Should().NotContain("BillingApi");
     }
 
     [Test]
@@ -301,7 +302,7 @@ public class SqliteCompilerTests
             """;
         var ast = CypherQueryParser.Parse(cypher);
         var compiled = SqliteCompiler.Compile(ast);
-        Assert.That(compiled.Sql, Is.Not.Empty);
+        compiled.Sql.Should().NotBeEmpty();
     }
 
     [Test]
@@ -314,11 +315,11 @@ public class SqliteCompilerTests
         ";
 
         var rows = ExecuteCypher(cypher);
-        Assert.That(rows, Has.Count.EqualTo(1));
-        Assert.That(rows[0]["relType"], Is.EqualTo("CALLS"));
-        Assert.That(rows[0]["rKind"], Is.EqualTo("CALLS"));
-        Assert.That(rows[0]["fromId"], Is.EqualTo("fn:process"));
-        Assert.That(rows[0]["toId"], Is.EqualTo("fn:save"));
+        rows.Should().HaveCount(1);
+        rows[0]["relType"].Should().Be("CALLS");
+        rows[0]["rKind"].Should().Be("CALLS");
+        rows[0]["fromId"].Should().Be("fn:process");
+        rows[0]["toId"].Should().Be("fn:save");
     }
 
     [Test]
@@ -331,14 +332,14 @@ public class SqliteCompilerTests
         ";
 
         var rows = ExecuteCypher(cypher);
-        Assert.That(rows, Has.Count.EqualTo(1));
+        rows.Should().HaveCount(1);
         var relJson = (string)rows[0]["r"]!;
 
         using var doc = JsonDocument.Parse(relJson);
 
-        Assert.That(doc.RootElement.GetProperty("type").GetString(), Is.EqualTo("CALLS"));
-        Assert.That(doc.RootElement.GetProperty("from").GetString(), Is.EqualTo("fn:process"));
-        Assert.That(doc.RootElement.GetProperty("to").GetString(), Is.EqualTo("fn:save"));
+        doc.RootElement.GetProperty("type").GetString().Should().Be("CALLS");
+        doc.RootElement.GetProperty("from").GetString().Should().Be("fn:process");
+        doc.RootElement.GetProperty("to").GetString().Should().Be("fn:save");
     }
 
     [Test]
@@ -351,7 +352,7 @@ public class SqliteCompilerTests
         ";
 
         var compiled = SqliteCompiler.Compile(CypherQueryParser.Parse(cypher));
-        Assert.That(compiled.Sql, Does.StartWith("SELECT DISTINCT"));
+        compiled.Sql.Should().StartWith("SELECT DISTINCT");
     }
 
     [Test]
@@ -371,8 +372,8 @@ public class SqliteCompilerTests
         ";
 
         var rows = ExecuteCypher(cypher);
-        Assert.That(rows, Has.Count.EqualTo(1));
-        Assert.That(rows[0]["id"], Is.EqualTo("pkg:2"));
+        rows.Should().HaveCount(1);
+        rows[0]["id"].Should().Be("pkg:2");
     }
 
     [Test]
@@ -387,45 +388,45 @@ public class SqliteCompilerTests
 
         // 1. MATCH (s:Service)
         var svcRows = ExecuteCypher("MATCH (s:Service) RETURN s.name AS name");
-        Assert.That(svcRows, Has.Count.EqualTo(1));
-        Assert.That(svcRows[0]["name"], Is.EqualTo("OrdersApi"));
+        svcRows.Should().HaveCount(1);
+        svcRows[0]["name"].Should().Be("OrdersApi");
 
         // 2. MATCH (a:App)
         var appRows = ExecuteCypher("MATCH (a:App) RETURN a.name AS name");
-        Assert.That(appRows, Has.Count.EqualTo(1));
-        Assert.That(appRows[0]["name"], Is.EqualTo("ShopWeb"));
+        appRows.Should().HaveCount(1);
+        appRows[0]["name"].Should().Be("ShopWeb");
 
         // 3. MATCH (l:Library)
         var libRows = ExecuteCypher("MATCH (l:Library) RETURN l.name AS name");
-        Assert.That(libRows, Has.Count.EqualTo(1));
-        Assert.That(libRows[0]["name"], Is.EqualTo("ShopCore"));
+        libRows.Should().HaveCount(1);
+        libRows[0]["name"].Should().Be("ShopCore");
 
         // 4. MATCH (w:Worker)
         var workerRows = ExecuteCypher("MATCH (w:Worker) RETURN w.name AS name");
-        Assert.That(workerRows, Has.Count.EqualTo(1));
-        Assert.That(workerRows[0]["name"], Is.EqualTo("NotificationWorker"));
+        workerRows.Should().HaveCount(1);
+        workerRows[0]["name"].Should().Be("NotificationWorker");
 
         // 5. MATCH (c:CliTool)
         var cliRows = ExecuteCypher("MATCH (c:CliTool) RETURN c.name AS name");
-        Assert.That(cliRows, Has.Count.EqualTo(1));
-        Assert.That(cliRows[0]["name"], Is.EqualTo("MigratorCli"));
+        cliRows.Should().HaveCount(1);
+        cliRows[0]["name"].Should().Be("MigratorCli");
 
         // 6. MATCH (p:Project) matches Project
         var projRows = ExecuteCypher("MATCH (p:Project) RETURN p.name AS name");
-        Assert.That(projRows, Has.Count.EqualTo(1));
-        Assert.That(projRows[0]["name"], Is.EqualTo("GeneralProj"));
+        projRows.Should().HaveCount(1);
+        projRows[0]["name"].Should().Be("GeneralProj");
 
         // 7. WHERE s:Service filter
         var whereRows = ExecuteCypher("MATCH (s) WHERE s:Service RETURN s.name AS name");
-        Assert.That(whereRows, Has.Count.EqualTo(1));
-        Assert.That(whereRows[0]["name"], Is.EqualTo("OrdersApi"));
+        whereRows.Should().HaveCount(1);
+        whereRows[0]["name"].Should().Be("OrdersApi");
 
         // 8. labels(s) includes both Service and Project
         var labelsRows = ExecuteCypher("MATCH (s:Service) RETURN labels(s) AS lbls");
-        Assert.That(labelsRows, Has.Count.EqualTo(1));
+        labelsRows.Should().HaveCount(1);
         var lbls = (string)labelsRows[0]["lbls"]!;
-        Assert.That(lbls, Does.Contain("Project"));
-        Assert.That(lbls, Does.Contain("Service"));
+        lbls.Should().Contain("Project");
+        lbls.Should().Contain("Service");
     }
 
     [Test]
@@ -440,72 +441,72 @@ public class SqliteCompilerTests
 
         // 1. MATCH (s:Service) matches native Service
         var svcRows = ExecuteCypher("MATCH (s:Service) WHERE s.name = 'BillingService' RETURN s.name AS name");
-        Assert.That(svcRows, Has.Count.EqualTo(1));
-        Assert.That(svcRows[0]["name"], Is.EqualTo("BillingService"));
+        svcRows.Should().HaveCount(1);
+        svcRows[0]["name"].Should().Be("BillingService");
 
         // 2. MATCH (a:App) matches native App
         var appRows = ExecuteCypher("MATCH (a:App) WHERE a.name = 'PortalApp' RETURN a.name AS name");
-        Assert.That(appRows, Has.Count.EqualTo(1));
-        Assert.That(appRows[0]["name"], Is.EqualTo("PortalApp"));
+        appRows.Should().HaveCount(1);
+        appRows[0]["name"].Should().Be("PortalApp");
 
         // 3. MATCH (l:Library) matches native Library
         var libRows = ExecuteCypher("MATCH (l:Library) WHERE l.name = 'DomainCommon' RETURN l.name AS name");
-        Assert.That(libRows, Has.Count.EqualTo(1));
-        Assert.That(libRows[0]["name"], Is.EqualTo("DomainCommon"));
+        libRows.Should().HaveCount(1);
+        libRows[0]["name"].Should().Be("DomainCommon");
 
         // 4. MATCH (w:Worker) matches native Worker
         var workerRows = ExecuteCypher("MATCH (w:Worker) WHERE w.name = 'AuditWorker' RETURN w.name AS name");
-        Assert.That(workerRows, Has.Count.EqualTo(1));
-        Assert.That(workerRows[0]["name"], Is.EqualTo("AuditWorker"));
+        workerRows.Should().HaveCount(1);
+        workerRows[0]["name"].Should().Be("AuditWorker");
 
         // 5. MATCH (c:CliTool) matches native CliTool
         var cliRows = ExecuteCypher("MATCH (c:CliTool) WHERE c.name = 'AdminCli' RETURN c.name AS name");
-        Assert.That(cliRows, Has.Count.EqualTo(1));
-        Assert.That(cliRows[0]["name"], Is.EqualTo("AdminCli"));
+        cliRows.Should().HaveCount(1);
+        cliRows[0]["name"].Should().Be("AdminCli");
 
         // 6. MATCH (p:Project) matches native Project
         var projRows = ExecuteCypher("MATCH (p:Project) RETURN p.name AS name");
-        Assert.That(projRows, Has.Count.EqualTo(1));
-        Assert.That(projRows[0]["name"], Is.EqualTo("LegacyProject"));
+        projRows.Should().HaveCount(1);
+        projRows[0]["name"].Should().Be("LegacyProject");
 
         // 7. labels(s) on native Service includes both Service and Project
         var labelsRows = ExecuteCypher("MATCH (s:Service) WHERE s.name = 'BillingService' RETURN labels(s) AS lbls");
-        Assert.That(labelsRows, Has.Count.EqualTo(1));
+        labelsRows.Should().HaveCount(1);
         var lbls = (string)labelsRows[0]["lbls"]!;
-        Assert.That(lbls, Does.Contain("Project"));
-        Assert.That(lbls, Does.Contain("Service"));
+        lbls.Should().Contain("Project");
+        lbls.Should().Contain("Service");
 
         // 8. labels(l) on native Library includes both Library and Project
         var libLabelsRows = ExecuteCypher("MATCH (l:Library) WHERE l.name = 'DomainCommon' RETURN labels(l) AS lbls");
-        Assert.That(libLabelsRows, Has.Count.EqualTo(1));
+        libLabelsRows.Should().HaveCount(1);
         var libLbls = (string)libLabelsRows[0]["lbls"]!;
-        Assert.That(libLbls, Does.Contain("Project"));
-        Assert.That(libLbls, Does.Contain("Library"));
+        libLbls.Should().Contain("Project");
+        libLbls.Should().Contain("Library");
     }
 
     [Test]
     public void Test_Epic3_PathPredicates_And_Quantifiers()
     {
         var rows = ExecuteCypher("MATCH (a:Function) WHERE EXISTS((a)-[:CALLS]->(:Function)) RETURN a.name AS name");
-        Assert.That(rows, Has.Count.GreaterThan(0));
+        rows.Should().HaveCountGreaterThan(0);
 
         var rows2 = ExecuteCypher("MATCH (a:Function) WHERE (a)-[:CALLS]->(:Function) RETURN a.name AS name");
-        Assert.That(rows2, Has.Count.EqualTo(rows.Count));
+        rows2.Should().HaveCount(rows.Count);
 
         // Test quantifiers: any, all, none, single
         InsertNode("fn:tagged", "Function", new() { ["name"] = "TaggedFn", ["tags"] = new[] { "security", "audit" } });
         var rowsAny = ExecuteCypher("MATCH (f:Function) WHERE any(t IN f.tags WHERE t = 'security') RETURN f.name AS name");
-        Assert.That(rowsAny, Has.Count.EqualTo(1));
-        Assert.That(rowsAny[0]["name"], Is.EqualTo("TaggedFn"));
+        rowsAny.Should().HaveCount(1);
+        rowsAny[0]["name"].Should().Be("TaggedFn");
 
         var rowsAll = ExecuteCypher("MATCH (f:Function) WHERE all(t IN ['a', 'b'] WHERE t IN ['a', 'b', 'c']) RETURN f.name AS name LIMIT 1");
-        Assert.That(rowsAll, Has.Count.EqualTo(1));
+        rowsAll.Should().HaveCount(1);
 
         var rowsNone = ExecuteCypher("MATCH (f:Function) WHERE none(t IN f.tags WHERE t = 'nonexistent') AND f.name = 'TaggedFn' RETURN f.name AS name");
-        Assert.That(rowsNone, Has.Count.EqualTo(1));
+        rowsNone.Should().HaveCount(1);
 
         var rowsSingle = ExecuteCypher("MATCH (f:Function) WHERE single(t IN f.tags WHERE t = 'security') AND f.name = 'TaggedFn' RETURN f.name AS name");
-        Assert.That(rowsSingle, Has.Count.EqualTo(1));
+        rowsSingle.Should().HaveCount(1);
     }
 
     [Test]
@@ -523,9 +524,9 @@ public class SqliteCompilerTests
         var rowsDirect =
             ExecuteCypher(
                 "MATCH (a:Function)-[r:ASYNC_CALL]->(b:Function) RETURN r.via AS via, r.call_chain AS chain");
-        Assert.That(rowsDirect, Has.Count.EqualTo(1));
-        Assert.That(rowsDirect[0]["via"], Is.EqualTo("rabbitmq"));
-        Assert.That(rowsDirect[0]["chain"], Is.EqualTo("process->notify"));
+        rowsDirect.Should().HaveCount(1);
+        rowsDirect[0]["via"].Should().Be("rabbitmq");
+        rowsDirect[0]["chain"].Should().Be("process->notify");
 
         // 2. type(r), startNode(r), endNode(r), properties(r) in WITH
         var rowsWith = ExecuteCypher(@"
@@ -534,7 +535,7 @@ public class SqliteCompilerTests
             RETURN relType, src, dst, cnt
             ORDER BY relType
         ");
-        Assert.That(rowsWith, Has.Count.GreaterThan(0));
+        rowsWith.Should().HaveCountGreaterThan(0);
 
         // 3. WITH r (passing relationship object itself) and then type(r)
         var rowsWithRel = ExecuteCypher(@"
@@ -542,9 +543,9 @@ public class SqliteCompilerTests
             WITH r, count(b) AS cnt
             RETURN type(r) AS t, r.via AS via, cnt
         ");
-        Assert.That(rowsWithRel, Has.Count.EqualTo(1));
-        Assert.That(rowsWithRel[0]["t"], Is.EqualTo("ASYNC_CALL"));
-        Assert.That(rowsWithRel[0]["via"], Is.EqualTo("rabbitmq"));
+        rowsWithRel.Should().HaveCount(1);
+        rowsWithRel[0]["t"].Should().Be("ASYNC_CALL");
+        rowsWithRel[0]["via"].Should().Be("rabbitmq");
     }
 
     [Test]
@@ -568,11 +569,11 @@ public class SqliteCompilerTests
             RETURN p.name, collect(ep.name) AS eps, collect(db.name) AS dbs, count(ep) AS epCount, count(db) AS dbCount
         ";
         var rows = ExecuteCypher(cypher);
-        Assert.That(rows, Has.Count.EqualTo(1));
-        Assert.That(rows[0]["eps"], Is.EqualTo("[\"get_orders\",\"create_order\"]"));
-        Assert.That(rows[0]["dbs"], Is.EqualTo("[\"orders_db\",\"cache_redis\"]"));
-        Assert.That(Convert.ToInt64(rows[0]["epCount"]), Is.EqualTo(2));
-        Assert.That(Convert.ToInt64(rows[0]["dbCount"]), Is.EqualTo(2));
+        rows.Should().HaveCount(1);
+        rows[0]["eps"].Should().Be("[\"get_orders\",\"create_order\"]");
+        rows[0]["dbs"].Should().Be("[\"orders_db\",\"cache_redis\"]");
+        Convert.ToInt64(rows[0]["epCount"]).Should().Be(2);
+        Convert.ToInt64(rows[0]["dbCount"]).Should().Be(2);
     }
 
     [Test]
@@ -585,11 +586,11 @@ public class SqliteCompilerTests
             MATCH (f:Function) WHERE f.name = 'CompFn'
             RETURN [t IN f.tags WHERE t <> 'audit' | toUpper(t)] AS activeTags
         ");
-        Assert.That(rowsDirect, Has.Count.EqualTo(1));
+        rowsDirect.Should().HaveCount(1);
         var tags = (string)rowsDirect[0]["activeTags"]!;
-        Assert.That(tags, Does.Contain("SECURITY"));
-        Assert.That(tags, Does.Contain("INTERNAL"));
-        Assert.That(tags, Does.Not.Contain("audit"));
+        tags.Should().Contain("SECURITY");
+        tags.Should().Contain("INTERNAL");
+        tags.Should().NotContain("audit");
 
         // 2. List Comprehension over collected array in WITH (uses RenderCollectedArray)
         var rowsCollected = ExecuteCypher(@"
@@ -597,9 +598,9 @@ public class SqliteCompilerTests
             WITH collect(f.name) AS allNames
             RETURN [name IN allNames WHERE name STARTS WITH 'Comp' | toLower(name)] AS compNames
         ");
-        Assert.That(rowsCollected, Has.Count.EqualTo(1));
+        rowsCollected.Should().HaveCount(1);
         var compNames = (string)rowsCollected[0]["compNames"]!;
-        Assert.That(compNames, Does.Contain("compfn"));
+        compNames.Should().Contain("compfn");
     }
     [Test]
     public void Test_DirectLabels_GeneratesCleanSqlWithoutSubqueries()
@@ -608,10 +609,10 @@ public class SqliteCompilerTests
         var ast = CodeExplorer.Cypher.Parser.CypherQueryParser.Parse(cypher);
 
         var compiled = SqliteCompiler.Compile(ast);
-        Assert.That(compiled.Sql, Does.Not.Contain("NOT EXISTS"));
-        Assert.That(compiled.Sql, Does.Contain("s1.kind = 'Service'"));
-        Assert.That(compiled.Sql, Does.Contain("s2.kind = 'Service'"));
-        Assert.That(compiled.Sql, Does.Contain("d.kind = 'Database'"));
+        compiled.Sql.Should().NotContain("NOT EXISTS");
+        compiled.Sql.Should().Contain("s1.kind = 'Service'");
+        compiled.Sql.Should().Contain("s2.kind = 'Service'");
+        compiled.Sql.Should().Contain("d.kind = 'Database'");
     }
 
     [Test]
@@ -624,9 +625,9 @@ public class SqliteCompilerTests
             RETURN (f.end_line - f.start_line + 1) AS loc,
                    'Length: ' + toString(f.end_line - f.start_line + 1) AS label
         ");
-        Assert.That(rows, Has.Count.EqualTo(1));
-        Assert.That(Convert.ToInt64(rows[0]["loc"]), Is.EqualTo(16));
-        Assert.That((string)rows[0]["label"]!, Is.EqualTo("Length: 16"));
+        rows.Should().HaveCount(1);
+        Convert.ToInt64(rows[0]["loc"]).Should().Be(16);
+        ((string)rows[0]["label"]!).Should().Be("Length: 16");
     }
 
     [Test]
@@ -642,8 +643,8 @@ public class SqliteCompilerTests
             WHERE NOT (:Endpoint { path: es.path })
             RETURN es.name AS name
         ");
-        Assert.That(rowsPattern, Has.Count.EqualTo(1));
-        Assert.That((string)rowsPattern[0]["name"]!, Is.EqualTo("OrdersClient"));
+        rowsPattern.Should().HaveCount(1);
+        ((string)rowsPattern[0]["name"]!).Should().Be("OrdersClient");
 
         // 2. NOT exists((:Endpoint { path: es.path }))
         var rowsExists = ExecuteCypher(@"
@@ -651,7 +652,7 @@ public class SqliteCompilerTests
             WHERE NOT exists((:Endpoint { path: es.path }))
             RETURN es.name AS name
         ");
-        Assert.That(rowsExists, Has.Count.EqualTo(1));
-        Assert.That((string)rowsExists[0]["name"]!, Is.EqualTo("OrdersClient"));
+        rowsExists.Should().HaveCount(1);
+        ((string)rowsExists[0]["name"]!).Should().Be("OrdersClient");
     }
 }

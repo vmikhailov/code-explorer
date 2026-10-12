@@ -1,6 +1,7 @@
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
 using NUnit.Framework;
+using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 
@@ -19,7 +20,7 @@ public class ProjectEntityClassifierTests
             "typescript",
             extensions: new Dictionary<string, string> { ["manifest_type"] = "library" }
         );
-        Assert.That(kind1?.Kind, Is.EqualTo(ProjectEntityKind.Library));
+        kind1?.Kind.Should().Be(ProjectEntityKind.Library);
 
         // 2. Standard source library path
         var kind2 = ProjectEntityClassifierRegistry.Classify(
@@ -29,7 +30,7 @@ public class ProjectEntityClassifierTests
             "widgets",
             "typescript"
         );
-        Assert.That(kind2?.Kind, Is.EqualTo(ProjectEntityKind.Library));
+        kind2?.Kind.Should().Be(ProjectEntityKind.Library);
 
         // 3. Domain contracts naming
         var kind3 = ProjectEntityClassifierRegistry.Classify(
@@ -39,7 +40,7 @@ public class ProjectEntityClassifierTests
             "Orders.Contracts",
             "csharp"
         );
-        Assert.That(kind3?.Kind, Is.EqualTo(ProjectEntityKind.Library));
+        kind3?.Kind.Should().Be(ProjectEntityKind.Library);
     }
 
     [Test]
@@ -54,7 +55,7 @@ public class ProjectEntityClassifierTests
             "csharp",
             extensions: new Dictionary<string, string> { ["sdk"] = "Microsoft.NET.Sdk.Web" }
         );
-        Assert.That(kind1?.Kind, Is.EqualTo(ProjectEntityKind.Service));
+        kind1?.Kind.Should().Be(ProjectEntityKind.Service);
 
         // 2. Executable backend service
         var kind2 = ProjectEntityClassifierRegistry.Classify(
@@ -65,7 +66,7 @@ public class ProjectEntityClassifierTests
             "typescript",
             dependencies: ["express", "pg"]
         );
-        Assert.That(kind2?.Kind, Is.EqualTo(ProjectEntityKind.Service));
+        kind2?.Kind.Should().Be(ProjectEntityKind.Service);
     }
 
     [Test]
@@ -80,7 +81,7 @@ public class ProjectEntityClassifierTests
             "csharp",
             extensions: new Dictionary<string, string> { ["sdk"] = "Microsoft.NET.Sdk.Worker" }
         );
-        Assert.That(kind1?.Kind, Is.EqualTo(ProjectEntityKind.Worker));
+        kind1?.Kind.Should().Be(ProjectEntityKind.Worker);
 
         // 2. Cloudflare worker runtime
         var kind2 = ProjectEntityClassifierRegistry.Classify(
@@ -91,7 +92,7 @@ public class ProjectEntityClassifierTests
             "typescript",
             extensions: new Dictionary<string, string> { ["cloud_runtime"] = "cloudflare-worker" }
         );
-        Assert.That(kind2?.Kind, Is.EqualTo(ProjectEntityKind.Worker));
+        kind2?.Kind.Should().Be(ProjectEntityKind.Worker);
     }
 
     [Test]
@@ -106,8 +107,8 @@ public class ProjectEntityClassifierTests
             "typescript",
             extensions: new Dictionary<string, string> { ["has_cli_bin"] = "true" }
         );
-        Assert.That(kind1?.Kind, Is.EqualTo(ProjectEntityKind.CliTool));
-        Assert.That(kind1?.SubKind, Is.EqualTo(ProjectEntitySubKind.Cli));
+        kind1?.Kind.Should().Be(ProjectEntityKind.CliTool);
+        kind1?.SubKind.Should().Be(ProjectEntitySubKind.Cli);
 
         // 2. CLI directory & suffix
         var kind2 = ProjectEntityClassifierRegistry.Classify(
@@ -117,8 +118,8 @@ public class ProjectEntityClassifierTests
             "my-tool-cli",
             "csharp"
         );
-        Assert.That(kind2?.Kind, Is.EqualTo(ProjectEntityKind.CliTool));
-        Assert.That(kind2?.SubKind, Is.EqualTo(ProjectEntitySubKind.Cli));
+        kind2?.Kind.Should().Be(ProjectEntityKind.CliTool);
+        kind2?.SubKind.Should().Be(ProjectEntitySubKind.Cli);
     }
 
     [Test]
@@ -132,8 +133,8 @@ public class ProjectEntityClassifierTests
             "typescript",
             dependencies: ["react", "react-dom"]
         );
-        Assert.That(kind?.Kind, Is.EqualTo(ProjectEntityKind.App));
-        Assert.That(kind?.SubKind, Is.EqualTo(ProjectEntitySubKind.Web));
+        kind?.Kind.Should().Be(ProjectEntityKind.App);
+        kind?.SubKind.Should().Be(ProjectEntitySubKind.Web);
     }
 
     [Test]
@@ -146,7 +147,7 @@ public class ProjectEntityClassifierTests
             "migrations",
             "sql"
         );
-        Assert.That(kind?.Kind, Is.EqualTo(ProjectEntityKind.DatabaseMigration));
+        kind?.Kind.Should().Be(ProjectEntityKind.DatabaseMigration);
     }
 
     [Test]
@@ -159,10 +160,10 @@ public class ProjectEntityClassifierTests
             "web",
             "typescript"
         );
-        Assert.That(role, Is.EqualTo(ProjectRole.FrontendApp));
-        Assert.That(isLib, Is.False);
-        Assert.That(classification.Kind, Is.EqualTo(ProjectEntityKind.App));
-        Assert.That(classification.SubKind, Is.EqualTo(ProjectEntitySubKind.Web));
+        role.Should().Be(ProjectRole.FrontendApp);
+        isLib.Should().BeFalse();
+        classification.Kind.Should().Be(ProjectEntityKind.App);
+        classification.SubKind.Should().Be(ProjectEntitySubKind.Web);
     }
 
     [Test]
@@ -179,12 +180,12 @@ public class ProjectEntityClassifierTests
             extensions: extensions
         );
 
-        Assert.That(role, Is.EqualTo(ProjectRole.Service));
-        Assert.That(isLib, Is.False);
-        Assert.That(classification.Kind, Is.EqualTo(ProjectEntityKind.Service));
-        Assert.That(extensions["primary_role"], Is.EqualTo("WebService"));
-        Assert.That(extensions["secondary_roles"], Does.Contain("Scheduler"));
-        Assert.That(extensions["all_roles"], Does.Contain("WebService").And.Contain("Scheduler"));
+        role.Should().Be(ProjectRole.Service);
+        isLib.Should().BeFalse();
+        classification.Kind.Should().Be(ProjectEntityKind.Service);
+        extensions["primary_role"].Should().Be("WebService");
+        extensions["secondary_roles"].Should().Contain("Scheduler");
+        extensions["all_roles"].Should().Contain("WebService").And.Contain("Scheduler");
     }
 
     [Test]
@@ -201,10 +202,10 @@ public class ProjectEntityClassifierTests
             extensions: extensions
         );
 
-        Assert.That(role, Is.EqualTo(ProjectRole.Worker));
-        Assert.That(isLib, Is.False);
-        Assert.That(classification.Kind, Is.EqualTo(ProjectEntityKind.Worker));
-        Assert.That(extensions["primary_role"], Is.EqualTo("Scheduler"));
+        role.Should().Be(ProjectRole.Worker);
+        isLib.Should().BeFalse();
+        classification.Kind.Should().Be(ProjectEntityKind.Worker);
+        extensions["primary_role"].Should().Be("Scheduler");
     }
 
     [Test]
@@ -220,10 +221,10 @@ public class ProjectEntityClassifierTests
             externalPackages: ["@nestjs/common", "@nestjs/core", "@nestjs/schedule"]
         );
 
-        Assert.That(node.Role, Is.EqualTo("Service"));
-        Assert.That(node.IsLibrary, Is.False);
-        Assert.That(node.PrimaryRole, Is.EqualTo("WebService"));
-        Assert.That(node.SecondaryRoles, Does.Contain("Scheduler"));
-        Assert.That(node.AllRoles, Does.Contain("WebService").And.Contain("Scheduler"));
+        node.Role.Should().Be("Service");
+        node.IsLibrary.Should().BeFalse();
+        node.PrimaryRole.Should().Be("WebService");
+        node.SecondaryRoles.Should().Contain("Scheduler");
+        node.AllRoles.Should().Contain("WebService").And.Contain("Scheduler");
     }
 }

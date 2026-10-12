@@ -1,5 +1,6 @@
 using CodeExplorer.Core.Common;
 using NUnit.Framework;
+using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 
@@ -12,13 +13,13 @@ public class UrnTests
         var raw = "ws:symbol:C:/work/repo/src/Order.cs:Type:Order:42";
         var ok = Urn.TryParse(raw, out var urn);
 
-        Assert.That(ok, Is.True);
-        Assert.That(urn.Prefix, Is.EqualTo("ws"));
-        Assert.That(urn.Domain, Is.EqualTo("symbol"));
-        Assert.That(urn.Path, Is.EqualTo("C:/work/repo/src/Order.cs"));
-        Assert.That(urn.Kind, Is.EqualTo("Type"));
-        Assert.That(urn.Name, Is.EqualTo("Order"));
-        Assert.That(urn.Line, Is.EqualTo(42));
+        ok.Should().BeTrue();
+        urn.Prefix.Should().Be("ws");
+        urn.Domain.Should().Be("symbol");
+        urn.Path.Should().Be("C:/work/repo/src/Order.cs");
+        urn.Kind.Should().Be("Type");
+        urn.Name.Should().Be("Order");
+        urn.Line.Should().Be(42);
     }
 
     [Test]
@@ -27,13 +28,13 @@ public class UrnTests
         var raw = "ws:symbol:src/Order.cs:Type:Dictionary<string, int>:15";
         var ok = Urn.TryParse(raw, out var urn);
 
-        Assert.That(ok, Is.True);
-        Assert.That(urn.Prefix, Is.EqualTo("ws"));
-        Assert.That(urn.Domain, Is.EqualTo("symbol"));
-        Assert.That(urn.Path, Is.EqualTo("src/Order.cs"));
-        Assert.That(urn.Kind, Is.EqualTo("Type"));
-        Assert.That(urn.Name, Is.EqualTo("Dictionary<string, int>"));
-        Assert.That(urn.Line, Is.EqualTo(15));
+        ok.Should().BeTrue();
+        urn.Prefix.Should().Be("ws");
+        urn.Domain.Should().Be("symbol");
+        urn.Path.Should().Be("src/Order.cs");
+        urn.Kind.Should().Be("Type");
+        urn.Name.Should().Be("Dictionary<string, int>");
+        urn.Line.Should().Be(15);
     }
 
     [Test]
@@ -42,13 +43,13 @@ public class UrnTests
         var raw = "ws:symbol:src/Order.cs:Type:Order";
         var ok = Urn.TryParse(raw, out var urn);
 
-        Assert.That(ok, Is.True);
-        Assert.That(urn.Prefix, Is.EqualTo("ws"));
-        Assert.That(urn.Domain, Is.EqualTo("symbol"));
-        Assert.That(urn.Path, Is.EqualTo("src/Order.cs"));
-        Assert.That(urn.Kind, Is.EqualTo("Type"));
-        Assert.That(urn.Name, Is.EqualTo("Order"));
-        Assert.That(urn.Line, Is.Null);
+        ok.Should().BeTrue();
+        urn.Prefix.Should().Be("ws");
+        urn.Domain.Should().Be("symbol");
+        urn.Path.Should().Be("src/Order.cs");
+        urn.Kind.Should().Be("Type");
+        urn.Name.Should().Be("Order");
+        urn.Line.Should().BeNull();
     }
 
     [Test]
@@ -57,12 +58,12 @@ public class UrnTests
         var raw = "urn:ce:default:res:db:postgres:orders_db";
         var ok = Urn.TryParse(raw, out var urn);
 
-        Assert.That(ok, Is.True);
-        Assert.That(urn.Prefix, Is.EqualTo("urn:ce:default"));
-        Assert.That(urn.Domain, Is.EqualTo("res"));
-        Assert.That(urn.SubDomain, Is.EqualTo("db"));
-        Assert.That(urn.Kind, Is.EqualTo("postgres"));
-        Assert.That(urn.Name, Is.EqualTo("orders_db"));
+        ok.Should().BeTrue();
+        urn.Prefix.Should().Be("urn:ce:default");
+        urn.Domain.Should().Be("res");
+        urn.SubDomain.Should().Be("db");
+        urn.Kind.Should().Be("postgres");
+        urn.Name.Should().Be("orders_db");
     }
 
     [Test]
@@ -71,11 +72,11 @@ public class UrnTests
         var raw = "ws:project:services/order-service:";
         var ok = Urn.TryParse(raw, out var urn);
 
-        Assert.That(ok, Is.True);
-        Assert.That(urn.Prefix, Is.EqualTo("ws"));
-        Assert.That(urn.Domain, Is.EqualTo("project"));
-        Assert.That(urn.Path, Is.EqualTo("services/order-service"));
-        Assert.That(urn.Name, Is.EqualTo("order-service"));
+        ok.Should().BeTrue();
+        urn.Prefix.Should().Be("ws");
+        urn.Domain.Should().Be("project");
+        urn.Path.Should().Be("services/order-service");
+        urn.Name.Should().Be("order-service");
     }
 
     [Test]
@@ -84,10 +85,10 @@ public class UrnTests
         var raw = "ws:endpoint:api/orders:POST";
         var ok = Urn.TryParse(raw, out var urn);
 
-        Assert.That(ok, Is.True);
-        Assert.That(urn.Prefix, Is.EqualTo("ws"));
-        Assert.That(urn.Domain, Is.EqualTo("endpoint"));
-        Assert.That(urn.Path, Is.EqualTo("api/orders"));
-        Assert.That(urn.Kind, Is.EqualTo("POST"));
+        ok.Should().BeTrue();
+        urn.Prefix.Should().Be("ws");
+        urn.Domain.Should().Be("endpoint");
+        urn.Path.Should().Be("api/orders");
+        urn.Kind.Should().Be("POST");
     }
 }

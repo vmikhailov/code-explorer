@@ -144,9 +144,8 @@ export class Product {
 
         var tables = doc.RootElement.EnumerateArray().Select(x => x.GetProperty("name").GetString()).ToList();
 
-        Assert.That(tables, Does.Contain("customers").Or.Contain("Orders").Or.Contain("orders"),
-            "EF Core tables not extracted!");
-        Assert.That(tables, Does.Contain("invoices"), "EF Core IEntityTypeConfiguration ToTable not extracted!");
+        tables.Any(t => t is "customers" or "Orders" or "orders").Should().BeTrue("EF Core tables not extracted!");
+        tables.Should().Contain("invoices", "EF Core IEntityTypeConfiguration ToTable not extracted!");
 
         // Check PERSISTED_IN relationship between Customer Type and Table
         var qRel =
@@ -155,8 +154,7 @@ export class Product {
 
         using var docRel = JsonDocument.Parse(resRel);
 
-        Assert.That(docRel.RootElement.GetArrayLength(), Is.GreaterThan(0),
-            "No PERSISTED_IN relationship found for EF Core entity!");
+        docRel.RootElement.GetArrayLength().Should().BeGreaterThan(0, "No PERSISTED_IN relationship found for EF Core entity!");
     }
 
     [Test]
@@ -169,9 +167,9 @@ export class Product {
 
         var array = docRel.RootElement.EnumerateArray().ToList();
 
-        Assert.That(array.Count, Is.GreaterThan(0), "JPA Account entity not linked to Table via PERSISTED_IN!");
+        array.Count.Should().BeGreaterThan(0, "JPA Account entity not linked to Table via PERSISTED_IN!");
         var tableName = array[0].GetProperty("tableName").GetString();
-        Assert.That(tableName, Is.EqualTo("jpa_accounts").IgnoreCase);
+        tableName.Should().BeEquivalentTo("jpa_accounts");
     }
 
     [Test]
@@ -184,9 +182,9 @@ export class Product {
 
         var array = docRel.RootElement.EnumerateArray().ToList();
 
-        Assert.That(array.Count, Is.GreaterThan(0), "TypeORM Product entity not linked to Table via PERSISTED_IN!");
+        array.Count.Should().BeGreaterThan(0, "TypeORM Product entity not linked to Table via PERSISTED_IN!");
         var tableName = array[0].GetProperty("tableName").GetString();
-        Assert.That(tableName, Is.EqualTo("typeorm_products").IgnoreCase);
+        tableName.Should().BeEquivalentTo("typeorm_products");
     }
 
     [Test]
@@ -199,9 +197,9 @@ export class Product {
 
         var array = doc.RootElement.EnumerateArray().ToList();
 
-        Assert.That(array.Count, Is.GreaterThan(0), "inspect_data_lineage returned 0 rows for jpa_accounts table!");
+        array.Count.Should().BeGreaterThan(0, "inspect_data_lineage returned 0 rows for jpa_accounts table!");
         var tableName = array[0].GetProperty("tableName").GetString();
-        Assert.That(tableName, Is.EqualTo("jpa_accounts").IgnoreCase);
+        tableName.Should().BeEquivalentTo("jpa_accounts");
     }
 
     [Test]
@@ -209,26 +207,26 @@ export class Product {
     {
         var (tName1, tType1, tKey1) = PostIndexAnalyzer.CanonicalizeDatabase("typeorm", "relational");
         var (tName2, tType2, tKey2) = PostIndexAnalyzer.CanonicalizeDatabase("TypeORM", "relational");
-        Assert.That(tName1, Is.EqualTo("Database"));
-        Assert.That(tName2, Is.EqualTo("Database"));
-        Assert.That(tKey1, Is.EqualTo("database"));
-        Assert.That(tKey2, Is.EqualTo("database"));
+        tName1.Should().Be("Database");
+        tName2.Should().Be("Database");
+        tKey1.Should().Be("database");
+        tKey2.Should().Be("database");
 
         var (pName1, _, pKey1) = PostIndexAnalyzer.CanonicalizeDatabase("postgres", null);
         var (pName2, _, pKey2) = PostIndexAnalyzer.CanonicalizeDatabase("PostgreSQL", "relational");
-        Assert.That(pName1, Is.EqualTo("PostgreSQL"));
-        Assert.That(pName2, Is.EqualTo("PostgreSQL"));
-        Assert.That(pKey1, Is.EqualTo("postgresql"));
-        Assert.That(pKey2, Is.EqualTo("postgresql"));
+        pName1.Should().Be("PostgreSQL");
+        pName2.Should().Be("PostgreSQL");
+        pKey1.Should().Be("postgresql");
+        pKey2.Should().Be("postgresql");
 
         var (rName1, rType1, rKey1) = PostIndexAnalyzer.CanonicalizeDatabase("REDIS_HOST", "cache");
         var (rName2, rType2, rKey2) = PostIndexAnalyzer.CanonicalizeDatabase("redis", "keyvalue");
-        Assert.That(rName1, Is.EqualTo("Redis"));
-        Assert.That(rName2, Is.EqualTo("Redis"));
-        Assert.That(rType1, Is.EqualTo("cache"));
-        Assert.That(rType2, Is.EqualTo("cache"));
-        Assert.That(rKey1, Is.EqualTo("redis"));
-        Assert.That(rKey2, Is.EqualTo("redis"));
+        rName1.Should().Be("Redis");
+        rName2.Should().Be("Redis");
+        rType1.Should().Be("cache");
+        rType2.Should().Be("cache");
+        rKey1.Should().Be("redis");
+        rKey2.Should().Be("redis");
     }
 
     [Test]
@@ -290,19 +288,17 @@ export class Product {
             var dbNodes = graph.Nodes.Where(n => n.Name.Equals("Database", StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
-            Assert.That(dbNodes, Has.Count.EqualTo(1),
-                "All TypeORM nodes must collapse to canonical Database node");
-            Assert.That(dbNodes[0].Name, Is.EqualTo("Database"));
-            Assert.That(dbNodes[0].Id, Is.EqualTo("ws:db:relational:database"));
+            dbNodes.Should().HaveCount(1, "All TypeORM nodes must collapse to canonical Database node");
+            dbNodes[0].Name.Should().Be("Database");
+            dbNodes[0].Id.Should().Be("ws:db:relational:database");
 
             // Exactly 1 PostgreSQL node
             var postgresNodes = graph.Nodes
                 .Where(n => n.Name.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase)).ToList();
 
-            Assert.That(postgresNodes, Has.Count.EqualTo(1),
-                "All PostgreSQL nodes must collapse to exactly 1 node");
-            Assert.That(postgresNodes[0].Name, Is.EqualTo("PostgreSQL"));
-            Assert.That(postgresNodes[0].Id, Is.EqualTo("ws:db:relational:postgresql"));
+            postgresNodes.Should().HaveCount(1, "All PostgreSQL nodes must collapse to exactly 1 node");
+            postgresNodes[0].Name.Should().Be("PostgreSQL");
+            postgresNodes[0].Id.Should().Be("ws:db:relational:postgresql");
 
             // Edges must point to canonical IDs
             var aToDb = graph.Edges.FirstOrDefault(e =>
@@ -310,16 +306,16 @@ export class Product {
 
             var bToDb = graph.Edges.FirstOrDefault(e =>
                 e.Source == "proj:svc_b" && e.Target == "ws:db:relational:database");
-            Assert.That(aToDb, Is.Not.Null, "Service A must connect to canonical Database");
-            Assert.That(bToDb, Is.Not.Null, "Service B must connect to canonical Database");
+            aToDb.Should().NotBeNull("Service A must connect to canonical Database");
+            bToDb.Should().NotBeNull("Service B must connect to canonical Database");
 
             var aToPg = graph.Edges.FirstOrDefault(e =>
                 e.Source == "proj:svc_a" && e.Target == "ws:db:relational:postgresql");
 
             var bToPg = graph.Edges.FirstOrDefault(e =>
                 e.Source == "proj:svc_b" && e.Target == "ws:db:relational:postgresql");
-            Assert.That(aToPg, Is.Not.Null, "Service A must connect to canonical PostgreSQL");
-            Assert.That(bToPg, Is.Not.Null, "Service B must connect to canonical PostgreSQL");
+            aToPg.Should().NotBeNull("Service A must connect to canonical PostgreSQL");
+            bToPg.Should().NotBeNull("Service B must connect to canonical PostgreSQL");
         }
         finally
         {
@@ -337,11 +333,11 @@ export class Product {
             var parser = new TypeScriptParser();
             File.WriteAllText(Path.Combine(tempDir, "package.json"), "{\"name\": \"@ats/sample-service\"}");
             var name = parser.GetProjectName(tempDir, ["package.json"]);
-            Assert.That(name, Is.EqualTo("sample-service"));
+            name.Should().Be("sample-service");
 
             File.WriteAllText(Path.Combine(tempDir, "package.json"), "{\"name\": \"direct-name\"}");
             var directName = parser.GetProjectName(tempDir, ["package.json"]);
-            Assert.That(directName, Is.EqualTo("direct-name"));
+            directName.Should().Be("direct-name");
         }
         finally
         {
@@ -358,8 +354,7 @@ export class Product {
 
         using var docTypeOrm = JsonDocument.Parse(resTypeOrm);
 
-        Assert.That(docTypeOrm.RootElement.EnumerateArray().ToList(), Is.Empty,
-            "TypeORM must NOT be a Database node!");
+        docTypeOrm.RootElement.EnumerateArray().ToList().Should().BeEmpty("TypeORM must NOT be a Database node!");
 
         var qDb =
             "MATCH (d:Database) WHERE d.name = 'Database' OR d.name STARTS WITH 'PostgreSQL' RETURN d.name AS name, d.id AS id";
@@ -368,7 +363,7 @@ export class Product {
         using var docDb = JsonDocument.Parse(resDb);
 
         var dbList = docDb.RootElement.EnumerateArray().ToList();
-        Assert.That(dbList, Is.Not.Empty, "Canonical relational Database node should exist in graph");
+        dbList.Should().NotBeEmpty("Canonical relational Database node should exist in graph");
 
         var qRel =
             "MATCH (p:Project)-[r:USES_DB]->(d:Database) WHERE d.name = 'Database' OR d.name STARTS WITH 'PostgreSQL' RETURN p.name AS projName, d.name AS dbName, r.properties AS props";
@@ -377,11 +372,10 @@ export class Product {
         using var docRel = JsonDocument.Parse(resRel);
 
         var relList = docRel.RootElement.EnumerateArray().ToList();
-        Assert.That(relList, Is.Not.Empty, "USES_DB relationship from project to Database should exist");
+        relList.Should().NotBeEmpty("USES_DB relationship from project to Database should exist");
         var tsRel = relList.FirstOrDefault(r => r.GetProperty("props").GetRawText().Contains("TypeORM"));
 
-        Assert.That(tsRel.ValueKind, Is.Not.EqualTo(JsonValueKind.Undefined),
-            "USES_DB edge for TsOrmApp must retain via: TypeORM attribute");
+        tsRel.ValueKind.Should().NotBe(JsonValueKind.Undefined, "USES_DB edge for TsOrmApp must retain via: TypeORM attribute");
     }
 
 
@@ -421,14 +415,13 @@ export class Product {
             var graph = await new ArchitectureViewEngine(db).GetSystemContextViewAsync(includeLibraries: true);
 
             var projNode = graph.Nodes.FirstOrDefault(n => n.Id == "proj:svc_a");
-            Assert.That(projNode, Is.Not.Null);
+            projNode.Should().NotBeNull();
 
-            Assert.That(projNode.Kind, Is.EqualTo(NodeKind.Project),
-                "Project node with db_type property must not be converted to Kind 'Database'!");
+            projNode.Kind.Should().Be(NodeKind.Project, "Project node with db_type property must not be converted to Kind 'Database'!");
 
             var dbNode = graph.Nodes.FirstOrDefault(n => n.Id == "ws:db:relational:postgresql");
-            Assert.That(dbNode, Is.Not.Null);
-            Assert.That(dbNode.Kind, Is.EqualTo(NodeKind.Database));
+            dbNode.Should().NotBeNull();
+            dbNode.Kind.Should().Be(NodeKind.Database);
         }
         finally
         {
@@ -492,9 +485,9 @@ export class Product {
             using (var doc = JsonDocument.Parse(typeOrmDb))
             {
                 var rows = doc.RootElement.EnumerateArray().ToList();
-                Assert.That(rows, Has.Count.EqualTo(1));
-                Assert.That(rows[0].GetProperty("name").GetString(), Is.EqualTo("Database"));
-                Assert.That(rows[0].GetProperty("is_canonical").GetString(), Is.EqualTo("true"));
+                rows.Should().HaveCount(1);
+                rows[0].GetProperty("name").GetString().Should().Be("Database");
+                rows[0].GetProperty("is_canonical").GetString().Should().Be("true");
             }
 
             var postgresDb = await db.ExecuteQueryAsync(
@@ -503,8 +496,8 @@ export class Product {
             using (var doc = JsonDocument.Parse(postgresDb))
             {
                 var rows = doc.RootElement.EnumerateArray().ToList();
-                Assert.That(rows, Has.Count.EqualTo(1));
-                Assert.That(rows[0].GetProperty("name").GetString(), Is.EqualTo("PostgreSQL"));
+                rows.Should().HaveCount(1);
+                rows[0].GetProperty("name").GetString().Should().Be("PostgreSQL");
             }
 
             // 2. Verify non-canonical project-scoped node was cleaned up
@@ -513,7 +506,7 @@ export class Product {
 
             using (var doc = JsonDocument.Parse(staleDb))
             {
-                Assert.That(doc.RootElement.EnumerateArray().Count(), Is.EqualTo(0));
+                doc.RootElement.EnumerateArray().Count().Should().Be(0);
             }
 
             // 3. Verify direct USES_DB relationships point to the canonical database nodes
@@ -523,11 +516,10 @@ export class Product {
             using (var doc = JsonDocument.Parse(orderUsesDb))
             {
                 var rows = doc.RootElement.EnumerateArray().ToList();
-                Assert.That(rows, Has.Count.EqualTo(1));
+                rows.Should().HaveCount(1);
 
-                Assert.That(rows[0].GetProperty("dbId").GetString(),
-                    Is.EqualTo("workspace:db:relational:database"));
-                Assert.That(rows[0].GetProperty("isCanonical").GetString(), Is.EqualTo("true"));
+                rows[0].GetProperty("dbId").GetString().Should().Be("workspace:db:relational:database");
+                rows[0].GetProperty("isCanonical").GetString().Should().Be("true");
             }
 
             var billingUsesDb = await db.ExecuteQueryAsync(
@@ -536,10 +528,10 @@ export class Product {
             using (var doc = JsonDocument.Parse(billingUsesDb))
             {
                 var rows = doc.RootElement.EnumerateArray().ToList();
-                Assert.That(rows, Has.Count.EqualTo(2));
+                rows.Should().HaveCount(2);
                 var targets = rows.Select(r => r.GetProperty("dbId").GetString()).ToList();
-                Assert.That(targets, Does.Contain("workspace:db:relational:postgresql"));
-                Assert.That(targets, Does.Contain("workspace:db:relational:orders_db"));
+                targets.Should().Contain("workspace:db:relational:postgresql");
+                targets.Should().Contain("workspace:db:relational:orders_db");
             }
         }
         finally
@@ -576,6 +568,7 @@ export class Product {
             var entityFile = Path.Combine(appDir, "MyEntityConfiguration.cs");
             await File.WriteAllTextAsync(entityFile, @"using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using AwesomeAssertions;
 
 public class MyEntityConfiguration : IEntityTypeConfiguration<MyEntity>
 {
@@ -607,12 +600,11 @@ public class MyEntity { public int Id { get; set; } }
             await enricher.EnrichAsync(projectNode, ctx);
 
             var resources = ctx.ResourceRegistry.AllResources.ToList();
-            Assert.That(resources, Has.Count.EqualTo(1));
+            resources.Should().HaveCount(1);
 
-            Assert.That(resources[0].Name,
-                Is.EqualTo("PostgreSQL.myapp").Or.EqualTo("PostgreSQL.public").Or.EqualTo("PostgreSQL"));
-            Assert.That(resources[0].Engine, Is.EqualTo("PostgreSQL"));
-            Assert.That(resources[0].DbType, Is.EqualTo("relational"));
+            new[] { "PostgreSQL.myapp", "PostgreSQL.public", "PostgreSQL" }.Should().Contain(resources[0].Name);
+            resources[0].Engine.Should().Be("PostgreSQL");
+            resources[0].DbType.Should().Be("relational");
         }
         finally
         {
@@ -638,8 +630,8 @@ public class MyEntity { public int Id { get; set; } }
             .Select(t => (ISemanticExtension)Activator.CreateInstance(t)!)
             .ToList();
 
-        Assert.That(allExtensions, Has.Count.GreaterThanOrEqualTo(80), "Expected at least 80 library extensions.");
+        allExtensions.Should().HaveCountGreaterThanOrEqualTo(80, "Expected at least 80 library extensions.");
         var notImplemented = allExtensions.Where(e => !e.IsImplemented).Select(e => $"{e.GetType().Name} ({e.Id})").ToList();
-        Assert.That(notImplemented, Is.Empty, $"Found unimplemented extensions: {string.Join(", ", notImplemented)}");
+        notImplemented.Should().BeEmpty($"Found unimplemented extensions: {string.Join(", ", notImplemented)}");
     }
 }

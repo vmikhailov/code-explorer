@@ -2,6 +2,7 @@ using NUnit.Framework;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Parser.TypeScript;
+using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 
@@ -59,11 +60,11 @@ public class TestFileClassificationTests
     {
         var files = await IndexAndQueryAsync(pkg,
             "MATCH (f:File) WHERE f.name ENDS WITH '.spec.ts' RETURN f.is_test AS t");
-        Assert.That(files, Does.Contain("\"t\": true").Or.Contain("\"t\": 1"), files);
+        (files.Contains("\"t\": true") || files.Contains("\"t\": 1")).Should().BeTrue();
 
         var lits = await IndexAndQueryAsync(pkg,
             "MATCH (l:CallLiteral) WHERE l.file_path ENDS WITH '.spec.ts' AND NOT coalesce(l.is_test, false) RETURN count(l) AS c");
-        Assert.That(lits, Does.Contain("\"c\": 0"), lits);
+        lits.Should().Contain("\"c\": 0", lits);
     }
 
     [Test]
@@ -71,6 +72,6 @@ public class TestFileClassificationTests
     {
         var res = await IndexAndQueryAsync(JestPkg,
             "MATCH (f:File) WHERE f.name = 'target-url-generator.helper.ts' RETURN f.is_test AS t");
-        Assert.That(res, Does.Contain("\"t\": false").Or.Contain("\"t\": 0"), res);
+        (res.Contains("\"t\": false") || res.Contains("\"t\": 0")).Should().BeTrue();
     }
 }

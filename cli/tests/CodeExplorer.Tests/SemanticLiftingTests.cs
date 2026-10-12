@@ -3,6 +3,7 @@ using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using NUnit.Framework;
+using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 
@@ -29,13 +30,13 @@ public class SemanticLiftingTests
 
         var lifted = PostIndexAnalyzer.LiftTransitiveSemanticRelations(projects, relationships);
 
-        Assert.That(lifted, Has.Count.EqualTo(1));
+        lifted.Should().HaveCount(1);
         var rel = lifted[0];
-        Assert.That(rel.From, Is.EqualTo("proj:svc_a"));
-        Assert.That(rel.To, Is.EqualTo("proj:svc_d"));
-        Assert.That(rel.Kind, Is.EqualTo(OntologyConstants.Relationships.ServiceCall));
-        Assert.That(rel.Properties!["via_library"]?.ToString(), Is.EqualTo("LibB"));
-        Assert.That(rel.Properties!["call_chain"]?.ToString(), Is.EqualTo("LibB -> LibC"));
+        rel.From.Should().Be("proj:svc_a");
+        rel.To.Should().Be("proj:svc_d");
+        rel.Kind.Should().Be(OntologyConstants.Relationships.ServiceCall);
+        rel.Properties!["via_library"]?.ToString().Should().Be("LibB");
+        rel.Properties!["call_chain"]?.ToString().Should().Be("LibB -> LibC");
     }
 
     [Test]
@@ -55,12 +56,12 @@ public class SemanticLiftingTests
 
         var lifted = PostIndexAnalyzer.LiftTransitiveSemanticRelations(projects, relationships);
 
-        Assert.That(lifted, Has.Count.EqualTo(1));
+        lifted.Should().HaveCount(1);
         var rel = lifted[0];
-        Assert.That(rel.From, Is.EqualTo("proj:svc_a"));
-        Assert.That(rel.To, Is.EqualTo("ws1:res:db:relational:orders_db"));
-        Assert.That(rel.Kind, Is.EqualTo(OntologyConstants.Relationships.UsesDb));
-        Assert.That(rel.Properties!["via_library"]?.ToString(), Is.EqualTo("LibData"));
+        rel.From.Should().Be("proj:svc_a");
+        rel.To.Should().Be("ws1:res:db:relational:orders_db");
+        rel.Kind.Should().Be(OntologyConstants.Relationships.UsesDb);
+        rel.Properties!["via_library"]?.ToString().Should().Be("LibData");
     }
 
     [Test]
@@ -80,11 +81,11 @@ public class SemanticLiftingTests
 
         var lifted = PostIndexAnalyzer.LiftTransitiveSemanticRelations(projects, relationships);
 
-        Assert.That(lifted, Has.Count.EqualTo(1));
+        lifted.Should().HaveCount(1);
         var rel = lifted[0];
-        Assert.That(rel.From, Is.EqualTo("proj:svc_a"));
-        Assert.That(rel.To, Is.EqualTo("ws1:res:topic:kafka:orders"));
-        Assert.That(rel.Kind, Is.EqualTo(OntologyConstants.Relationships.SubscribesTo));
-        Assert.That(rel.Properties!["via_library"]?.ToString(), Is.EqualTo("LibConsumer"));
+        rel.From.Should().Be("proj:svc_a");
+        rel.To.Should().Be("ws1:res:topic:kafka:orders");
+        rel.Kind.Should().Be(OntologyConstants.Relationships.SubscribesTo);
+        rel.Properties!["via_library"]?.ToString().Should().Be("LibConsumer");
     }
 }

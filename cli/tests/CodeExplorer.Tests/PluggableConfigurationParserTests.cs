@@ -5,6 +5,7 @@ using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Parser.Java;
 using NUnit.Framework;
+using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 
@@ -35,8 +36,8 @@ public class PluggableConfigurationParserTests
             relationships,
             ctx);
 
-        Assert.That(handled, Is.True);
-        Assert.That(container.Children.OfType<DatabaseNode>().Any(c => c.Name.Equals("orders_db", StringComparison.OrdinalIgnoreCase)), Is.True);
+        handled.Should().BeTrue();
+        container.Children.OfType<DatabaseNode>().Any(c => c.Name.Equals("orders_db", StringComparison.OrdinalIgnoreCase)).Should().BeTrue();
     }
 
     [Test]
@@ -56,8 +57,8 @@ public class PluggableConfigurationParserTests
             relationships,
             ctx);
 
-        Assert.That(handled, Is.True);
-        Assert.That(container.Children.OfType<TopicNode>().Any(c => c.Name.Equals("default", StringComparison.OrdinalIgnoreCase)), Is.True);
+        handled.Should().BeTrue();
+        container.Children.OfType<TopicNode>().Any(c => c.Name.Equals("default", StringComparison.OrdinalIgnoreCase)).Should().BeTrue();
     }
 
     [Test]
@@ -77,7 +78,7 @@ public class PluggableConfigurationParserTests
             relationships,
             ctx);
 
-        Assert.That(handled, Is.True);
-        Assert.That(container.Children.OfType<DatabaseNode>().Any(c => c.Name.Equals("inventory_db", StringComparison.OrdinalIgnoreCase)), Is.True);
+        handled.Should().BeTrue();
+        container.Children.OfType<DatabaseNode>().Any(c => c.Name.Equals("inventory_db", StringComparison.OrdinalIgnoreCase)).Should().BeTrue();
     }
 }

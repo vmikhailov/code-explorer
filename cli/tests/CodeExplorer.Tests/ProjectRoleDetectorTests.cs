@@ -1,6 +1,7 @@
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
 using NUnit.Framework;
+using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 
@@ -18,8 +19,8 @@ public class ProjectRoleDetectorTests
             "csharp",
             ["nunit", "nunit3testadapter"]
         );
-        Assert.That(role1, Is.EqualTo(ProjectRole.Test));
-        Assert.That(isLib1, Is.True);
+        role1.Should().Be(ProjectRole.Test);
+        isLib1.Should().BeTrue();
 
         var (role2, isLib2) = ProjectRoleDetector.DetectRole(
             "/workspace/apps/frontend/test",
@@ -29,8 +30,8 @@ public class ProjectRoleDetectorTests
             "typescript",
             ["jest", "@types/jest"]
         );
-        Assert.That(role2, Is.EqualTo(ProjectRole.Test));
-        Assert.That(isLib2, Is.True);
+        role2.Should().Be(ProjectRole.Test);
+        isLib2.Should().BeTrue();
     }
 
     [Test]
@@ -44,8 +45,8 @@ public class ProjectRoleDetectorTests
             "typescript",
             ["react", "react-dom"]
         );
-        Assert.That(role1, Is.EqualTo(ProjectRole.FrontendApp));
-        Assert.That(isLib1, Is.False);
+        role1.Should().Be(ProjectRole.FrontendApp);
+        isLib1.Should().BeFalse();
 
         var (role2, isLib2) = ProjectRoleDetector.DetectRole(
             "/workspace/apps/admin-portal",
@@ -54,8 +55,8 @@ public class ProjectRoleDetectorTests
             "admin-portal",
             "typescript"
         );
-        Assert.That(role2, Is.EqualTo(ProjectRole.FrontendApp));
-        Assert.That(isLib2, Is.False);
+        role2.Should().Be(ProjectRole.FrontendApp);
+        isLib2.Should().BeFalse();
     }
 
     [Test]
@@ -68,8 +69,8 @@ public class ProjectRoleDetectorTests
             "common-contracts",
             "typescript"
         );
-        Assert.That(role1, Is.EqualTo(ProjectRole.SharedLibrary));
-        Assert.That(isLib1, Is.True);
+        role1.Should().Be(ProjectRole.SharedLibrary);
+        isLib1.Should().BeTrue();
 
         var (role2, isLib2) = ProjectRoleDetector.DetectRole(
             "/workspace/src/Core/Domain",
@@ -78,8 +79,8 @@ public class ProjectRoleDetectorTests
             "MyApp.Domain",
             "csharp"
         );
-        Assert.That(role2, Is.EqualTo(ProjectRole.SharedLibrary));
-        Assert.That(isLib2, Is.True);
+        role2.Should().Be(ProjectRole.SharedLibrary);
+        isLib2.Should().BeTrue();
     }
 
     [Test]
@@ -92,8 +93,8 @@ public class ProjectRoleDetectorTests
             "email-worker",
             "csharp"
         );
-        Assert.That(roleWorker, Is.EqualTo(ProjectRole.Worker));
-        Assert.That(isLibWorker, Is.False);
+        roleWorker.Should().Be(ProjectRole.Worker);
+        isLibWorker.Should().BeFalse();
 
         var (roleCli, isLibCli) = ProjectRoleDetector.DetectRole(
             "/workspace/tools/db-migrator-cli",
@@ -102,8 +103,8 @@ public class ProjectRoleDetectorTests
             "db-migrator-cli",
             "typescript"
         );
-        Assert.That(roleCli, Is.EqualTo(ProjectRole.CliTool));
-        Assert.That(isLibCli, Is.False);
+        roleCli.Should().Be(ProjectRole.CliTool);
+        isLibCli.Should().BeFalse();
     }
 
     [Test]
@@ -116,8 +117,8 @@ public class ProjectRoleDetectorTests
             "migrations",
             "sql"
         );
-        Assert.That(role1, Is.EqualTo(ProjectRole.DatabaseMigration));
-        Assert.That(isLib1, Is.False);
+        role1.Should().Be(ProjectRole.DatabaseMigration);
+        isLib1.Should().BeFalse();
     }
 
     [Test]
@@ -131,8 +132,8 @@ public class ProjectRoleDetectorTests
             "typescript",
             ["express", "pg"]
         );
-        Assert.That(role, Is.EqualTo(ProjectRole.Service));
-        Assert.That(isLib, Is.False);
+        role.Should().Be(ProjectRole.Service);
+        isLib.Should().BeFalse();
     }
 
     [Test]
@@ -145,8 +146,8 @@ public class ProjectRoleDetectorTests
             "button",
             "typescript"
         );
-        Assert.That(roleLib, Is.EqualTo(ProjectRole.SharedLibrary));
-        Assert.That(isLib, Is.True);
+        roleLib.Should().Be(ProjectRole.SharedLibrary);
+        isLib.Should().BeTrue();
 
         var (roleRootLib, isRootLib) = ProjectRoleDetector.DetectRole(
             "/workspace/fe/projects/ui",
@@ -155,8 +156,8 @@ public class ProjectRoleDetectorTests
             "@atsystems/ui",
             "typescript"
         );
-        Assert.That(roleRootLib, Is.EqualTo(ProjectRole.SharedLibrary));
-        Assert.That(isRootLib, Is.True);
+        roleRootLib.Should().Be(ProjectRole.SharedLibrary);
+        isRootLib.Should().BeTrue();
     }
 
     [Test]
@@ -170,8 +171,8 @@ public class ProjectRoleDetectorTests
             "typescript",
             ["@nestjs/core", "jest", "@types/jest", "supertest"]
         );
-        Assert.That(role, Is.EqualTo(ProjectRole.Service));
-        Assert.That(isLib, Is.False);
+        role.Should().Be(ProjectRole.Service);
+        isLib.Should().BeFalse();
     }
 
     [Test]
@@ -186,8 +187,8 @@ public class ProjectRoleDetectorTests
             "typescript",
             extensions: new Dictionary<string, string> { ["manifest_type"] = "library" }
         );
-        Assert.That(roleLib, Is.EqualTo(ProjectRole.SharedLibrary));
-        Assert.That(isLib, Is.True);
+        roleLib.Should().Be(ProjectRole.SharedLibrary);
+        isLib.Should().BeTrue();
 
         // 2. CLI from has_cli_bin
         var (roleCli, isCli) = ProjectRoleDetector.DetectRole(
@@ -198,8 +199,8 @@ public class ProjectRoleDetectorTests
             "typescript",
             extensions: new Dictionary<string, string> { ["has_cli_bin"] = "true" }
         );
-        Assert.That(roleCli, Is.EqualTo(ProjectRole.CliTool));
-        Assert.That(isCli, Is.False);
+        roleCli.Should().Be(ProjectRole.CliTool);
+        isCli.Should().BeFalse();
 
         // 3. Worker from worker SDK
         var (roleWorker, isWorker) = ProjectRoleDetector.DetectRole(
@@ -210,7 +211,7 @@ public class ProjectRoleDetectorTests
             "csharp",
             extensions: new Dictionary<string, string> { ["sdk"] = "Microsoft.NET.Sdk.Worker" }
         );
-        Assert.That(roleWorker, Is.EqualTo(ProjectRole.Worker));
-        Assert.That(isWorker, Is.False);
+        roleWorker.Should().Be(ProjectRole.Worker);
+        isWorker.Should().BeFalse();
     }
 }

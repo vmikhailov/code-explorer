@@ -4,6 +4,7 @@ using CodeExplorer.Core.Parser;
 using CodeExplorer.Parser.CSharp;
 using CodeExplorer.Parser.Java;
 using NUnit.Framework;
+using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 
@@ -84,10 +85,9 @@ public class CqrsPipelineTracingTests
 
         var rows = doc.RootElement.EnumerateArray().ToList();
 
-        Assert.That(rows.Count, Is.GreaterThan(0), "MediatR message pipeline should be traceable");
+        rows.Count.Should().BeGreaterThan(0, "MediatR message pipeline should be traceable");
 
-        Assert.That(rows.Any(r => r.GetProperty("message").GetString() == "OrderCreatedEvent"), Is.True,
-            "OrderCreatedEvent topic should connect publisher to subscriber");
+        (rows.Any(r => r.GetProperty("message").GetString() == "OrderCreatedEvent")).Should().BeTrue("OrderCreatedEvent topic should connect publisher to subscriber");
     }
 
     [Test]
@@ -143,12 +143,10 @@ public class CqrsPipelineTracingTests
 
         var rows = doc.RootElement.EnumerateArray().ToList();
 
-        Assert.That(rows.Count, Is.GreaterThan(0),
-            "Spring Events pipeline should connect publisher to @EventListener subscriber");
+        rows.Count.Should().BeGreaterThan(0, "Spring Events pipeline should connect publisher to @EventListener subscriber");
 
-        Assert.That(
-            rows.Any(r =>
+        (rows.Any(r =>
                 r.GetProperty("message").GetString() == "OrderCreatedEvent" &&
-                r.GetProperty("broker").GetString() == "spring"), Is.True);
+                r.GetProperty("broker").GetString() == "spring")).Should().BeTrue();
     }
 }
