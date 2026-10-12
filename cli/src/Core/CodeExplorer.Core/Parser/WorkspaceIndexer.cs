@@ -107,8 +107,52 @@ public class WorkspaceIndexer
     }
 
     /// <summary>
-    /// Discovers all assemblies that contain parser implementations (either decorated with [ParserAssembly]
-    /// or following the CodeExplorer.Parser.* convention).
+    /// Returns true if the type is a non-abstract, non-interface class implementing IProjectParser or IFileParser.
+    /// </summary>
+    public static bool IsParserType(Type type)
+    {
+        return !type.IsAbstract &&
+               !type.IsInterface &&
+               (typeof(IProjectParser).IsAssignableFrom(type) || typeof(IFileParser).IsAssignableFrom(type));
+    }
+
+    /// <summary>
+    /// Returns true if the assembly contains at least one non-abstract implementation of IProjectParser or IFileParser.
+    /// </summary>
+    public static bool IsParserAssembly(Assembly assembly)
+    {
+        if (assembly.IsDynamic)
+            return false;
+
+        try
+        {
+            return assembly.GetExportedTypes().Any(IsParserType);
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            return ex.Types.Any(t => t != null && IsParserType(t));
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[IsParserAssembly] Warning: Could not inspect assembly '{assembly.GetName().Name}': {ex.Message}");
+            return false;
+        }
+    }
+
+    private static bool IsFrameworkAssembly(string name)
+    {
+        return name.StartsWith("System.", StringComparison.OrdinalIgnoreCase) ||
+               name.Equals("System", StringComparison.OrdinalIgnoreCase) ||
+               name.StartsWith("Microsoft.", StringComparison.OrdinalIgnoreCase) ||
+               name.StartsWith("netstandard", StringComparison.OrdinalIgnoreCase) ||
+               name.StartsWith("mscorlib", StringComparison.OrdinalIgnoreCase) ||
+               name.StartsWith("NUnit.", StringComparison.OrdinalIgnoreCase) ||
+               name.StartsWith("AwesomeAssertions", StringComparison.OrdinalIgnoreCase) ||
+               name.StartsWith("SQLitePCLRaw", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Discovers all assemblies that contain concrete implementations of IProjectParser or IFileParser.
     /// </summary>
     public static IReadOnlyList<Assembly> DiscoverParserAssemblies()
     {
@@ -119,7 +163,7 @@ public class WorkspaceIndexer
 
         var candidateAssemblies = new HashSet<Assembly>(loadedAssemblies);
 
-        // Load referenced assemblies starting with CodeExplorer.Parser
+        // Load referenced assemblies (excluding standard System/Microsoft frameworks)
         foreach (var loaded in loadedAssemblies)
         {
             if (loaded.IsDynamic)
@@ -139,31 +183,34 @@ public class WorkspaceIndexer
             foreach (var refName in referencedAssemblies)
             {
                 if (refName.Name != null &&
-                    refName.Name.StartsWith("CodeExplorer.Parser.", StringComparison.OrdinalIgnoreCase) &&
+                    !IsFrameworkAssembly(refName.Name) &&
                     !loadedNames.Contains(refName.Name))
                 {
                     try
                     {
                         var asm = Assembly.Load(refName);
-                        candidateAssemblies.Add(asm);
                         loadedNames.Add(refName.Name);
+                        if (IsParserAssembly(asm))
+                        {
+                            candidateAssemblies.Add(asm);
+                        }
                     }
                     catch (Exception ex)
                     {
-                        Console.Error.WriteLine($"[DiscoverParserAssemblies] Warning: Could not load referenced parser assembly '{refName.Name}': {ex.Message}");
+                        Console.Error.WriteLine($"[DiscoverParserAssemblies] Warning: Could not load referenced assembly '{refName.Name}': {ex.Message}");
                     }
                 }
             }
         }
 
-        // Also probe AppContext.BaseDirectory for any CodeExplorer.Parser.*.dll not yet loaded
+        // Also probe AppContext.BaseDirectory for any unreferenced parser DLLs
         var baseDir = AppContext.BaseDirectory;
         if (Directory.Exists(baseDir))
         {
             string[] dllFiles;
             try
             {
-                dllFiles = Directory.GetFiles(baseDir, "CodeExplorer.Parser.*.dll");
+                dllFiles = Directory.GetFiles(baseDir, "*.dll");
             }
             catch (Exception ex)
             {
@@ -174,25 +221,27 @@ public class WorkspaceIndexer
             foreach (var dllPath in dllFiles)
             {
                 var asmName = Path.GetFileNameWithoutExtension(dllPath);
-                if (!loadedNames.Contains(asmName))
+                if (!IsFrameworkAssembly(asmName) && !loadedNames.Contains(asmName))
                 {
                     try
                     {
                         var asm = Assembly.LoadFrom(dllPath);
-                        candidateAssemblies.Add(asm);
                         loadedNames.Add(asmName);
+                        if (IsParserAssembly(asm))
+                        {
+                            candidateAssemblies.Add(asm);
+                        }
                     }
                     catch (Exception ex)
                     {
-                        Console.Error.WriteLine($"[DiscoverParserAssemblies] Warning: Could not load parser DLL from '{dllPath}': {ex.Message}");
+                        Console.Error.WriteLine($"[DiscoverParserAssemblies] Warning: Could not load DLL from '{dllPath}': {ex.Message}");
                     }
                 }
             }
         }
 
         return candidateAssemblies
-            .Where(a => a.GetCustomAttribute<ParserAssemblyAttribute>() != null ||
-                        (a.GetName().Name?.StartsWith("CodeExplorer.Parser.", StringComparison.OrdinalIgnoreCase) ?? false))
+            .Where(IsParserAssembly)
             .Distinct()
             .ToList();
     }
