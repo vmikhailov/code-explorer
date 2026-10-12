@@ -1865,7 +1865,7 @@
       <div style="margin-bottom: 24px;">
         <a href="https://github.com/vmikhailov/code-explorer/releases" target="_blank" rel="noopener" class="hero-badge-wrap" style="margin-bottom: 0;">
           <span class="hero-badge-dot"></span>
-          <span>v1.34 Released</span>
+          <span id="heroReleaseBadge">v1.37.1 Released</span>
           <span style="color: var(--text-muted); opacity: 0.5;">•</span>
           <span>View on GitHub &rarr;</span>
         </a>
@@ -1933,7 +1933,7 @@
 
         <div class="showcase-body">
           <div class="showcase-img-container" onclick="openLightbox()">
-            <img id="showcaseImage" class="showcase-img" src="all_services.png?v=v10" alt="CodeExplorer Macro Architecture Concentric Orbits">
+            <img id="showcaseImage" class="showcase-img" src="all_services.png?v=v11" alt="CodeExplorer Macro Architecture Concentric Orbits">
           </div>
 
           <div class="showcase-overlay-bar">
@@ -1954,7 +1954,7 @@
   <!-- Lightbox Modal for zooming screenshots -->
   <div id="lightboxModal" class="lightbox-modal" onclick="closeLightbox(event)">
     <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
-    <img id="lightboxImg" class="lightbox-content" src="all_services.png?v=v10" alt="Enlarged Screenshot">
+    <img id="lightboxImg" class="lightbox-content" src="all_services.png?v=v11" alt="Enlarged Screenshot">
   </div>
 
   <!-- ==========================================================================
@@ -2919,7 +2919,7 @@
 
       <div class="footer-bottom">
         <div>© 2026 Viacheslav Mikhailov. Open source under the MIT License.</div>
-        <div style="font-family: var(--font-mono);">ce v1.34 • .NET 10.0 • SQLite Graph</div>
+        <div style="font-family: var(--font-mono);">ce <span id="footerCeVersion">v1.37.1</span> • .NET 10.0 • SQLite Graph</div>
       </div>
     </div>
   </footer>
@@ -2934,12 +2934,12 @@
     // Data for Showcase Tabs
     const showcaseData = {
       orbits: {
-        img: 'all_services.png?v=v10',
+        img: 'all_services.png?v=v11',
         desc: '<strong>Macro Architecture Topology:</strong> Concentric rings project Ingress Gateways (Tier 0), Public APIs (Tier 1), Brokers (Tier 2), Domain Services (Tier 3), and Databases (Tier 4).',
         pills: ['Live Transitive Routing', 'Orbit Drag-and-Drop', 'Curvature: +65']
       },
       transitive: {
-        img: 'selected_services.png?v=v10',
+        img: 'selected_services.png?v=v11',
         desc: '<strong>Sub-Graph Neighborhood & Broker Contraction:</strong> Filter out Kafka/SQS message brokers to automatically synthesize direct dashed <code>[SUBSCRIBES (via Topic)]</code> links.',
         pills: ['Smart Broker Contraction', 'HUD Category Filters', 'Depth: 2 Hops']
       },
@@ -3576,6 +3576,63 @@ ratchet:
       const snippet = document.getElementById('mcpConfigSnippet').innerText;
       copySnippet(snippet, 'MCP Server JSON copied!');
     }
+
+    // Asynchronously fetch latest release version from GitHub with caching & fallback
+    async function loadLatestVersion() {
+      const heroEl = document.getElementById('heroReleaseBadge');
+      const footerEl = document.getElementById('footerCeVersion');
+      function setVersionText(tag) {
+        if (!tag) return;
+        const cleanTag = tag.startsWith('v') ? tag : 'v' + tag;
+        if (heroEl) heroEl.textContent = cleanTag + ' Released';
+        if (footerEl) footerEl.textContent = cleanTag;
+      }
+
+      const CACHE_KEY = 'ce_latest_version_tag';
+      const CACHE_TIME_KEY = 'ce_latest_version_time';
+      const cached = localStorage.getItem(CACHE_KEY);
+      const cacheTime = localStorage.getItem(CACHE_TIME_KEY);
+
+      if (cached) {
+        setVersionText(cached);
+      }
+
+      if (cached && cacheTime && (Date.now() - parseInt(cacheTime, 10) < 15 * 60 * 1000)) {
+        return;
+      }
+
+      try {
+        const res = await fetch('https://api.github.com/repos/vmikhailov/code-explorer/releases/latest');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.tag_name) {
+            localStorage.setItem(CACHE_KEY, data.tag_name);
+            localStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
+            setVersionText(data.tag_name);
+            return;
+          }
+        }
+      } catch (err) {
+        // network or CORS error, fall through to fallback
+      }
+
+      try {
+        const resPkg = await fetch('https://raw.githubusercontent.com/vmikhailov/code-explorer/main/vscode-extension/package.json');
+        if (resPkg.ok) {
+          const pkg = await resPkg.json();
+          if (pkg && pkg.version) {
+            const tag = 'v' + pkg.version;
+            localStorage.setItem(CACHE_KEY, tag);
+            localStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
+            setVersionText(tag);
+          }
+        }
+      } catch (err) {
+        // silent fallback to pre-rendered HTML version
+      }
+    }
+
+    loadLatestVersion();
 
     // Keyboard support for Lightbox
     // Initialize default gate preset
