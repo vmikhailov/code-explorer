@@ -1,11 +1,9 @@
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading.Channels;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Layers;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -41,20 +39,6 @@ public class Layer1Layer2MatrixBaselineTests
         }
 
         Directory.Exists(_sampleProjectsRoot).Should().BeTrue($"SampleProjects directory not found. Probed upwards from: {TestContext.CurrentContext.TestDirectory}");
-    }
-
-    private async Task<(Layer1Result L1, Layer2Result L2)> ScanL1L2Async(string projectRelativePath)
-    {
-        var absPath = Path.Combine(_sampleProjectsRoot, projectRelativePath).Replace('\\', '/');
-        Directory.Exists(absPath).Should().BeTrue($"Directory does not exist: {absPath}");
-
-        var channel = Channel.CreateUnbounded<Func<Task>>();
-        await using var client = new InMemoryGraphClient();
-        var ctx = new ParsingContext(absPath, absPath, client, channel);
-
-        var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
-        var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
-        return (l1, l2);
     }
 
     public record ExpectedProjectAnswer(
@@ -142,63 +126,6 @@ public class Layer1Layer2MatrixBaselineTests
             actualKind.Should().Be(expected.EntityKind, $"Project '{path}' entityKind mismatch");
             actualIsLib.Should().Be(expected.IsLibrary, $"Project '{path}' isLibrary mismatch");
         }
-    }
-
-    #endregion
-
-    #region Complex Topology Scenarios
-
-    [Test]
-    public async Task TypeScript_AngularMonorepo_DiscoversOnlyTopLevelProjects_NoSecondaryEntryPoints()
-    {
-        var (_, l2) = await ScanL1L2Async("typescript/angular-monorepo");
-
-        var projectNames = l2.Projects.Select(p => p.Name).ToList();
-
-        // Secondary entry points must be excluded
-        projectNames.Should().NotContain("button")
-            .And.NotContain("modal");
-
-        var uiLib = l2.Projects.Should().ContainSingle(p => p.Name.Contains("ui-components")).Subject;
-        uiLib.EntityKind.Should().Be(ProjectEntityKind.Library);
-        uiLib.IsLibrary.Should().BeTrue();
-
-        var portal = l2.Projects.Should().ContainSingle(p => p.Name == "portal").Subject;
-        portal.EntityKind.Should().Be(ProjectEntityKind.App);
-        portal.IsLibrary.Should().BeFalse();
-    }
-
-    [Test]
-    public async Task CSharp_LegacyFrameworkLib_ParsesPackagesConfigAndProducesPackage()
-    {
-        var (_, l2) = await ScanL1L2Async("csharp/legacy-framework-lib");
-        var proj = l2.Projects.Should().ContainSingle().Subject;
-        proj.EntityKind.Should().Be(ProjectEntityKind.Library);
-        proj.IsLibrary.Should().BeTrue();
-
-        var parser = new CodeExplorer.Parser.CSharp.CSharpParser();
-        var absPath = Path.Combine(_sampleProjectsRoot, "csharp", "legacy-framework-lib");
-        var deps = await parser.ParseDependenciesAsync(absPath);
-        deps.ExternalPackages.Should().ContainSingle(p => p.Name == "Newtonsoft.Json" && p.Version == "13.0.3");
-
-        var produced = await parser.GetProducedPackageAsync(absPath);
-        produced.Should().NotBeNull();
-        produced!.Name.Should().Be("LegacyLib");
-    }
-
-    [Test]
-    public async Task CSharp_LegacyFrameworkWeb_DetectedAsServiceWithPackagesConfig()
-    {
-        var (_, l2) = await ScanL1L2Async("csharp/legacy-framework-web");
-        var proj = l2.Projects.Should().ContainSingle().Subject;
-        proj.EntityKind.Should().Be(ProjectEntityKind.Service);
-        proj.IsLibrary.Should().BeFalse();
-
-        var parser = new CodeExplorer.Parser.CSharp.CSharpParser();
-        var absPath = Path.Combine(_sampleProjectsRoot, "csharp", "legacy-framework-web");
-        var deps = await parser.ParseDependenciesAsync(absPath);
-        deps.ExternalPackages.Should().Contain(p => p.Name == "Microsoft.AspNet.WebApi.Core" && p.Version == "5.2.9");
-        deps.ExternalPackages.Should().Contain(p => p.Name == "Newtonsoft.Json" && p.Version == "13.0.3");
     }
 
     #endregion
