@@ -229,9 +229,10 @@ public static class BuiltInGateCatalog
             Description = "Services must not make HTTP calls to internal system routes that are not exposed by any active service endpoint.",
             Remediation = "Update the HTTP call to a valid endpoint or register the missing endpoint handler in the target service.",
             Query = """
-                MATCH (es:ExternalService)-[:CALLED_BY]->(caller)
+                MATCH (es:ExternalService)-[:CALLED_BY]->(caller), (target:Project)
                 WHERE es.is_internal = true
-                  AND NOT (:Endpoint { path: es.path })
+                  AND (target.name = es.name OR target.name = es.domain)
+                  AND NOT (es)-[:CALLS_ENDPOINT]->(:Endpoint)
                 RETURN 
                   coalesce(caller.file_path, caller.path) AS file,
                   coalesce(caller.start_line, 1) AS line,

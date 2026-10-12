@@ -203,8 +203,8 @@ function scanServiceGroundTruth(serviceDir) {
       const line = lines[i];
       const lineNum = i + 1;
 
-      // Controller decorator: @Controller('prefix') or @Controller('/prefix')
-      const ctrlMatch = line.match(/@Controller\s*\(\s*(['"`])(.*?)\1\s*\)/);
+      // Controller decorator: @Controller('prefix') or @JsonController('prefix')
+      const ctrlMatch = line.match(/@(?:Json)?Controller\s*\(\s*(['"`])(.*?)\1\s*\)/);
       if (ctrlMatch) {
         currentControllerPrefix = ctrlMatch[2].replace(/^\/+|\/+$/g, '');
       }
@@ -221,6 +221,18 @@ function scanServiceGroundTruth(serviceDir) {
           file: relFile,
           line: lineNum,
           type: 'nestjs',
+        });
+      }
+
+      // CQRS Query / Command handlers
+      const cqrsMatch = line.match(/@(QueryHandler|CommandHandler)\s*\(\s*([A-Za-z0-9_]+)\s*\)/);
+      if (cqrsMatch) {
+        gt.endpoints.push({
+          method: 'QUERY',
+          path: cqrsMatch[2],
+          file: relFile,
+          line: lineNum,
+          type: 'cqrs',
         });
       }
 
@@ -506,6 +518,16 @@ for (const target of targetServices) {
   const expressUnprefixedEndpoints = []; // In CE with missing mount prefix
 
   const normalizeRoute = (r) => (r || '').replace(/^\/+|\/+$/g, '').toLowerCase();
+  const resolveCodeRoute = (codeEp) => {
+    let r = normalizeRoute(codeEp.path);
+    if (r.length === 0 && codeEp.file) {
+      const fileBase = path.basename(codeEp.file, path.extname(codeEp.file)).replace(/\.(router|routes|controller)$/, '');
+      if (fileBase && fileBase !== 'index' && fileBase !== 'server' && fileBase !== 'app') {
+        r = fileBase.toLowerCase();
+      }
+    }
+    return r;
+  };
 
   // Deduplicate CE endpoints for matching comparison
   const uniqueCeEndpoints = Array.from(epByRoute.values()).map((eps) => eps[0]);
@@ -514,7 +536,7 @@ for (const target of targetServices) {
     const found = uniqueCeEndpoints.find((ceEp) => {
       const methodMatches = !codeEp.method || ceEp.method === codeEp.method;
       const ceRoute = normalizeRoute(ceEp.routeTemplate || ceEp.name.replace(/^[A-Z]+:/, ''));
-      const codeRoute = normalizeRoute(codeEp.path);
+      const codeRoute = resolveCodeRoute(codeEp);
       const pathMatches = ceRoute === codeRoute ||
         (codeRoute.length > 0 && ceRoute.endsWith(codeRoute)) ||
         (ceRoute.length > 0 && codeRoute.endsWith(ceRoute));
@@ -532,7 +554,7 @@ for (const target of targetServices) {
     const ceRoute = normalizeRoute(ceEp.routeTemplate || ceEp.name.replace(/^[A-Z]+:/, ''));
     const found = gt.endpoints.find((codeEp) => {
       const methodMatches = !codeEp.method || ceEp.method === codeEp.method;
-      const codeRoute = normalizeRoute(codeEp.path);
+      const codeRoute = resolveCodeRoute(codeEp);
       const pathMatches = ceRoute === codeRoute ||
         (codeRoute.length > 0 && ceRoute.endsWith(codeRoute)) ||
         (ceRoute.length > 0 && codeRoute.endsWith(ceRoute));

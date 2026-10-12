@@ -1,8 +1,10 @@
 using System.Threading.Channels;
 using NUnit.Framework;
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Parser;
+using CodeExplorer.Core.Parser.Components.Parsers;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.CSharp;
 using CodeExplorer.Parser.TypeScript;
@@ -23,7 +25,9 @@ public class CatchClauseExtractionTests
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var ctx = new ParsingContext(tempDir, tempDir, new InMemoryGraphClient(), channel);
             using var syntaxTree = await new TypeScriptParser().ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            var isTest = WorkspaceConventions.IsTestFilePath(filePath) || new JavaScriptTestRunnerComponentParser().IsTestSource(syntaxTree);
+            syntaxTree.FileNode!.IsTest = isTest;
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, isTest: isTest);
             return Collect(syntaxTree.FileNode.Children);
         }
         finally
@@ -43,7 +47,9 @@ public class CatchClauseExtractionTests
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var ctx = new ParsingContext(tempDir, tempDir, new InMemoryGraphClient(), channel);
             using var syntaxTree = await new CSharpParser().ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            var isTest = WorkspaceConventions.IsTestFilePath(filePath);
+            syntaxTree.FileNode!.IsTest = isTest;
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, isTest: isTest);
             return Collect(syntaxTree.FileNode.Children);
         }
         finally

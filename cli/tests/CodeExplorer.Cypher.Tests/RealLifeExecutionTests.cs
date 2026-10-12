@@ -732,5 +732,31 @@ public class RealLifeExecutionTests
         Assert.That(labels, Does.Contain("Project"));
         Assert.That(labels, Does.Contain("Service"));
     }
+
+    [Test]
+    public void Execution_NotPrecedence_WithContainsAndEquality()
+    {
+        using var insertCmd = _conn.CreateCommand();
+        insertCmd.CommandText = @"
+            INSERT INTO nodes (id, kind, properties) VALUES
+            ('es:localhost', 'ExternalService', '{""name"": ""localhost"", ""file_path"": ""catalogImporter.ts""}');
+        ";
+        insertCmd.ExecuteNonQuery();
+
+        var cypher = "MATCH (es:ExternalService) WHERE es.name = 'localhost' AND NOT es.file_path CONTAINS 'test' RETURN es.name AS name";
+        var ast = CypherQueryParser.Parse(cypher);
+        var compiled = SqliteCompiler.Compile(ast);
+
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = compiled.Sql;
+        foreach (var (k, v) in compiled.Parameters)
+        {
+            cmd.Parameters.AddWithValue("@" + k.TrimStart('@'), v ?? DBNull.Value);
+        }
+
+        using var reader = cmd.ExecuteReader();
+        Assert.That(reader.Read(), Is.True);
+        Assert.That(reader["name"], Is.EqualTo("localhost"));
+    }
 }
 

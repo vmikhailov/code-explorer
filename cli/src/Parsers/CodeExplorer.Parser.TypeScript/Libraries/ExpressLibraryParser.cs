@@ -26,14 +26,11 @@ public class ExpressLibraryParser : ISemanticExtension
         .FunctionNode
         .GetChildForField(TreeSitterSyntax.Fields.Property);
 
-    public IReadOnlyDictionary<string, NodeSelector> Selectors => new Dictionary<string, NodeSelector>
-    {
-        { OntologyConstants.NodeLabels.EntryPoint, _expressRouteSelector }
-    };
+    public IReadOnlyDictionary<string, NodeSelector> Selectors => new Dictionary<string, NodeSelector>();
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {
-        if (_expressRouteSelector.Matches(node)) return OntologyConstants.NodeLabels.EntryPoint;
+        if (IsExpressRouteCall(node)) return OntologyConstants.NodeLabels.EntryPoint;
         return null;
     }
 
@@ -43,20 +40,20 @@ public class ExpressLibraryParser : ISemanticExtension
 
     public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
     {
-        if (_expressRouteSelector.Matches(node))
+        if (IsExpressRouteCall(node))
         {
             var prop = _expressRouteMethodSelector.Select(node);
             if (!prop.IsValid()) return null;
 
             var method = prop.Text.ToUpperInvariant();
-            var routeVal = AstHelper.ExtractFirstStringArgument(node) ?? "/";
+            var routeVal = AstHelper.ExtractFirstStringArgument(node);
+            if (string.IsNullOrEmpty(routeVal)) return null;
 
             if (!string.IsNullOrEmpty(relativePath) && RouteDictionaryRegistry.TryGetMountPrefix(relativePath, out var mountPrefix))
             {
                 routeVal = CombineRoutes(mountPrefix, routeVal);
             }
 
-            if (string.IsNullOrEmpty(routeVal)) routeVal = "/";
             if (!routeVal.StartsWith('/'))
             {
                 routeVal = "/" + routeVal;
@@ -65,6 +62,148 @@ public class ExpressLibraryParser : ISemanticExtension
             return $"{method}:{routeVal}";
         }
         return null;
+    }
+
+    private static bool IsExpressRouteCall(Node node)
+    {
+        if (!_expressRouteSelector.Matches(node)) return false;
+
+        // Express route registrations require at least 2 arguments: route path and at least one handler/middleware
+        var args = AstHelper.GetCallArguments(node);
+        if (args.Count < 2) return false;
+
+        var arg0 = args[0];
+        // The first argument must be a route string, template string, regex, or an identifier resolving to a route
+        var isRouteLiteral = arg0.Is(TreeSitterSyntax.TypeScript.String) ||
+                             arg0.Type == "string" ||
+                             arg0.Is(TreeSitterSyntax.TypeScript.TemplateString) ||
+                             arg0.Type == "template_string" ||
+                             arg0.Type.Contains("regex") ||
+                             AstHelper.IsStringLiteralNode(arg0);
+
+        if (!isRouteLiteral)
+        {
+            var routeCandidate = AstHelper.ExtractFirstStringArgument(node);
+            if (string.IsNullOrWhiteSpace(routeCandidate) || (!routeCandidate.StartsWith('/') && !routeCandidate.StartsWith('*')))
+            {
+                return false;
+            }
+        }
+
+        // Verify receiver: if receiver is "app" (or *app), ensure it was not created via NestFactory
+        var func = node.GetFunctionNode();
+        if (func.IsValid() && func.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+        {
+            var obj = func.GetChildForField(TreeSitterSyntax.Fields.Object);
+            if (obj.IsValid() && IsNestReceiver(node, obj.Text))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsNestReceiver(Node node, string objText)
+    {
+        var root = node;
+        while (root.Parent.IsValid())
+        {
+            root = root.Parent;
+        }
+
+        foreach (var decl in FindVariableDeclarations(root, objText))
+        {
+            var text = decl.Text;
+            if (text.Contains("NestFactory", StringComparison.OrdinalIgnoreCase) ||
+                text.Contains("@nestjs", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        if (FileImportsNestWithoutExpress(root))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static IEnumerable<Node> FindVariableDeclarations(Node root, string varName)
+    {
+        var stack = new Stack<Node>();
+        stack.Push(root);
+
+        while (stack.Count > 0)
+        {
+            var curr = stack.Pop();
+            if (curr.Is(TreeSitterSyntax.TypeScript.VariableDeclarator))
+            {
+                var nameNode = curr.GetField(TreeSitterSyntax.Fields.Name);
+                if (nameNode.IsValid() && nameNode.Text == varName)
+                {
+                    yield return curr;
+                }
+            }
+
+            for (int i = curr.Children.Count - 1; i >= 0; i--)
+            {
+                var child = curr.Children[i];
+                if (child.IsValid() && (child.Is(TreeSitterSyntax.TypeScript.Program) ||
+                                        child.Is(TreeSitterSyntax.TypeScript.StatementBlock) ||
+                                        child.Is(TreeSitterSyntax.TypeScript.LexicalDeclaration) ||
+                                        child.Is(TreeSitterSyntax.TypeScript.VariableDeclaration) ||
+                                        child.Is(TreeSitterSyntax.TypeScript.FunctionDeclaration) ||
+                                        child.Is(TreeSitterSyntax.TypeScript.FunctionExpression) ||
+                                        child.Is(TreeSitterSyntax.TypeScript.ArrowFunction) ||
+                                        child.Is("export_statement")))
+                {
+                    stack.Push(child);
+                }
+            }
+        }
+    }
+
+    private static bool FileImportsNestWithoutExpress(Node root)
+    {
+        var hasNest = false;
+        var hasExpress = false;
+
+        foreach (var child in root.Children)
+        {
+            if (child.Is(TreeSitterSyntax.TypeScript.ImportStatement))
+            {
+                var text = child.Text;
+                if (text.Contains("@nestjs", StringComparison.OrdinalIgnoreCase) ||
+                    text.Contains("NestFactory", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasNest = true;
+                }
+                if (text.Contains("'express'", StringComparison.OrdinalIgnoreCase) ||
+                    text.Contains("\"express\"", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasExpress = true;
+                }
+            }
+            else if (child.Is(TreeSitterSyntax.TypeScript.LexicalDeclaration) ||
+                     child.Is(TreeSitterSyntax.TypeScript.VariableDeclaration))
+            {
+                var text = child.Text;
+                if (text.Contains("require('express')", StringComparison.OrdinalIgnoreCase) ||
+                    text.Contains("require(\"express\")", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasExpress = true;
+                }
+                if (text.Contains("require('@nestjs", StringComparison.OrdinalIgnoreCase) ||
+                    text.Contains("require(\"@nestjs", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasNest = true;
+                }
+            }
+        }
+
+        return hasNest && !hasExpress;
     }
 
     private static string CombineRoutes(string prefix, string route)

@@ -671,6 +671,27 @@ app.delete('/api/v1/sessions', (req, res) => res.json({}));
     }
 
     [Test]
+    public async Task Test_NestJs_AppGetConfigService_NotTreatedAsExpressEndpoint()
+    {
+        var code = @"
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  app.setGlobalPrefix('api/v1');
+  const configService = app.get(ConfigService);
+  await app.listen(3000);
+}
+";
+
+        using var ws = await TestWorkspace.CreateAsync(code, "main.ts");
+
+        var endpoints = FindNodes<EndpointNode>(ws.FileNode.Children);
+        Assert.That(endpoints, Is.Empty);
+    }
+
+    [Test]
     public async Task Test_NestJs_ControllerAndRoutePrefixes()
     {
         var code = @"

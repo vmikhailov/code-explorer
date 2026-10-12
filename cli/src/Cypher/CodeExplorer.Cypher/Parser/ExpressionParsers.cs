@@ -322,14 +322,11 @@ public static class ExpressionParsers
             return new PropertyAccessExpression(current.ToString()!, suffix.Property);
         });
 
-    // Unary prefix: NOT, -, +
+    // Unary prefix: -, +
     public static TokenListParser<CypherToken, Expression> UnaryExpression { get; } =
-        (from not in Token.EqualTo(CypherToken.Not)
+        (from dash in Token.EqualTo(CypherToken.Dash)
          from expr in Parse.Ref(() => UnaryExpression!)
-         select (Expression)new UnaryExpression(UnaryOperator.Not, expr))
-        .Or(from dash in Token.EqualTo(CypherToken.Dash)
-            from expr in Parse.Ref(() => UnaryExpression!)
-            select (Expression)new UnaryExpression(UnaryOperator.Minus, expr))
+         select (Expression)new UnaryExpression(UnaryOperator.Minus, expr))
         .Or(from plus in Token.EqualTo(CypherToken.Plus)
             from expr in Parse.Ref(() => UnaryExpression!)
             select (Expression)new UnaryExpression(UnaryOperator.Plus, expr))
@@ -417,12 +414,19 @@ public static class ExpressionParsers
         ).OptionalOrDefault()
         select right != null ? right(left) : left;
 
+    // Logical NOT (binds looser than comparisons/CONTAINS, tighter than AND)
+    public static TokenListParser<CypherToken, Expression> NotExpression { get; } =
+        (from not in Token.EqualTo(CypherToken.Not)
+         from expr in Parse.Ref(() => NotExpression!)
+         select (Expression)new UnaryExpression(UnaryOperator.Not, expr))
+        .Or(ComparisonExpression);
+
     // Logical AND
     public static TokenListParser<CypherToken, Expression> AndExpression { get; } =
-        from first in ComparisonExpression
+        from first in NotExpression
         from rest in (
             from and in Token.EqualTo(CypherToken.And)
-            from next in ComparisonExpression
+            from next in NotExpression
             select next
         ).Many()
         select rest.Aggregate(first, (l, r) => new BinaryExpression(l, BinaryOperator.And, r));

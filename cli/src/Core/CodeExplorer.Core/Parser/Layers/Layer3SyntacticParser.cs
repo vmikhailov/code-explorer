@@ -73,7 +73,7 @@ public class Layer3SyntacticParser
 
             if (bestMatch != null)
             {
-                var isTest = bestMatch.IsTest || file.Path.Contains("test", StringComparison.OrdinalIgnoreCase) || file.Path.Contains("Test", StringComparison.OrdinalIgnoreCase);
+                var isTest = bestMatch.IsTest || WorkspaceConventions.IsTestFilePath(file.Path);
                 file.IsTest = isTest;
                 file.ProjectKind = bestMatch.KindValue;
                 file.ProjectName = bestMatch.Name;
@@ -90,7 +90,7 @@ public class Layer3SyntacticParser
             }
             else
             {
-                file.IsTest = file.Path.Contains("test", StringComparison.OrdinalIgnoreCase) || file.Path.Contains("Test", StringComparison.OrdinalIgnoreCase);
+                file.IsTest = WorkspaceConventions.IsTestFilePath(file.Path);
             }
         }
 
@@ -419,13 +419,11 @@ public class Layer3SyntacticParser
             absoluteWorkspacePath, fileParser, registry);
         mainVisitor.ProjectName = projectName;
         mainVisitor.Context = ctx;
+        mainVisitor.IsTestFile = isTest || (syntaxTree.FileNode?.IsTest ?? false);
 
         mainVisitor.Visit(syntaxTree.Tree.RootNode);
 
-        var effectiveIsTest = isTest ||
-            (syntaxTree.FileNode != null && syntaxTree.FileNode.IsTest) ||
-            relativePath.Contains("test", StringComparison.OrdinalIgnoreCase) ||
-            relativePath.Contains("Test", StringComparison.OrdinalIgnoreCase);
+        var effectiveIsTest = mainVisitor.IsTestFile;
         var effectiveProjectKind = projectKind ?? syntaxTree.FileNode?.ProjectKind;
         var effectiveProjectName = projectName ?? syntaxTree.FileNode?.ProjectName;
 
@@ -833,6 +831,11 @@ public class Layer3SyntacticParser
         }
         else if (slashIdx == 0)
         {
+            var qIdx0 = domainOrService.IndexOf('?');
+            if (qIdx0 >= 0) domainOrService = domainOrService[..qIdx0];
+            var hIdx0 = domainOrService.IndexOf('#');
+            if (hIdx0 >= 0) domainOrService = domainOrService[..hIdx0];
+
             path = domainOrService;
             var segments = domainOrService.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
             string? candidate = null;
@@ -858,6 +861,12 @@ public class Layer3SyntacticParser
                 domainOrService = "unknown-service";
             }
         }
+
+        var qIdx = path.IndexOf('?');
+        if (qIdx >= 0) path = path[..qIdx];
+        var hIdx = path.IndexOf('#');
+        if (hIdx >= 0) path = path[..hIdx];
+        if (string.IsNullOrEmpty(path)) path = "/";
 
         var colonPortIdx = domainOrService.LastIndexOf(':');
         if (colonPortIdx > 0 && int.TryParse(domainOrService[(colonPortIdx + 1)..], out _))

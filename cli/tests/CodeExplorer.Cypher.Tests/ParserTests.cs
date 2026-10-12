@@ -101,4 +101,49 @@ public class ParserTests
         Assert.That(query.Limit, Is.Not.Null);
         Assert.That(query.Limit!.Count, Is.EqualTo(50));
     }
+
+    [Test]
+    public void Parse_NotPrecedence_BindsLooserThanContains()
+    {
+        var cypher = "MATCH (es:ExternalService) WHERE NOT es.file_path CONTAINS 'test' RETURN es";
+        var query = CypherQueryParser.Parse(cypher);
+
+        var pred = query.Matches[0].Where!.Predicate;
+        Assert.That(pred, Is.InstanceOf<UnaryExpression>());
+        var unary = (UnaryExpression)pred;
+        Assert.That(unary.Operator, Is.EqualTo(UnaryOperator.Not));
+        Assert.That(unary.Operand, Is.InstanceOf<BinaryExpression>());
+        var bin = (BinaryExpression)unary.Operand;
+        Assert.That(bin.Operator, Is.EqualTo(BinaryOperator.Contains));
+    }
+
+    [Test]
+    public void Parse_NotPrecedence_BindsLooserThanComparison()
+    {
+        var cypher = "MATCH (n) WHERE NOT n.id = 5 RETURN n";
+        var query = CypherQueryParser.Parse(cypher);
+
+        var pred = query.Matches[0].Where!.Predicate;
+        Assert.That(pred, Is.InstanceOf<UnaryExpression>());
+        var unary = (UnaryExpression)pred;
+        Assert.That(unary.Operator, Is.EqualTo(UnaryOperator.Not));
+        Assert.That(unary.Operand, Is.InstanceOf<BinaryExpression>());
+        var bin = (BinaryExpression)unary.Operand;
+        Assert.That(bin.Operator, Is.EqualTo(BinaryOperator.Equal));
+    }
+
+    [Test]
+    public void Parse_NotPrecedence_BindsTighterThanAnd()
+    {
+        var cypher = "MATCH (n) WHERE NOT n.a = 1 AND n.b = 2 RETURN n";
+        var query = CypherQueryParser.Parse(cypher);
+
+        var pred = query.Matches[0].Where!.Predicate;
+        Assert.That(pred, Is.InstanceOf<BinaryExpression>());
+        var andExpr = (BinaryExpression)pred;
+        Assert.That(andExpr.Operator, Is.EqualTo(BinaryOperator.And));
+        Assert.That(andExpr.Left, Is.InstanceOf<UnaryExpression>());
+        var unary = (UnaryExpression)andExpr.Left;
+        Assert.That(unary.Operator, Is.EqualTo(UnaryOperator.Not));
+    }
 }

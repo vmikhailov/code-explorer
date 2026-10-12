@@ -1414,6 +1414,11 @@ public class Layer5AnalysisParser
             return false;
         }
 
+        if (IsApiPrefixOnly(entryNorm, null))
+        {
+            return false;
+        }
+
         var rawDomain = (extService.DomainOrService ?? "").Trim('/').ToLowerInvariant();
         if ((rawDomain is "*" or "unknown-service" or "" || IsGenericHostOrService(extService.DomainOrService)) &&
             (string.IsNullOrEmpty(servicePathNorm) || servicePathNorm is "/" or "*"))
@@ -1497,6 +1502,13 @@ public class Layer5AnalysisParser
             return false;
         }
 
+        // An endpoint route template consisting ONLY of API prefix segments (e.g. /api, /api/v1)
+        // must NEVER match external calls via late-binding
+        if (IsApiPrefixOnly(routeNorm, null))
+        {
+            return false;
+        }
+
         var rawDomain = (extService.DomainOrService ?? "").Trim('/').ToLowerInvariant();
         if ((rawDomain is "*" or "unknown-service" or "" || IsGenericHostOrService(extService.DomainOrService)) &&
             (string.IsNullOrEmpty(servicePathNorm) || servicePathNorm is "/" or "*"))
@@ -1543,8 +1555,8 @@ public class Layer5AnalysisParser
 
             var segsA = cleanPathA.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
             var segsB = cleanPathB.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
-            if ((cleanPathB.StartsWith(cleanPathA, StringComparison.OrdinalIgnoreCase) && segsA.Length >= 2) ||
-                (cleanPathA.StartsWith(cleanPathB, StringComparison.OrdinalIgnoreCase) && segsB.Length >= 2))
+            if ((cleanPathB.StartsWith(cleanPathA, StringComparison.OrdinalIgnoreCase) && segsA.Length >= 2 && !IsApiPrefixOnly(cleanPathA.Trim('/'), null)) ||
+                (cleanPathA.StartsWith(cleanPathB, StringComparison.OrdinalIgnoreCase) && segsB.Length >= 2 && !IsApiPrefixOnly(cleanPathB.Trim('/'), null)))
             {
                 return true;
             }
@@ -1573,6 +1585,17 @@ public class Layer5AnalysisParser
         if (protocolIdx != -1)
         {
             normalized = normalized[(protocolIdx + 3)..];
+        }
+
+        var colonIdx = normalized.IndexOf(':');
+        var slashIdx = normalized.IndexOf('/');
+        if (colonIdx != -1 && (slashIdx == -1 || colonIdx < slashIdx))
+        {
+            var prefix = normalized[..colonIdx];
+            if (prefix is "get" or "post" or "put" or "delete" or "patch" or "options" or "head" or "all" or "ws" or "rpc" or "grpc" or "graphql")
+            {
+                normalized = normalized[(colonIdx + 1)..];
+            }
         }
 
         return normalized.Trim('/');

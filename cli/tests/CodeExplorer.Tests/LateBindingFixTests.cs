@@ -251,4 +251,46 @@ public class LateBindingFixTests
         Assert.That(InvokeMatchPaths("/pause", "/:bundle_ids/pause"), Is.False);
         Assert.That(InvokeMatchPaths("/status", "/safebrowsing/status"), Is.False);
     }
+
+    [Test]
+    public void IsMatch_GenericApiPrefixEndpoint_NeverMatchesSubresource()
+    {
+        var extService = new ExternalServiceNode(
+            "ws:es:http:localhost:3000",
+            "localhost",
+            "http",
+            "localhost",
+            "/api/v1/config/scenarios/*",
+            null);
+
+        var prefixEndpoint = new EndpointNode(
+            "ws:ep:GET:/api/v1",
+            "GET /api/v1",
+            "helper-nest/src/main.ts",
+            "GET",
+            "/api/v1");
+
+        Assert.That(InvokeIsMatch(extService, prefixEndpoint), Is.False);
+    }
+
+    [Test]
+    public void IsMatch_ApiPrefixEndpoint_DoesNotMatchDifferentRoute()
+    {
+        var extService = new ExternalServiceNode(
+            "ws:es:http:user-service",
+            "user-service",
+            "http",
+            "user-service",
+            "/api/v1/users",
+            null);
+
+        var prefixEndpoint = new EndpointNode(
+            "ws:ep:GET:/api",
+            "GET /api",
+            "src/main.ts",
+            "GET",
+            "/api");
+
+        Assert.That(InvokeIsMatch(extService, prefixEndpoint), Is.False);
+    }
 }

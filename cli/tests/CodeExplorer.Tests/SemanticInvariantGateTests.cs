@@ -694,31 +694,51 @@ public class SemanticInvariantGateTests
             ["start_line"] = 10
         });
 
+        var projOrders = new Node("ws:p:order-service", OntologyConstants.NodeLabels.Project, new()
+        {
+            ["name"] = "order-service"
+        });
+
+        var projUsers = new Node("ws:p:user-service", OntologyConstants.NodeLabels.Project, new()
+        {
+            ["name"] = "user-service"
+        });
+
         var esDead = new Node("es:dead", OntologyConstants.NodeLabels.ExternalService, new()
         {
-            ["name"] = "DeadOrdersClient",
+            ["name"] = "order-service",
             ["path"] = "/api/v1/non-existent-orders",
             ["is_internal"] = true
         });
 
         var esValid = new Node("es:valid", OntologyConstants.NodeLabels.ExternalService, new()
         {
-            ["name"] = "ValidUsersClient",
+            ["name"] = "user-service",
             ["path"] = "/api/v1/users",
+            ["is_internal"] = true
+        });
+
+        // External service targeting an external/unindexed service not in workspace Projects
+        var esOutside = new Node("es:outside", OntologyConstants.NodeLabels.ExternalService, new()
+        {
+            ["name"] = "billing-service",
+            ["path"] = "/api/v1/payments",
             ["is_internal"] = true
         });
 
         var epNode = new Node("ep:users", OntologyConstants.NodeLabels.Endpoint, new()
         {
             ["name"] = "GetUsers",
-            ["path"] = "/api/v1/users"
+            ["route_template"] = "/api/v1/users"
         });
 
-        await client.UploadNodesAsync([fnNode, esDead, esValid, epNode]);
+        await client.UploadNodesAsync([projOrders, projUsers, fnNode, esDead, esValid, esOutside, epNode]);
 
         var rel1 = new Relationship("es:dead", "fn:1", OntologyConstants.Relationships.CalledBy);
         var rel2 = new Relationship("es:valid", "fn:1", OntologyConstants.Relationships.CalledBy);
-        await client.UploadRelationshipsAsync([rel1, rel2]);
+        var rel3 = new Relationship("es:outside", "fn:1", OntologyConstants.Relationships.CalledBy);
+        var relCallsEp = new Relationship("es:valid", "ep:users", OntologyConstants.Relationships.CallsEndpoint);
+        await client.UploadRelationshipsAsync([rel1, rel2, rel3, relCallsEp]);
 
         var repo = new FileGateRepository(_tempWorkspace);
         var engine = new GateExecutionEngine(client, repo);

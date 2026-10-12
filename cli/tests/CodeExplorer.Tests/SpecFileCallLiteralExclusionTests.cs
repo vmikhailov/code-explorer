@@ -1,8 +1,10 @@
 using System.Threading.Channels;
 using NUnit.Framework;
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Parser;
+using CodeExplorer.Core.Parser.Components.Parsers;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.TypeScript;
 
@@ -23,7 +25,7 @@ public class SpecFileCallLiteralExclusionTests
         });
         """;
 
-    private static async Task<int> CountCallLiteralsAsync(string relDir, string fileName)
+    private static async Task<int> CountCallLiteralsAsync(string relDir, string fileName, string? code = null)
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_spec_test_" + Guid.NewGuid().ToString("N"));
         var dir = Path.Combine(tempDir, relDir);
@@ -31,11 +33,13 @@ public class SpecFileCallLiteralExclusionTests
         try
         {
             var filePath = Path.Combine(dir, fileName);
-            await File.WriteAllTextAsync(filePath, Code);
+            await File.WriteAllTextAsync(filePath, code ?? Code);
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var ctx = new ParsingContext(tempDir, tempDir, new InMemoryGraphClient(), channel);
             using var syntaxTree = await new TypeScriptParser().ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            var isTest = WorkspaceConventions.IsTestFilePath(filePath) || new JavaScriptTestRunnerComponentParser().IsTestSource(syntaxTree);
+            syntaxTree.FileNode!.IsTest = isTest;
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, isTest: isTest);
             return Count(syntaxTree.FileNode.Children);
         }
         finally
@@ -50,7 +54,8 @@ public class SpecFileCallLiteralExclusionTests
     [Test]
     public async Task RegularSource_ProducesCallLiterals()
     {
-        Assert.That(await CountCallLiteralsAsync("src/helpers", "target-url-generator.helper.ts"), Is.GreaterThan(0));
+        const string prodCode = "const link = helper.generateLink('campaign-42');";
+        Assert.That(await CountCallLiteralsAsync("src/helpers", "target-url-generator.helper.ts", prodCode), Is.GreaterThan(0));
     }
 
     [Test]

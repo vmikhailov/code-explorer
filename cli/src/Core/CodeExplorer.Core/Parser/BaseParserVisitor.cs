@@ -17,6 +17,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
     public SemanticExtensionRegistry LibraryRegistry => ExtensionRegistry;
     public string? ProjectName { get; set; }
     public ParsingContext? Context { get; set; }
+    public bool IsTestFile { get; set; }
 
     public void ResolveAndInjectExtension(string importPath)
     {
@@ -447,7 +448,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
     protected virtual void CollectCallLiteralArguments(Node callNode, string? callName, SyntacticSymbol currentScope)
     {
-        if (IsTestSourcePath(RelativePath))
+        if (IsTestFile)
         {
             return;
         }
@@ -529,7 +530,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
     protected override void VisitCatchClause(Node node, int depth)
     {
-        if (IsTestSourcePath(RelativePath))
+        if (IsTestFile)
         {
             VisitChildren(node, depth);
             return;
@@ -615,24 +616,6 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         currentScope.Children.Add(catchSymbol);
 
         VisitChildren(node, depth);
-    }
-
-    /// <summary>
-    /// Test sources must not feed CallLiteral (and thus SIG-M-I-001). The old check only looked for
-    /// "test" in the path, so Angular/Nest `*.spec.ts` files passed; since call literals are now also
-    /// collected at file scope (`describe('…')`, `it('…')` sit in top-level callbacks), every spec
-    /// title became a "hardcoded literal".
-    /// </summary>
-    protected static bool IsTestSourcePath(string relativePath)
-    {
-        if (string.IsNullOrEmpty(relativePath)) return false;
-        var normalized = relativePath.Replace('\\', '/');
-        if (normalized.Contains("test", StringComparison.OrdinalIgnoreCase)) return true;
-        var fileName = Path.GetFileName(normalized);
-        return (!string.IsNullOrEmpty(fileName) && fileName.Contains(".spec.", StringComparison.OrdinalIgnoreCase)) ||
-               normalized.Contains("/e2e/", StringComparison.OrdinalIgnoreCase) ||
-               normalized.Contains("/__mocks__/", StringComparison.OrdinalIgnoreCase) ||
-               normalized.Contains("/cypress/", StringComparison.OrdinalIgnoreCase);
     }
 
     protected bool IsStringLiteralNode(Node node)
