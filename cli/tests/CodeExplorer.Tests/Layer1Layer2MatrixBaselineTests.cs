@@ -59,17 +59,21 @@ public class Layer1Layer2MatrixBaselineTests
 
     [TestCase("csharp/web-api", "csharp", ProjectEntityKind.Service, false)]
     [TestCase("csharp/class-lib", "csharp", ProjectEntityKind.Library, true)]
+    [TestCase("csharp/legacy-framework-lib", "csharp", ProjectEntityKind.Library, true)]
+    [TestCase("csharp/legacy-framework-web", "csharp", ProjectEntityKind.Service, false)]
     [TestCase("csharp/worker-service", "csharp", ProjectEntityKind.Worker, false)]
     [TestCase("csharp/cli-tool", "csharp", ProjectEntityKind.CliTool, false)]
     [TestCase("csharp/test-suite", "csharp", ProjectEntityKind.Test, true)]
     [TestCase("typescript/nest-service", "typescript", ProjectEntityKind.Service, false)]
     [TestCase("typescript/express-service", "typescript", ProjectEntityKind.Service, false)]
     [TestCase("typescript/react-app", "typescript", ProjectEntityKind.App, false)]
+    [TestCase("typescript/nextjs-app", "typescript", ProjectEntityKind.App, false)]
     [TestCase("typescript/ui-library", "typescript", ProjectEntityKind.Library, true)]
     [TestCase("typescript/cf-worker", "typescript", ProjectEntityKind.Worker, false)]
     [TestCase("typescript/cli-app", "typescript", ProjectEntityKind.CliTool, false)]
     [TestCase("typescript/jest-tests", "typescript", ProjectEntityKind.Test, true)]
     [TestCase("python/fastapi-service", "python", ProjectEntityKind.Service, false)]
+    [TestCase("python/django-service", "python", ProjectEntityKind.Service, false)]
     [TestCase("python/standard-lib", "python", ProjectEntityKind.Library, true)]
     [TestCase("python/celery-worker", "python", ProjectEntityKind.Worker, false)]
     [TestCase("python/click-cli", "python", ProjectEntityKind.CliTool, false)]
@@ -79,6 +83,7 @@ public class Layer1Layer2MatrixBaselineTests
     [TestCase("go/cobra-cli", "go", ProjectEntityKind.CliTool, false)]
     [TestCase("go/kafka-worker", "go", ProjectEntityKind.Worker, false)]
     [TestCase("java/spring-service", "java", ProjectEntityKind.Service, false)]
+    [TestCase("java/gradle-service", "java", ProjectEntityKind.Service, false)]
     [TestCase("java/jar-library", "java", ProjectEntityKind.Library, true)]
     [TestCase("kotlin/android-app", "kotlin", ProjectEntityKind.App, false)]
     [TestCase("kotlin/jvm-lib", "kotlin", ProjectEntityKind.Library, true)]
@@ -119,6 +124,39 @@ public class Layer1Layer2MatrixBaselineTests
         var portal = l2.Projects.Should().ContainSingle(p => p.Name == "portal").Subject;
         portal.EntityKind.Should().Be(ProjectEntityKind.App);
         portal.IsLibrary.Should().BeFalse();
+    }
+
+    [Test]
+    public async Task CSharp_LegacyFrameworkLib_ParsesPackagesConfigAndProducesPackage()
+    {
+        var (_, l2) = await ScanL1L2Async("csharp/legacy-framework-lib");
+        var proj = l2.Projects.Should().ContainSingle().Subject;
+        proj.EntityKind.Should().Be(ProjectEntityKind.Library);
+        proj.IsLibrary.Should().BeTrue();
+
+        var parser = new CodeExplorer.Parser.CSharp.CSharpParser();
+        var absPath = Path.Combine(_sampleProjectsRoot, "csharp", "legacy-framework-lib");
+        var deps = await parser.ParseDependenciesAsync(absPath);
+        deps.ExternalPackages.Should().ContainSingle(p => p.Name == "Newtonsoft.Json" && p.Version == "13.0.3");
+
+        var produced = await parser.GetProducedPackageAsync(absPath);
+        produced.Should().NotBeNull();
+        produced!.Name.Should().Be("LegacyLib");
+    }
+
+    [Test]
+    public async Task CSharp_LegacyFrameworkWeb_DetectedAsServiceWithPackagesConfig()
+    {
+        var (_, l2) = await ScanL1L2Async("csharp/legacy-framework-web");
+        var proj = l2.Projects.Should().ContainSingle().Subject;
+        proj.EntityKind.Should().Be(ProjectEntityKind.Service);
+        proj.IsLibrary.Should().BeFalse();
+
+        var parser = new CodeExplorer.Parser.CSharp.CSharpParser();
+        var absPath = Path.Combine(_sampleProjectsRoot, "csharp", "legacy-framework-web");
+        var deps = await parser.ParseDependenciesAsync(absPath);
+        deps.ExternalPackages.Should().Contain(p => p.Name == "Microsoft.AspNet.WebApi.Core" && p.Version == "5.2.9");
+        deps.ExternalPackages.Should().Contain(p => p.Name == "Newtonsoft.Json" && p.Version == "13.0.3");
     }
 
     #endregion

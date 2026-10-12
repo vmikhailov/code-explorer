@@ -15,8 +15,13 @@ public class DotNetLibraryComponentParser : IComponentLibraryParser
         var sdk = context.ManifestProperties.GetValueOrDefault("sdk");
         if (sdk?.Equals("Microsoft.NET.Sdk.Web", StringComparison.OrdinalIgnoreCase) == true) return false;
 
-        var outputType = context.ManifestProperties.GetValueOrDefault("output_type");
+        var frameworkType = context.ManifestProperties.GetValueOrDefault("framework_type")?.ToLowerInvariant();
+        if (frameworkType == "web" || frameworkType == "worker") return false;
+
         var manifestType = context.ManifestProperties.GetValueOrDefault("manifest_type")?.ToLowerInvariant();
+        if (manifestType == "application" || manifestType == "worker" || manifestType == "service") return false;
+
+        var outputType = context.ManifestProperties.GetValueOrDefault("output_type");
 
         return (outputType?.Equals("Library", StringComparison.OrdinalIgnoreCase) == true || manifestType == "library") &&
                context.ManifestProperties.GetValueOrDefault("is_test_project") != "true";

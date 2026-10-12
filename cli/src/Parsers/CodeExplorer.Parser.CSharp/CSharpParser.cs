@@ -24,6 +24,7 @@ public class CSharpParser : IProjectParser, IFileParser
     public IReadOnlyList<PackageDescriptor> Packages { get; } =
     [
         new PackageDescriptor("aspnetcore", "ASP.NET Core", LibraryRole.WebFramework, "nuget", ["Microsoft.AspNetCore", "Microsoft.AspNetCore.Mvc"], CustomMatch: ctx => ctx.ManifestProperties?.GetValueOrDefault("sdk") == "Microsoft.NET.Sdk.Web"),
+        new PackageDescriptor("aspnet-mvc", "ASP.NET MVC", LibraryRole.WebFramework, "nuget", ["Microsoft.AspNet.Mvc", "Microsoft.AspNet.WebApi", "Microsoft.AspNet.WebApi.Core", "Microsoft.AspNet.WebApi.WebHost"]),
         new PackageDescriptor("hotchocolate", "HotChocolate", LibraryRole.WebFramework, "nuget", ["HotChocolate"]),
         new PackageDescriptor("grpc", "gRPC", LibraryRole.WebFramework, "nuget", ["Grpc.AspNetCore", "Grpc.Net.Client"]),
 
@@ -194,6 +195,18 @@ public class CSharpParser : IProjectParser, IFileParser
                      content.Contains("Sdk='Microsoft.NET.Sdk'", StringComparison.OrdinalIgnoreCase))
             {
                 props["sdk"] = "Microsoft.NET.Sdk";
+            }
+
+            // Legacy .NET Framework web indicators (web.config or classic Web ProjectTypeGuids)
+            var hasWebConfig = filesInDirectory.Any(f => Path.GetFileName(f).Equals("web.config", StringComparison.OrdinalIgnoreCase));
+            var hasWebGuid = content.Contains("{349c5851-65df-11da-9384-00065b846f21}", StringComparison.OrdinalIgnoreCase) ||
+                             content.Contains("{E3E379DF-F4C6-4180-9B81-6769533ABE47}", StringComparison.OrdinalIgnoreCase) ||
+                             content.Contains("{E53F8FEA-EAE0-44A6-8774-FFD645390401}", StringComparison.OrdinalIgnoreCase);
+
+            if (hasWebConfig || hasWebGuid)
+            {
+                props["framework_type"] = "web";
+                props["manifest_type"] = "application";
             }
 
             if (content.Contains("Microsoft.Azure.Functions.Worker", StringComparison.OrdinalIgnoreCase) ||
@@ -401,6 +414,30 @@ public class CSharpParser : IProjectParser, IFileParser
     {
         var localProjectPaths = new List<string>();
         var externalPackages = new List<ProducedPackageInfo>();
+
+        // Check legacy NuGet packages.config
+        var packagesConfigFile = Path.Combine(projectDirectory, "packages.config");
+        if (File.Exists(packagesConfigFile))
+        {
+            try
+            {
+                var pkgContent = await File.ReadAllTextAsync(packagesConfigFile);
+                var pkgDoc = System.Xml.Linq.XDocument.Parse(pkgContent);
+                foreach (var pkg in pkgDoc.Descendants("package"))
+                {
+                    var id = pkg.Attribute("id")?.Value;
+                    var ver = pkg.Attribute("version")?.Value ?? "unknown";
+                    if (!string.IsNullOrEmpty(id))
+                    {
+                        externalPackages.Add(new ProducedPackageInfo(id, ver, "nuget"));
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore malformed packages.config
+            }
+        }
 
         var csprojFiles = Directory.GetFiles(projectDirectory, "*.csproj");
         foreach (var csprojFile in csprojFiles)

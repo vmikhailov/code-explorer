@@ -95,7 +95,7 @@ public class PythonParser : IProjectParser, IFileParser
         foreach (var file in filesInDirectory)
         {
             var fileName = Path.GetFileName(file).ToLowerInvariant();
-            if (fileName is "requirements.txt" or "pyproject.toml" or "setup.py" or "setup.cfg" or "pipfile" or "alembic.ini")
+            if (fileName is "requirements.txt" or "pyproject.toml" or "setup.py" or "setup.cfg" or "pipfile" or "alembic.ini" or "manage.py")
             {
                 return true;
             }
@@ -111,6 +111,14 @@ public class PythonParser : IProjectParser, IFileParser
         if (filesInDirectory.Any(f => Path.GetFileName(f).Equals("alembic.ini", StringComparison.OrdinalIgnoreCase)))
         {
             props["manifest_type"] = "migration";
+            return props;
+        }
+
+        // 2. Django manage.py
+        if (filesInDirectory.Any(f => Path.GetFileName(f).Equals("manage.py", StringComparison.OrdinalIgnoreCase)))
+        {
+            props["manifest_type"] = "application";
+            props["framework_type"] = "web";
             return props;
         }
 

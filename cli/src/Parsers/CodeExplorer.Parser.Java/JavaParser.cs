@@ -267,6 +267,18 @@ public class JavaParser : IProjectParser, IFileParser
                         ? "Flutter Android"
                         : "Android";
                 }
+                else if (content.Contains("org.springframework.boot", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("spring-boot", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("io.quarkus", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("io.micronaut", StringComparison.OrdinalIgnoreCase))
+                {
+                    props["manifest_type"] = "application";
+                    props["framework_type"] = "web";
+                }
+                else
+                {
+                    props["manifest_type"] = "library";
+                }
             }
             catch
             {

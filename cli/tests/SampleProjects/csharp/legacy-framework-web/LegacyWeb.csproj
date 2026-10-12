@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{B2C3D4E5-F6A7-4B5C-9D0E-1F2A3B4C5D6E}</ProjectGuid>
+    <ProjectTypeGuids>{349c5851-65df-11da-9384-00065b846f21};{fae04ec0-301f-11d3-bf4b-00c04f79efbc}</ProjectTypeGuids>
+    <OutputType>Library</OutputType>
+    <RootNamespace>LegacyWeb</RootNamespace>
+    <AssemblyName>LegacyWeb</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Controllers\HomeController.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Web.config" />
+    <None Include="packages.config" />
+  </ItemGroup>
+</Project>
