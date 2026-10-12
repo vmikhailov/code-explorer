@@ -86,10 +86,12 @@ public class Layer2ProjectParser
                 if (!string.IsNullOrEmpty(normName))
                 {
                     packageToProjectMap[normName] = projectNode;
+                    WorkspaceConventions.RegisterServiceAlias(projectName, normName);
                 }
                 if (!string.Equals(folderName, projectName, StringComparison.OrdinalIgnoreCase))
                 {
                     packageToProjectMap[folderName] = projectNode;
+                    WorkspaceConventions.RegisterServiceAlias(folderName, normName ?? projectName);
                 }
 
                 if (depInfo != null)

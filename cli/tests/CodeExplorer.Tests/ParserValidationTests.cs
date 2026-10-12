@@ -249,6 +249,25 @@ public class ParserValidationTests
     }
 
     [Test]
+    public void Test_NestedSqlParser_DynamicTableTemplateLiterals_NormalizedToWildcardFamily()
+    {
+        var rawSql = "SELECT * FROM `tracker.data_tracker_${tableSuffix}` JOIN `analytics.impressions_tb_{shard}` ON id = ref_id";
+        var queryNode = NestedSqlParser.ParseNestedSql(rawSql, "ws:query:2", "bq-routes-calculation/src/repository/tracker.repository.ts");
+
+        Assert.That(queryNode, Is.Not.Null);
+        var tables = queryNode!.Children
+            .OfType<DatabaseNode>()
+            .SelectMany(db => db.Children.OfType<DataSetNode>())
+            .SelectMany(ds => ds.Children.OfType<TableNode>())
+            .Select(t => t.Name)
+            .ToList();
+
+        Assert.That(tables, Contains.Item("data_tracker_*"));
+        Assert.That(tables, Contains.Item("impressions_tb_*"));
+        Assert.That(tables.Any(t => t.Contains("tableSuffix") || t.Contains("shard")), Is.False, "Dynamic template variable names must not become phantom tables");
+    }
+
+    [Test]
     public async Task Test_SqlParser_CreateTable_IfNotExists_And_Templated_Identifiers()
     {
         var sqlParser = new Parser.SQL.SqlParser();

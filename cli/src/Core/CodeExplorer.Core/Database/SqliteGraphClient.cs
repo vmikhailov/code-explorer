@@ -327,23 +327,9 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         await _lock.WaitAsync();
         try
         {
-            await using (var cmd = _conn.CreateCommand())
-            {
-                cmd.CommandText = "DELETE FROM edges; DELETE FROM nodes; DELETE FROM metadata;";
-                await cmd.ExecuteNonQueryAsync();
-            }
-
-            await using (var vacCmd = _conn.CreateCommand())
-            {
-                vacCmd.CommandText = "VACUUM;";
-                await vacCmd.ExecuteNonQueryAsync();
-            }
-
-            await using (var walCmd = _conn.CreateCommand())
-            {
-                walCmd.CommandText = "PRAGMA wal_checkpoint(TRUNCATE);";
-                await walCmd.ExecuteNonQueryAsync();
-            }
+            await _conn.ExecuteAsync("DELETE FROM edges; DELETE FROM nodes; DELETE FROM metadata;");
+            await _conn.ExecuteAsync("VACUUM;");
+            await _conn.ExecuteAsync("PRAGMA wal_checkpoint(TRUNCATE);");
 
             Analysis.ArchitectureViewEngine.InvalidateCache();
         }
@@ -373,32 +359,28 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             string absPath = normalized;
             string? relPath = null;
 
-            await using (var rootCmd = _conn.CreateCommand())
+            var rootVal = await _conn.QueryFirstOrDefaultAsync<string>("SELECT json_extract(properties, '$.path') FROM nodes WHERE kind = 'Workspace' LIMIT 1;");
+            if (!string.IsNullOrEmpty(rootVal))
             {
-                rootCmd.CommandText = "SELECT json_extract(properties, '$.path') FROM nodes WHERE kind = 'Workspace' LIMIT 1;";
-                var rootVal = (string?)await rootCmd.ExecuteScalarAsync();
-                if (!string.IsNullOrEmpty(rootVal))
+                var normRoot = rootVal.Replace('\\', '/').TrimEnd('/');
+                if (!Path.IsPathRooted(normalized))
                 {
-                    var normRoot = rootVal.Replace('\\', '/').TrimEnd('/');
-                    if (!Path.IsPathRooted(normalized))
-                    {
-                        absPath = Path.GetFullPath(Path.Combine(normRoot, normalized)).Replace('\\', '/').TrimEnd('/');
-                    }
-                    else
-                    {
-                        absPath = Path.GetFullPath(normalized).Replace('\\', '/').TrimEnd('/');
-                    }
-
-                    if (absPath.StartsWith(normRoot, StringComparison.OrdinalIgnoreCase))
-                    {
-                        relPath = Path.GetRelativePath(normRoot, absPath).Replace('\\', '/');
-                        if (relPath == ".") relPath = "";
-                    }
+                    absPath = Path.GetFullPath(Path.Combine(normRoot, normalized)).Replace('\\', '/').TrimEnd('/');
                 }
-                else if (!Path.IsPathRooted(normalized))
+                else
                 {
                     absPath = Path.GetFullPath(normalized).Replace('\\', '/').TrimEnd('/');
                 }
+
+                if (absPath.StartsWith(normRoot, StringComparison.OrdinalIgnoreCase))
+                {
+                    relPath = Path.GetRelativePath(normRoot, absPath).Replace('\\', '/');
+                    if (relPath == ".") relPath = "";
+                }
+            }
+            else if (!Path.IsPathRooted(normalized))
+            {
+                absPath = Path.GetFullPath(normalized).Replace('\\', '/').TrimEnd('/');
             }
 
             return await DeleteSubpathHierarchyAsync(absPath, relPath);
@@ -477,68 +459,49 @@ public class SqliteGraphClient : IGraphClient, IDisposable
 
     private async Task<string?> FindWorkspaceIdByIdOrPathAsync(string raw, string normalized)
     {
-        await using var cmd = _conn.CreateCommand();
-
-        cmd.CommandText = """
-                          SELECT id FROM nodes
-                          WHERE kind = 'Workspace'
-                            AND (
-                                id = @raw
-                                OR id = @normalized
-                                OR rtrim(replace(lower(json_extract(properties, '$.path')), '\', '/'), '/') = lower(@normalized)
-                                OR lower(json_extract(properties, '$.name')) = lower(@raw)
-                            )
-                          LIMIT 1;
-                          """;
-        cmd.Parameters.AddWithValue("@raw", raw);
-        cmd.Parameters.AddWithValue("@normalized", normalized);
-        return (string?)await cmd.ExecuteScalarAsync();
+        const string sql = """
+            SELECT id FROM nodes
+            WHERE kind = 'Workspace'
+              AND (
+                  id = @raw
+                  OR id = @normalized
+                  OR rtrim(replace(lower(json_extract(properties, '$.path')), '\', '/'), '/') = lower(@normalized)
+                  OR lower(json_extract(properties, '$.name')) = lower(@raw)
+              )
+            LIMIT 1;
+            """;
+        return await _conn.QueryFirstOrDefaultAsync<string>(sql, new { raw, normalized });
     }
 
     private async Task DeleteWorkspaceHierarchyAsync(string wsId)
     {
         var wsGlob = wsId + ":*";
 
-        await using var cmd = _conn.CreateCommand();
+        const string findSql = """
+            WITH RECURSIVE del_nodes(id) AS (
+                SELECT id FROM nodes
+                WHERE id = @wsId OR id GLOB @wsGlob
+                UNION
+                SELECT e.to_id FROM edges e
+                JOIN del_nodes d ON e.from_id = d.id
+                WHERE e.kind = 'CONTAINS'
+            )
+            SELECT DISTINCT id FROM del_nodes;
+            """;
 
-        cmd.Parameters.AddWithValue("@wsId", wsId);
-        cmd.Parameters.AddWithValue("@wsGlob", wsGlob);
-
-        cmd.CommandText = """
-                          CREATE TEMP TABLE IF NOT EXISTS temp_ws_del(id TEXT PRIMARY KEY);
-                          DELETE FROM temp_ws_del;
-
-                          -- 1. Instant index-range scan for all nodes prefixed with workspace ID
-                          INSERT OR IGNORE INTO temp_ws_del(id)
-                          SELECT id FROM nodes WHERE id = @wsId OR id GLOB @wsGlob;
-                          """;
-        await cmd.ExecuteNonQueryAsync();
-
-        // 2. Include all levels of child nodes attached via CONTAINS
-        while (true)
+        var ids = (await _conn.QueryAsync<string>(findSql, new { wsId, wsGlob })).AsList();
+        if (ids.Count > 0)
         {
-            cmd.CommandText = """
-                              INSERT OR IGNORE INTO temp_ws_del(id)
-                              SELECT to_id FROM edges
-                              WHERE kind = 'CONTAINS'
-                                AND from_id IN (SELECT id FROM temp_ws_del)
-                                AND to_id NOT GLOB @wsGlob
-                                AND to_id != @wsId;
-                              """;
-            var added = await cmd.ExecuteNonQueryAsync();
-            if (added == 0) break;
+            const int chunkSize = 500;
+            for (var i = 0; i < ids.Count; i += chunkSize)
+            {
+                var chunk = ids.Skip(i).Take(chunkSize).ToList();
+                await _conn.ExecuteAsync("DELETE FROM edges WHERE from_id IN @chunk OR to_id IN @chunk;", new { chunk });
+                await _conn.ExecuteAsync("DELETE FROM nodes WHERE id IN @chunk;", new { chunk });
+            }
         }
 
-        cmd.CommandText = """
-                          -- 3. Fast indexed deletions across edges and nodes
-                          DELETE FROM edges WHERE from_id IN (SELECT id FROM temp_ws_del);
-                          DELETE FROM edges WHERE to_id IN (SELECT id FROM temp_ws_del);
-                          DELETE FROM nodes WHERE id IN (SELECT id FROM temp_ws_del);
-                          DELETE FROM file_registry;
-
-                          DROP TABLE IF EXISTS temp_ws_del;
-                          """;
-        await cmd.ExecuteNonQueryAsync();
+        await _conn.ExecuteAsync("DELETE FROM file_registry;");
         Analysis.ArchitectureViewEngine.InvalidateCache();
     }
 
@@ -568,16 +531,11 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         await _lock.WaitAsync();
         try
         {
-            await using var cmd = _conn.CreateCommand();
-
-            cmd.CommandText = """
-                              INSERT INTO nodes (id, kind, properties) VALUES (@id, 'Workspace', @props)
-                              ON CONFLICT(id) DO UPDATE SET properties = json_set(properties, '$.path', @path);
-                              """;
-            cmd.Parameters.AddWithValue("@id", id);
-            cmd.Parameters.AddWithValue("@props", propsJson);
-            cmd.Parameters.AddWithValue("@path", normalized);
-            await cmd.ExecuteNonQueryAsync();
+            const string sql = """
+                INSERT INTO nodes (id, kind, properties) VALUES (@id, 'Workspace', @props)
+                ON CONFLICT(id) DO UPDATE SET properties = json_set(properties, '$.path', @path);
+                """;
+            await _conn.ExecuteAsync(sql, new { id, props = propsJson, path = normalized });
         }
         finally
         {

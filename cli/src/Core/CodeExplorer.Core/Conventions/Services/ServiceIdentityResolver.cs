@@ -41,6 +41,26 @@ public sealed class ServiceIdentityResolver
     }
 
     /// <summary>
+    /// Registers a service alias dynamically (e.g. from Layer 2 project discovery or configuration).
+    /// </summary>
+    public void RegisterAlias(string alias, string canonicalName)
+    {
+        if (string.IsNullOrWhiteSpace(alias) || string.IsNullOrWhiteSpace(canonicalName)) return;
+        _serviceAliases[alias.Trim()] = canonicalName.Trim();
+    }
+
+    /// <summary>
+    /// Registers multiple service aliases dynamically.
+    /// </summary>
+    public void RegisterAliases(IEnumerable<KeyValuePair<string, string>> aliases)
+    {
+        foreach (var kvp in aliases)
+        {
+            RegisterAlias(kvp.Key, kvp.Value);
+        }
+    }
+
+    /// <summary>
     /// Strips generic microservice prefixes while preserving original casing.
     /// </summary>
     public string StripServicePrefix(string? name)

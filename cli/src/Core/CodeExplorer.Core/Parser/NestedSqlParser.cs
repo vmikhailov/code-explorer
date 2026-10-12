@@ -150,23 +150,24 @@ public static class NestedSqlParser
             .Replace("\\`", "`")
             .Replace("\\$", "$");
 
-        // Remove Javascript/TypeScript interpolation syntax: ${varName} -> resolved value or varName
-        cleaned = Regex.Replace(cleaned, @"\$\{\s*([a-zA-Z0-9_\.]+)\s*\}", m =>
+        // 1. Resolve known constants in interpolation syntax: ${varName} or {varName}
+        cleaned = Regex.Replace(cleaned, @"(?:\$|\#)?\{\s*([a-zA-Z0-9_\.]+)\s*\}", m =>
         {
             var varName = m.Groups[1].Value;
-            if (ConstantRegistry.TryResolve(null, varName, out var resolved))
+            if (ConstantRegistry.TryResolve(null, varName, out var resolved) && !string.IsNullOrWhiteSpace(resolved))
             {
                 return resolved;
             }
-            if (varName.Contains("suffix", StringComparison.OrdinalIgnoreCase) ||
-                varName.Contains("date", StringComparison.OrdinalIgnoreCase) ||
-                varName.Contains("part", StringComparison.OrdinalIgnoreCase) ||
-                varName.Contains("shard", StringComparison.OrdinalIgnoreCase))
-            {
-                return "*";
-            }
-            return varName;
+            return m.Value;
         });
+
+        // 2. Normalize parameterized table template patterns into wildcard table families (e.g. data_tracker_${tableSuffix} -> data_tracker_*)
+        cleaned = Regex.Replace(cleaned, @"(?<=[a-zA-Z0-9_]+[_\-])(?:\$|\#)?\{[^}]+\}", "*");
+        cleaned = Regex.Replace(cleaned, @"(?:\$|\#)?\{[^}]+\}(?=[_\-][a-zA-Z0-9_]+)", "*");
+        cleaned = Regex.Replace(cleaned, @"(?:\$|\#)?\{\s*(?:[a-zA-Z0-9_\.]*(?:suffix|date|part|shard)[a-zA-Z0-9_\.]*)\s*\}", "*", RegexOptions.IgnoreCase);
+        // Collapse consecutive wildcards in table patterns (e.g. table_*_* -> table_*)
+        cleaned = Regex.Replace(cleaned, @"(?<=[a-zA-Z0-9_]+)[\*_\-]+(?:\*[\*_\-]*)+", "_*");
+
         cleaned = Regex.Replace(cleaned, @"\$\{(.*?)\}", "$1");
 
         // Convert backticks to square brackets for ScriptDom T-SQL parser compatibility.
