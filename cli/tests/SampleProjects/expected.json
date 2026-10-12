@@ -49,6 +49,16 @@
     "entityKind": "CliTool",
     "isLibrary": false
   },
+  "go/echo-service": {
+    "projectType": "go",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
+  "go/fiber-service": {
+    "projectType": "go",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
   "go/gin-service": {
     "projectType": "go",
     "entityKind": "Service",

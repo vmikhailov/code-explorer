@@ -25,6 +25,9 @@ public class GoParser : IProjectParser, IFileParser
     public IReadOnlyList<ISemanticExtension> SemanticExtensions { get; } =
     [
         new Libraries.ElasticsearchGoLibraryParser(),
+        new Libraries.GinLibraryParser(),
+        new Libraries.FiberLibraryParser(),
+        new Libraries.EchoLibraryParser(),
         new Libraries.GoRedisLegacyLibraryParser(),
         new Libraries.GoRedisLibraryParser(),
         new Libraries.GormLibraryParser(),
@@ -57,11 +60,6 @@ public class GoParser : IProjectParser, IFileParser
         new PackageDescriptor("aws", "AWS", LibraryRole.CloudSdk, "library", ["github.com/aws/aws-sdk-go*"]),
         new PackageDescriptor("gcp", "GCP", LibraryRole.CloudSdk, "library", ["cloud.google.com/*", "firebase.google.com/*"]),
         new PackageDescriptor("azure", "Azure", LibraryRole.CloudSdk, "library", ["*Azure*", "*azure-sdk-for-go*"]),
-
-        // Frameworks
-        new PackageDescriptor("gin", "Gin", LibraryRole.WebService, "library", ["github.com/gin-gonic/gin*"]),
-        new PackageDescriptor("echo", "Echo", LibraryRole.WebService, "library", ["github.com/labstack/echo*"]),
-        new PackageDescriptor("fiber", "Fiber", LibraryRole.WebService, "library", ["github.com/gofiber/fiber*"]),
 
         // Test Frameworks
         new PackageDescriptor("testify", "Testify", LibraryRole.TestFramework, "library", ["github.com/stretchr/testify*"]),

@@ -25,14 +25,14 @@ public class GoFileVisitor : BaseParserVisitor
 
     protected override string? MapNodeType(Node node)
     {
-        if (IsGoEntryPoint(node))
-        {
-            return OntologyConstants.NodeLabels.EntryPoint;
-        }
-
         if (IsGoHttpClientCall(node))
         {
             return OntologyConstants.NodeLabels.ExternalService;
+        }
+
+        if (IsGoEntryPoint(node))
+        {
+            return OntologyConstants.NodeLabels.EntryPoint;
         }
 
         if (node.IsAny(TreeSitterSyntax.Go.InterpretedStringLiteral, TreeSitterSyntax.Go.StringLiteral, TreeSitterSyntax.Go.RawStringLiteral))
@@ -66,14 +66,14 @@ public class GoFileVisitor : BaseParserVisitor
 
     protected override string? ExtractIdentifier(Node node)
     {
-        if (IsGoEntryPoint(node))
-        {
-            return ExtractGoEntryPointRoute(node);
-        }
-
         if (IsGoHttpClientCall(node))
         {
             return ExtractGoHttpClientTarget(node);
+        }
+
+        if (IsGoEntryPoint(node))
+        {
+            return ExtractGoEntryPointRoute(node);
         }
 
         if (node.IsAny(TreeSitterSyntax.Go.InterpretedStringLiteral, TreeSitterSyntax.Go.StringLiteral, TreeSitterSyntax.Go.RawStringLiteral))
@@ -294,11 +294,21 @@ public class GoFileVisitor : BaseParserVisitor
 
         if (func.Is(TreeSitterSyntax.Go.SelectorExpression))
         {
+            var operand = func.GetChildForField(TreeSitterSyntax.Fields.Operand);
             var field = func.GetChildForField(TreeSitterSyntax.Fields.Field);
+            if (operand.IsValid() && (operand.Text == "http" || operand.Text.Contains("client", StringComparison.OrdinalIgnoreCase)))
+            {
+                if (field.IsValid() && field.Text is not ("HandleFunc" or "Handle"))
+                {
+                    return false;
+                }
+            }
+
             if (field.IsValid())
             {
                 var methodName = field.Text;
-                if (methodName is "HandleFunc" or "Handle" or "GET" or "POST" or "PUT" or "DELETE" or "PATCH" or "OPTIONS" or "Any")
+                if (methodName is "HandleFunc" or "Handle" or "GET" or "POST" or "PUT" or "DELETE" or "PATCH" or "OPTIONS" or "Any"
+                    or "Get" or "Post" or "Put" or "Delete" or "Patch" or "Options" or "Head" or "All")
                 {
                     return true;
                 }
@@ -313,16 +323,23 @@ public class GoFileVisitor : BaseParserVisitor
         if (!func.IsValid()) return null;
 
         var method = "GET";
+        var prefix = "";
         if (func.Is(TreeSitterSyntax.Go.SelectorExpression))
         {
             var field = func.GetChildForField(TreeSitterSyntax.Fields.Field);
             if (field.IsValid())
             {
                 var methodName = field.Text;
-                if (methodName != "HandleFunc" && methodName != "Handle" && methodName != "Any")
+                if (methodName != "HandleFunc" && methodName != "Handle" && !methodName.Equals("Any", StringComparison.OrdinalIgnoreCase) && !methodName.Equals("All", StringComparison.OrdinalIgnoreCase))
                 {
                     method = methodName.ToUpperInvariant();
                 }
+            }
+
+            var operand = func.GetChildForField(TreeSitterSyntax.Fields.Operand);
+            if (operand.IsValid())
+            {
+                prefix = GoAstHelper.ResolveRoutePrefix(callNode, operand);
             }
         }
 
@@ -330,10 +347,14 @@ public class GoFileVisitor : BaseParserVisitor
         var routeVal = "/";
         if (args.IsValid() && args.Children.Count > 1)
         {
-            var firstArg = args.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.Go.InterpretedStringLiteral, TreeSitterSyntax.Go.StringLiteral, TreeSitterSyntax.Go.RawStringLiteral));
+            var firstArg = args.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.Go.InterpretedStringLiteral, TreeSitterSyntax.Go.StringLiteral, TreeSitterSyntax.Go.RawStringLiteral, TreeSitterSyntax.Go.Identifier));
             if (firstArg.IsValid())
             {
-                routeVal = firstArg.Text.Trim('"', '`');
+                var resolved = GoAstHelper.ResolveStringOrVariable(firstArg);
+                if (!string.IsNullOrEmpty(resolved))
+                {
+                    routeVal = resolved.Trim('"', '`');
+                }
             }
         }
 
@@ -366,10 +387,7 @@ public class GoFileVisitor : BaseParserVisitor
             }
         }
 
-        if (!routeVal.StartsWith('/'))
-        {
-            routeVal = "/" + routeVal;
-        }
+        routeVal = GoAstHelper.CombineRoutes(prefix, routeVal);
 
         return $"{method}:{routeVal}";
     }

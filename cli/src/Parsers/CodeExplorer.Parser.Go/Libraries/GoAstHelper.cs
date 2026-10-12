@@ -364,4 +364,92 @@ public static class GoAstHelper
     }
 
     private static bool IsNodeContainedWithin(Node inner, Node outer) => inner.IsContainedWithin(outer);
+
+    public static string ResolveRoutePrefix(Node callNode, Node? receiverNode)
+    {
+        if (!receiverNode.IsValid()) return "";
+
+        var prefixes = new List<string>();
+        var currReceiver = receiverNode;
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+
+        for (var step = 0; step < MaxRecursionDepth; step++)
+        {
+            if (!currReceiver.IsAny(TreeSitterSyntax.Go.Identifier, TreeSitterSyntax.Go.VariableName))
+                break;
+
+            var varName = currReceiver.Text;
+            if (!visited.Add(varName)) break;
+
+            var initNode = FindVariableInitializerNodeInScope(callNode, varName);
+            if (!initNode.IsValid() || !initNode.Is(TreeSitterSyntax.Go.CallExpression))
+                break;
+
+            var initCall = initNode;
+            var func = initCall.GetFunctionNode();
+            if (!func.IsValid() || !func.Is(TreeSitterSyntax.Go.SelectorExpression))
+                break;
+
+            var methodField = func.GetChildForField(TreeSitterSyntax.Fields.Field);
+            if (!methodField.IsValid() || methodField.Text != "Group")
+                break;
+
+            var args = initCall.FindChildOfType(TreeSitterSyntax.Go.ArgumentList);
+            if (args.IsValid() && args.Children.Count > 1)
+            {
+                var firstArg = args.Children.FirstOrDefault(c =>
+                    c.IsAny(TreeSitterSyntax.Go.InterpretedStringLiteral,
+                            TreeSitterSyntax.Go.RawStringLiteral,
+                            TreeSitterSyntax.Go.StringLiteral,
+                            TreeSitterSyntax.Go.Identifier));
+
+                var groupStr = ResolveStringOrVariable(firstArg);
+                if (!string.IsNullOrEmpty(groupStr))
+                {
+                    prefixes.Insert(0, groupStr.Trim('"', '`'));
+                }
+            }
+
+            var nextReceiver = func.GetChildForField(TreeSitterSyntax.Fields.Operand);
+            if (nextReceiver.IsValid())
+            {
+                currReceiver = nextReceiver;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        if (prefixes.Count == 0) return "";
+
+        var combined = "";
+        foreach (var p in prefixes)
+        {
+            combined = CombineRoutes(combined, p);
+        }
+        return combined;
+    }
+
+    public static string CombineRoutes(string prefix, string path)
+    {
+        if (string.IsNullOrEmpty(prefix))
+        {
+            return path.StartsWith('/') ? path : "/" + path;
+        }
+
+        if (string.IsNullOrEmpty(path) || path == "/")
+        {
+            return prefix.StartsWith('/') ? prefix : "/" + prefix;
+        }
+
+        prefix = prefix.TrimEnd('/');
+        if (!path.StartsWith('/'))
+        {
+            path = "/" + path;
+        }
+
+        var combined = prefix + path;
+        return combined.StartsWith('/') ? combined : "/" + combined;
+    }
 }
