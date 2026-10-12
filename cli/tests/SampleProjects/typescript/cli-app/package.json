@@ -1,0 +1,10 @@
+{
+  "name": "my-cli-tool",
+  "version": "1.0.0",
+  "bin": {
+    "mycli": "./bin/run.js"
+  },
+  "dependencies": {
+    "commander": "^12.0.0"
+  }
+}

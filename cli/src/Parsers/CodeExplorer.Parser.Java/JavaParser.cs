@@ -300,10 +300,21 @@ public class JavaParser : IProjectParser, IFileParser
             try
             {
                 var content = File.ReadAllText(pomPath);
-                if (content.Contains("spring-boot-starter-web", StringComparison.OrdinalIgnoreCase))
+                var isWebService = content.Contains("spring-boot-starter-web", StringComparison.OrdinalIgnoreCase) ||
+                                  content.Contains("spring-boot-maven-plugin", StringComparison.OrdinalIgnoreCase) ||
+                                  content.Contains("io.quarkus", StringComparison.OrdinalIgnoreCase) ||
+                                  content.Contains("io.micronaut", StringComparison.OrdinalIgnoreCase) ||
+                                  content.Contains("org.eclipse.jetty", StringComparison.OrdinalIgnoreCase) ||
+                                  content.Contains("tomcat-embed", StringComparison.OrdinalIgnoreCase);
+
+                if (isWebService)
                 {
                     props["manifest_type"] = "application";
                     props["framework_type"] = "web";
+                }
+                else
+                {
+                    props["manifest_type"] = "library";
                 }
             }
             catch

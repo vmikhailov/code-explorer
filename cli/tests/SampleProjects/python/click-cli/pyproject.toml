@@ -1,0 +1,7 @@
+[project]
+name = "report-generator"
+version = "0.1.0"
+dependencies = ["click>=8.1.0"]
+
+[project.scripts]
+generate-report = "report_generator.cli:main"
