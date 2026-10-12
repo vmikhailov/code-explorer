@@ -22,67 +22,47 @@ public class TypeScriptParser : IProjectParser, IFileParser
         return lower.StartsWith(".env");
     }
 
-    public IReadOnlyList<PackageDescriptor> Packages { get; } =
-    [
-        // Backend Web Frameworks
-        new PackageDescriptor("express", "Express", LibraryRole.WebFramework, "npm", ["express"]),
-        new PackageDescriptor("nestjs", "NestJS", LibraryRole.WebFramework, "npm", ["@nestjs/*", "@nestjs/core"]),
-        new PackageDescriptor("fastify", "Fastify", LibraryRole.WebFramework, "npm", ["fastify"]),
-        new PackageDescriptor("koa", "Koa", LibraryRole.WebFramework, "npm", ["koa"]),
+    public IReadOnlyList<PackageDescriptor> Packages { get; }
 
-        // Frontend Web Frameworks
-        new PackageDescriptor("nextjs", "Next.js", LibraryRole.FrontendFramework, "npm", ["next"]),
-        new PackageDescriptor("react", "React", LibraryRole.FrontendFramework, "npm", ["react", "react-dom"]),
-        new PackageDescriptor("vue", "Vue", LibraryRole.FrontendFramework, "npm", ["vue"]),
-        new PackageDescriptor("angular", "Angular", LibraryRole.FrontendFramework, "npm", ["@angular/core"]),
-        new PackageDescriptor("svelte", "Svelte", LibraryRole.FrontendFramework, "npm", ["svelte"]),
-        new PackageDescriptor("vite", "Vite", LibraryRole.FrontendFramework, "npm", ["vite"]),
+    public TypeScriptParser()
+    {
+        Packages =
+        [
+            // Derived dynamically from semantic AST extensions that support the npm ecosystem
+            ..SemanticExtensions.Select(e => e.ToPackageDescriptor("npm")),
 
-        // Databases / ORMs
-        new PackageDescriptor("prisma", "Prisma", LibraryRole.OrmOrDatabase, "npm", ["@prisma/client", "prisma"]),
-        new PackageDescriptor("typeorm", "TypeORM", LibraryRole.OrmOrDatabase, "npm", ["typeorm"]),
-        new PackageDescriptor("drizzle", "Drizzle ORM", LibraryRole.OrmOrDatabase, "npm", ["drizzle-orm"]),
-        new PackageDescriptor("mongoose", "Mongoose", LibraryRole.OrmOrDatabase, "npm", ["mongoose"]),
-        new PackageDescriptor("mongodb", "MongoDB", LibraryRole.OrmOrDatabase, "npm", ["mongodb"]),
-        new PackageDescriptor("pg", "pg", LibraryRole.OrmOrDatabase, "npm", ["pg"]),
-        new PackageDescriptor("mysql2", "mysql2", LibraryRole.OrmOrDatabase, "npm", ["mysql2"]),
-        new PackageDescriptor("knex", "Knex", LibraryRole.OrmOrDatabase, "npm", ["knex"]),
-        new PackageDescriptor("sequelize", "Sequelize", LibraryRole.OrmOrDatabase, "npm", ["sequelize"]),
-        new PackageDescriptor("sqlite3", "sqlite3", LibraryRole.OrmOrDatabase, "npm", ["sqlite3"]),
-        new PackageDescriptor("redis", "Redis", LibraryRole.OrmOrDatabase, "npm", ["redis", "ioredis"]),
-        new PackageDescriptor("neo4j", "Neo4j", LibraryRole.OrmOrDatabase, "npm", ["neo4j-driver"]),
-        new PackageDescriptor("elasticsearch", "Elasticsearch", LibraryRole.OrmOrDatabase, "npm", ["@elastic/elasticsearch"]),
-        new PackageDescriptor("influxdb", "InfluxDB", LibraryRole.OrmOrDatabase, "npm", ["@influxdata/influxdb-client"]),
-        new PackageDescriptor("bigquery", "BigQuery", LibraryRole.OrmOrDatabase, "npm", ["@google-cloud/bigquery", "bigquery"]),
-        new PackageDescriptor("clickhouse", "ClickHouse", LibraryRole.OrmOrDatabase, "npm", ["@clickhouse/client", "@clickhouse/client-web", "clickhouse"]),
+            // Classification-only framework descriptors (pending AST semantic extensions)
+            new PackageDescriptor("react", "React", LibraryRole.FrontendFramework, "npm", ["react", "react-dom"]),
+            new PackageDescriptor("vue", "Vue", LibraryRole.FrontendFramework, "npm", ["vue"]),
+            new PackageDescriptor("angular", "Angular", LibraryRole.FrontendFramework, "npm", ["@angular/core"]),
+            new PackageDescriptor("svelte", "Svelte", LibraryRole.FrontendFramework, "npm", ["svelte"]),
+            new PackageDescriptor("vite", "Vite", LibraryRole.FrontendFramework, "npm", ["vite"]),
 
-        // Messaging
-        new PackageDescriptor("rabbitmq", "RabbitMQ", LibraryRole.MessageBroker, "npm", ["amqplib"]),
-        new PackageDescriptor("kafkajs", "KafkaJS", LibraryRole.MessageBroker, "npm", ["kafkajs"]),
-        new PackageDescriptor("bullmq", "BullMQ", LibraryRole.MessageBroker, "npm", ["bullmq", "bull"]),
+            // Classification-only test frameworks
+            new PackageDescriptor("jest", "Jest", LibraryRole.TestFramework, "npm", ["jest", "@types/jest", "ts-jest", "babel-jest"]),
+            new PackageDescriptor("vitest", "Vitest", LibraryRole.TestFramework, "npm", ["vitest", "@vitest/*"]),
+            new PackageDescriptor("mocha", "Mocha", LibraryRole.TestFramework, "npm", ["mocha", "@types/mocha"]),
+            new PackageDescriptor("cypress", "Cypress", LibraryRole.TestFramework, "npm", ["cypress"]),
+            new PackageDescriptor("playwright", "Playwright", LibraryRole.TestFramework, "npm", ["@playwright/test", "playwright"])
 
-        // Generic Cloud Services
-        new PackageDescriptor("stripe", "Stripe", LibraryRole.CloudSdk, "npm", ["stripe"]),
-        new PackageDescriptor("aws", "AWS", LibraryRole.CloudSdk, "npm", ["aws-sdk", "@aws-sdk/*"]),
-        new PackageDescriptor("azure", "Azure", LibraryRole.CloudSdk, "npm", ["@azure/*"]),
-        new PackageDescriptor("gcp", "GCP", LibraryRole.CloudSdk, "npm", ["@google-cloud/*"]),
+            /*
+            // Unimplemented / Backlog packages (commented out until AST semantic extensions are implemented):
+            // Databases / ORMs
+            new PackageDescriptor("bigquery", "BigQuery", LibraryRole.OrmOrDatabase, "npm", ["@google-cloud/bigquery", "bigquery"]),
+            new PackageDescriptor("clickhouse", "ClickHouse", LibraryRole.OrmOrDatabase, "npm", ["@clickhouse/client", "@clickhouse/client-web", "clickhouse"]),
 
-        // Generic API Clients & Protocols
-        new PackageDescriptor("axios", "Axios", LibraryRole.General, "npm", ["axios"]),
-        new PackageDescriptor("socketio", "Socket.IO", LibraryRole.General, "npm", ["socket.io", "socket.io-client"]),
-        new PackageDescriptor("signalr", "SignalR", LibraryRole.General, "npm", ["@microsoft/signalr"]),
-        new PackageDescriptor("graphql", "GraphQL", LibraryRole.General, "npm", ["graphql", "@apollo/client"]),
-        new PackageDescriptor("request", "request", LibraryRole.General, "npm", ["request"]),
-        new PackageDescriptor("undici", "undici", LibraryRole.General, "npm", ["undici"]),
-        new PackageDescriptor("urllib", "urllib", LibraryRole.General, "npm", ["urllib"]),
+            // Generic Cloud Services
+            new PackageDescriptor("stripe", "Stripe", LibraryRole.CloudSdk, "npm", ["stripe"]),
+            new PackageDescriptor("aws", "AWS", LibraryRole.CloudSdk, "npm", ["aws-sdk", "@aws-sdk/*"]),
+            new PackageDescriptor("azure", "Azure", LibraryRole.CloudSdk, "npm", ["@azure/*"]),
 
-        // Test Frameworks
-        new PackageDescriptor("jest", "Jest", LibraryRole.TestFramework, "npm", ["jest", "@types/jest", "ts-jest", "babel-jest"]),
-        new PackageDescriptor("vitest", "Vitest", LibraryRole.TestFramework, "npm", ["vitest", "@vitest/*"]),
-        new PackageDescriptor("mocha", "Mocha", LibraryRole.TestFramework, "npm", ["mocha", "@types/mocha"]),
-        new PackageDescriptor("cypress", "Cypress", LibraryRole.TestFramework, "npm", ["cypress"]),
-        new PackageDescriptor("playwright", "Playwright", LibraryRole.TestFramework, "npm", ["@playwright/test", "playwright"])
-    ];
+            // Generic API Clients & Protocols
+            new PackageDescriptor("request", "request", LibraryRole.General, "npm", ["request"]),
+            new PackageDescriptor("undici", "undici", LibraryRole.General, "npm", ["undici"]),
+            new PackageDescriptor("urllib", "urllib", LibraryRole.General, "npm", ["urllib"]),
+            */
+        ];
+    }
 
     public IReadOnlyList<ISemanticExtension> SemanticExtensions { get; } =
     [
@@ -273,7 +253,10 @@ public class TypeScriptParser : IProjectParser, IFileParser
                     }
                 }
             }
-            catch { }
+            catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException)
+            {
+                // Ignore parse errors on best-effort manifest reading
+            }
         }
 
         // 3. Check ng-package.json or angular.json
@@ -388,7 +371,10 @@ public class TypeScriptParser : IProjectParser, IFileParser
                                 }
                             }
                         }
-                        catch { }
+                        catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException)
+                        {
+                            // Ignore monorepo ancestor parse errors
+                        }
                         break;
                     }
                     parentDir = Path.GetDirectoryName(parentDir);
@@ -493,7 +479,10 @@ public class TypeScriptParser : IProjectParser, IFileParser
                     }
                 }
             }
-            catch { }
+            catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException)
+            {
+                // Ignore package.json parsing errors
+            }
         }
 
         return props;

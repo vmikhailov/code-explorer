@@ -12,6 +12,7 @@ public class PythonRedisLibraryParser : ISemanticExtension
     public string Id => "redis";
     public IReadOnlyList<string> SupportedPatterns => ["redis", "redis.*", "aioredis", "aioredis.*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     private static readonly HashSet<string> RedisMethods = new(StringComparer.Ordinal)
     {

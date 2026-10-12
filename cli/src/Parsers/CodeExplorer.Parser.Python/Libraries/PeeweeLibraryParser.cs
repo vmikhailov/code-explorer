@@ -12,6 +12,7 @@ public class PeeweeLibraryParser : ISemanticExtension
     public string Id => "peewee";
     public IReadOnlyList<string> SupportedPatterns => ["peewee", "peewee.*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     private static readonly HashSet<string> PeeweeQueryMethods = new(StringComparer.Ordinal)
     {

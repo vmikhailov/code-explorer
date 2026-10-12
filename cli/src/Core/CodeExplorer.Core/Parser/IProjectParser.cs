@@ -97,6 +97,7 @@ public interface IProjectParser
 
         // 2. Inversion of Control: Query dialect's application framework packages
         var appPackages = parser.Packages.Where(p => p.Role is LibraryRole.WebFramework
+            or LibraryRole.WebService
             or LibraryRole.FrontendFramework
             or LibraryRole.WorkerService
             or LibraryRole.FunctionFramework
@@ -112,7 +113,7 @@ public interface IProjectParser
                 return pkg.Role switch
                 {
                     LibraryRole.FrontendFramework => ProjectClassification.WebApp,
-                    LibraryRole.WebFramework => ProjectClassification.Service,
+                    LibraryRole.WebFramework or LibraryRole.WebService => ProjectClassification.Service,
                     LibraryRole.WorkerService => ProjectClassification.Worker,
                     LibraryRole.FunctionFramework => ProjectClassification.FunctionApp,
                     LibraryRole.CliFramework => ProjectClassification.CliApp,

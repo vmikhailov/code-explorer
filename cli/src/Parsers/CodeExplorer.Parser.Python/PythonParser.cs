@@ -21,45 +21,43 @@ public class PythonParser : IProjectParser, IFileParser
         return lower.StartsWith(".env");
     }
 
-    public IReadOnlyList<PackageDescriptor> Packages { get; } =
-    [
-        // Frameworks
-        new("django", "Django", LibraryRole.WebFramework, "pypi", ["django"]),
-        new("flask", "Flask", LibraryRole.WebFramework, "pypi", ["flask"]),
-        new("fastapi", "FastAPI", LibraryRole.WebFramework, "pypi", ["fastapi"]),
+    public IReadOnlyList<PackageDescriptor> Packages { get; }
 
-        // Databases / ORMs
-        new("sqlalchemy", "SQLAlchemy", LibraryRole.OrmOrDatabase, "pypi", ["sqlalchemy"]),
-        new("peewee", "Peewee", LibraryRole.OrmOrDatabase, "pypi", ["peewee"]),
-        new("psycopg2", "psycopg2", LibraryRole.OrmOrDatabase, "pypi", ["psycopg2", "psycopg"]),
-        new("pymysql", "PyMySQL", LibraryRole.OrmOrDatabase, "pypi", ["pymysql"]),
-        new("mysql-connector", "MySQL Connector", LibraryRole.OrmOrDatabase, "pypi", ["mysql.connector"]),
-        new("pymongo", "PyMongo", LibraryRole.OrmOrDatabase, "pypi", ["pymongo"]),
-        new("redis", "Redis", LibraryRole.OrmOrDatabase, "pypi", ["redis"]),
-        new("sqlite3", "sqlite3", LibraryRole.OrmOrDatabase, "pypi", ["sqlite3"]),
-        new("elasticsearch", "Elasticsearch", LibraryRole.OrmOrDatabase, "pypi", ["elasticsearch"]),
-        new("couchdb", "CouchDB", LibraryRole.OrmOrDatabase, "pypi", ["couchdb"]),
-        new("chromadb", "ChromaDB", LibraryRole.OrmOrDatabase, "pypi", ["chromadb"]),
-        new("pinecone", "Pinecone", LibraryRole.OrmOrDatabase, "pypi", ["pinecone-client", "pinecone"]),
-        new("bigquery", "BigQuery", LibraryRole.OrmOrDatabase, "pypi", ["google-cloud-bigquery", "google.cloud.bigquery"]),
-        new("clickhouse", "ClickHouse", LibraryRole.OrmOrDatabase, "pypi", ["clickhouse-connect", "clickhouse-driver"]),
+    public PythonParser()
+    {
+        Packages =
+        [
+            // Derived dynamically from semantic AST extensions that support PyPI ecosystem
+            ..SemanticExtensions.Select(e => e.ToPackageDescriptor("pypi")),
 
-        // Generic Cloud Services
-        new("stripe", "Stripe", LibraryRole.CloudSdk, "pypi", ["stripe"]),
-        new("aws", "AWS", LibraryRole.CloudSdk, "pypi", ["boto3"]),
-        new("gcp", "GCP", LibraryRole.CloudSdk, "pypi", ["google-cloud-", "google.cloud", "firebase-admin"]),
-        new("azure", "Azure", LibraryRole.CloudSdk, "pypi", ["azure-", "azure."]),
+            // Classification-only framework descriptors (pending AST semantic extensions)
+            new("django", "Django", LibraryRole.WebFramework, "pypi", ["django"]),
+            new("flask", "Flask", LibraryRole.WebFramework, "pypi", ["flask"]),
 
-        // Test Frameworks
-        new("pytest", "Pytest", LibraryRole.TestFramework, "pypi", ["pytest", "pytest-*"]),
-        new("unittest", "Unittest", LibraryRole.TestFramework, "pypi", ["unittest"]),
+            // Classification-only test frameworks
+            new("pytest", "Pytest", LibraryRole.TestFramework, "pypi", ["pytest", "pytest-*"]),
+            new("unittest", "Unittest", LibraryRole.TestFramework, "pypi", ["unittest"])
 
-        // Generic API Clients
-        new("requests", "requests", LibraryRole.General, "pypi", ["requests"]),
-        new("urllib", "urllib", LibraryRole.General, "pypi", ["urllib.request", "urllib3", "urllib"]),
-        new("httpx", "httpx", LibraryRole.General, "pypi", ["httpx"]),
-        new("aiohttp", "aiohttp", LibraryRole.General, "pypi", ["aiohttp"])
-    ];
+            /*
+            // Unimplemented / Backlog packages (commented out until AST semantic extensions are implemented):
+            // Databases / ORMs
+            new("bigquery", "BigQuery", LibraryRole.OrmOrDatabase, "pypi", ["google-cloud-bigquery", "google.cloud.bigquery"]),
+            new("clickhouse", "ClickHouse", LibraryRole.OrmOrDatabase, "pypi", ["clickhouse-connect", "clickhouse-driver"]),
+
+            // Generic Cloud Services
+            new("stripe", "Stripe", LibraryRole.CloudSdk, "pypi", ["stripe"]),
+            new("aws", "AWS", LibraryRole.CloudSdk, "pypi", ["boto3"]),
+            new("gcp", "GCP", LibraryRole.CloudSdk, "pypi", ["google-cloud-", "google.cloud", "firebase-admin"]),
+            new("azure", "Azure", LibraryRole.CloudSdk, "pypi", ["azure-", "azure."]),
+
+            // Generic API Clients
+            new("requests", "requests", LibraryRole.General, "pypi", ["requests"]),
+            new("urllib", "urllib", LibraryRole.General, "pypi", ["urllib.request", "urllib3", "urllib"]),
+            new("httpx", "httpx", LibraryRole.General, "pypi", ["httpx"]),
+            new("aiohttp", "aiohttp", LibraryRole.General, "pypi", ["aiohttp"])
+            */
+        ];
+    }
 
     public IReadOnlyList<ISemanticExtension> SemanticExtensions { get; } =
     [
@@ -127,7 +125,10 @@ public class PythonParser : IProjectParser, IFileParser
                 {
                     allText.AppendLine(File.ReadAllText(file));
                 }
-                catch { }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    // Ignore unreadable manifest files during best-effort property extraction
+                }
             }
         }
 

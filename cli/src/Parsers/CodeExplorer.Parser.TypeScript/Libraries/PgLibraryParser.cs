@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -12,6 +12,7 @@ public class PgLibraryParser : ISemanticExtension
     public string Id => "postgres";
     public IReadOnlyList<string> SupportedPatterns => ["pg", "pg-promise", "@types/pg"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

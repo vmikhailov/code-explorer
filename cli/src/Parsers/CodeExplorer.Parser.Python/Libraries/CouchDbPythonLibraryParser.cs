@@ -12,6 +12,7 @@ public class CouchDbPythonLibraryParser : ISemanticExtension
     public string Id => "couchdb";
     public IReadOnlyList<string> SupportedPatterns => ["couchdb", "couchdb.*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     private static readonly HashSet<string> CouchDbMethods = new(StringComparer.Ordinal)
     {

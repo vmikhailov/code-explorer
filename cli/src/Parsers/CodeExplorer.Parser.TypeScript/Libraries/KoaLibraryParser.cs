@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -12,6 +12,7 @@ public class KoaLibraryParser : ISemanticExtension
     public string Type => "framework";
     public IReadOnlyList<string> SupportedPatterns => ["@koa/router", "koa-router", "koa"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.WebService;
 
     private static readonly HashSet<string> HttpMethods = new(StringComparer.OrdinalIgnoreCase)
     {

@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -12,6 +12,7 @@ public class Neo4jLibraryParser : ISemanticExtension
     public string Id => "neo4j";
     public IReadOnlyList<string> SupportedPatterns => ["neo4j-driver"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     private static readonly HashSet<string> Neo4jMethods = new(StringComparer.Ordinal)
     {

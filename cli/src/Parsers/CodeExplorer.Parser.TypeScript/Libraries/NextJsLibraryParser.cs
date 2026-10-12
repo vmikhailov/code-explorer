@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -12,6 +12,7 @@ public class NextJsLibraryParser : ISemanticExtension
     public string Type => "framework";
     public IReadOnlyList<string> SupportedPatterns => ["next", "next/*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.FrontendFramework;
 
     private static readonly HashSet<string> HttpMethodFunctions = new(StringComparer.Ordinal)
     {

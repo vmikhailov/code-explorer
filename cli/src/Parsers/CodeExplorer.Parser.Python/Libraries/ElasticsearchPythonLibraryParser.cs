@@ -12,6 +12,7 @@ public class ElasticsearchPythonLibraryParser : ISemanticExtension
     public string Id => "elasticsearch";
     public IReadOnlyList<string> SupportedPatterns => ["elasticsearch", "elasticsearch.*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     private static readonly HashSet<string> EsMethods = new(StringComparer.Ordinal)
     {

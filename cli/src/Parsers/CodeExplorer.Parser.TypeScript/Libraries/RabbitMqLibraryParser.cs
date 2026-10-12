@@ -19,6 +19,7 @@ public class RabbitMqLibraryParser : ISemanticExtension
         "*Rabbit*"
     ];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.MessageBroker;
 
     public string? MapNodeType(Node node, ParsingContext ctx) => null;
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => null;

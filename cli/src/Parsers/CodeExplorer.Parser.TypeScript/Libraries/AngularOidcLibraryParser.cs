@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -23,6 +23,7 @@ public class AngularOidcLibraryParser : ISemanticExtension
     ];
 
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.AuthAndSecurity;
 
     private static readonly HashSet<string> OidcCallMethods =
     [

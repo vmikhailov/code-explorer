@@ -12,6 +12,7 @@ public class ChromaDbLibraryParser : ISemanticExtension
     public string Id => "chroma";
     public IReadOnlyList<string> SupportedPatterns => ["chromadb", "chromadb.*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     private static readonly HashSet<string> CollectionMgmtMethods = new(StringComparer.Ordinal)
     {

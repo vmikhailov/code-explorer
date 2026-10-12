@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -12,6 +12,7 @@ public class Sqlite3LibraryParser : ISemanticExtension
     public string Id => "sqlite";
     public IReadOnlyList<string> SupportedPatterns => ["sqlite3", "better-sqlite3", "@types/better-sqlite3"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

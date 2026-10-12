@@ -12,6 +12,7 @@ public class MysqlConnectorPythonLibraryParser : ISemanticExtension
     public string Id => "mysql-connector";
     public IReadOnlyList<string> SupportedPatterns => ["mysql.connector", "mysql.connector.*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

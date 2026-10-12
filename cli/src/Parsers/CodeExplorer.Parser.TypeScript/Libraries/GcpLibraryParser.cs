@@ -20,6 +20,7 @@ public class GcpLibraryParser : ISemanticExtension
         "*pub-sub*"
     ];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.CloudSdk;
 
     public string? MapNodeType(Node node, ParsingContext ctx) => null;
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => null;

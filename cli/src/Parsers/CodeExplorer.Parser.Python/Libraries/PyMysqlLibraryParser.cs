@@ -12,6 +12,7 @@ public class PyMysqlLibraryParser : ISemanticExtension
     public string Id => "pymysql";
     public IReadOnlyList<string> SupportedPatterns => ["pymysql", "pymysql.*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

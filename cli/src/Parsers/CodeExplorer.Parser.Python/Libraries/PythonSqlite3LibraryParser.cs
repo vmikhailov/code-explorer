@@ -12,6 +12,7 @@ public class PythonSqlite3LibraryParser : ISemanticExtension
     public string Id => "sqlite3";
     public IReadOnlyList<string> SupportedPatterns => ["sqlite3"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

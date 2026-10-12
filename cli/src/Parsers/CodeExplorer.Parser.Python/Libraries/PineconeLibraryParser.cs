@@ -12,6 +12,7 @@ public class PineconeLibraryParser : ISemanticExtension
     public string Id => "pinecone";
     public IReadOnlyList<string> SupportedPatterns => ["pinecone", "pinecone.*", "pinecone-client", "pinecone_client"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     private static readonly HashSet<string> IndexMgmtMethods = new(StringComparer.Ordinal)
     {

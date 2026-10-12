@@ -28,8 +28,19 @@ public interface ISemanticExtension
     /// <summary>
     /// The architectural role of this extension when present in code.
     /// </summary>
-    LibraryRole Role => LibraryRole.General;
-    LibraryRole LibraryRole => Role;
+    LibraryRole LibraryRole => LibraryRole.General;
+    LibraryRole Role => LibraryRole;
+
+    /// <summary>
+    /// Optional custom matching predicate for project context (e.g. SDK or manifest properties check).
+    /// </summary>
+    Func<ProjectContext, bool>? CustomMatch => null;
+
+    /// <summary>
+    /// Converts this semantic extension into a declarative package descriptor for Layer 2 ontology classification.
+    /// </summary>
+    PackageDescriptor ToPackageDescriptor(string ecosystem = "library") =>
+        new(Id, Name, LibraryRole, ecosystem, SupportedPatterns, CustomMatch);
 
     /// <summary>
     /// Indicates whether this extension is built into the language standard library.

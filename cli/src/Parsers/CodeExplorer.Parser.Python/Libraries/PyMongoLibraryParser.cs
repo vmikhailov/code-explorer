@@ -12,6 +12,7 @@ public class PyMongoLibraryParser : ISemanticExtension
     public string Id => "mongodb";
     public IReadOnlyList<string> SupportedPatterns => ["pymongo", "pymongo.*", "motor", "motor.*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     private static readonly HashSet<string> MongoMethods = new(StringComparer.Ordinal)
     {

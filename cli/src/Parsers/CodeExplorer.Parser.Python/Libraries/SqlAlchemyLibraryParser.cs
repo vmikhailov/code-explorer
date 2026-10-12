@@ -12,6 +12,7 @@ public class SqlAlchemyLibraryParser : ISemanticExtension
     public string Id => "sqlalchemy";
     public IReadOnlyList<string> SupportedPatterns => ["sqlalchemy", "sqlalchemy.*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     private static readonly HashSet<string> SqlAlchemyMethods = new(StringComparer.Ordinal)
     {

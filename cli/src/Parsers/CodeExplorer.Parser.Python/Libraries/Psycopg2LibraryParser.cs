@@ -12,6 +12,7 @@ public class Psycopg2LibraryParser : ISemanticExtension
     public string Id => "postgres";
     public IReadOnlyList<string> SupportedPatterns => ["psycopg2", "psycopg", "psycopg2.*", "psycopg.*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

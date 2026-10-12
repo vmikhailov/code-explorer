@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -12,6 +12,7 @@ public class InfluxDbLibraryParser : ISemanticExtension
     public string Id => "influxdb";
     public IReadOnlyList<string> SupportedPatterns => ["@influxdata/influxdb-client", "influxdb"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     private static readonly HashSet<string> InfluxMethods = new(StringComparer.Ordinal)
     {

@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -12,6 +12,7 @@ public class Mysql2LibraryParser : ISemanticExtension
     public string Id => "mysql";
     public IReadOnlyList<string> SupportedPatterns => ["mysql2", "mysql", "@types/mysql", "@types/mysql2"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {
