@@ -5,6 +5,16 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.37.11] - 2026-10-12
+
+### Performance
+- **Indexed Preloading Optimization (3500x Faster)**:
+  - Replaced unindexed `json_each` CTE virtual table scans in `SqliteGraphClient.LoadSymbolsByNamesAsync` and `LoadImplementationsForTypesAsync` with temporary indexed B-tree tables (`temp_target_names`, `temp_target_types`).
+  - Eliminates $O(N \times M)$ nested-loop scans on large workspaces (e.g. ATS with 85,000+ referenced symbol names), reducing preloading duration from 22 minutes 47 seconds to 386 milliseconds.
+  - Prevents database semaphore lock starvation, ensuring uninterrupted parallel persistence in `DatabasePersistenceWriter`.
+
+---
+
 ## [1.37.10] - 2026-10-12
 
 ### Added

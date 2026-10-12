@@ -940,19 +940,23 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            await using var cmd = _conn.CreateCommand();
+            await using var cmdInit = _conn.CreateCommand();
+            cmdInit.Parameters.AddWithValue("@namesJson", namesJson);
+            cmdInit.CommandText = """
+                                  DROP TABLE IF EXISTS temp_target_names;
+                                  CREATE TEMP TABLE temp_target_names (val TEXT PRIMARY KEY);
+                                  INSERT OR IGNORE INTO temp_target_names (val) SELECT value FROM json_each(@namesJson);
+                                  """;
+            await cmdInit.ExecuteNonQueryAsync(cancellationToken);
 
-            cmd.Parameters.AddWithValue("@namesJson", namesJson);
+            await using var cmd = _conn.CreateCommand();
             cmd.Parameters.AddWithValue("@widPrefix", widPrefix);
 
             cmd.CommandText = """
-                              WITH target_names(val) AS (
-                                  SELECT value FROM json_each(@namesJson)
-                              )
                               SELECT n.id, n.kind, json_extract(n.properties, '$.name') AS name,
                                      json_extract(p.properties, '$.name') AS parent_name
-                              FROM nodes n
-                              JOIN target_names t ON json_extract(n.properties, '$.name') = t.val
+                              FROM temp_target_names t
+                              JOIN nodes n ON json_extract(n.properties, '$.name') = t.val
                               LEFT JOIN edges e ON e.to_id = n.id AND e.kind IN ('HAS_METHOD', 'CONTAINS')
                               LEFT JOIN nodes p ON p.id = e.from_id AND p.kind = 'Type'
                               WHERE n.kind IN ('Type', 'Function', 'Procedure', 'Table', 'EntryPoint', 'Endpoint')
@@ -986,6 +990,17 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         }
         finally
         {
+            try
+            {
+                await using var cmdClean = _conn.CreateCommand();
+                cmdClean.CommandText = "DROP TABLE IF EXISTS temp_target_names;";
+                await cmdClean.ExecuteNonQueryAsync(CancellationToken.None);
+            }
+            catch
+            {
+                // Best effort cleanup
+            }
+
             _lock.Release();
         }
 
@@ -1011,23 +1026,26 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            await using var cmd = _conn.CreateCommand();
+            await using var cmdInit = _conn.CreateCommand();
+            cmdInit.Parameters.AddWithValue("@typesJson", typesJson);
+            cmdInit.CommandText = """
+                                  DROP TABLE IF EXISTS temp_target_types;
+                                  CREATE TEMP TABLE temp_target_types (val TEXT PRIMARY KEY);
+                                  INSERT OR IGNORE INTO temp_target_types (val) SELECT value FROM json_each(@typesJson);
+                                  """;
+            await cmdInit.ExecuteNonQueryAsync(cancellationToken);
 
-            cmd.Parameters.AddWithValue("@typesJson", typesJson);
+            await using var cmd = _conn.CreateCommand();
             cmd.Parameters.AddWithValue("@widPrefix", widPrefix);
 
             cmd.CommandText = """
-                              WITH target_types(val) AS (
-                                  SELECT value FROM json_each(@typesJson)
-                              )
                               SELECT json_extract(t_target.properties, '$.name') AS iface_name,
                                      json_extract(t_impl.properties, '$.name') AS impl_name
-                              FROM edges e
-                              JOIN nodes t_target ON t_target.id = e.to_id AND t_target.kind = 'Type'
-                              JOIN target_types tt ON json_extract(t_target.properties, '$.name') = tt.val
+                              FROM temp_target_types tt
+                              JOIN nodes t_target ON json_extract(t_target.properties, '$.name') = tt.val AND t_target.kind = 'Type'
+                              JOIN edges e ON e.to_id = t_target.id AND e.kind = 'IMPLEMENTS'
                               JOIN nodes t_impl ON t_impl.id = e.from_id AND t_impl.kind = 'Type'
-                              WHERE e.kind = 'IMPLEMENTS'
-                                AND (length(@widPrefix) = 0 OR e.from_id LIKE @widPrefix || '%');
+                              WHERE (length(@widPrefix) = 0 OR e.from_id LIKE @widPrefix || '%');
                               """;
 
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
@@ -1054,6 +1072,17 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         }
         finally
         {
+            try
+            {
+                await using var cmdClean = _conn.CreateCommand();
+                cmdClean.CommandText = "DROP TABLE IF EXISTS temp_target_types;";
+                await cmdClean.ExecuteNonQueryAsync(CancellationToken.None);
+            }
+            catch
+            {
+                // Best effort cleanup
+            }
+
             _lock.Release();
         }
 

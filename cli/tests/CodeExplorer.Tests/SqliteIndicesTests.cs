@@ -115,4 +115,56 @@ public class SqliteIndicesTests
 
         fullPlan.Should().Contain("COVERING INDEX", $"Query '{query}' should utilize a covering index. Query plan was:\n{fullPlan}");
     }
+
+    [Test]
+    public async Task Test_LoadSymbolsByNamesAsync_OptimizedWithTempTable_FindsExpectedSymbols()
+    {
+        var typeNode = new Node("ws:Type:OrderService", "Type", new Dictionary<string, object> { ["name"] = "OrderService" });
+        var funcNode = new Node("ws:Function:ProcessOrder", "Function", new Dictionary<string, object> { ["name"] = "ProcessOrder" });
+        var epNode = new Node("ws:Endpoint:POST /orders", "Endpoint", new Dictionary<string, object> { ["name"] = "POST /orders" });
+        await _client.UploadNodesAsync([typeNode, funcNode, epNode]);
+
+        // Small batch
+        var result = await _client.LoadSymbolsByNamesAsync(["OrderService", "ProcessOrder", "POST /orders", "NonExistent"], "ws");
+        result.Should().ContainKey(("Type", "OrderService"));
+        result[("Type", "OrderService")].Should().Be("ws:Type:OrderService");
+        result.Should().ContainKey(("Function", "ProcessOrder"));
+        result.Should().ContainKey(("Endpoint", "POST /orders"));
+
+        // Large batch (5,000 items)
+        var largeBatch = new List<string> { "OrderService", "ProcessOrder" };
+        for (int i = 0; i < 5000; i++)
+        {
+            largeBatch.Add($"dummy_symbol_{i}");
+        }
+        var largeResult = await _client.LoadSymbolsByNamesAsync(largeBatch, "ws");
+        largeResult.Should().ContainKey(("Type", "OrderService"));
+        largeResult.Should().ContainKey(("Function", "ProcessOrder"));
+        largeResult.Count.Should().Be(2);
+    }
+
+    [Test]
+    public async Task Test_LoadImplementationsForTypesAsync_OptimizedWithTempTable_FindsExpectedImplementations()
+    {
+        var ifaceNode = new Node("ws:Type:IOrderService", "Type", new Dictionary<string, object> { ["name"] = "IOrderService" });
+        var implNode = new Node("ws:Type:OrderService", "Type", new Dictionary<string, object> { ["name"] = "OrderService" });
+        var rel = new Relationship(implNode.Id, ifaceNode.Id, "IMPLEMENTS");
+        await _client.UploadNodesAsync([ifaceNode, implNode]);
+        await _client.UploadRelationshipsAsync([rel]);
+
+        var result = await _client.LoadImplementationsForTypesAsync(["IOrderService", "NonExistent"], "ws");
+        result.Should().ContainKey("IOrderService");
+        result["IOrderService"].Should().Contain("OrderService");
+
+        // Large batch (5,000 items)
+        var largeBatch = new List<string> { "IOrderService" };
+        for (int i = 0; i < 5000; i++)
+        {
+            largeBatch.Add($"dummy_type_{i}");
+        }
+        var largeResult = await _client.LoadImplementationsForTypesAsync(largeBatch, "ws");
+        largeResult.Should().ContainKey("IOrderService");
+        largeResult["IOrderService"].Should().Contain("OrderService");
+    }
 }
+
