@@ -322,3 +322,30 @@ This document tracks active epics, immediate architectural refactoring plans, an
 - [x] **Artifacts & Verification**:
   - Sample project: `cli/tests/SampleProjects/typescript/testing-suites`.
   - Unit test suite: `TypeScriptTestingFrameworkTests.cs`.
+
+---
+
+## 🔬 EPIC 8: Coupling Cost Model & Architectural Graph Partitioning (Bounded Contexts)
+
+### 8.1 Semantic Coupling Cost Model
+- [ ] **Ontological Edge Weighting (`coupling_cost`)**:
+  - Assign deterministic coupling penalties to relationships based on physical & runtime cohesion:
+    - `WRITES_TO` / `TARGETS_TABLE` (Shared DB Table): **100** (Distributed monolith state coupling; forbidden split).
+    - `CALLS` / `USES_TYPE` / `INJECTS` (In-process compile/runtime dependency): **20** (Monolithic code coupling).
+    - `CALLS_ENDPOINT` / Egress RPC (Sync HTTP / gRPC): **10** (Network contract coupling).
+    - `READS_TABLE` / Reference Lookup: **2** (Read-only data coupling, easily cached or replicated).
+    - `PUBLISHES_TO` / `SUBSCRIBES_TO` (Async Broker / Event Topic): **1** (Natural architectural decoupling boundary).
+  - Expose `coupling_cost` in edge schemas and SQLite indices.
+
+### 8.2 Graph Partitioning & Automated Bounded Context Discovery
+- [ ] **Modularity & Community Detection Engine**:
+  - Implement lightweight community detection (Leiden / Louvain modularity optimization) on the weighted dependency graph.
+  - Provide automated Bounded Context tagging (`n.bounded_context`) without requiring manual metadata.
+- [ ] **Optimal Cut & Architecture Refactoring Advisor**:
+  - Implement minimum-cut bottleneck analysis (e.g. Girvan-Newman edge betweenness) to discover exact high-coupling bridges between sub-domains.
+  - CLI command: `ce cluster` and `ce analyze cuts` reporting high-friction cross-domain calls that should be migrated to asynchronous event buses.
+
+### 8.3 Visual Cockpit & Sub-Graph Islands
+- [ ] **Compound Clusters in VS Code Webview**:
+  - Bounded Context island layout collapsing dense internal service clusters into high-level domain nodes.
+  - Transitive inter-cluster edge contraction with live coupling cost indicators.
