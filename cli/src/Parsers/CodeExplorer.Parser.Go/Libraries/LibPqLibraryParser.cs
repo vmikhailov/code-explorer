@@ -10,8 +10,9 @@ public class LibPqLibraryParser : ISemanticExtension
     public string Type => "db:relational";
     public string Name => "PostgreSQL (lib/pq)";
     public string Id => "lib-pq";
-    public IReadOnlyList<string> SupportedPatterns => ["github.com/lib/pq"];
+    public IReadOnlyList<string> SupportedPatterns => ["github.com/lib/pq*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

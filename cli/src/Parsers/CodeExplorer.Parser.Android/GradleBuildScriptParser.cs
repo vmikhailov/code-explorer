@@ -57,7 +57,9 @@ public static class GradleBuildScriptParser
                     }
                 }
             }
-            catch { }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+            }
         }
 
         var hasAppliedPlugins = false;
@@ -173,7 +175,9 @@ public static class GradleBuildScriptParser
                 var baseMatch = Regex.Match(buildText, @"(?:archivesBaseName|base\.archivesName)\s*=\s*['""]([^'""]+)['""]");
                 if (baseMatch.Success) archivesBaseName = baseMatch.Groups[1].Value.Trim();
             }
-            catch { }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+            }
         }
 
         return new GradleBuildInfo(

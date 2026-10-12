@@ -10,8 +10,9 @@ public class GoRedisLegacyLibraryParser : ISemanticExtension
     public string Type => "db:keyvalue";
     public string Name => "Redis (go-redis v8)";
     public string Id => "go-redis-v8";
-    public IReadOnlyList<string> SupportedPatterns => ["github.com/go-redis/redis/v8", "github.com/go-redis/redis"];
+    public IReadOnlyList<string> SupportedPatterns => ["github.com/go-redis/redis/v8*", "github.com/go-redis/redis*", "gopkg.in/redis*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

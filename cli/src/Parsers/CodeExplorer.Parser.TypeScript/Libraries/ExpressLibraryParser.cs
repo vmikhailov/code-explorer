@@ -464,7 +464,9 @@ public class ExpressLibraryParser : ISemanticExtension
                 RouteDictionaryRegistry.RegisterMountPrefix(relToWs + ".ts", mountPrefix);
                 RouteDictionaryRegistry.RegisterMountPrefix(relToWs + ".js", mountPrefix);
             }
-            catch { }
+            catch (Exception ex) when (ex is ArgumentException or PathTooLongException)
+            {
+            }
         }
     }
 

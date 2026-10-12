@@ -49,7 +49,7 @@ public class FileGateRepository : IGateRepository
             }
         }
 
-        return gatesById.Values.OrderBy(g => g.Id).ToList();
+        return [.. gatesById.Values.OrderBy(g => g.Id)];
     }
 
     public async Task<SemanticGate?> GetGateByIdAsync(string gateId, CancellationToken cancellationToken = default)

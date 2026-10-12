@@ -13,9 +13,10 @@ public class DapperLibraryParser : ISemanticExtension
 
     public string Id => "dapper";
 
-    public IReadOnlyList<string> SupportedPatterns => ["Dapper"];
+    public IReadOnlyList<string> SupportedPatterns => ["Dapper", "Dapper.*"];
 
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

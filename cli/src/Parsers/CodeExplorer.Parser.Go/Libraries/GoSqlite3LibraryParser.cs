@@ -10,8 +10,9 @@ public class GoSqlite3LibraryParser : ISemanticExtension
     public string Type => "db:relational";
     public string Name => "SQLite3";
     public string Id => "sqlite3";
-    public IReadOnlyList<string> SupportedPatterns => ["github.com/mattn/go-sqlite3"];
+    public IReadOnlyList<string> SupportedPatterns => ["github.com/mattn/go-sqlite3*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

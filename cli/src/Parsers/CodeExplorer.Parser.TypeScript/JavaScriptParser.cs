@@ -78,7 +78,7 @@ public class JavaScriptParser : IProjectParser, IFileParser
                 return new ProducedPackageInfo(name, version, "npm");
             }
         }
-        catch
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
         {
             // Ignore
         }
@@ -140,7 +140,7 @@ public class JavaScriptParser : IProjectParser, IFileParser
                                         continue;
                                     }
                                 }
-                                catch
+                                catch (Exception ex) when (ex is ArgumentException or PathTooLongException)
                                 {
                                     // Fallback to external package
                                 }
@@ -153,7 +153,7 @@ public class JavaScriptParser : IProjectParser, IFileParser
                 }
             }
         }
-        catch
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
         {
             // Ignore
         }

@@ -159,9 +159,9 @@ public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
             new Dictionary<string, List<string>>(),
             new Dictionary<string, string>(),
             new Dictionary<string, string?>(),
-            new List<string>(),
+            [],
             new Dictionary<string, List<string>>(),
-            new List<string>(),
+            [],
             new Dictionary<string, List<string>>()
         ));
 

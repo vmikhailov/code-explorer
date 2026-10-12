@@ -10,8 +10,9 @@ public class GoSqlLibraryParser : ISemanticExtension
     public string Type => "db:relational";
     public string Name => "SQL";
     public string Id => "sql";
-    public IReadOnlyList<string> SupportedPatterns => ["database/sql"];
+    public IReadOnlyList<string> SupportedPatterns => ["database/sql*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

@@ -12,6 +12,7 @@ public class RefitLibraryParser : ISemanticExtension
     public string Type => "api";
     public IReadOnlyList<string> SupportedPatterns => ["Refit", "Refit.*", "RestEase", "RestEase.*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.General;
 
     private static readonly HashSet<string> RefitMethodAttributes =
     [

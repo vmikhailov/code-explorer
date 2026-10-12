@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -10,8 +10,9 @@ public class RestSharpLibraryParser : ISemanticExtension
     public string Name => "RestSharp";
     public string Id => "restsharp";
     public string Type => "api";
-    public IReadOnlyList<string> SupportedPatterns => ["RestSharp"];
+    public IReadOnlyList<string> SupportedPatterns => ["RestSharp", "RestSharp.*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.General;
 
     private static readonly HashSet<string> RestClientCallMethods =
     [

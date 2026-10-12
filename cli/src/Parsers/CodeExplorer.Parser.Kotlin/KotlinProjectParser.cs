@@ -66,7 +66,9 @@ public class KotlinProjectParser : IProjectParser
                     return true;
                 }
             }
-            catch { }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+            }
         }
 
         return false;
@@ -223,7 +225,9 @@ public class KotlinProjectParser : IProjectParser
                     externalPackages.Add(new ProducedPackageInfo($"{g}:{a}", v, "gradle"));
                 }
             }
-            catch { }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+            }
         }
 
         return Task.FromResult(new ProjectDependencyInfo(
@@ -238,7 +242,7 @@ public class KotlinProjectParser : IProjectParser
         {
             return Directory.EnumerateFiles(directoryPath, "*.kt", SearchOption.AllDirectories).Any();
         }
-        catch
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return false;
         }

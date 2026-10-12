@@ -12,6 +12,7 @@ public class OracleDataAccessLibraryParser : ISemanticExtension
     public string Id => "oracle";
     public IReadOnlyList<string> SupportedPatterns => ["Oracle.ManagedDataAccess", "Oracle.ManagedDataAccess.*", "Oracle.DataAccess", "Oracle.DataAccess.*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

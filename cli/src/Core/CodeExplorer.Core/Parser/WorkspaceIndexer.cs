@@ -57,7 +57,7 @@ public class WorkspaceIndexer
             }
             catch (ReflectionTypeLoadException ex)
             {
-                types = ex.Types.Where(t => t != null).ToArray()!;
+                types = [.. ex.Types.OfType<Type>()];
                 foreach (var loaderEx in ex.LoaderExceptions.OfType<Exception>())
                 {
                     Console.Error.WriteLine($"[AutoRegisterParsers] Warning: Loader error in '{assembly.GetName().Name}': {loaderEx.Message}");
@@ -70,7 +70,7 @@ public class WorkspaceIndexer
             }
 
             // Ensure TypeScriptParser precedes JavaScriptParser for proper TypeScript priority
-            types = types.OrderBy(t => t.Name == "JavaScriptParser" ? 1 : 0).ToArray();
+            types = [.. types.OrderBy(t => t.Name == "JavaScriptParser" ? 1 : 0)];
 
             foreach (var type in types)
             {
@@ -240,10 +240,12 @@ public class WorkspaceIndexer
             }
         }
 
-        return candidateAssemblies
-            .Where(IsParserAssembly)
-            .Distinct()
-            .ToList();
+        return
+        [
+            .. candidateAssemblies
+                .Where(IsParserAssembly)
+                .Distinct()
+        ];
     }
 
     public static IReadOnlyList<IProjectParser> GetAllProjectParsers() => _projectParsers;

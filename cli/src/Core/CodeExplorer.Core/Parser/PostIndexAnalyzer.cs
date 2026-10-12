@@ -1415,6 +1415,8 @@ public class PostIndexAnalyzer(IGraphClient db)
             case "typeorm":
             case "microsoft.entityframeworkcore":
             case "entity framework core":
+            case "ef core":
+            case "efcore":
             case "ef-core":
             case "dapper":
             case "sequelize":

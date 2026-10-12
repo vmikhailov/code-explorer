@@ -12,6 +12,7 @@ public class MicrosoftDataSqlClientLibraryParser : ISemanticExtension
     public string Id => "mssql";
     public IReadOnlyList<string> SupportedPatterns => ["Microsoft.Data.SqlClient", "Microsoft.Data.SqlClient.*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

@@ -1944,11 +1944,14 @@ public class CodeExplorerRepository
 
         if (!string.IsNullOrWhiteSpace(category) && Enum.TryParse<GateCategory>(category, true, out var cat))
         {
-            allGates = allGates.Where(g => g.Category == cat).ToList();
+            allGates = [.. allGates.Where(g => g.Category == cat)];
         }
         if (!string.IsNullOrWhiteSpace(platform))
         {
-            allGates = allGates.Where(g => string.Equals(g.Platform, platform.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
+            allGates =
+            [
+                .. allGates.Where(g => string.Equals(g.Platform, platform.Trim(), StringComparison.OrdinalIgnoreCase))
+            ];
         }
 
         if (format.Equals("json", StringComparison.OrdinalIgnoreCase))

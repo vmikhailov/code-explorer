@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -12,6 +12,7 @@ public class SpringEventsLibraryParser : ISemanticExtension
     public string Type => OntologyConstants.LibraryTypes.Queue;
     public IReadOnlyList<string> SupportedPatterns => ["org.springframework.context.event.*", "org.springframework.context.ApplicationEventPublisher"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.MessageBroker;
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

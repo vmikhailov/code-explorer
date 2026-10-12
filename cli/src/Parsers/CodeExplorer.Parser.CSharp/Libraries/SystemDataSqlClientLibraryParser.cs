@@ -12,6 +12,7 @@ public class SystemDataSqlClientLibraryParser : ISemanticExtension
     public string Id => "mssql-legacy";
     public IReadOnlyList<string> SupportedPatterns => ["System.Data.SqlClient", "System.Data.SqlClient.*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

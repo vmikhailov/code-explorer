@@ -12,6 +12,7 @@ public class NpgsqlLibraryParser : ISemanticExtension
     public string Id => "postgres";
     public IReadOnlyList<string> SupportedPatterns => ["Npgsql", "Npgsql.*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
@@ -11,9 +11,10 @@ public class HttpClientLibraryParser : ISemanticExtension
     public string Name => "HttpClient";
     public string Id => "httpclient";
     public string Type => "api";
-    public IReadOnlyList<string> SupportedPatterns => ["System.Net.Http"];
+    public IReadOnlyList<string> SupportedPatterns => ["System.Net.Http", "System.Net.Http.*"];
     public bool IsImplemented => true;
     public bool IsBuiltIn => true;
+    public LibraryRole LibraryRole => LibraryRole.General;
 
     private static readonly HashSet<string> HttpMethods =
     [

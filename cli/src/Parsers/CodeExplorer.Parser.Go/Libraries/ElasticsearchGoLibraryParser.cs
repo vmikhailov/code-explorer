@@ -12,6 +12,7 @@ public class ElasticsearchGoLibraryParser : ISemanticExtension
     public string Id => "elasticsearch";
     public IReadOnlyList<string> SupportedPatterns => ["github.com/elastic/go-elasticsearch", "github.com/elastic/go-elasticsearch/*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     private static readonly HashSet<string> EsMethods = new(StringComparer.Ordinal)
     {

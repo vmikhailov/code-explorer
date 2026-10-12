@@ -16,11 +16,6 @@ public class JavaParser : IProjectParser, IFileParser
         LibraryConfigurationRegistry.Register(new Libraries.SpringFrameworkConfigurationDescriptor());
     }
 
-    public JavaParser()
-    {
-        LibraryConfigurationRegistry.Register(new Libraries.SpringFrameworkConfigurationDescriptor());
-    }
-
     public string LanguageName => "java";
 
     public string ProjectType => "java";
@@ -41,45 +36,7 @@ public class JavaParser : IProjectParser, IFileParser
         new Libraries.SpringFrameworkConfigurationDescriptor()
     ];
 
-    public IReadOnlyList<PackageDescriptor> Packages { get; } =
-    [
-        // Frameworks
-        new PackageDescriptor("spring-boot", "Spring Boot", LibraryRole.WebFramework, "maven", ["org.springframework.boot", "org.springframework"]),
-        new PackageDescriptor("quarkus", "Quarkus", LibraryRole.WebFramework, "maven", ["io.quarkus"]),
-        new PackageDescriptor("micronaut", "Micronaut", LibraryRole.WebFramework, "maven", ["io.micronaut"]),
-        new PackageDescriptor("vertx", "Eclipse Vert.x", LibraryRole.WebFramework, "maven", ["io.vertx"]),
-        new PackageDescriptor("grpc", "gRPC Java", LibraryRole.WebFramework, "maven", ["io.grpc"]),
-
-        // Databases & ORM
-        new PackageDescriptor("postgres", "PostgreSQL", LibraryRole.OrmOrDatabase, "maven", ["org.postgresql"]),
-        new PackageDescriptor("mysql", "MySQL", LibraryRole.OrmOrDatabase, "maven", ["com.mysql.cj.jdbc", "com.mysql.jdbc"]),
-        new PackageDescriptor("oracle", "Oracle DB", LibraryRole.OrmOrDatabase, "maven", ["oracle.jdbc", "com.oracle.database.jdbc"]),
-        new PackageDescriptor("h2", "H2 Database", LibraryRole.OrmOrDatabase, "maven", ["org.h2"]),
-        new PackageDescriptor("sqlite", "SQLite", LibraryRole.OrmOrDatabase, "maven", ["org.sqlite"]),
-        new PackageDescriptor("clickhouse", "ClickHouse", LibraryRole.OrmOrDatabase, "maven", ["com.clickhouse.jdbc", "com.clickhouse"]),
-        new PackageDescriptor("bigquery", "BigQuery", LibraryRole.OrmOrDatabase, "maven", ["com.google.cloud.bigquery"]),
-        new PackageDescriptor("mongodb", "MongoDB", LibraryRole.OrmOrDatabase, "maven", ["org.springframework.data.mongodb", "com.mongodb"]),
-        new PackageDescriptor("redis", "Redis", LibraryRole.OrmOrDatabase, "maven", ["org.springframework.data.redis", "redis.clients.jedis", "io.lettuce"]),
-        new PackageDescriptor("elasticsearch", "Elasticsearch", LibraryRole.OrmOrDatabase, "maven", ["org.elasticsearch", "co.elastic.clients", "org.opensearch"]),
-        new PackageDescriptor("cassandra", "Cassandra", LibraryRole.OrmOrDatabase, "maven", ["com.datastax.oss", "org.springframework.data.cassandra"]),
-        new PackageDescriptor("mybatis", "MyBatis", LibraryRole.OrmOrDatabase, "maven", ["org.mybatis", "org.apache.ibatis"]),
-
-        // Messaging & Events
-        new PackageDescriptor("kafka", "Apache Kafka", LibraryRole.MessageBroker, "maven", ["org.apache.kafka", "org.springframework.kafka"]),
-        new PackageDescriptor("rabbitmq", "RabbitMQ", LibraryRole.MessageBroker, "maven", ["com.rabbitmq", "org.springframework.amqp"]),
-        new PackageDescriptor("pulsar", "Apache Pulsar", LibraryRole.MessageBroker, "maven", ["org.apache.pulsar"]),
-        new PackageDescriptor("activemq", "ActiveMQ", LibraryRole.MessageBroker, "maven", ["org.apache.activemq"]),
-
-        // Cloud & External Services
-        new PackageDescriptor("aws", "AWS Java SDK", LibraryRole.CloudSdk, "maven", ["software.amazon.awssdk", "com.amazonaws"]),
-        new PackageDescriptor("gcp", "GCP Java SDK", LibraryRole.CloudSdk, "maven", ["com.google.cloud", "com.google.firebase"]),
-        new PackageDescriptor("azure", "Azure Java SDK", LibraryRole.CloudSdk, "maven", ["com.azure", "com.microsoft.azure"]),
-        new PackageDescriptor("stripe", "Stripe Java", LibraryRole.CloudSdk, "maven", ["com.stripe"]),
-
-        // Test Frameworks
-        new PackageDescriptor("junit", "JUnit", LibraryRole.TestFramework, "maven", ["junit", "org.junit.*", "org.junit.jupiter.*"]),
-        new PackageDescriptor("testng", "TestNG", LibraryRole.TestFramework, "maven", ["org.testng"])
-    ];
+    public IReadOnlyList<PackageDescriptor> Packages { get; }
 
     public IReadOnlyList<ISemanticExtension> SemanticExtensions { get; } =
     [
@@ -95,6 +52,51 @@ public class JavaParser : IProjectParser, IFileParser
     public bool UsesTreeSitter => true;
 
     public LanguageSyntaxProfile SyntaxProfile => JavaSyntaxProfile.Instance;
+
+    public JavaParser()
+    {
+        LibraryConfigurationRegistry.Register(new Libraries.SpringFrameworkConfigurationDescriptor());
+        Packages = [.. SemanticExtensions.SelectMany(e => e.GetPackageDescriptors())];
+
+        /*
+        // Unimplemented / Backlog packages (commented out until AST semantic extensions are implemented):
+        // Frameworks
+        new PackageDescriptor("spring-boot", "Spring Boot", LibraryRole.WebFramework, "library", ["org.springframework.boot", "org.springframework"]),
+        new PackageDescriptor("quarkus", "Quarkus", LibraryRole.WebFramework, "library", ["io.quarkus"]),
+        new PackageDescriptor("micronaut", "Micronaut", LibraryRole.WebFramework, "library", ["io.micronaut"]),
+        new PackageDescriptor("vertx", "Eclipse Vert.x", LibraryRole.WebFramework, "library", ["io.vertx"]),
+
+        // Databases & ORM
+        new PackageDescriptor("postgres", "PostgreSQL", LibraryRole.OrmOrDatabase, "library", ["org.postgresql"]),
+        new PackageDescriptor("mysql", "MySQL", LibraryRole.OrmOrDatabase, "library", ["com.mysql.cj.jdbc", "com.mysql.jdbc"]),
+        new PackageDescriptor("oracle", "Oracle DB", LibraryRole.OrmOrDatabase, "library", ["oracle.jdbc", "com.oracle.database.jdbc"]),
+        new PackageDescriptor("h2", "H2 Database", LibraryRole.OrmOrDatabase, "library", ["org.h2"]),
+        new PackageDescriptor("sqlite", "SQLite", LibraryRole.OrmOrDatabase, "library", ["org.sqlite"]),
+        new PackageDescriptor("clickhouse", "ClickHouse", LibraryRole.OrmOrDatabase, "library", ["com.clickhouse.jdbc", "com.clickhouse"]),
+        new PackageDescriptor("bigquery", "BigQuery", LibraryRole.OrmOrDatabase, "library", ["com.google.cloud.bigquery"]),
+        new PackageDescriptor("mongodb", "MongoDB", LibraryRole.OrmOrDatabase, "library", ["org.springframework.data.mongodb", "com.mongodb"]),
+        new PackageDescriptor("redis", "Redis", LibraryRole.OrmOrDatabase, "library", ["org.springframework.data.redis", "redis.clients.jedis", "io.lettuce"]),
+        new PackageDescriptor("elasticsearch", "Elasticsearch", LibraryRole.OrmOrDatabase, "library", ["org.elasticsearch", "co.elastic.clients", "org.opensearch"]),
+        new PackageDescriptor("cassandra", "Cassandra", LibraryRole.OrmOrDatabase, "library", ["com.datastax.oss", "org.springframework.data.cassandra"]),
+        new PackageDescriptor("mybatis", "MyBatis", LibraryRole.OrmOrDatabase, "library", ["org.mybatis", "org.apache.ibatis"]),
+
+        // Messaging & Events
+        new PackageDescriptor("kafka", "Apache Kafka", LibraryRole.MessageBroker, "library", ["org.apache.kafka", "org.springframework.kafka"]),
+        new PackageDescriptor("rabbitmq", "RabbitMQ", LibraryRole.MessageBroker, "library", ["com.rabbitmq", "org.springframework.amqp"]),
+        new PackageDescriptor("pulsar", "Apache Pulsar", LibraryRole.MessageBroker, "library", ["org.apache.pulsar"]),
+        new PackageDescriptor("activemq", "ActiveMQ", LibraryRole.MessageBroker, "library", ["org.apache.activemq"]),
+
+        // Cloud & External Services
+        new PackageDescriptor("aws", "AWS Java SDK", LibraryRole.CloudSdk, "library", ["software.amazon.awssdk", "com.amazonaws"]),
+        new PackageDescriptor("gcp", "GCP Java SDK", LibraryRole.CloudSdk, "library", ["com.google.cloud", "com.google.firebase"]),
+        new PackageDescriptor("azure", "Azure Java SDK", LibraryRole.CloudSdk, "library", ["com.azure", "com.microsoft.azure"]),
+        new PackageDescriptor("stripe", "Stripe Java", LibraryRole.CloudSdk, "library", ["com.stripe"]),
+
+        // Test Frameworks
+        new PackageDescriptor("junit", "JUnit", LibraryRole.TestFramework, "library", ["junit", "org.junit.*", "org.junit.jupiter.*"]),
+        new PackageDescriptor("testng", "TestNG", LibraryRole.TestFramework, "library", ["org.testng"])
+        */
+    }
 
     public bool CanParse(string fileExtension)
     {
@@ -172,7 +174,7 @@ public class JavaParser : IProjectParser, IFileParser
                     }
                 }
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException)
             {
                 // Fallback on XML parse error
             }
@@ -192,7 +194,7 @@ public class JavaParser : IProjectParser, IFileParser
                     return match.Groups[1].Value.Trim();
                 }
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 // Fallback on file read error
             }
@@ -213,7 +215,7 @@ public class JavaParser : IProjectParser, IFileParser
                     return baseNameMatch.Groups[1].Value.Trim();
                 }
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 // Fallback on file read error
             }
@@ -280,7 +282,7 @@ public class JavaParser : IProjectParser, IFileParser
                     props["manifest_type"] = "library";
                 }
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
             }
         }
@@ -301,7 +303,7 @@ public class JavaParser : IProjectParser, IFileParser
                     props["sdk"] = "android";
                 }
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
             }
         }
@@ -329,7 +331,7 @@ public class JavaParser : IProjectParser, IFileParser
                     props["manifest_type"] = "library";
                 }
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
             }
         }
@@ -363,7 +365,7 @@ public class JavaParser : IProjectParser, IFileParser
                     }
                 }
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException)
             {
                 // Fallback if malformed XML
             }
@@ -388,7 +390,7 @@ public class JavaParser : IProjectParser, IFileParser
                 var pkgName = !string.IsNullOrEmpty(group) ? $"{group}:{name}" : name;
                 return Task.FromResult<ProducedPackageInfo?>(new ProducedPackageInfo(pkgName, version, "gradle"));
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 // Fallback
             }
@@ -448,7 +450,7 @@ public class JavaParser : IProjectParser, IFileParser
                     }
                 }
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException)
             {
                 // Ignore XML parse errors
             }
@@ -478,7 +480,7 @@ public class JavaParser : IProjectParser, IFileParser
                     }
                 }
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
             }
         }
@@ -512,7 +514,7 @@ public class JavaParser : IProjectParser, IFileParser
                     externalPackages.Add(new ProducedPackageInfo($"{g}:{a}", v, "gradle"));
                 }
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
             }
         }

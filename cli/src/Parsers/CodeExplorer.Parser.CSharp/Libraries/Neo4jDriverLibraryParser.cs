@@ -12,6 +12,7 @@ public class Neo4jDriverLibraryParser : ISemanticExtension
     public string Id => "neo4j";
     public IReadOnlyList<string> SupportedPatterns => ["Neo4j.Driver", "Neo4j.Driver.*", "Neo4j.Driver.Simple"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     private static readonly HashSet<string> Neo4jMethods = new(StringComparer.Ordinal)
     {

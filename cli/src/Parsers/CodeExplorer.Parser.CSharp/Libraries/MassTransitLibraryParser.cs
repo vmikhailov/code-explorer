@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -10,8 +10,9 @@ public class MassTransitLibraryParser : ISemanticExtension
     public string Name => "MassTransit";
     public string Id => "masstransit";
     public string Type => OntologyConstants.LibraryTypes.Queue;
-    public IReadOnlyList<string> SupportedPatterns => ["MassTransit"];
+    public IReadOnlyList<string> SupportedPatterns => ["MassTransit", "MassTransit.*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.MessageBroker;
 
     private static readonly HashSet<string> ConsumerInterfaces =
     [

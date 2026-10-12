@@ -15,7 +15,7 @@ public static class AndroidManifestParser
             var content = File.ReadAllText(manifestPath);
             return ParseContent(content, Path.GetDirectoryName(manifestPath));
         }
-        catch
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException)
         {
             return null;
         }
@@ -138,7 +138,7 @@ public static class AndroidManifestParser
                 Receivers: receivers
             );
         }
-        catch
+        catch (Exception ex) when (ex is System.Xml.XmlException or ArgumentException)
         {
             return null;
         }
@@ -182,7 +182,7 @@ public static class AndroidManifestParser
                     }
                 }
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException)
             {
                 // Fallback
             }

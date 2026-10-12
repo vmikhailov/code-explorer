@@ -12,6 +12,7 @@ public class CouchbaseLibraryParser : ISemanticExtension
     public string Id => "couchbase";
     public IReadOnlyList<string> SupportedPatterns => ["Couchbase", "Couchbase.NetClient", "Couchbase.*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     private static readonly HashSet<string> CouchbaseMethods = new(StringComparer.Ordinal)
     {

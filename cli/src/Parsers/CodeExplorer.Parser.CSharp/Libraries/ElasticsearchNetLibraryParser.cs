@@ -12,6 +12,7 @@ public class ElasticsearchNetLibraryParser : ISemanticExtension
     public string Id => "elasticsearch-net";
     public IReadOnlyList<string> SupportedPatterns => ["Elasticsearch.Net", "Elasticsearch.Net.*"];
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     private static readonly HashSet<string> EsMethods = new(StringComparer.Ordinal)
     {

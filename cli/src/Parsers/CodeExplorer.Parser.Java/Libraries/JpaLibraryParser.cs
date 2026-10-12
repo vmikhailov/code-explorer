@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -13,14 +13,15 @@ public class JpaLibraryParser : ISemanticExtension
 
     public IReadOnlyList<string> SupportedPatterns =>
     [
-        "org.springframework.data.jpa",
-        "org.springframework.data.repository",
-        "jakarta.persistence",
-        "javax.persistence",
-        "org.hibernate"
+        "org.springframework.data.jpa*",
+        "org.springframework.data.repository*",
+        "jakarta.persistence*",
+        "javax.persistence*",
+        "org.hibernate*"
     ];
 
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

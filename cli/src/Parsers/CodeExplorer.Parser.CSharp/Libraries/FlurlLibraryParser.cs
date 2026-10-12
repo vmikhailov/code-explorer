@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -13,9 +13,10 @@ public class FlurlLibraryParser : ISemanticExtension
 
     public string Id => "flurl";
 
-    public IReadOnlyList<string> SupportedPatterns => ["Flurl", "Flurl.Http"];
+    public IReadOnlyList<string> SupportedPatterns => ["Flurl", "Flurl.Http", "Flurl.*"];
 
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.General;
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {

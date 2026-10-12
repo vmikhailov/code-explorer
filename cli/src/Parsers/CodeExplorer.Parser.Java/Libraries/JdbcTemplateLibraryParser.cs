@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -13,12 +13,13 @@ public class JdbcTemplateLibraryParser : ISemanticExtension
 
     public IReadOnlyList<string> SupportedPatterns =>
     [
-        "org.springframework.jdbc",
-        "java.sql",
-        "javax.sql"
+        "org.springframework.jdbc*",
+        "java.sql*",
+        "javax.sql*"
     ];
 
     public bool IsImplemented => true;
+    public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
     private static readonly HashSet<string> JdbcMethods = new(StringComparer.OrdinalIgnoreCase)
     {

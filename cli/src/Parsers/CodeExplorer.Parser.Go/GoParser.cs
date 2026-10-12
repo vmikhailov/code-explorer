@@ -20,48 +20,7 @@ public class GoParser : IProjectParser, IFileParser
         return lower.StartsWith(".env");
     }
 
-    public IReadOnlyList<PackageDescriptor> Packages { get; } =
-    [
-        new PackageDescriptor("elasticsearch", "Elasticsearch", LibraryRole.OrmOrDatabase, "go", ["github.com/elastic/go-elasticsearch*"]),
-        new PackageDescriptor("redis", "Redis", LibraryRole.OrmOrDatabase, "go", ["github.com/go-redis/redis*", "gopkg.in/redis*"]),
-        new PackageDescriptor("gorm", "GORM", LibraryRole.OrmOrDatabase, "go", ["gorm.io/gorm*"]),
-        new PackageDescriptor("mysql", "MySQL", LibraryRole.OrmOrDatabase, "go", ["github.com/go-sql-driver/mysql*"]),
-        new PackageDescriptor("sqlite3", "SQLite3", LibraryRole.OrmOrDatabase, "go", ["github.com/mattn/go-sqlite3*"]),
-        new PackageDescriptor("sql", "database/sql", LibraryRole.OrmOrDatabase, "go", ["database/sql*"]),
-        new PackageDescriptor("libpq", "PostgreSQL (lib/pq)", LibraryRole.OrmOrDatabase, "go", ["github.com/lib/pq*"]),
-        new PackageDescriptor("mongo", "MongoDB", LibraryRole.OrmOrDatabase, "go", ["go.mongodb.org/mongo-driver*"]),
-
-        // Additional Databases
-        new PackageDescriptor("clickhouse", "ClickHouse", LibraryRole.OrmOrDatabase, "go", ["github.com/ClickHouse/clickhouse-go*"]),
-        new PackageDescriptor("postgres-pgx", "PostgreSQL (pgx)", LibraryRole.OrmOrDatabase, "go", ["github.com/jackc/pgx*"]),
-        new PackageDescriptor("bigquery", "BigQuery", LibraryRole.OrmOrDatabase, "go", ["cloud.google.com/go/bigquery*"]),
-
-        // Additional Cloud & Message Services
-        new PackageDescriptor("pubsub", "Google Cloud Pub/Sub", LibraryRole.MessageBroker, "go", ["cloud.google.com/go/pubsub*"]),
-        new PackageDescriptor("rabbitmq", "RabbitMQ", LibraryRole.MessageBroker, "go", ["github.com/streadway/amqp*", "github.com/rabbitmq/amqp091-go*"]),
-
-        // Generic Cloud Services
-        new PackageDescriptor("stripe", "Stripe", LibraryRole.CloudSdk, "go", ["github.com/stripe/stripe-go*"]),
-        new PackageDescriptor("aws", "AWS", LibraryRole.CloudSdk, "go", ["github.com/aws/aws-sdk-go*"]),
-        new PackageDescriptor("gcp", "GCP", LibraryRole.CloudSdk, "go", ["cloud.google.com/*", "firebase.google.com/*"]),
-        new PackageDescriptor("azure", "Azure", LibraryRole.CloudSdk, "go", ["*Azure*", "*azure-sdk-for-go*"]),
-
-        // Frameworks
-        new PackageDescriptor("gin", "Gin", LibraryRole.WebService, "go", ["github.com/gin-gonic/gin*"]),
-        new PackageDescriptor("echo", "Echo", LibraryRole.WebService, "go", ["github.com/labstack/echo*"]),
-        new PackageDescriptor("fiber", "Fiber", LibraryRole.WebService, "go", ["github.com/gofiber/fiber*"]),
-
-        // Test Frameworks
-        new PackageDescriptor("testify", "Testify", LibraryRole.TestFramework, "go", ["github.com/stretchr/testify*"]),
-
-        // API Clients
-        new PackageDescriptor("net/http", "http/https", LibraryRole.General, "go", ["net/http*"]),
-        new PackageDescriptor("resty", "Resty", LibraryRole.General, "go", ["github.com/go-resty/resty*"]),
-        new PackageDescriptor("req", "req", LibraryRole.General, "go", ["github.com/imroc/req*"]),
-        new PackageDescriptor("grequests", "grequests", LibraryRole.General, "go", ["github.com/levigross/grequests*"]),
-        new PackageDescriptor("gorequest", "gorequest", LibraryRole.General, "go", ["github.com/parnurzeal/gorequest*"]),
-        new PackageDescriptor("surf", "surf", LibraryRole.General, "go", ["github.com/go-surf/surf*"])
-    ];
+    public IReadOnlyList<PackageDescriptor> Packages { get; }
 
     public IReadOnlyList<ISemanticExtension> SemanticExtensions { get; } =
     [
@@ -81,6 +40,41 @@ public class GoParser : IProjectParser, IFileParser
     public bool UsesTreeSitter => true;
 
     public LanguageSyntaxProfile SyntaxProfile => GoSyntaxProfile.Instance;
+
+    public GoParser()
+    {
+        Packages = [.. SemanticExtensions.SelectMany(e => e.GetPackageDescriptors())];
+
+        /*
+        // Unimplemented / Backlog packages (commented out until AST semantic extensions are implemented):
+        // Additional Databases
+        new PackageDescriptor("clickhouse", "ClickHouse", LibraryRole.OrmOrDatabase, "library", ["github.com/ClickHouse/clickhouse-go*"]),
+        new PackageDescriptor("postgres-pgx", "PostgreSQL (pgx)", LibraryRole.OrmOrDatabase, "library", ["github.com/jackc/pgx*"]),
+        new PackageDescriptor("bigquery", "BigQuery", LibraryRole.OrmOrDatabase, "library", ["cloud.google.com/go/bigquery*"]),
+
+        // Generic Cloud Services
+        new PackageDescriptor("stripe", "Stripe", LibraryRole.CloudSdk, "library", ["github.com/stripe/stripe-go*"]),
+        new PackageDescriptor("aws", "AWS", LibraryRole.CloudSdk, "library", ["github.com/aws/aws-sdk-go*"]),
+        new PackageDescriptor("gcp", "GCP", LibraryRole.CloudSdk, "library", ["cloud.google.com/*", "firebase.google.com/*"]),
+        new PackageDescriptor("azure", "Azure", LibraryRole.CloudSdk, "library", ["*Azure*", "*azure-sdk-for-go*"]),
+
+        // Frameworks
+        new PackageDescriptor("gin", "Gin", LibraryRole.WebService, "library", ["github.com/gin-gonic/gin*"]),
+        new PackageDescriptor("echo", "Echo", LibraryRole.WebService, "library", ["github.com/labstack/echo*"]),
+        new PackageDescriptor("fiber", "Fiber", LibraryRole.WebService, "library", ["github.com/gofiber/fiber*"]),
+
+        // Test Frameworks
+        new PackageDescriptor("testify", "Testify", LibraryRole.TestFramework, "library", ["github.com/stretchr/testify*"]),
+
+        // API Clients
+        new PackageDescriptor("net/http", "http/https", LibraryRole.General, "library", ["net/http*"]),
+        new PackageDescriptor("resty", "Resty", LibraryRole.General, "library", ["github.com/go-resty/resty*"]),
+        new PackageDescriptor("req", "req", LibraryRole.General, "library", ["github.com/imroc/req*"]),
+        new PackageDescriptor("grequests", "grequests", LibraryRole.General, "library", ["github.com/levigross/grequests*"]),
+        new PackageDescriptor("gorequest", "gorequest", LibraryRole.General, "library", ["github.com/parnurzeal/gorequest*"]),
+        new PackageDescriptor("surf", "surf", LibraryRole.General, "library", ["github.com/go-surf/surf*"])
+        */
+    }
 
     public bool CanParse(string fileExtension)
     {
@@ -148,7 +142,7 @@ public class GoParser : IProjectParser, IFileParser
                 }
             }
         }
-        catch
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Ignore
         }
@@ -246,7 +240,7 @@ public class GoParser : IProjectParser, IFileParser
                 }
             }
         }
-        catch
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Ignore
         }
@@ -320,7 +314,7 @@ public class GoParser : IProjectParser, IFileParser
                 }
             }
         }
-        catch
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Ignore
         }

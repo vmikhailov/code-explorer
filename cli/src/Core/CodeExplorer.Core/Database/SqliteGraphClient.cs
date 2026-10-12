@@ -2800,7 +2800,11 @@ public class SqliteGraphClient : IGraphClient, IDisposable
 
             var rows = await _conn.QueryAsync<(string SourceDomain, string TargetDomain, string EdgeKind, int InteractionCount)>(
                 new CommandDefinition(sql, new { workspaceId = workspaceId ?? "" }, commandTimeout: CommandTimeoutSeconds, cancellationToken: cancellationToken));
-            return rows.Select(r => new CrossDomainInteractionRecord(r.SourceDomain, r.TargetDomain, r.EdgeKind, r.InteractionCount)).ToList();
+            return
+            [
+                .. rows.Select(r =>
+                    new CrossDomainInteractionRecord(r.SourceDomain, r.TargetDomain, r.EdgeKind, r.InteractionCount))
+            ];
         }
         catch (Exception ex)
         {
@@ -2841,7 +2845,11 @@ public class SqliteGraphClient : IGraphClient, IDisposable
 
             var rows = await _conn.QueryAsync<(string Domain, string InfraId, string InfraName, string InfraKind, string EdgeKind)>(
                 new CommandDefinition(sql, new { workspaceId = workspaceId ?? "" }, commandTimeout: CommandTimeoutSeconds, cancellationToken: cancellationToken));
-            return rows.Select(r => new DomainInfrastructureLinkRecord(r.Domain, r.InfraId, r.InfraName, r.InfraKind, r.EdgeKind)).ToList();
+            return
+            [
+                .. rows.Select(r =>
+                    new DomainInfrastructureLinkRecord(r.Domain, r.InfraId, r.InfraName, r.InfraKind, r.EdgeKind))
+            ];
         }
         catch (Exception ex)
         {
