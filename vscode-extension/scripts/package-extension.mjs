@@ -32,6 +32,14 @@ const rebuildArg = args.includes('--rebuild');
 fs.mkdirSync(distVsixDir, { recursive: true });
 fs.mkdirSync(binStoreDir, { recursive: true });
 
+// Sync CHANGELOG.md from repository root
+const rootChangelog = path.resolve(extensionRoot, '..', 'CHANGELOG.md');
+const localChangelog = path.resolve(extensionRoot, 'CHANGELOG.md');
+if (fs.existsSync(rootChangelog)) {
+  fs.copyFileSync(rootChangelog, localChangelog);
+  console.log(`[package-extension] Synchronized CHANGELOG.md from repository root.`);
+}
+
 console.log(`[package-extension] Preparing CodeExplorer VS Code extension v${version}`);
 
 // 1. Build extension bundle (esbuild production)

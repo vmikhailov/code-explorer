@@ -202,6 +202,14 @@ jobs:
           npm run typecheck
           npm run test
 
+      - name: Sync Changelog from Repository Root
+        working-directory: ./vscode-extension
+        run: |
+          if [ -f ../CHANGELOG.md ]; then
+            cp ../CHANGELOG.md ./CHANGELOG.md
+            echo "Synchronized ../CHANGELOG.md -> ./CHANGELOG.md"
+          fi
+
       - name: Build and Package Extension for all Platforms
         working-directory: ./vscode-extension
         run: |

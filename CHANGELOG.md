@@ -5,6 +5,136 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.37.10] - 2026-10-12
+
+### Added
+- **Java Messaging Semantic Extensions (Spring Kafka & Spring RabbitMQ)**:
+  - Added AST semantic extensions for `KafkaTemplate` producer calls and `@KafkaListener` consumer annotations.
+  - Added AST semantic extensions for `RabbitTemplate` / `AmqpTemplate` publisher calls and `@RabbitListener` consumer annotations.
+  - Generates bidirectional messaging relationships (`:SENDS_MESSAGE_TO` / `:CONSUMES_MESSAGE_FROM`) to track asynchronous event choreography across Java microservices.
+- **Automated VS Code Extension Changelog Sync**:
+  - Integrated automatic synchronization of repository root `CHANGELOG.md` into `vscode-extension/` during local packaging (`package-extension.mjs`) and GitHub Actions release workflows (`release.yml`).
+- **Semantic Invariant Gates (SIG) Documentation**:
+  - Updated repository `README.md` with complete documentation for the Fractal Orthogonal Invariant Matrix (FOIM), zero-match contract, ratchet baselines, YAML schema, and CI/CD quality gate enforcement.
+
+---
+
+## [1.37.9] - 2026-10-12
+
+### Added
+- **Python HTTP Client Semantic Extensions (requests, httpx, aiohttp)**:
+  - Added AST semantic extensions for synchronous and asynchronous Python HTTP clients: `requests`, `httpx` (sync & async client sessions), and `aiohttp.ClientSession`.
+  - Extracts target URLs, HTTP methods (GET, POST, PUT, DELETE, etc.), and generates outgoing `:CALLS_ENDPOINT` edges.
+
+---
+
+## [1.37.8] - 2026-10-12
+
+### Added
+- **Python Web Framework Semantic Extensions (Flask & Django)**:
+  - Implemented semantic analysis for Flask route decorators (`@app.route(...)`, `@bp.route(...)`).
+  - Implemented semantic analysis for Django URL patterns (`path(...)`, `re_path(...)` in `urlpatterns`).
+  - Extracts HTTP verbs, route paths, URL parameters, and handler methods into `:Endpoint` nodes.
+
+---
+
+## [1.37.7] - 2026-10-12
+
+### Added
+- **Go Egress and Database Semantic Extensions**:
+  - Added HTTP egress semantic extensions for standard library `net/http` and `go-resty/resty`.
+  - Added database semantic extension for PostgreSQL driver `jackc/pgx` (`pgxpool.Pool`, `pgx.Conn`).
+  - Extracts SQL queries, table references, and external HTTP calls into the visual knowledge graph.
+
+---
+
+## [1.37.6] - 2026-10-12
+
+### Added
+- **Go Web Framework AST Semantic Extensions**:
+  - Implemented semantic extensions for **Gin** (`gin-gonic/gin`), **Fiber** (`gofiber/fiber/v2`), and **Echo** (`labstack/echo/v4`).
+  - Extracts HTTP endpoints, route groups, URL parameters, and handlers into `:Endpoint` graph nodes.
+- **SampleProjects Snapshot Test Suite**:
+  - Converted baseline tests into a full-workspace scan against `expected.json` snapshots, ensuring automated coverage for all 35 sample projects across all supported languages.
+- **Performance Optimization**:
+  - Scaled down Layer 5 synthetic benchmark to 100,000 references, reducing execution time by 11x (from 5s to 420ms) while preserving algorithmic coverage and complexity verification.
+
+---
+
+## [1.37.5] - 2026-10-12
+
+### Added
+- **Extensible Semantic Extensions Architecture**:
+  - Decoupled package descriptors into pluggable `ISemanticExtension` interfaces across all language parsers (C#, Go, Java, TypeScript/JavaScript).
+  - Dynamic discovery of semantic extensions without hardcoded registry arrays.
+
+### Fixed
+- **Parser Discovery Diagnostics**:
+  - Eliminated swallowed exceptions during parser discovery, replacing them with explicit fail-fast logging.
+
+---
+
+## [1.37.3] - 2026-10-12
+
+### Fixed
+- **Frontend SQL False Positive Suppression**:
+  - Prevented non-SQL strings and template literals in frontend files (Angular, React, Vue) from being falsely parsed as SQL tables.
+- **Angular Monorepo Secondary Entry Points**:
+  - Suppressed nested secondary entry points (`ng-package.json` without package name) in library folders to avoid duplicate project registrations.
+
+---
+
+## [1.37.2] - 2026-10-12
+
+### Fixed
+- **VS Code Extension Lifecycle**:
+  - Fixed Cytoscape instance cleanup and memory leak on panel reload.
+  - Widened concentric orbit radii for high-density microservice topologies.
+- **FloatingPanel Support**:
+  - Added resizable, corner-dockable floating inspector panel with smooth dragging.
+
+---
+
+## [1.37.1] - 2026-10-12
+
+### Added
+- **Webview UI Modernization**:
+  - Replaced raster icons with lightweight vector SVGs.
+  - Added HUD controls for neighborhood hop depth, bezier curvature tuning, and filter presets.
+
+---
+
+## [1.37.0] - 2026-10-12
+
+### Added
+- **Polyglot Sample Projects Matrix**:
+  - Added 35 ground-truth sample projects spanning C#, Go, Python, Java, Kotlin, TypeScript, and ColdFusion.
+  - Invariant reflection tests ensuring all registered project parsers have test fixtures and coverage.
+
+---
+
+## [1.36.0] - 2026-10-11
+
+### Added
+- **Dynamic Table Template Literals**:
+  - Normalized BigQuery table shard wildcards (`table_*`) and dynamic template interpolations.
+- **Fast SQLite Subpath Clear**:
+  - Migrated subtree deletion to Dapper recursive CTE queries for sub-second workspace resets.
+
+---
+
+## [1.35.0] - 2026-10-11
+
+### Added
+- **Semantic Invariant Gates (SIG)**:
+  - Introduced the Fractal Orthogonal Invariant Matrix (FOIM: Scopes System/Service/Module/Class/Method $\times$ Dimensions Contract/Rules/Resources/Boundaries).
+  - Enforce architectural rules using OpenCypher queries with a Zero-Match contract (0 rows = PASS).
+  - Ratchet baselines (`.codeexplorer/baselines/*.json`) to tolerate existing legacy technical debt while preventing new regressions in CI.
+  - Clickable 2D terminal output (`file:line:col`) for instant IDE navigation to violating code.
+  - Support for `routing-controllers` decorators in TypeScript.
+
+---
+
 ## [1.34.6] - 2026-10-11
 
 ### Fixed

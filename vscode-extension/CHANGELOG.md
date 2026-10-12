@@ -5,6 +5,304 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.37.10] - 2026-10-12
+
+### Added
+- **Java Messaging Semantic Extensions (Spring Kafka & Spring RabbitMQ)**:
+  - Added AST semantic extensions for `KafkaTemplate` producer calls and `@KafkaListener` consumer annotations.
+  - Added AST semantic extensions for `RabbitTemplate` / `AmqpTemplate` publisher calls and `@RabbitListener` consumer annotations.
+  - Generates bidirectional messaging relationships (`:SENDS_MESSAGE_TO` / `:CONSUMES_MESSAGE_FROM`) to track asynchronous event choreography across Java microservices.
+- **Automated VS Code Extension Changelog Sync**:
+  - Integrated automatic synchronization of repository root `CHANGELOG.md` into `vscode-extension/` during local packaging (`package-extension.mjs`) and GitHub Actions release workflows (`release.yml`).
+- **Semantic Invariant Gates (SIG) Documentation**:
+  - Updated repository `README.md` with complete documentation for the Fractal Orthogonal Invariant Matrix (FOIM), zero-match contract, ratchet baselines, YAML schema, and CI/CD quality gate enforcement.
+
+---
+
+## [1.37.9] - 2026-10-12
+
+### Added
+- **Python HTTP Client Semantic Extensions (requests, httpx, aiohttp)**:
+  - Added AST semantic extensions for synchronous and asynchronous Python HTTP clients: `requests`, `httpx` (sync & async client sessions), and `aiohttp.ClientSession`.
+  - Extracts target URLs, HTTP methods (GET, POST, PUT, DELETE, etc.), and generates outgoing `:CALLS_ENDPOINT` edges.
+
+---
+
+## [1.37.8] - 2026-10-12
+
+### Added
+- **Python Web Framework Semantic Extensions (Flask & Django)**:
+  - Implemented semantic analysis for Flask route decorators (`@app.route(...)`, `@bp.route(...)`).
+  - Implemented semantic analysis for Django URL patterns (`path(...)`, `re_path(...)` in `urlpatterns`).
+  - Extracts HTTP verbs, route paths, URL parameters, and handler methods into `:Endpoint` nodes.
+
+---
+
+## [1.37.7] - 2026-10-12
+
+### Added
+- **Go Egress and Database Semantic Extensions**:
+  - Added HTTP egress semantic extensions for standard library `net/http` and `go-resty/resty`.
+  - Added database semantic extension for PostgreSQL driver `jackc/pgx` (`pgxpool.Pool`, `pgx.Conn`).
+  - Extracts SQL queries, table references, and external HTTP calls into the visual knowledge graph.
+
+---
+
+## [1.37.6] - 2026-10-12
+
+### Added
+- **Go Web Framework AST Semantic Extensions**:
+  - Implemented semantic extensions for **Gin** (`gin-gonic/gin`), **Fiber** (`gofiber/fiber/v2`), and **Echo** (`labstack/echo/v4`).
+  - Extracts HTTP endpoints, route groups, URL parameters, and handlers into `:Endpoint` graph nodes.
+- **SampleProjects Snapshot Test Suite**:
+  - Converted baseline tests into a full-workspace scan against `expected.json` snapshots, ensuring automated coverage for all 35 sample projects across all supported languages.
+- **Performance Optimization**:
+  - Scaled down Layer 5 synthetic benchmark to 100,000 references, reducing execution time by 11x (from 5s to 420ms) while preserving algorithmic coverage and complexity verification.
+
+---
+
+## [1.37.5] - 2026-10-12
+
+### Added
+- **Extensible Semantic Extensions Architecture**:
+  - Decoupled package descriptors into pluggable `ISemanticExtension` interfaces across all language parsers (C#, Go, Java, TypeScript/JavaScript).
+  - Dynamic discovery of semantic extensions without hardcoded registry arrays.
+
+### Fixed
+- **Parser Discovery Diagnostics**:
+  - Eliminated swallowed exceptions during parser discovery, replacing them with explicit fail-fast logging.
+
+---
+
+## [1.37.3] - 2026-10-12
+
+### Fixed
+- **Frontend SQL False Positive Suppression**:
+  - Prevented non-SQL strings and template literals in frontend files (Angular, React, Vue) from being falsely parsed as SQL tables.
+- **Angular Monorepo Secondary Entry Points**:
+  - Suppressed nested secondary entry points (`ng-package.json` without package name) in library folders to avoid duplicate project registrations.
+
+---
+
+## [1.37.2] - 2026-10-12
+
+### Fixed
+- **VS Code Extension Lifecycle**:
+  - Fixed Cytoscape instance cleanup and memory leak on panel reload.
+  - Widened concentric orbit radii for high-density microservice topologies.
+- **FloatingPanel Support**:
+  - Added resizable, corner-dockable floating inspector panel with smooth dragging.
+
+---
+
+## [1.37.1] - 2026-10-12
+
+### Added
+- **Webview UI Modernization**:
+  - Replaced raster icons with lightweight vector SVGs.
+  - Added HUD controls for neighborhood hop depth, bezier curvature tuning, and filter presets.
+
+---
+
+## [1.37.0] - 2026-10-12
+
+### Added
+- **Polyglot Sample Projects Matrix**:
+  - Added 35 ground-truth sample projects spanning C#, Go, Python, Java, Kotlin, TypeScript, and ColdFusion.
+  - Invariant reflection tests ensuring all registered project parsers have test fixtures and coverage.
+
+---
+
+## [1.36.0] - 2026-10-11
+
+### Added
+- **Dynamic Table Template Literals**:
+  - Normalized BigQuery table shard wildcards (`table_*`) and dynamic template interpolations.
+- **Fast SQLite Subpath Clear**:
+  - Migrated subtree deletion to Dapper recursive CTE queries for sub-second workspace resets.
+
+---
+
+## [1.35.0] - 2026-10-11
+
+### Added
+- **Semantic Invariant Gates (SIG)**:
+  - Introduced the Fractal Orthogonal Invariant Matrix (FOIM: Scopes System/Service/Module/Class/Method $\times$ Dimensions Contract/Rules/Resources/Boundaries).
+  - Enforce architectural rules using OpenCypher queries with a Zero-Match contract (0 rows = PASS).
+  - Ratchet baselines (`.codeexplorer/baselines/*.json`) to tolerate existing legacy technical debt while preventing new regressions in CI.
+  - Clickable 2D terminal output (`file:line:col`) for instant IDE navigation to violating code.
+  - Support for `routing-controllers` decorators in TypeScript.
+
+---
+
+## [1.34.6] - 2026-10-11
+
+### Fixed
+- **Updated Node Removal During Rescan**:
+  - Automatically prune stale graph nodes and edges (`ClearWorkspaceAsync`) for modified files with structural changes before re-indexing, ensuring deleted or renamed symbols do not linger as ghost nodes in SQLite.
+
+### Changed
+- **Log Noise Reduction During Rescan**:
+  - Removed 1-second interval timer persistence logging in `ParsingContext`, restricting persistence progress reports to 10,000-item milestones.
+  - Demoted per-project parsing (`Layer3`) and enrichment (`Layer4`) loops, per-endpoint late-binding synthesis (`Layer5`), and intermediate database materialization logs to debug level.
+  - Truncated long file/manifest lists in `WorkspaceIndexer` and demoted verbose structural diff reasons to debug level while maintaining concise status reporting at information level.
+
+---
+
+## [1.34.5] - 2026-10-11
+
+### Changed
+- **CLI Clean Version Formatting**:
+  - Configured `<IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>` in `Directory.Build.props` so `ce --version` prints clean semantic version numbers without appended source commit hashes.
+- **Architecture View Engine Documentation**:
+  - Corrected XML doc comment placement on `GetSystemContextViewAsync`.
+
+---
+
+## [1.34.4] - 2026-10-11
+
+### Refactored
+- **Architectural Gate Remediation: Method Length Ceiling (`SIG-M-R-001`)**:
+  - Eliminated root causes for architectural gate `SIG-M-R-001` across all workspace components (all methods now strictly <= 500 LOC, achieving 0 gate violations):
+    - **`ArchitectureViewEngine.cs:GetSystemContextViewAsync`**: Reduced from 831 LOC to 55 LOC by decomposing node discovery, candidate resolution, node canonicalization, package count enrichment, edge processing, and database filtering into dedicated, focused sub-routines (`DiscoverSystemContextCandidatesAsync`, `PopulateSystemContextNodes`, `PopulatePackageCountsAsync`, `PopulateSystemContextEdgesAsync`, `FilterSharedDatabases`).
+    - **`Layer5AnalysisParser.cs:ResolveAndUploadGlobalReferencesAsync`**: Reduced from 631 LOC to 76 LOC by extracting symbol dictionary builders, inheritance resolution, type binding indexes, and specialized reference dispatch handlers (`ResolveCallsReference`, `ResolveDependsOnReference`, `ResolveTriggersReference`, `ResolveMessagingReference`, `ResolvePersistedInReference`).
+    - **`vscode-extension/src/extension.ts:activate`**: Reduced from 917 LOC to 88 LOC by modularizing command registration into `commands.ts` (`registerGraphCommands`, `registerWorkspaceCommands`, `registerIntentCommands`).
+
+---
+
+## [1.34.3] - 2026-10-11
+
+### Fixed
+- **Gate File Path Resolution (`coalesce(f.path, f.file_path)`)**:
+  - Prioritized `f.path` over `f.file_path` in `SIG-M-R-001`, `SIG-M-I-004`, and `SIG-A-C-001` queries to ensure violations emit full workspace-relative paths rather than bare file names.
+  - Fixes clickable 2D IDE file:line:col navigation and ensures unique, non-colliding SHA-256 baseline fingerprints across subdirectories.
+
+---
+
+## [1.34.2] - 2026-10-11
+
+### Added
+- **Dogfooding Gate: Method Length Ceiling (`SIG-M-R-001`)**:
+  - Added `sig-m-r-001-method-length.yaml` to `examples/gates/code-explorer/` to enforce that methods and functions must not exceed 500 lines of code.
+  - Registered `SIG-M-R-001` (Scope: `Method`, Dimension: `Resources`) in `BuiltInGateCatalog.cs`.
+  - Added `Gate_SIG_M_R_001_DetectsMethodsExceeding500Lines` test in `SemanticInvariantGateTests.cs`.
+
+### Fixed
+- **Method Length Property in Resources Gate**:
+  - Corrected query in `examples/gates/resources/sig-m-r-001-method-length.yaml` from invalid property `f.line_count` to canonical `coalesce(f.loc, f.end_line - f.start_line + 1)`.
+
+---
+
+## [1.34.1] - 2026-10-11
+
+### Added
+- **Component-Driven Test Source Classification (`IComponentLibraryParser.IsTestSource`)**:
+  - Added `IsTestSource(SyntaxTree syntaxTree)` to `IComponentLibraryParser`, enabling framework parsers to classify test sources authoritatively before AST symbol mapping.
+  - Implemented `IsTestSource` in `JavaScriptTestRunnerComponentParser` for Jest, Vitest, Mocha, Cypress, Playwright, Jasmine, and Karma, checking standard test suffixes (`.spec.ts`, `.test.ts`, `.spec.js`, etc.) and top-level runner invocations (`describe`, `it`, `test`, `suite`).
+  - Added package dependencies to `KnownPackages` in `JavaScriptTestRunnerComponentParser`: `"jasmine-core"`, `"@types/jasmine"`, `"karma"`.
+
+### Fixed
+- **Component Parser Package Dependencies in Layer 3 Syntactic Parser**:
+  - Fixed `ProjectContext` initialization in Pass 2 of `Layer3SyntacticParser` to supply actual Layer 2 package dependencies instead of an empty list (`[]`), restoring component parser evaluation (`CanHandle`) across projects.
+  - Automatically sets `file.IsTest = true` and `syntaxTree.FileNode.IsTest = true` prior to visitor processing when recognized by any active test component parser, ensuring all symbols, calls, and call literals in spec files inherit `is_test = true`.
+
+---
+
+## [1.34.0] - 2026-10-11
+
+### Added
+- **Extended Semantic Classification for Call Literals & Attributes**:
+  - Added specialized semantic roles (`FormAccess`, `Storage`, `WebAPI`, `TestIdentifier`, `State`) to `CallSemanticClassifier`.
+  - Automatically classifies Angular Reactive Forms (`this.form.get('field')`, `fb.group`), browser storage (`localStorage.getItem`, `sessionStorage`), browser Web APIs (`window.open`, `document.querySelector`), test attributes/IDs (`data-testid`, `testId`), and state signals (`signal`, `computed`).
+  - Drastically suppresses remaining framework noise in `SIG-M-I-001` (Disallow Hardcoded Arguments) by isolating business logic from UI/browser primitives.
+- **Internal Egress Attribution (`is_internal`)**:
+  - Sets boolean `is_internal = true` on `ExternalServiceNode` for relative endpoints (`/api/...`) and loopback bindings (`localhost`, `127.0.0.1`).
+
+### Fixed
+- **Cypher Parser Single-Node Pattern Expressions & Pattern Predicates**:
+  - Fixed OpenCypher grammar in `GraphPatternExpression` to accept anonymous single-node pattern expressions in `WHERE` and `EXISTS` clauses (e.g. `NOT (:Endpoint { path: es.path })`), while preserving single-identifier label checks (`(n:Function)`).
+- **Dead Internal Egress Invariant Gate (`SIG-A-C-001`)**:
+  - Fixed Cypher query syntax and directionality in `examples/gates/contract/sig-a-c-001-dead-internal-egress.yaml` to inspect `(es:ExternalService)-[:CALLED_BY]->(caller)` against active endpoints.
+- **Top-Level `export const` Variable Resolution in TypeScript AST**:
+  - Fixed `AstHelper.FindVariableInitializerInAst` to unwrap `export_statement` nodes, ensuring exported URL/route constants (`export const DEFAULT_CATALOG_URL = ...`) are resolved across modules regardless of workspace structure.
+  - Forwarded project context through `FetchLibraryParser` and `AngularHttpLibraryParser`.
+
+---
+
+## [1.33.1] - 2026-10-11
+
+### Added
+- **Catch Clause Layer 3 AST Modeling & `SIG-M-I-005` (No Empty Catch Blocks)**:
+  - Introduced `CatchClauseNode` into Layer 3 syntactic AST across C#, TypeScript/JavaScript, Java, and Python.
+  - Automatically detects empty catch/except blocks (`is_empty`) while intelligently recognizing explanatory comments (`has_comment`) like `// ignored: expected fallback` or `/* expected */`.
+  - Added architectural invariant gate `SIG-M-I-005` in `examples/gates/rules/sig-m-i-005-no-empty-catch.yaml` to prevent silent exception swallowing without documentation or handling.
+- **Fail-Visible Gate Loading & Duplicate ID Diagnostics in `FileGateRepository`**:
+  - Emits descriptive warnings to `Console.Error` when YAML deserialization fails or when duplicate gate IDs are detected, eliminating silent gate drops.
+
+### Fixed
+- **Test File Exclusion from `CallLiteralNode` and `CatchClauseNode`**:
+  - Enhanced `IsTestSourcePath` to reliably exclude `*.spec.ts`, `/e2e/`, `/__mocks__/`, `/cypress/` alongside path-based test markers, eliminating 1,600+ false-positive literal violations from spec titles in NestJS/Angular.
+- **Gate ID Collision & YAML Formatting in `examples/gates/`**:
+  - Renamed `sig-s-b-001-database-ownership.yaml` to canonical `SIG-A-B-002` (`boundaries/sig-a-b-002-database-ownership.yaml`) adhering to FOIM System scope.
+  - Quoted description in `sig-p-b-001-pipeline-layer-hierarchy.yaml` to ensure strict YAML compliance.
+
+---
+
+## [1.33.0] - 2026-10-11
+
+### Added
+- **Semantic Role Classification for Call Literals & Attributes**:
+  - Introduced `CallSemanticClassifier` to categorize AST call argument literals and attributes into semantic roles (`Routing`, `ParamBinding`, `Config`, `Logging`, `QueryBuilder`, `DI`, `Security`, `OrmMapping`, `Validation`, `Formatting`, `Exception`, `Business`).
+  - Stored `role` and `is_decorator` directly on `CallLiteralNode` in Layer 3 syntactic AST graph.
+  - Symmetrically extracted C# attributes alongside TypeScript/NestJS/Angular decorators.
+  - Refactored `SIG-M-I-001` (Disallow Hardcoded Arguments) to target business literals (`coalesce(lit.role, 'Business') = 'Business'`), eliminating noise from framework decorators, config getters (`config.getOrThrow`), query builders (`createQueryBuilder`), and loggers.
+- **Categorized Starter Gate Catalog in `examples/gates/`**:
+  - Decoupled starter gates from the default `ce gate check` engine execution; organized starter examples into `examples/gates/architectural/` and `examples/gates/platform/`.
+  - Repositories now evaluate only explicitly configured repository gates in `.codeexplorer/gates/`.
+
+### Fixed
+- **TypeScript Arrow Function Caller Provenance & Callback Filtering**:
+  - Resolved function attribution for arrow callbacks in class field initializers and object literal pairs (`rxResource({ loader: () => ... })`, `plansResource.loader`, `load = () => ...`).
+  - Suppressed spurious function node creation for anonymous callbacks (`ids.map(id => ...)`, `filter(el => ...)`), eliminating hundreds of false-positive function scopes (`Function:id`, `Function:el`) and misattributed `CALLS` edges.
+  - Resolved false-positive unanchored endpoint warnings in `SIG-A-B-001`.
+- **FOIM Dimension Alignment**:
+  - Unified the 4 canonical FOIM dimensions across CLI options, MCP documentation, and `.agents/skills/semantic-invariant-gates/SKILL.md`: `Contract` (C), `Rules` (I), `Resources` (R), `Boundaries` (B).
+
+---
+
+## [1.31.0] - 2026-10-11
+
+### Added
+- **Semantic Invariant Gates (SIG) & Architectural Ratchets (`ce gate`)**:
+  - Declarative architectural invariant guardrails evaluated via sub-millisecond OpenCypher queries directly over SQLite `graph.db`.
+  - Monotonic Technical Debt Ratchets: baselines (`.codeexplorer/baselines/*.json`) enforce that technical debt strictly decreases ($N_{t+1} \le N_t$), blocking new architectural violations while tolerating legacy debt.
+  - Fractal Orthogonal Invariant Matrix (FOIM) taxonomy spanning 5 Scopes (Method, Class, Module, Service, System) and 4 Dimensions (Contract, Rules, Resources, Boundaries).
+  - Dual-tier gate categorization: `Architectural` (language-agnostic boundaries and layering) vs. `Platform` (runtime/language-specific idioms for .NET, TypeScript, Go, Python, Java, Kotlin, SQL, ColdFusion).
+  - New CLI commands:
+    - `ce gate check` (`ce gate`): Runs zero-match invariant checks with colored Spectre.Console violation tables, formatted separators, and actionable remediation steps. Supports `--category`, `--platform`, `--format table|json|sarif`, `--group-by`, `--limit`, and `--offset`.
+    - `ce gate list`: Lists all active gates, scopes, categories, and tolerated debt counts.
+    - `ce gate ratchet [--update]`: Inspects debt ratchets and burns down baselines automatically when debt is resolved.
+    - `ce gate init`: Scaffolds organized starter gates in `.codeexplorer/gates/architectural/` and `.codeexplorer/gates/platform/<platform>/`.
+  - Autonomous AI-Agent MCP Tool `check_semantic_gates`: Enables AI coding agents to self-verify architectural invariants before committing changes.
+  - Shipped built-in starter catalog: `SIG-P-B-001` (Pipeline Layer Hierarchy), `SIG-P-B-002` (Database Driver Isolation), `SIG-S-B-001` (Storage Driver Abstraction), `SIG-C-I-001` (In-Memory AST Visitor IO Purity), `SIG-P-C-001` (Project Identity Bijection), `SIG-A-B-001` (Call Lineage Provenance), `SIG-P-B-003` (Transport Purity), `SIG-P-I-001` (Circular Package Dependency Shield), `SIG-M-I-001` (Disallow Hardcoded Arguments).
+  - Published comprehensive "Gates on Growth" catalog with 34 polyglot gates across 8 platforms in `docs/proposals/semantic-invariant-gates-proposal.md`.
+
+---
+
+## [1.19.0] - 2026-10-02
+
+### Added
+- **Typed Cypher Queries & LINQ Provider (`GraphContext`)**:
+  - Introduced zero-allocation, strongly-typed Cypher query execution via `GraphContext` and `CypherQueryable<T>`.
+  - Added LINQ expression tree compiler (`CypherExpressionVisitor`) translating C# LINQ expressions (`client.Graph.Services.Where(...)`) into optimized OpenCypher ASTs.
+  - Implemented `ICypherQueryExecutor` interface and integrated typed graph access directly into `IGraphClient.Graph`.
+  - Added strongly-typed graph entity models: `ServiceEntity`, `AppEntity`, `WorkerEntity`, `CliToolEntity`, `DatabaseEntity`, `TopicEntity`, `ExternalServiceEntity`, `LibraryEntity`, `EndpointEntity`, and `GraphEntity`.
+  - Added full test suites for LINQ AST translation and SQLite execution in `CodeExplorer.Cypher.Tests/LinqTests.cs` and `LinqSqliteExecutionTests.cs`.
+- **Intelligent Endpoint Scoring Engine**:
+  - Score-based resolution for ambiguous cross-service endpoints and domain routing.
+- **Node Classification Enums**:
+  - Replaced raw string literals with typed enums across ontology node entities.
+
 ---
 
 ## [1.18.10] - 2026-10-02

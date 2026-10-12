@@ -24,6 +24,7 @@ CodeExplorer combines **interactive architecture visualization in VS Code**, a f
 <p align="center">
   <a href="#what-makes-codeexplorer-unique"><b>Why CodeExplorer</b></a> •
   <a href="#interactive-visual-architecture-vs-code"><b>Visual Studio</b></a> •
+  <a href="#semantic-invariant-gates-sig"><b>Architectural Gates (SIG)</b></a> •
   <a href="#key-features"><b>Key Features</b></a> •
   <a href="#automated-diagram-generation"><b>Diagrams</b></a> •
   <a href="#quick-installation"><b>Installation</b></a> •
@@ -37,6 +38,7 @@ CodeExplorer combines **interactive architecture visualization in VS Code**, a f
 ## What CodeExplorer does?
 
 *   **Interactive Visual Architecture**: Built directly into VS Code. Explore microservice topologies across 5 concentric architectural orbits, swimlanes, bounded context islands, hive plots, and C1/C2 project flow diagrams.
+*   **Semantic Invariant Gates (SIG)**: Prevent architectural drift and ratchet technical debt directly in CI using OpenCypher queries against the codebase graph. Enforce layer boundaries, dependency rules, and code hygiene with clickable 2D IDE line navigation.
 *   **Interactive Orbit Customization**: Drag-and-drop reordering of orbit rings directly inside the legend. Adjust bezier curve routing factors (-200 to +200) to suit your layout.
 *   **Directional Transitive Contraction**: Automatically synthesizes clean, dashed transitive links when intermediate brokers (Kafka, RabbitMQ, SQS) are hidden or filtered, preserving architectural fidelity without visual noise.
 *   **Model Context Protocol (MCP)**: Standard MCP server giving AI agents access to architectural maps, call chains, downstream blast-radius analysis, and arbitrary Cypher queries without using excessive context tokens on raw file searches.
@@ -83,6 +85,120 @@ CodeExplorer provides an interactive visual architecture view inside VS Code (`C
     *   **Bounded Context Islands**: Organic clusters based on inferred Domain-Driven Design (DDD) boundaries.
     *   **Hive Plots & Dependency Matrices**: Structural coupling metrics.
     *   **COSE Force**: Physics-based graph layout.
+
+---
+
+## Semantic Invariant Gates (SIG)
+
+Traditional linters check syntax inside a single file; they cannot enforce cross-project layer boundaries, detect illegal transport calls, or prevent architectural erosion across teams. **Semantic Invariant Gates (SIG)** elevate architectural rules into executable, automated gates running **OpenCypher graph queries** directly against the unified codebase graph.
+
+### 1. The Fractal Orthogonal Invariant Matrix (FOIM)
+
+Every architectural rule occupies a precise coordinate in the **FOIM space**, crossing an architectural **Scope** with a structural **Dimension**:
+
+| Code | Scope | Granularity | Example Entities Enforced |
+| :--- | :--- | :--- | :--- |
+| **A** | **System** | Entire distributed topology | Cross-service calls, gateway bypasses, cloud resources |
+| **S** | **Service** | Executable / deployment unit | `Service`, `App`, `Worker`, message broker isolation |
+| **P** | **Module** | Compilation unit / Project | `Project`, `Library`, layer dependencies, acyclicity |
+| **C** | **Class** | Type / Interface / Struct | `Type`, inheritance trees, visitor I/O purity |
+| **M** | **Method** | Function / Procedure / Endpoint | `Function`, `Endpoint`, `CallLiteral`, argument constraints |
+
+| Code | Dimension | Architectural Focus | Question Answered |
+| :--- | :--- | :--- | :--- |
+| **C** | **Contract** | Typing, interfaces, API protocol fidelity | Are contracts explicit, valid, and type-safe? |
+| **I** | **Rules** | Implementation constraints & hygiene | Are constants hardcoded? Are AST visitors I/O-pure? |
+| **R** | **Resources** | Resource & complexity control | Are methods within length/complexity limits? |
+| **B** | **Boundaries** | Scope boundaries, encapsulation, layer isolation | Who may talk to whom? (e.g. No direct DB calls from UI) |
+
+**Identifier Convention**: `SIG-<Scope>-<Dimension>-<Index3Digits>`  
+*   `SIG-P-B-001`: Module Scope $\times$ Boundaries (Layer hierarchy: Domain cannot reference Infrastructure)
+*   `SIG-M-I-001`: Method Scope $\times$ Rules (No hardcoded API endpoints or magic strings)
+*   `SIG-M-R-001`: Method Scope $\times$ Resources (Method length ceiling: $\le$ 500 lines of code)
+*   `SIG-C-I-001`: Class Scope $\times$ Rules (In-memory AST visitor purity: no direct disk I/O)
+
+---
+
+### 2. The Zero-Match Contract & Clickable 2D Navigation
+
+Gates operate on a simple and predictable **Zero-Match Contract**:
+*   **0 rows returned** $\implies$ **PASS** (Invariant holds across the entire codebase).
+*   **$\ge 1$ rows returned** $\implies$ **FAIL / VIOLATION** (Each matching row is an architectural violation).
+
+Violations emit standardized 2D coordinates (`file:line:column`), enabling instant, one-click navigation directly to the offending source code line in VS Code, Cursor, and terminal emulators:
+
+```text
+FAIL: SIG-P-B-001 [Project Layer Boundary: Core cannot depend on Infrastructure]
+  src/Core/Services/OrderService.cs:42:15: OrderService -> SqliteConnection
+    Violation: Domain Core module directly references Infrastructure driver.
+```
+
+---
+
+### 3. Ratchet Baselines: Zero-Drift CI for Legacy Codebases
+
+The biggest challenge with architectural rules on real-world projects is the wall of existing technical debt. Blocking PRs on hundreds of historical violations causes friction, while ignoring them leads to further architectural decay.
+
+CodeExplorer solves this via **Ratchet Baselines** (`.codeexplorer/baselines/*.json`):
+1. **Freeze Existing Debt**: Capture historical violations into a baseline snapshot with SHA-256 fingerprinting. Existing violations are marked as *tolerated debt*.
+2. **Block New Regressions**: CI evaluates `ce gate check` and **strictly fails only if new violations appear**.
+3. **Lock In Improvements (The Ratchet)**: As developers refactor legacy code, run `ce gate ratchet --update`. The baseline threshold automatically decrements and permanently locks in the progress. Technical debt can only decrease, never increase.
+
+---
+
+### 4. Declarative YAML Gate Manifests
+
+Define custom architectural rules in `.codeexplorer/gates/*.yaml` using OpenCypher:
+
+```yaml
+id: SIG-P-B-001
+name: Clean Architecture Layer Isolation
+category: Architectural
+platform: agnostic
+scope: Module
+dimension: Boundaries
+severity: Error
+description: Domain Core projects must never reference Infrastructure or UI projects.
+query: |
+  MATCH (source:Project)-[:DEPENDS_ON]->(target:Project)
+  WHERE source.name CONTAINS "Core" AND target.name CONTAINS "Infrastructure"
+  RETURN 
+    coalesce(source.path, "workspace") AS file,
+    1 AS line,
+    1 AS column,
+    source.name AS symbol,
+    target.name AS target,
+    "Core domain project '" + source.name + "' cannot depend on infrastructure '" + target.name + "'" AS message
+```
+
+---
+
+### 5. CLI Usage & CI Integration
+
+```bash
+# Evaluate all architectural gates (passes if no new un-baselined violations)
+ce gate check
+
+# Evaluate a specific gate
+ce gate check -g SIG-P-B-001
+
+# List all registered gates with scopes, dimensions, and baseline status
+ce gate list
+
+# Inspect all violations grouped by file
+ce gate violations --group-by file
+
+# Lock in technical debt improvements after refactoring
+ce gate ratchet --update
+```
+
+**GitHub Actions CI Step**:
+```yaml
+- name: Evaluate Architectural Invariant Gates
+  run: |
+    ce scan
+    ce gate check --format markdown >> $GITHUB_STEP_SUMMARY
+```
 
 ---
 
@@ -353,6 +469,31 @@ ce query "MATCH (p:Project)-[:DEPENDS_ON]->(d) RETURN p.name, d.name" --no-trunc
 
 # Execute query from file
 ce query -f ./custom_audit.cypher
+```
+
+### `ce gate [action] [options]`
+Evaluates Semantic Invariant Gates (SIG) against the graph using OpenCypher queries with ratchet baseline debt tracking.
+```bash
+# Evaluate all gates (passes if no new un-baselined violations exist)
+ce gate check
+
+# Evaluate specific gate with markdown report
+ce gate check -g SIG-P-B-001 -f markdown
+
+# Filter by architectural category or platform
+ce gate check --category architectural
+ce gate check --platform dotnet
+
+# List all registered gates with their FOIM scope, dimension, and baseline status
+ce gate list
+
+# Inspect active violations with pagination and file grouping
+ce gate violations --group-by file
+ce gate violations --new           # Show only new un-baselined violations
+ce gate violations --tolerated     # Show only tolerated baseline debt
+
+# Ratchet baselines to lock in technical debt improvements after refactoring
+ce gate ratchet --update
 ```
 
 ### `ce mcp [options]`
