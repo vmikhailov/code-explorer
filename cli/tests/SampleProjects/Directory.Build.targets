@@ -1,0 +1,10 @@
+<Project>
+  <!-- Override standard build targets to no-ops so dotnet never attempts to compile or restore sample fixtures -->
+  <Target Name="Build" />
+  <Target Name="Compile" />
+  <Target Name="CoreCompile" />
+  <Target Name="Restore" />
+  <Target Name="Publish" />
+  <Target Name="Test" />
+  <Target Name="VSTest" />
+</Project>

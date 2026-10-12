@@ -1,0 +1,19 @@
+<Project>
+  <!-- Isolate sample test projects from MSBuild compilation, restore, and analyzer pipelines -->
+  <PropertyGroup>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultNoneItems>false</EnableDefaultNoneItems>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>false</IsTestProject>
+    <SkipCompilerExecution>true</SkipCompilerExecution>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <!-- Override standard build targets to no-ops -->
+  <Target Name="Build" />
+  <Target Name="Compile" />
+  <Target Name="CoreCompile" />
+  <Target Name="Restore" />
+  <Target Name="Publish" />
+</Project>
