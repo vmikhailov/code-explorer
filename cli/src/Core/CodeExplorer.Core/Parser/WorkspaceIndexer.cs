@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
@@ -38,7 +39,136 @@ public class WorkspaceIndexer
         }
     }
 
+    /// <summary>
+    /// Automatically discovers and registers all project and file parsers from assemblies.
+    /// If specific assemblies are provided, scans them; otherwise dynamically discovers parser assemblies.
+    /// </summary>
+    public static IReadOnlyList<Type> AutoRegisterParsers(IEnumerable<Assembly>? assemblies = null)
+    {
+        assemblies ??= DiscoverParserAssemblies();
+        var registeredTypes = new List<Type>();
+
+        foreach (var assembly in assemblies)
+        {
+            Type[] types;
+            try
+            {
+                types = assembly.GetExportedTypes();
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                types = ex.Types.Where(t => t != null).ToArray()!;
+            }
+            catch
+            {
+                continue;
+            }
+
+            // Ensure TypeScriptParser precedes JavaScriptParser for proper TypeScript priority
+            types = types.OrderBy(t => t.Name == "JavaScriptParser" ? 1 : 0).ToArray();
+
+            foreach (var type in types)
+            {
+                if (type == null || type.IsAbstract || type.IsInterface)
+                    continue;
+
+                var isProject = typeof(IProjectParser).IsAssignableFrom(type);
+                var isFile = typeof(IFileParser).IsAssignableFrom(type);
+                if (!isProject && !isFile)
+                    continue;
+
+                if (type.GetConstructor(Type.EmptyTypes) != null)
+                {
+                    try
+                    {
+                        var instance = Activator.CreateInstance(type);
+                        if (instance != null)
+                        {
+                            Register(instance);
+                            registeredTypes.Add(type);
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore instantiation issues for non-standard constructors
+                    }
+                }
+            }
+        }
+
+        return registeredTypes;
+    }
+
+    /// <summary>
+    /// Discovers all assemblies that contain parser implementations (either decorated with [ParserAssembly]
+    /// or following the CodeExplorer.Parser.* convention).
+    /// </summary>
+    public static IReadOnlyList<Assembly> DiscoverParserAssemblies()
+    {
+        var loadedAssemblies = AppDomain.CurrentDomain.GetAssemblies().ToList();
+        var loadedNames = new HashSet<string>(
+            loadedAssemblies.Select(a => a.GetName().Name ?? string.Empty),
+            StringComparer.OrdinalIgnoreCase);
+
+        var candidateAssemblies = new HashSet<Assembly>(loadedAssemblies);
+
+        // Load referenced assemblies starting with CodeExplorer.Parser
+        foreach (var loaded in loadedAssemblies)
+        {
+            try
+            {
+                foreach (var refName in loaded.GetReferencedAssemblies())
+                {
+                    if (refName.Name != null &&
+                        refName.Name.StartsWith("CodeExplorer.Parser.", StringComparison.OrdinalIgnoreCase) &&
+                        !loadedNames.Contains(refName.Name))
+                    {
+                        try
+                        {
+                            var asm = Assembly.Load(refName);
+                            candidateAssemblies.Add(asm);
+                            loadedNames.Add(refName.Name);
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        // Also probe AppContext.BaseDirectory for any CodeExplorer.Parser.*.dll not yet loaded
+        try
+        {
+            var baseDir = AppContext.BaseDirectory;
+            if (Directory.Exists(baseDir))
+            {
+                foreach (var dllPath in Directory.GetFiles(baseDir, "CodeExplorer.Parser.*.dll"))
+                {
+                    var asmName = Path.GetFileNameWithoutExtension(dllPath);
+                    if (!loadedNames.Contains(asmName))
+                    {
+                        try
+                        {
+                            var asm = Assembly.LoadFrom(dllPath);
+                            candidateAssemblies.Add(asm);
+                            loadedNames.Add(asmName);
+                        }
+                        catch { }
+                    }
+                }
+            }
+        }
+        catch { }
+
+        return candidateAssemblies
+            .Where(a => a.GetCustomAttribute<ParserAssemblyAttribute>() != null ||
+                        (a.GetName().Name?.StartsWith("CodeExplorer.Parser.", StringComparison.OrdinalIgnoreCase) ?? false))
+            .Distinct()
+            .ToList();
+    }
+
     public static IReadOnlyList<IProjectParser> GetAllProjectParsers() => _projectParsers;
+    public static IReadOnlyList<IFileParser> GetAllFileParsers() => _fileParsers;
 
     public static IFileParser? GetParserForFile(string filePath)
     {

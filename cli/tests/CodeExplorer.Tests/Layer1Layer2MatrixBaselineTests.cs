@@ -1,19 +1,10 @@
+using System.Reflection;
 using System.Threading.Channels;
 using NUnit.Framework;
-using AwesomeAssertions;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
-using CodeExplorer.Parser.Android;
-using CodeExplorer.Parser.CSharp;
-using CodeExplorer.Parser.ColdFusion;
-using CodeExplorer.Parser.Go;
-using CodeExplorer.Parser.Java;
-using CodeExplorer.Parser.Kotlin;
-using CodeExplorer.Parser.Python;
-using CodeExplorer.Parser.SQL;
-using CodeExplorer.Parser.TypeScript;
 
 namespace CodeExplorer.Tests;
 
@@ -25,18 +16,7 @@ public class Layer1Layer2MatrixBaselineTests
     [OneTimeSetUp]
     public void OneTimeSetUp()
     {
-        WorkspaceIndexer.Register(new CSharpParser());
-        WorkspaceIndexer.Register(new TypeScriptParser());
-        WorkspaceIndexer.Register(new JavaScriptParser());
-        WorkspaceIndexer.Register(new PythonParser());
-        WorkspaceIndexer.Register(new GoParser());
-        WorkspaceIndexer.Register(new JavaParser());
-        WorkspaceIndexer.Register(new KotlinProjectParser());
-        WorkspaceIndexer.Register(new KotlinFileParser());
-        WorkspaceIndexer.Register(new AndroidManifestFileParser());
-        WorkspaceIndexer.Register(new SqlParser());
-        WorkspaceIndexer.Register(new ColdFusionProjectParser());
-        WorkspaceIndexer.Register(new ColdFusionFileParser());
+        WorkspaceIndexer.AutoRegisterParsers();
 
         // Resolve absolute path to cli/tests/SampleProjects
         var currentDir = TestContext.CurrentContext.TestDirectory;
@@ -83,95 +63,49 @@ public class Layer1Layer2MatrixBaselineTests
         return proj;
     }
 
-    #region C# / .NET Matrix
+    #region Parameterized Matrix Tests
 
-    [Test]
-    public async Task CSharp_WebApi_DetectedAsService()
+    [TestCase("csharp/web-api", "csharp", ProjectEntityKind.Service, false)]
+    [TestCase("csharp/class-lib", "csharp", ProjectEntityKind.Library, true)]
+    [TestCase("csharp/worker-service", "csharp", ProjectEntityKind.Worker, false)]
+    [TestCase("csharp/cli-tool", "csharp", ProjectEntityKind.CliTool, false)]
+    [TestCase("csharp/test-suite", "csharp", ProjectEntityKind.Test, true)]
+    [TestCase("typescript/nest-service", "typescript", ProjectEntityKind.Service, false)]
+    [TestCase("typescript/express-service", "typescript", ProjectEntityKind.Service, false)]
+    [TestCase("typescript/react-app", "typescript", ProjectEntityKind.App, false)]
+    [TestCase("typescript/ui-library", "typescript", ProjectEntityKind.Library, true)]
+    [TestCase("typescript/cf-worker", "typescript", ProjectEntityKind.Worker, false)]
+    [TestCase("typescript/cli-app", "typescript", ProjectEntityKind.CliTool, false)]
+    [TestCase("typescript/jest-tests", "typescript", ProjectEntityKind.Test, true)]
+    [TestCase("python/fastapi-service", "python", ProjectEntityKind.Service, false)]
+    [TestCase("python/standard-lib", "python", ProjectEntityKind.Library, true)]
+    [TestCase("python/celery-worker", "python", ProjectEntityKind.Worker, false)]
+    [TestCase("python/click-cli", "python", ProjectEntityKind.CliTool, false)]
+    [TestCase("python/alembic-migrations", "python", ProjectEntityKind.DatabaseMigration, false)]
+    [TestCase("go/gin-service", "go", ProjectEntityKind.Service, false)]
+    [TestCase("go/pkg-lib", "go", ProjectEntityKind.Library, true)]
+    [TestCase("go/cobra-cli", "go", ProjectEntityKind.CliTool, false)]
+    [TestCase("go/kafka-worker", "go", ProjectEntityKind.Worker, false)]
+    [TestCase("java/spring-service", "java", ProjectEntityKind.Service, false)]
+    [TestCase("java/jar-library", "java", ProjectEntityKind.Library, true)]
+    [TestCase("kotlin/android-app", "kotlin", ProjectEntityKind.App, false)]
+    [TestCase("kotlin/jvm-lib", "kotlin", ProjectEntityKind.Library, true)]
+    [TestCase("coldfusion/cf-web-app", "coldfusion", ProjectEntityKind.App, false)]
+    [TestCase("coldfusion/cf-components", "coldfusion", ProjectEntityKind.Library, true)]
+    public async Task Matrix_SingleProject_DetectedWithExpectedKindAndIsLib(
+        string projectPath,
+        string expectedProjectType,
+        ProjectEntityKind expectedKind,
+        bool expectedIsLib)
     {
-        var (_, l2) = await ScanL1L2Async("csharp/web-api");
-        AssertSingleProject(l2, ProjectEntityKind.Service, expectedIsLib: false);
-    }
-
-    [Test]
-    public async Task CSharp_ClassLibrary_DetectedAsLibrary()
-    {
-        var (_, l2) = await ScanL1L2Async("csharp/class-lib");
-        AssertSingleProject(l2, ProjectEntityKind.Library, expectedIsLib: true);
-    }
-
-    [Test]
-    public async Task CSharp_WorkerService_DetectedAsWorker()
-    {
-        var (_, l2) = await ScanL1L2Async("csharp/worker-service");
-        AssertSingleProject(l2, ProjectEntityKind.Worker, expectedIsLib: false);
-    }
-
-    [Test]
-    public async Task CSharp_CliTool_DetectedAsCliTool()
-    {
-        var (_, l2) = await ScanL1L2Async("csharp/cli-tool");
-        AssertSingleProject(l2, ProjectEntityKind.CliTool, expectedIsLib: false);
-    }
-
-    [Test]
-    public async Task CSharp_TestSuite_DetectedAsTest()
-    {
-        var (_, l2) = await ScanL1L2Async("csharp/test-suite");
-        AssertSingleProject(l2, ProjectEntityKind.Test, expectedIsLib: true);
+        var (_, l2) = await ScanL1L2Async(projectPath);
+        var proj = AssertSingleProject(l2, expectedKind, expectedIsLib);
+        proj.ProjectType.Should().Be(expectedProjectType);
     }
 
     #endregion
 
-    #region TypeScript / JavaScript Matrix
-
-    [Test]
-    public async Task TypeScript_NestService_DetectedAsService()
-    {
-        var (_, l2) = await ScanL1L2Async("typescript/nest-service");
-        AssertSingleProject(l2, ProjectEntityKind.Service, expectedIsLib: false);
-    }
-
-    [Test]
-    public async Task TypeScript_ExpressService_DetectedAsService()
-    {
-        var (_, l2) = await ScanL1L2Async("typescript/express-service");
-        AssertSingleProject(l2, ProjectEntityKind.Service, expectedIsLib: false);
-    }
-
-    [Test]
-    public async Task TypeScript_ReactApp_DetectedAsApp()
-    {
-        var (_, l2) = await ScanL1L2Async("typescript/react-app");
-        AssertSingleProject(l2, ProjectEntityKind.App, expectedIsLib: false);
-    }
-
-    [Test]
-    public async Task TypeScript_UiLibrary_DetectedAsLibrary()
-    {
-        var (_, l2) = await ScanL1L2Async("typescript/ui-library");
-        AssertSingleProject(l2, ProjectEntityKind.Library, expectedIsLib: true);
-    }
-
-    [Test]
-    public async Task TypeScript_CloudflareWorker_DetectedAsWorker()
-    {
-        var (_, l2) = await ScanL1L2Async("typescript/cf-worker");
-        AssertSingleProject(l2, ProjectEntityKind.Worker, expectedIsLib: false);
-    }
-
-    [Test]
-    public async Task TypeScript_CliApp_DetectedAsCliTool()
-    {
-        var (_, l2) = await ScanL1L2Async("typescript/cli-app");
-        AssertSingleProject(l2, ProjectEntityKind.CliTool, expectedIsLib: false);
-    }
-
-    [Test]
-    public async Task TypeScript_JestTests_DetectedAsTest()
-    {
-        var (_, l2) = await ScanL1L2Async("typescript/jest-tests");
-        AssertSingleProject(l2, ProjectEntityKind.Test, expectedIsLib: true);
-    }
+    #region Complex Topology Scenarios
 
     [Test]
     public async Task TypeScript_AngularMonorepo_DiscoversOnlyTopLevelProjects_NoSecondaryEntryPoints()
@@ -195,127 +129,54 @@ public class Layer1Layer2MatrixBaselineTests
 
     #endregion
 
-    #region Python Matrix
+    #region Invariant Guard: All Parsers Must Be Covered
 
     [Test]
-    public async Task Python_FastApiService_DetectedAsService()
+    public void AllParsers_MustBeCoveredByBaselineMatrixTests()
     {
-        var (_, l2) = await ScanL1L2Async("python/fastapi-service");
-        AssertSingleProject(l2, ProjectEntityKind.Service, expectedIsLib: false);
-    }
+        // 1. Discover all parsers via reflection
+        var registeredParsers = WorkspaceIndexer.AutoRegisterParsers();
+        registeredParsers.Should().NotBeEmpty();
 
-    [Test]
-    public async Task Python_StandardLib_DetectedAsLibrary()
-    {
-        var (_, l2) = await ScanL1L2Async("python/standard-lib");
-        AssertSingleProject(l2, ProjectEntityKind.Library, expectedIsLib: true);
-    }
+        // 2. Collect all project types from registered IProjectParser implementations
+        var projectParsers = WorkspaceIndexer.GetAllProjectParsers();
+        var discoveredProjectTypes = projectParsers
+            .Select(p => p.ProjectType.ToLowerInvariant())
+            .Distinct()
+            .Where(t => t != "sql" && t != "javascript") // SQL is embedded, JavaScript is handled by TypeScriptParser
+            .ToList();
 
-    [Test]
-    public async Task Python_CeleryWorker_DetectedAsWorker()
-    {
-        var (_, l2) = await ScanL1L2Async("python/celery-worker");
-        AssertSingleProject(l2, ProjectEntityKind.Worker, expectedIsLib: false);
-    }
+        // 3. Extract all tested project types from Matrix_SingleProject_DetectedWithExpectedKindAndIsLib TestCases
+        var method = typeof(Layer1Layer2MatrixBaselineTests)
+            .GetMethod(nameof(Matrix_SingleProject_DetectedWithExpectedKindAndIsLib))!;
+        var testCases = method.GetCustomAttributes(typeof(TestCaseAttribute), false)
+            .Cast<TestCaseAttribute>()
+            .ToList();
 
-    [Test]
-    public async Task Python_ClickCli_DetectedAsCliTool()
-    {
-        var (_, l2) = await ScanL1L2Async("python/click-cli");
-        AssertSingleProject(l2, ProjectEntityKind.CliTool, expectedIsLib: false);
-    }
+        var testedProjectTypes = testCases
+            .Select(tc => tc.Arguments[1] as string)
+            .Where(t => !string.IsNullOrEmpty(t))
+            .Select(t => t!.ToLowerInvariant())
+            .Distinct()
+            .ToHashSet();
 
-    [Test]
-    public async Task Python_Alembic_DetectedAsDatabaseMigration()
-    {
-        var (_, l2) = await ScanL1L2Async("python/alembic-migrations");
-        AssertSingleProject(l2, ProjectEntityKind.DatabaseMigration, expectedIsLib: false);
-    }
+        // 4. Assert every discovered project parser is tested in the matrix
+        var untested = discoveredProjectTypes.Where(t => !testedProjectTypes.Contains(t)).ToList();
+        untested.Should().BeEmpty(
+            $"Every project parser must have sample projects and coverage in {nameof(Layer1Layer2MatrixBaselineTests)}! " +
+            $"Untested project types: [{string.Join(", ", untested)}]");
 
-    #endregion
+        // 5. Assert all IFileParser implementations are registered
+        var fileParsers = WorkspaceIndexer.GetAllFileParsers();
+        fileParsers.Should().NotBeEmpty();
 
-    #region Go Matrix
-
-    [Test]
-    public async Task Go_GinService_DetectedAsService()
-    {
-        var (_, l2) = await ScanL1L2Async("go/gin-service");
-        AssertSingleProject(l2, ProjectEntityKind.Service, expectedIsLib: false);
-    }
-
-    [Test]
-    public async Task Go_PkgLib_DetectedAsLibrary()
-    {
-        var (_, l2) = await ScanL1L2Async("go/pkg-lib");
-        AssertSingleProject(l2, ProjectEntityKind.Library, expectedIsLib: true);
-    }
-
-    [Test]
-    public async Task Go_CobraCli_DetectedAsCliTool()
-    {
-        var (_, l2) = await ScanL1L2Async("go/cobra-cli");
-        AssertSingleProject(l2, ProjectEntityKind.CliTool, expectedIsLib: false);
-    }
-
-    [Test]
-    public async Task Go_KafkaWorker_DetectedAsWorker()
-    {
-        var (_, l2) = await ScanL1L2Async("go/kafka-worker");
-        AssertSingleProject(l2, ProjectEntityKind.Worker, expectedIsLib: false);
-    }
-
-    #endregion
-
-    #region Java Matrix
-
-    [Test]
-    public async Task Java_SpringService_DetectedAsService()
-    {
-        var (_, l2) = await ScanL1L2Async("java/spring-service");
-        AssertSingleProject(l2, ProjectEntityKind.Service, expectedIsLib: false);
-    }
-
-    [Test]
-    public async Task Java_JarLibrary_DetectedAsLibrary()
-    {
-        var (_, l2) = await ScanL1L2Async("java/jar-library");
-        AssertSingleProject(l2, ProjectEntityKind.Library, expectedIsLib: true);
-    }
-
-    #endregion
-
-    #region Kotlin Matrix
-
-    [Test]
-    public async Task Kotlin_AndroidApp_DetectedAsApp()
-    {
-        var (_, l2) = await ScanL1L2Async("kotlin/android-app");
-        AssertSingleProject(l2, ProjectEntityKind.App, expectedIsLib: false);
-    }
-
-    [Test]
-    public async Task Kotlin_JvmLib_DetectedAsLibrary()
-    {
-        var (_, l2) = await ScanL1L2Async("kotlin/jvm-lib");
-        AssertSingleProject(l2, ProjectEntityKind.Library, expectedIsLib: true);
-    }
-
-    #endregion
-
-    #region ColdFusion Matrix
-
-    [Test]
-    public async Task ColdFusion_WebApp_DetectedAsApp()
-    {
-        var (_, l2) = await ScanL1L2Async("coldfusion/cf-web-app");
-        AssertSingleProject(l2, ProjectEntityKind.App, expectedIsLib: false);
-    }
-
-    [Test]
-    public async Task ColdFusion_Components_DetectedAsLibrary()
-    {
-        var (_, l2) = await ScanL1L2Async("coldfusion/cf-components");
-        AssertSingleProject(l2, ProjectEntityKind.Library, expectedIsLib: true);
+        // 6. Assert all sample project paths in test cases actually exist on disk
+        foreach (var tc in testCases)
+        {
+            var relPath = (string)tc.Arguments[0]!;
+            var absPath = Path.Combine(_sampleProjectsRoot, relPath);
+            Directory.Exists(absPath).Should().BeTrue($"Sample project directory must exist on disk: {relPath}");
+        }
     }
 
     #endregion

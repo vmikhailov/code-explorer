@@ -3,15 +3,7 @@ using CodeExplorer.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Options;
-using CodeExplorer.Parser.Android;
-using CodeExplorer.Parser.ColdFusion;
-using CodeExplorer.Parser.CSharp;
-using CodeExplorer.Parser.Go;
-using CodeExplorer.Parser.Java;
-using CodeExplorer.Parser.Kotlin;
-using CodeExplorer.Parser.Python;
-using CodeExplorer.Parser.SQL;
-using CodeExplorer.Parser.TypeScript;
+
 using CommandLine;
 using CommandLineParser = CommandLine.Parser;
 using Microsoft.AspNetCore.Builder;
@@ -36,18 +28,7 @@ public class Program
             return 0;
         }
 
-        WorkspaceIndexer.Register(new CSharpParser());
-        WorkspaceIndexer.Register(new KotlinProjectParser());
-        WorkspaceIndexer.Register(new KotlinFileParser());
-        WorkspaceIndexer.Register(new AndroidManifestFileParser());
-        WorkspaceIndexer.Register(new JavaParser());
-        WorkspaceIndexer.Register(new GoParser());
-        WorkspaceIndexer.Register(new PythonParser());
-        WorkspaceIndexer.Register(new TypeScriptParser());
-        WorkspaceIndexer.Register(new JavaScriptParser());
-        WorkspaceIndexer.Register(new SqlParser());
-        WorkspaceIndexer.Register(new ColdFusionProjectParser());
-        WorkspaceIndexer.Register(new ColdFusionFileParser());
+        WorkspaceIndexer.AutoRegisterParsers();
 
         using var parser = new CommandLineParser(settings =>
         {
