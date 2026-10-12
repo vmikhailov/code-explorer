@@ -135,12 +135,12 @@ public class ClearWorkspacesTests
         await client.UploadRelationshipsAsync(rels);
 
         var cleared = await client.ClearWorkspaceAsync("/workspace/src/service-a");
-        Assert.That(cleared, Is.True);
+        cleared.Should().BeTrue();
 
         var (nodeCount, relCount) = await client.GetGraphCountsAsync();
         // ws, service-b project, service-b file = 3 nodes remain
-        Assert.That(nodeCount, Is.EqualTo(3));
-        Assert.That(relCount, Is.EqualTo(2));
+        nodeCount.Should().Be(3);
+        relCount.Should().Be(2);
     }
 
     [Test]
@@ -170,11 +170,11 @@ public class ClearWorkspacesTests
         var cleared = await client.ClearWorkspaceAsync("/big-workspace");
         sw.Stop();
 
-        Assert.That(cleared, Is.True);
-        Assert.That(sw.ElapsedMilliseconds, Is.LessThan(2000), $"Clear took {sw.ElapsedMilliseconds} ms, expected under 2000 ms.");
+        cleared.Should().BeTrue();
+        sw.ElapsedMilliseconds.Should().BeLessThan(2000, $"Clear took {sw.ElapsedMilliseconds} ms, expected under 2000 ms.");
 
         var (nodeCount, relCount) = await client.GetGraphCountsAsync();
-        Assert.That(nodeCount, Is.EqualTo(0));
-        Assert.That(relCount, Is.EqualTo(0));
+        nodeCount.Should().Be(0);
+        relCount.Should().Be(0);
     }
 }

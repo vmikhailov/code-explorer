@@ -8,6 +8,8 @@ using NUnit.Framework;
 namespace CodeExplorer.Tests;
 
 [TestFixture]
+[Explicit("Manual run: invokes LLM architectural intent distillation and live inference pipelines.")]
+[Category("Manual")]
 public class CodeIntentAnalyzerTests
 {
     [Test]
