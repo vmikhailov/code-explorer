@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 namespace CodeExplorer.Core.Conventions.Services;
 
 /// <summary>
@@ -22,14 +24,14 @@ public sealed class ServiceIdentityResolver
     ];
 
     private readonly List<string> _configuredPrefixes;
-    private readonly Dictionary<string, string> _serviceAliases;
+    private readonly ConcurrentDictionary<string, string> _serviceAliases;
 
     public ServiceIdentityResolver(
         IEnumerable<string>? customPrefixes = null,
         IDictionary<string, string>? serviceAliases = null)
     {
         _configuredPrefixes = [..(customPrefixes ?? [])];
-        _serviceAliases = new Dictionary<string, string>(serviceAliases ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
+        _serviceAliases = new ConcurrentDictionary<string, string>(serviceAliases ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>

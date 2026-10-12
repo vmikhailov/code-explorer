@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Cypher.Ast;
 using CodeExplorer.Cypher.Compiler;
@@ -1223,7 +1224,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         return result;
     }
 
-    public async Task<(List<EndpointNode> Endpoints, List<EntryPointNode> EntryPoints, List<ExternalServiceNode> ExternalServices)> LoadLateBindingCandidatesAsync(
+    public async Task<(List<EndpointNode> Endpoints, List<EntryPointNode> EntryPoints, List<ExternalServiceNode> ExternalServices, List<ProjectNode> Projects)> LoadLateBindingCandidatesAsync(
         string workspaceId,
         bool needEndpoints,
         bool needExternalServices,
@@ -1232,10 +1233,11 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         var endpoints = new List<EndpointNode>();
         var entryPoints = new List<EntryPointNode>();
         var externalServices = new List<ExternalServiceNode>();
+        var projects = new List<ProjectNode>();
 
         if (!needEndpoints && !needExternalServices)
         {
-            return (endpoints, entryPoints, externalServices);
+            return (endpoints, entryPoints, externalServices, projects);
         }
 
         var widPrefix = string.IsNullOrEmpty(workspaceId) ? "" : (workspaceId.EndsWith(':') ? workspaceId : workspaceId + ":");
@@ -1257,6 +1259,8 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                                   (@needEndpoints = 1 AND kind IN ('Endpoint', 'EntryPoint'))
                                   OR
                                   (@needExternalServices = 1 AND kind = 'ExternalService')
+                                  OR
+                                  kind = 'Project'
                                 );
                               """;
 
@@ -1278,21 +1282,27 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                     {
                         var name = root.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
 
-                        var filePath = root.TryGetProperty("file_path", out var fp)
-                            ? fp.GetString() ?? ""
-                            : "";
+                        var filePath = root.TryGetProperty("path", out var p)
+                            ? p.GetString() ?? ""
+                            : (root.TryGetProperty("file_path", out var fp) ? fp.GetString() ?? "" : "");
 
                         var httpMethod = root.TryGetProperty("http_method", out var hm)
                             ? hm.GetString() ?? ""
                             : "";
-                        var route = root.TryGetProperty("route", out var r) ? r.GetString() ?? "" : "";
+                        var route = root.TryGetProperty("route_template", out var rt)
+                            ? rt.GetString() ?? ""
+                            : (root.TryGetProperty("route", out var r) ? r.GetString() ?? "" : "");
                         endpoints.Add(new EndpointNode(id, name, filePath, httpMethod, route));
                     }
                     else if (kind == "EntryPoint")
                     {
                         var name = root.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-                        var path = root.TryGetProperty("path", out var p) ? p.GetString() ?? "" : "";
-                        var type = root.TryGetProperty("type", out var t) ? t.GetString() ?? "" : "";
+                        var path = root.TryGetProperty("path", out var p)
+                            ? p.GetString() ?? ""
+                            : (root.TryGetProperty("file_path", out var fp) ? fp.GetString() ?? "" : "");
+                        var type = root.TryGetProperty("entry_type", out var et)
+                            ? et.GetString() ?? ""
+                            : (root.TryGetProperty("type", out var t) ? t.GetString() ?? "" : "");
                         entryPoints.Add(new EntryPointNode(id, name, path, type));
                     }
                     else if (kind == "ExternalService")
@@ -1305,12 +1315,23 @@ public class SqliteGraphClient : IGraphClient, IDisposable
 
                         var domain = root.TryGetProperty("domain_or_service", out var d)
                             ? d.GetString() ?? ""
-                            : "";
+                            : (root.TryGetProperty("domain", out var dom) ? dom.GetString() ?? "" : (root.TryGetProperty("service", out var s) ? s.GetString() ?? "" : ""));
 
                         var path = root.TryGetProperty("path", out var p)
                             ? p.GetString() ?? ""
                             : (root.TryGetProperty("target_path", out var tp) ? tp.GetString() ?? "" : "");
                         externalServices.Add(new ExternalServiceNode(id, name, protocol, domain, path));
+                    }
+                    else if (kind == "Project")
+                    {
+                        var name = root.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+                        var path = root.TryGetProperty("path", out var p) ? p.GetString() ?? "" : "";
+                        var projectType = root.TryGetProperty("project_type", out var pt)
+                            ? pt.GetString() ?? ""
+                            : (root.TryGetProperty("language", out var l) ? l.GetString() ?? "" : "");
+                        var role = root.TryGetProperty("role", out var r) ? r.GetString() ?? "Service" : "Service";
+                        var isLib = root.TryGetProperty("is_library", out var il) && il.GetBoolean();
+                        projects.Add(new ProjectNode(id, name, path, projectType, role, isLib));
                     }
                 }
                 catch
@@ -1324,7 +1345,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             _lock.Release();
         }
 
-        return (endpoints, entryPoints, externalServices);
+        return (endpoints, entryPoints, externalServices, projects);
     }
 
     public async Task<PostIndexGraphData> LoadPostIndexGraphDataAsync(string widPrefix)

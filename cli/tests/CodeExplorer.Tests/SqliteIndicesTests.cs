@@ -1,4 +1,6 @@
 using AwesomeAssertions;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Database;
 using Microsoft.Data.Sqlite;
 using NUnit.Framework;
@@ -169,5 +171,43 @@ public class SqliteIndicesTests
         largeResult.Should().ContainKey("IOrderService");
         largeResult["IOrderService"].Should().Contain("OrderService");
     }
+
+    [Test]
+    public async Task Test_LoadLateBindingCandidatesAsync_CorrectlyLoadsEndpointsEntryPointsAndExternalServices()
+    {
+        var ep = new EndpointNode("ws:ep:GET:/ping", "GET /ping", "ping.controller.ts", "GET", "/ping");
+        var entry = new EntryPointNode("ws:entry:cron:cleanup", "cleanup", "cron.ts", "cron");
+        var ext = new ExternalServiceNode("ws:es:http:bundle-service", "bundle-service", "http", "bundle-service", "/bundle/info");
+        var proj = new ProjectNode("ws:p:bundle-service:", "bundle-service", "bundle-service", "typescript");
+
+        await _client.UploadNodesAsync([Node.FromNode(ep), Node.FromNode(entry), Node.FromNode(ext), Node.FromNode(proj)]);
+
+        var (endpoints, entryPoints, externalServices, projects) = await _client.LoadLateBindingCandidatesAsync("ws", needEndpoints: true, needExternalServices: true);
+
+        endpoints.Should().HaveCount(1);
+        endpoints[0].Id.Should().Be("ws:ep:GET:/ping");
+        endpoints[0].RouteTemplate.Should().Be("/ping");
+        endpoints[0].Path.Should().Be("ping.controller.ts");
+        endpoints[0].HttpMethod.Should().Be("GET");
+
+        entryPoints.Should().HaveCount(1);
+        entryPoints[0].Id.Should().Be("ws:entry:cron:cleanup");
+        entryPoints[0].Name.Should().Be("cleanup");
+        entryPoints[0].Path.Should().Be("cron.ts");
+        entryPoints[0].EntryType.Should().Be("cron");
+
+        externalServices.Should().HaveCount(1);
+        externalServices[0].Id.Should().Be("ws:es:http:bundle-service");
+        externalServices[0].Name.Should().Be("bundle-service");
+        externalServices[0].DomainOrService.Should().Be("bundle-service");
+        externalServices[0].Path.Should().Be("/bundle/info");
+        externalServices[0].Protocol.Should().Be("http");
+
+        projects.Should().HaveCount(1);
+        projects[0].Id.Should().Be("ws:p:bundle-service:");
+        projects[0].Name.Should().Be("bundle-service");
+        projects[0].Path.Should().Be("bundle-service");
+    }
 }
+
 

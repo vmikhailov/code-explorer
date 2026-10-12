@@ -99,6 +99,77 @@ public class LateBindingFixTests
     }
 
     [Test]
+    public void IsMatch_UnknownService_WithPingOrHealthPath_DoesNotMatchEndpoints()
+    {
+        var pingService = new ExternalServiceNode(
+            "5:externalservice:http:unknown-service",
+            "unknown-service",
+            "http",
+            "unknown-service",
+            "/ping",
+            null);
+
+        var healthService = new ExternalServiceNode(
+            "5:externalservice:http:unknown-service",
+            "unknown-service",
+            "http",
+            "unknown-service",
+            "/health",
+            null);
+
+        var pingEndpoint = new EndpointNode(
+            "5:endpoint:GET:/ping",
+            "GET /ping",
+            "controllers/ping.controller.ts",
+            "GET",
+            "/ping");
+
+        var healthEndpoint = new EndpointNode(
+            "5:endpoint:GET:/health",
+            "GET /health",
+            "controllers/health.controller.ts",
+            "GET",
+            "/health");
+
+        InvokeIsMatch(pingService, pingEndpoint).Should().BeFalse("unknown-service /ping must never match endpoints");
+        InvokeIsMatch(healthService, healthEndpoint).Should().BeFalse("unknown-service /health must never match endpoints");
+    }
+
+    [Test]
+    public void IsMatch_KnownService_WithPingPath_MatchesOnlyMatchingProject()
+    {
+        var extService = new ExternalServiceNode(
+            "5:externalservice:http:bundle-service",
+            "bundle-service",
+            "http",
+            "bundle-service",
+            "/ping",
+            null);
+
+        var endpoint = new EndpointNode(
+            "5:endpoint:GET:/ping",
+            "GET /ping",
+            "controllers/ping.controller.ts",
+            "GET",
+            "/ping");
+
+        var bundleProject = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
+            "ws:p:bundle:",
+            "bundle-service",
+            "src/services/bundle",
+            "ts");
+
+        var otherProject = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
+            "ws:p:other:",
+            "other-service",
+            "src/services/other",
+            "ts");
+
+        InvokeIsMatch(extService, endpoint, bundleProject).Should().BeTrue("Known bundle-service /ping should match bundle project");
+        InvokeIsMatch(extService, endpoint, otherProject).Should().BeFalse("Known bundle-service /ping must NOT match other project");
+    }
+
+    [Test]
     public void IsMatch_ValidServiceCall_MatchesEndpoint()
     {
         var extService = new ExternalServiceNode(

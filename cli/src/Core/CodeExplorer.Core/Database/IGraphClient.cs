@@ -1,4 +1,5 @@
 using CodeExplorer.Core.Common;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Cypher.Ast;
 using CodeExplorer.Cypher.Linq;
@@ -37,7 +38,7 @@ public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
         CancellationToken cancellationToken = default) =>
         Task.FromResult(new Dictionary<string, List<string>>());
 
-    Task<(List<EndpointNode> Endpoints, List<EntryPointNode> EntryPoints, List<ExternalServiceNode> ExternalServices)> LoadLateBindingCandidatesAsync(
+    Task<(List<EndpointNode> Endpoints, List<EntryPointNode> EntryPoints, List<ExternalServiceNode> ExternalServices, List<ProjectNode> Projects)> LoadLateBindingCandidatesAsync(
         string workspaceId,
         bool needEndpoints,
         bool needExternalServices,
@@ -45,7 +46,8 @@ public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
         Task.FromResult((
             new List<EndpointNode>(),
             new List<EntryPointNode>(),
-            new List<ExternalServiceNode>()
+            new List<ExternalServiceNode>(),
+            new List<ProjectNode>()
         ));
 
     Task<List<ProjectSignature>> LoadProjectSignaturesAsync(

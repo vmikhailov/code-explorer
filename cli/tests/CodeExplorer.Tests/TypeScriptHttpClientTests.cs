@@ -191,4 +191,26 @@ export async function curlUrllibProducts() {
         var refs = FindAllReferences(ws.FileNode);
         refs.Should().Contain(r => r.TargetName == "api.urllib.com" && r.Kind == "CALLS");
     }
+
+    [Test]
+    public async Task Test_AngularHttpClient_ServiceHealthGuard_InterpolatedUrl_CreatesUnknownServiceWithPing()
+    {
+        var code = """
+import { HttpClient } from '@angular/common/http';
+import { inject } from '@angular/core';
+
+export function serviceHealthGuard(requiredServices: string[]) {
+    const http = inject(HttpClient);
+    return requiredServices.map(serviceUrl => http.head(`${serviceUrl}/ping`));
+}
+""";
+
+        using var ws = await TestWorkspace.CreateAsync(code);
+
+        var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
+        extServices.Should().HaveCount(1);
+        var svc = extServices.First();
+        svc.DomainOrService.Should().Be("unknown-service");
+        svc.Path.Should().Be("/ping");
+    }
 }
