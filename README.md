@@ -8,9 +8,9 @@
 [![Open VSX](https://img.shields.io/open-vsx/v/vmikhailov/code-explorer-vscode?label=Open%20VSX)](https://open-vsx.org/extension/vmikhailov/code-explorer-vscode)
 [![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero%20Containers-success.svg)](https://github.com/vmikhailov/code-explorer)
 
-**A portable codebase intelligence tool that compiles polyglot code, endpoints, message queues, and databases into a unified dependency graph.**
+**Architecture Intelligence for AI Agents & Engineers**
 
-CodeExplorer combines **interactive architecture visualization in VS Code**, a fast **CLI with OpenCypher queries**, and **Semantic Invariant Gates (SIG)** to prevent architectural drift and ratchet technical debt directly in CI. A built-in **Model Context Protocol (MCP)** server supplies this exact structural ground truth directly to AI coding agents.
+CodeExplorer compiles polyglot codebases, HTTP endpoints, message queues, and databases into a unified, queryable dependency graph. It supplies structural ground truth to AI coding agents via a native Model Context Protocol (MCP) server, enforces architectural rules in CI with Semantic Invariant Gates (SIG), and renders interactive visual architecture projections directly inside VS Code.
 
 ---
 
@@ -22,79 +22,115 @@ CodeExplorer combines **interactive architecture visualization in VS Code**, a f
 </p>
 
 <p align="center">
-  <a href="#what-makes-codeexplorer-unique"><b>Why CodeExplorer</b></a> •
-  <a href="#interactive-visual-architecture-vs-code"><b>Visual Studio</b></a> •
-  <a href="#semantic-invariant-gates-sig"><b>Architectural Gates (SIG)</b></a> •
-  <a href="#key-features"><b>Key Features</b></a> •
+  <a href="#1-ground-truth-for-ai-coding-agents-mcp-server"><b>AI Ground Truth (MCP)</b></a> •
+  <a href="#2-semantic-invariant-gates-sig"><b>Architectural Gates (SIG)</b></a> •
+  <a href="#3-interactive-visual-architecture-vs-code"><b>Visual Studio Cockpit</b></a> •
   <a href="#automated-diagram-generation"><b>Diagrams</b></a> •
+  <a href="#key-features"><b>Key Features</b></a> •
   <a href="#quick-installation"><b>Installation</b></a> •
   <a href="#quick-start-workflow"><b>Quick Start</b></a> •
   <a href="#cli-command-reference"><b>CLI Reference</b></a> •
-  <a href="#model-context-protocol-mcp-setup"><b>MCP Setup</b></a>
+  <a href="#mcp-tools-reference"><b>MCP Tools</b></a>
 </p>
 
 ---
 
-## What CodeExplorer does?
+## Architecture Intelligence Hierarchy
 
-*   **Interactive Visual Architecture**: Built directly into VS Code. Explore microservice topologies across 5 concentric architectural orbits, swimlanes, bounded context islands, hive plots, and C1/C2 project flow diagrams.
-*   **Semantic Invariant Gates (SIG)**: Prevent architectural drift and ratchet technical debt directly in CI using OpenCypher queries against the codebase graph. Enforce layer boundaries, dependency rules, and code hygiene with clickable 2D IDE line navigation.
-*   **Interactive Orbit Customization**: Drag-and-drop reordering of orbit rings directly inside the legend. Adjust bezier curve routing factors (-200 to +200) to suit your layout.
-*   **Directional Transitive Contraction**: Automatically synthesizes clean, dashed transitive links when intermediate brokers (Kafka, RabbitMQ, SQS) are hidden or filtered, preserving architectural fidelity without visual noise.
-*   **Model Context Protocol (MCP)**: Standard MCP server giving AI agents access to architectural maps, call chains, downstream blast-radius analysis, and arbitrary Cypher queries without using excessive context tokens on raw file searches.
-*   **Embedded SQLite Graph with Cypher**: High-performance embedded graph engine with a native Cypher-to-SQL compiler. No external graph databases are required.
-*   **Local Architectural Intent Inference**: Automatically enriches graph nodes with business domains, architectural patterns, and capability tags using an embedded GGUF model (`llama.cpp` with Vulkan GPU acceleration and SHA-256 caching).
-*   **Polyglot Support**: Bridges C#, Java, TypeScript, JavaScript, Go, Python, ColdFusion, and SQL into a single unified semantic graph.
+CodeExplorer addresses codebase complexity through a deterministic 3-tier architecture:
+
+1. **Deterministic Ground Truth for AI Coding Agents**: Solves context bloat and architectural hallucination. AI agents query an embedded OpenCypher graph via MCP to obtain call graphs, entry points, and blast radiuses instead of blindly scanning raw text.
+2. **Semantic Invariant Gates (SIG in CI/CD)**: Solves architectural drift and erosion. Executable OpenCypher invariants act as CI ratchets to lock in layer boundaries, API contracts, and structural rules with clickable 2D terminal navigation.
+3. **Interactive Visual Cockpit (VS Code Extension)**: The human counterpart to the agent graph. Visualizes concentric orbits, synthesizes transitive broker flows, and allows click-to-code navigation across distributed architectures.
 
 ---
 
-## Interactive Visual Architecture (VS Code)
+## 1. Ground Truth for AI Coding Agents (MCP Server)
 
-CodeExplorer provides an interactive visual architecture view inside VS Code (`Code Graph`). Designed for high-density architectures, it clarifies distributed systems and monoliths:
+AI coding assistants (Claude Code, Cursor, Copilot, Hermes, Antigravity) struggle in large polyglot systems because flat file search (`grep`, ripgrep) cannot trace cross-service RPC calls, interface implementations, or message broker topologies. Feeding entire repositories into context windows wastes tokens and leads to architectural hallucinations.
 
-### 1. Focused Neighborhood & Transitive Contraction
+CodeExplorer acts as a local architectural memory and structural ground truth engine:
+* **Zero-Token Hallucination Protection**: Agents query exact semantic entities (controllers, database tables, message topics, call chains) via standard MCP tools.
+* **Precise Blast Radius Analysis**: Before modifying code, agents run `analyze_code_impact` or `inspect_data_lineage` to compute all downstream files and callers affected.
+* **Low-Token Outlines**: Agents inspect file structure via `get_file_outline` without consuming token budget on full file contents.
+* **Arbitrary OpenCypher Queries**: Agents execute complex structural queries via `execute_custom_read_cypher` to answer questions no linear search can solve.
 
-<p align="center">
-  <img src="docs/selected_services.png" alt="Focused Service Sub-Graph & Orbit Customization" width="100%" />
-</p>
-<p align="center">
-  <em>Figure 2: Focused sub-graph inspection with live HUD metrics, orbit reordering, edge curvature sliders, and dashed transitive links resolving broker-mediated message flows.</em>
-</p>
+### MCP Configuration
 
-*   **Smart Transitive Contraction**: When intermediate message topics or broker nodes are toggled off in the HUD, CodeExplorer detects that Service A publishes to Topic X and Service B subscribes to Topic X, automatically synthesizing a direct **`[SUBSCRIBES (via Topic X)]`** transitive dashed connection.
-*   **Custom Orbit Legend Controls**: Reorder orbital tiers by dragging legend badges, allowing you to highlight edge gateways, flip database tiers, or group domain boundaries.
-*   **Edge Curvature Tuning**: Interactive bezier curvature factor slider (-200 to +200) with automatic collision avoidance for cross-orbit calls.
-*   **Live HUD Filter**: Multi-criteria filtering by node category (Gateways, Services, Topics, Databases, External APIs), search query, and neighborhood depth.
+#### Cursor
+Add to `~/.cursor/mcp.json` or Cursor Settings -> MCP:
+```json
+{
+  "mcpServers": {
+    "code-explorer": {
+      "command": "ce",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+#### Claude Desktop
+Add to `claude_desktop_config.json`:
+```json
+{
+  "mcpServers": {
+    "code-explorer": {
+      "command": "ce",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+#### VS Code (Roo Code / Continue / Cline)
+Configure the tool executable as `ce` with arguments `["mcp"]`.
+
+#### HTTP / Remote Mode
+```bash
+ce mcp --port 8085   # Exposes standard MCP endpoint at http://localhost:8085/mcp with SSE streaming
+```
+
+### AI Agent Rules (`.cursorrules` / `CLAUDE.md` / `AGENTS.md`)
+
+Add the following instructions to your project agent rules file to ensure agents use CodeExplorer:
+
+```markdown
+# Architecture Intelligence via CodeExplorer (`ce`)
+
+This repository uses CodeExplorer (`ce`) as an embedded SQLite knowledge graph and MCP server.
+
+## Mandatory MCP Tool Usage Rules:
+
+1. Architecture Discovery (Start of Task):
+   - DO NOT run blind file searches or recursive grep to understand architecture.
+   - Call `get_architecture_map` to obtain projects, dependencies, database nodes, Ingress, and Egress.
+   - Call `get_project_entry_points` to discover HTTP endpoints, routes, CLI commands, and message listeners.
+
+2. Symbol & File Inspection (Low-Token Context):
+   - DO NOT read large files into context to check declarations.
+   - Call `get_file_outline` with `filePath` to inspect classes, methods, and line numbers.
+   - Call `find_symbol` to locate symbol definitions and signatures.
+   - Call `resolve_call_target` to locate concrete implementations of an interface method.
+
+3. Refactoring & Blast Radius Analysis:
+   - Before modifying or deleting a symbol, call `analyze_code_impact` to identify all downstream callers.
+   - Before altering database schema or queries, call `inspect_data_lineage` with `tableName`.
+   - Call `find_refactoring_opportunities` to detect dead code or tightly coupled objects.
+
+4. Multi-Hop Graph Queries:
+   - Use `execute_custom_read_cypher` to execute read-only Cypher queries for complex structural dependencies.
+```
 
 ---
 
-### 2. Project Flow & C1 System Context
+## 2. Semantic Invariant Gates (SIG)
 
-<p align="center">
-  <img src="docs/project_flow.png" alt="CodeExplorer Project Flow & Service Cards" width="100%" />
-</p>
-<p align="center">
-  <em>Figure 3: Project Flow view showing structured service cards, inbound/outbound connection counts, database dependencies, framework tags, and Click-to-Code navigation.</em>
-</p>
+Linters check syntax inside individual files; they cannot verify cross-project layer boundaries, detect illegal transport calls, or prevent architectural erosion. **Semantic Invariant Gates (SIG)** elevate architectural rules into executable, automated gates running **OpenCypher graph queries** directly against the codebase graph.
 
-*   **Interactive Service Cards**: Each project node displays incoming callers, outgoing dependencies, registered databases, and framework metadata.
-*   **Click-to-Code Jump**: Double-click any node or click "Jump to Code" in the inspector drawer to navigate immediately to the exact declaration line in your workspace.
-*   **Multi-Projection Layouts**:
-    *   **Concentric Orbits**: Equispaced, Polar Force, and Domain Sectors.
-    *   **Architectural Swimlanes**: Horizontal echelons (Ingress → Core → Data).
-    *   **Bounded Context Islands**: Organic clusters based on inferred Domain-Driven Design (DDD) boundaries.
-    *   **Hive Plots & Dependency Matrices**: Structural coupling metrics.
-    *   **COSE Force**: Physics-based graph layout.
+### 1. Fractal Orthogonal Invariant Matrix (FOIM)
 
----
-
-## Semantic Invariant Gates (SIG)
-
-Traditional linters check syntax inside a single file; they cannot enforce cross-project layer boundaries, detect illegal transport calls, or prevent architectural erosion across teams. **Semantic Invariant Gates (SIG)** elevate architectural rules into executable, automated gates running **OpenCypher graph queries** directly against the unified codebase graph.
-
-### 1. The Fractal Orthogonal Invariant Matrix (FOIM)
-
-Every architectural rule occupies a precise coordinate in the **FOIM space**, crossing an architectural **Scope** with a structural **Dimension**:
+Every architectural rule occupies a coordinate in the FOIM space, crossing an architectural **Scope** with a structural **Dimension**:
 
 | Code | Scope | Granularity | Example Entities Enforced |
 | :--- | :--- | :--- | :--- |
@@ -111,21 +147,19 @@ Every architectural rule occupies a precise coordinate in the **FOIM space**, cr
 | **R** | **Resources** | Resource & complexity control | Are methods within length/complexity limits? |
 | **B** | **Boundaries** | Scope boundaries, encapsulation, layer isolation | Who may talk to whom? (e.g. No direct DB calls from UI) |
 
-**Identifier Convention**: `SIG-<Scope>-<Dimension>-<Index3Digits>`  
-*   `SIG-P-B-001`: Module Scope $\times$ Boundaries (Layer hierarchy: Domain cannot reference Infrastructure)
-*   `SIG-M-I-001`: Method Scope $\times$ Rules (No hardcoded API endpoints or magic strings)
-*   `SIG-M-R-001`: Method Scope $\times$ Resources (Method length ceiling: $\le$ 500 lines of code)
-*   `SIG-C-I-001`: Class Scope $\times$ Rules (In-memory AST visitor purity: no direct disk I/O)
-
----
+**Identifier Convention**: `SIG-<Scope>-<Dimension>-<Index3Digits>`
+* `SIG-P-B-001`: Module Scope x Boundaries (Domain cannot reference Infrastructure)
+* `SIG-M-I-001`: Method Scope x Rules (No hardcoded API endpoints or magic strings)
+* `SIG-M-R-001`: Method Scope x Resources (Method length ceiling: <= 500 lines of code)
+* `SIG-C-I-001`: Class Scope x Rules (In-memory AST visitor purity: no direct disk I/O)
 
 ### 2. The Zero-Match Contract & Clickable 2D Navigation
 
-Gates operate on a simple and predictable **Zero-Match Contract**:
-*   **0 rows returned** $\implies$ **PASS** (Invariant holds across the entire codebase).
-*   **$\ge 1$ rows returned** $\implies$ **FAIL / VIOLATION** (Each matching row is an architectural violation).
+Gates operate on a strict **Zero-Match Contract**:
+* **0 rows returned**: **PASS** (Invariant holds across the entire codebase).
+* **>= 1 rows returned**: **FAIL** (Each matching row is an architectural violation).
 
-Violations emit standardized 2D coordinates (`file:line:column`), enabling instant, one-click navigation directly to the offending source code line in VS Code, Cursor, and terminal emulators:
+Violations emit standardized 2D coordinates (`file:line:column`) for instant navigation in VS Code, Cursor, and terminal emulators:
 
 ```text
 FAIL: SIG-P-B-001 [Project Layer Boundary: Core cannot depend on Infrastructure]
@@ -133,18 +167,12 @@ FAIL: SIG-P-B-001 [Project Layer Boundary: Core cannot depend on Infrastructure]
     Violation: Domain Core module directly references Infrastructure driver.
 ```
 
----
-
 ### 3. Ratchet Baselines: Zero-Drift CI for Legacy Codebases
 
-The biggest challenge with architectural rules on real-world projects is the wall of existing technical debt. Blocking PRs on hundreds of historical violations causes friction, while ignoring them leads to further architectural decay.
-
-CodeExplorer solves this via **Ratchet Baselines** (`.codeexplorer/baselines/*.json`):
-1. **Freeze Existing Debt**: Capture historical violations into a baseline snapshot with SHA-256 fingerprinting. Existing violations are marked as *tolerated debt*.
-2. **Block New Regressions**: CI evaluates `ce gate check` and **strictly fails only if new violations appear**.
-3. **Lock In Improvements (The Ratchet)**: As developers refactor legacy code, run `ce gate ratchet --update`. The baseline threshold automatically decrements and permanently locks in the progress. Technical debt can only decrease, never increase.
-
----
+To adopt architectural governance on existing codebases without breaking current builds, CodeExplorer uses **Ratchet Baselines** (`.codeexplorer/baselines/*.json`):
+1. **Freeze Existing Debt**: Capture historical violations into a baseline snapshot with SHA-256 fingerprinting. Existing violations become *tolerated debt*.
+2. **Block New Regressions**: `ce gate check` fails strictly if *new* un-baselined violations appear.
+3. **Lock In Improvements (The Ratchet)**: As developers refactor legacy code, run `ce gate ratchet --update`. The baseline threshold decrements and locks in progress. Technical debt can only decrease, never increase.
 
 ### 4. Declarative YAML Gate Manifests
 
@@ -171,29 +199,10 @@ query: |
     "Core domain project '" + source.name + "' cannot depend on infrastructure '" + target.name + "'" AS message
 ```
 
----
+### 5. CI Integration Example
 
-### 5. CLI Usage & CI Integration
-
-```bash
-# Evaluate all architectural gates (passes if no new un-baselined violations)
-ce gate check
-
-# Evaluate a specific gate
-ce gate check -g SIG-P-B-001
-
-# List all registered gates with scopes, dimensions, and baseline status
-ce gate list
-
-# Inspect all violations grouped by file
-ce gate violations --group-by file
-
-# Lock in technical debt improvements after refactoring
-ce gate ratchet --update
-```
-
-**GitHub Actions CI Step**:
 ```yaml
+# GitHub Actions Step
 - name: Evaluate Architectural Invariant Gates
   run: |
     ce scan
@@ -202,15 +211,52 @@ ce gate ratchet --update
 
 ---
 
+## 3. Interactive Visual Architecture (VS Code)
+
+CodeExplorer includes an interactive visual cockpit inside VS Code (`Code Graph`). Designed for high-density architectures, it provides visual insight into distributed microservices and modular monoliths:
+
+### 1. Focused Neighborhood & Transitive Contraction
+
+<p align="center">
+  <img src="docs/selected_services.png" alt="Focused Service Sub-Graph & Orbit Customization" width="100%" />
+</p>
+<p align="center">
+  <em>Figure 2: Focused sub-graph inspection with live HUD metrics, orbit reordering, edge curvature sliders, and dashed transitive links resolving broker-mediated message flows.</em>
+</p>
+
+* **Smart Transitive Contraction**: When intermediate message topics or broker nodes are toggled off in the HUD, CodeExplorer detects that Service A publishes to Topic X and Service B subscribes to Topic X, automatically synthesizing a direct `[SUBSCRIBES (via Topic X)]` dashed connection.
+* **Custom Orbit Legend Controls**: Reorder orbital tiers by dragging legend badges to highlight edge gateways, flip database tiers, or group domain boundaries.
+* **Edge Curvature Tuning**: Interactive bezier curvature factor slider (-200 to +200) with automatic collision avoidance for cross-orbit calls.
+* **Live HUD Filter**: Multi-criteria filtering by node category (Gateways, Services, Topics, Databases, External APIs), search query, and neighborhood depth.
+
+### 2. Project Flow & C1 System Context
+
+<p align="center">
+  <img src="docs/project_flow.png" alt="CodeExplorer Project Flow & Service Cards" width="100%" />
+</p>
+<p align="center">
+  <em>Figure 3: Project Flow view showing structured service cards, inbound/outbound connection counts, database dependencies, framework tags, and Click-to-Code navigation.</em>
+</p>
+
+* **Interactive Service Cards**: Each project node displays incoming callers, outgoing dependencies, registered databases, and framework metadata.
+* **Click-to-Code Jump**: Double-click any node or click "Jump to Code" in the inspector drawer to navigate immediately to the exact declaration line in your workspace.
+* **Multi-Projection Layouts**:
+  * Concentric Orbits (Equispaced, Polar Force, Domain Sectors)
+  * Architectural Swimlanes (Horizontal echelons: Ingress -> Core -> Data)
+  * Bounded Context Islands (Clusters based on inferred Domain-Driven Design boundaries)
+  * Hive Plots & Dependency Matrices
+  * COSE Physics Force Layout
+
+---
+
 ## Automated Diagram Generation
 
-CodeExplorer can export visual representations of the graph database directly into Mermaid or C4 syntax via the CLI or MCP.
+Export visual representations directly from the graph database into Mermaid or C4 syntax via CLI or MCP:
 
-*   **System Architecture**: High-level C1/C2 project flow and microservice topology diagrams.
-*   **Data Lineage**: Maps ORM entities directly to their underlying database tables.
-*   **Event Pipelines**: Visualizes CQRS patterns and event-driven flows (Producers → Topics → Consumers).
+* **System Architecture**: High-level C1/C2 project flow and microservice topology diagrams.
+* **Data Lineage**: Maps ORM entities directly to their underlying database tables.
+* **Event Pipelines**: Visualizes CQRS patterns and event-driven flows (Producers -> Topics -> Consumers).
 
-Example exports:
 ```bash
 # Export system architecture
 ce export --format mermaid -o architecture.mmd
@@ -220,79 +266,39 @@ ce export --format c4 -o c4_containers.mmd
 
 # Export ORM data lineage
 ce export --type lineage -o data_lineage.mmd
+
+# Export CQRS & event pipelines
+ce export --type cqrs -o event_pipeline.mmd
 ```
 
 ---
 
 ## Key Features
 
-*   **Zero-Dependency Single-File Executable**: Distributed as a self-contained binary (`ce.exe` / `ce`) for Windows, Linux, and macOS. No runtime or SDK installation required.
-*   **Local `.codeexplorer` Workspace Auto-Discovery**: Initialized once per repository with `ce init`. Automatically discovered by walking up the directory tree.
-*   **Embedded SQLite Graph with Cypher**: Uses a high-performance embedded SQLite database compiled with custom graph indices and an optimized AST-to-SQL Cypher compiler.
-*   **Multi-Language AST Parsing**: Full AST-level parsing powered by **Tree-sitter** and Microsoft SQL **ScriptDom**:
-    *   **C#** (`.cs`)
-    *   **Java** (`.java`, Maven `pom.xml`, Gradle `build.gradle` / `build.gradle.kts`)
-    *   **TypeScript / JavaScript** (`.ts`, `.tsx`, `.js`, `.jsx`)
-    *   **Go** (`.go`)
-    *   **Python** (`.py`)
-    *   **ColdFusion** (`.cfc`, `.cfm`)
-    *   **SQL & Embedded SQL** (`.sql` scripts, and inline SQL queries in C#, Java, JS, TS, Python, Go)
-*   **Rich Structural Ontology**: Maps codebases across a 5-layer decoupled graph architecture (see [Ontology Model](docs/architecture/ontology-model.md) and [Live Schema Reference](docs/ontology.md)):
-    *   *Physical Layer (Layer 1)*: Workspace, projects (`.csproj`, `pom.xml`, `build.gradle`, `go.mod`, `package.json`), folders, files, configuration files (`appsettings.json`, `.env`), and git topology.
-    *   *Project Layer (Layer 2)*: Logical compilation units, project boundaries, and package dependencies.
-    *   *Syntactic Layer (Layer 3)*: Classes, interfaces, methods, functions, structs, fields, and calls.
-    *   *Semantic Layer (Layer 4)*: Ingress endpoints (REST, gRPC, GraphQL, WebSocket) with security boundaries, Egress callers, Code-First ORM entities mapped to `:Table` nodes, and message queues.
-    *   *Late-Bound Layer (Layer 5)*: Cross-project call chains, interface implementations, service-to-service links, and CQRS / Event pipelines (MediatR, Spring Events, NestJS CQRS).
-*   **Local Architectural Inference**:
-    *   Automatically infers high-level architectural semantics (business domain, layer, pattern, capability tag, intent summary, target entities, emitted events) using an embedded GGUF model via native `llama.cpp` (with Vulkan GPU acceleration & CPU fallback).
-    *   File contents are SHA-256 fingerprinted and cached in SQLite. Subsequent scans fast-apply cached intents in <50ms.
-*   **Built-in & Custom Query Catalog**:
-    *   **22 Built-in Queries**: Architecture maps, entry points, dependencies, CQRS pipelines, refactoring, and symbol lookup.
-    *   **Extensible Domain Queries**: Save custom queries in `.codeexplorer/queries/*.cypher` with `.json` metadata sidecars, automatically available to CLI and AI agents.
-*   **Model Context Protocol (MCP) Server**:
-    *   **stdio mode**: Seamless integration with Cursor, Claude Desktop, VS Code, Windsurf, and Antigravity.
-    *   **HTTP mode** (`--port <p>`): Exposes standard MCP endpoint at `/mcp` with SSE streaming.
-
----
-
-## Architecture: Two-Pass Semantic Pipeline
-
-CodeExplorer uses a decoupled two-pass pipeline to ingest and analyze codebases safely, isolating AST parsing from database mapping and resolution.
-
-```mermaid
-graph TD
-    A[Source File] -->|Parse AST| B[Tree-sitter Root Node]
-    B -->|Pass 1: AST Visitors| C[In-Memory SyntacticSymbol Tree]
-    C -->|Pass 2: Map to Ontology| D[FileNode, ClassNode, FunctionNode...]
-    D -->|Post-Index Analyzer| E[Embedded SQLite Graph]
-    E -->|Late Binding Resolution| F[Semantic Graph with CALLS & IMPLEMENTS]
-```
-
-### 1. Pass 1: Pure Syntactic AST Visitors
-AST parsing is performed in isolation. Language-specific visitor classes (e.g., `CSharpFileVisitor`) inherit from `BaseParserVisitor`.
-*   **In-Memory Isolation**: Visitors have no access to database classes, file system IO, or ontology nodes. They process the syntax tree entirely in memory.
-*   **Node Extensions**: Employs safety-first helper extension methods to query Tree-sitter nodes safely, handle nullable nodes, extract named field text, and resolve function targets cleanly.
-*   **Syntactic Symbol Output**: Visitors output a pure in-memory `SyntacticSymbol` tree describing the hierarchical structure of declarations and references found in the AST.
-
-### 2. Pass 2: Ontology Mapping & Resolution
-Once the syntactic structure is captured:
-*   **Ontology Mapping**: The parser maps `SyntacticSymbol` trees into concrete database ontology models (`FileNode`, `ClassNode`, `EntryPointNode`, `QueryNode`, etc.).
-*   **Late-Bound Resolution**: A post-index analysis pass executes Cypher queries to link cross-file, late-bound dependencies (e.g., connecting a frontend HTTP call to its backend controller endpoint, or resolving interface implementations).
-
----
-
-## Tech Stack & Requirements
-
-*   **Runtime**: [.NET 10.0 SDK](https://dotnet.microsoft.com/download)
-*   **Database**: **Embedded SQLite** (zero external services or containers required)
-*   **AST Parser**: Tree-Sitter & Microsoft T-SQL ScriptDom
-*   **Deployment**: Standalone executable / .NET tool
+* **Zero-Dependency Single-File Executable**: Distributed as a self-contained binary (`ce.exe` / `ce`) for Windows, Linux, and macOS. No external runtime, database, or container required.
+* **Embedded SQLite Graph with Cypher**: High-performance embedded SQLite database compiled with custom graph indices and an optimized AST-to-SQL Cypher compiler.
+* **Multi-Language AST Parsing**: Full AST-level parsing powered by Tree-sitter and Microsoft SQL ScriptDom:
+  * C# (`.cs`)
+  * Java (`.java`, Maven `pom.xml`, Gradle `build.gradle` / `build.gradle.kts`)
+  * TypeScript / JavaScript (`.ts`, `.tsx`, `.js`, `.jsx`)
+  * Go (`.go`)
+  * Python (`.py`)
+  * ColdFusion (`.cfc`, `.cfm`)
+  * SQL & Embedded SQL (`.sql` scripts, and inline SQL queries in C#, Java, JS, TS, Python, Go)
+* **5-Layer Structural Ontology**: Maps codebases across a decoupled graph architecture:
+  * *Physical Layer (Layer 1)*: Workspace, projects (`.csproj`, `pom.xml`, `go.mod`, `package.json`), folders, files, configuration files, git topology.
+  * *Project Layer (Layer 2)*: Logical compilation units, project boundaries, package dependencies.
+  * *Syntactic Layer (Layer 3)*: Classes, interfaces, methods, functions, structs, fields, calls.
+  * *Semantic Layer (Layer 4)*: Ingress endpoints (REST, gRPC, GraphQL, WebSocket) with security boundaries, Egress callers, Code-First ORM entities mapped to `:Table` nodes, message queues.
+  * *Late-Bound Layer (Layer 5)*: Cross-project call chains, interface implementations, service-to-service links, CQRS event pipelines.
+* **Local Architectural Intent Inference**: Automatically infers business domains, architectural patterns, and capability tags using an embedded GGUF model via native `llama.cpp` (Vulkan GPU acceleration & CPU fallback). File contents are SHA-256 fingerprinted and cached; subsequent scans apply intents in <50ms.
+* **Built-in & Custom Query Catalog**: 22 built-in queries covering architecture maps, entry points, dependencies, CQRS pipelines, refactoring, and symbol lookup. Extensible via `.codeexplorer/queries/*.cypher`.
 
 ---
 
 ## Quick Installation
 
-CodeExplorer is available as both an **Interactive VS Code Extension** and a **zero-dependency, single-file self-contained CLI/MCP binary** with embedded Tree-sitter parsers and SQLite engine. No external database or runtime installation is required.
+CodeExplorer is available as a **VS Code Extension** and as a **single-file self-contained CLI/MCP binary** with embedded Tree-sitter parsers and SQLite engine.
 
 ### 1. Homebrew (macOS & Linux)
 
@@ -300,120 +306,84 @@ CodeExplorer is available as both an **Interactive VS Code Extension** and a **z
 brew install vmikhailov/tap/ce
 ```
 
----
+### 2. VS Code Extension
 
-### 2. VS Code Extension (Recommended for Visual Exploration)
-
-Install directly from the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode) or [Open VSX](https://open-vsx.org/extension/vmikhailov/code-explorer-vscode):
+Install from the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode) or [Open VSX](https://open-vsx.org/extension/vmikhailov/code-explorer-vscode):
 
 ```bash
-# Install via VS Code CLI:
 code --install-extension vmikhailov.code-explorer-vscode
 ```
 
 *Or install from VSIX:*
 1. Download `code-explorer-*.vsix` from [GitHub Releases](https://github.com/vmikhailov/code-explorer/releases/latest).
-2. Open the Extensions view (`Ctrl+Shift+X` / `Cmd+Shift+X`).
-3. Click the **`...`** (Views and More Actions) menu in the top-right corner of the Extensions pane.
-4. Select **Install from VSIX...** and choose the downloaded file.
+2. Extensions view (`Ctrl+Shift+X` / `Cmd+Shift+X`) -> `...` -> **Install from VSIX...**
+3. Open any workspace and click **`Code Graph`** in the status bar or run `CodeExplorer: Show Architecture Graph` from the Command Palette (`Ctrl+Shift+P`). Native binaries for Windows, macOS, and Linux are automatically bundled.
 
-4. Open any project workspace and click the **`Code Graph`** button in the status bar or run `CodeExplorer: Show Architecture Graph` from the Command Palette (`Ctrl+Shift+P`).
-5. The extension automatically bundles pre-compiled native `ce` binaries for Windows (x64/ARM64), macOS (Apple Silicon/Intel), and Linux (x64/ARM64).
-
----
-
-### 3. One-Line CLI Install (Alternative)
+### 3. One-Line Script Install
 
 **macOS & Linux (Bash / Zsh):**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vmikhailov/code-explorer/main/cli/scripts/install.sh | bash
 ```
 
-**Windows (PowerShell as Administrator or User):**
+**Windows (PowerShell):**
 ```powershell
 irm https://raw.githubusercontent.com/vmikhailov/code-explorer/main/cli/scripts/install.ps1 | iex
 ```
 
----
-
 ### 4. .NET Global Tool
 
-If you have [.NET SDK](https://dotnet.microsoft.com/download) installed:
-
 ```bash
-# Install globally
 dotnet tool install -g CodeExplorer.Cli
-
-# Update to latest version
 dotnet tool update -g CodeExplorer.Cli
 ```
 
----
+### 5. Manual Binary Download
 
-### 5. Manual Download
-
-Download the pre-compiled binary for your platform from [GitHub Releases](https://github.com/vmikhailov/code-explorer/releases/latest):
+Download pre-compiled binaries from [GitHub Releases](https://github.com/vmikhailov/code-explorer/releases/latest):
 
 | Platform | Architecture | Binary Asset |
 | :--- | :--- | :--- |
-| **macOS** | Apple Silicon (M1/M2/M3/M4) | `ce-osx-arm64.tar.gz` |
+| **macOS** | Apple Silicon (ARM64) | `ce-osx-arm64.tar.gz` |
 | **macOS** | Intel x64 | `ce-osx-x64.tar.gz` |
 | **Linux** | x86_64 | `ce-linux-x64.tar.gz` |
 | **Linux** | ARM64 | `ce-linux-arm64.tar.gz` |
 | **Windows** | x86_64 | `ce-win-x64.zip` |
 
----
-
-### 5. Build from Source
-
-If you have [.NET 10.0 SDK](https://dotnet.microsoft.com/download) installed:
+### 6. Build from Source
 
 ```bash
-# 1. Build and run all unit tests
+# Requires .NET 10.0 SDK
 ./cli/scripts/build.sh
-
-# 2. Publish single-file binary for your current machine
 ./cli/scripts/publish.sh
-
-# Or publish for all supported platforms
-./cli/scripts/publish.sh all
 ```
-
-Targets produced in `.Build/bin/`:
-*   **Windows x64**: `.Build/bin/win-x64/ce.exe`
-*   **Linux x64 / ARM64**: `.Build/bin/linux-x64/ce`, `.Build/bin/linux-arm64/ce`
-*   **macOS (ARM64 / x64)**: `.Build/bin/osx-arm64/ce`, `.Build/bin/osx-x64/ce`
-
-Add `ce` (or `ce.exe`) to your system `PATH` to use it from anywhere.
 
 ---
 
 ## Quick Start Workflow
 
-Run `ce` in your terminal to see the interactive status and workspace overview:
-
 ```bash
-# 1. Initialize a .codeexplorer workspace in your repository root
+# 1. Initialize a .codeexplorer workspace
 ce init MyProject
 
-# 2. Scan and index code topology, AST, dependencies, and semantic graph
+# 2. Scan and index code topology, ASTs, and dependencies
 ce scan
 
-# 3. (Optional) Download local LLM model and enrich graph with architectural intents
+# 3. (Optional) Download local model and enrich graph with architectural intents
 ce model download
 ce intent
 
-# 4. View workspace health, indexed projects, node kinds, and statistics
+# 4. View workspace health and statistics
 ce status
 
-# 5. List all built-in and workspace-custom Cypher queries
+# 5. List available Cypher queries
 ce queries
 
-# 6. Execute a query by name or run ad-hoc Cypher
+# 6. Execute built-in or ad-hoc Cypher query
 ce query -n get_architecture_map_workspace
 ce query "MATCH (p:Project) RETURN p.name, p.project_type"
 
-# 7. Start the MCP server for AI coding assistants
+# 7. Start MCP server for AI coding assistants
 ce mcp
 ```
 
@@ -429,23 +399,23 @@ ce init MyProject -d /path/to/repo
 ```
 
 ### `ce scan [path]` *(alias: `ce index`)*
-Scans source files, parses ASTs (Tree-sitter & ScriptDom), builds structural relationships, and resolves semantic boundaries. Fast-applies already cached architectural intents automatically in <50ms without invoking the LLM.
+Scans source files, parses ASTs (Tree-sitter & ScriptDom), builds structural relationships, and resolves semantic boundaries. Fast-applies cached architectural intents in <50ms without invoking the LLM.
 ```bash
-ce scan                     # Index workspace (fast-applies cached intents automatically)
-ce scan ./src/AuthService   # Index a specific project subfolder
-ce scan --clear             # Clear graph topology before re-indexing (preserves intent cache)
-ce scan --intent            # Run LLM architectural intent distillation during indexing pass
+ce scan                     # Index workspace
+ce scan ./src/AuthService   # Index specific subfolder
+ce scan --clear             # Clear graph topology before re-indexing
+ce scan --intent            # Run LLM architectural intent distillation during indexing
 ```
 
 ### `ce status` *(alias: `ce info`)*
 Displays workspace statistics, database size, indexed projects by language, node counts, and available queries.
 ```bash
 ce status
-ce status --json            # Output structured JSON for automation
+ce status --json            # Output structured JSON
 ```
 
 ### `ce queries` *(alias: `ce query -l`)*
-Displays all available Cypher queries grouped into categories (`[Architecture]`, `[Refactoring]`, `[Symbols]`, `[Taxonomy]`) along with any custom workspace queries from `.codeexplorer/queries/`.
+Displays all available Cypher queries grouped by category (`[Architecture]`, `[Refactoring]`, `[Symbols]`, `[Taxonomy]`) along with custom workspace queries.
 ```bash
 ce queries
 ce queries --format json
@@ -454,50 +424,27 @@ ce queries --format json
 ### `ce query [options]`
 Executes a read-only Cypher query against the knowledge graph with formatted tabular or JSON output.
 ```bash
-# Execute named built-in or custom query
-ce query -n get_architecture_map_workspace -j      # View full structured JSON tree
+ce query -n get_architecture_map_workspace -j      # Structured JSON tree
 ce query -n get_project_dependencies_all
-
-# Inspect Cypher source code of any query
-ce query --show get_architecture_map_workspace
-
-# Execute raw Cypher string with formatted JSON output
+ce query --show get_architecture_map_workspace     # Inspect query source
 ce query "MATCH (t:Type {kind: 'interface'}) RETURN t.name" -j
-
-# Execute table view without column truncation
-ce query "MATCH (p:Project)-[:DEPENDS_ON]->(d) RETURN p.name, d.name" --no-truncate
-
-# Execute query from file
-ce query -f ./custom_audit.cypher
+ce query -f ./custom_audit.cypher                  # Run from file
 ```
 
 ### `ce gate [action] [options]`
-Evaluates Semantic Invariant Gates (SIG) against the graph using OpenCypher queries with ratchet baseline debt tracking.
+Evaluates Semantic Invariant Gates (SIG) against the graph using OpenCypher queries with ratchet baseline tracking.
 ```bash
-# Evaluate all gates (passes if no new un-baselined violations exist)
-ce gate check
-
-# Evaluate specific gate with markdown report
-ce gate check -g SIG-P-B-001 -f markdown
-
-# Filter by architectural category or platform
-ce gate check --category architectural
-ce gate check --platform dotnet
-
-# List all registered gates with their FOIM scope, dimension, and baseline status
-ce gate list
-
-# Inspect active violations with pagination and file grouping
-ce gate violations --group-by file
-ce gate violations --new           # Show only new un-baselined violations
-ce gate violations --tolerated     # Show only tolerated baseline debt
-
-# Ratchet baselines to lock in technical debt improvements after refactoring
-ce gate ratchet --update
+ce gate check                                      # Check all gates
+ce gate check -g SIG-P-B-001 -f markdown           # Check specific gate
+ce gate check --category architectural             # Filter by category
+ce gate list                                       # List all registered gates
+ce gate violations --group-by file                 # Inspect active violations
+ce gate violations --new                           # Show only un-baselined violations
+ce gate ratchet --update                           # Lock in debt improvements
 ```
 
 ### `ce mcp [options]`
-Starts the Model Context Protocol (MCP) server exposing CodeExplorer graph tools directly to AI assistants.
+Starts the Model Context Protocol (MCP) server.
 ```bash
 ce mcp                      # stdio mode (default for Cursor, Claude, Antigravity)
 ce mcp --port 8085          # HTTP mode with SSE endpoint at http://localhost:8085/mcp
@@ -506,17 +453,10 @@ ce mcp --port 8085          # HTTP mode with SSE endpoint at http://localhost:80
 ### `ce export [options]`
 Exports architecture and system topology diagrams directly from the knowledge graph in Mermaid or C4 syntax.
 ```bash
-# Export Mermaid system architecture diagram to terminal or file
 ce export --format mermaid
 ce export -f mermaid -o architecture.mmd
-
-# Export C4 Container diagram
 ce export --format c4 -o c4_containers.mmd
-
-# Export ORM Data Lineage diagram (Entities -> Tables)
 ce export --type lineage -o data_lineage.mmd
-
-# Export CQRS & Event Pipeline diagram (Producers -> Topics -> Consumers)
 ce export --type cqrs -o event_pipeline.mmd
 ```
 
@@ -528,98 +468,21 @@ ce clear -y                 # Reset entire graph database
 ```
 
 ### `ce intent [path]`
-Runs incremental architectural intent distillation using a local distilled GGUF model via embedded `llama.cpp` (Vulkan GPU accelerated with CPU fallback). Inferred intents (`domain`, `layer`, `pattern`, `capability_tag`, `intent_summary`, `target_entities`, `emitted_events`) are cached by SHA-256 and file timestamps in the SQLite `intents` table, materializing `:Domain` nodes and `:BELONGS_TO_DOMAIN` relationships.
+Runs incremental architectural intent distillation using a local GGUF model via embedded `llama.cpp` (Vulkan GPU accelerated with CPU fallback).
 ```bash
-ce intent                   # Distill intents for all candidate files in workspace
-ce intent --limit 20        # Distill intent for up to 20 candidate files
-ce intent --reset-errors    # Reset error counter for files that failed distillation
-ce intent --clear           # Clear cached intent records for this workspace
+ce intent                   # Distill intents for all candidate files
+ce intent --limit 20        # Distill up to 20 candidate files
+ce intent --reset-errors    # Reset error counter
+ce intent --clear           # Clear cached intent records
 ```
 
 ### `ce model [action]`
-Manages local GGUF models used for native architectural intent distillation (powered by [`ce-intent-v2-q4_k_m.gguf`](https://huggingface.co/vmikhailov77/code-intent) — a compact 4-bit quantized distilled model running 100% locally and privately via `llama.cpp`).
+Manages local GGUF models used for native architectural intent distillation (powered by `ce-intent-v2-q4_k_m.gguf` running locally via `llama.cpp`).
 ```bash
-ce model status             # Check model status, file location, and size (~940 MB)
-ce model download           # Download the intent model with a console progress bar
-ce model download --force   # Force re-download even if already present
+ce model status             # Check model status and size (~940 MB)
+ce model download           # Download the intent model with progress bar
+ce model download --force   # Force re-download
 ```
-
----
-
-## Model Context Protocol (MCP) Setup
-
-Connect `ce` to your favorite AI development environment:
-
-### Cursor
-Add to your Cursor MCP settings (`~/.cursor/mcp.json` or Cursor Settings -> MCP):
-```json
-{
-  "mcpServers": {
-    "code-explorer": {
-      "command": "ce",
-      "args": ["mcp"]
-    }
-  }
-}
-```
-
-### Claude Desktop
-Add to your `claude_desktop_config.json`:
-```json
-{
-  "mcpServers": {
-    "code-explorer": {
-      "command": "ce",
-      "args": ["mcp"]
-    }
-  }
-}
-```
-
-### VS Code (with Roo Code / Continue / Cline)
-Configure the tool command as `ce` with arguments `["mcp"]`.
-
-### Google Antigravity / Gemini CLI
-Add to your `.gemini/antigravity-ide/mcp/code-explorer` or workspace MCP configuration.
-
----
-
-## AI Agent Instructions & System Prompts
-
-To enable AI coding agents (Claude, Cursor, Copilot, ChatGPT, Antigravity, Roo Code) to effectively leverage `ce`, add the following instructions to your project's agent rules file (e.g. `.cursorrules`, `CLAUDE.md`, `.windsurfrules`, or `.agents/rules/code-explorer.md`):
-
-### Copy-Pasteable Agent Prompt / Rules
-
-````markdown
-# Codebase Exploration with CodeExplorer (`ce`)
-
-This repository uses **CodeExplorer (`ce`)** as an embedded SQLite codebase knowledge graph and MCP server. 
-
-## When and How to Use CodeExplorer MCP Tools:
-
-1. **Architecture Discovery (Start of Task)**:
-   - When asked to explore the repository, understand high-level architecture, or find microservice boundaries, **DO NOT** run blind file searches or scan directory trees.
-   - Call `get_architecture_map` or `get_architecture_overview` to obtain a structured breakdown of projects, frameworks, dependencies, ingress endpoints, and egress callers.
-   - Call `get_project_entry_points` with `projectName` to discover HTTP controllers, routes, CLI commands, and message listeners.
-
-2. **Symbol & File Inspection (Low-Token Context)**:
-   - Instead of reading entire files into context, call `get_file_outline` with `filePath` to inspect declared classes, methods, and line numbers.
-   - Use `find_symbol` (with optional `symbolType`: `class`, `interface`, `function`) to pinpoint exact symbol locations and signatures.
-   - Use `resolve_call_target` to locate concrete implementations of an interface method.
-
-3. **Refactoring & Blast Radius Analysis**:
-   - Before modifying or deleting a symbol, class, or method, call `analyze_code_impact` with `symbolName` to identify all downstream files and callers affected.
-   - Before altering database queries or schema models, call `inspect_data_lineage` with `tableName` to trace all queries, ORM entities, and functions accessing that table.
-   - Call `find_refactoring_opportunities` with `projectName` to detect unreferenced dead code or high-coupling god objects.
-
-4. **Diagram Generation & Event Tracing**:
-   - Call `export_architecture_diagram` with `format: "mermaid"` or `"c4"` and `type: "architecture"` | `"lineage"` | `"cqrs"` to generate visual topology diagrams.
-
-5. **Multi-Hop Graph Queries (Custom Cypher)**:
-   - Use `execute_custom_read_cypher` to execute read-only `MATCH` queries for complex questions (e.g. cross-project dependency paths, unreferenced interfaces, or circular references).
-   - Use `list_project_queries` to inspect saved workspace domain queries, and `execute_project_query` to run them.
-   - Run `get_taxonomy` or `get_node_definition` if you need schema details for any graph node or relationship kind.
-````
 
 ---
 
@@ -639,17 +502,17 @@ When running as an MCP server, `ce` registers the following tools for AI assista
 | `analyze_code_impact` | `symbolName` | Downstream blast-radius analysis tracking all files and symbols affected by modifying a symbol. |
 | `inspect_data_lineage` | `tableName` | Trace database entity blast radius: SQL queries, functions, and files referencing a table. |
 | `export_architecture_diagram` | `format` (opt), `type` (opt), `projectName` (opt) | Generate visual architecture, ORM data lineage, or CQRS/Saga event diagrams in Mermaid or C4 PlantUML. |
-| `get_project_entry_points` | `projectName` | Find architectural entry points (REST endpoints, GraphQL Queries/Mutations, gRPC RPCs, event listeners) with strongly-typed request/response payload schemas and security boundaries. |
+| `get_project_entry_points` | `projectName` | Find architectural entry points (REST endpoints, GraphQL Queries/Mutations, gRPC RPCs, event listeners) with strongly-typed schemas and security boundaries. |
 | `find_refactoring_opportunities` | `projectName`, `metricType` | Detect dead code, unreferenced symbols, and god objects with high coupling. |
 | `list_project_queries` | None | Discover custom parameterized project queries saved in `.codeexplorer/queries/`. |
 | `save_project_query` | `name`, `description`, `cypher`, `metadata` | Validate syntax/safety and persist reusable domain Cypher query into `.codeexplorer/queries/`. |
-| `execute_project_query` | `name`, `parameters` (opt) | Execute a workspace custom or built-in query by name with automatic workspace parameter binding. |
+| `execute_project_query` | `name`, `parameters` (opt) | Execute a workspace custom or built-in query by name with automatic parameter binding. |
 | `execute_custom_read_cypher` | `query`, `parameters` (opt) | Execute arbitrary read-only Cypher (`MATCH` only) directly against the graph database. |
 | `fetch_code_snippets` | `nodesJson` | Fetch source code snippets for a list of node URN contexts (file path, start line, end line). |
 | `get_node_definition` | `kind` | Retrieve documentation and schema details for an ontological Node Kind. |
 | `init_workspace` | `name` (opt), `force` (opt) | Initialize a new `.codeexplorer` workspace in the target folder. |
-| `scan_workspace` | `path` (opt), `clear` (opt) | Scan and index/reindex source files, ASTs, and dependencies into the graph database. |
-| `get_workspace_status` | None | Get workspace health status, SQLite DB size, indexed projects by language, and node counts. |
+| `scan_workspace` | `path` (opt), `clear` (opt) | Scan and index source files, ASTs, and dependencies into the graph database. |
+| `get_workspace_status` | None | Get workspace health status, SQLite DB size, indexed projects by language, node counts. |
 | `clear_workspace_index` | `path` (opt) | Clear indexed graph data for a specific subpath or the entire workspace database. |
 | `ingest_graph_data` | `nodesJson`, `relationshipsJson` (opt) | Direct batch ingestion of custom/external nodes and relationships into SQLite graph. |
 
@@ -675,7 +538,7 @@ When running as an MCP server, `ce` registers the following tools for AI assista
 │   ├── media/                            # Webview UI styles, icons, and bundles
 │   └── package.json                      # VS Code extension manifest & settings
 ├── site/                                 # Website & interactive playground (https://code-explorer.mikhailov.cc)
-├── docs/                                 # Technical ontology reference and architecture specifications
+├── docs/                                 # Technical ontology reference, images, and architecture specifications
 └── proto/                                # Protocol buffer contracts for high-speed streaming
 ```
 
