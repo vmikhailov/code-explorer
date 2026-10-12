@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CodeExplorer (ce) — Architecture Intelligence for AI Agents & Engineers</title>
-  <meta name="description" content="Architecture intelligence for AI agents and engineering teams. Unified OpenCypher knowledge graph, built-in MCP server, automated Semantic Invariant Gates (SIG), and interactive VS Code visualization.">
+  <meta name="description" content="Architecture intelligence for AI coding agents and engineering teams. Unified OpenCypher knowledge graph, fast CLI & MCP server, automated Semantic Invariant Gates (SIG), and interactive VS Code visualization.">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
 
   <style>
@@ -1764,6 +1764,10 @@
       opacity: 1;
     }
 
+    @media (max-width: 768px) {
+      .desktop-br { display: none; }
+    }
+
     /* Responsive adjustments */
     @media (max-width: 992px) {
       .hero-title { font-size: 42px; letter-spacing: -1.2px; }
@@ -1828,7 +1832,7 @@
         <li><a href="#features" class="nav-link">Features</a></li>
         <li><a href="#playground" class="nav-link">Cypher Engine</a></li>
         <li><a href="#gates" class="nav-link">Invariant Gates</a></li>
-        <li><a href="#ai-mcp" class="nav-link">AI & MCP</a></li>
+        <li><a href="#ai-mcp" class="nav-link">CLI &amp; AI</a></li>
         <li><a href="#ontology" class="nav-link">Ontology</a></li>
         <li><a href="#install" class="nav-link">Installation</a></li>
       </ul>
@@ -1853,11 +1857,12 @@
   <section class="hero">
     <div class="container">
       <h1 class="hero-title">
-        Architecture Intelligence<br>for <span>AI Agents &amp; Engineers</span>
+        Architecture Intelligence<br class="desktop-br">for <span>AI Agents &amp; Engineers</span>
       </h1>
 
       <p class="hero-subtitle">
-        Give AI agents and CI pipelines the architectural ground truth they lack. Built-in MCP server with OpenCypher queries, automated Semantic Invariant Gates (SIG), and interactive visual topology for polyglot systems.
+        Deterministic architectural ground truth for AI coding agents and CI pipelines.<br class="desktop-br">
+        Fast CLI &amp; MCP server, automated Semantic Invariant Gates, and interactive visual topology.
       </p>
 
       <div style="margin-bottom: 24px;">
@@ -1890,13 +1895,11 @@
       <div class="hero-badges-row">
         <span class="hero-badge-item">✓ Portable & Zero-Config</span>
         <span class="hero-badge-item">•</span>
-        <span class="hero-badge-item">✓ Interactive Architecture Graph</span>
-        <span class="hero-badge-item">•</span>
         <span class="hero-badge-item">✓ OpenCypher CLI</span>
         <span class="hero-badge-item">•</span>
         <span class="hero-badge-item">✓ Semantic Invariant Gates (SIG)</span>
         <span class="hero-badge-item">•</span>
-        <span class="hero-badge-item">✓ Model Context Protocol (MCP)</span>
+        <span class="hero-badge-item">✓ Fast CLI &amp; MCP for AI</span>
       </div>
 
       <!-- ==========================================================================
@@ -1931,7 +1934,7 @@
 
         <div class="showcase-body">
           <div class="showcase-img-container" onclick="openLightbox()">
-            <img id="showcaseImage" class="showcase-img" src="all_services.png?v=v11" alt="CodeExplorer Macro Architecture Concentric Orbits">
+            <img id="showcaseImage" class="showcase-img" src="all_services.png?v=v12" alt="CodeExplorer Macro Architecture Concentric Orbits">
           </div>
 
           <div class="showcase-overlay-bar">
@@ -1952,7 +1955,7 @@
   <!-- Lightbox Modal for zooming screenshots -->
   <div id="lightboxModal" class="lightbox-modal" onclick="closeLightbox(event)">
     <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
-    <img id="lightboxImg" class="lightbox-content" src="all_services.png?v=v11" alt="Enlarged Screenshot">
+    <img id="lightboxImg" class="lightbox-content" src="all_services.png?v=v12" alt="Enlarged Screenshot">
   </div>
 
   <!-- ==========================================================================
@@ -2029,11 +2032,11 @@
               <line x1="12" y1="17" x2="12" y2="21"></line>
             </svg>
           </div>
-          <h3 class="card-title">Model Context Protocol (MCP)</h3>
+          <h3 class="card-title">Fast CLI &amp; MCP Server for AI</h3>
           <p class="card-text">
-            Give Cursor, Claude Desktop, and Copilot surgical codebase intelligence. AI agents query call-chains, blast-radius impacts, and architectural topology in 1 turn without token-wasteful grep loops.
+            Give Claude Code, Cursor, Codex, and terminal agents surgical codebase intelligence. Query call chains, blast-radius impacts, and architectural topology via fast CLI commands or stdio/SSE protocol without token-wasteful grep loops.
           </p>
-          <div class="card-tag"><span>protocols:</span> <code>stdio + SSE HTTP (/mcp)</code></div>
+          <div class="card-tag"><span>interfaces:</span> <code>CLI + stdio + SSE HTTP (/mcp)</code></div>
         </div>
 
         <!-- Card 5 -->
@@ -2579,7 +2582,7 @@
   </section>
 
   <!-- ==========================================================================
-       Model Context Protocol (MCP) & AI Integration
+       CLI, AI Agent & MCP Integration
        ========================================================================== -->
   <section id="ai-mcp" class="section">
     <div class="container">
@@ -2589,9 +2592,9 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10H12V2z"/></svg>
             AI Agent Architecture
           </div>
-          <h3>Model Context Protocol (MCP) for Cursor & Claude</h3>
+          <h3>Fast CLI &amp; MCP Protocol for AI Coding Agents</h3>
           <p>
-            When AI coding assistants analyze large monorepos, brute-force file grepping fills context windows with irrelevant tokens and hallucinated connections. CodeExplorer provides surgical graph tools.
+            When autonomous coding agents (Claude Code, Cursor, Codex, Hermes) analyze large monorepos, flat file searches waste context tokens and hallucinate relationships. CodeExplorer delivers surgical structural tools callable directly via CLI or MCP.
           </p>
 
           <ul class="mcp-feature-list">
@@ -2932,12 +2935,12 @@
     // Data for Showcase Tabs
     const showcaseData = {
       orbits: {
-        img: 'all_services.png?v=v11',
+        img: 'all_services.png?v=v12',
         desc: '<strong>Macro Architecture Topology:</strong> Concentric rings project Ingress Gateways (Tier 0), Public APIs (Tier 1), Brokers (Tier 2), Domain Services (Tier 3), and Databases (Tier 4).',
         pills: ['Live Transitive Routing', 'Orbit Drag-and-Drop', 'Curvature: +65']
       },
       transitive: {
-        img: 'selected_services.png?v=v11',
+        img: 'selected_services.png?v=v12',
         desc: '<strong>Sub-Graph Neighborhood & Broker Contraction:</strong> Filter out Kafka/SQS message brokers to automatically synthesize direct dashed <code>[SUBSCRIBES (via Topic)]</code> links.',
         pills: ['Smart Broker Contraction', 'HUD Category Filters', 'Depth: 2 Hops']
       },
