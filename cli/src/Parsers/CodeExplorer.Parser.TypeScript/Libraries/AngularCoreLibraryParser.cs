@@ -11,7 +11,13 @@ public class AngularCoreLibraryParser : ISemanticExtension
     public string Name => "Angular";
     public string Type => "framework";
     public LibraryRole LibraryRole => LibraryRole.FrontendFramework;
-    public IReadOnlyList<string> SupportedPatterns => ["@angular/core", "@angular/core/*"];
+    public IReadOnlyList<string> SupportedPatterns =>
+    [
+        "@angular/core",
+        "@angular/core/*",
+        "@angular/router",
+        "@angular/router/*"
+    ];
     public bool IsImplemented => true;
 
     public string? MapNodeType(Node node, ParsingContext ctx)
@@ -20,10 +26,18 @@ public class AngularCoreLibraryParser : ISemanticExtension
         {
             return OntologyConstants.NodeLabels.EntryPoint;
         }
+
+        if (IsAngularRouteServiceItem(node))
+        {
+            return OntologyConstants.NodeLabels.ExternalService;
+        }
+
         return null;
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
+    public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null);
+
+    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName)
     {
         if (IsAngularBootstrap(node))
         {
@@ -33,6 +47,19 @@ public class AngularCoreLibraryParser : ISemanticExtension
         if (IsComponentOrModuleDecorator(node))
         {
             return ExtractDecoratorIdentifier(node);
+        }
+
+        if (IsAngularRouteServiceItem(node))
+        {
+            var projectContext = projectName ?? ctx?.WorkspaceId;
+            var resolved = AstHelper.ResolveStringOrTemplate(node, projectContext);
+            if (!string.IsNullOrWhiteSpace(resolved))
+            {
+                var clean = resolved.Trim().Trim('\'', '"', '`');
+                return clean.StartsWith('/') ? clean : $"/{clean}";
+            }
+            var text = node.Text.Trim().Trim('\'', '"', '`');
+            return text.StartsWith('/') ? text : $"/{text}";
         }
 
         return null;
@@ -194,6 +221,63 @@ public class AngularCoreLibraryParser : ISemanticExtension
             {
                 decoratorName = child.Text.Trim();
                 return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsAngularRouteServiceItem(Node node)
+    {
+        if (!node.IsNamed)
+            return false;
+
+        var text = node.Text.Trim('\'', '"', '`');
+        if (string.IsNullOrWhiteSpace(text) || text is "[" or "]" or ",")
+            return false;
+
+        var parent = node.Parent;
+        if (!parent.IsValid() || !parent.Is(TreeSitterSyntax.TypeScript.Array))
+            return false;
+
+        var pair = parent.Parent;
+        if (!pair.IsValid() || !pair.Is(TreeSitterSyntax.TypeScript.Pair))
+            return false;
+
+        var key = pair.GetField(TreeSitterSyntax.Fields.Key);
+        if (!key.IsValid()) return false;
+
+        var keyText = key.Text.Trim('\'', '"', '`');
+        if (!keyText.Equals("services", StringComparison.OrdinalIgnoreCase) &&
+            !keyText.Equals("requiredServices", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var enclosingObj = pair.Parent;
+        if (!enclosingObj.IsValid() || !enclosingObj.Is(TreeSitterSyntax.TypeScript.Object))
+            return false;
+
+        if (AstHelper.TryGetObjectProperty(enclosingObj, "path", out _) ||
+            AstHelper.TryGetObjectProperty(enclosingObj, "roles", out _))
+        {
+            return true;
+        }
+
+        var parentPair = enclosingObj.Parent;
+        if (parentPair.IsValid() && parentPair.Is(TreeSitterSyntax.TypeScript.Pair))
+        {
+            var parentKey = parentPair.GetField(TreeSitterSyntax.Fields.Key);
+            if (parentKey.IsValid() && parentKey.Text.Trim('\'', '"', '`').Equals("data", StringComparison.OrdinalIgnoreCase))
+            {
+                var routeObj = parentPair.Parent;
+                if (routeObj.IsValid() && (AstHelper.TryGetObjectProperty(routeObj, "path", out _) ||
+                                           AstHelper.TryGetObjectProperty(routeObj, "component", out _) ||
+                                           AstHelper.TryGetObjectProperty(routeObj, "loadChildren", out _) ||
+                                           AstHelper.TryGetObjectProperty(routeObj, "loadComponent", out _)))
+                {
+                    return true;
+                }
             }
         }
 

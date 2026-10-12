@@ -1058,42 +1058,7 @@ public class Layer5AnalysisParser
                 }
             }
 
-            if (extService.IsGenericHostOrService && candidateEntryPoints.Count > 1)
-            {
-                var distinctTargetProjects = candidateEntryPoints
-                    .Select(e => e.TargetProj)
-                    .Where(p => p != null)
-                    .DistinctBy(p => p!.Id)
-                    .ToList();
-
-                if (distinctTargetProjects.Count > 1)
-                {
-                    if (extService.CallerProj != null && distinctTargetProjects.Any(p => p!.Id == extService.CallerProj.Id))
-                    {
-                        candidateEntryPoints.RemoveAll(e => e.TargetProj?.Id != extService.CallerProj.Id);
-                    }
-                    else
-                    {
-                        var exactMatches = candidateEntryPoints
-                            .Where(e => string.Equals(extService.ServicePathNorm, e.EntryNorm, StringComparison.OrdinalIgnoreCase))
-                            .ToList();
-                        var exactProjects = exactMatches
-                            .Select(e => e.TargetProj)
-                            .Where(p => p != null)
-                            .DistinctBy(p => p!.Id)
-                            .ToList();
-
-                        if (exactProjects.Count == 1)
-                        {
-                            candidateEntryPoints = exactMatches;
-                        }
-                        else
-                        {
-                            candidateEntryPoints.Clear();
-                        }
-                    }
-                }
-            }
+            candidateEntryPoints = FilterAmbiguousCandidates(extService, candidateEntryPoints, e => e.TargetProj, e => e.EntryNorm);
 
             foreach (var entryPoint in candidateEntryPoints)
             {
@@ -1129,42 +1094,7 @@ public class Layer5AnalysisParser
                 }
             }
 
-            if (extService.IsGenericHostOrService && candidateEndpoints.Count > 1)
-            {
-                var distinctTargetProjects = candidateEndpoints
-                    .Select(e => e.TargetProj)
-                    .Where(p => p != null)
-                    .DistinctBy(p => p!.Id)
-                    .ToList();
-
-                if (distinctTargetProjects.Count > 1)
-                {
-                    if (extService.CallerProj != null && distinctTargetProjects.Any(p => p!.Id == extService.CallerProj.Id))
-                    {
-                        candidateEndpoints.RemoveAll(e => e.TargetProj?.Id != extService.CallerProj.Id);
-                    }
-                    else
-                    {
-                        var exactMatches = candidateEndpoints
-                            .Where(e => string.Equals(extService.ServicePathNorm, e.RouteNorm, StringComparison.OrdinalIgnoreCase))
-                            .ToList();
-                        var exactProjects = exactMatches
-                            .Select(e => e.TargetProj)
-                            .Where(p => p != null)
-                            .DistinctBy(p => p!.Id)
-                            .ToList();
-
-                        if (exactProjects.Count == 1)
-                        {
-                            candidateEndpoints = exactMatches;
-                        }
-                        else
-                        {
-                            candidateEndpoints.Clear();
-                        }
-                    }
-                }
-            }
+            candidateEndpoints = FilterAmbiguousCandidates(extService, candidateEndpoints, e => e.TargetProj, e => e.RouteNorm);
 
             foreach (var endpoint in candidateEndpoints)
             {
@@ -1348,34 +1278,12 @@ public class Layer5AnalysisParser
         "url", "http-call", "v1", "v2", "event", "response", "service", "api", "request", "httprequest", "pageurl"
     };
 
-    private static readonly HashSet<string> GenericProbeOrHealthCheckPaths = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "", "/", "*",
-        "ping", "/ping",
-        "health", "/health",
-        "healthz", "/healthz",
-        "live", "/live",
-        "livez", "/livez",
-        "ready", "/ready",
-        "readyz", "/readyz",
-        "status", "/status",
-        "metrics", "/metrics",
-        "version", "/version",
-        "info", "/info",
-        "check-deploy", "/check-deploy",
-        "favicon.ico", "/favicon.ico"
-    };
-
     private static bool IsRootOrGenericPath(string? pathNorm)
     {
         if (string.IsNullOrWhiteSpace(pathNorm)) return true;
         var p = pathNorm.Trim();
         var clean = p.Trim('/');
-        return p is "/" or "*" ||
-               string.IsNullOrEmpty(clean) ||
-               clean is "*" ||
-               GenericProbeOrHealthCheckPaths.Contains(p) ||
-               GenericProbeOrHealthCheckPaths.Contains(clean);
+        return p is "/" or "*" || string.IsNullOrEmpty(clean) || clean is "*";
     }
 
     private static bool IsGenericHostOrService(string? domainOrService)
@@ -1535,7 +1443,47 @@ public class Layer5AnalysisParser
         return false;
     }
 
-    private sealed class PreparedEndpoint
+    internal static List<T> FilterAmbiguousCandidates<T>(
+        PreparedExternalService extService,
+        List<T> candidates,
+        Func<T, ProjectNode?> getTargetProj,
+        Func<T, string> getNormPath)
+    {
+        if (!extService.IsGenericHostOrService || candidates.Count <= 1)
+            return candidates;
+
+        var distinctTargetProjects = candidates
+            .Select(getTargetProj)
+            .Where(p => p != null)
+            .DistinctBy(p => p!.Id)
+            .ToList();
+
+        if (distinctTargetProjects.Count <= 1)
+            return candidates;
+
+        if (extService.CallerProj != null && distinctTargetProjects.Any(p => p!.Id == extService.CallerProj.Id))
+        {
+            return candidates.Where(e => getTargetProj(e)?.Id == extService.CallerProj.Id).ToList();
+        }
+
+        var exactMatches = candidates
+            .Where(e => string.Equals(extService.ServicePathNorm, getNormPath(e), StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        var exactProjects = exactMatches
+            .Select(getTargetProj)
+            .Where(p => p != null)
+            .DistinctBy(p => p!.Id)
+            .ToList();
+
+        if (exactProjects.Count == 1)
+        {
+            return exactMatches;
+        }
+
+        return [];
+    }
+
+    internal sealed class PreparedEndpoint
     {
         public required EndpointNode Endpoint { get; init; }
         public ProjectNode? TargetProj { get; init; }
@@ -1547,7 +1495,7 @@ public class Layer5AnalysisParser
         public required bool IsApiPrefixOnly { get; init; }
     }
 
-    private sealed class PreparedEntryPoint
+    internal sealed class PreparedEntryPoint
     {
         public required EntryPointNode EntryPoint { get; init; }
         public ProjectNode? TargetProj { get; init; }
@@ -1559,7 +1507,7 @@ public class Layer5AnalysisParser
         public required bool IsApiPrefixOnly { get; init; }
     }
 
-    private sealed class PreparedExternalService
+    internal sealed class PreparedExternalService
     {
         public required ExternalServiceNode Service { get; init; }
         public ProjectNode? CallerProj { get; init; }
@@ -1575,7 +1523,7 @@ public class Layer5AnalysisParser
         public required bool IsRootOrGenericPath { get; init; }
     }
 
-    private PreparedEndpoint PrepareEndpoint(EndpointNode endpoint, ProjectNode? targetProj)
+    internal static PreparedEndpoint PrepareEndpoint(EndpointNode endpoint, ProjectNode? targetProj)
     {
         var routeNorm = NormalizePath(endpoint.RouteTemplate);
         var segs = routeNorm.Split('/', StringSplitOptions.RemoveEmptyEntries);
@@ -1597,7 +1545,7 @@ public class Layer5AnalysisParser
         };
     }
 
-    private PreparedEntryPoint PrepareEntryPoint(EntryPointNode entryPoint, ProjectNode? targetProj)
+    internal static PreparedEntryPoint PrepareEntryPoint(EntryPointNode entryPoint, ProjectNode? targetProj)
     {
         var entryNorm = NormalizePath(entryPoint.Name);
         var segs = entryNorm.Split('/', StringSplitOptions.RemoveEmptyEntries);
@@ -1619,7 +1567,7 @@ public class Layer5AnalysisParser
         };
     }
 
-    private PreparedExternalService PrepareExternalService(ExternalServiceNode extService, ProjectNode? callerProj)
+    internal static PreparedExternalService PrepareExternalService(ExternalServiceNode extService, ProjectNode? callerProj)
     {
         var pathNorm = NormalizePath(extService.Path);
         var domainNorm = NormalizePath(extService.DomainOrService);
@@ -1899,7 +1847,7 @@ public class Layer5AnalysisParser
         return IsMatch(prepExt, prepEp, (p, d) => DoesProjectMatchServiceDomain(p, d));
     }
 
-    private string NormalizePath(string path)
+    private static string NormalizePath(string path)
     {
         if (string.IsNullOrEmpty(path)) return string.Empty;
 

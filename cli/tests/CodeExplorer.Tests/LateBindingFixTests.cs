@@ -99,7 +99,7 @@ public class LateBindingFixTests
     }
 
     [Test]
-    public void IsMatch_UnknownService_WithPingOrHealthPath_DoesNotMatchEndpoints()
+    public void FilterAmbiguousCandidates_UnknownServiceWithSharedRouteAcrossProjects_ClearsCandidates()
     {
         var pingService = new ExternalServiceNode(
             "5:externalservice:http:unknown-service",
@@ -109,30 +109,72 @@ public class LateBindingFixTests
             "/ping",
             null);
 
-        var healthService = new ExternalServiceNode(
+        var prepExt = Layer5AnalysisParser.PrepareExternalService(pingService, null);
+
+        var projA = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode("ws:p:service-a:", "service-a", "src/services/a", "ts");
+        var projB = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode("ws:p:service-b:", "service-b", "src/services/b", "ts");
+
+        var epA = Layer5AnalysisParser.PrepareEndpoint(
+            new EndpointNode("5:ep:a", "GET /ping", "a.ts", "GET", "/ping"), projA);
+        var epB = Layer5AnalysisParser.PrepareEndpoint(
+            new EndpointNode("5:ep:b", "GET /ping", "b.ts", "GET", "/ping"), projB);
+
+        var candidates = new List<Layer5AnalysisParser.PreparedEndpoint> { epA, epB };
+
+        var filtered = Layer5AnalysisParser.FilterAmbiguousCandidates(
+            prepExt, candidates, e => e.TargetProj, e => e.RouteNorm);
+
+        filtered.Should().BeEmpty("Ambiguous routes declared across multiple distinct projects must be rejected for generic/unknown services");
+    }
+
+    [Test]
+    public void FilterAmbiguousCandidates_KnownServiceWithSharedRoute_RetainsCandidate()
+    {
+        var bundleService = new ExternalServiceNode(
+            "5:externalservice:http:bundle-service",
+            "bundle-service",
+            "http",
+            "bundle-service",
+            "/ping",
+            null);
+
+        var prepExt = Layer5AnalysisParser.PrepareExternalService(bundleService, null);
+
+        var bundleProj = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode("ws:p:bundle:", "bundle-service", "src/services/bundle", "ts");
+        var epBundle = Layer5AnalysisParser.PrepareEndpoint(
+            new EndpointNode("5:ep:bundle", "GET /ping", "bundle.ts", "GET", "/ping"), bundleProj);
+
+        var candidates = new List<Layer5AnalysisParser.PreparedEndpoint> { epBundle };
+
+        var filtered = Layer5AnalysisParser.FilterAmbiguousCandidates(
+            prepExt, candidates, e => e.TargetProj, e => e.RouteNorm);
+
+        filtered.Should().ContainSingle().Which.Endpoint.Id.Should().Be("5:ep:bundle");
+    }
+
+    [Test]
+    public void FilterAmbiguousCandidates_UnknownServiceWithUniqueRoute_RetainsCandidate()
+    {
+        var uniqueService = new ExternalServiceNode(
             "5:externalservice:http:unknown-service",
             "unknown-service",
             "http",
             "unknown-service",
-            "/health",
+            "/api/v1/orders/unique-report",
             null);
 
-        var pingEndpoint = new EndpointNode(
-            "5:endpoint:GET:/ping",
-            "GET /ping",
-            "controllers/ping.controller.ts",
-            "GET",
-            "/ping");
+        var prepExt = Layer5AnalysisParser.PrepareExternalService(uniqueService, null);
 
-        var healthEndpoint = new EndpointNode(
-            "5:endpoint:GET:/health",
-            "GET /health",
-            "controllers/health.controller.ts",
-            "GET",
-            "/health");
+        var ordersProj = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode("ws:p:orders:", "orders-service", "src/services/orders", "ts");
+        var epOrders = Layer5AnalysisParser.PrepareEndpoint(
+            new EndpointNode("5:ep:orders", "GET /api/v1/orders/unique-report", "orders.ts", "GET", "/api/v1/orders/unique-report"), ordersProj);
 
-        InvokeIsMatch(pingService, pingEndpoint).Should().BeFalse("unknown-service /ping must never match endpoints");
-        InvokeIsMatch(healthService, healthEndpoint).Should().BeFalse("unknown-service /health must never match endpoints");
+        var candidates = new List<Layer5AnalysisParser.PreparedEndpoint> { epOrders };
+
+        var filtered = Layer5AnalysisParser.FilterAmbiguousCandidates(
+            prepExt, candidates, e => e.TargetProj, e => e.RouteNorm);
+
+        filtered.Should().ContainSingle().Which.Endpoint.Id.Should().Be("5:ep:orders");
     }
 
     [Test]
