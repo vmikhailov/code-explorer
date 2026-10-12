@@ -214,7 +214,6 @@ public class ConstantRegistryTests
         // 3. Dummy / placeholder names should fail derivation
         Assert.That(ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar("TOPIC_NAME", out _), Is.False);
         Assert.That(ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar("QUEUE_NAME", out _), Is.False);
-        Assert.That(ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar("GOOGLE_PUB_SUB_NETWORK_TOPIC", out _), Is.False);
         Assert.That(ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar("NETWORK_TOPIC", out _), Is.False);
 
         // 4. Non-messaging variables (URLs, tables, secrets, flags) MUST fail derivation
@@ -233,7 +232,7 @@ public class ConstantRegistryTests
         Assert.That(Core.Common.WorkspaceConventions.NormalizeTopicName("EVENT_SUBSCRIBER_NAME"), Is.Empty);
         Assert.That(Core.Common.WorkspaceConventions.NormalizeTopicName("default-sub-id"), Is.Empty);
         Assert.That(Core.Common.WorkspaceConventions.NormalizeTopicName("default-subscription-name"), Is.Empty);
-        Assert.That(Core.Common.WorkspaceConventions.NormalizeTopicName("GOOGLE_PUB_SUB_NETWORK_TOPIC"), Is.Empty);
+        Assert.That(Core.Common.WorkspaceConventions.NormalizeTopicName("NETWORK_TOPIC"), Is.Empty);
 
         Assert.That(Core.Common.WorkspaceConventions.NormalizeTopicName("ORDER_EVENTS_TOPIC"), Is.EqualTo("order-events-topic"));
     }
@@ -245,10 +244,31 @@ public class ConstantRegistryTests
         Assert.That(Core.Common.WorkspaceConventions.IsPlaceholderName("QUEUE_NAME"), Is.True);
         Assert.That(Core.Common.WorkspaceConventions.IsPlaceholderName("default-topic"), Is.True);
         Assert.That(Core.Common.WorkspaceConventions.IsPlaceholderName("default-sub-id"), Is.True);
-        Assert.That(Core.Common.WorkspaceConventions.IsPlaceholderName("google-pub-sub-network-topic"), Is.True);
         Assert.That(Core.Common.WorkspaceConventions.IsPlaceholderName("network-topic"), Is.True);
 
         Assert.That(Core.Common.WorkspaceConventions.IsPlaceholderName("order-events-topic"), Is.False);
         Assert.That(Core.Common.WorkspaceConventions.IsPlaceholderName("payment-queue"), Is.False);
+    }
+
+    [Test]
+    public void WorkspaceConventions_CustomConfiguredPlaceholders_AreRecognized()
+    {
+        try
+        {
+            Core.Common.WorkspaceConventions.Current = new Core.Conventions.WorkspaceConventionProfile(
+                new Core.Conventions.Services.ServiceIdentityResolver(),
+                new Core.Conventions.Services.MessagingConventionService(customPlaceholders: ["custom-placeholder-token", "google-pub-sub-network-topic"]),
+                new Core.Conventions.Services.DomainTaxonomyEngine(),
+                new Core.Conventions.Services.NetworkEntityValidator()
+            );
+
+            Assert.That(Core.Common.WorkspaceConventions.IsPlaceholderName("custom-placeholder-token"), Is.True);
+            Assert.That(Core.Common.WorkspaceConventions.IsPlaceholderName("google-pub-sub-network-topic"), Is.True);
+            Assert.That(Core.Common.WorkspaceConventions.NormalizeTopicName("GOOGLE_PUB_SUB_NETWORK_TOPIC"), Is.Empty);
+        }
+        finally
+        {
+            Core.Common.WorkspaceConventions.Clear();
+        }
     }
 }

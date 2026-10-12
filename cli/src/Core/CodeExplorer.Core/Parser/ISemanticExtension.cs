@@ -72,6 +72,11 @@ public interface ISemanticExtension
     string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) => ExtractIdentifier(node, ctx);
 
     /// <summary>
+    /// Extracts the identifier/name of the matched behavior node with project and relative file path context.
+    /// </summary>
+    string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath) => ExtractIdentifier(node, ctx, projectName);
+
+    /// <summary>
     /// Collects references inside a scope for this extension's nodes.
     /// </summary>
     void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx) { }
@@ -80,4 +85,15 @@ public interface ISemanticExtension
     /// Enriches a synthesized syntactic symbol with domain-specific metadata (e.g., security roles, authorization, protocol).
     /// </summary>
     void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx) { }
+
+    /// <summary>
+    /// Optional early-phase discovery hook called during Phase 0 candidate file discovery
+    /// before AST synthesis. Allows framework extensions to discover router mounts, global prefixes, or controller mappings.
+    /// </summary>
+    void DiscoverDeclarations(string filePath, string content, string? projectName, ParsingContext? ctx) { }
+
+    /// <summary>
+    /// Optional AST-level discovery hook called during Pass 1 AST traversal.
+    /// </summary>
+    void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, ParsingContext? ctx) { }
 }

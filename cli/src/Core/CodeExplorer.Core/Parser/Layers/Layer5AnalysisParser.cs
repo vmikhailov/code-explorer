@@ -1414,7 +1414,9 @@ public class Layer5AnalysisParser
             return false;
         }
 
-        if (serviceDomainNorm is "*" or "unknown-service" && (string.IsNullOrEmpty(servicePathNorm) || servicePathNorm is "/" or "*"))
+        var rawDomain = (extService.DomainOrService ?? "").Trim('/').ToLowerInvariant();
+        if ((rawDomain is "*" or "unknown-service" or "" || IsGenericHostOrService(extService.DomainOrService)) &&
+            (string.IsNullOrEmpty(servicePathNorm) || servicePathNorm is "/" or "*"))
         {
             return false;
         }
@@ -1422,7 +1424,7 @@ public class Layer5AnalysisParser
         // Root or empty path "/" is a generic fallback and must NEVER match across services unless targetProj domain matches
         if (string.IsNullOrEmpty(servicePathNorm) || servicePathNorm is "/" or "*")
         {
-            if (targetProj == null || !DoesProjectMatchServiceDomain(targetProj, extService.DomainOrService))
+            if (targetProj == null || !DoesProjectMatchServiceDomain(targetProj, extService.DomainOrService ?? ""))
             {
                 return false;
             }
@@ -1495,7 +1497,9 @@ public class Layer5AnalysisParser
             return false;
         }
 
-        if (serviceDomainNorm is "*" or "unknown-service" && (string.IsNullOrEmpty(servicePathNorm) || servicePathNorm is "/" or "*"))
+        var rawDomain = (extService.DomainOrService ?? "").Trim('/').ToLowerInvariant();
+        if ((rawDomain is "*" or "unknown-service" or "" || IsGenericHostOrService(extService.DomainOrService)) &&
+            (string.IsNullOrEmpty(servicePathNorm) || servicePathNorm is "/" or "*"))
         {
             return false;
         }
@@ -1503,7 +1507,7 @@ public class Layer5AnalysisParser
         // Root or empty path "/" is a generic fallback and must NEVER match across services unless targetProj domain matches
         if (string.IsNullOrEmpty(servicePathNorm) || servicePathNorm is "/" or "*")
         {
-            if (targetProj == null || !DoesProjectMatchServiceDomain(targetProj, extService.DomainOrService))
+            if (targetProj == null || !DoesProjectMatchServiceDomain(targetProj, extService.DomainOrService ?? ""))
             {
                 return false;
             }

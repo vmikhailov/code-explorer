@@ -2469,8 +2469,13 @@ public class PostIndexAnalyzer(IGraphClient db)
              p.Name.EndsWith($".Gateways.{key}", StringComparison.OrdinalIgnoreCase)));
         if (nameMatch != null) return nameMatch;
 
-        // 4. EndpointScoringEngine matching
-        var candidates = projList.Select(p => new ProjectMatchCandidate(
+        // 4. EndpointScoringEngine matching (excluding workers/schedulers without exposed APIs)
+        var candidates = projList.Where(p =>
+        {
+            var isWorker = p.Role == OntologyConstants.ProjectRoles.Worker ||
+                           p.Extensions?.GetValueOrDefault("primary_role") is "WorkerService" or "Scheduler" or "Worker";
+            return !isWorker;
+        }).Select(p => new ProjectMatchCandidate(
             p.Id,
             p.Name,
             p.Path,
@@ -2478,20 +2483,10 @@ public class PostIndexAnalyzer(IGraphClient db)
             p.IsLibrary)).ToList();
 
         var match = EndpointScoringEngine.MatchCall(cleanKey, null, null, candidates);
-        if (match.IsInternal && match.Project != null)
+        if (match.IsInternal && match.Project != null && match.ProjectScore >= 50.0)
         {
             var matchedProj = projList.FirstOrDefault(p => p.Id == match.Project.ProjectId);
             if (matchedProj != null) return matchedProj;
-        }
-
-        // 5. Substring contains on domain name (e.g. 'tracking' matches 'DeviceTracking')
-        var subMatches = projList.Where(p =>
-            SyntaxEnricher.CleanProjectNameToDomain(p.Name).Contains(normKey, StringComparison.OrdinalIgnoreCase)).ToList();
-        if (subMatches.Count > 0)
-        {
-            return subMatches.OrderBy(p => p.IsLibrary ? 1 : 0)
-                             .ThenBy(p => p.Name.Count(c => c == '.'))
-                             .FirstOrDefault();
         }
 
         // 6. Typo-tolerant / Levenshtein matching (e.g. 'analitics' vs 'analytics')
@@ -2499,6 +2494,10 @@ public class PostIndexAnalyzer(IGraphClient db)
         {
             foreach (var p in projList.Where(p => !p.IsLibrary))
             {
+                var isWorker = p.Role == OntologyConstants.ProjectRoles.Worker ||
+                               p.Extensions?.GetValueOrDefault("primary_role") is "WorkerService" or "Scheduler" or "Worker";
+                if (isWorker) continue;
+
                 var candDomain = SyntaxEnricher.CleanProjectNameToDomain(p.Name).ToLowerInvariant();
                 var candFolder = EndpointScoringEngine.NormalizeAlphanumeric(Path.GetFileName(p.Path.TrimEnd('/', '\\'))).ToLowerInvariant();
                 if ((candDomain.Length >= 6 && Math.Abs(candDomain.Length - normKey.Length) <= 1 && ComputeLevenshteinDistance(normKey, candDomain) <= 1) ||

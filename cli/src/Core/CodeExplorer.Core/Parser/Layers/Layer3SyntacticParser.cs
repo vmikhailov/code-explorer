@@ -154,7 +154,7 @@ public class Layer3SyntacticParser
             {
                 if (File.Exists(fPath))
                 {
-                    var content = File.ReadAllText(fPath);
+                    var content = await File.ReadAllTextAsync(fPath);
                     RouteDictionaryRegistry.ScanServiceDomains(content);
                     fileContents.Add((content, pName, fPath));
                 }
@@ -169,21 +169,8 @@ public class Layer3SyntacticParser
                 RouteDictionaryRegistry.ScanAndRegister(content);
                 ConstantRegistry.ScanAndRegister(fPath, content, pName);
 
-                var prefixMatch = Regex.Match(content, @"setGlobalPrefix\s*\(\s*([^,\)]+)");
-                if (prefixMatch.Success)
-                {
-                    var relFilePath = Path.IsPathRooted(fPath) ? Path.GetRelativePath(ctx.AbsoluteWorkspacePath, fPath) : fPath;
-                    var targetProj = pName ?? GetProjectNameFromRelativePath(relFilePath);
-                    if ((string.IsNullOrEmpty(targetProj) || targetProj == "default") && l2Result.Projects.Count == 1)
-                    {
-                        targetProj = l2Result.Projects[0].Name;
-                    }
-                    var prefix = ResolveGlobalPrefix(prefixMatch.Groups[1].Value, content, targetProj);
-                    if (!string.IsNullOrEmpty(prefix))
-                    {
-                        RouteDictionaryRegistry.RegisterGlobalPrefix(targetProj, prefix);
-                    }
-                }
+                var fileParser = WorkspaceIndexer.GetParserForFile(fPath);
+                fileParser?.DiscoverDeclarations(fPath, content, pName, ctx);
             }
             catch { }
         }
@@ -254,28 +241,9 @@ public class Layer3SyntacticParser
                             }
                         }
 
-                        // Discover setGlobalPrefix('api/v1') in bootstrap/main files
-                        if (file.Name.StartsWith("main.", StringComparison.OrdinalIgnoreCase) ||
-                            file.Name.StartsWith("app.", StringComparison.OrdinalIgnoreCase) ||
-                            file.Name.StartsWith("bootstrap.", StringComparison.OrdinalIgnoreCase) ||
-                            file.Name.StartsWith("index.", StringComparison.OrdinalIgnoreCase) ||
-                            file.Name.StartsWith("program.", StringComparison.OrdinalIgnoreCase) ||
-                            file.Name.StartsWith("startup.", StringComparison.OrdinalIgnoreCase))
+                        if (syntaxTree.Tree?.RootNode != null)
                         {
-                            try
-                            {
-                                var fileText = File.ReadAllText(file.FullPath);
-                                var prefixMatch = Regex.Match(fileText, @"setGlobalPrefix\s*\(\s*([^,\)]+)");
-                                if (prefixMatch.Success)
-                                {
-                                    var resolvedPrefix = ResolveGlobalPrefix(prefixMatch.Groups[1].Value, fileText, project.Name);
-                                    if (!string.IsNullOrEmpty(resolvedPrefix))
-                                    {
-                                        RouteDictionaryRegistry.RegisterGlobalPrefix(project.Name, resolvedPrefix);
-                                    }
-                                }
-                            }
-                            catch { }
+                            fileParser.DiscoverDeclarations(syntaxTree.Tree.RootNode, file.Path, project.Name, ctx);
                         }
                     }
 
@@ -511,7 +479,7 @@ public class Layer3SyntacticParser
 
         var symbolIsTest = isTest ||
             (syntactic.Properties.TryGetValue(OntologyConstants.PropertyNames.IsTest, out var propIsTest) && bool.TryParse(propIsTest, out var b) && b);
-        var stageOrder = WorkspaceConventions.GetPipelineStageOrder(relativePath, name);
+        var stageOrder = syntactic.Properties.TryGetValue("stage_order", out var so) && int.TryParse(so, out var parsedOrder) ? parsedOrder : (int?)null;
 
         var isType = kind == "Class" || kind == "Interface" || kind == OntologyConstants.NodeLabels.Type;
         var mappedKind = isType ? "Type" : kind;
@@ -688,6 +656,14 @@ public class Layer3SyntacticParser
         var route = idx > 0 ? name[(idx + 1)..] : name;
 
         var resolvedProj = !string.IsNullOrEmpty(projectName) ? projectName : GetProjectNameFromRelativePath(relativePath);
+        if (!string.IsNullOrEmpty(resolvedProj) &&
+            (resolvedProj.StartsWith("internal-service-", StringComparison.OrdinalIgnoreCase) ||
+             resolvedProj.StartsWith("integration-service-", StringComparison.OrdinalIgnoreCase) ||
+             resolvedProj.StartsWith("external-service-", StringComparison.OrdinalIgnoreCase)))
+        {
+            var stripped = WorkspaceConventions.NormalizeServiceName(resolvedProj);
+            if (!string.IsNullOrEmpty(stripped)) resolvedProj = stripped;
+        }
 
         // Apply project global route prefix (e.g. 'api/v1' or 'api') if discovered and not already present
         if (!string.IsNullOrEmpty(resolvedProj) &&
@@ -733,6 +709,14 @@ public class Layer3SyntacticParser
         string? projectName = null)
     {
         var resolvedProj = !string.IsNullOrEmpty(projectName) ? projectName : GetProjectNameFromRelativePath(relativePath);
+        if (!string.IsNullOrEmpty(resolvedProj) &&
+            (resolvedProj.StartsWith("internal-service-", StringComparison.OrdinalIgnoreCase) ||
+             resolvedProj.StartsWith("integration-service-", StringComparison.OrdinalIgnoreCase) ||
+             resolvedProj.StartsWith("external-service-", StringComparison.OrdinalIgnoreCase)))
+        {
+            var stripped = WorkspaceConventions.NormalizeServiceName(resolvedProj);
+            if (!string.IsNullOrEmpty(stripped)) resolvedProj = stripped;
+        }
         if (string.IsNullOrEmpty(resolvedProj)) resolvedProj = "default";
 
         var entryType = "grpc";
@@ -953,205 +937,6 @@ public class Layer3SyntacticParser
                (p.Contains("route") || p.Contains("const") || p.Contains("config") || p.Contains("api") || p.Contains("endpoint") || p.Contains("url") || p.Contains("env") ||
                 p.Contains("client") || p.Contains("service") || p.Contains("importer") || p.Contains("catalog") || p.Contains("gateway") || p.Contains("http") ||
                 p.Contains("main.") || p.Contains("app.") || p.Contains("bootstrap.") || p.Contains("index.") || p.Contains("program.") || p.Contains("startup."));
-    }
-
-    private static string? ResolveGlobalPrefix(string rawArg, string fileText, string? projectName)
-    {
-        if (string.IsNullOrWhiteSpace(rawArg)) return null;
-
-        var cleaned = rawArg.Trim();
-
-        // 1. If fallback pattern: expr || 'fallback'
-        var orIdx = cleaned.IndexOf("||", StringComparison.Ordinal);
-        if (orIdx >= 0)
-        {
-            var primary = cleaned[..orIdx].Trim();
-            var fallback = cleaned[(orIdx + 2)..].Trim();
-            var primaryResolved = ResolveGlobalPrefix(primary, fileText, projectName);
-            if (!string.IsNullOrEmpty(primaryResolved) && !primaryResolved.Contains("${"))
-            {
-                return primaryResolved;
-            }
-            return ResolveGlobalPrefix(fallback, fileText, projectName);
-        }
-
-        // 2. If simple string literal: 'api/v1', "api/v1", `api/v1` (without template interpolation)
-        if (!cleaned.Contains("${") && (
-            (cleaned.StartsWith('\'') && cleaned.EndsWith('\'')) ||
-            (cleaned.StartsWith('"') && cleaned.EndsWith('"')) ||
-            (cleaned.StartsWith('`') && cleaned.EndsWith('`'))))
-        {
-            return cleaned.Trim('\'', '"', '`').Trim('/');
-        }
-
-        // 3. Scan local variable declarations in fileText (e.g. const apiVersion = 'v1' or process.env.API_VERSION || 'v1')
-        var localVars = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-        // Pattern A: const|let|var name [: type] = ... 'val'
-        var varMatches = Regex.Matches(fileText, @"(?:const|let|var)\s+([A-Za-z0-9_]+)\s*(?::\s*[^=]+)?\s*=\s*(?:.*?(?:\|\||\?\?)\s*)?['""`]([^'""`\r\n]+)['""`]");
-        foreach (Match m in varMatches)
-        {
-            var name = m.Groups[1].Value.Trim();
-            var val = m.Groups[2].Value.Trim();
-            localVars[name] = val;
-            if (!string.IsNullOrEmpty(projectName))
-            {
-                ConstantRegistry.Register(projectName, name, val);
-            }
-        }
-
-        // Pattern B: { apiVersion = 'v1' } destructuring defaults
-        var destructureMatches = Regex.Matches(fileText, @"(?:const|let|var)\s*\{[^}]*?\b([A-Za-z0-9_]+)\s*=\s*['""`]([^'""`\r\n]+)['""`]");
-        foreach (Match m in destructureMatches)
-        {
-            var name = m.Groups[1].Value.Trim();
-            var val = m.Groups[2].Value.Trim();
-            localVars.TryAdd(name, val);
-        }
-
-        // Pattern C: general assignments: apiVersion = 'v1'
-        var assignMatches = Regex.Matches(fileText, @"\b([A-Za-z0-9_]+)\s*=\s*(?:.*?(?:\|\||\?\?)\s*)?['""`]([^'""`\r\n]+)['""`]");
-        foreach (Match m in assignMatches)
-        {
-            var name = m.Groups[1].Value.Trim();
-            var val = m.Groups[2].Value.Trim();
-            localVars.TryAdd(name, val);
-        }
-
-        string ResolveVar(string varName)
-        {
-            if (localVars.TryGetValue(varName, out var lv)) return lv;
-            if (!string.IsNullOrEmpty(projectName) && ConstantRegistry.TryResolve(projectName, varName, out var cv)) return cv;
-            if (ConstantRegistry.TryResolve(null, varName, out var gv)) return gv;
-            if (ConfigStore.TryGetConfig(projectName, varName, out var cfgVal)) return cfgVal;
-            return varName;
-        }
-
-        // 4. Template string with interpolation: `api/${apiVersion}` or `api/${apiVersion}/campaigns`
-        if (cleaned.StartsWith('`') && cleaned.EndsWith('`'))
-        {
-            var templateContent = cleaned[1..^1];
-            var resolved = Regex.Replace(templateContent, @"\$\{([A-Za-z0-9_\.]+)\}", m =>
-            {
-                var expr = m.Groups[1].Value.Trim();
-                if (expr.Contains("||") || expr.Contains("??"))
-                {
-                    var sub = ResolveGlobalPrefix(expr, fileText, projectName);
-                    if (!string.IsNullOrEmpty(sub)) return sub;
-                }
-                var varName = expr.Contains('.') ? expr.Split('.')[^1] : expr;
-                var val = ResolveVar(varName);
-                if (val != varName) return val;
-
-                if (varName.Equals("apiVersion", StringComparison.OrdinalIgnoreCase) ||
-                    varName.Equals("version", StringComparison.OrdinalIgnoreCase) ||
-                    varName.Equals("ver", StringComparison.OrdinalIgnoreCase) ||
-                    varName.Equals("v", StringComparison.OrdinalIgnoreCase))
-                {
-                    var verMatch = Regex.Match(fileText, @"['""`](v\d+(?:\.\d+)?|\d+)['""`]");
-                    if (verMatch.Success)
-                    {
-                        var foundVer = verMatch.Groups[1].Value;
-                        if (!foundVer.StartsWith('v') && int.TryParse(foundVer, out _)) foundVer = "v" + foundVer;
-                        return foundVer;
-                    }
-                    return "v1";
-                }
-                return m.Value;
-            });
-
-            if (!resolved.Contains("${"))
-            {
-                return resolved.Trim('/');
-            }
-        }
-
-        // 5. String concatenation with +: 'api/' + apiVersion
-        if (cleaned.Contains('+'))
-        {
-            var parts = cleaned.Split('+');
-            var sb = new System.Text.StringBuilder();
-            var allOk = true;
-            foreach (var rawPart in parts)
-            {
-                var p = rawPart.Trim();
-                if ((p.StartsWith('\'') && p.EndsWith('\'')) ||
-                    (p.StartsWith('"') && p.EndsWith('"')) ||
-                    (p.StartsWith('`') && p.EndsWith('`')))
-                {
-                    sb.Append(p.Trim('\'', '"', '`'));
-                }
-                else
-                {
-                    var varName = p.Contains('.') ? p.Split('.')[^1] : p;
-                    var val = ResolveVar(varName);
-                    if (val != varName)
-                    {
-                        sb.Append(val);
-                    }
-                    else if (varName.Equals("apiVersion", StringComparison.OrdinalIgnoreCase) ||
-                             varName.Equals("version", StringComparison.OrdinalIgnoreCase) ||
-                             varName.Equals("ver", StringComparison.OrdinalIgnoreCase) ||
-                             varName.Equals("v", StringComparison.OrdinalIgnoreCase))
-                    {
-                        sb.Append("v1");
-                    }
-                    else
-                    {
-                        allOk = false;
-                        break;
-                    }
-                }
-            }
-            if (allOk && sb.Length > 0)
-            {
-                return sb.ToString().Trim('/');
-            }
-        }
-
-        // 6. Direct identifier: apiVersion or API_PREFIX
-        var directId = cleaned.Contains('.') ? cleaned.Split('.')[^1] : cleaned;
-        if (Regex.IsMatch(directId, @"^[A-Za-z0-9_]+$"))
-        {
-            var val = ResolveVar(directId);
-            if (val != directId)
-            {
-                return val.Trim('/');
-            }
-            if (directId.Equals("apiVersion", StringComparison.OrdinalIgnoreCase) ||
-                directId.Equals("version", StringComparison.OrdinalIgnoreCase) ||
-                directId.Equals("ver", StringComparison.OrdinalIgnoreCase) ||
-                directId.Equals("v", StringComparison.OrdinalIgnoreCase))
-            {
-                return "v1";
-            }
-        }
-
-        // 7. General template substitution fallback if quotes were stripped or non-standard delimiters were used
-        if (cleaned.Contains("${"))
-        {
-            var generalResolved = Regex.Replace(cleaned.Trim('\'', '"', '`', '\\', '/'), @"\$\{([A-Za-z0-9_\.]+)\}", m =>
-            {
-                var varName = m.Groups[1].Value.Trim();
-                if (varName.Contains('.')) varName = varName.Split('.')[^1];
-                var val = ResolveVar(varName);
-                if (val != varName) return val;
-                if (varName.Equals("apiVersion", StringComparison.OrdinalIgnoreCase) ||
-                    varName.Equals("version", StringComparison.OrdinalIgnoreCase) ||
-                    varName.Equals("ver", StringComparison.OrdinalIgnoreCase) ||
-                    varName.Equals("v", StringComparison.OrdinalIgnoreCase))
-                {
-                    return "v1";
-                }
-                return m.Value;
-            });
-            if (!generalResolved.Contains("${"))
-            {
-                return generalResolved.Trim('/');
-            }
-        }
-
-        return null;
     }
 
     private static string GetProjectNameFromRelativePath(string relativePath)

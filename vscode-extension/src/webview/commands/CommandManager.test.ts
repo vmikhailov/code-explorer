@@ -208,3 +208,76 @@ test('CommandManager: scoped history isolation per view', () => {
   assert.equal(manager.undoDescription, 'Collapse Presentation');
   assert.equal(manager.canRedo, false);
 });
+
+test('Semantic commands: HideNodeCommand, RestoreAllHiddenNodesCommand execute/undo/redo', () => {
+  const {
+    HideNodeCommand,
+    RestoreAllHiddenNodesCommand,
+  } = require('./commands');
+
+  const manager = new CommandManager();
+  manager.setScope('semantic');
+
+  let hidden = new Set<string>();
+  let forced = new Set<string>();
+  let relayoutCalls = 0;
+  const onRelayout = () => { relayoutCalls++; };
+
+  // 1. Hide Node A
+  const prevHidden1 = new Set(hidden);
+  const nextHidden1 = new Set(prevHidden1).add('A');
+  const prevForced1 = new Set(forced);
+  const nextForced1 = new Set(prevForced1);
+  nextForced1.delete('A');
+
+  const hideCmd = new HideNodeCommand(
+    'Node A',
+    prevHidden1,
+    nextHidden1,
+    prevForced1,
+    nextForced1,
+    (nodes: Set<string>) => { hidden = nodes; },
+    (nodes: Set<string>) => { forced = nodes; },
+    onRelayout
+  );
+
+  manager.executeCommand(hideCmd);
+  assert.equal(hidden.has('A'), true);
+  assert.equal(manager.undoDescription, 'Hide Node A');
+  assert.equal(relayoutCalls, 1);
+
+  // 2. Undo Hide Node A
+  assert.equal(manager.undo(), true);
+  assert.equal(hidden.has('A'), false);
+  assert.equal(relayoutCalls, 2);
+
+  // 3. Redo Hide Node A
+  assert.equal(manager.redo(), true);
+  assert.equal(hidden.has('A'), true);
+  assert.equal(relayoutCalls, 3);
+
+  // 4. Restore All Hidden
+  const restoreCmd = new RestoreAllHiddenNodesCommand(
+    new Set(hidden),
+    new Set(),
+    new Set(),
+    new Set(forced),
+    false,
+    false,
+    (nodes: Set<string>) => { hidden = nodes; },
+    () => {},
+    () => {},
+    (nodes: Set<string>) => { forced = nodes; },
+    undefined,
+    undefined,
+    onRelayout
+  );
+
+  manager.executeCommand(restoreCmd);
+  assert.equal(hidden.size, 0);
+  assert.equal(manager.undoDescription, 'Restore all hidden nodes');
+
+  // 5. Undo Restore All -> Node A is hidden again!
+  assert.equal(manager.undo(), true);
+  assert.equal(hidden.has('A'), true);
+});

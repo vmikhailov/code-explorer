@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
@@ -106,6 +107,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new Libraries.BullMqLibraryParser(),
         new Libraries.NestJsLibraryParser(),
         new Libraries.NestJsCqrsLibraryParser(),
+        new Libraries.RoutingControllersLibraryParser(),
         new Libraries.ExpressLibraryParser(),
         new Libraries.FastifyLibraryParser(),
         new Libraries.KoaLibraryParser(),
@@ -174,7 +176,8 @@ public class TypeScriptParser : IProjectParser, IFileParser
 
                         if (!string.IsNullOrEmpty(name))
                         {
-                            return name;
+                            var stripped = WorkspaceConventions.StripServicePrefix(name);
+                            return !string.IsNullOrEmpty(stripped) ? stripped : name;
                         }
                     }
                 }

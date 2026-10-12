@@ -6,6 +6,7 @@ using CodeExplorer.Cypher.Ast;
 using CodeExplorer.Cypher.Compiler;
 using CodeExplorer.Cypher.Linq;
 using CodeExplorer.Cypher.Parser;
+using Dapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -186,10 +187,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         await _lock.WaitAsync();
         try
         {
-            using var cmd = _conn.CreateCommand();
-
-            cmd.CommandText = $"PRAGMA user_version = {version};";
-            await cmd.ExecuteNonQueryAsync();
+            await _conn.ExecuteAsync($"PRAGMA user_version = {version};");
             SchemaVersion = version;
         }
         finally
@@ -413,134 +411,67 @@ public class SqliteGraphClient : IGraphClient, IDisposable
 
     private async Task<bool> DeleteSubpathHierarchyAsync(string absPath, string? relPath)
     {
-        await using var cmd = _conn.CreateCommand();
-
         var normLower = absPath.ToLowerInvariant();
         var normSlashLower = (absPath.TrimEnd('/') + "/").ToLowerInvariant() + "%";
-
-        cmd.Parameters.AddWithValue("@normPath", normLower);
-        cmd.Parameters.AddWithValue("@normPathSlash", normSlashLower);
-
         var relLower = (relPath ?? "").ToLowerInvariant();
+        var relSlashLower = string.IsNullOrEmpty(relPath) ? "" : (relPath.TrimEnd('/') + "/").ToLowerInvariant() + "%";
+        var hasRel = !string.IsNullOrEmpty(relPath) ? 1 : 0;
 
-        var relSlashLower = string.IsNullOrEmpty(relPath)
-            ? ""
-            : (relPath.TrimEnd('/') + "/").ToLowerInvariant() + "%";
-        cmd.Parameters.AddWithValue("@relPath", relLower);
-        cmd.Parameters.AddWithValue("@relPathSlash", relSlashLower);
-        cmd.Parameters.AddWithValue("@hasRel", !string.IsNullOrEmpty(relPath) ? 1 : 0);
-
-        cmd.CommandText = """
-                          CREATE TEMP TABLE IF NOT EXISTS temp_ws_del(id TEXT PRIMARY KEY);
-                          DELETE FROM temp_ws_del;
-
-                          -- 1. Match nodes directly by ID prefix (supporting workspace:, ws:, and custom URN prefixes)
-                          INSERT OR IGNORE INTO temp_ws_del(id)
-                          SELECT id FROM nodes
-                          WHERE lower(replace(id, '\', '/')) LIKE 'ws:dir:' || @normPath || '/%'
-                             OR lower(replace(id, '\', '/')) = 'ws:dir:' || @normPath
-                             OR lower(replace(id, '\', '/')) LIKE 'workspace:folder:' || @normPath || '/%'
-                             OR lower(replace(id, '\', '/')) = 'workspace:folder:' || @normPath
-                             OR lower(replace(id, '\', '/')) LIKE 'ws:folder:' || @normPath || '/%'
-                             OR lower(replace(id, '\', '/')) = 'ws:folder:' || @normPath
-                             OR (@hasRel = 1 AND (
-                                 lower(replace(id, '\', '/')) LIKE 'ws:f:' || @relPath || '/%'
-                                 OR lower(replace(id, '\', '/')) = 'ws:f:' || @relPath
-                                 OR lower(replace(id, '\', '/')) LIKE 'workspace:file:' || @relPath || '/%'
-                                 OR lower(replace(id, '\', '/')) = 'workspace:file:' || @relPath
-                                 OR lower(replace(id, '\', '/')) LIKE 'ws:file:' || @relPath || '/%'
-                                 OR lower(replace(id, '\', '/')) = 'ws:file:' || @relPath
-                                 OR lower(replace(id, '\', '/')) LIKE 'ws:p:' || @relPath || ':%'
-                                 OR lower(replace(id, '\', '/')) = 'ws:p:' || @relPath || ':'
-                                 OR lower(replace(id, '\', '/')) LIKE 'workspace:p:' || @relPath || ':%'
-                                 OR lower(replace(id, '\', '/')) = 'workspace:p:' || @relPath || ':'
-                                 OR lower(replace(id, '\', '/')) LIKE 'workspace:project:' || @relPath || ':%'
-                                 OR lower(replace(id, '\', '/')) = 'workspace:project:' || @relPath || ':'
-                                 OR lower(replace(id, '\', '/')) LIKE 'ws:project:' || @relPath || ':%'
-                                 OR lower(replace(id, '\', '/')) = 'ws:project:' || @relPath || ':'
-                                 OR lower(replace(id, '\', '/')) LIKE 'ws:sym:' || @relPath || '/%'
-                                 OR lower(replace(id, '\', '/')) = 'ws:sym:' || @relPath
-                                 OR lower(replace(id, '\', '/')) LIKE 'workspace:symbol:' || @relPath || '/%'
-                                 OR lower(replace(id, '\', '/')) = 'workspace:symbol:' || @relPath
-                                 OR lower(replace(id, '\', '/')) LIKE 'ws:symbol:' || @relPath || '/%'
-                                 OR lower(replace(id, '\', '/')) = 'ws:symbol:' || @relPath
-                             ));
-
-                          -- 2. Match File nodes by full_path or relative path
-                          INSERT OR IGNORE INTO temp_ws_del(id)
-                          SELECT id FROM nodes
-                          WHERE kind = 'File'
-                            AND (
-                                lower(replace(json_extract(properties, '$.full_path'), '\', '/')) = @normPath
-                                OR lower(replace(json_extract(properties, '$.full_path'), '\', '/')) LIKE @normPathSlash
-                                OR (@hasRel = 1 AND (
-                                    lower(replace(json_extract(properties, '$.path'), '\', '/')) = @relPath
-                                    OR lower(replace(json_extract(properties, '$.path'), '\', '/')) LIKE @relPathSlash
-                                ))
-                            );
-
-                          -- 3. Match Project nodes located in one of our deleted folders or by name/path
-                          INSERT OR IGNORE INTO temp_ws_del(id)
-                          SELECT id FROM nodes
-                          WHERE kind = 'Project'
-                            AND (
-                                lower(replace(json_extract(properties, '$.path'), '\', '/')) = @normPath
-                                OR (@hasRel = 1 AND (
-                                    lower(replace(json_extract(properties, '$.path'), '\', '/')) = @relPath
-                                    OR lower(json_extract(properties, '$.name')) = @relPath
-                                ))
-                            );
-
-                          INSERT OR IGNORE INTO temp_ws_del(id)
-                          SELECT from_id FROM edges
-                          WHERE kind = 'LOCATED_IN' AND to_id IN (SELECT id FROM temp_ws_del);
-
-                          -- 4. Match ProjectSyntax and ProjectSemantic via BELONGS_TO
-                          INSERT OR IGNORE INTO temp_ws_del(id)
-                          SELECT from_id FROM edges
-                          WHERE kind = 'BELONGS_TO' AND to_id IN (SELECT id FROM temp_ws_del);
-                          """;
-        await cmd.ExecuteNonQueryAsync();
-
-        cmd.CommandText = "SELECT COUNT(*) FROM temp_ws_del;";
-        var count = Convert.ToInt64(await cmd.ExecuteScalarAsync());
-
-        if (count == 0)
+        var parameters = new
         {
-            cmd.CommandText = "DROP TABLE IF EXISTS temp_ws_del;";
-            await cmd.ExecuteNonQueryAsync();
-            return false;
+            normPath = normLower,
+            normPathSlash = normSlashLower,
+            relPath = relLower,
+            relPathSlash = relSlashLower,
+            hasRel
+        };
+
+        const string findSql = """
+            WITH RECURSIVE del_nodes(id) AS (
+                SELECT id FROM nodes
+                WHERE kind IN ('File', 'Folder', 'Project', 'Endpoint', 'EntryPoint')
+                  AND (
+                      lower(replace(json_extract(properties, '$.path'), '\', '/')) = @normPath
+                      OR lower(replace(json_extract(properties, '$.full_path'), '\', '/')) = @normPath
+                      OR lower(replace(json_extract(properties, '$.file_path'), '\', '/')) = @normPath
+                      OR lower(replace(json_extract(properties, '$.full_path'), '\', '/')) LIKE @normPathSlash
+                      OR (@hasRel = 1 AND (
+                          lower(replace(json_extract(properties, '$.path'), '\', '/')) = @relPath
+                          OR lower(replace(json_extract(properties, '$.file_path'), '\', '/')) = @relPath
+                          OR lower(json_extract(properties, '$.name')) = @relPath
+                          OR lower(replace(json_extract(properties, '$.path'), '\', '/')) LIKE @relPathSlash
+                          OR lower(replace(json_extract(properties, '$.file_path'), '\', '/')) LIKE @relPathSlash
+                      ))
+                  )
+                UNION
+                SELECT e.to_id FROM edges e
+                JOIN del_nodes d ON e.from_id = d.id
+                WHERE e.kind = 'CONTAINS'
+            )
+            SELECT id FROM del_nodes;
+            """;
+
+        var ids = (await _conn.QueryAsync<string>(findSql, parameters)).AsList();
+        if (ids.Count == 0) return false;
+
+        const int chunkSize = 500;
+        for (var i = 0; i < ids.Count; i += chunkSize)
+        {
+            var chunk = ids.Skip(i).Take(chunkSize).ToList();
+            await _conn.ExecuteAsync("DELETE FROM edges WHERE from_id IN @chunk OR to_id IN @chunk;", new { chunk });
+            await _conn.ExecuteAsync("DELETE FROM nodes WHERE id IN @chunk;", new { chunk });
         }
 
-        // 5. Include all levels of child nodes attached via CONTAINS
-        while (true)
-        {
-            cmd.CommandText = """
-                              INSERT OR IGNORE INTO temp_ws_del(id)
-                              SELECT to_id FROM edges
-                              WHERE kind = 'CONTAINS'
-                                AND from_id IN (SELECT id FROM temp_ws_del)
-                                AND to_id NOT IN (SELECT id FROM temp_ws_del);
-                              """;
-            var added = await cmd.ExecuteNonQueryAsync();
-            if (added == 0) break;
-        }
+        await _conn.ExecuteAsync("""
+            DELETE FROM file_registry
+            WHERE lower(replace(relative_path, '\', '/')) = @normPath
+               OR lower(replace(relative_path, '\', '/')) LIKE @normPathSlash
+               OR (@hasRel = 1 AND (
+                   lower(replace(relative_path, '\', '/')) = @relPath
+                   OR lower(replace(relative_path, '\', '/')) LIKE @relPathSlash
+               ));
+            """, parameters);
 
-        cmd.CommandText = """
-                          -- 6. Fast indexed deletions across edges and nodes
-                          DELETE FROM edges WHERE from_id IN (SELECT id FROM temp_ws_del);
-                          DELETE FROM edges WHERE to_id IN (SELECT id FROM temp_ws_del);
-                          DELETE FROM nodes WHERE id IN (SELECT id FROM temp_ws_del);
-                          DELETE FROM file_registry WHERE lower(replace(relative_path, '\', '/')) = @normPath
-                                                       OR lower(replace(relative_path, '\', '/')) LIKE @normPathSlash
-                                                       OR (@hasRel = 1 AND (
-                                                           lower(replace(relative_path, '\', '/')) = @relPath
-                                                           OR lower(replace(relative_path, '\', '/')) LIKE @relPathSlash
-                                                       ));
-
-                          DROP TABLE IF EXISTS temp_ws_del;
-                          """;
-        await cmd.ExecuteNonQueryAsync();
         return true;
     }
 
@@ -616,10 +547,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         await _lock.WaitAsync();
         try
         {
-            await using var cmd = _conn.CreateCommand();
-
-            cmd.CommandText = "SELECT id FROM nodes WHERE kind = 'Workspace' LIMIT 1;";
-            var existing = (string?)await cmd.ExecuteScalarAsync();
+            var existing = await _conn.ExecuteScalarAsync<string>("SELECT id FROM nodes WHERE kind = 'Workspace' LIMIT 1;");
             return existing ?? "ws";
         }
         finally
@@ -2785,116 +2713,87 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         string workspaceId,
         CancellationToken cancellationToken = default)
     {
-        var results = new List<CrossDomainInteractionRecord>();
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            await using var cmd = _conn.CreateCommand();
+            const string sql = """
+                               SELECT 
+                                   i1.domain AS SourceDomain,
+                                   i2.domain AS TargetDomain,
+                                   e.kind AS EdgeKind,
+                                   COUNT(*) AS InteractionCount
+                               FROM edges e
+                               JOIN nodes n1 ON e.from_id = n1.id
+                               JOIN nodes n2 ON e.to_id = n2.id
+                               JOIN intents i1 ON (n1.id = i1.file_id 
+                                                  OR json_extract(n1.properties, '$.path') = i1.file_path 
+                                                  OR json_extract(n1.properties, '$.file_path') = i1.file_path)
+                               JOIN intents i2 ON (n2.id = i2.file_id 
+                                                  OR json_extract(n2.properties, '$.path') = i2.file_path 
+                                                  OR json_extract(n2.properties, '$.file_path') = i2.file_path)
+                               WHERE (@workspaceId = '' OR i1.workspace_id = @workspaceId COLLATE NOCASE OR REPLACE(i1.workspace_id, '\', '/') = REPLACE(@workspaceId, '\', '/') COLLATE NOCASE)
+                                 AND (@workspaceId = '' OR i2.workspace_id = @workspaceId COLLATE NOCASE OR REPLACE(i2.workspace_id, '\', '/') = REPLACE(@workspaceId, '\', '/') COLLATE NOCASE)
+                                 AND e.kind IN ('CALLS', 'CALLS_ENDPOINT', 'USES_API', 'PUBLISHES', 'SUBSCRIBES', 'TRIGGERS', 'CONSUMES', 'USES_DB')
+                                 AND i1.domain IS NOT NULL AND trim(i1.domain) != ''
+                                 AND i2.domain IS NOT NULL AND trim(i2.domain) != ''
+                                 AND lower(i1.domain) != lower(i2.domain)
+                               GROUP BY i1.domain, i2.domain, e.kind;
+                               """;
 
-            cmd.CommandTimeout = CommandTimeoutSeconds;
-
-            cmd.CommandText = """
-                              SELECT 
-                                  i1.domain AS source_domain,
-                                  i2.domain AS target_domain,
-                                  e.kind AS edge_kind,
-                                  COUNT(*) AS interaction_count
-                              FROM edges e
-                              JOIN nodes n1 ON e.from_id = n1.id
-                              JOIN nodes n2 ON e.to_id = n2.id
-                              JOIN intents i1 ON (n1.id = i1.file_id 
-                                                 OR json_extract(n1.properties, '$.path') = i1.file_path 
-                                                 OR json_extract(n1.properties, '$.file_path') = i1.file_path)
-                              JOIN intents i2 ON (n2.id = i2.file_id 
-                                                 OR json_extract(n2.properties, '$.path') = i2.file_path 
-                                                 OR json_extract(n2.properties, '$.file_path') = i2.file_path)
-                              WHERE (@workspaceId = '' OR i1.workspace_id = @workspaceId COLLATE NOCASE OR REPLACE(i1.workspace_id, '\', '/') = REPLACE(@workspaceId, '\', '/') COLLATE NOCASE)
-                                AND (@workspaceId = '' OR i2.workspace_id = @workspaceId COLLATE NOCASE OR REPLACE(i2.workspace_id, '\', '/') = REPLACE(@workspaceId, '\', '/') COLLATE NOCASE)
-                                AND e.kind IN ('CALLS', 'CALLS_ENDPOINT', 'USES_API', 'PUBLISHES', 'SUBSCRIBES', 'TRIGGERS', 'CONSUMES', 'USES_DB')
-                                AND i1.domain IS NOT NULL AND trim(i1.domain) != ''
-                                AND i2.domain IS NOT NULL AND trim(i2.domain) != ''
-                                AND lower(i1.domain) != lower(i2.domain)
-                              GROUP BY i1.domain, i2.domain, e.kind;
-                              """;
-            cmd.Parameters.AddWithValue("@workspaceId", workspaceId ?? "");
-
-            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-
-            while (await reader.ReadAsync(cancellationToken))
-            {
-                var src = reader.GetString(0);
-                var tgt = reader.GetString(1);
-                var kind = reader.GetString(2);
-                var count = reader.GetInt32(3);
-                results.Add(new CrossDomainInteractionRecord(src, tgt, kind, count));
-            }
+            var rows = await _conn.QueryAsync<(string SourceDomain, string TargetDomain, string EdgeKind, int InteractionCount)>(
+                new CommandDefinition(sql, new { workspaceId = workspaceId ?? "" }, commandTimeout: CommandTimeoutSeconds, cancellationToken: cancellationToken));
+            return rows.Select(r => new CrossDomainInteractionRecord(r.SourceDomain, r.TargetDomain, r.EdgeKind, r.InteractionCount)).ToList();
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "[SqliteGraphClient] Note on querying cross-domain interactions: {Message}", ex.Message);
+            return [];
         }
         finally
         {
             _lock.Release();
         }
-
-        return results;
     }
 
     public async Task<List<DomainInfrastructureLinkRecord>> LoadDomainInfrastructureLinksAsync(
         string workspaceId,
         CancellationToken cancellationToken = default)
     {
-        var results = new List<DomainInfrastructureLinkRecord>();
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            await using var cmd = _conn.CreateCommand();
+            const string sql = """
+                               SELECT 
+                                   i.domain AS Domain,
+                                   n_infra.id AS InfraId,
+                                   COALESCE(json_extract(n_infra.properties, '$.name'), n_infra.id) AS InfraName,
+                                   n_infra.kind AS InfraKind,
+                                   e.kind AS EdgeKind
+                               FROM edges e
+                               JOIN nodes n ON e.from_id = n.id
+                               JOIN nodes n_infra ON e.to_id = n_infra.id
+                               JOIN intents i ON (n.id = i.file_id 
+                                                  OR json_extract(n.properties, '$.path') = i.file_path 
+                                                  OR json_extract(n.properties, '$.file_path') = i.file_path)
+                               WHERE (@workspaceId = '' OR i.workspace_id = @workspaceId COLLATE NOCASE OR REPLACE(i.workspace_id, '\', '/') = REPLACE(@workspaceId, '\', '/') COLLATE NOCASE)
+                                 AND i.domain IS NOT NULL AND trim(i.domain) != ''
+                                 AND n_infra.kind IN ('Database', 'Topic')
+                               GROUP BY i.domain, n_infra.id, n_infra.kind, e.kind;
+                               """;
 
-            cmd.CommandTimeout = CommandTimeoutSeconds;
-
-            cmd.CommandText = """
-                              SELECT 
-                                  i.domain AS domain,
-                                  n_infra.id AS infra_id,
-                                  COALESCE(json_extract(n_infra.properties, '$.name'), n_infra.id) AS infra_name,
-                                  n_infra.kind AS infra_kind,
-                                  e.kind AS edge_kind
-                              FROM edges e
-                              JOIN nodes n ON e.from_id = n.id
-                              JOIN nodes n_infra ON e.to_id = n_infra.id
-                              JOIN intents i ON (n.id = i.file_id 
-                                                 OR json_extract(n.properties, '$.path') = i.file_path 
-                                                 OR json_extract(n.properties, '$.file_path') = i.file_path)
-                              WHERE (@workspaceId = '' OR i.workspace_id = @workspaceId COLLATE NOCASE OR REPLACE(i.workspace_id, '\', '/') = REPLACE(@workspaceId, '\', '/') COLLATE NOCASE)
-                                AND i.domain IS NOT NULL AND trim(i.domain) != ''
-                                AND n_infra.kind IN ('Database', 'Topic')
-                              GROUP BY i.domain, n_infra.id, n_infra.kind, e.kind;
-                              """;
-            cmd.Parameters.AddWithValue("@workspaceId", workspaceId ?? "");
-
-            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-
-            while (await reader.ReadAsync(cancellationToken))
-            {
-                var dom = reader.GetString(0);
-                var infId = reader.GetString(1);
-                var infName = reader.GetString(2);
-                var infKind = reader.GetString(3);
-                var edgeKind = reader.GetString(4);
-                results.Add(new DomainInfrastructureLinkRecord(dom, infId, infName, infKind, edgeKind));
-            }
+            var rows = await _conn.QueryAsync<(string Domain, string InfraId, string InfraName, string InfraKind, string EdgeKind)>(
+                new CommandDefinition(sql, new { workspaceId = workspaceId ?? "" }, commandTimeout: CommandTimeoutSeconds, cancellationToken: cancellationToken));
+            return rows.Select(r => new DomainInfrastructureLinkRecord(r.Domain, r.InfraId, r.InfraName, r.InfraKind, r.EdgeKind)).ToList();
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "[SqliteGraphClient] Note on querying domain infrastructure links: {Message}", ex.Message);
+            return [];
         }
         finally
         {
             _lock.Release();
         }
-
-        return results;
     }
 
 
@@ -2937,7 +2836,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            using var cmd = _conn.CreateCommand();
+            await using var cmd = _conn.CreateCommand();
 
             cmd.CommandText = $"PRAGMA incremental_vacuum({pages});";
             await cmd.ExecuteNonQueryAsync(cancellationToken);
@@ -2954,23 +2853,13 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         await _lock.WaitAsync(cancellationToken);
         try
         {
+            const string sql = "SELECT relative_path AS RelativePath, content_hash AS ContentHash, last_modified_utc AS LastModifiedUtcStr, project_path AS ProjectPath, snapshot_json AS SnapshotJson FROM file_registry;";
+            var rows = await _conn.QueryAsync<(string RelativePath, string ContentHash, string LastModifiedUtcStr, string ProjectPath, string? SnapshotJson)>(
+                new CommandDefinition(sql, cancellationToken: cancellationToken));
+
             var result = new Dictionary<string, FileRegistryEntry>(StringComparer.OrdinalIgnoreCase);
-
-            using var cmd = _conn.CreateCommand();
-
-            cmd.CommandText =
-                "SELECT relative_path, content_hash, last_modified_utc, project_path, snapshot_json FROM file_registry;";
-
-            using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-
-            while (await reader.ReadAsync(cancellationToken))
+            foreach (var (relPath, hash, lastModStr, projPath, snapshotJson) in rows)
             {
-                var relPath = reader.GetString(0);
-                var hash = reader.GetString(1);
-                var lastModStr = reader.GetString(2);
-                var projPath = reader.GetString(3);
-                var snapshotJson = !reader.IsDBNull(4) ? reader.GetString(4) : null;
-
                 var lastMod = DateTime.TryParse(lastModStr, null,
                     System.Globalization.DateTimeStyles.RoundtripKind, out var dt)
                     ? dt
@@ -2995,44 +2884,32 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         IEnumerable<(string RelativePath, string ContentHash, DateTime LastModifiedUtc, string ProjectPath, string? SnapshotJson)> entries,
         CancellationToken cancellationToken = default)
     {
-        var entryList = entries.ToList();
+        var entryList = entries.Select(e => new
+        {
+            relPath = e.RelativePath,
+            hash = e.ContentHash,
+            lastMod = e.LastModifiedUtc.ToString("o"),
+            projPath = e.ProjectPath,
+            snapshotJson = e.SnapshotJson
+        }).ToList();
         if (entryList.Count == 0) return;
 
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            using var tx = await _conn.BeginTransactionAsync(cancellationToken);
+            await using var tx = await _conn.BeginTransactionAsync(cancellationToken);
 
-            using var cmd = _conn.CreateCommand();
+            const string sql = """
+                               INSERT INTO file_registry (relative_path, content_hash, last_modified_utc, project_path, snapshot_json)
+                               VALUES (@relPath, @hash, @lastMod, @projPath, @snapshotJson)
+                               ON CONFLICT(relative_path) DO UPDATE SET
+                                   content_hash = excluded.content_hash,
+                                   last_modified_utc = excluded.last_modified_utc,
+                                   project_path = excluded.project_path,
+                                   snapshot_json = coalesce(excluded.snapshot_json, file_registry.snapshot_json);
+                               """;
 
-            cmd.Transaction = (SqliteTransaction)tx;
-
-            cmd.CommandText = """
-                              INSERT INTO file_registry (relative_path, content_hash, last_modified_utc, project_path, snapshot_json)
-                              VALUES (@relPath, @hash, @lastMod, @projPath, @snapshotJson)
-                              ON CONFLICT(relative_path) DO UPDATE SET
-                                  content_hash = excluded.content_hash,
-                                  last_modified_utc = excluded.last_modified_utc,
-                                  project_path = excluded.project_path,
-                                  snapshot_json = coalesce(excluded.snapshot_json, file_registry.snapshot_json);
-                              """;
-
-            var pRel = cmd.Parameters.Add("@relPath", SqliteType.Text);
-            var pHash = cmd.Parameters.Add("@hash", SqliteType.Text);
-            var pLastMod = cmd.Parameters.Add("@lastMod", SqliteType.Text);
-            var pProj = cmd.Parameters.Add("@projPath", SqliteType.Text);
-            var pSnap = cmd.Parameters.Add("@snapshotJson", SqliteType.Text);
-
-            foreach (var (relPath, hash, lastMod, projPath, snapshotJson) in entryList)
-            {
-                pRel.Value = relPath;
-                pHash.Value = hash;
-                pLastMod.Value = lastMod.ToString("o");
-                pProj.Value = projPath;
-                pSnap.Value = (object?)snapshotJson ?? DBNull.Value;
-                await cmd.ExecuteNonQueryAsync(cancellationToken);
-            }
-
+            await _conn.ExecuteAsync(new CommandDefinition(sql, entryList, transaction: tx, cancellationToken: cancellationToken));
             await tx.CommitAsync(cancellationToken);
         }
         finally
@@ -3045,25 +2922,16 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         IEnumerable<string> relativePaths,
         CancellationToken cancellationToken = default)
     {
-        var pathList = relativePaths.ToList();
+        var pathList = relativePaths.Select(p => new { relPath = p }).ToList();
         if (pathList.Count == 0) return;
 
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            using var tx = await _conn.BeginTransactionAsync(cancellationToken);
+            await using var tx = await _conn.BeginTransactionAsync(cancellationToken);
 
-            using var cmd = _conn.CreateCommand();
-
-            cmd.Transaction = (SqliteTransaction)tx;
-            cmd.CommandText = "DELETE FROM file_registry WHERE relative_path = @relPath;";
-            var pRel = cmd.Parameters.Add("@relPath", SqliteType.Text);
-
-            foreach (var relPath in pathList)
-            {
-                pRel.Value = relPath;
-                await cmd.ExecuteNonQueryAsync(cancellationToken);
-            }
+            const string sql = "DELETE FROM file_registry WHERE relative_path = @relPath;";
+            await _conn.ExecuteAsync(new CommandDefinition(sql, pathList, transaction: tx, cancellationToken: cancellationToken));
 
             await tx.CommitAsync(cancellationToken);
         }
@@ -3078,22 +2946,9 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            var result = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-
-            using var cmd = _conn.CreateCommand();
-
-            cmd.CommandText = "SELECT kind, count(*) FROM nodes GROUP BY kind ORDER BY count(*) DESC;";
-
-            using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-
-            while (await reader.ReadAsync(cancellationToken))
-            {
-                var kind = reader.GetString(0);
-                var count = reader.GetInt32(1);
-                result[kind] = count;
-            }
-
-            return result;
+            const string sql = "SELECT kind, count(*) AS count FROM nodes GROUP BY kind ORDER BY count(*) DESC;";
+            var rows = await _conn.QueryAsync<(string kind, int count)>(new CommandDefinition(sql, cancellationToken: cancellationToken));
+            return rows.ToDictionary(r => r.kind, r => r.count, StringComparer.OrdinalIgnoreCase);
         }
         finally
         {
@@ -3106,18 +2961,8 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            using var cmd = _conn.CreateCommand();
-
-            cmd.CommandText = "SELECT (SELECT count(*) FROM nodes), (SELECT count(*) FROM edges);";
-
-            using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-
-            if (await reader.ReadAsync(cancellationToken))
-            {
-                return (reader.GetInt32(0), reader.GetInt32(1));
-            }
-
-            return (0, 0);
+            const string sql = "SELECT (SELECT count(*) FROM nodes) AS NodesCount, (SELECT count(*) FROM edges) AS RelationshipsCount;";
+            return await _conn.QuerySingleOrDefaultAsync<(int, int)>(new CommandDefinition(sql, cancellationToken: cancellationToken));
         }
         finally
         {

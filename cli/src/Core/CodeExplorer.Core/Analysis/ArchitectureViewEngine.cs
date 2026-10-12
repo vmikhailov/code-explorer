@@ -879,10 +879,17 @@ public class ArchitectureViewEngine(IGraphClient db)
             {
                 edgeProps["is_semantic"] = "true";
             }
-            else if (!edgeProps.ContainsKey("is_semantic"))
+            if (!edgeProps.ContainsKey("is_semantic"))
             {
                 edgeProps["is_semantic"] = "false";
             }
+
+            var isTrans = edgeProps.GetValueOrDefault("is_transitive") == "true" ||
+                          edgeProps.GetValueOrDefault("semantic_lifted") == "true";
+            var isInferred = isTrans ||
+                             edgeProps.GetValueOrDefault("is_late_bound") == "true" ||
+                             edgeProps.GetValueOrDefault("inferred") == "true" ||
+                             edgeProps.GetValueOrDefault("is_semantic") == "true";
 
             if (edgeSet.Add((fromId, toId, outKind)))
             {
@@ -893,6 +900,8 @@ public class ArchitectureViewEngine(IGraphClient db)
                     Target = toId,
                     Kind = outKind,
                     Category = category,
+                    IsTransitive = isTrans,
+                    IsInferred = isInferred,
                     Properties = edgeProps
                 });
             }
@@ -2295,6 +2304,8 @@ public class ArchitectureViewEngine(IGraphClient db)
                                     Target = srcNode.Id,
                                     Kind = "SUBSCRIBES_TO",
                                     Category = "messaging",
+                                    IsTransitive = true,
+                                    IsInferred = true,
                                     Properties = new Dictionary<string, string>
                                     {
                                         ["dependency_type"] = "messaging",
@@ -2326,6 +2337,8 @@ public class ArchitectureViewEngine(IGraphClient db)
                                     Target = targetNode.Id,
                                     Kind = "USES_DB",
                                     Category = "database",
+                                    IsTransitive = false,
+                                    IsInferred = true,
                                     Properties = new Dictionary<string, string>
                                     {
                                         ["dependency_type"] = "database",
@@ -2348,6 +2361,8 @@ public class ArchitectureViewEngine(IGraphClient db)
                                     Target = targetNode.Id,
                                     Kind = "SERVICE_CALL",
                                     Category = "service_call",
+                                    IsTransitive = false,
+                                    IsInferred = true,
                                     Properties = new Dictionary<string, string>
                                     {
                                         ["dependency_type"] = "service_call",
@@ -2370,6 +2385,8 @@ public class ArchitectureViewEngine(IGraphClient db)
                                     Target = targetNode.Id,
                                     Kind = "SERVICE_CALL",
                                     Category = "service_call",
+                                    IsTransitive = false,
+                                    IsInferred = true,
                                     Properties = new Dictionary<string, string>
                                     {
                                         ["dependency_type"] = "service_call",
@@ -2393,6 +2410,8 @@ public class ArchitectureViewEngine(IGraphClient db)
                                     Target = targetNode.Id,
                                     Kind = "PUBLISHES_TO",
                                     Category = "messaging",
+                                    IsTransitive = true,
+                                    IsInferred = true,
                                     Properties = new Dictionary<string, string>
                                     {
                                         ["dependency_type"] = "messaging",
@@ -3403,6 +3422,8 @@ public class ArchitectureViewEngine(IGraphClient db)
             if (macroEdges.TryGetValue(edgeKey, out var existing))
             {
                 existing.Count++;
+                existing.IsTransitive = existing.IsTransitive || edge.IsTransitive;
+                existing.IsInferred = existing.IsInferred || edge.IsInferred;
             }
             else
             {
@@ -3413,7 +3434,9 @@ public class ArchitectureViewEngine(IGraphClient db)
                     Target = tgtDomain,
                     Category = cat,
                     Label = label,
-                    Count = 1
+                    Count = 1,
+                    IsTransitive = edge.IsTransitive,
+                    IsInferred = edge.IsInferred
                 };
             }
         }

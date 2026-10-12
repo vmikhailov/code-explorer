@@ -635,5 +635,37 @@ public class MultiLanguageHttpResolutionTests
         var isMatch = (bool)isMatchWithProjMethod.Invoke(layer5, [extSvc, endpoint, ruleConfigProj])!;
         Assert.That(isMatch, Is.True, "Caller calling /api/v1/kv/form-full-rule should match endpoint /v1/kv/form-full-rule on rule-configurator");
     }
+
+    [Test]
+    public void Test_UnknownService_RootPath_DoesNotMatchForeignProject()
+    {
+        var layer5 = new Layer5AnalysisParser();
+        var isMatchWithProjMethod = typeof(Layer5AnalysisParser).GetMethod("IsMatch",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
+            [typeof(ExternalServiceNode), typeof(EndpointNode), typeof(ProjectNode)])!;
+
+        var extSvc = new ExternalServiceNode(
+            "ws:es:http:unknown-service:action-scheduler",
+            "unknown-service",
+            "http",
+            "unknown-service",
+            "/",
+            new() { ["file_path"] = "action-scheduler/src/modules/task-executor/task-executor.service.ts" }
+        );
+
+        var endpoint = new EndpointNode(
+            "ws:ep:ATSAnalyticsDepartment:GET:/",
+            "GET:/",
+            "analytics/index.ts",
+            "GET",
+            "/"
+        );
+
+        var analyticsProj = new ProjectNode("ws:p:analytics:", "analytics", "analytics", "typescript");
+
+        var isMatch = (bool)isMatchWithProjMethod.Invoke(layer5, [extSvc, endpoint, analyticsProj])!;
+        Assert.That(isMatch, Is.False, "unknown-service with root path / must NOT match foreign project root endpoint");
+    }
 }
+
 

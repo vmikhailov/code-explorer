@@ -734,6 +734,120 @@ public class SemanticInvariantGateTests
         Assert.That(res.Violations[0].Message, Does.Contain("Internal HTTP call to non-existent endpoint /api/v1/non-existent-orders"));
     }
 
+    [Test]
+    public async Task GateCheck_EndpointIdentityUniqueness_DetectsDuplicates()
+    {
+        var dbPath = Path.Combine(_tempWorkspace, "graph_ep_dup.db");
+        await using var client = new SqliteGraphClient(dbPath);
+        await client.CreateIndicesAsync();
+
+        var proj = new Node("ws:p:order-service", OntologyConstants.NodeLabels.Project, new()
+        {
+            ["name"] = "order-service",
+            ["path"] = "src/services/order-service"
+        });
+
+        var ep1 = new Node("ws:ep:order-service:GET:/ping", OntologyConstants.NodeLabels.Endpoint, new()
+        {
+            ["name"] = "GET:/ping",
+            ["http_method"] = "GET",
+            ["route_template"] = "/ping",
+            ["path"] = "src/services/order-service/src/index.ts"
+        });
+
+        var ep2 = new Node("ws:ep:order-service-legacy:GET:/ping", OntologyConstants.NodeLabels.Endpoint, new()
+        {
+            ["name"] = "GET:/ping",
+            ["http_method"] = "GET",
+            ["route_template"] = "/ping",
+            ["path"] = "src/services/order-service/src/index.ts"
+        });
+
+        await client.UploadNodesAsync([proj, ep1, ep2]);
+        await client.UploadRelationshipsAsync([
+            new Relationship("ws:p:order-service", "ws:ep:order-service:GET:/ping", OntologyConstants.Relationships.Contains),
+            new Relationship("ws:p:order-service", "ws:ep:order-service-legacy:GET:/ping", OntologyConstants.Relationships.Contains)
+        ]);
+
+        var repo = new FileGateRepository(_tempWorkspace);
+        var engine = new GateExecutionEngine(client, repo);
+
+        var gate = BuiltInGateCatalog.EndpointIdentityUniquenessGate;
+        var res = await engine.CheckGateAsync(gate);
+
+        Assert.That(res.Status, Is.EqualTo(GateCheckStatus.FailedNew));
+        Assert.That(res.Violations.Count, Is.EqualTo(1));
+        Assert.That(res.Violations[0].Message, Does.Contain("Duplicate endpoint route declared in project order-service"));
+    }
+
+    [Test]
+    public async Task GateCheck_SqlTableSanitization_DetectsInvalidKeywordTable()
+    {
+        var dbPath = Path.Combine(_tempWorkspace, "graph_tbl_san.db");
+        await using var client = new SqliteGraphClient(dbPath);
+        await client.CreateIndicesAsync();
+
+        var validTable = new Node("ws:db:orders", OntologyConstants.NodeLabels.Table, new()
+        {
+            ["name"] = "orders"
+        });
+
+        var invalidTable = new Node("ws:db:skip", OntologyConstants.NodeLabels.Table, new()
+        {
+            ["name"] = "SKIP"
+        });
+
+        await client.UploadNodesAsync([validTable, invalidTable]);
+
+        var repo = new FileGateRepository(_tempWorkspace);
+        var engine = new GateExecutionEngine(client, repo);
+
+        var gate = BuiltInGateCatalog.SqlTableSanitizationGate;
+        var res = await engine.CheckGateAsync(gate);
+
+        Assert.That(res.Status, Is.EqualTo(GateCheckStatus.FailedNew));
+        Assert.That(res.Violations.Count, Is.EqualTo(1));
+        Assert.That(res.Violations[0].Symbol, Is.EqualTo("SKIP"));
+        Assert.That(res.Violations[0].Message, Does.Contain("Invalid or keyword SQL Table entity detected in graph: SKIP"));
+    }
+
+    [Test]
+    public async Task GateCheck_UnmountedExpressRoute_DetectsBareParamRoute()
+    {
+        var dbPath = Path.Combine(_tempWorkspace, "graph_unmounted_ep.db");
+        await using var client = new SqliteGraphClient(dbPath);
+        await client.CreateIndicesAsync();
+
+        var validEp = new Node("ws:ep:orders:GET:/api/orders/:id", OntologyConstants.NodeLabels.Endpoint, new()
+        {
+            ["name"] = "GET:/api/orders/:id",
+            ["http_method"] = "GET",
+            ["route_template"] = "/api/orders/:id",
+            ["path"] = "src/services/orders/routes.ts"
+        });
+
+        var invalidEp = new Node("ws:ep:orders:DELETE:/:id", OntologyConstants.NodeLabels.Endpoint, new()
+        {
+            ["name"] = "DELETE:/:id",
+            ["http_method"] = "DELETE",
+            ["route_template"] = "/:id",
+            ["path"] = "src/services/orders/routes.ts"
+        });
+
+        await client.UploadNodesAsync([validEp, invalidEp]);
+
+        var repo = new FileGateRepository(_tempWorkspace);
+        var engine = new GateExecutionEngine(client, repo);
+
+        var gate = BuiltInGateCatalog.UnmountedExpressRouteGate;
+        var res = await engine.CheckGateAsync(gate);
+
+        Assert.That(res.Status, Is.EqualTo(GateCheckStatus.FailedNew));
+        Assert.That(res.Violations.Count, Is.EqualTo(1));
+        Assert.That(res.Violations[0].Symbol, Is.EqualTo("DELETE:/:id"));
+        Assert.That(res.Violations[0].Message, Does.Contain("Unmounted parameter root route detected: DELETE /:id"));
+    }
+
     private class MockGateDbClient : IGraphClient
     {
         public string QueryResponse { get; set; } = "[]";

@@ -127,6 +127,14 @@ public class GraphEdgeDto
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Category { get; set; }
 
+    [JsonPropertyName("isTransitive")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsTransitive { get; set; }
+
+    [JsonPropertyName("isInferred")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsInferred { get; set; }
+
     [JsonPropertyName("properties")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, string>? Properties { get; set; }
@@ -617,6 +625,14 @@ public class DomainMacroEdgeDto
 
     [JsonPropertyName("count")]
     public int Count { get; set; } = 1;
+
+    [JsonPropertyName("isTransitive")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsTransitive { get; set; }
+
+    [JsonPropertyName("isInferred")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsInferred { get; set; }
 }
 
 public class DomainStatsDto

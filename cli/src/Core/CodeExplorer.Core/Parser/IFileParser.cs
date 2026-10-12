@@ -64,4 +64,26 @@ public interface IFileParser
     void ExtractDeclarations(Node rootNode, Action<string, Node?, string?> registerDeclaration)
     {
     }
+
+    /// <summary>
+    /// Invokes DiscoverDeclarations across active semantic extensions for this dialect.
+    /// </summary>
+    void DiscoverDeclarations(string filePath, string content, string? projectName, ParsingContext? ctx)
+    {
+        foreach (var ext in SemanticExtensions)
+        {
+            ext.DiscoverDeclarations(filePath, content, projectName, ctx);
+        }
+    }
+
+    /// <summary>
+    /// Invokes AST-level DiscoverDeclarations across active semantic extensions for this dialect.
+    /// </summary>
+    void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, ParsingContext? ctx)
+    {
+        foreach (var ext in SemanticExtensions)
+        {
+            ext.DiscoverDeclarations(rootNode, relativePath, projectName, ctx);
+        }
+    }
 }

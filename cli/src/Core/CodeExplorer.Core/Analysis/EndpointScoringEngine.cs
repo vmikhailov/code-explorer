@@ -39,7 +39,8 @@ public static partial class EndpointScoringEngine
         "*", "unknown-service", "httprequest", "pageurl", "string", "undefined", "null", "localhost", "127.0.0.1", "0.0.0.0",
         "127.0.0.1:*", "localhost:*",
         "prod", "production", "stage", "staging", "dev", "development", "test", "testing", "local", "environment", "env",
-        "url", "http-call", "v1", "v2", "event", "response", "service", "api", "request", "worker", "workers"
+        "url", "http-call", "v1", "v2", "event", "response", "service", "api", "request", "worker", "workers",
+        "action", "actions", "task", "tasks", "job", "jobs"
     };
 
     private static readonly string[] CommonPrefixes =

@@ -158,6 +158,13 @@ public static class NestedSqlParser
             {
                 return resolved;
             }
+            if (varName.Contains("suffix", StringComparison.OrdinalIgnoreCase) ||
+                varName.Contains("date", StringComparison.OrdinalIgnoreCase) ||
+                varName.Contains("part", StringComparison.OrdinalIgnoreCase) ||
+                varName.Contains("shard", StringComparison.OrdinalIgnoreCase))
+            {
+                return "*";
+            }
             return varName;
         });
         cleaned = Regex.Replace(cleaned, @"\$\{(.*?)\}", "$1");
@@ -244,7 +251,7 @@ public static class NestedSqlParser
                 var db = ResolveSqlIdentifier(t.Db, rawText);
 
                 if (IsSqlKeyword(table)) continue;
-                if (!string.IsNullOrEmpty(schema) && IsSqlKeyword(schema)) continue;
+                if (!string.IsNullOrEmpty(schema) && !string.Equals(schema, "default", StringComparison.OrdinalIgnoreCase) && IsSqlKeyword(schema)) continue;
 
                 if (IsUnresolvedVariable(table, rawText) || IsUnresolvedVariable(schema, rawText) ||
                     IsUnresolvedVariable(db, rawText)) continue;
@@ -272,7 +279,7 @@ public static class NestedSqlParser
         }
 
         // 2. Lexical Fallback: Match identifiers after FROM, JOIN, UPDATE, INTO, MERGE
-        var tableMatches = Regex.Matches(cleanedSql, @"\b(?:FROM|JOIN|UPDATE|INTO|MERGE)\s+(?!(?:EXTERNAL_QUERY|UNNEST|GENERATE_SERIES)\s*\()([a-zA-Z0-9_\.\[\]""#@'`\$\{\}\*]+)", RegexOptions.IgnoreCase);
+        var tableMatches = Regex.Matches(cleanedSql, @"\b(?:FROM|JOIN|(?<!FOR\s+)UPDATE|INTO|MERGE)\s+(?!(?:EXTERNAL_QUERY|UNNEST|GENERATE_SERIES)\s*\()([a-zA-Z0-9_\.\[\]""#@'`\$\{\}\*]+)", RegexOptions.IgnoreCase);
         foreach (Match match in tableMatches)
         {
             var rawTableName = match.Groups[1].Value.Trim();
@@ -308,7 +315,7 @@ public static class NestedSqlParser
             dbName = ResolveSqlIdentifier(dbName, rawText);
 
             if (IsSqlKeyword(tableName) || IsSqlKeyword(rawTableName)) continue;
-            if (!string.IsNullOrEmpty(schemaName) && IsSqlKeyword(schemaName)) continue;
+            if (!string.IsNullOrEmpty(schemaName) && !string.Equals(schemaName, "default", StringComparison.OrdinalIgnoreCase) && IsSqlKeyword(schemaName)) continue;
             if (IsUnresolvedVariable(tableName, rawText) || IsUnresolvedVariable(schemaName, rawText) || IsUnresolvedVariable(dbName, rawText)) continue;
             tables.Add((string.IsNullOrEmpty(dbName) ? null : dbName, string.IsNullOrEmpty(schemaName) ? null : schemaName, tableName));
         }
@@ -350,7 +357,7 @@ public static class NestedSqlParser
             dbName = ResolveSqlIdentifier(dbName, rawText);
 
             if (IsSqlKeyword(procName) || IsSqlKeyword(rawProcName)) continue;
-            if (!string.IsNullOrEmpty(schemaName) && IsSqlKeyword(schemaName)) continue;
+            if (!string.IsNullOrEmpty(schemaName) && !string.Equals(schemaName, "default", StringComparison.OrdinalIgnoreCase) && IsSqlKeyword(schemaName)) continue;
             if (IsUnresolvedVariable(procName, rawText) || IsUnresolvedVariable(schemaName, rawText) || IsUnresolvedVariable(dbName, rawText)) continue;
             procedures.Add((string.IsNullOrEmpty(dbName) ? null : dbName, string.IsNullOrEmpty(schemaName) ? null : schemaName, procName));
         }
@@ -647,7 +654,11 @@ public static class NestedSqlParser
         "JSONB_ARRAY_ELEMENTS_TEXT", "JSONB_TO_RECORDSET", "JSONB_OBJECT_KEYS", "JSONB_ARRAY_ELEMENTS",
         "JSONB_EACH", "JSONB_EACH_TEXT", "DBLINK", "COALESCE",
         "COUNT", "SUM", "AVG", "MIN", "MAX", "NOW",
-        "THIS", "THE", "AN", "A", "NULL", "UNDEFINED", "TRUE", "FALSE"
+        "THIS", "THE", "AN", "A", "NULL", "UNDEFINED", "TRUE", "FALSE",
+        "SKIP", "LOCKED", "NOWAIT", "RETURNING", "CASCADE", "RESTRICT",
+        "CONFLICT", "DO", "NOTHING", "FETCH", "NEXT", "ROWS", "ONLY", "ROW", "FIRST", "LAST",
+        "FILTER", "MATERIALIZED", "COLLATE", "CHECK", "CONSTRAINT", "DEFAULT",
+        "__TABLES__", "__TABLES_SUMMARY__", "TABLESUFFIX", "TABLE_SUFFIX"
     };
 
     public static bool IsSqlKeyword(string? word)
@@ -658,6 +669,7 @@ public static class NestedSqlParser
         if (char.IsDigit(trimmed[0])) return true;
         if (trimmed.Contains('(') || trimmed.Contains(')')) return true;
         if (trimmed.StartsWith('{') || trimmed.EndsWith('}') || trimmed.StartsWith('$')) return true;
+        if (trimmed.Contains("tablesuffix", StringComparison.OrdinalIgnoreCase)) return true;
         return ExtendedSqlKeywords.Contains(trimmed);
     }
 }

@@ -49,7 +49,7 @@ public class NodeSelector
             var text = node.Text;
             foreach (var part in parts)
             {
-                if (text == part) return node;
+                if (string.Equals(text, part, StringComparison.OrdinalIgnoreCase)) return node;
             }
             return null;
         }]);
@@ -64,7 +64,7 @@ public class NodeSelector
             var text = node.Text;
             foreach (var part in parts)
             {
-                if (text.Contains(part)) return node;
+                if (text.Contains(part, StringComparison.OrdinalIgnoreCase)) return node;
             }
             return null;
         }]);

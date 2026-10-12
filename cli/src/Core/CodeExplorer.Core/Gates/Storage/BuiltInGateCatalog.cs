@@ -7,10 +7,24 @@ namespace CodeExplorer.Core.Gates.Storage;
 /// </summary>
 public static class BuiltInGateCatalog
 {
-    public static IReadOnlyList<SemanticGate> GetDefaultGates() => [];
+    public static IReadOnlyList<SemanticGate> GetDefaultGates() =>
+    [
+        EndpointIdentityUniquenessGate,
+        SqlTableSanitizationGate,
+        UnmountedExpressRouteGate,
+        GenericPipelineLayerIsolationGate,
+        GraphMutationCypherPurityGate,
+        CoreZeroDomainHardcodesGate
+    ];
 
     public static IReadOnlyList<SemanticGate> GetExampleGates() =>
     [
+        EndpointIdentityUniquenessGate,
+        SqlTableSanitizationGate,
+        UnmountedExpressRouteGate,
+        GenericPipelineLayerIsolationGate,
+        GraphMutationCypherPurityGate,
+        CoreZeroDomainHardcodesGate,
         new SemanticGate
         {
             Id = "SIG-P-B-001",
@@ -414,4 +428,198 @@ public static class BuiltInGateCatalog
             Source = "BuiltIn"
         }
     ];
+
+    public static readonly SemanticGate EndpointIdentityUniquenessGate = new()
+    {
+        Id = "SIG-M-C-001",
+        Category = GateCategory.Architectural,
+        Platform = "agnostic",
+        Scope = InvariantScope.Module,
+        Dimension = InvariantDimension.Rules,
+        Name = "Endpoint Identity Uniqueness",
+        Severity = GateSeverity.Error,
+        Description = "Disallows duplicate API endpoints within the same service/project with identical HTTP method and route template.",
+        Remediation = "Ensure each route template in a microservice is registered only once. Check for overlapping router mounts or duplicate route declarations.",
+        Query = """
+            MATCH (p:Project)-[:CONTAINS]->(e1:Endpoint)
+            MATCH (p)-[:CONTAINS]->(e2:Endpoint)
+            WHERE e1.id < e2.id
+              AND e1.http_method = e2.http_method
+              AND e1.route_template = e2.route_template
+            RETURN 
+              coalesce(e1.path, e1.file_path) AS file,
+              1 AS line,
+              1 AS column,
+              e1.name AS symbol,
+              e2.id AS target,
+              'Duplicate endpoint route declared in project ' + p.name + ': ' + e1.http_method + ' ' + e1.route_template AS message
+            """,
+        Ratchet = new GateRatchetSettings
+        {
+            Enabled = true,
+            Baseline = "baselines/SIG-M-C-001.json"
+        },
+        Source = "BuiltIn"
+    };
+
+    public static readonly SemanticGate SqlTableSanitizationGate = new()
+    {
+        Id = "SIG-S-C-001",
+        Category = GateCategory.Architectural,
+        Platform = "agnostic",
+        Scope = InvariantScope.Module,
+        Dimension = InvariantDimension.Rules,
+        Name = "SQL Table Entity Sanitization",
+        Severity = GateSeverity.Error,
+        Description = "Graph Table entities must represent valid SQL tables and must not contain SQL keywords (e.g. SKIP, LOCKED, FETCH) or whitespace/syntax fragments.",
+        Remediation = "Refactor SQL queries or update SQL lexer exclusions so SQL clauses and keywords are not mistakenly ingested as database tables.",
+        Query = """
+            MATCH (t:Table)
+            WHERE t.name IN ['SKIP', 'LOCKED', 'NOWAIT', 'RETURNING', 'CASCADE', 'RESTRICT', 'CONFLICT', 'DO', 'NOTHING', 'FETCH', 'NEXT', 'ROWS', 'ONLY', 'ROW', 'FIRST', 'LAST', 'FILTER', 'MATERIALIZED', 'COLLATE', 'CHECK', 'CONSTRAINT', 'DEFAULT']
+               OR t.name CONTAINS ' '
+               OR t.name CONTAINS '`'
+               OR t.name CONTAINS '('
+               OR t.name CONTAINS ')'
+               OR t.name CONTAINS ';'
+            RETURN 
+              coalesce(t.path, t.file_path, 'schema') AS file,
+              1 AS line,
+              1 AS column,
+              t.name AS symbol,
+              t.name AS target,
+              'Invalid or keyword SQL Table entity detected in graph: ' + t.name AS message
+            """,
+        Ratchet = new GateRatchetSettings
+        {
+            Enabled = true,
+            Baseline = "baselines/SIG-S-C-001.json"
+        },
+        Source = "BuiltIn"
+    };
+
+    public static readonly SemanticGate UnmountedExpressRouteGate = new()
+    {
+        Id = "SIG-M-B-001",
+        Category = GateCategory.Architectural,
+        Platform = "agnostic",
+        Scope = InvariantScope.Module,
+        Dimension = InvariantDimension.Boundaries,
+        Name = "Unmounted Express Parameter Route Shield",
+        Severity = GateSeverity.Warning,
+        Description = "Parameterized root routes (such as /:id, /:uuid, /:key) must not exist directly at the service root without their resource mount prefix.",
+        Remediation = "Mount the route router using app.use('/api/<resource>', router) or prepend the canonical resource path to the route declaration.",
+        Query = """
+            MATCH (e:Endpoint)
+            WHERE e.route_template IN ['/:id', '/:uuid', '/:key']
+            RETURN 
+              coalesce(e.path, e.file_path) AS file,
+              1 AS line,
+              1 AS column,
+              e.name AS symbol,
+              e.id AS target,
+              'Unmounted parameter root route detected: ' + e.http_method + ' ' + e.route_template + ' in ' + coalesce(e.path, 'unknown') AS message
+            """,
+        Ratchet = new GateRatchetSettings
+        {
+            Enabled = true,
+            Baseline = "baselines/SIG-M-B-001.json"
+        },
+        Source = "BuiltIn"
+    };
+
+    public static readonly SemanticGate GenericPipelineLayerIsolationGate = new()
+    {
+        Id = "SIG-P-B-004",
+        Category = GateCategory.Architectural,
+        Platform = "agnostic",
+        Scope = InvariantScope.Module,
+        Dimension = InvariantDimension.Boundaries,
+        Name = "Generic Pipeline Layer Isolation",
+        Severity = GateSeverity.Error,
+        Description = "Generic parser pipeline layers (Layer1-Layer5) must not directly reference or couple to library-specific extension parsers (Libraries/). Library support must strictly implement ISemanticExtension.",
+        Remediation = "Remove library-specific imports and calls from generic pipeline layers. Implement ISemanticExtension under Libraries/ and register it via dependency injection or parser registry.",
+        Query = """
+            MATCH (layer:Type)-[:CALLS|USES_TYPE]->(lib:Type)
+            WHERE (layer.file_path CONTAINS 'Parser/Layers/' OR layer.symbol CONTAINS 'Parser.Layers')
+              AND (lib.file_path CONTAINS 'Libraries/' OR lib.symbol CONTAINS 'Libraries.')
+              AND NOT coalesce(layer.is_test, false)
+            RETURN 
+              layer.file_path AS file,
+              coalesce(layer.start_line, 1) AS line,
+              coalesce(layer.start_col, 1) AS column,
+              layer.name AS symbol,
+              lib.name AS target,
+              'Generic pipeline layer illegally references library-specific extension parser: ' + lib.name AS message
+            """,
+        Ratchet = new GateRatchetSettings
+        {
+            Enabled = true,
+            Baseline = "baselines/SIG-P-B-004.json"
+        },
+        Source = "BuiltIn"
+    };
+
+    public static readonly SemanticGate GraphMutationCypherPurityGate = new()
+    {
+        Id = "SIG-S-B-002",
+        Category = GateCategory.Platform,
+        Platform = "dotnet",
+        Scope = InvariantScope.Service,
+        Dimension = InvariantDimension.Boundaries,
+        Name = "Graph Mutation Cypher Purity",
+        Severity = GateSeverity.Error,
+        Description = "Graph structure cascades, subtree deletions, and topological traversals must be expressed in OpenCypher (e.g. DETACH DELETE), not multi-statement raw SQL scripts with temporary tables and imperative loops.",
+        Remediation = "Replace multi-statement SQL scripts with OpenCypher queries executed via IGraphClient / CypherQueryParser.",
+        Query = """
+            MATCH (f:Function)
+            WHERE (f.name CONTAINS 'DeleteSubpath' OR f.name CONTAINS 'CascadeDeleteSql')
+              AND (f.file_path CONTAINS 'Database/' OR f.file_path CONTAINS 'Client')
+              AND NOT coalesce(f.is_test, false)
+            RETURN 
+              f.file_path AS file,
+              coalesce(f.start_line, 1) AS line,
+              coalesce(f.start_col, 1) AS column,
+              f.name AS symbol,
+              'Raw SQL temporary table script' AS target,
+              'Graph manipulation function ' + f.name + ' uses imperative SQL script instead of declarative Cypher DETACH DELETE' AS message
+            """,
+        Ratchet = new GateRatchetSettings
+        {
+            Enabled = true,
+            Baseline = "baselines/SIG-S-B-002.json"
+        },
+        Source = "BuiltIn"
+    };
+
+    public static readonly SemanticGate CoreZeroDomainHardcodesGate = new()
+    {
+        Id = "SIG-M-I-003",
+        Category = GateCategory.Architectural,
+        Platform = "agnostic",
+        Scope = InvariantScope.Method,
+        Dimension = InvariantDimension.Rules,
+        Name = "Core Zero Domain Hardcodes Invariance",
+        Severity = GateSeverity.Error,
+        Description = "Core analysis engines, classifiers, and convention algorithms must not contain hardcoded company/customer domain literals (e.g. dynadot, rtb, antifraud, google-pub-sub-network).",
+        Remediation = "Move customer or workspace-specific tokens into .codeexplorer/conventions.json or resolve them dynamically from graph metadata.",
+        Query = """
+            MATCH (caller)-[:PASSES_LITERAL]->(lit:CallLiteral)
+            WHERE (caller.file_path CONTAINS 'Core/Common/' OR caller.file_path CONTAINS 'Core/Analysis/' OR caller.file_path CONTAINS 'Core/Parser/')
+              AND lit.value IN ['dynadot_base_url_v3', 'google-pub-sub-network', 'pub-sub-network', 'antifraud', 'rtb']
+              AND NOT coalesce(caller.is_test, false)
+            RETURN 
+              lit.file_path AS file,
+              lit.line AS line,
+              lit.column AS column,
+              coalesce(caller.name, 'unknown') AS symbol,
+              lit.value AS target,
+              'Illegal hardcoded customer/domain literal in core algorithm: ' + lit.value AS message
+            """,
+        Ratchet = new GateRatchetSettings
+        {
+            Enabled = true,
+            Baseline = "baselines/SIG-M-I-003.json"
+        },
+        Source = "BuiltIn"
+    };
 }

@@ -34,6 +34,8 @@ export const DomainToolbar: React.FC<DomainToolbarProps> = ({
     setHideSingleConnectionDbs,
     hideIsolatedNodes,
     setHideIsolatedNodes,
+    showTransitiveEdges,
+    setShowTransitiveEdges,
     resetAllFilters,
     fontSize,
     setFontSize,
@@ -318,6 +320,15 @@ export const DomainToolbar: React.FC<DomainToolbarProps> = ({
                   onChange={(e) => setHideIsolatedNodes(e.target.checked)}
                 />
                 <span>Hide Isolated Nodes</span>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={showTransitiveEdges}
+                  onChange={(e) => setShowTransitiveEdges(e.target.checked)}
+                />
+                <span>Show Transitive Links</span>
               </label>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

@@ -25,6 +25,14 @@ import { DomainGridView } from '../domain/components/DomainGridView';
 import { DomainInspector } from '../domain/components/DomainInspector';
 import { DomainHiddenPanel } from '../domain/components/DomainHiddenPanel';
 import { DomainGroupSummary, PresentationMode } from '../domain/types';
+import { useCommand } from '../commands/CommandContext';
+import {
+  HideNodeCommand,
+  HideDownstreamCommand,
+  HideAllOfKindCommand,
+  UnhideNodeCommand,
+  RestoreAllHiddenNodesCommand,
+} from '../commands/commands';
 
 export type DomainLayoutName =
   | 'concentric'
@@ -150,6 +158,7 @@ export interface ConnectionDetailItem {
   label: string;
   count: number;
   isTransitive: boolean;
+  isInferred?: boolean;
   viaNames?: string[];
 }
 
@@ -172,6 +181,7 @@ export interface SelectedEdgeDetail {
   directCallsCount: number;
   messagingCount: number;
   transitiveCount: number;
+  inferredCount?: number;
   dbCount: number;
   primaryCategory: 'service_call' | 'database' | 'messaging' | 'external' | 'mixed';
   items: ConnectionDetailItem[];
@@ -837,6 +847,12 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
 
+  let executeCommand: ((cmd: any) => void) | null = null;
+  try {
+    const cmdCtx = useCommand();
+    executeCommand = cmdCtx.executeCommand;
+  } catch {}
+
   const [overrideModalOpen, setOverrideModalOpen] = useState(false);
   const [overrideTargetService, setOverrideTargetService] = useState('');
 
@@ -1008,6 +1024,24 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const [forcedVisibleNodeIds, setForcedVisibleNodeIds] = useState<Set<string>>(new Set());
   const [hideSingleConnectionDbs, setHideSingleConnectionDbs] = useState<boolean>(false);
   const [hideIsolatedNodes, setHideIsolatedNodes] = useState<boolean>(false);
+  const [showTransitiveEdges, setShowTransitiveEdges] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('ce_show_transitive_edges');
+      return saved !== null ? saved === 'true' : true;
+    } catch { }
+    return true;
+  });
+
+  const handleToggleTransitiveEdges = useCallback(() => {
+    forceRelayoutRef.current = true;
+    setShowTransitiveEdges((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('ce_show_transitive_edges', String(next));
+      } catch { }
+      return next;
+    });
+  }, []);
 
   // Font Size State (7px to 24px, default 10px)
   const [fontSize, setFontSize] = useState<number>(() => {
@@ -1059,17 +1093,34 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const [isHiddenPanelCollapsed, setIsHiddenPanelCollapsed] = useState(false);
   const [hiddenSearchQuery, setHiddenSearchQuery] = useState('');
   const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(false);
+  const [isEdgeInspectorCollapsed, setIsEdgeInspectorCollapsed] = useState(false);
 
   // Restore all hidden entities across individual hides, category filters, and orbits
   const restoreAllHiddenNodes = useCallback(() => {
-    forceRelayoutRef.current = true;
-    setHiddenNodeIds(new Set());
-    setHiddenTypes(new Set());
-    setHiddenOrbitTiers(new Set());
-    setHideSingleConnectionDbs(false);
-    setHideIsolatedNodes(false);
-    setForcedVisibleNodeIds(new Set());
-  }, []);
+    const cmd = new RestoreAllHiddenNodesCommand(
+      new Set(hiddenNodeIds),
+      new Set(hiddenTypes),
+      new Set(hiddenOrbitTiers),
+      new Set(forcedVisibleNodeIds),
+      hideSingleConnectionDbs,
+      hideIsolatedNodes,
+      (nodes) => setHiddenNodeIds(nodes),
+      (types) => setHiddenTypes(types),
+      (tiers) => setHiddenOrbitTiers(tiers),
+      (nodes) => setForcedVisibleNodeIds(nodes),
+      (val) => setHideSingleConnectionDbs(val),
+      (val) => setHideIsolatedNodes(val),
+      () => {
+        forceRelayoutRef.current = true;
+        setRelayoutTrigger((n) => n + 1);
+      }
+    );
+    if (executeCommand) {
+      executeCommand(cmd);
+    } else {
+      cmd.execute();
+    }
+  }, [hiddenNodeIds, hiddenTypes, hiddenOrbitTiers, forcedVisibleNodeIds, hideSingleConnectionDbs, hideIsolatedNodes, executeCommand]);
 
   // Auto-relayout on filter toggle (persisted)
   const [autoRelayoutOnFilter, setAutoRelayoutOnFilter] = useState<boolean>(() => {
@@ -1194,26 +1245,43 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   } | null>(null);
 
   const hideNode = useCallback((nodeId: string) => {
-    forceRelayoutRef.current = true;
-    setHiddenNodeIds((prev) => {
-      const next = new Set(prev);
-      next.add(nodeId);
-      return next;
-    });
-    setForcedVisibleNodeIds((prev) => {
-      const next = new Set(prev);
-      next.delete(nodeId);
-      return next;
-    });
+    const nodeName = rawGraphRef.current?.detailMap?.get(nodeId)?.displayName || nodeId;
+    const prevHidden = new Set(hiddenNodeIds);
+    const nextHidden = new Set(prevHidden);
+    nextHidden.add(nodeId);
+
+    const prevForced = new Set(forcedVisibleNodeIds);
+    const nextForced = new Set(prevForced);
+    nextForced.delete(nodeId);
+
+    const cmd = new HideNodeCommand(
+      nodeName,
+      prevHidden,
+      nextHidden,
+      prevForced,
+      nextForced,
+      (nodes) => setHiddenNodeIds(nodes),
+      (nodes) => setForcedVisibleNodeIds(nodes),
+      () => {
+        forceRelayoutRef.current = true;
+        setRelayoutTrigger((n) => n + 1);
+      }
+    );
+
+    if (executeCommand) {
+      executeCommand(cmd);
+    } else {
+      cmd.execute();
+    }
+
     setSelectedNode((curr) => (curr?.id === nodeId ? null : curr));
     setContextMenu(null);
     if (cyRef.current) {
       cyRef.current.elements().removeClass('highlighted dimmed');
     }
-  }, []);
+  }, [hiddenNodeIds, forcedVisibleNodeIds, executeCommand]);
 
   const hideDownstreamNodes = useCallback((rootNodeId: string) => {
-    forceRelayoutRef.current = true;
     const downstreamIds = new Set<string>();
     const queue = [rootNodeId];
     const visited = new Set<string>([rootNodeId]);
@@ -1231,59 +1299,119 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     }
 
     if (downstreamIds.size > 0) {
-      setHiddenNodeIds((prev) => {
-        const next = new Set(prev);
-        for (const id of downstreamIds) next.add(id);
-        return next;
-      });
-      setForcedVisibleNodeIds((prev) => {
-        const next = new Set(prev);
-        for (const id of downstreamIds) next.delete(id);
-        return next;
-      });
+      const rootNodeName = rawGraphRef.current?.detailMap?.get(rootNodeId)?.displayName || rootNodeId;
+      const prevHidden = new Set(hiddenNodeIds);
+      const nextHidden = new Set(prevHidden);
+      for (const id of downstreamIds) nextHidden.add(id);
+
+      const prevForced = new Set(forcedVisibleNodeIds);
+      const nextForced = new Set(prevForced);
+      for (const id of downstreamIds) nextForced.delete(id);
+
+      const cmd = new HideDownstreamCommand(
+        rootNodeName,
+        downstreamIds.size,
+        prevHidden,
+        nextHidden,
+        prevForced,
+        nextForced,
+        (nodes) => setHiddenNodeIds(nodes),
+        (nodes) => setForcedVisibleNodeIds(nodes),
+        () => {
+          forceRelayoutRef.current = true;
+          setRelayoutTrigger((n) => n + 1);
+        }
+      );
+
+      if (executeCommand) {
+        executeCommand(cmd);
+      } else {
+        cmd.execute();
+      }
+
       setSelectedNode((curr) => (curr && downstreamIds.has(curr.id) ? null : curr));
     }
     setContextMenu(null);
     if (cyRef.current) {
       cyRef.current.elements().removeClass('highlighted dimmed');
     }
-  }, []);
+  }, [hiddenNodeIds, forcedVisibleNodeIds, executeCommand]);
 
   const hideAllOfKind = useCallback((kind: EntityKind) => {
-    forceRelayoutRef.current = true;
-    setHiddenTypes((prev) => {
-      const next = new Set(prev);
-      next.add(kind);
-      return next;
-    });
-    setForcedVisibleNodeIds((prev) => {
-      const next = new Set(prev);
-      for (const id of prev) {
-        if (rawGraphRef.current?.detailMap?.get(id)?.kind === kind) {
-          next.delete(id);
-        }
+    const prevHiddenTypes = new Set(hiddenTypes);
+    const nextHiddenTypes = new Set(prevHiddenTypes);
+    nextHiddenTypes.add(kind);
+
+    const cmd = new HideAllOfKindCommand(
+      kind,
+      prevHiddenTypes,
+      nextHiddenTypes,
+      (types) => setHiddenTypes(types),
+      () => {
+        forceRelayoutRef.current = true;
+        setRelayoutTrigger((n) => n + 1);
       }
-      return next;
-    });
+    );
+
+    if (executeCommand) {
+      executeCommand(cmd);
+    } else {
+      cmd.execute();
+    }
+
     setSelectedNode((curr) => (curr?.kind === kind ? null : curr));
     setContextMenu(null);
     if (cyRef.current) {
       cyRef.current.elements().removeClass('highlighted dimmed');
     }
-  }, []);
+  }, [hiddenTypes, executeCommand]);
 
   const unhideNode = useCallback((nodeId: string) => {
-    forceRelayoutRef.current = true;
-    setHiddenNodeIds((prev) => {
-      const next = new Set(prev);
-      next.delete(nodeId);
-      return next;
-    });
-    setForcedVisibleNodeIds((prev) => {
-      const next = new Set(prev);
-      next.add(nodeId);
-      return next;
-    });
+    const nodeName = rawGraphRef.current?.detailMap?.get(nodeId)?.displayName || nodeId;
+    const prevHidden = new Set(hiddenNodeIds);
+    const nextHidden = new Set(prevHidden);
+    nextHidden.delete(nodeId);
+
+    const prevForced = new Set(forcedVisibleNodeIds);
+    const nextForced = new Set(prevForced);
+    nextForced.add(nodeId);
+
+    const cmd = new UnhideNodeCommand(
+      nodeName,
+      prevHidden,
+      nextHidden,
+      prevForced,
+      nextForced,
+      (nodes) => setHiddenNodeIds(nodes),
+      (nodes) => setForcedVisibleNodeIds(nodes),
+      () => {
+        forceRelayoutRef.current = true;
+        setRelayoutTrigger((n) => n + 1);
+      }
+    );
+
+    if (executeCommand) {
+      executeCommand(cmd);
+    } else {
+      cmd.execute();
+    }
+  }, [hiddenNodeIds, forcedVisibleNodeIds, executeCommand]);
+
+  const handleSelectNodeById = useCallback((id: string) => {
+    const detail = rawGraphRef.current?.detailMap?.get(id);
+    if (detail) {
+      setSelectedEdge(null);
+      setSelectedNode(detail);
+    }
+    const cy = cyRef.current;
+    if (cy) {
+      const ele = cy.$id(id);
+      if (ele && ele.length > 0) {
+        cy.center(ele);
+        cy.elements().removeClass('highlighted dimmed');
+        ele.addClass('highlighted');
+      }
+    }
   }, []);
 
   const unhideAll = restoreAllHiddenNodes;
@@ -1584,10 +1712,25 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         inCalls.set(edge.target, (inCalls.get(edge.target) || 0) + 1);
       }
 
+      const isTrans = Boolean(
+        edge.isTransitive ||
+        edge.properties?.is_transitive === 'true' ||
+        edge.properties?.semantic_lifted === 'true'
+      );
+      const isInferred = Boolean(
+        isTrans ||
+        edge.isInferred ||
+        edge.properties?.inferred === 'true' ||
+        edge.properties?.is_late_bound === 'true' ||
+        edge.properties?.is_semantic === 'true'
+      );
+
       const key = `${edge.source}->${edge.target}:${cat}`;
       const existing = macroEdges.get(key);
       if (existing) {
         existing.count += 1;
+        (existing as any).isTransitive = (existing as any).isTransitive || isTrans;
+        (existing as any).isInferred = (existing as any).isInferred || isInferred;
       } else {
         macroEdges.set(key, {
           source: edge.source,
@@ -1595,7 +1738,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           category: cat,
           label,
           count: 1,
-        });
+          isTransitive: isTrans,
+          isInferred: isInferred,
+        } as any);
       }
     }
 
@@ -1608,7 +1753,16 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     }
 
     // 3. Raw Macro Edges & Outgoing Adjacency
-    const rawEdges: Array<{ id: string; source: string; target: string; category: 'service_call' | 'database' | 'messaging' | 'external'; label: string; count: number }> = [];
+    const rawEdges: Array<{
+      id: string;
+      source: string;
+      target: string;
+      category: 'service_call' | 'database' | 'messaging' | 'external';
+      label: string;
+      count: number;
+      isTransitive: boolean;
+      isInferred: boolean;
+    }> = [];
     const outAdj = new Map<string, Array<{ target: string; category: 'service_call' | 'database' | 'messaging' | 'external'; label: string; count: number }>>();
 
     let serviceCallsCount = 0;
@@ -1627,6 +1781,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         category: e.category,
         label: e.label,
         count: e.count,
+        isTransitive: Boolean((e as any).isTransitive),
+        isInferred: Boolean((e as any).isInferred),
       });
 
       let list = outAdj.get(e.source);
@@ -1805,6 +1961,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       label: string;
       count: number;
       isTransitive: boolean;
+      isInferred?: boolean;
       viaNames?: string[];
     }
 
@@ -1829,6 +1986,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       );
       if (existing) {
         existing.count += item.count;
+        existing.isTransitive = existing.isTransitive || item.isTransitive;
+        existing.isInferred = existing.isInferred || Boolean(item.isInferred);
       } else {
         list.push(item);
       }
@@ -1845,7 +2004,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           kind: e.label || 'CALLS',
           label: e.label,
           count: e.count,
-          isTransitive: false,
+          isTransitive: Boolean(e.isTransitive),
+          isInferred: Boolean(e.isInferred),
         });
         directVisibleEdgeKeys.add(`${e.source}->${e.target}`);
       }
@@ -1874,6 +2034,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               label: `Topic: ${tName}`,
               count: 1,
               isTransitive: true,
+              isInferred: true,
               viaNames: [tName],
             });
           }
@@ -1902,100 +2063,24 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             label: `${chord.label} (event-bus)`,
             count: chord.count,
             isTransitive: true,
+            isInferred: true,
             viaNames: ['event-bus'],
           });
         }
       }
     }
 
-    // 4. General Hidden-Node BFS for multi-hop service/worker/infrastructure chains
-    interface TransitivePath {
-      curr: string;
-      viaNames: string[];
-      category: 'service_call' | 'database' | 'messaging' | 'external';
-      label: string;
-      count: number;
-      depth: number;
-    }
-
-    for (const u of visibleNodeIds) {
-      const queue: TransitivePath[] = [];
-      const visitedHidden = new Set<string>();
-
-      const initialEdges = rawGraph.outAdj.get(u) || [];
-      for (const edge of initialEdges) {
-        if (hiddenNodeIdSet.has(edge.target)) {
-          const targetDetail = rawGraph.detailMap.get(edge.target);
-          const name = targetDetail?.displayName || edge.target;
-          queue.push({
-            curr: edge.target,
-            viaNames: [name],
-            category: edge.category,
-            label: edge.label,
-            count: edge.count,
-            depth: 1,
-          });
-          visitedHidden.add(edge.target);
-        }
-      }
-
-      let qIdx = 0;
-      while (qIdx < queue.length) {
-        const item = queue[qIdx++];
-        if (item.depth > 6) continue;
-
-        const isTopic = rawGraph.topicSubscribers.has(item.curr);
-        const nextHops: Array<{ target: string; category: any; label: string; count: number }> = isTopic
-          ? Array.from(rawGraph.topicSubscribers.get(item.curr) || []).map((sub) => ({
-              target: sub,
-              category: 'messaging' as const,
-              label: 'SUBSCRIBES',
-              count: 1,
-            }))
-          : (rawGraph.outAdj.get(item.curr) || []);
-
-        for (const nextEdge of nextHops) {
-          const v = nextEdge.target;
-          if (v === u) continue;
-
-          if (visibleNodeIds.has(v)) {
-            if (directVisibleEdgeKeys.has(`${u}->${v}`)) {
-              continue;
-            }
-
-            const viaStr = item.viaNames.slice(0, 2).join(' ➔ ');
-            recordInteraction({
-              source: u,
-              target: v,
-              category: nextEdge.category,
-              kind: nextEdge.label || item.label,
-              label: `${nextEdge.label || item.label} (via ${viaStr})`,
-              count: Math.max(item.count, nextEdge.count),
-              isTransitive: true,
-              viaNames: [...item.viaNames],
-            });
-          } else if (hiddenNodeIdSet.has(v) && !visitedHidden.has(v)) {
-            visitedHidden.add(v);
-            const vDetail = rawGraph.detailMap.get(v);
-            const name = vDetail?.displayName || v;
-            queue.push({
-              curr: v,
-              viaNames: [...item.viaNames, name],
-              category: nextEdge.category,
-              label: nextEdge.label || item.label,
-              count: item.count,
-              depth: item.depth + 1,
-            });
-          }
-        }
-      }
-    }
+    // 4. Invariant: Service calls (RPC/HTTP) are strictly point-to-point and never transitively chained through intermediate hidden services.
 
     // 5. Synthesize Exactly One Bundled Edge Per Connected Pair {u, v}
     const visibleEdges: cytoscape.ElementDefinition[] = [];
     const edgeDetailMap = new Map<string, SelectedEdgeDetail>();
 
-    for (const [pairKey, interactions] of pairInteractionsMap.entries()) {
+    for (const [pairKey, rawInteractions] of pairInteractionsMap.entries()) {
+      const interactions = showTransitiveEdges
+        ? rawInteractions
+        : rawInteractions.filter((i) => !i.isTransitive);
+
       if (interactions.length === 0) continue;
 
       const parts = pairKey.split('--');
@@ -2032,6 +2117,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       const messagingCount = interactions.filter((i) => i.category === 'messaging').reduce((s, i) => s + i.count, 0);
       const dbCount = interactions.filter((i) => i.category === 'database').reduce((s, i) => s + i.count, 0);
       const transitiveCount = interactions.filter((i) => i.isTransitive).reduce((s, i) => s + i.count, 0);
+      const inferredCount = interactions.filter((i) => i.isInferred).reduce((s, i) => s + i.count, 0);
 
       let edgeLabel: string;
       if (isBidirectional) {
@@ -2097,6 +2183,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         directCallsCount: serviceCallsCount,
         messagingCount,
         transitiveCount,
+        inferredCount,
         dbCount,
         primaryCategory: edgeCategory,
         items: interactions.map((i, idx) => ({
@@ -2110,6 +2197,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           label: i.label,
           count: i.count,
           isTransitive: i.isTransitive,
+          isInferred: Boolean(i.isInferred),
           viaNames: i.viaNames,
         })),
       });
@@ -2179,7 +2267,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         transitiveCalls,
       },
     };
-  }, [rawGraph, hiddenTypes, hiddenNodeIds, hiddenOrbitTiers, forcedVisibleNodeIds, hideSingleConnectionDbs, hideIsolatedNodes]);
+  }, [rawGraph, hiddenTypes, hiddenNodeIds, hiddenOrbitTiers, forcedVisibleNodeIds, hideSingleConnectionDbs, hideIsolatedNodes, showTransitiveEdges]);
 
   const nodeDetailMap = rawGraph.detailMap;
 
@@ -3801,6 +3889,20 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               </button>
             )}
 
+            <button
+              type="button"
+              className={`hud-type-filter-btn ${showTransitiveEdges ? 'is-active' : 'is-hidden'}`}
+              onClick={handleToggleTransitiveEdges}
+              title={showTransitiveEdges ? 'Hide Transitive Messaging Links (Contracted Topic Chords)' : 'Show Transitive Messaging Links'}
+              style={{
+                borderColor: showTransitiveEdges ? 'rgba(192, 132, 252, 0.5)' : undefined,
+                color: showTransitiveEdges ? '#c084fc' : undefined,
+              }}
+            >
+              {!showTransitiveEdges && <span className="filter-cross">✕</span>}
+              ╌ Transitive ({stats.transitiveCalls})
+            </button>
+
             {/* Reset Filters / Hidden Button */}
             {hiddenCount > 0 && (
               <button
@@ -3818,15 +3920,21 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           <div className="domain-hud-stats">
             <span
               className="hud-stat-pill"
-              title="Service Calls (RPC / HTTP): Solid line = Direct call, Dashed line = Indirect call via hidden entities"
+              title="Service Calls (RPC / HTTP): Solid line = Direct call"
             >
               ⚡ {stats.serviceCalls} Calls
             </span>
             {stats.transitiveCalls > 0 && (
               <span
                 className="hud-stat-pill"
-                title={`${stats.transitiveCalls} indirect connections routing through hidden entities (shown as dashed lines)`}
-                style={{ borderColor: 'rgba(192, 132, 252, 0.45)', color: '#c084fc' }}
+                onClick={handleToggleTransitiveEdges}
+                title={showTransitiveEdges ? 'Transitive messaging connections (click to hide)' : 'Transitive messaging connections (click to show)'}
+                style={{
+                  borderColor: showTransitiveEdges ? 'rgba(192, 132, 252, 0.45)' : 'rgba(255, 255, 255, 0.15)',
+                  color: showTransitiveEdges ? '#c084fc' : '#888',
+                  textDecoration: showTransitiveEdges ? 'none' : 'line-through',
+                  cursor: 'pointer',
+                }}
               >
                 ╌ {stats.transitiveCalls} via hidden
               </span>
@@ -4430,408 +4538,36 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         </aside>
       )}
 
-      {/* Floating Node Inspector Panel (Clings to Top-Right) */}
-      {selectedNode && (
-        <aside className={`domain-inspector-panel ${isInspectorCollapsed ? 'is-collapsed' : ''}`}>
-          {isInspectorCollapsed ? (
-            <div
-              className="domain-inspector-collapsed-badge"
-              onClick={() => setIsInspectorCollapsed(false)}
-              title={`Click to expand details for ${selectedNode.displayName}`}
-            >
-              <div className="inspector-badge" style={{ backgroundColor: selectedNode.bgColor }}>
-                {selectedNode.displayTag}
-              </div>
-              <span className="collapsed-title">{selectedNode.displayName}</span>
-              <button
-                type="button"
-                className="collapsed-expand-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsInspectorCollapsed(false);
-                }}
-                title="Expand inspector"
-              >
-                ▼
-              </button>
-              <button
-                type="button"
-                className="inspector-close-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedNode(null);
-                  cyRef.current?.elements().removeClass('highlighted dimmed');
-                }}
-                title="Deselect"
-              >
-                ✕
-              </button>
-            </div>
-          ) : (
-            <>
-              <div className="domain-inspector-header">
-                <div className="inspector-badge" style={{ backgroundColor: selectedNode.bgColor }}>
-                  {selectedNode.displayTag}
-                </div>
-                <div className="inspector-title-group">
-                  <h4 className="inspector-title" title={selectedNode.displayName}>
-                    {selectedNode.displayName}
-                  </h4>
-                  {selectedNode.tierLabel && (
-                    <div style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      color: selectedNode.tier === 0 ? '#38bdf8' : selectedNode.tier === 1 ? '#4ade80' : selectedNode.tier === 2 ? '#fbbf24' : '#c084fc',
-                      background: 'rgba(255, 255, 255, 0.06)',
-                      padding: '2px 6px',
-                      borderRadius: '4px',
-                      marginTop: '2px',
-                      marginBottom: '2px',
-                      border: '1px solid rgba(255, 255, 255, 0.12)'
-                    }}>
-                      🎯 {selectedNode.tierLabel}
-                    </div>
-                  )}
-                  {selectedNode.framework && (
-                    <span className="inspector-subtitle">{selectedNode.framework}</span>
-                  )}
-                  {selectedNode.gitBranch && (
-                    <span className="inspector-subtitle" style={{ opacity: 0.85, fontSize: '0.82em' }}>🌿 {selectedNode.gitBranch}</span>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  className="inspector-collapse-btn"
-                  onClick={() => setIsInspectorCollapsed(true)}
-                  title="Minimize inspector to badge"
-                >
-                  —
-                </button>
-                <button
-                  className="inspector-header-hide-btn"
-                  onClick={() => hideNode(selectedNode.id)}
-                  title="Hide this node (Transitive connections will bypass it) [Shortcut: H, Del, or Right-Click]"
-                >
-                  <EyeOffIcon size={12} className="btn-icon" /> Hide
-                </button>
-                <button
-                  className="inspector-close-btn"
-                  onClick={() => {
-                    setSelectedNode(null);
-                    cyRef.current?.elements().removeClass('highlighted dimmed');
-                  }}
-                  title="Close inspector"
-                >
-                  ✕
-                </button>
-              </div>
+      {/* Floating Node & Edge Inspector Panel */}
+      <DomainInspector
+        selectedNode={selectedNode}
+        selectedEdge={selectedEdge}
+        nodeDetailMap={nodeDetailMap}
+        rawEdges={rawGraph.rawEdges}
+        isInspectorCollapsed={isInspectorCollapsed}
+        onToggleCollapse={setIsInspectorCollapsed}
+        isEdgeInspectorCollapsed={isEdgeInspectorCollapsed}
+        onToggleEdgeCollapse={setIsEdgeInspectorCollapsed}
+        onSelectNode={setSelectedNode}
+        onSelectNodeById={handleSelectNodeById}
+        onSelectEdge={setSelectedEdge}
+        onClearSelection={() => {
+          setSelectedNode(null);
+          setSelectedEdge(null);
+        }}
+        onClearGraphHighlight={() => {
+          cyRef.current?.elements().removeClass('highlighted dimmed');
+        }}
+        onHideNode={hideNode}
+        onFocusInFlow={onFocusInFlow}
+        onOpenFile={onOpenFile}
+        onOpenOverrideModal={(name) => {
+          setOverrideTargetService(name);
+          setOverrideModalOpen(true);
+        }}
+      />
 
-              <div className="inspector-body">
-                {/* Subprojects breakdown if clustered */}
-                {selectedNode.projects && selectedNode.projects.length > 1 && (
-                  <div className="inspector-section">
-                    <label className="inspector-section-label">
-                      Clustered Projects ({selectedNode.projects.length})
-                    </label>
-                    <div className="inspector-subprojects-list">
-                      {selectedNode.projects.map((p) => (
-                        <div
-                          key={p.id}
-                          className="inspector-subproject-item"
-                          onClick={() => p.filePath && onOpenFile?.(p.filePath, p.lineStart || 1)}
-                          title={p.filePath || p.name}
-                        >
-                          <span className="subproject-dot">•</span>
-                          <span className="subproject-name">{p.name}</span>
-                          {p.isLibrary && <span className="subproject-lib-tag">lib</span>}
-                          {p.gitBranch && <span className="subproject-lib-tag" style={{ background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8' }}>🌿 {p.gitBranch}</span>}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
-                {/* Physical Source Location Drill-down */}
-                {selectedNode.primaryFilePath && (
-                  <div className="inspector-section">
-                    <label className="inspector-section-label">Source Code Declaration</label>
-                    <div
-                      className="inspector-subproject-item"
-                      style={{ cursor: onOpenFile ? 'pointer' : 'default', padding: '6px 8px' }}
-                      onClick={() => onOpenFile?.(selectedNode.primaryFilePath!, selectedNode.primaryLineStart || 1)}
-                      title={`Open ${selectedNode.primaryFilePath}${selectedNode.primaryLineStart ? `:${selectedNode.primaryLineStart}` : ''}`}
-                    >
-                      <span className="subproject-dot">📄</span>
-                      <span className="subproject-name" style={{ fontFamily: 'monospace', fontSize: '11px' }}>
-                        {selectedNode.primaryFilePath}
-                        {selectedNode.primaryLineStart ? `:${selectedNode.primaryLineStart}` : ''}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Metrics Grid */}
-                <div className="inspector-metrics-grid">
-                  {(selectedNode.kind === 'Service' || selectedNode.kind === 'Ingress') && (
-                    <>
-                      <div className="inspector-metric-card" title="Inbound calls from other services">
-                        <span className="metric-val">{selectedNode.inboundCallsCount}</span>
-                        <span className="metric-lbl">Inbound Calls</span>
-                      </div>
-                      <div className="inspector-metric-card" title="Outbound calls to downstream services">
-                        <span className="metric-val">{selectedNode.outboundCallsCount}</span>
-                        <span className="metric-lbl">Outbound Calls</span>
-                      </div>
-                      {selectedNode.dbCount > 0 && (
-                        <div className="inspector-metric-card" title="Databases used directly">
-                          <span className="metric-val">{selectedNode.dbCount}</span>
-                          <span className="metric-lbl">Databases</span>
-                        </div>
-                      )}
-                      {selectedNode.messagingCount > 0 && (
-                        <div className="inspector-metric-card" title="Topics published or subscribed">
-                          <span className="metric-val">{selectedNode.messagingCount}</span>
-                          <span className="metric-lbl">Topics</span>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                {/* Action buttons */}
-                <div className="inspector-actions">
-                  {(selectedNode.kind === 'Service' || selectedNode.kind === 'Ingress') && onFocusInFlow && (
-                    <button
-                      className="inspector-action-btn primary"
-                      onClick={() => onFocusInFlow(selectedNode.name)}
-                      title="Drill down to Project Flow view"
-                    >
-                      Explore in Flow ➔
-                    </button>
-                  )}
-                  {(selectedNode.kind === 'Service' || selectedNode.kind === 'Ingress') && onSetDomainOverride && (
-                    <button
-                      className="inspector-action-btn secondary"
-                      onClick={() => {
-                        setOverrideTargetService(selectedNode.name);
-                        setOverrideModalOpen(true);
-                      }}
-                      title="Override or reassign service domain and bounded context"
-                    >
-                      🏷️ Override Domain
-                    </button>
-                  )}
-                  {selectedNode.primaryFilePath && onOpenFile && (
-                    <button
-                      className="inspector-action-btn secondary"
-                      onClick={() => onOpenFile(selectedNode.primaryFilePath!, selectedNode.primaryLineStart || 1)}
-                      title="Open source file in editor"
-                    >
-                      Open Source
-                    </button>
-                  )}
-                  <button
-                    className="inspector-action-btn hide-node-btn"
-                    onClick={() => hideNode(selectedNode.id)}
-                    title="Hide this node from map (Shortcut: H, Del, or Right-Click)"
-                  >
-                    Hide Node
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-        </aside>
-      )}
-
-      {/* Floating Edge / Connection Inspector Panel */}
-      {selectedEdge && (
-        <aside className="domain-inspector-panel domain-edge-inspector-panel">
-          <div className="inspector-header">
-            <div className="inspector-title-group" style={{ width: '100%' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: 4 }}>
-                <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#94a3b8', fontWeight: 600 }}>
-                  {selectedEdge.isBidirectional ? '⇄ Bi-directional Connection' : '➔ Directional Connection'}
-                </span>
-                <button
-                  type="button"
-                  className="inspector-close-btn"
-                  onClick={() => {
-                    setSelectedEdge(null);
-                    cyRef.current?.elements().removeClass('highlighted dimmed');
-                  }}
-                  title="Deselect Connection"
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* Endpoint badges */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
-                <div
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '3px 8px',
-                    borderRadius: 4,
-                    background: 'rgba(255, 255, 255, 0.06)',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => {
-                    const node = nodeDetailMap.get(selectedEdge.sourceId);
-                    if (node) {
-                      setSelectedEdge(null);
-                      setSelectedNode(node);
-                    }
-                  }}
-                  title={`Inspect ${selectedEdge.sourceName}`}
-                >
-                  <span className="inspector-badge" style={{ backgroundColor: selectedEdge.sourceBgColor, padding: '1px 5px', fontSize: '9px' }}>
-                    {selectedEdge.sourceTag}
-                  </span>
-                  <span style={{ fontWeight: 600, fontSize: '12px', color: '#f8fafc' }}>{selectedEdge.sourceName}</span>
-                </div>
-
-                <span style={{ color: '#38bdf8', fontWeight: 700, fontSize: '14px' }}>
-                  {selectedEdge.isBidirectional ? '⇄' : '➔'}
-                </span>
-
-                <div
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '3px 8px',
-                    borderRadius: 4,
-                    background: 'rgba(255, 255, 255, 0.06)',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => {
-                    const node = nodeDetailMap.get(selectedEdge.targetId);
-                    if (node) {
-                      setSelectedEdge(null);
-                      setSelectedNode(node);
-                    }
-                  }}
-                  title={`Inspect ${selectedEdge.targetName}`}
-                >
-                  <span className="inspector-badge" style={{ backgroundColor: selectedEdge.targetBgColor, padding: '1px 5px', fontSize: '9px' }}>
-                    {selectedEdge.targetTag}
-                  </span>
-                  <span style={{ fontWeight: 600, fontSize: '12px', color: '#f8fafc' }}>{selectedEdge.targetName}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Metrics summary */}
-          <div className="inspector-section" style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
-            <div className="domain-inspector-metrics-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-              <div className="metric-box">
-                <span className="metric-val" style={{ color: '#f8fafc' }}>{selectedEdge.totalInteractions}</span>
-                <span className="metric-lbl">Total</span>
-              </div>
-              <div className="metric-box">
-                <span className="metric-val" style={{ color: '#38bdf8' }}>{selectedEdge.directCallsCount}</span>
-                <span className="metric-lbl">RPC / HTTP</span>
-              </div>
-              <div className="metric-box">
-                <span className="metric-val" style={{ color: '#fbbf24' }}>{selectedEdge.messagingCount}</span>
-                <span className="metric-lbl">Events / Msgs</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Detailed list of messages and connection details */}
-          <div className="inspector-body" style={{ overflowY: 'auto', maxHeight: '380px', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8', marginBottom: 2 }}>
-              Connection Details ({selectedEdge.items.length})
-            </div>
-
-            {selectedEdge.items.map((item, idx) => {
-              const isDirectCall = item.category === 'service_call';
-              const isMsg = item.category === 'messaging';
-              const isDb = item.category === 'database';
-              const tagColor = isDirectCall ? '#38bdf8' : isMsg ? '#fbbf24' : isDb ? '#c084fc' : '#34d399';
-              const tagIcon = isDirectCall ? '📞' : isMsg ? '📨' : isDb ? '🗄️' : '🔌';
-
-              return (
-                <div
-                  key={idx}
-                  style={{
-                    padding: '8px 10px',
-                    borderRadius: 6,
-                    background: 'rgba(255, 255, 255, 0.04)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 4,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '10px', fontWeight: 700, color: tagColor, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      {tagIcon} {item.kind || item.category}
-                      {item.isTransitive && ' (INDIRECT)'}
-                    </span>
-                    {item.count > 1 && (
-                      <span style={{ fontSize: '10px', fontWeight: 600, color: '#94a3b8', background: 'rgba(255, 255, 255, 0.08)', padding: '1px 5px', borderRadius: 3 }}>
-                        × {item.count}
-                      </span>
-                    )}
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '11px', color: '#e2e8f0', fontWeight: 500 }}>
-                    <span>{item.sourceName}</span>
-                    <span style={{ color: tagColor }}>➔</span>
-                    <span>{item.targetName}</span>
-                  </div>
-
-                  {item.label && item.label !== item.kind && (
-                    <div style={{ fontSize: '11px', color: '#93c5fd', fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                      {item.label}
-                    </div>
-                  )}
-
-                  {item.viaNames && item.viaNames.length > 0 && (
-                    <div style={{ fontSize: '10px', color: '#fbbf24', opacity: 0.9, marginTop: 2 }}>
-                      Routing via: {item.viaNames.join(' ➔ ')}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Quick Action Footer */}
-          <div className="inspector-actions" style={{ padding: '8px 12px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', display: 'flex', gap: 6 }}>
-            {onFocusInFlow && (
-              <>
-                <button
-                  type="button"
-                  className="inspector-action-btn secondary"
-                  style={{ flex: 1, fontSize: '11px', padding: '4px 6px' }}
-                  onClick={() => onFocusInFlow(selectedEdge.sourceName)}
-                  title={`Focus ${selectedEdge.sourceName} in Project Flow`}
-                >
-                  Focus {selectedEdge.sourceName}
-                </button>
-                <button
-                  type="button"
-                  className="inspector-action-btn secondary"
-                  style={{ flex: 1, fontSize: '11px', padding: '4px 6px' }}
-                  onClick={() => onFocusInFlow(selectedEdge.targetName)}
-                  title={`Focus ${selectedEdge.targetName} in Project Flow`}
-                >
-                  Focus {selectedEdge.targetName}
-                </button>
-              </>
-            )}
-          </div>
-        </aside>
-      )}
       {/* Context Menu for Nodes */}
       {contextMenu && (
         <div
@@ -4856,15 +4592,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             className="context-menu-item"
             onClick={() => hideNode(contextMenu.nodeId)}
           >
-            <span className="context-menu-icon">👁️‍🗨️</span>
-            <span>Hide</span>
+            <span>Hide Node</span>
           </button>
           <button
             type="button"
             className="context-menu-item"
             onClick={() => hideDownstreamNodes(contextMenu.nodeId)}
           >
-            <span className="context-menu-icon">↘️</span>
             <span>Hide Downstream</span>
           </button>
           <button
@@ -4872,7 +4606,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             className="context-menu-item"
             onClick={() => hideAllOfKind(contextMenu.nodeKind)}
           >
-            <span className="context-menu-icon">🚫</span>
             <span>Hide all {contextMenu.nodeKind}s</span>
           </button>
         </div>

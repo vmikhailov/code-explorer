@@ -264,7 +264,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
             if (isMatch)
             {
-                var name = lp.ExtractIdentifier(node, Context!, ProjectName);
+                var name = lp.ExtractIdentifier(node, Context!, ProjectName, RelativePath);
                 if (name != null) return name;
             }
         }

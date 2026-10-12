@@ -70,6 +70,7 @@ export interface ConnectionDetailItem {
   label: string;
   count: number;
   isTransitive: boolean;
+  isInferred?: boolean;
   viaNames?: string[];
 }
 
@@ -92,6 +93,7 @@ export interface SelectedEdgeDetail {
   directCallsCount: number;
   messagingCount: number;
   transitiveCount: number;
+  inferredCount?: number;
   dbCount: number;
   primaryCategory: 'service_call' | 'database' | 'messaging' | 'external' | 'mixed';
   items: ConnectionDetailItem[];

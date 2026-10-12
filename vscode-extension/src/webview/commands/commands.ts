@@ -354,3 +354,183 @@ export class SelectDrawerNodeCommand implements ICommand {
     this.setSelectedNode(this.prevNode);
   }
 }
+
+/**
+ * Command for hiding an individual node in Domain Architecture view.
+ */
+export class HideNodeCommand implements ICommand {
+  public readonly id = 'HIDE_NODE';
+
+  constructor(
+    private readonly nodeName: string,
+    private readonly prevHidden: Set<string>,
+    private readonly nextHidden: Set<string>,
+    private readonly prevForced: Set<string>,
+    private readonly nextForced: Set<string>,
+    private readonly setHidden: (nodes: Set<string>) => void,
+    private readonly setForced: (nodes: Set<string>) => void,
+    private readonly onRelayout?: () => void
+  ) {}
+
+  public get description(): string {
+    return `Hide ${this.nodeName}`;
+  }
+
+  public execute(): void {
+    this.setHidden(this.nextHidden);
+    this.setForced(this.nextForced);
+    this.onRelayout?.();
+  }
+
+  public undo(): void {
+    this.setHidden(this.prevHidden);
+    this.setForced(this.prevForced);
+    this.onRelayout?.();
+  }
+}
+
+/**
+ * Command for hiding all downstream nodes of a root node.
+ */
+export class HideDownstreamCommand implements ICommand {
+  public readonly id = 'HIDE_DOWNSTREAM';
+
+  constructor(
+    private readonly rootNodeName: string,
+    private readonly downstreamCount: number,
+    private readonly prevHidden: Set<string>,
+    private readonly nextHidden: Set<string>,
+    private readonly prevForced: Set<string>,
+    private readonly nextForced: Set<string>,
+    private readonly setHidden: (nodes: Set<string>) => void,
+    private readonly setForced: (nodes: Set<string>) => void,
+    private readonly onRelayout?: () => void
+  ) {}
+
+  public get description(): string {
+    return `Hide ${this.downstreamCount} downstream nodes of ${this.rootNodeName}`;
+  }
+
+  public execute(): void {
+    this.setHidden(this.nextHidden);
+    this.setForced(this.nextForced);
+    this.onRelayout?.();
+  }
+
+  public undo(): void {
+    this.setHidden(this.prevHidden);
+    this.setForced(this.prevForced);
+    this.onRelayout?.();
+  }
+}
+
+/**
+ * Command for hiding all nodes of a specific architectural kind.
+ */
+export class HideAllOfKindCommand implements ICommand {
+  public readonly id = 'HIDE_ALL_OF_KIND';
+
+  constructor(
+    private readonly kind: string,
+    private readonly prevHiddenTypes: Set<any>,
+    private readonly nextHiddenTypes: Set<any>,
+    private readonly setHiddenTypes: (types: Set<any>) => void,
+    private readonly onRelayout?: () => void
+  ) {}
+
+  public get description(): string {
+    return `Hide all ${this.kind}s`;
+  }
+
+  public execute(): void {
+    this.setHiddenTypes(this.nextHiddenTypes);
+    this.onRelayout?.();
+  }
+
+  public undo(): void {
+    this.setHiddenTypes(this.prevHiddenTypes);
+    this.onRelayout?.();
+  }
+}
+
+/**
+ * Command for unhiding/restoring a previously hidden node.
+ */
+export class UnhideNodeCommand implements ICommand {
+  public readonly id = 'UNHIDE_NODE';
+
+  constructor(
+    private readonly nodeName: string,
+    private readonly prevHidden: Set<string>,
+    private readonly nextHidden: Set<string>,
+    private readonly prevForced: Set<string>,
+    private readonly nextForced: Set<string>,
+    private readonly setHidden: (nodes: Set<string>) => void,
+    private readonly setForced: (nodes: Set<string>) => void,
+    private readonly onRelayout?: () => void
+  ) {}
+
+  public get description(): string {
+    return `Restore ${this.nodeName}`;
+  }
+
+  public execute(): void {
+    this.setHidden(this.nextHidden);
+    this.setForced(this.nextForced);
+    this.onRelayout?.();
+  }
+
+  public undo(): void {
+    this.setHidden(this.prevHidden);
+    this.setForced(this.prevForced);
+    this.onRelayout?.();
+  }
+}
+
+/**
+ * Command for restoring all hidden nodes and filters.
+ */
+export class RestoreAllHiddenNodesCommand implements ICommand {
+  public readonly id = 'RESTORE_ALL_HIDDEN';
+
+  constructor(
+    private readonly prevHidden: Set<string>,
+    private readonly prevHiddenTypes: Set<any>,
+    private readonly prevHiddenOrbitTiers: Set<number>,
+    private readonly prevForced: Set<string>,
+    private readonly prevHideSingleConnectionDbs: boolean,
+    private readonly prevHideIsolatedNodes: boolean,
+    private readonly setHidden: (nodes: Set<string>) => void,
+    private readonly setHiddenTypes: (types: Set<any>) => void,
+    private readonly setHiddenOrbitTiers: (tiers: Set<number>) => void,
+    private readonly setForced: (nodes: Set<string>) => void,
+    private readonly setHideSingleConnectionDbs?: (val: boolean) => void,
+    private readonly setHideIsolatedNodes?: (val: boolean) => void,
+    private readonly onRelayout?: () => void
+  ) {}
+
+  public get description(): string {
+    return 'Restore all hidden nodes';
+  }
+
+  public execute(): void {
+    this.setHidden(new Set());
+    this.setHiddenTypes(new Set());
+    this.setHiddenOrbitTiers(new Set());
+    this.setForced(new Set());
+    this.setHideSingleConnectionDbs?.(false);
+    this.setHideIsolatedNodes?.(false);
+    this.onRelayout?.();
+  }
+
+  public undo(): void {
+    this.setHidden(this.prevHidden);
+    this.setHiddenTypes(this.prevHiddenTypes);
+    this.setHiddenOrbitTiers(this.prevHiddenOrbitTiers);
+    this.setForced(this.prevForced);
+    this.setHideSingleConnectionDbs?.(this.prevHideSingleConnectionDbs);
+    this.setHideIsolatedNodes?.(this.prevHideIsolatedNodes);
+    this.onRelayout?.();
+  }
+}
+

@@ -66,6 +66,8 @@ export interface GraphEdge {
   target: string;
   kind: string; // 'CALLS' | 'DEPENDS_ON' | 'WRITES_TO' | 'READS_FROM' | 'IMPLEMENTS' etc.
   category?: 'library' | 'service_call' | 'database' | 'messaging' | string;
+  isTransitive?: boolean;
+  isInferred?: boolean;
   properties?: Record<string, string>;
 }
 

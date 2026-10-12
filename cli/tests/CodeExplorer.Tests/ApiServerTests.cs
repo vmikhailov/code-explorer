@@ -636,6 +636,11 @@ public class ApiServerTests
         await client2.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
         await client3.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
 
+        for (int i = 0; i < 20 && _wsHandler.ActiveSessionsCount < 3; i++)
+        {
+            await Task.Delay(25);
+        }
+
         Assert.That(_wsHandler.ActiveSessionsCount, Is.GreaterThanOrEqualTo(3));
 
         // Ping from all three

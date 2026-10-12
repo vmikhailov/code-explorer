@@ -18,6 +18,55 @@ public static class RouteDictionaryRegistry
     private static readonly ConcurrentDictionary<string, string> _globalPrefixes =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private static readonly ConcurrentDictionary<string, string> _mountPrefixes =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public static void RegisterMountPrefix(string filePath, string mountPrefix)
+    {
+        if (string.IsNullOrWhiteSpace(filePath) || string.IsNullOrWhiteSpace(mountPrefix)) return;
+        var cleanPath = filePath.Replace('\\', '/').Trim('/');
+        var cleanPrefix = mountPrefix.Trim().Trim('\'', '"', '`').Trim('/');
+        if (!string.IsNullOrEmpty(cleanPrefix))
+        {
+            _mountPrefixes[cleanPath] = cleanPrefix;
+            var fileName = Path.GetFileName(cleanPath);
+            if (!string.IsNullOrEmpty(fileName))
+            {
+                _mountPrefixes[fileName] = cleanPrefix;
+            }
+            var nameWithoutExt = Path.GetFileNameWithoutExtension(cleanPath);
+            if (!string.IsNullOrEmpty(nameWithoutExt))
+            {
+                _mountPrefixes[nameWithoutExt] = cleanPrefix;
+            }
+        }
+    }
+
+    public static bool TryGetMountPrefix(string? filePath, out string mountPrefix)
+    {
+        mountPrefix = string.Empty;
+        if (string.IsNullOrWhiteSpace(filePath)) return false;
+        var cleanPath = filePath.Replace('\\', '/').Trim('/');
+        if (_mountPrefixes.TryGetValue(cleanPath, out var p))
+        {
+            mountPrefix = p;
+            return true;
+        }
+        var fileName = Path.GetFileName(cleanPath);
+        if (!string.IsNullOrEmpty(fileName) && _mountPrefixes.TryGetValue(fileName, out p))
+        {
+            mountPrefix = p;
+            return true;
+        }
+        var nameWithoutExt = Path.GetFileNameWithoutExtension(cleanPath);
+        if (!string.IsNullOrEmpty(nameWithoutExt) && _mountPrefixes.TryGetValue(nameWithoutExt, out p))
+        {
+            mountPrefix = p;
+            return true;
+        }
+        return false;
+    }
+
     private static readonly HashSet<string> _genericVariableNames = new(StringComparer.OrdinalIgnoreCase)
     {
         "url", "uri", "path", "href", "link", "endpoint", "endpoints", "req", "res", "request", "response",
@@ -31,7 +80,7 @@ public static class RouteDictionaryRegistry
         if (!string.IsNullOrWhiteSpace(projectName) && !string.IsNullOrWhiteSpace(prefix))
         {
             var clean = prefix.Trim().Trim('\'', '"', '`').Trim('/');
-            if (!string.IsNullOrEmpty(clean))
+            if (!string.IsNullOrEmpty(clean) && !clean.Contains("${"))
             {
                 _globalPrefixes[projectName.Trim()] = clean;
                 var normProj = WorkspaceConventions.NormalizeServiceName(projectName);
@@ -179,6 +228,7 @@ public static class RouteDictionaryRegistry
         _serviceDomains.Clear();
         _aliases.Clear();
         _globalPrefixes.Clear();
+        _mountPrefixes.Clear();
     }
 
     public static string NormalizeResolvedUrl(string raw)
@@ -530,6 +580,10 @@ public static class RouteDictionaryRegistry
                 var sKey = sb.Groups[1].Value;
                 var innerRoutes = sb.Groups[2].Value;
                 _serviceDomains.TryGetValue(sKey, out var domain);
+                if (string.IsNullOrEmpty(domain))
+                {
+                    domain = WorkspaceConventions.NormalizeServiceName(sKey);
+                }
 
                 var routeMatches = Regex.Matches(innerRoutes, @"(?:route\s*:\s*['""]([^'""]+)['""],\s*path\s*:\s*['""]([^'""]+)['""]|path\s*:\s*['""]([^'""]+)['""],\s*route\s*:\s*['""]([^'""]+)['""])");
                 foreach (Match rm in routeMatches)

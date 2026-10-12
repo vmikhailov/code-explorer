@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
@@ -536,4 +537,261 @@ public class NestJsLibraryParser : ISemanticExtension
     {
         return type is "string" or "number" or "boolean" or "any" or "unknown" or "void" or "null" or "undefined" or "never" or "object" or "Record<string, any>" or "Request" or "Response";
     }
+
+    public void DiscoverDeclarations(string filePath, string content, string? projectName, ParsingContext? ctx)
+    {
+        if (string.IsNullOrWhiteSpace(content) || !content.Contains("setGlobalPrefix")) return;
+
+        var prefixMatch = Regex.Match(content, @"setGlobalPrefix\s*\(\s*([^,\)]+)");
+        if (prefixMatch.Success)
+        {
+            var targetProj = projectName;
+            if (string.IsNullOrEmpty(targetProj) && ctx != null && !string.IsNullOrEmpty(ctx.AbsoluteWorkspacePath) && Path.IsPathRooted(filePath))
+            {
+                var rel = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, filePath).Replace('\\', '/');
+                var parts = rel.Split('/');
+                if (parts.Length > 0 && !string.IsNullOrEmpty(parts[0]) && parts[0] != "src") targetProj = parts[0];
+                else targetProj = Path.GetFileName(ctx.AbsoluteWorkspacePath.TrimEnd('/', '\\'));
+            }
+
+            var prefix = ResolveGlobalPrefix(prefixMatch.Groups[1].Value, content, targetProj);
+            if (!string.IsNullOrEmpty(prefix))
+            {
+                RouteDictionaryRegistry.RegisterGlobalPrefix(targetProj, prefix);
+            }
+        }
+    }
+
+    public void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, ParsingContext? ctx)
+    {
+        if (!rootNode.IsValid()) return;
+        TraverseForGlobalPrefix(rootNode, projectName);
+    }
+
+    private static void TraverseForGlobalPrefix(Node node, string? projectName)
+    {
+        if (node.Is(TreeSitterSyntax.TypeScript.CallExpression))
+        {
+            var func = node.GetFunctionNode();
+            if (func.IsValid() && func.Text.EndsWith("setGlobalPrefix", StringComparison.OrdinalIgnoreCase))
+            {
+                var args = AstHelper.GetCallArguments(node);
+                var rawArg = args.Count > 0 ? args[0].Text : null;
+                var resolved = !string.IsNullOrEmpty(rawArg)
+                    ? ResolveGlobalPrefix(rawArg, node.Tree?.RootNode?.Text ?? "", projectName)
+                    : AstHelper.ExtractFirstStringArgument(node, projectName);
+
+                if (!string.IsNullOrEmpty(resolved) && !resolved.Contains("${"))
+                {
+                    RouteDictionaryRegistry.RegisterGlobalPrefix(projectName, resolved);
+                    return;
+                }
+            }
+        }
+
+        foreach (var child in node.Children)
+        {
+            TraverseForGlobalPrefix(child, projectName);
+        }
+    }
+
+    public static string? ResolveGlobalPrefix(string rawExpr, string fileText, string? projectName)
+    {
+        if (string.IsNullOrWhiteSpace(rawExpr)) return null;
+
+        var cleaned = rawExpr.Trim().Trim('(', ')', ';').Trim();
+
+        // 1. If wrapped in env var fallback: process.env.API_PREFIX || 'api/v1' or configService.get(...) || 'api/v1'
+        if (cleaned.Contains("||") || cleaned.Contains("??"))
+        {
+            var fallbackParts = cleaned.Split(["||", "??"], StringSplitOptions.TrimEntries);
+            for (int i = fallbackParts.Length - 1; i >= 0; i--)
+            {
+                var resolvedPart = ResolveGlobalPrefix(fallbackParts[i], fileText, projectName);
+                if (!string.IsNullOrEmpty(resolvedPart) && !resolvedPart.Contains("process.env") && !resolvedPart.Contains("get("))
+                {
+                    return resolvedPart;
+                }
+            }
+        }
+
+        // 2. If simple string literal: 'api/v1', "api/v1", `api/v1` (without template interpolation)
+        if (!cleaned.Contains("${") && (
+            (cleaned.StartsWith('\'') && cleaned.EndsWith('\'')) ||
+            (cleaned.StartsWith('"') && cleaned.EndsWith('"')) ||
+            (cleaned.StartsWith('`') && cleaned.EndsWith('`'))))
+        {
+            return cleaned.Trim('\'', '"', '`').Trim('/');
+        }
+
+        // 3. Scan local variable declarations in fileText (e.g. const apiVersion = 'v1' or process.env.API_VERSION || 'v1')
+        var localVars = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        // Pattern A: const|let|var name [: type] = ... 'val'
+        var varMatches = Regex.Matches(fileText, @"(?:const|let|var)\s+([A-Za-z0-9_]+)\s*(?::\s*[^=]+)?\s*=\s*(?:.*?(?:\|\||\?\?)\s*)?['""`]([^'""`\r\n]+)['""`]");
+        foreach (Match m in varMatches)
+        {
+            var name = m.Groups[1].Value.Trim();
+            var val = m.Groups[2].Value.Trim();
+            localVars[name] = val;
+            if (!string.IsNullOrEmpty(projectName))
+            {
+                ConstantRegistry.Register(projectName, name, val);
+            }
+        }
+
+        // Pattern B: { apiVersion = 'v1' } destructuring defaults
+        var destructureMatches = Regex.Matches(fileText, @"(?:const|let|var)\s*\{[^}]*?\b([A-Za-z0-9_]+)\s*=\s*['""`]([^'""`\r\n]+)['""`]");
+        foreach (Match m in destructureMatches)
+        {
+            var name = m.Groups[1].Value.Trim();
+            var val = m.Groups[2].Value.Trim();
+            localVars.TryAdd(name, val);
+        }
+
+        // Pattern C: general assignments: apiVersion = 'v1'
+        var assignMatches = Regex.Matches(fileText, @"\b([A-Za-z0-9_]+)\s*=\s*(?:.*?(?:\|\||\?\?)\s*)?['""`]([^'""`\r\n]+)['""`]");
+        foreach (Match m in assignMatches)
+        {
+            var name = m.Groups[1].Value.Trim();
+            var val = m.Groups[2].Value.Trim();
+            localVars.TryAdd(name, val);
+        }
+
+        string ResolveVar(string varName)
+        {
+            if (localVars.TryGetValue(varName, out var lv)) return lv;
+            if (!string.IsNullOrEmpty(projectName) && ConstantRegistry.TryResolve(projectName, varName, out var cv)) return cv;
+            if (ConstantRegistry.TryResolve(null, varName, out var gv)) return gv;
+            if (ConfigStore.TryGetConfig(projectName, varName, out var cfgVal)) return cfgVal;
+            return varName;
+        }
+
+        // 4. Template string with interpolation: `api/${apiVersion}` or `api/${apiVersion}/campaigns`
+        if (cleaned.StartsWith('`') && cleaned.EndsWith('`'))
+        {
+            var templateContent = cleaned[1..^1];
+            var resolved = Regex.Replace(templateContent, @"\$\{([A-Za-z0-9_\.]+)\}", m =>
+            {
+                var expr = m.Groups[1].Value.Trim();
+                if (expr.Contains("||") || expr.Contains("??"))
+                {
+                    var sub = ResolveGlobalPrefix(expr, fileText, projectName);
+                    if (!string.IsNullOrEmpty(sub)) return sub;
+                }
+                var varName = expr.Contains('.') ? expr.Split('.')[^1] : expr;
+                var val = ResolveVar(varName);
+                if (val != varName) return val;
+
+                if (varName.Equals("apiVersion", StringComparison.OrdinalIgnoreCase) ||
+                    varName.Equals("version", StringComparison.OrdinalIgnoreCase) ||
+                    varName.Equals("ver", StringComparison.OrdinalIgnoreCase) ||
+                    varName.Equals("v", StringComparison.OrdinalIgnoreCase))
+                {
+                    var verMatch = Regex.Match(fileText, @"['""`](v\d+(?:\.\d+)?|\d+)['""`]");
+                    if (verMatch.Success)
+                    {
+                        var foundVer = verMatch.Groups[1].Value;
+                        if (!foundVer.StartsWith('v') && int.TryParse(foundVer, out _)) foundVer = "v" + foundVer;
+                        return foundVer;
+                    }
+                    return "v1";
+                }
+                return m.Value;
+            });
+
+            if (!resolved.Contains("${"))
+            {
+                return resolved.Trim('/');
+            }
+        }
+
+        // 5. String concatenation with +: 'api/' + apiVersion
+        if (cleaned.Contains('+'))
+        {
+            var parts = cleaned.Split('+');
+            var sb = new System.Text.StringBuilder();
+            var allOk = true;
+            foreach (var rawPart in parts)
+            {
+                var p = rawPart.Trim();
+                if ((p.StartsWith('\'') && p.EndsWith('\'')) ||
+                    (p.StartsWith('"') && p.EndsWith('"')) ||
+                    (p.StartsWith('`') && p.EndsWith('`')))
+                {
+                    sb.Append(p.Trim('\'', '"', '`'));
+                }
+                else
+                {
+                    var varName = p.Contains('.') ? p.Split('.')[^1] : p;
+                    var val = ResolveVar(varName);
+                    if (val != varName)
+                    {
+                        sb.Append(val);
+                    }
+                    else if (varName.Equals("apiVersion", StringComparison.OrdinalIgnoreCase) ||
+                             varName.Equals("version", StringComparison.OrdinalIgnoreCase) ||
+                             varName.Equals("ver", StringComparison.OrdinalIgnoreCase) ||
+                             varName.Equals("v", StringComparison.OrdinalIgnoreCase))
+                    {
+                        sb.Append("v1");
+                    }
+                    else
+                    {
+                        allOk = false;
+                        break;
+                    }
+                }
+            }
+            if (allOk && sb.Length > 0)
+            {
+                return sb.ToString().Trim('/');
+            }
+        }
+
+        // 6. Direct identifier: apiVersion or API_PREFIX
+        var directId = cleaned.Contains('.') ? cleaned.Split('.')[^1] : cleaned;
+        if (Regex.IsMatch(directId, @"^[A-Za-z0-9_]+$"))
+        {
+            var val = ResolveVar(directId);
+            if (val != directId)
+            {
+                return val.Trim('/');
+            }
+            if (directId.Equals("apiVersion", StringComparison.OrdinalIgnoreCase) ||
+                directId.Equals("version", StringComparison.OrdinalIgnoreCase) ||
+                directId.Equals("ver", StringComparison.OrdinalIgnoreCase) ||
+                directId.Equals("v", StringComparison.OrdinalIgnoreCase))
+            {
+                return "v1";
+            }
+        }
+
+        // 7. General template substitution fallback if quotes were stripped or non-standard delimiters were used
+        if (cleaned.Contains("${"))
+        {
+            var generalResolved = Regex.Replace(cleaned.Trim('\'', '"', '`', '\\', '/'), @"\$\{([A-Za-z0-9_\.]+)\}", m =>
+            {
+                var varName = m.Groups[1].Value.Trim();
+                if (varName.Contains('.')) varName = varName.Split('.')[^1];
+                var val = ResolveVar(varName);
+                if (val != varName) return val;
+                if (varName.Equals("apiVersion", StringComparison.OrdinalIgnoreCase) ||
+                    varName.Equals("version", StringComparison.OrdinalIgnoreCase) ||
+                    varName.Equals("ver", StringComparison.OrdinalIgnoreCase) ||
+                    varName.Equals("v", StringComparison.OrdinalIgnoreCase))
+                {
+                    return "v1";
+                }
+                return m.Value;
+            });
+            if (!generalResolved.Contains("${"))
+            {
+                return generalResolved.Trim('/');
+            }
+        }
+
+        return null;
+    }
 }
+

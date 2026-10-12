@@ -36,6 +36,8 @@ export interface DomainArchitectureContextValue {
   setHideSingleConnectionDbs: (hide: boolean | ((prev: boolean) => boolean)) => void;
   hideIsolatedNodes: boolean;
   setHideIsolatedNodes: (hide: boolean | ((prev: boolean) => boolean)) => void;
+  showTransitiveEdges: boolean;
+  setShowTransitiveEdges: (show: boolean | ((prev: boolean) => boolean)) => void;
   resetAllFilters: () => void;
 
   // Layout & Display
@@ -97,6 +99,7 @@ export const DomainArchitectureProvider: React.FC<DomainArchitectureProviderProp
   const [hiddenOrbitTiers, setHiddenOrbitTiers] = useState<Set<number>>(new Set());
   const [hideSingleConnectionDbs, setHideSingleConnectionDbs] = useState(false);
   const [hideIsolatedNodes, setHideIsolatedNodes] = useState(false);
+  const [showTransitiveEdges, setShowTransitiveEdges] = useState(true);
 
   const [layoutName, setLayoutName] = useState<DomainLayoutName>('concentric');
   const [edgeCurveMode, setEdgeCurveMode] = useState<EdgeCurveMode>('avoid-inner');
@@ -175,6 +178,7 @@ export const DomainArchitectureProvider: React.FC<DomainArchitectureProviderProp
     setHiddenOrbitTiers(new Set());
     setHideSingleConnectionDbs(false);
     setHideIsolatedNodes(false);
+    setShowTransitiveEdges(true);
     setSearchQuery('');
   }, []);
 
@@ -215,6 +219,8 @@ export const DomainArchitectureProvider: React.FC<DomainArchitectureProviderProp
       setHideSingleConnectionDbs,
       hideIsolatedNodes,
       setHideIsolatedNodes,
+      showTransitiveEdges,
+      setShowTransitiveEdges,
       resetAllFilters,
       layoutName,
       setLayoutName,
@@ -260,6 +266,7 @@ export const DomainArchitectureProvider: React.FC<DomainArchitectureProviderProp
       toggleOrbitVisibility,
       hideSingleConnectionDbs,
       hideIsolatedNodes,
+      showTransitiveEdges,
       resetAllFilters,
       layoutName,
       edgeCurveMode,
