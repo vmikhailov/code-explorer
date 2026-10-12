@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using CodeExplorer.Core.Database;
 using Microsoft.Data.Sqlite;
 
@@ -23,6 +24,104 @@ public static class SyntheticBenchmarkGraphGenerator
     public const string WellKnownQueriedBy = "ProcessOrdersAsync";
     public const string WellKnownCaller = "SubmitOrder";
 
+    private sealed class NodeBatcher
+    {
+        private readonly SqliteConnection _conn;
+        private readonly SqliteTransaction _tx;
+        private readonly StringBuilder _sb = new(64 * 1024);
+        private int _batchCount;
+        public int TotalAdded { get; private set; }
+
+        public NodeBatcher(SqliteConnection conn, SqliteTransaction tx)
+        {
+            _conn = conn;
+            _tx = tx;
+            _sb.Append("INSERT OR IGNORE INTO nodes (id, kind, properties) VALUES ");
+        }
+
+        public void Add(string id, string kind, string props)
+        {
+            if (_batchCount > 0) _sb.Append(',');
+            _sb.Append("('");
+            _sb.Append(id);
+            _sb.Append("','");
+            _sb.Append(kind);
+            _sb.Append("','");
+            _sb.Append(props.Replace("'", "''"));
+            _sb.Append("')");
+            _batchCount++;
+            TotalAdded++;
+
+            if (_batchCount >= 500)
+            {
+                Flush();
+            }
+        }
+
+        public void Flush()
+        {
+            if (_batchCount == 0) return;
+            _sb.Append(';');
+            using var cmd = _conn.CreateCommand();
+            cmd.Transaction = _tx;
+            cmd.CommandText = _sb.ToString();
+            cmd.ExecuteNonQuery();
+
+            _batchCount = 0;
+            _sb.Clear();
+            _sb.Append("INSERT OR IGNORE INTO nodes (id, kind, properties) VALUES ");
+        }
+    }
+
+    private sealed class EdgeBatcher
+    {
+        private readonly SqliteConnection _conn;
+        private readonly SqliteTransaction _tx;
+        private readonly StringBuilder _sb = new(64 * 1024);
+        private int _batchCount;
+        public int TotalAdded { get; private set; }
+
+        public EdgeBatcher(SqliteConnection conn, SqliteTransaction tx)
+        {
+            _conn = conn;
+            _tx = tx;
+            _sb.Append("INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties) VALUES ");
+        }
+
+        public void Add(string fromId, string toId, string kind)
+        {
+            if (_batchCount > 0) _sb.Append(',');
+            _sb.Append("('");
+            _sb.Append(fromId);
+            _sb.Append("','");
+            _sb.Append(toId);
+            _sb.Append("','");
+            _sb.Append(kind);
+            _sb.Append("','{}')");
+            _batchCount++;
+            TotalAdded++;
+
+            if (_batchCount >= 500)
+            {
+                Flush();
+            }
+        }
+
+        public void Flush()
+        {
+            if (_batchCount == 0) return;
+            _sb.Append(';');
+            using var cmd = _conn.CreateCommand();
+            cmd.Transaction = _tx;
+            cmd.CommandText = _sb.ToString();
+            cmd.ExecuteNonQuery();
+
+            _batchCount = 0;
+            _sb.Clear();
+            _sb.Append("INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties) VALUES ");
+        }
+    }
+
     public static async Task<BenchmarkGraphStats> GenerateAsync(
         SqliteGraphClient client,
         int fileCount = 10_000,
@@ -34,35 +133,19 @@ public static class SyntheticBenchmarkGraphGenerator
         var sw = Stopwatch.StartNew();
         var conn = client.Connection;
 
+        using (var pragmaCmd = conn.CreateCommand())
+        {
+            pragmaCmd.CommandText = "PRAGMA synchronous = OFF; PRAGMA journal_mode = OFF; PRAGMA temp_store = MEMORY; PRAGMA cache_size = -100000;";
+            pragmaCmd.ExecuteNonQuery();
+        }
+
         await using var tx = (SqliteTransaction)await conn.BeginTransactionAsync();
 
-        using var cmdNode = conn.CreateCommand();
-
-        cmdNode.Transaction = tx;
-        cmdNode.CommandText = "INSERT OR IGNORE INTO nodes (id, kind, properties) VALUES (@id, @kind, @props);";
-        var pId = cmdNode.Parameters.Add("@id", SqliteType.Text);
-        var pKind = cmdNode.Parameters.Add("@kind", SqliteType.Text);
-        var pProps = cmdNode.Parameters.Add("@props", SqliteType.Text);
-
-        using var cmdEdge = conn.CreateCommand();
-
-        cmdEdge.Transaction = tx;
-
-        cmdEdge.CommandText =
-            "INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, @kind, '{}');";
-        var pFrom = cmdEdge.Parameters.Add("@from", SqliteType.Text);
-        var pTo = cmdEdge.Parameters.Add("@to", SqliteType.Text);
-        var pKindE = cmdEdge.Parameters.Add("@kind", SqliteType.Text);
-
-        int totalNodes = 0;
-        int totalRelationships = 0;
+        var nodeBatcher = new NodeBatcher(conn, tx);
+        var edgeBatcher = new EdgeBatcher(conn, tx);
 
         // 1. Workspace Node
-        pId.Value = workspaceId;
-        pKind.Value = "Workspace";
-        pProps.Value = "{\"name\":\"BenchmarkWorkspace\",\"path\":\"/repo/root\"}";
-        cmdNode.ExecuteNonQuery();
-        totalNodes++;
+        nodeBatcher.Add(workspaceId, "Workspace", "{\"name\":\"BenchmarkWorkspace\",\"path\":\"/repo/root\"}");
 
         // 2. File Nodes (10,000)
         var fileIds = new string[fileCount];
@@ -75,11 +158,7 @@ public static class SyntheticBenchmarkGraphGenerator
             var id = $"{workspaceId}:file:{path}";
             fileIds[i] = id;
 
-            pId.Value = id;
-            pKind.Value = "File";
-            pProps.Value = $"{{\"name\":\"File_{i}.cs\",\"path\":\"{path}\",\"file_path\":\"{path}\"}}";
-            cmdNode.ExecuteNonQuery();
-            totalNodes++;
+            nodeBatcher.Add(id, "File", $"{{\"name\":\"File_{i}.cs\",\"path\":\"{path}\",\"file_path\":\"{path}\"}}");
         }
 
         // 3. Type Nodes (25,000)
@@ -97,30 +176,17 @@ public static class SyntheticBenchmarkGraphGenerator
             classIds[i] = id;
             classSymbols[i] = symbol;
 
-            pId.Value = id;
-            pKind.Value = "Type";
-
-            pProps.Value =
-                $"{{\"name\":\"{name}\",\"symbol\":\"{symbol}\",\"kind\":\"{(isInterface ? "interface" : "class")}\",\"file_path\":\"{filePath}\",\"start_line\":10,\"end_line\":200}}";
-            cmdNode.ExecuteNonQuery();
-            totalNodes++;
+            nodeBatcher.Add(id, "Type",
+                $"{{\"name\":\"{name}\",\"symbol\":\"{symbol}\",\"kind\":\"{(isInterface ? "interface" : "class")}\",\"file_path\":\"{filePath}\",\"start_line\":10,\"end_line\":200}}");
 
             // (Type)-[:DECLARED_IN]->(File)
-            pFrom.Value = id;
-            pTo.Value = fileIds[fileIdx];
-            pKindE.Value = "DECLARED_IN";
-            cmdEdge.ExecuteNonQuery();
-            totalRelationships++;
+            edgeBatcher.Add(id, fileIds[fileIdx], "DECLARED_IN");
 
             // (Class)-[:IMPLEMENTS]->(Interface)
             if (!isInterface && i >= 10 && i % 5 == 0)
             {
                 var targetInterfaceIdx = (i / 10) * 10;
-                pFrom.Value = id;
-                pTo.Value = classIds[targetInterfaceIdx];
-                pKindE.Value = "IMPLEMENTS";
-                cmdEdge.ExecuteNonQuery();
-                totalRelationships++;
+                edgeBatcher.Add(id, classIds[targetInterfaceIdx], "IMPLEMENTS");
             }
         }
 
@@ -130,13 +196,9 @@ public static class SyntheticBenchmarkGraphGenerator
         {
             var mName = m == 0 ? WellKnownSearchSymbol : $"{WellKnownSearchSymbol}_{m}";
             var searchSymId = $"{workspaceId}:func:special:{mName}";
-            pId.Value = searchSymId;
-            pKind.Value = "Function";
 
-            pProps.Value =
-                $"{{\"name\":\"{mName}\",\"symbol\":\"Benchmark.Payments.{mName}\",\"file_path\":\"src/Payments/Processor.cs\",\"start_line\":{40 + m * 10},\"end_line\":{48 + m * 10}}}";
-            cmdNode.ExecuteNonQuery();
-            totalNodes++;
+            nodeBatcher.Add(searchSymId, "Function",
+                $"{{\"name\":\"{mName}\",\"symbol\":\"Benchmark.Payments.{mName}\",\"file_path\":\"src/Payments/Processor.cs\",\"start_line\":{40 + m * 10},\"end_line\":{48 + m * 10}}}");
         }
 
         // 4b. get_call_chain 5-Hop Workflow Nodes
@@ -151,91 +213,39 @@ public static class SyntheticBenchmarkGraphGenerator
         {
             var id = $"{workspaceId}:func:workflow:Step{i}";
             stepIds[i] = id;
-            pId.Value = id;
-            pKind.Value = "Function";
 
-            pProps.Value =
-                $"{{\"name\":\"Step{i}\",\"symbol\":\"{stepSymbols[i]}\",\"file_path\":\"src/Workflow/Pipeline.cs\",\"start_line\":{10 + i * 20},\"end_line\":{25 + i * 20}}}";
-            cmdNode.ExecuteNonQuery();
-            totalNodes++;
+            nodeBatcher.Add(id, "Function",
+                $"{{\"name\":\"Step{i}\",\"symbol\":\"{stepSymbols[i]}\",\"file_path\":\"src/Workflow/Pipeline.cs\",\"start_line\":{10 + i * 20},\"end_line\":{25 + i * 20}}}");
 
             if (i > 0)
             {
-                pFrom.Value = stepIds[i - 1];
-                pTo.Value = id;
-                pKindE.Value = "CALLS";
-                cmdEdge.ExecuteNonQuery();
-                totalRelationships++;
+                edgeBatcher.Add(stepIds[i - 1], id, "CALLS");
             }
         }
 
         // 4c. Data Lineage Benchmark Target ("orders" Table and surroundings)
         var ordersTableId = $"{workspaceId}:table:{WellKnownTable}";
-        pId.Value = ordersTableId;
-        pKind.Value = "Table";
-        pProps.Value = $"{{\"name\":\"{WellKnownTable}\"}}";
-        cmdNode.ExecuteNonQuery();
-        totalNodes++;
+        nodeBatcher.Add(ordersTableId, "Table", $"{{\"name\":\"{WellKnownTable}\"}}");
 
         var ordersQueryId = $"{workspaceId}:query:orders_select";
-        pId.Value = ordersQueryId;
-        pKind.Value = "Query";
-
-        pProps.Value =
-            $"{{\"name\":\"SELECT Query: SELECT * FROM {WellKnownTable}\",\"query_text\":\"SELECT * FROM {WellKnownTable}\",\"path\":\"src/Repositories/OrderRepo.cs\"}}";
-        cmdNode.ExecuteNonQuery();
-        totalNodes++;
-
-        pFrom.Value = ordersQueryId;
-        pTo.Value = ordersTableId;
-        pKindE.Value = "DEPENDS_ON";
-        cmdEdge.ExecuteNonQuery();
-        totalRelationships++;
+        nodeBatcher.Add(ordersQueryId, "Query",
+            $"{{\"name\":\"SELECT Query: SELECT * FROM {WellKnownTable}\",\"query_text\":\"SELECT * FROM {WellKnownTable}\",\"path\":\"src/Repositories/OrderRepo.cs\"}}");
+        edgeBatcher.Add(ordersQueryId, ordersTableId, "DEPENDS_ON");
 
         var queriedByFuncId = $"{workspaceId}:func:orders:{WellKnownQueriedBy}";
-        pId.Value = queriedByFuncId;
-        pKind.Value = "Function";
-
-        pProps.Value =
-            $"{{\"name\":\"{WellKnownQueriedBy}\",\"symbol\":\"Benchmark.Orders.{WellKnownQueriedBy}\",\"file_path\":\"src/Repositories/OrderRepo.cs\",\"start_line\":50,\"end_line\":70}}";
-        cmdNode.ExecuteNonQuery();
-        totalNodes++;
-
-        pFrom.Value = ordersTableId;
-        pTo.Value = queriedByFuncId;
-        pKindE.Value = "QUERIED_BY";
-        cmdEdge.ExecuteNonQuery();
-        totalRelationships++;
+        nodeBatcher.Add(queriedByFuncId, "Function",
+            $"{{\"name\":\"{WellKnownQueriedBy}\",\"symbol\":\"Benchmark.Orders.{WellKnownQueriedBy}\",\"file_path\":\"src/Repositories/OrderRepo.cs\",\"start_line\":50,\"end_line\":70}}");
+        edgeBatcher.Add(ordersTableId, queriedByFuncId, "QUERIED_BY");
 
         var callerFuncId = $"{workspaceId}:func:orders:{WellKnownCaller}";
-        pId.Value = callerFuncId;
-        pKind.Value = "Function";
-
-        pProps.Value =
-            $"{{\"name\":\"{WellKnownCaller}\",\"symbol\":\"Benchmark.Controllers.{WellKnownCaller}\",\"file_path\":\"src/Controllers/OrderController.cs\",\"start_line\":30,\"end_line\":45}}";
-        cmdNode.ExecuteNonQuery();
-        totalNodes++;
-
-        pFrom.Value = callerFuncId;
-        pTo.Value = queriedByFuncId;
-        pKindE.Value = "CALLS";
-        cmdEdge.ExecuteNonQuery();
-        totalRelationships++;
+        nodeBatcher.Add(callerFuncId, "Function",
+            $"{{\"name\":\"{WellKnownCaller}\",\"symbol\":\"Benchmark.Controllers.{WellKnownCaller}\",\"file_path\":\"src/Controllers/OrderController.cs\",\"start_line\":30,\"end_line\":45}}");
+        edgeBatcher.Add(callerFuncId, queriedByFuncId, "CALLS");
 
         var orderEntityId = $"{workspaceId}:type:entities:OrderEntity";
-        pId.Value = orderEntityId;
-        pKind.Value = "Type";
-
-        pProps.Value =
-            "{\"name\":\"OrderEntity\",\"symbol\":\"Benchmark.Entities.OrderEntity\",\"kind\":\"class\",\"file_path\":\"src/Entities/OrderEntity.cs\"}";
-        cmdNode.ExecuteNonQuery();
-        totalNodes++;
-
-        pFrom.Value = orderEntityId;
-        pTo.Value = ordersTableId;
-        pKindE.Value = "PERSISTED_IN";
-        cmdEdge.ExecuteNonQuery();
-        totalRelationships++;
+        nodeBatcher.Add(orderEntityId, "Type",
+            "{\"name\":\"OrderEntity\",\"symbol\":\"Benchmark.Entities.OrderEntity\",\"kind\":\"class\",\"file_path\":\"src/Entities/OrderEntity.cs\"}");
+        edgeBatcher.Add(orderEntityId, ordersTableId, "PERSISTED_IN");
 
         // 5. Function Nodes (70,000)
         var methodIds = new string[methodCount];
@@ -250,27 +260,14 @@ public static class SyntheticBenchmarkGraphGenerator
             var id = $"{workspaceId}:func:{filePath}:{name}";
             methodIds[i] = id;
 
-            pId.Value = id;
-            pKind.Value = "Function";
-
-            pProps.Value =
-                $"{{\"name\":\"{name}\",\"symbol\":\"{symbol}\",\"file_path\":\"{filePath}\",\"start_line\":20,\"end_line\":40}}";
-            cmdNode.ExecuteNonQuery();
-            totalNodes++;
+            nodeBatcher.Add(id, "Function",
+                $"{{\"name\":\"{name}\",\"symbol\":\"{symbol}\",\"file_path\":\"{filePath}\",\"start_line\":20,\"end_line\":40}}");
 
             // (Function)-[:DECLARED_IN]->(File)
-            pFrom.Value = id;
-            pTo.Value = fileIds[fileIdx];
-            pKindE.Value = "DECLARED_IN";
-            cmdEdge.ExecuteNonQuery();
-            totalRelationships++;
+            edgeBatcher.Add(id, fileIds[fileIdx], "DECLARED_IN");
 
             // (Type)-[:HAS_METHOD]->(Function)
-            pFrom.Value = classIds[classIdx];
-            pTo.Value = id;
-            pKindE.Value = "HAS_METHOD";
-            cmdEdge.ExecuteNonQuery();
-            totalRelationships++;
+            edgeBatcher.Add(classIds[classIdx], id, "HAS_METHOD");
         }
 
         // 6. Additional Tables & Queries (99 more)
@@ -279,64 +276,47 @@ public static class SyntheticBenchmarkGraphGenerator
         for (int t = 1; t <= additionalTables; t++)
         {
             var tId = $"{workspaceId}:table:table_{t}";
-            pId.Value = tId;
-            pKind.Value = "Table";
-            pProps.Value = $"{{\"name\":\"table_{t}\"}}";
-            cmdNode.ExecuteNonQuery();
-            totalNodes++;
+            nodeBatcher.Add(tId, "Table", $"{{\"name\":\"table_{t}\"}}");
 
             var qId = $"{workspaceId}:query:q_{t}";
-            pId.Value = qId;
-            pKind.Value = "Query";
-
-            pProps.Value =
-                $"{{\"name\":\"SELECT Query: SELECT * FROM table_{t}\",\"query_text\":\"SELECT * FROM table_{t}\",\"path\":\"src/Db_{t}.cs\"}}";
-            cmdNode.ExecuteNonQuery();
-            totalNodes++;
-
-            pFrom.Value = qId;
-            pTo.Value = tId;
-            pKindE.Value = "DEPENDS_ON";
-            cmdEdge.ExecuteNonQuery();
-            totalRelationships++;
+            nodeBatcher.Add(qId, "Query",
+                $"{{\"name\":\"SELECT Query: SELECT * FROM table_{t}\",\"query_text\":\"SELECT * FROM table_{t}\",\"path\":\"src/Db_{t}.cs\"}}");
+            edgeBatcher.Add(qId, tId, "DEPENDS_ON");
 
             // Table -> Function QUERIED_BY link
             var fIdx = t * 40;
 
             if (fIdx < methodCount)
             {
-                pFrom.Value = tId;
-                pTo.Value = methodIds[fIdx];
-                pKindE.Value = "QUERIED_BY";
-                cmdEdge.ExecuteNonQuery();
-                totalRelationships++;
+                edgeBatcher.Add(tId, methodIds[fIdx], "QUERIED_BY");
             }
         }
 
         // 7. Pseudo-Random Realistic Method Calls to bring total relationships to exactly 300k
         var rng = new Random(seed);
         const int targetTotalRelationships = 300_000;
+        var seenCalls = new HashSet<long>();
 
-        while (totalRelationships < targetTotalRelationships)
+        while (edgeBatcher.TotalAdded < targetTotalRelationships)
         {
             var fromIdx = rng.Next(methodCount);
             var toIdx = (fromIdx + rng.Next(1, 100)) % methodCount;
+            var key = ((long)fromIdx << 32) | (uint)toIdx;
 
-            pFrom.Value = methodIds[fromIdx];
-            pTo.Value = methodIds[toIdx];
-            pKindE.Value = "CALLS";
-
-            if (cmdEdge.ExecuteNonQuery() > 0)
+            if (seenCalls.Add(key))
             {
-                totalRelationships++;
+                edgeBatcher.Add(methodIds[fromIdx], methodIds[toIdx], "CALLS");
             }
         }
+
+        nodeBatcher.Flush();
+        edgeBatcher.Flush();
 
         await tx.CommitAsync();
         sw.Stop();
 
         return new BenchmarkGraphStats(FileCount: fileCount, ClassCount: classCount,
-            MethodCount: methodCount, TableCount: 100, QueryCount: 100, TotalNodes: totalNodes,
-            TotalRelationships: totalRelationships, GenerationDurationMs: sw.ElapsedMilliseconds);
+            MethodCount: methodCount, TableCount: 100, QueryCount: 100, TotalNodes: nodeBatcher.TotalAdded,
+            TotalRelationships: edgeBatcher.TotalAdded, GenerationDurationMs: sw.ElapsedMilliseconds);
     }
 }

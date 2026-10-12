@@ -965,7 +965,8 @@ public class ArchitectureViewEngine(IGraphClient db)
         bool sharedDatabasesOnly = false,
         CancellationToken ct = default)
     {
-        var cacheKey = $"c1:libs={includeLibraries}:filter={projectFilter ?? ""}:sharedDbs={sharedDatabasesOnly}";
+        var dbKey = (db as SqliteGraphClient)?.DbPath ?? db.GetHashCode().ToString();
+        var cacheKey = $"{dbKey}:c1:libs={includeLibraries}:filter={projectFilter ?? ""}:sharedDbs={sharedDatabasesOnly}";
         if (SystemContextCache.TryGetValue(cacheKey, out var cached))
         {
             return cached;

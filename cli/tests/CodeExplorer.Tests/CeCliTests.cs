@@ -7,6 +7,7 @@ using NUnit.Framework;
 namespace CodeExplorer.Tests;
 
 [TestFixture]
+[NonParallelizable]
 public class CeCliTests
 {
     private string _tempDir = null!;
