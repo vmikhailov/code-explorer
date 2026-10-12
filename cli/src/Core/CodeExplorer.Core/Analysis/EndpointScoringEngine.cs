@@ -264,8 +264,8 @@ public static partial class EndpointScoringEngine
             {
                 // Verify that the substring match aligns with a word boundary in the delimiter-separated original tokens
                 // e.g. "traffic-types" inside "internal-service-traffic-types" matches full tokens, but "cf-worker" inside "adhub-cf-worker" is an affix of another project
-                var hostTokens = primaryHostToken.Split(new[] { '-', '_', '.' }, StringSplitOptions.RemoveEmptyEntries);
-                var candTokens = cand.ToLowerInvariant().Split(new[] { '-', '_', '.', '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
+                var hostTokens = primaryHostToken.Split(['-', '_', '.'], StringSplitOptions.RemoveEmptyEntries);
+                var candTokens = cand.ToLowerInvariant().Split(['-', '_', '.', '/', '\\'], StringSplitOptions.RemoveEmptyEntries);
 
                 bool hasTokenMatch = false;
                 if (normHost.Length <= normCand.Length)

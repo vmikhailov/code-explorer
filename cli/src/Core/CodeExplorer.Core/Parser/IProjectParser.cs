@@ -46,8 +46,9 @@ public interface IProjectParser
 
     /// <summary>
     /// Declarative package descriptors (frameworks, test runners, drivers) registered for this language dialect.
+    /// Derived dynamically from all registered SemanticExtensions by default.
     /// </summary>
-    IReadOnlyList<PackageDescriptor> Packages => [];
+    IReadOnlyList<PackageDescriptor> Packages => [.. SemanticExtensions.SelectMany(e => e.GetPackageDescriptors())];
 
     /// <summary>
     /// Semantic AST extensions (e.g. Tree-sitter visitors) registered for this language dialect.

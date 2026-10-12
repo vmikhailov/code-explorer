@@ -37,10 +37,21 @@ public interface ISemanticExtension
     Func<ProjectContext, bool>? CustomMatch => null;
 
     /// <summary>
+    /// Gets the declarative package descriptors provided by this semantic extension.
+    /// By default, yields a single descriptor representing this extension.
+    /// Extensions can override this to yield zero, one, or multiple package descriptors.
+    /// </summary>
+    IEnumerable<PackageDescriptor> GetPackageDescriptors()
+    {
+        yield return new PackageDescriptor(Id, Name, LibraryRole, Type, SupportedPatterns, CustomMatch);
+    }
+
+    /// <summary>
     /// Converts this semantic extension into a declarative package descriptor for Layer 2 ontology classification.
     /// </summary>
+    [Obsolete("Use GetPackageDescriptors() instead")]
     PackageDescriptor ToPackageDescriptor(string ecosystem = "library") =>
-        new(Id, Name, LibraryRole, ecosystem, SupportedPatterns, CustomMatch);
+        new(Id, Name, LibraryRole, Type, SupportedPatterns, CustomMatch);
 
     /// <summary>
     /// Indicates whether this extension is built into the language standard library.

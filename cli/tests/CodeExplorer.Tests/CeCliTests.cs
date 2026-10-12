@@ -285,15 +285,15 @@ public class CeCliTests
     [Test]
     public void BaseCommandHandler_FileHelpers_WorkCorrectly()
     {
-        BaseCommandHandler.ContainsAny(new[] { "apple", "banana" }, "BANANA", "cherry").Should().BeTrue();
-        BaseCommandHandler.ContainsAny(new[] { "apple", "banana" }, "cherry", "date").Should().BeFalse();
+        BaseCommandHandler.ContainsAny(["apple", "banana"], "BANANA", "cherry").Should().BeTrue();
+        BaseCommandHandler.ContainsAny(["apple", "banana"], "cherry", "date").Should().BeFalse();
 
         BaseCommandHandler.HasExtension("foo/bar.cs", "cs", "ts").Should().BeTrue();
         BaseCommandHandler.HasExtension("foo/bar.CS", ".cs").Should().BeTrue();
         BaseCommandHandler.HasExtension("foo/bar.py", "cs", "ts").Should().BeFalse();
 
-        BaseCommandHandler.HasAnyWithExtension(new[] { "foo.js", "bar.ts" }, "ts").Should().BeTrue();
-        BaseCommandHandler.HasAnyWithExtension(new[] { "foo.js", "bar.ts" }, "py").Should().BeFalse();
+        BaseCommandHandler.HasAnyWithExtension(["foo.js", "bar.ts"], "ts").Should().BeTrue();
+        BaseCommandHandler.HasAnyWithExtension(["foo.js", "bar.ts"], "py").Should().BeFalse();
 
         BaseCommandHandler.HasFileName("path/to/package.json", "package.json", "pom.xml").Should().BeTrue();
         BaseCommandHandler.HasFileName("path/to/other.txt", "package.json").Should().BeFalse();

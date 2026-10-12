@@ -267,7 +267,10 @@ public class Layer3SyntacticParser
                 // Package dependencies resolved at Layer 2 — CanHandle() of component parsers
                 // (e.g. the JS test runner keyed on jest/jasmine) used to receive an empty list
                 // and therefore never matched.
-                project.Children.OfType<PackageNode>().Select(p => p.Name).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+                [
+                    .. project.Children.OfType<PackageNode>().Select(p => p.Name)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                ],
                 project.Extensions ?? new Dictionary<string, string>());
             var componentParsers = Components.ComponentLibraryParserRegistry.GetParsers(projectContext);
 

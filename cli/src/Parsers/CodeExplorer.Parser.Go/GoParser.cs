@@ -43,41 +43,37 @@ public class GoParser : IProjectParser, IFileParser
 
     public GoParser()
     {
-        Packages =
-        [
-            // Derived dynamically from semantic AST extensions that support the Go ecosystem
-            ..SemanticExtensions.Select(e => e.ToPackageDescriptor("go"))
+        Packages = [.. SemanticExtensions.SelectMany(e => e.GetPackageDescriptors())];
 
-            /*
-            // Unimplemented / Backlog packages (commented out until AST semantic extensions are implemented):
-            // Additional Databases
-            new PackageDescriptor("clickhouse", "ClickHouse", LibraryRole.OrmOrDatabase, "go", ["github.com/ClickHouse/clickhouse-go*"]),
-            new PackageDescriptor("postgres-pgx", "PostgreSQL (pgx)", LibraryRole.OrmOrDatabase, "go", ["github.com/jackc/pgx*"]),
-            new PackageDescriptor("bigquery", "BigQuery", LibraryRole.OrmOrDatabase, "go", ["cloud.google.com/go/bigquery*"]),
+        /*
+        // Unimplemented / Backlog packages (commented out until AST semantic extensions are implemented):
+        // Additional Databases
+        new PackageDescriptor("clickhouse", "ClickHouse", LibraryRole.OrmOrDatabase, "library", ["github.com/ClickHouse/clickhouse-go*"]),
+        new PackageDescriptor("postgres-pgx", "PostgreSQL (pgx)", LibraryRole.OrmOrDatabase, "library", ["github.com/jackc/pgx*"]),
+        new PackageDescriptor("bigquery", "BigQuery", LibraryRole.OrmOrDatabase, "library", ["cloud.google.com/go/bigquery*"]),
 
-            // Generic Cloud Services
-            new PackageDescriptor("stripe", "Stripe", LibraryRole.CloudSdk, "go", ["github.com/stripe/stripe-go*"]),
-            new PackageDescriptor("aws", "AWS", LibraryRole.CloudSdk, "go", ["github.com/aws/aws-sdk-go*"]),
-            new PackageDescriptor("gcp", "GCP", LibraryRole.CloudSdk, "go", ["cloud.google.com/*", "firebase.google.com/*"]),
-            new PackageDescriptor("azure", "Azure", LibraryRole.CloudSdk, "go", ["*Azure*", "*azure-sdk-for-go*"]),
+        // Generic Cloud Services
+        new PackageDescriptor("stripe", "Stripe", LibraryRole.CloudSdk, "library", ["github.com/stripe/stripe-go*"]),
+        new PackageDescriptor("aws", "AWS", LibraryRole.CloudSdk, "library", ["github.com/aws/aws-sdk-go*"]),
+        new PackageDescriptor("gcp", "GCP", LibraryRole.CloudSdk, "library", ["cloud.google.com/*", "firebase.google.com/*"]),
+        new PackageDescriptor("azure", "Azure", LibraryRole.CloudSdk, "library", ["*Azure*", "*azure-sdk-for-go*"]),
 
-            // Frameworks
-            new PackageDescriptor("gin", "Gin", LibraryRole.WebService, "go", ["github.com/gin-gonic/gin*"]),
-            new PackageDescriptor("echo", "Echo", LibraryRole.WebService, "go", ["github.com/labstack/echo*"]),
-            new PackageDescriptor("fiber", "Fiber", LibraryRole.WebService, "go", ["github.com/gofiber/fiber*"]),
+        // Frameworks
+        new PackageDescriptor("gin", "Gin", LibraryRole.WebService, "library", ["github.com/gin-gonic/gin*"]),
+        new PackageDescriptor("echo", "Echo", LibraryRole.WebService, "library", ["github.com/labstack/echo*"]),
+        new PackageDescriptor("fiber", "Fiber", LibraryRole.WebService, "library", ["github.com/gofiber/fiber*"]),
 
-            // Test Frameworks
-            new PackageDescriptor("testify", "Testify", LibraryRole.TestFramework, "go", ["github.com/stretchr/testify*"]),
+        // Test Frameworks
+        new PackageDescriptor("testify", "Testify", LibraryRole.TestFramework, "library", ["github.com/stretchr/testify*"]),
 
-            // API Clients
-            new PackageDescriptor("net/http", "http/https", LibraryRole.General, "go", ["net/http*"]),
-            new PackageDescriptor("resty", "Resty", LibraryRole.General, "go", ["github.com/go-resty/resty*"]),
-            new PackageDescriptor("req", "req", LibraryRole.General, "go", ["github.com/imroc/req*"]),
-            new PackageDescriptor("grequests", "grequests", LibraryRole.General, "go", ["github.com/levigross/grequests*"]),
-            new PackageDescriptor("gorequest", "gorequest", LibraryRole.General, "go", ["github.com/parnurzeal/gorequest*"]),
-            new PackageDescriptor("surf", "surf", LibraryRole.General, "go", ["github.com/go-surf/surf*"])
-            */
-        ];
+        // API Clients
+        new PackageDescriptor("net/http", "http/https", LibraryRole.General, "library", ["net/http*"]),
+        new PackageDescriptor("resty", "Resty", LibraryRole.General, "library", ["github.com/go-resty/resty*"]),
+        new PackageDescriptor("req", "req", LibraryRole.General, "library", ["github.com/imroc/req*"]),
+        new PackageDescriptor("grequests", "grequests", LibraryRole.General, "library", ["github.com/levigross/grequests*"]),
+        new PackageDescriptor("gorequest", "gorequest", LibraryRole.General, "library", ["github.com/parnurzeal/gorequest*"]),
+        new PackageDescriptor("surf", "surf", LibraryRole.General, "library", ["github.com/go-surf/surf*"])
+        */
     }
 
     public bool CanParse(string fileExtension)

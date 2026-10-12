@@ -26,42 +26,38 @@ public class TypeScriptParser : IProjectParser, IFileParser
 
     public TypeScriptParser()
     {
-        Packages =
-        [
-            // Derived dynamically from semantic AST extensions that support the npm ecosystem
-            ..SemanticExtensions.Select(e => e.ToPackageDescriptor("npm"))
+        Packages = [.. SemanticExtensions.SelectMany(e => e.GetPackageDescriptors())];
 
-            /*
-            // Unimplemented / Backlog packages (commented out until AST semantic extensions are implemented):
-            // Frontend Web Frameworks
-            new PackageDescriptor("react", "React", LibraryRole.FrontendFramework, "npm", ["react", "react-dom"]),
-            new PackageDescriptor("vue", "Vue", LibraryRole.FrontendFramework, "npm", ["vue"]),
-            new PackageDescriptor("angular", "Angular", LibraryRole.FrontendFramework, "npm", ["@angular/core"]),
-            new PackageDescriptor("svelte", "Svelte", LibraryRole.FrontendFramework, "npm", ["svelte"]),
-            new PackageDescriptor("vite", "Vite", LibraryRole.FrontendFramework, "npm", ["vite"]),
+        /*
+        // Unimplemented / Backlog packages (commented out until AST semantic extensions are implemented):
+        // Frontend Web Frameworks
+        new PackageDescriptor("react", "React", LibraryRole.FrontendFramework, "library", ["react", "react-dom"]),
+        new PackageDescriptor("vue", "Vue", LibraryRole.FrontendFramework, "library", ["vue"]),
+        new PackageDescriptor("angular", "Angular", LibraryRole.FrontendFramework, "library", ["@angular/core"]),
+        new PackageDescriptor("svelte", "Svelte", LibraryRole.FrontendFramework, "library", ["svelte"]),
+        new PackageDescriptor("vite", "Vite", LibraryRole.FrontendFramework, "library", ["vite"]),
 
-            // Test Frameworks
-            new PackageDescriptor("jest", "Jest", LibraryRole.TestFramework, "npm", ["jest", "@types/jest", "ts-jest", "babel-jest"]),
-            new PackageDescriptor("vitest", "Vitest", LibraryRole.TestFramework, "npm", ["vitest", "@vitest/*"]),
-            new PackageDescriptor("mocha", "Mocha", LibraryRole.TestFramework, "npm", ["mocha", "@types/mocha"]),
-            new PackageDescriptor("cypress", "Cypress", LibraryRole.TestFramework, "npm", ["cypress"]),
-            new PackageDescriptor("playwright", "Playwright", LibraryRole.TestFramework, "npm", ["@playwright/test", "playwright"]),
-            // Unimplemented / Backlog packages (commented out until AST semantic extensions are implemented):
-            // Databases / ORMs
-            new PackageDescriptor("bigquery", "BigQuery", LibraryRole.OrmOrDatabase, "npm", ["@google-cloud/bigquery", "bigquery"]),
-            new PackageDescriptor("clickhouse", "ClickHouse", LibraryRole.OrmOrDatabase, "npm", ["@clickhouse/client", "@clickhouse/client-web", "clickhouse"]),
+        // Test Frameworks
+        new PackageDescriptor("jest", "Jest", LibraryRole.TestFramework, "library", ["jest", "@types/jest", "ts-jest", "babel-jest"]),
+        new PackageDescriptor("vitest", "Vitest", LibraryRole.TestFramework, "library", ["vitest", "@vitest/*"]),
+        new PackageDescriptor("mocha", "Mocha", LibraryRole.TestFramework, "library", ["mocha", "@types/mocha"]),
+        new PackageDescriptor("cypress", "Cypress", LibraryRole.TestFramework, "library", ["cypress"]),
+        new PackageDescriptor("playwright", "Playwright", LibraryRole.TestFramework, "library", ["@playwright/test", "playwright"]),
 
-            // Generic Cloud Services
-            new PackageDescriptor("stripe", "Stripe", LibraryRole.CloudSdk, "npm", ["stripe"]),
-            new PackageDescriptor("aws", "AWS", LibraryRole.CloudSdk, "npm", ["aws-sdk", "@aws-sdk/*"]),
-            new PackageDescriptor("azure", "Azure", LibraryRole.CloudSdk, "npm", ["@azure/*"]),
+        // Databases / ORMs
+        new PackageDescriptor("bigquery", "BigQuery", LibraryRole.OrmOrDatabase, "library", ["@google-cloud/bigquery", "bigquery"]),
+        new PackageDescriptor("clickhouse", "ClickHouse", LibraryRole.OrmOrDatabase, "library", ["@clickhouse/client", "@clickhouse/client-web", "clickhouse"]),
 
-            // Generic API Clients & Protocols
-            new PackageDescriptor("request", "request", LibraryRole.General, "npm", ["request"]),
-            new PackageDescriptor("undici", "undici", LibraryRole.General, "npm", ["undici"]),
-            new PackageDescriptor("urllib", "urllib", LibraryRole.General, "npm", ["urllib"]),
-            */
-        ];
+        // Generic Cloud Services
+        new PackageDescriptor("stripe", "Stripe", LibraryRole.CloudSdk, "library", ["stripe"]),
+        new PackageDescriptor("aws", "AWS", LibraryRole.CloudSdk, "library", ["aws-sdk", "@aws-sdk/*"]),
+        new PackageDescriptor("azure", "Azure", LibraryRole.CloudSdk, "library", ["@azure/*"]),
+
+        // Generic API Clients & Protocols
+        new PackageDescriptor("request", "request", LibraryRole.General, "library", ["request"]),
+        new PackageDescriptor("undici", "undici", LibraryRole.General, "library", ["undici"]),
+        new PackageDescriptor("urllib", "urllib", LibraryRole.General, "library", ["urllib"]),
+        */
     }
 
     public IReadOnlyList<ISemanticExtension> SemanticExtensions { get; } =

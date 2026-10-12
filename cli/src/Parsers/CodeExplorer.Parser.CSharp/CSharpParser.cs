@@ -56,31 +56,30 @@ public class CSharpParser : IProjectParser, IFileParser
 
     public CSharpParser()
     {
-        Packages =
-        [
-            // Derived dynamically from semantic AST extensions that support the NuGet ecosystem
-            ..SemanticExtensions.Select(e => e.ToPackageDescriptor("nuget"))
+        Packages = [.. SemanticExtensions.SelectMany(e => e.GetPackageDescriptors())];
 
-            /*
-            // Unimplemented / Backlog packages (commented out until AST semantic extensions are implemented):
-            // API Clients
-            new PackageDescriptor("webapiclient", "WebApiClient", LibraryRole.General, "nuget", ["WebApiClient"]),
-            new PackageDescriptor("apizr", "Apizr", LibraryRole.General, "nuget", ["Apizr"]),
-            new PackageDescriptor("notoriousclient", "NotoriousClient", LibraryRole.General, "nuget", ["NotoriousClient"]),
+        /*
+        // Unimplemented / Backlog packages (commented out until AST semantic extensions are implemented):
+        // Web Frameworks
+        new PackageDescriptor("aspnet-mvc", "ASP.NET MVC", LibraryRole.WebFramework, "library", ["Microsoft.AspNet.Mvc", "Microsoft.AspNet.WebApi", "Microsoft.AspNet.WebApi.Core", "Microsoft.AspNet.WebApi.WebHost"]),
 
-            // Generic Cloud Services
-            new PackageDescriptor("aws", "AWS", LibraryRole.CloudSdk, "nuget", ["Amazon.S3", "AWSSDK"]),
-            new PackageDescriptor("gcp", "GCP", LibraryRole.CloudSdk, "nuget", ["Google.Cloud."]),
-            new PackageDescriptor("azure", "Azure", LibraryRole.CloudSdk, "nuget", ["Azure."]),
+        // API Clients
+        new PackageDescriptor("webapiclient", "WebApiClient", LibraryRole.General, "library", ["WebApiClient"]),
+        new PackageDescriptor("apizr", "Apizr", LibraryRole.General, "library", ["Apizr"]),
+        new PackageDescriptor("notoriousclient", "NotoriousClient", LibraryRole.General, "library", ["NotoriousClient"]),
 
-            // Test Frameworks
-            new PackageDescriptor("nunit", "NUnit", LibraryRole.TestFramework, "nuget", ["nunit", "nunit3testadapter"]),
-            new PackageDescriptor("xunit", "xUnit", LibraryRole.TestFramework, "nuget", ["xunit", "xunit.runner.*", "xunit.v3.*"]),
-            new PackageDescriptor("mstest", "MSTest", LibraryRole.TestFramework, "nuget", ["mstest", "mstest.testframework", "mstest.testadapter"]),
-            new PackageDescriptor("benchmarkdotnet", "BenchmarkDotNet", LibraryRole.TestFramework, "nuget", ["benchmarkdotnet"]),
-            new PackageDescriptor("nettestsdk", "Microsoft.NET.Test.Sdk", LibraryRole.TestFramework, "nuget", ["microsoft.net.test.sdk"])
-            */
-        ];
+        // Generic Cloud Services
+        new PackageDescriptor("aws", "AWS", LibraryRole.CloudSdk, "library", ["Amazon.S3", "AWSSDK"]),
+        new PackageDescriptor("gcp", "GCP", LibraryRole.CloudSdk, "library", ["Google.Cloud."]),
+        new PackageDescriptor("azure", "Azure", LibraryRole.CloudSdk, "library", ["Azure."]),
+
+        // Test Frameworks
+        new PackageDescriptor("nunit", "NUnit", LibraryRole.TestFramework, "library", ["nunit", "nunit3testadapter"]),
+        new PackageDescriptor("xunit", "xUnit", LibraryRole.TestFramework, "library", ["xunit", "xunit.runner.*", "xunit.v3.*"]),
+        new PackageDescriptor("mstest", "MSTest", LibraryRole.TestFramework, "library", ["mstest", "mstest.testframework", "mstest.testadapter"]),
+        new PackageDescriptor("benchmarkdotnet", "BenchmarkDotNet", LibraryRole.TestFramework, "library", ["benchmarkdotnet"]),
+        new PackageDescriptor("nettestsdk", "Microsoft.NET.Test.Sdk", LibraryRole.TestFramework, "library", ["microsoft.net.test.sdk"])
+        */
     }
 
 

@@ -25,38 +25,34 @@ public class PythonParser : IProjectParser, IFileParser
 
     public PythonParser()
     {
-        Packages =
-        [
-            // Derived dynamically from semantic AST extensions that support PyPI ecosystem
-            ..SemanticExtensions.Select(e => e.ToPackageDescriptor("pypi"))
+        Packages = [.. SemanticExtensions.SelectMany(e => e.GetPackageDescriptors())];
 
-            /*
-            // Unimplemented / Backlog packages (commented out until AST semantic extensions are implemented):
-            // Web Frameworks
-            new("django", "Django", LibraryRole.WebFramework, "pypi", ["django"]),
-            new("flask", "Flask", LibraryRole.WebFramework, "pypi", ["flask"]),
+        /*
+        // Unimplemented / Backlog packages (commented out until AST semantic extensions are implemented):
+        // Web Frameworks
+        new("django", "Django", LibraryRole.WebFramework, "library", ["django"]),
+        new("flask", "Flask", LibraryRole.WebFramework, "library", ["flask"]),
 
-            // Test Frameworks
-            new("pytest", "Pytest", LibraryRole.TestFramework, "pypi", ["pytest", "pytest-*"]),
-            new("unittest", "Unittest", LibraryRole.TestFramework, "pypi", ["unittest"]),
-            // Unimplemented / Backlog packages (commented out until AST semantic extensions are implemented):
-            // Databases / ORMs
-            new("bigquery", "BigQuery", LibraryRole.OrmOrDatabase, "pypi", ["google-cloud-bigquery", "google.cloud.bigquery"]),
-            new("clickhouse", "ClickHouse", LibraryRole.OrmOrDatabase, "pypi", ["clickhouse-connect", "clickhouse-driver"]),
+        // Test Frameworks
+        new("pytest", "Pytest", LibraryRole.TestFramework, "library", ["pytest", "pytest-*"]),
+        new("unittest", "Unittest", LibraryRole.TestFramework, "library", ["unittest"]),
 
-            // Generic Cloud Services
-            new("stripe", "Stripe", LibraryRole.CloudSdk, "pypi", ["stripe"]),
-            new("aws", "AWS", LibraryRole.CloudSdk, "pypi", ["boto3"]),
-            new("gcp", "GCP", LibraryRole.CloudSdk, "pypi", ["google-cloud-", "google.cloud", "firebase-admin"]),
-            new("azure", "Azure", LibraryRole.CloudSdk, "pypi", ["azure-", "azure."]),
+        // Databases / ORMs
+        new("bigquery", "BigQuery", LibraryRole.OrmOrDatabase, "library", ["google-cloud-bigquery", "google.cloud.bigquery"]),
+        new("clickhouse", "ClickHouse", LibraryRole.OrmOrDatabase, "library", ["clickhouse-connect", "clickhouse-driver"]),
 
-            // Generic API Clients
-            new("requests", "requests", LibraryRole.General, "pypi", ["requests"]),
-            new("urllib", "urllib", LibraryRole.General, "pypi", ["urllib.request", "urllib3", "urllib"]),
-            new("httpx", "httpx", LibraryRole.General, "pypi", ["httpx"]),
-            new("aiohttp", "aiohttp", LibraryRole.General, "pypi", ["aiohttp"])
-            */
-        ];
+        // Generic Cloud Services
+        new("stripe", "Stripe", LibraryRole.CloudSdk, "library", ["stripe"]),
+        new("aws", "AWS", LibraryRole.CloudSdk, "library", ["boto3"]),
+        new("gcp", "GCP", LibraryRole.CloudSdk, "library", ["google-cloud-", "google.cloud", "firebase-admin"]),
+        new("azure", "Azure", LibraryRole.CloudSdk, "library", ["azure-", "azure."]),
+
+        // Generic API Clients
+        new("requests", "requests", LibraryRole.General, "library", ["requests"]),
+        new("urllib", "urllib", LibraryRole.General, "library", ["urllib.request", "urllib3", "urllib"]),
+        new("httpx", "httpx", LibraryRole.General, "library", ["httpx"]),
+        new("aiohttp", "aiohttp", LibraryRole.General, "library", ["aiohttp"])
+        */
     }
 
     public IReadOnlyList<ISemanticExtension> SemanticExtensions { get; } =

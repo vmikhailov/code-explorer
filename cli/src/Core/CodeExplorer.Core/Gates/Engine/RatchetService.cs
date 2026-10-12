@@ -18,7 +18,7 @@ public static class RatchetService
                 return (GateCheckStatus.Passed, [], [], 0);
             }
 
-            return (GateCheckStatus.FailedNew, violations.ToList(), [], 0);
+            return (GateCheckStatus.FailedNew, [.. violations], [], 0);
         }
 
         var baselineFps = baseline.Entries

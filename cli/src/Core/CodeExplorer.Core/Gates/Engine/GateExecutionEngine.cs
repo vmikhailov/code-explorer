@@ -75,23 +75,23 @@ public class GateExecutionEngine
         CancellationToken cancellationToken = default)
     {
         var sw = Stopwatch.StartNew();
-        var allGates = gates?.ToList() ?? (await _gateRepository.GetAllGatesAsync(cancellationToken)).ToList();
+        var allGates = gates ?? (await _gateRepository.GetAllGatesAsync(cancellationToken));
 
         if (scopeFilter.HasValue)
         {
-            allGates = allGates.Where(g => g.Scope == scopeFilter.Value).ToList();
+            allGates = allGates.Where(g => g.Scope == scopeFilter.Value);
         }
         if (dimFilter.HasValue)
         {
-            allGates = allGates.Where(g => g.Dimension == dimFilter.Value).ToList();
+            allGates = allGates.Where(g => g.Dimension == dimFilter.Value);
         }
         if (categoryFilter.HasValue)
         {
-            allGates = allGates.Where(g => g.Category == categoryFilter.Value).ToList();
+            allGates = allGates.Where(g => g.Category == categoryFilter.Value);
         }
         if (!string.IsNullOrWhiteSpace(platformFilter))
         {
-            allGates = allGates.Where(g => string.Equals(g.Platform, platformFilter.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
+            allGates = allGates.Where(g => string.Equals(g.Platform, platformFilter.Trim(), StringComparison.OrdinalIgnoreCase));
         }
 
         var results = new List<GateCheckResult>();
