@@ -1,0 +1,177 @@
+{
+  "coldfusion/cf-components": {
+    "projectType": "coldfusion",
+    "entityKind": "Library",
+    "isLibrary": true
+  },
+  "coldfusion/cf-web-app": {
+    "projectType": "coldfusion",
+    "entityKind": "App",
+    "isLibrary": false
+  },
+  "csharp/class-lib": {
+    "projectType": "csharp",
+    "entityKind": "Library",
+    "isLibrary": true
+  },
+  "csharp/cli-tool": {
+    "projectType": "csharp",
+    "entityKind": "CliTool",
+    "isLibrary": false
+  },
+  "csharp/legacy-framework-lib": {
+    "projectType": "csharp",
+    "entityKind": "Library",
+    "isLibrary": true
+  },
+  "csharp/legacy-framework-web": {
+    "projectType": "csharp",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
+  "csharp/test-suite": {
+    "projectType": "csharp",
+    "entityKind": "Test",
+    "isLibrary": true
+  },
+  "csharp/web-api": {
+    "projectType": "csharp",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
+  "csharp/worker-service": {
+    "projectType": "csharp",
+    "entityKind": "Worker",
+    "isLibrary": false
+  },
+  "go/cobra-cli": {
+    "projectType": "go",
+    "entityKind": "CliTool",
+    "isLibrary": false
+  },
+  "go/gin-service": {
+    "projectType": "go",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
+  "go/kafka-worker": {
+    "projectType": "go",
+    "entityKind": "Worker",
+    "isLibrary": false
+  },
+  "go/pkg-lib": {
+    "projectType": "go",
+    "entityKind": "Library",
+    "isLibrary": true
+  },
+  "java/gradle-service": {
+    "projectType": "java",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
+  "java/jar-library": {
+    "projectType": "java",
+    "entityKind": "Library",
+    "isLibrary": true
+  },
+  "java/spring-service": {
+    "projectType": "java",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
+  "kotlin/android-app": {
+    "projectType": "kotlin",
+    "entityKind": "App",
+    "isLibrary": false
+  },
+  "kotlin/jvm-lib": {
+    "projectType": "kotlin",
+    "entityKind": "Library",
+    "isLibrary": true
+  },
+  "python/alembic-migrations": {
+    "projectType": "python",
+    "entityKind": "DatabaseMigration",
+    "isLibrary": false
+  },
+  "python/celery-worker": {
+    "projectType": "python",
+    "entityKind": "Worker",
+    "isLibrary": false
+  },
+  "python/click-cli": {
+    "projectType": "python",
+    "entityKind": "CliTool",
+    "isLibrary": false
+  },
+  "python/django-service": {
+    "projectType": "python",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
+  "python/fastapi-service": {
+    "projectType": "python",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
+  "python/standard-lib": {
+    "projectType": "python",
+    "entityKind": "Library",
+    "isLibrary": true
+  },
+  "typescript/angular-monorepo": {
+    "projectType": "typescript",
+    "entityKind": "App",
+    "isLibrary": false
+  },
+  "typescript/angular-monorepo/projects/portal": {
+    "projectType": "typescript",
+    "entityKind": "App",
+    "isLibrary": false
+  },
+  "typescript/angular-monorepo/projects/ui-components": {
+    "projectType": "typescript",
+    "entityKind": "Library",
+    "isLibrary": true
+  },
+  "typescript/cf-worker": {
+    "projectType": "typescript",
+    "entityKind": "Worker",
+    "isLibrary": false
+  },
+  "typescript/cli-app": {
+    "projectType": "typescript",
+    "entityKind": "CliTool",
+    "isLibrary": false
+  },
+  "typescript/express-service": {
+    "projectType": "typescript",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
+  "typescript/jest-tests": {
+    "projectType": "typescript",
+    "entityKind": "Test",
+    "isLibrary": true
+  },
+  "typescript/nest-service": {
+    "projectType": "typescript",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
+  "typescript/nextjs-app": {
+    "projectType": "typescript",
+    "entityKind": "App",
+    "isLibrary": false
+  },
+  "typescript/react-app": {
+    "projectType": "typescript",
+    "entityKind": "App",
+    "isLibrary": false
+  },
+  "typescript/ui-library": {
+    "projectType": "typescript",
+    "entityKind": "Library",
+    "isLibrary": true
+  }
+}

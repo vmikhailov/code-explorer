@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
@@ -55,51 +57,91 @@ public class Layer1Layer2MatrixBaselineTests
         return (l1, l2);
     }
 
-    #region Parameterized Matrix Tests
+    public record ExpectedProjectAnswer(
+        [property: JsonPropertyName("projectType")] string ProjectType,
+        [property: JsonPropertyName("entityKind")] ProjectEntityKind EntityKind,
+        [property: JsonPropertyName("isLibrary")] bool IsLibrary
+    );
 
-    [TestCase("csharp/web-api", "csharp", ProjectEntityKind.Service, false)]
-    [TestCase("csharp/class-lib", "csharp", ProjectEntityKind.Library, true)]
-    [TestCase("csharp/legacy-framework-lib", "csharp", ProjectEntityKind.Library, true)]
-    [TestCase("csharp/legacy-framework-web", "csharp", ProjectEntityKind.Service, false)]
-    [TestCase("csharp/worker-service", "csharp", ProjectEntityKind.Worker, false)]
-    [TestCase("csharp/cli-tool", "csharp", ProjectEntityKind.CliTool, false)]
-    [TestCase("csharp/test-suite", "csharp", ProjectEntityKind.Test, true)]
-    [TestCase("typescript/nest-service", "typescript", ProjectEntityKind.Service, false)]
-    [TestCase("typescript/express-service", "typescript", ProjectEntityKind.Service, false)]
-    [TestCase("typescript/react-app", "typescript", ProjectEntityKind.App, false)]
-    [TestCase("typescript/nextjs-app", "typescript", ProjectEntityKind.App, false)]
-    [TestCase("typescript/ui-library", "typescript", ProjectEntityKind.Library, true)]
-    [TestCase("typescript/cf-worker", "typescript", ProjectEntityKind.Worker, false)]
-    [TestCase("typescript/cli-app", "typescript", ProjectEntityKind.CliTool, false)]
-    [TestCase("typescript/jest-tests", "typescript", ProjectEntityKind.Test, true)]
-    [TestCase("python/fastapi-service", "python", ProjectEntityKind.Service, false)]
-    [TestCase("python/django-service", "python", ProjectEntityKind.Service, false)]
-    [TestCase("python/standard-lib", "python", ProjectEntityKind.Library, true)]
-    [TestCase("python/celery-worker", "python", ProjectEntityKind.Worker, false)]
-    [TestCase("python/click-cli", "python", ProjectEntityKind.CliTool, false)]
-    [TestCase("python/alembic-migrations", "python", ProjectEntityKind.DatabaseMigration, false)]
-    [TestCase("go/gin-service", "go", ProjectEntityKind.Service, false)]
-    [TestCase("go/pkg-lib", "go", ProjectEntityKind.Library, true)]
-    [TestCase("go/cobra-cli", "go", ProjectEntityKind.CliTool, false)]
-    [TestCase("go/kafka-worker", "go", ProjectEntityKind.Worker, false)]
-    [TestCase("java/spring-service", "java", ProjectEntityKind.Service, false)]
-    [TestCase("java/gradle-service", "java", ProjectEntityKind.Service, false)]
-    [TestCase("java/jar-library", "java", ProjectEntityKind.Library, true)]
-    [TestCase("kotlin/android-app", "kotlin", ProjectEntityKind.App, false)]
-    [TestCase("kotlin/jvm-lib", "kotlin", ProjectEntityKind.Library, true)]
-    [TestCase("coldfusion/cf-web-app", "coldfusion", ProjectEntityKind.App, false)]
-    [TestCase("coldfusion/cf-components", "coldfusion", ProjectEntityKind.Library, true)]
-    public async Task Matrix_SingleProject_DetectedWithExpectedKindAndIsLib(
-        string projectPath,
-        string expectedProjectType,
-        ProjectEntityKind expectedKind,
-        bool expectedIsLib)
+    #region Full Workspace Scan & Expected Answers Comparison
+
+    [Test]
+    public async Task SampleProjects_FullWorkspaceScan_AllProjectsMatchExpectedAnswersJson()
     {
-        var (_, l2) = await ScanL1L2Async(projectPath);
-        var proj = l2.Projects.Should().ContainSingle().Subject;
-        proj.ProjectType.Should().Be(expectedProjectType);
-        proj.EntityKind.Should().Be(expectedKind);
-        proj.IsLibrary.Should().Be(expectedIsLib);
+        var answersPath = Path.Combine(_sampleProjectsRoot, "expected.json");
+        File.Exists(answersPath).Should().BeTrue($"Expected answers file not found at: {answersPath}");
+
+        var json = await File.ReadAllTextAsync(answersPath);
+        var jsonOptions = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+            Converters = { new JsonStringEnumConverter() }
+        };
+        var expectedAnswers = JsonSerializer.Deserialize<Dictionary<string, ExpectedProjectAnswer>>(json, jsonOptions);
+        expectedAnswers.Should().NotBeNull("Failed to deserialize expected.json");
+
+        await using var client = new InMemoryGraphClient();
+        var indexer = new WorkspaceIndexer(client);
+        await indexer.IndexAsync(_sampleProjectsRoot, clear: false);
+
+        var discoveredProjects = client.UploadedNodes
+            .Where(n => n.Kind == OntologyConstants.NodeLabels.Project)
+            .DistinctBy(n => n.Properties.GetValueOrDefault("path")?.ToString())
+            .ToDictionary(
+                n => n.Properties.GetValueOrDefault("path")!.ToString()!.Replace('\\', '/').Trim('/'),
+                n => n,
+                StringComparer.OrdinalIgnoreCase);
+
+        // 1. If any discovered project has no right answer in expected.json, fail with actionable snippet
+        var unrecordedProjects = discoveredProjects.Keys
+            .Where(k => !expectedAnswers!.ContainsKey(k))
+            .OrderBy(k => k)
+            .ToList();
+
+        if (unrecordedProjects.Count > 0)
+        {
+            var snippets = unrecordedProjects.Select(k =>
+            {
+                var n = discoveredProjects[k];
+                var type = n.Properties.GetValueOrDefault("project_type");
+                var kind = n.Properties.GetValueOrDefault("entity_kind");
+                var isLib = n.Properties.GetValueOrDefault("is_library");
+                return $"  \"{k}\": {{\n    \"projectType\": \"{type}\",\n    \"entityKind\": \"{kind}\",\n    \"isLibrary\": {isLib}\n  }}";
+            });
+
+            Assert.Fail(
+                $"Discovered {unrecordedProjects.Count} project folder(s) with no right answer in expected.json:\n\n" +
+                string.Join(",\n", snippets) + "\n\n" +
+                $"These projects are new and must be added manually (or via agent) to: {answersPath}");
+        }
+
+        // 2. If any expected project in expected.json was not discovered on disk, fail
+        var missingFromScan = expectedAnswers!.Keys
+            .Where(k => !discoveredProjects.ContainsKey(k))
+            .OrderBy(k => k)
+            .ToList();
+
+        if (missingFromScan.Count > 0)
+        {
+            Assert.Fail(
+                $"The following {missingFromScan.Count} project(s) defined in expected.json were not discovered on disk during the workspace scan:\n" +
+                string.Join("\n", missingFromScan.Select(k => $"  - {k}")) + "\n\n" +
+                "Please verify the project folders or clean up expected.json.");
+        }
+
+        // 3. Compare each discovered project against right answers in expected.json
+        foreach (var (path, expected) in expectedAnswers)
+        {
+            var node = discoveredProjects[path];
+            var actualType = node.Properties.GetValueOrDefault("project_type")?.ToString();
+            var actualKindStr = node.Properties.GetValueOrDefault("entity_kind")?.ToString() ?? "";
+            Enum.TryParse<ProjectEntityKind>(actualKindStr, true, out var actualKind);
+            var actualIsLib = bool.TryParse(node.Properties.GetValueOrDefault("is_library")?.ToString(), out var b) && b;
+
+            actualType.Should().Be(expected.ProjectType, $"Project '{path}' projectType mismatch");
+            actualKind.Should().Be(expected.EntityKind, $"Project '{path}' entityKind mismatch");
+            actualIsLib.Should().Be(expected.IsLibrary, $"Project '{path}' isLibrary mismatch");
+        }
     }
 
     #endregion
@@ -164,7 +206,7 @@ public class Layer1Layer2MatrixBaselineTests
     #region Invariant Guard: All Parsers Must Be Covered
 
     [Test]
-    public void AllParsers_MustBeCoveredByBaselineMatrixTests()
+    public async Task AllParsers_MustBeCoveredByBaselineMatrixTests()
     {
         // 1. Discover all parsers via reflection
         var registeredParsers = WorkspaceIndexer.AutoRegisterParsers();
@@ -178,34 +220,35 @@ public class Layer1Layer2MatrixBaselineTests
             .Where(t => t != "sql" && t != "javascript") // SQL is embedded, JavaScript is handled by TypeScriptParser
             .ToList();
 
-        // 3. Extract all tested project types from Matrix_SingleProject_DetectedWithExpectedKindAndIsLib TestCases
-        var method = typeof(Layer1Layer2MatrixBaselineTests)
-            .GetMethod(nameof(Matrix_SingleProject_DetectedWithExpectedKindAndIsLib))!;
-        var testCases = method.GetCustomAttributes(typeof(TestCaseAttribute), false)
-            .Cast<TestCaseAttribute>()
-            .ToList();
+        // 3. Extract all tested project types from expected.json
+        var answersPath = Path.Combine(_sampleProjectsRoot, "expected.json");
+        File.Exists(answersPath).Should().BeTrue();
+        var json = await File.ReadAllTextAsync(answersPath);
+        var jsonOptions = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+            Converters = { new JsonStringEnumConverter() }
+        };
+        var expectedAnswers = JsonSerializer.Deserialize<Dictionary<string, ExpectedProjectAnswer>>(json, jsonOptions)!;
 
-        var testedProjectTypes = testCases
-            .Select(tc => tc.Arguments[1] as string)
-            .Where(t => !string.IsNullOrEmpty(t))
-            .Select(t => t!.ToLowerInvariant())
+        var testedProjectTypes = expectedAnswers.Values
+            .Select(a => a.ProjectType.ToLowerInvariant())
             .Distinct()
             .ToHashSet();
 
-        // 4. Assert every discovered project parser is tested in the matrix
+        // 4. Assert every discovered project parser is tested in expected.json
         var untested = discoveredProjectTypes.Where(t => !testedProjectTypes.Contains(t)).ToList();
         untested.Should().BeEmpty(
-            $"Every project parser must have sample projects and coverage in {nameof(Layer1Layer2MatrixBaselineTests)}! " +
+            $"Every project parser must have sample projects and coverage in expected.json! " +
             $"Untested project types: [{string.Join(", ", untested)}]");
 
         // 5. Assert all IFileParser implementations are registered
         var fileParsers = WorkspaceIndexer.GetAllFileParsers();
         fileParsers.Should().NotBeEmpty();
 
-        // 6. Assert all sample project paths in test cases actually exist on disk
-        foreach (var tc in testCases)
+        // 6. Assert all sample project paths in expected.json actually exist on disk
+        foreach (var relPath in expectedAnswers.Keys)
         {
-            var relPath = (string)tc.Arguments[0]!;
             var absPath = Path.Combine(_sampleProjectsRoot, relPath);
             Directory.Exists(absPath).Should().BeTrue($"Sample project directory must exist on disk: {relPath}");
         }
