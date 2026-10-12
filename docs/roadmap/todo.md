@@ -216,7 +216,7 @@ This document tracks active epics, immediate architectural refactoring plans, an
 | **7.4** | Python/Egress | Python HTTP Clients (`requests`, `httpx`, `aiohttp`) service-to-service calls | High | ✅ Completed |
 | **7.5** | Java/Messaging | Java Messaging (`kafka` / Spring Kafka, `rabbitmq` / Spring AMQP) | High | ✅ Completed |
 | **7.6** | TS/HTTP | Node.js HTTP Clients (`request`, `undici`, `urllib`) Egress | High | ✅ Completed |
-| **7.7** | TS/Analytics | Analytical Databases (`bigquery`, `clickhouse`) Query & Lineage | High | ⏳ Pending |
+| **7.7** | TS/Analytics | Analytical Databases (`bigquery`, `clickhouse`) Query & Lineage | High | ✅ Completed |
 | **7.8** | TS/Cloud | Cloud SDKs (`aws`, `azure`, `stripe`) Services & Queues | High | ⏳ Pending |
 | **7.9** | TS/Frontend | Frontend Frameworks (`react`, `vue`, `angular`, `svelte`, `vite`) | Medium | ⏳ Pending |
 | **7.10** | TS/Testing | Test Frameworks (`jest`, `vitest`, `mocha`, `cypress`, `playwright`) | Medium | ⏳ Pending |
@@ -285,11 +285,11 @@ This document tracks active epics, immediate architectural refactoring plans, an
   - Sample project: `cli/tests/SampleProjects/typescript/http-clients-service`.
   - Unit test suite: `TypeScriptHttpClientTests.cs`.
 
-### Phase 7.7: TypeScript Analytical Databases & Lineage — Target `v1.37.13` ⏳ PENDING
-- [ ] **Analytical Databases (`clickhouse`, `bigquery`)**:
+### Phase 7.7: TypeScript Analytical Databases & Lineage — Target `v1.37.13` ✅ DELIVERED
+- [x] **Analytical Databases (`clickhouse`, `bigquery`)**:
   - `ClickHouseLibraryParser`: `@clickhouse/client`, `createClient({ url: '...' })`, SQL query parsing, `Query` nodes, and `TableReference` lineage.
   - `BigQueryLibraryParser`: `@google-cloud/bigquery`, `bigquery.query('...')`, dataset & table extraction.
-- [ ] **Artifacts & Verification**:
+- [x] **Artifacts & Verification**:
   - Sample project: `cli/tests/SampleProjects/typescript/olap-database-service`.
   - Unit test suite: `TypeScriptOlapDatabaseTests.cs`.
 

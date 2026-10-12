@@ -1,0 +1,8 @@
+{
+  "name": "olap-database-service",
+  "version": "1.0.0",
+  "dependencies": {
+    "@clickhouse/client": "^1.0.0",
+    "@google-cloud/bigquery": "^7.0.0"
+  }
+}

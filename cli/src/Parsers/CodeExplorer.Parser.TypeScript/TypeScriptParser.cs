@@ -44,10 +44,6 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new PackageDescriptor("cypress", "Cypress", LibraryRole.TestFramework, "library", ["cypress"]),
         new PackageDescriptor("playwright", "Playwright", LibraryRole.TestFramework, "library", ["@playwright/test", "playwright"]),
 
-        // Databases / ORMs
-        new PackageDescriptor("bigquery", "BigQuery", LibraryRole.OrmOrDatabase, "library", ["@google-cloud/bigquery", "bigquery"]),
-        new PackageDescriptor("clickhouse", "ClickHouse", LibraryRole.OrmOrDatabase, "library", ["@clickhouse/client", "@clickhouse/client-web", "clickhouse"]),
-
         // Generic Cloud Services
         new PackageDescriptor("stripe", "Stripe", LibraryRole.CloudSdk, "library", ["stripe"]),
         new PackageDescriptor("aws", "AWS", LibraryRole.CloudSdk, "library", ["aws-sdk", "@aws-sdk/*"]),
@@ -92,7 +88,9 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new Libraries.AngularHttpLibraryParser(),
         new Libraries.AngularOidcLibraryParser(),
         new Libraries.SignalRLibraryParser(),
-        new Libraries.GraphQLClientLibraryParser()
+        new Libraries.GraphQLClientLibraryParser(),
+        new Libraries.ClickHouseLibraryParser(),
+        new Libraries.BigQueryLibraryParser()
     ];
 
     public bool UsesTreeSitter => true;

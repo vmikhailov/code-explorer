@@ -204,6 +204,11 @@
     "entityKind": "App",
     "isLibrary": false
   },
+  "typescript/olap-database-service": {
+    "projectType": "typescript",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
   "typescript/react-app": {
     "projectType": "typescript",
     "entityKind": "App",

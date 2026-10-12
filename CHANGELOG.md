@@ -5,6 +5,16 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.37.13] - 2026-10-12
+
+### Added
+- **TypeScript Analytical Database Semantic Extensions (ClickHouse & BigQuery)**:
+  - Added AST semantic extensions for analytical / OLAP databases: `@clickhouse/client`, `@clickhouse/client-web`, `clickhouse`, and `@google-cloud/bigquery`.
+  - Parses SQL queries (`query`, `command`, `exec`), extracts target tables, handles DDL statements (`ALTER TABLE`, `OPTIMIZE TABLE`, `TRUNCATE TABLE`), and resolves direct table inserts (`client.insert({ table: ... })` and `dataset.table(...).insert(...)`).
+  - Generates `Query` nodes with table data lineage (`:DEPENDS_ON` and `:USES_DB` relationships) and connects OLAP pipeline topologies.
+
+---
+
 ## [1.37.12] - 2026-10-12
 
 ### Added
