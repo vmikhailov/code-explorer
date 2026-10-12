@@ -842,22 +842,30 @@
     .result-stats-bar {
       display: flex;
       align-items: center;
-      gap: 14px;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px 16px;
       font-size: 11px;
       font-family: var(--font-mono);
       color: var(--text-quaternary);
-      margin-bottom: 14px;
+      margin-bottom: 16px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: var(--radius-sm);
+      padding: 8px 12px;
     }
 
     .result-stat-item {
-      display: flex;
+      display: inline-flex;
       align-items: center;
-      gap: 5px;
+      gap: 6px;
+      white-space: nowrap;
     }
 
     .result-stat-val {
       color: var(--status-green);
       font-weight: 600;
+      white-space: nowrap;
     }
 
     .result-table-wrap {
@@ -1226,11 +1234,12 @@
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      padding: 3px 8px;
+      padding: 2px 7px;
       border-radius: var(--radius-sm);
       font-family: var(--font-mono);
       font-size: 11px;
       font-weight: 600;
+      white-space: nowrap;
       background: rgba(239, 68, 68, 0.15);
       color: #f87171;
       border: 1px solid rgba(239, 68, 68, 0.3);
@@ -1240,11 +1249,12 @@
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      padding: 3px 8px;
+      padding: 2px 7px;
       border-radius: var(--radius-sm);
       font-family: var(--font-mono);
       font-size: 11px;
       font-weight: 600;
+      white-space: nowrap;
       background: rgba(16, 185, 129, 0.15);
       color: #34d399;
       border: 1px solid rgba(16, 185, 129, 0.3);
@@ -3108,7 +3118,7 @@ query: |
 ratchet:
   enabled: true
   baseline: baselines/SIG-P-B-004.json`,
-        statusBadge: '<span class="badge-status-fail">FAILED NEW [1 NEW VIOLATION]</span>',
+        statusBadge: '<span class="badge-status-fail">FAIL (1 NEW)</span>',
         execStatus: '● Evaluated in 11.2ms (Exit Code 1)',
         execColor: 'var(--status-amber)',
         statNew: '1 (Fails CI)',
