@@ -1944,7 +1944,7 @@
 
         <div class="showcase-body">
           <div class="showcase-img-container" onclick="openLightbox()">
-            <img id="showcaseImage" class="showcase-img" src="all_services.png?v=v13" alt="CodeExplorer Macro Architecture Concentric Orbits">
+            <img id="showcaseImage" class="showcase-img" src="all_services.png?v=v14" alt="CodeExplorer Macro Architecture Concentric Orbits">
           </div>
 
           <div class="showcase-overlay-bar">
@@ -1965,7 +1965,7 @@
   <!-- Lightbox Modal for zooming screenshots -->
   <div id="lightboxModal" class="lightbox-modal" onclick="closeLightbox(event)">
     <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
-    <img id="lightboxImg" class="lightbox-content" src="all_services.png?v=v13" alt="Enlarged Screenshot">
+    <img id="lightboxImg" class="lightbox-content" src="all_services.png?v=v14" alt="Enlarged Screenshot">
   </div>
 
   <!-- ==========================================================================
@@ -2592,53 +2592,127 @@
   </section>
 
   <!-- ==========================================================================
-       CLI, AI Agent & MCP Integration
+       CLI & AI Agent Protocols (CLI first, MCP second)
        ========================================================================== -->
   <section id="ai-mcp" class="section">
     <div class="container">
-      <div class="mcp-box">
+      <div class="section-header" style="text-align: center; margin-bottom: 48px;">
+        <div class="section-eyebrow" style="justify-content: center;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10H12V2z"/></svg>
+          AI Agent Architecture
+        </div>
+        <h2 class="section-title">Architecture Intelligence for AI Coding Agents</h2>
+        <p class="section-desc" style="max-width: 680px; margin: 0 auto;">
+          Give autonomous agents and IDE assistants surgical codebase ground truth. Native CLI execution for terminal agents, and high-performance MCP server for desktop environments.
+        </p>
+      </div>
+
+      <!-- Block 1: Native CLI for Terminal Coding Agents -->
+      <div class="mcp-box" style="margin-bottom: 32px;">
         <div class="mcp-info">
           <div class="section-eyebrow">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10H12V2z"/></svg>
-            AI Agent Architecture
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+            Terminal-First Agents
           </div>
-          <h3>Fast CLI &amp; MCP Protocol for AI Coding Agents</h3>
+          <h3>Native CLI for Coding Agents</h3>
           <p>
-            When autonomous coding agents (Claude Code, Cursor, Codex, Hermes) analyze large monorepos, flat file searches waste context tokens and hallucinate relationships. CodeExplorer delivers surgical structural tools callable directly via CLI or MCP.
+            Autonomous coding agents (Claude Code, OpenAI Codex, OpenCode, Aider, Hermes) execute <code>ce</code> directly in bash without JSON-RPC overhead or background daemons. Structured JSON and Markdown outputs provide maximum architectural signal in minimum tokens.
           </p>
 
           <ul class="mcp-feature-list">
             <li class="mcp-feature-item">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
-              <span><strong>ce_query</strong> — Execute arbitrary Cypher queries for deep multi-hop dependency analysis.</span>
+              <span><code>ce query -n get_architecture_map_workspace -j</code> — Macro service topology, databases, and entry points in &lt;1,000 tokens.</span>
             </li>
             <li class="mcp-feature-item">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
-              <span><strong>ce_blast_radius</strong> — Determine exact downstream impact of changing an interface or class.</span>
+              <span><code>ce query "MATCH ..."</code> — Ad-hoc OpenCypher queries tracing cross-service call chains and blast radiuses.</span>
             </li>
             <li class="mcp-feature-item">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
-              <span><strong>ce_gate_check</strong> — Validate architecture invariant gates and monotonic ratchets before commit.</span>
+              <span><code>ce gate check --format markdown</code> — Pre-commit validation of layer boundaries and Semantic Invariant Gates.</span>
             </li>
             <li class="mcp-feature-item">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
-              <span><strong>ce_architecture_map</strong> — Summarize macro service topologies and entry points in &lt;1,000 tokens.</span>
+              <span><code>ce scan</code> — Incremental sub-second AST re-indexing with cached architectural intent inferences.</span>
             </li>
           </ul>
 
           <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-            <a href="https://github.com/vmikhailov/code-explorer#model-context-protocol-mcp-setup" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">
-              <span>Read MCP Specification</span>
+            <a href="https://github.com/vmikhailov/code-explorer#cli-command-reference" target="_blank" rel="noopener" class="btn btn-primary btn-sm">
+              <span>CLI Command Reference</span>
             </a>
-            <button class="btn btn-ghost btn-sm" onclick="copySnippet('ce mcp --port 5000', 'MCP command copied!')">
-              <span>ce mcp --port 5000</span>
+            <button class="btn btn-ghost btn-sm" onclick="copySnippet('ce query -n get_architecture_map_workspace -j', 'CLI command copied!')">
+              <span>Copy ce query Command</span>
             </button>
           </div>
         </div>
 
         <div class="code-terminal-card">
           <div class="term-top">
-            <span>claude_desktop_config.json / cursor settings</span>
+            <span>Terminal AI Agent Session (Claude Code / Codex / Hermes)</span>
+            <button class="btn btn-ghost btn-sm" style="padding: 2px 8px; font-size: 11px;" onclick="copySnippet('ce query -n get_architecture_map_workspace -j\nce gate check', 'Commands copied!')">Copy</button>
+          </div>
+          <pre class="term-body" style="font-size: 11px; line-height: 1.5; color: #cbd5e1;"><span style="color: #64748b;"># 1. Inspect architecture without reading entire files</span>
+<span style="color: #38bdf8;">$ ce query -n get_architecture_map_workspace -j</span>
+{
+  <span style="color: #a78bfa;">"projects"</span>: [<span style="color: #34d399;">"OrderService"</span>, <span style="color: #34d399;">"BillingCore"</span>, <span style="color: #34d399;">"AuthGateway"</span>],
+  <span style="color: #a78bfa;">"databases"</span>: [<span style="color: #34d399;">"orders_db"</span>, <span style="color: #34d399;">"billing_replica"</span>],
+  <span style="color: #a78bfa;">"entry_points"</span>: [<span style="color: #34d399;">"POST /api/v1/orders"</span>, <span style="color: #34d399;">"Topic: order-events"</span>]
+}
+
+<span style="color: #64748b;"># 2. Verify architectural rules before git commit</span>
+<span style="color: #38bdf8;">$ ce gate check</span>
+<span style="color: #34d399;">✓ PASS:</span> SIG-P-B-001 Clean Architecture Layer Isolation (0 violations)
+<span style="color: #34d399;">✓ PASS:</span> SIG-M-I-001 No Hardcoded Endpoint Literals (0 violations)
+<span style="color: #38bdf8;">All 6 Semantic Invariant Gates passed in 11.2ms. Exit code: 0</span></pre>
+        </div>
+      </div>
+
+      <!-- Block 2: Model Context Protocol (MCP) Server -->
+      <div class="mcp-box">
+        <div class="mcp-info">
+          <div class="section-eyebrow">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10H12V2z"/></svg>
+            IDE &amp; Protocol Adapter
+          </div>
+          <h3>Model Context Protocol (MCP) Server</h3>
+          <p>
+            For desktop IDEs and AI assistants (Cursor, Claude Desktop, Roo Code, Cline), <code>ce mcp</code> exposes 23 architectural tools over standard stdio JSON-RPC or high-speed SSE streaming.
+          </p>
+
+          <ul class="mcp-feature-list">
+            <li class="mcp-feature-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+              <span><code>get_architecture_map</code> — Surface project boundaries, external dependencies, and ingress endpoints.</span>
+            </li>
+            <li class="mcp-feature-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+              <span><code>analyze_code_impact</code> — Calculate downstream blast radius before refactoring types or interfaces.</span>
+            </li>
+            <li class="mcp-feature-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+              <span><code>inspect_data_lineage</code> — Map ORM entities, SQL queries, and callers touching a database table.</span>
+            </li>
+            <li class="mcp-feature-item">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+              <span><code>check_semantic_gates</code> — Evaluate architectural invariant gates and ratchet baselines via tool calls.</span>
+            </li>
+          </ul>
+
+          <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <a href="https://github.com/vmikhailov/code-explorer#mcp-tools-reference" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">
+              <span>Read MCP Specification</span>
+            </a>
+            <button class="btn btn-ghost btn-sm" onclick="copySnippet('ce mcp --port 8085', 'MCP command copied!')">
+              <span>ce mcp --port 8085</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="code-terminal-card">
+          <div class="term-top">
+            <span>~/.cursor/mcp.json / claude_desktop_config.json</span>
             <button class="btn btn-ghost btn-sm" style="padding: 2px 8px; font-size: 11px;" onclick="copyMCPConfig()">Copy JSON</button>
           </div>
           <pre class="term-body" id="mcpConfigSnippet">{
@@ -2945,12 +3019,12 @@
     // Data for Showcase Tabs
     const showcaseData = {
       orbits: {
-        img: 'all_services.png?v=v13',
+        img: 'all_services.png?v=v14',
         desc: '<strong>Macro Architecture Topology:</strong> Concentric rings project Ingress Gateways (Tier 0), Public APIs (Tier 1), Brokers (Tier 2), Domain Services (Tier 3), and Databases (Tier 4).',
         pills: ['Live Transitive Routing', 'Orbit Drag-and-Drop', 'Curvature: +65']
       },
       transitive: {
-        img: 'selected_services.png?v=v13',
+        img: 'selected_services.png?v=v14',
         desc: '<strong>Sub-Graph Neighborhood & Broker Contraction:</strong> Filter out Kafka/SQS message brokers to automatically synthesize direct dashed <code>[SUBSCRIBES (via Topic)]</code> links.',
         pills: ['Smart Broker Contraction', 'HUD Category Filters', 'Depth: 2 Hops']
       },
