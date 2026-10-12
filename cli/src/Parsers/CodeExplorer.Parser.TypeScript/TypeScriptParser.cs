@@ -29,23 +29,23 @@ public class TypeScriptParser : IProjectParser, IFileParser
         Packages =
         [
             // Derived dynamically from semantic AST extensions that support the npm ecosystem
-            ..SemanticExtensions.Select(e => e.ToPackageDescriptor("npm")),
+            ..SemanticExtensions.Select(e => e.ToPackageDescriptor("npm"))
 
-            // Classification-only framework descriptors (pending AST semantic extensions)
+            /*
+            // Unimplemented / Backlog packages (commented out until AST semantic extensions are implemented):
+            // Frontend Web Frameworks
             new PackageDescriptor("react", "React", LibraryRole.FrontendFramework, "npm", ["react", "react-dom"]),
             new PackageDescriptor("vue", "Vue", LibraryRole.FrontendFramework, "npm", ["vue"]),
             new PackageDescriptor("angular", "Angular", LibraryRole.FrontendFramework, "npm", ["@angular/core"]),
             new PackageDescriptor("svelte", "Svelte", LibraryRole.FrontendFramework, "npm", ["svelte"]),
             new PackageDescriptor("vite", "Vite", LibraryRole.FrontendFramework, "npm", ["vite"]),
 
-            // Classification-only test frameworks
+            // Test Frameworks
             new PackageDescriptor("jest", "Jest", LibraryRole.TestFramework, "npm", ["jest", "@types/jest", "ts-jest", "babel-jest"]),
             new PackageDescriptor("vitest", "Vitest", LibraryRole.TestFramework, "npm", ["vitest", "@vitest/*"]),
             new PackageDescriptor("mocha", "Mocha", LibraryRole.TestFramework, "npm", ["mocha", "@types/mocha"]),
             new PackageDescriptor("cypress", "Cypress", LibraryRole.TestFramework, "npm", ["cypress"]),
-            new PackageDescriptor("playwright", "Playwright", LibraryRole.TestFramework, "npm", ["@playwright/test", "playwright"])
-
-            /*
+            new PackageDescriptor("playwright", "Playwright", LibraryRole.TestFramework, "npm", ["@playwright/test", "playwright"]),
             // Unimplemented / Backlog packages (commented out until AST semantic extensions are implemented):
             // Databases / ORMs
             new PackageDescriptor("bigquery", "BigQuery", LibraryRole.OrmOrDatabase, "npm", ["@google-cloud/bigquery", "bigquery"]),

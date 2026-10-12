@@ -28,17 +28,17 @@ public class PythonParser : IProjectParser, IFileParser
         Packages =
         [
             // Derived dynamically from semantic AST extensions that support PyPI ecosystem
-            ..SemanticExtensions.Select(e => e.ToPackageDescriptor("pypi")),
+            ..SemanticExtensions.Select(e => e.ToPackageDescriptor("pypi"))
 
-            // Classification-only framework descriptors (pending AST semantic extensions)
+            /*
+            // Unimplemented / Backlog packages (commented out until AST semantic extensions are implemented):
+            // Web Frameworks
             new("django", "Django", LibraryRole.WebFramework, "pypi", ["django"]),
             new("flask", "Flask", LibraryRole.WebFramework, "pypi", ["flask"]),
 
-            // Classification-only test frameworks
+            // Test Frameworks
             new("pytest", "Pytest", LibraryRole.TestFramework, "pypi", ["pytest", "pytest-*"]),
-            new("unittest", "Unittest", LibraryRole.TestFramework, "pypi", ["unittest"])
-
-            /*
+            new("unittest", "Unittest", LibraryRole.TestFramework, "pypi", ["unittest"]),
             // Unimplemented / Backlog packages (commented out until AST semantic extensions are implemented):
             // Databases / ORMs
             new("bigquery", "BigQuery", LibraryRole.OrmOrDatabase, "pypi", ["google-cloud-bigquery", "google.cloud.bigquery"]),
