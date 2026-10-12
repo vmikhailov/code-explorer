@@ -5,6 +5,17 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.37.17] - 2026-10-12
+
+### Fixed & Performance
+- **Subtree & Workspace Clear Performance (5-Minute Bottleneck Eliminated)**:
+  - **Recursive CTE Index-Directed Traversal**: Resolved a severe SQLite query plan regression in `DeleteSubpathHierarchyAsync` and `DeleteWorkspaceHierarchyAsync` where unindexed recursive CTE joins (`edges e JOIN del_nodes d`) forced quadratic full table scans over hundreds of thousands of `CONTAINS` edges, freezing the CLI for up to 5 minutes. Switched to `del_rec d JOIN edges e INDEXED BY idx_edges_from_kind_to ON e.from_id = d.id AND e.kind = 'CONTAINS'`.
+  - **Deterministic ID-Indexed Matching**: Introduced direct index-backed prefix matching for file, folder, project, endpoint, symbol (`sym:`), and literal (`lit:`) URNs directly in SQLite ($O(\log N)$ B-tree index seeks), collecting hundreds of thousands of nodes in under 1 second.
+  - **Container-Scoped Recursion**: Restricted recursive edge expansions in Pass 3 to container nodes (`Folder`, `Project`, `File`), skipping leaf AST symbols and speeding up collection to under 1 second.
+  - **Complete Subpath Deletion**: Ensured that clearing a subpath surgically deletes all associated AST symbols, types, functions, methods, and call literals rather than leaving orphan syntax nodes.
+
+---
+
 ## [1.37.16] - 2026-10-12
 
 ### Added

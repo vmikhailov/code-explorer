@@ -177,4 +177,49 @@ public class ClearWorkspacesTests
         nodeCount.Should().Be(0);
         relCount.Should().Be(0);
     }
+
+    [Test]
+    public async Task ClearWorkspace_Subpath_DeletesAssociatedSymbolsAndCalls()
+    {
+        await using var client = new SqliteGraphClient($"Data Source={Guid.NewGuid():N};Mode=Memory;Cache=Shared");
+        await client.SaveEmptyWorkspaceNodeAsync("ws", "/workspace");
+
+        var nodes = new List<Node>
+        {
+            new("ws:p:src/service-a:", "Project", new Dictionary<string, object> { ["path"] = "/workspace/src/service-a", ["name"] = "service-a" }),
+            new("ws:f:src/service-a/file.cs", "File", new Dictionary<string, object> { ["path"] = "/workspace/src/service-a/file.cs", ["name"] = "file.cs" }),
+            new("ws:sym:src/service-a/file.cs:Type:OrderService", "Type", new Dictionary<string, object> { ["name"] = "OrderService" }),
+            new("ws:sym:src/service-a/file.cs:Function:Process", "Function", new Dictionary<string, object> { ["name"] = "Process" }),
+            new("ws:lit:src/service-a/file.cs:10", "CallLiteral", new Dictionary<string, object> { ["name"] = "log" }),
+            // Another service that must remain
+            new("ws:p:src/service-b:", "Project", new Dictionary<string, object> { ["path"] = "/workspace/src/service-b", ["name"] = "service-b" }),
+            new("ws:f:src/service-b/file.cs", "File", new Dictionary<string, object> { ["path"] = "/workspace/src/service-b/file.cs", ["name"] = "file.cs" }),
+            new("ws:sym:src/service-b/file.cs:Type:UserService", "Type", new Dictionary<string, object> { ["name"] = "UserService" })
+        };
+        await client.UploadNodesAsync(nodes);
+
+        var emptyProps = new Dictionary<string, object>();
+        var rels = new List<Relationship>
+        {
+            new("ws", "ws:p:src/service-a:", "CONTAINS", emptyProps),
+            new("ws:p:src/service-a:", "ws:f:src/service-a/file.cs", "CONTAINS", emptyProps),
+            new("ws:sym:src/service-a/file.cs:Type:OrderService", "ws:sym:src/service-a/file.cs:Function:Process", "HAS_METHOD", emptyProps),
+            new("ws", "ws:p:src/service-b:", "CONTAINS", emptyProps),
+            new("ws:p:src/service-b:", "ws:f:src/service-b/file.cs", "CONTAINS", emptyProps)
+        };
+        await client.UploadRelationshipsAsync(rels);
+
+        var cleared = await client.ClearWorkspaceAsync("/workspace/src/service-a");
+        cleared.Should().BeTrue();
+
+        var (nodeCount, relCount) = await client.GetGraphCountsAsync();
+        // ws, service-b project, service-b file, service-b type = 4 nodes remain
+        nodeCount.Should().Be(4);
+        relCount.Should().Be(2);
+
+        var remainingNodes = await client.ExecuteQueryAsync("MATCH (n) RETURN n.id AS id ORDER BY id");
+        remainingNodes.Should().NotContain("service-a");
+        remainingNodes.Should().NotContain("OrderService");
+        remainingNodes.Should().NotContain("Process");
+    }
 }

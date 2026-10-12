@@ -461,6 +461,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         var normSlashLower = (absPath.TrimEnd('/') + "/").ToLowerInvariant() + "%";
         var relLower = (relPath ?? "").ToLowerInvariant();
         var relSlashLower = string.IsNullOrEmpty(relPath) ? "" : (relPath.TrimEnd('/') + "/").ToLowerInvariant() + "%";
+        var relColonLower = string.IsNullOrEmpty(relPath) ? "" : (relPath.TrimEnd(':') + ":").ToLowerInvariant() + "%";
         var hasRel = !string.IsNullOrEmpty(relPath) ? 1 : 0;
 
         var parameters = new
@@ -469,6 +470,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             normPathSlash = normSlashLower,
             relPath = relLower,
             relPathSlash = relSlashLower,
+            relPathColon = relColonLower,
             hasRel
         };
 
@@ -476,34 +478,65 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         try
         {
             await _conn.ExecuteAsync("""
-                CREATE TEMP TABLE IF NOT EXISTS temp_del_subpath_nodes (id TEXT PRIMARY KEY);
+                CREATE TEMP TABLE IF NOT EXISTS temp_del_subpath_nodes (id TEXT PRIMARY KEY, is_container INTEGER DEFAULT 0);
                 DELETE FROM temp_del_subpath_nodes;
 
-                WITH RECURSIVE del_nodes(id) AS (
-                    SELECT id FROM nodes
-                    WHERE kind IN ('File', 'Folder', 'Project', 'Endpoint', 'EntryPoint')
-                      AND (
-                          lower(replace(json_extract(properties, '$.path'), '\', '/')) = @normPath
-                          OR lower(replace(json_extract(properties, '$.full_path'), '\', '/')) = @normPath
-                          OR lower(replace(json_extract(properties, '$.file_path'), '\', '/')) = @normPath
-                          OR lower(replace(json_extract(properties, '$.path'), '\', '/')) LIKE @normPathSlash
-                          OR lower(replace(json_extract(properties, '$.full_path'), '\', '/')) LIKE @normPathSlash
-                          OR lower(replace(json_extract(properties, '$.file_path'), '\', '/')) LIKE @normPathSlash
-                          OR (@hasRel = 1 AND (
-                              lower(replace(json_extract(properties, '$.path'), '\', '/')) = @relPath
-                              OR lower(replace(json_extract(properties, '$.file_path'), '\', '/')) = @relPath
-                              OR lower(json_extract(properties, '$.name')) = @relPath
-                              OR lower(replace(json_extract(properties, '$.path'), '\', '/')) LIKE @relPathSlash
-                              OR lower(replace(json_extract(properties, '$.file_path'), '\', '/')) LIKE @relPathSlash
-                          ))
-                      )
+                -- Pass 1: Deterministic ID prefix matching (uses primary key index on nodes.id)
+                INSERT OR IGNORE INTO temp_del_subpath_nodes(id, is_container)
+                SELECT id,
+                       CASE WHEN id LIKE '%:dir:%' OR id LIKE '%:p:%' OR id LIKE '%:project:%' OR id LIKE '%:f:%' OR id LIKE '%:file:%' THEN 1 ELSE 0 END
+                FROM nodes
+                WHERE (@hasRel = 1 AND (
+                          id LIKE '%:f:' || @relPath
+                       OR id LIKE '%:f:' || @relPathSlash
+                       OR id LIKE '%:file:' || @relPath
+                       OR id LIKE '%:file:' || @relPathSlash
+                       OR id LIKE '%:sym:' || @relPathSlash
+                       OR id LIKE '%:symbol:' || @relPathSlash
+                       OR id LIKE '%:lit:' || @relPathSlash
+                       OR id LIKE '%:catch:' || @relPathSlash
+                       OR id LIKE '%:p:' || @relPathColon
+                       OR id LIKE '%:p:' || @relPathSlash
+                       OR id LIKE '%:project:' || @relPathColon
+                       OR id LIKE '%:project:' || @relPathSlash
+                       OR id LIKE '%:git:' || @relPath
+                       OR id LIKE '%:git:' || @relPathSlash
+                       OR id LIKE '%:ep:' || @relPathSlash
+                       OR id LIKE '%:suite:' || @relPathSlash
+                      ))
+                   OR id LIKE '%:dir:' || @normPath
+                   OR id LIKE '%:dir:' || @normPathSlash;
+
+                -- Pass 2: Property matching for nodes that don't embed the relative path into their ID
+                INSERT INTO temp_del_subpath_nodes(id, is_container)
+                SELECT id, 1 FROM nodes
+                WHERE kind IN ('File', 'Folder', 'Project', 'Endpoint', 'EntryPoint')
+                  AND (
+                      lower(replace(json_extract(properties, '$.path'), '\', '/')) = @normPath
+                      OR lower(replace(json_extract(properties, '$.full_path'), '\', '/')) = @normPath
+                      OR lower(replace(json_extract(properties, '$.file_path'), '\', '/')) = @normPath
+                      OR lower(replace(json_extract(properties, '$.path'), '\', '/')) LIKE @normPathSlash
+                      OR lower(replace(json_extract(properties, '$.full_path'), '\', '/')) LIKE @normPathSlash
+                      OR lower(replace(json_extract(properties, '$.file_path'), '\', '/')) LIKE @normPathSlash
+                      OR (@hasRel = 1 AND (
+                          lower(replace(json_extract(properties, '$.path'), '\', '/')) = @relPath
+                          OR lower(replace(json_extract(properties, '$.file_path'), '\', '/')) = @relPath
+                          OR lower(json_extract(properties, '$.name')) = @relPath
+                          OR lower(replace(json_extract(properties, '$.path'), '\', '/')) LIKE @relPathSlash
+                          OR lower(replace(json_extract(properties, '$.file_path'), '\', '/')) LIKE @relPathSlash
+                      ))
+                  )
+                ON CONFLICT(id) DO UPDATE SET is_container = 1;
+
+                -- Pass 3: Recursive traversal for child nodes connected via CONTAINS
+                WITH RECURSIVE del_rec(id) AS (
+                    SELECT id FROM temp_del_subpath_nodes WHERE is_container = 1
                     UNION
-                    SELECT e.to_id FROM edges e
-                    JOIN del_nodes d ON e.from_id = d.id
-                    WHERE e.kind = 'CONTAINS'
+                    SELECT e.to_id FROM del_rec d
+                    JOIN edges e INDEXED BY idx_edges_from_kind_to ON e.from_id = d.id AND e.kind = 'CONTAINS'
                 )
-                INSERT OR IGNORE INTO temp_del_subpath_nodes(id)
-                SELECT DISTINCT id FROM del_nodes;
+                INSERT OR IGNORE INTO temp_del_subpath_nodes(id, is_container)
+                SELECT DISTINCT id, 0 FROM del_rec;
                 """, parameters, transaction: tx);
 
             var deletedCount = await _conn.ExecuteScalarAsync<int>(
@@ -579,9 +612,8 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                     SELECT id FROM nodes
                     WHERE id = @wsId OR id GLOB @wsGlob
                     UNION
-                    SELECT e.to_id FROM edges e
-                    JOIN del_nodes d ON e.from_id = d.id
-                    WHERE e.kind = 'CONTAINS'
+                    SELECT e.to_id FROM del_nodes d
+                    JOIN edges e INDEXED BY idx_edges_from_kind_to ON e.from_id = d.id AND e.kind = 'CONTAINS'
                 )
                 INSERT OR IGNORE INTO temp_del_ws_nodes(id)
                 SELECT DISTINCT id FROM del_nodes;
