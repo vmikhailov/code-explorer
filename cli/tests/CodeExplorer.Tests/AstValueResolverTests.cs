@@ -1,11 +1,6 @@
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Parser.CSharp;
-using CodeExplorer.Parser.Go;
-using CodeExplorer.Parser.Java;
-using CodeExplorer.Parser.Python;
-using CodeExplorer.Parser.TypeScript;
-using NUnit.Framework;
 using AwesomeAssertions;
+using CodeExplorer.Core.Parser;
+using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
 
@@ -15,11 +10,7 @@ public class AstValueResolverTests
     [OneTimeSetUp]
     public void OneTimeSetUp()
     {
-        WorkspaceIndexer.Register(new CSharpParser());
-        WorkspaceIndexer.Register(new TypeScriptParser());
-        WorkspaceIndexer.Register(new GoParser());
-        WorkspaceIndexer.Register(new PythonParser());
-        WorkspaceIndexer.Register(new JavaParser());
+        WorkspaceIndexer.AutoRegisterParsers();
     }
 
     [SetUp]
@@ -307,7 +298,7 @@ function fetch() {
     [Test]
     public void Test_HttpApiPrefixConfig_AtsExactContent()
     {
-        WorkspaceIndexer.Register(new TypeScriptParser());
+        WorkspaceIndexer.AutoRegisterParsers();
         var code = @"
 export const HTTP_API_PREFIX_CONFIG = {
   API_GLOBAL_PREFIX: 'api/v1',

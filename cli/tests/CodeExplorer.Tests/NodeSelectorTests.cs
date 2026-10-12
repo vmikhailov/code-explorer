@@ -1,9 +1,9 @@
-using NUnit.Framework;
-using TreeSitter;
+using AwesomeAssertions;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Parser.TypeScript;
 using CodeExplorer.Tests.Shared;
-using AwesomeAssertions;
+using NUnit.Framework;
+using TreeSitter;
 
 namespace CodeExplorer.Tests;
 

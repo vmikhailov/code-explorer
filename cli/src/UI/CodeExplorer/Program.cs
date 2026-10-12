@@ -3,10 +3,9 @@ using CodeExplorer.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Options;
-
 using CommandLine;
-using CommandLineParser = CommandLine.Parser;
 using Microsoft.AspNetCore.Builder;
+using CommandLineParser = CommandLine.Parser;
 
 namespace CodeExplorer;
 

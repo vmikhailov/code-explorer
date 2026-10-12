@@ -1,6 +1,6 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Mcp;
 using NUnit.Framework;
-using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 

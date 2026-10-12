@@ -1,12 +1,11 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using AwesomeAssertions;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Protocol;
-using CodeExplorer.Parser.TypeScript;
 using NUnit.Framework;
-using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 
@@ -40,7 +39,7 @@ public class WebSocketServerTests
 
         await using var client = new SqliteGraphClient(_dbPath);
 
-        WorkspaceIndexer.Register(new TypeScriptParser());
+        WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
 

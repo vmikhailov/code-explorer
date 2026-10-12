@@ -1,7 +1,7 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
 using NUnit.Framework;
-using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 

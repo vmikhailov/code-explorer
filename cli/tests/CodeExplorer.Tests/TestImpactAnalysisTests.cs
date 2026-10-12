@@ -2,7 +2,6 @@ using System.Text.Json;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Mcp;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Parser.CSharp;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -80,7 +79,7 @@ public class OrderProcessorTests
         _dbPath = Path.Combine(_tempWorkspace, "test_tia.db");
         _client = new SqliteGraphClient(_dbPath);
 
-        WorkspaceIndexer.Register(new CSharpParser());
+        WorkspaceIndexer.AutoRegisterParsers();
 
         var indexer = new WorkspaceIndexer(_client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);

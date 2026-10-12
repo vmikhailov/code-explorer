@@ -1,11 +1,10 @@
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using AwesomeAssertions;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Parser.TypeScript;
 using NUnit.Framework;
-using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 
@@ -54,7 +53,7 @@ public class McpIntegrationTests
             query: "MATCH (ep:Endpoint) RETURN ep.path AS file, 1 AS line, ep.name AS symbol, 'target' AS target, 'msg' AS message"
             """);
 
-        WorkspaceIndexer.Register(new TypeScriptParser());
+        WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
 

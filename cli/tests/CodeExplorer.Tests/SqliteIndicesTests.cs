@@ -1,7 +1,7 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Database;
 using Microsoft.Data.Sqlite;
 using NUnit.Framework;
-using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 

@@ -1,6 +1,6 @@
+using AwesomeAssertions;
 using NUnit.Framework;
 using OntologyGen;
-using AwesomeAssertions;
 
 namespace CodeExplorer.Tests.OntologyGen;
 

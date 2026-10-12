@@ -1,11 +1,11 @@
-using NUnit.Framework;
+using AwesomeAssertions;
 using CodeExplorer.Parser.CSharp;
 using CodeExplorer.Parser.Go;
 using CodeExplorer.Parser.Python;
 using CodeExplorer.Parser.SQL;
 using CodeExplorer.Parser.TypeScript;
 using CodeExplorer.Tests.Shared;
-using AwesomeAssertions;
+using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
 

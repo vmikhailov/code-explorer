@@ -1,10 +1,8 @@
 using System.Text.Json;
+using AwesomeAssertions;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Parser.CSharp;
-using CodeExplorer.Parser.Java;
 using NUnit.Framework;
-using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 
@@ -70,7 +68,7 @@ public class CqrsPipelineTracingTests
 
         await using var client = new SqliteGraphClient(dbPath);
 
-        WorkspaceIndexer.Register(new CSharpParser());
+        WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
 
@@ -129,7 +127,7 @@ public class CqrsPipelineTracingTests
 
         await using var client = new SqliteGraphClient(dbPath);
 
-        WorkspaceIndexer.Register(new JavaParser());
+        WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
 

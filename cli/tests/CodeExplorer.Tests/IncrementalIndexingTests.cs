@@ -1,10 +1,9 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Incremental;
 using CodeExplorer.Options;
-using CodeExplorer.Parser.CSharp;
 using CommandLine;
 using NUnit.Framework;
-using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 
@@ -245,7 +244,7 @@ public class IncrementalIndexingTests
     [Test]
     public async Task Test_TryBuildSnapshot_ExtractsMethodsAndReferencesFromCSharpSource()
     {
-        WorkspaceIndexer.Register(new CSharpParser());
+        WorkspaceIndexer.AutoRegisterParsers();
 
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_snapshot_test_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
@@ -290,7 +289,7 @@ public class IncrementalIndexingTests
     [Test]
     public async Task Test_EndToEnd_LogicOnlyEdit_SkipsGraphChanges()
     {
-        WorkspaceIndexer.Register(new CSharpParser());
+        WorkspaceIndexer.AutoRegisterParsers();
 
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_logic_test_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
@@ -368,7 +367,7 @@ public class IncrementalIndexingTests
     [Test]
     public async Task Test_TypeScript_NewlineInsertion_ZeroStructuralChanges()
     {
-        WorkspaceIndexer.Register(new Parser.TypeScript.TypeScriptParser());
+        WorkspaceIndexer.AutoRegisterParsers();
 
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_ts_newline_test_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
@@ -432,10 +431,7 @@ public class IncrementalIndexingTests
     [Test]
     public void Test_IsCandidateSourceFile_Preserves_test_env_js_And_test_calculation_ts()
     {
-        WorkspaceIndexer.Register(new Parser.TypeScript.TypeScriptParser());
-        WorkspaceIndexer.Register(new Parser.TypeScript.JavaScriptParser());
-        WorkspaceIndexer.Register(new Parser.Python.PythonParser());
-        WorkspaceIndexer.Register(new Parser.Go.GoParser());
+        WorkspaceIndexer.AutoRegisterParsers();
 
         // Files that MUST be recognized as candidate source files
         WorkspaceFileFilter.IsCandidateSourceFile("bq-routes-calculation/test_env.js").Should().BeTrue("test_env.js should be recognized as a valid JavaScript file, not pruned as a test!");
@@ -456,7 +452,7 @@ public class IncrementalIndexingTests
     [Test]
     public async Task Test_Sqlite_Persists_AstSnapshot_And_SeparateProcessIncrementalScan_PreservesGraph_OnNewline()
     {
-        WorkspaceIndexer.Register(new Parser.TypeScript.TypeScriptParser());
+        WorkspaceIndexer.AutoRegisterParsers();
 
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_sqlite_incremental_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);

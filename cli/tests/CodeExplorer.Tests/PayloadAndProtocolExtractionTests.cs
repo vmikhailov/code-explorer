@@ -1,8 +1,5 @@
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Parser.CSharp;
-using CodeExplorer.Parser.Java;
-using CodeExplorer.Parser.TypeScript;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -60,7 +57,7 @@ public class RideController : ControllerBase
 
         await using var client = new SqliteGraphClient(dbPath);
 
-        WorkspaceIndexer.Register(new CSharpParser());
+        WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
 
@@ -104,7 +101,7 @@ public class RideMutations
 
         await using var client = new SqliteGraphClient(dbPath);
 
-        WorkspaceIndexer.Register(new CSharpParser());
+        WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
 
@@ -145,7 +142,7 @@ public class OrderGrpcService : OrderServiceBase
 
         await using var client = new SqliteGraphClient(dbPath);
 
-        WorkspaceIndexer.Register(new CSharpParser());
+        WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
 
@@ -196,7 +193,7 @@ public class RideGraphQlController {
 
         await using var client = new SqliteGraphClient(dbPath);
 
-        WorkspaceIndexer.Register(new JavaParser());
+        WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
 
@@ -252,7 +249,7 @@ export class RidesGrpcService {
 
         await using var client = new SqliteGraphClient(dbPath);
 
-        WorkspaceIndexer.Register(new TypeScriptParser());
+        WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
 
@@ -302,7 +299,7 @@ public static class DirectivesHandlers
 
         await using var client = new SqliteGraphClient(dbPath);
 
-        WorkspaceIndexer.Register(new CSharpParser());
+        WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
 

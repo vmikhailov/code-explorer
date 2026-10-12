@@ -1,5 +1,5 @@
 using System.Threading.Channels;
-using NUnit.Framework;
+using AwesomeAssertions;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
@@ -10,7 +10,7 @@ using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.TypeScript;
-using AwesomeAssertions;
+using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
 
@@ -758,7 +758,7 @@ export class SmartCpaController {
             var controllerFile = Path.Combine(tempDir, "smart-cpa.controller.ts");
             await File.WriteAllTextAsync(controllerFile, controllerCode);
 
-            WorkspaceIndexer.Register(new TypeScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
 
             // Pre-register constants from config.ts with project name
             AstConstantExtractor.ExtractAndRegister(configFile, configCode, "integration-service-helper-nest");
@@ -860,7 +860,7 @@ export class SmartCpaController {
             var smartCpaControllerFile = Path.Combine(tempDir, "smart-cpa.controller.ts");
             await File.WriteAllTextAsync(smartCpaControllerFile, smartCpaControllerCode);
 
-            WorkspaceIndexer.Register(new TypeScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
 
             var projectName = "integration-service-helper-nest";
             AstConstantExtractor.ExtractAndRegister(configFile, configCode, projectName);
@@ -1314,7 +1314,7 @@ export async function fetchTrafficBacks(baseUrl: string) {
             await using var client = new InMemoryGraphClient();
 
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-            WorkspaceIndexer.Register(new TypeScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
 
             var l1Result = await new Layer1PhysicalParser().ParseAsync(ctx);
             var files = l1Result.Files;
@@ -1359,7 +1359,7 @@ export class IdHelperService {
             var serviceFile = Path.Combine(tempDir, "id-helper.service.ts");
             await File.WriteAllTextAsync(serviceFile, serviceCode);
 
-            WorkspaceIndexer.Register(new TypeScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
 
             var parser = new TypeScriptParser();
             var channel = Channel.CreateUnbounded<Func<Task>>();
@@ -1515,7 +1515,7 @@ export class CampaignsController {
             await File.WriteAllTextAsync(Path.Combine(srcDir, "main.ts"), mainCode);
             await File.WriteAllTextAsync(Path.Combine(srcDir, "campaigns.controller.ts"), controllerCode);
 
-            WorkspaceIndexer.Register(new TypeScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphClient();
@@ -1551,7 +1551,7 @@ export class CampaignsController {
             // Manifest has copied template name
             await File.WriteAllTextAsync(Path.Combine(repoDir, "package.json"), "{\"name\": \"integration-service-adsterra-nest\"}");
 
-            WorkspaceIndexer.Register(new TypeScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphClient();
@@ -1604,7 +1604,7 @@ export class CampaignsController {
             await File.WriteAllTextAsync(Path.Combine(srcDir, "main.ts"), mainCode);
             await File.WriteAllTextAsync(Path.Combine(srcDir, "campaigns.controller.ts"), controllerCode);
 
-            WorkspaceIndexer.Register(new TypeScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphClient();
@@ -1668,7 +1668,7 @@ export class CampaignsController {
             await File.WriteAllTextAsync(Path.Combine(srcDir, "main.ts"), mainCode);
             await File.WriteAllTextAsync(Path.Combine(srcDir, "campaigns.controller.ts"), controllerCode);
 
-            WorkspaceIndexer.Register(new TypeScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphClient();
@@ -1728,7 +1728,7 @@ export class CampaignsController {
             await File.WriteAllTextAsync(Path.Combine(srcDir, "main.ts"), mainCode);
             await File.WriteAllTextAsync(Path.Combine(srcDir, "campaigns.controller.ts"), controllerCode);
 
-            WorkspaceIndexer.Register(new TypeScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphClient();

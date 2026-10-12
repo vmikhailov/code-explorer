@@ -1,9 +1,7 @@
-using NUnit.Framework;
+using AwesomeAssertions;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Parser.CSharp;
-using CodeExplorer.Parser.TypeScript;
-using AwesomeAssertions;
+using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
 
@@ -61,8 +59,7 @@ public class IndexerIntegrationTests
             // Register parsers if they aren't already registered
             await using var client = new SqliteGraphClient(dbPath);
 
-            WorkspaceIndexer.Register(new CSharpParser());
-            WorkspaceIndexer.Register(new TypeScriptParser()); // Run scanner
+            WorkspaceIndexer.AutoRegisterParsers();
             var parser = new WorkspaceIndexer(client);
             var results = await parser.IndexAsync(tempWorkspace, tempWorkspace, clear: true);
 
@@ -126,7 +123,7 @@ export class OrderService {
             // Register parsers if they aren't already registered
             await using var client = new SqliteGraphClient(dbPath);
 
-            WorkspaceIndexer.Register(new TypeScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
 
             // Run scanner
             var parser = new WorkspaceIndexer(client);
@@ -175,7 +172,7 @@ export class OrderService {
             // Register parsers if they aren't already registered
             await using var client = new SqliteGraphClient(dbPath);
 
-            WorkspaceIndexer.Register(new TypeScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
 
             // Run scanner
             var parser = new WorkspaceIndexer(client);
@@ -233,7 +230,7 @@ export class OrderService {
 
             await using var client = new SqliteGraphClient(dbPath);
 
-            WorkspaceIndexer.Register(new CSharpParser());
+            WorkspaceIndexer.AutoRegisterParsers();
             var indexer = new WorkspaceIndexer(client);
 
             // Index ONLY SubA
@@ -288,7 +285,7 @@ export class OrderService {
 
             await using var client = new SqliteGraphClient(dbPath);
 
-            WorkspaceIndexer.Register(new CSharpParser());
+            WorkspaceIndexer.AutoRegisterParsers();
             var indexer = new WorkspaceIndexer(client);
 
             // Index ONLY Handlers subfolder
@@ -345,7 +342,7 @@ export class OrderService {
 
             await using var client = new SqliteGraphClient(dbPath);
 
-            WorkspaceIndexer.Register(new CSharpParser());
+            WorkspaceIndexer.AutoRegisterParsers();
             var indexer = new WorkspaceIndexer(client);
 
             // Index full workspace first

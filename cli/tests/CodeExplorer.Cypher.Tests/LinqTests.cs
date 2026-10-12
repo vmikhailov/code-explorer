@@ -1,8 +1,8 @@
+using AwesomeAssertions;
 using CodeExplorer.Cypher.Ast;
 using CodeExplorer.Cypher.Compiler;
 using CodeExplorer.Cypher.Linq;
 using NUnit.Framework;
-using AwesomeAssertions;
 
 namespace CodeExplorer.Cypher.Tests;
 

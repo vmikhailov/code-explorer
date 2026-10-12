@@ -1,5 +1,4 @@
 using System.Threading.Channels;
-using NUnit.Framework;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
@@ -14,6 +13,7 @@ using CodeExplorer.Parser.Go;
 using CodeExplorer.Parser.Python;
 using CodeExplorer.Parser.TypeScript;
 using CodeExplorer.Tests.Shared;
+using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
 
@@ -555,8 +555,7 @@ public class ParserValidationTests
         var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
         ctx.WorkspaceId = "1";
 
-        // Register CSharp parser
-        WorkspaceIndexer.Register(new CSharpParser());
+        WorkspaceIndexer.AutoRegisterParsers();
         var l1Result = await new Layer1PhysicalParser().ParseAsync(ctx);
         var l2Result = await new Layer2ProjectParser().ParseAsync(l1Result, ctx);
         var l3Result = await new Layer3SyntacticParser().ParseAsync(l2Result, ctx);

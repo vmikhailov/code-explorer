@@ -1,8 +1,7 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Parser.TypeScript;
 using NUnit.Framework;
-using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 
@@ -72,7 +71,7 @@ Scripts/vendor/
 
             await using var client = new SqliteGraphClient(dbPath);
 
-            WorkspaceIndexer.Register(new JavaScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
 
             var indexer = new WorkspaceIndexer(client);
             var results = await indexer.IndexAsync(tempDir, tempDir, clear: true);

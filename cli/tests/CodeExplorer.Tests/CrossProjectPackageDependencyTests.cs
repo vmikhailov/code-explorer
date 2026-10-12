@@ -1,12 +1,10 @@
 using System.Text.Json;
+using AwesomeAssertions;
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Cypher.Common;
-using CodeExplorer.Parser.Go;
-using CodeExplorer.Parser.TypeScript;
 using NUnit.Framework;
-using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 
@@ -16,9 +14,7 @@ public class CrossProjectPackageDependencyTests
     [SetUp]
     public void SetUp()
     {
-        WorkspaceIndexer.Register(new GoParser());
-        WorkspaceIndexer.Register(new TypeScriptParser());
-        WorkspaceIndexer.Register(new JavaScriptParser());
+        WorkspaceIndexer.AutoRegisterParsers();
     }
 
     [Test]

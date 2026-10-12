@@ -1,8 +1,7 @@
 using System.Text.Json;
-using CodeExplorer.Cypher.Parser;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Parser.CSharp;
+using CodeExplorer.Cypher.Parser;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -111,7 +110,7 @@ public class GameController : ControllerBase
 
             await using var client = new SqliteGraphClient(dbPath);
 
-            WorkspaceIndexer.Register(new CSharpParser());
+            WorkspaceIndexer.AutoRegisterParsers();
             var indexer = new WorkspaceIndexer(client);
             await indexer.IndexAsync(tempWorkspace, tempWorkspace, clear: true);
 

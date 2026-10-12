@@ -1,9 +1,8 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Diagrams;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Parser.CSharp;
 using NUnit.Framework;
-using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 
@@ -54,7 +53,7 @@ public class DiagramExportTests
         var dbPath = Path.Combine(_tempDir, "diagram_test.db").Replace('\\', '/');
         _client = new SqliteGraphClient(dbPath);
 
-        WorkspaceIndexer.Register(new CSharpParser());
+        WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new WorkspaceIndexer(_client);
         await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
     }

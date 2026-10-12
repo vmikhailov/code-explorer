@@ -1,9 +1,7 @@
-using NUnit.Framework;
+using AwesomeAssertions;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Parser.CSharp;
-using CodeExplorer.Parser.TypeScript;
-using AwesomeAssertions;
+using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
 
@@ -75,8 +73,7 @@ public class SubtreeScanCrossProjectTests
 
             await using var client = new SqliteGraphClient(dbPath);
 
-            WorkspaceIndexer.Register(new CSharpParser());
-            WorkspaceIndexer.Register(new TypeScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
 
             var indexer = new WorkspaceIndexer(client);
 
@@ -174,7 +171,7 @@ public class SubtreeScanCrossProjectTests
 
             await using var client = new SqliteGraphClient(dbPath);
 
-            WorkspaceIndexer.Register(new CSharpParser());
+            WorkspaceIndexer.AutoRegisterParsers();
             var indexer = new WorkspaceIndexer(client);
 
             // Step 1: Scan Project A and Project B only
@@ -241,8 +238,7 @@ public class SubtreeScanCrossProjectTests
 
             await using var client = new SqliteGraphClient(dbPath);
 
-            WorkspaceIndexer.Register(new CSharpParser());
-            WorkspaceIndexer.Register(new TypeScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
             var indexer = new WorkspaceIndexer(client);
 
             // Step 1: Scan ONLY the client project first
@@ -309,7 +305,7 @@ public class SubtreeScanCrossProjectTests
 
             await using var client = new SqliteGraphClient(dbPath);
 
-            WorkspaceIndexer.Register(new CSharpParser());
+            WorkspaceIndexer.AutoRegisterParsers();
             var indexer = new WorkspaceIndexer(client);
 
             // Step 1: Initial full scan

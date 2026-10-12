@@ -1,5 +1,4 @@
 using System.Text.Json;
-using NUnit.Framework;
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Mcp;
@@ -8,6 +7,7 @@ using CodeExplorer.Cypher.Common;
 using CodeExplorer.Parser.CSharp;
 using CodeExplorer.Parser.Java;
 using CodeExplorer.Parser.TypeScript;
+using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
 
@@ -115,9 +115,7 @@ export class Product {
         _dbPath = Path.Combine(_tempWorkspace, "orm_graph.db");
         _client = new SqliteGraphClient(_dbPath);
 
-        WorkspaceIndexer.Register(new CSharpParser());
-        WorkspaceIndexer.Register(new JavaParser());
-        WorkspaceIndexer.Register(new TypeScriptParser());
+        WorkspaceIndexer.AutoRegisterParsers();
 
         var indexer = new WorkspaceIndexer(_client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);

@@ -1,6 +1,6 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Parser;
 using NUnit.Framework;
-using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 

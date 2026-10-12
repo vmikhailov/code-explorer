@@ -2,18 +2,17 @@ using System.Net;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using AwesomeAssertions;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Protocol;
 using CodeExplorer.Options;
-using CodeExplorer.Parser.TypeScript;
 using CodeExplorer.Server;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
 using NUnit.Framework;
-using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 
@@ -52,7 +51,7 @@ public class ApiServerTests
         _dbPath = Path.Combine(_tempWorkspace, "test_api_graph.db").Replace('\\', '/');
         _client = new SqliteGraphClient(_dbPath);
 
-        WorkspaceIndexer.Register(new TypeScriptParser());
+        WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new WorkspaceIndexer(_client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
 

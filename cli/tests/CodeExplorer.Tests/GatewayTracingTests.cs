@@ -1,7 +1,6 @@
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Mcp;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Parser.CSharp;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -67,7 +66,7 @@ public class RideGatewayController : ControllerBase
 
         await using var client = new SqliteGraphClient(dbPath);
 
-        WorkspaceIndexer.Register(new CSharpParser());
+        WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
 

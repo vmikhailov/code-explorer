@@ -1,8 +1,7 @@
 using System.Text.Json;
-using NUnit.Framework;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Parser.CSharp;
+using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
 
@@ -143,7 +142,7 @@ public class InventoryRepository
         _dbPath = Path.Combine(_tempWorkspace, "epic2_test.db");
         _client = new SqliteGraphClient(_dbPath);
 
-        WorkspaceIndexer.Register(new CSharpParser());
+        WorkspaceIndexer.AutoRegisterParsers();
 
         var indexer = new WorkspaceIndexer(_client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);

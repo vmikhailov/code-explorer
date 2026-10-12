@@ -1,9 +1,9 @@
 using System.Text.Json;
+using AwesomeAssertions;
 using CodeExplorer.Cypher.Compiler;
 using CodeExplorer.Cypher.Parser;
 using Microsoft.Data.Sqlite;
 using NUnit.Framework;
-using AwesomeAssertions;
 
 namespace CodeExplorer.Cypher.Tests;
 

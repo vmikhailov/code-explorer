@@ -1,6 +1,6 @@
+using AwesomeAssertions;
 using CodeExplorer.Cypher.Common;
 using NUnit.Framework;
-using AwesomeAssertions;
 
 namespace CodeExplorer.Cypher.Tests;
 

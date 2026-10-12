@@ -1,10 +1,10 @@
 using System.Text.RegularExpressions;
+using AwesomeAssertions;
 using CodeExplorer.Cypher.Compiler;
 using CodeExplorer.Cypher.Parser;
 using CodeExplorer.Cypher.Tests.Shared;
 using Microsoft.Data.Sqlite;
 using NUnit.Framework;
-using AwesomeAssertions;
 
 namespace CodeExplorer.Cypher.Tests;
 

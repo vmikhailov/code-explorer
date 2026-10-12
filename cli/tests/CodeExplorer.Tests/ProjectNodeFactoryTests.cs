@@ -1,7 +1,7 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using NUnit.Framework;
-using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 

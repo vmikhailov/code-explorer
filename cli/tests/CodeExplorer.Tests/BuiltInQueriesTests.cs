@@ -1,11 +1,9 @@
 using System.Text.Json;
-using NUnit.Framework;
+using AwesomeAssertions;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Mcp;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Parser.CSharp;
-using CodeExplorer.Parser.TypeScript;
-using AwesomeAssertions;
+using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
 
@@ -77,8 +75,7 @@ export class OrdersController {
         _dbPath = Path.Combine(_tempWorkspace, "test_queries.db");
         _client = new SqliteGraphClient(_dbPath);
 
-        WorkspaceIndexer.Register(new CSharpParser());
-        WorkspaceIndexer.Register(new TypeScriptParser());
+        WorkspaceIndexer.AutoRegisterParsers();
 
         var indexer = new WorkspaceIndexer(_client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);

@@ -1,7 +1,7 @@
+using AwesomeAssertions;
 using CodeExplorer.Cypher.Ast;
 using CodeExplorer.Cypher.Parser;
 using NUnit.Framework;
-using AwesomeAssertions;
 
 namespace CodeExplorer.Cypher.Tests;
 

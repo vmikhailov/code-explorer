@@ -1,8 +1,7 @@
-using NUnit.Framework;
+using AwesomeAssertions;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Parser.TypeScript;
-using AwesomeAssertions;
+using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
 
@@ -41,7 +40,7 @@ public class TestFileClassificationTests
             await File.WriteAllTextAsync(Path.Combine(src, "target-url-generator.helper.spec.ts"), SpecCode);
 
             await using var client = new SqliteGraphClient(Path.Combine(ws, "graph.db"));
-            WorkspaceIndexer.Register(new TypeScriptParser());
+            WorkspaceIndexer.AutoRegisterParsers();
             await new WorkspaceIndexer(client).IndexAsync(ws, ws, clear: true);
             return await client.ExecuteQueryAsync(query);
         }

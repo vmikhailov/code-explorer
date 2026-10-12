@@ -1,5 +1,5 @@
-using System.Text.RegularExpressions;
 using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 

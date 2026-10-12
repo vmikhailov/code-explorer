@@ -1,12 +1,12 @@
 using System.Threading.Channels;
-using NUnit.Framework;
+using AwesomeAssertions;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Components.Parsers;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.Python;
-using AwesomeAssertions;
+using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
 

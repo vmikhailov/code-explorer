@@ -1,9 +1,9 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Parser.Android;
 using CodeExplorer.Parser.Kotlin;
 using NUnit.Framework;
-using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 

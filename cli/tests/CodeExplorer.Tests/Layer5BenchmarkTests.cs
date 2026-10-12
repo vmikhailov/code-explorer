@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Threading.Channels;
+using AwesomeAssertions;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
@@ -7,7 +8,6 @@ using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using Microsoft.Extensions.Logging.Abstractions;
 using NUnit.Framework;
-using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 

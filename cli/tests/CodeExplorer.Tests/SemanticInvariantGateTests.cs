@@ -1,10 +1,10 @@
+using AwesomeAssertions;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Gates.Engine;
 using CodeExplorer.Core.Gates.Models;
 using CodeExplorer.Core.Gates.Storage;
 using NUnit.Framework;
-using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 
@@ -406,7 +406,7 @@ public class SemanticInvariantGateTests
         var dbPath = Path.Combine(_tempWorkspace, "graph.db");
         await using var client = new SqliteGraphClient(dbPath);
 
-        CodeExplorer.Core.Parser.WorkspaceIndexer.Register(new CodeExplorer.Parser.CSharp.CSharpParser());
+        CodeExplorer.Core.Parser.WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new CodeExplorer.Core.Parser.WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
 
@@ -465,7 +465,7 @@ public class SemanticInvariantGateTests
         var dbPath = Path.Combine(_tempWorkspace, "graph.db");
         await using var client = new SqliteGraphClient(dbPath);
 
-        CodeExplorer.Core.Parser.WorkspaceIndexer.Register(new CodeExplorer.Parser.CSharp.CSharpParser());
+        CodeExplorer.Core.Parser.WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new CodeExplorer.Core.Parser.WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
 
@@ -518,7 +518,7 @@ public class SemanticInvariantGateTests
         var dbPath = Path.Combine(_tempWorkspace, "graph_r.db");
         await using var client = new SqliteGraphClient(dbPath);
 
-        CodeExplorer.Core.Parser.WorkspaceIndexer.Register(new CodeExplorer.Parser.CSharp.CSharpParser());
+        CodeExplorer.Core.Parser.WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new CodeExplorer.Core.Parser.WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
 
@@ -594,7 +594,7 @@ public class SemanticInvariantGateTests
         var dbPath = Path.Combine(_tempWorkspace, "graph.db");
         await using var client = new SqliteGraphClient(dbPath);
 
-        CodeExplorer.Core.Parser.WorkspaceIndexer.Register(new CodeExplorer.Parser.CSharp.CSharpParser());
+        CodeExplorer.Core.Parser.WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new CodeExplorer.Core.Parser.WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
 
@@ -664,7 +664,7 @@ public class SemanticInvariantGateTests
         var dbPath = Path.Combine(_tempWorkspace, "graph.db");
         await using var client = new SqliteGraphClient(dbPath);
 
-        CodeExplorer.Core.Parser.WorkspaceIndexer.Register(new CodeExplorer.Parser.CSharp.CSharpParser());
+        CodeExplorer.Core.Parser.WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new CodeExplorer.Core.Parser.WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
 

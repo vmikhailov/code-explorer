@@ -1,8 +1,8 @@
 using System.Diagnostics;
+using AwesomeAssertions;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Mcp;
 using NUnit.Framework;
-using AwesomeAssertions;
 
 namespace CodeExplorer.Tests.Benchmarks;
 

@@ -1,10 +1,9 @@
 using System.Threading.Channels;
+using AwesomeAssertions;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
-using CodeExplorer.Parser.CSharp;
 using NUnit.Framework;
-using AwesomeAssertions;
 
 namespace CodeExplorer.Tests;
 
@@ -59,7 +58,7 @@ public class ConfigurationMappingTests
 
         var ctx = new ParsingContext(_tempDir, _tempDir, client, channel);
 
-        WorkspaceIndexer.Register(new CSharpParser());
+        WorkspaceIndexer.AutoRegisterParsers();
         var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
         var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
         var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
@@ -110,7 +109,7 @@ public class ConfigurationMappingTests
 
         var ctx = new ParsingContext(_tempDir, _tempDir, client, channel);
 
-        WorkspaceIndexer.Register(new CSharpParser());
+        WorkspaceIndexer.AutoRegisterParsers();
         var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
         var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
         var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
@@ -139,7 +138,7 @@ public class ConfigurationMappingTests
 
         var ctx = new ParsingContext(_tempDir, _tempDir, client, channel);
 
-        WorkspaceIndexer.Register(new CSharpParser());
+        WorkspaceIndexer.AutoRegisterParsers();
         var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
         var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
         var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
