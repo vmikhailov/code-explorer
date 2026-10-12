@@ -51,12 +51,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
         // Generic Cloud Services
         new PackageDescriptor("stripe", "Stripe", LibraryRole.CloudSdk, "library", ["stripe"]),
         new PackageDescriptor("aws", "AWS", LibraryRole.CloudSdk, "library", ["aws-sdk", "@aws-sdk/*"]),
-        new PackageDescriptor("azure", "Azure", LibraryRole.CloudSdk, "library", ["@azure/*"]),
-
-        // Generic API Clients & Protocols
-        new PackageDescriptor("request", "request", LibraryRole.General, "library", ["request"]),
-        new PackageDescriptor("undici", "undici", LibraryRole.General, "library", ["undici"]),
-        new PackageDescriptor("urllib", "urllib", LibraryRole.General, "library", ["urllib"]),
+        new PackageDescriptor("azure", "Azure", LibraryRole.CloudSdk, "library", ["@azure/*"])
         */
     }
 
@@ -90,6 +85,9 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new Libraries.NextJsLibraryParser(),
         new Libraries.FetchLibraryParser(),
         new Libraries.GotKyLibraryParser(),
+        new Libraries.RequestLibraryParser(),
+        new Libraries.UndiciLibraryParser(),
+        new Libraries.UrllibLibraryParser(),
         new Libraries.SocketIoLibraryParser(),
         new Libraries.AngularHttpLibraryParser(),
         new Libraries.AngularOidcLibraryParser(),

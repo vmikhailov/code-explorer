@@ -1,0 +1,9 @@
+{
+  "name": "http-clients-service",
+  "version": "1.0.0",
+  "dependencies": {
+    "request": "^2.88.2",
+    "undici": "^6.19.8",
+    "urllib": "^3.22.0"
+  }
+}

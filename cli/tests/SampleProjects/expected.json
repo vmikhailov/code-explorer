@@ -184,6 +184,11 @@
     "entityKind": "Service",
     "isLibrary": false
   },
+  "typescript/http-clients-service": {
+    "projectType": "typescript",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
   "typescript/jest-tests": {
     "projectType": "typescript",
     "entityKind": "Test",

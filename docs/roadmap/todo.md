@@ -215,13 +215,18 @@ This document tracks active epics, immediate architectural refactoring plans, an
 | **7.3** | Python/Ingress | Python Web Frameworks (`flask`, `django`) route & blueprint mapping | High | ✅ Completed |
 | **7.4** | Python/Egress | Python HTTP Clients (`requests`, `httpx`, `aiohttp`) service-to-service calls | High | ✅ Completed |
 | **7.5** | Java/Messaging | Java Messaging (`kafka` / Spring Kafka, `rabbitmq` / Spring AMQP) | High | ✅ Completed |
+| **7.6** | TS/HTTP | Node.js HTTP Clients (`request`, `undici`, `urllib`) Egress | High | ✅ Completed |
+| **7.7** | TS/Analytics | Analytical Databases (`bigquery`, `clickhouse`) Query & Lineage | High | ⏳ Pending |
+| **7.8** | TS/Cloud | Cloud SDKs (`aws`, `azure`, `stripe`) Services & Queues | High | ⏳ Pending |
+| **7.9** | TS/Frontend | Frontend Frameworks (`react`, `vue`, `angular`, `svelte`, `vite`) | Medium | ⏳ Pending |
+| **7.10** | TS/Testing | Test Frameworks (`jest`, `vitest`, `mocha`, `cypress`, `playwright`) | Medium | ⏳ Pending |
 
 ---
 
 ## 🌐 EPIC 7: Multi-Language Semantic Extensions & Ingress/Egress Parity
 
 > **Target Releases:** `v1.37.x` series.  
-> **Goal:** Close semantic extraction gaps across Go, Python, and Java. Ensure full topological graph fidelity (Ingress endpoints, Egress HTTP clients, Message broker topologies, and Database operations) with dedicated test suites and sample projects.
+> **Goal:** Close semantic extraction gaps across Go, Python, Java, and TypeScript/JavaScript. Ensure full topological graph fidelity (Ingress endpoints, Egress HTTP clients, Message broker topologies, and Database operations) with dedicated test suites and sample projects.
 
 ### Phase 7.1: Go Web Frameworks (Ingress) — Target `v1.37.6` ✅ DELIVERED
 - [x] **Gin Web Framework (`github.com/gin-gonic/gin`)**:
@@ -270,3 +275,50 @@ This document tracks active epics, immediate architectural refactoring plans, an
 - [x] **Artifacts & Verification**:
   - Sample projects: `cli/tests/SampleProjects/java/kafka-service`, `rabbitmq-service`.
   - Test suite in `JavaMessagingTests.cs`.
+
+### Phase 7.6: TypeScript / Node.js HTTP Clients (Egress) — Target `v1.37.12` ✅ DELIVERED
+- [x] **Node.js HTTP Clients (`request`, `undici`, `urllib`)**:
+  - `RequestLibraryParser`: `request('https://...')`, `request.get(...)`, `request.post(...)` URI resolution and `ExternalService` emission.
+  - `UndiciLibraryParser`: `undici.request(...)`, `new Pool(...)`, `client.request(...)` egress resolution.
+  - `UrllibLibraryParser`: `urllib.request(...)`, `urllib.curl(...)`.
+- [x] **Artifacts & Verification**:
+  - Sample project: `cli/tests/SampleProjects/typescript/http-clients-service`.
+  - Unit test suite: `TypeScriptHttpClientTests.cs`.
+
+### Phase 7.7: TypeScript Analytical Databases & Lineage — Target `v1.37.13` ⏳ PENDING
+- [ ] **Analytical Databases (`clickhouse`, `bigquery`)**:
+  - `ClickHouseLibraryParser`: `@clickhouse/client`, `createClient({ url: '...' })`, SQL query parsing, `Query` nodes, and `TableReference` lineage.
+  - `BigQueryLibraryParser`: `@google-cloud/bigquery`, `bigquery.query('...')`, dataset & table extraction.
+- [ ] **Artifacts & Verification**:
+  - Sample project: `cli/tests/SampleProjects/typescript/olap-database-service`.
+  - Unit test suite: `TypeScriptOlapDatabaseTests.cs`.
+
+### Phase 7.8: TypeScript Cloud SDKs (AWS, Azure, Stripe) — Target `v1.37.14` ⏳ PENDING
+- [ ] **Cloud SDKs (`aws`, `azure`, `stripe`)**:
+  - `AwsSdkLibraryParser`: `@aws-sdk/client-s3`, `@aws-sdk/client-sqs`, `@aws-sdk/client-dynamodb`, SQS queue detection, S3 bucket references.
+  - `AzureSdkLibraryParser`: `@azure/service-bus`, `@azure/storage-blob`, `@azure/cosmos`, queue/topic bindings.
+  - `StripeLibraryParser`: `stripe.charges.create`, `stripe.paymentIntents.create` with `api.stripe.com` endpoint mapping.
+- [ ] **Artifacts & Verification**:
+  - Sample project: `cli/tests/SampleProjects/typescript/cloud-sdk-service`.
+  - Unit test suite: `TypeScriptCloudSdkTests.cs`.
+
+### Phase 7.9: Frontend Frameworks & UI Architecture — Target `v1.37.15` ⏳ PENDING
+- [ ] **Frontend Frameworks (`react`, `vue`, `angular`, `svelte`, `vite`)**:
+  - `ReactLibraryParser`: Function & class components, hooks (`useState`, `useEffect`), router links.
+  - `VueLibraryParser`: `defineComponent`, Vue template bindings.
+  - `AngularCoreLibraryParser`: `@Component`, `@NgModule`, dependency injection bindings.
+  - `SvelteLibraryParser`: Svelte component script blocks, stores.
+  - `ViteLibraryParser`: `defineConfig` build configuration.
+- [ ] **Artifacts & Verification**:
+  - Sample projects: `cli/tests/SampleProjects/typescript/frontend-apps`.
+  - Unit test suite: `TypeScriptFrontendFrameworkTests.cs`.
+
+### Phase 7.10: JavaScript / TypeScript Testing Frameworks — Target `v1.37.16` ⏳ PENDING
+- [ ] **Test Frameworks (`jest`, `vitest`, `mocha`, `cypress`, `playwright`)**:
+  - `JestVitestLibraryParser`: `describe`, `test`, `it` test suite & case discovery, `is_test` annotation.
+  - `MochaLibraryParser`: `describe`, `it`, suite bindings.
+  - `CypressLibraryParser`: `cy.visit(...)`, E2E test cases.
+  - `PlaywrightLibraryParser`: `test('...')`, `page.goto(...)` browser navigation edges.
+- [ ] **Artifacts & Verification**:
+  - Sample project: `cli/tests/SampleProjects/typescript/testing-suites`.
+  - Unit test suite: `TypeScriptTestingFrameworkTests.cs`.

@@ -64,6 +64,15 @@ public class AxiosLibraryParser : ISemanticExtension
                 objText.Equals("api") ||
                 objText.Equals("this.api"))
             {
+                var args = AstHelper.GetCallArguments(node);
+                if (args.Count > 0 && args[0].Is(TreeSitterSyntax.TypeScript.Object))
+                {
+                    if (!AstHelper.TryGetObjectProperty(args[0], "url", out _) &&
+                        AstHelper.TryGetObjectProperty(args[0], "path", out _))
+                    {
+                        return false;
+                    }
+                }
                 return true;
             }
         }
@@ -86,8 +95,15 @@ public class AxiosLibraryParser : ISemanticExtension
             var args = AstHelper.GetCallArguments(node);
             if (args.Count > 0 && args[0].IsValid())
             {
+                var targetArg = args[0];
+                if (targetArg.Is(TreeSitterSyntax.TypeScript.Object) &&
+                    AstHelper.TryGetObjectProperty(targetArg, "url", out var urlProp))
+                {
+                    targetArg = urlProp;
+                }
+
                 var projectContext = projectName ?? ctx?.WorkspaceId;
-                var resolved = AstHelper.ResolveStringOrTemplate(args[0], projectContext);
+                var resolved = AstHelper.ResolveStringOrTemplate(targetArg, projectContext);
                 if (!string.IsNullOrWhiteSpace(resolved))
                 {
                     if (Uri.TryCreate(resolved, UriKind.Absolute, out var uri) && !string.IsNullOrEmpty(uri.Host))
@@ -119,7 +135,7 @@ public class AxiosLibraryParser : ISemanticExtension
                     return resolved.TrimStart('/');
                 }
             }
-            return "http-call";
+            return null;
         }
         return null;
     }

@@ -5,6 +5,16 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.37.12] - 2026-10-12
+
+### Added
+- **TypeScript / Node.js HTTP Client Semantic Extensions (request, undici, urllib)**:
+  - Added AST semantic extensions for legacy and modern Node.js HTTP clients: `request` (direct invocations, `.get(...)`, `.post(...)`, URI options), `undici` (direct `request(...)`, `stream(...)`, `Client` / `Pool` instantiation with base URLs, chained `.request({ path: ... })`), and `urllib` (`urllib.request(...)`, `urllib.curl(...)`, `HttpClient` calls).
+  - Automatically resolves external endpoints and base URLs, emitting `:CALLS_ENDPOINT` relationships to `ExternalService` nodes.
+  - Refined `AxiosLibraryParser` dispatch guards to seamlessly fall through on non-Axios options objects.
+
+---
+
 ## [1.37.11] - 2026-10-12
 
 ### Performance
