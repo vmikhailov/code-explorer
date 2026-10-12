@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -9,6 +9,25 @@ import {
 
 export type DockCorner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 export type CollapseAxis = 'horizontal' | 'vertical';
+
+const CornerGripIcon: React.FC = () => (
+  <svg
+    width="10"
+    height="10"
+    viewBox="0 0 10 10"
+    fill="none"
+    className="floating-dock-corner-grip"
+    aria-hidden="true"
+  >
+    <path
+      d="M8.5 1.5L1.5 8.5M8.5 4.5L4.5 8.5M8.5 7.5L7.5 8.5"
+      stroke="currentColor"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+      opacity="0.6"
+    />
+  </svg>
+);
 
 export interface FloatingPanelProps {
   /**
@@ -88,8 +107,30 @@ export interface FloatingPanelProps {
    */
   width?: number | string;
 
+  /**
+   * Optional height of expanded panel (e.g. 400, '350px').
+   */
+  height?: number | string;
+
+  minWidth?: number;
   maxWidth?: number | string;
+  minHeight?: number;
   maxHeight?: number | string;
+
+  /**
+   * Enables interactive resizing by dragging borders and corners (default true).
+   */
+  resizable?: boolean;
+
+  /**
+   * Storage key to persist user's resized dimensions in localStorage (e.g. 'ce_orbit_legend').
+   */
+  persistKey?: string;
+
+  /**
+   * Callback fired during resizing.
+   */
+  onResize?: (width: number, height: number) => void;
 
   ariaLabel?: string;
   className?: string;
@@ -117,8 +158,14 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
   collapsedIcon,
   collapseAxis,
   width,
+  height,
+  minWidth = 260,
   maxWidth,
+  minHeight = 120,
   maxHeight,
+  resizable = true,
+  persistKey,
+  onResize,
   ariaLabel,
   className = '',
   headerClassName = '',
@@ -128,6 +175,159 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
 }) => {
   const isRight = dock === 'top-right' || dock === 'bottom-right';
   const isBottom = dock === 'bottom-left' || dock === 'bottom-right';
+
+  const parseDimension = (val?: number | string): number | null => {
+    if (typeof val === 'number') return val;
+    if (typeof val === 'string') {
+      const p = parseFloat(val);
+      if (!isNaN(p)) return p;
+    }
+    return null;
+  };
+
+  const initialWidth = parseDimension(width) ?? (isRight ? 360 : 340);
+  const initialHeight = parseDimension(height);
+
+  const [panelWidth, setPanelWidth] = useState<number>(() => {
+    if (typeof window !== 'undefined' && window.localStorage && persistKey) {
+      try {
+        const saved = localStorage.getItem(`${persistKey}_w`);
+        if (saved) {
+          const parsed = parseFloat(saved);
+          if (!isNaN(parsed) && parsed >= minWidth) return parsed;
+        }
+      } catch {}
+    }
+    return initialWidth;
+  });
+
+  const [panelHeight, setPanelHeight] = useState<number | undefined>(() => {
+    if (typeof window !== 'undefined' && window.localStorage && persistKey) {
+      try {
+        const saved = localStorage.getItem(`${persistKey}_h`);
+        if (saved) {
+          const parsed = parseFloat(saved);
+          if (!isNaN(parsed) && parsed >= minHeight) return parsed;
+        }
+      } catch {}
+    }
+    return initialHeight ?? undefined;
+  });
+
+  const [isResizing, setIsResizing] = useState(false);
+  const panelRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const parsed = parseDimension(width);
+    if (parsed !== null && !persistKey) {
+      setPanelWidth(parsed);
+    }
+  }, [width, persistKey]);
+
+  useEffect(() => {
+    const parsed = parseDimension(height);
+    if (parsed !== null && !persistKey) {
+      setPanelHeight(parsed);
+    }
+  }, [height, persistKey]);
+
+  const startResize = useCallback(
+    (e: React.PointerEvent, handleDir: 'x' | 'y' | 'xy') => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startW = panelRef.current ? panelRef.current.getBoundingClientRect().width : panelWidth;
+      const startH = panelRef.current ? panelRef.current.getBoundingClientRect().height : (panelHeight || 300);
+
+      setIsResizing(true);
+      if (typeof document !== 'undefined') {
+        document.body.style.userSelect = 'none';
+      }
+
+      const resolvedMinWidth = minWidth;
+      const resolvedMaxWidth =
+        typeof maxWidth === 'number'
+          ? maxWidth
+          : typeof window !== 'undefined'
+          ? window.innerWidth - 32
+          : 900;
+      const resolvedMinHeight = minHeight;
+      const resolvedMaxHeight =
+        typeof maxHeight === 'number'
+          ? maxHeight
+          : typeof window !== 'undefined'
+          ? window.innerHeight - 32
+          : 900;
+
+      let currentW = startW;
+      let currentH = startH;
+
+      const handlePointerMove = (moveEvt: PointerEvent) => {
+        const deltaX = moveEvt.clientX - startX;
+        const deltaY = moveEvt.clientY - startY;
+
+        if (handleDir === 'x' || handleDir === 'xy') {
+          const newW = isRight ? startW - deltaX : startW + deltaX;
+          const clampedW = Math.max(resolvedMinWidth, Math.min(resolvedMaxWidth, Math.round(newW)));
+          currentW = clampedW;
+          setPanelWidth(clampedW);
+        }
+
+        if (handleDir === 'y' || handleDir === 'xy') {
+          const newH = isBottom ? startH - deltaY : startH + deltaY;
+          const clampedH = Math.max(resolvedMinHeight, Math.min(resolvedMaxHeight, Math.round(newH)));
+          currentH = clampedH;
+          setPanelHeight(clampedH);
+        }
+
+        onResize?.(currentW, currentH);
+      };
+
+      const handlePointerUp = () => {
+        if (typeof window !== 'undefined') {
+          window.removeEventListener('pointermove', handlePointerMove);
+          window.removeEventListener('pointerup', handlePointerUp);
+        }
+        if (typeof document !== 'undefined') {
+          document.body.style.userSelect = '';
+        }
+        setIsResizing(false);
+
+        if (typeof window !== 'undefined' && window.localStorage && persistKey) {
+          try {
+            localStorage.setItem(`${persistKey}_w`, String(currentW));
+            if (currentH) localStorage.setItem(`${persistKey}_h`, String(currentH));
+          } catch {}
+        }
+      };
+
+      if (typeof window !== 'undefined') {
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerup', handlePointerUp);
+      }
+    },
+    [isRight, isBottom, panelWidth, panelHeight, minWidth, maxWidth, minHeight, maxHeight, onResize, persistKey]
+  );
+
+  const handleResetSize = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const defW = parseDimension(width) ?? (isRight ? 360 : 340);
+      const defH = parseDimension(height);
+      setPanelWidth(defW);
+      setPanelHeight(defH ?? undefined);
+      if (typeof window !== 'undefined' && window.localStorage && persistKey) {
+        try {
+          localStorage.removeItem(`${persistKey}_w`);
+          localStorage.removeItem(`${persistKey}_h`);
+        } catch {}
+      }
+    },
+    [width, height, isRight, persistKey]
+  );
 
   // Determine collapse axis if not explicitly set
   const axis = collapseAxis || (isBottom && dock === 'bottom-left' ? 'horizontal' : 'horizontal');
@@ -158,7 +358,10 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
   };
 
   if (!isCollapsed) {
-    if (width !== undefined) containerStyle.width = typeof width === 'number' ? `${width}px` : width;
+    containerStyle.width = `${panelWidth}px`;
+    if (panelHeight !== undefined) {
+      containerStyle.height = `${panelHeight}px`;
+    }
     if (maxWidth !== undefined) containerStyle.maxWidth = typeof maxWidth === 'number' ? `${maxWidth}px` : maxWidth;
     if (maxHeight !== undefined) containerStyle.maxHeight = typeof maxHeight === 'number' ? `${maxHeight}px` : maxHeight;
   }
@@ -169,7 +372,8 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
 
   return (
     <aside
-      className={`floating-dock-panel dock-${dock} ${isCollapsed ? 'is-collapsed' : ''} ${className}`.trim()}
+      ref={panelRef as any}
+      className={`floating-dock-panel dock-${dock} ${isCollapsed ? 'is-collapsed' : ''} ${isResizing ? 'is-resizing' : ''} ${className}`.trim()}
       style={containerStyle}
       role="complementary"
       aria-label={ariaLabel || (typeof title === 'string' ? title : 'Floating Panel')}
@@ -254,6 +458,45 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
 
           {/* Panel body */}
           <div className={`floating-dock-body ${bodyClassName}`.trim()}>{children}</div>
+
+          {/* Interactive resize handles when expanded */}
+          {resizable && (
+            <>
+              {/* Vertical Edge Handle */}
+              <div
+                className={`floating-dock-resize-handle-x ${isRight ? 'handle-left' : 'handle-right'}`}
+                onPointerDown={(e) => startResize(e, 'x')}
+                onDoubleClick={handleResetSize}
+                title="Drag to resize width (Double-click to reset)"
+              />
+
+              {/* Horizontal Edge Handle */}
+              <div
+                className={`floating-dock-resize-handle-y ${isBottom ? 'handle-top' : 'handle-bottom'}`}
+                onPointerDown={(e) => startResize(e, 'y')}
+                onDoubleClick={handleResetSize}
+                title="Drag to resize height (Double-click to reset)"
+              />
+
+              {/* Corner Grip Handle */}
+              <div
+                className={`floating-dock-resize-handle-corner ${
+                  isBottom
+                    ? isRight
+                      ? 'corner-top-left'
+                      : 'corner-top-right'
+                    : isRight
+                    ? 'corner-bottom-left'
+                    : 'corner-bottom-right'
+                }`}
+                onPointerDown={(e) => startResize(e, 'xy')}
+                onDoubleClick={handleResetSize}
+                title="Drag to resize panel (Double-click to reset)"
+              >
+                <CornerGripIcon />
+              </div>
+            </>
+          )}
         </>
       )}
     </aside>

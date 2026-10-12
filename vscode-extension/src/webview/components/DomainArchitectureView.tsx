@@ -853,6 +853,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
+  const [isCyReady, setIsCyReady] = useState(false);
+
+  const onFocusInFlowRef = useRef(onFocusInFlow);
+  onFocusInFlowRef.current = onFocusInFlow;
+
+  const onSelectNodeRef = useRef(onSelectNode);
+  onSelectNodeRef.current = onSelectNode;
 
   let executeCommand: ((cmd: any) => void) | null = null;
   try {
@@ -1181,7 +1188,10 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const rawGraphRef = useRef<any>(null);
 
   // Clear hidden filters when switching graph (ExternalService hidden by default)
+  const prevGraphRef = useRef<any>(graph);
   useEffect(() => {
+    if (prevGraphRef.current === graph) return;
+    prevGraphRef.current = graph;
     setHiddenTypes(new Set<EntityKind>(['ExternalService']));
     setHiddenNodeIds(new Set());
     setHiddenOrbitTiers(new Set());
@@ -2296,7 +2306,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     cy.on('tap', 'node', (evt) => {
       const node = evt.target;
       const nodeId = node.id();
-      const detail = nodeDetailMap.get(nodeId);
+      const detail = rawGraphRef.current?.detailMap?.get(nodeId);
       if (detail) {
         setSelectedEdge(null);
         setSelectedNode(detail);
@@ -2316,7 +2326,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             messagingCount: String(detail.messagingCount),
           },
         };
-        onSelectNode?.(gNode);
+        onSelectNodeRef.current?.(gNode);
       }
 
       // Highlight neighborhood
@@ -2334,7 +2344,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       if (detail) {
         setSelectedNode(null);
         setSelectedEdge(detail);
-        onSelectNode?.(null);
+        onSelectNodeRef.current?.(null);
 
         // Highlight this edge and its two endpoints, dim everything else
         cy.elements().removeClass('highlighted dimmed');
@@ -2352,7 +2362,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       if (evt.target === cy) {
         setSelectedNode(null);
         setSelectedEdge(null);
-        onSelectNode?.(null);
+        onSelectNodeRef.current?.(null);
         cy.elements().removeClass('highlighted dimmed');
       }
     });
@@ -2362,9 +2372,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       setContextMenu(null);
       const node = evt.target;
       const nodeId = node.id();
-      const detail = nodeDetailMap.get(nodeId);
-      if (detail && (detail.kind === 'Service' || detail.kind === 'Ingress') && onFocusInFlow) {
-        onFocusInFlow(detail.name);
+      const detail = rawGraphRef.current?.detailMap?.get(nodeId);
+      if (detail && (detail.kind === 'Service' || detail.kind === 'Ingress') && onFocusInFlowRef.current) {
+        onFocusInFlowRef.current(detail.name);
       }
     });
 
@@ -2372,7 +2382,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     cy.on('cxttap', 'node', (evt) => {
       const node = evt.target;
       const nodeId = node.id();
-      const detail = nodeDetailMap.get(nodeId);
+      const detail = rawGraphRef.current?.detailMap?.get(nodeId);
       if (!detail) return;
 
       const renderedPos = evt.renderedPosition;
@@ -2441,6 +2451,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     });
 
     cyRef.current = cy;
+    setIsCyReady(true);
     cy.style()
       .selector('node')
       .style('font-size', `${fontSizeRef.current}px`)
@@ -2461,8 +2472,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       cleanupWheel();
       cy.destroy();
       cyRef.current = null;
+      setIsCyReady(false);
     };
-  }, [nodeDetailMap, onFocusInFlow, hideNode]);
+  }, []);
 
   // Keep Cytoscape node and edge font sizes synchronized with fontSize state
   useEffect(() => {
@@ -2507,7 +2519,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   // Asynchronously load elements and execute layout without freezing the UI
   useEffect(() => {
     const cy = cyRef.current;
-    if (!cy) return;
+    if (!isCyReady || !cy) return;
 
     if (elements.length === 0) {
       cy.elements().remove();
@@ -2869,7 +2881,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         activeLayoutRef.current = null;
       }
     };
-  }, [elements, layoutName, autoRelayoutOnFilter, relayoutTrigger]);
+  }, [isCyReady, elements, layoutName, autoRelayoutOnFilter, relayoutTrigger]);
 
   // Record unscaled node positions relative to centroid
   const recordBasePositions = useCallback((cy: cytoscape.Core) => {
@@ -4362,7 +4374,10 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           collapsedIcon={<LayersIcon size={13} />}
           collapseTooltip="Collapse Orbit Legend"
           expandTooltip="Expand Orbit Legend"
-          width={280}
+          width={360}
+          minWidth={280}
+          maxWidth={700}
+          persistKey="ce_orbit_legend"
           className="domain-orbit-legend-floating"
         >
           <div
@@ -4373,7 +4388,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             <span>↕</span>
             <span>Outer (Periphery)</span>
           </div>
-          <div className="domain-orbit-legend-body" style={{ maxHeight: 280, overflowY: 'auto' }}>
+          <div className="domain-orbit-legend-body">
             {orbitLegendItems.map((item, idx) => {
               const isOrbitHidden = hiddenOrbitTiers.has(item.levelIndex);
 

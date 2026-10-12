@@ -195,8 +195,8 @@ export function computeConcentricSectorsLayout(
   // Arc parameters
   const MIN_ARC_GAP = Math.round(155 * spacing); // clearance between adjacent node centers on the same tier
   const MARGIN_ARC = Math.round(60 * spacing);   // padding from sector boundary
-  const RADIAL_STEP = Math.round(220 * spacing);  // distance between concentric echelon orbits
-  const BASE_INNER_R = Math.round(170 * spacing);
+  const RADIAL_STEP = Math.round(280 * spacing);  // distance between concentric echelon orbits
+  const BASE_INNER_R = Math.round(200 * spacing);
 
   // Initial radii for populated orbits
   const orbitRadii = new Map<number, number>();

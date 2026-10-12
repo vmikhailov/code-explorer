@@ -174,7 +174,10 @@ export const DomainHiddenPanel: React.FC<DomainHiddenPanelProps> = (props) => {
         ) : undefined
       }
       className="domain-hidden-panel"
-      width={320}
+      width={340}
+      minWidth={280}
+      maxWidth={700}
+      persistKey="ce_hidden_panel"
     >
       <div className="domain-hidden-list" style={{ maxHeight: 360, overflowY: 'auto' }}>
         {filteredHiddenItems.map((item) => (

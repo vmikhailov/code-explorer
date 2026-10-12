@@ -100,3 +100,39 @@ test('Icons: clean stroke SVG icons render with consistent viewBox and zero colo
     assert.ok(!/[\uD800-\uDFFF]/.test(svgHtml), 'Must not contain any emoji surrogate pairs');
   }
 });
+
+test('FloatingPanel: resizable mode renders directional handles and corner grip when expanded, and omits them when collapsed or resizable=false', () => {
+  const htmlBottomLeft = renderToStaticMarkup(
+    React.createElement(
+      FloatingPanel,
+      { dock: 'bottom-left', title: 'Orbit Legend', width: 360, resizable: true },
+      React.createElement('div', null, 'Orbits')
+    )
+  );
+
+  assert.ok(htmlBottomLeft.includes('floating-dock-resize-handle-x handle-right'), 'Must render right-edge resize handle for bottom-left dock');
+  assert.ok(htmlBottomLeft.includes('floating-dock-resize-handle-y handle-top'), 'Must render top-edge resize handle for bottom-left dock');
+  assert.ok(htmlBottomLeft.includes('floating-dock-resize-handle-corner corner-top-right'), 'Must render top-right corner handle for bottom-left dock');
+  assert.ok(htmlBottomLeft.includes('floating-dock-corner-grip'), 'Must render corner grip icon');
+  assert.ok(htmlBottomLeft.includes('width:360px'), 'Must render 360px width');
+
+  const htmlTopRight = renderToStaticMarkup(
+    React.createElement(
+      FloatingPanel,
+      { dock: 'top-right', title: 'Node Details', width: 380, resizable: true },
+      React.createElement('div', null, 'Details')
+    )
+  );
+  assert.ok(htmlTopRight.includes('floating-dock-resize-handle-x handle-left'), 'Must render left-edge handle for top-right dock');
+  assert.ok(htmlTopRight.includes('floating-dock-resize-handle-y handle-bottom'), 'Must render bottom-edge handle for top-right dock');
+  assert.ok(htmlTopRight.includes('floating-dock-resize-handle-corner corner-bottom-left'), 'Must render bottom-left corner handle for top-right dock');
+
+  const htmlNonResizable = renderToStaticMarkup(
+    React.createElement(
+      FloatingPanel,
+      { dock: 'top-right', title: 'Fixed Panel', resizable: false },
+      React.createElement('div', null, 'Content')
+    )
+  );
+  assert.ok(!htmlNonResizable.includes('floating-dock-resize-handle-x'), 'Must not render resize handles when resizable=false');
+});

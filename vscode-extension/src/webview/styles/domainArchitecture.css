@@ -1487,8 +1487,9 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  max-height: 280px;
+  max-height: 480px;
   overflow-y: auto;
+  flex: 1;
 }
 
 .domain-orbit-legend-item {
@@ -1523,6 +1524,7 @@
   font-weight: 500;
   color: #cbd5e1;
   flex: 1;
+  min-width: 80px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

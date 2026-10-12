@@ -323,3 +323,112 @@
 .floating-dock-body::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
 }
+
+/* ==========================================================================
+   Interactive Resizing Handles
+   ========================================================================== */
+
+.floating-dock-panel.is-resizing {
+  transition: none !important;
+  user-select: none !important;
+}
+
+/* Vertical Edge Handle */
+.floating-dock-resize-handle-x {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  z-index: 30;
+  cursor: ew-resize;
+  transition: background 0.15s ease;
+}
+
+.floating-dock-resize-handle-x.handle-left {
+  left: 0;
+}
+
+.floating-dock-resize-handle-x.handle-right {
+  right: 0;
+}
+
+.floating-dock-resize-handle-x:hover,
+.floating-dock-resize-handle-x:active {
+  background: rgba(56, 189, 248, 0.45);
+}
+
+/* Horizontal Edge Handle */
+.floating-dock-resize-handle-y {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 6px;
+  z-index: 30;
+  cursor: ns-resize;
+  transition: background 0.15s ease;
+}
+
+.floating-dock-resize-handle-y.handle-top {
+  top: 0;
+}
+
+.floating-dock-resize-handle-y.handle-bottom {
+  bottom: 0;
+}
+
+.floating-dock-resize-handle-y:hover,
+.floating-dock-resize-handle-y:active {
+  background: rgba(56, 189, 248, 0.45);
+}
+
+/* Corner Handle */
+.floating-dock-resize-handle-corner {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  z-index: 31;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.floating-dock-resize-handle-corner.corner-top-right {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+  border-bottom-left-radius: 4px;
+}
+
+.floating-dock-resize-handle-corner.corner-top-left {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+  border-bottom-right-radius: 4px;
+}
+
+.floating-dock-resize-handle-corner.corner-bottom-left {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
+  border-top-right-radius: 4px;
+}
+
+.floating-dock-resize-handle-corner.corner-bottom-right {
+  bottom: 0;
+  right: 0;
+  cursor: nwse-resize;
+  border-top-left-radius: 4px;
+}
+
+.floating-dock-resize-handle-corner:hover,
+.floating-dock-resize-handle-corner:active {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.2);
+}
+
+.floating-dock-corner-grip {
+  pointer-events: none;
+}
+

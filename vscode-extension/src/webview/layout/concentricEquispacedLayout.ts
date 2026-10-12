@@ -67,15 +67,15 @@ export function computeConcentricEquispacedLayout(
     displayIdx++;
   }
 
-  const minArcSpacing = Math.round(110 * spacing);
-  const radialStep = Math.round(260 * spacing);
+  const minArcSpacing = Math.round(125 * spacing);
+  const radialStep = Math.round(320 * spacing);
 
   let prevRadius = 0;
   populatedOrbits.forEach((orbit, idx) => {
     const count = orbit.nodeIds.length;
     let r: number;
     if (idx === 0) {
-      r = count <= 1 ? 0 : Math.max(Math.round(90 * spacing), (count * minArcSpacing) / (2 * Math.PI));
+      r = count <= 1 ? 0 : Math.max(Math.round(100 * spacing), (count * minArcSpacing) / (2 * Math.PI));
     } else {
       const minCircumRadius = (count * minArcSpacing) / (2 * Math.PI);
       r = Math.max(prevRadius + radialStep, minCircumRadius);

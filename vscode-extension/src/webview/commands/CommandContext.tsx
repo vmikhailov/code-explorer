@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useSyncExternalStore } from 'react';
+import React, { createContext, useContext, useSyncExternalStore, useCallback, useMemo } from 'react';
 import { ICommand, ICommandManager, CommandManagerSnapshot } from './types';
 import { CommandManager } from './CommandManager';
 
@@ -28,18 +28,22 @@ export const CommandProvider: React.FC<CommandProviderProps> = ({ manager, child
     () => manager.getSnapshot()
   );
 
-  const value: CommandContextValue = {
+  const executeCommand = useCallback((command: ICommand) => manager.executeCommand(command), [manager]);
+  const undo = useCallback(() => manager.undo(), [manager]);
+  const redo = useCallback(() => manager.redo(), [manager]);
+
+  const value: CommandContextValue = useMemo(() => ({
     commandManager: manager,
-    executeCommand: (command: ICommand) => manager.executeCommand(command),
-    undo: () => manager.undo(),
-    redo: () => manager.redo(),
+    executeCommand,
+    undo,
+    redo,
     canUndo: snapshot.canUndo,
     canRedo: snapshot.canRedo,
     undoDescription: snapshot.undoDescription,
     redoDescription: snapshot.redoDescription,
     undoCount: snapshot.undoCount,
     redoCount: snapshot.redoCount,
-  };
+  }), [manager, executeCommand, undo, redo, snapshot]);
 
   return <CommandContext.Provider value={value}>{children}</CommandContext.Provider>;
 };

@@ -246,7 +246,9 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
         <FloatingPanel
           dock="top-right"
           width={360}
-          maxWidth={420}
+          minWidth={280}
+          maxWidth={750}
+          persistKey="ce_node_inspector"
           className="no-body-padding"
           isCollapsed={isInspectorCollapsed}
           onToggleCollapse={setIsInspectorCollapsed}
@@ -654,7 +656,9 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
         <FloatingPanel
           dock="top-right"
           width={360}
-          maxWidth={420}
+          minWidth={280}
+          maxWidth={750}
+          persistKey="ce_edge_inspector"
           className="no-body-padding domain-edge-inspector-floating-panel"
           isCollapsed={isEdgeInspectorCollapsed}
           onToggleCollapse={setIsEdgeInspectorCollapsed}
