@@ -25,6 +25,12 @@ public class PythonFileVisitor : BaseParserVisitor
 
     protected override string? MapNodeType(Node node)
     {
+        foreach (var libParser in LibraryParsers)
+        {
+            var kind = libParser.MapNodeType(node, Context!);
+            if (kind != null) return kind;
+        }
+
         if (IsPythonDecoratorEntryPoint(node))
         {
             return OntologyConstants.NodeLabels.EntryPoint;
@@ -57,6 +63,12 @@ public class PythonFileVisitor : BaseParserVisitor
 
     protected override string? ExtractIdentifier(Node node)
     {
+        foreach (var libParser in LibraryParsers)
+        {
+            var ident = libParser.ExtractIdentifier(node, Context!, ProjectName, RelativePath);
+            if (ident != null) return ident;
+        }
+
         if (IsPythonDecoratorEntryPoint(node))
         {
             return ExtractPythonDecoratorRoute(node);

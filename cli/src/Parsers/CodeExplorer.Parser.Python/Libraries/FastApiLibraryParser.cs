@@ -13,7 +13,6 @@ public class FastApiLibraryParser : ISemanticExtension
     public string Type => "framework";
     public IReadOnlyList<string> SupportedPatterns => ["fastapi", "fastapi.*"];
     public bool IsImplemented => true;
-    public bool IsBuiltIn => true;
     public LibraryRole LibraryRole => LibraryRole.WebService;
 
     private static readonly HashSet<string> HttpMethods = new(StringComparer.OrdinalIgnoreCase)

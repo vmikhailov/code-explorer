@@ -212,7 +212,7 @@ This document tracks active epics, immediate architectural refactoring plans, an
 | **6.8** | Core/Graph | Ordered layer & pipeline stage relationships (`LayerNode`, `[:PRECEDES]`, `stage_order`) | Medium | ⏳ In Progress |
 | **7.1** | Go/Ingress | Go Web Frameworks (`gin`, `fiber`, `echo`) with route groups & sample projects | 🚨 Urgent | ✅ Completed |
 | **7.2** | Go/Egress | Go HTTP Clients (`net/http`, `resty`) & Postgres Driver (`pgx`) | High | ✅ Completed |
-| **7.3** | Python/Ingress | Python Web Frameworks (`flask`, `django`) route & blueprint mapping | High | ⏳ In Progress |
+| **7.3** | Python/Ingress | Python Web Frameworks (`flask`, `django`) route & blueprint mapping | High | ✅ Completed |
 | **7.4** | Python/Egress | Python HTTP Clients (`requests`, `httpx`, `aiohttp`) service-to-service calls | High | ⏳ In Progress |
 | **7.5** | Java/Messaging | Java Messaging (`kafka` / Spring Kafka, `rabbitmq` / Spring AMQP) | High | ⏳ In Progress |
 
@@ -244,14 +244,14 @@ This document tracks active epics, immediate architectural refactoring plans, an
   - Sample project: `cli/tests/SampleProjects/go/pgx-resty-service`.
   - Comprehensive unit & integration tests in `GoEgressAndDatabaseTests.cs`.
 
-### Phase 7.3: Python Web Frameworks (Ingress) — Target `v1.37.8`
-- [ ] **Flask (`flask`)**:
+### Phase 7.3: Python Web Frameworks (Ingress) — Target `v1.37.8` ✅ DELIVERED
+- [x] **Flask (`flask`)**:
   - `FlaskLibraryParser`: `@app.route(...)`, `@app.get(...)`, `@app.post(...)`, `Blueprint` route prefixes.
-- [ ] **Django (`django`)**:
+- [x] **Django (`django`)**:
   - `DjangoLibraryParser`: `urlpatterns = [path('...', ...), re_path('...', ...)]`, `include(...)`, DRF router bindings.
-- [ ] **Artifacts & Verification**:
+- [x] **Artifacts & Verification**:
   - Sample projects: `cli/tests/SampleProjects/python/flask-service`, `django-service`.
-  - Test suite.
+  - Test suite in `PythonWebFrameworksTests.cs`.
 
 ### Phase 7.4: Python Egress (HTTP Clients) — Target `v1.37.9`
 - [ ] **Python HTTP Clients (`requests`, `httpx`, `aiohttp`)**:

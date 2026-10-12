@@ -29,10 +29,6 @@ public class PythonParser : IProjectParser, IFileParser
 
         /*
         // Unimplemented / Backlog packages (commented out until AST semantic extensions are implemented):
-        // Web Frameworks
-        new("django", "Django", LibraryRole.WebFramework, "library", ["django"]),
-        new("flask", "Flask", LibraryRole.WebFramework, "library", ["flask"]),
-
         // Test Frameworks
         new("pytest", "Pytest", LibraryRole.TestFramework, "library", ["pytest", "pytest-*"]),
         new("unittest", "Unittest", LibraryRole.TestFramework, "library", ["unittest"]),
@@ -61,6 +57,8 @@ public class PythonParser : IProjectParser, IFileParser
         new Libraries.CouchDbPythonLibraryParser(),
         new Libraries.ElasticsearchPythonLibraryParser(),
         new Libraries.FastApiLibraryParser(),
+        new Libraries.FlaskLibraryParser(),
+        new Libraries.DjangoLibraryParser(),
         new Libraries.MysqlConnectorPythonLibraryParser(),
         new Libraries.PeeweeLibraryParser(),
         new Libraries.PineconeLibraryParser(),

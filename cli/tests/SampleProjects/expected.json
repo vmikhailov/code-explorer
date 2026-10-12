@@ -129,6 +129,11 @@
     "entityKind": "Service",
     "isLibrary": false
   },
+  "python/flask-service": {
+    "projectType": "python",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
   "python/standard-lib": {
     "projectType": "python",
     "entityKind": "Library",
