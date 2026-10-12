@@ -55,14 +55,6 @@ public class Layer1Layer2MatrixBaselineTests
         return (l1, l2);
     }
 
-    private static ProjectNode AssertSingleProject(Layer2Result l2, ProjectEntityKind expectedKind, bool expectedIsLib)
-    {
-        var proj = l2.Projects.Should().ContainSingle().Subject;
-        proj.EntityKind.Should().Be(expectedKind);
-        proj.IsLibrary.Should().Be(expectedIsLib);
-        return proj;
-    }
-
     #region Parameterized Matrix Tests
 
     [TestCase("csharp/web-api", "csharp", ProjectEntityKind.Service, false)]
@@ -99,8 +91,10 @@ public class Layer1Layer2MatrixBaselineTests
         bool expectedIsLib)
     {
         var (_, l2) = await ScanL1L2Async(projectPath);
-        var proj = AssertSingleProject(l2, expectedKind, expectedIsLib);
+        var proj = l2.Projects.Should().ContainSingle().Subject;
         proj.ProjectType.Should().Be(expectedProjectType);
+        proj.EntityKind.Should().Be(expectedKind);
+        proj.IsLibrary.Should().Be(expectedIsLib);
     }
 
     #endregion
