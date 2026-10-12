@@ -397,7 +397,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
     protected override void VisitStringLiteral(Node node, int depth)
     {
-        if (NestedSqlParser.TryParseSql(node.Text, out _, out _))
+        if (!WorkspaceConventions.IsFrontendFilePath(RelativePath) && NestedSqlParser.TryParseSql(node.Text, out _, out _))
         {
             var name = "Query";
 
@@ -413,7 +413,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         {
             var currentScope = SymbolStack.Peek();
 
-            if (currentScope.Kind != "file")
+            if (currentScope.Kind != "file" && !WorkspaceConventions.IsFrontendFilePath(RelativePath))
             {
                 NestedSqlParser.TryDetectSqlDependencies(node.Text, "", currentScope.References);
             }

@@ -75,45 +75,97 @@ public static class NestedSqlParser
         cleanedSql = CleanQueryText(text).Trim();
         if (string.IsNullOrEmpty(cleanedSql)) return false;
 
+        // Reject natural language sentences or UI prompt labels (e.g. "Select person.", "Select:")
+        if (cleanedSql.EndsWith('.') || cleanedSql.EndsWith('!') ||
+            cleanedSql.Contains("<div", StringComparison.OrdinalIgnoreCase) ||
+            cleanedSql.Contains("<span", StringComparison.OrdinalIgnoreCase) ||
+            cleanedSql.Contains("</", StringComparison.OrdinalIgnoreCase) ||
+            cleanedSql.Contains("/>", StringComparison.OrdinalIgnoreCase) ||
+            cleanedSql.Contains("&nbsp;", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
         var match = Regex.Match(cleanedSql, @"^\s*([a-zA-Z]+)\b");
         if (match.Success)
         {
             var word = match.Groups[1].Value.ToUpperInvariant();
             if (SqlKeywords.Contains(word))
             {
+                // Reject colon right after the keyword (e.g. "Select: Person", "Update:")
+                if (Regex.IsMatch(cleanedSql, @"^\s*[a-zA-Z]+:\s*"))
+                {
+                    return false;
+                }
+
                 // Verify structural syntax for SQL statements to avoid false positives (e.g. Swagger / UI strings)
                 if (word == "SELECT")
                 {
-                    if (!Regex.IsMatch(cleanedSql, @"\b(?:FROM|WHERE)\b", RegexOptions.IgnoreCase) &&
-                        !Regex.IsMatch(cleanedSql, @"^\s*SELECT\s+[\d@'""\(]", RegexOptions.IgnoreCase))
+                    var isScalar = Regex.IsMatch(cleanedSql, @"^\s*SELECT\s+(?:[\d@'""\(]|COUNT\(|NOW\(|CURRENT_|@@|TRUE\b|FALSE\b|NULL\b)", RegexOptions.IgnoreCase);
+                    var hasFrom = Regex.Match(cleanedSql, @"\bFROM\s+([a-zA-Z0-9_\.\[\]""`#@']+)", RegexOptions.IgnoreCase);
+
+                    if (!isScalar && !hasFrom.Success)
                     {
                         return false;
+                    }
+
+                    if (hasFrom.Success)
+                    {
+                        var targetTable = CleanSqlIdentifier(hasFrom.Groups[1].Value);
+                        if (IsSqlKeyword(targetTable))
+                        {
+                            return false;
+                        }
                     }
                 }
                 else if (word == "INSERT")
                 {
-                    if (!Regex.IsMatch(cleanedSql, @"\bINTO\b", RegexOptions.IgnoreCase))
+                    var insertMatch = Regex.Match(cleanedSql, @"^\s*INSERT\s+INTO\s+([a-zA-Z0-9_\.\[\]""`#@']+)", RegexOptions.IgnoreCase);
+                    if (!insertMatch.Success)
+                    {
+                        return false;
+                    }
+                    var targetTable = CleanSqlIdentifier(insertMatch.Groups[1].Value);
+                    if (IsSqlKeyword(targetTable))
                     {
                         return false;
                     }
                 }
                 else if (word == "UPDATE")
                 {
-                    if (!Regex.IsMatch(cleanedSql, @"\bSET\b", RegexOptions.IgnoreCase))
+                    var updateMatch = Regex.Match(cleanedSql, @"^\s*UPDATE\s+([a-zA-Z0-9_\.\[\]""`#@']+)\s+SET\b", RegexOptions.IgnoreCase);
+                    if (!updateMatch.Success)
+                    {
+                        return false;
+                    }
+                    var targetTable = CleanSqlIdentifier(updateMatch.Groups[1].Value);
+                    if (IsSqlKeyword(targetTable))
                     {
                         return false;
                     }
                 }
                 else if (word == "DELETE")
                 {
-                    if (!Regex.IsMatch(cleanedSql, @"\bFROM\b", RegexOptions.IgnoreCase))
+                    var deleteMatch = Regex.Match(cleanedSql, @"^\s*DELETE\s+(?:FROM\s+|[a-zA-Z0-9_]+\s+FROM\s+)([a-zA-Z0-9_\.\[\]""`#@']+)", RegexOptions.IgnoreCase);
+                    if (!deleteMatch.Success)
+                    {
+                        return false;
+                    }
+                    var targetTable = CleanSqlIdentifier(deleteMatch.Groups[1].Value);
+                    if (IsSqlKeyword(targetTable))
                     {
                         return false;
                     }
                 }
                 else if (word == "MERGE")
                 {
-                    if (!Regex.IsMatch(cleanedSql, @"\b(?:INTO|USING)\b", RegexOptions.IgnoreCase))
+                    var mergeMatch = Regex.Match(cleanedSql, @"^\s*MERGE\s+(?:INTO\s+)?([a-zA-Z0-9_\.\[\]""`#@']+)\s+(?:USING\b|AS\b)", RegexOptions.IgnoreCase);
+                    if (!mergeMatch.Success)
+                    {
+                        return false;
+                    }
+                    var targetTable = CleanSqlIdentifier(mergeMatch.Groups[1].Value);
+                    if (IsSqlKeyword(targetTable))
                     {
                         return false;
                     }
@@ -659,6 +711,7 @@ public static class NestedSqlParser
         "SKIP", "LOCKED", "NOWAIT", "RETURNING", "CASCADE", "RESTRICT",
         "CONFLICT", "DO", "NOTHING", "FETCH", "NEXT", "ROWS", "ONLY", "ROW", "FIRST", "LAST",
         "FILTER", "MATERIALIZED", "COLLATE", "CHECK", "CONSTRAINT", "DEFAULT",
+        "HERE", "DROPDOWN", "MODAL", "COMPONENT", "OPTIONS",
         "__TABLES__", "__TABLES_SUMMARY__", "TABLESUFFIX", "TABLE_SUFFIX"
     };
 

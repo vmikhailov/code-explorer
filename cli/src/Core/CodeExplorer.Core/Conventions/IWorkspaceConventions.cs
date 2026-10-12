@@ -15,4 +15,5 @@ public interface IWorkspaceConventions
     bool TryGetDatabaseAlias(string name, out string alias);
     bool TryMatchRouteFunction(string text, out string routeKey);
     bool IsTestFilePath(string? path);
+    bool IsFrontendFilePath(string? path);
 }

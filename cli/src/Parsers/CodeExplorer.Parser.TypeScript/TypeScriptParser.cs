@@ -138,14 +138,57 @@ public class TypeScriptParser : IProjectParser, IFileParser
 
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
     {
+        var packageJson = filesInDirectory.FirstOrDefault(f => Path.GetFileName(f).Equals("package.json", StringComparison.OrdinalIgnoreCase));
+        if (packageJson != null)
+        {
+            if (IsNgSecondaryEntryPoint(packageJson, directoryPath))
+            {
+                return false;
+            }
+            return true;
+        }
+
         foreach (var file in filesInDirectory)
         {
             var fileName = Path.GetFileName(file).ToLowerInvariant();
-            if (fileName == "package.json" || fileName == "tsconfig.json")
+            if (fileName == "tsconfig.json")
+            {
+                var norm = directoryPath.Replace('\\', '/').ToLowerInvariant();
+                if (norm.Contains("/src/lib/") || norm.Contains("/projects/ui/src/lib/"))
+                {
+                    return false;
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool IsNgSecondaryEntryPoint(string packageJsonPath, string directoryPath)
+    {
+        var normPath = directoryPath.Replace('\\', '/').ToLowerInvariant();
+        if (!normPath.Contains("/src/lib/") && !normPath.Contains("/lib/"))
+        {
+            return false;
+        }
+
+        try
+        {
+            var content = File.ReadAllText(packageJsonPath);
+            using var doc = System.Text.Json.JsonDocument.Parse(content);
+            var root = doc.RootElement;
+            // If it has ngPackage and does not have a valid "name" property, it's a secondary entry point
+            if (root.TryGetProperty("ngPackage", out _) &&
+                (!root.TryGetProperty("name", out var nameProp) || string.IsNullOrWhiteSpace(nameProp.GetString())))
             {
                 return true;
             }
         }
+        catch
+        {
+            // Ignore parse errors
+        }
+
         return false;
     }
 

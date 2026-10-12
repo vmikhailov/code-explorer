@@ -76,6 +76,7 @@ public sealed class WorkspaceConventionProfile : IWorkspaceConventions
     }
 
     public bool IsTestFilePath(string? path) => SourcePathClassifier.IsTestFilePath(path);
+    public bool IsFrontendFilePath(string? path) => SourcePathClassifier.IsFrontendFilePath(path);
 
     /// <summary>
     /// Loads a workspace convention profile from .codeexplorer/conventions.json and .codeexplorer/domains.json.

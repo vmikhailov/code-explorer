@@ -43,6 +43,7 @@ public static class WorkspaceConventions
     public static void RegisterServiceAlias(string alias, string canonicalName) => _current.ServiceResolver.RegisterAlias(alias, canonicalName);
 
     public static bool IsTestFilePath(string? path) => _current.IsTestFilePath(path);
+    public static bool IsFrontendFilePath(string? path) => _current.IsFrontendFilePath(path);
 
     public static bool TryGetTopicAlias(string key, out string alias) => _current.Messaging.TryGetTopicAlias(key, out alias);
 
