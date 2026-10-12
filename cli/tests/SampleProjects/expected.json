@@ -134,6 +134,11 @@
     "entityKind": "Service",
     "isLibrary": false
   },
+  "python/http-clients-service": {
+    "projectType": "python",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
   "python/standard-lib": {
     "projectType": "python",
     "entityKind": "Library",

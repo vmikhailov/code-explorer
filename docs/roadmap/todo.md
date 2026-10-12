@@ -213,7 +213,7 @@ This document tracks active epics, immediate architectural refactoring plans, an
 | **7.1** | Go/Ingress | Go Web Frameworks (`gin`, `fiber`, `echo`) with route groups & sample projects | 🚨 Urgent | ✅ Completed |
 | **7.2** | Go/Egress | Go HTTP Clients (`net/http`, `resty`) & Postgres Driver (`pgx`) | High | ✅ Completed |
 | **7.3** | Python/Ingress | Python Web Frameworks (`flask`, `django`) route & blueprint mapping | High | ✅ Completed |
-| **7.4** | Python/Egress | Python HTTP Clients (`requests`, `httpx`, `aiohttp`) service-to-service calls | High | ⏳ In Progress |
+| **7.4** | Python/Egress | Python HTTP Clients (`requests`, `httpx`, `aiohttp`) service-to-service calls | High | ✅ Completed |
 | **7.5** | Java/Messaging | Java Messaging (`kafka` / Spring Kafka, `rabbitmq` / Spring AMQP) | High | ⏳ In Progress |
 
 ---
@@ -253,13 +253,14 @@ This document tracks active epics, immediate architectural refactoring plans, an
   - Sample projects: `cli/tests/SampleProjects/python/flask-service`, `django-service`.
   - Test suite in `PythonWebFrameworksTests.cs`.
 
-### Phase 7.4: Python Egress (HTTP Clients) — Target `v1.37.9`
-- [ ] **Python HTTP Clients (`requests`, `httpx`, `aiohttp`)**:
+### Phase 7.4: Python Egress (HTTP Clients) — Target `v1.37.9` ✅ DELIVERED
+- [x] **Python HTTP Clients (`requests`, `httpx`, `aiohttp`)**:
   - `RequestsPythonLibraryParser`: `requests.get(...)`, `requests.post(...)`, `session.get(...)`.
   - `HttpxPythonLibraryParser`: `httpx.get(...)`, `httpx.AsyncClient().post(...)`.
   - `AioHttpPythonLibraryParser`: `aiohttp.ClientSession().get(...)`.
-- [ ] **Artifacts & Verification**:
-  - Sample projects & test suite.
+- [x] **Artifacts & Verification**:
+  - Sample project: `cli/tests/SampleProjects/python/http-clients-service`.
+  - Test suite in `PythonHttpClientTests.cs`.
 
 ### Phase 7.5: Java Messaging & Event-Driven Egress/Ingress — Target `v1.37.10`
 - [ ] **Apache Kafka / Spring Kafka (`org.apache.kafka`, `org.springframework.kafka`)**:

@@ -44,21 +44,20 @@ public class PythonParser : IProjectParser, IFileParser
         new("azure", "Azure", LibraryRole.CloudSdk, "library", ["azure-", "azure."]),
 
         // Generic API Clients
-        new("requests", "requests", LibraryRole.General, "library", ["requests"]),
-        new("urllib", "urllib", LibraryRole.General, "library", ["urllib.request", "urllib3", "urllib"]),
-        new("httpx", "httpx", LibraryRole.General, "library", ["httpx"]),
-        new("aiohttp", "aiohttp", LibraryRole.General, "library", ["aiohttp"])
+        new("urllib", "urllib", LibraryRole.General, "library", ["urllib.request", "urllib3", "urllib"])
         */
     }
 
     public IReadOnlyList<ISemanticExtension> SemanticExtensions { get; } =
     [
+        new Libraries.AioHttpPythonLibraryParser(),
         new Libraries.ChromaDbLibraryParser(),
         new Libraries.CouchDbPythonLibraryParser(),
+        new Libraries.DjangoLibraryParser(),
         new Libraries.ElasticsearchPythonLibraryParser(),
         new Libraries.FastApiLibraryParser(),
         new Libraries.FlaskLibraryParser(),
-        new Libraries.DjangoLibraryParser(),
+        new Libraries.HttpxPythonLibraryParser(),
         new Libraries.MysqlConnectorPythonLibraryParser(),
         new Libraries.PeeweeLibraryParser(),
         new Libraries.PineconeLibraryParser(),
@@ -67,6 +66,7 @@ public class PythonParser : IProjectParser, IFileParser
         new Libraries.PyMysqlLibraryParser(),
         new Libraries.PythonRedisLibraryParser(),
         new Libraries.PythonSqlite3LibraryParser(),
+        new Libraries.RequestsPythonLibraryParser(),
         new Libraries.SqlAlchemyLibraryParser()
     ];
 
