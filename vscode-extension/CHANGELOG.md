@@ -5,6 +5,29 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.37.19] - 2026-10-12
+
+### Fixed & Performance
+- **Layer 5 Late Binding Optimization & Real-Time Progress Feedback (Indefinite Freeze to 18 Seconds)**:
+  - **Memoized Lookups & Fast Early Rejection**: Pre-parsed and normalized routes, domains, and path segments once per endpoint/service, eliminating over 21 million redundant regex evaluations and path splits inside `PerformLateBindingAsync`.
+  - **Memoized Project-to-Domain Scoring**: Cached project-service affinity evaluations, avoiding millions of repeated fuzzy Levenshtein calculations.
+  - **Live Continuous Progress Reporting**: Added real-time progress indicators (`[Layer5] Late-binding progress: {N}/{Total} external services ({pct}%)...`) firing every 100 external services and every 3 seconds, keeping the user informed throughout late binding. Reduced late-binding time on ATS (3,915 services, 5,500 endpoints) from >7 minutes of silence down to 18 seconds.
+- **Fast Subpath and Workspace Clearing (5-Minute Bottleneck Eliminated)**:
+  - **Single-Workspace Fast Wipe**: When clearing a target path that covers all indexed projects and files in a single workspace database, SQLite executes a fast table truncate rather than millions of row-by-row index deletes.
+  - **Fast Bulk Edge Truncation**: When deleting all or nearly all nodes in the database (`deletedCount >= totalNodes - 1`), directly truncates the `edges` table instead of evaluating hundreds of thousands of individual `IN (SELECT id ...)` lookups across 5 secondary indexes.
+  - **Instant Schema Wiping**: Automatically invokes `ClearDatabaseAsync()` immediately upon detecting an outdated schema version before rescanning.
+- **Layer 4 Semantic Parser Optimization & Live Progress Reporting**:
+  - **Eliminated 1.72 Billion Redundant String Comparisons**: Replaced the nested quadratic $O(\text{Projects} \times \text{Files} \times \text{Projects})$ file matching loop with a single $O(\text{Files})$ pre-grouping pass (`filesByProjectId` and `treesByProjectId`), reducing Layer 4 file-to-project assignment time from tens of seconds to < 5ms on large monorepos (e.g. ATS with 204 projects and 13,782 files).
+  - **Continuous Info-Level Progress Updates**: Replaced hidden `LogDebug` calls with visible info logs and periodic progress triggers (`[Layer4] Enriched {N}/{Total} projects ({pct}%) - {Name}...`), updating on project 1, every 10 projects, whenever $\ge 3$ seconds elapse, and at completion.
+  - **Workload & Persistence Logging**: Added explicit info-level logs before semantic workload materialization and tree persistence queuing (`Queued {N} nodes and {M} relationships to persistence pipeline`).
+- **Database Persistence Heartbeat & Flush**:
+  - Added a 3-second heartbeat threshold to `ReportNodesProgressIfNeeded` and `ReportRelationshipsProgressIfNeeded`, ensuring users receive continuous database write feedback even when batch sizes are below 10,000.
+  - Added `FlushPersistenceProgressReport()` to ensure the exact final node and edge counts are printed when the persistence queue is drained or disposed.
+- **Layer 5 Targeted Preloading SQLite Indexing (22-Minute Bottleneck Eliminated)**:
+  - Added `idx_nodes_name_kind` on `nodes(json_extract(properties, '$.name'), kind)` in SQLite, eliminating full table scans across hundreds of thousands of rows during `LoadSymbolsByNamesAsync` and cutting targeted preloading during subtree scans from 22 minutes to milliseconds.
+
+---
+
 ## [1.37.18] - 2026-10-12
 
 ### Added

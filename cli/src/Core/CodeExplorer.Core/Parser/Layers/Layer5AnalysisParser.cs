@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
@@ -896,35 +897,6 @@ public class Layer5AnalysisParser
 
         CollectPublicSymbols(workspaceNode, entryPoints, endpoints, externalServices);
 
-        // Build mapping from symbol/node ID to containing ProjectNode
-        var nodeToProject = new Dictionary<string, ProjectNode>();
-        foreach (var pSem in l4Result.SemanticStructure.Children)
-        {
-            var matchedProj = projects.FirstOrDefault(p => p.Path == pSem.Path);
-            if (matchedProj != null)
-            {
-                MapProjectNodes(pSem, matchedProj, nodeToProject);
-            }
-        }
-
-        // Fallback mapping via file_path
-        foreach (var es in externalServices)
-        {
-            if (!nodeToProject.ContainsKey(es.Id) && es.Extensions?.TryGetValue("file_path", out var fp) == true)
-            {
-                var proj = Layer2ProjectParser.FindProjectForFilePath(fp, projects);
-                if (proj != null) nodeToProject[es.Id] = proj;
-            }
-        }
-        foreach (var ep in endpoints)
-        {
-            if (!nodeToProject.ContainsKey(ep.Id) && !string.IsNullOrEmpty(ep.Path))
-            {
-                var proj = Layer2ProjectParser.FindProjectForFilePath(ep.Path, projects);
-                if (proj != null) nodeToProject[ep.Id] = proj;
-            }
-        }
-
         var localExtIds = new HashSet<string>(externalServices.Select(e => e.Id));
         var localEndpointIds = new HashSet<string>(endpoints.Select(e => e.Id));
         var localEntryPointIds = new HashSet<string>(entryPoints.Select(e => e.Id));
@@ -959,79 +931,169 @@ public class Layer5AnalysisParser
             }
         }
 
-        ctx.LogDebug($"[Layer5] [LateBinding] Found {entryPoints.Count} EntryPoints, {endpoints.Count} Endpoints, and {externalServices.Count} ExternalServices.");
+        // Build mapping from symbol/node ID to containing ProjectNode (including DB-loaded candidates)
+        var nodeToProject = new Dictionary<string, ProjectNode>();
+        foreach (var pSem in l4Result.SemanticStructure.Children)
+        {
+            var matchedProj = projects.FirstOrDefault(p => p.Path == pSem.Path);
+            if (matchedProj != null)
+            {
+                MapProjectNodes(pSem, matchedProj, nodeToProject);
+            }
+        }
+
+        // Fallback mapping via file_path or path for all external services, endpoints, and entry points
+        foreach (var es in externalServices)
+        {
+            if (!nodeToProject.ContainsKey(es.Id) && es.Extensions?.TryGetValue("file_path", out var fp) == true)
+            {
+                var proj = Layer2ProjectParser.FindProjectForFilePath(fp, projects);
+                if (proj != null) nodeToProject[es.Id] = proj;
+            }
+        }
+        foreach (var ep in endpoints)
+        {
+            if (!nodeToProject.ContainsKey(ep.Id))
+            {
+                var p = !string.IsNullOrEmpty(ep.Path) ? ep.Path : (ep.Extensions?.TryGetValue("file_path", out var efp) == true ? efp : null);
+                if (!string.IsNullOrEmpty(p))
+                {
+                    var proj = Layer2ProjectParser.FindProjectForFilePath(p, projects);
+                    if (proj != null) nodeToProject[ep.Id] = proj;
+                }
+            }
+        }
+        foreach (var entry in entryPoints)
+        {
+            if (!nodeToProject.ContainsKey(entry.Id))
+            {
+                var p = entry.Extensions?.TryGetValue("file_path", out var efp) == true ? efp : null;
+                if (!string.IsNullOrEmpty(p))
+                {
+                    var proj = Layer2ProjectParser.FindProjectForFilePath(p, projects);
+                    if (proj != null) nodeToProject[entry.Id] = proj;
+                }
+            }
+        }
+
+        // Prepare and filter endpoints and entry points
+        var prepEndpoints = new List<PreparedEndpoint>(endpoints.Count);
+        foreach (var ep in endpoints)
+        {
+            nodeToProject.TryGetValue(ep.Id, out var targetProj);
+            var prep = PrepareEndpoint(ep, targetProj);
+            if (!string.IsNullOrEmpty(prep.RouteNorm) && !prep.IsApiPrefixOnly)
+            {
+                prepEndpoints.Add(prep);
+            }
+        }
+
+        var prepEntryPoints = new List<PreparedEntryPoint>(entryPoints.Count);
+        foreach (var entry in entryPoints)
+        {
+            nodeToProject.TryGetValue(entry.Id, out var targetProj);
+            var prep = PrepareEntryPoint(entry, targetProj);
+            if (!string.IsNullOrEmpty(prep.EntryNorm) && !prep.IsApiPrefixOnly)
+            {
+                prepEntryPoints.Add(prep);
+            }
+        }
+
+        var prepExtServices = new List<PreparedExternalService>(externalServices.Count);
+        foreach (var es in externalServices)
+        {
+            nodeToProject.TryGetValue(es.Id, out var callerProj);
+            prepExtServices.Add(PrepareExternalService(es, callerProj));
+        }
+
+        ctx.Log($"[Layer5] Late-binding {prepExtServices.Count} external service calls against {prepEndpoints.Count} endpoints and {prepEntryPoints.Count} entry points...");
 
         var lateBoundRels = new List<Relationship>();
         var addedProjectDeps = new HashSet<(string From, string To)>();
         var boundServicesCount = 0;
 
-        foreach (var extService in externalServices)
+        var projectMatchCache = new Dictionary<(string ProjectId, string Domain), bool>();
+        bool CheckProjectMatch(ProjectNode proj, string domain)
+        {
+            if (string.IsNullOrWhiteSpace(domain)) return false;
+            var key = (proj.Id, domain);
+            if (!projectMatchCache.TryGetValue(key, out var matches))
+            {
+                matches = DoesProjectMatchServiceDomain(proj, domain);
+                projectMatchCache[key] = matches;
+            }
+            return matches;
+        }
+
+        var lastReport = Stopwatch.GetTimestamp();
+        var processedExt = 0;
+        var totalExt = prepExtServices.Count;
+
+        foreach (var extService in prepExtServices)
         {
             var matchedEndpoint = false;
 
-            foreach (var entryPoint in entryPoints)
+            foreach (var entryPoint in prepEntryPoints)
             {
-                if (ctx.IsSubtreeScan && !localExtIds.Contains(extService.Id) && !localEntryPointIds.Contains(entryPoint.Id))
+                if (ctx.IsSubtreeScan && !localExtIds.Contains(extService.Service.Id) && !localEntryPointIds.Contains(entryPoint.EntryPoint.Id))
                 {
                     continue;
                 }
 
-                nodeToProject.TryGetValue(entryPoint.Id, out var targetProj);
-
-                if (IsMatch(extService, entryPoint, targetProj))
+                if (IsMatch(extService, entryPoint, CheckProjectMatch))
                 {
-                    ctx.LogDebug($"[Layer5] [LateBinding] Binding ExternalService '{extService.Id}' to EntryPoint '{entryPoint.Id}'");
-                    var rel = Relationship.FromRelationship(new CallsRelationship(extService.Id, entryPoint.Id));
+                    ctx.LogDebug($"[Layer5] [LateBinding] Binding ExternalService '{extService.Service.Id}' to EntryPoint '{entryPoint.EntryPoint.Id}'");
+                    var rel = Relationship.FromRelationship(new CallsRelationship(extService.Service.Id, entryPoint.EntryPoint.Id));
                     lateBoundRels.Add(rel);
                     matchedEndpoint = true;
                     boundServicesCount++;
 
-                    nodeToProject.TryGetValue(extService.Id, out var callerProj);
+                    var callerProj = extService.CallerProj;
+                    var targetProj = entryPoint.TargetProj;
                     if (callerProj != null && targetProj != null && callerProj.Id != targetProj.Id)
                     {
                         if (addedProjectDeps.Add((callerProj.Id, targetProj.Id)))
                         {
-                            ctx.LogDebug($"[Layer5] [LateBinding] Synthesized dependency: Project '{callerProj.Name}' -> Project '{targetProj.Name}' via entrypoint '{entryPoint.Name}'");
+                            ctx.LogDebug($"[Layer5] [LateBinding] Synthesized dependency: Project '{callerProj.Name}' -> Project '{targetProj.Name}' via entrypoint '{entryPoint.EntryPoint.Name}'");
                             lateBoundRels.Add(Relationship.FromRelationship(new DependsOnRelationship(callerProj.Id, targetProj.Id, new() { ["dependency_type"] = "service_call" })));
                         }
                     }
                 }
             }
 
-            foreach (var endpoint in endpoints)
+            foreach (var endpoint in prepEndpoints)
             {
-                if (ctx.IsSubtreeScan && !localExtIds.Contains(extService.Id) && !localEndpointIds.Contains(endpoint.Id))
+                if (ctx.IsSubtreeScan && !localExtIds.Contains(extService.Service.Id) && !localEndpointIds.Contains(endpoint.Endpoint.Id))
                 {
                     continue;
                 }
 
-                nodeToProject.TryGetValue(endpoint.Id, out var targetProj);
-
-                if (IsMatch(extService, endpoint, targetProj))
+                if (IsMatch(extService, endpoint, CheckProjectMatch))
                 {
-                    ctx.LogDebug($"[Layer5] [LateBinding] Binding ExternalService '{extService.Id}' to Endpoint '{endpoint.Id}'");
-                    var rel = Relationship.FromRelationship(new CallsEndpointRelationship(extService.Id, endpoint.Id));
+                    ctx.LogDebug($"[Layer5] [LateBinding] Binding ExternalService '{extService.Service.Id}' to Endpoint '{endpoint.Endpoint.Id}'");
+                    var rel = Relationship.FromRelationship(new CallsEndpointRelationship(extService.Service.Id, endpoint.Endpoint.Id));
                     lateBoundRels.Add(rel);
                     matchedEndpoint = true;
                     boundServicesCount++;
 
                     // Also bind directly from caller function if known
-                    if (extService.Extensions != null &&
-                        extService.Extensions.TryGetValue("caller_symbol_id", out var callerId) &&
+                    if (extService.Service.Extensions != null &&
+                        extService.Service.Extensions.TryGetValue("caller_symbol_id", out var callerId) &&
                         !string.IsNullOrEmpty(callerId))
                     {
-                        ctx.LogDebug($"[Layer5] [LateBinding] Direct Binding Function '{callerId}' to Endpoint '{endpoint.Id}'");
-                        lateBoundRels.Add(Relationship.FromRelationship(new CallsEndpointRelationship(callerId, endpoint.Id)));
+                        ctx.LogDebug($"[Layer5] [LateBinding] Direct Binding Function '{callerId}' to Endpoint '{endpoint.Endpoint.Id}'");
+                        lateBoundRels.Add(Relationship.FromRelationship(new CallsEndpointRelationship(callerId, endpoint.Endpoint.Id)));
                     }
 
                     // Synthesize Project -> Project DEPENDS_ON relationship
-                    nodeToProject.TryGetValue(extService.Id, out var callerProj);
+                    var callerProj = extService.CallerProj;
+                    var targetProj = endpoint.TargetProj;
 
                     if (callerProj != null && targetProj != null && callerProj.Id != targetProj.Id)
                     {
                         if (addedProjectDeps.Add((callerProj.Id, targetProj.Id)))
                         {
-                            ctx.LogDebug($"[Layer5] [LateBinding] Synthesized dependency: Project '{callerProj.Name}' -> Project '{targetProj.Name}' via endpoint '{endpoint.RouteTemplate}'");
+                            ctx.LogDebug($"[Layer5] [LateBinding] Synthesized dependency: Project '{callerProj.Name}' -> Project '{targetProj.Name}' via endpoint '{endpoint.Endpoint.RouteTemplate}'");
                             lateBoundRels.Add(Relationship.FromRelationship(new DependsOnRelationship(callerProj.Id, targetProj.Id, new() { ["dependency_type"] = "service_call" })));
                         }
                     }
@@ -1040,51 +1102,53 @@ public class Layer5AnalysisParser
 
             // Also match by domain/service name ONLY if no endpoint was matched and a known project exists
             if (!matchedEndpoint &&
-                !string.IsNullOrWhiteSpace(extService.DomainOrService) &&
-                extService.DomainOrService is not ("*" or "unknown-service"))
+                !string.IsNullOrWhiteSpace(extService.Service.DomainOrService) &&
+                extService.Service.DomainOrService is not ("*" or "unknown-service"))
             {
-                // If extService has a relative path without a network scheme (starts with '/'),
-                // it was a local or relative endpoint call, NOT a remote microservice host.
-                // Never synthesize cross-project dependencies based on relative paths!
-                if (extService.Path.StartsWith('/') && !extService.Path.Contains("://"))
+                if (extService.Service.Path.StartsWith('/') && !extService.Service.Path.Contains("://"))
                 {
-                    continue;
+                    // Relative endpoint call, not remote microservice host
                 }
-
-                nodeToProject.TryGetValue(extService.Id, out var callerProj);
-                if (callerProj != null)
+                else
                 {
-                    // If the service domain matches the caller project itself (e.g. self URL or worker domain),
-                    // this is an internal self-reference, not an external dependency on other projects.
-                    if (DoesProjectMatchServiceDomain(callerProj, extService.DomainOrService))
+                    var callerProj = extService.CallerProj;
+                    if (callerProj != null)
                     {
-                        continue;
-                    }
-
-                    foreach (var proj in projects)
-                    {
-                        if (proj.Id == callerProj.Id) continue;
-                        var pName = proj.Name.ToLowerInvariant();
-
-                        // Avoid matching internal class libraries or test suites
-                        if (pName.EndsWith(".tests") || pName.EndsWith(".test") ||
-                            pName.EndsWith(".data") || pName.EndsWith(".logic") ||
-                            pName.EndsWith(".contracts") || pName.EndsWith(".client") ||
-                            pName.EndsWith(".common") || pName.EndsWith(".shared"))
+                        if (!CheckProjectMatch(callerProj, extService.Service.DomainOrService))
                         {
-                            continue;
-                        }
-
-                        if (DoesProjectMatchServiceDomain(proj, extService.DomainOrService))
-                        {
-                            if (addedProjectDeps.Add((callerProj.Id, proj.Id)))
+                            foreach (var proj in projects)
                             {
-                                ctx.LogDebug($"[Layer5] [LateBinding] Inferred project dependency: Project '{callerProj.Name}' -> Project '{proj.Name}' via service domain '{extService.DomainOrService}'");
-                                lateBoundRels.Add(Relationship.FromRelationship(new DependsOnRelationship(callerProj.Id, proj.Id, new() { ["dependency_type"] = "service_call" })));
+                                if (proj.Id == callerProj.Id) continue;
+                                var pName = proj.Name.ToLowerInvariant();
+
+                                if (pName.EndsWith(".tests") || pName.EndsWith(".test") ||
+                                    pName.EndsWith(".data") || pName.EndsWith(".logic") ||
+                                    pName.EndsWith(".contracts") || pName.EndsWith(".client") ||
+                                    pName.EndsWith(".common") || pName.EndsWith(".shared"))
+                                {
+                                    continue;
+                                }
+
+                                if (CheckProjectMatch(proj, extService.Service.DomainOrService))
+                                {
+                                    if (addedProjectDeps.Add((callerProj.Id, proj.Id)))
+                                    {
+                                        ctx.LogDebug($"[Layer5] [LateBinding] Inferred project dependency: Project '{callerProj.Name}' -> Project '{proj.Name}' via service domain '{extService.Service.DomainOrService}'");
+                                        lateBoundRels.Add(Relationship.FromRelationship(new DependsOnRelationship(callerProj.Id, proj.Id, new() { ["dependency_type"] = "service_call" })));
+                                    }
+                                }
                             }
                         }
                     }
                 }
+            }
+
+            processedExt++;
+            if (processedExt % 100 == 0 || Stopwatch.GetElapsedTime(lastReport).TotalSeconds >= 3)
+            {
+                lastReport = Stopwatch.GetTimestamp();
+                var pct = (double)processedExt / totalExt * 100.0;
+                ctx.Log($"[Layer5] Late-binding progress: {processedExt}/{totalExt} external services ({pct:F0}%)...");
             }
         }
 
@@ -1142,24 +1206,42 @@ public class Layer5AnalysisParser
         "api", "v1", "v2", "v3", "v4", "v5", "v6", "rest", "internal", "public", "private"
     };
 
-    private static bool IsApiPrefixOnly(string prefix, string? serviceDomain = null)
+    private static readonly System.Text.RegularExpressions.Regex ServiceDomainEnvRegex = new(
+        @"^(environment\.|env\.|config\.|base_url_)",
+        System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static readonly System.Text.RegularExpressions.Regex ServiceSuffixRegex = new(
+        @"(_service|service)$",
+        System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static string CleanServiceDomain(string serviceDomain)
     {
-        if (string.IsNullOrWhiteSpace(prefix)) return false;
-        var segs = prefix.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return ServiceDomainEnvRegex.Replace(serviceDomain, "")
+            .Replace("-", "").Replace("_", "").ToLowerInvariant();
+    }
+
+    private static bool IsApiPrefixOnly(string[] segs, string? serviceDomain = null)
+    {
         if (segs.Length == 0) return false;
         foreach (var seg in segs)
         {
             if (AllowedApiPrefixSegments.Contains(seg)) continue;
             if (!string.IsNullOrEmpty(serviceDomain))
             {
-                var cleanDomain = System.Text.RegularExpressions.Regex.Replace(serviceDomain, @"^(environment\.|env\.|config\.|base_url_)", "")
-                    .Replace("-", "").Replace("_", "").ToLowerInvariant();
+                var cleanDomain = CleanServiceDomain(serviceDomain);
                 var cleanSeg = seg.Replace("-", "").Replace("_", "").ToLowerInvariant();
                 if (cleanDomain == cleanSeg || cleanDomain.TrimEnd('s') == cleanSeg.TrimEnd('s')) continue;
             }
             return false;
         }
         return true;
+    }
+
+    private static bool IsApiPrefixOnly(string prefix, string? serviceDomain = null)
+    {
+        if (string.IsNullOrWhiteSpace(prefix)) return false;
+        var segs = prefix.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return IsApiPrefixOnly(segs, serviceDomain);
     }
 
     private static readonly HashSet<string> GenericHostOrEnvNames = new(StringComparer.OrdinalIgnoreCase)
@@ -1250,13 +1332,13 @@ public class Layer5AnalysisParser
         }
 
         var normD = WorkspaceConventions.NormalizeServiceName(d);
-        var cleanDomain = System.Text.RegularExpressions.Regex.Replace(normD, @"^(environment\.|env\.|config\.|base_url_)", "")
+        var cleanDomain = ServiceDomainEnvRegex.Replace(normD, "")
             .Replace("-", "").Replace("_", "");
-        cleanDomain = System.Text.RegularExpressions.Regex.Replace(cleanDomain, @"(_service|service)$", "");
+        cleanDomain = ServiceSuffixRegex.Replace(cleanDomain, "");
 
         var normP = WorkspaceConventions.NormalizeServiceName(pName);
         var cleanPName = normP.Replace("-", "").Replace("_", "");
-        cleanPName = System.Text.RegularExpressions.Regex.Replace(cleanPName, @"(_service|service)$", "");
+        cleanPName = ServiceSuffixRegex.Replace(cleanPName, "");
 
         if (cleanDomain.Length >= 4 && (cleanDomain == cleanPName || cleanDomain.TrimEnd('s') == cleanPName.TrimEnd('s')))
             return true;
@@ -1326,19 +1408,139 @@ public class Layer5AnalysisParser
         return false;
     }
 
-    private bool MatchPaths(string pathA, string pathB) => MatchPaths(pathA, pathB, null);
-
-    private bool MatchPaths(string pathA, string pathB, string? serviceDomain)
+    private sealed class PreparedEndpoint
     {
-        var partsA = pathA.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        var partsB = pathB.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        public required EndpointNode Endpoint { get; init; }
+        public ProjectNode? TargetProj { get; init; }
+        public required string RouteNorm { get; init; }
+        public required string CleanPath { get; init; }
+        public required string[] Segments { get; init; }
+        public required string LastSegment { get; init; }
+        public required bool IsLastSegmentParam { get; init; }
+        public required bool IsApiPrefixOnly { get; init; }
+    }
 
+    private sealed class PreparedEntryPoint
+    {
+        public required EntryPointNode EntryPoint { get; init; }
+        public ProjectNode? TargetProj { get; init; }
+        public required string EntryNorm { get; init; }
+        public required string CleanPath { get; init; }
+        public required string[] Segments { get; init; }
+        public required string LastSegment { get; init; }
+        public required bool IsLastSegmentParam { get; init; }
+        public required bool IsApiPrefixOnly { get; init; }
+    }
+
+    private sealed class PreparedExternalService
+    {
+        public required ExternalServiceNode Service { get; init; }
+        public ProjectNode? CallerProj { get; init; }
+        public required string ServicePathNorm { get; init; }
+        public required string ServiceDomainNorm { get; init; }
+        public required string RawDomain { get; init; }
+        public required bool IsGenericHostOrService { get; init; }
+        public required bool IsPathSegment { get; init; }
+        public required string CleanPath { get; init; }
+        public required string[] Segments { get; init; }
+        public required string LastSegment { get; init; }
+        public required bool IsLastSegmentParam { get; init; }
+        public required bool IsRootOrGenericPath { get; init; }
+    }
+
+    private PreparedEndpoint PrepareEndpoint(EndpointNode endpoint, ProjectNode? targetProj)
+    {
+        var routeNorm = NormalizePath(endpoint.RouteTemplate);
+        var segs = routeNorm.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var last = segs.Length > 0 ? segs[^1] : string.Empty;
+        var isParam = last == "*" || last.StartsWith(':') || (last.StartsWith('{') && last.EndsWith('}'));
+        var isPrefixOnly = IsApiPrefixOnly(segs, null);
+        var clean = "/" + routeNorm.Trim('/') + "/";
+
+        return new PreparedEndpoint
+        {
+            Endpoint = endpoint,
+            TargetProj = targetProj,
+            RouteNorm = routeNorm,
+            CleanPath = clean,
+            Segments = segs,
+            LastSegment = last,
+            IsLastSegmentParam = isParam,
+            IsApiPrefixOnly = isPrefixOnly
+        };
+    }
+
+    private PreparedEntryPoint PrepareEntryPoint(EntryPointNode entryPoint, ProjectNode? targetProj)
+    {
+        var entryNorm = NormalizePath(entryPoint.Name);
+        var segs = entryNorm.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var last = segs.Length > 0 ? segs[^1] : string.Empty;
+        var isParam = last == "*" || last.StartsWith(':') || (last.StartsWith('{') && last.EndsWith('}'));
+        var isPrefixOnly = IsApiPrefixOnly(segs, null);
+        var clean = "/" + entryNorm.Trim('/') + "/";
+
+        return new PreparedEntryPoint
+        {
+            EntryPoint = entryPoint,
+            TargetProj = targetProj,
+            EntryNorm = entryNorm,
+            CleanPath = clean,
+            Segments = segs,
+            LastSegment = last,
+            IsLastSegmentParam = isParam,
+            IsApiPrefixOnly = isPrefixOnly
+        };
+    }
+
+    private PreparedExternalService PrepareExternalService(ExternalServiceNode extService, ProjectNode? callerProj)
+    {
+        var pathNorm = NormalizePath(extService.Path);
+        var domainNorm = NormalizePath(extService.DomainOrService);
+        var segs = pathNorm.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var last = segs.Length > 0 ? segs[^1] : string.Empty;
+        var isParam = last == "*" || last.StartsWith(':') || (last.StartsWith('{') && last.EndsWith('}'));
+        var rawDomain = (extService.DomainOrService ?? "").Trim('/').ToLowerInvariant();
+        var isGeneric = IsGenericHostOrService(extService.DomainOrService);
+        var isPathSeg = IsInferredPathSegmentDomain(extService);
+        var clean = "/" + pathNorm.Trim('/') + "/";
+        var isRootOrGeneric = string.IsNullOrEmpty(pathNorm) || pathNorm is "/" or "*";
+
+        return new PreparedExternalService
+        {
+            Service = extService,
+            CallerProj = callerProj,
+            ServicePathNorm = pathNorm,
+            ServiceDomainNorm = domainNorm,
+            RawDomain = rawDomain,
+            IsGenericHostOrService = isGeneric,
+            IsPathSegment = isPathSeg,
+            CleanPath = clean,
+            Segments = segs,
+            LastSegment = last,
+            IsLastSegmentParam = isParam,
+            IsRootOrGenericPath = isRootOrGeneric
+        };
+    }
+
+    private static bool MatchParts(string[] partsA, string[] partsB, string? serviceDomain)
+    {
         if (partsA.Length == 0 || partsB.Length == 0)
         {
             return false;
         }
 
         var len = Math.Min(partsA.Length, partsB.Length);
+        var lastA = partsA[^1];
+        var lastB = partsB[^1];
+        var isParamLastA = lastA == "*" || lastA.StartsWith(':') || (lastA.StartsWith('{') && lastA.EndsWith('}'));
+        var isParamLastB = lastB == "*" || lastB.StartsWith(':') || (lastB.StartsWith('{') && lastB.EndsWith('}'));
+
+        // Fast early rejection on last segment
+        if (!isParamLastA && !isParamLastB && !string.Equals(lastA, lastB, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
         var hasExactMatch = false;
 
         for (int i = 1; i <= len; i++)
@@ -1380,8 +1582,7 @@ public class Layer5AnalysisParser
                 if (AllowedApiPrefixSegments.Contains(seg)) continue;
                 if (!string.IsNullOrEmpty(serviceDomain))
                 {
-                    var cleanDomain = System.Text.RegularExpressions.Regex.Replace(serviceDomain, @"^(environment\.|env\.|config\.|base_url_)", "")
-                        .Replace("-", "").Replace("_", "").ToLowerInvariant();
+                    var cleanDomain = CleanServiceDomain(serviceDomain);
                     var cleanSeg = seg.Replace("-", "").Replace("_", "").ToLowerInvariant();
                     if (cleanDomain == cleanSeg || cleanDomain.TrimEnd('s') == cleanSeg.TrimEnd('s')) continue;
                 }
@@ -1392,86 +1593,159 @@ public class Layer5AnalysisParser
         return true;
     }
 
-    private bool IsMatch(ExternalServiceNode extService, EntryPointNode entryPoint) => IsMatch(extService, entryPoint, null);
+    private bool MatchPaths(string pathA, string pathB) => MatchPaths(pathA, pathB, null);
 
-    private bool IsMatch(ExternalServiceNode extService, EntryPointNode entryPoint, ProjectNode? targetProj)
+    private bool MatchPaths(string pathA, string pathB, string? serviceDomain)
     {
-        var isPathSegment = IsInferredPathSegmentDomain(extService);
-        if (targetProj != null && !isPathSegment && !IsGenericHostOrService(extService.DomainOrService))
+        var partsA = pathA.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var partsB = pathB.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return MatchParts(partsA, partsB, serviceDomain);
+    }
+
+    private bool IsMatch(PreparedExternalService ext, PreparedEntryPoint ep, Func<ProjectNode, string, bool> projectMatcher)
+    {
+        if (ep.TargetProj != null && !ext.IsPathSegment && !ext.IsGenericHostOrService)
         {
-            if (!DoesProjectMatchServiceDomain(targetProj, extService.DomainOrService))
+            if (!projectMatcher(ep.TargetProj, ext.Service.DomainOrService))
             {
                 return false;
             }
         }
 
-        var servicePathNorm = NormalizePath(extService.Path);
-        var serviceDomainNorm = NormalizePath(extService.DomainOrService);
-        var entryNorm = NormalizePath(entryPoint.Name);
-
-        if (string.IsNullOrEmpty(entryNorm))
+        if (string.IsNullOrEmpty(ep.EntryNorm))
         {
             return false;
         }
 
-        if (IsApiPrefixOnly(entryNorm, null))
+        if (ep.IsApiPrefixOnly)
         {
             return false;
         }
 
-        var rawDomain = (extService.DomainOrService ?? "").Trim('/').ToLowerInvariant();
-        if ((rawDomain is "*" or "unknown-service" or "" || IsGenericHostOrService(extService.DomainOrService)) &&
-            (string.IsNullOrEmpty(servicePathNorm) || servicePathNorm is "/" or "*"))
+        if ((ext.RawDomain is "*" or "unknown-service" or "" || ext.IsGenericHostOrService) && ext.IsRootOrGenericPath)
         {
             return false;
         }
 
-        // Root or empty path "/" is a generic fallback and must NEVER match across services unless targetProj domain matches
-        if (string.IsNullOrEmpty(servicePathNorm) || servicePathNorm is "/" or "*")
+        if (ext.IsRootOrGenericPath)
         {
-            if (targetProj == null || !DoesProjectMatchServiceDomain(targetProj, extService.DomainOrService ?? ""))
+            if (ep.TargetProj == null || !projectMatcher(ep.TargetProj, ext.Service.DomainOrService ?? ""))
             {
                 return false;
             }
         }
 
-        if (string.Equals(servicePathNorm, entryNorm, StringComparison.OrdinalIgnoreCase) ||
-            MatchPaths(servicePathNorm, entryNorm, extService.DomainOrService))
+        if (string.Equals(ext.ServicePathNorm, ep.EntryNorm, StringComparison.OrdinalIgnoreCase) ||
+            MatchParts(ext.Segments, ep.Segments, ext.Service.DomainOrService))
         {
             return true;
         }
 
-        var cleanPathA = "/" + servicePathNorm.Trim('/') + "/";
-        var cleanPathB = "/" + entryNorm.Trim('/') + "/";
-
-        if (cleanPathA != "//" && cleanPathB != "//")
+        if (ext.CleanPath != "//" && ep.CleanPath != "//")
         {
-            if (cleanPathB.EndsWith(cleanPathA, StringComparison.OrdinalIgnoreCase))
+            if (ep.CleanPath.EndsWith(ext.CleanPath, StringComparison.OrdinalIgnoreCase))
             {
-                var prefix = cleanPathB[..^cleanPathA.Length].Trim('/');
-                if (IsApiPrefixOnly(prefix, extService.DomainOrService))
+                var prefix = ep.CleanPath[..^ext.CleanPath.Length].Trim('/');
+                if (IsApiPrefixOnly(prefix, ext.Service.DomainOrService))
                 {
                     return true;
                 }
             }
-            else if (cleanPathA.EndsWith(cleanPathB, StringComparison.OrdinalIgnoreCase))
+            else if (ext.CleanPath.EndsWith(ep.CleanPath, StringComparison.OrdinalIgnoreCase))
             {
-                var prefix = cleanPathA[..^cleanPathB.Length].Trim('/');
-                if (IsApiPrefixOnly(prefix, extService.DomainOrService))
+                var prefix = ext.CleanPath[..^ep.CleanPath.Length].Trim('/');
+                if (IsApiPrefixOnly(prefix, ext.Service.DomainOrService))
                 {
                     return true;
                 }
             }
         }
 
-        if (!string.IsNullOrEmpty(serviceDomainNorm) && serviceDomainNorm != "*" && serviceDomainNorm != "unknown-service")
+        if (!string.IsNullOrEmpty(ext.ServiceDomainNorm) && ext.ServiceDomainNorm != "*" && ext.ServiceDomainNorm != "unknown-service")
         {
-            if (string.Equals(serviceDomainNorm, entryNorm, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(ext.ServiceDomainNorm, ep.EntryNorm, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
 
-            if (serviceDomainNorm.StartsWith('/') && MatchPaths(serviceDomainNorm, entryNorm, extService.DomainOrService))
+            if (ext.ServiceDomainNorm.StartsWith('/') && MatchPaths(ext.ServiceDomainNorm, ep.EntryNorm, ext.Service.DomainOrService))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool IsMatch(PreparedExternalService ext, PreparedEndpoint ep, Func<ProjectNode, string, bool> projectMatcher)
+    {
+        if (ep.TargetProj != null && !ext.IsPathSegment && !ext.IsGenericHostOrService)
+        {
+            if (!projectMatcher(ep.TargetProj, ext.Service.DomainOrService))
+            {
+                return false;
+            }
+        }
+
+        if (string.IsNullOrEmpty(ep.RouteNorm))
+        {
+            return false;
+        }
+
+        if (ep.IsApiPrefixOnly)
+        {
+            return false;
+        }
+
+        if ((ext.RawDomain is "*" or "unknown-service" or "" || ext.IsGenericHostOrService) && ext.IsRootOrGenericPath)
+        {
+            return false;
+        }
+
+        if (ext.IsRootOrGenericPath)
+        {
+            if (ep.TargetProj == null || !projectMatcher(ep.TargetProj, ext.Service.DomainOrService ?? ""))
+            {
+                return false;
+            }
+        }
+
+        if (string.Equals(ext.ServicePathNorm, ep.RouteNorm, StringComparison.OrdinalIgnoreCase) ||
+            MatchParts(ext.Segments, ep.Segments, ext.Service.DomainOrService))
+        {
+            return true;
+        }
+
+        if (ext.CleanPath != "//" && ep.CleanPath != "//")
+        {
+            if (ep.CleanPath.EndsWith(ext.CleanPath, StringComparison.OrdinalIgnoreCase))
+            {
+                var prefix = ep.CleanPath[..^ext.CleanPath.Length].Trim('/');
+                if (IsApiPrefixOnly(prefix, ext.Service.DomainOrService))
+                {
+                    return true;
+                }
+            }
+            else if (ext.CleanPath.EndsWith(ep.CleanPath, StringComparison.OrdinalIgnoreCase))
+            {
+                var prefix = ext.CleanPath[..^ep.CleanPath.Length].Trim('/');
+                if (IsApiPrefixOnly(prefix, ext.Service.DomainOrService))
+                {
+                    return true;
+                }
+            }
+
+            if ((ep.CleanPath.StartsWith(ext.CleanPath, StringComparison.OrdinalIgnoreCase) && ext.Segments.Length >= 2 && !ep.IsApiPrefixOnly) ||
+                (ext.CleanPath.StartsWith(ep.CleanPath, StringComparison.OrdinalIgnoreCase) && ep.Segments.Length >= 2 && !ep.IsApiPrefixOnly))
+            {
+                return true;
+            }
+        }
+
+        if (!string.IsNullOrEmpty(ext.ServiceDomainNorm) && ext.ServiceDomainNorm != "*" && ext.ServiceDomainNorm != "unknown-service" && ext.ServiceDomainNorm.StartsWith('/'))
+        {
+            if (string.Equals(ext.ServiceDomainNorm, ep.RouteNorm, StringComparison.OrdinalIgnoreCase) ||
+                MatchPaths(ext.ServiceDomainNorm, ep.RouteNorm, ext.Service.DomainOrService))
             {
                 return true;
             }
@@ -1484,94 +1758,18 @@ public class Layer5AnalysisParser
 
     private bool IsMatch(ExternalServiceNode extService, EndpointNode endpoint, ProjectNode? targetProj)
     {
-        var isPathSegment = IsInferredPathSegmentDomain(extService);
-        if (targetProj != null && !isPathSegment && !IsGenericHostOrService(extService.DomainOrService))
-        {
-            if (!DoesProjectMatchServiceDomain(targetProj, extService.DomainOrService))
-            {
-                return false;
-            }
-        }
+        var prepExt = PrepareExternalService(extService, null);
+        var prepEp = PrepareEndpoint(endpoint, targetProj);
+        return IsMatch(prepExt, prepEp, (p, d) => DoesProjectMatchServiceDomain(p, d));
+    }
 
-        var servicePathNorm = NormalizePath(extService.Path);
-        var serviceDomainNorm = NormalizePath(extService.DomainOrService);
-        var routeNorm = NormalizePath(endpoint.RouteTemplate);
+    private bool IsMatch(ExternalServiceNode extService, EntryPointNode entryPoint) => IsMatch(extService, entryPoint, null);
 
-        if (string.IsNullOrEmpty(routeNorm))
-        {
-            return false;
-        }
-
-        // An endpoint route template consisting ONLY of API prefix segments (e.g. /api, /api/v1)
-        // must NEVER match external calls via late-binding
-        if (IsApiPrefixOnly(routeNorm, null))
-        {
-            return false;
-        }
-
-        var rawDomain = (extService.DomainOrService ?? "").Trim('/').ToLowerInvariant();
-        if ((rawDomain is "*" or "unknown-service" or "" || IsGenericHostOrService(extService.DomainOrService)) &&
-            (string.IsNullOrEmpty(servicePathNorm) || servicePathNorm is "/" or "*"))
-        {
-            return false;
-        }
-
-        // Root or empty path "/" is a generic fallback and must NEVER match across services unless targetProj domain matches
-        if (string.IsNullOrEmpty(servicePathNorm) || servicePathNorm is "/" or "*")
-        {
-            if (targetProj == null || !DoesProjectMatchServiceDomain(targetProj, extService.DomainOrService ?? ""))
-            {
-                return false;
-            }
-        }
-
-        if (string.Equals(servicePathNorm, routeNorm, StringComparison.OrdinalIgnoreCase) ||
-            MatchPaths(servicePathNorm, routeNorm, extService.DomainOrService))
-        {
-            return true;
-        }
-
-        var cleanPathA = "/" + servicePathNorm.Trim('/') + "/";
-        var cleanPathB = "/" + routeNorm.Trim('/') + "/";
-
-        if (cleanPathA != "//" && cleanPathB != "//")
-        {
-            if (cleanPathB.EndsWith(cleanPathA, StringComparison.OrdinalIgnoreCase))
-            {
-                var prefix = cleanPathB[..^cleanPathA.Length].Trim('/');
-                if (IsApiPrefixOnly(prefix, extService.DomainOrService))
-                {
-                    return true;
-                }
-            }
-            else if (cleanPathA.EndsWith(cleanPathB, StringComparison.OrdinalIgnoreCase))
-            {
-                var prefix = cleanPathA[..^cleanPathB.Length].Trim('/');
-                if (IsApiPrefixOnly(prefix, extService.DomainOrService))
-                {
-                    return true;
-                }
-            }
-
-            var segsA = cleanPathA.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
-            var segsB = cleanPathB.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
-            if ((cleanPathB.StartsWith(cleanPathA, StringComparison.OrdinalIgnoreCase) && segsA.Length >= 2 && !IsApiPrefixOnly(cleanPathA.Trim('/'), null)) ||
-                (cleanPathA.StartsWith(cleanPathB, StringComparison.OrdinalIgnoreCase) && segsB.Length >= 2 && !IsApiPrefixOnly(cleanPathB.Trim('/'), null)))
-            {
-                return true;
-            }
-        }
-
-        if (!string.IsNullOrEmpty(serviceDomainNorm) && serviceDomainNorm != "*" && serviceDomainNorm != "unknown-service" && serviceDomainNorm.StartsWith('/'))
-        {
-            if (string.Equals(serviceDomainNorm, routeNorm, StringComparison.OrdinalIgnoreCase) ||
-                MatchPaths(serviceDomainNorm, routeNorm, extService.DomainOrService))
-            {
-                return true;
-            }
-        }
-
-        return false;
+    private bool IsMatch(ExternalServiceNode extService, EntryPointNode entryPoint, ProjectNode? targetProj)
+    {
+        var prepExt = PrepareExternalService(extService, null);
+        var prepEp = PrepareEntryPoint(entryPoint, targetProj);
+        return IsMatch(prepExt, prepEp, (p, d) => DoesProjectMatchServiceDomain(p, d));
     }
 
     private string NormalizePath(string path)

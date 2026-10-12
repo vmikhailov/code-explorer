@@ -210,6 +210,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                           CREATE INDEX IF NOT EXISTS idx_nodes_kind_path ON nodes(kind, json_extract(properties, '$.path'));
                           CREATE INDEX IF NOT EXISTS idx_nodes_kind_file_path ON nodes(kind, json_extract(properties, '$.file_path'));
                           CREATE INDEX IF NOT EXISTS idx_nodes_kind_name ON nodes(kind, json_extract(properties, '$.name'));
+                          CREATE INDEX IF NOT EXISTS idx_nodes_name_kind ON nodes(json_extract(properties, '$.name'), kind);
                           CREATE INDEX IF NOT EXISTS idx_nodes_kind_symbol ON nodes(kind, json_extract(properties, '$.symbol'));
                           CREATE INDEX IF NOT EXISTS idx_nodes_kind_lower_path ON nodes(kind, lower(json_extract(properties, '$.path')));
 
@@ -398,7 +399,36 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 }
 
                 var relPath = normalized.Substring(normRoot.Length).TrimStart('/');
-                return await DeleteSubpathHierarchyAsync(normalized, relPath);
+
+                // Fast wipe if all files and projects in this single workspace are under this subpath
+                if (totalWorkspaces <= 1)
+                {
+                    var relSlash = (relPath.TrimEnd('/') + "/").ToLowerInvariant();
+                    var hasFilesOutside = await _conn.ExecuteScalarAsync<int>("""
+                        SELECT count(*) FROM file_registry
+                        WHERE lower(replace(relative_path, '\', '/')) NOT LIKE @relSlash || '%'
+                          AND lower(replace(relative_path, '\', '/')) != @relLower;
+                        """, new { relSlash, relLower = relPath.ToLowerInvariant() });
+
+                    if (hasFilesOutside == 0)
+                    {
+                        var normSlash = (normalized.TrimEnd('/') + "/").ToLowerInvariant();
+                        var hasProjectsOutside = await _conn.ExecuteScalarAsync<int>("""
+                            SELECT count(*) FROM nodes
+                            WHERE kind = 'Project'
+                              AND lower(replace(json_extract(properties, '$.path'), '\', '/')) NOT LIKE @normSlash || '%'
+                              AND lower(replace(json_extract(properties, '$.path'), '\', '/')) != @normLower;
+                            """, new { normSlash, normLower = normalized.ToLowerInvariant() });
+
+                        if (hasProjectsOutside == 0)
+                        {
+                            await WipeDatabaseFastAsync();
+                            return true;
+                        }
+                    }
+                }
+
+                return await DeleteSubpathHierarchyAsync(normalized, relPath, matchingWs.Value.Id);
             }
 
             if (totalWorkspaces <= 1 && workspaces.Count > 0 && !string.IsNullOrEmpty(workspaces[0].Path))
@@ -410,7 +440,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 {
                     var absPath = normRoot + "/" + normalized.TrimStart('/');
                     var relPath = normalized.TrimStart('/');
-                    return await DeleteSubpathHierarchyAsync(absPath, relPath);
+                    return await DeleteSubpathHierarchyAsync(absPath, relPath, singleWs.Id);
                 }
             }
 
@@ -426,7 +456,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 }
             }
 
-            return await DeleteSubpathHierarchyAsync(normalized, null);
+            return await DeleteSubpathHierarchyAsync(normalized, null, null);
         }
         finally
         {
@@ -455,7 +485,7 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         Analysis.ArchitectureViewEngine.InvalidateCache();
     }
 
-    private async Task<bool> DeleteSubpathHierarchyAsync(string absPath, string? relPath)
+    private async Task<bool> DeleteSubpathHierarchyAsync(string absPath, string? relPath, string? wsId = null)
     {
         var normLower = absPath.ToLowerInvariant();
         var normSlashLower = (absPath.TrimEnd('/') + "/").ToLowerInvariant() + "%";
@@ -463,6 +493,8 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         var relSlashLower = string.IsNullOrEmpty(relPath) ? "" : (relPath.TrimEnd('/') + "/").ToLowerInvariant() + "%";
         var relColonLower = string.IsNullOrEmpty(relPath) ? "" : (relPath.TrimEnd(':') + ":").ToLowerInvariant() + "%";
         var hasRel = !string.IsNullOrEmpty(relPath) ? 1 : 0;
+        var wsPrefix = !string.IsNullOrEmpty(wsId) ? wsId + ":" : "";
+        var hasWsPrefix = !string.IsNullOrEmpty(wsId) ? 1 : 0;
 
         var parameters = new
         {
@@ -471,7 +503,9 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             relPath = relLower,
             relPathSlash = relSlashLower,
             relPathColon = relColonLower,
-            hasRel
+            hasRel,
+            wsPrefix,
+            hasWsPrefix
         };
 
         using var tx = _conn.BeginTransaction();
@@ -481,12 +515,28 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 CREATE TEMP TABLE IF NOT EXISTS temp_del_subpath_nodes (id TEXT PRIMARY KEY, is_container INTEGER DEFAULT 0);
                 DELETE FROM temp_del_subpath_nodes;
 
-                -- Pass 1: Deterministic ID prefix matching (uses primary key index on nodes.id)
+                -- Pass 1: Deterministic ID prefix matching. If wsPrefix is known, uses primary key index on nodes.id!
                 INSERT OR IGNORE INTO temp_del_subpath_nodes(id, is_container)
                 SELECT id,
                        CASE WHEN id LIKE '%:dir:%' OR id LIKE '%:p:%' OR id LIKE '%:project:%' OR id LIKE '%:f:%' OR id LIKE '%:file:%' THEN 1 ELSE 0 END
                 FROM nodes
-                WHERE (@hasRel = 1 AND (
+                WHERE (@hasWsPrefix = 1 AND @hasRel = 1 AND (
+                          id LIKE @wsPrefix || 'f:' || @relPath
+                       OR id LIKE @wsPrefix || 'f:' || @relPathSlash
+                       OR id LIKE @wsPrefix || 'file:' || @relPath
+                       OR id LIKE @wsPrefix || 'file:' || @relPathSlash
+                       OR id LIKE @wsPrefix || 'sym:' || @relPathSlash
+                       OR id LIKE @wsPrefix || 'symbol:' || @relPathSlash
+                       OR id LIKE @wsPrefix || 'lit:' || @relPathSlash
+                       OR id LIKE @wsPrefix || 'catch:' || @relPathSlash
+                       OR id LIKE @wsPrefix || 'p:' || @relPath || '%'
+                       OR id LIKE @wsPrefix || 'project:' || @relPath || '%'
+                       OR id LIKE @wsPrefix || 'git:' || @relPath
+                       OR id LIKE @wsPrefix || 'git:' || @relPathSlash
+                       OR id LIKE @wsPrefix || 'ep:' || @relPathSlash
+                       OR id LIKE @wsPrefix || 'suite:' || @relPathSlash
+                      ))
+                   OR (@hasWsPrefix = 0 AND @hasRel = 1 AND (
                           id LIKE '%:f:' || @relPath
                        OR id LIKE '%:f:' || @relPathSlash
                        OR id LIKE '%:file:' || @relPath
@@ -495,17 +545,15 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                        OR id LIKE '%:symbol:' || @relPathSlash
                        OR id LIKE '%:lit:' || @relPathSlash
                        OR id LIKE '%:catch:' || @relPathSlash
-                       OR id LIKE '%:p:' || @relPathColon
-                       OR id LIKE '%:p:' || @relPathSlash
-                       OR id LIKE '%:project:' || @relPathColon
-                       OR id LIKE '%:project:' || @relPathSlash
+                       OR id LIKE '%:p:' || @relPath || '%'
+                       OR id LIKE '%:project:' || @relPath || '%'
                        OR id LIKE '%:git:' || @relPath
                        OR id LIKE '%:git:' || @relPathSlash
                        OR id LIKE '%:ep:' || @relPathSlash
                        OR id LIKE '%:suite:' || @relPathSlash
                       ))
-                   OR id LIKE '%:dir:' || @normPath
-                   OR id LIKE '%:dir:' || @normPathSlash;
+                   OR id LIKE (@wsPrefix || 'dir:' || @normPath)
+                   OR id LIKE (@wsPrefix || 'dir:' || @normPathSlash);
 
                 -- Pass 2: Property matching for nodes that don't embed the relative path into their ID
                 INSERT INTO temp_del_subpath_nodes(id, is_container)
@@ -549,20 +597,44 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 return false;
             }
 
-            await _conn.ExecuteAsync("""
-                DELETE FROM edges WHERE from_id IN (SELECT id FROM temp_del_subpath_nodes);
-                DELETE FROM edges WHERE to_id IN (SELECT id FROM temp_del_subpath_nodes);
-                DELETE FROM nodes WHERE id IN (SELECT id FROM temp_del_subpath_nodes);
-                DROP TABLE IF EXISTS temp_del_subpath_nodes;
+            var totalNodes = await _conn.ExecuteScalarAsync<int>(
+                "SELECT count(*) FROM nodes;", transaction: tx);
 
-                DELETE FROM file_registry
-                WHERE lower(replace(relative_path, '\', '/')) = @normPath
-                   OR lower(replace(relative_path, '\', '/')) LIKE @normPathSlash
-                   OR (@hasRel = 1 AND (
-                       lower(replace(relative_path, '\', '/')) = @relPath
-                       OR lower(replace(relative_path, '\', '/')) LIKE @relPathSlash
-                   ));
-                """, parameters, transaction: tx);
+            if (deletedCount >= totalNodes - 1)
+            {
+                // Fast path: ALL (or almost all) nodes in the graph belong to this deleted subpath.
+                // Truncate edges instantly instead of performing hundreds of thousands of individual edge deletes!
+                await _conn.ExecuteAsync("""
+                    DELETE FROM edges;
+                    DELETE FROM nodes WHERE id IN (SELECT id FROM temp_del_subpath_nodes);
+                    DROP TABLE IF EXISTS temp_del_subpath_nodes;
+
+                    DELETE FROM file_registry
+                    WHERE lower(replace(relative_path, '\', '/')) = @normPath
+                       OR lower(replace(relative_path, '\', '/')) LIKE @normPathSlash
+                       OR (@hasRel = 1 AND (
+                           lower(replace(relative_path, '\', '/')) = @relPath
+                           OR lower(replace(relative_path, '\', '/')) LIKE @relPathSlash
+                       ));
+                    """, parameters, transaction: tx);
+            }
+            else
+            {
+                await _conn.ExecuteAsync("""
+                    DELETE FROM edges WHERE from_id IN (SELECT id FROM temp_del_subpath_nodes);
+                    DELETE FROM edges WHERE to_id IN (SELECT id FROM temp_del_subpath_nodes);
+                    DELETE FROM nodes WHERE id IN (SELECT id FROM temp_del_subpath_nodes);
+                    DROP TABLE IF EXISTS temp_del_subpath_nodes;
+
+                    DELETE FROM file_registry
+                    WHERE lower(replace(relative_path, '\', '/')) = @normPath
+                       OR lower(replace(relative_path, '\', '/')) LIKE @normPathSlash
+                       OR (@hasRel = 1 AND (
+                           lower(replace(relative_path, '\', '/')) = @relPath
+                           OR lower(replace(relative_path, '\', '/')) LIKE @relPathSlash
+                       ));
+                    """, parameters, transaction: tx);
+            }
 
             tx.Commit();
             Analysis.ArchitectureViewEngine.InvalidateCache();

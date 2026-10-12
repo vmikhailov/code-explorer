@@ -21,6 +21,8 @@ public static class OntologyUploader
         // Store all tree relationships in ctx for post-indexing and layer 5 analysis
         ctx.TreeRelationships.AddRange(collectedRelationships);
 
+        ctx.Log($"[Persistence] Queued {collectedNodes.Count} nodes and {collectedRelationships.Count} relationships to persistence pipeline.");
+
         // Upload nodes in chunks of 10000
         for (var i = 0; i < collectedNodes.Count; i += 10000)
         {

@@ -21,10 +21,46 @@ public class Layer4SemanticParser
 
         var semanticNodes = new List<IOntologyNode>();
         var semanticRelationships = new List<Relationship>();
-        var nProject = 0;
+
+        var allProjects = l3Result.Prev.Projects;
+        var allFiles = l3Result.Prev.Prev.Files;
+        var allTrees = l3Result.SyntaxTrees;
+
+        // O(F * P) pre-grouping once instead of O(P * F * P) in inner loops (eliminates 1.72B comparisons)
+        var filesByProjectId = new Dictionary<string, List<FileNode>>(allProjects.Count);
+        var treesByProjectId = new Dictionary<string, List<SyntaxTree>>(allProjects.Count);
+        var fileToProjectId = new Dictionary<string, string>(allFiles.Count, StringComparer.OrdinalIgnoreCase);
+        var workspaceRootFiles = new List<FileNode>();
+
+        foreach (var project in allProjects)
+        {
+            filesByProjectId[project.Id] = [];
+            treesByProjectId[project.Id] = [];
+        }
+
+        foreach (var file in allFiles)
+        {
+            var bestProject = Layer2ProjectParser.FindProjectForFilePath(file.Path, allProjects);
+            if (bestProject != null)
+            {
+                filesByProjectId[bestProject.Id].Add(file);
+                fileToProjectId[file.Id] = bestProject.Id;
+            }
+            else
+            {
+                workspaceRootFiles.Add(file);
+            }
+        }
+
+        foreach (var st in allTrees)
+        {
+            if (st.FileNode != null && fileToProjectId.TryGetValue(st.FileNode.Id, out var projId))
+            {
+                treesByProjectId[projId].Add(st);
+            }
+        }
 
         // 1. Parse workspace-level configuration files (e.g. root .env) first
-        var workspaceRootFiles = l3Result.Prev.Prev.Files.Where(f => !l3Result.Prev.Projects.Any(p => IsEnclosedInProject(f, p, l3Result.Prev.Projects))).ToList();
         foreach (var wfile in workspaceRootFiles)
         {
             if (ConfigurationParser.IsConfigurationFile(wfile.Name))
@@ -33,22 +69,50 @@ public class Layer4SemanticParser
             }
         }
 
-        foreach (var project in l3Result.Prev.Projects)
+        var totalProjects = allProjects.Count;
+        ctx.Log($"[Layer4] Enriching {totalProjects} projects ({allTrees.Count} syntax trees) with semantic information...");
+
+        var existingRelKeys = new HashSet<(string From, string To, string Kind)>();
+        foreach (var r in semanticRelationships)
+        {
+            existingRelKeys.Add((r.From, r.To, r.Kind));
+        }
+
+        var lastLogTicks = Environment.TickCount64;
+        var projectsProcessed = 0;
+
+        foreach (var project in allProjects)
         {
             ctx.CancellationToken.ThrowIfCancellationRequested();
+            projectsProcessed++;
 
-            nProject++;
-            ctx.LogDebug($"[Layer4] Enriching project {nProject} of {l3Result.Prev.Projects.Count} at:'{project.Path}' with semantic information...");
+            void ReportProgressIfNeeded(bool force = false)
+            {
+                var now = Environment.TickCount64;
+                if (force || projectsProcessed == 1 || projectsProcessed == totalProjects ||
+                    projectsProcessed % 10 == 0 || (now - lastLogTicks) >= 3000)
+                {
+                    var pct = totalProjects > 0 ? (double)projectsProcessed / totalProjects * 100.0 : 100.0;
+                    ctx.Log($"[Layer4] Enriched {projectsProcessed}/{totalProjects} projects ({pct:F0}%) - {project.Name}...");
+                    lastLogTicks = now;
+                    ctx.TriggerProgressReport();
+                }
+            }
 
             // Find project parser
             var projectAbsDir = Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, project.Path)).Replace('\\', '/');
-            var filesInDir = Directory.GetFiles(projectAbsDir);
+            var filesInDir = Directory.Exists(projectAbsDir) ? Directory.GetFiles(projectAbsDir) : [];
             var projectParser = WorkspaceIndexer._projectParsers.FirstOrDefault(p => p.IsProjectDirectory(projectAbsDir, filesInDir));
 
-            if (projectParser == null) continue;
+            if (projectParser == null)
+            {
+                ReportProgressIfNeeded();
+                continue;
+            }
 
             // 2. Parse project-level configuration files before syntax enrichment so resources are available in registry
-            var projectFiles = l3Result.Prev.Prev.Files.Where(f => IsEnclosedInProject(f, project, l3Result.Prev.Projects)).ToList();
+            var projectFiles = filesByProjectId.GetValueOrDefault(project.Id) ?? [];
+            var initialRelCount = semanticRelationships.Count;
             foreach (var pfile in projectFiles)
             {
                 if (ConfigurationParser.IsConfigurationFile(pfile.Name))
@@ -56,9 +120,17 @@ public class Layer4SemanticParser
                     ConfigurationParser.ParseAndEnrich(pfile.FullPath, pfile.Path, ctx.WorkspaceId, project, semanticRelationships, ctx);
                 }
             }
+            if (semanticRelationships.Count > initialRelCount)
+            {
+                for (var i = initialRelCount; i < semanticRelationships.Count; i++)
+                {
+                    var r = semanticRelationships[i];
+                    existingRelKeys.Add((r.From, r.To, r.Kind));
+                }
+            }
 
             // 3. Get syntax trees belonging to this project and run semantic enrichers
-            var projectTrees = l3Result.SyntaxTrees.Where(st => IsEnclosedInProject(st.FileNode, project, l3Result.Prev.Projects)).ToList();
+            var projectTrees = treesByProjectId.GetValueOrDefault(project.Id) ?? [];
 
             foreach (var syntaxTree in projectTrees)
             {
@@ -86,25 +158,31 @@ public class Layer4SemanticParser
                 }
                 if (semNode is ExternalServiceNode es)
                 {
-                    semanticRelationships.Add(new Relationship(
-                        project.Id,
-                        es.Id,
-                        OntologyConstants.Relationships.ServiceCall,
-                        new Dictionary<string, object>
-                        {
-                            ["dependency_type"] = "service_call",
-                            ["is_semantic"] = "true"
-                        }));
+                    if (existingRelKeys.Add((project.Id, es.Id, OntologyConstants.Relationships.ServiceCall)))
+                    {
+                        semanticRelationships.Add(new Relationship(
+                            project.Id,
+                            es.Id,
+                            OntologyConstants.Relationships.ServiceCall,
+                            new Dictionary<string, object>
+                            {
+                                ["dependency_type"] = "service_call",
+                                ["is_semantic"] = "true"
+                            }));
+                    }
                 }
             }
 
             // Group EntryPoints
             GroupEntryPoints(project, projectTrees, ctx);
+
+            ReportProgressIfNeeded();
         }
 
         // 4. Materialize first-class semantic workload nodes under SemanticStructure
+        ctx.Log($"[Layer4] Materializing semantic workload hierarchy ({allProjects.Count} projects)...");
         var workloadByProjectId = new Dictionary<string, string>();
-        foreach (var project in l3Result.Prev.Projects)
+        foreach (var project in allProjects)
         {
             var extensions = new Dictionary<string, string>(project.Extensions ?? new())
             {
@@ -187,7 +265,10 @@ public class Layer4SemanticParser
                 semanticNodes.Add(workloadNode);
             }
 
-            semanticRelationships.Add(new Relationship(project.Id, workloadNode.Id, OntologyConstants.Relationships.Deploys, new Dictionary<string, object>()));
+            if (existingRelKeys.Add((project.Id, workloadNode.Id, OntologyConstants.Relationships.Deploys)))
+            {
+                semanticRelationships.Add(new Relationship(project.Id, workloadNode.Id, OntologyConstants.Relationships.Deploys, new Dictionary<string, object>()));
+            }
 
             workloadByProjectId[project.Id] = workloadNode.Id;
 
@@ -200,7 +281,7 @@ public class Layer4SemanticParser
                 }
                 if (child is ExternalServiceNode es)
                 {
-                    if (!semanticRelationships.Any(r => r.From == workloadNode.Id && r.To == es.Id && r.Kind == OntologyConstants.Relationships.ServiceCall))
+                    if (existingRelKeys.Add((workloadNode.Id, es.Id, OntologyConstants.Relationships.ServiceCall)))
                     {
                         semanticRelationships.Add(new Relationship(
                             workloadNode.Id,
@@ -225,7 +306,7 @@ public class Layer4SemanticParser
                 sourceWorkloadId != targetWorkloadId)
             {
                 var sourceWorkload = semanticStructureNode.Children.FirstOrDefault(c => c.Id == sourceWorkloadId);
-                if (sourceWorkload is TestSuiteNode && !semanticRelationships.Any(r => r.From == sourceWorkloadId && r.To == targetWorkloadId && r.Kind == OntologyConstants.Relationships.Tests))
+                if (sourceWorkload is TestSuiteNode && existingRelKeys.Add((sourceWorkloadId, targetWorkloadId, OntologyConstants.Relationships.Tests)))
                 {
                     semanticRelationships.Add(new Relationship(
                         sourceWorkloadId,
@@ -240,7 +321,7 @@ public class Layer4SemanticParser
         }
 
         // Collect all semantic nodes from projects and semanticStructureNode
-        foreach (var project in l3Result.Prev.Projects)
+        foreach (var project in allProjects)
         {
             CollectSemanticNodes(project, semanticNodes);
         }
@@ -249,13 +330,14 @@ public class Layer4SemanticParser
 
         if (semanticRelationships.Count > 0)
         {
+            ctx.Log($"[Layer4] Uploading {semanticRelationships.Count} semantic relationships...");
             await ctx.DbClient.UploadRelationshipsAsync(semanticRelationships);
             ctx.TotalRelsCount += semanticRelationships.Count;
         }
 
         // 3. Upload the entire Workspace Node tree using OntologyUploader
         ctx.CancellationToken.ThrowIfCancellationRequested();
-        ctx.LogDebug("[Layer4] Uploading the entire Workspace Node tree...");
+        ctx.Log("[Layer4] Queuing workspace ontology tree for database persistence...");
         await OntologyUploader.UploadNodeTreeAsync(l3Result.Prev.Prev.Workspace, null, ctx);
 
         ctx.Log($"[Layer4] Semantic enrichment pass complete. Identified {semanticNodes.Count} semantic nodes.");

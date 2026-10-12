@@ -34,6 +34,7 @@ public sealed class DatabasePersistenceWriter : IAsyncDisposable
         try
         {
             await _consumerTask;
+            _ctx.FlushPersistenceProgressReport();
         }
         catch (Exception ex)
         {

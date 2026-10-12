@@ -148,21 +148,40 @@ public class ParsingContext
 
     private void ReportNodesProgressIfNeeded()
     {
-        if (_nodesPersisted - _lastReportedNodes >= 10000)
+        var now = Environment.TickCount64;
+        if (_nodesPersisted - _lastReportedNodes >= 10000 || (now - _lastNodeReportTicks >= 3000 && _nodesPersisted > _lastReportedNodes))
         {
             Log($"[PersistenceProgress] Saved: {_nodesPersisted} nodes to database...");
             _lastReportedNodes = _nodesPersisted;
-            _lastNodeReportTicks = Environment.TickCount64;
+            _lastNodeReportTicks = now;
         }
     }
 
     private void ReportRelationshipsProgressIfNeeded()
     {
-        if (_relsPersisted - _lastReportedRels >= 10000)
+        var now = Environment.TickCount64;
+        if (_relsPersisted - _lastReportedRels >= 10000 || (now - _lastRelReportTicks >= 3000 && _relsPersisted > _lastReportedRels))
         {
             Log($"[PersistenceProgress] Saved: {_relsPersisted} relationships to database...");
             _lastReportedRels = _relsPersisted;
-            _lastRelReportTicks = Environment.TickCount64;
+            _lastRelReportTicks = now;
+        }
+    }
+
+    public void FlushPersistenceProgressReport()
+    {
+        var now = Environment.TickCount64;
+        if (_nodesPersisted > _lastReportedNodes)
+        {
+            Log($"[PersistenceProgress] Saved: {_nodesPersisted} nodes to database.");
+            _lastReportedNodes = _nodesPersisted;
+            _lastNodeReportTicks = now;
+        }
+        if (_relsPersisted > _lastReportedRels)
+        {
+            Log($"[PersistenceProgress] Saved: {_relsPersisted} relationships to database.");
+            _lastReportedRels = _relsPersisted;
+            _lastRelReportTicks = now;
         }
     }
 
@@ -222,6 +241,7 @@ public class ParsingContext
             return Task.CompletedTask;
         });
         await tcs.Task;
+        FlushPersistenceProgressReport();
     }
 
     public ParsingContext(

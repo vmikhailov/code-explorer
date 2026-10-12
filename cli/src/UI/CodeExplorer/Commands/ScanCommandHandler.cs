@@ -37,6 +37,7 @@ public static class ScanCommandHandler
                 logger.LogWarning(
                     "Database schema version is outdated (v{Version} < v{Current}). Automatically performing clean rescan...",
                     client.SchemaVersion, SqliteGraphClient.CurrentSchemaVersion);
+                await client.ClearDatabaseAsync();
             }
 
             var indexer = new WorkspaceIndexer(client, indexerLogger);
