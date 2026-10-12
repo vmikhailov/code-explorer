@@ -24,6 +24,13 @@ import { attachNormalizedCytoscapeWheel } from '../utils/wheelZoom';
 import { DomainGridView } from '../domain/components/DomainGridView';
 import { DomainInspector } from '../domain/components/DomainInspector';
 import { DomainHiddenPanel } from '../domain/components/DomainHiddenPanel';
+import { FloatingPanel } from './FloatingPanel';
+import {
+  LayersIcon,
+  RotateCcwIcon,
+  ChevronUpIcon,
+  ChevronDownIcon,
+} from './Icons';
 import { DomainGroupSummary, PresentationMode } from '../domain/types';
 import { useCommand } from '../commands/CommandContext';
 import {
@@ -1091,7 +1098,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
   // Floating Side Panels Collapse States
   const [isHiddenPanelCollapsed, setIsHiddenPanelCollapsed] = useState(false);
-  const [hiddenSearchQuery, setHiddenSearchQuery] = useState('');
   const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(false);
   const [isEdgeInspectorCollapsed, setIsEdgeInspectorCollapsed] = useState(false);
 
@@ -3258,40 +3264,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     } catch { }
   }, []);
 
-  const filteredHiddenItems = useMemo(() => {
-    const q = hiddenSearchQuery.toLowerCase().trim();
-    const items: Array<{
-      id: string;
-      label: string;
-      kind: EntityKind;
-      kindTag: string;
-      badgeColor: string;
-      reasonTag?: string;
-    }> = [];
-
-    for (const id of hiddenNodeIdSet) {
-      const detail = rawGraph.detailMap.get(id);
-      const label = detail?.displayName || id;
-      if (q && !label.toLowerCase().includes(q)) continue;
-      const kind = detail?.kind || 'Service';
-      const kindTag = detail?.displayTag || (kind === 'ExternalService' ? 'EXT' : kind.toUpperCase().slice(0, 3));
-      const badgeColor = detail?.bgColor || '#6366f1';
-      const ech = detail ? rawGraph.echelonMap.get(id) : undefined;
-      let reasonTag = 'Manual';
-      if (hiddenTypes.has(kind)) {
-        reasonTag = `Category: ${kind}`;
-      } else if (ech !== undefined && hiddenOrbitTiers.has(ech)) {
-        reasonTag = `Orbit ${ech}`;
-      } else if (hideSingleConnectionDbs && kind === 'Database') {
-        reasonTag = '1:1 DB';
-      } else if (hideIsolatedNodes) {
-        reasonTag = 'Isolated';
-      }
-      items.push({ id, label, kind, kindTag, badgeColor, reasonTag });
-    }
-    return items;
-  }, [hiddenNodeIdSet, hiddenSearchQuery, rawGraph.detailMap, rawGraph.echelonMap, hiddenTypes, hiddenOrbitTiers, hideSingleConnectionDbs, hideIsolatedNodes]);
-
   return (
     <div className="domain-map-canvas-container">
       {/* Non-blocking loading overlay during heavy synthesis and layout */}
@@ -4334,208 +4306,136 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       )}
 
       {/* Floating Collapsible Hidden Entities Panel (Clings to Left) */}
-      {hiddenNodeIdSet.size > 0 && (
-        <aside className={`domain-hidden-panel ${isHiddenPanelCollapsed ? 'is-collapsed' : ''}`}>
-          {isHiddenPanelCollapsed ? (
-            <div
-              className="domain-hidden-collapsed-badge"
-              onClick={() => setIsHiddenPanelCollapsed(false)}
-              title={`Click to expand ${hiddenNodeIdSet.size} hidden entities`}
-            >
-              <span className="badge-icon"><EyeOffIcon size={14} /></span>
-              <span className="badge-count">{hiddenNodeIdSet.size}</span>
-              <span className="badge-arrow">▶</span>
-            </div>
-          ) : (
-            <div className="domain-hidden-panel-content">
-              <div className="domain-hidden-panel-header">
-                <div className="hidden-panel-title">
-                  <span className="hidden-panel-icon"><EyeOffIcon size={14} /></span>
-                  <span>Hidden ({hiddenNodeIdSet.size})</span>
-                </div>
-                <div className="hidden-panel-header-actions">
-                  <button
-                    type="button"
-                    className="hidden-panel-restore-all-btn"
-                    onClick={restoreAllHiddenNodes}
-                    title="Restore all hidden entities to graph"
-                  >
-                    ⟲ Restore All
-                  </button>
-                  <button
-                    type="button"
-                    className="hidden-panel-collapse-btn"
-                    onClick={() => setIsHiddenPanelCollapsed(true)}
-                    title="Collapse hidden panel"
-                  >
-                    ◀
-                  </button>
-                </div>
-              </div>
-
-              {hiddenNodeIdSet.size > 4 && (
-                <div className="domain-hidden-search-wrap">
-                  <input
-                    type="text"
-                    className="domain-hidden-search-input"
-                    placeholder="Filter hidden..."
-                    value={hiddenSearchQuery}
-                    onChange={(e) => setHiddenSearchQuery(e.target.value)}
-                  />
-                  {hiddenSearchQuery && (
-                    <button
-                      type="button"
-                      className="domain-hidden-search-clear"
-                      onClick={() => setHiddenSearchQuery('')}
-                      title="Clear filter"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-              )}
-
-              <div className="domain-hidden-list">
-                {filteredHiddenItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className="domain-hidden-list-item"
-                    title={`${item.label} (${item.kind}, ${item.reasonTag}). Click ✕ to restore.`}
-                  >
-                    <span
-                      className="hidden-kind-tag"
-                      style={{ backgroundColor: item.badgeColor }}
-                    >
-                      {item.kindTag}
-                    </span>
-                    <span className="hidden-item-name">{item.label}</span>
-                    {item.reasonTag && item.reasonTag !== 'Manual' && (
-                      <span className="hidden-reason-tag">{item.reasonTag}</span>
-                    )}
-                    <button
-                      type="button"
-                      className="hidden-item-unhide-btn"
-                      onClick={() => unhideNode(item.id)}
-                      title={`Restore ${item.label}`}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-                {filteredHiddenItems.length === 0 && (
-                  <div className="domain-hidden-empty">No matching hidden items</div>
-                )}
-              </div>
-            </div>
-          )}
-        </aside>
-      )}
+      <DomainHiddenPanel
+        nodeDetailMap={rawGraph.detailMap}
+        echelonMap={rawGraph.echelonMap}
+        hiddenNodeIds={hiddenNodeIds}
+        hiddenTypes={hiddenTypes}
+        hiddenOrbitTiers={hiddenOrbitTiers}
+        hideSingleConnectionDbs={hideSingleConnectionDbs}
+        hideIsolatedNodes={hideIsolatedNodes}
+        onUnhideNode={unhideNode}
+        onRestoreAll={restoreAllHiddenNodes}
+        isCollapsed={isHiddenPanelCollapsed}
+        onToggleCollapse={setIsHiddenPanelCollapsed}
+      />
 
       {/* Floating Concentric Orbit Legend HUD (Clings to Bottom-Left) */}
       {layoutName.startsWith('concentric') && orbitLegendItems.length > 0 && (
-        <aside className={`domain-orbit-legend ${!isOrbitLegendOpen ? 'is-collapsed' : ''}`}>
-          <div
-            className="domain-orbit-legend-header"
-            onClick={() => setIsOrbitLegendOpen((prev) => !prev)}
-            title={isOrbitLegendOpen ? 'Collapse Orbit Legend' : 'Expand Orbit Legend'}
-          >
-            <div className="domain-orbit-legend-title">
-              <span className="legend-icon">🪐</span>
-              <span>{isOrbitLegendOpen ? 'Orbit Legend' : `Orbits (${orbitLegendItems.length})`}</span>
-            </div>
-            <div className="domain-orbit-legend-header-actions">
-              {isOrbitLegendOpen && (customOrbitOrder !== null || hiddenOrbitTiers.size > 0) && (
-                <button
-                  type="button"
-                  className="orbit-legend-reset-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleResetOrbitOrder();
-                  }}
-                  title="Reset to auto-calculated layout and show all orbits"
-                >
-                  ↺ Reset
-                </button>
-              )}
-              <span className="legend-toggle">{isOrbitLegendOpen ? '—' : '▲'}</span>
-            </div>
-          </div>
-
-          {isOrbitLegendOpen && (
-            <>
-              <div
-                className="orbit-legend-hint"
-                title="Orbits are ordered from Center (top) to Outer Periphery (bottom). Drag or use ▲/▼ to change orbit radii."
+        <FloatingPanel
+          dock="bottom-left"
+          isCollapsed={!isOrbitLegendOpen}
+          onToggleCollapse={(collapsed) => setIsOrbitLegendOpen(!collapsed)}
+          title="Orbit Legend"
+          icon={<LayersIcon size={14} />}
+          badge={
+            <span
+              className="floating-dock-badge"
+              style={{
+                backgroundColor: 'rgba(56, 189, 248, 0.18)',
+                color: '#38bdf8',
+                border: '1px solid rgba(56, 189, 248, 0.35)',
+                fontSize: '10px',
+                padding: '1px 6px',
+              }}
+            >
+              {orbitLegendItems.length}
+            </span>
+          }
+          headerActions={
+            isOrbitLegendOpen && (customOrbitOrder !== null || hiddenOrbitTiers.size > 0) ? (
+              <button
+                type="button"
+                className="floating-dock-btn action-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleResetOrbitOrder();
+                }}
+                title="Reset to auto-calculated layout and show all orbits"
               >
-                <span>Inner (Center)</span>
-                <span>↕</span>
-                <span>Outer (Periphery)</span>
-              </div>
-              <div className="domain-orbit-legend-body">
-                {orbitLegendItems.map((item, idx) => {
-                  const isOrbitHidden = hiddenOrbitTiers.has(item.levelIndex);
+                <RotateCcwIcon size={11} />
+                <span>Reset</span>
+              </button>
+            ) : undefined
+          }
+          collapsedTitle={`Orbits (${orbitLegendItems.length})`}
+          collapsedIcon={<LayersIcon size={13} />}
+          collapseTooltip="Collapse Orbit Legend"
+          expandTooltip="Expand Orbit Legend"
+          width={280}
+          className="domain-orbit-legend-floating"
+        >
+          <div
+            className="orbit-legend-hint"
+            title="Orbits are ordered from Center (top) to Outer Periphery (bottom). Drag or use ▲/▼ to change orbit radii."
+          >
+            <span>Inner (Center)</span>
+            <span>↕</span>
+            <span>Outer (Periphery)</span>
+          </div>
+          <div className="domain-orbit-legend-body" style={{ maxHeight: 280, overflowY: 'auto' }}>
+            {orbitLegendItems.map((item, idx) => {
+              const isOrbitHidden = hiddenOrbitTiers.has(item.levelIndex);
 
-                  return (
-                    <div
-                      key={item.levelIndex}
-                      className={`domain-orbit-legend-item ${isOrbitHidden ? 'is-orbit-hidden' : ''} ${draggedOrbitIndex === idx ? 'is-dragging' : ''} ${dragOverIndex === idx ? 'is-drag-over' : ''}`}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, idx)}
-                      onDragOver={(e) => handleDragOver(e, idx)}
-                      onDrop={(e) => handleDrop(e, idx)}
-                      onDragEnd={handleDragEnd}
-                      onMouseEnter={() => !isOrbitHidden && highlightOrbitNodes(item.nodeIds)}
-                      onMouseLeave={clearOrbitHighlight}
-                      title={`${item.shortLabel}: ${item.title} (${item.count} nodes). Drag or use ▲/▼ to change orbit order.`}
+              return (
+                <div
+                  key={item.levelIndex}
+                  className={`domain-orbit-legend-item ${isOrbitHidden ? 'is-orbit-hidden' : ''} ${draggedOrbitIndex === idx ? 'is-dragging' : ''} ${dragOverIndex === idx ? 'is-drag-over' : ''}`}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, idx)}
+                  onDragOver={(e) => handleDragOver(e, idx)}
+                  onDrop={(e) => handleDrop(e, idx)}
+                  onDragEnd={handleDragEnd}
+                  onMouseEnter={() => !isOrbitHidden && highlightOrbitNodes(item.nodeIds)}
+                  onMouseLeave={clearOrbitHighlight}
+                  title={`${item.shortLabel}: ${item.title} (${item.count} nodes). Drag or use ▲/▼ to change orbit order.`}
+                >
+                  <button
+                    type="button"
+                    className={`orbit-visibility-btn ${isOrbitHidden ? 'is-hidden' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleOrbitVisibility(item.levelIndex);
+                    }}
+                    title={isOrbitHidden ? `Show entire ${item.title}` : `Hide entire ${item.title}`}
+                  >
+                    {isOrbitHidden ? <EyeOffIcon size={13} /> : <EyeIcon size={13} />}
+                  </button>
+                  <span className="orbit-drag-handle" title="Drag to reorder orbit">⠿</span>
+                  <span className="orbit-legend-pill">{item.shortLabel}</span>
+                  <span className="orbit-legend-title">{item.title}</span>
+                  <span className="orbit-legend-count">{item.count}</span>
+                  <div className="orbit-move-actions">
+                    <button
+                      type="button"
+                      className="orbit-move-btn"
+                      disabled={idx === 0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMoveOrbit(idx, -1);
+                      }}
+                      title="Move toward center (Inner orbit)"
                     >
-                      <button
-                        type="button"
-                        className={`orbit-visibility-btn ${isOrbitHidden ? 'is-hidden' : ''}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleOrbitVisibility(item.levelIndex);
-                        }}
-                        title={isOrbitHidden ? `Show entire ${item.title}` : `Hide entire ${item.title}`}
-                      >
-                        {isOrbitHidden ? <EyeOffIcon size={13} /> : <EyeIcon size={13} />}
-                      </button>
-                      <span className="orbit-drag-handle" title="Drag to reorder orbit">⠿</span>
-                      <span className="orbit-legend-pill">{item.shortLabel}</span>
-                      <span className="orbit-legend-title">{item.title}</span>
-                      <span className="orbit-legend-count">{item.count}</span>
-                      <div className="orbit-move-actions">
-                        <button
-                          type="button"
-                          className="orbit-move-btn"
-                          disabled={idx === 0}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleMoveOrbit(idx, -1);
-                          }}
-                          title="Move toward center (Inner orbit)"
-                        >
-                          ▲
-                        </button>
-                        <button
-                          type="button"
-                          className="orbit-move-btn"
-                          disabled={idx === orbitLegendItems.length - 1}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleMoveOrbit(idx, 1);
-                          }}
-                          title="Move toward periphery (Outer orbit)"
-                        >
-                          ▼
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
-        </aside>
+                      <ChevronUpIcon size={10} />
+                    </button>
+                    <button
+                      type="button"
+                      className="orbit-move-btn"
+                      disabled={idx === orbitLegendItems.length - 1}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMoveOrbit(idx, 1);
+                      }}
+                      title="Move toward periphery (Outer orbit)"
+                    >
+                      <ChevronDownIcon size={10} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </FloatingPanel>
       )}
 
       {/* Floating Node & Edge Inspector Panel */}

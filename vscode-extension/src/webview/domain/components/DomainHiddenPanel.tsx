@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { SelectedNodeDetail, EntityKind } from '../types';
 import { useDomainArchitecture } from '../context/DomainArchitectureContext';
+import { FloatingPanel } from '../../components/FloatingPanel';
+import { EyeOffIcon, RotateCcwIcon, XIcon } from '../../components/Icons';
 
 interface HiddenItem {
   id: string;
@@ -113,96 +115,98 @@ export const DomainHiddenPanel: React.FC<DomainHiddenPanelProps> = (props) => {
   }
 
   return (
-    <aside className={`domain-hidden-panel ${isHiddenPanelCollapsed ? 'is-collapsed' : ''}`}>
-      {isHiddenPanelCollapsed ? (
-        <div
-          className="domain-hidden-collapsed-badge"
-          onClick={() => setIsHiddenPanelCollapsed(false)}
-          title={`Click to expand ${allHiddenItems.length} hidden entities`}
+    <FloatingPanel
+      dock="top-left"
+      isCollapsed={isHiddenPanelCollapsed}
+      onToggleCollapse={setIsHiddenPanelCollapsed}
+      icon={<EyeOffIcon size={14} />}
+      title="Hidden"
+      badge={
+        <span
+          className="floating-dock-badge"
+          style={{
+            backgroundColor: 'rgba(239, 68, 68, 0.2)',
+            color: '#fca5a5',
+            border: '1px solid rgba(239, 68, 68, 0.35)',
+            fontSize: '10px',
+            padding: '1px 6px',
+          }}
         >
-          <span className="badge-icon">👁️‍🗨️</span>
-          <span className="badge-count">{allHiddenItems.length}</span>
-          <span className="badge-arrow">▶</span>
-        </div>
-      ) : (
-        <div className="domain-hidden-panel-content">
-          <div className="domain-hidden-panel-header">
-            <div className="hidden-panel-title">
-              <span className="hidden-panel-icon">👁️‍🗨️</span>
-              <span>Hidden ({allHiddenItems.length})</span>
-            </div>
-            <div className="hidden-panel-header-actions">
+          {allHiddenItems.length}
+        </span>
+      }
+      collapsedTitle={`Hidden (${allHiddenItems.length})`}
+      collapsedIcon={<EyeOffIcon size={13} />}
+      collapseTooltip="Collapse hidden panel"
+      expandTooltip={`Click to expand ${allHiddenItems.length} hidden entities`}
+      headerActions={
+        <button
+          type="button"
+          className="floating-dock-btn action-btn hidden-panel-restore-all-btn"
+          onClick={restoreAllHiddenNodes}
+          title="Restore all hidden entities to graph"
+        >
+          <RotateCcwIcon size={12} />
+          <span>Restore All</span>
+        </button>
+      }
+      subtitle={
+        allHiddenItems.length > 4 ? (
+          <div className="domain-hidden-search-wrap" style={{ width: '100%', margin: 0 }}>
+            <input
+              type="text"
+              className="domain-hidden-search-input"
+              placeholder="Filter hidden..."
+              value={hiddenSearchQuery}
+              onChange={(e) => setHiddenSearchQuery(e.target.value)}
+            />
+            {hiddenSearchQuery && (
               <button
                 type="button"
-                className="hidden-panel-restore-all-btn"
-                onClick={restoreAllHiddenNodes}
-                title="Restore all hidden entities to map"
+                className="domain-hidden-search-clear"
+                onClick={() => setHiddenSearchQuery('')}
+                title="Clear filter"
               >
-                ⟲ Restore All
+                <XIcon size={11} />
               </button>
-              <button
-                type="button"
-                className="hidden-panel-collapse-btn"
-                onClick={() => setIsHiddenPanelCollapsed(true)}
-                title="Collapse hidden panel"
-              >
-                ◀
-              </button>
-            </div>
+            )}
           </div>
-
-          {allHiddenItems.length > 4 && (
-            <div className="domain-hidden-search-wrap">
-              <input
-                type="text"
-                className="domain-hidden-search-input"
-                placeholder="Filter hidden..."
-                value={hiddenSearchQuery}
-                onChange={(e) => setHiddenSearchQuery(e.target.value)}
-              />
-              {hiddenSearchQuery && (
-                <button
-                  type="button"
-                  className="domain-hidden-search-clear"
-                  onClick={() => setHiddenSearchQuery('')}
-                  title="Clear filter"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-          )}
-
-          <div className="domain-hidden-list" style={{ maxHeight: 320, overflowY: 'auto' }}>
-            {filteredHiddenItems.map((item) => (
-              <div
-                key={item.id}
-                className="domain-hidden-list-item"
-                title={`${item.label} (${item.kind}, ${item.reasonTag}). Click ✕ to restore.`}
-              >
-                <span
-                  className="hidden-kind-tag"
-                  style={{ backgroundColor: item.badgeColor }}
-                >
-                  {item.kindTag}
-                </span>
-                <span className="hidden-item-name">{item.label}</span>
-                {item.reasonTag && item.reasonTag !== 'Manual' && (
-                  <span className="hidden-reason-tag">{item.reasonTag}</span>
-                )}
-                <button
-                  type="button"
-                  className="hidden-item-unhide-btn"
-                  onClick={() => unhideNode(item.id)}
-                  title={`Restore ${item.label}`}
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
+        ) : undefined
+      }
+      className="domain-hidden-panel"
+      width={320}
+    >
+      <div className="domain-hidden-list" style={{ maxHeight: 360, overflowY: 'auto' }}>
+        {filteredHiddenItems.map((item) => (
+          <div
+            key={item.id}
+            className="domain-hidden-list-item"
+            title={`${item.label} (${item.kind}, ${item.reasonTag}). Click ✕ to restore.`}
+          >
+            <span
+              className="hidden-kind-tag"
+              style={{ backgroundColor: item.badgeColor }}
+            >
+              {item.kindTag}
+            </span>
+            <span className="hidden-item-name">{item.label}</span>
+            {item.reasonTag && item.reasonTag !== 'Manual' && (
+              <span className="hidden-reason-tag">{item.reasonTag}</span>
+            )}
+            <button
+              type="button"
+              className="hidden-item-unhide-btn"
+              onClick={() => unhideNode?.(item.id)}
+              title={`Restore ${item.label}`}
+            >
+              <XIcon size={11} />
+            </button>
           </div>
-        </div>
-      )}
-    </aside>
+        ))}
+        {filteredHiddenItems.length === 0 && (
+          <div className="domain-hidden-empty">No matching hidden items</div>
+        )}
+      </div>
+    </FloatingPanel>
   );
 };

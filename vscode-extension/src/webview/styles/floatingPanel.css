@@ -1,0 +1,325 @@
+/* ==========================================================================
+   CodeExplorer Unified Floating / Docked Panel Styles
+   ========================================================================== */
+
+@keyframes floatingPanelSlideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes floatingPanelSlideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes floatingPanelFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Base floating panel container */
+.floating-dock-panel {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+  z-index: 25;
+  pointer-events: auto;
+  overflow: hidden;
+  transition: width 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              height 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.2s ease,
+              box-shadow 0.2s ease;
+  box-sizing: border-box;
+}
+
+.floating-dock-panel:hover {
+  border-color: rgba(56, 189, 248, 0.28);
+}
+
+/* Dock corner positions */
+.floating-dock-panel.dock-top-left {
+  top: 16px;
+  left: 16px;
+  animation: floatingPanelSlideInLeft 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.floating-dock-panel.dock-top-right {
+  top: 16px;
+  right: 16px;
+  animation: floatingPanelSlideInRight 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.floating-dock-panel.dock-bottom-left {
+  bottom: 16px;
+  left: 16px;
+  animation: floatingPanelSlideInLeft 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.floating-dock-panel.dock-bottom-right {
+  bottom: 16px;
+  right: 16px;
+  animation: floatingPanelSlideInRight 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Collapsed state */
+.floating-dock-panel.is-collapsed {
+  width: auto !important;
+  max-width: none !important;
+  border-color: rgba(56, 189, 248, 0.32);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+}
+
+/* Collapsed pill */
+.floating-dock-collapsed-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  background: rgba(15, 23, 42, 0.94);
+  user-select: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  font-size: 11px;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.floating-dock-collapsed-pill:hover {
+  background: rgba(56, 189, 248, 0.15);
+}
+
+.floating-dock-collapsed-pill .collapsed-icon {
+  display: inline-flex;
+  align-items: center;
+  color: #38bdf8;
+  flex-shrink: 0;
+}
+
+.floating-dock-collapsed-pill .collapsed-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+  letter-spacing: 0.01em;
+}
+
+.floating-dock-collapsed-pill .collapsed-badge {
+  flex-shrink: 0;
+}
+
+.floating-dock-collapsed-pill .collapsed-chevron {
+  display: inline-flex;
+  align-items: center;
+  color: #38bdf8;
+  opacity: 0.85;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+  flex-shrink: 0;
+}
+
+.floating-dock-collapsed-pill:hover .collapsed-chevron {
+  opacity: 1;
+}
+
+.floating-dock-collapsed-pill .collapsed-close-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px 4px;
+  margin-left: 2px;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  transition: all 0.15s ease;
+}
+
+.floating-dock-collapsed-pill .collapsed-close-btn:hover {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.2);
+}
+
+/* Header container */
+.floating-dock-header {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+  flex-shrink: 0;
+}
+
+/* Main title bar */
+.floating-dock-header-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  min-height: 40px;
+  box-sizing: border-box;
+}
+
+.floating-dock-header-lead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.floating-dock-header-icon {
+  display: inline-flex;
+  align-items: center;
+  color: #38bdf8;
+  flex-shrink: 0;
+}
+
+.floating-dock-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.floating-dock-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #f8fafc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.floating-dock-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 9px;
+  font-weight: 700;
+  color: #ffffff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.floating-dock-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* Subtitle / Metadata row (prevents overlap with control buttons!) */
+.floating-dock-header-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 0 12px 10px 12px;
+  min-width: 0;
+}
+
+/* Control buttons */
+.floating-dock-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 24px;
+  min-width: 24px;
+  padding: 0 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+  line-height: 1;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.floating-dock-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #f8fafc;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.floating-dock-btn.close-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.floating-dock-btn.action-btn {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.1);
+  border-color: rgba(56, 189, 248, 0.25);
+}
+
+.floating-dock-btn.action-btn:hover {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: rgba(56, 189, 248, 0.4);
+  color: #e0f2fe;
+}
+
+/* Body */
+.floating-dock-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 10px 12px;
+}
+
+.floating-dock-panel.no-body-padding > .floating-dock-body {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Custom subtle scrollbar */
+.floating-dock-body::-webkit-scrollbar {
+  width: 5px;
+}
+
+.floating-dock-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.floating-dock-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+.floating-dock-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}

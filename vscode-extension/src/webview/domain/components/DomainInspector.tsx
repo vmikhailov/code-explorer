@@ -1,6 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import { SelectedNodeDetail, SelectedEdgeDetail, DomainProjectInfo, ConnectionDetailItem } from '../types';
 import { useDomainArchitecture } from '../context/DomainArchitectureContext';
+import { FloatingPanel } from '../../components/FloatingPanel';
+import {
+  ChevronRightIcon,
+  ChevronDownIcon,
+  EyeOffIcon,
+  TagIcon,
+  GitBranchIcon,
+  ExternalLinkIcon,
+} from '../../components/Icons';
 
 export interface RawEdgeInfo {
   id: string;
@@ -39,24 +48,6 @@ export interface DomainInspectorProps {
   onOpenFile?: (path: string, line?: number) => void;
   onOpenOverrideModal?: (name: string) => void;
 }
-
-const EyeOffIcon: React.FC<{ size?: number; className?: string }> = ({ size = 12, className = '' }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-    style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 }}
-  >
-    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-    <line x1="1" y1="1" x2="23" y2="23" />
-  </svg>
-);
 
 export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
   let ctx: any = null;
@@ -252,116 +243,89 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
     <>
       {/* Node Inspector */}
       {selectedNode && (
-        <aside className={`domain-inspector-panel ${isInspectorCollapsed ? 'is-collapsed' : ''}`}>
-          {isInspectorCollapsed ? (
-            <div
-              className="domain-inspector-collapsed-badge"
-              onClick={() => setIsInspectorCollapsed(false)}
-              title={`Click to expand details for ${selectedNode.displayName}`}
-            >
-              <span className="inspector-badge" style={{ backgroundColor: selectedNode.bgColor }}>
-                {selectedNode.displayTag}
-              </span>
-              <span className="collapsed-title">{selectedNode.displayName}</span>
-              <span className="collapsed-expand-arrow">▶</span>
+        <FloatingPanel
+          dock="top-right"
+          width={360}
+          maxWidth={420}
+          className="no-body-padding"
+          isCollapsed={isInspectorCollapsed}
+          onToggleCollapse={setIsInspectorCollapsed}
+          onClose={handleClose}
+          closeTooltip="Deselect"
+          collapseTooltip="Collapse inspector"
+          expandTooltip={`Click to expand details for ${selectedNode.displayName}`}
+          title={selectedNode.displayName}
+          badge={
+            <span className="inspector-badge" style={{ backgroundColor: selectedNode.bgColor }}>
+              {selectedNode.displayTag}
+            </span>
+          }
+          headerActions={
+            hideNode ? (
               <button
                 type="button"
-                className="inspector-close-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleClose();
-                }}
-                title="Deselect"
+                className="floating-dock-btn action-btn hide-btn"
+                onClick={() => hideNode(selectedNode.id)}
+                title="Hide this node (Transitive connections bypass it) [Shortcut: H, Del]"
               >
-                ✕
+                <EyeOffIcon size={12} />
+                <span>Hide</span>
               </button>
-            </div>
-          ) : (
-            <>
-              {/* Two-Row Inspector Header */}
-              <div className="domain-inspector-header">
-                {/* Row 1: Badges & Action Buttons */}
-                <div className="domain-inspector-header-top">
-                  <div className="inspector-header-badges">
-                    <span className="inspector-badge" style={{ backgroundColor: selectedNode.bgColor }}>
-                      {selectedNode.displayTag}
-                    </span>
-                    {selectedNode.tierLabel && (
-                      <span
-                        className="inspector-tier-chip"
-                        style={{
-                          color:
-                            selectedNode.tier === 0
-                              ? '#38bdf8'
-                              : selectedNode.tier === 1
-                              ? '#4ade80'
-                              : selectedNode.tier === 2
-                              ? '#fbbf24'
-                              : selectedNode.tier === 3
-                              ? '#c084fc'
-                              : '#94a3b8',
-                        }}
-                        title={`Architectural Echelon: ${selectedNode.tierLabel}`}
-                      >
-                        🎯 {selectedNode.tierLabel}
-                      </span>
-                    )}
-                  </div>
-                  <div className="inspector-header-actions">
-                    {hideNode && (
-                      <button
-                        type="button"
-                        className="inspector-header-icon-btn hide-btn"
-                        onClick={() => hideNode(selectedNode.id)}
-                        title="Hide this node (Transitive connections bypass it) [Shortcut: H, Del]"
-                      >
-                        <EyeOffIcon size={12} />
-                        <span>Hide</span>
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      className="inspector-header-icon-btn collapse-btn"
-                      onClick={() => setIsInspectorCollapsed(true)}
-                      title="Collapse inspector to badge"
-                    >
-                      ◀
-                    </button>
-                    <button
-                      type="button"
-                      className="inspector-header-icon-btn close-btn"
-                      onClick={handleClose}
-                      title="Deselect"
-                    >
-                      ✕
-                    </button>
-                  </div>
+            ) : undefined
+          }
+          subtitle={
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
+              {selectedNode.tierLabel && (
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <span
+                    className="inspector-tier-chip"
+                    style={{
+                      color:
+                        selectedNode.tier === 0
+                          ? '#38bdf8'
+                          : selectedNode.tier === 1
+                          ? '#4ade80'
+                          : selectedNode.tier === 2
+                          ? '#fbbf24'
+                          : selectedNode.tier === 3
+                          ? '#c084fc'
+                          : '#94a3b8',
+                    }}
+                    title={`Architectural Echelon: ${selectedNode.tierLabel}`}
+                  >
+                    {selectedNode.tierLabel}
+                  </span>
                 </div>
-
-                {/* Row 2: Full Title & Metadata Chips */}
-                <div className="domain-inspector-header-info">
-                  <h4 className="inspector-title" title={selectedNode.displayName}>
-                    {selectedNode.displayName}
-                  </h4>
-                  <div className="inspector-meta-row">
-                    {selectedNode.framework && (
-                      <span className="inspector-meta-tag">{selectedNode.framework}</span>
-                    )}
-                    {selectedNode.language && (
-                      <span className="inspector-meta-tag">{selectedNode.language}</span>
-                    )}
-                    {selectedNode.gitBranch && (
-                      <span className="inspector-meta-tag branch">🌿 {selectedNode.gitBranch}</span>
-                    )}
-                    {selectedNode.domain && (
-                      <span className="inspector-meta-tag domain">🏷️ {selectedNode.domain}</span>
-                    )}
-                  </div>
-                </div>
+              )}
+              <div className="inspector-meta-row">
+                {selectedNode.framework && (
+                  <span className="inspector-meta-tag">{selectedNode.framework}</span>
+                )}
+                {selectedNode.language && (
+                  <span className="inspector-meta-tag">{selectedNode.language}</span>
+                )}
+                {selectedNode.gitBranch && (
+                  <span className="inspector-meta-tag branch">
+                    <GitBranchIcon size={11} /> {selectedNode.gitBranch}
+                  </span>
+                )}
+                {selectedNode.domain && (
+                  <span className="inspector-meta-tag domain">
+                    <TagIcon size={11} /> {selectedNode.domain}
+                  </span>
+                )}
               </div>
-
-              {/* Inspector Body */}
-              <div className="inspector-body">
+            </div>
+          }
+          collapsedTitle={selectedNode.displayName}
+          collapsedBadge={
+            <span className="inspector-badge" style={{ backgroundColor: selectedNode.bgColor }}>
+              {selectedNode.displayTag}
+            </span>
+          }
+        >
+          {/* Inspector Body */}
+          <div className="inspector-body">
                 {/* Quick Actions Row */}
                 <div className="inspector-actions">
                   {(selectedNode.kind === 'Service' || selectedNode.kind === 'Ingress') && onFocusInFlow && (
@@ -381,7 +345,7 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                       onClick={() => openOverrideModal(selectedNode.name)}
                       title="Override or reassign service domain and bounded context"
                     >
-                      🏷️ Override Domain
+                      <TagIcon size={12} /> Override Domain
                     </button>
                   )}
                   {selectedNode.primaryFilePath && onOpenFile && (
@@ -391,7 +355,7 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                       onClick={() => onOpenFile(selectedNode.primaryFilePath!, selectedNode.primaryLineStart || 1)}
                       title="Open source file in editor"
                     >
-                      📄 Open Source
+                      <ExternalLinkIcon size={12} /> Open Source
                     </button>
                   )}
                 </div>
@@ -430,7 +394,7 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                         Inbound Calls ({inboundConnections.length})
                       </span>
                       <span className="inspector-section-toggle">
-                        {collapsedSections['inbound'] ? '▶' : '▼'}
+                        {collapsedSections['inbound'] ? <ChevronRightIcon size={12} /> : <ChevronDownIcon size={12} />}
                       </span>
                     </div>
                     {!collapsedSections['inbound'] && (
@@ -479,7 +443,7 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                         Outbound Calls ({outboundConnections.length})
                       </span>
                       <span className="inspector-section-toggle">
-                        {collapsedSections['outbound'] ? '▶' : '▼'}
+                        {collapsedSections['outbound'] ? <ChevronRightIcon size={12} /> : <ChevronDownIcon size={12} />}
                       </span>
                     </div>
                     {!collapsedSections['outbound'] && (
@@ -528,7 +492,7 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                         {selectedNode.kind === 'Database' ? 'Connected Services' : 'Databases'} ({dbConnections.length})
                       </span>
                       <span className="inspector-section-toggle">
-                        {collapsedSections['databases'] ? '▶' : '▼'}
+                        {collapsedSections['databases'] ? <ChevronRightIcon size={12} /> : <ChevronDownIcon size={12} />}
                       </span>
                     </div>
                     {!collapsedSections['databases'] && (
@@ -575,7 +539,7 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                         Topics & Queues ({topicConnections.length})
                       </span>
                       <span className="inspector-section-toggle">
-                        {collapsedSections['topics'] ? '▶' : '▼'}
+                        {collapsedSections['topics'] ? <ChevronRightIcon size={12} /> : <ChevronDownIcon size={12} />}
                       </span>
                     </div>
                     {!collapsedSections['topics'] && (
@@ -622,7 +586,7 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                         Clustered Projects ({selectedNode.projects.length})
                       </span>
                       <span className="inspector-section-toggle">
-                        {collapsedSections['projects'] ? '▶' : '▼'}
+                        {collapsedSections['projects'] ? <ChevronRightIcon size={12} /> : <ChevronDownIcon size={12} />}
                       </span>
                     </div>
                     {!collapsedSections['projects'] && (
@@ -642,7 +606,7 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                                 className="subproject-lib-tag"
                                 style={{ background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8' }}
                               >
-                                🌿 {p.gitBranch}
+                                <GitBranchIcon size={11} /> {p.gitBranch}
                               </span>
                             )}
                           </div>
@@ -662,7 +626,7 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                     >
                       <span className="inspector-section-title">Source Declaration</span>
                       <span className="inspector-section-toggle">
-                        {collapsedSections['source'] ? '▶' : '▼'}
+                        {collapsedSections['source'] ? <ChevronRightIcon size={12} /> : <ChevronDownIcon size={12} />}
                       </span>
                     </div>
                     {!collapsedSections['source'] && (
@@ -672,8 +636,8 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                         onClick={() => onOpenFile?.(selectedNode.primaryFilePath!, selectedNode.primaryLineStart || 1)}
                         title={`Open ${selectedNode.primaryFilePath}${selectedNode.primaryLineStart ? `:${selectedNode.primaryLineStart}` : ''}`}
                       >
-                        <span className="subproject-dot">📄</span>
-                        <span className="subproject-name" style={{ fontFamily: 'monospace', fontSize: '11px' }}>
+                        <ExternalLinkIcon size={11} />
+                        <span className="subproject-name" style={{ fontFamily: 'monospace', fontSize: '11px', marginLeft: 6 }}>
                           {selectedNode.primaryFilePath}
                           {selectedNode.primaryLineStart ? `:${selectedNode.primaryLineStart}` : ''}
                         </span>
@@ -682,99 +646,78 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                   </div>
                 )}
               </div>
-            </>
-          )}
-        </aside>
+        </FloatingPanel>
       )}
 
       {/* Edge / Connection Inspector */}
       {selectedEdge && (
-        <aside className={`domain-inspector-panel domain-edge-inspector-panel ${isEdgeInspectorCollapsed ? 'is-collapsed' : ''}`}>
-          {isEdgeInspectorCollapsed ? (
-            <div
-              className="domain-inspector-collapsed-badge domain-edge-collapsed-badge"
-              onClick={() => setIsEdgeInspectorCollapsed(false)}
-              title={`Click to expand connection: ${selectedEdge.sourceName} ➔ ${selectedEdge.targetName}`}
+        <FloatingPanel
+          dock="top-right"
+          width={360}
+          maxWidth={420}
+          className="no-body-padding domain-edge-inspector-floating-panel"
+          isCollapsed={isEdgeInspectorCollapsed}
+          onToggleCollapse={setIsEdgeInspectorCollapsed}
+          onClose={handleClose}
+          closeTooltip="Deselect Connection"
+          collapseTooltip="Collapse connection inspector"
+          expandTooltip={`Click to expand connection: ${selectedEdge.sourceName} ➔ ${selectedEdge.targetName}`}
+          title={`${selectedEdge.sourceName} ➔ ${selectedEdge.targetName}`}
+          badge={
+            <span
+              className="floating-dock-badge"
+              style={{
+                backgroundColor: selectedEdge.isBidirectional ? 'rgba(56, 189, 248, 0.2)' : 'rgba(251, 191, 36, 0.2)',
+                color: selectedEdge.isBidirectional ? '#38bdf8' : '#fbbf24',
+                border: `1px solid ${selectedEdge.isBidirectional ? 'rgba(56, 189, 248, 0.4)' : 'rgba(251, 191, 36, 0.4)'}`,
+              }}
             >
-              <span className="edge-collapsed-symbol">{selectedEdge.isBidirectional ? '⇄' : '➔'}</span>
-              <span className="collapsed-title">
-                {selectedEdge.sourceName} ➔ {selectedEdge.targetName}
-              </span>
-              <span className="edge-collapsed-count">{selectedEdge.totalInteractions}</span>
-              <span className="collapsed-expand-arrow">▶</span>
-              <button
-                type="button"
-                className="inspector-close-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleClose();
-                }}
-                title="Deselect Connection"
+              {selectedEdge.isBidirectional ? '⇄ Bi-directional' : '➔ Directional'}
+            </span>
+          }
+          subtitle={
+            <div className="inspector-edge-endpoints" style={{ width: '100%', marginTop: 2 }}>
+              <div
+                className="inspector-edge-endpoint-btn"
+                onClick={() => handleSelectNodeById(selectedEdge.sourceId)}
+                title={`Inspect ${selectedEdge.sourceName}`}
               >
-                ✕
-              </button>
-            </div>
-          ) : (
-            <>
-              <div className="domain-inspector-header">
-                {/* Row 1: Connection Type & Actions */}
-                <div className="domain-inspector-header-top">
-                  <span className="inspector-edge-type-chip">
-                    {selectedEdge.isBidirectional ? '⇄ Bi-directional' : '➔ Directional'}
-                  </span>
-                  <div className="inspector-header-actions">
-                    <button
-                      type="button"
-                      className="inspector-header-icon-btn collapse-btn"
-                      onClick={() => setIsEdgeInspectorCollapsed(true)}
-                      title="Collapse connection inspector"
-                    >
-                      ◀
-                    </button>
-                    <button
-                      type="button"
-                      className="inspector-header-icon-btn close-btn"
-                      onClick={handleClose}
-                      title="Deselect Connection"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-
-                {/* Row 2: Source ➔ Target Badges */}
-                <div className="inspector-edge-endpoints">
-                  <div
-                    className="inspector-edge-endpoint-btn"
-                    onClick={() => handleSelectNodeById(selectedEdge.sourceId)}
-                    title={`Inspect ${selectedEdge.sourceName}`}
-                  >
-                    <span
-                      className="inspector-badge"
-                      style={{ backgroundColor: selectedEdge.sourceBgColor, padding: '1px 5px', fontSize: '9px' }}
-                    >
-                      {selectedEdge.sourceTag}
-                    </span>
-                    <span className="endpoint-name">{selectedEdge.sourceName}</span>
-                  </div>
-
-                  <span className="endpoint-arrow">{selectedEdge.isBidirectional ? '⇄' : '➔'}</span>
-
-                  <div
-                    className="inspector-edge-endpoint-btn"
-                    onClick={() => handleSelectNodeById(selectedEdge.targetId)}
-                    title={`Inspect ${selectedEdge.targetName}`}
-                  >
-                    <span
-                      className="inspector-badge"
-                      style={{ backgroundColor: selectedEdge.targetBgColor, padding: '1px 5px', fontSize: '9px' }}
-                    >
-                      {selectedEdge.targetTag}
-                    </span>
-                    <span className="endpoint-name">{selectedEdge.targetName}</span>
-                  </div>
-                </div>
+                <span
+                  className="inspector-badge"
+                  style={{ backgroundColor: selectedEdge.sourceBgColor, padding: '1px 5px', fontSize: '9px' }}
+                >
+                  {selectedEdge.sourceTag}
+                </span>
+                <span className="endpoint-name">{selectedEdge.sourceName}</span>
               </div>
+
+              <span className="endpoint-arrow">{selectedEdge.isBidirectional ? '⇄' : '➔'}</span>
+
+              <div
+                className="inspector-edge-endpoint-btn"
+                onClick={() => handleSelectNodeById(selectedEdge.targetId)}
+                title={`Inspect ${selectedEdge.targetName}`}
+              >
+                <span
+                  className="inspector-badge"
+                  style={{ backgroundColor: selectedEdge.targetBgColor, padding: '1px 5px', fontSize: '9px' }}
+                >
+                  {selectedEdge.targetTag}
+                </span>
+                <span className="endpoint-name">{selectedEdge.targetName}</span>
+              </div>
+            </div>
+          }
+          collapsedTitle={`${selectedEdge.sourceName} ➔ ${selectedEdge.targetName}`}
+          collapsedBadge={
+            <span
+              className="floating-dock-badge"
+              style={{ backgroundColor: 'rgba(56, 189, 248, 0.25)', color: '#38bdf8', padding: '1px 6px', fontSize: '10px' }}
+            >
+              {selectedEdge.totalInteractions}
+            </span>
+          }
+        >
 
               {/* Edge Metrics Summary */}
               <div className="inspector-section" style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
@@ -936,9 +879,7 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                   </button>
                 </div>
               )}
-            </>
-          )}
-        </aside>
+        </FloatingPanel>
       )}
     </>
   );
