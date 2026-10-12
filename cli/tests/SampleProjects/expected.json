@@ -89,6 +89,16 @@
     "entityKind": "Library",
     "isLibrary": true
   },
+  "java/kafka-service": {
+    "projectType": "java",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
+  "java/rabbitmq-service": {
+    "projectType": "java",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
   "java/spring-service": {
     "projectType": "java",
     "entityKind": "Service",

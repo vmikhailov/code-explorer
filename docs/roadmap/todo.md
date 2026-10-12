@@ -214,7 +214,7 @@ This document tracks active epics, immediate architectural refactoring plans, an
 | **7.2** | Go/Egress | Go HTTP Clients (`net/http`, `resty`) & Postgres Driver (`pgx`) | High | ✅ Completed |
 | **7.3** | Python/Ingress | Python Web Frameworks (`flask`, `django`) route & blueprint mapping | High | ✅ Completed |
 | **7.4** | Python/Egress | Python HTTP Clients (`requests`, `httpx`, `aiohttp`) service-to-service calls | High | ✅ Completed |
-| **7.5** | Java/Messaging | Java Messaging (`kafka` / Spring Kafka, `rabbitmq` / Spring AMQP) | High | ⏳ In Progress |
+| **7.5** | Java/Messaging | Java Messaging (`kafka` / Spring Kafka, `rabbitmq` / Spring AMQP) | High | ✅ Completed |
 
 ---
 
@@ -262,11 +262,11 @@ This document tracks active epics, immediate architectural refactoring plans, an
   - Sample project: `cli/tests/SampleProjects/python/http-clients-service`.
   - Test suite in `PythonHttpClientTests.cs`.
 
-### Phase 7.5: Java Messaging & Event-Driven Egress/Ingress — Target `v1.37.10`
-- [ ] **Apache Kafka / Spring Kafka (`org.apache.kafka`, `org.springframework.kafka`)**:
+### Phase 7.5: Java Messaging & Event-Driven Egress/Ingress — Target `v1.37.10` ✅ DELIVERED
+- [x] **Apache Kafka / Spring Kafka (`org.apache.kafka`, `org.springframework.kafka`)**:
   - `SpringKafkaLibraryParser`: `@KafkaListener(topics = "...")`, `KafkaTemplate.send("topic", ...)`.
-- [ ] **RabbitMQ / Spring AMQP (`com.rabbitmq`, `org.springframework.amqp`)**:
+- [x] **RabbitMQ / Spring AMQP (`com.rabbitmq`, `org.springframework.amqp`)**:
   - `SpringRabbitMqLibraryParser`: `@RabbitListener(queues = "...")`, `RabbitTemplate.convertAndSend(...)`.
-- [ ] **Artifacts & Verification**:
+- [x] **Artifacts & Verification**:
   - Sample projects: `cli/tests/SampleProjects/java/kafka-service`, `rabbitmq-service`.
-  - Test suite.
+  - Test suite in `JavaMessagingTests.cs`.

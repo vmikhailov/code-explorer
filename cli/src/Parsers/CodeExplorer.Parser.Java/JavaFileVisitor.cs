@@ -25,6 +25,12 @@ public class JavaFileVisitor : BaseParserVisitor
 
     protected override string? MapNodeType(Node node)
     {
+        foreach (var libParser in LibraryParsers)
+        {
+            var kind = libParser.MapNodeType(node, Context!);
+            if (kind != null) return kind;
+        }
+
         if (Libraries.SpringMvcLibraryParser.IsSpringRouteAnnotation(node))
         {
             return OntologyConstants.NodeLabels.EntryPoint;
@@ -73,6 +79,12 @@ public class JavaFileVisitor : BaseParserVisitor
 
     protected override string? ExtractIdentifier(Node node)
     {
+        foreach (var libParser in LibraryParsers)
+        {
+            var ident = libParser.ExtractIdentifier(node, Context!, ProjectName, RelativePath);
+            if (ident != null) return ident;
+        }
+
         if (Libraries.SpringMvcLibraryParser.IsSpringRouteAnnotation(node))
         {
             return Libraries.SpringMvcLibraryParser.ExtractRoute(node);

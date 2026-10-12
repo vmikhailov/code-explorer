@@ -40,13 +40,15 @@ public class JavaParser : IProjectParser, IFileParser
 
     public IReadOnlyList<ISemanticExtension> SemanticExtensions { get; } =
     [
-        new Libraries.SpringMvcLibraryParser(),
-        new Libraries.SpringGraphQlLibraryParser(),
         new Libraries.GrpcJavaLibraryParser(),
-        new Libraries.SpringEventsLibraryParser(),
-        new Libraries.JpaLibraryParser(),
+        new Libraries.HttpClientJavaLibraryParser(),
         new Libraries.JdbcTemplateLibraryParser(),
-        new Libraries.HttpClientJavaLibraryParser()
+        new Libraries.JpaLibraryParser(),
+        new Libraries.SpringEventsLibraryParser(),
+        new Libraries.SpringKafkaLibraryParser(),
+        new Libraries.SpringMvcLibraryParser(),
+        new Libraries.SpringRabbitMqLibraryParser(),
+        new Libraries.SpringGraphQlLibraryParser()
     ];
 
     public bool UsesTreeSitter => true;
@@ -81,8 +83,6 @@ public class JavaParser : IProjectParser, IFileParser
         new PackageDescriptor("mybatis", "MyBatis", LibraryRole.OrmOrDatabase, "library", ["org.mybatis", "org.apache.ibatis"]),
 
         // Messaging & Events
-        new PackageDescriptor("kafka", "Apache Kafka", LibraryRole.MessageBroker, "library", ["org.apache.kafka", "org.springframework.kafka"]),
-        new PackageDescriptor("rabbitmq", "RabbitMQ", LibraryRole.MessageBroker, "library", ["com.rabbitmq", "org.springframework.amqp"]),
         new PackageDescriptor("pulsar", "Apache Pulsar", LibraryRole.MessageBroker, "library", ["org.apache.pulsar"]),
         new PackageDescriptor("activemq", "ActiveMQ", LibraryRole.MessageBroker, "library", ["org.apache.activemq"]),
 
