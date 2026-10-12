@@ -217,7 +217,7 @@ This document tracks active epics, immediate architectural refactoring plans, an
 | **7.5** | Java/Messaging | Java Messaging (`kafka` / Spring Kafka, `rabbitmq` / Spring AMQP) | High | ✅ Completed |
 | **7.6** | TS/HTTP | Node.js HTTP Clients (`request`, `undici`, `urllib`) Egress | High | ✅ Completed |
 | **7.7** | TS/Analytics | Analytical Databases (`bigquery`, `clickhouse`) Query & Lineage | High | ✅ Completed |
-| **7.8** | TS/Cloud | Cloud SDKs (`aws`, `azure`, `stripe`) Services & Queues | High | ⏳ Pending |
+| **7.8** | TS/Cloud | Cloud SDKs (`aws`, `azure`, `stripe`) Services & Queues | High | ✅ Completed |
 | **7.9** | TS/Frontend | Frontend Frameworks (`react`, `vue`, `angular`, `svelte`, `vite`) | Medium | ⏳ Pending |
 | **7.10** | TS/Testing | Test Frameworks (`jest`, `vitest`, `mocha`, `cypress`, `playwright`) | Medium | ⏳ Pending |
 
@@ -293,12 +293,12 @@ This document tracks active epics, immediate architectural refactoring plans, an
   - Sample project: `cli/tests/SampleProjects/typescript/olap-database-service`.
   - Unit test suite: `TypeScriptOlapDatabaseTests.cs`.
 
-### Phase 7.8: TypeScript Cloud SDKs (AWS, Azure, Stripe) — Target `v1.37.14` ⏳ PENDING
-- [ ] **Cloud SDKs (`aws`, `azure`, `stripe`)**:
+### Phase 7.8: TypeScript Cloud SDKs (AWS, Azure, Stripe) — Target `v1.37.14` ✅ DELIVERED
+- [x] **Cloud SDKs (`aws`, `azure`, `stripe`)**:
   - `AwsSdkLibraryParser`: `@aws-sdk/client-s3`, `@aws-sdk/client-sqs`, `@aws-sdk/client-dynamodb`, SQS queue detection, S3 bucket references.
   - `AzureSdkLibraryParser`: `@azure/service-bus`, `@azure/storage-blob`, `@azure/cosmos`, queue/topic bindings.
   - `StripeLibraryParser`: `stripe.charges.create`, `stripe.paymentIntents.create` with `api.stripe.com` endpoint mapping.
-- [ ] **Artifacts & Verification**:
+- [x] **Artifacts & Verification**:
   - Sample project: `cli/tests/SampleProjects/typescript/cloud-sdk-service`.
   - Unit test suite: `TypeScriptCloudSdkTests.cs`.
 

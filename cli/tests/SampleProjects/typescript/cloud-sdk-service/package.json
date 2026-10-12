@@ -1,0 +1,13 @@
+{
+  "name": "cloud-sdk-service",
+  "version": "1.0.0",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.500.0",
+    "@aws-sdk/client-s3": "^3.500.0",
+    "@aws-sdk/client-sqs": "^3.500.0",
+    "@azure/cosmos": "^4.0.0",
+    "@azure/service-bus": "^7.9.0",
+    "@azure/storage-blob": "^12.17.0",
+    "stripe": "^14.14.0"
+  }
+}

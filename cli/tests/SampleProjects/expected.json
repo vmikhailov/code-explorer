@@ -179,6 +179,11 @@
     "entityKind": "CliTool",
     "isLibrary": false
   },
+  "typescript/cloud-sdk-service": {
+    "projectType": "typescript",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
   "typescript/express-service": {
     "projectType": "typescript",
     "entityKind": "Service",

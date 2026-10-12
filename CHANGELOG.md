@@ -5,6 +5,17 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.37.14] - 2026-10-12
+
+### Added
+- **TypeScript Cloud SDK Semantic Extensions (Stripe, AWS SDK, Azure SDK)**:
+  - Added AST semantic extensions for major cloud SDKs: `stripe` (`@stripe/*`), AWS SDK v2/v3 (`aws-sdk`, `@aws-sdk/*`), and Azure SDK (`@azure/*`).
+  - **Stripe**: Resolves dynamic API resource invocations (`stripe.paymentIntents.create`, `charges.create`, `checkout.sessions.create`, etc.) to canonical `api.stripe.com` endpoints with `:CALLS_ENDPOINT` edges.
+  - **AWS SDK**: Extracts SQS queue URLs and names (`SendMessageCommand`, `ReceiveMessageCommand`), emitting `:PUBLISHES_TO` / `:SUBSCRIBES_TO` edges; detects S3 bucket operations (`PutObjectCommand`); and indexes DynamoDB tables (`PutItemCommand`, `GetItemCommand`) as `Query` nodes.
+  - **Azure SDK**: Extracts Service Bus queue/topic bindings (`createSender`, `createReceiver`) with bidirectional pub/sub edges, tracks Blob Storage containers (`getContainerClient`), and maps Cosmos DB container operations (`.container(...)`) to semantic queries.
+
+---
+
 ## [1.37.13] - 2026-10-12
 
 ### Added

@@ -42,12 +42,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new PackageDescriptor("vitest", "Vitest", LibraryRole.TestFramework, "library", ["vitest", "@vitest/*"]),
         new PackageDescriptor("mocha", "Mocha", LibraryRole.TestFramework, "library", ["mocha", "@types/mocha"]),
         new PackageDescriptor("cypress", "Cypress", LibraryRole.TestFramework, "library", ["cypress"]),
-        new PackageDescriptor("playwright", "Playwright", LibraryRole.TestFramework, "library", ["@playwright/test", "playwright"]),
-
-        // Generic Cloud Services
-        new PackageDescriptor("stripe", "Stripe", LibraryRole.CloudSdk, "library", ["stripe"]),
-        new PackageDescriptor("aws", "AWS", LibraryRole.CloudSdk, "library", ["aws-sdk", "@aws-sdk/*"]),
-        new PackageDescriptor("azure", "Azure", LibraryRole.CloudSdk, "library", ["@azure/*"])
+        new PackageDescriptor("playwright", "Playwright", LibraryRole.TestFramework, "library", ["@playwright/test", "playwright"])
         */
     }
 
@@ -90,7 +85,10 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new Libraries.SignalRLibraryParser(),
         new Libraries.GraphQLClientLibraryParser(),
         new Libraries.ClickHouseLibraryParser(),
-        new Libraries.BigQueryLibraryParser()
+        new Libraries.BigQueryLibraryParser(),
+        new Libraries.StripeLibraryParser(),
+        new Libraries.AwsSdkLibraryParser(),
+        new Libraries.AzureSdkLibraryParser()
     ];
 
     public bool UsesTreeSitter => true;
