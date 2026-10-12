@@ -17,8 +17,7 @@ public class AngularHttpLibraryParser : ISemanticExtension
     [
         "@angular/common/http",
         "@angular/common/http/*",
-        "@angular/common",
-        "@angular/core"
+        "@angular/common"
     ];
 
     public bool IsImplemented => true;

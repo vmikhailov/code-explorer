@@ -302,18 +302,18 @@ This document tracks active epics, immediate architectural refactoring plans, an
   - Sample project: `cli/tests/SampleProjects/typescript/cloud-sdk-service`.
   - Unit test suite: `TypeScriptCloudSdkTests.cs`.
 
-### Phase 7.9: Frontend Frameworks & UI Architecture — Target `v1.37.15` ⏳ PENDING
-- [ ] **Frontend Frameworks (`react`, `vue`, `angular`, `svelte`, `vite`)**:
+### Phase 7.9: Frontend Frameworks & UI Architecture — Target `v1.37.16` ✅ DELIVERED
+- [x] **Frontend Frameworks (`react`, `vue`, `angular`, `svelte`, `vite`)**:
   - `ReactLibraryParser`: Function & class components, hooks (`useState`, `useEffect`), router links.
   - `VueLibraryParser`: `defineComponent`, Vue template bindings.
   - `AngularCoreLibraryParser`: `@Component`, `@NgModule`, dependency injection bindings.
   - `SvelteLibraryParser`: Svelte component script blocks, stores.
   - `ViteLibraryParser`: `defineConfig` build configuration.
-- [ ] **Artifacts & Verification**:
+- [x] **Artifacts & Verification**:
   - Sample projects: `cli/tests/SampleProjects/typescript/frontend-apps`.
   - Unit test suite: `TypeScriptFrontendFrameworkTests.cs`.
 
-### Phase 7.10: JavaScript / TypeScript Testing Frameworks — Target `v1.37.16` ⏳ PENDING
+### Phase 7.10: JavaScript / TypeScript Testing Frameworks — Target `v1.37.17` ⏳ PENDING
 - [ ] **Test Frameworks (`jest`, `vitest`, `mocha`, `cypress`, `playwright`)**:
   - `JestVitestLibraryParser`: `describe`, `test`, `it` test suite & case discovery, `is_test` annotation.
   - `MochaLibraryParser`: `describe`, `it`, suite bindings.

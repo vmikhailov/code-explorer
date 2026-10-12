@@ -5,6 +5,19 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.37.16] - 2026-10-12
+
+### Added
+- **TypeScript Frontend Framework Semantic Extensions (React, Vue, Angular Core, Svelte, Vite)**:
+  - Added AST semantic extensions for major frontend application frameworks and build tooling: `react`, `react-dom`, `vue`, `@angular/core`, `svelte`, and `vite`.
+  - **React**: Detects root rendering entry points (`createRoot`, `ReactDOM.render`), resolving root JSX elements and `React.createElement` references; recursively extracts dynamically imported components inside `React.lazy(() => import(...))` with `:DEPENDS_ON` edges.
+  - **Vue**: Discovers application mount entry points (`createApp().mount`, `new Vue().$mount`) with root component dependencies, and parses dynamic chunk boundaries via `defineAsyncComponent(() => import(...))`.
+  - **Angular Core**: Identifies `@Component` and `@NgModule` decorators linked to class declarations via `:TRIGGERS` edges, resolves external template files via raw `templateUrl` relative path dependencies, and tracks standalone/module bootstrapping (`bootstrapApplication`, `bootstrapModule`).
+  - **Svelte**: Recognizes modern Svelte 5 (`mount(App, ...)`) and legacy Svelte 3/4 (`new App(...)`) application mounting entry points with root component relationships.
+  - **Vite**: Analyzes `defineConfig(...)` build configurations as architectural entry points and registers configured build plugins (e.g., `react()`, `vue()`) as configuration dependencies.
+
+---
+
 ## [1.37.15] - 2026-10-12
 
 ### Fixed

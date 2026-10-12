@@ -184,6 +184,11 @@
     "entityKind": "Service",
     "isLibrary": false
   },
+  "typescript/frontend-apps": {
+    "projectType": "typescript",
+    "entityKind": "App",
+    "isLibrary": false
+  },
   "typescript/express-service": {
     "projectType": "typescript",
     "entityKind": "Service",

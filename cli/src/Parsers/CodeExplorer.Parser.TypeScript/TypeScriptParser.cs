@@ -30,13 +30,6 @@ public class TypeScriptParser : IProjectParser, IFileParser
 
         /*
         // Unimplemented / Backlog packages (commented out until AST semantic extensions are implemented):
-        // Frontend Web Frameworks
-        new PackageDescriptor("react", "React", LibraryRole.FrontendFramework, "library", ["react", "react-dom"]),
-        new PackageDescriptor("vue", "Vue", LibraryRole.FrontendFramework, "library", ["vue"]),
-        new PackageDescriptor("angular", "Angular", LibraryRole.FrontendFramework, "library", ["@angular/core"]),
-        new PackageDescriptor("svelte", "Svelte", LibraryRole.FrontendFramework, "library", ["svelte"]),
-        new PackageDescriptor("vite", "Vite", LibraryRole.FrontendFramework, "library", ["vite"]),
-
         // Test Frameworks
         new PackageDescriptor("jest", "Jest", LibraryRole.TestFramework, "library", ["jest", "@types/jest", "ts-jest", "babel-jest"]),
         new PackageDescriptor("vitest", "Vitest", LibraryRole.TestFramework, "library", ["vitest", "@vitest/*"]),
@@ -88,7 +81,12 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new Libraries.BigQueryLibraryParser(),
         new Libraries.StripeLibraryParser(),
         new Libraries.AwsSdkLibraryParser(),
-        new Libraries.AzureSdkLibraryParser()
+        new Libraries.AzureSdkLibraryParser(),
+        new Libraries.ReactLibraryParser(),
+        new Libraries.VueLibraryParser(),
+        new Libraries.AngularCoreLibraryParser(),
+        new Libraries.SvelteLibraryParser(),
+        new Libraries.ViteLibraryParser()
     ];
 
     public bool UsesTreeSitter => true;
