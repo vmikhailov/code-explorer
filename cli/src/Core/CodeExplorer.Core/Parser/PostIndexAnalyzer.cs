@@ -18,19 +18,26 @@ public record CanonicalizeDatabasesResult(int CanonicalNodesCount, int Materiali
 
 public class PostIndexAnalyzer(IGraphClient db)
 {
-    public async Task RunAsync(string workspaceId)
+    public async Task RunAsync(string workspaceId, ParsingContext? ctx = null)
     {
         var widPrefix = string.IsNullOrEmpty(workspaceId) ? "" : (workspaceId.EndsWith(':') ? workspaceId : workspaceId + ":");
 
+        ctx?.Log("[PostIndexAnalyzer] Canonicalizing databases across workspace...");
         await CanonicalizeDatabasesAsync(db, widPrefix);
+        ctx?.Log("[PostIndexAnalyzer] Normalizing architectural edges...");
         await NormalizeEdgesAsync(db, widPrefix);
+        ctx?.Log("[PostIndexAnalyzer] Purging phantom external services...");
         await PurgePhantomExternalServicesAsync(db, widPrefix);
+        ctx?.Log("[PostIndexAnalyzer] Deduplicating project nodes...");
         await DeduplicateProjectNodesAsync(db, widPrefix);
 
+        ctx?.Log("[PostIndexAnalyzer] Loading post-index graph reachability data...");
         var graphData = await db.LoadPostIndexGraphDataAsync(widPrefix);
         if (graphData.CallsAdjacency.Count > 0 || graphData.Sinks.Count > 0 || graphData.Callers.Count > 0)
         {
+            ctx?.Log("[PostIndexAnalyzer] Analyzing call paths and external API dependencies...");
             var result = Analyze(graphData, widPrefix);
+            ctx?.Log("[PostIndexAnalyzer] Saving reachability analysis results to database...");
             await db.SavePostIndexResultsAsync(widPrefix, result);
         }
         else
@@ -206,29 +213,40 @@ public class PostIndexAnalyzer(IGraphClient db)
         allCombinedRels.AddRange(lateBoundRels);
         allCombinedRels.AddRange(ctx.TreeRelationships);
 
+        ctx.Log("[PostIndexAnalyzer] Building file-to-project map...");
+        var fileToProject = Layer2ProjectParser.BuildFileToProjectMap(
+            l4Result.Prev.Prev.Prev.Files,
+            l4Result.Prev.Prev.Projects
+        );
+
         // Canonicalize databases and link projects in graph
+        ctx.Log("[PostIndexAnalyzer] Canonicalizing databases and linking projects...");
         var (canonicalDbRels, rawToCanonicalDbMap) = await CanonicalizeDatabasesInMemoryAsync(
             ctx,
             l4Result,
-            allCombinedRels
+            allCombinedRels,
+            fileToProject
         );
         allCombinedRels.AddRange(canonicalDbRels);
 
+        ctx.Log("[PostIndexAnalyzer] Materializing direct project relationships...");
         var directProjectRels = MaterializeDirectProjectRelationships(
             l4Result.Prev.Prev.Projects,
             l4Result.Prev.Prev.Prev.Files,
             allCombinedRels,
-            dbCanonicalMap: rawToCanonicalDbMap
+            dbCanonicalMap: rawToCanonicalDbMap,
+            prebuiltFileToProject: fileToProject
         );
 
         if (directProjectRels.Count > 0)
         {
-            ctx.LogDebug($"[PostIndexAnalyzer] Materializing {directProjectRels.Count} direct project relationships into SQLite graph...");
+            ctx.Log($"[PostIndexAnalyzer] Uploading {directProjectRels.Count} direct project relationships...");
             await ctx.DbClient.UploadRelationshipsAsync(directProjectRels);
             ctx.AddRelsCount(directProjectRels.Count);
             allCombinedRels.AddRange(directProjectRels);
         }
 
+        ctx.Log("[PostIndexAnalyzer] Materializing transitive semantic relationships...");
         var liftedSemanticRels = LiftTransitiveSemanticRelations(
             l4Result.Prev.Prev.Projects,
             allCombinedRels,
@@ -236,12 +254,13 @@ public class PostIndexAnalyzer(IGraphClient db)
         );
         if (liftedSemanticRels.Count > 0)
         {
-            ctx.LogDebug($"[PostIndexAnalyzer] Materializing {liftedSemanticRels.Count} transitive semantic relationships into SQLite graph...");
+            ctx.Log($"[PostIndexAnalyzer] Uploading {liftedSemanticRels.Count} transitive semantic relationships...");
             await ctx.DbClient.UploadRelationshipsAsync(liftedSemanticRels);
             ctx.AddRelsCount(liftedSemanticRels.Count);
         }
 
         // Classify projects and persist layer metadata into SQLite nodes
+        ctx.Log($"[PostIndexAnalyzer] Classifying architectural layers for {l4Result.Prev.Prev.Projects.Count} projects...");
         var classifierItems = l4Result.Prev.Prev.Projects.Select(p =>
         {
             var allChildren = new List<IOntologyNode>();
@@ -347,10 +366,12 @@ public class PostIndexAnalyzer(IGraphClient db)
 
         if (updatedProjectNodes.Count > 0)
         {
+            ctx.Log($"[PostIndexAnalyzer] Uploading {updatedProjectNodes.Count} classified project nodes...");
             await ctx.DbClient.UploadNodesAsync(updatedProjectNodes);
         }
 
         // Normalize edges in SQLite graph database
+        ctx.Log("[PostIndexAnalyzer] Normalizing architectural edges and cleaning database...");
         await NormalizeEdgesAsync(ctx.DbClient, widPrefix, ctx.CancellationToken);
         await PurgePhantomExternalServicesAsync(ctx.DbClient, widPrefix, ctx.CancellationToken);
         await DeduplicateProjectNodesAsync(ctx.DbClient, widPrefix, ctx.CancellationToken);
@@ -363,7 +384,8 @@ public class PostIndexAnalyzer(IGraphClient db)
         IReadOnlyList<FileNode> files,
         IReadOnlyList<Relationship> allRelationships,
         IReadOnlyDictionary<string, string>? nodeKindsById = null,
-        IReadOnlyDictionary<string, string>? dbCanonicalMap = null)
+        IReadOnlyDictionary<string, string>? dbCanonicalMap = null,
+        IReadOnlyDictionary<string, ProjectNode>? prebuiltFileToProject = null)
     {
         var materializedRels = new List<Relationship>();
         var existingEdges = new HashSet<(string From, string To, string Kind)>(
@@ -371,19 +393,9 @@ public class PostIndexAnalyzer(IGraphClient db)
         );
 
         var projList = projects.ToList();
-        var fileToProject = new Dictionary<string, ProjectNode>(StringComparer.OrdinalIgnoreCase);
-        foreach (var file in files)
-        {
-            var p = projList.FirstOrDefault(pr => Layer2ProjectParser.IsEnclosedInProject(file, pr, projList));
-            if (p != null)
-            {
-                fileToProject[file.Id] = p;
-                if (!string.IsNullOrEmpty(file.Path))
-                {
-                    fileToProject[file.Path] = p;
-                }
-            }
-        }
+        var fileToProject = prebuiltFileToProject != null
+            ? (prebuiltFileToProject as Dictionary<string, ProjectNode> ?? new Dictionary<string, ProjectNode>(prebuiltFileToProject, StringComparer.OrdinalIgnoreCase))
+            : Layer2ProjectParser.BuildFileToProjectMap(files, projList);
 
         var nodeToProject = new Dictionary<string, ProjectNode>(StringComparer.OrdinalIgnoreCase);
         foreach (var p in projList)
@@ -1500,7 +1512,8 @@ public class PostIndexAnalyzer(IGraphClient db)
     public static async Task<(List<Relationship> CanonicalRels, Dictionary<string, string> RawToCanonicalMap)> CanonicalizeDatabasesInMemoryAsync(
         ParsingContext ctx,
         Layer4Result l4Result,
-        List<Relationship> allRelationships)
+        List<Relationship> allRelationships,
+        IReadOnlyDictionary<string, ProjectNode>? prebuiltFileToProject = null)
     {
         var rawToCanonical = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var canonicalDbNodes = new Dictionary<string, DatabaseNode>(StringComparer.OrdinalIgnoreCase);
@@ -1763,19 +1776,9 @@ public class PostIndexAnalyzer(IGraphClient db)
         // 3. Link projects to canonical database nodes
         var projects = l4Result.Prev.Prev.Projects;
         var files = l4Result.Prev.Prev.Prev.Files;
-        var fileToProject = new Dictionary<string, ProjectNode>(StringComparer.OrdinalIgnoreCase);
-        foreach (var file in files)
-        {
-            var p = projects.FirstOrDefault(pr => Layer2ProjectParser.IsEnclosedInProject(file, pr, projects));
-            if (p != null)
-            {
-                fileToProject[file.Id] = p;
-                if (!string.IsNullOrEmpty(file.Path))
-                {
-                    fileToProject[file.Path] = p;
-                }
-            }
-        }
+        var fileToProject = prebuiltFileToProject != null
+            ? (prebuiltFileToProject as Dictionary<string, ProjectNode> ?? new Dictionary<string, ProjectNode>(prebuiltFileToProject, StringComparer.OrdinalIgnoreCase))
+            : Layer2ProjectParser.BuildFileToProjectMap(files, projects);
 
         var canonicalRels = new List<Relationship>();
         var seen = new HashSet<(string From, string To)>();
@@ -2265,9 +2268,11 @@ public class PostIndexAnalyzer(IGraphClient db)
         string widPrefix,
         CancellationToken cancellationToken = default)
     {
-        // 1. Query all nodes to determine kind and whether project is library
+        // 1. Query architectural/macro nodes to determine kind and whether project is library
         var nodeMap = new Dictionary<string, (string Kind, bool IsLibrary)>(StringComparer.OrdinalIgnoreCase);
-        var nodesJson = await db.ExecuteQueryAsync("MATCH (n) RETURN n.id AS id, labels(n) AS lbl, n.is_library AS is_lib, n.role AS role", null, cancellationToken);
+        var nodesJson = await db.ExecuteQueryAsync(
+            "MATCH (n) WHERE n.kind IN ['Project', 'Database', 'Topic', 'Endpoint', 'EntryPoint', 'ExternalService', 'CloudService'] RETURN n.id AS id, labels(n) AS lbl, n.is_library AS is_lib, n.role AS role",
+            null, cancellationToken);
         using (var nodesDoc = JsonDocument.Parse(nodesJson))
         {
             foreach (var row in nodesDoc.RootElement.EnumerateArray())
@@ -2304,6 +2309,7 @@ public class PostIndexAnalyzer(IGraphClient db)
         using (var edgesDoc = JsonDocument.Parse(edgesJson))
         {
             var updatedCount = 0;
+            var updates = new List<(string NormalizedKind, string PropsJson, string Src, string Tgt, string RawKind)>();
 
             foreach (var row in edgesDoc.RootElement.EnumerateArray())
             {
@@ -2370,19 +2376,28 @@ public class PostIndexAnalyzer(IGraphClient db)
                     props["category"] = category;
 
                     var propsJson = JsonSerializer.Serialize(props);
-
-                    await db.ExecuteWriteAsync(
-                        "UPDATE OR IGNORE edges SET kind = @normalizedKind, properties = @propsJson WHERE from_id = @src AND to_id = @tgt AND kind = @rawKind;",
-                        new
-                        {
-                            normalizedKind,
-                            propsJson,
-                            src,
-                            tgt,
-                            rawKind
-                        }, cancellationToken);
-                    updatedCount++;
+                    updates.Add((normalizedKind, propsJson, src, tgt, rawKind));
                 }
+            }
+
+            const int updateBatchSize = 100;
+            for (int i = 0; i < updates.Count; i += updateBatchSize)
+            {
+                var chunk = updates.Skip(i).Take(updateBatchSize).ToList();
+                var sb = new System.Text.StringBuilder(chunk.Count * 120);
+                var paramDict = new Dictionary<string, object>();
+                for (int j = 0; j < chunk.Count; j++)
+                {
+                    var u = chunk[j];
+                    sb.AppendLine($"UPDATE OR IGNORE edges SET kind = @k{j}, properties = @p{j} WHERE from_id = @s{j} AND to_id = @t{j} AND kind = @rk{j};");
+                    paramDict[$"k{j}"] = u.NormalizedKind;
+                    paramDict[$"p{j}"] = u.PropsJson;
+                    paramDict[$"s{j}"] = u.Src;
+                    paramDict[$"t{j}"] = u.Tgt;
+                    paramDict[$"rk{j}"] = u.RawKind;
+                }
+                await db.ExecuteWriteAsync(sb.ToString(), paramDict, cancellationToken);
+                updatedCount += chunk.Count;
             }
 
             return updatedCount;
@@ -2685,11 +2700,20 @@ public class PostIndexAnalyzer(IGraphClient db)
             }
         }
 
-        foreach (var id in idsToDelete)
+        const int deleteBatchSize = 100;
+        for (int i = 0; i < idsToDelete.Count; i += deleteBatchSize)
         {
-            await db.ExecuteWriteAsync("DELETE FROM edges WHERE from_id = @id OR to_id = @id;", new { id },
-                cancellationToken);
-            await db.ExecuteWriteAsync("DELETE FROM nodes WHERE id = @id;", new { id }, cancellationToken);
+            var chunk = idsToDelete.Skip(i).Take(deleteBatchSize).ToList();
+            var paramDict = new Dictionary<string, object>();
+            var inParams = string.Join(", ", chunk.Select((id, idx) =>
+            {
+                var p = $"@id{idx}";
+                paramDict[$"id{idx}"] = id;
+                return p;
+            }));
+
+            var sql = $"DELETE FROM edges WHERE from_id IN ({inParams}) OR to_id IN ({inParams}); DELETE FROM nodes WHERE id IN ({inParams});";
+            await db.ExecuteWriteAsync(sql, paramDict, cancellationToken);
         }
     }
 
@@ -2757,7 +2781,7 @@ public class PostIndexAnalyzer(IGraphClient db)
                 SELECT id FROM nodes WHERE kind IN ('ProjectSemantic', 'ProjectSyntax') AND id LIKE '%:project:%'
             );
             DELETE FROM nodes WHERE kind IN ('ProjectSemantic', 'ProjectSyntax') AND id LIKE '%:project:%';
-            DELETE FROM edges WHERE from_id NOT IN (SELECT id FROM nodes) OR to_id NOT IN (SELECT id FROM nodes);
+            DELETE FROM edges WHERE NOT EXISTS (SELECT 1 FROM nodes WHERE id = edges.from_id) OR NOT EXISTS (SELECT 1 FROM nodes WHERE id = edges.to_id);
             """, null, cancellationToken);
     }
 }

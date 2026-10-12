@@ -5,6 +5,19 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.37.20] - 2026-10-12
+
+### Fixed & Performance
+- **PostIndexAnalyzer & Database Upload Optimization (Eliminated 1.15 Billion Redundant Comparisons & Silent Freezes)**:
+  - **Eliminated 1.15 Billion Nested String Comparisons**: Resolved severe nested $O(\text{Files} \times \text{Projects} \times \text{Projects})$ loops in `MaterializeDirectProjectRelationships` and `CanonicalizeDatabasesInMemoryAsync` where `projects.FirstOrDefault(pr => IsEnclosedInProject(...))` evaluated the full project list for every single project candidate. Replaced with `Layer2ProjectParser.BuildFileToProjectMap` built once in $O(\text{Files} \log \text{Projects})$ and shared across canonical database linking and macro project edge materialization.
+  - **Live Real-Time Database Upload Progress (`UploadRelationshipsAsync` / `UploadNodesAsync`)**: Doubled batch sizes from 100 to 200 statements per transaction and introduced live continuous progress reporting (`[DB:Edges] Saved: {Processed}/{Total} relationships ({Pct}%)...`) firing every 3 seconds and at milestones for large relationship lists (e.g. 34,894 late-bound relationships or 100,000+ reference relationships).
+  - **Global Cross-Reference Resolution Heartbeat**: In `ResolveAndUploadGlobalReferencesAsync`, added periodic progress reporting (`[Layer5] Resolving global cross-references: {N}/{Total} ({pct}%)...`) updating every 25,000 items or every 3 seconds, eliminating silence during reference resolution passes.
+  - **PostIndexAnalyzer Sub-Phase Transparency**: Added explicit, visible info-level progress logs throughout `RunInMemoryAsync` covering graph adjacency construction, reachability analysis, canonical database linking, direct and transitive relationship uploads, architectural layer classification, and edge normalization.
+  - **Optimized Edge Normalization (`NormalizeEdgesAsync`)**: Restricted the initial node query from all nodes (`MATCH (n)`) to only high-level architectural kinds (`WHERE n.kind IN ['Project', 'Database', 'Topic', 'Endpoint', 'EntryPoint', 'ExternalService', 'CloudService']`), reducing JSON deserialization from 180,000+ nodes to ~5,000 nodes. Batched edge normalization updates into chunks of 100 rather than single-statement autocommit writes.
+  - **Batched Phantom External Service Purge & $O(1)$ Edge Orphan Deletion**: Batched `PurgePhantomExternalServicesAsync` deletions in chunks of 100 instead of row-by-row deletions, and replaced the catastrophic $O(E \times N)$ `NOT IN (SELECT id FROM nodes)` table scan in `DeduplicateProjectNodesAsync` with indexed B-tree `NOT EXISTS (SELECT 1 FROM nodes WHERE id = ...)` primary key seeks.
+
+---
+
 ## [1.37.19] - 2026-10-12
 
 ### Fixed & Performance

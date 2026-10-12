@@ -590,6 +590,25 @@ public class Layer2ProjectParser
         return bestMatch;
     }
 
+    public static Dictionary<string, ProjectNode> BuildFileToProjectMap(IEnumerable<FileNode> files, IEnumerable<ProjectNode> projects)
+    {
+        var projList = projects is List<ProjectNode> l ? l : projects.ToList();
+        var map = new Dictionary<string, ProjectNode>(StringComparer.OrdinalIgnoreCase);
+        foreach (var file in files)
+        {
+            var p = FindProjectForFilePath(file.Path, projList);
+            if (p != null)
+            {
+                map[file.Id] = p;
+                if (!string.IsNullOrEmpty(file.Path))
+                {
+                    map[file.Path] = p;
+                }
+            }
+        }
+        return map;
+    }
+
     public static bool IsEnclosedInProject(FileNode file, ProjectNode project, List<ProjectNode> projects)
     {
         return FindProjectForFilePath(file.Path, projects)?.Id == project.Id;

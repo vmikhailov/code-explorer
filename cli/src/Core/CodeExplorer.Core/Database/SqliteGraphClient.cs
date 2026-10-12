@@ -757,9 +757,10 @@ public class SqliteGraphClient : IGraphClient, IDisposable
         {
             await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync();
 
-            const int batchSize = 100;
+            const int batchSize = 200;
             var distinctNodes = nodes.Count > 1 ? [.. nodes.DistinctBy(n => n.Id)] : nodes;
 
+            var lastReport = Stopwatch.GetTimestamp();
             for (int i = 0; i < distinctNodes.Count; i += batchSize)
             {
                 var count = Math.Min(batchSize, distinctNodes.Count - i);
@@ -787,13 +788,27 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                     " ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, properties = excluded.properties;");
                 cmd.CommandText = sb.ToString();
                 cmd.ExecuteNonQuery();
+
+                if (distinctNodes.Count >= 5000 && (i + count == distinctNodes.Count || Stopwatch.GetElapsedTime(lastReport).TotalSeconds >= 3))
+                {
+                    lastReport = Stopwatch.GetTimestamp();
+                    var pct = (double)(i + count) / distinctNodes.Count * 100.0;
+                    _logger.LogInformation("[DB:Nodes] Saved: {Processed}/{Total} nodes ({Pct:F0}%)...", i + count, distinctNodes.Count, pct);
+                }
             }
 
             await tx.CommitAsync();
             sw.Stop();
 
-            _logger.LogDebug("[DB:Nodes] Uploaded {Count} nodes in {ElapsedMs:F1}ms", nodes.Count,
-                sw.Elapsed.TotalMilliseconds);
+            if (distinctNodes.Count >= 5000)
+            {
+                _logger.LogInformation("[DB:Nodes] Successfully uploaded {Count} nodes in {ElapsedMs:F0}ms.", nodes.Count, sw.Elapsed.TotalMilliseconds);
+            }
+            else
+            {
+                _logger.LogDebug("[DB:Nodes] Uploaded {Count} nodes in {ElapsedMs:F1}ms", nodes.Count,
+                    sw.Elapsed.TotalMilliseconds);
+            }
             Analysis.ArchitectureViewEngine.InvalidateCache();
         }
         finally
@@ -813,9 +828,10 @@ public class SqliteGraphClient : IGraphClient, IDisposable
             await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync();
 
             const string emptyPropsJson = "{}";
-            const int batchSize = 100;
+            const int batchSize = 200;
             var distinctRels = rels.Count > 1 ? [.. rels.DistinctBy(r => (r.From, r.To, r.Kind))] : rels;
 
+            var lastReport = Stopwatch.GetTimestamp();
             for (int i = 0; i < distinctRels.Count; i += batchSize)
             {
                 var count = Math.Min(batchSize, distinctRels.Count - i);
@@ -846,13 +862,27 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                 sb.Append(" ON CONFLICT(from_id, to_id, kind) DO UPDATE SET properties = excluded.properties;");
                 cmd.CommandText = sb.ToString();
                 cmd.ExecuteNonQuery();
+
+                if (distinctRels.Count >= 5000 && (i + count == distinctRels.Count || Stopwatch.GetElapsedTime(lastReport).TotalSeconds >= 3))
+                {
+                    lastReport = Stopwatch.GetTimestamp();
+                    var pct = (double)(i + count) / distinctRels.Count * 100.0;
+                    _logger.LogInformation("[DB:Edges] Saved: {Processed}/{Total} relationships ({Pct:F0}%)...", i + count, distinctRels.Count, pct);
+                }
             }
 
             await tx.CommitAsync();
             sw.Stop();
 
-            _logger.LogDebug("[DB:Edges] Uploaded {Count} relationships in {ElapsedMs:F1}ms", rels.Count,
-                sw.Elapsed.TotalMilliseconds);
+            if (distinctRels.Count >= 5000)
+            {
+                _logger.LogInformation("[DB:Edges] Successfully uploaded {Count} relationships in {ElapsedMs:F0}ms.", rels.Count, sw.Elapsed.TotalMilliseconds);
+            }
+            else
+            {
+                _logger.LogDebug("[DB:Edges] Uploaded {Count} relationships in {ElapsedMs:F1}ms", rels.Count,
+                    sw.Elapsed.TotalMilliseconds);
+            }
             Analysis.ArchitectureViewEngine.InvalidateCache();
         }
         finally

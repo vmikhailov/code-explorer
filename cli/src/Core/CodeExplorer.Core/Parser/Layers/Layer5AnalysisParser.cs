@@ -61,7 +61,7 @@ public class Layer5AnalysisParser
         {
             await ctx.WaitForQueueDrainedAsync();
             ctx.Log("[Layer5] Running global post-indexing analysis via PostIndexAnalyzer across workspace...");
-            await postAnalyzer.RunAsync(ctx.WorkspaceId);
+            await postAnalyzer.RunAsync(ctx.WorkspaceId, ctx);
         }
         else
         {
@@ -451,14 +451,17 @@ public class Layer5AnalysisParser
         var createdTopicIds = new HashSet<string>(StringComparer.Ordinal);
         var newTopicNodes = new List<TopicNode>();
 
+        var lastRefReport = Stopwatch.GetTimestamp();
         foreach (var refItem in ctx.GlobalReferences)
         {
             ctx.CancellationToken.ThrowIfCancellationRequested();
             resolvedCount++;
 
-            if (resolvedCount % 100000 == 0)
+            if (resolvedCount % 25000 == 0 || Stopwatch.GetElapsedTime(lastRefReport).TotalSeconds >= 3)
             {
-                ctx.Log($"[Layer5] Resolving global cross-references: {resolvedCount}/{totalReferences}...");
+                lastRefReport = Stopwatch.GetTimestamp();
+                var pct = totalReferences > 0 ? (double)resolvedCount / totalReferences * 100.0 : 100.0;
+                ctx.Log($"[Layer5] Resolving global cross-references: {resolvedCount}/{totalReferences} ({pct:F0}%)...");
             }
 
             if (refItem.Kind == OntologyConstants.Relationships.Implements ||
@@ -494,6 +497,8 @@ public class Layer5AnalysisParser
                 ctx.LogDebug($"[Layer5] Failed to resolve reference '{refItem.TargetName}': {ex.Message}");
             }
         }
+        
+        ctx.Log($"[Layer5] Resolved {resolvedCount}/{totalReferences} global cross-references (generated {referenceRelationships.Count} relationships).");
 
         if (newTopicNodes.Count > 0)
         {
