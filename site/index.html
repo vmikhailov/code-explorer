@@ -1944,7 +1944,7 @@
 
         <div class="showcase-body">
           <div class="showcase-img-container" onclick="openLightbox()">
-            <img id="showcaseImage" class="showcase-img" src="all_services.png?v=v12" alt="CodeExplorer Macro Architecture Concentric Orbits">
+            <img id="showcaseImage" class="showcase-img" src="all_services.png?v=v13" alt="CodeExplorer Macro Architecture Concentric Orbits">
           </div>
 
           <div class="showcase-overlay-bar">
@@ -1965,7 +1965,7 @@
   <!-- Lightbox Modal for zooming screenshots -->
   <div id="lightboxModal" class="lightbox-modal" onclick="closeLightbox(event)">
     <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
-    <img id="lightboxImg" class="lightbox-content" src="all_services.png?v=v12" alt="Enlarged Screenshot">
+    <img id="lightboxImg" class="lightbox-content" src="all_services.png?v=v13" alt="Enlarged Screenshot">
   </div>
 
   <!-- ==========================================================================
@@ -2945,12 +2945,12 @@
     // Data for Showcase Tabs
     const showcaseData = {
       orbits: {
-        img: 'all_services.png?v=v12',
+        img: 'all_services.png?v=v13',
         desc: '<strong>Macro Architecture Topology:</strong> Concentric rings project Ingress Gateways (Tier 0), Public APIs (Tier 1), Brokers (Tier 2), Domain Services (Tier 3), and Databases (Tier 4).',
         pills: ['Live Transitive Routing', 'Orbit Drag-and-Drop', 'Curvature: +65']
       },
       transitive: {
-        img: 'selected_services.png?v=v12',
+        img: 'selected_services.png?v=v13',
         desc: '<strong>Sub-Graph Neighborhood & Broker Contraction:</strong> Filter out Kafka/SQS message brokers to automatically synthesize direct dashed <code>[SUBSCRIBES (via Topic)]</code> links.',
         pills: ['Smart Broker Contraction', 'HUD Category Filters', 'Depth: 2 Hops']
       },
@@ -3155,7 +3155,7 @@ query: |
 ratchet:
   enabled: true
   baseline: baselines/SIG-P-T-001.json`,
-        statusBadge: '<span class="badge-status-fail">FAILED NEW [1 CYCLE DETECTED]</span>',
+        statusBadge: '<span class="badge-status-fail">FAIL (1 CYCLE)</span>',
         execStatus: '● Evaluated in 16.8ms (Exit Code 1)',
         execColor: 'var(--status-amber)',
         statNew: '1 (Fails CI)',
@@ -3195,7 +3195,7 @@ query: |
 ratchet:
   enabled: true
   baseline: baselines/SIG-C-I-001.json`,
-        statusBadge: '<span class="badge-status-fail">FAILED NEW [1 FORBIDDEN I/O CALL]</span>',
+        statusBadge: '<span class="badge-status-fail">FAIL (1 FORBIDDEN I/O)</span>',
         execStatus: '● Evaluated in 9.4ms (Exit Code 1)',
         execColor: 'var(--status-amber)',
         statNew: '1 (Fails CI)',
@@ -3235,7 +3235,7 @@ query: |
 ratchet:
   enabled: true
   baseline: baselines/SIG-M-I-001.json`,
-        statusBadge: '<span class="badge-status-fail">FAILED NEW [1 HARDCODED LITERAL]</span>',
+        statusBadge: '<span class="badge-status-fail">FAIL (1 LITERAL)</span>',
         execStatus: '● Evaluated in 13.1ms (Exit Code 1)',
         execColor: 'var(--status-amber)',
         statNew: '1 (Fails CI)',
@@ -3272,7 +3272,7 @@ query: |
 ratchet:
   enabled: true
   baseline: baselines/SIG-P-R-003.json`,
-        statusBadge: '<span class="badge-status-fail">FAILED NEW [2 NEW VIOLATIONS]</span>',
+        statusBadge: '<span class="badge-status-fail">FAIL (2 NEW)</span>',
         execStatus: '● Evaluated in 14.5ms (Exit Code 1)',
         execColor: 'var(--status-amber)',
         statNew: '2 (Fails CI)',
@@ -3317,7 +3317,7 @@ query: |
 ratchet:
   enabled: true
   baseline: baselines/SIG-P-B-002.json  # 3 legacy violations frozen in baseline`,
-        statusBadge: '<span class="badge-status-pass">PASSED [0 NEW, 3 TOLERATED]</span>',
+        statusBadge: '<span class="badge-status-pass">PASSED (0 NEW)</span>',
         execStatus: '● Evaluated in 8.9ms (Exit Code 0)',
         execColor: 'var(--status-green)',
         statNew: '0 (Passed CI)',
