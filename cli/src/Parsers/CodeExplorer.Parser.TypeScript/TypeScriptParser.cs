@@ -27,16 +27,6 @@ public class TypeScriptParser : IProjectParser, IFileParser
     public TypeScriptParser()
     {
         Packages = [.. SemanticExtensions.SelectMany(e => e.GetPackageDescriptors())];
-
-        /*
-        // Unimplemented / Backlog packages (commented out until AST semantic extensions are implemented):
-        // Test Frameworks
-        new PackageDescriptor("jest", "Jest", LibraryRole.TestFramework, "library", ["jest", "@types/jest", "ts-jest", "babel-jest"]),
-        new PackageDescriptor("vitest", "Vitest", LibraryRole.TestFramework, "library", ["vitest", "@vitest/*"]),
-        new PackageDescriptor("mocha", "Mocha", LibraryRole.TestFramework, "library", ["mocha", "@types/mocha"]),
-        new PackageDescriptor("cypress", "Cypress", LibraryRole.TestFramework, "library", ["cypress"]),
-        new PackageDescriptor("playwright", "Playwright", LibraryRole.TestFramework, "library", ["@playwright/test", "playwright"])
-        */
     }
 
     public IReadOnlyList<ISemanticExtension> SemanticExtensions { get; } =
@@ -86,7 +76,11 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new Libraries.VueLibraryParser(),
         new Libraries.AngularCoreLibraryParser(),
         new Libraries.SvelteLibraryParser(),
-        new Libraries.ViteLibraryParser()
+        new Libraries.ViteLibraryParser(),
+        new Libraries.JestVitestLibraryParser(),
+        new Libraries.MochaLibraryParser(),
+        new Libraries.CypressLibraryParser(),
+        new Libraries.PlaywrightLibraryParser()
     ];
 
     public bool UsesTreeSitter => true;

@@ -224,6 +224,11 @@
     "entityKind": "App",
     "isLibrary": false
   },
+  "typescript/testing-suites": {
+    "projectType": "typescript",
+    "entityKind": "Test",
+    "isLibrary": true
+  },
   "typescript/ui-library": {
     "projectType": "typescript",
     "entityKind": "Library",

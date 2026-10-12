@@ -5,6 +5,19 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.37.18] - 2026-10-12
+
+### Added
+- **TypeScript / JavaScript Testing Framework Semantic Extensions (Jest, Vitest, Mocha, Cypress, Playwright)**:
+  - Added AST semantic extensions for all major JavaScript and TypeScript test runners and frameworks: `jest`, `vitest`, `mocha`, `cypress`, and `@playwright/test`.
+  - **Jest & Vitest**: Identifies test suites (`describe`, `suite`) and test cases (`test`, `it`, `.only`, `.skip`, `.each`, `.concurrent`) as first-class architectural entry points with `is_test: "true"` metadata; extracts mock module dependencies from `jest.mock(...)` and `vi.mock(...)` with `:DEPENDS_ON` edges.
+  - **Mocha**: Detects BDD and TDD test suites (`describe`, `context`, `suite`) and test cases (`it`, `specify`, `test`, `.only`, `.skip`) with suite bindings and testing annotations.
+  - **Cypress**: Maps E2E test suites and specs (`describe`, `it`, `context`), and resolves browser navigation (`cy.visit(...)`) and network requests (`cy.request(...)`) into `:CALLS_ENDPOINT` edges and `ExternalService` targets.
+  - **Playwright**: Parses `test.describe(...)` suites, individual browser tests (`test(...)`), browser page navigations (`page.goto(...)`), and API context requests (`request.get(...)`, `request.post(...)`), connecting E2E flows to backend service endpoints.
+  - **100% Backlog Cleared**: Fully completed all commented-out package descriptors across `TypeScriptParser`, completing Epic 7.
+
+---
+
 ## [1.37.17] - 2026-10-12
 
 ### Fixed & Performance

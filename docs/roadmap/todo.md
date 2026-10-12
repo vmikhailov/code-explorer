@@ -313,12 +313,12 @@ This document tracks active epics, immediate architectural refactoring plans, an
   - Sample projects: `cli/tests/SampleProjects/typescript/frontend-apps`.
   - Unit test suite: `TypeScriptFrontendFrameworkTests.cs`.
 
-### Phase 7.10: JavaScript / TypeScript Testing Frameworks — Target `v1.37.17` ⏳ PENDING
-- [ ] **Test Frameworks (`jest`, `vitest`, `mocha`, `cypress`, `playwright`)**:
+### Phase 7.10: JavaScript / TypeScript Testing Frameworks — Target `v1.37.18` ✅ DELIVERED
+- [x] **Test Frameworks (`jest`, `vitest`, `mocha`, `cypress`, `playwright`)**:
   - `JestVitestLibraryParser`: `describe`, `test`, `it` test suite & case discovery, `is_test` annotation.
   - `MochaLibraryParser`: `describe`, `it`, suite bindings.
   - `CypressLibraryParser`: `cy.visit(...)`, E2E test cases.
   - `PlaywrightLibraryParser`: `test('...')`, `page.goto(...)` browser navigation edges.
-- [ ] **Artifacts & Verification**:
+- [x] **Artifacts & Verification**:
   - Sample project: `cli/tests/SampleProjects/typescript/testing-suites`.
   - Unit test suite: `TypeScriptTestingFrameworkTests.cs`.
