@@ -96,7 +96,11 @@ public record ProjectComponentProfile
                                 combinedCapabilities.HasFlag(ComponentCapabilities.QueueWorker) ||
                                 combinedCapabilities.HasFlag(ComponentCapabilities.HttpEndpoints);
 
-        if (isTestManifest || (combinedCapabilities.HasFlag(ComponentCapabilities.TestRunner) && !hasActiveWorkload))
+        var isLibrary = isLibraryManifest ||
+                        combinedCapabilities.HasFlag(ComponentCapabilities.SharedLibrary) ||
+                        combinedCapabilities.HasFlag(ComponentCapabilities.UiLibrary);
+
+        if (isTestManifest || (combinedCapabilities.HasFlag(ComponentCapabilities.TestRunner) && !hasActiveWorkload && !isLibrary))
         {
             dominantRole = LibraryRole.TestFramework;
         }
@@ -111,6 +115,10 @@ public record ProjectComponentProfile
         else if (combinedCapabilities.HasFlag(ComponentCapabilities.UiLibrary))
         {
             dominantRole = LibraryRole.UiComponentLibrary;
+        }
+        else if (isLibrary)
+        {
+            dominantRole = LibraryRole.SharedLibrary;
         }
         else if (combinedCapabilities.HasFlag(ComponentCapabilities.ApiGateway))
         {
@@ -147,10 +155,6 @@ public record ProjectComponentProfile
         {
             dominantRole = LibraryRole.EgressClient;
         }
-        else if (combinedCapabilities.HasFlag(ComponentCapabilities.SharedLibrary) || isLibraryManifest)
-        {
-            dominantRole = LibraryRole.SharedLibrary;
-        }
         else
         {
             var firstRole = allRoles.FirstOrDefault(r => r is not LibraryRole.General and not LibraryRole.Utility);
@@ -166,7 +170,7 @@ public record ProjectComponentProfile
 
         // Determine IsLibrary flag
         bool isLib;
-        if (combinedCapabilities.HasFlag(ComponentCapabilities.UiLibrary))
+        if (isLibrary)
         {
             isLib = true;
         }
@@ -181,7 +185,7 @@ public record ProjectComponentProfile
         }
         else
         {
-            isLib = isLibraryManifest || combinedCapabilities.HasFlag(ComponentCapabilities.SharedLibrary);
+            isLib = false;
         }
 
         return new ProjectComponentProfile

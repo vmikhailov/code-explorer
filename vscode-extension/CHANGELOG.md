@@ -5,6 +5,18 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.37.15] - 2026-10-12
+
+### Fixed
+- **Generic Monorepo Project Classification & Discovery**:
+  - **Angular Secondary Entry Point Filtering**: Implemented generic contract-based detection in both `TypeScriptParser` and `JavaScriptParser` for Angular secondary entry points (`ngPackage` configuration without top-level package names, child directories in Angular workspaces) without hardcoded project paths, eliminating phantom library projects.
+  - **Standard npm Library Contract Recognition**: Packages declaring explicit exports (`exports`, `types`, `typings`, `main`, `peerDependencies`, `publishConfig`, or publish scripts) without application launch scripts (`scripts.start`, `scripts.serve`, `scripts.start:prod`) are classified as `Library` (`manifest_type = "library"` and `is_library = "true"`), preventing shared utility or NestJS libraries from being misclassified as runnable web services.
+  - **Dominant Role Guard for Shared Libraries with Capabilities**: Updated `ProjectComponentProfile` so shared libraries equipped with unit test runners (e.g., Jest, Mocha), background queue utilities, or HTTP helpers preserve their `SharedLibrary` role rather than being converted into standalone services or test framework projects.
+  - **Cloudflare Worker & Wrangler Detection**: Added generic detection for Cloudflare Workers via current or parent directory `wrangler.toml`, `@cloudflare/` dependencies, and worker script patterns.
+  - **QA Test Directory Recognition**: Added `/qa/` path convention to `ProjectEntityClassifierRegistry` alongside `/test/`, `/tests/`, and `/e2e/`.
+
+---
+
 ## [1.37.14] - 2026-10-12
 
 ### Added

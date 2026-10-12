@@ -111,7 +111,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
         var packageJson = filesInDirectory.FirstOrDefault(f => Path.GetFileName(f).Equals("package.json", StringComparison.OrdinalIgnoreCase));
         if (packageJson != null)
         {
-            if (IsNgSecondaryEntryPoint(packageJson, directoryPath))
+            if (IsNgSecondaryEntryPoint(packageJson, directoryPath, filesInDirectory))
             {
                 return false;
             }
@@ -123,8 +123,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
             var fileName = Path.GetFileName(file).ToLowerInvariant();
             if (fileName == "tsconfig.json")
             {
-                var norm = directoryPath.Replace('\\', '/').ToLowerInvariant();
-                if (norm.Contains("/src/lib/") || norm.Contains("/projects/ui/src/lib/"))
+                if (IsInsideNgPackage(directoryPath))
                 {
                     return false;
                 }
@@ -134,31 +133,50 @@ public class TypeScriptParser : IProjectParser, IFileParser
         return false;
     }
 
-    private static bool IsNgSecondaryEntryPoint(string packageJsonPath, string directoryPath)
+    public static bool IsNgSecondaryEntryPoint(string? packageJsonPath, string directoryPath, string[]? filesInDirectory = null)
     {
-        var normPath = directoryPath.Replace('\\', '/').ToLowerInvariant();
-        if (!normPath.Contains("/src/lib/") && !normPath.Contains("/lib/"))
+        filesInDirectory ??= Directory.GetFiles(directoryPath);
+        var hasNgPackageJson = filesInDirectory.Any(f => Path.GetFileName(f).Equals("ng-package.json", StringComparison.OrdinalIgnoreCase));
+
+        if (!string.IsNullOrEmpty(packageJsonPath) && File.Exists(packageJsonPath))
         {
-            return false;
+            try
+            {
+                var content = File.ReadAllText(packageJsonPath);
+                using var doc = System.Text.Json.JsonDocument.Parse(content);
+                var root = doc.RootElement;
+                // If it has ngPackage (or sibling ng-package.json) and does not have a valid "name" property, it's an Angular secondary entry point
+                if ((root.TryGetProperty("ngPackage", out _) || hasNgPackageJson) &&
+                    (!root.TryGetProperty("name", out var nameProp) || string.IsNullOrWhiteSpace(nameProp.GetString())))
+                {
+                    return true;
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+            {
+                // Ignore parse errors
+            }
+        }
+        else if (hasNgPackageJson)
+        {
+            return true;
         }
 
-        try
+        return false;
+    }
+
+    private static bool IsInsideNgPackage(string directoryPath)
+    {
+        var parentDir = Path.GetDirectoryName(directoryPath);
+        while (parentDir != null && parentDir.Length >= 3)
         {
-            var content = File.ReadAllText(packageJsonPath);
-            using var doc = System.Text.Json.JsonDocument.Parse(content);
-            var root = doc.RootElement;
-            // If it has ngPackage and does not have a valid "name" property, it's a secondary entry point
-            if (root.TryGetProperty("ngPackage", out _) &&
-                (!root.TryGetProperty("name", out var nameProp) || string.IsNullOrWhiteSpace(nameProp.GetString())))
+            if (File.Exists(Path.Combine(parentDir, "ng-package.json")) ||
+                File.Exists(Path.Combine(parentDir, "angular.json")))
             {
                 return true;
             }
+            parentDir = Path.GetDirectoryName(parentDir);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
-        {
-            // Ignore parse errors
-        }
-
         return false;
     }
 
@@ -210,7 +228,8 @@ public class TypeScriptParser : IProjectParser, IFileParser
 
         // 1. Check wrangler.toml (Cloudflare Workers / Serverless)
         var hasWrangler = filesInDirectory.Any(f => Path.GetFileName(f).Equals("wrangler.toml", StringComparison.OrdinalIgnoreCase))
-                          || File.Exists(Path.Combine(directoryPath, "wrangler.toml"));
+                          || File.Exists(Path.Combine(directoryPath, "wrangler.toml"))
+                          || (Path.GetDirectoryName(directoryPath) is { } wranglerParent && File.Exists(Path.Combine(wranglerParent, "wrangler.toml")));
         if (hasWrangler)
         {
             props["manifest_type"] = "worker";
@@ -385,7 +404,8 @@ public class TypeScriptParser : IProjectParser, IFileParser
                 var hasWorkerDeps = allDeps.Any(d =>
                     d is "@nestjs/schedule" or "@nestjs/bull" or "@nestjs/bullmq" or "bullmq" or "bull" or "amqplib"
                         or "kafkajs" or "@cloudflare/workers-types" or "wrangler" or "node-cron" or "cron"
-                        or "agenda");
+                        or "agenda" || d.StartsWith("cloudflare-", StringComparison.OrdinalIgnoreCase)
+                        || d.StartsWith("@cloudflare/", StringComparison.OrdinalIgnoreCase)) || hasWrangler;
 
                 var hasFrontendDeps = allDeps.Any(d =>
                     d is "react" or "react-dom" or "@angular/core" or "vue" or "svelte" or "solid-js" or "next"
@@ -397,16 +417,18 @@ public class TypeScriptParser : IProjectParser, IFileParser
                         : "";
                 var projDirName = Path.GetFileName(directoryPath).ToLowerInvariant();
 
-                var isDedicatedWorkerName = projDirName.EndsWith("-worker") || projDirName.EndsWith(".worker") ||
-                                            projDirName.EndsWith("_worker") || projDirName.EndsWith("-scheduler") ||
-                                            projDirName.EndsWith(".scheduler") ||
-                                            projDirName.EndsWith("_scheduler") ||
-                                            projDirName.EndsWith("-consumer") ||
-                                            projDirName.EndsWith("_consumer") || pkgName.EndsWith("-worker") ||
-                                            pkgName.EndsWith(".worker") || pkgName.EndsWith("_worker") ||
-                                            pkgName.EndsWith("-scheduler") || pkgName.EndsWith(".scheduler") ||
-                                            pkgName.EndsWith("_scheduler") || pkgName.EndsWith("-consumer") ||
-                                            pkgName.EndsWith("_consumer");
+                var isDedicatedWorkerName = projDirName.Contains("worker") || projDirName.Contains("scheduler") ||
+                                            projDirName.Contains("consumer") || pkgName.Contains("worker") ||
+                                            pkgName.Contains("scheduler") || pkgName.Contains("consumer");
+
+                var hasWorkerScripts = root.TryGetProperty("scripts", out var scrObj) &&
+                                       scrObj.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                                       scrObj.EnumerateObject().Any(s =>
+                                           s.Name.StartsWith("worker:", StringComparison.OrdinalIgnoreCase) ||
+                                           s.Name.Contains("wrangler", StringComparison.OrdinalIgnoreCase) ||
+                                           s.Value.ToString().Contains("wrangler", StringComparison.OrdinalIgnoreCase));
+
+                var isWorkerProject = hasWrangler || (hasWorkerDeps && (isDedicatedWorkerName || hasWorkerScripts));
 
                 if (hasWorkerDeps)
                 {
@@ -418,17 +440,48 @@ public class TypeScriptParser : IProjectParser, IFileParser
                                 or "kafkajs")) props["has_queue_worker"] = "true";
                 }
 
+                if (isWorkerProject)
+                {
+                    props["framework_type"] = "worker";
+                    if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "worker";
+                }
+
+                // Determine if package is an explicit library by standard npm contract:
+                // 1. Explicit peerDependencies (only libraries declare peerDependencies for consumers)
+                // 2. Explicit publishConfig (declared npm registry publication target)
+                // 3. Publish scripts (build/version scripts targeting npm publish)
+                // 4. Exports/types/main contract without runnable application launch scripts (start / start:prod / serve)
+                var hasPeerDeps = root.TryGetProperty("peerDependencies", out _);
+                var hasPublishConfig = root.TryGetProperty("publishConfig", out _);
+                var hasPublishScript = root.TryGetProperty("scripts", out var sObj) &&
+                                       sObj.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                                       sObj.EnumerateObject().Any(s => s.Value.ToString().Contains("npm publish", StringComparison.OrdinalIgnoreCase));
+
+                var hasExplicitExports = root.TryGetProperty("exports", out _) ||
+                                         root.TryGetProperty("types", out _) ||
+                                         root.TryGetProperty("typings", out _) ||
+                                         root.TryGetProperty("main", out _);
+
+                var hasPrimaryAppStartScript = root.TryGetProperty("scripts", out var scriptsObj) &&
+                                               scriptsObj.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                                               scriptsObj.EnumerateObject().Any(s =>
+                                                   s.Name.Equals("start", StringComparison.OrdinalIgnoreCase) ||
+                                                   s.Name.Equals("start:prod", StringComparison.OrdinalIgnoreCase) ||
+                                                   s.Name.Equals("serve", StringComparison.OrdinalIgnoreCase));
+
+                var isLibraryByContract = !isWorkerProject && (hasPeerDeps || hasPublishConfig || hasPublishScript || (hasExplicitExports && !hasPrimaryAppStartScript));
+                if (isLibraryByContract)
+                {
+                    props["is_library"] = "true";
+                    if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "library";
+                }
+
                 if (hasWebFramework)
                 {
-                    if (isDedicatedWorkerName && hasWorkerDeps)
+                    props["framework_type"] = "web";
+                    if (!props.ContainsKey("manifest_type"))
                     {
-                        props["framework_type"] = "worker";
-                        if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "worker";
-                    }
-                    else
-                    {
-                        props["framework_type"] = "web";
-                        if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "application";
+                        props["manifest_type"] = isDedicatedWorkerName && hasWorkerDeps ? "worker" : "application";
                     }
                 }
                 else if (hasWorkerDeps)
@@ -459,8 +512,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
                 {
                     props["framework_type"] = "cloud";
                 }
-                else if (root.TryGetProperty("exports", out _) || root.TryGetProperty("types", out _) ||
-                         root.TryGetProperty("typings", out _) || root.TryGetProperty("main", out _))
+                else if (hasExplicitExports)
                 {
                     if (!props.ContainsKey("manifest_type"))
                     {

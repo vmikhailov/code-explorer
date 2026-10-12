@@ -30,16 +30,29 @@ public class JavaScriptParser : IProjectParser, IFileParser
 
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
     {
+        var packageJson = filesInDirectory.FirstOrDefault(f => Path.GetFileName(f).Equals("package.json", StringComparison.OrdinalIgnoreCase));
+        if (packageJson != null)
+        {
+            if (TypeScriptParser.IsNgSecondaryEntryPoint(packageJson, directoryPath, filesInDirectory))
+            {
+                return false;
+            }
+            return true;
+        }
+
         foreach (var file in filesInDirectory)
         {
             var fileName = Path.GetFileName(file).ToLowerInvariant();
-            if (fileName == "package.json" || fileName == "jsconfig.json" || fileName == "tsconfig.json")
+            if (fileName == "jsconfig.json")
             {
                 return true;
             }
         }
         return false;
     }
+
+    public Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory) =>
+        _tsParser.ExtractManifestProperties(directoryPath, filesInDirectory);
 
     public string GetProjectName(string directoryPath, string[] filesInDirectory)
     {
