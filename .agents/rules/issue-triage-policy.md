@@ -71,11 +71,11 @@ I've triaged this issue. Here is my technical analysis and recommendation:
    - The agent **never modifies files or switches branches** in the main repository directory.
    - All fixes are performed exclusively in an isolated temporary worktree:
      ```powershell
-     $wt = (pwsh -File scripts/github-triage.ps1 create-worktree -IssueNumber <id>).Trim()
+     $wt = (pwsh -File .scripts/github-triage.ps1 create-worktree -IssueNumber <id>).Trim()
      ```
    - After pushing the `fix/issue-<id>` branch, the worktree is cleanly removed:
      ```powershell
-     pwsh -File scripts/github-triage.ps1 remove-worktree -IssueNumber <id>
+     pwsh -File .scripts/github-triage.ps1 remove-worktree -IssueNumber <id>
      ```
 
 2. **Active Task Exclusion**:
