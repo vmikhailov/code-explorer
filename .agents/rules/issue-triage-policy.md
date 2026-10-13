@@ -1,88 +1,88 @@
 # GitHub Issue Triage Policy (Agy)
 
-Этот документ определяет критерии классификации (triage), правила принятия решений и шаблоны ответов для автоматического агента **Agy** в репозитории [vmikhailov/code-explorer](https://github.com/vmikhailov/code-explorer).
+This document defines classification criteria (triage), decision rules, and response templates for the automated agent **Agy** in the [vmikhailov/code-explorer](https://github.com/vmikhailov/code-explorer) repository.
 
 ---
 
-## 1. Категории классификации
+## 1. Classification Categories
 
-Каждое новое открытое issue относится к одной из следующих категорий:
+Each newly opened issue is assigned to one of the following categories:
 
-| Категория | Решение агента | Теги на GitHub | Действие |
+| Category | Agent Decision | GitHub Labels | Action |
 | :--- | :--- | :--- | :--- |
-| **Easy Bug** | Автофикс сразу | `triaged`, `easy-bug`, `pr-available` | Создает изолированный Git Worktree, фиксит, прогоняет тесты, пушит PR, комментирует issue |
-| **Medium / Hard Bug** | Анализ + тег автора | `triaged`, `complex`, `needs-review` | Анализирует первопричину, составляет план и оценку рисков, тегает `@vmikhailov` |
-| **Feature Request** | Архитектурный разбор | `triaged`, `enhancement`, `needs-review` | Оценивает соответствие онтологии/дизайну, предлагает архитектуру, тегает `@vmikhailov` |
-| **Needs Repro** | Запрос деталей | `needs-repro` | Запрашивает минимальный репро-кейс или логи, если данных недостаточно для анализа |
+| **Easy Bug** | Immediate auto-fix | `triaged`, `easy-bug`, `pr-available` | Creates an isolated Git Worktree, fixes the bug, runs tests, pushes PR, comments on the issue |
+| **Medium / Hard Bug** | Analysis + tag author | `triaged`, `complex`, `needs-review` | Analyzes root cause, provides implementation plan and blast-radius evaluation, tags `@vmikhailov` |
+| **Feature Request** | Architectural review | `triaged`, `enhancement`, `needs-review` | Evaluates alignment with graph ontology/design, proposes architecture, tags `@vmikhailov` |
+| **Needs Repro** | Request details | `needs-repro` | Requests minimal reproduction repository or logs if information is insufficient for diagnosis |
 
 ---
 
-## 2. Критерии «Easy Bug» (Автоматический фикс)
+## 2. "Easy Bug" Criteria (Automated Fix)
 
-Issue классифицируется как **Easy Bug** только если выполняются **все** следующие условия:
-1. **Локальность**: Правка затрагивает 1–2 файла и не превышает ~50–80 строк (опечатка, пропущенная проверка на `null`, неверный оператор, локализованный edge-case в парсере или утилите).
-2. **Отсутствие ломающих изменений**:
-   - Не изменяются публичные CLI команды, флаги и форматы вывода.
-   - Не изменяются сигнатуры публичных интерфейсов в `CodeExplorer.Core`.
-   - Не затрагивается протокол LSP или контракт обмена между расширением VS Code и CLI.
-3. **Безопасность схемы и онтологии**:
-   - Не затрагивается схема SQLite (`graph.db`), онтология типов узлов/связей или Cypher-компилятор.
-   - Не затрагиваются правила архитектурных инвариантов (SIG).
-4. **Детерминированная проверка**:
-   - Можно написать четкий изолированный юнит-тест, подтверждающий баг и валидирующий исправление.
-   - `dotnet test cli/CodeExplorer.slnx -c Release` завершается с **0 предупреждений и 0 ошибок**.
+An issue is classified as an **Easy Bug** only if **all** of the following conditions are met:
+1. **Locality**: The fix affects 1–2 files and does not exceed ~50–80 lines (typo, missing null check, incorrect operator, localized edge case in a parser or utility).
+2. **Zero Breaking Changes**:
+   - No modifications to public CLI commands, flags, or output formats.
+   - No signature changes to public interfaces in `CodeExplorer.Core`.
+   - No modifications to LSP protocol contracts or the extension-to-CLI communication contract.
+3. **Graph & Ontology Schema Safety**:
+   - No modifications to the SQLite schema (`graph.db`), node/edge type ontology, or Cypher compiler.
+   - No modifications to Semantic Invariant Gate (SIG) rules.
+4. **Deterministic Verification**:
+   - Can be covered by an isolated unit test that reproduces the defect and validates the resolution.
+   - `dotnet test cli/CodeExplorer.slnx -c Release` completes with **0 warnings and 0 errors**.
 
 > [!CAUTION]
-> Если есть малейшие сомнения, риск деградации производительности или требуется рефакторинг — задача **автоматически повышается до Medium/Hard Bug**. Автофикс в таких случаях запрещен!
+> If there is any ambiguity, risk of performance degradation, or need for refactoring, the issue **must be escalated to Medium / Hard Bug**. Automated fixes in such scenarios are strictly forbidden.
 
 ---
 
-## 3. Критерии «Medium / Hard Bug» (Анализ без автофикса)
+## 3. "Medium / Hard Bug" Criteria (Analysis Without Auto-Fix)
 
-Issue переводится в эту категорию, если:
-- Затрагивает межпроектные зависимости (например, парсер TypeScript + обогащение графа в Core + визуализатор).
-- Связано с производительностью, распараллеливанием (`Task`/`Parallel`), памятью (`Span`/`Memory`) или сборкой AST.
-- Затрагивает Cypher-запросы, схему хранения графа или вычисление blast radius.
-- Требует выбора из нескольких альтернативных архитектурных решений.
+An issue is assigned to this category if:
+- It affects cross-project dependencies (e.g., TypeScript parser + graph enrichment in Core + visualizer).
+- It involves performance, parallelism (`Task`/`Parallel`), memory efficiency (`Span`/`Memory`), or AST traversal logic.
+- It touches Cypher queries, graph storage schema, or blast-radius calculation.
+- It requires choosing between alternative architectural designs.
 
-**Формат ответа агента:**
+**Agent Response Template:**
 ```markdown
 Hi @vmikhailov,
 
 I've triaged this issue. Here is my technical analysis and recommendation:
 
 ### Root Cause Analysis
-<описание первопричины со ссылками на конкретные классы и строки кода>
+<Detailed explanation of the root cause referencing specific classes and line numbers>
 
 ### Proposed Architecture & Solution
-<пошаговый план решения с учетом существующих компонентов>
+<Step-by-step implementation plan consistent with existing architecture>
 
 ### Potential Blast Radius & Risks
-<на что может повлиять изменение и какие тесты потребуются>
+<Downstream components affected and required test suites>
 
 — Agy
 ```
 
 ---
 
-## 4. Защита от конфликтов и безопасность рабочего окружения
+## 4. Conflict Prevention & Workspace Safety
 
-1. **Изоляция файлов (Git Worktree)**:
-   - Агент **никогда не модифицирует файлы и не переключает ветку** в основном каталоге репозитория.
-   - Все фиксы выполняются исключительно в отдельном временном worktree:
+1. **Working Tree Isolation (Git Worktree)**:
+   - The agent **never modifies files or switches branches** in the main repository directory.
+   - All fixes are performed exclusively in an isolated temporary worktree:
      ```powershell
      $wt = (pwsh -File scripts/github-triage.ps1 create-worktree -IssueNumber <id>).Trim()
      ```
-   - После пуша ветки `fix/issue-<id>` worktree гарантированно удаляется:
+   - After pushing the `fix/issue-<id>` branch, the worktree is cleanly removed:
      ```powershell
      pwsh -File scripts/github-triage.ps1 remove-worktree -IssueNumber <id>
      ```
 
-2. **Исключение активных задач**:
-   - Задачи с назначенными исполнителями (`assignees.length > 0`) или метками `in-progress`, `wip`, `triaged` **всегда игнорируются**.
-   - Issues #3 и #4 находятся в списке постоянных исключений (`IgnoreIssueNumbers`).
-   - Если на GitHub уже существует ветка `fix/issue-<id>`, задача повторно не обрабатывается.
+2. **Active Task Exclusion**:
+   - Issues with assigned contributors (`assignees.length > 0`) or labels `in-progress`, `wip`, `triaged` are **always skipped**.
+   - Issues #3 and #4 are explicitly ignored (`IgnoreIssueNumbers`).
+   - If a branch `fix/issue-<id>` already exists on origin, the issue is skipped to avoid stepping on active work.
 
-3. **Обязательная подпись**:
-   - Все сообщения, комментарии и описания Pull Request'ов обязательно завершаются строкой:
+3. **Mandatory Signature**:
+   - All messages, comments, and Pull Request descriptions must conclude with:
      `— Agy`
