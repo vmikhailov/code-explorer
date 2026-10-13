@@ -1,0 +1,27 @@
+id: SIG-P-B-005
+category: Architectural
+platform: agnostic
+scope: Module
+dimension: Boundaries
+name: "Ontology Layer Strict Hierarchy"
+severity: Error
+description: "Enforces strict unidirectional layering across the ontology tiers: Layer 1 (Physical) -> Layer 2 (Boundaries) -> Layer 3 (Syntactic) -> Layer 4 (Semantic). Lower-layer models must never reference or depend on higher-order ontology layers (prohibits reverse/backward coupling)."
+remediation: "Remove higher-layer references from lower-layer ontology models. Use downward relationships (e.g. higher-order models referencing lower-order models via DECLARED_IN, LOCATED_IN, EXPOSED_BY) or abstract contracts."
+query: |
+  MATCH (src:Type)-[:CALLS|USES_TYPE]->(tgt:Type)
+  WHERE NOT coalesce(src.is_test, false)
+    AND (
+      (src.path CONTAINS 'Common/Nodes/Layer1_' AND (tgt.path CONTAINS 'Common/Nodes/Layer2_' OR tgt.path CONTAINS 'Common/Nodes/Layer3_' OR tgt.path CONTAINS 'Common/Nodes/Layer4_'))
+      OR (src.path CONTAINS 'Common/Nodes/Layer2_' AND (tgt.path CONTAINS 'Common/Nodes/Layer3_' OR tgt.path CONTAINS 'Common/Nodes/Layer4_'))
+      OR (src.path CONTAINS 'Common/Nodes/Layer3_' AND tgt.path CONTAINS 'Common/Nodes/Layer4_')
+    )
+  RETURN 
+    coalesce(src.path, src.file_path) AS file,
+    coalesce(src.start_line, 1) AS line,
+    coalesce(src.start_col, 1) AS column,
+    src.name AS symbol,
+    tgt.name AS target,
+    'Ontology layer violation: Lower layer model ' + src.name + ' references higher layer model ' + tgt.name AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-P-B-005.json

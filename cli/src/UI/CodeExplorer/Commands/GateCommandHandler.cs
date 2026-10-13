@@ -93,13 +93,18 @@ public class GateCommandHandler : BaseCommandHandler
             List<SemanticGate>? targetGates = null;
             if (!string.IsNullOrWhiteSpace(opts.GateId))
             {
-                var g = await repo.GetGateByIdAsync(opts.GateId);
-                if (g == null)
+                var gateIds = opts.GateId.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                targetGates = new List<SemanticGate>();
+                foreach (var id in gateIds)
                 {
-                    PrintError($"Error: Gate '{opts.GateId}' not found.");
-                    return 1;
+                    var g = await repo.GetGateByIdAsync(id);
+                    if (g == null)
+                    {
+                        PrintError($"Error: Gate '{id}' not found.");
+                        return 1;
+                    }
+                    targetGates.Add(g);
                 }
-                targetGates = [g];
             }
 
             var suite = await engine.CheckSuiteAsync(targetGates, scopeFilter, dimFilter, categoryFilter, platformFilter);
@@ -144,14 +149,18 @@ public class GateCommandHandler : BaseCommandHandler
             var resultsToInspect = new List<GateCheckResult>();
             if (!string.IsNullOrWhiteSpace(opts.GateId))
             {
-                var gate = await repo.GetGateByIdAsync(opts.GateId);
-                if (gate == null)
+                var gateIds = opts.GateId.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                foreach (var id in gateIds)
                 {
-                    PrintError($"Error: Gate '{opts.GateId}' not found.");
-                    return 1;
+                    var gate = await repo.GetGateByIdAsync(id);
+                    if (gate == null)
+                    {
+                        PrintError($"Error: Gate '{id}' not found.");
+                        return 1;
+                    }
+                    var singleResult = await engine.CheckGateAsync(gate);
+                    resultsToInspect.Add(singleResult);
                 }
-                var singleResult = await engine.CheckGateAsync(gate);
-                resultsToInspect.Add(singleResult);
             }
             else
             {
@@ -165,15 +174,34 @@ public class GateCommandHandler : BaseCommandHandler
         // action == "check"
         if (!string.IsNullOrWhiteSpace(opts.GateId))
         {
-            var gate = await repo.GetGateByIdAsync(opts.GateId);
-            if (gate == null)
+            var gateIds = opts.GateId.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (gateIds.Length == 1)
             {
-                PrintError($"Error: Gate '{opts.GateId}' not found.");
-                return 1;
+                var gate = await repo.GetGateByIdAsync(gateIds[0]);
+                if (gate == null)
+                {
+                    PrintError($"Error: Gate '{gateIds[0]}' not found.");
+                    return 1;
+                }
+
+                var singleResult = await engine.CheckGateAsync(gate);
+                return RenderSingleGate(singleResult, opts);
             }
 
-            var singleResult = await engine.CheckGateAsync(gate);
-            return RenderSingleGate(singleResult, opts);
+            var targetGates = new List<SemanticGate>();
+            foreach (var id in gateIds)
+            {
+                var gate = await repo.GetGateByIdAsync(id);
+                if (gate == null)
+                {
+                    PrintError($"Error: Gate '{id}' not found.");
+                    return 1;
+                }
+                targetGates.Add(gate);
+            }
+
+            var suite = await engine.CheckSuiteAsync(targetGates, scopeFilter, dimFilter, categoryFilter, platformFilter);
+            return RenderSuite(suite, opts);
         }
 
         var fullSuite = await engine.CheckSuiteAsync(null, scopeFilter, dimFilter, categoryFilter, platformFilter);
@@ -213,11 +241,20 @@ public class GateCommandHandler : BaseCommandHandler
             Console.ForegroundColor = ConsoleColor.Red;
             Console.WriteLine($"\n  New Violations ({r.NewViolations.Count}):");
             Console.ResetColor();
-            foreach (var v in r.NewViolations)
+
+            var sampleCount = opts.All ? r.NewViolations.Count : Math.Min(5, r.NewViolations.Count);
+            for (var i = 0; i < sampleCount; i++)
             {
+                var v = r.NewViolations[i];
                 var loc = v.Location != "-" ? v.Location : "";
                 var target = !string.IsNullOrEmpty(v.Target) ? $" -> {v.Target}" : "";
                 Console.WriteLine($"    - {loc} {v.Symbol}{target}: {v.Message}");
+            }
+
+            if (!opts.All && r.NewViolations.Count > sampleCount)
+            {
+                Console.WriteLine($"    ... and {r.NewViolations.Count - sampleCount} more new violation(s).");
+                Console.WriteLine($"    Tip: Inspect all violations: ce gate violations -g {r.Gate.Id} (e.g. '--group-by file')");
             }
 
             if (!string.IsNullOrEmpty(r.Gate.Remediation))
@@ -278,6 +315,27 @@ public class GateCommandHandler : BaseCommandHandler
                 Console.WriteLine($"| {st} | `{r.Gate.Id}` | {r.Gate.Category} | `{r.Gate.Platform}` | {r.Gate.Scope} | {vText} | {r.Gate.Name} |");
             }
             Console.WriteLine($"\n**Total**: {suite.TotalGates} gates | Passed: {suite.PassedCount} | Failed: {suite.FailedCount} | Duration: {suite.TotalDuration.TotalMilliseconds:F0}ms\n");
+
+            var failedGates = suite.Results.Where(r => r.Status is GateCheckStatus.FailedNew or GateCheckStatus.Error).ToList();
+            if (failedGates.Count > 0)
+            {
+                Console.WriteLine("#### Blocking Failures\n");
+                foreach (var fg in failedGates)
+                {
+                    var countText = fg.NewViolations.Count > 0 ? $" ({fg.NewViolations.Count} new)" : "";
+                    Console.WriteLine($"- **`{fg.Gate.Id}`** - {fg.Gate.Name}{countText}");
+                    if (!string.IsNullOrEmpty(fg.Gate.Remediation))
+                    {
+                        Console.WriteLine($"  - *Remediation*: {fg.Gate.Remediation}");
+                    }
+                    if (fg.NewViolations.Count > 0)
+                    {
+                        Console.WriteLine($"  - *Inspect*: `ce gate violations -g {fg.Gate.Id}`");
+                    }
+                }
+                Console.WriteLine();
+            }
+
             return suite.IsSuccess ? 0 : 1;
         }
 
@@ -311,28 +369,47 @@ public class GateCommandHandler : BaseCommandHandler
         var failed = suite.Results.Where(r => r.Status is GateCheckStatus.FailedNew or GateCheckStatus.Error).ToList();
         if (failed.Count > 0)
         {
+            var totalNew = failed.Sum(f => f.NewViolations.Count);
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine("Blocking Architectural Violations:\n");
+            Console.WriteLine($"Failed Gates ({failed.Count} gate(s) failed, {totalNew} new violation(s)):\n");
             Console.ResetColor();
 
             foreach (var fg in failed)
             {
-                Console.WriteLine($"Gate [{fg.Gate.Id}] {fg.Gate.Name}:");
+                var countText = fg.NewViolations.Count > 0 ? $" ({fg.NewViolations.Count} new violation(s))" : "";
+                Console.WriteLine($"Gate [{fg.Gate.Id}] {fg.Gate.Name}{countText}:");
                 if (!string.IsNullOrEmpty(fg.Gate.Description))
                 {
                     Console.WriteLine($"  Rule: {fg.Gate.Description}");
                 }
-                foreach (var v in fg.NewViolations)
+
+                if (fg.NewViolations.Count > 0)
                 {
-                    var loc = v.Location != "-" ? v.Location : "";
-                    var target = !string.IsNullOrEmpty(v.Target) ? $" -> {v.Target}" : "";
-                    Console.WriteLine($"  - {loc} {v.Symbol}{target}: {v.Message}");
+                    var sampleCount = opts.All ? fg.NewViolations.Count : Math.Min(3, fg.NewViolations.Count);
+                    for (var i = 0; i < sampleCount; i++)
+                    {
+                        var v = fg.NewViolations[i];
+                        var loc = v.Location != "-" ? v.Location : "";
+                        var target = !string.IsNullOrEmpty(v.Target) ? $" -> {v.Target}" : "";
+                        Console.WriteLine($"  - {loc} {v.Symbol}{target}: {v.Message}");
+                    }
+
+                    if (!opts.All && fg.NewViolations.Count > sampleCount)
+                    {
+                        Console.WriteLine($"  ... and {fg.NewViolations.Count - sampleCount} more new violation(s).");
+                    }
                 }
+
                 if (!string.IsNullOrEmpty(fg.Gate.Remediation))
                 {
                     Console.ForegroundColor = ConsoleColor.Yellow;
                     Console.WriteLine($"  Remediation: {fg.Gate.Remediation}");
                     Console.ResetColor();
+                }
+
+                if (fg.NewViolations.Count > 0)
+                {
+                    Console.WriteLine($"  Inspect: ce gate violations -g {fg.Gate.Id} (e.g. '--group-by file')");
                 }
                 Console.WriteLine();
             }

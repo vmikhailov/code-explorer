@@ -25,6 +25,8 @@ export interface DomainHiddenPanelProps {
   onRestoreAll?: () => void;
   isCollapsed?: boolean;
   onToggleCollapse?: (collapsed: boolean) => void;
+  docked?: boolean;
+  onClose?: () => void;
 }
 
 export const DomainHiddenPanel: React.FC<DomainHiddenPanelProps> = (props) => {
@@ -178,8 +180,10 @@ export const DomainHiddenPanel: React.FC<DomainHiddenPanelProps> = (props) => {
       minWidth={280}
       maxWidth={700}
       persistKey="ce_hidden_panel"
+      docked={props.docked}
+      onClose={props.onClose}
     >
-      <div className="domain-hidden-list" style={{ maxHeight: 360, overflowY: 'auto' }}>
+      <div className="domain-hidden-list" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         {filteredHiddenItems.map((item) => (
           <div
             key={item.id}

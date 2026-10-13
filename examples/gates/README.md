@@ -58,9 +58,11 @@ This directory contains production-ready Semantic Invariant Gate definitions org
 - [`sig-p-i-001-circular-dependency.yaml`](./rules/sig-p-i-001-circular-dependency.yaml): Inter-package and inter-project dependencies must form an acyclic directed graph (DAG).
 
 ### 5. Compiler / Tool Dogfooding (`code-explorer/`)
-Internal gates used by CodeExplorer itself to enforce AST parser purity and pipeline stage order:
+Internal gates used by CodeExplorer itself to enforce AST parser purity, pipeline stage order, and ontology tier integrity:
 - [`sig-p-b-001-pipeline-layer-hierarchy.yaml`](./code-explorer/sig-p-b-001-pipeline-layer-hierarchy.yaml)
 - [`sig-p-b-002-database-driver-isolation.yaml`](./code-explorer/sig-p-b-002-database-driver-isolation.yaml)
+- [`sig-p-b-005-ontology-layer-hierarchy.yaml`](./code-explorer/sig-p-b-005-ontology-layer-hierarchy.yaml)
+- [`sig-c-b-002-ontology-model-cohesion.yaml`](./code-explorer/sig-c-b-002-ontology-model-cohesion.yaml)
 - [`sig-s-b-001-storage-driver-abstraction.yaml`](./code-explorer/sig-s-b-001-storage-driver-abstraction.yaml)
 - [`sig-c-i-001-visitor-io-purity.yaml`](./code-explorer/sig-c-i-001-visitor-io-purity.yaml)
 - [`sig-m-r-001-method-length.yaml`](./code-explorer/sig-m-r-001-method-length.yaml)

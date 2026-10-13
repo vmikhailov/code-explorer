@@ -24,12 +24,17 @@ import { attachNormalizedCytoscapeWheel } from '../utils/wheelZoom';
 import { DomainGridView } from '../domain/components/DomainGridView';
 import { DomainInspector } from '../domain/components/DomainInspector';
 import { DomainHiddenPanel } from '../domain/components/DomainHiddenPanel';
+import { matchesSearchTokens } from '../domain/searchUtils';
+import { Group, Panel, Separator } from 'react-resizable-panels';
 import { FloatingPanel } from './FloatingPanel';
 import {
   LayersIcon,
   RotateCcwIcon,
   ChevronUpIcon,
   ChevronDownIcon,
+  EyeIcon,
+  EyeOffIcon,
+  XIcon,
 } from './Icons';
 import { DomainGroupSummary, PresentationMode } from '../domain/types';
 import { useCommand } from '../commands/CommandContext';
@@ -63,52 +68,6 @@ export interface DomainArchitectureViewProps {
   onSetDomainOverride?: (serviceName: string, domain: string, context?: string, reset?: boolean) => void;
   availableDomains?: string[];
 }
-
-
-
-export const EyeIcon: React.FC<{ size?: number; className?: string; style?: React.CSSProperties }> = ({
-  size = 14,
-  className = '',
-  style,
-}) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-    style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0, ...style }}
-  >
-    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-    <circle cx="12" cy="12" r="3" />
-  </svg>
-);
-
-export const EyeOffIcon: React.FC<{ size?: number; className?: string; style?: React.CSSProperties }> = ({
-  size = 14,
-  className = '',
-  style,
-}) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-    style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0, ...style }}
-  >
-    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-    <line x1="1" y1="1" x2="23" y2="23" />
-  </svg>
-);
 
 export interface DomainProjectInfo {
   id: string;
@@ -586,10 +545,12 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
     selector: 'node.search-match',
     style: {
       'underlay-color': '#f59e0b',
-      'underlay-padding': '10px',
-      'underlay-opacity': 0.6,
-      'border-color': '#f59e0b',
+      'underlay-padding': '12px',
+      'underlay-opacity': 0.7,
+      'border-color': '#fbbf24',
       'border-width': 4,
+      'opacity': 1,
+      'z-index': 999,
     },
   },
   // Dynamic Curve Styles (Straight, Bezier, Unbundled Core Bypass)
@@ -888,6 +849,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   }, []);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const searchQueryRef = useRef<string>(searchQuery);
+  searchQueryRef.current = searchQuery;
   const [layoutName, setLayoutName] = useState<DomainLayoutName>(() => {
     try {
       const saved = localStorage.getItem('ce_domain_layout');
@@ -1009,6 +972,77 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   selectedEdgeRef.current = selectedEdge;
   const edgeDetailMapRef = useRef<Map<string, SelectedEdgeDetail>>(new Map());
 
+  const applySearchHighlight = useCallback((cy: cytoscape.Core, query: string) => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      cy.batch(() => {
+        cy.elements().removeClass('search-match');
+        if (selectedNodeRef.current) {
+          const node = cy.getElementById(selectedNodeRef.current.id);
+          if (node.length > 0) {
+            cy.elements().removeClass('highlighted dimmed');
+            const neighborhood = node.neighborhood().add(node);
+            cy.elements().not(neighborhood).addClass('dimmed');
+            node.connectedEdges().addClass('highlighted');
+          } else {
+            cy.elements().removeClass('highlighted dimmed');
+          }
+        } else if (selectedEdgeRef.current) {
+          const edge = cy.getElementById(selectedEdgeRef.current.id);
+          if (edge.length > 0) {
+            cy.elements().removeClass('highlighted dimmed');
+            const connectedNodes = edge.connectedNodes();
+            const activeGroup = connectedNodes.add(edge);
+            cy.elements().not(activeGroup).addClass('dimmed');
+            edge.addClass('highlighted');
+            connectedNodes.addClass('highlighted');
+          } else {
+            cy.elements().removeClass('highlighted dimmed');
+          }
+        } else {
+          cy.elements().removeClass('highlighted dimmed');
+        }
+      });
+      return;
+    }
+
+    cy.batch(() => {
+      const matchedNodeIds = new Set<string>();
+
+      cy.nodes().forEach((n) => {
+        const detail = rawGraphRef.current?.detailMap?.get(n.id());
+        const data = n.data() || {};
+        const isMatch = matchesSearchTokens([
+          detail?.name || data.name,
+          detail?.displayName || data.displayName || data.displayLabel,
+          detail?.domain || data.domain,
+          detail?.kind || data.kind,
+          detail?.displayTag,
+          detail?.framework || data.framework,
+          detail?.language || data.language,
+          detail?.primaryFilePath,
+          ...(detail?.projects || []).map((p: DomainProjectInfo) => p.name),
+        ], trimmed);
+
+        if (isMatch) {
+          matchedNodeIds.add(n.id());
+          n.addClass('search-match').removeClass('dimmed');
+        } else {
+          n.removeClass('search-match').addClass('dimmed');
+        }
+      });
+
+      // Highlight edges connecting matching nodes, dim all other edges
+      cy.edges().forEach((e) => {
+        if (matchedNodeIds.has(e.source().id()) && matchedNodeIds.has(e.target().id())) {
+          e.addClass('highlighted').removeClass('dimmed');
+        } else {
+          e.removeClass('highlighted').addClass('dimmed');
+        }
+      });
+    });
+  }, []);
+
   const highlightOrbitNodes = useCallback((nodeIds: string[]) => {
     const cy = cyRef.current;
     if (!cy || nodeIds.length === 0) return;
@@ -1028,16 +1062,105 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const clearOrbitHighlight = useCallback(() => {
     const cy = cyRef.current;
     if (!cy || selectedNodeRef.current) return;
-    cy.batch(() => {
-      cy.elements().removeClass('highlighted dimmed');
-    });
-  }, []);
-  const [hiddenTypes, setHiddenTypes] = useState<Set<EntityKind>>(() => new Set<EntityKind>(['ExternalService']));
-  const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(new Set());
-  const [hiddenOrbitTiers, setHiddenOrbitTiers] = useState<Set<number>>(new Set());
-  const [forcedVisibleNodeIds, setForcedVisibleNodeIds] = useState<Set<string>>(new Set());
-  const [hideSingleConnectionDbs, setHideSingleConnectionDbs] = useState<boolean>(false);
-  const [hideIsolatedNodes, setHideIsolatedNodes] = useState<boolean>(false);
+    if (searchQueryRef.current.trim()) {
+      applySearchHighlight(cy, searchQueryRef.current);
+    } else {
+      cy.batch(() => {
+        cy.elements().removeClass('highlighted dimmed');
+      });
+    }
+  }, [applySearchHighlight]);
+  const [hiddenTypes, setHiddenTypes] = useState<Set<EntityKind>>(() => {
+    try {
+      const saved = localStorage.getItem('ce_domain_hidden_types');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return new Set<EntityKind>(parsed);
+      }
+    } catch { }
+    return new Set<EntityKind>(['ExternalService']);
+  });
+  const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('ce_domain_hidden_node_ids');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return new Set<string>(parsed);
+      }
+    } catch { }
+    return new Set<string>();
+  });
+  const [hiddenOrbitTiers, setHiddenOrbitTiers] = useState<Set<number>>(() => {
+    try {
+      const saved = localStorage.getItem('ce_domain_hidden_orbit_tiers');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return new Set<number>(parsed);
+      }
+    } catch { }
+    return new Set<number>();
+  });
+  const [forcedVisibleNodeIds, setForcedVisibleNodeIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('ce_domain_forced_visible_nodes');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return new Set<string>(parsed);
+      }
+    } catch { }
+    return new Set<string>();
+  });
+  const [hideSingleConnectionDbs, setHideSingleConnectionDbs] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('ce_hide_single_connection_dbs');
+      return saved !== null ? saved === 'true' : false;
+    } catch { }
+    return false;
+  });
+  const [hideIsolatedNodes, setHideIsolatedNodes] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('ce_hide_isolated_nodes');
+      return saved !== null ? saved === 'true' : false;
+    } catch { }
+    return false;
+  });
+
+  // Sync hidden and filter states to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('ce_domain_hidden_types', JSON.stringify([...hiddenTypes]));
+    } catch { }
+  }, [hiddenTypes]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ce_domain_hidden_node_ids', JSON.stringify([...hiddenNodeIds]));
+    } catch { }
+  }, [hiddenNodeIds]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ce_domain_hidden_orbit_tiers', JSON.stringify([...hiddenOrbitTiers]));
+    } catch { }
+  }, [hiddenOrbitTiers]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ce_domain_forced_visible_nodes', JSON.stringify([...forcedVisibleNodeIds]));
+    } catch { }
+  }, [forcedVisibleNodeIds]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ce_hide_single_connection_dbs', String(hideSingleConnectionDbs));
+    } catch { }
+  }, [hideSingleConnectionDbs]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ce_hide_isolated_nodes', String(hideIsolatedNodes));
+    } catch { }
+  }, [hideIsolatedNodes]);
   const [showTransitiveEdges, setShowTransitiveEdges] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem('ce_show_transitive_edges');
@@ -1103,10 +1226,12 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isDisplayOpen]);
 
-  // Floating Side Panels Collapse States
+  // Floating / Docked Side Panels Collapse States
   const [isHiddenPanelCollapsed, setIsHiddenPanelCollapsed] = useState(false);
   const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(false);
   const [isEdgeInspectorCollapsed, setIsEdgeInspectorCollapsed] = useState(false);
+  const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(true);
+  const [leftSidebarTab, setLeftSidebarTab] = useState<'hidden' | 'orbits'>('hidden');
 
   // Restore all hidden entities across individual hides, category filters, and orbits
   const restoreAllHiddenNodes = useCallback(() => {
@@ -1187,16 +1312,19 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const centroidRef = useRef<{ cx: number; cy: number }>({ cx: 0, cy: 0 });
   const rawGraphRef = useRef<any>(null);
 
-  // Clear hidden filters when switching graph (ExternalService hidden by default)
+  // Preserve hidden filters and entities when updating/refreshing graph
   const prevGraphRef = useRef<any>(graph);
   useEffect(() => {
     if (prevGraphRef.current === graph) return;
     prevGraphRef.current = graph;
-    setHiddenTypes(new Set<EntityKind>(['ExternalService']));
-    setHiddenNodeIds(new Set());
-    setHiddenOrbitTiers(new Set());
-    setForcedVisibleNodeIds(new Set());
-    setSelectedNode(null);
+
+    // Do NOT clear hiddenNodeIds, hiddenTypes, hiddenOrbitTiers, or forcedVisibleNodeIds on graph refresh!
+    // Update or clear selectedNode if it no longer exists in the updated graph
+    setSelectedNode((prev) => {
+      if (!prev) return null;
+      const updated = rawGraphRef.current?.detailMap?.get(prev.id);
+      return updated || null;
+    });
   }, [graph]);
 
   const toggleTypeVisibility = useCallback((kind: EntityKind) => {
@@ -2287,6 +2415,19 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
   const nodeDetailMap = rawGraph.detailMap;
 
+  // Derived docked panels visibility and active tab selection
+  const hasHiddenEntities = hiddenCount > 0;
+  const hasOrbitLegend = layoutName.startsWith('concentric') && orbitLegendItems.length > 0;
+  const showLeftSidebar = isLeftSidebarOpen && (hasHiddenEntities || hasOrbitLegend);
+  const activeLeftTab: 'hidden' | 'orbits' =
+    hasHiddenEntities && hasOrbitLegend
+      ? leftSidebarTab
+      : hasHiddenEntities
+      ? 'hidden'
+      : 'orbits';
+
+  const showRightInspector = selectedNode !== null || selectedEdge !== null;
+
   // Initialize Cytoscape Instance
   useEffect(() => {
     if (!containerRef.current) return;
@@ -2363,7 +2504,11 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         setSelectedNode(null);
         setSelectedEdge(null);
         onSelectNodeRef.current?.(null);
-        cy.elements().removeClass('highlighted dimmed');
+        if (searchQueryRef.current.trim()) {
+          applySearchHighlight(cy, searchQueryRef.current);
+        } else {
+          cy.elements().removeClass('highlighted dimmed');
+        }
       }
     });
 
@@ -2464,10 +2609,24 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       ? attachNormalizedCytoscapeWheel(containerRef.current, () => cyRef.current, () => wheelSensitivityRef.current)
       : () => {};
 
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined' && containerRef.current) {
+      resizeObserver = new ResizeObserver(() => {
+        if (cyRef.current) {
+          cyRef.current.resize();
+        }
+      });
+      resizeObserver.observe(containerRef.current);
+    }
+
     return () => {
       if (syncRafId !== null) {
         cancelAnimationFrame(syncRafId);
         syncRafId = null;
+      }
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+        resizeObserver = null;
       }
       cleanupWheel();
       cy.destroy();
@@ -2508,13 +2667,26 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         hideNode(selectedNode.id);
       } else if (e.key === 'Escape') {
         setSelectedNode(null);
-        cyRef.current?.elements().removeClass('highlighted dimmed');
+        if (cyRef.current) {
+          if (searchQueryRef.current.trim()) {
+            applySearchHighlight(cyRef.current, searchQueryRef.current);
+          } else {
+            cyRef.current.elements().removeClass('highlighted dimmed');
+          }
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedNode, hideNode]);
+  }, [selectedNode, hideNode, applySearchHighlight]);
+
+  // Synchronize Cytoscape element highlights/dimming with searchQuery
+  useEffect(() => {
+    if (cyRef.current && isCyReady) {
+      applySearchHighlight(cyRef.current, searchQuery);
+    }
+  }, [searchQuery, isCyReady, elements, applySearchHighlight]);
 
   // Asynchronously load elements and execute layout without freezing the UI
   useEffect(() => {
@@ -2559,6 +2731,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       cy.elements().remove();
       cy.add(elements);
       applyEdgeLabelVisibility(cy, edgeLabelsOnHoverRef.current);
+      if (searchQueryRef.current.trim()) {
+        applySearchHighlight(cy, searchQueryRef.current);
+      }
 
       if (hadExisting && !layoutChanged && layoutName === 'cose') {
         let hasNewNodes = false;
@@ -3155,6 +3330,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         if (cyRef.current) {
           recordBasePositions(cyRef.current);
           applyEdgeCurveMode(cyRef.current, edgeCurveModeRef.current, { x: 0, y: 0 }, curveFactorRef.current);
+          if (searchQueryRef.current.trim()) {
+            applySearchHighlight(cyRef.current, searchQueryRef.current);
+          }
         }
       }, 370);
     },
@@ -3275,6 +3453,152 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       localStorage.setItem('ce_domain_layout', newLayout);
     } catch { }
   }, []);
+
+  const searchMatchCount = useMemo(() => {
+    if (!searchQuery.trim()) return null;
+    let count = 0;
+    for (const n of visibleNodes) {
+      const detail = rawGraph.detailMap.get(n.data.id as string);
+      const data = n.data || {};
+      if (
+        matchesSearchTokens([
+          detail?.name || data.name,
+          detail?.displayName || data.displayName || data.displayLabel,
+          detail?.domain || data.domain,
+          detail?.kind || data.kind,
+          detail?.displayTag,
+          detail?.framework || data.framework,
+          detail?.language || data.language,
+          detail?.primaryFilePath,
+          ...(detail?.projects || []).map((p: DomainProjectInfo) => p.name),
+        ], searchQuery)
+      ) {
+        count++;
+      }
+    }
+    return count;
+  }, [searchQuery, visibleNodes, rawGraph.detailMap]);
+
+  const renderOrbitLegend = (docked: boolean) => (
+    <FloatingPanel
+      dock="top-left"
+      docked={docked}
+      isCollapsed={false}
+      onClose={() => setIsLeftSidebarOpen(false)}
+      title="Orbit Legend"
+      icon={<LayersIcon size={14} />}
+      badge={
+        <span
+          className="floating-dock-badge"
+          style={{
+            backgroundColor: 'rgba(56, 189, 248, 0.18)',
+            color: '#38bdf8',
+            border: '1px solid rgba(56, 189, 248, 0.35)',
+            fontSize: '10px',
+            padding: '1px 6px',
+          }}
+        >
+          {orbitLegendItems.length}
+        </span>
+      }
+      headerActions={
+        customOrbitOrder !== null || hiddenOrbitTiers.size > 0 ? (
+          <button
+            type="button"
+            className="floating-dock-btn action-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleResetOrbitOrder();
+            }}
+            title="Reset to auto-calculated layout and show all orbits"
+          >
+            <RotateCcwIcon size={11} />
+            <span>Reset</span>
+          </button>
+        ) : undefined
+      }
+      collapsedTitle={`Orbits (${orbitLegendItems.length})`}
+      collapsedIcon={<LayersIcon size={13} />}
+      collapseTooltip="Collapse Orbit Legend"
+      expandTooltip="Expand Orbit Legend"
+      width={360}
+      minWidth={280}
+      maxWidth={700}
+      persistKey="ce_orbit_legend"
+      className="domain-orbit-legend-floating"
+    >
+      <div
+        className="orbit-legend-hint"
+        title="Orbits are ordered from Center (top) to Outer Periphery (bottom). Drag or use ▲/▼ to change orbit radii."
+      >
+        <span>Inner (Center)</span>
+        <span>↕</span>
+        <span>Outer (Periphery)</span>
+      </div>
+      <div className="domain-orbit-legend-body" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+        {orbitLegendItems.map((item, idx) => {
+          const isOrbitHidden = hiddenOrbitTiers.has(item.levelIndex);
+
+          return (
+            <div
+              key={item.levelIndex}
+              className={`domain-orbit-legend-item ${isOrbitHidden ? 'is-orbit-hidden' : ''} ${draggedOrbitIndex === idx ? 'is-dragging' : ''} ${dragOverIndex === idx ? 'is-drag-over' : ''}`}
+              draggable
+              onDragStart={(e) => handleDragStart(e, idx)}
+              onDragOver={(e) => handleDragOver(e, idx)}
+              onDrop={(e) => handleDrop(e, idx)}
+              onDragEnd={handleDragEnd}
+              onMouseEnter={() => !isOrbitHidden && highlightOrbitNodes(item.nodeIds)}
+              onMouseLeave={clearOrbitHighlight}
+              title={`${item.shortLabel}: ${item.title} (${item.count} nodes). Drag or use ▲/▼ to change orbit order.`}
+            >
+              <button
+                type="button"
+                className={`orbit-visibility-btn ${isOrbitHidden ? 'is-hidden' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleOrbitVisibility(item.levelIndex);
+                }}
+                title={isOrbitHidden ? `Show entire ${item.title}` : `Hide entire ${item.title}`}
+              >
+                {isOrbitHidden ? <EyeOffIcon size={13} /> : <EyeIcon size={13} />}
+              </button>
+              <span className="orbit-drag-handle" title="Drag to reorder orbit">⠿</span>
+              <span className="orbit-legend-pill">{item.shortLabel}</span>
+              <span className="orbit-legend-title">{item.title}</span>
+              <span className="orbit-legend-count">{item.count}</span>
+              <div className="orbit-move-actions">
+                <button
+                  type="button"
+                  className="orbit-move-btn"
+                  disabled={idx === 0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleMoveOrbit(idx, -1);
+                  }}
+                  title="Move toward center (Inner orbit)"
+                >
+                  <ChevronUpIcon size={10} />
+                </button>
+                <button
+                  type="button"
+                  className="orbit-move-btn"
+                  disabled={idx === orbitLegendItems.length - 1}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleMoveOrbit(idx, 1);
+                  }}
+                  title="Move toward periphery (Outer orbit)"
+                >
+                  <ChevronDownIcon size={10} />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </FloatingPanel>
+  );
 
   return (
     <div className="domain-map-canvas-container">
@@ -3708,7 +4032,29 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               placeholder="Search domain or service..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const matches = cyRef.current?.nodes('.search-match');
+                  if (matches && matches.length > 0) {
+                    cyRef.current?.animate({ fit: { eles: matches, padding: 80 }, duration: 350 });
+                  }
+                }
+              }}
             />
+            {searchMatchCount !== null && (
+              <span
+                className={`domain-search-count ${searchMatchCount === 0 ? 'is-zero' : ''}`}
+                title={searchMatchCount === 0 ? 'No matches found' : `${searchMatchCount} matching entities (Press Enter to focus)`}
+                onClick={() => {
+                  const matches = cyRef.current?.nodes('.search-match');
+                  if (matches && matches.length > 0) {
+                    cyRef.current?.animate({ fit: { eles: matches, padding: 80 }, duration: 350 });
+                  }
+                }}
+              >
+                {searchMatchCount}
+              </span>
+            )}
             {searchQuery && (
               <button
                 type="button"
@@ -3887,6 +4233,56 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               ╌ Transitive ({stats.transitiveCalls})
             </button>
 
+            {/* Hidden entities sidebar toggle button */}
+            {hiddenCount > 0 && (
+              <button
+                type="button"
+                className={`hud-type-filter-btn ${showLeftSidebar && activeLeftTab === 'hidden' ? 'is-active is-filter-on' : ''}`}
+                onClick={() => {
+                  if (showLeftSidebar && activeLeftTab === 'hidden') {
+                    setIsLeftSidebarOpen(false);
+                  } else {
+                    setIsLeftSidebarOpen(true);
+                    setLeftSidebarTab('hidden');
+                  }
+                }}
+                title={showLeftSidebar && activeLeftTab === 'hidden' ? 'Close Hidden entities sidebar' : 'Open Hidden entities sidebar'}
+                style={showLeftSidebar && activeLeftTab === 'hidden' ? {
+                  background: 'rgba(239, 68, 68, 0.25)',
+                  borderColor: '#ef4444',
+                  color: '#fca5a5',
+                  fontWeight: 600,
+                } : undefined}
+              >
+                <EyeOffIcon size={12} className="btn-icon" /> Hidden ({hiddenCount})
+              </button>
+            )}
+
+            {/* Orbit legend sidebar toggle button for concentric layout */}
+            {hasOrbitLegend && (
+              <button
+                type="button"
+                className={`hud-type-filter-btn ${showLeftSidebar && activeLeftTab === 'orbits' ? 'is-active is-filter-on' : ''}`}
+                onClick={() => {
+                  if (showLeftSidebar && activeLeftTab === 'orbits') {
+                    setIsLeftSidebarOpen(false);
+                  } else {
+                    setIsLeftSidebarOpen(true);
+                    setLeftSidebarTab('orbits');
+                  }
+                }}
+                title={showLeftSidebar && activeLeftTab === 'orbits' ? 'Close Orbit Legend sidebar' : 'Open Orbit Legend sidebar'}
+                style={showLeftSidebar && activeLeftTab === 'orbits' ? {
+                  background: 'rgba(56, 189, 248, 0.25)',
+                  borderColor: '#38bdf8',
+                  color: '#e0f2fe',
+                  fontWeight: 600,
+                } : undefined}
+              >
+                <LayersIcon size={12} className="btn-icon" /> Orbits ({orbitLegendItems.length})
+              </button>
+            )}
+
             {/* Reset Filters / Hidden Button */}
             {hiddenCount > 0 && (
               <button
@@ -3931,8 +4327,99 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       </div>
     </header>
 
-      {/* Main Graph / Grid / Matrix Viewport Area */}
-      <div className="domain-cytoscape-wrapper" style={{ display: 'flex', flexDirection: 'column', flex: 1, position: 'relative', overflow: 'hidden' }}>
+      {/* Main Content Area: Resizable Horizontal Panel Layout */}
+      <Group orientation="horizontal" className="domain-panel-group">
+        {/* Left Docked Panel: Hidden Entities / Concentric Orbit Legend */}
+        {showLeftSidebar && (
+          <>
+            <Panel
+              id="left-sidebar"
+              defaultSize="22%"
+              minSize="15%"
+              maxSize="45%"
+              collapsible
+              className="domain-dock-panel-left"
+            >
+              {hasHiddenEntities && hasOrbitLegend ? (
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+                  <div className="domain-sidebar-tab-bar">
+                    <div className="domain-sidebar-tabs">
+                      <button
+                        type="button"
+                        className={`domain-sidebar-tab ${activeLeftTab === 'hidden' ? 'is-active' : ''}`}
+                        onClick={() => setLeftSidebarTab('hidden')}
+                      >
+                        <EyeOffIcon size={12} />
+                        <span>Hidden</span>
+                        <span className="tab-badge">{hiddenCount}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`domain-sidebar-tab ${activeLeftTab === 'orbits' ? 'is-active' : ''}`}
+                        onClick={() => setLeftSidebarTab('orbits')}
+                      >
+                        <LayersIcon size={12} />
+                        <span>Orbits</span>
+                        <span className="tab-badge">{orbitLegendItems.length}</span>
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      className="domain-sidebar-close-btn"
+                      onClick={() => setIsLeftSidebarOpen(false)}
+                      title="Close Sidebar"
+                      aria-label="Close Sidebar"
+                    >
+                      <XIcon size={12} />
+                    </button>
+                  </div>
+                  <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                    {activeLeftTab === 'hidden' ? (
+                      <DomainHiddenPanel
+                        nodeDetailMap={rawGraph.detailMap}
+                        echelonMap={rawGraph.echelonMap}
+                        hiddenNodeIds={hiddenNodeIds}
+                        hiddenTypes={hiddenTypes}
+                        hiddenOrbitTiers={hiddenOrbitTiers}
+                        hideSingleConnectionDbs={hideSingleConnectionDbs}
+                        hideIsolatedNodes={hideIsolatedNodes}
+                        onUnhideNode={unhideNode}
+                        onRestoreAll={restoreAllHiddenNodes}
+                        isCollapsed={false}
+                        docked={true}
+                        onClose={() => setIsLeftSidebarOpen(false)}
+                      />
+                    ) : (
+                      renderOrbitLegend(true)
+                    )}
+                  </div>
+                </div>
+              ) : activeLeftTab === 'hidden' ? (
+                <DomainHiddenPanel
+                  nodeDetailMap={rawGraph.detailMap}
+                  echelonMap={rawGraph.echelonMap}
+                  hiddenNodeIds={hiddenNodeIds}
+                  hiddenTypes={hiddenTypes}
+                  hiddenOrbitTiers={hiddenOrbitTiers}
+                  hideSingleConnectionDbs={hideSingleConnectionDbs}
+                  hideIsolatedNodes={hideIsolatedNodes}
+                  onUnhideNode={unhideNode}
+                  onRestoreAll={restoreAllHiddenNodes}
+                  isCollapsed={false}
+                  docked={true}
+                  onClose={() => setIsLeftSidebarOpen(false)}
+                />
+              ) : (
+                renderOrbitLegend(true)
+              )}
+            </Panel>
+            <Separator className="domain-panel-resize-handle handle-left" />
+          </>
+        )}
+
+        {/* Center Canvas / Grid / Matrix Panel */}
+        <Panel id="center-canvas" minSize="30%" className="domain-dock-panel-center">
+          <div className="domain-cytoscape-wrapper" style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', flex: 1, position: 'relative', overflow: 'hidden' }}>
 
       {presentationMode === 'grid' ? (
         <DomainGridView
@@ -4317,215 +4804,95 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         </>
       )}
 
-      {/* Floating Collapsible Hidden Entities Panel (Clings to Left) */}
-      <DomainHiddenPanel
-        nodeDetailMap={rawGraph.detailMap}
-        echelonMap={rawGraph.echelonMap}
-        hiddenNodeIds={hiddenNodeIds}
-        hiddenTypes={hiddenTypes}
-        hiddenOrbitTiers={hiddenOrbitTiers}
-        hideSingleConnectionDbs={hideSingleConnectionDbs}
-        hideIsolatedNodes={hideIsolatedNodes}
-        onUnhideNode={unhideNode}
-        onRestoreAll={restoreAllHiddenNodes}
-        isCollapsed={isHiddenPanelCollapsed}
-        onToggleCollapse={setIsHiddenPanelCollapsed}
-      />
-
-      {/* Floating Concentric Orbit Legend HUD (Clings to Bottom-Left) */}
-      {layoutName.startsWith('concentric') && orbitLegendItems.length > 0 && (
-        <FloatingPanel
-          dock="bottom-left"
-          isCollapsed={!isOrbitLegendOpen}
-          onToggleCollapse={(collapsed) => setIsOrbitLegendOpen(!collapsed)}
-          title="Orbit Legend"
-          icon={<LayersIcon size={14} />}
-          badge={
-            <span
-              className="floating-dock-badge"
+          {/* Context Menu for Nodes */}
+          {contextMenu && (
+            <div
+              className="domain-node-context-menu"
               style={{
-                backgroundColor: 'rgba(56, 189, 248, 0.18)',
-                color: '#38bdf8',
-                border: '1px solid rgba(56, 189, 248, 0.35)',
-                fontSize: '10px',
-                padding: '1px 6px',
+                position: 'absolute',
+                left: `${contextMenu.x}px`,
+                top: `${contextMenu.y}px`,
+                zIndex: 1000,
               }}
+              onClick={(e) => e.stopPropagation()}
             >
-              {orbitLegendItems.length}
-            </span>
-          }
-          headerActions={
-            isOrbitLegendOpen && (customOrbitOrder !== null || hiddenOrbitTiers.size > 0) ? (
+              <div className="context-menu-header">
+                <span className="context-menu-title" title={contextMenu.nodeName}>
+                  {contextMenu.nodeName}
+                </span>
+                <span className="context-menu-kind">{contextMenu.nodeKind}</span>
+              </div>
+              <div className="context-menu-divider" />
               <button
                 type="button"
-                className="floating-dock-btn action-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleResetOrbitOrder();
-                }}
-                title="Reset to auto-calculated layout and show all orbits"
+                className="context-menu-item"
+                onClick={() => hideNode(contextMenu.nodeId)}
               >
-                <RotateCcwIcon size={11} />
-                <span>Reset</span>
+                <span>Hide Node</span>
               </button>
-            ) : undefined
-          }
-          collapsedTitle={`Orbits (${orbitLegendItems.length})`}
-          collapsedIcon={<LayersIcon size={13} />}
-          collapseTooltip="Collapse Orbit Legend"
-          expandTooltip="Expand Orbit Legend"
-          width={360}
-          minWidth={280}
-          maxWidth={700}
-          persistKey="ce_orbit_legend"
-          className="domain-orbit-legend-floating"
-        >
-          <div
-            className="orbit-legend-hint"
-            title="Orbits are ordered from Center (top) to Outer Periphery (bottom). Drag or use ▲/▼ to change orbit radii."
-          >
-            <span>Inner (Center)</span>
-            <span>↕</span>
-            <span>Outer (Periphery)</span>
-          </div>
-          <div className="domain-orbit-legend-body">
-            {orbitLegendItems.map((item, idx) => {
-              const isOrbitHidden = hiddenOrbitTiers.has(item.levelIndex);
-
-              return (
-                <div
-                  key={item.levelIndex}
-                  className={`domain-orbit-legend-item ${isOrbitHidden ? 'is-orbit-hidden' : ''} ${draggedOrbitIndex === idx ? 'is-dragging' : ''} ${dragOverIndex === idx ? 'is-drag-over' : ''}`}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, idx)}
-                  onDragOver={(e) => handleDragOver(e, idx)}
-                  onDrop={(e) => handleDrop(e, idx)}
-                  onDragEnd={handleDragEnd}
-                  onMouseEnter={() => !isOrbitHidden && highlightOrbitNodes(item.nodeIds)}
-                  onMouseLeave={clearOrbitHighlight}
-                  title={`${item.shortLabel}: ${item.title} (${item.count} nodes). Drag or use ▲/▼ to change orbit order.`}
-                >
-                  <button
-                    type="button"
-                    className={`orbit-visibility-btn ${isOrbitHidden ? 'is-hidden' : ''}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleOrbitVisibility(item.levelIndex);
-                    }}
-                    title={isOrbitHidden ? `Show entire ${item.title}` : `Hide entire ${item.title}`}
-                  >
-                    {isOrbitHidden ? <EyeOffIcon size={13} /> : <EyeIcon size={13} />}
-                  </button>
-                  <span className="orbit-drag-handle" title="Drag to reorder orbit">⠿</span>
-                  <span className="orbit-legend-pill">{item.shortLabel}</span>
-                  <span className="orbit-legend-title">{item.title}</span>
-                  <span className="orbit-legend-count">{item.count}</span>
-                  <div className="orbit-move-actions">
-                    <button
-                      type="button"
-                      className="orbit-move-btn"
-                      disabled={idx === 0}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleMoveOrbit(idx, -1);
-                      }}
-                      title="Move toward center (Inner orbit)"
-                    >
-                      <ChevronUpIcon size={10} />
-                    </button>
-                    <button
-                      type="button"
-                      className="orbit-move-btn"
-                      disabled={idx === orbitLegendItems.length - 1}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleMoveOrbit(idx, 1);
-                      }}
-                      title="Move toward periphery (Outer orbit)"
-                    >
-                      <ChevronDownIcon size={10} />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </FloatingPanel>
-      )}
-
-      {/* Floating Node & Edge Inspector Panel */}
-      <DomainInspector
-        selectedNode={selectedNode}
-        selectedEdge={selectedEdge}
-        nodeDetailMap={nodeDetailMap}
-        rawEdges={rawGraph.rawEdges}
-        isInspectorCollapsed={isInspectorCollapsed}
-        onToggleCollapse={setIsInspectorCollapsed}
-        isEdgeInspectorCollapsed={isEdgeInspectorCollapsed}
-        onToggleEdgeCollapse={setIsEdgeInspectorCollapsed}
-        onSelectNode={setSelectedNode}
-        onSelectNodeById={handleSelectNodeById}
-        onSelectEdge={setSelectedEdge}
-        onClearSelection={() => {
-          setSelectedNode(null);
-          setSelectedEdge(null);
-        }}
-        onClearGraphHighlight={() => {
-          cyRef.current?.elements().removeClass('highlighted dimmed');
-        }}
-        onHideNode={hideNode}
-        onFocusInFlow={onFocusInFlow}
-        onOpenFile={onOpenFile}
-        onOpenOverrideModal={(name) => {
-          setOverrideTargetService(name);
-          setOverrideModalOpen(true);
-        }}
-      />
-
-
-      {/* Context Menu for Nodes */}
-      {contextMenu && (
-        <div
-          className="domain-node-context-menu"
-          style={{
-            position: 'absolute',
-            left: `${contextMenu.x}px`,
-            top: `${contextMenu.y}px`,
-            zIndex: 1000,
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="context-menu-header">
-            <span className="context-menu-title" title={contextMenu.nodeName}>
-              {contextMenu.nodeName}
-            </span>
-            <span className="context-menu-kind">{contextMenu.nodeKind}</span>
-          </div>
-          <div className="context-menu-divider" />
-          <button
-            type="button"
-            className="context-menu-item"
-            onClick={() => hideNode(contextMenu.nodeId)}
-          >
-            <span>Hide Node</span>
-          </button>
-          <button
-            type="button"
-            className="context-menu-item"
-            onClick={() => hideDownstreamNodes(contextMenu.nodeId)}
-          >
-            <span>Hide Downstream</span>
-          </button>
-          <button
-            type="button"
-            className="context-menu-item"
-            onClick={() => hideAllOfKind(contextMenu.nodeKind)}
-          >
-            <span>Hide all {contextMenu.nodeKind}s</span>
-          </button>
+              <button
+                type="button"
+                className="context-menu-item"
+                onClick={() => hideDownstreamNodes(contextMenu.nodeId)}
+              >
+                <span>Hide Downstream</span>
+              </button>
+              <button
+                type="button"
+                className="context-menu-item"
+                onClick={() => hideAllOfKind(contextMenu.nodeKind)}
+              >
+                <span>Hide all {contextMenu.nodeKind}s</span>
+              </button>
+            </div>
+          )}
         </div>
+      </Panel>
+
+      {/* Right Docked Panel: Node & Edge Inspector */}
+      {showRightInspector && (
+        <>
+          <Separator className="domain-panel-resize-handle handle-right" />
+          <Panel
+            id="right-inspector"
+            defaultSize="28%"
+            minSize="18%"
+            maxSize="50%"
+            collapsible
+            className="domain-dock-panel-right"
+          >
+            <DomainInspector
+              selectedNode={selectedNode}
+              selectedEdge={selectedEdge}
+              nodeDetailMap={nodeDetailMap}
+              rawEdges={rawGraph.rawEdges}
+              isInspectorCollapsed={isInspectorCollapsed}
+              onToggleCollapse={setIsInspectorCollapsed}
+              isEdgeInspectorCollapsed={isEdgeInspectorCollapsed}
+              onToggleEdgeCollapse={setIsEdgeInspectorCollapsed}
+              onSelectNode={setSelectedNode}
+              onSelectNodeById={handleSelectNodeById}
+              onSelectEdge={setSelectedEdge}
+              onClearSelection={() => {
+                setSelectedNode(null);
+                setSelectedEdge(null);
+              }}
+              onClearGraphHighlight={() => {
+                cyRef.current?.elements().removeClass('highlighted dimmed');
+              }}
+              onHideNode={hideNode}
+              onFocusInFlow={onFocusInFlow}
+              onOpenFile={onOpenFile}
+              onOpenOverrideModal={(name) => {
+                setOverrideTargetService(name);
+                setOverrideModalOpen(true);
+              }}
+              docked={true}
+            />
+          </Panel>
+        </>
       )}
-      </div>
+    </Group>
 
       <DomainOverrideModal
         isOpen={overrideModalOpen}

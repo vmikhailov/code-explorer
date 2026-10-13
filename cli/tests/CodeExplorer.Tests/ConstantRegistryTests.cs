@@ -8,9 +8,12 @@ namespace CodeExplorer.Tests;
 [NonParallelizable]
 public class ConstantRegistryTests
 {
+    private IDisposable? _lock;
+
     [SetUp]
-    public void SetUp()
+    public async Task SetUp()
     {
+        _lock = await TestRegistryLock.AcquireAsync();
         ConstantRegistry.Clear();
     }
 
@@ -18,6 +21,8 @@ public class ConstantRegistryTests
     public void TearDown()
     {
         ConstantRegistry.Clear();
+        _lock?.Dispose();
+        _lock = null;
     }
 
     [Test]

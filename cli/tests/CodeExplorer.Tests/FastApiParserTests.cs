@@ -11,14 +11,25 @@ using NUnit.Framework;
 namespace CodeExplorer.Tests;
 
 [TestFixture]
+[NonParallelizable]
 public class FastApiParserTests
 {
     private readonly PythonParser _parser = new();
+    private IDisposable? _lock;
 
     [SetUp]
-    public void SetUp()
+    public async Task SetUp()
+    {
+        _lock = await TestRegistryLock.AcquireAsync();
+        RouteDictionaryRegistry.Clear();
+    }
+
+    [TearDown]
+    public void TearDown()
     {
         RouteDictionaryRegistry.Clear();
+        _lock?.Dispose();
+        _lock = null;
     }
 
     private static async Task<(List<EndpointNode> Endpoints, List<IOntologyNode> AllNodes)> ParsePythonFileAsync(PythonParser parser, string code, string fileName = "main.py")

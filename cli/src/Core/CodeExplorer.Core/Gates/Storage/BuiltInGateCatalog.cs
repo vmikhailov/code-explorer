@@ -14,7 +14,9 @@ public static class BuiltInGateCatalog
         UnmountedExpressRouteGate,
         GenericPipelineLayerIsolationGate,
         GraphMutationCypherPurityGate,
-        CoreZeroDomainHardcodesGate
+        CoreZeroDomainHardcodesGate,
+        OntologyLayerStrictHierarchyGate,
+        OntologyModelCohesionGate
     ];
 
     public static IReadOnlyList<SemanticGate> GetExampleGates() =>
@@ -25,6 +27,8 @@ public static class BuiltInGateCatalog
         GenericPipelineLayerIsolationGate,
         GraphMutationCypherPurityGate,
         CoreZeroDomainHardcodesGate,
+        OntologyLayerStrictHierarchyGate,
+        OntologyModelCohesionGate,
         new SemanticGate
         {
             Id = "SIG-P-B-001",
@@ -620,6 +624,74 @@ public static class BuiltInGateCatalog
         {
             Enabled = true,
             Baseline = "baselines/SIG-M-I-003.json"
+        },
+        Source = "BuiltIn"
+    };
+
+    public static readonly SemanticGate OntologyLayerStrictHierarchyGate = new()
+    {
+        Id = "SIG-P-B-005",
+        Category = GateCategory.Architectural,
+        Platform = "agnostic",
+        Scope = InvariantScope.Module,
+        Dimension = InvariantDimension.Boundaries,
+        Name = "Ontology Layer Strict Hierarchy",
+        Severity = GateSeverity.Error,
+        Description = "Enforces strict unidirectional layering across the ontology tiers: Layer 1 (Physical) -> Layer 2 (Boundaries) -> Layer 3 (Syntactic) -> Layer 4 (Semantic). Lower-layer models must never reference or depend on higher-order ontology layers (prohibits reverse/backward coupling).",
+        Remediation = "Remove higher-layer references from lower-layer ontology models. Use downward relationships (e.g. higher-order models referencing lower-order models via DECLARED_IN, LOCATED_IN, EXPOSED_BY) or abstract contracts.",
+        Query = """
+            MATCH (src:Type)-[:CALLS|USES_TYPE]->(tgt:Type)
+            WHERE NOT coalesce(src.is_test, false)
+              AND (
+                (src.path CONTAINS 'Common/Nodes/Layer1_' AND (tgt.path CONTAINS 'Common/Nodes/Layer2_' OR tgt.path CONTAINS 'Common/Nodes/Layer3_' OR tgt.path CONTAINS 'Common/Nodes/Layer4_'))
+                OR (src.path CONTAINS 'Common/Nodes/Layer2_' AND (tgt.path CONTAINS 'Common/Nodes/Layer3_' OR tgt.path CONTAINS 'Common/Nodes/Layer4_'))
+                OR (src.path CONTAINS 'Common/Nodes/Layer3_' AND tgt.path CONTAINS 'Common/Nodes/Layer4_')
+              )
+            RETURN 
+              coalesce(src.path, src.file_path) AS file,
+              coalesce(src.start_line, 1) AS line,
+              coalesce(src.start_col, 1) AS column,
+              src.name AS symbol,
+              tgt.name AS target,
+              'Ontology layer violation: Lower layer model ' + src.name + ' references higher layer model ' + tgt.name AS message
+            """,
+        Ratchet = new GateRatchetSettings
+        {
+            Enabled = true,
+            Baseline = "baselines/SIG-P-B-005.json"
+        },
+        Source = "BuiltIn"
+    };
+
+    public static readonly SemanticGate OntologyModelCohesionGate = new()
+    {
+        Id = "SIG-C-B-002",
+        Category = GateCategory.Architectural,
+        Platform = "agnostic",
+        Scope = InvariantScope.Class,
+        Dimension = InvariantDimension.Boundaries,
+        Name = "Ontology Model Layer Cohesion and Isolation",
+        Severity = GateSeverity.Error,
+        Description = "All ontology node models implementing IOntologyNode or extending CompositeNode must reside strictly within CodeExplorer.Core/Common/Nodes/ under an approved layer or root abstraction. No ad-hoc ontology node types may leak into Parser, UI, or external packages.",
+        Remediation = "Move external ontology node models into the appropriate layer under cli/src/Core/CodeExplorer.Core/Common/Nodes/ or refactor parser-internal DTOs to not implement IOntologyNode.",
+        Query = """
+            MATCH (src:Type)-[:IMPLEMENTS|USES_TYPE]->(contract:Type)
+            WHERE contract.name IN ['IOntologyNode', 'CompositeNode']
+              AND NOT coalesce(src.is_test, false)
+              AND NOT src.path CONTAINS 'Common/Nodes/'
+              AND NOT src.name IN ['IOntologyNode', 'CompositeNode', 'OntologyAttributes', 'OntologyEdgeAttribute', 'OntologyPropertyAttribute', 'OntologyNodeAttribute', 'OntologyRelationshipAttribute', 'OntologyRegistry', 'LayerResults', 'Layer4Result']
+            RETURN 
+              coalesce(src.path, src.file_path) AS file,
+              coalesce(src.start_line, 1) AS line,
+              coalesce(src.start_col, 1) AS column,
+              src.name AS symbol,
+              contract.name AS target,
+              'Ontology cohesion violation: Model ' + src.name + ' implements/uses ontology contract outside Common/Nodes' AS message
+            """,
+        Ratchet = new GateRatchetSettings
+        {
+            Enabled = true,
+            Baseline = "baselines/SIG-C-B-002.json"
         },
         Source = "BuiltIn"
     };

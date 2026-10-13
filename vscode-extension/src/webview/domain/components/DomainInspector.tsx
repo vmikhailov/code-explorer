@@ -47,6 +47,7 @@ export interface DomainInspectorProps {
   onFocusInFlow?: (name: string) => void;
   onOpenFile?: (path: string, line?: number) => void;
   onOpenOverrideModal?: (name: string) => void;
+  docked?: boolean;
 }
 
 export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
@@ -245,6 +246,7 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
       {selectedNode && (
         <FloatingPanel
           dock="top-right"
+          docked={props.docked}
           width={360}
           minWidth={280}
           maxWidth={750}
@@ -655,6 +657,7 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
       {selectedEdge && (
         <FloatingPanel
           dock="top-right"
+          docked={props.docked}
           width={360}
           minWidth={280}
           maxWidth={750}
@@ -760,7 +763,8 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                 className="inspector-body"
                 style={{
                   overflowY: 'auto',
-                  maxHeight: '340px',
+                  flex: 1,
+                  minHeight: 0,
                   padding: '10px 12px',
                   display: 'flex',
                   flexDirection: 'column',

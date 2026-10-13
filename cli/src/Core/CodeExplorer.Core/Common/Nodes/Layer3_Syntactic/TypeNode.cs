@@ -1,6 +1,5 @@
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
-using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
 namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
@@ -20,7 +19,6 @@ namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.PotentialType)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.HasMethod)]
 [OntologyEdge<MemberNode>(OntologyConstants.Relationships.HasMember)]
-[OntologyEdge<TableNode>(OntologyConstants.Relationships.PersistedIn)]
 public record TypeNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,

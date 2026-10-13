@@ -8,10 +8,21 @@ namespace CodeExplorer.Tests;
 [NonParallelizable]
 public class WorkspaceConventionsTests
 {
+    private IDisposable? _lock;
+
     [SetUp]
-    public void SetUp()
+    public async Task SetUp()
+    {
+        _lock = await TestRegistryLock.AcquireAsync();
+        WorkspaceConventions.Clear();
+    }
+
+    [TearDown]
+    public void TearDown()
     {
         WorkspaceConventions.Clear();
+        _lock?.Dispose();
+        _lock = null;
     }
 
     [Test]

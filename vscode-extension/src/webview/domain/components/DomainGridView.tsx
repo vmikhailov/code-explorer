@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { DomainGroupSummary, SelectedNodeDetail, EntityKind } from '../types';
 import { useDomainArchitecture } from '../context/DomainArchitectureContext';
+import { matchesSearchTokens } from '../searchUtils';
 
 export interface DomainGridViewProps {
   domainGroups: DomainGroupSummary[];
@@ -58,13 +59,18 @@ export const DomainGridView: React.FC<DomainGridViewProps> = (props) => {
     }
 
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      const matchName = node.name.toLowerCase().includes(q);
-      const matchDisplay = node.displayName.toLowerCase().includes(q);
-      const matchDomain = (node.domain || '').toLowerCase().includes(q);
-      const matchKind = node.kind.toLowerCase().includes(q);
-      const matchProj = node.projects.some((p) => p.name.toLowerCase().includes(q));
-      if (!matchName && !matchDisplay && !matchDomain && !matchKind && !matchProj) {
+      const match = matchesSearchTokens([
+        node.name,
+        node.displayName,
+        node.domain,
+        node.kind,
+        node.displayTag,
+        node.framework,
+        node.language,
+        node.primaryFilePath,
+        ...node.projects.map((p) => p.name),
+      ], searchQuery);
+      if (!match) {
         return false;
       }
     }

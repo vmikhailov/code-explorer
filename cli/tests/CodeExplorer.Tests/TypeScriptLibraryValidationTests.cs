@@ -15,8 +15,24 @@ using NUnit.Framework;
 namespace CodeExplorer.Tests;
 
 [TestFixture]
+[NonParallelizable]
 public class TypeScriptLibraryValidationTests
 {
+    private IDisposable? _lock;
+
+    [SetUp]
+    public async Task SetUp()
+    {
+        _lock = await TestRegistryLock.AcquireAsync();
+    }
+
+    [TearDown]
+    public void TearDown()
+    {
+        _lock?.Dispose();
+        _lock = null;
+    }
+
     private sealed class TestWorkspace : IDisposable
     {
         public string DirectoryPath { get; }

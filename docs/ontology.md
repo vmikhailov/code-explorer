@@ -85,7 +85,6 @@ graph TD
     EntryPoint -->|EXPOSED_BY| Type
     ExternalService -->|CALLS_ENDPOINT| Endpoint
     ExternalService -->|CALLED_BY| Function
-    File -->|BELONGS_TO| Project
     FilesStructure -->|CONTAINS| Folder
     FilesStructure -->|CONTAINS| File
     Folder -->|CONTAINS| Folder
@@ -94,7 +93,6 @@ graph TD
     Function -->|DECLARED_IN| File
     Function -->|CALLS| Function
     Function -->|USES_TYPE| Type
-    Function -->|CALLS_ENDPOINT| Endpoint
     Library -->|LOCATED_IN| Folder
     Library -->|LOCATED_IN| Workspace
     Library -->|DEPLOYED_BY| Project
@@ -110,11 +108,6 @@ graph TD
     Project -->|DEPENDS_ON| Project
     Project -->|DEPENDS_ON| Package
     Project -->|PRODUCES| Package
-    Project -->|DEPLOYS| Service
-    Project -->|DEPLOYS| App
-    Project -->|DEPLOYS| Worker
-    Project -->|DEPLOYS| Library
-    Project -->|DEPLOYS| CliTool
     Project -->|CONTAINS| File
     ProjectsStructure -->|CONTAINS| Project
     ProjectSyntax -->|CONTAINS| Type
@@ -168,7 +161,6 @@ graph TD
     Type -->|POTENTIAL_TYPE| Type
     Type -->|HAS_METHOD| Function
     Type -->|HAS_MEMBER| Member
-    Type -->|PERSISTED_IN| Table
     Worker -->|LOCATED_IN| Folder
     Worker -->|LOCATED_IN| Workspace
     Worker -->|DEPLOYED_BY| Project
@@ -276,12 +268,6 @@ graph TD
 #### `File`
 
 > Represents a source code file containing parsable content.
-
-**Outbound edges:**
-
-| Relationship | To |
-| :--- | :--- |
-| `BELONGS_TO` | `Project` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -440,11 +426,6 @@ graph TD
 | `DEPENDS_ON` | `Project` |
 | `DEPENDS_ON` | `Package` |
 | `PRODUCES` | `Package` |
-| `DEPLOYS` | `Service` |
-| `DEPLOYS` | `App` |
-| `DEPLOYS` | `Worker` |
-| `DEPLOYS` | `Library` |
-| `DEPLOYS` | `CliTool` |
 | `CONTAINS` | `File` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
@@ -453,7 +434,6 @@ graph TD
 | :--- | :--- |
 | `App` | `DEPLOYED_BY` |
 | `CliTool` | `DEPLOYED_BY` |
-| `File` | `BELONGS_TO` |
 | `Library` | `DEPLOYED_BY` |
 | `Package` | `PRODUCES` |
 | `Package` | `IMPLEMENTED_BY` |
@@ -582,7 +562,6 @@ graph TD
 | `DECLARED_IN` | `File` |
 | `CALLS` | `Function` |
 | `USES_TYPE` | `Type` |
-| `CALLS_ENDPOINT` | `Endpoint` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -721,7 +700,6 @@ graph TD
 | `POTENTIAL_TYPE` | `Type` |
 | `HAS_METHOD` | `Function` |
 | `HAS_MEMBER` | `Member` |
-| `PERSISTED_IN` | `Table` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -803,7 +781,6 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
-| `Project` | `DEPLOYS` |
 | `SemanticStructure` | `CONTAINS` |
 | `TestSuite` | `TESTS` |
 
@@ -837,7 +814,6 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
-| `Project` | `DEPLOYS` |
 | `SemanticStructure` | `CONTAINS` |
 | `TestSuite` | `TESTS` |
 
@@ -932,7 +908,6 @@ graph TD
 | :--- | :--- |
 | `App` | `CONTAINS` |
 | `ExternalService` | `CALLS_ENDPOINT` |
-| `Function` | `CALLS_ENDPOINT` |
 | `Service` | `CONTAINS` |
 
 **Properties:**
@@ -1024,7 +999,6 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
-| `Project` | `DEPLOYS` |
 | `SemanticStructure` | `CONTAINS` |
 | `TestSuite` | `TESTS` |
 
@@ -1097,7 +1071,6 @@ graph TD
 | :--- | :--- |
 | `App` | `SERVICE_CALL` |
 | `CliTool` | `SERVICE_CALL` |
-| `Project` | `DEPLOYS` |
 | `SemanticStructure` | `CONTAINS` |
 | `Service` | `SERVICE_CALL` |
 | `TestSuite` | `TESTS` |
@@ -1133,7 +1106,6 @@ graph TD
 | :--- | :--- |
 | `DataSet` | `CONTAINS` |
 | `Query` | `DEPENDS_ON` |
-| `Type` | `PERSISTED_IN` |
 
 ---
 
@@ -1222,7 +1194,6 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
-| `Project` | `DEPLOYS` |
 | `SemanticStructure` | `CONTAINS` |
 | `TestSuite` | `TESTS` |
 | `Topic` | `SUBSCRIBED_BY` |

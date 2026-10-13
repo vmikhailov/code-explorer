@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
 import {
   PresentationMode,
   DomainLayoutName,
@@ -94,12 +94,82 @@ export const DomainArchitectureProvider: React.FC<DomainArchitectureProviderProp
   const [selectedEdge, setSelectedEdge] = useState<SelectedEdgeDetail | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [hiddenTypes, setHiddenTypes] = useState<Set<EntityKind>>(() => new Set<EntityKind>(['ExternalService']));
-  const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(new Set());
-  const [hiddenOrbitTiers, setHiddenOrbitTiers] = useState<Set<number>>(new Set());
-  const [hideSingleConnectionDbs, setHideSingleConnectionDbs] = useState(false);
-  const [hideIsolatedNodes, setHideIsolatedNodes] = useState(false);
+  const [hiddenTypes, setHiddenTypes] = useState<Set<EntityKind>>(() => {
+    try {
+      const saved = localStorage.getItem('ce_domain_hidden_types');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return new Set<EntityKind>(parsed);
+      }
+    } catch { }
+    return new Set<EntityKind>(['ExternalService']);
+  });
+  const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('ce_domain_hidden_node_ids');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return new Set<string>(parsed);
+      }
+    } catch { }
+    return new Set<string>();
+  });
+  const [hiddenOrbitTiers, setHiddenOrbitTiers] = useState<Set<number>>(() => {
+    try {
+      const saved = localStorage.getItem('ce_domain_hidden_orbit_tiers');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return new Set<number>(parsed);
+      }
+    } catch { }
+    return new Set<number>();
+  });
+  const [hideSingleConnectionDbs, setHideSingleConnectionDbs] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('ce_hide_single_connection_dbs');
+      return saved !== null ? saved === 'true' : false;
+    } catch { }
+    return false;
+  });
+  const [hideIsolatedNodes, setHideIsolatedNodes] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('ce_hide_isolated_nodes');
+      return saved !== null ? saved === 'true' : false;
+    } catch { }
+    return false;
+  });
   const [showTransitiveEdges, setShowTransitiveEdges] = useState(true);
+
+  // Sync hidden and filter states to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('ce_domain_hidden_types', JSON.stringify([...hiddenTypes]));
+    } catch { }
+  }, [hiddenTypes]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ce_domain_hidden_node_ids', JSON.stringify([...hiddenNodeIds]));
+    } catch { }
+  }, [hiddenNodeIds]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ce_domain_hidden_orbit_tiers', JSON.stringify([...hiddenOrbitTiers]));
+    } catch { }
+  }, [hiddenOrbitTiers]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ce_hide_single_connection_dbs', String(hideSingleConnectionDbs));
+    } catch { }
+  }, [hideSingleConnectionDbs]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ce_hide_isolated_nodes', String(hideIsolatedNodes));
+    } catch { }
+  }, [hideIsolatedNodes]);
 
   const [layoutName, setLayoutName] = useState<DomainLayoutName>('concentric');
   const [edgeCurveMode, setEdgeCurveMode] = useState<EdgeCurveMode>('avoid-inner');

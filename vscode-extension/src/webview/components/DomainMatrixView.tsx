@@ -8,6 +8,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { DomainNodeDetail } from './DomainArchitectureView';
+import { matchesSearchTokens } from '../domain/searchUtils';
 
 export interface DomainMatrixEdge {
   source: string;
@@ -56,12 +57,18 @@ export const DomainMatrixView: React.FC<DomainMatrixViewProps> = ({
     });
 
     if (!filterQuery.trim()) return sorted;
-    const q = filterQuery.toLowerCase();
-    return sorted.filter(
-      (n) =>
-        n.name.toLowerCase().includes(q) ||
-        n.displayName.toLowerCase().includes(q) ||
-        n.kind.toLowerCase().includes(q)
+    return sorted.filter((n) =>
+      matchesSearchTokens([
+        n.name,
+        n.displayName,
+        n.kind,
+        n.domain,
+        n.displayTag,
+        n.framework,
+        n.language,
+        n.primaryFilePath,
+        ...(n.projects || []).map((p) => p.name),
+      ], filterQuery)
     );
   }, [nodes, filterQuery]);
 

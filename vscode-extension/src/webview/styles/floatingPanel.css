@@ -432,3 +432,46 @@
   pointer-events: none;
 }
 
+/* ==========================================================================
+   Docked Mode (for react-resizable-panels)
+   ========================================================================== */
+
+.floating-dock-panel.is-docked {
+  position: relative !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  border-top: none !important;
+  border-bottom: none !important;
+  animation: none !important;
+  transition: none !important;
+  background: var(--vscode-sideBar-background, #181818) !important;
+}
+
+.floating-dock-panel.is-docked.dock-top-right,
+.floating-dock-panel.is-docked.dock-bottom-right {
+  border-right: none !important;
+  border-left: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.12)) !important;
+}
+
+.floating-dock-panel.is-docked.dock-top-left,
+.floating-dock-panel.is-docked.dock-bottom-left {
+  border-left: none !important;
+  border-right: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.12)) !important;
+}
+
+.floating-dock-panel.is-docked > .floating-dock-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  height: 100%;
+}
+

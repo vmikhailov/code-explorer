@@ -1,6 +1,5 @@
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
-using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
 namespace CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 
@@ -18,11 +17,6 @@ namespace CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 [OntologyEdge<ProjectNode>(OntologyConstants.Relationships.DependsOn)]
 [OntologyEdge<PackageNode>(OntologyConstants.Relationships.DependsOn)]
 [OntologyEdge<PackageNode>(OntologyConstants.Relationships.Produces)]
-[OntologyEdge<ServiceNode>(OntologyConstants.Relationships.Deploys)]
-[OntologyEdge<AppNode>(OntologyConstants.Relationships.Deploys)]
-[OntologyEdge<WorkerNode>(OntologyConstants.Relationships.Deploys)]
-[OntologyEdge<LibraryNode>(OntologyConstants.Relationships.Deploys)]
-[OntologyEdge<CliToolNode>(OntologyConstants.Relationships.Deploys)]
 [OntologyEdge<FileNode>(OntologyConstants.Relationships.Contains)]
 public record ProjectNode(
     string Id,

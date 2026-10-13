@@ -869,6 +869,93 @@ public class SemanticInvariantGateTests
         res.Violations[0].Message.Should().Contain("Unmounted parameter root route detected: DELETE /:id");
     }
 
+    [Test]
+    public async Task GateCheck_OntologyLayerStrictHierarchy_DetectsBackwardDependency()
+    {
+        var dbPath = Path.Combine(_tempWorkspace, "graph_ontology_hierarchy.db");
+        await using var client = new SqliteGraphClient(dbPath);
+        await client.CreateIndicesAsync();
+
+        var layer1Node = new Node("ws:sym:cli/src/Core/CodeExplorer.Core/Common/Nodes/Layer1_Physical/FileNode.cs:Type:FileNode", OntologyConstants.NodeLabels.Type, new()
+        {
+            ["name"] = "FileNode",
+            ["path"] = "cli/src/Core/CodeExplorer.Core/Common/Nodes/Layer1_Physical/FileNode.cs",
+            ["is_test"] = false
+        });
+
+        var layer2Node = new Node("ws:sym:cli/src/Core/CodeExplorer.Core/Common/Nodes/Layer2_Boundaries/ProjectNode.cs:Type:ProjectNode", OntologyConstants.NodeLabels.Type, new()
+        {
+            ["name"] = "ProjectNode",
+            ["path"] = "cli/src/Core/CodeExplorer.Core/Common/Nodes/Layer2_Boundaries/ProjectNode.cs",
+            ["is_test"] = false
+        });
+
+        await client.UploadNodesAsync([layer1Node, layer2Node]);
+
+        // Prohibited backward dependency: Layer 1 -> Layer 2
+        var backwardRel = new Relationship(
+            layer1Node.Id,
+            layer2Node.Id,
+            OntologyConstants.Relationships.UsesType);
+
+        await client.UploadRelationshipsAsync([backwardRel]);
+
+        var repo = new FileGateRepository(_tempWorkspace);
+        var engine = new GateExecutionEngine(client, repo);
+
+        var gate = BuiltInGateCatalog.OntologyLayerStrictHierarchyGate;
+        var res = await engine.CheckGateAsync(gate);
+
+        res.Status.Should().Be(GateCheckStatus.FailedNew);
+        res.Violations.Count.Should().Be(1);
+        res.Violations[0].Symbol.Should().Be("FileNode");
+        res.Violations[0].Target.Should().Be("ProjectNode");
+        res.Violations[0].Message.Should().Contain("Lower layer model FileNode references higher layer model ProjectNode");
+    }
+
+    [Test]
+    public async Task GateCheck_OntologyModelCohesion_DetectsUnauthorizedExternalNode()
+    {
+        var dbPath = Path.Combine(_tempWorkspace, "graph_ontology_cohesion.db");
+        await using var client = new SqliteGraphClient(dbPath);
+        await client.CreateIndicesAsync();
+
+        var contractNode = new Node("ws:sym:cli/src/Core/CodeExplorer.Core/Common/Nodes/IOntologyNode.cs:Type:IOntologyNode", OntologyConstants.NodeLabels.Type, new()
+        {
+            ["name"] = "IOntologyNode",
+            ["path"] = "cli/src/Core/CodeExplorer.Core/Common/Nodes/IOntologyNode.cs",
+            ["is_test"] = false
+        });
+
+        var rogueNode = new Node("ws:sym:cli/src/UI/CodeExplorer/RogueNode.cs:Type:RogueNode", OntologyConstants.NodeLabels.Type, new()
+        {
+            ["name"] = "RogueNode",
+            ["path"] = "cli/src/UI/CodeExplorer/RogueNode.cs",
+            ["is_test"] = false
+        });
+
+        await client.UploadNodesAsync([contractNode, rogueNode]);
+
+        var leakRel = new Relationship(
+            rogueNode.Id,
+            contractNode.Id,
+            OntologyConstants.Relationships.Implements);
+
+        await client.UploadRelationshipsAsync([leakRel]);
+
+        var repo = new FileGateRepository(_tempWorkspace);
+        var engine = new GateExecutionEngine(client, repo);
+
+        var gate = BuiltInGateCatalog.OntologyModelCohesionGate;
+        var res = await engine.CheckGateAsync(gate);
+
+        res.Status.Should().Be(GateCheckStatus.FailedNew);
+        res.Violations.Count.Should().Be(1);
+        res.Violations[0].Symbol.Should().Be("RogueNode");
+        res.Violations[0].Target.Should().Be("IOntologyNode");
+        res.Violations[0].Message.Should().Contain("implements/uses ontology contract outside Common/Nodes");
+    }
+
     private class MockGateDbClient : IGraphClient
     {
         public string QueryResponse { get; set; } = "[]";

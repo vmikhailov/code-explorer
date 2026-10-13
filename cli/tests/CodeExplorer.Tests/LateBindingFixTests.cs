@@ -7,6 +7,7 @@ using NUnit.Framework;
 namespace CodeExplorer.Tests;
 
 [TestFixture]
+[NonParallelizable]
 public class LateBindingFixTests
 {
     private Layer5AnalysisParser _parser = null!;
@@ -14,14 +15,23 @@ public class LateBindingFixTests
     private MethodInfo _isMatchEndpointMethod = null!;
 
     private MethodInfo _isMatchEndpointWithProjectMethod = null!;
+    private IDisposable? _lock;
 
     [SetUp]
-    public void SetUp()
+    public async Task SetUp()
     {
+        _lock = await TestRegistryLock.AcquireAsync();
         _parser = new Layer5AnalysisParser();
         _matchPathsMethod = typeof(Layer5AnalysisParser).GetMethod("MatchPaths", BindingFlags.NonPublic | BindingFlags.Instance, [typeof(string), typeof(string)])!;
         _isMatchEndpointMethod = typeof(Layer5AnalysisParser).GetMethod("IsMatch", BindingFlags.NonPublic | BindingFlags.Instance, [typeof(ExternalServiceNode), typeof(EndpointNode)])!;
         _isMatchEndpointWithProjectMethod = typeof(Layer5AnalysisParser).GetMethod("IsMatch", BindingFlags.NonPublic | BindingFlags.Instance, [typeof(ExternalServiceNode), typeof(EndpointNode), typeof(CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode)])!;
+    }
+
+    [TearDown]
+    public void TearDown()
+    {
+        _lock?.Dispose();
+        _lock = null;
     }
 
     private bool InvokeMatchPaths(string pathA, string pathB)

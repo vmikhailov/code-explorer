@@ -132,6 +132,12 @@ export interface FloatingPanelProps {
    */
   onResize?: (width: number, height: number) => void;
 
+  /**
+   * When true, renders panel in docked layout mode (fits 100% of parent resizable panel container)
+   * without absolute positioning and without custom floating resize handles.
+   */
+  docked?: boolean;
+
   ariaLabel?: string;
   className?: string;
   headerClassName?: string;
@@ -166,6 +172,7 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
   resizable = true,
   persistKey,
   onResize,
+  docked = false,
   ariaLabel,
   className = '',
   headerClassName = '',
@@ -357,7 +364,19 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
     ...style,
   };
 
-  if (!isCollapsed) {
+  if (docked) {
+    containerStyle.position = 'relative';
+    containerStyle.width = '100%';
+    containerStyle.height = '100%';
+    containerStyle.top = 'auto';
+    containerStyle.left = 'auto';
+    containerStyle.right = 'auto';
+    containerStyle.bottom = 'auto';
+    containerStyle.borderRadius = 0;
+    containerStyle.boxShadow = 'none';
+    containerStyle.borderTop = 'none';
+    containerStyle.borderBottom = 'none';
+  } else if (!isCollapsed) {
     containerStyle.width = `${panelWidth}px`;
     if (panelHeight !== undefined) {
       containerStyle.height = `${panelHeight}px`;
@@ -373,7 +392,7 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
   return (
     <aside
       ref={panelRef as any}
-      className={`floating-dock-panel dock-${dock} ${isCollapsed ? 'is-collapsed' : ''} ${isResizing ? 'is-resizing' : ''} ${className}`.trim()}
+      className={`floating-dock-panel dock-${dock} ${docked ? 'is-docked' : ''} ${isCollapsed ? 'is-collapsed' : ''} ${isResizing ? 'is-resizing' : ''} ${className}`.trim()}
       style={containerStyle}
       role="complementary"
       aria-label={ariaLabel || (typeof title === 'string' ? title : 'Floating Panel')}
@@ -459,8 +478,8 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
           {/* Panel body */}
           <div className={`floating-dock-body ${bodyClassName}`.trim()}>{children}</div>
 
-          {/* Interactive resize handles when expanded */}
-          {resizable && (
+          {/* Interactive resize handles when expanded (only in floating mode) */}
+          {resizable && !docked && (
             <>
               {/* Vertical Edge Handle */}
               <div

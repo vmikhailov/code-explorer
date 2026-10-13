@@ -136,3 +136,23 @@ test('FloatingPanel: resizable mode renders directional handles and corner grip 
   );
   assert.ok(!htmlNonResizable.includes('floating-dock-resize-handle-x'), 'Must not render resize handles when resizable=false');
 });
+
+test('FloatingPanel: docked mode renders is-docked class, fits 100% parent container, and omits floating drag handles', () => {
+  const htmlDocked = renderToStaticMarkup(
+    React.createElement(
+      FloatingPanel,
+      { dock: 'top-right', title: 'Docked Inspector', docked: true, resizable: true },
+      React.createElement('div', { className: 'docked-content' }, 'Full stretch content')
+    )
+  );
+
+  assert.ok(htmlDocked.includes('is-docked'), 'Must include is-docked class');
+  assert.ok(htmlDocked.includes('position:relative'), 'Must set position relative in docked mode');
+  assert.ok(htmlDocked.includes('width:100%'), 'Must set width 100% to fill resizable panel');
+  assert.ok(htmlDocked.includes('height:100%'), 'Must set height 100% to fill resizable panel');
+  assert.ok(!htmlDocked.includes('floating-dock-resize-handle-x'), 'Must NOT render custom floating handle-x in docked mode');
+  assert.ok(!htmlDocked.includes('floating-dock-resize-handle-y'), 'Must NOT render custom floating handle-y in docked mode');
+  assert.ok(!htmlDocked.includes('floating-dock-corner-grip'), 'Must NOT render custom floating corner grip in docked mode');
+  assert.ok(htmlDocked.includes('floating-dock-body'), 'Must render body for content stretch');
+});
+

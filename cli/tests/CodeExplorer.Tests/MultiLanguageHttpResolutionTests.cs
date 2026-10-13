@@ -18,10 +18,23 @@ namespace CodeExplorer.Tests;
 [NonParallelizable]
 public class MultiLanguageHttpResolutionTests
 {
+    private IDisposable? _lock;
+
     [SetUp]
-    public void SetUp()
+    public async Task SetUp()
+    {
+        _lock = await TestRegistryLock.AcquireAsync();
+        RouteDictionaryRegistry.Clear();
+        ConstantRegistry.Clear();
+    }
+
+    [TearDown]
+    public void TearDown()
     {
         RouteDictionaryRegistry.Clear();
+        ConstantRegistry.Clear();
+        _lock?.Dispose();
+        _lock = null;
     }
 
     private static async Task<List<ExternalServiceNode>> ParseAndGetExternalServicesAsync(IFileParser parser, string code, string fileName)

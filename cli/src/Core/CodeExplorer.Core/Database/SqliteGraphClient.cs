@@ -527,9 +527,13 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                        OR id LIKE @wsPrefix || 'file:' || @relPath
                        OR id LIKE @wsPrefix || 'file:' || @relPathSlash
                        OR id LIKE @wsPrefix || 'sym:' || @relPathSlash
+                       OR id LIKE @wsPrefix || 'sym:' || @relPathColon
                        OR id LIKE @wsPrefix || 'symbol:' || @relPathSlash
+                       OR id LIKE @wsPrefix || 'symbol:' || @relPathColon
                        OR id LIKE @wsPrefix || 'lit:' || @relPathSlash
+                       OR id LIKE @wsPrefix || 'lit:' || @relPathColon
                        OR id LIKE @wsPrefix || 'catch:' || @relPathSlash
+                       OR id LIKE @wsPrefix || 'catch:' || @relPathColon
                        OR id LIKE @wsPrefix || 'p:' || @relPath || '%'
                        OR id LIKE @wsPrefix || 'project:' || @relPath || '%'
                        OR id LIKE @wsPrefix || 'git:' || @relPath
@@ -543,9 +547,13 @@ public class SqliteGraphClient : IGraphClient, IDisposable
                        OR id LIKE '%:file:' || @relPath
                        OR id LIKE '%:file:' || @relPathSlash
                        OR id LIKE '%:sym:' || @relPathSlash
+                       OR id LIKE '%:sym:' || @relPathColon
                        OR id LIKE '%:symbol:' || @relPathSlash
+                       OR id LIKE '%:symbol:' || @relPathColon
                        OR id LIKE '%:lit:' || @relPathSlash
+                       OR id LIKE '%:lit:' || @relPathColon
                        OR id LIKE '%:catch:' || @relPathSlash
+                       OR id LIKE '%:catch:' || @relPathColon
                        OR id LIKE '%:p:' || @relPath || '%'
                        OR id LIKE '%:project:' || @relPath || '%'
                        OR id LIKE '%:git:' || @relPath
