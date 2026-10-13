@@ -135,25 +135,6 @@ jobs:
             -p:InformationalVersion="$VERSION" \
             -o ./dist
 
-      - name: NuGet Login (Trusted Publishing / OIDC)
-        uses: NuGet/login@v1
-        id: nuget-login
-        continue-on-error: true
-        with:
-          user: vmikhailov
-
-      - name: Push to NuGet.org
-        env:
-          MANUAL_KEY: ${{ secrets.NUGET_API_KEY }}
-          OIDC_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
-        run: |
-          API_KEY="${OIDC_KEY:-$MANUAL_KEY}"
-          if [ -n "$API_KEY" ]; then
-            dotnet nuget push ./dist/*.nupkg --api-key "$API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
-          else
-            echo "::warning::No NuGet API key or OIDC token available."
-          fi
-
       - name: Generate Checksums
         run: |
           cd ./dist
@@ -174,9 +155,39 @@ jobs:
           draft: false
           prerelease: false
 
+      - name: NuGet Login (Trusted Publishing / OIDC)
+        uses: NuGet/login@v1
+        id: nuget-login
+        continue-on-error: true
+        with:
+          user: vmikhailov
+
+      - name: Push to NuGet.org
+        continue-on-error: true
+        env:
+          MANUAL_KEY: ${{ secrets.NUGET_API_KEY }}
+          OIDC_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+        run: |
+          API_KEY="${OIDC_KEY:-$MANUAL_KEY}"
+          if [ -n "$API_KEY" ]; then
+            for i in 1 2 3; do
+              echo "Pushing to NuGet.org (attempt $i)..."
+              if dotnet nuget push ./dist/*.nupkg --api-key "$API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate --timeout 180; then
+                echo "Successfully published to NuGet.org"
+                exit 0
+              fi
+              echo "NuGet push attempt $i failed. Retrying in 10s..."
+              sleep 10
+            done
+            echo "::warning::Failed to push to NuGet.org after 3 attempts."
+          else
+            echo "::warning::No NuGet API key or OIDC token available."
+          fi
+
   package-and-publish-extension:
     name: Package & Publish VS Code Extension
     needs: [build-matrix, create-release]
+    if: always() && !cancelled() && needs.build-matrix.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

@@ -5,7 +5,7 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.37.33] - 2026-10-13
+## [1.37.34] - 2026-10-13
 
 ### Fixed
 - **Package Dependencies Classified as Libraries**:
@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - In `ArchitectureViewEngine`, forced `category = "library"` and `kind = "LIBRARY"` for all package targets so they always bind to the `LIBRARIES: uses` handle and green styling instead of the `API: calls` handle.
 - **VS Code Extension Icon Optimization**:
   - Replaced extension icon with high-quality quantized `icon_512_quant.png` (34 KB) preserving 8-bit alpha transparency.
+- **CI/CD & Publishing Resilience**:
+  - Added retry loop and configurable timeout to NuGet package push in release workflow.
+  - Reordered release workflow steps so GitHub Releases are published before NuGet push.
+  - Isolated test fixtures touching `ConstantRegistry` (`Epic2ParserIntelligenceTests`) with `[NonParallelizable]`.
 
 ---
 
