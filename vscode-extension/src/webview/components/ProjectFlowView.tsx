@@ -32,6 +32,7 @@ export interface ProjectFlowViewProps {
   onResetLevels?: () => void;
   onSelectNode?: (node: GraphNode | null) => void;
   selectedNodeId?: string;
+  onRegisterFitView?: (fitViewFn: () => void) => void;
 }
 
 const nodeTypes = {
@@ -52,10 +53,20 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
   onResetLevels: onResetLevelsProp,
   onSelectNode,
   selectedNodeId,
+  onRegisterFitView,
 }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const { fitView } = useReactFlow();
+  const lastFittedProjectRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (onRegisterFitView) {
+      onRegisterFitView(() => {
+        fitView({ padding: 0.25, duration: 300 });
+      });
+    }
+  }, [onRegisterFitView, fitView]);
 
   // Root project under inspection (Level 0)
   const rootProjectName = useMemo(() => {
@@ -1128,10 +1139,14 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
     setNodes(generatedNodes);
     setEdges(generatedEdges);
 
-    // Smooth re-fit after layout calculation
-    setTimeout(() => {
-      fitView({ padding: 0.25, duration: 300 });
-    }, 40);
+    // Only auto-fit when switching root projects or on initial project load.
+    // Expanding a box, category, or connection keeps the current zoom and viewport intact.
+    if (rootProjectName && lastFittedProjectRef.current !== rootProjectName) {
+      lastFittedProjectRef.current = rootProjectName;
+      setTimeout(() => {
+        fitView({ padding: 0.25, duration: 300 });
+      }, 50);
+    }
   }, [
     rootProjectName,
     rootNode,
@@ -1265,7 +1280,6 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
           if (n) onSelectNode?.(n);
         }}
         onPaneClick={() => onSelectNode?.(null)}
-        fitView
         fitViewOptions={{ padding: 0.25 }}
         minZoom={0.2}
         maxZoom={2}

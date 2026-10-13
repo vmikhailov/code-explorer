@@ -5,6 +5,20 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.37.36] - 2026-10-13
+
+### Added
+- **Dedicated "Fit" Button in Project Flow Toolbar**:
+  - Added an explicit `Fit` diagram button (⛶) in `.flow-controls` allowing users to fit the DAG diagram to viewport on demand.
+  - Linked toolbar's `onFitView` directly to ReactFlow's client-side `fitView({ padding: 0.25, duration: 300 })` callback instead of triggering a redundant backend dependency fetch.
+
+### Fixed
+- **Preserve Viewport Zoom & Pan on Box / Connection Expand**:
+  - Eliminated unwanted automatic zoom-out when expanding service cards or granular communication categories (`callsOut`, `libsOut`, `messagesIn`, etc.).
+  - Auto-fit is now strictly scoped to initial project load and root target project switches, keeping the user's manual zoom factor and pan coordinates intact during progressive diagram exploration.
+
+---
+
 ## [1.37.35] - 2026-10-13
 
 ### Added

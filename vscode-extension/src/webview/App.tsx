@@ -211,6 +211,7 @@ export const App: React.FC = () => {
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptRef = useRef<number>(0);
   const isManuallyClosedRef = useRef<boolean>(false);
+  const flowFitViewRef = useRef<(() => void) | null>(null);
 
   // Global dependency counts derived from full architecture graph
   const { projectInCounts, projectOutCounts } = useMemo(() => {
@@ -1325,7 +1326,7 @@ export const App: React.FC = () => {
             connectionStatus={connectionStatus}
             onFitView={() => {
               if (viewMode === 'flow') {
-                requestDependencies(selectedProject);
+                flowFitViewRef.current?.();
               } else if (viewMode === 'contexts') {
                 requestContexts();
               } else {
@@ -1558,6 +1559,9 @@ export const App: React.FC = () => {
                 onResetLevels={handleResetFlowLevels}
                 onSelectNode={handleSelectDrawerNode}
                 selectedNodeId={selectedDrawerNode?.id}
+                onRegisterFitView={(fn) => {
+                  flowFitViewRef.current = fn;
+                }}
               />
             )}
 

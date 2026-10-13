@@ -39,6 +39,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   selectedProject,
   onSelectProject,
   connectionStatus,
+  onFitView,
   onRefresh,
   cypherQuery,
   onCypherQueryChange,
@@ -282,6 +283,12 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             </label>
 
             <div className="button-group">
+              {onFitView && (
+                <button onClick={onFitView} title="Fit diagram to viewport" className="ctrl-btn icon-btn">
+                  <span className="btn-icon">⛶</span>
+                  <span className="btn-text">Fit</span>
+                </button>
+              )}
               <button onClick={onRefresh} title="Reload project dependencies" className="ctrl-btn icon-btn">
                 <span className="btn-icon">🔄</span>
                 <span className="btn-text">Refresh</span>
