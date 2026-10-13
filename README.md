@@ -149,6 +149,7 @@ Every architectural rule occupies a coordinate in the FOIM space, crossing an ar
 
 **Identifier Convention**: `SIG-<Scope>-<Dimension>-<Index3Digits>`
 * `SIG-P-B-001`: Module Scope x Boundaries (Domain cannot reference Infrastructure)
+* `SIG-C-C-001`: Class Scope x Contract (Disallow stringly-typed taxonomies: properties ending in Type, Kind, or Category must be strongly-typed enums)
 * `SIG-M-I-001`: Method Scope x Rules (No hardcoded API endpoints or magic strings)
 * `SIG-M-R-001`: Method Scope x Resources (Method length ceiling: <= 500 lines of code)
 * `SIG-C-I-001`: Class Scope x Rules (In-memory AST visitor purity: no direct disk I/O)
@@ -215,19 +216,31 @@ query: |
 
 CodeExplorer includes an interactive visual cockpit inside VS Code (`Code Graph`). Designed for high-density architectures, it provides visual insight into distributed microservices and modular monoliths:
 
-### 1. Focused Neighborhood & Transitive Contraction
+### 1. Focused Neighborhood & Unified Studio Cockpit
 
 <p align="center">
   <img src="docs/selected_services.png" alt="Focused Service Sub-Graph & Orbit Customization" width="100%" />
 </p>
 <p align="center">
-  <em>Figure 2: Focused sub-graph inspection with live HUD metrics, orbit reordering, edge curvature sliders, and dashed transitive links resolving broker-mediated message flows.</em>
+  <em>Figure 2: Focused sub-graph inspection with live HUD metrics, unified right-hand sidebar, orbit reordering, edge curvature sliders, and dashed transitive links resolving broker-mediated message flows.</em>
 </p>
 
+* **Unified Right-Hand Studio Cockpit**: Replaces cluttered dual-sidebar layouts with a single, resizable right-hand docked panel. The visual canvas spans edge-to-edge starting from `x: 0`, maximizing visible diagram space.
+* **Top Segmented Tab Switcher**:
+  * `[ℹ️ Info]`: Architectural details for selected microservices, databases, topics, and cross-service edges, including inbound/outbound calls, database queries, and source locations.
+  * `[🪐 Orbits]`: Concentric orbit hierarchy with live node counts, drag-and-drop orbit tier reordering, and instant tier visibility toggles.
+  * `[👁️ Hidden]`: Active hidden entities list with instant count badge, real-time search filtering, and one-click restoration.
+* **Context-Aware Auto-Switch**: Clicking any microservice, database, topic, or edge on the canvas or matrix/grid immediately opens the panel (if closed) and switches to the `Info` inspector.
+* **Informative Empty States**: Docked tabs guide the user with clean empty-state cards when no element is selected or when all entities are visible.
 * **Smart Transitive Contraction**: When intermediate message topics or broker nodes are toggled off in the HUD, CodeExplorer detects that Service A publishes to Topic X and Service B subscribes to Topic X, automatically synthesizing a direct `[SUBSCRIBES (via Topic X)]` dashed connection.
-* **Custom Orbit Legend Controls**: Reorder orbital tiers by dragging legend badges to highlight edge gateways, flip database tiers, or group domain boundaries.
-* **Edge Curvature Tuning**: Interactive bezier curvature factor slider (-200 to +200) with automatic collision avoidance for cross-orbit calls.
-* **Live HUD Filter**: Multi-criteria filtering by node category (Gateways, Services, Topics, Databases, External APIs), search query, and neighborhood depth.
+* **Edge Curvature Tuning & Obstacle Avoidance**:
+  * `〰️ Bezier Curves`: Dynamic fluid curves proportional to angular span and chord distance.
+  * `🛡️ Bypass Inner Orbits`: Automatically bends cross-orbit communication arcs around inner microservice orbits to eliminate visual core clutter.
+  * `📏 Straight Lines`: Direct unbent chords for compact flow tracing.
+* **Three Presentation Modes**:
+  * `🕸️ Graph`: Interactive 2D canvas with 8 specialized layouts (Concentric Orbits, Equispaced, Polar Force, Domain Sectors, Architectural Swimlanes, Domain Islands, Hive Plots, and COSE Force).
+  * `⊞ Grid`: Unified Domain & Services Grid grouping components by DDD bounded contexts and problem spaces.
+  * `▦ Matrix`: High-density cross-service interaction matrix displaying caller-callee communication volumes.
 
 ### 2. Project Flow & C1 System Context
 
@@ -239,13 +252,9 @@ CodeExplorer includes an interactive visual cockpit inside VS Code (`Code Graph`
 </p>
 
 * **Interactive Service Cards**: Each project node displays incoming callers, outgoing dependencies, registered databases, and framework metadata.
+* **Dedicated Fit View Button**: Toolbar `⛶ Fit` button centers and fits the diagram to the viewport on demand.
+* **Zoom-Invariant Exploration**: Expanding service cards or granular communication categories (`callsOut`, `libsOut`, `messagesIn`) preserves the user's manual zoom factor and pan coordinates without unwanted auto-zoom resets.
 * **Click-to-Code Jump**: Double-click any node or click "Jump to Code" in the inspector drawer to navigate immediately to the exact declaration line in your workspace.
-* **Multi-Projection Layouts**:
-  * Concentric Orbits (Equispaced, Polar Force, Domain Sectors)
-  * Architectural Swimlanes (Horizontal echelons: Ingress -> Core -> Data)
-  * Bounded Context Islands (Clusters based on inferred Domain-Driven Design boundaries)
-  * Hive Plots & Dependency Matrices
-  * COSE Physics Force Layout
 
 ---
 
@@ -277,20 +286,29 @@ ce export --type cqrs -o event_pipeline.mmd
 
 * **Zero-Dependency Single-File Executable**: Distributed as a self-contained binary (`ce.exe` / `ce`) for Windows, Linux, and macOS. No external runtime, database, or container required.
 * **Embedded SQLite Graph with Cypher**: High-performance embedded SQLite database compiled with custom graph indices and an optimized AST-to-SQL Cypher compiler.
-* **Multi-Language AST Parsing**: Full AST-level parsing powered by Tree-sitter and Microsoft SQL ScriptDom:
-  * C# (`.cs`)
-  * Java (`.java`, Maven `pom.xml`, Gradle `build.gradle` / `build.gradle.kts`)
-  * TypeScript / JavaScript (`.ts`, `.tsx`, `.js`, `.jsx`)
-  * Go (`.go`)
-  * Python (`.py`)
-  * ColdFusion (`.cfc`, `.cfm`)
-  * SQL & Embedded SQL (`.sql` scripts, and inline SQL queries in C#, Java, JS, TS, Python, Go)
+* **Multi-Language AST & Semantic Framework Ecosystem**: Full AST-level parsing powered by Tree-sitter and Microsoft SQL ScriptDom, enriched with pluggable semantic extensions (`ISemanticExtension`):
+  * **C#** (`.cs`): Roslyn AST, record primary constructor parameters, properties, fields, ASP.NET Core controllers/minimal APIs, Entity Framework Core ORM entities, Dapper, MassTransit, MediatR.
+  * **Java** (`.java`, Maven `pom.xml`, Gradle `build.gradle` / `build.gradle.kts`): Spring Boot REST controllers, Spring Kafka (`KafkaTemplate`, `@KafkaListener`), Spring RabbitMQ (`RabbitTemplate`, `@RabbitListener`).
+  * **TypeScript / JavaScript** (`.ts`, `.tsx`, `.js`, `.jsx`):
+    * *Frontend Frameworks*: React (`createRoot`, `React.lazy`), Vue (`createApp`, `defineAsyncComponent`), Angular Core (`@Component`, `@NgModule`, `templateUrl`), Svelte 3/4/5, Vite build configs.
+    * *HTTP Egress Clients*: Axios, fetch, Node.js `request`, `undici`, and `urllib`.
+    * *Test Frameworks*: Jest, Vitest, Mocha, Cypress, Playwright (test suites, test cases, mocks, browser navigation, API requests).
+    * *Cloud SDKs & Analytics*: Stripe, AWS SDK (SQS, S3, DynamoDB), Azure SDK (Service Bus, Blob, Cosmos DB), ClickHouse, Google Cloud BigQuery.
+  * **Go** (`.go`): Gin, Fiber, Echo, `net/http`, Resty, PostgreSQL `pgx`.
+  * **Python** (`.py`): Flask routes, Django URL patterns, `requests`, `httpx`, `aiohttp`.
+  * **ColdFusion** (`.cfc`, `.cfm`): Component and script parsing.
+  * **SQL & Embedded SQL**: Microsoft SQL ScriptDom & Tree-sitter SQL parsing across PostgreSQL, ClickHouse, BigQuery, MySQL, SQLite, and T-SQL, extracting tables, CRUD operations, DDL, and Code-First ORM lineage.
+* **High-Performance Ingestion Engine**:
+  * *Indexed B-Tree Temporary Preloading*: Cuts Layer 5 cross-reference resolution from 22 minutes to 386ms (3500x faster) on monorepos with 85k+ symbols.
+  * *Linear Pre-Grouping Passes*: $O(\text{Files})$ file-to-project assignment eliminates over 1.7 billion redundant loop comparisons.
+  * *Sub-Second Hierarchy Clearing*: Index-backed recursive CTE traversals and instant bulk table truncations.
+  * *Live Real-Time Streaming Feedback*: Continuous heartbeat logs, transaction progress percentages, and sub-phase telemetry across all indexing layers.
 * **5-Layer Structural Ontology**: Maps codebases across a decoupled graph architecture:
   * *Physical Layer (Layer 1)*: Workspace, projects (`.csproj`, `pom.xml`, `go.mod`, `package.json`), folders, files, configuration files, git topology.
   * *Project Layer (Layer 2)*: Logical compilation units, project boundaries, package dependencies.
-  * *Syntactic Layer (Layer 3)*: Classes, interfaces, methods, functions, structs, fields, calls.
+  * *Syntactic Layer (Layer 3)*: Classes, interfaces, methods, functions, structs, fields, call literals, strongly-typed member signatures.
   * *Semantic Layer (Layer 4)*: Ingress endpoints (REST, gRPC, GraphQL, WebSocket) with security boundaries, Egress callers, Code-First ORM entities mapped to `:Table` nodes, message queues.
-  * *Late-Bound Layer (Layer 5)*: Cross-project call chains, interface implementations, service-to-service links, CQRS event pipelines.
+  * *Late-Bound Layer (Layer 5)*: Cross-project call chains, interface implementations, service-to-service links, CQRS event pipelines, strongly-typed `DependencyCategory` classifications.
 * **Local Architectural Intent Inference**: Automatically infers business domains, architectural patterns, and capability tags using an embedded GGUF model via native `llama.cpp` (Vulkan GPU acceleration & CPU fallback). File contents are SHA-256 fingerprinted and cached; subsequent scans apply intents in <50ms.
 * **Built-in & Custom Query Catalog**: 22 built-in queries covering architecture maps, entry points, dependencies, CQRS pipelines, refactoring, and symbol lookup. Extensible via `.codeexplorer/queries/*.cypher`.
 

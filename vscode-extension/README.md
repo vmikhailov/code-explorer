@@ -15,9 +15,27 @@ CodeExplorer maps complex polyglot repositories, microservices, and monorepos in
 
 ## ⚡ Extension Features
 
-CodeExplorer provides an interactive visual architecture view inside VS Code (`Code Graph`). Designed for high-density architectures, it clarifies distributed systems and monoliths:
+CodeExplorer provides an interactive visual architecture studio inside VS Code (`Code Graph`). Designed for high-density architectures, it clarifies distributed systems and monoliths:
 
-*   **Interactive Visual Architecture**: Explore microservice topologies across concentric architectural orbits, swimlanes, bounded context islands, hive plots, and C1/C2 project flow diagrams.
+*   **Unified Studio Cockpit**: A single resizable right-hand docked panel with a top segmented tab switcher:
+    *   `[ℹ️ Info]`: Detailed microservice, database, topic, and call relationship inspector.
+    *   `[🪐 Orbits]`: Concentric orbit hierarchy, drag-and-drop orbit tier reordering, and tier visibility toggles.
+    *   `[👁️ Hidden]`: Active hidden entities list with instant count badge, search filtering, and one-click restoration.
+*   **Context-Aware Auto-Switch**: Clicking any microservice, database, topic, or edge on the canvas or matrix/grid immediately opens the panel (if closed) and focuses the `Info` inspector.
+*   **Edge-to-Edge Canvas**: Visual workspace starts from `x: 0`, maximizing diagram space in VS Code without cramped dual-sidebar clutter.
+*   **Three Presentation Modes**:
+    *   `🕸️ Graph`: Interactive 2D canvas with 8 specialized layouts (Concentric Orbits, Equispaced, Polar Force, Domain Sectors, Architectural Swimlanes, Domain Islands, Hive Plots, and COSE Force).
+    *   `⊞ Grid`: Unified Domain & Services Grid grouping components by DDD bounded contexts.
+    *   `▦ Matrix`: High-density cross-service interaction matrix displaying caller-callee communication volumes.
+*   **Project Flow & C1 Diagram Controls**:
+    *   Dedicated `⛶ Fit` button to center and fit diagrams on demand.
+    *   Zoom-invariant box and connection expansion preserving your manual zoom factor and pan coordinates.
+    *   Interactive service cards with inbound callers, outbound dependencies, registered databases, and framework metadata.
+*   **Advanced Edge Routing & Obstacle Avoidance**:
+    *   `〰️ Bezier Curves`: Adaptive fluid curves based on chord length and angular span.
+    *   `🛡️ Bypass Inner Orbits`: Automatically bends cross-orbit communication arcs around inner microservices to eliminate core clutter.
+    *   `📏 Straight Lines`: Direct chords.
+    *   On-hover edge label reveal mode.
 *   **Smart Transitive Contraction**: Automatically synthesizes clean, dashed transitive links when intermediate brokers (Kafka, RabbitMQ, SQS) are hidden or filtered, preserving architectural fidelity without visual noise.
 *   **Click-to-Code Navigation**: Double-click any node or click "Jump to Code" in the details drawer to immediately open the source file at the exact declaration line in your editor.
 *   **Batteries-Included & Zero Setup**: Pre-compiled, self-contained `ce` native binaries are bundled for each platform (Windows x64/ARM64, macOS Apple Silicon/Intel, Linux x64/ARM64). No manual .NET installation or global CLI setup required!
@@ -28,7 +46,7 @@ CodeExplorer provides an interactive visual architecture view inside VS Code (`C
   <img src="https://raw.githubusercontent.com/vmikhailov/code-explorer/main/docs/selected_services.png" alt="Focused Service Sub-Graph & Orbit Customization" width="100%" />
 </p>
 <p align="center">
-  <em>Focused sub-graph inspection with live HUD metrics, orbit reordering, and edge curvature sliders.</em>
+  <em>Focused sub-graph inspection with live HUD metrics, unified right-hand sidebar, orbit reordering, and edge curvature sliders.</em>
 </p>
 
 ---
@@ -47,8 +65,9 @@ CodeExplorer provides an interactive visual architecture view inside VS Code (`C
 CodeExplorer goes beyond just visualization:
 
 *   **Model Context Protocol (MCP)**: The extension bundles a standard MCP server, giving AI agents (Cursor, Claude, Copilot, Antigravity) access to architectural maps, call chains, downstream blast-radius analysis, and arbitrary Cypher queries.
+*   **Semantic Invariant Gates (SIG)**: Automated architectural governance using OpenCypher queries and ratchet baselines to prevent architectural erosion in CI/CD.
 *   **Local Intent Distillation**: Automatically enriches graph nodes with business domains, architectural patterns, and capability tags using an embedded GGUF model via native `llama.cpp`.
-*   **Polyglot Support**: Bridges C#, Java, TypeScript, JavaScript, Go, Python, ColdFusion, and SQL into a single unified semantic graph.
+*   **Deep Polyglot AST & Framework Ecosystem**: Bridges C# (.NET/EF Core), Java (Spring Boot/Kafka/RabbitMQ), TypeScript/JavaScript (React, Vue, Angular, Svelte, Vite, Jest, Vitest, Playwright, Cypress, Stripe, AWS, Azure, ClickHouse, BigQuery), Go (Gin, Fiber, Echo, pgx), Python (Flask, Django, requests, httpx, aiohttp), ColdFusion, and SQL into a single unified semantic graph.
 
 ---
 
