@@ -1,10 +1,22 @@
 <Project>
-  <!-- Override standard build targets to no-ops so dotnet never attempts to compile or restore sample fixtures -->
+  <!-- Override test project markers that might be set inside individual .csproj files -->
+  <PropertyGroup>
+    <IsTestProject>false</IsTestProject>
+    <IsTestingPlatformApplication>false</IsTestingPlatformApplication>
+  </PropertyGroup>
+
+  <!-- Remove TestContainer and test platform capabilities to prevent VS Code C# Dev Kit and Visual Studio Test Explorer discovery -->
+  <ItemGroup>
+    <ProjectCapability Remove="TestContainer" />
+    <ProjectCapability Remove="TestingPlatformServer" />
+  </ItemGroup>
+
+  <!-- Override standard build and test targets to no-ops so dotnet/MSBuild never attempts to compile, restore, or test sample fixtures -->
   <Target Name="Build" />
   <Target Name="Compile" />
   <Target Name="CoreCompile" />
   <Target Name="Restore" />
   <Target Name="Publish" />
-  <Target Name="Test" />
   <Target Name="VSTest" />
+  <Target Name="Test" />
 </Project>

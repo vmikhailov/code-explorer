@@ -55,3 +55,9 @@ dotnet_naming_symbols.private_fields_symbols.applicable_accessibilities = privat
 dotnet_naming_style.prefix_underscore_style.required_prefix = _
 dotnet_naming_style.prefix_underscore_style.capitalization = camel_case
 
+# Sample projects fixture isolation (disable diagnostics & analyzers)
+[cli/tests/SampleProjects/**]
+generated_code = true
+dotnet_analyzer_diagnostic.severity = none
+
+
