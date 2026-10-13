@@ -18,6 +18,7 @@ export interface RawEdgeInfo {
   category: 'service_call' | 'database' | 'messaging' | 'external';
   label: string;
   count: number;
+  kind?: string;
 }
 
 export interface NodeConnectionItem {
@@ -48,6 +49,7 @@ export interface DomainInspectorProps {
   onOpenFile?: (path: string, line?: number) => void;
   onOpenOverrideModal?: (name: string) => void;
   docked?: boolean;
+  onToggleDock?: () => void;
 }
 
 export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
@@ -199,38 +201,38 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
     if (!selectedNode || !rawEdges) return [];
     const map = new Map<string, NodeConnectionItem>();
     for (const e of rawEdges) {
-      if (e.source === selectedNode.id && e.category === 'messaging') {
-        const targetDetail = nodeDetailMap?.get(e.target);
-        const name = targetDetail?.displayName || e.target;
-        const existing = map.get(e.target);
-        if (existing) {
-          existing.count += e.count;
-        } else {
-          map.set(e.target, {
-            id: e.target,
-            name,
-            kindTag: targetDetail?.displayTag || ':TOPIC',
-            bgColor: targetDetail?.bgColor || '#f59e0b',
-            count: e.count,
-            label: 'Publishes',
-          });
-        }
-      } else if (e.target === selectedNode.id && e.category === 'messaging') {
-        const sourceDetail = nodeDetailMap?.get(e.source);
-        const name = sourceDetail?.displayName || e.source;
-        const existing = map.get(e.source);
-        if (existing) {
-          existing.count += e.count;
-        } else {
-          map.set(e.source, {
-            id: e.source,
-            name,
-            kindTag: sourceDetail?.displayTag || ':TOPIC',
-            bgColor: sourceDetail?.bgColor || '#f59e0b',
-            count: e.count,
-            label: selectedNode.kind === 'Topic' ? 'Publisher' : 'Consumes',
-          });
-        }
+      if (e.category !== 'messaging') continue;
+
+      const isSource = e.source === selectedNode.id;
+      const isTarget = e.target === selectedNode.id;
+      if (!isSource && !isTarget) continue;
+
+      const otherId = isSource ? e.target : e.source;
+      const otherDetail = nodeDetailMap?.get(otherId);
+      const name = otherDetail?.displayName || otherId;
+
+      const k = (e.kind || e.label || '').toUpperCase();
+      const isSub = k === 'SUBSCRIBES_TO' || k === 'SUBSCRIBED_BY' || k === 'SUBSCRIBES' || k === 'CONSUMES' || k === 'CONSUMES_FROM';
+
+      let label = 'Publishes';
+      if (selectedNode.kind === 'Topic') {
+        label = isSub ? 'Subscriber' : 'Publisher';
+      } else {
+        label = isSub ? 'Consumes' : 'Publishes';
+      }
+
+      const existing = map.get(otherId);
+      if (existing) {
+        existing.count += e.count;
+      } else {
+        map.set(otherId, {
+          id: otherId,
+          name,
+          kindTag: otherDetail?.displayTag || ':TOPIC',
+          bgColor: otherDetail?.bgColor || '#f59e0b',
+          count: e.count,
+          label,
+        });
       }
     }
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
@@ -247,6 +249,7 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
         <FloatingPanel
           dock="top-right"
           docked={props.docked}
+          onToggleDock={props.onToggleDock}
           width={360}
           minWidth={280}
           maxWidth={750}
@@ -388,7 +391,7 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
 
                 {/* Accordion: Inbound Calls */}
                 {(selectedNode.kind === 'Service' || selectedNode.kind === 'Worker' || selectedNode.kind === 'Ingress' || inboundConnections.length > 0) && (
-                  <div className="inspector-section">
+                  <div className={`inspector-section ${collapsedSections['inbound'] ? 'is-collapsed' : 'is-expanded'}`}>
                     <div
                       className="inspector-section-header"
                       onClick={() => toggleSection('inbound')}
@@ -437,7 +440,7 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
 
                 {/* Accordion: Outbound Calls */}
                 {(selectedNode.kind === 'Service' || selectedNode.kind === 'Worker' || selectedNode.kind === 'Ingress' || selectedNode.kind === 'App' || outboundConnections.length > 0) && (
-                  <div className="inspector-section">
+                  <div className={`inspector-section ${collapsedSections['outbound'] ? 'is-collapsed' : 'is-expanded'}`}>
                     <div
                       className="inspector-section-header"
                       onClick={() => toggleSection('outbound')}
@@ -486,7 +489,7 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
 
                 {/* Accordion: Databases */}
                 {(dbConnections.length > 0 || selectedNode.dbCount > 0) && (
-                  <div className="inspector-section">
+                  <div className={`inspector-section ${collapsedSections['databases'] ? 'is-collapsed' : 'is-expanded'}`}>
                     <div
                       className="inspector-section-header"
                       onClick={() => toggleSection('databases')}
@@ -533,14 +536,14 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
 
                 {/* Accordion: Topics & Queues */}
                 {(topicConnections.length > 0 || selectedNode.messagingCount > 0) && (
-                  <div className="inspector-section">
+                  <div className={`inspector-section ${collapsedSections['topics'] ? 'is-collapsed' : 'is-expanded'}`}>
                     <div
                       className="inspector-section-header"
                       onClick={() => toggleSection('topics')}
                       title={collapsedSections['topics'] ? 'Expand topics' : 'Collapse topics'}
                     >
                       <span className="inspector-section-title">
-                        Topics & Queues ({topicConnections.length})
+                        {selectedNode.kind === 'Topic' ? 'Connected Services' : 'Topics & Queues'} ({topicConnections.length})
                       </span>
                       <span className="inspector-section-toggle">
                         {collapsedSections['topics'] ? <ChevronRightIcon size={12} /> : <ChevronDownIcon size={12} />}
@@ -571,7 +574,9 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                           </div>
                         ))}
                         {topicConnections.length === 0 && (
-                          <div className="inspector-empty-hint">No message topics</div>
+                          <div className="inspector-empty-hint">
+                            {selectedNode.kind === 'Topic' ? 'No connected services' : 'No message topics'}
+                          </div>
                         )}
                       </div>
                     )}
@@ -580,7 +585,7 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
 
                 {/* Accordion: Clustered Subprojects */}
                 {selectedNode.projects && selectedNode.projects.length > 1 && (
-                  <div className="inspector-section">
+                  <div className={`inspector-section ${collapsedSections['projects'] ? 'is-collapsed' : 'is-expanded'}`}>
                     <div
                       className="inspector-section-header"
                       onClick={() => toggleSection('projects')}
@@ -622,7 +627,7 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
 
                 {/* Accordion: Physical Source Declaration */}
                 {selectedNode.primaryFilePath && (
-                  <div className="inspector-section">
+                  <div className={`inspector-section ${collapsedSections['source'] ? 'is-collapsed' : 'is-expanded'}`}>
                     <div
                       className="inspector-section-header"
                       onClick={() => toggleSection('source')}
@@ -658,6 +663,7 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
         <FloatingPanel
           dock="top-right"
           docked={props.docked}
+          onToggleDock={props.onToggleDock}
           width={360}
           minWidth={280}
           maxWidth={750}

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { FloatingPanel } from './FloatingPanel';
-import { EyeOffIcon, LayersIcon, RotateCcwIcon, TagIcon, GitBranchIcon } from './Icons';
+import { EyeOffIcon, LayersIcon, RotateCcwIcon, TagIcon, GitBranchIcon, DockRightIcon, FloatIcon } from './Icons';
 
 test('FloatingPanel: renders correct dock corner classes and attributes', () => {
   const htmlTopRight = renderToStaticMarkup(
@@ -91,14 +91,40 @@ test('Icons: clean stroke SVG icons render with consistent viewBox and zero colo
   const layersHtml = renderToStaticMarkup(React.createElement(LayersIcon, { size: 14 }));
   const resetHtml = renderToStaticMarkup(React.createElement(RotateCcwIcon, { size: 12 }));
   const tagHtml = renderToStaticMarkup(React.createElement(TagIcon, { size: 12 }));
+  const dockHtml = renderToStaticMarkup(React.createElement(DockRightIcon, { size: 12 }));
+  const floatHtml = renderToStaticMarkup(React.createElement(FloatIcon, { size: 12 }));
 
-  for (const svgHtml of [eyeHtml, layersHtml, resetHtml, tagHtml]) {
+  for (const svgHtml of [eyeHtml, layersHtml, resetHtml, tagHtml, dockHtml, floatHtml]) {
     assert.ok(svgHtml.includes('<svg'), 'Must render SVG element');
     assert.ok(svgHtml.includes('viewBox="0 0 24 24"'), 'Must have uniform 24x24 viewBox');
     assert.ok(svgHtml.includes('stroke="currentColor"'), 'Must use stroke="currentColor"');
     // Ensure no emojis are included
     assert.ok(!/[\uD800-\uDFFF]/.test(svgHtml), 'Must not contain any emoji surrogate pairs');
   }
+});
+
+test('FloatingPanel: onToggleDock renders dock-toggle-btn with appropriate icons and tooltips in floating vs docked states', () => {
+  const htmlFloating = renderToStaticMarkup(
+    React.createElement(FloatingPanel, {
+      dock: 'top-right',
+      title: 'Floating Node Inspector',
+      docked: false,
+      onToggleDock: () => {},
+    })
+  );
+  assert.ok(htmlFloating.includes('dock-toggle-btn'), 'Must render dock toggle button in floating mode');
+  assert.ok(htmlFloating.includes('title="Dock to sidebar"'), 'Must indicate Dock to sidebar tooltip when floating');
+
+  const htmlDocked = renderToStaticMarkup(
+    React.createElement(FloatingPanel, {
+      dock: 'top-right',
+      title: 'Docked Node Inspector',
+      docked: true,
+      onToggleDock: () => {},
+    })
+  );
+  assert.ok(htmlDocked.includes('dock-toggle-btn'), 'Must render dock toggle button in docked mode');
+  assert.ok(htmlDocked.includes('title="Float window over canvas"'), 'Must indicate Float window tooltip when docked');
 });
 
 test('FloatingPanel: resizable mode renders directional handles and corner grip when expanded, and omits them when collapsed or resizable=false', () => {

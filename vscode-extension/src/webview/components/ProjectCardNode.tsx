@@ -437,15 +437,17 @@ export const ProjectCardNode = memo((props: any) => {
                 e.stopPropagation();
                 if (isDatabase && inboundCallsCount > 0 && onToggleCategory) {
                   onToggleCategory(graphNode.name, 'acceptsIn', graphNode.id, activeCategoriesSet.has('acceptsIn'));
-                } else if (isTopic && inboundEventsCount > 0 && onToggleCategory) {
-                  onToggleCategory(graphNode.name, 'messagesIn', graphNode.id, activeCategoriesSet.has('messagesIn'));
+                } else if (isTopic && (inboundEventsCount > 0 || messagesOutCount > 0) && onToggleCategory) {
+                  const isActive = activeCategoriesSet.has('messagesIn') || activeCategoriesSet.has('messagesOut');
+                  if (inboundEventsCount > 0) onToggleCategory(graphNode.name, 'messagesIn', graphNode.id, isActive);
+                  if (messagesOutCount > 0) onToggleCategory(graphNode.name, 'messagesOut', graphNode.id, isActive);
                 }
               }}
               title={
                 isDatabase
                   ? `Inbound (${inboundCallsCount} connected services) — Click to toggle on diagram`
                   : isTopic
-                  ? `Inbound (${inboundEventsCount} publishers) — Click to toggle on diagram`
+                  ? `Connected Services (${inboundEventsCount + messagesOutCount}) — Click to toggle on diagram`
                   : inboundCallsCount + inboundEventsCount > 0
                   ? `Inbound (${inboundCallsCount + inboundEventsCount})`
                   : 'Inbound'
@@ -523,8 +525,13 @@ export const ProjectCardNode = memo((props: any) => {
                 e.stopPropagation();
                 if (isDatabase && !isCardExpanded && onToggleCategory && !activeCategoriesSet.has('acceptsIn')) {
                   onToggleCategory(graphNode.name, 'acceptsIn', graphNode.id, false);
-                } else if (isTopic && !isCardExpanded && onToggleCategory && !activeCategoriesSet.has('messagesIn')) {
-                  onToggleCategory(graphNode.name, 'messagesIn', graphNode.id, false);
+                } else if (isTopic && !isCardExpanded && onToggleCategory) {
+                  if (!activeCategoriesSet.has('messagesIn') && inboundEventsCount > 0) {
+                    onToggleCategory(graphNode.name, 'messagesIn', graphNode.id, false);
+                  }
+                  if (!activeCategoriesSet.has('messagesOut') && messagesOutCount > 0) {
+                    onToggleCategory(graphNode.name, 'messagesOut', graphNode.id, false);
+                  }
                 }
                 if (onToggleExpand) {
                   onToggleExpand(graphNode.name, graphNode.id);
@@ -938,23 +945,29 @@ export const ProjectCardNode = memo((props: any) => {
               id="target-events"
               type="target"
               position={Position.Left}
-              className={`flow-handle typed-handle handle-messagesIn ${inboundEventsCount === 0 ? 'is-empty' : ''}`}
+              className={`flow-handle typed-handle handle-messagesIn ${inboundEventsCount === 0 && messagesOutCount === 0 ? 'is-empty' : ''}`}
               isConnectable={false}
               onClick={(e) => {
                 e.stopPropagation();
-                if (inboundEventsCount > 0 && onToggleCategory) {
-                  onToggleCategory(graphNode.name, 'messagesIn', graphNode.id, activeCategoriesSet.has('messagesIn'));
+                if ((inboundEventsCount > 0 || messagesOutCount > 0) && onToggleCategory) {
+                  const isActive = activeCategoriesSet.has('messagesIn') || activeCategoriesSet.has('messagesOut');
+                  if (inboundEventsCount > 0) onToggleCategory(graphNode.name, 'messagesIn', graphNode.id, isActive);
+                  if (messagesOutCount > 0) onToggleCategory(graphNode.name, 'messagesOut', graphNode.id, isActive);
                 }
               }}
-              title={inboundEventsCount > 0 ? `Publishers (${inboundEventsCount}) — Click to toggle on diagram` : 'No publishers'}
+              title={
+                inboundEventsCount + messagesOutCount > 0
+                  ? `Connected Services (${inboundEventsCount + messagesOutCount}) — Click to toggle on diagram`
+                  : 'No connected services'
+              }
               style={{
                 top: '50%',
                 left: 0,
-                backgroundColor: inboundEventsCount === 0 ? '#334155' : activeCategoriesSet.has('messagesIn') ? '#fbbf24' : '#1c1c24',
-                border: inboundEventsCount === 0 ? '1.5px solid #475569' : activeCategoriesSet.has('messagesIn') ? '1.5px solid #ffffff' : '2px solid #fbbf24',
-                boxShadow: inboundEventsCount > 0 && activeCategoriesSet.has('messagesIn') ? '0 0 6px #fbbf24, 0 0 2px #fff' : 'none',
-                cursor: inboundEventsCount > 0 ? 'pointer' : 'default',
-                pointerEvents: inboundEventsCount > 0 ? 'auto' : 'none',
+                backgroundColor: inboundEventsCount + messagesOutCount === 0 ? '#334155' : (activeCategoriesSet.has('messagesIn') || activeCategoriesSet.has('messagesOut')) ? '#fbbf24' : '#1c1c24',
+                border: inboundEventsCount + messagesOutCount === 0 ? '1.5px solid #475569' : (activeCategoriesSet.has('messagesIn') || activeCategoriesSet.has('messagesOut')) ? '1.5px solid #ffffff' : '2px solid #fbbf24',
+                boxShadow: (inboundEventsCount + messagesOutCount > 0) && (activeCategoriesSet.has('messagesIn') || activeCategoriesSet.has('messagesOut')) ? '0 0 6px #fbbf24, 0 0 2px #fff' : 'none',
+                cursor: inboundEventsCount + messagesOutCount > 0 ? 'pointer' : 'default',
+                pointerEvents: inboundEventsCount + messagesOutCount > 0 ? 'auto' : 'none',
               }}
             />
             <Handle
@@ -974,21 +987,23 @@ export const ProjectCardNode = memo((props: any) => {
               style={{ top: '50%', opacity: 0, pointerEvents: 'none' }}
             />
             <div
-              className={`database-toggle-row ${activeCategoriesSet.has('messagesIn') ? 'is-active' : ''}`}
+              className={`database-toggle-row ${(activeCategoriesSet.has('messagesIn') || activeCategoriesSet.has('messagesOut')) ? 'is-active' : ''}`}
               onClick={(e) => {
                 e.stopPropagation();
-                if (inboundEventsCount > 0 && onToggleCategory) {
-                  onToggleCategory(graphNode.name, 'messagesIn', graphNode.id, activeCategoriesSet.has('messagesIn'));
+                if ((inboundEventsCount > 0 || messagesOutCount > 0) && onToggleCategory) {
+                  const isActive = activeCategoriesSet.has('messagesIn') || activeCategoriesSet.has('messagesOut');
+                  if (inboundEventsCount > 0) onToggleCategory(graphNode.name, 'messagesIn', graphNode.id, isActive);
+                  if (messagesOutCount > 0) onToggleCategory(graphNode.name, 'messagesOut', graphNode.id, isActive);
                 }
               }}
-              title="Click to toggle publishers on diagram"
+              title="Click to toggle connected services on diagram"
             >
               <span className="database-toggle-label" style={{ color: '#fbbf24' }}>📨 Connected Services</span>
               <span className="database-count-badge" style={{ backgroundColor: 'rgba(251, 191, 36, 0.2)', color: '#fde68a', borderColor: 'rgba(251, 191, 36, 0.4)' }}>
                 {inboundEventsCount + messagesOutCount}
               </span>
               <span className="database-diagram-status">
-                {activeCategoriesSet.has('messagesIn') ? 'Visible on diagram' : 'Click to show on diagram'}
+                {(activeCategoriesSet.has('messagesIn') || activeCategoriesSet.has('messagesOut')) ? 'Visible on diagram' : 'Click to show on diagram'}
               </span>
             </div>
           </div>
@@ -1036,8 +1051,13 @@ export const ProjectCardNode = memo((props: any) => {
             e.stopPropagation();
             if (isDatabase && !isCardExpanded && onToggleCategory && !activeCategoriesSet.has('acceptsIn')) {
               onToggleCategory(graphNode.name, 'acceptsIn', graphNode.id, false);
-            } else if (isTopic && !isCardExpanded && onToggleCategory && !activeCategoriesSet.has('messagesIn')) {
-              onToggleCategory(graphNode.name, 'messagesIn', graphNode.id, false);
+            } else if (isTopic && !isCardExpanded && onToggleCategory) {
+              if (!activeCategoriesSet.has('messagesIn') && inboundEventsCount > 0) {
+                onToggleCategory(graphNode.name, 'messagesIn', graphNode.id, false);
+              }
+              if (!activeCategoriesSet.has('messagesOut') && messagesOutCount > 0) {
+                onToggleCategory(graphNode.name, 'messagesOut', graphNode.id, false);
+              }
             }
             if (onToggleExpand) {
               onToggleExpand(graphNode.name, graphNode.id);

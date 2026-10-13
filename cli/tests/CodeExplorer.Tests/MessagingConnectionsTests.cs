@@ -123,7 +123,7 @@ public class MessagingConnectionsTests
     {
         var (inCat, inDep, inKind) = PostIndexAnalyzer.NormalizeEdgeCategory("TRIGGERS", "Topic", "Project", null, null, false);
         inCat.Should().Be("messaging");
-        inKind.Should().Be("SUBSCRIBES_TO");
+        inKind.Should().Be("SUBSCRIBED_BY");
         inDep.Should().Be("messaging");
 
         var (outCat, outDep, outKind) = PostIndexAnalyzer.NormalizeEdgeCategory("PUBLISHES_TO", "Project", "Topic", null, null, false);

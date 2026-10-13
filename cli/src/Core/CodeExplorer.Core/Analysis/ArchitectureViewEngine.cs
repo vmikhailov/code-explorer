@@ -795,7 +795,7 @@ public class ArchitectureViewEngine(IGraphClient db)
         CancellationToken ct)
     {
         var edgesQuery =
-            "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['SERVICE_CALL', 'DEPENDS_ON', 'USES_DB', 'PUBLISHES_TO', 'TRIGGERS', 'SUBSCRIBES_TO', 'INTEGRATES_WITH', 'CALLS_ENDPOINT', 'LIBRARY'] RETURN src.id AS from_id, tgt.id AS to_id, r.kind AS kind, r.properties AS properties";
+            "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['SERVICE_CALL', 'DEPENDS_ON', 'USES_DB', 'PUBLISHES_TO', 'TRIGGERS', 'SUBSCRIBES_TO', 'INTEGRATES_WITH', 'CALLS_ENDPOINT', 'LIBRARY', 'SUBSCRIBED_BY', 'PUBLISHED_BY'] RETURN src.id AS from_id, tgt.id AS to_id, r.kind AS kind, r.properties AS properties";
         var edgesJson = await db.ExecuteQueryAsync(edgesQuery, null, ct);
 
         using var edgesDoc = JsonDocument.Parse(edgesJson);
@@ -2895,16 +2895,17 @@ public class ArchitectureViewEngine(IGraphClient db)
                         });
                     }
                 }
-                else if (edge.Category == "messaging" || edge.Kind is "PUBLISHES_TO" or "TRIGGERS" || tgtNode?.Kind == NodeKind.Topic)
+                else if (edge.Category == "messaging" || edge.Kind is "PUBLISHES_TO" or "TRIGGERS" or "SUBSCRIBES_TO" || tgtNode?.Kind == NodeKind.Topic)
                 {
                     if (seenTopics.Add(tgtName))
                     {
+                        var isSubscriber = edge.Kind is "SUBSCRIBES_TO" or "SUBSCRIBES" or "SUBSCRIBED_BY" or "CONSUMES";
                         topicGroup.Items.Add(new ServiceCapabilityItemDto
                         {
                             Id = tgtNode?.Id ?? edge.Target,
                             Name = tgtName,
                             Kind = NodeKind.Topic,
-                            Details = "Published topic",
+                            Details = isSubscriber ? "Subscribed topic" : "Published topic",
                             FilePath = tgtNode?.FilePath,
                             Line = tgtNode?.LineStart
                         });
@@ -3014,12 +3015,13 @@ public class ArchitectureViewEngine(IGraphClient db)
                     var topicName = srcNode?.Name ?? edge.Source;
                     if (seenTopics.Add(topicName))
                     {
+                        var isPub = edge.Kind is "PUBLISHES" or "PUBLISHES_TO" or "PUBLISHED_BY";
                         topicGroup.Items.Add(new ServiceCapabilityItemDto
                         {
                             Id = srcNode?.Id ?? edge.Source,
                             Name = topicName,
                             Kind = NodeKind.Topic,
-                            Details = "Subscribed topic",
+                            Details = isPub ? "Published topic" : "Subscribed topic",
                             FilePath = srcNode?.FilePath,
                             Line = srcNode?.LineStart
                         });
@@ -4456,7 +4458,7 @@ public class ArchitectureViewEngine(IGraphClient db)
             {
                 if (edge.Target.Equals(targetId, StringComparison.OrdinalIgnoreCase))
                 {
-                    if (edge.Category == "messaging" || edge.Kind is "SUBSCRIBES_TO" or "TRIGGERS")
+                    if (edge.Category == "messaging" || edge.Kind is "SUBSCRIBES_TO" or "SUBSCRIBED_BY" or "TRIGGERS")
                     {
                         var srcNode = archGraph.Nodes.FirstOrDefault(n => n.Id.Equals(edge.Source, StringComparison.OrdinalIgnoreCase));
                         var topicName = srcNode?.Name ?? edge.Source;
@@ -4467,6 +4469,24 @@ public class ArchitectureViewEngine(IGraphClient db)
                         if (!isInternal && !contract.SubscribedTopics.Contains(topicName))
                         {
                             contract.SubscribedTopics.Add(topicName);
+                        }
+                    }
+                }
+                else if (edge.Source.Equals(targetId, StringComparison.OrdinalIgnoreCase))
+                {
+                    var tgtNode = archGraph.Nodes.FirstOrDefault(n => n.Id.Equals(edge.Target, StringComparison.OrdinalIgnoreCase));
+                    var tgtName = tgtNode?.Name ?? edge.Target;
+                    var isTopic = tgtNode?.Kind == NodeKind.Topic || edge.Category == "messaging";
+
+                    if (isTopic && edge.Kind is "SUBSCRIBES_TO" or "SUBSCRIBED_BY" or "SUBSCRIBES" or "CONSUMES")
+                    {
+                        var isInternal = edge.Properties?.GetValueOrDefault("is_internal") == "true" ||
+                                         tgtNode?.Properties?.GetValueOrDefault("is_internal") == "true" ||
+                                         string.Equals(tgtNode?.Properties?.GetValueOrDefault("broker_type"), "mediatr", StringComparison.OrdinalIgnoreCase) ||
+                                         edge.Target.Contains(":mediatr:");
+                        if (!isInternal && !contract.SubscribedTopics.Contains(tgtName))
+                        {
+                            contract.SubscribedTopics.Add(tgtName);
                         }
                     }
                 }
@@ -4487,13 +4507,16 @@ public class ArchitectureViewEngine(IGraphClient db)
                     {
                         if (!contract.Databases.Contains(tgtName)) contract.Databases.Add(tgtName);
                     }
-                    else if (edge.Category == "messaging" || edge.Kind is "PUBLISHES_TO" or "TRIGGERS" || tgtNode?.Kind == NodeKind.Topic)
+                    else if (edge.Category == "messaging" || edge.Kind is "PUBLISHES_TO" or "PUBLISHES" or "TRIGGERS" || tgtNode?.Kind == NodeKind.Topic)
                     {
-                        var isInternal = edge.Properties?.GetValueOrDefault("is_internal") == "true" ||
-                                         tgtNode?.Properties?.GetValueOrDefault("is_internal") == "true" ||
-                                         string.Equals(tgtNode?.Properties?.GetValueOrDefault("broker_type"), "mediatr", StringComparison.OrdinalIgnoreCase) ||
-                                         edge.Target.Contains(":mediatr:");
-                        if (!isInternal && !contract.PublishedTopics.Contains(tgtName)) contract.PublishedTopics.Add(tgtName);
+                        if (edge.Kind is not ("SUBSCRIBES_TO" or "SUBSCRIBED_BY" or "SUBSCRIBES" or "CONSUMES"))
+                        {
+                            var isInternal = edge.Properties?.GetValueOrDefault("is_internal") == "true" ||
+                                             tgtNode?.Properties?.GetValueOrDefault("is_internal") == "true" ||
+                                             string.Equals(tgtNode?.Properties?.GetValueOrDefault("broker_type"), "mediatr", StringComparison.OrdinalIgnoreCase) ||
+                                             edge.Target.Contains(":mediatr:");
+                            if (!isInternal && !contract.PublishedTopics.Contains(tgtName)) contract.PublishedTopics.Add(tgtName);
+                        }
                     }
                     else if (tgtNode?.Kind == NodeKind.ExternalService)
                     {

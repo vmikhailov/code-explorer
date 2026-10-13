@@ -492,4 +492,41 @@ public class ArchitectureViewEngineTests
         mermaid.Should().Contain("Order Management");
         mermaid.Should().Contain("Payments");
     }
+
+    [Test]
+    public async Task GetProjectContracts_AccuratelyClassifiesSubscribedAndPublishedTopics()
+    {
+        // Add explicit publisher from order-service to orders topic
+        await _db.UploadRelationshipsAsync(
+        [
+            new("ws:project:order-service:", "ws:res:topic:kafka:orders", OntologyConstants.Relationships.PublishesTo, new() { ["category"] = "messaging" })
+        ]);
+
+        // 1. Verify consumer contract
+        var payContract = await _engine.GetServiceContractsAsync("ws:project:payment-service:");
+        payContract.SubscribedTopics.Should().Contain("orders_topic");
+        payContract.PublishedTopics.Should().BeEmpty();
+
+        // 2. Verify publisher contract
+        var orderContract = await _engine.GetServiceContractsAsync("ws:project:order-service:");
+        orderContract.PublishedTopics.Should().Contain("orders_topic");
+        orderContract.SubscribedTopics.Should().BeEmpty();
+
+        // 3. Verify ontology details for consumer
+        var payDetails = await _engine.GetServiceCapabilitiesAsync("ws:project:payment-service:");
+        var topicGroup = payDetails.Groups.FirstOrDefault(g => g.CategoryKey == "topics");
+        topicGroup.Should().NotBeNull();
+        var subItem = topicGroup!.Items.FirstOrDefault(i => i.Name == "orders_topic");
+        subItem.Should().NotBeNull();
+        subItem!.Details.Should().Be("Subscribed topic");
+
+        // 4. Verify ontology details for publisher
+        var orderDetails = await _engine.GetServiceCapabilitiesAsync("ws:project:order-service:");
+        var pubTopicGroup = orderDetails.Groups.FirstOrDefault(g => g.CategoryKey == "topics");
+        pubTopicGroup.Should().NotBeNull();
+        var pubItem = pubTopicGroup!.Items.FirstOrDefault(i => i.Name == "orders_topic");
+        pubItem.Should().NotBeNull();
+        pubItem!.Details.Should().Be("Published topic");
+    }
 }
+

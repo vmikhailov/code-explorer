@@ -5,6 +5,8 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
   XIcon,
+  DockRightIcon,
+  FloatIcon,
 } from './Icons';
 
 export type DockCorner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
@@ -138,6 +140,12 @@ export interface FloatingPanelProps {
    */
   docked?: boolean;
 
+  /**
+   * Optional toggle callback to switch between docked and floating mode.
+   */
+  onToggleDock?: () => void;
+  dockTooltip?: string;
+
   ariaLabel?: string;
   className?: string;
   headerClassName?: string;
@@ -173,6 +181,8 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
   persistKey,
   onResize,
   docked = false,
+  onToggleDock,
+  dockTooltip,
   ariaLabel,
   className = '',
   headerClassName = '',
@@ -444,6 +454,18 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
 
               <div className="floating-dock-header-controls">
                 {headerActions}
+
+                {onToggleDock && (
+                  <button
+                    type="button"
+                    className="floating-dock-btn dock-toggle-btn"
+                    onClick={onToggleDock}
+                    title={dockTooltip || (docked ? 'Float window over canvas' : 'Dock to sidebar')}
+                    aria-label={dockTooltip || (docked ? 'Float window over canvas' : 'Dock to sidebar')}
+                  >
+                    {docked ? <FloatIcon size={12} /> : <DockRightIcon size={12} />}
+                  </button>
+                )}
 
                 {onToggleCollapse && (
                   <button

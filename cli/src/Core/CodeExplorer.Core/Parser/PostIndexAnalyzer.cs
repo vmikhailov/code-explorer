@@ -2245,7 +2245,14 @@ public class PostIndexAnalyzer(IGraphClient db)
         }
         else if (category == "messaging")
         {
-            normalizedKind = (kind is "PUBLISHES" or "PUBLISHES_TO" or "PUBLISHED_BY") ? "PUBLISHES_TO" : "SUBSCRIBES_TO";
+            if (string.Equals(sourceKind, "Topic", StringComparison.OrdinalIgnoreCase))
+            {
+                normalizedKind = (kind is "PUBLISHED_BY") ? "PUBLISHED_BY" : "SUBSCRIBED_BY";
+            }
+            else
+            {
+                normalizedKind = (kind is "PUBLISHES" or "PUBLISHES_TO" or "PUBLISHED_BY") ? "PUBLISHES_TO" : "SUBSCRIBES_TO";
+            }
         }
         else if (kind is "DEPENDS_ON" or "DependsOn")
         {

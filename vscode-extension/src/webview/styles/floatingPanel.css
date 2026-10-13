@@ -291,12 +291,23 @@
   color: #e0f2fe;
 }
 
+.floating-dock-btn.dock-toggle-btn:hover {
+  background: rgba(56, 189, 248, 0.18);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
 /* Body */
 .floating-dock-body {
   flex: 1;
+  min-height: 0;
+  height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
 }
 
 .floating-dock-panel.no-body-padding > .floating-dock-body {
@@ -304,6 +315,9 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
 }
 
 /* Custom subtle scrollbar */

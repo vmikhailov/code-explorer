@@ -1232,6 +1232,27 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const [isEdgeInspectorCollapsed, setIsEdgeInspectorCollapsed] = useState(false);
   const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(true);
   const [leftSidebarTab, setLeftSidebarTab] = useState<'hidden' | 'orbits'>('hidden');
+  const [isInspectorDocked, setIsInspectorDocked] = useState<boolean>(() => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const saved = localStorage.getItem('ce_inspector_docked');
+        if (saved !== null) return saved === 'true';
+      } catch {}
+    }
+    return true;
+  });
+
+  const handleToggleInspectorDock = useCallback(() => {
+    setIsInspectorDocked((prev) => {
+      const next = !prev;
+      if (typeof window !== 'undefined' && window.localStorage) {
+        try {
+          localStorage.setItem('ce_inspector_docked', String(next));
+        } catch {}
+      }
+      return next;
+    });
+  }, []);
 
   // Restore all hidden entities across individual hides, category filters, and orbits
   const restoreAllHiddenNodes = useCallback(() => {
@@ -1880,6 +1901,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           source: edge.source,
           target: edge.target,
           category: cat,
+          kind: edge.kind,
           label,
           count: 1,
           isTransitive: isTrans,
@@ -1902,6 +1924,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       source: string;
       target: string;
       category: 'service_call' | 'database' | 'messaging' | 'external';
+      kind?: string;
       label: string;
       count: number;
       isTransitive: boolean;
@@ -1923,6 +1946,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         source: e.source,
         target: e.target,
         category: e.category,
+        kind: (e as any).kind || (e as any).label,
         label: e.label,
         count: e.count,
         isTransitive: Boolean((e as any).isTransitive),
@@ -4846,11 +4870,44 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               </button>
             </div>
           )}
+
+          {/* Floating Node & Edge Inspector Panel (when un-docked) */}
+          {showRightInspector && !isInspectorDocked && (
+            <DomainInspector
+              selectedNode={selectedNode}
+              selectedEdge={selectedEdge}
+              nodeDetailMap={nodeDetailMap}
+              rawEdges={rawGraph.rawEdges}
+              isInspectorCollapsed={isInspectorCollapsed}
+              onToggleCollapse={setIsInspectorCollapsed}
+              isEdgeInspectorCollapsed={isEdgeInspectorCollapsed}
+              onToggleEdgeCollapse={setIsEdgeInspectorCollapsed}
+              onSelectNode={setSelectedNode}
+              onSelectNodeById={handleSelectNodeById}
+              onSelectEdge={setSelectedEdge}
+              onClearSelection={() => {
+                setSelectedNode(null);
+                setSelectedEdge(null);
+              }}
+              onClearGraphHighlight={() => {
+                cyRef.current?.elements().removeClass('highlighted dimmed');
+              }}
+              onHideNode={hideNode}
+              onFocusInFlow={onFocusInFlow}
+              onOpenFile={onOpenFile}
+              onOpenOverrideModal={(name) => {
+                setOverrideTargetService(name);
+                setOverrideModalOpen(true);
+              }}
+              docked={false}
+              onToggleDock={handleToggleInspectorDock}
+            />
+          )}
         </div>
       </Panel>
 
-      {/* Right Docked Panel: Node & Edge Inspector */}
-      {showRightInspector && (
+      {/* Right Docked Panel: Node & Edge Inspector (when docked) */}
+      {showRightInspector && isInspectorDocked && (
         <>
           <Separator className="domain-panel-resize-handle handle-right" />
           <Panel
@@ -4888,6 +4945,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                 setOverrideModalOpen(true);
               }}
               docked={true}
+              onToggleDock={handleToggleInspectorDock}
             />
           </Panel>
         </>

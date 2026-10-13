@@ -221,3 +221,40 @@ export const ExternalLinkIcon: React.FC<IconProps> = ({ size = 14, className = '
     <line x1="10" y1="14" x2="21" y2="3" />
   </svg>
 );
+
+export const DockRightIcon: React.FC<IconProps> = ({ size = 14, className = '', style }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0, ...style }}
+  >
+    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+    <line x1="15" y1="3" x2="15" y2="21" />
+  </svg>
+);
+
+export const FloatIcon: React.FC<IconProps> = ({ size = 14, className = '', style }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0, ...style }}
+  >
+    <rect x="8" y="8" width="13" height="13" rx="2" ry="2" />
+    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+  </svg>
+);
+
