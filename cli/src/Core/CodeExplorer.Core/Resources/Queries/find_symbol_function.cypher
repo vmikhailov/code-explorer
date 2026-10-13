@@ -1,4 +1,4 @@
-MATCH (n:Function) WHERE n.name CONTAINS $name
+MATCH (n:Function) WHERE n.name CONTAINS $name OR n.graphql_field CONTAINS $name OR n.graphql_operation CONTAINS $name
 OPTIONAL MATCH (n)-[:DECLARED_IN]->(f:File)
 OPTIONAL MATCH (w:Workspace)
 RETURN 'Function' AS type, n.name AS name, n.symbol AS fullName,

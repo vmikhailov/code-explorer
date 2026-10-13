@@ -59,6 +59,39 @@ public static class OntologyUploader
                 collectedRelationships.Add(dbRel);
                 ctx.AddRelsCount(1);
             }
+
+            if (parentNode.Kind is OntologyConstants.NodeLabels.Endpoint or OntologyConstants.NodeLabels.EntryPoint &&
+                node.Kind == OntologyConstants.NodeLabels.Function)
+            {
+                var triggersRel = Relationship.FromRelationship(new TriggersRelationship(parentNode.Id, node.Id));
+                if (visitedRelKeys.Add((triggersRel.From, triggersRel.To, triggersRel.Kind)))
+                {
+                    collectedRelationships.Add(triggersRel);
+                    ctx.AddRelsCount(1);
+                }
+
+                IOntologyRelationship handlerRel = parentNode.Kind == OntologyConstants.NodeLabels.Endpoint
+                    ? new ExposedByRelationship(parentNode.Id, node.Id)
+                    : new ImplementedByRelationship(parentNode.Id, node.Id);
+                var dbHandlerRel = Relationship.FromRelationship(handlerRel);
+                if (visitedRelKeys.Add((dbHandlerRel.From, dbHandlerRel.To, dbHandlerRel.Kind)))
+                {
+                    collectedRelationships.Add(dbHandlerRel);
+                    ctx.AddRelsCount(1);
+                }
+
+                var fnFilePath = (node as FunctionNode)?.FilePath ?? node.Path;
+                if (!string.IsNullOrEmpty(fnFilePath))
+                {
+                    var fnFileId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.File}:{fnFilePath}";
+                    var declaredInRel = Relationship.FromRelationship(new DeclaredInRelationship(node.Id, fnFileId));
+                    if (visitedRelKeys.Add((declaredInRel.From, declaredInRel.To, declaredInRel.Kind)))
+                    {
+                        collectedRelationships.Add(declaredInRel);
+                        ctx.AddRelsCount(1);
+                    }
+                }
+            }
         }
 
         if (!isDuplicate)
@@ -86,6 +119,31 @@ public static class OntologyUploader
                 if (!string.IsNullOrEmpty(filePath))
                 {
                     ctx.AddFileScopedSymbol(filePath.Replace('\\', '/'), node.Kind, nameStr, node.Id);
+                }
+                if (node.Kind == OntologyConstants.NodeLabels.Function &&
+                    node.Extensions != null &&
+                    node.Extensions.TryGetValue("graphql_field", out var gqlFieldAlias) &&
+                    !string.IsNullOrEmpty(gqlFieldAlias))
+                {
+                    ctx.AddGlobalSymbol(node.Kind, gqlFieldAlias, node.Id);
+                    if (!string.IsNullOrEmpty(filePath))
+                    {
+                        ctx.AddFileScopedSymbol(filePath.Replace('\\', '/'), node.Kind, gqlFieldAlias, node.Id);
+                    }
+                }
+                if (node.Kind == OntologyConstants.NodeLabels.Function &&
+                    node.Extensions != null &&
+                    node.Extensions.TryGetValue("graphql_aliases", out var gqlAliases) &&
+                    !string.IsNullOrEmpty(gqlAliases))
+                {
+                    foreach (var alias in gqlAliases.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    {
+                        ctx.AddGlobalSymbol(node.Kind, alias, node.Id);
+                        if (!string.IsNullOrEmpty(filePath))
+                        {
+                            ctx.AddFileScopedSymbol(filePath.Replace('\\', '/'), node.Kind, alias, node.Id);
+                        }
+                    }
                 }
                 if (node.Kind == OntologyConstants.NodeLabels.Endpoint || node.Kind == OntologyConstants.NodeLabels.EntryPoint)
                 {

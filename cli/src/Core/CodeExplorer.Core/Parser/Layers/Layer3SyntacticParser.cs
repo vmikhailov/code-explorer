@@ -343,6 +343,16 @@ public class Layer3SyntacticParser
                     {
                         projectSyntaxNode.Children.Add(child);
                     }
+                    else if (child is EndpointNode or EntryPointNode)
+                    {
+                        foreach (var grandChild in child.Children)
+                        {
+                            if (grandChild is TypeNode || grandChild is FunctionNode || grandChild is MemberNode)
+                            {
+                                projectSyntaxNode.Children.Add(grandChild);
+                            }
+                        }
+                    }
                 }
 
                 syntaxTrees.Add(syntaxTree);
@@ -617,6 +627,15 @@ public class Layer3SyntacticParser
         var childCounts = new Dictionary<(string Kind, string Name), int>();
         foreach (var childSyntactic in syntactic.Children)
         {
+            if (syntactic.Properties.TryGetValue("graphql_field", out var parentGqlField))
+            {
+                childSyntactic.Properties.TryAdd("graphql_field", parentGqlField);
+            }
+            if (syntactic.Properties.TryGetValue("graphql_schema", out var parentGqlSchema))
+            {
+                childSyntactic.Properties.TryAdd("graphql_schema", parentGqlSchema);
+            }
+
             var key = (childSyntactic.Kind, childSyntactic.Name);
             childCounts.TryGetValue(key, out var count);
             count++;
@@ -677,8 +696,14 @@ public class Layer3SyntacticParser
             if (!string.IsNullOrEmpty(stripped)) resolvedProj = stripped;
         }
 
-        // Apply project global route prefix (e.g. 'api/v1' or 'api') if discovered and not already present
-        if (!string.IsNullOrEmpty(resolvedProj) &&
+        var protocol = syntactic?.Protocol ?? (method is "RPC" or "GRPC" ? "gRPC" : (method is "GRAPHQL" or "QUERY" or "MUTATION" or "SUBSCRIPTION" ? "GraphQL" : "REST"));
+        var operationType = syntactic?.OperationType ?? (protocol == "GraphQL"
+            ? (method is "MUTATION" ? "Mutation" : (method is "SUBSCRIPTION" ? "Subscription" : "Query"))
+            : (protocol == "gRPC" ? "Unary" : null));
+
+        // Apply project global route prefix (e.g. 'api/v1' or 'api') if discovered and not already present (REST only)
+        if (protocol == "REST" &&
+            !string.IsNullOrEmpty(resolvedProj) &&
             RouteDictionaryRegistry.TryGetGlobalPrefix(resolvedProj, out var globalPrefix) &&
             !string.IsNullOrEmpty(globalPrefix))
         {
@@ -691,13 +716,13 @@ public class Layer3SyntacticParser
             }
         }
 
-        var protocol = syntactic?.Protocol ?? (method is "RPC" or "GRPC" ? "gRPC" : (method is "GRAPHQL" or "QUERY" or "MUTATION" or "SUBSCRIPTION" ? "GraphQL" : "REST"));
-        var operationType = syntactic?.OperationType ?? (protocol == "GraphQL"
-            ? (method is "MUTATION" ? "Mutation" : (method is "SUBSCRIPTION" ? "Subscription" : "Query"))
-            : (protocol == "gRPC" ? "Unary" : null));
-
         var projPart = (!string.IsNullOrEmpty(resolvedProj) && resolvedProj != "default") ? $"{resolvedProj}:" : "";
-        var endpointId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Endpoint}:{projPart}{method}:{route}";
+        var schemaPart = syntactic != null &&
+                         syntactic.Properties.TryGetValue("graphql_schema", out var gqlSchema) &&
+                         !string.IsNullOrEmpty(gqlSchema)
+            ? $"{gqlSchema}:"
+            : "";
+        var endpointId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Endpoint}:{projPart}{schemaPart}{method}:{route}";
         return new EndpointNode(
             endpointId,
             name,
@@ -771,6 +796,51 @@ public class Layer3SyntacticParser
         string? parentScopeId = null)
     {
         var cleanName = name?.Trim('"', '\'', '`', ' ', ';') ?? "";
+        if (!WorkspaceConventions.IsTestFilePath(relativePath) &&
+            cleanName.StartsWith("graphql:", StringComparison.OrdinalIgnoreCase))
+        {
+            var gqlRem = cleanName["graphql:".Length..].Trim();
+            var gqlOpType = "Query";
+            var gqlField = gqlRem;
+            var colonIdx = gqlRem.IndexOf(':');
+            if (colonIdx > 0)
+            {
+                var maybeOp = gqlRem[..colonIdx].ToUpperInvariant();
+                if (maybeOp is "QUERY" or "MUTATION" or "SUBSCRIPTION")
+                {
+                    gqlOpType = maybeOp switch
+                    {
+                        "MUTATION" => "Mutation",
+                        "SUBSCRIPTION" => "Subscription",
+                        _ => "Query"
+                    };
+                    gqlField = gqlRem[(colonIdx + 1)..].Trim();
+                }
+            }
+
+            if (!string.IsNullOrEmpty(gqlField))
+            {
+                var gqlPath = "/" + gqlField.TrimStart('/');
+                var scopeKey = !string.IsNullOrEmpty(parentScopeId) ? parentScopeId : relativePath;
+                var gqlExtId = $"{workspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:graphql:{gqlOpType}:{gqlField}:{scopeKey}";
+                var gqlExt = new Dictionary<string, string>
+                {
+                    ["file_path"] = relativePath,
+                    ["start_line"] = (node.StartPosition.Row + 1).ToString(),
+                    ["start_col"] = (node.StartPosition.Column + 1).ToString(),
+                    ["graphql_field"] = gqlField,
+                    ["operation_type"] = gqlOpType,
+                    ["is_internal"] = "true",
+                    ["url"] = gqlPath
+                };
+                if (!string.IsNullOrEmpty(parentScopeId))
+                {
+                    gqlExt["caller_symbol_id"] = parentScopeId;
+                }
+                return new ExternalServiceNode(gqlExtId, gqlField, "graphql", "graphql", gqlPath, gqlExt);
+            }
+        }
+
         if (WorkspaceConventions.IsTestFilePath(relativePath) ||
             string.IsNullOrWhiteSpace(cleanName) ||
             cleanName.Length > 256 ||

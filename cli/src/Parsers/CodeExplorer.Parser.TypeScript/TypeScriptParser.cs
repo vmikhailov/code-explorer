@@ -67,6 +67,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new Libraries.AngularOidcLibraryParser(),
         new Libraries.SignalRLibraryParser(),
         new Libraries.GraphQLClientLibraryParser(),
+        new Libraries.PothosLibraryParser(),
         new Libraries.ClickHouseLibraryParser(),
         new Libraries.BigQueryLibraryParser(),
         new Libraries.StripeLibraryParser(),

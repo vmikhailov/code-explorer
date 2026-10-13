@@ -150,7 +150,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
     private static string? FindOwningDeclarationName(Node pair)
     {
         var current = pair.Parent;
-        for (var hops = 0; current.IsValid() && hops < 8; hops++, current = current.Parent)
+        for (var hops = 0; current.IsValid() && hops < 12; hops++, current = current.Parent)
         {
             if (current.IsAny(TreeSitterSyntax.TypeScript.ClassBody, TreeSitterSyntax.TypeScript.StatementBlock,
                     TreeSitterSyntax.TypeScript.Program))
@@ -168,9 +168,55 @@ public class TypeScriptFileVisitor : BaseParserVisitor
             {
                 return current.GetChildFieldText(TreeSitterSyntax.Fields.Key)?.Trim('\'', '"', '`');
             }
+
+            if (current.Is(TreeSitterSyntax.TypeScript.CallExpression))
+            {
+                var pothosField = TryExtractPothosFieldName(current);
+                if (!string.IsNullOrEmpty(pothosField))
+                {
+                    return pothosField;
+                }
+            }
         }
 
         return null;
+    }
+
+    internal static string? TryExtractPothosFieldName(Node callNode)
+    {
+        var fnNode = callNode.GetFunctionNode();
+        if (!fnNode.IsValid() || !fnNode.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+        {
+            return null;
+        }
+
+        var propNode = fnNode.GetField(TreeSitterSyntax.Fields.Property);
+        if (!propNode.IsValid()) return null;
+
+        var method = propNode.Text;
+        if (method is not ("queryField" or "mutationField" or "subscriptionField" or "objectField"))
+        {
+            return null;
+        }
+
+        var argsNode = callNode.GetField(TreeSitterSyntax.Fields.Arguments);
+        if (!argsNode.IsValid()) return null;
+
+        var stringArgs = new List<string>();
+        foreach (var child in argsNode.Children)
+        {
+            if (child.IsAny(TreeSitterSyntax.TypeScript.String, TreeSitterSyntax.TypeScript.TemplateString))
+            {
+                var val = child.Text.Trim('\'', '"', '`');
+                if (!string.IsNullOrEmpty(val))
+                {
+                    stringArgs.Add(val);
+                }
+            }
+        }
+
+        if (stringArgs.Count == 0) return null;
+        return method == "objectField" && stringArgs.Count >= 2 ? stringArgs[1] : stringArgs[0];
     }
 
     private static Node? GetNextNamedSibling(Node node)
@@ -285,7 +331,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
     protected override void VisitVariableDeclaration(Node node, int depth)
     {
         CollectVariableAndTypeBindings(node);
-        VisitChildren(node, depth);
+        base.VisitVariableDeclaration(node, depth);
     }
 
     protected override void VisitParameter(Node node, int depth)
@@ -348,9 +394,97 @@ public class TypeScriptFileVisitor : BaseParserVisitor
             {
                 if (objChild.IsValid())
                 {
+                    var unwrappedObj = UnwrapExpression(objChild);
+                    if (unwrappedObj.IsAny(TreeSitterSyntax.TypeScript.CallExpression, TreeSitterSyntax.TypeScript.NewExpression))
+                    {
+                        var genericType = ExtractFirstGenericTypeArgument(unwrappedObj);
+                        if (!string.IsNullOrEmpty(genericType))
+                        {
+                            return $"{genericType}.{propChild.Text}";
+                        }
+
+                        if (unwrappedObj.Is(TreeSitterSyntax.TypeScript.NewExpression))
+                        {
+                            var ctorNode = unwrappedObj.GetField(TreeSitterSyntax.Fields.Constructor);
+                            if (ctorNode.IsValid() && !string.IsNullOrEmpty(ctorNode.Text))
+                            {
+                                return $"{ctorNode.Text}.{propChild.Text}";
+                            }
+                        }
+                    }
+
                     return $"{objChild.Text}.{propChild.Text}";
                 }
                 return propChild.Text;
+            }
+        }
+
+        return null;
+    }
+
+    private static Node UnwrapExpression(Node node)
+    {
+        var curr = node;
+        for (var i = 0; i < 6 && curr.IsValid(); i++)
+        {
+            if (curr.IsAny("parenthesized_expression", "await_expression", "non_null_expression", "as_expression"))
+            {
+                var inner = curr.Children.FirstOrDefault(c =>
+                    c.IsNamed &&
+                    !c.Is("type_identifier") &&
+                    !c.Is("predefined_type"));
+                if (inner.IsValid())
+                {
+                    curr = inner;
+                    continue;
+                }
+            }
+            break;
+        }
+        return curr;
+    }
+
+    internal static string? ExtractFirstGenericTypeArgument(Node callOrNewNode)
+    {
+        var typeArgsNode = callOrNewNode.GetField("type_arguments");
+        if (!typeArgsNode.IsValid())
+        {
+            typeArgsNode = callOrNewNode.FindChildOfType("type_arguments");
+        }
+        if (!typeArgsNode.IsValid()) return null;
+
+        return ExtractPrimaryTypeNameFromTypeArguments(typeArgsNode);
+    }
+
+    private static string? ExtractPrimaryTypeNameFromTypeArguments(Node typeArgsNode)
+    {
+        foreach (var child in typeArgsNode.Children)
+        {
+            if (!child.IsNamed) continue;
+
+            if (child.IsAny("type_identifier", TreeSitterSyntax.TypeScript.Identifier, "nested_type_identifier"))
+            {
+                return child.Text;
+            }
+
+            if (child.Is("generic_type"))
+            {
+                var nameNode = child.GetField(TreeSitterSyntax.Fields.Name) ??
+                               child.Children.FirstOrDefault(c => c.IsAny("type_identifier", TreeSitterSyntax.TypeScript.Identifier));
+                var outerName = nameNode.IsValid() ? nameNode.Text : null;
+                if (outerName is "Promise" or "Readonly" or "NonNullable" or "Awaited")
+                {
+                    var innerArgs = child.FindChildOfType("type_arguments");
+                    if (innerArgs.IsValid())
+                    {
+                        var unwrapped = ExtractPrimaryTypeNameFromTypeArguments(innerArgs);
+                        if (!string.IsNullOrEmpty(unwrapped)) return unwrapped;
+                    }
+                }
+                if (!string.IsNullOrEmpty(outerName))
+                {
+                    return outerName;
+                }
             }
         }
 
@@ -527,13 +661,20 @@ public class TypeScriptFileVisitor : BaseParserVisitor
                     var typeNode = typeAnnotation.Children.FirstOrDefault(c => !c.Is(TreeSitterSyntax.Symbols.Colon));
                     if (typeNode != null) typeName = typeNode.Text;
                 }
-                else if (valueNode.IsValid() && valueNode.Is(TreeSitterSyntax.TypeScript.NewExpression))
+                else if (valueNode.IsValid())
                 {
-                    var constructorNode = valueNode.GetField(TreeSitterSyntax.Fields.Constructor);
-
-                    if (constructorNode.IsValid())
+                    var unwrappedVal = UnwrapExpression(valueNode);
+                    if (unwrappedVal.IsAny(TreeSitterSyntax.TypeScript.CallExpression, TreeSitterSyntax.TypeScript.NewExpression))
                     {
-                        typeName = constructorNode.Text;
+                        typeName = ExtractFirstGenericTypeArgument(unwrappedVal);
+                        if (string.IsNullOrEmpty(typeName) && unwrappedVal.Is(TreeSitterSyntax.TypeScript.NewExpression))
+                        {
+                            var constructorNode = unwrappedVal.GetField(TreeSitterSyntax.Fields.Constructor);
+                            if (constructorNode.IsValid())
+                            {
+                                typeName = constructorNode.Text;
+                            }
+                        }
                     }
                 }
 
@@ -613,7 +754,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
         return "global";
     }
 
-    private static string GetContainingScopeName(Node node)
+    private string GetContainingScopeName(Node node)
     {
         var curr = node.Parent;
 
@@ -649,6 +790,14 @@ public class TypeScriptFileVisitor : BaseParserVisitor
                     }
 
                     return nameTextStr;
+                }
+            }
+            else if (curr.IsAny(TreeSitterSyntax.TypeScript.ArrowFunction, TreeSitterSyntax.TypeScript.FunctionExpression))
+            {
+                var arrowName = ExtractTsIdentifier(curr);
+                if (!string.IsNullOrEmpty(arrowName))
+                {
+                    return arrowName;
                 }
             }
 

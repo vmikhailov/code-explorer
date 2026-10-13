@@ -57,7 +57,7 @@ public class Layer5AnalysisParser
         var referenceRelationships = await ResolveAndUploadGlobalReferencesAsync(ctx);
 
         // 4. Perform Late Binding
-        var lateBoundRels = await PerformLateBindingAsync(l4Result, ctx);
+        var lateBoundRels = await PerformLateBindingAsync(l4Result, ctx, referenceRelationships);
 
         // 5. Run PostIndexAnalyzer
         var postAnalyzer = new PostIndexAnalyzer(ctx.DbClient);
@@ -750,10 +750,11 @@ public class Layer5AnalysisParser
             referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, targetNodeId)));
             callAdded = true;
         }
-        // 4. Globally unambiguous function (only 1 function with this name across entire workspace)
-        else if (symbols.FunctionsByName.TryGetValue(targetName, out var uniqueCandidates) && uniqueCandidates.Count == 1)
+        // 4. Globally unambiguous function (only 1 function with this name across entire workspace, or 1 non-graphql function when paired with a .graphql operation)
+        else if (symbols.FunctionsByName.TryGetValue(targetName, out var uniqueCandidates) &&
+                 (uniqueCandidates.Count == 1 || SelectPreferredFunctionCandidate(uniqueCandidates) != null))
         {
-            targetNodeId = uniqueCandidates[0];
+            targetNodeId = uniqueCandidates.Count == 1 ? uniqueCandidates[0] : SelectPreferredFunctionCandidate(uniqueCandidates)!;
             referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, targetNodeId)));
             callAdded = true;
         }
@@ -815,24 +816,35 @@ public class Layer5AnalysisParser
         }
     }
 
+    private static bool IsGraphQLDocumentSymbolId(string symbolId)
+    {
+        var fp = ExtractFilePathFromSymbolId(symbolId);
+        return fp != null &&
+               (fp.EndsWith(".graphql", StringComparison.OrdinalIgnoreCase) ||
+                fp.EndsWith(".gql", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string? SelectPreferredFunctionCandidate(List<string> candidates)
+    {
+        if (candidates.Count == 1) return candidates[0];
+        var nonGql = candidates.Where(id => !IsGraphQLDocumentSymbolId(id)).Distinct(StringComparer.Ordinal).ToList();
+        return nonGql.Count == 1 ? nonGql[0] : null;
+    }
+
     private static string? ResolveSameProjectFunctionFallback(string callerFile, string targetName, SymbolLookups symbols)
     {
         var callerProj = ConstantRegistry.ExtractProjectName(callerFile);
         if (callerProj != null && symbols.FilesByProject.TryGetValue(callerProj, out var projFiles))
         {
-            string? matchedId = null;
+            var matchedIds = new List<string>();
             foreach (var pFile in projFiles)
             {
-                if (symbols.FunctionSymbolsByFile.TryGetValue((pFile, targetName), out var id))
+                if (symbols.FunctionSymbolsByFile.TryGetValue((pFile, targetName), out var id) && !matchedIds.Contains(id))
                 {
-                    if (matchedId != null && matchedId != id)
-                    {
-                        return null; // Ambiguous within same project
-                    }
-                    matchedId = id;
+                    matchedIds.Add(id);
                 }
             }
-            return matchedId;
+            return SelectPreferredFunctionCandidate(matchedIds);
         }
         return null;
     }
@@ -1497,7 +1509,10 @@ public class Layer5AnalysisParser
             }
         }
     }
-    private async Task<List<Relationship>> PerformLateBindingAsync(Layer4Result l4Result, ParsingContext ctx)
+    private async Task<List<Relationship>> PerformLateBindingAsync(
+        Layer4Result l4Result,
+        ParsingContext ctx,
+        List<Relationship>? referenceRelationships = null)
     {
         var workspaceNode = l4Result.Prev.Prev.Prev.Workspace;
         var allProjects = l4Result.Prev.Prev.Projects.ToList();
@@ -1507,6 +1522,48 @@ public class Layer5AnalysisParser
         var externalServices = new List<ExternalServiceNode>();
 
         CollectPublicSymbols(workspaceNode, entryPoints, endpoints, externalServices);
+
+        // Build lookup of endpoint ID -> handler FunctionNode IDs (from child functions, TreeRelationships, and referenceRelationships)
+        var handlersByEndpointId = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        void RegisterEndpointHandler(string epId, string fnId)
+        {
+            if (string.IsNullOrEmpty(epId) || string.IsNullOrEmpty(fnId) || epId == fnId) return;
+            if (!handlersByEndpointId.TryGetValue(epId, out var set))
+            {
+                set = new HashSet<string>(StringComparer.Ordinal);
+                handlersByEndpointId[epId] = set;
+            }
+            set.Add(fnId);
+        }
+
+        foreach (var ep in endpoints)
+        {
+            foreach (var childFn in ep.Children.OfType<CodeExplorer.Core.Common.Nodes.Layer3_Syntactic.FunctionNode>())
+            {
+                RegisterEndpointHandler(ep.Id, childFn.Id);
+            }
+        }
+
+        foreach (var rel in ctx.TreeRelationships)
+        {
+            if (rel.Kind is OntologyConstants.Relationships.Triggers or OntologyConstants.Relationships.ExposedBy &&
+                (rel.To.Contains(":fn:", StringComparison.Ordinal) || rel.To.Contains(":Function:", StringComparison.Ordinal)))
+            {
+                RegisterEndpointHandler(rel.From, rel.To);
+            }
+        }
+
+        if (referenceRelationships != null)
+        {
+            foreach (var rel in referenceRelationships)
+            {
+                if (rel.Kind is OntologyConstants.Relationships.Triggers or OntologyConstants.Relationships.ExposedBy &&
+                    (rel.To.Contains(":fn:", StringComparison.Ordinal) || rel.To.Contains(":Function:", StringComparison.Ordinal)))
+                {
+                    RegisterEndpointHandler(rel.From, rel.To);
+                }
+            }
+        }
 
         var localExtIds = new HashSet<string>(externalServices.Select(e => e.Id));
         var localEndpointIds = new HashSet<string>(endpoints.Select(e => e.Id));
@@ -1627,6 +1684,7 @@ public class Layer5AnalysisParser
 
         var lateBoundRels = new List<Relationship>();
         var addedProjectDeps = new HashSet<(string From, string To)>();
+        var addedFunctionCalls = new HashSet<(string From, string To)>();
         var boundServicesCount = 0;
 
         var projectMatchCache = new Dictionary<(string ProjectId, string Domain), bool>();
@@ -1710,13 +1768,24 @@ public class Layer5AnalysisParser
                 matchedEndpoint = true;
                 boundServicesCount++;
 
-                // Also bind directly from caller function if known
+                // Also bind directly from caller function if known, and bridge CALLS to endpoint handler/resolver FunctionNodes
                 if (extService.Service.Extensions != null &&
                     extService.Service.Extensions.TryGetValue("caller_symbol_id", out var callerId) &&
                     !string.IsNullOrEmpty(callerId))
                 {
                     ctx.LogDebug($"[Layer5] [LateBinding] Direct Binding Function '{callerId}' to Endpoint '{endpoint.Endpoint.Id}'");
                     lateBoundRels.Add(Relationship.FromRelationship(new CallsEndpointRelationship(callerId, endpoint.Endpoint.Id)));
+
+                    if (handlersByEndpointId.TryGetValue(endpoint.Endpoint.Id, out var handlerFnIds))
+                    {
+                        foreach (var handlerFnId in handlerFnIds)
+                        {
+                            if (callerId != handlerFnId && addedFunctionCalls.Add((callerId, handlerFnId)))
+                            {
+                                lateBoundRels.Add(Relationship.FromRelationship(new CallsRelationship(callerId, handlerFnId)));
+                            }
+                        }
+                    }
                 }
 
                 // Synthesize Project -> Project DEPENDS_ON relationship
@@ -1881,7 +1950,7 @@ public class Layer5AnalysisParser
     {
         "*", "unknown-service", "localhost", "127.0.0.1", "0.0.0.0",
         "prod", "production", "stage", "staging", "dev", "development", "test", "testing", "local", "environment", "env",
-        "url", "http-call", "v1", "v2", "event", "response", "service", "api", "request", "httprequest", "pageurl"
+        "url", "http-call", "v1", "v2", "event", "response", "service", "api", "request", "httprequest", "pageurl", "graphql"
     };
 
     private static bool IsRootOrGenericPath(string? pathNorm)
@@ -2057,6 +2126,14 @@ public class Layer5AnalysisParser
     {
         if (!extService.IsGenericHostOrService || candidates.Count <= 1)
             return candidates;
+
+        if (string.Equals(extService.Service.Protocol, "graphql", StringComparison.OrdinalIgnoreCase))
+        {
+            var gqlExact = candidates
+                .Where(e => string.Equals(extService.ServicePathNorm, getNormPath(e), StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            return gqlExact.Count > 0 ? gqlExact : candidates;
+        }
 
         var distinctTargetProjects = candidates
             .Select(getTargetProj)
@@ -2285,6 +2362,11 @@ public class Layer5AnalysisParser
 
     private bool IsMatch(PreparedExternalService ext, PreparedEntryPoint ep, Func<ProjectNode, string, bool> projectMatcher)
     {
+        if (string.Equals(ext.Service.Protocol, "graphql", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
         if (ep.TargetProj != null && !ext.IsPathSegment && !ext.IsGenericHostOrService)
         {
             if (!projectMatcher(ep.TargetProj, ext.Service.DomainOrService))
@@ -2360,6 +2442,33 @@ public class Layer5AnalysisParser
 
     private bool IsMatch(PreparedExternalService ext, PreparedEndpoint ep, Func<ProjectNode, string, bool> projectMatcher)
     {
+        var isExtGraphQL = string.Equals(ext.Service.Protocol, "graphql", StringComparison.OrdinalIgnoreCase);
+        var isEpGraphQL = string.Equals(ep.Endpoint.Protocol, "GraphQL", StringComparison.OrdinalIgnoreCase);
+
+        if (isExtGraphQL != isEpGraphQL)
+        {
+            return false;
+        }
+
+        if (isExtGraphQL)
+        {
+            if (string.IsNullOrEmpty(ext.ServicePathNorm) || string.IsNullOrEmpty(ep.RouteNorm))
+            {
+                return false;
+            }
+
+            if (ext.Service.Extensions != null &&
+                ext.Service.Extensions.TryGetValue("operation_type", out var extOp) &&
+                !string.IsNullOrEmpty(extOp) &&
+                !string.IsNullOrEmpty(ep.Endpoint.OperationType) &&
+                !string.Equals(extOp, ep.Endpoint.OperationType, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            return string.Equals(ext.ServicePathNorm, ep.RouteNorm, StringComparison.OrdinalIgnoreCase);
+        }
+
         if (ep.TargetProj != null && !ext.IsPathSegment && !ext.IsGenericHostOrService)
         {
             if (!projectMatcher(ep.TargetProj, ext.Service.DomainOrService))

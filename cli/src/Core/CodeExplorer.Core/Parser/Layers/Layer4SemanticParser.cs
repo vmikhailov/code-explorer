@@ -149,6 +149,36 @@ public class Layer4SemanticParser
                 }
             }
 
+            // If code-first GraphQL EndpointNodes exist in this project for a given (OperationType, RouteTemplate),
+            // suppress duplicate SDL-derived EndpointNodes (e.g. from schema.graphql dumps) for the same field.
+            var codeFirstGqlFields = projectSemanticNodes
+                .OfType<EndpointNode>()
+                .Where(ep => string.Equals(ep.Protocol, "GraphQL", StringComparison.OrdinalIgnoreCase) &&
+                             (ep.Extensions == null || !ep.Extensions.TryGetValue("graphql_sdl", out var isSdl) || isSdl != "true"))
+                .Select(ep => ($"{ep.OperationType ?? "Query"}:{ep.RouteTemplate.Trim('/')}"))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            if (codeFirstGqlFields.Count > 0)
+            {
+                var duplicateSdlIds = projectSemanticNodes
+                    .OfType<EndpointNode>()
+                    .Where(ep => ep.Extensions != null &&
+                                 ep.Extensions.TryGetValue("graphql_sdl", out var isSdl) &&
+                                 isSdl == "true" &&
+                                 codeFirstGqlFields.Contains($"{ep.OperationType ?? "Query"}:{ep.RouteTemplate.Trim('/')}"))
+                    .Select(ep => ep.Id)
+                    .ToHashSet(StringComparer.Ordinal);
+
+                if (duplicateSdlIds.Count > 0)
+                {
+                    projectSemanticNodes.RemoveAll(n => duplicateSdlIds.Contains(n.Id));
+                    foreach (var syntaxTree in projectTrees)
+                    {
+                        syntaxTree.FileNode?.Children.RemoveAll(c => duplicateSdlIds.Contains(c.Id));
+                    }
+                }
+            }
+
             foreach (var semNode in projectSemanticNodes)
             {
                 if (project.Children.All(c => c.Id != semNode.Id))

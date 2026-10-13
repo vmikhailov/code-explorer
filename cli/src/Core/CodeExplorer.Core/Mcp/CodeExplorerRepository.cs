@@ -1012,9 +1012,9 @@ public class CodeExplorerRepository
                 }
             }
 
-            // 2. Exact match by name
+            // 2. Exact match by name, graphql_field, or graphql_operation
             var nameRows = await client.ExecuteQueryAsync(
-                "MATCH (n:Function) WHERE n.name = $name RETURN n.symbol AS symbol LIMIT 5",
+                "MATCH (n:Function) WHERE n.name = $name OR n.graphql_field = $name OR n.graphql_operation = $name RETURN n.symbol AS symbol LIMIT 5",
                 new Dictionary<string, object> { ["name"] = funcIdentifier },
                 cancellationToken);
             using (var doc = JsonDocument.Parse(nameRows))
@@ -1037,7 +1037,10 @@ public class CodeExplorerRepository
                             if (doc.RootElement[i].TryGetProperty("symbol", out var symProp))
                             {
                                 var sym = symProp.GetString();
-                                if (!string.IsNullOrEmpty(sym) && (sym.EndsWith($":{funcIdentifier}", StringComparison.OrdinalIgnoreCase) || sym.EndsWith($".{funcIdentifier}", StringComparison.OrdinalIgnoreCase)))
+                                if (!string.IsNullOrEmpty(sym) &&
+                                    (sym.EndsWith($":{funcIdentifier}", StringComparison.OrdinalIgnoreCase) ||
+                                     sym.EndsWith($".{funcIdentifier}", StringComparison.OrdinalIgnoreCase) ||
+                                     sym.EndsWith($":{funcIdentifier}.resolve", StringComparison.OrdinalIgnoreCase)))
                                 {
                                     return sym;
                                 }
