@@ -35,6 +35,7 @@ appsettings.local.json
 *.snupkg
 dist/
 scratch/
+/scripts/
 # --- CodeExplorer local databases & locks ---
 **/.codeexplorer/*.db
 **/.codeexplorer/*.db-*
