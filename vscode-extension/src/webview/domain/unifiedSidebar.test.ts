@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-export type SidebarTab = 'info' | 'orbits' | 'hidden';
+export type SidebarTab = 'info' | 'orbits' | 'hidden' | 'gates';
 
 export function resolveEffectiveSidebarTab(
   tab: SidebarTab,
@@ -36,6 +36,8 @@ test('unifiedSidebar: resolveEffectiveSidebarTab falls back to info if orbits no
   assert.equal(resolveEffectiveSidebarTab('info', true), 'info');
   assert.equal(resolveEffectiveSidebarTab('hidden', false), 'hidden');
   assert.equal(resolveEffectiveSidebarTab('hidden', true), 'hidden');
+  assert.equal(resolveEffectiveSidebarTab('gates', false), 'gates');
+  assert.equal(resolveEffectiveSidebarTab('gates', true), 'gates');
 
   // When concentric layout is active (hasOrbitLegend = true), orbits tab is retained
   assert.equal(resolveEffectiveSidebarTab('orbits', true), 'orbits');

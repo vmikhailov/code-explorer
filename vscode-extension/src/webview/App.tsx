@@ -1502,6 +1502,7 @@ export const App: React.FC = () => {
             {viewMode === 'semantic' && (
               <DomainArchitectureView
                 graph={fullGraph}
+                serverHttpUrl={serverHttpUrl}
                 onOpenFile={handleOpenFile}
                 onFocusInFlow={handleDrillDownToFlow}
                 onSwitchToContexts={() => handleViewModeChange('contexts')}

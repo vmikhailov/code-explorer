@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import { ProcessManager, ServerInfo } from './processManager';
 import { getModelStatus } from './modelManager';
 import { compareSemver, probeDotnetTool } from './binaryManager';
+import { GateSuiteSummaryDto, GateItemDto, GateViolationDto } from '../../proto/types';
 
 export interface MetadataDto {
   nodeCounts: Record<string, number>;
@@ -170,6 +171,10 @@ export type TreeItemType =
   | 'management-intent'
   | 'management-model'
   | 'management-model-download'
+  | 'root-gates'
+  | 'gate-item'
+  | 'gate-violation-item'
+  | 'gate-init-action'
   | 'empty-notice'
   | 'init-action';
 
@@ -237,6 +242,7 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
   private _serviceDetailsCache = new Map<string, ServiceOntologyDetailsDto>();
   private _boundedContextsCache: BoundedContextMapDto | null = null;
   private _metadataCache: MetadataDto | null = null;
+  private _gatesCache: GateSuiteSummaryDto | null = null;
 
   refresh(): void {
     this._ontologyCache = null;
@@ -244,7 +250,27 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
     this._serviceDetailsCache.clear();
     this._boundedContextsCache = null;
     this._metadataCache = null;
+    this._gatesCache = null;
     this._onDidChangeTreeData.fire();
+  }
+
+  async getGatesSuite(force = false): Promise<GateSuiteSummaryDto | null> {
+    if (!force && this._gatesCache) {
+      return this._gatesCache;
+    }
+    const serverInfo = await this.getServerInfo();
+    if (serverInfo) {
+      try {
+        const res = await fetchJson<GateSuiteSummaryDto>(`${serverInfo.httpUrl}/api/gates`);
+        if (res && Array.isArray(res.gates)) {
+          this._gatesCache = res;
+          return res;
+        }
+      } catch (e: any) {
+        this.outputChannel.appendLine(`[TreeProvider] getGatesSuite error: ${e.message}`);
+      }
+    }
+    return null;
   }
 
   private async getMetadata(): Promise<MetadataDto | null> {
@@ -413,7 +439,28 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       layersRoot.iconPath = new vscode.ThemeIcon('layers');
       layersRoot.tooltip = 'Decoupled 5-layer ontology graph model';
 
-      // 4. Management & System (Server, Database, Rescan, Intents, Lifecycle)
+      // 4. Semantic Invariant Gates (SIG)
+      const gatesCache = this._gatesCache;
+      const gatesRoot = new CodeExplorerTreeItem(
+        'root-gates',
+        'Semantic Invariant Gates',
+        vscode.TreeItemCollapsibleState.Collapsed
+      );
+      gatesRoot.iconPath = new vscode.ThemeIcon('shield');
+      if (gatesCache) {
+        if (gatesCache.totalGates === 0) {
+          gatesRoot.description = 'No gates configured';
+        } else if (gatesCache.failedCount > 0) {
+          gatesRoot.description = `${gatesCache.passedCount}/${gatesCache.totalGates} passed · ${gatesCache.newViolationsCount} new`;
+        } else if (gatesCache.toleratedViolationsCount > 0) {
+          gatesRoot.description = `${gatesCache.passedCount}/${gatesCache.totalGates} passed (${gatesCache.toleratedViolationsCount} tolerated)`;
+        } else {
+          gatesRoot.description = `${gatesCache.passedCount}/${gatesCache.totalGates} passed`;
+        }
+      }
+      gatesRoot.tooltip = 'Semantic Invariant Gates (SIG): Architectural fitness functions, OpenCypher checks, and ratchet baselines';
+
+      // 5. Management & System (Server, Database, Rescan, Intents, Lifecycle)
       const serverInfo = this.processManager.getServerInfo();
       const isStarting = this.processManager.isStarting();
       const metaCache = this._metadataCache;
@@ -429,7 +476,15 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
         : isStarting ? 'Starting...' : 'Offline';
       managementRoot.tooltip = 'Graph server, SQLite WAL storage, AI models, and workspace lifecycle';
 
-      return [diagramsRoot, layersRoot, domainsRoot, managementRoot];
+      return [diagramsRoot, layersRoot, domainsRoot, gatesRoot, managementRoot];
+    }
+
+    if (element.itemType === 'root-gates') {
+      return this.getGateRootItems();
+    }
+
+    if (element.itemType === 'gate-item') {
+      return this.getGateViolationItems(element.data?.gate);
     }
 
     if (element.itemType === 'root-domains') {
@@ -472,12 +527,117 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       return this.getServiceGroupItems(element.data?.serviceName, element.data?.categoryKey, element.data?.items);
     }
 
-
     if (element.itemType === 'root-management') {
       return this.getManagementItems();
     }
 
     return [];
+  }
+
+  private async getGateRootItems(): Promise<CodeExplorerTreeItem[]> {
+    const suite = await this.getGatesSuite();
+    if (!suite || !suite.gates || suite.gates.length === 0) {
+      const initGateItem = new CodeExplorerTreeItem(
+        'gate-init-action',
+        'Initialize Starter Gate (.yaml)',
+        vscode.TreeItemCollapsibleState.None
+      );
+      initGateItem.description = '.codeexplorer/gates/';
+      initGateItem.iconPath = new vscode.ThemeIcon('add');
+      initGateItem.tooltip = 'Create a starter Semantic Invariant Gate YAML template in .codeexplorer/gates/';
+      initGateItem.command = {
+        command: 'codeExplorer.initGates',
+        title: 'Initialize Starter Gate',
+      };
+      return [initGateItem];
+    }
+
+    return suite.gates.map((gate) => {
+      const hasViolations = gate.violations && gate.violations.length > 0;
+      const item = new CodeExplorerTreeItem(
+        'gate-item',
+        gate.name || gate.id,
+        hasViolations ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
+        { gate }
+      );
+
+      if (gate.status === 'FailedNew' || gate.status === 'Error') {
+        item.iconPath = new vscode.ThemeIcon('error', new vscode.ThemeColor('testing.iconFailed'));
+      } else if (gate.status === 'PassedTolerated') {
+        item.iconPath = new vscode.ThemeIcon('warning', new vscode.ThemeColor('problemsWarningIcon.foreground'));
+      } else {
+        item.iconPath = new vscode.ThemeIcon('pass', new vscode.ThemeColor('testing.iconPassed'));
+      }
+
+      const descParts: string[] = [];
+      if (gate.newViolationsCount > 0) {
+        descParts.push(`${gate.newViolationsCount} new`);
+      }
+      if (gate.toleratedViolationsCount > 0) {
+        descParts.push(`${gate.toleratedViolationsCount} tolerated`);
+      }
+      if (descParts.length === 0) {
+        descParts.push(gate.canRatchetDown ? 'Passed (can ratchet ↓)' : 'Passed');
+      }
+      item.description = descParts.join(' · ');
+
+      const tooltipLines = [
+        `Gate: ${gate.name} (${gate.id})`,
+        `Status: ${gate.status} (${gate.severity})`,
+        `Category: ${gate.category} · Scope: ${gate.scope}`,
+      ];
+      if (gate.description) tooltipLines.push(gate.description);
+      if (gate.remediation) tooltipLines.push(`Remediation: ${gate.remediation}`);
+      if (gate.errorMessage) tooltipLines.push(`Error: ${gate.errorMessage}`);
+      item.tooltip = tooltipLines.join('\n');
+
+      return item;
+    });
+  }
+
+  private getGateViolationItems(gate?: GateItemDto): CodeExplorerTreeItem[] {
+    if (!gate || !gate.violations || gate.violations.length === 0) return [];
+
+    return gate.violations.map((v: GateViolationDto) => {
+      const label = v.symbol || (v.file ? path.basename(v.file) : v.target || 'Violation');
+      const item = new CodeExplorerTreeItem(
+        'gate-violation-item',
+        label,
+        vscode.TreeItemCollapsibleState.None,
+        { violation: v, gateId: gate.id, filePath: v.file, line: v.line || 1 }
+      );
+
+      item.iconPath = new vscode.ThemeIcon(
+        v.isTolerated ? 'info' : 'warning',
+        new vscode.ThemeColor(v.isTolerated ? 'problemsInfoIcon.foreground' : 'testing.iconFailed')
+      );
+
+      const descParts: string[] = [];
+      if (v.target) descParts.push(`→ ${v.target}`);
+      if (v.file) descParts.push(`${path.basename(v.file)}${v.line > 0 ? `:${v.line}` : ''}`);
+      if (v.isTolerated) descParts.push('[tolerated]');
+      item.description = descParts.join(' · ');
+
+      const tooltipLines = [
+        v.isTolerated ? '[Tolerated Baseline Debt]' : '[New Gate Violation]',
+        `Gate: ${gate.id}`,
+      ];
+      if (v.symbol) tooltipLines.push(`Symbol: ${v.symbol}`);
+      if (v.target) tooltipLines.push(`Target: ${v.target}`);
+      if (v.file) tooltipLines.push(`File: ${v.file}${v.line > 0 ? `:${v.line}` : ''}`);
+      if (v.message) tooltipLines.push(`Message: ${v.message}`);
+      item.tooltip = tooltipLines.join('\n');
+
+      if (v.file) {
+        item.command = {
+          command: 'codeExplorer.openSource',
+          title: 'Open Violation Source',
+          arguments: [v.file, v.line || 1],
+        };
+      }
+
+      return item;
+    });
   }
 
   private async getDomainRootItems(): Promise<CodeExplorerTreeItem[]> {

@@ -17,6 +17,10 @@ export type MessageType =
   | 'TRIGGER_SCAN_REQUEST'
   | 'GET_ONTOLOGY_LAYERS'
   | 'SET_DOMAIN_OVERRIDE_REQUEST'
+  | 'GET_GATES_REQUEST'
+  | 'EVALUATE_GATES_REQUEST'
+  | 'RATCHET_GATES_REQUEST'
+  | 'INIT_GATES_REQUEST'
   // Server -> Client responses
   | 'HANDSHAKE_RESPONSE'
   | 'PONG_RESPONSE'
@@ -24,6 +28,10 @@ export type MessageType =
   | 'QUERY_RESPONSE'
   | 'GET_ONTOLOGY_LAYERS_RESPONSE'
   | 'DOMAIN_MUTATION_RESPONSE'
+  | 'GET_GATES_RESPONSE'
+  | 'EVALUATE_GATES_RESPONSE'
+  | 'RATCHET_GATES_RESPONSE'
+  | 'INIT_GATES_RESPONSE'
   | 'ERROR_RESPONSE'
   // Broadcast events
   | 'GRAPH_PATCH_EVENT'
@@ -202,6 +210,79 @@ export interface ScanProgressEvent {
   currentFile?: string;
   totalFiles?: number;
   processedFiles?: number;
+}
+
+// ============================================================================
+// Semantic Invariant Gates (SIG) DTOs
+// ============================================================================
+
+export interface GateViolationDto {
+  gateId: string;
+  file?: string;
+  line: number;
+  column: number;
+  symbol?: string;
+  target?: string;
+  message?: string;
+  fingerprint: string;
+  isTolerated: boolean;
+}
+
+export interface GateItemDto {
+  id: string;
+  name: string;
+  category: string;
+  platform: string;
+  scope: string;
+  dimension: string;
+  severity: string;
+  description?: string;
+  remediation?: string;
+  query: string;
+  source: string;
+  ratchetEnabled: boolean;
+  baselinePath?: string;
+  status: 'Passed' | 'PassedTolerated' | 'FailedNew' | 'Error' | string;
+  totalViolations: number;
+  newViolationsCount: number;
+  toleratedViolationsCount: number;
+  baselineCount: number;
+  canRatchetDown: boolean;
+  durationMs: number;
+  errorMessage?: string;
+  violations: GateViolationDto[];
+}
+
+export interface GateSuiteSummaryDto {
+  totalGates: number;
+  passedCount: number;
+  failedCount: number;
+  newViolationsCount: number;
+  toleratedViolationsCount: number;
+  ratchetOpportunities: number;
+  isSuccess: boolean;
+  totalDurationMs: number;
+  gates: GateItemDto[];
+}
+
+export interface EvaluateGatesRequestDto {
+  gateId?: string;
+}
+
+export interface RatchetGatesRequestDto {
+  gateId?: string;
+  updateAll?: boolean;
+}
+
+export interface RatchetGatesResponseDto {
+  success: boolean;
+  updatedGatesCount: number;
+  message: string;
+  suite?: GateSuiteSummaryDto;
+}
+
+export interface InitGatesRequestDto {
+  overwrite?: boolean;
 }
 
 // ============================================================================

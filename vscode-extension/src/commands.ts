@@ -482,6 +482,149 @@ export function registerWorkspaceCommands(
     }
   );
 
+  // Command: Evaluate Semantic Invariant Gates
+  const evaluateGatesCommand = vscode.commands.registerCommand(
+    'codeExplorer.evaluateGates',
+    async (itemOrGateId?: any) => {
+      const workspaceRoot = getWorkspaceRoot();
+      if (!workspaceRoot) {
+        vscode.window.showWarningMessage('Please open a workspace folder first.');
+        return;
+      }
+
+      const gateId: string | undefined =
+        typeof itemOrGateId === 'string'
+          ? itemOrGateId
+          : itemOrGateId?.data?.gate?.id || itemOrGateId?.data?.gateId;
+
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: gateId ? `CodeExplorer: Evaluating gate '${gateId}'...` : 'CodeExplorer: Evaluating Semantic Invariant Gates...',
+          cancellable: false,
+        },
+        async () => {
+          try {
+            const serverInfo = await processManager.ensureServerStarted(workspaceRoot);
+            const res = await fetch(`${serverInfo.httpUrl}/api/gates/check`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(gateId ? { gateId } : {}),
+            });
+            if (!res.ok) {
+              throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+            }
+            const suite = (await res.json()) as any;
+            treeDataProvider.refresh();
+            GraphPanel.broadcast({ type: 'GATES_UPDATED', suite });
+
+            if (suite.totalGates === 0) {
+              const choice = await vscode.window.showInformationMessage(
+                'No Semantic Invariant Gates configured in .codeexplorer/gates/. Initialize a starter gate?',
+                'Init Starter Gate',
+                'Dismiss'
+              );
+              if (choice === 'Init Starter Gate') {
+                await vscode.commands.executeCommand('codeExplorer.initGates');
+              }
+            } else if (suite.isSuccess) {
+              vscode.window.showInformationMessage(
+                `CodeExplorer Gates: ${suite.passedCount}/${suite.totalGates} passed (${suite.toleratedViolationsCount || 0} tolerated).`
+              );
+            } else {
+              vscode.window.showWarningMessage(
+                `CodeExplorer Gates: ${suite.failedCount} failed with ${suite.newViolationsCount} new violation(s).`
+              );
+            }
+          } catch (err: any) {
+            outputChannel.appendLine(`[EvaluateGates Error] ${err.message}`);
+            vscode.window.showErrorMessage(`Failed to evaluate gates: ${err.message}`);
+          }
+        }
+      );
+    }
+  );
+
+  // Command: Ratchet Gate Baseline(s)
+  const ratchetGatesCommand = vscode.commands.registerCommand(
+    'codeExplorer.ratchetGates',
+    async (itemOrGateId?: any) => {
+      const workspaceRoot = getWorkspaceRoot();
+      if (!workspaceRoot) {
+        vscode.window.showWarningMessage('Please open a workspace folder first.');
+        return;
+      }
+
+      const gateId: string | undefined =
+        typeof itemOrGateId === 'string'
+          ? itemOrGateId
+          : itemOrGateId?.data?.gate?.id || itemOrGateId?.data?.gateId;
+
+      try {
+        const serverInfo = await processManager.ensureServerStarted(workspaceRoot);
+        const res = await fetch(`${serverInfo.httpUrl}/api/gates/ratchet`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(gateId ? { gateId } : { updateAll: true }),
+        });
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        const data = (await res.json()) as any;
+        treeDataProvider.refresh();
+        if (data?.suite) {
+          GraphPanel.broadcast({ type: 'GATES_UPDATED', suite: data.suite });
+        }
+        vscode.window.showInformationMessage(
+          data?.message || `CodeExplorer: Ratcheted ${data?.updatedGatesCount || 0} gate baseline(s).`
+        );
+      } catch (err: any) {
+        outputChannel.appendLine(`[RatchetGates Error] ${err.message}`);
+        vscode.window.showErrorMessage(`Failed to ratchet gate baseline: ${err.message}`);
+      }
+    }
+  );
+
+  // Command: Initialize Starter Gate
+  const initGatesCommand = vscode.commands.registerCommand(
+    'codeExplorer.initGates',
+    async () => {
+      const workspaceRoot = getWorkspaceRoot();
+      if (!workspaceRoot) {
+        vscode.window.showWarningMessage('Please open a workspace folder first.');
+        return;
+      }
+
+      try {
+        const serverInfo = await processManager.ensureServerStarted(workspaceRoot);
+        const res = await fetch(`${serverInfo.httpUrl}/api/gates/init`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ overwrite: false }),
+        });
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        const data = (await res.json()) as any;
+        treeDataProvider.refresh();
+        if (data?.suite) {
+          GraphPanel.broadcast({ type: 'GATES_UPDATED', suite: data.suite });
+        }
+        const examplePath = path.join(workspaceRoot, '.codeexplorer', 'gates', 'example-gate.yaml.example');
+        const choice = await vscode.window.showInformationMessage(
+          data?.message || 'Starter gate template created in .codeexplorer/gates/',
+          'Open Template'
+        );
+        if (choice === 'Open Template') {
+          await vscode.commands.executeCommand('codeExplorer.openSource', examplePath, 1);
+        }
+      } catch (err: any) {
+        outputChannel.appendLine(`[InitGates Error] ${err.message}`);
+        vscode.window.showErrorMessage(`Failed to initialize starter gate: ${err.message}`);
+      }
+    }
+  );
+
   context.subscriptions.push(
     reindexCommand,
     reindexFullCommand,
@@ -489,7 +632,10 @@ export function registerWorkspaceCommands(
     showLogsCommand,
     updateEngineCommand,
     whatsNewCommand,
-    initAndScanCommand
+    initAndScanCommand,
+    evaluateGatesCommand,
+    ratchetGatesCommand,
+    initGatesCommand
   );
 }
 

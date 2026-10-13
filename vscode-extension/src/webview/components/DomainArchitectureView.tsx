@@ -24,6 +24,7 @@ import { attachNormalizedCytoscapeWheel } from '../utils/wheelZoom';
 import { DomainGridView } from '../domain/components/DomainGridView';
 import { DomainInspector } from '../domain/components/DomainInspector';
 import { DomainHiddenPanel } from '../domain/components/DomainHiddenPanel';
+import { DomainGatesPanel } from '../domain/components/DomainGatesPanel';
 import { matchesSearchTokens } from '../domain/searchUtils';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { FloatingPanel } from './FloatingPanel';
@@ -36,6 +37,7 @@ import {
   EyeOffIcon,
   XIcon,
   InfoIcon,
+  ShieldIcon,
 } from './Icons';
 import { DomainGroupSummary, PresentationMode } from '../domain/types';
 import { useCommand } from '../commands/CommandContext';
@@ -62,6 +64,7 @@ export type EdgeCurveMode = 'bezier' | 'straight' | 'avoid-inner';
 
 export interface DomainArchitectureViewProps {
   graph: GraphData | null;
+  serverHttpUrl?: string;
   onFocusInFlow?: (projectName: string) => void;
   onOpenFile?: (filePath: string, lineStart?: number) => void;
   onSelectNode?: (node: GraphNode | null) => void;
@@ -806,6 +809,7 @@ export function applyEdgeCurveMode(
 
 export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   graph,
+  serverHttpUrl,
   onFocusInFlow,
   onOpenFile,
   onSelectNode,
@@ -1228,15 +1232,16 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   }, [isDisplayOpen]);
 
   // Unified Right Side Panel State
-  const [rightSidebarTab, setRightSidebarTab] = useState<'info' | 'orbits' | 'hidden'>(() => {
+  const [rightSidebarTab, setRightSidebarTab] = useState<'info' | 'orbits' | 'hidden' | 'gates'>(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
         const saved = localStorage.getItem('ce_domain_sidebar_tab');
-        if (saved === 'info' || saved === 'orbits' || saved === 'hidden') return saved;
+        if (saved === 'info' || saved === 'orbits' || saved === 'hidden' || saved === 'gates') return saved;
       } catch {}
     }
     return 'info';
   });
+  const [gatesBadgeText, setGatesBadgeText] = useState<string>('');
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState<boolean>(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
@@ -1247,7 +1252,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     return true;
   });
 
-  const handleSidebarTabChange = useCallback((tab: 'info' | 'orbits' | 'hidden') => {
+  const handleSidebarTabChange = useCallback((tab: 'info' | 'orbits' | 'hidden' | 'gates') => {
     setRightSidebarTab(tab);
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
@@ -2473,7 +2478,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   // Derived docked panels visibility and active tab selection
   const hasHiddenEntities = hiddenCount > 0;
   const hasOrbitLegend = layoutName.startsWith('concentric') && orbitLegendItems.length > 0;
-  const effectiveSidebarTab: 'info' | 'orbits' | 'hidden' =
+  const effectiveSidebarTab: 'info' | 'orbits' | 'hidden' | 'gates' =
     rightSidebarTab === 'orbits' && !hasOrbitLegend
       ? 'info'
       : rightSidebarTab;
@@ -4887,6 +4892,16 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                     <span>Hidden</span>
                     <span className="tab-badge">{hiddenCount}</span>
                   </button>
+                  <button
+                    type="button"
+                    className={`domain-sidebar-tab ${effectiveSidebarTab === 'gates' ? 'is-active' : ''}`}
+                    onClick={() => handleSidebarTabChange('gates')}
+                    title="Semantic Invariant Gates (SIG) & Ratchet Baselines"
+                  >
+                    <ShieldIcon size={12} />
+                    <span>Gates</span>
+                    {gatesBadgeText && <span className="tab-badge">{gatesBadgeText}</span>}
+                  </button>
                 </div>
                 <button
                   type="button"
@@ -4944,6 +4959,17 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                     onUnhideNode={unhideNode}
                     onRestoreAll={restoreAllHiddenNodes}
                     isCollapsed={false}
+                    docked={true}
+                    onClose={() => handleToggleSidebar(false)}
+                  />
+                )}
+                {effectiveSidebarTab === 'gates' && (
+                  <DomainGatesPanel
+                    serverHttpUrl={serverHttpUrl}
+                    onOpenFile={onOpenFile}
+                    onSuiteLoaded={(s) => {
+                      setGatesBadgeText(s.totalGates > 0 ? `${s.passedCount}/${s.totalGates}` : '');
+                    }}
                     docked={true}
                     onClose={() => handleToggleSidebar(false)}
                   />
