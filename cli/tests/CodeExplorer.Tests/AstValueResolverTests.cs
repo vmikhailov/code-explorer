@@ -5,8 +5,11 @@ using NUnit.Framework;
 namespace CodeExplorer.Tests;
 
 [TestFixture]
+[NonParallelizable]
 public class AstValueResolverTests
 {
+    private IDisposable? _lock;
+
     [OneTimeSetUp]
     public void OneTimeSetUp()
     {
@@ -14,10 +17,20 @@ public class AstValueResolverTests
     }
 
     [SetUp]
-    public void Setup()
+    public async Task Setup()
+    {
+        _lock = await TestRegistryLock.AcquireAsync();
+        ConstantRegistry.Clear();
+        ConfigStore.Clear();
+    }
+
+    [TearDown]
+    public void TearDown()
     {
         ConstantRegistry.Clear();
         ConfigStore.Clear();
+        _lock?.Dispose();
+        _lock = null;
     }
 
     [Test]

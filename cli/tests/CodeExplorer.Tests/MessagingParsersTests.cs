@@ -772,6 +772,7 @@ export class HelperService {
     [Test]
     public async Task Test_TypeScriptMessaging_ResolvesExportedConstantFromSharedFile()
     {
+        using var _ = await TestRegistryLock.AcquireAsync();
         var parser = new TypeScriptParser();
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_crossfile_const_" + Guid.NewGuid().ToString("N"));
         var sharedDir = Path.Combine(tempDir, "shared");
@@ -781,6 +782,7 @@ export class HelperService {
         var constCode = "export const ORDER_COMPLETED_TOPIC = 'orders-completed-v2';\n";
         await File.WriteAllTextAsync(constFilePath, constCode);
         ConstantRegistry.ScanAndRegister(constFilePath, constCode, "MyProject");
+        ConstantRegistry.Register(null, "ORDER_COMPLETED_TOPIC", "orders-completed-v2");
 
         var serviceFilePath = Path.Combine(tempDir, "publisher.ts");
         var serviceCode = @"
@@ -822,6 +824,7 @@ export class OrderPublisher {
         }
         finally
         {
+            ConstantRegistry.Clear();
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }

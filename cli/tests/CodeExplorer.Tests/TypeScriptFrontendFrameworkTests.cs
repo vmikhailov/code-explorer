@@ -213,16 +213,19 @@ export default defineConfig({
     [Test]
     public async Task Test_Angular_Route_Data_Services_Extracted_As_ExternalService()
     {
-        var envCode = """
+        using var _ = await TestRegistryLock.AcquireAsync();
+        try
+        {
+            var envCode = """
 export const environment = {
   bff_service: '/bff_service',
   domain_service: '/domain_service'
 };
 """;
-        ConstantRegistry.Clear();
-        ConstantRegistry.ScanAndRegister("src/environments/environment.ts", envCode, "fe");
+            ConstantRegistry.Clear();
+            ConstantRegistry.ScanAndRegister("src/environments/environment.ts", envCode, "fe");
 
-        var routeCode = """
+            var routeCode = """
 import { Routes } from '@angular/router';
 import { environment } from 'src/environments/environment';
 
@@ -238,11 +241,16 @@ const routes: Routes = [
   }
 ];
 """;
-        using var ws = await TestWorkspace.CreateAsync(routeCode, "routing.module.ts");
+            using var ws = await TestWorkspace.CreateAsync(routeCode, "routing.module.ts");
 
-        var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
-        extServices.Should().HaveCount(2);
-        extServices.Any(s => s.DomainOrService == "bff_service").Should().BeTrue();
-        extServices.Any(s => s.DomainOrService == "domain_service").Should().BeTrue();
+            var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
+            extServices.Should().HaveCount(2);
+            extServices.Any(s => s.DomainOrService == "bff_service").Should().BeTrue();
+            extServices.Any(s => s.DomainOrService == "domain_service").Should().BeTrue();
+        }
+        finally
+        {
+            ConstantRegistry.Clear();
+        }
     }
 }

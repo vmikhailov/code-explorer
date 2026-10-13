@@ -8,13 +8,16 @@ using NUnit.Framework;
 namespace CodeExplorer.Tests;
 
 [TestFixture]
+[NonParallelizable]
 public class ConfigStoreTests
 {
     private string _tempDir = null!;
+    private IDisposable? _lock;
 
     [SetUp]
-    public void SetUp()
+    public async Task SetUp()
     {
+        _lock = await TestRegistryLock.AcquireAsync();
         _tempDir = Path.Combine(Path.GetTempPath(), "ce_configstore_test_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_tempDir);
         ConfigStore.Clear();
@@ -26,6 +29,8 @@ public class ConfigStoreTests
     {
         ConfigStore.Clear();
         ConstantRegistry.Clear();
+        _lock?.Dispose();
+        _lock = null;
         if (Directory.Exists(_tempDir))
         {
             try { Directory.Delete(_tempDir, true); } catch { }
