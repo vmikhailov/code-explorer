@@ -12,6 +12,7 @@ using NUnit.Framework;
 namespace CodeExplorer.Tests;
 
 [TestFixture]
+[NonParallelizable]
 public class MessagingParsersTests
 {
     private static List<EntryPointNode> FindEntryPointNodes(IEnumerable<IOntologyNode> nodes)

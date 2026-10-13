@@ -14,6 +14,7 @@ using NUnit.Framework;
 namespace CodeExplorer.Tests;
 
 [TestFixture]
+[NonParallelizable]
 public class TypeScriptFrontendFrameworkTests
 {
     private sealed class TestWorkspace : IDisposable
@@ -45,7 +46,7 @@ public class TypeScriptFrontendFrameworkTests
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
             var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, ctx);
             return new TestWorkspace(tempDir, filePath, syntaxTree, ctx);
         }
 

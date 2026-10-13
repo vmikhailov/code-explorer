@@ -6,6 +6,7 @@ using NUnit.Framework;
 namespace CodeExplorer.Tests;
 
 [TestFixture]
+[NonParallelizable]
 [Category("Integration")]
 public class IndexerIntegrationTests
 {

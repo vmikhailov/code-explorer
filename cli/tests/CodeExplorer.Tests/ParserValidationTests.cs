@@ -18,6 +18,7 @@ using NUnit.Framework;
 namespace CodeExplorer.Tests;
 
 [TestFixture]
+[NonParallelizable]
 public class ParserValidationTests
 {
     [Test]
