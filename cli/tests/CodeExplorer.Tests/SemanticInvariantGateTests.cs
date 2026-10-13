@@ -49,6 +49,14 @@ public class SemanticInvariantGateTests
         // Distinct symbols produce distinct fingerprints
         var fpOther = GateFingerprintGenerator.Generate("SIG-001", "src/Core/Parser.cs", "OtherParser", "TargetType");
         fpOther.Should().NotBe(fp1);
+
+        // Occurrence #1 is identical to default (backward-compatible), while #2 and #3 are distinct
+        var fpOcc1 = GateFingerprintGenerator.Generate("SIG-001", "src/Core/Parser.cs", "MyParser", "TargetType", 1);
+        var fpOcc2 = GateFingerprintGenerator.Generate("SIG-001", "src/Core/Parser.cs", "MyParser", "TargetType", 2);
+        var fpOcc3 = GateFingerprintGenerator.Generate("SIG-001", "src/Core/Parser.cs", "MyParser", "TargetType", 3);
+        fpOcc1.Should().Be(fp1);
+        fpOcc2.Should().NotBe(fp1);
+        fpOcc3.Should().NotBe(fp1).And.NotBe(fpOcc2);
     }
 
     [Test]

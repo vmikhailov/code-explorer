@@ -9,14 +9,16 @@ namespace CodeExplorer.Core.Gates.Engine;
 /// </summary>
 public static class GateFingerprintGenerator
 {
-    public static string Generate(string gateId, string? file, string? symbol, string? target)
+    public static string Generate(string gateId, string? file, string? symbol, string? target, int occurrenceIndex = 1)
     {
         var normGate = (gateId ?? "").Trim();
         var normFile = NormalizeFilePath(file);
         var normSymbol = (symbol ?? "").Trim();
         var normTarget = (target ?? "").Trim();
 
-        var key = $"{normGate}|{normFile}|{normSymbol}|{normTarget}";
+        var key = occurrenceIndex <= 1
+            ? $"{normGate}|{normFile}|{normSymbol}|{normTarget}"
+            : $"{normGate}|{normFile}|{normSymbol}|{normTarget}|#{occurrenceIndex}";
         var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(key));
         return Convert.ToHexStringLower(hashBytes);
     }

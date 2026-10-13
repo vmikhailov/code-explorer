@@ -120,6 +120,8 @@ public class GateExecutionEngine
             using var doc = JsonDocument.Parse(rawJson);
             if (doc.RootElement.ValueKind != JsonValueKind.Array) return violations;
 
+            var occurrenceCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
             foreach (var row in doc.RootElement.EnumerateArray())
             {
                 if (row.ValueKind != JsonValueKind.Object) continue;
@@ -131,7 +133,11 @@ public class GateExecutionEngine
                 var target = ExtractStringProperty(row, "target", "destination");
                 var message = ExtractStringProperty(row, "message", "description", "details");
 
-                var fp = GateFingerprintGenerator.Generate(gateId, file, symbol, target);
+                var tupleKey = $"{GateFingerprintGenerator.NormalizeFilePath(file)}|{(symbol ?? "").Trim()}|{(target ?? "").Trim()}";
+                var occurrence = occurrenceCounts.GetValueOrDefault(tupleKey, 0) + 1;
+                occurrenceCounts[tupleKey] = occurrence;
+
+                var fp = GateFingerprintGenerator.Generate(gateId, file, symbol, target, occurrence);
 
                 violations.Add(new GateViolation
                 {

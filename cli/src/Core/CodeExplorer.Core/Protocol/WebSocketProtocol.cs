@@ -23,6 +23,10 @@ public static class WsMessageTypes
     public const string SetDomainOverrideRequest = "SET_DOMAIN_OVERRIDE_REQUEST";
     public const string AddDomainRequest = "ADD_DOMAIN_REQUEST";
     public const string DeleteDomainRequest = "DELETE_DOMAIN_REQUEST";
+    public const string GetGatesRequest = "GET_GATES_REQUEST";
+    public const string EvaluateGatesRequest = "EVALUATE_GATES_REQUEST";
+    public const string RatchetGatesRequest = "RATCHET_GATES_REQUEST";
+    public const string InitGatesRequest = "INIT_GATES_REQUEST";
 
     // Server -> Client responses
     public const string HandshakeResponse = "HANDSHAKE_RESPONSE";
@@ -33,6 +37,10 @@ public static class WsMessageTypes
     public const string GetBoundedContextsResponse = "GET_BOUNDED_CONTEXTS_RESPONSE";
     public const string GetDomainsResponse = "GET_DOMAINS_RESPONSE";
     public const string DomainMutationResponse = "DOMAIN_MUTATION_RESPONSE";
+    public const string GetGatesResponse = "GET_GATES_RESPONSE";
+    public const string EvaluateGatesResponse = "EVALUATE_GATES_RESPONSE";
+    public const string RatchetGatesResponse = "RATCHET_GATES_RESPONSE";
+    public const string InitGatesResponse = "INIT_GATES_RESPONSE";
     public const string ErrorResponse = "ERROR_RESPONSE";
 
     // Server -> Client broadcast events
@@ -1095,5 +1103,184 @@ public class DomainMutationResponseDto
     [JsonPropertyName("message")]
     public string Message { get; set; } = string.Empty;
 }
+
+// ============================================================================
+// Semantic Invariant Gates (SIG) DTOs
+// ============================================================================
+
+public class GateViolationDto
+{
+    [JsonPropertyName("gateId")]
+    public string GateId { get; set; } = string.Empty;
+
+    [JsonPropertyName("file")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? File { get; set; }
+
+    [JsonPropertyName("line")]
+    public int Line { get; set; }
+
+    [JsonPropertyName("column")]
+    public int Column { get; set; }
+
+    [JsonPropertyName("symbol")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Symbol { get; set; }
+
+    [JsonPropertyName("target")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Target { get; set; }
+
+    [JsonPropertyName("message")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Message { get; set; }
+
+    [JsonPropertyName("fingerprint")]
+    public string Fingerprint { get; set; } = string.Empty;
+
+    [JsonPropertyName("isTolerated")]
+    public bool IsTolerated { get; set; }
+}
+
+public class GateItemDto
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("category")]
+    public string Category { get; set; } = "Architectural";
+
+    [JsonPropertyName("platform")]
+    public string Platform { get; set; } = "agnostic";
+
+    [JsonPropertyName("scope")]
+    public string Scope { get; set; } = "Module";
+
+    [JsonPropertyName("dimension")]
+    public string Dimension { get; set; } = "Boundaries";
+
+    [JsonPropertyName("severity")]
+    public string Severity { get; set; } = "Error";
+
+    [JsonPropertyName("description")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Description { get; set; }
+
+    [JsonPropertyName("remediation")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Remediation { get; set; }
+
+    [JsonPropertyName("query")]
+    public string Query { get; set; } = string.Empty;
+
+    [JsonPropertyName("source")]
+    public string Source { get; set; } = "BuiltIn";
+
+    [JsonPropertyName("ratchetEnabled")]
+    public bool RatchetEnabled { get; set; } = true;
+
+    [JsonPropertyName("baselinePath")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? BaselinePath { get; set; }
+
+    [JsonPropertyName("status")]
+    public string Status { get; set; } = "Passed"; // "Passed" | "PassedTolerated" | "FailedNew" | "Error"
+
+    [JsonPropertyName("totalViolations")]
+    public int TotalViolations { get; set; }
+
+    [JsonPropertyName("newViolationsCount")]
+    public int NewViolationsCount { get; set; }
+
+    [JsonPropertyName("toleratedViolationsCount")]
+    public int ToleratedViolationsCount { get; set; }
+
+    [JsonPropertyName("baselineCount")]
+    public int BaselineCount { get; set; }
+
+    [JsonPropertyName("canRatchetDown")]
+    public bool CanRatchetDown { get; set; }
+
+    [JsonPropertyName("durationMs")]
+    public double DurationMs { get; set; }
+
+    [JsonPropertyName("errorMessage")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ErrorMessage { get; set; }
+
+    [JsonPropertyName("violations")]
+    public List<GateViolationDto> Violations { get; set; } = [];
+}
+
+public class GateSuiteSummaryDto
+{
+    [JsonPropertyName("totalGates")]
+    public int TotalGates { get; set; }
+
+    [JsonPropertyName("passedCount")]
+    public int PassedCount { get; set; }
+
+    [JsonPropertyName("failedCount")]
+    public int FailedCount { get; set; }
+
+    [JsonPropertyName("newViolationsCount")]
+    public int NewViolationsCount { get; set; }
+
+    [JsonPropertyName("toleratedViolationsCount")]
+    public int ToleratedViolationsCount { get; set; }
+
+    [JsonPropertyName("ratchetOpportunities")]
+    public int RatchetOpportunities { get; set; }
+
+    [JsonPropertyName("isSuccess")]
+    public bool IsSuccess { get; set; }
+
+    [JsonPropertyName("totalDurationMs")]
+    public double TotalDurationMs { get; set; }
+
+    [JsonPropertyName("gates")]
+    public List<GateItemDto> Gates { get; set; } = [];
+}
+
+public class EvaluateGatesRequestDto
+{
+    [JsonPropertyName("gateId")]
+    public string? GateId { get; set; }
+}
+
+public class RatchetGatesRequestDto
+{
+    [JsonPropertyName("gateId")]
+    public string? GateId { get; set; }
+
+    [JsonPropertyName("updateAll")]
+    public bool UpdateAll { get; set; }
+}
+
+public class RatchetGatesResponseDto
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+
+    [JsonPropertyName("updatedGatesCount")]
+    public int UpdatedGatesCount { get; set; }
+
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+
+    [JsonPropertyName("suite")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GateSuiteSummaryDto? Suite { get; set; }
+}
+
+public class InitGatesRequestDto
+{
+    [JsonPropertyName("overwrite")]
+    public bool Overwrite { get; set; }
+}
+
 
 

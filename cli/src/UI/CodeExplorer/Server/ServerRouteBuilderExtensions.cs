@@ -312,6 +312,66 @@ public static class ServerRouteBuilderExtensions
             }
         });
 
+        endpoints.MapGet("/api/gates", async (string? gateId, CancellationToken ct) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] GET /api/gates (gateId: {GateId})", gateId ?? "all");
+                var summary = await wsHandler.EvaluateGatesSuiteAsync(gateId, ct);
+                return Results.Ok(summary);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/gates");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapPost("/api/gates/check", async (Core.Protocol.EvaluateGatesRequestDto? req, CancellationToken ct) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] POST /api/gates/check (gateId: {GateId})", req?.GateId ?? "all");
+                var summary = await wsHandler.EvaluateGatesSuiteAsync(req?.GateId, ct);
+                return Results.Ok(summary);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/gates/check");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapPost("/api/gates/ratchet", async (Core.Protocol.RatchetGatesRequestDto? req, CancellationToken ct) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] POST /api/gates/ratchet (gateId: {GateId}, updateAll: {UpdateAll})", req?.GateId ?? "all", req?.UpdateAll ?? false);
+                var result = await wsHandler.RatchetGatesSuiteAsync(req?.GateId, req?.UpdateAll ?? false, ct);
+                return Results.Ok(result);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/gates/ratchet");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapPost("/api/gates/init", async (Core.Protocol.InitGatesRequestDto? req, CancellationToken ct) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] POST /api/gates/init (overwrite: {Overwrite})", req?.Overwrite ?? false);
+                var result = await wsHandler.InitStarterGatesAsync(req?.Overwrite ?? false, ct);
+                return Results.Ok(result);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/gates/init");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
         return endpoints;
     }
 }
