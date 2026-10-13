@@ -480,10 +480,70 @@ public class IncrementalIndexingTests
         WorkspaceFileFilter.IsCandidateSourceFile("src/services/order.spec.js").Should().BeTrue("*.spec.js should be included for test indexing");
         WorkspaceFileFilter.IsCandidateSourceFile("pkg/calc/calc_test.go").Should().BeTrue("*_test.go should be included for test indexing");
 
+        // Monorepo packages directory MUST be recognized as candidate source files
+        WorkspaceFileFilter.IsCandidateSourceFile("packages/text/src/index.ts").Should().BeTrue("packages/* files in monorepos must NOT be skipped!");
+        WorkspaceFileFilter.IsCandidateSourceFile("packages/ui/src/button.tsx").Should().BeTrue();
+        WorkspaceFileFilter.IsCandidateSourceFile("packages/common/index.js").Should().BeTrue();
+
         // Non-source files and mocks that MUST be skipped
         WorkspaceFileFilter.IsCandidateSourceFile("src/mocks/mock_service.ts").Should().BeFalse("mock files must be skipped");
         WorkspaceFileFilter.IsCandidateSourceFile("src/bundle.min.js").Should().BeFalse("minified files must be skipped");
         WorkspaceFileFilter.IsCandidateSourceFile("src/types.d.ts").Should().BeFalse("d.ts files must be skipped");
+    }
+
+    [Test]
+    public void Test_WorkspaceFileFilter_PackagesDirectory_NotExcluded_ForMonorepos_And_Excluded_ForLegacyNuGet()
+    {
+        WorkspaceIndexer.AutoRegisterParsers();
+
+        // 1. packages should not be in general ExcludedDirectoryNames
+        WorkspaceFileFilter.ExcludedDirectoryNames.Contains("packages").Should().BeFalse("packages is standard in JS/TS monorepos");
+        WorkspaceFileFilter.IsExcludedDirectory("packages").Should().BeFalse();
+
+        // 2. Monorepo folder scenario
+        var tempMonorepo = Path.Combine(Path.GetTempPath(), "ce_monorepo_test_" + Guid.NewGuid().ToString("N"));
+        var pkgDir = Path.Combine(tempMonorepo, "packages", "text", "src");
+        Directory.CreateDirectory(pkgDir);
+
+        try
+        {
+            File.WriteAllText(Path.Combine(tempMonorepo, "pnpm-workspace.yaml"), "packages:\n  - 'packages/*'");
+            File.WriteAllText(Path.Combine(tempMonorepo, "package.json"), "{\"name\":\"root\",\"private\":true}");
+            File.WriteAllText(Path.Combine(tempMonorepo, "packages", "text", "package.json"), "{\"name\":\"@test/text\"}");
+            var indexFile = Path.Combine(pkgDir, "index.ts");
+            File.WriteAllText(indexFile, "export const hello = 'world';");
+
+            var gitignore = new GitIgnoreMatcher(tempMonorepo);
+            var candidates = WorkspaceFileFilter.EnumerateCandidateFiles(tempMonorepo, tempMonorepo, gitignore);
+
+            var normalizedCandidates = candidates.Select(c => c.Replace('\\', '/')).ToList();
+            normalizedCandidates.Any(c => c.EndsWith("packages/text/src/index.ts")).Should().BeTrue(
+                "Files under packages/ in a monorepo must be found by EnumerateCandidateFiles");
+
+            WorkspaceFileFilter.IsExcludedDirectory("packages", Path.Combine(tempMonorepo, "packages")).Should().BeFalse();
+        }
+        finally
+        {
+            if (Directory.Exists(tempMonorepo)) Directory.Delete(tempMonorepo, true);
+        }
+
+        // 3. Legacy NuGet cache scenario
+        var tempNuGet = Path.Combine(Path.GetTempPath(), "ce_nuget_test_" + Guid.NewGuid().ToString("N"));
+        var nugetPkgDir = Path.Combine(tempNuGet, "packages");
+        Directory.CreateDirectory(nugetPkgDir);
+
+        try
+        {
+            File.WriteAllText(Path.Combine(nugetPkgDir, "repositories.config"), "<?xml version=\"1.0\" encoding=\"utf-8\"?><repositories />");
+            File.WriteAllText(Path.Combine(tempNuGet, "packages.config"), "<?xml version=\"1.0\" encoding=\"utf-8\"?><packages />");
+
+            WorkspaceFileFilter.IsExcludedDirectory("packages", nugetPkgDir).Should().BeTrue(
+                "Legacy NuGet packages folder with repositories.config/packages.config should be excluded");
+        }
+        finally
+        {
+            if (Directory.Exists(tempNuGet)) Directory.Delete(tempNuGet, true);
+        }
     }
 
     [Test]

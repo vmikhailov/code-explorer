@@ -16,7 +16,7 @@ public static class WorkspaceFileFilter
     public static readonly HashSet<string> ExcludedDirectoryNames = new(StringComparer.OrdinalIgnoreCase)
     {
         ".git", ".github", ".vscode", ".idea", ".vs", ".go", "node_modules",
-        "bin", "obj", "packages", "dist", "build", ".build", ".next", ".nuxt",
+        "bin", "obj", "dist", "build", ".build", ".next", ".nuxt",
         ".turbo", ".cache", ".output", "out", "coverage", "scratch", "demo",
         "vendor", "bower_components", "third_party", "thirdparty", "3rdparty",
         ".codeexplorer", ".packages"
@@ -28,7 +28,52 @@ public static class WorkspaceFileFilter
         "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts", "AndroidManifest.xml"
     };
 
-    public static bool IsExcludedDirectory(string dirName) => ExcludedDirectoryNames.Contains(dirName);
+    public static bool IsExcludedDirectory(string dirName, string? fullPath = null)
+    {
+        if (ExcludedDirectoryNames.Contains(dirName))
+            return true;
+
+        if (dirName.Equals("packages", StringComparison.OrdinalIgnoreCase) && fullPath != null)
+        {
+            return IsNuGetPackagesDirectory(fullPath);
+        }
+
+        return false;
+    }
+
+    public static bool IsNuGetPackagesDirectory(string fullPath)
+    {
+        try
+        {
+            // If it contains JS/TS workspace configuration, it is never a NuGet cache
+            if (File.Exists(Path.Combine(fullPath, "package.json")))
+                return false;
+
+            var parent = Path.GetDirectoryName(fullPath);
+            if (parent != null &&
+                (File.Exists(Path.Combine(parent, "pnpm-workspace.yaml")) ||
+                 File.Exists(Path.Combine(parent, "lerna.json")) ||
+                 File.Exists(Path.Combine(parent, "turbo.json"))))
+            {
+                return false;
+            }
+
+            if (File.Exists(Path.Combine(fullPath, "repositories.config")))
+                return true;
+
+            if (parent != null && File.Exists(Path.Combine(parent, "packages.config")))
+                return true;
+
+            if (Directory.Exists(fullPath) && Directory.EnumerateFiles(fullPath, "*.nupkg", SearchOption.TopDirectoryOnly).Any())
+                return true;
+        }
+        catch
+        {
+            // Best effort
+        }
+
+        return false;
+    }
 
     public static bool IsManifestFile(string fileName)
     {
@@ -238,8 +283,9 @@ public static class WorkspaceFileFilter
             var dirName = Path.GetFileName(currentDir);
             if (string.IsNullOrEmpty(dirName)) dirName = currentDir;
 
-            if (IsExcludedDirectory(dirName))
+            if (IsExcludedDirectory(dirName, currentDir))
             {
+                log?.Invoke($"[WorkspaceFileFilter] Skipping excluded directory '{relativeDir}'");
                 continue;
             }
 
@@ -345,7 +391,7 @@ public static class WorkspaceFileFilter
         {
             var currentDir = stack.Pop();
             var dirName = Path.GetFileName(currentDir);
-            if (!string.IsNullOrEmpty(dirName) && IsExcludedDirectory(dirName))
+            if (!string.IsNullOrEmpty(dirName) && IsExcludedDirectory(dirName, currentDir))
             {
                 continue;
             }
@@ -396,7 +442,7 @@ public static class WorkspaceFileFilter
         {
             var currentDir = stack.Pop();
             var dirName = Path.GetFileName(currentDir);
-            if (!string.IsNullOrEmpty(dirName) && IsExcludedDirectory(dirName))
+            if (!string.IsNullOrEmpty(dirName) && IsExcludedDirectory(dirName, currentDir))
             {
                 continue;
             }

@@ -116,13 +116,14 @@ public class Layer1PhysicalParser
         var dirName = Path.GetFileName(currentDir);
         if (string.IsNullOrEmpty(dirName)) dirName = currentDir;
 
-        if (currentDir != ctx.AbsoluteWorkspacePath && WorkspaceFileFilter.IsExcludedDirectory(dirName))
-        {
-            return;
-        }
-
         var relativeDir = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, currentDir).Replace('\\', '/');
         if (relativeDir == ".") relativeDir = "";
+
+        if (currentDir != ctx.AbsoluteWorkspacePath && WorkspaceFileFilter.IsExcludedDirectory(dirName, currentDir))
+        {
+            ctx.Log($"[Layer1] Skipping excluded directory: '{relativeDir}'");
+            return;
+        }
 
         if (!string.IsNullOrEmpty(relativeDir))
         {
