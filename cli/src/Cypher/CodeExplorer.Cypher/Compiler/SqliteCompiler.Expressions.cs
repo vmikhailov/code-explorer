@@ -1072,6 +1072,18 @@ public partial class SqliteCompiler
             case PatternExpression pe:
                 if (pe.Path.Head.Variable != null) set.Add(pe.Path.Head.Variable);
                 break;
+            case HasLabelExpression hl:
+                CollectIdentifiers(hl.Expression, set);
+                break;
+            case ListPredicateExpression lp:
+                CollectIdentifiers(lp.List, set);
+                CollectIdentifiers(lp.Predicate, set);
+                break;
+            case ListSliceExpression ls:
+                CollectIdentifiers(ls.List, set);
+                if (ls.From != null) CollectIdentifiers(ls.From, set);
+                if (ls.To != null) CollectIdentifiers(ls.To, set);
+                break;
         }
     }
 

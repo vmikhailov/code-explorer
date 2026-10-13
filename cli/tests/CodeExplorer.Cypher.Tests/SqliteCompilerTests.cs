@@ -655,4 +655,85 @@ public class SqliteCompilerTests
         rowsExists.Should().HaveCount(1);
         ((string)rowsExists[0]["name"]!).Should().Be("OrdersClient");
     }
+
+    [Test]
+    public void Test_VarLenCte_PushesWherePredicateIntoAnchor()
+    {
+        InsertNode("fn:a", "Function", new() { ["name"] = "StartFn" });
+        InsertNode("fn:b", "Function", new() { ["name"] = "MidFn" });
+        InsertNode("fn:c", "Function", new() { ["name"] = "EndFn" });
+        InsertEdge("fn:a", "fn:b", "CALLS");
+        InsertEdge("fn:b", "fn:c", "CALLS");
+
+        var cypher = "MATCH (a:Function)-[:CALLS*1..2]->(b:Function) WHERE a.name = 'StartFn' RETURN b.name AS name ORDER BY b.name";
+        var ast = CodeExplorer.Cypher.Parser.CypherQueryParser.Parse(cypher);
+        var compiled = SqliteCompiler.Compile(ast);
+
+        compiled.Sql.Should().Contain("FROM nodes _src_anc CROSS JOIN edges e ON e.from_id = _src_anc.id");
+        compiled.Sql.Should().Contain("json_extract(_src_anc.properties, '$.name')");
+
+        var rows = ExecuteCypher(cypher);
+        rows.Should().HaveCount(2);
+        rows.Select(r => (string)r["name"]!).Should().ContainInOrder("EndFn", "MidFn");
+    }
+
+    [Test]
+    public void Test_VarLenCte_WalksBackwardsWhenOnlyEndNodeConstrained()
+    {
+        InsertNode("fn:r1", "Function", new() { ["name"] = "RootCaller" });
+        InsertNode("fn:r2", "Function", new() { ["name"] = "DirectCaller" });
+        InsertNode("fn:r3", "Function", new() { ["name"] = "LeafTarget" });
+        InsertEdge("fn:r1", "fn:r2", "CALLS");
+        InsertEdge("fn:r2", "fn:r3", "CALLS");
+
+        var cypher = "MATCH (caller)-[:CALLS*1..2]->(target:Function) WHERE target.name = 'LeafTarget' RETURN caller.name AS name ORDER BY caller.name";
+        var ast = CodeExplorer.Cypher.Parser.CypherQueryParser.Parse(cypher);
+        var compiled = SqliteCompiler.Compile(ast);
+
+        compiled.Sql.Should().Contain("FROM nodes _src_anc CROSS JOIN edges e ON e.to_id = _src_anc.id");
+        compiled.Sql.Should().Contain("json_extract(_src_anc.properties, '$.name')");
+
+        var rows = ExecuteCypher(cypher);
+        rows.Should().HaveCount(2);
+        rows.Select(r => (string)r["name"]!).Should().ContainInOrder("DirectCaller", "RootCaller");
+    }
+
+    [Test]
+    public void Test_VarLenCte_SupportsUndirectedVariableLengthPath()
+    {
+        InsertNode("fn:u1", "Function", new() { ["name"] = "UpstreamCaller" });
+        InsertNode("fn:u2", "Function", new() { ["name"] = "CenterHub" });
+        InsertNode("fn:u3", "Function", new() { ["name"] = "DownstreamCallee" });
+        InsertEdge("fn:u1", "fn:u2", "CALLS");
+        InsertEdge("fn:u2", "fn:u3", "CALLS");
+
+        var rows = ExecuteCypher(@"
+            MATCH (a:Function {name: 'CenterHub'})-[:CALLS*1..1]-(b:Function)
+            WHERE b.name <> 'CenterHub'
+            RETURN DISTINCT b.name AS name
+            ORDER BY name
+        ");
+
+        rows.Should().HaveCount(2);
+        rows.Select(r => (string)r["name"]!).Should().ContainInOrder("DownstreamCallee", "UpstreamCaller");
+    }
+
+    [Test]
+    public void Test_CollectCompoundIdentifiers_PreservesHasLabelAndListSliceInWithAggregation()
+    {
+        InsertNode("svc:order", "Service", new() { ["name"] = "OrderSvc", ["tags"] = new[] { "t1", "t2", "t3" } });
+        InsertNode("fn:op1", "Function", new() { ["name"] = "Op1" });
+        InsertEdge("svc:order", "fn:op1", "CONTAINS");
+
+        var rows = ExecuteCypher(@"
+            MATCH (s:Service)-[:CONTAINS]->(f:Function)
+            WHERE s.name = 'OrderSvc'
+            WITH s, count(f) AS fnCount
+            RETURN CASE WHEN s:Service THEN s.tags[0..2] ELSE [] END AS slicedTags, fnCount
+        ");
+
+        rows.Should().HaveCount(1);
+        Convert.ToInt64(rows[0]["fnCount"]).Should().Be(1);
+        ((string)rows[0]["slicedTags"]!).Should().Contain("t1").And.Contain("t2");
+    }
 }

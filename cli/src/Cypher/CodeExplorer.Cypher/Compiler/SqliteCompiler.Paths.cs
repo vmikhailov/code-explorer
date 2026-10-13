@@ -384,24 +384,17 @@ public partial class SqliteCompiler
         var minDepth = rel.Range?.Min ?? 1;
         var maxDepth = rel.Range?.Max;
 
-        NodePattern? startConstraint = null;
-        if (rel.Direction != Direction.Incoming)
-        {
-            if (prevNode.Labels.Count > 0 || prevNode.Properties != null)
-            {
-                startConstraint = prevNode;
-            }
-        }
-        else
-        {
-            if (targetNode.Labels.Count > 0 || targetNode.Properties != null)
-            {
-                startConstraint = targetNode;
-            }
-        }
+        var isIncoming = rel.Direction == Direction.Incoming;
+        var startNode = isIncoming ? targetNode : prevNode;
+        var startVar = isIncoming ? targetVar : prevVar;
+        var endNode = isIncoming ? prevNode : targetNode;
+        var endVar = isIncoming ? prevVar : targetVar;
+
+        var startFilterConditions = BuildAnchorFilterConditions(startNode, startVar, isOptional);
+        var endFilterConditions = BuildAnchorFilterConditions(endNode, endVar, isOptional);
 
         var needsPathNodes = pathVariable != null;
-        BuildVarLenRecursiveCte(cteName, rel, minDepth, maxDepth, startConstraint, needsPathNodes);
+        BuildVarLenRecursiveCte(cteName, rel, minDepth, maxDepth, startFilterConditions, endFilterConditions, needsPathNodes);
 
         var relOnConditions = BuildVarLenRelConditions(cteName, relVar, prevVar, targetVar, minDepth, maxDepth, isShortestPath);
         List<string> nodeOnConditions = [];
@@ -410,6 +403,111 @@ public partial class SqliteCompiler
             rel, cteName, relVar, prevNode, prevVar, targetNode, targetVar,
             prevDeclared, targetDeclared, isOptional, joinKeyword,
             fromAndJoins, optionalWhereExtra, relOnConditions, nodeOnConditions);
+    }
+
+    private List<string> BuildAnchorFilterConditions(NodePattern node, string nodeVar, bool isOptional)
+    {
+        List<string> conditions = [];
+        if (node.Labels.Count > 0 || node.Properties != null)
+        {
+            AddNodeFiltersToConditions(node, "_src_anc", conditions);
+        }
+
+        if (!isOptional && !string.IsNullOrEmpty(nodeVar) && !nodeVar.StartsWith("_n", StringComparison.Ordinal))
+        {
+            List<Expression> conjuncts = [];
+            foreach (var match in _query.Matches)
+            {
+                if (!match.IsOptional && match.Where?.Predicate != null)
+                {
+                    CollectTopLevelConjuncts(match.Where.Predicate, conjuncts);
+                }
+            }
+
+            if (_query.Where?.Predicate != null)
+            {
+                CollectTopLevelConjuncts(_query.Where.Predicate, conjuncts);
+            }
+
+            foreach (var conj in conjuncts)
+            {
+                if (CanPushDownToAnchor(conj, nodeVar))
+                {
+                    var rewritten = RewriteVariable(conj, nodeVar, "_src_anc");
+                    conditions.Add(VisitExpression(rewritten));
+                }
+            }
+        }
+
+        return conditions;
+    }
+
+    private static void CollectTopLevelConjuncts(Expression? expr, List<Expression> conjuncts)
+    {
+        if (expr == null) return;
+        if (expr is BinaryExpression { Operator: BinaryOperator.And } bin)
+        {
+            CollectTopLevelConjuncts(bin.Left, conjuncts);
+            CollectTopLevelConjuncts(bin.Right, conjuncts);
+        }
+        else
+        {
+            conjuncts.Add(expr);
+        }
+    }
+
+    private bool CanPushDownToAnchor(Expression expr, string targetVar)
+    {
+        if (_withAliases.ContainsKey(targetVar) ||
+            _unwindVariables.Contains(targetVar) ||
+            _pathVariables.ContainsKey(targetVar) ||
+            _declaredRels.Contains(targetVar) ||
+            _nodePropertySource.ContainsKey(targetVar))
+        {
+            return false;
+        }
+
+        var refs = GetReferencedIdentifiers(expr);
+        if (refs.Count != 1 || !refs.Contains(targetVar)) return false;
+        return IsSimpleAnchorExpression(expr);
+    }
+
+    private static bool IsSimpleAnchorExpression(Expression expr)
+    {
+        return expr switch
+        {
+            IdentifierExpression or PropertyAccessExpression or StringLiteralExpression or
+                NumberLiteralExpression or BooleanLiteralExpression or NullLiteralExpression or
+                ParameterExpression => true,
+            HasLabelExpression hl => IsSimpleAnchorExpression(hl.Expression),
+            UnaryExpression u => IsSimpleAnchorExpression(u.Operand),
+            BinaryExpression b => IsSimpleAnchorExpression(b.Left) && IsSimpleAnchorExpression(b.Right),
+            ListExpression l => l.Items.All(IsSimpleAnchorExpression),
+            FunctionCallExpression f => !HasAggregation(f) && f.Arguments.All(IsSimpleAnchorExpression),
+            _ => false
+        };
+    }
+
+    private static Expression RewriteVariable(Expression expr, string fromVar, string toVar)
+    {
+        return expr switch
+        {
+            IdentifierExpression id when id.Name.Equals(fromVar, StringComparison.OrdinalIgnoreCase) =>
+                new IdentifierExpression(toVar),
+            PropertyAccessExpression prop when prop.Variable.Equals(fromVar, StringComparison.OrdinalIgnoreCase) =>
+                new PropertyAccessExpression(toVar, prop.PropertyName),
+            HasLabelExpression hl =>
+                new HasLabelExpression(RewriteVariable(hl.Expression, fromVar, toVar), hl.Label),
+            BinaryExpression bin =>
+                new BinaryExpression(RewriteVariable(bin.Left, fromVar, toVar), bin.Operator, RewriteVariable(bin.Right, fromVar, toVar)),
+            UnaryExpression un =>
+                new UnaryExpression(un.Operator, RewriteVariable(un.Operand, fromVar, toVar)),
+            FunctionCallExpression fn =>
+                new FunctionCallExpression(fn.FunctionName, fn.IsDistinct, fn.Arguments.Select(a => RewriteVariable(a, fromVar, toVar)).ToList()),
+            ListExpression list =>
+                new ListExpression(list.Items.Select(i => RewriteVariable(i, fromVar, toVar)).ToList()),
+            _ => expr
+        };
     }
 
     private void DispatchVarLenHop(
@@ -449,7 +547,8 @@ public partial class SqliteCompiler
         RelationshipPattern rel,
         int minDepth,
         int? maxDepth,
-        NodePattern? startConstraint = null,
+        List<string> startFilterConditions,
+        List<string> endFilterConditions,
         bool needsPathNodes = false)
     {
         var edgeKindPred = "1=1";
@@ -463,11 +562,14 @@ public partial class SqliteCompiler
             edgeKindPred = $"e.kind IN ({kinds})";
         }
 
-        List<string> startFilterConditions = [];
-        if (startConstraint != null)
-        {
-            AddNodeFiltersToConditions(startConstraint, "_src_anc", startFilterConditions);
-        }
+        var isUndirected = rel.Direction == Direction.Undirected;
+        var walkBackwardsFromEnd = !isUndirected && !needsPathNodes && startFilterConditions.Count == 0 && endFilterConditions.Count > 0;
+        var activeAnchorFilters = walkBackwardsFromEnd ? endFilterConditions : startFilterConditions;
+
+        var edgeSourceTable = isUndirected
+            ? $"(SELECT from_id, to_id FROM edges e WHERE {edgeKindPred} UNION ALL SELECT to_id AS from_id, from_id AS to_id FROM edges e WHERE {edgeKindPred} AND from_id != to_id) e"
+            : "edges e";
+        var edgeWherePred = isUndirected ? "1=1" : edgeKindPred;
 
         var anchorSb = new StringBuilder();
         var cols = needsPathNodes
@@ -479,9 +581,9 @@ public partial class SqliteCompiler
 
         if (minDepth == 0)
         {
-            if (startFilterConditions.Count > 0)
+            if (activeAnchorFilters.Count > 0)
             {
-                anchorSb.AppendLine($"    SELECT id AS start_id, id AS end_id, 0 AS depth, '/' || id || '/' AS path_visited{zeroNodes} FROM nodes _src_anc WHERE {string.Join(" AND ", startFilterConditions)}");
+                anchorSb.AppendLine($"    SELECT id AS start_id, id AS end_id, 0 AS depth, '/' || id || '/' AS path_visited{zeroNodes} FROM nodes _src_anc WHERE {string.Join(" AND ", activeAnchorFilters)}");
             }
             else
             {
@@ -490,23 +592,46 @@ public partial class SqliteCompiler
             anchorSb.AppendLine("    UNION ALL");
         }
 
-        if (startFilterConditions.Count > 0)
+        if (walkBackwardsFromEnd)
         {
-            anchorSb.Append($"    SELECT e.from_id AS start_id, e.to_id AS end_id, 1 AS depth, '/' || e.from_id || '/' || e.to_id || '/' AS path_visited{anchorNodes} FROM nodes _src_anc CROSS JOIN edges e ON e.from_id = _src_anc.id WHERE {string.Join(" AND ", startFilterConditions)} AND {edgeKindPred}");
+            var whereClause = activeAnchorFilters.Count > 0
+                ? $"WHERE {string.Join(" AND ", activeAnchorFilters)} AND {edgeWherePred}"
+                : $"WHERE {edgeWherePred}";
+            anchorSb.Append($"    SELECT e.from_id AS start_id, e.to_id AS end_id, 1 AS depth, '/' || e.from_id || '/' || e.to_id || '/' AS path_visited FROM nodes _src_anc CROSS JOIN {edgeSourceTable} ON e.to_id = _src_anc.id {whereClause}");
+
+            var maxDepthCond = maxDepth.HasValue ? $" AND c.depth < {maxDepth.Value}" : "";
+            var recursiveSql = $@"    SELECT e.from_id, c.end_id, c.depth + 1, '/' || e.from_id || c.path_visited
+    FROM {cteName} c
+    CROSS JOIN {edgeSourceTable} ON e.to_id = c.start_id
+    WHERE {edgeWherePred}{maxDepthCond} AND instr(c.path_visited, '/' || e.from_id || '/') = 0";
+
+            var cteSql = $"{cteName}({cols}) AS (\n{anchorSb}\n    UNION ALL\n{recursiveSql}\n)";
+            _ctes.Add(cteSql);
+            return;
+        }
+
+        if (activeAnchorFilters.Count > 0)
+        {
+            var wherePart = isUndirected
+                ? string.Join(" AND ", activeAnchorFilters)
+                : $"{string.Join(" AND ", activeAnchorFilters)} AND {edgeWherePred}";
+            anchorSb.Append($"    SELECT e.from_id AS start_id, e.to_id AS end_id, 1 AS depth, '/' || e.from_id || '/' || e.to_id || '/' AS path_visited{anchorNodes} FROM nodes _src_anc CROSS JOIN {edgeSourceTable} ON e.from_id = _src_anc.id WHERE {wherePart}");
         }
         else
         {
-            anchorSb.Append($"    SELECT e.from_id AS start_id, e.to_id AS end_id, 1 AS depth, '/' || e.from_id || '/' || e.to_id || '/' AS path_visited{anchorNodes} FROM edges e WHERE {edgeKindPred}");
+            var wherePart = isUndirected ? "" : $" WHERE {edgeWherePred}";
+            anchorSb.Append($"    SELECT e.from_id AS start_id, e.to_id AS end_id, 1 AS depth, '/' || e.from_id || '/' || e.to_id || '/' AS path_visited{anchorNodes} FROM {edgeSourceTable}{wherePart}");
         }
 
-        var maxDepthCond = maxDepth.HasValue ? $" AND c.depth < {maxDepth.Value}" : "";
-        var recursiveSql = $@"    SELECT c.start_id, e.to_id, c.depth + 1, c.path_visited || e.to_id || '/'{recNodes}
+        var fwdMaxDepthCond = maxDepth.HasValue ? $" AND c.depth < {maxDepth.Value}" : "";
+        var fwdWherePrefix = isUndirected ? "" : $"{edgeWherePred} AND ";
+        var fwdRecursiveSql = $@"    SELECT c.start_id, e.to_id, c.depth + 1, c.path_visited || e.to_id || '/'{recNodes}
     FROM {cteName} c
-    CROSS JOIN edges e ON e.from_id = c.end_id
-    WHERE {edgeKindPred}{maxDepthCond} AND instr(c.path_visited, '/' || e.to_id || '/') = 0";
+    CROSS JOIN {edgeSourceTable} ON e.from_id = c.end_id
+    WHERE {fwdWherePrefix}instr(c.path_visited, '/' || e.to_id || '/') = 0{fwdMaxDepthCond}";
 
-        var cteSql = $"{cteName}({cols}) AS (\n{anchorSb}\n    UNION ALL\n{recursiveSql}\n)";
-        _ctes.Add(cteSql);
+        var fwdCteSql = $"{cteName}({cols}) AS (\n{anchorSb}\n    UNION ALL\n{fwdRecursiveSql}\n)";
+        _ctes.Add(fwdCteSql);
     }
 
     private List<string> BuildVarLenRelConditions(
