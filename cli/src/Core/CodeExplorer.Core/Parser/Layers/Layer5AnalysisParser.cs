@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
@@ -12,8 +13,11 @@ namespace CodeExplorer.Core.Parser.Layers;
 
 public class Layer5AnalysisParser
 {
+    private Layer4Result? _currentL4Result;
+
     public async Task<Layer5Result> ParseAsync(Layer4Result l4Result, ParsingContext ctx)
     {
+        _currentL4Result = l4Result;
         ctx.Log("[Layer5] Starting Layer 5 (Late Binding, Cross-References & Post-Indexing Analysis)...");
 
         // 1. Upload the early enqueued relationships after all nodes are created
@@ -242,10 +246,29 @@ public class Layer5AnalysisParser
         Dictionary<string, string> TypeSymbols,
         Dictionary<string, string> FunctionSymbols,
         Dictionary<(string FilePath, string FuncName), string> FunctionSymbolsByFile,
+        Dictionary<string, List<string>> FunctionsByName,
+        HashSet<string> KnownFiles,
+        Dictionary<string, List<string>> FilesByProject,
         Dictionary<string, string> ProcedureSymbols,
         Dictionary<string, string> TableSymbols,
         Dictionary<string, string> EndpointSymbols,
         Dictionary<string, string> EntryPointSymbols);
+
+    private record ImportedSymbolEntry(
+        string ImportPath,
+        string ImportedName,
+        bool IsDefault,
+        bool IsNamespace);
+
+    private record PackageTargetInfo(
+        string ProjectPath,
+        string? MainFile);
+
+    private record ImportLookups(
+        Dictionary<(string FilePath, string LocalName), ImportedSymbolEntry> FileImports,
+        Dictionary<string, List<string>> StarImportsByFile,
+        Dictionary<string, PackageTargetInfo> WorkspacePackages,
+        Dictionary<string, string> TsConfigPaths);
 
     private record BindingLookups(
         Dictionary<(string FilePath, string VarName), List<IndexedBinding>> BindingsLookup,
@@ -257,10 +280,44 @@ public class Layer5AnalysisParser
         var typeSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
         var functionSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
         var functionSymbolsByFile = new Dictionary<(string FilePath, string FuncName), string>();
+        var functionsByName = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var knownFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var filesByProject = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         var procedureSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
         var tableSymbols = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var endpointSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
         var entryPointSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var ((filePath, kind, name), id) in ctx.FileScopedSymbols)
+        {
+            var normFuncFile = filePath.Replace('\\', '/');
+            knownFiles.Add(normFuncFile);
+
+            var proj = ConstantRegistry.ExtractProjectName(normFuncFile);
+            if (proj != null)
+            {
+                if (!filesByProject.TryGetValue(proj, out var pFiles))
+                {
+                    pFiles = [];
+                    filesByProject[proj] = pFiles;
+                }
+                if (!pFiles.Contains(normFuncFile)) pFiles.Add(normFuncFile);
+            }
+
+            if (kind == OntologyConstants.NodeLabels.Function)
+            {
+                functionSymbolsByFile[(normFuncFile, name)] = id;
+                if (!functionsByName.TryGetValue(name, out var fnList))
+                {
+                    fnList = [];
+                    functionsByName[name] = fnList;
+                }
+                if (!fnList.Contains(id))
+                {
+                    fnList.Add(id);
+                }
+            }
+        }
 
         foreach (var (key, id) in ctx.GlobalSymbols)
         {
@@ -271,10 +328,33 @@ public class Layer5AnalysisParser
                     break;
                 case OntologyConstants.NodeLabels.Function:
                     functionSymbols[key.Name] = id;
+                    if (!functionsByName.TryGetValue(key.Name, out var fnList))
+                    {
+                        fnList = [];
+                        functionsByName[key.Name] = fnList;
+                    }
+                    if (!fnList.Contains(id))
+                    {
+                        fnList.Add(id);
+                    }
+
                     var funcFile = ExtractFilePathFromSymbolId(id);
                     if (funcFile != null)
                     {
-                        functionSymbolsByFile[(funcFile, key.Name)] = id;
+                        var normFuncFile = funcFile.Replace('\\', '/');
+                        functionSymbolsByFile[(normFuncFile, key.Name)] = id;
+                        knownFiles.Add(normFuncFile);
+
+                        var proj = ConstantRegistry.ExtractProjectName(normFuncFile);
+                        if (proj != null)
+                        {
+                            if (!filesByProject.TryGetValue(proj, out var pFiles))
+                            {
+                                pFiles = [];
+                                filesByProject[proj] = pFiles;
+                            }
+                            if (!pFiles.Contains(normFuncFile)) pFiles.Add(normFuncFile);
+                        }
                     }
                     break;
                 case OntologyConstants.NodeLabels.Procedure:
@@ -292,10 +372,25 @@ public class Layer5AnalysisParser
             }
         }
 
+        foreach (var (k, _) in ctx.FileScopedSymbols)
+        {
+            knownFiles.Add(k.FilePath.Replace('\\', '/'));
+        }
+        foreach (var imp in ctx.RawImports)
+        {
+            if (!string.IsNullOrEmpty(imp.FilePath))
+            {
+                knownFiles.Add(imp.FilePath.Replace('\\', '/'));
+            }
+        }
+
         return new SymbolLookups(
             typeSymbols,
             functionSymbols,
             functionSymbolsByFile,
+            functionsByName,
+            knownFiles,
+            filesByProject,
             procedureSymbols,
             tableSymbols,
             endpointSymbols,
@@ -446,6 +541,7 @@ public class Layer5AnalysisParser
         var symbols = BuildSymbolLookups(ctx);
         ResolveInheritanceReferences(ctx, symbols, referenceRelationships, inheritanceRels, interfaceToImplementors);
         var bindings = BuildBindingLookups(ctx);
+        var imports = BuildImportLookups(ctx, _currentL4Result);
 
         var resolvedCount = 0;
         var createdTopicIds = new HashSet<string>(StringComparer.Ordinal);
@@ -475,7 +571,7 @@ public class Layer5AnalysisParser
                 switch (refItem.Kind)
                 {
                     case OntologyConstants.Relationships.Calls:
-                        ResolveCallsReference(refItem, ctx, symbols, bindings, interfaceToImplementors, referenceRelationships);
+                        ResolveCallsReference(refItem, ctx, symbols, bindings, imports, interfaceToImplementors, referenceRelationships);
                         break;
                     case OntologyConstants.Relationships.DependsOn:
                         ResolveDependsOnReference(refItem, symbols, referenceRelationships);
@@ -522,6 +618,7 @@ public class Layer5AnalysisParser
         ParsingContext ctx,
         SymbolLookups symbols,
         BindingLookups bindings,
+        ImportLookups imports,
         Dictionary<string, List<string>> interfaceToImplementors,
         List<Relationship> referenceRelationships)
     {
@@ -530,12 +627,27 @@ public class Layer5AnalysisParser
         string? methodName = null;
         var isExternalStaticClass = false;
         var callerFile = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId);
+        var normCallerFile = callerFile?.Replace('\\', '/');
 
         if (targetName.Contains('.'))
         {
             var dotIdx = targetName.LastIndexOf('.');
             var varName = targetName[..dotIdx];
             methodName = targetName[(dotIdx + 1)..];
+
+            // Check if varName is a namespace import in callerFile (e.g. import * as text from './plural')
+            if (normCallerFile != null && imports.FileImports.TryGetValue((normCallerFile, varName), out var nsImport) && nsImport.IsNamespace)
+            {
+                var nsCandidates = ResolveImportCandidateFiles(normCallerFile, nsImport.ImportPath, imports, ctx, symbols);
+                foreach (var nsCand in nsCandidates)
+                {
+                    if (symbols.FunctionSymbolsByFile.TryGetValue((nsCand, methodName), out var nsTargetId))
+                    {
+                        referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, nsTargetId)));
+                        return;
+                    }
+                }
+            }
 
             if (callerFile != null)
             {
@@ -612,29 +724,47 @@ public class Layer5AnalysisParser
 
         var callAdded = false;
         string? targetNodeId = null;
-        if (callerFile != null && ctx.FileScopedSymbols.TryGetValue((callerFile, OntologyConstants.NodeLabels.Function, targetName), out var localTargetId))
+
+        // 1. Same file
+        if (normCallerFile != null && ctx.FileScopedSymbols.TryGetValue((normCallerFile, OntologyConstants.NodeLabels.Function, targetName), out var localTargetId))
         {
             referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, localTargetId)));
             callAdded = true;
             targetNodeId = localTargetId;
         }
-        else if (callerFile != null && symbols.FunctionSymbolsByFile.TryGetValue((callerFile, targetName), out localTargetId))
+        else if (normCallerFile != null && symbols.FunctionSymbolsByFile.TryGetValue((normCallerFile, targetName), out localTargetId))
         {
             referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, localTargetId)));
             callAdded = true;
             targetNodeId = localTargetId;
         }
-        else if (symbols.FunctionSymbols.TryGetValue(targetName, out targetNodeId))
+        // 2. Through explicit module imports (e.g. import { pluralize } from './plural' or from '@repro/text')
+        else if (normCallerFile != null && (targetNodeId = ResolveFunctionCallThroughImports(normCallerFile, targetName, symbols, imports, ctx)) != null)
         {
             referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, targetNodeId)));
             callAdded = true;
         }
+        // 3. Same project fallback (when function is defined uniquely in caller's project)
+        else if (normCallerFile != null && (targetNodeId = ResolveSameProjectFunctionFallback(normCallerFile, targetName, symbols)) != null)
+        {
+            referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, targetNodeId)));
+            callAdded = true;
+        }
+        // 4. Globally unambiguous function (only 1 function with this name across entire workspace)
+        else if (symbols.FunctionsByName.TryGetValue(targetName, out var uniqueCandidates) && uniqueCandidates.Count == 1)
+        {
+            targetNodeId = uniqueCandidates[0];
+            referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, targetNodeId)));
+            callAdded = true;
+        }
+        // 5. Procedure symbols fallback
         else if (symbols.ProcedureSymbols.TryGetValue(targetName, out var targetProcId))
         {
             referenceRelationships.Add(Relationship.FromRelationship(new CalledByRelationship(targetProcId, refItem.ScopeSymbolId)));
             callAdded = true;
         }
 
+        // Interface implementors
         if (targetTypeName != null && !string.IsNullOrEmpty(methodName) && interfaceToImplementors.TryGetValue(targetTypeName, out var implementors))
         {
             foreach (var implClass in implementors)
@@ -647,29 +777,505 @@ public class Layer5AnalysisParser
             }
         }
 
+        // Fallback for methodName
         if (!callAdded && !isExternalStaticClass && methodName != null)
         {
-            if (callerFile != null && ctx.FileScopedSymbols.TryGetValue((callerFile, OntologyConstants.NodeLabels.Function, methodName), out var localFallbackId))
+            if (normCallerFile != null && ctx.FileScopedSymbols.TryGetValue((normCallerFile, OntologyConstants.NodeLabels.Function, methodName), out var localFallbackId))
             {
                 referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, localFallbackId)));
             }
-            else if (callerFile != null && symbols.FunctionSymbolsByFile.TryGetValue((callerFile, methodName), out localFallbackId))
+            else if (normCallerFile != null && symbols.FunctionSymbolsByFile.TryGetValue((normCallerFile, methodName), out localFallbackId))
             {
                 referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, localFallbackId)));
             }
-            else if (symbols.FunctionSymbols.TryGetValue(methodName, out var fallbackNodeId))
+            else if (normCallerFile != null && (targetNodeId = ResolveFunctionCallThroughImports(normCallerFile, methodName, symbols, imports, ctx)) != null)
             {
-                var targetFile = ExtractFilePathFromSymbolId(fallbackNodeId);
-                var isSameProjectOrFile = callerFile != null && targetFile != null &&
-                    (callerFile.Equals(targetFile, StringComparison.OrdinalIgnoreCase) ||
-                     string.Equals(ConstantRegistry.ExtractProjectName(callerFile), ConstantRegistry.ExtractProjectName(targetFile), StringComparison.OrdinalIgnoreCase));
-
-                if (isSameProjectOrFile || (callerFile == null && targetFile == null))
+                referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, targetNodeId)));
+            }
+            else if (normCallerFile != null && (targetNodeId = ResolveSameProjectFunctionFallback(normCallerFile, methodName, symbols)) != null)
+            {
+                referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, targetNodeId)));
+            }
+            else if (symbols.FunctionsByName.TryGetValue(methodName, out var fallbackCandidates))
+            {
+                foreach (var fallbackNodeId in fallbackCandidates)
                 {
-                    referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, fallbackNodeId)));
+                    var targetFile = ExtractFilePathFromSymbolId(fallbackNodeId);
+                    var isSameProjectOrFile = normCallerFile != null && targetFile != null &&
+                        (normCallerFile.Equals(targetFile, StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(ConstantRegistry.ExtractProjectName(normCallerFile), ConstantRegistry.ExtractProjectName(targetFile), StringComparison.OrdinalIgnoreCase));
+
+                    if (isSameProjectOrFile || (normCallerFile == null && targetFile == null))
+                    {
+                        referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, fallbackNodeId)));
+                        break;
+                    }
                 }
             }
         }
+    }
+
+    private static string? ResolveSameProjectFunctionFallback(string callerFile, string targetName, SymbolLookups symbols)
+    {
+        var callerProj = ConstantRegistry.ExtractProjectName(callerFile);
+        if (callerProj != null && symbols.FilesByProject.TryGetValue(callerProj, out var projFiles))
+        {
+            string? matchedId = null;
+            foreach (var pFile in projFiles)
+            {
+                if (symbols.FunctionSymbolsByFile.TryGetValue((pFile, targetName), out var id))
+                {
+                    if (matchedId != null && matchedId != id)
+                    {
+                        return null; // Ambiguous within same project
+                    }
+                    matchedId = id;
+                }
+            }
+            return matchedId;
+        }
+        return null;
+    }
+
+    private static string? ResolveFunctionCallThroughImports(
+        string callerFile,
+        string targetName,
+        SymbolLookups symbols,
+        ImportLookups imports,
+        ParsingContext ctx)
+    {
+        var normCaller = callerFile.Replace('\\', '/');
+
+        // 1. Direct imported symbol: import { pluralize } from "..."
+        if (imports.FileImports.TryGetValue((normCaller, targetName), out var importedEntry))
+        {
+            var candidates = ResolveImportCandidateFiles(normCaller, importedEntry.ImportPath, imports, ctx, symbols);
+            foreach (var cand in candidates)
+            {
+                if (symbols.FunctionSymbolsByFile.TryGetValue((cand, importedEntry.ImportedName), out var funcId))
+                {
+                    return funcId;
+                }
+
+                // If default import, try targetName as importedName or file-named function
+                if (importedEntry.IsDefault)
+                {
+                    if (symbols.FunctionSymbolsByFile.TryGetValue((cand, targetName), out var defFuncId))
+                    {
+                        return defFuncId;
+                    }
+                    var candFileName = Path.GetFileNameWithoutExtension(cand);
+                    if (symbols.FunctionSymbolsByFile.TryGetValue((cand, candFileName), out var namedFuncId))
+                    {
+                        return namedFuncId;
+                    }
+                }
+
+                // Follow barrel re-exports: if cand re-exports importedEntry.ImportedName
+                if (imports.FileImports.TryGetValue((cand, importedEntry.ImportedName), out var reExportedEntry))
+                {
+                    var reCandidates = ResolveImportCandidateFiles(cand, reExportedEntry.ImportPath, imports, ctx, symbols);
+                    foreach (var reCand in reCandidates)
+                    {
+                        if (symbols.FunctionSymbolsByFile.TryGetValue((reCand, reExportedEntry.ImportedName), out var reFuncId))
+                        {
+                            return reFuncId;
+                        }
+                    }
+                }
+            }
+
+            // If candidate file was a package/project, search other files in that project for the imported symbol
+            foreach (var cand in candidates)
+            {
+                var candProj = ConstantRegistry.ExtractProjectName(cand);
+                if (candProj != null && symbols.FilesByProject.TryGetValue(candProj, out var projFiles))
+                {
+                    foreach (var pFile in projFiles)
+                    {
+                        if (symbols.FunctionSymbolsByFile.TryGetValue((pFile, importedEntry.ImportedName), out var projFuncId))
+                        {
+                            return projFuncId;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Star imports: import * from "..." in caller file
+        if (imports.StarImportsByFile.TryGetValue(normCaller, out var starPaths))
+        {
+            foreach (var starPath in starPaths)
+            {
+                var candidates = ResolveImportCandidateFiles(normCaller, starPath, imports, ctx, symbols);
+                foreach (var cand in candidates)
+                {
+                    if (symbols.FunctionSymbolsByFile.TryGetValue((cand, targetName), out var funcId))
+                    {
+                        return funcId;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static List<string> ResolveImportCandidateFiles(
+        string callerFile,
+        string importPath,
+        ImportLookups imports,
+        ParsingContext ctx,
+        SymbolLookups symbols)
+    {
+        var results = new List<string>();
+
+        // Case A: Relative import (./ or ../ or /)
+        if (importPath.StartsWith('.') || importPath.StartsWith('/'))
+        {
+            var callerDir = Path.GetDirectoryName(callerFile)?.Replace('\\', '/') ?? "";
+            var combined = NormalizeRelativePath(string.IsNullOrEmpty(callerDir)
+                ? importPath.TrimStart('.', '/')
+                : $"{callerDir}/{importPath}");
+
+            AddFileCandidates(combined, results, symbols);
+            return results;
+        }
+
+        // Case B: tsconfig paths alias (e.g. @/* or exact)
+        foreach (var (pattern, target) in imports.TsConfigPaths)
+        {
+            if (pattern.EndsWith("/*") && target.EndsWith("/*"))
+            {
+                var prefix = pattern[..^2];
+                if (importPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    var remainder = importPath[prefix.Length..];
+                    var mapped = target[..^2] + remainder;
+                    AddFileCandidates(NormalizeRelativePath(mapped), results, symbols);
+                }
+            }
+            else if (string.Equals(pattern, importPath, StringComparison.OrdinalIgnoreCase))
+            {
+                AddFileCandidates(NormalizeRelativePath(target), results, symbols);
+            }
+        }
+
+        if (results.Count > 0) return results;
+
+        // Case C: Workspace packages (monorepos)
+        // Check exact package name
+        if (imports.WorkspacePackages.TryGetValue(importPath, out var pkgInfo))
+        {
+            AddPackageEntryCandidates(pkgInfo, results, symbols);
+            return results;
+        }
+
+        // Check package prefix (subpath import: @repro/text/sub)
+        var slashIdx = importPath.IndexOf('/');
+        if (slashIdx > 0)
+        {
+            var firstSlash = slashIdx;
+            if (importPath.StartsWith('@'))
+            {
+                var secondSlash = importPath.IndexOf('/', firstSlash + 1);
+                if (secondSlash > 0) firstSlash = secondSlash;
+            }
+
+            var pkgName = importPath[..firstSlash];
+            var subPath = importPath[(firstSlash + 1)..];
+
+            if (imports.WorkspacePackages.TryGetValue(pkgName, out var subPkgInfo))
+            {
+                var subCombined = NormalizeRelativePath($"{subPkgInfo.ProjectPath}/{subPath}");
+                AddFileCandidates(subCombined, results, symbols);
+                var srcCombined = NormalizeRelativePath($"{subPkgInfo.ProjectPath}/src/{subPath}");
+                AddFileCandidates(srcCombined, results, symbols);
+                return results;
+            }
+        }
+
+        return results;
+    }
+
+    private static void AddPackageEntryCandidates(PackageTargetInfo pkgInfo, List<string> results, SymbolLookups symbols)
+    {
+        if (!string.IsNullOrEmpty(pkgInfo.MainFile))
+        {
+            AddFileCandidates(NormalizeRelativePath($"{pkgInfo.ProjectPath}/{pkgInfo.MainFile}"), results, symbols);
+        }
+
+        AddFileCandidates(NormalizeRelativePath($"{pkgInfo.ProjectPath}/src/index"), results, symbols);
+        AddFileCandidates(NormalizeRelativePath($"{pkgInfo.ProjectPath}/index"), results, symbols);
+    }
+
+    private static void AddFileCandidates(string basePath, List<string> results, SymbolLookups symbols)
+    {
+        var candidates = new List<string>
+        {
+            basePath,
+            basePath + ".ts",
+            basePath + ".tsx",
+            basePath + ".js",
+            basePath + ".jsx",
+            basePath + ".mjs",
+            basePath + ".cjs",
+            basePath + "/index.ts",
+            basePath + "/index.tsx",
+            basePath + "/index.js",
+            basePath + "/index.jsx"
+        };
+
+        if (basePath.EndsWith(".js", StringComparison.OrdinalIgnoreCase))
+        {
+            var noExt = basePath[..^3];
+            candidates.Add(noExt + ".ts");
+            candidates.Add(noExt + ".tsx");
+        }
+
+        foreach (var cand in candidates)
+        {
+            if (symbols.KnownFiles.Contains(cand) && !results.Contains(cand))
+            {
+                results.Add(cand);
+            }
+        }
+
+        // Case-insensitive fallback against known files
+        if (results.Count == 0)
+        {
+            foreach (var cand in candidates)
+            {
+                var match = symbols.KnownFiles.FirstOrDefault(k => string.Equals(k, cand, StringComparison.OrdinalIgnoreCase));
+                if (match != null && !results.Contains(match))
+                {
+                    results.Add(match);
+                }
+            }
+        }
+    }
+
+    private static string NormalizeRelativePath(string path)
+    {
+        path = path.Replace('\\', '/');
+        var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var stack = new List<string>();
+        foreach (var p in parts)
+        {
+            if (p == ".") continue;
+            if (p == "..")
+            {
+                if (stack.Count > 0 && stack[^1] != "..")
+                {
+                    stack.RemoveAt(stack.Count - 1);
+                }
+                else
+                {
+                    stack.Add("..");
+                }
+            }
+            else
+            {
+                stack.Add(p);
+            }
+        }
+        return string.Join("/", stack);
+    }
+
+    private static ImportLookups BuildImportLookups(ParsingContext ctx, Layer4Result? l4Result)
+    {
+        var fileImports = new Dictionary<(string FilePath, string LocalName), ImportedSymbolEntry>();
+        var starImportsByFile = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var imp in ctx.RawImports)
+        {
+            if (string.IsNullOrEmpty(imp.FilePath) || string.IsNullOrEmpty(imp.Path)) continue;
+
+            var normFile = imp.FilePath.Replace('\\', '/');
+
+            if (imp.Specifiers != null && imp.Specifiers.Count > 0)
+            {
+                foreach (var spec in imp.Specifiers)
+                {
+                    if (spec.IsNamespace || spec.LocalName == "*")
+                    {
+                        if (!starImportsByFile.TryGetValue(normFile, out var starList))
+                        {
+                            starList = [];
+                            starImportsByFile[normFile] = starList;
+                        }
+                        starList.Add(imp.Path);
+
+                        if (!string.IsNullOrEmpty(spec.LocalName) && spec.LocalName != "*")
+                        {
+                            fileImports[(normFile, spec.LocalName)] = new ImportedSymbolEntry(
+                                imp.Path,
+                                "*",
+                                IsDefault: false,
+                                IsNamespace: true
+                            );
+                        }
+                    }
+                    else
+                    {
+                        fileImports[(normFile, spec.LocalName)] = new ImportedSymbolEntry(
+                            imp.Path,
+                            spec.ImportedName ?? spec.LocalName,
+                            spec.IsDefault,
+                            IsNamespace: false
+                        );
+                    }
+                }
+            }
+        }
+
+        var workspacePackages = new Dictionary<string, PackageTargetInfo>(StringComparer.OrdinalIgnoreCase);
+        if (l4Result != null)
+        {
+            foreach (var proj in l4Result.Prev.Prev.Projects)
+            {
+                var pkgJsonPath = Path.Combine(ctx.AbsoluteWorkspacePath, proj.Path, "package.json");
+                if (File.Exists(pkgJsonPath))
+                {
+                    try
+                    {
+                        var content = File.ReadAllText(pkgJsonPath);
+                        using var doc = JsonDocument.Parse(content);
+                        if (doc.RootElement.TryGetProperty("name", out var nameProp) &&
+                            nameProp.ValueKind == JsonValueKind.String)
+                        {
+                            var pkgName = nameProp.GetString();
+                            if (!string.IsNullOrEmpty(pkgName))
+                            {
+                                string? mainFile = null;
+                                if (doc.RootElement.TryGetProperty("main", out var mainProp) &&
+                                    mainProp.ValueKind == JsonValueKind.String)
+                                {
+                                    mainFile = mainProp.GetString();
+                                }
+                                else if (doc.RootElement.TryGetProperty("module", out var modProp) &&
+                                         modProp.ValueKind == JsonValueKind.String)
+                                {
+                                    mainFile = modProp.GetString();
+                                }
+
+                                var normProjPath = proj.Path.Replace('\\', '/');
+                                workspacePackages[pkgName] = new PackageTargetInfo(normProjPath, mainFile);
+
+                                if (pkgName.StartsWith('@') && pkgName.Contains('/'))
+                                {
+                                    var unqualified = pkgName[(pkgName.IndexOf('/') + 1)..];
+                                    workspacePackages.TryAdd(unqualified, new PackageTargetInfo(normProjPath, mainFile));
+                                }
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore parse errors
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(proj.Name))
+                {
+                    workspacePackages.TryAdd(proj.Name, new PackageTargetInfo(proj.Path.Replace('\\', '/'), null));
+                }
+            }
+        }
+        else if (!string.IsNullOrEmpty(ctx.AbsoluteWorkspacePath) && Directory.Exists(ctx.AbsoluteWorkspacePath))
+        {
+            try
+            {
+                var pkgJsons = Directory.EnumerateFiles(ctx.AbsoluteWorkspacePath, "package.json", SearchOption.AllDirectories)
+                    .Where(p => !p.Contains("node_modules") && !p.Contains(".Build") && !p.Contains("bin") && !p.Contains("obj"));
+                foreach (var pkgJsonPath in pkgJsons)
+                {
+                    try
+                    {
+                        var content = File.ReadAllText(pkgJsonPath);
+                        using var doc = JsonDocument.Parse(content);
+                        if (doc.RootElement.TryGetProperty("name", out var nameProp) &&
+                            nameProp.ValueKind == JsonValueKind.String)
+                        {
+                            var pkgName = nameProp.GetString();
+                            if (!string.IsNullOrEmpty(pkgName))
+                            {
+                                string? mainFile = null;
+                                if (doc.RootElement.TryGetProperty("main", out var mainProp) &&
+                                    mainProp.ValueKind == JsonValueKind.String)
+                                {
+                                    mainFile = mainProp.GetString();
+                                }
+                                else if (doc.RootElement.TryGetProperty("module", out var modProp) &&
+                                         modProp.ValueKind == JsonValueKind.String)
+                                {
+                                    mainFile = modProp.GetString();
+                                }
+
+                                var dir = Path.GetDirectoryName(pkgJsonPath)!;
+                                var relDir = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, dir).Replace('\\', '/');
+                                if (relDir == ".") relDir = "";
+                                workspacePackages[pkgName] = new PackageTargetInfo(relDir, mainFile);
+
+                                if (pkgName.StartsWith('@') && pkgName.Contains('/'))
+                                {
+                                    var unqualified = pkgName[(pkgName.IndexOf('/') + 1)..];
+                                    workspacePackages.TryAdd(unqualified, new PackageTargetInfo(relDir, mainFile));
+                                }
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore parse errors
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore filesystem errors
+            }
+        }
+
+        var tsConfigPaths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var tsConfigCandidates = new[]
+        {
+            Path.Combine(ctx.AbsoluteWorkspacePath, "tsconfig.json"),
+            Path.Combine(ctx.AbsoluteWorkspacePath, "tsconfig.base.json")
+        };
+        foreach (var tsConfigCandidate in tsConfigCandidates)
+        {
+            if (File.Exists(tsConfigCandidate))
+            {
+                try
+                {
+                    var content = File.ReadAllText(tsConfigCandidate);
+                    using var doc = JsonDocument.Parse(content, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
+                    if (doc.RootElement.TryGetProperty("compilerOptions", out var compOpts) &&
+                        compOpts.TryGetProperty("paths", out var pathsObj) &&
+                        pathsObj.ValueKind == JsonValueKind.Object)
+                    {
+                        foreach (var prop in pathsObj.EnumerateObject())
+                        {
+                            if (prop.Value.ValueKind == JsonValueKind.Array && prop.Value.GetArrayLength() > 0)
+                            {
+                                var target = prop.Value[0].GetString();
+                                if (!string.IsNullOrEmpty(target))
+                                {
+                                    tsConfigPaths[prop.Name] = target.Replace('\\', '/');
+                                }
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    // Best effort
+                }
+            }
+        }
+
+        return new ImportLookups(fileImports, starImportsByFile, workspacePackages, tsConfigPaths);
     }
 
     private static void ResolveDependsOnReference(

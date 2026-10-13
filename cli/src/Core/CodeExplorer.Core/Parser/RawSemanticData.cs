@@ -6,10 +6,18 @@ public enum ImportType
     Internal
 }
 
+public record ImportSpecifier(
+    string LocalName,
+    string? ImportedName = null,
+    bool IsDefault = false,
+    bool IsNamespace = false
+);
+
 public record RawImport(
     string Path,
     string FilePath,
-    ImportType Type = ImportType.External
+    ImportType Type = ImportType.External,
+    IReadOnlyList<ImportSpecifier>? Specifiers = null
 );
 
 public record RawVariable(
