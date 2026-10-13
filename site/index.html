@@ -1650,7 +1650,7 @@
        ========================================================================== */
     .lang-matrix {
       display: grid;
-      grid-template-columns: repeat(7, 1fr);
+      grid-template-columns: repeat(8, 1fr);
       gap: 12px;
       margin-top: 24px;
     }
@@ -1838,7 +1838,7 @@
       </a>
 
       <ul class="nav-links">
-        <li><a href="#cockpit" class="nav-link">VS Code Cockpit</a></li>
+        <li><a href="#cockpit" class="nav-link">VS Code Extension</a></li>
         <li><a href="#features" class="nav-link">Features</a></li>
         <li><a href="#playground" class="nav-link">Cypher Engine</a></li>
         <li><a href="#gates" class="nav-link">Invariant Gates</a></li>
@@ -1871,14 +1871,14 @@
       </h1>
 
       <p class="hero-subtitle">
-        Deterministic architectural ground truth for AI coding agents and CI pipelines.<br class="desktop-br">
-        Fast CLI &amp; MCP server, automated Semantic Invariant Gates, and interactive visual topology.
+        Static analysis and codebase graph engine for AI coding agents and CI pipelines.<br class="desktop-br">
+        OpenCypher over SQLite, Semantic Invariant Gates, MCP server, and interactive VS Code topology.
       </p>
 
       <div style="margin-bottom: 24px;">
         <a href="https://github.com/vmikhailov/code-explorer/releases" target="_blank" rel="noopener" class="hero-badge-wrap" style="margin-bottom: 0;">
           <span class="hero-badge-dot"></span>
-          <span id="heroReleaseBadge">v1.37.1 Released</span>
+          <span id="heroReleaseBadge">v1.38.4 Released</span>
           <span style="color: var(--text-muted); opacity: 0.5;">•</span>
           <span>View on GitHub &rarr;</span>
         </a>
@@ -1903,17 +1903,17 @@
       </div>
 
       <div class="hero-badges-row">
-        <span class="hero-badge-item">✓ Portable & Zero-Config</span>
+        <span class="hero-badge-item">✓ Single-File SQLite Graph</span>
         <span class="hero-badge-item">•</span>
-        <span class="hero-badge-item">✓ OpenCypher CLI</span>
+        <span class="hero-badge-item">✓ OpenCypher 9 Compiler</span>
         <span class="hero-badge-item">•</span>
-        <span class="hero-badge-item">✓ Semantic Invariant Gates (SIG)</span>
+        <span class="hero-badge-item">✓ Semantic Invariant Gates</span>
         <span class="hero-badge-item">•</span>
-        <span class="hero-badge-item">✓ Fast CLI &amp; MCP for AI</span>
+        <span class="hero-badge-item">✓ Native CLI &amp; MCP Server</span>
       </div>
 
       <!-- ==========================================================================
-           Interactive Cockpit Showcase / Screen Switcher
+           Interactive Showcase / Screen Switcher
            ========================================================================== -->
       <div id="cockpit" class="showcase-wrapper">
         <div class="showcase-header">
@@ -1921,7 +1921,7 @@
             <span class="win-dot red"></span>
             <span class="win-dot yellow"></span>
             <span class="win-dot green"></span>
-            <span style="font-size: 12px; color: var(--text-tertiary); margin-left: 6px;">CodeExplorer Cockpit — VS Code</span>
+            <span style="font-size: 12px; color: var(--text-tertiary); margin-left: 6px;">CodeExplorer — VS Code Extension</span>
           </div>
 
           <div class="showcase-tabs">
@@ -1932,7 +1932,7 @@
               <span>Transitive Contraction</span>
             </button>
             <button class="showcase-tab" onclick="switchShowcase('projectflow', this)">
-              <span>Project Flow & C1 Context</span>
+              <span>Project Flow &amp; C1 Context</span>
             </button>
           </div>
 
@@ -1954,7 +1954,7 @@
             <div id="showcasePills" class="showcase-pill-list">
               <span class="showcase-feature-pill">Live Transitive Routing</span>
               <span class="showcase-feature-pill">Orbit Drag-and-Drop</span>
-              <span class="showcase-feature-pill">Curvature: +65</span>
+              <span class="showcase-feature-pill">Invariant Gates UI</span>
             </div>
           </div>
         </div>
@@ -1976,11 +1976,11 @@
       <div class="section-header">
         <div class="section-eyebrow">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m10 15 5-3-5-3v6z"/></svg>
-          Architecture Intelligence
+          Core Architecture
         </div>
-        <h2 class="section-title">Engineered for Massive Polyglot Repositories</h2>
+        <h2 class="section-title">Built for Polyglot Repositories</h2>
         <p class="section-desc">
-          CodeExplorer provides structural codebase comprehension without external infrastructure dependencies or cloud telemetry leakage.
+          CodeExplorer indexes source files into a local SQLite property graph with zero external database dependencies.
         </p>
       </div>
 
@@ -1996,9 +1996,9 @@
           </div>
           <h3 class="card-title">Embedded SQLite Graph Engine</h3>
           <p class="card-text">
-            No Neo4j, no Docker containers, and no memory-hogging background daemons. Compiles open Cypher AST queries directly to optimized SQL B-Tree index scans with sub-50ms execution.
+            No Neo4j or Docker containers required. Translates OpenCypher 9 AST queries into parameterized SQLite joins and recursive CTEs with indexed B-Tree lookups.
           </p>
-          <div class="card-tag"><span>engine:</span> <code>SqliteGraphDatabase.cs</code></div>
+          <div class="card-tag"><span>engine:</span> <code>SqliteCompiler.cs</code></div>
         </div>
 
         <!-- Card 2 -->
@@ -2010,9 +2010,9 @@
               <circle cx="12" cy="12" r="2"></circle>
             </svg>
           </div>
-          <h3 class="card-title">Concentric Orbits & Swimlanes</h3>
+          <h3 class="card-title">VS Code Architecture &amp; Gates UI</h3>
           <p class="card-text">
-            Project complex microservices across 5 concentric architectural tiers. Drag-and-drop orbit rings, tune bezier curve routing factors (-200 to +200), and inspect DDD bounded contexts.
+            Inspect services across 5 concentric tiers, view C1/C2 project flows, and evaluate or ratchet Semantic Invariant Gates directly from the VS Code sidebar and dock panel.
           </p>
           <div class="card-tag"><span>views:</span> <code>Cytoscape.js + Webview</code></div>
         </div>
@@ -2028,9 +2028,9 @@
           </div>
           <h3 class="card-title">Transitive Broker Contraction</h3>
           <p class="card-text">
-            Filter out intermediate message topics (Kafka, RabbitMQ, SQS) and CodeExplorer automatically synthesizes clean dashed <code>[SUBSCRIBES (via Topic)]</code> links, preserving flow without clutter.
+            Hide intermediate message topics (Kafka, RabbitMQ, SQS) and synthesize direct dashed <code>[SUBSCRIBES (via Topic)]</code> edges between producer and consumer services.
           </p>
-          <div class="card-tag"><span>feature:</span> <code>Smart Message Synthesis</code></div>
+          <div class="card-tag"><span>feature:</span> <code>Transitive Edge Synthesis</code></div>
         </div>
 
         <!-- Card 4 -->
@@ -2042,9 +2042,9 @@
               <line x1="12" y1="17" x2="12" y2="21"></line>
             </svg>
           </div>
-          <h3 class="card-title">Fast CLI &amp; MCP Server for AI</h3>
+          <h3 class="card-title">CLI &amp; MCP Server for AI Agents</h3>
           <p class="card-text">
-            Give Claude Code, Cursor, Codex, and terminal agents surgical codebase intelligence. Query call chains, blast-radius impacts, and architectural topology via fast CLI commands or stdio/SSE protocol without token-wasteful grep loops.
+            Provide Claude Code, Cursor, Codex, and terminal agents with deterministic call chains, impact analysis, and data lineage via direct CLI commands or MCP over stdio and HTTP SSE.
           </p>
           <div class="card-tag"><span>interfaces:</span> <code>CLI + stdio + SSE HTTP (/mcp)</code></div>
         </div>
@@ -2062,7 +2062,7 @@
           </div>
           <h3 class="card-title">Polyglot Tree-sitter AST</h3>
           <p class="card-text">
-            Pure in-memory visitor architecture for C#, Java, TypeScript, Go, Python, ColdFusion, and inline SQL. Extracts classes, methods, endpoints, callers, entities, and late-bound CQRS pipelines.
+            In-memory AST extraction for C#, Java, Kotlin (Android/KMP), TypeScript, JavaScript, Go, Python, ColdFusion, and T-SQL. Resolves classes, functions, HTTP routes, ORM entities, and CQRS handlers.
           </p>
           <div class="card-tag"><span>ast:</span> <code>Tree-sitter + T-SQL ScriptDom</code></div>
         </div>
@@ -2081,11 +2081,11 @@
               <path d="M16.24 7.76l2.83-2.83"></path>
             </svg>
           </div>
-          <h3 class="card-title">Local Intent Inference (GGUF)</h3>
+          <h3 class="card-title">Optional Local GGUF Inference</h3>
           <p class="card-text">
-            Enriches graph nodes with inferred business domains and architectural patterns via embedded <code>llama.cpp</code> with Vulkan GPU acceleration. Fast-applies cached intents in &lt;50ms using SHA-256 fingerprints.
+            Optionally enriches graph nodes with business domain tags and intent summaries using embedded <code>llama.cpp</code> (Vulkan GPU / CPU). Caches results by file SHA-256 hash.
           </p>
-          <div class="card-tag"><span>inference:</span> <code>Zero-Leak Local SLM</code></div>
+          <div class="card-tag"><span>inference:</span> <code>Local llama.cpp (Optional)</code></div>
         </div>
       </div>
     </div>
@@ -2220,12 +2220,11 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
           </svg>
-          Architecture Governance & CI/CD
+          Architecture Governance &amp; CI/CD
         </div>
-        <h2 class="section-title">Semantic Invariant Gates (SIG)</h2>
+        <h2 class="section-title">Semantic Invariant Gates</h2>
         <p class="section-desc">
-          Architecture is not static documentation in a wiki — it is an executable, continuously verified property graph contract.
-          CodeExplorer turns openCypher queries into automated CI/CD guardrails that enforce Clean Architecture boundaries, eliminate cyclic package couplings, block breaking API drifts, and freeze legacy debt with cryptographic monotonic ratchets directly in developer workflows and AI agent loops.
+          Define architectural rules as declarative OpenCypher queries in YAML. Enforce layer boundaries, block circular dependencies, and baseline existing technical debt in CI pipelines and VS Code.
         </p>
       </div>
 
@@ -2234,11 +2233,11 @@
         <div class="sig-pillar-card">
           <div class="sig-pillar-badge">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>
-            Foundation 01 • Matrix Space
+            Scope &amp; Dimension Taxonomy
           </div>
-          <h3 class="sig-pillar-title">Fractal Orthogonal Invariant Matrix (FOIM)</h3>
+          <h3 class="sig-pillar-title">5 Scopes &times; 4 Dimensions</h3>
           <p class="sig-pillar-desc">
-            Rules are mapped into a deterministic coordinate space: 5 hierarchical Scopes (System, Service, Module, Class, Method) &times; 4 architectural Dimensions (Boundaries, Contract, Rules, Resources). Provides unbroken governance from multi-repo distributed network topologies down to AST call literals.
+            Gates are organized across 5 hierarchical Scopes (System, Service, Module, Class, Method) and 4 architectural Dimensions (Boundaries, Contract, Rules, Resources), covering multi-service topologies down to AST call arguments.
           </p>
           <div class="sig-pillar-formula">
             <code>Identifier: SIG-&lt;Scope&gt;-&lt;Dimension&gt;-&lt;Index3Digits&gt;</code>
@@ -2248,11 +2247,11 @@
         <div class="sig-pillar-card">
           <div class="sig-pillar-badge">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
-            Foundation 02 • Evaluation Contract
+            Evaluation Contract
           </div>
-          <h3 class="sig-pillar-title">Strict Zero-Match Contract</h3>
+          <h3 class="sig-pillar-title">Zero-Match Query Evaluation</h3>
           <p class="sig-pillar-desc">
-            No fragile regex heuristics or AST visitor boilerplates. Gates operate on mathematical zero-match: 0 rows returned = PASS; &ge; 1 rows = VIOLATION. Every violation yields standard 2D IDE coordinates (<code>file:line:column</code>) with offending symbols, violation targets, and actionable remediation instructions.
+            Each gate runs an OpenCypher query against the indexed graph: 0 rows returned = PASS; 1 or more rows = VIOLATION. Every match projects source coordinates (<code>file:line:column</code>), offending symbol, target, and remediation guidance.
           </p>
           <div class="sig-pillar-formula">
             <code>RETURN file, line, column, symbol, target, message</code>
@@ -2262,27 +2261,27 @@
         <div class="sig-pillar-card">
           <div class="sig-pillar-badge">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-            Foundation 03 • Debt Cryptography
+            Baseline Fingerprinting
           </div>
-          <h3 class="sig-pillar-title">Line-Shift Immune Fingerprinting</h3>
+          <h3 class="sig-pillar-title">Line-Shift Resilient Ratchets</h3>
           <p class="sig-pillar-desc">
-            Adding comments, formatting code, or adding imports above a violation shifts line numbers. CodeExplorer hashes semantic identity rather than volatile line numbers. Baseline snapshots never break due to code refactorings, eliminating false alarms in pull requests.
+            Violations are fingerprinted by semantic identity and per-file occurrence index rather than volatile line numbers. Formatting code or adding imports above a baselined violation never triggers false positives in pull requests.
           </p>
           <div class="sig-pillar-formula">
-            <code>SHA256(GateId + FilePath + Symbol + Target)</code>
+            <code>SHA256(GateId + FilePath + Symbol + Target + Occurrence)</code>
           </div>
         </div>
       </div>
 
-      <!-- FOIM Matrix Detailed Table -->
+      <!-- Classification Table -->
       <div class="foim-table-card">
         <div class="foim-table-header-wrap">
           <div>
             <h3 style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; letter-spacing: -0.3px;">
-              FOIM Architectural Classification Matrix
+              Gate Classification Matrix
             </h3>
             <p style="font-size: 13px; color: var(--text-tertiary); max-width: 720px; line-height: 1.5;">
-              Every architectural rule in CodeExplorer is explicitly classified across scope hierarchy and architectural focus, avoiding vague linter rules in favor of rigorous structural constraints.
+              Architectural rules are categorized by scope hierarchy and structural dimension.
             </p>
           </div>
           <div style="display: flex; gap: 8px;">
@@ -2295,10 +2294,10 @@
         <table class="foim-table">
           <thead>
             <tr>
-              <th style="width: 130px;">Scope & Level</th>
-              <th style="width: 210px;">Granularity & Graph Entities</th>
+              <th style="width: 130px;">Scope &amp; Level</th>
+              <th style="width: 210px;">Granularity &amp; Graph Entities</th>
               <th style="width: 170px;">Dimension Focus</th>
-              <th>Real-World Invariant Example & Rule Purpose</th>
+              <th>Example Invariant &amp; Purpose</th>
             </tr>
           </thead>
           <tbody>
@@ -2306,31 +2305,31 @@
               <td><span class="foim-code-badge">System (A)</span></td>
               <td><code>:Service</code>, <code>:Topic</code>, <code>:Database</code>, cross-service RPC</td>
               <td><strong>Boundaries &amp; Topology</strong></td>
-              <td>Prevent circular distributed event publish/subscribe chains; enforce API gateway single-entry ingress without bypass.</td>
+              <td>Prevent circular distributed event publish/subscribe chains; enforce API gateway single-entry ingress.</td>
             </tr>
             <tr>
               <td><span class="foim-code-badge">Service (S)</span></td>
               <td><code>:Service</code>, <code>:Worker</code>, <code>:App</code>, <code>:CliTool</code> executables</td>
               <td><strong>Resources &amp; Boundaries</strong></td>
-              <td>Forbid frontend apps or background workers from executing synchronous queries directly against foreign microservice databases.</td>
+              <td>Forbid frontend apps or background workers from executing queries directly against foreign service databases.</td>
             </tr>
             <tr>
               <td><span class="foim-code-badge">Module (P)</span></td>
               <td><code>:Project</code>, <code>:Library</code>, compilation units, NuGet / npm packages</td>
-              <td><strong>Clean Architecture Boundaries</strong></td>
+              <td><strong>Layer Boundaries</strong></td>
               <td>Enforce unidirectional layer hierarchy: Domain and Application core libraries must not reference Infrastructure or UI packages.</td>
             </tr>
             <tr>
               <td><span class="foim-code-badge">Class (C)</span></td>
               <td><code>:Type</code>, classes, interfaces, structs, visitor hierarchies</td>
               <td><strong>Rules &amp; Implementation</strong></td>
-              <td>In-memory AST visitors and compiler passes must remain pure: disallow direct invocation of filesystem (<code>File</code>, <code>Directory</code>) or network I/O.</td>
+              <td>Keep AST visitors and compiler passes pure: disallow direct invocation of filesystem (<code>File</code>, <code>Directory</code>) or network I/O.</td>
             </tr>
             <tr>
               <td><span class="foim-code-badge">Method (M)</span></td>
               <td><code>:Function</code>, <code>:Endpoint</code>, constructors, <code>:CallLiteral</code></td>
-              <td><strong>Contract &amp; Rules Hygiene</strong></td>
-              <td>Detect raw hardcoded string literals passed to critical business domain methods; verify public API endpoints return typed DTOs instead of raw DB entities.</td>
+              <td><strong>Contract &amp; Rules</strong></td>
+              <td>Detect hardcoded string literals passed to domain methods; verify public API endpoints return typed DTOs instead of ORM entities.</td>
             </tr>
           </tbody>
         </table>
@@ -2344,9 +2343,9 @@
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>
             Dimension: Boundaries
           </div>
-          <h3 class="gate-dim-title">Clean Architecture & Purity</h3>
+          <h3 class="gate-dim-title">Layer Isolation</h3>
           <p class="gate-dim-desc">
-            Enforce strict hexagonal and DDD bounded context isolation. Prohibit Domain and Core layers from referencing Web, UI, or direct persistence drivers.
+            Enforce Clean Architecture and bounded context isolation. Prohibit Domain and Core layers from referencing Web, UI, or persistence drivers.
           </p>
           <div class="gate-dim-footer">
             <code>:Library -[:DEPENDS_ON]-> :Package</code>
@@ -2359,9 +2358,9 @@
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V8"/></svg>
             Dimension: Topology
           </div>
-          <h3 class="gate-dim-title">Cyclic Shield & DAG Ranking</h3>
+          <h3 class="gate-dim-title">Acyclic Project Graph</h3>
           <p class="gate-dim-desc">
-            Detect direct and transitive circular references across modules (<code>A ➔ B ➔ A</code>). Preserve strict acyclic DAG project compilation structures before merge.
+            Detect direct and transitive circular references across modules (<code>A ➔ B ➔ A</code>) to preserve an acyclic project dependency graph.
           </p>
           <div class="gate-dim-footer">
             <code>(a:Project)-[:DEPENDS_ON*2..6]->(a)</code>
@@ -2374,9 +2373,9 @@
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
             Dimension: Contracts
           </div>
-          <h3 class="gate-dim-title">API & Schema Integrity</h3>
+          <h3 class="gate-dim-title">API &amp; Schema Integrity</h3>
           <p class="gate-dim-desc">
-            Detect breaking API signature alterations, unversioned route drift, and direct leaking of internal ORM entity models through public REST/gRPC response endpoints.
+            Detect unversioned route changes and direct exposure of internal ORM entity types on public REST or gRPC endpoints.
           </p>
           <div class="gate-dim-footer">
             <code>:Endpoint -[:RETURNS]-> :Entity</code>
@@ -2387,11 +2386,11 @@
         <div class="gate-dim-card">
           <div class="gate-dim-badge">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-            Dimension: Resilience
+            Dimension: Resources
           </div>
-          <h3 class="gate-dim-title">Direct Egress & Coupling</h3>
+          <h3 class="gate-dim-title">Data Access Guardrails</h3>
           <p class="gate-dim-desc">
-            Catch controller handlers issuing raw SQL queries directly against physical database tables, bypassing application service layers and transaction managers.
+            Catch controller handlers issuing raw SQL queries directly against database tables instead of delegating to repositories or handlers.
           </p>
           <div class="gate-dim-footer">
             <code>:Endpoint -[:CALLS*]-> :Query</code>
@@ -2407,7 +2406,7 @@
             <button class="gate-preset-btn" onclick="loadGatePreset('topology', this)">Cyclic Coupling (SIG-P-T-001)</button>
             <button class="gate-preset-btn" onclick="loadGatePreset('visitor', this)">Visitor IO Purity (SIG-C-I-001)</button>
             <button class="gate-preset-btn" onclick="loadGatePreset('literal', this)">No Call Literals (SIG-M-I-001)</button>
-            <button class="gate-preset-btn" onclick="loadGatePreset('ratchet', this)">Monotonic Ratchet (SIG-P-B-002)</button>
+            <button class="gate-preset-btn" onclick="loadGatePreset('ratchet', this)">Baseline Ratchet (SIG-P-B-002)</button>
           </div>
 
           <div class="query-controls">
@@ -2431,7 +2430,7 @@
           <!-- Gate Execution / CI Output -->
           <div class="gate-result-pane">
             <div class="query-pane-header">
-              <span>CLI & CI Gate Evaluation</span>
+              <span>CLI &amp; VS Code Gate Evaluation</span>
               <span id="gateExecStatus" style="color: var(--status-amber);">● Evaluated in 11.2ms (Exit Code 1)</span>
             </div>
 
@@ -2461,48 +2460,48 @@
         </div>
       </div>
 
-      <!-- Monotonic Ratchet Architecture Box -->
+      <!-- Baseline Ratchet Box -->
       <div class="ratchet-box">
         <div>
           <div class="section-eyebrow" style="margin-bottom: 12px;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-            Zero Tolerance for New Debt
+            Incremental Adoption
           </div>
           <h3 style="font-size: 24px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px; letter-spacing: -0.5px;">
-            Monotonic Ratchet Engine
+            Baseline Ratcheting in CLI &amp; VS Code
           </h3>
           <p style="font-size: 14px; color: var(--text-tertiary); line-height: 1.6; margin-bottom: 20px;">
-            Architectural rules shouldn't require resolving 500 legacy violations before being introduced to CI.
-            CodeExplorer freezes existing violations into stable SHA-256 baseline snapshots — tolerating legacy debt while strictly failing builds on any newly introduced violation.
+            Adopt architectural rules in existing codebases without fixing hundreds of legacy violations upfront.
+            Record current violations into SHA-256 baseline snapshots so CI passes existing debt while blocking any newly introduced violation.
           </p>
 
           <div class="ratchet-steps">
             <div class="ratchet-step-item">
               <div class="ratchet-step-num">1</div>
               <div>
-                <div class="ratchet-step-title">Declare Invariant Contract</div>
-                <div class="ratchet-step-desc">Write an openCypher rule in <code>.codeexplorer/gates/*.yaml</code> matching forbidden patterns with remediation instructions.</div>
+                <div class="ratchet-step-title">Declare Gate Rule</div>
+                <div class="ratchet-step-desc">Write an OpenCypher query in <code>.codeexplorer/gates/*.yaml</code> matching forbidden patterns with remediation guidance.</div>
               </div>
             </div>
             <div class="ratchet-step-item">
               <div class="ratchet-step-num">2</div>
               <div>
-                <div class="ratchet-step-title">Freeze Baseline Snapshot</div>
-                <div class="ratchet-step-desc"><code>ce gate ratchet --update</code> captures structural hashes of existing debt into baseline JSON.</div>
+                <div class="ratchet-step-title">Record Baseline Snapshot</div>
+                <div class="ratchet-step-desc">Run <code>ce gate ratchet --update</code> or click <strong>Ratchet Baseline</strong> in the VS Code Gates panel to freeze existing violations.</div>
               </div>
             </div>
             <div class="ratchet-step-item">
               <div class="ratchet-step-num">3</div>
               <div>
-                <div class="ratchet-step-title">Enforce in CI/CD & AI Agent Loops</div>
-                <div class="ratchet-step-desc"><code>ce gate check</code> passes legacy debt (<code>[TOLERATED]</code>) but immediately rejects new debt (<code>[FAIL]</code>).</div>
+                <div class="ratchet-step-title">Enforce in CI &amp; Agent Loops</div>
+                <div class="ratchet-step-desc"><code>ce gate check</code> tolerates baselined items (<code>[TOLERATED]</code>) and exits non-zero on new violations (<code>[FAIL]</code>).</div>
               </div>
             </div>
             <div class="ratchet-step-item">
               <div class="ratchet-step-num">4</div>
               <div>
-                <div class="ratchet-step-title">Monotonic Ratchet Descent</div>
-                <div class="ratchet-step-desc">As technical debt is refactored away, baseline snapshots automatically lower the ceiling. Debt cannot increase.</div>
+                <div class="ratchet-step-title">Tighten Baseline Over Time</div>
+                <div class="ratchet-step-desc">As legacy violations are removed, updating the ratchet removes stale hashes so resolved debt cannot return.</div>
               </div>
             </div>
           </div>
@@ -2524,11 +2523,11 @@
       <span class="yaml-bullet">-</span> <span class="yaml-key">uses</span><span class="yaml-colon">:</span> <span class="yaml-str">actions/checkout@v4</span>
       <span class="yaml-bullet">-</span> <span class="yaml-key">name</span><span class="yaml-colon">:</span> <span class="yaml-val">Install CodeExplorer CLI</span>
         <span class="yaml-key">run</span><span class="yaml-colon">:</span> <span class="yaml-str">curl -fsSL https://raw.githubusercontent.com/vmikhailov/code-explorer/main/cli/scripts/install.sh | bash</span>
-      <span class="yaml-bullet">-</span> <span class="yaml-key">name</span><span class="yaml-colon">:</span> <span class="yaml-val">Scan AST & Compile SQLite Graph</span>
+      <span class="yaml-bullet">-</span> <span class="yaml-key">name</span><span class="yaml-colon">:</span> <span class="yaml-val">Scan AST &amp; Compile SQLite Graph</span>
         <span class="yaml-key">run</span><span class="yaml-colon">:</span> <span class="yaml-str">ce scan</span>
       <span class="yaml-bullet">-</span> <span class="yaml-key">name</span><span class="yaml-colon">:</span> <span class="yaml-val">Evaluate Semantic Invariant Gates</span>
-        <span class="yaml-key">run</span><span class="yaml-colon">:</span> <span class="yaml-str">ce gate check --fail-on-new</span>
-      <span class="yaml-comment"># Exits with non-zero exit code if PR introduces any new architecture violations</span></pre>
+        <span class="yaml-key">run</span><span class="yaml-colon">:</span> <span class="yaml-str">ce gate check</span>
+      <span class="yaml-comment"># Exits with code 1 if PR introduces any unbaselined violations</span></pre>
         </div>
       </div>
 
@@ -2538,52 +2537,52 @@
         <div class="sig-card">
           <div class="sig-pillar-badge">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-            Taxonomy & Categorization
+            Rule Organization
           </div>
           <h3 class="sig-card-title">Architectural vs. Platform Gates</h3>
           <p class="sig-card-desc">
-            CodeExplorer clearly partitions invariants by their portability and ecosystem domain. Universal structural laws sit alongside runtime-specific driver guardrails without mixing concerns.
+            Separate language-agnostic structural rules from ecosystem-specific package constraints.
           </p>
 
           <div class="sig-cli-list">
             <div class="sig-cli-item">
               <code>.codeexplorer/gates/architectural/*.yaml</code>
-              <span><strong>Category: Architectural (platform: agnostic)</strong> — Pure structural patterns: Hexagonal layer separation, DAG acyclicity, CQRS pipeline integrity, and AST visitor purity.</span>
+              <span><strong>Category: Architectural (platform: agnostic)</strong> — Structural patterns: layer separation, acyclic project graphs, CQRS handler rules, and AST visitor purity.</span>
             </div>
             <div class="sig-cli-item">
               <code>.codeexplorer/gates/platform/&lt;platform&gt;/*.yaml</code>
-              <span><strong>Category: Platform (platform: dotnet | node | go | python)</strong> — Framework-specific rules: banning raw <code>Microsoft.Data.Sqlite</code> or <code>better-sqlite3</code> in core packages.</span>
+              <span><strong>Category: Platform (platform: dotnet | node | go | python)</strong> — Ecosystem-specific rules: restricting <code>Microsoft.Data.Sqlite</code> or <code>better-sqlite3</code> in domain packages.</span>
             </div>
             <div class="sig-cli-item">
               <code>ce gate check --category architectural --platform dotnet</code>
-              <span>Granular CI execution flags allowing specialized matrix verification in polyglot repositories.</span>
+              <span>Filter gate evaluation by category, platform, scope, or severity in polyglot builds.</span>
             </div>
           </div>
         </div>
 
-        <!-- Card 2: AI Agent Guardrails & Zero-Container Toolchain -->
+        <!-- Card 2: AI Agent Guardrails & VS Code Integration -->
         <div class="sig-card">
           <div class="sig-pillar-badge">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="12 8 8 12 12 16 12 8"/></svg>
-            Automated Guardrails & Toolchain
+            CLI &amp; Editor Workflow
           </div>
-          <h3 class="sig-card-title">Zero-Container CI & AI Agent Loop</h3>
+          <h3 class="sig-card-title">CI Pipelines, AI Agents &amp; VS Code UI</h3>
           <p class="sig-card-desc">
-            Autonomous AI coding assistants (Claude Code, Cursor, Copilot, Hermes) write code rapidly but frequently create subtle architectural erosion. SIG acts as an instant structural validation loop.
+            Verify structural constraints from the terminal, automated agent loops, or the interactive Gates panel in VS Code.
           </p>
 
           <div class="sig-cli-list">
             <div class="sig-cli-item">
-              <code>ce gate check --json</code>
-              <span>Emits machine-readable violation diagnostics with exact <code>file:line:col</code> and actionable <code>remediation</code> text for autonomous agent self-correction.</span>
+              <code>ce gate check --format json</code>
+              <span>Outputs structured JSON diagnostics with <code>file:line:col</code> and <code>remediation</code> instructions for coding agents.</span>
             </div>
             <div class="sig-cli-item">
               <code>ce gate ratchet --update -g &lt;gate-id&gt;</code>
-              <span>Updates baseline snapshots for specific gates, lowering debt ceilings monotonically as refactoring merges.</span>
+              <span>Updates baseline snapshots for specific gates via CLI or the VS Code Gates view.</span>
             </div>
             <div class="sig-cli-item">
               <code>ce gate violations --group-by file</code>
-              <span>Lists all active violations grouped by source file path or category for rapid triage.</span>
+              <span>Lists active violations grouped by source file, gate, or category.</span>
             </div>
           </div>
         </div>
@@ -2655,7 +2654,7 @@
           </ul>
 
           <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-            <a href="https://github.com/vmikhailov/code-explorer#cli-command-reference" target="_blank" rel="noopener" class="btn btn-primary btn-sm">
+            <a href="https://github.com/vmikhailov/code-explorer#cli-reference" target="_blank" rel="noopener" class="btn btn-primary btn-sm">
               <span>CLI Command Reference</span>
             </a>
             <button class="btn btn-ghost btn-sm" onclick="copySnippet('ce init &amp;&amp; ce scan', 'Init command copied!')">
@@ -2672,7 +2671,7 @@
             <span>Terminal AI Agent Session (Claude Code / Codex / Hermes)</span>
             <button class="btn btn-ghost btn-sm" style="padding: 2px 8px; font-size: 11px;" onclick="copySnippet('ce init && ce scan\nce query -n get_architecture_map_workspace -j\nce gate check', 'Commands copied!')">Copy</button>
           </div>
-          <pre class="term-body" style="font-size: 11px; line-height: 1.5; color: #cbd5e1;"><span style="color: #64748b;"># 1. Initialize & index repository</span>
+          <pre class="term-body" style="font-size: 11px; line-height: 1.5; color: #cbd5e1;"><span style="color: #64748b;"># 1. Initialize &amp; index repository</span>
 <span style="color: #38bdf8;">$ ce init &amp;&amp; ce scan</span>
 <span style="color: #94a3b8;">Indexed 48 projects, 1,240 files, 18 databases in 1.4s.</span>
 
@@ -2705,7 +2704,7 @@
           </div>
           <h3>Model Context Protocol (MCP) Server</h3>
           <p>
-            For desktop IDEs and AI assistants (Cursor, Claude Desktop, Roo Code, Cline), <code>ce mcp</code> exposes 23 architectural tools over standard stdio JSON-RPC or high-speed SSE streaming.
+            For desktop IDEs and AI assistants (Cursor, Claude Desktop, Roo Code, Cline), <code>ce mcp</code> exposes 23 architectural tools over standard stdio JSON-RPC or HTTP SSE streaming.
           </p>
 
           <ul class="mcp-feature-list">
@@ -2723,12 +2722,12 @@
             </li>
             <li class="mcp-feature-item">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
-              <span><code>check_semantic_gates</code> — Evaluate architectural invariant gates and ratchet baselines via tool calls.</span>
+              <span><code>execute_cypher_query</code> — Run parameterized OpenCypher queries and saved domain queries.</span>
             </li>
           </ul>
 
           <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-            <a href="https://github.com/vmikhailov/code-explorer#mcp-tools-reference" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">
+            <a href="https://github.com/vmikhailov/code-explorer#mcp-tools" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">
               <span>Read MCP Specification</span>
             </a>
             <button class="btn btn-ghost btn-sm" onclick="copySnippet('ce mcp --port 8085', 'MCP command copied!')">
@@ -2768,9 +2767,9 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
           Semantic Structure
         </div>
-        <h2 class="section-title">5-Layer Decoupled Graph Ontology</h2>
+        <h2 class="section-title">5-Layer Graph Ontology</h2>
         <p class="section-desc">
-          Every entity in your codebase is represented across five decoupled layers, connecting physical files to business domain concepts.
+          34 node labels and 37 relationship types organized across five layers, linking physical source files to cross-service topology.
         </p>
       </div>
 
@@ -2778,35 +2777,35 @@
         <div class="layer-row">
           <div class="layer-number">LAYER 5</div>
           <div class="layer-name">Late-Bound Layer</div>
-          <div class="layer-desc">Cross-project HTTP routes, message broker events, CQRS pipelines (MediatR/Spring), and interface implementations resolved via post-index graph passes.</div>
-          <div class="layer-nodes">:Channel, :Pipeline, :EventFlow</div>
+          <div class="layer-desc">Cross-project HTTP routes, message broker topics/queues, CQRS pipelines (MediatR/Spring), and interface implementations resolved via post-index graph passes.</div>
+          <div class="layer-nodes">:Service, :Topic, :Queue</div>
         </div>
 
         <div class="layer-row">
           <div class="layer-number">LAYER 4</div>
           <div class="layer-name">Semantic Layer</div>
-          <div class="layer-desc">Inbound REST/gRPC/GraphQL endpoints, security roles, ORM entities mapped to physical database tables, and external egress HTTP clients.</div>
-          <div class="layer-nodes">:EntryPoint, :Table, :Policy</div>
+          <div class="layer-desc">Inbound REST/gRPC/GraphQL endpoints, ORM entities mapped to database tables, raw SQL queries, and outbound HTTP clients.</div>
+          <div class="layer-nodes">:Endpoint, :Table, :Query</div>
         </div>
 
         <div class="layer-row">
           <div class="layer-number">LAYER 3</div>
           <div class="layer-name">Syntactic Layer</div>
-          <div class="layer-desc">Pure Tree-sitter AST declarations: classes, records, interfaces, methods, functions, structs, fields, and direct intra-file invocations.</div>
-          <div class="layer-nodes">:Class, :Method, :Function</div>
+          <div class="layer-desc">Tree-sitter AST declarations: classes, records, interfaces, methods, functions, fields, call literals, and intra-file call edges.</div>
+          <div class="layer-nodes">:Type, :Function, :CallLiteral</div>
         </div>
 
         <div class="layer-row">
           <div class="layer-number">LAYER 2</div>
           <div class="layer-name">Project Layer</div>
-          <div class="layer-desc">Logical compilation units, internal project references, third-party NuGet/NPM/Go dependencies, and package boundary isolation.</div>
-          <div class="layer-nodes">:Project, :Package, :Module</div>
+          <div class="layer-desc">Compilation units, project references, and third-party NuGet, Maven/Gradle, npm, Go, and Python package dependencies.</div>
+          <div class="layer-nodes">:Project, :Library, :Package</div>
         </div>
 
         <div class="layer-row">
           <div class="layer-number">LAYER 1</div>
           <div class="layer-name">Physical Layer</div>
-          <div class="layer-desc">Workspace root, file tree, physical paths, configuration files (.env, appsettings.json, pom.xml, go.mod), and Git repository metadata.</div>
+          <div class="layer-desc">Workspace root, directory hierarchy, source files with SHA-256 content hashes, and configuration files (.env, appsettings.json, AndroidManifest.xml).</div>
           <div class="layer-nodes">:Workspace, :Folder, :File</div>
         </div>
       </div>
@@ -2814,18 +2813,23 @@
       <!-- Languages Matrix -->
       <div style="margin-top: 48px;">
         <h4 style="font-size: 14px; font-weight: 500; color: var(--text-tertiary); margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.8px; font-family: var(--font-mono);">
-          Supported Languages & AST Parsers
+          Supported Languages &amp; AST Parsers
         </h4>
         <div class="lang-matrix">
           <div class="lang-item">
             <div class="lang-icon">⚡</div>
             <div class="lang-name">C# (.NET)</div>
-            <div class="lang-meta">.NET 10 / Roslyn</div>
+            <div class="lang-meta">.NET 10 / ASP.NET</div>
           </div>
           <div class="lang-item">
             <div class="lang-icon">☕</div>
             <div class="lang-name">Java</div>
-            <div class="lang-meta">Maven / Gradle</div>
+            <div class="lang-meta">Spring / Maven / Gradle</div>
+          </div>
+          <div class="lang-item">
+            <div class="lang-icon" style="font-size: 14px; font-weight: 700; font-family: var(--font-mono); color: #c084fc;">KT</div>
+            <div class="lang-name">Kotlin</div>
+            <div class="lang-meta">Android / Retrofit / Room</div>
           </div>
           <div class="lang-item">
             <div class="lang-icon">🔷</div>
@@ -2840,22 +2844,17 @@
           <div class="lang-item">
             <div class="lang-icon">🐹</div>
             <div class="lang-name">Go</div>
-            <div class="lang-meta">Go Modules / AST</div>
+            <div class="lang-meta">Go Modules / Gin / Chi</div>
           </div>
           <div class="lang-item">
             <div class="lang-icon">🐍</div>
             <div class="lang-name">Python</div>
-            <div class="lang-meta">FastAPI / Flask / AST</div>
+            <div class="lang-meta">FastAPI / Flask / SQLAlchemy</div>
           </div>
           <div class="lang-item">
             <div class="lang-icon">🗄️</div>
-            <div class="lang-name">SQL</div>
-            <div class="lang-meta">T-SQL ScriptDom</div>
-          </div>
-          <div class="lang-item">
-            <div class="lang-icon" style="font-size: 14px; font-weight: 700; font-family: var(--font-mono); color: #c084fc;">KT</div>
-            <div class="lang-name">Kotlin</div>
-            <div class="lang-meta">Android / KMP / AST</div>
+            <div class="lang-name">SQL &amp; CFML</div>
+            <div class="lang-meta">T-SQL / ColdFusion</div>
           </div>
         </div>
       </div>
@@ -2955,8 +2954,8 @@
             <div class="cli-cmd-desc">Start Model Context Protocol server in HTTP/SSE streaming or stdio mode.</div>
           </div>
           <div class="cli-cmd-card">
-            <div class="cli-cmd-name">ce schema</div>
-            <div class="cli-cmd-desc">Inspect active ontology node labels, relationships, and property dictionary.</div>
+            <div class="cli-cmd-name">ce status</div>
+            <div class="cli-cmd-desc">Display indexed node and edge statistics by label and relationship type.</div>
           </div>
           <div class="cli-cmd-card">
             <div class="cli-cmd-name">ce gate check</div>
@@ -2964,7 +2963,7 @@
           </div>
           <div class="cli-cmd-card">
             <div class="cli-cmd-name">ce gate ratchet --update</div>
-            <div class="cli-cmd-desc">Freeze current violations into baseline snapshots, enforcing monotonic debt reduction.</div>
+            <div class="cli-cmd-desc">Record current violations into baseline snapshots so CI blocks only new violations.</div>
           </div>
           <div class="cli-cmd-card">
             <div class="cli-cmd-name">ce gate violations -g &lt;id&gt;</div>
@@ -2993,18 +2992,18 @@
             <span>CodeExplorer</span>
           </div>
           <p>
-            Visual knowledge graph and codebase intelligence engine for software architects, developers, and autonomous AI agents.
+            Static analysis and codebase graph engine for software engineers, CI pipelines, and AI coding agents.
           </p>
         </div>
 
         <div>
           <div class="footer-col-title">Documentation</div>
           <ul class="footer-col-links">
-            <li><a href="ontology.md">Live Ontology (32 Nodes)</a></li>
-            <li><a href="architecture/ontology-model.md">5-Layer Architecture Model</a></li>
-            <li><a href="roadmap/semantic-invariant-gates-plan.md">Semantic Invariant Gates</a></li>
-            <li><a href="architecture/ingestion-pipeline.md">Ingestion Pipeline</a></li>
-            <li><a href="benchmarks/README.md">Benchmark Repositories</a></li>
+            <li><a href="https://github.com/vmikhailov/code-explorer/blob/main/docs/ontology.md" target="_blank" rel="noopener">Ontology Reference (34 Nodes)</a></li>
+            <li><a href="https://github.com/vmikhailov/code-explorer/blob/main/docs/architecture/ontology-model.md" target="_blank" rel="noopener">5-Layer Architecture Model</a></li>
+            <li><a href="https://github.com/vmikhailov/code-explorer/blob/main/docs/roadmap/semantic-invariant-gates-plan.md" target="_blank" rel="noopener">Semantic Invariant Gates</a></li>
+            <li><a href="https://github.com/vmikhailov/code-explorer/blob/main/docs/architecture/ingestion-pipeline.md" target="_blank" rel="noopener">Ingestion Pipeline</a></li>
+            <li><a href="https://github.com/vmikhailov/code-explorer/blob/main/docs/benchmarks/README.md" target="_blank" rel="noopener">Benchmark Repositories</a></li>
           </ul>
         </div>
 
@@ -3031,7 +3030,7 @@
 
       <div class="footer-bottom">
         <div>© 2026 Viacheslav Mikhailov. Open source under the MIT License.</div>
-        <div style="font-family: var(--font-mono);">ce <span id="footerCeVersion">v1.37.1</span> • .NET 10.0 • SQLite Graph</div>
+        <div style="font-family: var(--font-mono);">ce <span id="footerCeVersion">v1.38.4</span> • .NET 10.0 • SQLite Graph</div>
       </div>
     </div>
   </footer>
@@ -3135,11 +3134,11 @@ RETURN
       },
       api_to_db: {
         cypher: `// Trace HTTP Route to physical Database Table
-MATCH (route:EntryPoint {path: '/api/v1/checkout'})
-MATCH (route)-[:DISPATCHES_TO]->(ctrl:Class)-[:CALLS*1..3]->(repo:Class)
-MATCH (repo)-[:MAPS_TO]->(table:Table)
+MATCH (route:Endpoint {route: '/api/v1/checkout'})
+MATCH (route)<-[:EXPOSES]-(ctrl:Type)-[:CALLS*1..3]->(repo:Type)
+MATCH (repo)-[:READS_FROM|WRITES_TO]->(table:Table)
 RETURN
-    route.path AS Route,
+    route.route AS Route,
     ctrl.name AS Controller,
     repo.name AS Repository,
     table.name AS DatabaseTable`,
@@ -3405,7 +3404,7 @@ description: "Monotonic Ratchet Active: existing legacy architecture debt is tol
 remediation: "Do not add new violations. Legacy violations decrease monotonically as refactoring merges."
 
 query: |
-  MATCH (c:Class)-[:USES_TYPE]->(target:Class)
+  MATCH (c:Type)-[:USES_TYPE]->(target:Type)
   WHERE c.namespace STARTS WITH 'App.Core' 
     AND target.namespace STARTS WITH 'App.Legacy'
   RETURN 
