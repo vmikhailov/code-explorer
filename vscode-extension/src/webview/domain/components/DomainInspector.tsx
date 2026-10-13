@@ -239,8 +239,22 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
   }, [selectedNode, rawEdges, nodeDetailMap]);
 
   if (!selectedNode && !selectedEdge) {
+    if (props.docked) {
+      return (
+        <div className="domain-panel-empty-state">
+          <div className="domain-empty-card">
+            <span className="domain-empty-icon">ℹ️</span>
+            <h4 className="domain-empty-title">No Element Selected</h4>
+            <p className="domain-empty-desc">
+              Click any microservice, database, topic, or connection edge on the canvas to inspect its architecture, calls, and relationships.
+            </p>
+          </div>
+        </div>
+      );
+    }
     return null;
   }
+
 
   return (
     <>

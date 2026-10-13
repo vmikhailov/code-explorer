@@ -1986,5 +1986,50 @@
   color: #fca5a5;
 }
 
+/* Docked sidebar empty states */
+.domain-panel-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  padding: 32px 24px;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.domain-empty-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 280px;
+  padding: 24px 18px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+.domain-empty-icon {
+  font-size: 28px;
+  margin-bottom: 12px;
+  opacity: 0.85;
+}
+
+.domain-empty-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f1f5f9;
+  margin: 0 0 6px 0;
+}
+
+.domain-empty-desc {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #94a3b8;
+  margin: 0;
+}
+
+
 
 

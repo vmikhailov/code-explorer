@@ -35,6 +35,7 @@ import {
   EyeIcon,
   EyeOffIcon,
   XIcon,
+  InfoIcon,
 } from './Icons';
 import { DomainGroupSummary, PresentationMode } from '../domain/types';
 import { useCommand } from '../commands/CommandContext';
@@ -1226,33 +1227,63 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isDisplayOpen]);
 
-  // Floating / Docked Side Panels Collapse States
-  const [isHiddenPanelCollapsed, setIsHiddenPanelCollapsed] = useState(false);
-  const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(false);
-  const [isEdgeInspectorCollapsed, setIsEdgeInspectorCollapsed] = useState(false);
-  const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(true);
-  const [leftSidebarTab, setLeftSidebarTab] = useState<'hidden' | 'orbits'>('hidden');
-  const [isInspectorDocked, setIsInspectorDocked] = useState<boolean>(() => {
+  // Unified Right Side Panel State
+  const [rightSidebarTab, setRightSidebarTab] = useState<'info' | 'orbits' | 'hidden'>(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
-        const saved = localStorage.getItem('ce_inspector_docked');
+        const saved = localStorage.getItem('ce_domain_sidebar_tab');
+        if (saved === 'info' || saved === 'orbits' || saved === 'hidden') return saved;
+      } catch {}
+    }
+    return 'info';
+  });
+  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState<boolean>(() => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const saved = localStorage.getItem('ce_domain_sidebar_open');
         if (saved !== null) return saved === 'true';
       } catch {}
     }
     return true;
   });
 
-  const handleToggleInspectorDock = useCallback(() => {
-    setIsInspectorDocked((prev) => {
-      const next = !prev;
+  const handleSidebarTabChange = useCallback((tab: 'info' | 'orbits' | 'hidden') => {
+    setRightSidebarTab(tab);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        localStorage.setItem('ce_domain_sidebar_tab', tab);
+      } catch {}
+    }
+  }, []);
+
+  const handleToggleSidebar = useCallback((open?: boolean) => {
+    setIsRightSidebarOpen((prev) => {
+      const next = open !== undefined ? open : !prev;
       if (typeof window !== 'undefined' && window.localStorage) {
         try {
-          localStorage.setItem('ce_inspector_docked', String(next));
+          localStorage.setItem('ce_domain_sidebar_open', String(next));
         } catch {}
       }
       return next;
     });
   }, []);
+
+  const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(false);
+  const [isEdgeInspectorCollapsed, setIsEdgeInspectorCollapsed] = useState(false);
+
+  // Auto-switch to Info tab and open sidebar when a node or edge is selected
+  useEffect(() => {
+    if (selectedNode !== null || selectedEdge !== null) {
+      setRightSidebarTab('info');
+      setIsRightSidebarOpen(true);
+      if (typeof window !== 'undefined' && window.localStorage) {
+        try {
+          localStorage.setItem('ce_domain_sidebar_tab', 'info');
+          localStorage.setItem('ce_domain_sidebar_open', 'true');
+        } catch {}
+      }
+    }
+  }, [selectedNode, selectedEdge]);
 
   // Restore all hidden entities across individual hides, category filters, and orbits
   const restoreAllHiddenNodes = useCallback(() => {
@@ -2442,15 +2473,11 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   // Derived docked panels visibility and active tab selection
   const hasHiddenEntities = hiddenCount > 0;
   const hasOrbitLegend = layoutName.startsWith('concentric') && orbitLegendItems.length > 0;
-  const showLeftSidebar = isLeftSidebarOpen && (hasHiddenEntities || hasOrbitLegend);
-  const activeLeftTab: 'hidden' | 'orbits' =
-    hasHiddenEntities && hasOrbitLegend
-      ? leftSidebarTab
-      : hasHiddenEntities
-      ? 'hidden'
-      : 'orbits';
+  const effectiveSidebarTab: 'info' | 'orbits' | 'hidden' =
+    rightSidebarTab === 'orbits' && !hasOrbitLegend
+      ? 'info'
+      : rightSidebarTab;
 
-  const showRightInspector = selectedNode !== null || selectedEdge !== null;
 
   // Initialize Cytoscape Instance
   useEffect(() => {
@@ -3505,10 +3532,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
   const renderOrbitLegend = (docked: boolean) => (
     <FloatingPanel
-      dock="top-left"
+      dock="top-right"
       docked={docked}
       isCollapsed={false}
-      onClose={() => setIsLeftSidebarOpen(false)}
       title="Orbit Legend"
       icon={<LayersIcon size={14} />}
       badge={
@@ -4257,21 +4283,44 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               ╌ Transitive ({stats.transitiveCalls})
             </button>
 
+            {/* Inspector sidebar tab toggle button */}
+            <button
+              type="button"
+              className={`hud-type-filter-btn ${isRightSidebarOpen && effectiveSidebarTab === 'info' ? 'is-active is-filter-on' : ''}`}
+              onClick={() => {
+                if (isRightSidebarOpen && effectiveSidebarTab === 'info') {
+                  handleToggleSidebar(false);
+                } else {
+                  handleToggleSidebar(true);
+                  handleSidebarTabChange('info');
+                }
+              }}
+              title={isRightSidebarOpen && effectiveSidebarTab === 'info' ? 'Close Inspector panel' : 'Open Inspector panel'}
+              style={isRightSidebarOpen && effectiveSidebarTab === 'info' ? {
+                background: 'rgba(56, 189, 248, 0.25)',
+                borderColor: '#38bdf8',
+                color: '#e0f2fe',
+                fontWeight: 600,
+              } : undefined}
+            >
+              <InfoIcon size={12} className="btn-icon" /> Details
+            </button>
+
             {/* Hidden entities sidebar toggle button */}
             {hiddenCount > 0 && (
               <button
                 type="button"
-                className={`hud-type-filter-btn ${showLeftSidebar && activeLeftTab === 'hidden' ? 'is-active is-filter-on' : ''}`}
+                className={`hud-type-filter-btn ${isRightSidebarOpen && effectiveSidebarTab === 'hidden' ? 'is-active is-filter-on' : ''}`}
                 onClick={() => {
-                  if (showLeftSidebar && activeLeftTab === 'hidden') {
-                    setIsLeftSidebarOpen(false);
+                  if (isRightSidebarOpen && effectiveSidebarTab === 'hidden') {
+                    handleToggleSidebar(false);
                   } else {
-                    setIsLeftSidebarOpen(true);
-                    setLeftSidebarTab('hidden');
+                    handleToggleSidebar(true);
+                    handleSidebarTabChange('hidden');
                   }
                 }}
-                title={showLeftSidebar && activeLeftTab === 'hidden' ? 'Close Hidden entities sidebar' : 'Open Hidden entities sidebar'}
-                style={showLeftSidebar && activeLeftTab === 'hidden' ? {
+                title={isRightSidebarOpen && effectiveSidebarTab === 'hidden' ? 'Close Hidden entities sidebar' : 'Open Hidden entities sidebar'}
+                style={isRightSidebarOpen && effectiveSidebarTab === 'hidden' ? {
                   background: 'rgba(239, 68, 68, 0.25)',
                   borderColor: '#ef4444',
                   color: '#fca5a5',
@@ -4286,17 +4335,17 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             {hasOrbitLegend && (
               <button
                 type="button"
-                className={`hud-type-filter-btn ${showLeftSidebar && activeLeftTab === 'orbits' ? 'is-active is-filter-on' : ''}`}
+                className={`hud-type-filter-btn ${isRightSidebarOpen && effectiveSidebarTab === 'orbits' ? 'is-active is-filter-on' : ''}`}
                 onClick={() => {
-                  if (showLeftSidebar && activeLeftTab === 'orbits') {
-                    setIsLeftSidebarOpen(false);
+                  if (isRightSidebarOpen && effectiveSidebarTab === 'orbits') {
+                    handleToggleSidebar(false);
                   } else {
-                    setIsLeftSidebarOpen(true);
-                    setLeftSidebarTab('orbits');
+                    handleToggleSidebar(true);
+                    handleSidebarTabChange('orbits');
                   }
                 }}
-                title={showLeftSidebar && activeLeftTab === 'orbits' ? 'Close Orbit Legend sidebar' : 'Open Orbit Legend sidebar'}
-                style={showLeftSidebar && activeLeftTab === 'orbits' ? {
+                title={isRightSidebarOpen && effectiveSidebarTab === 'orbits' ? 'Close Orbit Legend sidebar' : 'Open Orbit Legend sidebar'}
+                style={isRightSidebarOpen && effectiveSidebarTab === 'orbits' ? {
                   background: 'rgba(56, 189, 248, 0.25)',
                   borderColor: '#38bdf8',
                   color: '#e0f2fe',
@@ -4353,94 +4402,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
       {/* Main Content Area: Resizable Horizontal Panel Layout */}
       <Group orientation="horizontal" className="domain-panel-group">
-        {/* Left Docked Panel: Hidden Entities / Concentric Orbit Legend */}
-        {showLeftSidebar && (
-          <>
-            <Panel
-              id="left-sidebar"
-              defaultSize="22%"
-              minSize="15%"
-              maxSize="45%"
-              collapsible
-              className="domain-dock-panel-left"
-            >
-              {hasHiddenEntities && hasOrbitLegend ? (
-                <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-                  <div className="domain-sidebar-tab-bar">
-                    <div className="domain-sidebar-tabs">
-                      <button
-                        type="button"
-                        className={`domain-sidebar-tab ${activeLeftTab === 'hidden' ? 'is-active' : ''}`}
-                        onClick={() => setLeftSidebarTab('hidden')}
-                      >
-                        <EyeOffIcon size={12} />
-                        <span>Hidden</span>
-                        <span className="tab-badge">{hiddenCount}</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={`domain-sidebar-tab ${activeLeftTab === 'orbits' ? 'is-active' : ''}`}
-                        onClick={() => setLeftSidebarTab('orbits')}
-                      >
-                        <LayersIcon size={12} />
-                        <span>Orbits</span>
-                        <span className="tab-badge">{orbitLegendItems.length}</span>
-                      </button>
-                    </div>
-                    <button
-                      type="button"
-                      className="domain-sidebar-close-btn"
-                      onClick={() => setIsLeftSidebarOpen(false)}
-                      title="Close Sidebar"
-                      aria-label="Close Sidebar"
-                    >
-                      <XIcon size={12} />
-                    </button>
-                  </div>
-                  <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-                    {activeLeftTab === 'hidden' ? (
-                      <DomainHiddenPanel
-                        nodeDetailMap={rawGraph.detailMap}
-                        echelonMap={rawGraph.echelonMap}
-                        hiddenNodeIds={hiddenNodeIds}
-                        hiddenTypes={hiddenTypes}
-                        hiddenOrbitTiers={hiddenOrbitTiers}
-                        hideSingleConnectionDbs={hideSingleConnectionDbs}
-                        hideIsolatedNodes={hideIsolatedNodes}
-                        onUnhideNode={unhideNode}
-                        onRestoreAll={restoreAllHiddenNodes}
-                        isCollapsed={false}
-                        docked={true}
-                        onClose={() => setIsLeftSidebarOpen(false)}
-                      />
-                    ) : (
-                      renderOrbitLegend(true)
-                    )}
-                  </div>
-                </div>
-              ) : activeLeftTab === 'hidden' ? (
-                <DomainHiddenPanel
-                  nodeDetailMap={rawGraph.detailMap}
-                  echelonMap={rawGraph.echelonMap}
-                  hiddenNodeIds={hiddenNodeIds}
-                  hiddenTypes={hiddenTypes}
-                  hiddenOrbitTiers={hiddenOrbitTiers}
-                  hideSingleConnectionDbs={hideSingleConnectionDbs}
-                  hideIsolatedNodes={hideIsolatedNodes}
-                  onUnhideNode={unhideNode}
-                  onRestoreAll={restoreAllHiddenNodes}
-                  isCollapsed={false}
-                  docked={true}
-                  onClose={() => setIsLeftSidebarOpen(false)}
-                />
-              ) : (
-                renderOrbitLegend(true)
-              )}
-            </Panel>
-            <Separator className="domain-panel-resize-handle handle-left" />
-          </>
-        )}
-
         {/* Center Canvas / Grid / Matrix Panel */}
         <Panel id="center-canvas" minSize="30%" className="domain-dock-panel-center">
           <div className="domain-cytoscape-wrapper" style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', flex: 1, position: 'relative', overflow: 'hidden' }}>
@@ -4871,82 +4832,124 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             </div>
           )}
 
-          {/* Floating Node & Edge Inspector Panel (when un-docked) */}
-          {showRightInspector && !isInspectorDocked && (
-            <DomainInspector
-              selectedNode={selectedNode}
-              selectedEdge={selectedEdge}
-              nodeDetailMap={nodeDetailMap}
-              rawEdges={rawGraph.rawEdges}
-              isInspectorCollapsed={isInspectorCollapsed}
-              onToggleCollapse={setIsInspectorCollapsed}
-              isEdgeInspectorCollapsed={isEdgeInspectorCollapsed}
-              onToggleEdgeCollapse={setIsEdgeInspectorCollapsed}
-              onSelectNode={setSelectedNode}
-              onSelectNodeById={handleSelectNodeById}
-              onSelectEdge={setSelectedEdge}
-              onClearSelection={() => {
-                setSelectedNode(null);
-                setSelectedEdge(null);
-              }}
-              onClearGraphHighlight={() => {
-                cyRef.current?.elements().removeClass('highlighted dimmed');
-              }}
-              onHideNode={hideNode}
-              onFocusInFlow={onFocusInFlow}
-              onOpenFile={onOpenFile}
-              onOpenOverrideModal={(name) => {
-                setOverrideTargetService(name);
-                setOverrideModalOpen(true);
-              }}
-              docked={false}
-              onToggleDock={handleToggleInspectorDock}
-            />
-          )}
         </div>
       </Panel>
 
-      {/* Right Docked Panel: Node & Edge Inspector (when docked) */}
-      {showRightInspector && isInspectorDocked && (
+      {/* Right Docked Panel: Unified Sidebar (Info / Orbits / Hidden) */}
+      {isRightSidebarOpen && (
         <>
           <Separator className="domain-panel-resize-handle handle-right" />
           <Panel
-            id="right-inspector"
-            defaultSize="28%"
+            id="right-sidebar"
+            defaultSize="26%"
             minSize="18%"
             maxSize="50%"
             collapsible
             className="domain-dock-panel-right"
           >
-            <DomainInspector
-              selectedNode={selectedNode}
-              selectedEdge={selectedEdge}
-              nodeDetailMap={nodeDetailMap}
-              rawEdges={rawGraph.rawEdges}
-              isInspectorCollapsed={isInspectorCollapsed}
-              onToggleCollapse={setIsInspectorCollapsed}
-              isEdgeInspectorCollapsed={isEdgeInspectorCollapsed}
-              onToggleEdgeCollapse={setIsEdgeInspectorCollapsed}
-              onSelectNode={setSelectedNode}
-              onSelectNodeById={handleSelectNodeById}
-              onSelectEdge={setSelectedEdge}
-              onClearSelection={() => {
-                setSelectedNode(null);
-                setSelectedEdge(null);
-              }}
-              onClearGraphHighlight={() => {
-                cyRef.current?.elements().removeClass('highlighted dimmed');
-              }}
-              onHideNode={hideNode}
-              onFocusInFlow={onFocusInFlow}
-              onOpenFile={onOpenFile}
-              onOpenOverrideModal={(name) => {
-                setOverrideTargetService(name);
-                setOverrideModalOpen(true);
-              }}
-              docked={true}
-              onToggleDock={handleToggleInspectorDock}
-            />
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+              {/* Unified Tab Switcher Header */}
+              <div className="domain-sidebar-tab-bar">
+                <div className="domain-sidebar-tabs">
+                  <button
+                    type="button"
+                    className={`domain-sidebar-tab ${effectiveSidebarTab === 'info' ? 'is-active' : ''}`}
+                    onClick={() => handleSidebarTabChange('info')}
+                    title="Inspect Selected Microservice, Database, or Edge"
+                  >
+                    <InfoIcon size={12} />
+                    <span>Info</span>
+                    {selectedNode && (
+                      <span className="tab-badge" style={{ maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {selectedNode.displayName}
+                      </span>
+                    )}
+                  </button>
+                  {hasOrbitLegend && (
+                    <button
+                      type="button"
+                      className={`domain-sidebar-tab ${effectiveSidebarTab === 'orbits' ? 'is-active' : ''}`}
+                      onClick={() => handleSidebarTabChange('orbits')}
+                      title="Concentric Orbits Legend and Hierarchy"
+                    >
+                      <LayersIcon size={12} />
+                      <span>Orbits</span>
+                      <span className="tab-badge">{orbitLegendItems.length}</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className={`domain-sidebar-tab ${effectiveSidebarTab === 'hidden' ? 'is-active' : ''}`}
+                    onClick={() => handleSidebarTabChange('hidden')}
+                    title="Hidden Entities and Filters"
+                  >
+                    <EyeOffIcon size={12} />
+                    <span>Hidden</span>
+                    <span className="tab-badge">{hiddenCount}</span>
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  className="domain-sidebar-close-btn"
+                  onClick={() => handleToggleSidebar(false)}
+                  title="Close Sidebar"
+                  aria-label="Close Sidebar"
+                >
+                  <XIcon size={12} />
+                </button>
+              </div>
+
+              {/* Tab Content Body */}
+              <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                {effectiveSidebarTab === 'info' && (
+                  <DomainInspector
+                    selectedNode={selectedNode}
+                    selectedEdge={selectedEdge}
+                    nodeDetailMap={nodeDetailMap}
+                    rawEdges={rawGraph.rawEdges}
+                    isInspectorCollapsed={isInspectorCollapsed}
+                    onToggleCollapse={setIsInspectorCollapsed}
+                    isEdgeInspectorCollapsed={isEdgeInspectorCollapsed}
+                    onToggleEdgeCollapse={setIsEdgeInspectorCollapsed}
+                    onSelectNode={setSelectedNode}
+                    onSelectNodeById={handleSelectNodeById}
+                    onSelectEdge={setSelectedEdge}
+                    onClearSelection={() => {
+                      setSelectedNode(null);
+                      setSelectedEdge(null);
+                    }}
+                    onClearGraphHighlight={() => {
+                      cyRef.current?.elements().removeClass('highlighted dimmed');
+                    }}
+                    onHideNode={hideNode}
+                    onFocusInFlow={onFocusInFlow}
+                    onOpenFile={onOpenFile}
+                    onOpenOverrideModal={(name) => {
+                      setOverrideTargetService(name);
+                      setOverrideModalOpen(true);
+                    }}
+                    docked={true}
+                  />
+                )}
+                {effectiveSidebarTab === 'orbits' && renderOrbitLegend(true)}
+                {effectiveSidebarTab === 'hidden' && (
+                  <DomainHiddenPanel
+                    nodeDetailMap={rawGraph.detailMap}
+                    echelonMap={rawGraph.echelonMap}
+                    hiddenNodeIds={hiddenNodeIds}
+                    hiddenTypes={hiddenTypes}
+                    hiddenOrbitTiers={hiddenOrbitTiers}
+                    hideSingleConnectionDbs={hideSingleConnectionDbs}
+                    hideIsolatedNodes={hideIsolatedNodes}
+                    onUnhideNode={unhideNode}
+                    onRestoreAll={restoreAllHiddenNodes}
+                    isCollapsed={false}
+                    docked={true}
+                    onClose={() => handleToggleSidebar(false)}
+                  />
+                )}
+              </div>
+            </div>
           </Panel>
         </>
       )}

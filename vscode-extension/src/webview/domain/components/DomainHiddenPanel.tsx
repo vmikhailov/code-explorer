@@ -113,12 +113,25 @@ export const DomainHiddenPanel: React.FC<DomainHiddenPanelProps> = (props) => {
   }, [allHiddenItems, hiddenSearchQuery]);
 
   if (allHiddenItems.length === 0) {
+    if (props.docked) {
+      return (
+        <div className="domain-panel-empty-state">
+          <div className="domain-empty-card">
+            <span className="domain-empty-icon">👁️</span>
+            <h4 className="domain-empty-title">No Hidden Entities</h4>
+            <p className="domain-empty-desc">
+              All microservices, databases, and dependencies are currently visible in the active layout.
+            </p>
+          </div>
+        </div>
+      );
+    }
     return null;
   }
 
   return (
     <FloatingPanel
-      dock="top-left"
+      dock="top-right"
       isCollapsed={isHiddenPanelCollapsed}
       onToggleCollapse={setIsHiddenPanelCollapsed}
       icon={<EyeOffIcon size={14} />}

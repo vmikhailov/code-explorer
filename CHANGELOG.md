@@ -5,6 +5,22 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.37.37] - 2026-10-13
+
+### Added
+- **Unified Single Right-Hand Side Panel for Domain Architecture Map**:
+  - Replaced the dual-panel layout (left docked panel for Orbits/Hidden + right docked inspector) with a single, unified docked panel on the right.
+  - Canvas now expands to start from the left edge of the screen (`x: 0`), maximizing visual workspace in VS Code.
+  - Added a top segmented tab switcher to easily navigate between:
+    - `[ℹ️ Info]`: Node and Edge architectural inspector, call relationships, and details.
+    - `[🪐 Orbits]`: Concentric orbit hierarchy, drag-and-drop orbit reordering, and tier visibility controls (available during concentric layouts).
+    - `[👁️ Hidden]`: Hidden entities list with live count badge, text filtering, and instant restore actions.
+  - **Context-Aware Auto-Switch**: Clicking any microservice, database, topic, or edge on the canvas or matrix/grid automatically opens the sidebar (if closed) and switches to the `Info` tab.
+  - **Docked Empty States**: Added clean, informative empty-state cards for `Info` (when nothing is selected) and `Hidden` (when all entities are visible), preventing empty void spaces.
+  - **Studio Toolbar HUD Integration**: Added dedicated `Details` toggle button alongside `Hidden` and `Orbits` buttons in the macro-architecture HUD to toggle the unified sidebar to the corresponding tab on demand.
+
+---
+
 ## [1.37.36] - 2026-10-13
 
 ### Added
