@@ -2177,7 +2177,15 @@ public class PostIndexAnalyzer(IGraphClient db)
         var kind = (rawKind ?? "").ToUpperInvariant();
 
         string category;
-        if (!string.IsNullOrEmpty(existingCategory))
+        if (isTargetLibrary ||
+            string.Equals(targetKind, "Package", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(existingDepType, "package", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(existingCategory, "library", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(existingDepType, "library", StringComparison.OrdinalIgnoreCase))
+        {
+            category = "library";
+        }
+        else if (!string.IsNullOrEmpty(existingCategory))
         {
             category = existingCategory.ToLowerInvariant();
         }
@@ -2278,7 +2286,7 @@ public class PostIndexAnalyzer(IGraphClient db)
         // 1. Query architectural/macro nodes to determine kind and whether project is library
         var nodeMap = new Dictionary<string, (string Kind, bool IsLibrary)>(StringComparer.OrdinalIgnoreCase);
         var nodesJson = await db.ExecuteQueryAsync(
-            "MATCH (n) WHERE n.kind IN ['Project', 'Database', 'Topic', 'Endpoint', 'EntryPoint', 'ExternalService', 'CloudService'] RETURN n.id AS id, labels(n) AS lbl, n.is_library AS is_lib, n.role AS role",
+            "MATCH (n) WHERE n.kind IN ['Project', 'Service', 'App', 'Worker', 'Library', 'Package', 'Database', 'Topic', 'Endpoint', 'EntryPoint', 'ExternalService', 'CloudService'] RETURN n.id AS id, labels(n) AS lbl, n.is_library AS is_lib, n.role AS role",
             null, cancellationToken);
         using (var nodesDoc = JsonDocument.Parse(nodesJson))
         {
@@ -2291,7 +2299,7 @@ public class PostIndexAnalyzer(IGraphClient db)
                 {
                     kind = lblProp.EnumerateArray().FirstOrDefault().GetString() ?? "Node";
                 }
-                var isLib = false;
+                var isLib = kind is "Package" or "Library";
                 if (row.TryGetProperty("is_lib", out var il))
                 {
                     isLib = il.ValueKind switch
@@ -2299,7 +2307,7 @@ public class PostIndexAnalyzer(IGraphClient db)
                         JsonValueKind.True => true,
                         JsonValueKind.String => string.Equals(il.GetString(), "true", StringComparison.OrdinalIgnoreCase),
                         JsonValueKind.Number => il.GetInt32() == 1,
-                        _ => false
+                        _ => isLib
                     };
                 }
                 var role = GetStringProp(row, "role");
@@ -2327,6 +2335,22 @@ public class PostIndexAnalyzer(IGraphClient db)
 
                 nodeMap.TryGetValue(src, out var srcInfo);
                 nodeMap.TryGetValue(tgt, out var tgtInfo);
+
+                if (string.IsNullOrEmpty(tgtInfo.Kind))
+                {
+                    if (tgt.Contains(":pkg:") || tgt.Contains(":package:"))
+                    {
+                        tgtInfo = ("Package", true);
+                    }
+                    else if (tgt.Contains(":res:db:") || tgt.Contains(":db:") || tgt.Contains(":database:"))
+                    {
+                        tgtInfo = ("Database", false);
+                    }
+                    else if (tgt.Contains(":top:") || tgt.Contains(":topic:"))
+                    {
+                        tgtInfo = ("Topic", false);
+                    }
+                }
 
                 var existingCategory = "";
                 var existingDepType = "";

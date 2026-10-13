@@ -133,6 +133,34 @@ public class MessagingConnectionsTests
     }
 
     [Test]
+    public void Test_NormalizeEdges_PackageDependency_AlwaysClassifiedAsLibrary()
+    {
+        // 1. Target is Package, no existing properties
+        var (cat1, dep1, kind1) = PostIndexAnalyzer.NormalizeEdgeCategory("DEPENDS_ON", "Project", "Package", null, null, false);
+        cat1.Should().Be("library");
+        dep1.Should().Be("library");
+        kind1.Should().Be("DEPENDS_ON");
+
+        // 2. Target is Package, even if existingCategory was mistakenly 'service_call'
+        var (cat2, dep2, kind2) = PostIndexAnalyzer.NormalizeEdgeCategory("DEPENDS_ON", "Project", "Package", "service_call", "service_call", false);
+        cat2.Should().Be("library");
+        dep2.Should().Be("library");
+        kind2.Should().Be("DEPENDS_ON");
+
+        // 3. isTargetLibrary is true, existing category is empty
+        var (cat3, dep3, kind3) = PostIndexAnalyzer.NormalizeEdgeCategory("DEPENDS_ON", "Project", "Project", null, null, true);
+        cat3.Should().Be("library");
+        dep3.Should().Be("library");
+        kind3.Should().Be("DEPENDS_ON");
+
+        // 4. existingDepType is 'package'
+        var (cat4, dep4, kind4) = PostIndexAnalyzer.NormalizeEdgeCategory("DEPENDS_ON", "Project", null, null, "package", false);
+        cat4.Should().Be("library");
+        dep4.Should().Be("library");
+        kind4.Should().Be("DEPENDS_ON");
+    }
+
+    [Test]
     public void Test_LiftTransitiveSemanticRelations_InboundAndOutboundMessagingThroughLibrary()
     {
         var projects = new List<ProjectNode>

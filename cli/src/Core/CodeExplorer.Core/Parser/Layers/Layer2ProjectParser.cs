@@ -473,7 +473,7 @@ public class Layer2ProjectParser
                 projectNode.Children.Add(packageNode);
                 packages.Add(packageNode);
 
-                var dependsOnPkgRel = Relationship.FromRelationship(new DependsOnRelationship(projectNodeId, packageNodeId, new() { ["dependency_type"] = "package" }));
+                var dependsOnPkgRel = Relationship.FromRelationship(new DependsOnRelationship(projectNodeId, packageNodeId, new() { ["dependency_type"] = "package", ["category"] = "library" }));
                 if (!dependencies.Any(d => d.From == projectNodeId && d.To == packageNodeId && d.Kind == OntologyConstants.Relationships.DependsOn))
                 {
                     dependencies.Add(dependsOnPkgRel);

@@ -5,6 +5,19 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.37.33] - 2026-10-13
+
+### Fixed
+- **Package Dependencies Classified as Libraries**:
+  - Fixed an issue where external package dependencies (npm, NuGet, pip, etc.) were erroneously classified as `service_call` instead of `library` due to `Package` nodes missing from `NormalizeEdgesAsync` kind filter.
+  - Added strict priority in `PostIndexAnalyzer.NormalizeEdgeCategory`: edges to `Package` or libraries are unconditionally classified as `library`, overriding any stale properties.
+  - Added URN prefix fallback (`:pkg:`) in `NormalizeEdgesAsync` for robust package identification.
+  - In `ArchitectureViewEngine`, forced `category = "library"` and `kind = "LIBRARY"` for all package targets so they always bind to the `LIBRARIES: uses` handle and green styling instead of the `API: calls` handle.
+- **VS Code Extension Icon Optimization**:
+  - Replaced extension icon with high-quality quantized `icon_512_quant.png` (34 KB) preserving 8-bit alpha transparency.
+
+---
+
 ## [1.37.20] - 2026-10-12
 
 ### Fixed & Performance

@@ -209,7 +209,7 @@ public static class OntologyUploader
             {
                 return new ImplementedByRelationship(child.Id, parentId);
             }
-            return new DependsOnRelationship(parentId, child.Id);
+            return new DependsOnRelationship(parentId, child.Id, new() { ["dependency_type"] = "package", ["category"] = "library" });
         }
         if (child is ProjectNode)
         {

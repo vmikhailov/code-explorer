@@ -2,10 +2,10 @@
   "name": "code-explorer-vscode",
   "displayName": "CodeExplorer",
   "description": "Visual knowledge graph and codebase intelligence tool for developers and AI agents.",
-  "version": "1.37.32",
+  "version": "1.37.33",
   "publisher": "vmikhailov",
   "license": "MIT",
-  "icon": "media/icon.png",
+  "icon": "media/icon_512_quant.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/vmikhailov/code-explorer"

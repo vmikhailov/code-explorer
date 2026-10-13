@@ -839,6 +839,13 @@ public class ArchitectureViewEngine(IGraphClient db)
                 srcNode.Kind, tgtNode.Kind, edgeProps.GetValueOrDefault("category"),
                 edgeProps.GetValueOrDefault("dependency_type"), isTargetLib);
 
+            if (isTargetLib)
+            {
+                category = "library";
+                depType = "library";
+                normalizedKind = (rKind is "DEPENDS_ON" or "DependsOn") ? "DEPENDS_ON" : "LIBRARY";
+            }
+
             edgeProps["category"] = category;
             edgeProps["dependency_type"] = depType;
 
