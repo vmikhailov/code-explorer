@@ -2155,7 +2155,7 @@ public class PostIndexAnalyzer(IGraphClient db)
         }
     }
 
-    public static (string Category, string DependencyType, string NormalizedKind) NormalizeEdgeCategory(
+    public static (DependencyCategory Category, string DependencyType, string NormalizedKind) NormalizeEdgeCategory(
         string? rawKind,
         NodeKind sourceKind,
         NodeKind targetKind,
@@ -2166,7 +2166,18 @@ public class PostIndexAnalyzer(IGraphClient db)
         return NormalizeEdgeCategory(rawKind, sourceKind.ToCypherLabel(), targetKind.ToCypherLabel(), existingCategory, existingDepType, isTargetLibrary);
     }
 
-    public static (string Category, string DependencyType, string NormalizedKind) NormalizeEdgeCategory(
+    public static (DependencyCategory Category, string DependencyType, string NormalizedKind) NormalizeEdgeCategory(
+        string? rawKind,
+        NodeKind sourceKind,
+        NodeKind targetKind,
+        DependencyCategory? existingCategory,
+        string? existingDepType = null,
+        bool isTargetLibrary = false)
+    {
+        return NormalizeEdgeCategory(rawKind, sourceKind.ToCypherLabel(), targetKind.ToCypherLabel(), existingCategory?.ToCategoryString(), existingDepType, isTargetLibrary);
+    }
+
+    public static (DependencyCategory Category, string DependencyType, string NormalizedKind) NormalizeEdgeCategory(
         string? rawKind,
         string? sourceKind,
         string? targetKind,
@@ -2176,84 +2187,72 @@ public class PostIndexAnalyzer(IGraphClient db)
     {
         var kind = (rawKind ?? "").ToUpperInvariant();
 
-        string category;
+        DependencyCategory category;
         if (isTargetLibrary ||
-            string.Equals(targetKind, "Package", StringComparison.OrdinalIgnoreCase) ||
+            targetKind == OntologyConstants.NodeLabels.Package ||
+            targetKind == OntologyConstants.NodeLabels.Library ||
+            string.Equals(existingDepType, DependencyCategoryExtensions.Library, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(existingDepType, "package", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(existingCategory, "library", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(existingDepType, "library", StringComparison.OrdinalIgnoreCase))
+            string.Equals(existingCategory, DependencyCategoryExtensions.Library, StringComparison.OrdinalIgnoreCase))
         {
-            category = "library";
+            category = DependencyCategory.Library;
         }
-        else if (!string.IsNullOrEmpty(existingCategory))
+        else if (!string.IsNullOrEmpty(existingCategory) &&
+                 DependencyCategoryExtensions.ParseCategory(existingCategory) is var parsedCat &&
+                 parsedCat != DependencyCategory.UnidentifiedDependency)
         {
-            category = existingCategory.ToLowerInvariant();
+            category = parsedCat;
         }
-        else if (!string.IsNullOrEmpty(existingDepType))
+        else if (!string.IsNullOrEmpty(existingDepType) &&
+                 DependencyCategoryExtensions.ParseCategory(existingDepType) is var parsedDep &&
+                 parsedDep != DependencyCategory.UnidentifiedDependency)
         {
-            category = existingDepType.ToLowerInvariant();
+            category = parsedDep;
         }
-        else if (kind == "USES_DB" ||
-                 string.Equals(targetKind, "Database", StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(sourceKind, "Database", StringComparison.OrdinalIgnoreCase))
+        else if (kind == OntologyConstants.Relationships.UsesDb ||
+                 targetKind == OntologyConstants.NodeLabels.Database ||
+                 sourceKind == OntologyConstants.NodeLabels.Database)
         {
-            category = "database";
+            category = DependencyCategory.Database;
         }
-        else if (kind == "TRIGGERS" && (string.Equals(sourceKind, "Endpoint", StringComparison.OrdinalIgnoreCase) ||
-                                       string.Equals(sourceKind, "EntryPoint", StringComparison.OrdinalIgnoreCase) ||
-                                       string.Equals(targetKind, "Function", StringComparison.OrdinalIgnoreCase)))
+        else if (targetKind == OntologyConstants.NodeLabels.Topic ||
+                 sourceKind == OntologyConstants.NodeLabels.Topic)
         {
-            category = "entrypoint";
+            category = DependencyCategory.Messaging;
         }
-        else if (string.Equals(targetKind, "Topic", StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(sourceKind, "Topic", StringComparison.OrdinalIgnoreCase))
+        else if (kind is OntologyConstants.Relationships.Triggers or OntologyConstants.Relationships.PublishesTo or OntologyConstants.Relationships.SubscribesTo or "PUBLISHES" or "SUBSCRIBED_BY" or "PUBLISHED_BY")
         {
-            category = "messaging";
+            category = (sourceKind == OntologyConstants.NodeLabels.Project && targetKind == OntologyConstants.NodeLabels.Project)
+                ? DependencyCategory.UnidentifiedDependency
+                : DependencyCategory.Messaging;
         }
-        else if (kind is "TRIGGERS" or "PUBLISHES" or "PUBLISHES_TO" or "SUBSCRIBES_TO" or "SUBSCRIBED_BY")
+        else if (kind is OntologyConstants.Relationships.ServiceCall or OntologyConstants.Relationships.CallsEndpoint ||
+                 targetKind == OntologyConstants.NodeLabels.ExternalService ||
+                 sourceKind == OntologyConstants.NodeLabels.ExternalService)
         {
-            category = (string.Equals(sourceKind, "Project", StringComparison.OrdinalIgnoreCase) && string.Equals(targetKind, "Project", StringComparison.OrdinalIgnoreCase))
-                ? "service_call"
-                : "messaging";
+            category = DependencyCategory.ServiceCall;
         }
-        else if (kind is "SERVICE_CALL" or "CALLS_ENDPOINT" ||
-                 string.Equals(targetKind, "ExternalService", StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(sourceKind, "ExternalService", StringComparison.OrdinalIgnoreCase))
+        else if (isTargetLibrary || targetKind == OntologyConstants.NodeLabels.Package)
         {
-            category = "service_call";
-        }
-        else if (isTargetLibrary || string.Equals(targetKind, "Package", StringComparison.OrdinalIgnoreCase))
-        {
-            category = "library";
+            category = DependencyCategory.Library;
         }
         else
         {
-            category = "service_call";
+            category = DependencyCategory.UnidentifiedDependency;
         }
-
-        category = category switch
-        {
-            "database" or "db" => "database",
-            "messaging" or "queue" or "topic" or "pubsub" => "messaging",
-            "service_call" or "service" or "api" or "http" or "grpc" => "service_call",
-            "entrypoint" => "entrypoint",
-            _ => "library"
-        };
-
-        var depType = category;
 
         string normalizedKind;
-        if (category == "database")
+        if (category == DependencyCategory.Database)
         {
-            normalizedKind = "USES_DB";
+            normalizedKind = OntologyConstants.Relationships.UsesDb;
         }
-        else if (category == "entrypoint" || (kind == "TRIGGERS" && !string.Equals(targetKind, "Topic", StringComparison.OrdinalIgnoreCase) && !string.Equals(sourceKind, "Topic", StringComparison.OrdinalIgnoreCase)))
+        else if (kind == OntologyConstants.Relationships.Triggers && targetKind != OntologyConstants.NodeLabels.Topic && sourceKind != OntologyConstants.NodeLabels.Topic)
         {
-            normalizedKind = "TRIGGERS";
+            normalizedKind = OntologyConstants.Relationships.Triggers;
         }
-        else if (category == "messaging")
+        else if (category == DependencyCategory.Messaging)
         {
-            if (string.Equals(sourceKind, "Topic", StringComparison.OrdinalIgnoreCase))
+            if (sourceKind == OntologyConstants.NodeLabels.Topic)
             {
                 normalizedKind = (kind is "PUBLISHED_BY") ? "PUBLISHED_BY" : "SUBSCRIBED_BY";
             }
@@ -2264,17 +2263,22 @@ public class PostIndexAnalyzer(IGraphClient db)
         }
         else if (kind is "DEPENDS_ON" or "DependsOn")
         {
-            normalizedKind = "DEPENDS_ON";
+            normalizedKind = OntologyConstants.Relationships.DependsOn;
         }
-        else if (category == "service_call")
+        else if (category == DependencyCategory.ServiceCall)
         {
-            normalizedKind = kind == "CALLS_ENDPOINT" ? "CALLS_ENDPOINT" : "SERVICE_CALL";
+            normalizedKind = kind == OntologyConstants.Relationships.CallsEndpoint ? OntologyConstants.Relationships.CallsEndpoint : OntologyConstants.Relationships.ServiceCall;
+        }
+        else if (category == DependencyCategory.Library)
+        {
+            normalizedKind = kind == "LIBRARY" ? "LIBRARY" : OntologyConstants.Relationships.DependsOn;
         }
         else
         {
-            normalizedKind = kind == "LIBRARY" ? "LIBRARY" : "DEPENDS_ON";
+            normalizedKind = OntologyConstants.Relationships.DependsOn;
         }
 
+        var depType = category.ToCategoryString();
         return (category, depType, normalizedKind);
     }
 
@@ -2394,17 +2398,18 @@ public class PostIndexAnalyzer(IGraphClient db)
                 var (category, depType, normalizedKind) = NormalizeEdgeCategory(rawKind, srcInfo.Kind, tgtInfo.Kind,
                     existingCategory, existingDepType, tgtInfo.IsLibrary);
 
+                var categoryStr = category.ToCategoryString();
                 var needsUpdate = !props.ContainsKey("dependency_type") ||
                                   !string.Equals(props.GetValueOrDefault("dependency_type")?.ToString(), depType,
                                       StringComparison.Ordinal) ||
-                                  !string.Equals(props.GetValueOrDefault("category")?.ToString(), category,
+                                  !string.Equals(props.GetValueOrDefault("category")?.ToString(), categoryStr,
                                       StringComparison.Ordinal) || !string.Equals(rawKind, normalizedKind,
                                       StringComparison.Ordinal);
 
                 if (needsUpdate)
                 {
                     props["dependency_type"] = depType;
-                    props["category"] = category;
+                    props["category"] = categoryStr;
 
                     var propsJson = JsonSerializer.Serialize(props);
                     updates.Add((normalizedKind, propsJson, src, tgt, rawKind));

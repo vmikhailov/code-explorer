@@ -841,12 +841,13 @@ public class ArchitectureViewEngine(IGraphClient db)
 
             if (isTargetLib)
             {
-                category = "library";
-                depType = "library";
+                category = DependencyCategory.Library;
+                depType = DependencyCategoryExtensions.Library;
                 normalizedKind = (rKind is "DEPENDS_ON" or "DependsOn") ? "DEPENDS_ON" : "LIBRARY";
             }
 
-            edgeProps["category"] = category;
+            var categoryStr = category.ToCategoryString();
+            edgeProps["category"] = categoryStr;
             edgeProps["dependency_type"] = depType;
 
             var isBothProjects = (srcNode.Kind is NodeKind.Project or NodeKind.Service or NodeKind.Worker or NodeKind.App) &&
@@ -859,21 +860,22 @@ public class ArchitectureViewEngine(IGraphClient db)
                     continue;
                 }
 
-                if (category == "messaging")
+                if (category == DependencyCategory.Messaging)
                 {
-                    category = "service_call";
-                    depType = "service_call";
-                    edgeProps["category"] = category;
+                    category = DependencyCategory.ServiceCall;
+                    depType = DependencyCategoryExtensions.ServiceCall;
+                    categoryStr = DependencyCategoryExtensions.ServiceCall;
+                    edgeProps["category"] = categoryStr;
                     edgeProps["dependency_type"] = depType;
                 }
             }
 
             var outKind = category switch
             {
-                "library" => "LIBRARY",
-                "service_call" => (rKind == "CALLS_ENDPOINT" ? "CALLS_ENDPOINT" : "SERVICE_CALL"),
-                "database" => "USES_DB",
-                "messaging" => (rKind is "PUBLISHES" or "PUBLISHES_TO" or "PUBLISHED_BY"
+                DependencyCategory.Library => "LIBRARY",
+                DependencyCategory.ServiceCall => (rKind == "CALLS_ENDPOINT" ? "CALLS_ENDPOINT" : "SERVICE_CALL"),
+                DependencyCategory.Database => "USES_DB",
+                DependencyCategory.Messaging => (rKind is "PUBLISHES" or "PUBLISHES_TO" or "PUBLISHED_BY"
                     ? "PUBLISHES_TO"
                     : "SUBSCRIBES_TO"),
                 _ => normalizedKind
@@ -906,7 +908,7 @@ public class ArchitectureViewEngine(IGraphClient db)
                     Source = fromId,
                     Target = toId,
                     Kind = outKind,
-                    Category = category,
+                    Category = categoryStr,
                     IsTransitive = isTrans,
                     IsInferred = isInferred,
                     Properties = edgeProps
@@ -1296,16 +1298,17 @@ public class ArchitectureViewEngine(IGraphClient db)
                 var (category, depType, normalizedKind) =
                     PostIndexAnalyzer.NormalizeEdgeCategory(kind, null, null);
 
+                var categoryStr = category.ToCategoryString();
                 graph.Edges.Add(new GraphEdgeDto
                 {
                     Id = $"{fromId}->{toId}:{normalizedKind}",
                     Source = fromId,
                     Target = toId,
                     Kind = normalizedKind,
-                    Category = category,
+                    Category = categoryStr,
                     Properties = new Dictionary<string, string>
                     {
-                        ["category"] = category, ["dependency_type"] = depType
+                        ["category"] = categoryStr, ["dependency_type"] = depType
                     }
                 });
             }

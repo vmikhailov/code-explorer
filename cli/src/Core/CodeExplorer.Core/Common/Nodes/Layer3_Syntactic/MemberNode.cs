@@ -25,6 +25,7 @@ public record MemberNode(
     [property: OntologyProperty("The starting column number of the declaration.")] int StartCol,
     [property: OntologyProperty("The ending column number of the declaration.")] int EndCol,
     [property: JsonPropertyName("kind"), OntologyProperty("The specific member kind (field, property, parameter, variable).")] string MemberKind,
+    [property: JsonPropertyName("data_type"), OntologyProperty("The declared data type of the member.")] string? DataType = null,
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {

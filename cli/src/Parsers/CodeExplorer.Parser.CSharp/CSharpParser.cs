@@ -610,6 +610,39 @@ public class CSharpParser : IProjectParser, IFileParser
                 var isConstant = IsCSharpConstant(node);
                 var scope = DetermineCSharpScope(node);
 
+                string? memberKind = null;
+                string? typeName = null;
+
+                if (node.Is(TreeSitterSyntax.CSharp.PropertyDeclaration))
+                {
+                    memberKind = "property";
+                    var typeNode = node.GetField(TreeSitterSyntax.Fields.Type);
+                    if (typeNode.IsValid())
+                    {
+                        typeName = typeNode.Text;
+                    }
+                }
+                else if (node.Is(TreeSitterSyntax.CSharp.VariableDeclarator))
+                {
+                    var parent = node.Parent;
+                    if (parent.IsValid() && parent.Is(TreeSitterSyntax.CSharp.VariableDeclaration))
+                    {
+                        var typeNode = parent.GetField(TreeSitterSyntax.Fields.Type);
+                        if (typeNode.IsValid())
+                        {
+                            typeName = typeNode.Text;
+                        }
+                        if (parent.Parent.IsValid() && parent.Parent.Is(TreeSitterSyntax.CSharp.FieldDeclaration))
+                        {
+                            memberKind = "field";
+                        }
+                        else
+                        {
+                            memberKind = "variable";
+                        }
+                    }
+                }
+
                 rawVariables.Add(new RawVariable(
                     name,
                     initializerText,
@@ -619,8 +652,42 @@ public class CSharpParser : IProjectParser, IFileParser
                     node.StartPosition.Row + 1,
                     node.EndPosition.Row + 1,
                     node.StartPosition.Column + 1,
-                    node.EndPosition.Column + 1
+                    node.EndPosition.Column + 1,
+                    typeName,
+                    memberKind
                 ));
+            }
+        }
+        else if (node.Is(TreeSitterSyntax.CSharp.Parameter))
+        {
+            var parent = node.Parent;
+            if (parent.IsValid() && parent.Is(TreeSitterSyntax.CSharp.ParameterList))
+            {
+                var recordNode = parent.Parent;
+                if (recordNode.IsValid() && recordNode.IsAny(TreeSitterSyntax.CSharp.RecordDeclaration, TreeSitterSyntax.CSharp.RecordStructDeclaration))
+                {
+                    var name = node.GetField(TreeSitterSyntax.Fields.Name)?.Text
+                        ?? node.FindChildOfType(TreeSitterSyntax.Common.Identifier)?.Text;
+                    if (!string.IsNullOrEmpty(name))
+                    {
+                        var typeNode = node.GetField(TreeSitterSyntax.Fields.Type);
+                        var typeName = typeNode.IsValid() ? typeNode.Text : null;
+                        var scope = DetermineCSharpScope(recordNode);
+                        rawVariables.Add(new RawVariable(
+                            name,
+                            "",
+                            scope,
+                            false,
+                            filePath,
+                            node.StartPosition.Row + 1,
+                            node.EndPosition.Row + 1,
+                            node.StartPosition.Column + 1,
+                            node.EndPosition.Column + 1,
+                            typeName,
+                            "property"
+                        ));
+                    }
+                }
             }
         }
     }

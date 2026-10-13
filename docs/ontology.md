@@ -630,6 +630,7 @@ graph TD
 | `StartCol` | `int` | The starting column number of the declaration. |
 | `EndCol` | `int` | The ending column number of the declaration. |
 | `MemberKind` | `string` | The specific member kind (field, property, parameter, variable). |
+| `DataType` | `string?` | The declared data type of the member. |
 
 ---
 

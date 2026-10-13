@@ -1,0 +1,27 @@
+id: SIG-C-C-001
+category: Architectural
+platform: agnostic
+scope: Class
+dimension: Contract
+name: "Disallow Stringly-Typed Taxonomies and Classifications"
+severity: Error
+description: "Domain and architectural classifications must be modeled using strongly-typed enums or value objects. Properties or fields ending in 'Type', 'Kind', or 'Category' must not use primitive string types."
+remediation: "Replace primitive string taxonomy properties with dedicated enums or strongly-typed value objects."
+query: |
+  MATCH (m:Member)
+  WHERE m.kind IN ['property', 'field']
+    AND (m.name = 'Type' OR m.name ENDS WITH 'Type' OR
+         m.name = 'Kind' OR m.name ENDS WITH 'Kind' OR
+         m.name = 'Category' OR m.name ENDS WITH 'Category')
+    AND m.data_type IN ['string', 'String', 'string?', 'String?']
+    AND NOT (coalesce(m.file_path, '') CONTAINS 'Test' OR coalesce(m.file_path, '') CONTAINS 'test')
+  RETURN 
+    coalesce(m.file_path, 'unknown') AS file,
+    coalesce(m.start_line, 0) AS line,
+    coalesce(m.start_col, 0) AS column,
+    m.name AS symbol,
+    coalesce(m.data_type, 'string') AS target,
+    'Property or field ' + m.name + ' uses stringly-typed primitive ' + coalesce(m.data_type, 'string') + ' for taxonomy/classification; use an enum or strongly-typed value object.' AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-C-C-001.json

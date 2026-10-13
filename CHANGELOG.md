@@ -5,6 +5,27 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.37.35] - 2026-10-13
+
+### Added
+- **Strongly-Typed Dependency Categories (`DependencyCategory` Enum)**:
+  - Introduced `DependencyCategory` enum (`UnidentifiedDependency`, `Library`, `ServiceCall`, `Database`, `Messaging`, `Configuration`) and `DependencyCategoryExtensions` with canonical string mapping and case-insensitive parsing.
+  - Replaced ad-hoc string comparisons for ontology node labels (`OntologyConstants.NodeLabels.Package`, `Library`, `Database`, `Topic`, `ServiceCall`).
+- **Semantic Invariant Gate `SIG-C-C-001` (Disallow Stringly-Typed Taxonomies and Classifications)**:
+  - Added new architectural gate `SIG-C-C-001` prohibiting primitive string types (`string`, `String`, `string?`, `String?`) on class/record properties and fields ending in `Type`, `Kind`, or `Category`.
+  - Registered `DisallowStringlyTypedTaxonomiesGate` in `BuiltInGateCatalog.cs` (`GetDefaultGates()`, `GetExampleGates()`), manifest at `.codeexplorer/gates/architectural/sig-c-c-001-disallow-stringly-typed-taxonomies.yaml`, and baseline at `.codeexplorer/baselines/SIG-C-C-001.json`.
+- **Property & Field Syntax Enrichment in AST**:
+  - `CSharpParser` and `CSharpFileVisitor` now extract `memberKind` (`property`, `field`) and `typeName` (`data_type`) for C# property declarations, field declarations, and record primary constructor parameters into `RawVariable` and `MemberNode`.
+  - `SyntaxEnricher` attaches `data_type` and classifies members directly into the property graph.
+
+### Fixed
+- **Edge Normalization Fallback Fixed**:
+  - In `PostIndexAnalyzer.NormalizeEdgeCategory`, replaced fallback to `"service_call"` with `DependencyCategory.UnidentifiedDependency` (`"unidentified_dependency"`) and normalized edge kind to `DEPENDS_ON`.
+  - Unknown or generic inter-project dependencies no longer masquerade as service calls and will not appear in API outbound call ports.
+  - In `ArchitectureViewEngine`, `unidentified_dependency` falls back cleanly to `normalizedKind` (`DEPENDS_ON`), never generating synthetic `SERVICE_CALL` edges.
+
+---
+
 ## [1.37.34] - 2026-10-13
 
 ### Fixed

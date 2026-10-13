@@ -956,6 +956,58 @@ public class SemanticInvariantGateTests
         res.Violations[0].Message.Should().Contain("implements/uses ontology contract outside Common/Nodes");
     }
 
+    [Test]
+    public async Task GateCheck_DisallowStringlyTypedTaxonomies_DetectsStringPropertyEndingWithTypeKindCategory()
+    {
+        var dbPath = Path.Combine(_tempWorkspace, "graph_taxonomy.db");
+        await using var client = new SqliteGraphClient(dbPath);
+        await client.CreateIndicesAsync();
+
+        var violatingProperty = new Node("ws:sym:src/Core/Model.cs:Member:TargetKind:10", OntologyConstants.NodeLabels.Member, new()
+        {
+            ["name"] = "TargetKind",
+            ["kind"] = "property",
+            ["data_type"] = "string",
+            ["file_path"] = "src/Core/Model.cs",
+            ["start_line"] = 10,
+            ["start_col"] = 12
+        });
+
+        var compliantProperty = new Node("ws:sym:src/Core/Model.cs:Member:DependencyCategory:15", OntologyConstants.NodeLabels.Member, new()
+        {
+            ["name"] = "DependencyCategory",
+            ["kind"] = "property",
+            ["data_type"] = "DependencyCategory",
+            ["file_path"] = "src/Core/Model.cs",
+            ["start_line"] = 15,
+            ["start_col"] = 12
+        });
+
+        var normalStringProperty = new Node("ws:sym:src/Core/Model.cs:Member:Description:20", OntologyConstants.NodeLabels.Member, new()
+        {
+            ["name"] = "Description",
+            ["kind"] = "property",
+            ["data_type"] = "string",
+            ["file_path"] = "src/Core/Model.cs",
+            ["start_line"] = 20,
+            ["start_col"] = 12
+        });
+
+        await client.UploadNodesAsync([violatingProperty, compliantProperty, normalStringProperty]);
+
+        var repo = new FileGateRepository(_tempWorkspace);
+        var engine = new GateExecutionEngine(client, repo);
+
+        var gate = BuiltInGateCatalog.DisallowStringlyTypedTaxonomiesGate;
+        var res = await engine.CheckGateAsync(gate);
+
+        res.Status.Should().Be(GateCheckStatus.FailedNew);
+        res.Violations.Count.Should().Be(1);
+        res.Violations[0].Symbol.Should().Be("TargetKind");
+        res.Violations[0].Target.Should().Be("string");
+        res.Violations[0].Message.Should().Contain("uses stringly-typed primitive string for taxonomy/classification");
+    }
+
     private class MockGateDbClient : IGraphClient
     {
         public string QueryResponse { get; set; } = "[]";

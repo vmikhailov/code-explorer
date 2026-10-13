@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
@@ -122,12 +123,12 @@ public class MessagingConnectionsTests
     public void Test_NormalizeEdges_PreservesIncomingAndOutgoingMessaging()
     {
         var (inCat, inDep, inKind) = PostIndexAnalyzer.NormalizeEdgeCategory("TRIGGERS", "Topic", "Project", null, null, false);
-        inCat.Should().Be("messaging");
+        inCat.Should().Be(DependencyCategory.Messaging);
         inKind.Should().Be("SUBSCRIBED_BY");
         inDep.Should().Be("messaging");
 
         var (outCat, outDep, outKind) = PostIndexAnalyzer.NormalizeEdgeCategory("PUBLISHES_TO", "Project", "Topic", null, null, false);
-        outCat.Should().Be("messaging");
+        outCat.Should().Be(DependencyCategory.Messaging);
         outKind.Should().Be("PUBLISHES_TO");
         outDep.Should().Be("messaging");
     }
@@ -137,27 +138,42 @@ public class MessagingConnectionsTests
     {
         // 1. Target is Package, no existing properties
         var (cat1, dep1, kind1) = PostIndexAnalyzer.NormalizeEdgeCategory("DEPENDS_ON", "Project", "Package", null, null, false);
-        cat1.Should().Be("library");
+        cat1.Should().Be(DependencyCategory.Library);
         dep1.Should().Be("library");
         kind1.Should().Be("DEPENDS_ON");
 
         // 2. Target is Package, even if existingCategory was mistakenly 'service_call'
         var (cat2, dep2, kind2) = PostIndexAnalyzer.NormalizeEdgeCategory("DEPENDS_ON", "Project", "Package", "service_call", "service_call", false);
-        cat2.Should().Be("library");
+        cat2.Should().Be(DependencyCategory.Library);
         dep2.Should().Be("library");
         kind2.Should().Be("DEPENDS_ON");
 
         // 3. isTargetLibrary is true, existing category is empty
         var (cat3, dep3, kind3) = PostIndexAnalyzer.NormalizeEdgeCategory("DEPENDS_ON", "Project", "Project", null, null, true);
-        cat3.Should().Be("library");
+        cat3.Should().Be(DependencyCategory.Library);
         dep3.Should().Be("library");
         kind3.Should().Be("DEPENDS_ON");
 
         // 4. existingDepType is 'package'
         var (cat4, dep4, kind4) = PostIndexAnalyzer.NormalizeEdgeCategory("DEPENDS_ON", "Project", null, null, "package", false);
-        cat4.Should().Be("library");
+        cat4.Should().Be(DependencyCategory.Library);
         dep4.Should().Be("library");
         kind4.Should().Be("DEPENDS_ON");
+    }
+
+    [Test]
+    public void Test_NormalizeEdges_UnidentifiedDependency_FallbackDoesNotMasqueradeAsServiceCall()
+    {
+        // Inter-project dependency without HTTP/API evidence must fall back to UnidentifiedDependency, not ServiceCall
+        var (cat, dep, kind) = PostIndexAnalyzer.NormalizeEdgeCategory("DEPENDS_ON", "Project", "Project", null, null, false);
+        cat.Should().Be(DependencyCategory.UnidentifiedDependency);
+        dep.Should().Be("unidentified_dependency");
+        kind.Should().Be("DEPENDS_ON");
+
+        var (unknownCat, unknownDep, unknownKind) = PostIndexAnalyzer.NormalizeEdgeCategory("SOME_UNKNOWN_EDGE", "Project", "Project", null, null, false);
+        unknownCat.Should().Be(DependencyCategory.UnidentifiedDependency);
+        unknownDep.Should().Be("unidentified_dependency");
+        unknownKind.Should().Be("DEPENDS_ON");
     }
 
     [Test]

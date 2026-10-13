@@ -300,14 +300,18 @@ public class SyntaxEnricher : ISyntaxEnricher
                 var isEtl = EtlRegex.IsMatch(rawVar.Name) || SqlQueryRegex.IsMatch(rawVar.InitializerText);
                 var isConstant = rawVar.IsConstant;
                 var isGlobal = rawVar.Scope == "global";
+                var isProperty = rawVar.MemberKind == "property";
+                var isField = rawVar.MemberKind == "field";
 
-                if (isConfig || isEtl || isConstant || isGlobal)
+                if (isConfig || isEtl || isConstant || isGlobal || isProperty || isField)
                 {
                     var varTypeStr = new List<string>();
                     if (isConfig) varTypeStr.Add("config");
                     if (isEtl) varTypeStr.Add("etl");
                     if (isConstant) varTypeStr.Add("constant");
                     if (isGlobal) varTypeStr.Add("global");
+                    if (isProperty) varTypeStr.Add("property");
+                    if (isField) varTypeStr.Add("field");
 
                     var varType = string.Join(",", varTypeStr);
                     var varId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Member:{rawVar.Name}:{rawVar.StartLine}";
@@ -318,6 +322,10 @@ public class SyntaxEnricher : ISyntaxEnricher
                         ["initializer_expression"] = rawVar.InitializerText,
                         ["is_constant"] = isConstant ? "true" : "false"
                     };
+                    if (!string.IsNullOrEmpty(rawVar.TypeName))
+                    {
+                        ext["data_type"] = rawVar.TypeName;
+                    }
 
                     var varNode = new MemberNode(
                         varId,
@@ -329,7 +337,8 @@ public class SyntaxEnricher : ISyntaxEnricher
                         rawVar.EndLine,
                         rawVar.StartCol,
                         rawVar.EndCol,
-                        "variable",
+                        rawVar.MemberKind ?? "variable",
+                        rawVar.TypeName,
                         ext
                     );
 

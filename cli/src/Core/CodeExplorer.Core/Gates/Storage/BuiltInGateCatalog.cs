@@ -16,7 +16,8 @@ public static class BuiltInGateCatalog
         GraphMutationCypherPurityGate,
         CoreZeroDomainHardcodesGate,
         OntologyLayerStrictHierarchyGate,
-        OntologyModelCohesionGate
+        OntologyModelCohesionGate,
+        DisallowStringlyTypedTaxonomiesGate
     ];
 
     public static IReadOnlyList<SemanticGate> GetExampleGates() =>
@@ -29,6 +30,7 @@ public static class BuiltInGateCatalog
         CoreZeroDomainHardcodesGate,
         OntologyLayerStrictHierarchyGate,
         OntologyModelCohesionGate,
+        DisallowStringlyTypedTaxonomiesGate,
         new SemanticGate
         {
             Id = "SIG-P-B-001",
@@ -692,6 +694,41 @@ public static class BuiltInGateCatalog
         {
             Enabled = true,
             Baseline = "baselines/SIG-C-B-002.json"
+        },
+        Source = "BuiltIn"
+    };
+
+    public static readonly SemanticGate DisallowStringlyTypedTaxonomiesGate = new()
+    {
+        Id = "SIG-C-C-001",
+        Category = GateCategory.Architectural,
+        Platform = "agnostic",
+        Scope = InvariantScope.Class,
+        Dimension = InvariantDimension.Contract,
+        Name = "Disallow Stringly-Typed Taxonomies and Classifications",
+        Severity = GateSeverity.Error,
+        Description = "Domain and architectural classifications must be modeled using strongly-typed enums or value objects. Properties or fields ending in 'Type', 'Kind', or 'Category' must not use primitive string types.",
+        Remediation = "Replace primitive string taxonomy properties with dedicated enums or strongly-typed value objects.",
+        Query = """
+            MATCH (m:Member)
+            WHERE m.kind IN ['property', 'field']
+              AND (m.name = 'Type' OR m.name ENDS WITH 'Type' OR
+                   m.name = 'Kind' OR m.name ENDS WITH 'Kind' OR
+                   m.name = 'Category' OR m.name ENDS WITH 'Category')
+              AND m.data_type IN ['string', 'String', 'string?', 'String?']
+              AND NOT (coalesce(m.file_path, '') CONTAINS 'Test' OR coalesce(m.file_path, '') CONTAINS 'test')
+            RETURN 
+              coalesce(m.file_path, 'unknown') AS file,
+              coalesce(m.start_line, 0) AS line,
+              coalesce(m.start_col, 0) AS column,
+              m.name AS symbol,
+              coalesce(m.data_type, 'string') AS target,
+              'Property or field ' + m.name + ' uses stringly-typed primitive ' + coalesce(m.data_type, 'string') + ' for taxonomy/classification; use an enum or strongly-typed value object.' AS message
+            """,
+        Ratchet = new GateRatchetSettings
+        {
+            Enabled = true,
+            Baseline = "baselines/SIG-C-C-001.json"
         },
         Source = "BuiltIn"
     };

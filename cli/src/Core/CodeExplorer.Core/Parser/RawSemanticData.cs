@@ -29,7 +29,9 @@ public record RawVariable(
     int StartLine,
     int EndLine,
     int StartCol,
-    int EndCol
+    int EndCol,
+    string? TypeName = null,
+    string? MemberKind = null // "property", "field", "variable", "parameter"
 );
 
 public record RawTypeBinding(

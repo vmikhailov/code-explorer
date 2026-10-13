@@ -65,6 +65,7 @@ public static class TreeSitterSyntax
         public const string InterfaceDeclaration = "interface_declaration";
         public const string StructDeclaration = "struct_declaration";
         public const string RecordDeclaration = "record_declaration";
+        public const string RecordStructDeclaration = "record_struct_declaration";
         public const string EnumDeclaration = "enum_declaration";
         public const string MethodDeclaration = "method_declaration";
         public const string ConstructorDeclaration = "constructor_declaration";
