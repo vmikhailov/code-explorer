@@ -27,8 +27,7 @@ jobs:
 
       - name: Verify Architecture Gates
         run: |
-          dotnet run --project cli/src/UI/CodeExplorer/CodeExplorer.csproj -c Release --no-build -- scan . --clear
-          dotnet run --project cli/src/UI/CodeExplorer/CodeExplorer.csproj -c Release --no-build -- gate check -g SIG-P-B-005,SIG-C-B-002
+          dotnet run --project cli/src/UI/CodeExplorer/CodeExplorer.csproj -c Release --no-build -- gate check -g SIG-P-B-005,SIG-C-B-002 --auto-init --scan --clear
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

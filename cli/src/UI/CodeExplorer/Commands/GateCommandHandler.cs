@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Gates.Engine;
 using CodeExplorer.Core.Gates.Models;
@@ -16,8 +17,42 @@ public class GateCommandHandler : BaseCommandHandler
     public static async Task<int> HandleAsync(GateOptions opts)
     {
         var action = (opts.Action ?? "check").ToLowerInvariant();
+        var targetDir = Path.GetFullPath(opts.Dir ?? Directory.GetCurrentDirectory());
 
-        var ws = EnsureInitialized(opts.Dir, requireIndexed: action != "init");
+        var ws = WorkspaceLocator.Find(targetDir);
+        if (ws == null && opts.ShouldAutoInit)
+        {
+            var dirName = new DirectoryInfo(targetDir).Name;
+            ws = WorkspaceLocator.Initialize(targetDir, dirName);
+            PrintSuccess($"Initialized CodeExplorer workspace at '{ws.RootDirectory}'.");
+
+            var initRepo = new FileGateRepository(ws.RootDirectory);
+            await initRepo.InitStarterGatesAsync(false);
+        }
+
+        if (opts.ShouldAutoScan || (opts.ShouldAutoInit && ws != null && !File.Exists(ws.DbPath) && action != "init"))
+        {
+            if (ws == null)
+            {
+                PrintError($"Error: No CodeExplorer workspace found at '{targetDir}'. Pass '--init' or run 'ce init' first.");
+                return 1;
+            }
+
+            Console.WriteLine($"Running pre-gate scan for '{ws.RootDirectory}'...");
+            var scanResult = await ScanCommandHandler.HandleAsync(new ScanOptions
+            {
+                Path = ws.RootDirectory,
+                Clear = opts.Clear
+            });
+
+            if (scanResult != 0)
+            {
+                PrintError($"Pre-gate scan failed with exit code {scanResult}. Aborting gate check.");
+                return scanResult;
+            }
+        }
+
+        ws = EnsureInitialized(opts.Dir, requireIndexed: action != "init");
         if (ws == null) return 1;
 
         var repo = new FileGateRepository(ws.RootDirectory);

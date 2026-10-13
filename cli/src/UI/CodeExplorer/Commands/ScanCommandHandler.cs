@@ -23,7 +23,20 @@ public static class ScanCommandHandler
         try
         {
             var targetPath = Path.GetFullPath(opts.Path ?? Directory.GetCurrentDirectory());
-            var ws = WorkspaceLocator.FindOrThrow(targetPath);
+            var ws = WorkspaceLocator.Find(targetPath);
+            if (ws == null)
+            {
+                if (opts.ShouldAutoInit)
+                {
+                    var name = new DirectoryInfo(targetPath).Name;
+                    ws = WorkspaceLocator.Initialize(targetPath, name);
+                    logger.LogInformation("Initialized new CodeExplorer workspace at '{WorkspaceRoot}'", ws.RootDirectory);
+                }
+                else
+                {
+                    ws = WorkspaceLocator.FindOrThrow(targetPath);
+                }
+            }
 
             logger.LogInformation("Workspace: {WorkspaceRoot} ({DbPath})", ws.RootDirectory, ws.DbPath);
             logger.LogInformation("Scanning:  {TargetPath}...", targetPath);

@@ -59,5 +59,24 @@ public class GateOptions : ITargetOption
     [Option("dir", Required = false, HelpText = "Path to workspace directory (defaults to current directory).")]
     public string? Dir { get; set; }
 
+    [Option("init", Required = false, Default = false, HelpText = "Automatically initialize workspace (.codeexplorer) if not found.")]
+    public bool Init { get; set; }
+
+    [Option("auto-init", Required = false, Default = false, Hidden = true, HelpText = "Alias for --init.")]
+    public bool AutoInit { get; set; }
+
+    public bool ShouldAutoInit => Init || AutoInit;
+
+    [Option("scan", Required = false, Default = false, HelpText = "Automatically scan and index workspace before evaluating gates.")]
+    public bool Scan { get; set; }
+
+    [Option("auto-scan", Required = false, Default = false, Hidden = true, HelpText = "Alias for --scan.")]
+    public bool AutoScan { get; set; }
+
+    public bool ShouldAutoScan => Scan || AutoScan;
+
+    [Option("clear", Required = false, Default = false, HelpText = "When used with --scan, perform a clean rescan before evaluating gates.")]
+    public bool Clear { get; set; }
+
     string ITargetOption.Target => Action;
 }

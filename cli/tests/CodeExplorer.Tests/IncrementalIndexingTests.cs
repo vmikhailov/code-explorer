@@ -365,6 +365,43 @@ public class IncrementalIndexingTests
     }
 
     [Test]
+    public void Test_ScanOptions_Init_And_AutoInit_Flags_Supported()
+    {
+        var parser = new CommandLine.Parser(with => with.CaseInsensitiveEnumValues = true);
+
+        var resInit = parser.ParseArguments<ScanOptions, IndexOptions>(["scan", "--init"]);
+        resInit.Errors.Should().BeEmpty();
+        ((ScanOptions)resInit.Value).Init.Should().BeTrue();
+        ((ScanOptions)resInit.Value).ShouldAutoInit.Should().BeTrue();
+
+        var resAutoInit = parser.ParseArguments<ScanOptions, IndexOptions>(["scan", "--auto-init"]);
+        resAutoInit.Errors.Should().BeEmpty();
+        ((ScanOptions)resAutoInit.Value).AutoInit.Should().BeTrue();
+        ((ScanOptions)resAutoInit.Value).ShouldAutoInit.Should().BeTrue();
+    }
+
+    [Test]
+    public void Test_GateOptions_Init_Scan_Clear_Flags_Supported()
+    {
+        var parser = new CommandLine.Parser(with => with.CaseInsensitiveEnumValues = true);
+
+        var res = parser.ParseArguments<GateOptions>(["gate", "check", "--init", "--scan", "--clear"]);
+        res.Errors.Should().BeEmpty();
+        res.Value.Init.Should().BeTrue();
+        res.Value.ShouldAutoInit.Should().BeTrue();
+        res.Value.Scan.Should().BeTrue();
+        res.Value.ShouldAutoScan.Should().BeTrue();
+        res.Value.Clear.Should().BeTrue();
+
+        var resAuto = parser.ParseArguments<GateOptions>(["gate", "check", "--auto-init", "--auto-scan"]);
+        resAuto.Errors.Should().BeEmpty();
+        resAuto.Value.AutoInit.Should().BeTrue();
+        resAuto.Value.ShouldAutoInit.Should().BeTrue();
+        resAuto.Value.AutoScan.Should().BeTrue();
+        resAuto.Value.ShouldAutoScan.Should().BeTrue();
+    }
+
+    [Test]
     public async Task Test_TypeScript_NewlineInsertion_ZeroStructuralChanges()
     {
         WorkspaceIndexer.AutoRegisterParsers();

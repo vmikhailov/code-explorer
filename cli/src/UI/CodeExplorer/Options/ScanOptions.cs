@@ -21,6 +21,14 @@ public class ScanOptions
 
     [Option("watch", Default = false, HelpText = "Watch directory for file changes and reindex incrementally in background.")]
     public bool Watch { get; set; }
+
+    [Option("init", Default = false, HelpText = "Automatically initialize workspace (.codeexplorer) if not found.")]
+    public bool Init { get; set; }
+
+    [Option("auto-init", Default = false, Hidden = true, HelpText = "Alias for --init.")]
+    public bool AutoInit { get; set; }
+
+    public bool ShouldAutoInit => Init || AutoInit;
 }
 
 [Verb("index", HelpText = "Alias for 'scan': index a directory into the nearest workspace.")]
