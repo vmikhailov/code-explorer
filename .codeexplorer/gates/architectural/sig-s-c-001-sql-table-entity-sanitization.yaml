@@ -1,0 +1,27 @@
+id: SIG-S-C-001
+category: Architectural
+platform: agnostic
+scope: Module
+dimension: Contract
+name: SQL Table Entity Sanitization
+severity: Error
+description: Graph Table entities must represent valid SQL tables and must not contain SQL keywords (e.g. SKIP, LOCKED, FETCH) or whitespace/syntax fragments.
+remediation: Refactor SQL queries or update SQL lexer exclusions so SQL clauses and keywords are not mistakenly ingested as database tables.
+query: >-
+  MATCH (t:Table)
+  WHERE t.name IN ['SKIP', 'LOCKED', 'NOWAIT', 'RETURNING', 'CASCADE', 'RESTRICT', 'CONFLICT', 'DO', 'NOTHING', 'FETCH', 'NEXT', 'ROWS', 'ONLY', 'ROW', 'FIRST', 'LAST', 'FILTER', 'MATERIALIZED', 'COLLATE', 'CHECK', 'CONSTRAINT', 'DEFAULT']
+     OR t.name CONTAINS ' '
+     OR t.name CONTAINS '`'
+     OR t.name CONTAINS '('
+     OR t.name CONTAINS ')'
+     OR t.name CONTAINS ';'
+  RETURN 
+    coalesce(t.path, t.file_path, 'schema') AS file,
+    1 AS line,
+    1 AS column,
+    t.name AS symbol,
+    t.name AS target,
+    'Invalid or keyword SQL Table entity detected in graph: ' + t.name AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-S-C-001.json

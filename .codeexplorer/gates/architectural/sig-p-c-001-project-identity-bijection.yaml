@@ -1,0 +1,23 @@
+id: SIG-P-C-001
+category: Architectural
+platform: agnostic
+scope: Module
+dimension: Contract
+name: Project Identity Bijection
+severity: Error
+description: Within a workspace, each logical project entity must have a unique name and 1-to-1 bijection with a directory.
+remediation: Rename duplicated project names or resolve naming collisions with the directory name.
+query: >-
+  MATCH (p1:Project), (p2:Project)
+
+  WHERE p1.name = p2.name AND p1.path <> p2.path
+
+  RETURN 
+    p1.path AS file,
+    1 AS line,
+    p1.name AS symbol,
+    p2.path AS target,
+    'Ambiguous project identity: multiple workspace projects claim identical name' AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-P-C-001.json

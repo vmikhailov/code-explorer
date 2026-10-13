@@ -1,0 +1,25 @@
+id: SIG-C-B-002
+category: Architectural
+platform: agnostic
+scope: Class
+dimension: Boundaries
+name: "Ontology Model Layer Cohesion and Isolation"
+severity: Error
+description: "All ontology node models implementing IOntologyNode or extending CompositeNode must reside strictly within CodeExplorer.Core/Common/Nodes/ under an approved layer or root abstraction. No ad-hoc ontology node types may leak into Parser, UI, or external packages."
+remediation: "Move external ontology node models into the appropriate layer under cli/src/Core/CodeExplorer.Core/Common/Nodes/ or refactor parser-internal DTOs to not implement IOntologyNode."
+query: |
+  MATCH (src:Type)-[:IMPLEMENTS|USES_TYPE]->(contract:Type)
+  WHERE contract.name IN ['IOntologyNode', 'CompositeNode']
+    AND NOT coalesce(src.is_test, false)
+    AND NOT src.path CONTAINS 'Common/Nodes/'
+    AND NOT src.name IN ['IOntologyNode', 'CompositeNode', 'OntologyAttributes', 'OntologyEdgeAttribute', 'OntologyPropertyAttribute', 'OntologyNodeAttribute', 'OntologyRelationshipAttribute', 'OntologyRegistry', 'LayerResults', 'Layer4Result']
+  RETURN 
+    coalesce(src.path, src.file_path) AS file,
+    coalesce(src.start_line, 1) AS line,
+    coalesce(src.start_col, 1) AS column,
+    src.name AS symbol,
+    contract.name AS target,
+    'Ontology cohesion violation: Model ' + src.name + ' implements/uses ontology contract outside Common/Nodes' AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-C-B-002.json

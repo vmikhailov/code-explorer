@@ -1,0 +1,22 @@
+id: SIG-M-I-001
+category: Architectural
+platform: agnostic
+scope: Method
+dimension: Rules
+name: Disallow Hardcoded Call Arguments
+severity: Error
+description: Methods must not receive raw, hardcoded string literals as arguments. Use typed enums, strongly-typed domain identifiers, named constants, or external configuration.
+remediation: Replace raw string literals with domain enums, strongly-typed IDs, named constants, or external configuration.
+query: >-
+  MATCH (caller)-[:PASSES_LITERAL]->(lit:CallLiteral)
+  WHERE NOT coalesce(caller.is_test, false) AND NOT coalesce(lit.is_test, false)
+  RETURN 
+    lit.file_path AS file,
+    lit.line AS line,
+    lit.column AS column,
+    coalesce(caller.name, 'unknown') AS symbol,
+    lit.callee AS target,
+    'Hardcoded string literal "' + (CASE WHEN size(lit.value) > 40 THEN substring(lit.value, 0, 37) + '...' ELSE lit.value END) + '" passed to ' + lit.callee AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-M-I-001.json

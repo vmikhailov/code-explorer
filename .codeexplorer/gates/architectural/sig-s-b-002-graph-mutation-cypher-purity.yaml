@@ -1,0 +1,23 @@
+id: SIG-S-B-002
+category: Architectural
+platform: agnostic
+scope: Service
+dimension: Boundaries
+name: Graph Mutation Cypher Purity
+severity: Error
+description: 'Database graph client mutations must use parameterized graph queries or CTEs without raw multi-statement script execution, temporary table creation, or raw string interpolation.'
+remediation: 'Replace multi-statement SQL scripts and temporary tables with declarative recursive CTEs or bulk Cypher queries.'
+query: >-
+  MATCH (n:Query)
+  WHERE NOT coalesce(n.is_test, false)
+    AND (n.path CONTAINS 'Database/' OR n.path CONTAINS 'Sqlite')
+    AND (n.raw_sql CONTAINS 'CREATE TEMP TABLE' OR n.raw_sql CONTAINS 'CREATE TEMPORARY TABLE')
+  RETURN 
+    coalesce(n.path, n.file_path) AS file,
+    coalesce(n.start_line, 0) AS line,
+    n.name AS symbol,
+    'temp_table' AS target,
+    'Storage violation: Database graph client must not create temporary tables for mutations' AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-S-B-002.json

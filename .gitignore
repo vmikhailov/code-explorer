@@ -35,7 +35,10 @@ appsettings.local.json
 *.snupkg
 dist/
 scratch/
-.codeexplorer/
+# --- CodeExplorer local databases & locks ---
+**/.codeexplorer/*.db
+**/.codeexplorer/*.db-*
+**/.codeexplorer/*.lock
 
 # --- Node.js & VS Code Extension ---
 node_modules/

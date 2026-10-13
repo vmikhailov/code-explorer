@@ -1,0 +1,36 @@
+{
+  "gateId": "SIG-M-I-002",
+  "allowedViolations": 3,
+  "entries": [
+    {
+      "fingerprint": "cc8d42d4eb9a860913a507c1186f28b8756edcae893e2c146297bb406504885d",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/ArchitectureViewEngine.cs",
+      "line": 62,
+      "column": 5,
+      "symbol": "GetSystemContextViewAsync",
+      "target": "831 lines",
+      "acknowledgedAt": "2026-10-11T16:40:55.3397132+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-11 16:40:55"
+    },
+    {
+      "fingerprint": "330e13081c8524bedb22bc2d255850e087d7eb0fe74139e1280ad25a90fb1b4f",
+      "file": "cli/src/Core/CodeExplorer.Core/Parser/Layers/Layer5AnalysisParser.cs",
+      "line": 239,
+      "column": 5,
+      "symbol": "ResolveAndUploadGlobalReferencesAsync",
+      "target": "631 lines",
+      "acknowledgedAt": "2026-10-11T16:40:55.3397132+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-11 16:40:55"
+    },
+    {
+      "fingerprint": "88bd28bbfa42dce453e0ec1582c4f38a176fa77ba680d8d32fe4e5f6486d1482",
+      "file": "vscode-extension/src/extension.ts",
+      "line": 13,
+      "column": 8,
+      "symbol": "activate",
+      "target": "917 lines",
+      "acknowledgedAt": "2026-10-11T16:40:55.3397132+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-11 16:40:55"
+    }
+  ]
+}

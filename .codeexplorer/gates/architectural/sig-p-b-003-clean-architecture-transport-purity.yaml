@@ -1,0 +1,21 @@
+id: SIG-P-B-003
+category: Architectural
+platform: agnostic
+scope: Module
+dimension: Boundaries
+name: Clean Architecture Transport Purity
+severity: Error
+description: Controllers and HTTP transport endpoints must not directly execute database queries or mutate ORM tables.
+remediation: Delegate data persistence to a service or repository layer; controllers must not call database contexts directly.
+query: >-
+  MATCH (ep:Endpoint)-[:CALLS]->(q:Query)
+
+  RETURN 
+    ep.file_path AS file,
+    coalesce(ep.start_line, 0) AS line,
+    ep.name AS symbol,
+    q.name AS target,
+    'Transport endpoint directly calls raw database query bypassing domain services' AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-P-B-003.json

@@ -1,0 +1,26 @@
+id: SIG-M-I-003
+category: Architectural
+platform: agnostic
+scope: Method
+dimension: Rules
+name: Core Zero Domain Hardcodes Invariance
+severity: Error
+description: 'Core parser and graph mutation algorithms must not contain customer- or company-specific hardcoded strings (e.g. dynadot, rtb, antifraud, google-pub-sub-network). Domain taxonomies, aliases, and URI conventions must be loaded from external configuration (conventions.json / domains.json) or derived generically.'
+remediation: 'Remove domain/company hardcodes from Core. Use WorkspaceConventions, IWorkspaceConventions, or conventions.json profiles.'
+query: >-
+  MATCH (lit:CallLiteral)
+  WHERE NOT coalesce(lit.is_test, false)
+    AND (lit.path CONTAINS 'Core/' OR lit.path CONTAINS 'SqliteGraphClient')
+    AND (toLower(lit.value) CONTAINS 'dynadot' 
+      OR toLower(lit.value) CONTAINS 'rtb' 
+      OR toLower(lit.value) CONTAINS 'antifraud' 
+      OR toLower(lit.value) CONTAINS 'google-pub-sub-network')
+  RETURN 
+    coalesce(lit.path, lit.file_path) AS file,
+    coalesce(lit.start_line, 0) AS line,
+    lit.name AS symbol,
+    lit.value AS target,
+    'Domain purity violation: Hardcoded company or customer token in Core algorithms' AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-M-I-003.json

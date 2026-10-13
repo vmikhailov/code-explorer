@@ -1,0 +1,23 @@
+id: SIG-P-I-001
+category: Architectural
+platform: agnostic
+scope: Module
+dimension: Rules
+name: Circular Package Dependency Shield
+severity: Error
+description: Inter-package dependencies must form an acyclic directed graph (DAG).
+remediation: Break the circular dependency cycle using interfaces, events, or moving shared dependencies to a common leaf module.
+query: >-
+  MATCH (p1:Package)-[:DEPENDS_ON*1..3]->(p2:Package)
+
+  WHERE (p2)-[:DEPENDS_ON*1..3]->(p1) AND p1.id <> p2.id
+
+  RETURN 
+    p1.name AS file,
+    1 AS line,
+    p1.name AS symbol,
+    p2.name AS target,
+    'Circular package dependency detected between packages' AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-P-I-001.json

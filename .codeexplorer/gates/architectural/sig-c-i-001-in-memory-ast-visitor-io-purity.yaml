@@ -1,0 +1,30 @@
+id: SIG-C-I-001
+category: Architectural
+platform: agnostic
+scope: Class
+dimension: Rules
+name: In-Memory AST Visitor IO Purity
+severity: Error
+description: Syntax visitors and enrichers must operate purely on in-memory ASTs and avoid ambient disk I/O across any language.
+remediation: Eliminate direct filesystem read/write calls (e.g. File/Directory in .NET, fs in Node, os/ioutil in Go, pathlib in Python, Files in Java) inside AST traversal. Pass file text or AST nodes from the pipeline context.
+query: >-
+  MATCH (visitor:Type)-[:CALLS]->(io:Type)
+
+  WHERE (visitor.symbol CONTAINS 'SyntaxEnricher' OR visitor.symbol CONTAINS 'Visitor' OR visitor.file_path CONTAINS 'SyntaxEnricher')
+    AND io.name IN [
+      'File', 'Directory', 'FileStream', 'StreamReader', 'StreamWriter',
+      'fs', 'promises', 'fs-extra',
+      'os', 'ioutil',
+      'pathlib', 'shutil',
+      'Files', 'Paths', 'FileInputStream', 'FileOutputStream'
+    ]
+  RETURN 
+    coalesce(visitor.symbol, visitor.file_path) AS file,
+    coalesce(visitor.start_line, 0) AS line,
+    coalesce(visitor.start_col, 0) AS column,
+    visitor.name AS symbol,
+    io.name AS target,
+    'AST enricher/visitor performs ambient disk I/O instead of operating on memory AST' AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-C-I-001.json

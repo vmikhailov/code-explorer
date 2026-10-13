@@ -1,0 +1,25 @@
+id: SIG-M-C-001
+category: Architectural
+platform: agnostic
+scope: Module
+dimension: Contract
+name: Endpoint Identity Uniqueness
+severity: Error
+description: Disallows duplicate API endpoints within the same service/project with identical HTTP method and route template.
+remediation: Ensure each route template in a microservice is registered only once. Check for overlapping router mounts or duplicate route declarations.
+query: >-
+  MATCH (p:Project)-[:CONTAINS]->(e1:Endpoint)
+  MATCH (p)-[:CONTAINS]->(e2:Endpoint)
+  WHERE e1.id < e2.id
+    AND e1.http_method = e2.http_method
+    AND e1.route_template = e2.route_template
+  RETURN 
+    coalesce(e1.path, e1.file_path) AS file,
+    1 AS line,
+    1 AS column,
+    e1.name AS symbol,
+    e2.id AS target,
+    'Duplicate endpoint route declared in project ' + p.name + ': ' + e1.http_method + ' ' + e1.route_template AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-M-C-001.json

@@ -1,0 +1,22 @@
+id: SIG-M-B-001
+category: Architectural
+platform: agnostic
+scope: Module
+dimension: Boundaries
+name: Unmounted Express Parameter Route Shield
+severity: Warning
+description: Parameterized root routes (such as /:id, /:uuid, /:key) must not exist directly at the service root without their resource mount prefix.
+remediation: Mount the route router using app.use('/api/<resource>', router) or prepend the canonical resource path to the route declaration.
+query: >-
+  MATCH (e:Endpoint)
+  WHERE e.route_template IN ['/:id', '/:uuid', '/:key']
+  RETURN 
+    coalesce(e.path, e.file_path) AS file,
+    1 AS line,
+    1 AS column,
+    e.name AS symbol,
+    e.id AS target,
+    'Unmounted parameter root route detected: ' + e.http_method + ' ' + e.route_template + ' in ' + coalesce(e.path, 'unknown') AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-M-B-001.json

@@ -1,0 +1,23 @@
+id: SIG-P-B-004
+category: Architectural
+platform: agnostic
+scope: Module
+dimension: Boundaries
+name: Generic Pipeline Layer Isolation
+severity: Error
+description: 'Generic parser pipeline layers (Layer1-Layer5) must not directly reference or couple to library-specific extension parsers (Libraries/). Library support must strictly implement ISemanticExtension.'
+remediation: 'Remove library-specific imports and calls from generic pipeline layers. Implement ISemanticExtension under Libraries/ and register it via dependency injection or parser registry.'
+query: >-
+  MATCH (src)-[:CALLS|USES_TYPE]->(tgt)
+  WHERE NOT coalesce(src.is_test, false)
+    AND (src.path CONTAINS 'Layer1' OR src.path CONTAINS 'Layer2' OR src.path CONTAINS 'Layer3' OR src.path CONTAINS 'Layer4' OR src.path CONTAINS 'Layer5')
+    AND tgt.path CONTAINS 'Libraries/'
+  RETURN 
+    coalesce(src.path, src.file_path) AS file,
+    coalesce(src.start_line, 0) AS line,
+    src.name AS symbol,
+    tgt.name AS target,
+    'Architecture violation: Generic pipeline layer couples directly to library-specific extension' AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-P-B-004.json
