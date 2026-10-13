@@ -221,6 +221,8 @@ public class Layer3SyntacticParser
                     syntaxTree.FileNode.ProjectName = file.ProjectName;
                     syntaxTree.FileNode.LineCount = file.LineCount;
                     syntaxTree.FileNode.SizeBytes = file.SizeBytes;
+                    syntaxTree.FileNode.ContentHash = file.ContentHash;
+                    syntaxTree.FileNode.LastModifiedUtc = file.LastModifiedUtc;
                     if (syntaxTree.Tree != null)
                     {
                         AstConstantExtractor.ExtractAndRegister(syntaxTree, project.Name);

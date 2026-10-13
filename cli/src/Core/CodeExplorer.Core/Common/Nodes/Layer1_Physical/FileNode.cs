@@ -45,5 +45,11 @@ public record FileNode(
     public long? SizeBytes { get; set; } = SizeBytes;
 
     [JsonIgnore]
+    public string? ContentHash { get; set; }
+
+    [JsonIgnore]
+    public DateTime? LastModifiedUtc { get; set; }
+
+    [JsonIgnore]
     public override string Kind => OntologyConstants.NodeLabels.File;
 }

@@ -371,6 +371,10 @@ public class WorkspaceIndexer
 
     private async Task RunParsingPipelineAsync(ParsingContext ctx)
     {
+        ConfigStore.Clear();
+        ConstantRegistry.Clear();
+        RouteDictionaryRegistry.Clear();
+
         List<Common.Nodes.Layer1_Physical.FileNode> indexedFiles;
         IReadOnlyList<Common.Nodes.Layer2_Boundaries.ProjectNode> projects = [];
         IReadOnlyList<SyntaxTree> syntaxTrees = [];
@@ -395,6 +399,7 @@ public class WorkspaceIndexer
         LogPersistenceSummary(ctx);
         await SyncFileRegistryAsync(indexedFiles, projects, syntaxTrees, ctx);
         await _dbClient.SetSchemaVersionAsync(IGraphClient.CurrentSchemaVersion);
+        Analysis.ArchitectureViewEngine.InvalidateCache();
     }
 
 
@@ -421,10 +426,20 @@ public class WorkspaceIndexer
 
         await Parallel.ForEachAsync(files, parallelOptions, async (file, ct) =>
         {
-            if (!File.Exists(file.FullPath)) return;
-            var lastMod = File.GetLastWriteTimeUtc(file.FullPath);
-            var bytes = await File.ReadAllBytesAsync(file.FullPath, ct);
-            var hash = Incremental.HashUtility.ComputeSha256(bytes);
+            string hash;
+            DateTime lastMod;
+            if (!string.IsNullOrEmpty(file.ContentHash) && file.LastModifiedUtc.HasValue)
+            {
+                hash = file.ContentHash;
+                lastMod = file.LastModifiedUtc.Value;
+            }
+            else
+            {
+                if (!File.Exists(file.FullPath)) return;
+                lastMod = File.GetLastWriteTimeUtc(file.FullPath);
+                var bytes = await File.ReadAllBytesAsync(file.FullPath, ct);
+                hash = Incremental.HashUtility.ComputeSha256(bytes);
+            }
             seen.TryAdd(file.Path, 0);
 
             string? snapshotJson = null;

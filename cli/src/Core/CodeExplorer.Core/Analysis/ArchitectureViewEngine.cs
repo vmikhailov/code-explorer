@@ -36,9 +36,34 @@ public partial class ArchitectureViewEngine(IGraphClient db)
 {
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, GraphDataDto> SystemContextCache = new();
 
-    public static void InvalidateCache()
+    public static void InvalidateCache(string? dbPath = null)
     {
-        SystemContextCache.Clear();
+        if (string.IsNullOrWhiteSpace(dbPath))
+        {
+            SystemContextCache.Clear();
+            return;
+        }
+
+        var prefix = dbPath + ":";
+        foreach (var key in SystemContextCache.Keys)
+        {
+            if (key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                SystemContextCache.TryRemove(key, out _);
+            }
+        }
+    }
+
+    private string ResolveDbCachePrefix()
+    {
+        if (db is SqliteGraphClient sqliteClient &&
+            !string.IsNullOrWhiteSpace(sqliteClient.DbPath) &&
+            !string.Equals(sqliteClient.DbPath, ":memory:", StringComparison.OrdinalIgnoreCase))
+        {
+            return sqliteClient.DbPath;
+        }
+
+        return $"mem:{System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(db)}";
     }
 
     public async Task<GraphDataDto> GetViewAsync(ArchitectureViewRequest request, CancellationToken ct = default)
@@ -974,7 +999,7 @@ public partial class ArchitectureViewEngine(IGraphClient db)
         bool sharedDatabasesOnly = false,
         CancellationToken ct = default)
     {
-        var dbKey = (db as SqliteGraphClient)?.DbPath ?? db.GetHashCode().ToString();
+        var dbKey = ResolveDbCachePrefix();
         var cacheKey = $"{dbKey}:c1:libs={includeLibraries}:filter={projectFilter ?? ""}:sharedDbs={sharedDatabasesOnly}";
         if (SystemContextCache.TryGetValue(cacheKey, out var cached))
         {

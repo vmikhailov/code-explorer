@@ -209,19 +209,35 @@ public class Layer1PhysicalParser
             var fileName = fileInfo.Name;
             var sizeBytes = fileInfo.Length;
             int? lineCount = null;
+            string? contentHash = null;
+            DateTime? lastModifiedUtc = null;
             try
             {
-                lineCount = File.ReadLines(fileInfo.FullName).Count();
+                lastModifiedUtc = fileInfo.LastWriteTimeUtc;
+                var bytes = await File.ReadAllBytesAsync(fileInfo.FullName, ctx.CancellationToken);
+                lineCount = CountLines(bytes);
+                contentHash = Incremental.HashUtility.ComputeSha256(bytes);
             }
             catch
             {
                 // Fallback for locked or unreadable files
             }
-            var fileNode = new FileNode(fileId, fileName, relativeFile, absoluteFilePath, false, null, null, lineCount, sizeBytes);
+            var fileNode = new FileNode(fileId, fileName, relativeFile, absoluteFilePath, false, null, null, lineCount, sizeBytes)
+            {
+                ContentHash = contentHash,
+                LastModifiedUtc = lastModifiedUtc
+            };
 
             currentParentNode.Children.Add(fileNode);
             files.Add(fileNode);
         }
+    }
+
+    private static int CountLines(ReadOnlySpan<byte> bytes)
+    {
+        if (bytes.IsEmpty) return 0;
+        var newlines = bytes.Count((byte)'\n');
+        return bytes[^1] == (byte)'\n' ? newlines : newlines + 1;
     }
 
     public static HashSet<string> ExcludedDirectoryNames => WorkspaceFileFilter.ExcludedDirectoryNames;
