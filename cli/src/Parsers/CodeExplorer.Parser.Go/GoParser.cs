@@ -24,6 +24,8 @@ public class GoParser : IProjectParser, IFileParser
 
     public IReadOnlyList<ISemanticExtension> SemanticExtensions { get; } =
     [
+        new Libraries.BigQueryGoLibraryParser(),
+        new Libraries.ClickHouseGoLibraryParser(),
         new Libraries.ElasticsearchGoLibraryParser(),
         new Libraries.GinLibraryParser(),
         new Libraries.FiberLibraryParser(),
@@ -53,9 +55,7 @@ public class GoParser : IProjectParser, IFileParser
 
         /*
         // Unimplemented / Backlog packages (commented out until AST semantic extensions are implemented):
-        // Additional Databases
-        new PackageDescriptor("clickhouse", "ClickHouse", LibraryRole.OrmOrDatabase, "library", ["github.com/ClickHouse/clickhouse-go*"]),
-        new PackageDescriptor("bigquery", "BigQuery", LibraryRole.OrmOrDatabase, "library", ["cloud.google.com/go/bigquery*"]),
+
 
         // Generic Cloud Services
         new PackageDescriptor("stripe", "Stripe", LibraryRole.CloudSdk, "library", ["github.com/stripe/stripe-go*"]),

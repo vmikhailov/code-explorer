@@ -1453,6 +1453,15 @@ public class Layer5AnalysisParser
 
         topicName = topicName.Trim('\'', '"', '`');
 
+        if (brokerType == "gcp")
+        {
+            var normalizedGcp = NormalizeGcpTopicName(topicName);
+            if (!string.IsNullOrEmpty(normalizedGcp))
+            {
+                topicName = normalizedGcp;
+            }
+        }
+
         var isInternal = brokerType is "mediatr" or "cqrs";
         var topicId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Topic}:{brokerType}:{topicName}";
 

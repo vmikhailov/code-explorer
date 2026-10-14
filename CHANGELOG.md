@@ -5,6 +5,21 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.40.0] - 2026-10-14
+
+### Added
+- **BigQuery and ClickHouse Go Semantic Parsers**:
+  - Added `BigQueryGoLibraryParser` to extract BigQuery datasets, tables, query strings, and `USES_DB` relationships to `bigquery` from Go services using `cloud.google.com/go/bigquery`.
+  - Added `ClickHouseGoLibraryParser` to extract ClickHouse tables, batch operations, DDL/DML queries, and `USES_DB` relationships to `clickhouse` from Go services using `github.com/ClickHouse/clickhouse-go/v2`.
+- **GCP Pub/Sub Go Messaging Parser & Normalized Ingest Pipelines**:
+  - Enhanced `PubSubGoLibraryParser` to extract topics and subscriptions across composite literals (`WorkerDef` streaming pipelines), struct event tags (`event_type`), topic constants, and client publishing/receiving.
+  - Normalized GCP Pub/Sub topics to kebab-case while preserving snake_case raw identifiers for backwards compatibility.
+- **Workload Semantic Edge Lifting & Architecture Views**:
+  - Fixed symbol-level and project-level edge lifting in `ArchitectureViewEngine` when projects are upgraded to `Service`, `Worker`, or `App` workload nodes, ensuring edges to topics, databases, and external services are properly re-anchored to the upgraded workload node.
+  - Preserved project directory paths and metadata during workload node promotion.
+
+---
+
 ## [1.39.0] - 2026-10-13
 
 ### Added

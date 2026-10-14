@@ -579,7 +579,7 @@ public partial class ArchitectureViewEngine(IGraphClient db)
     {
         var isWorkload = kind is "Service" or "App" or "Worker" or "Library" or "CliTool" or "FrontendApp"
             or "SharedLibrary";
-        var associatedProjectId = props.GetValueOrDefault("project_id");
+        var associatedProjectId = props.GetValueOrDefault("project_id") ?? props.GetValueOrDefault("associated_project_id");
 
         if (string.IsNullOrEmpty(associatedProjectId))
         {
@@ -594,14 +594,19 @@ public partial class ArchitectureViewEngine(IGraphClient db)
         if (isWorkload)
         {
             projectToWorkloadMap[associatedProjectId] = id;
+            var trimmedAssoc = associatedProjectId.TrimEnd(':');
+            projectToWorkloadMap[trimmedAssoc] = id;
+            projectToWorkloadMap[trimmedAssoc + ":"] = id;
 
-            if (nodeMap.TryGetValue(associatedProjectId, out var rawProj))
+            if (nodeMap.TryGetValue(associatedProjectId, out var rawProj) ||
+                nodeMap.TryGetValue(trimmedAssoc, out rawProj) ||
+                nodeMap.TryGetValue(trimmedAssoc + ":", out rawProj))
             {
                 if (rawProj.Properties != null)
                 {
                     foreach (var key in new[]
                              {
-                                 "layer", "layerId", "layerName", "layerOrder", "layerColor",
+                                 "path", "FilePath", "layer", "layerId", "layerName", "layerOrder", "layerColor",
                                  "layerIcon"
                              })
                     {
@@ -611,21 +616,27 @@ public partial class ArchitectureViewEngine(IGraphClient db)
                         }
                     }
                 }
+                if (!props.ContainsKey("path") && !string.IsNullOrEmpty(rawProj.FilePath))
+                {
+                    props["path"] = rawProj.FilePath;
+                }
 
                 graph.Nodes.Remove(rawProj);
-                nodeMap.Remove(associatedProjectId);
+                nodeMap.Remove(rawProj.Id);
             }
         }
         else if (kind == "Project")
         {
-            if (projectToWorkloadMap.TryGetValue(id, out var workloadId) &&
+            if ((projectToWorkloadMap.TryGetValue(id, out var workloadId) ||
+                 projectToWorkloadMap.TryGetValue(id.TrimEnd(':'), out workloadId) ||
+                 projectToWorkloadMap.TryGetValue(id.TrimEnd(':') + ":", out workloadId)) &&
                 nodeMap.TryGetValue(workloadId, out var existingWorkload))
             {
                 if (existingWorkload.Properties != null && props != null)
                 {
                     foreach (var key in new[]
                              {
-                                 "layer", "layerId", "layerName", "layerOrder", "layerColor",
+                                 "path", "FilePath", "layer", "layerId", "layerName", "layerOrder", "layerColor",
                                  "layerIcon"
                              })
                     {
@@ -636,11 +647,17 @@ public partial class ArchitectureViewEngine(IGraphClient db)
                         }
                     }
                 }
+                if (string.IsNullOrEmpty(existingWorkload.FilePath) && props != null && props.TryGetValue("path", out var pVal))
+                {
+                    existingWorkload.FilePath = pVal;
+                }
 
                 return;
             }
 
-            if (projectToWorkloadMap.ContainsKey(id))
+            if (projectToWorkloadMap.ContainsKey(id) ||
+                projectToWorkloadMap.ContainsKey(id.TrimEnd(':')) ||
+                projectToWorkloadMap.ContainsKey(id.TrimEnd(':') + ":"))
             {
                 return;
             }
@@ -842,13 +859,13 @@ public partial class ArchitectureViewEngine(IGraphClient db)
             if (!nodeMap.ContainsKey(fromId))
             {
                 var owner = FindOwningProject(fromId, projectNodes);
-                if (owner != null) fromId = owner.Id;
+                if (owner != null) fromId = projectToWorkloadMap.GetValueOrDefault(owner.Id, owner.Id);
             }
 
             if (!nodeMap.ContainsKey(toId))
             {
                 var owner = FindOwningProject(toId, projectNodes);
-                if (owner != null) toId = owner.Id;
+                if (owner != null) toId = projectToWorkloadMap.GetValueOrDefault(owner.Id, owner.Id);
             }
 
             if (!nodeMap.TryGetValue(fromId, out var srcNode) || !nodeMap.TryGetValue(toId, out var tgtNode) ||
@@ -945,21 +962,25 @@ public partial class ArchitectureViewEngine(IGraphClient db)
         {
             var owningProj = FindOwningProject(rawDbId, projectNodes);
 
-            if (owningProj != null &&
-                graph.Edges.All(e => !(e.Source == owningProj.Id && e.Target == canonicalId)))
+            if (owningProj != null)
             {
-                graph.Edges.Add(new GraphEdgeDto
+                var srcId = projectToWorkloadMap.GetValueOrDefault(owningProj.Id, owningProj.Id);
+                if (nodeMap.ContainsKey(srcId) &&
+                    graph.Edges.All(e => !(e.Source == srcId && e.Target == canonicalId)))
                 {
-                    Id = $"{owningProj.Id}->{canonicalId}:USES_DB",
-                    Source = owningProj.Id,
-                    Target = canonicalId,
-                    Kind = "USES_DB",
-                    Category = "database",
-                    Properties = new Dictionary<string, string>
+                    graph.Edges.Add(new GraphEdgeDto
                     {
-                        ["dependency_type"] = "database", ["is_semantic"] = "true"
-                    }
-                });
+                        Id = $"{srcId}->{canonicalId}:USES_DB",
+                        Source = srcId,
+                        Target = canonicalId,
+                        Kind = "USES_DB",
+                        Category = "database",
+                        Properties = new Dictionary<string, string>
+                        {
+                            ["dependency_type"] = "database", ["is_semantic"] = "true"
+                        }
+                    });
+                }
             }
         }
     }

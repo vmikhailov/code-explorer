@@ -528,5 +528,51 @@ public class ArchitectureViewEngineTests
         pubItem.Should().NotBeNull();
         pubItem!.Details.Should().Be("Published topic");
     }
+
+    [Test]
+    public async Task GetSystemContextGraphAsync_UpgradedWorkload_LiftsSymbolAndOwningProjectEdges()
+    {
+        // Add a workload Service node that upgrades project cpm-aggregator
+        await _db.UploadNodesAsync(
+        [
+            new("ws:project:cpm-aggregator:", "Project", new Dictionary<string, object>
+            {
+                ["name"] = "cpm-aggregator",
+                ["path"] = "services/cpm-aggregator",
+                ["role"] = "Service",
+                ["is_library"] = "false"
+            }),
+            new("ws:service:cpm-aggregator", "Service", new Dictionary<string, object>
+            {
+                ["name"] = "cpm-aggregator",
+                ["associated_project_id"] = "ws:project:cpm-aggregator:",
+                ["role"] = "Service"
+            }),
+            new("ws:sym:services/cpm-aggregator/main.go:Function:Start", "Function", new Dictionary<string, object>
+            {
+                ["name"] = "Start",
+                ["path"] = "services/cpm-aggregator/main.go"
+            }),
+            new("ws:res:topic:gcp:impression-topic", "Topic", new Dictionary<string, object>
+            {
+                ["name"] = "impression-topic",
+                ["broker"] = "gcp"
+            })
+        ]);
+
+        // Symbol-level edge from a function in cpm-aggregator to impression-topic
+        await _db.UploadRelationshipsAsync(
+        [
+            new("ws:sym:services/cpm-aggregator/main.go:Function:Start", "ws:res:topic:gcp:impression-topic",
+                OntologyConstants.Relationships.SubscribesTo, new() { ["category"] = "messaging" })
+        ]);
+
+        var graph = await _engine.GetSystemContextViewAsync();
+
+        // The edge should be lifted to the upgraded Service node ws:service:cpm-aggregator
+        var edge = graph.Edges.FirstOrDefault(e => e.Target == "ws:res:topic:gcp:impression-topic");
+        edge.Should().NotBeNull();
+        edge!.Source.Should().Be("ws:service:cpm-aggregator");
+    }
 }
 

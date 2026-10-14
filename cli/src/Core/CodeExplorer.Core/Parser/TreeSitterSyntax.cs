@@ -33,6 +33,7 @@ public static class TreeSitterSyntax
         public const string Index = "index";
         public const string Subscript = "subscript";
         public const string ModuleName = "module_name";
+        public const string Tag = "tag";
     }
 
     public static class Common
