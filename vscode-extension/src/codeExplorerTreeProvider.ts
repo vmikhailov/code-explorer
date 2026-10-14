@@ -571,6 +571,14 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       );
       item.id = `gate:${gate.id}`;
 
+      if (!hasViolations) {
+        item.command = {
+          command: 'codeExplorer.openGateYaml',
+          title: 'Edit Gate YAML Definition',
+          arguments: [item],
+        };
+      }
+
       if (isGateEvaluating) {
         item.iconPath = new vscode.ThemeIcon('loading~spin', new vscode.ThemeColor('disabledForeground'));
         item.description = 'Evaluating...';

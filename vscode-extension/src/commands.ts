@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
 import { ProcessManager } from './processManager';
 import { GraphPanel } from './graphPanel';
 import { CodeExplorerTreeDataProvider } from './codeExplorerTreeProvider';
@@ -593,6 +594,135 @@ export function registerWorkspaceCommands(
     }
   );
 
+  // Command: Edit / Open Gate YAML Definition
+  const openGateYamlCommand = vscode.commands.registerCommand(
+    'codeExplorer.openGateYaml',
+    async (itemOrGateId?: any) => {
+      const workspaceRoot = getWorkspaceRoot();
+      if (!workspaceRoot) {
+        vscode.window.showWarningMessage('Please open a workspace folder first.');
+        return;
+      }
+
+      let gateId: string | undefined;
+      let filePath: string | undefined;
+
+      if (typeof itemOrGateId === 'string') {
+        if (itemOrGateId.endsWith('.yaml') || itemOrGateId.endsWith('.yml')) {
+          filePath = itemOrGateId;
+        } else {
+          gateId = itemOrGateId;
+        }
+      } else if (itemOrGateId?.filePath) {
+        filePath = itemOrGateId.filePath;
+        gateId = itemOrGateId.gateId;
+      } else if (itemOrGateId?.data?.gate) {
+        gateId = itemOrGateId.data.gate.id;
+        filePath = itemOrGateId.data.gate.source;
+      }
+
+      const gateStateManager = GateStateManager.getInstance();
+      const suite = gateStateManager.getSuite() || (await gateStateManager.loadSuite());
+
+      if (!filePath && !gateId) {
+        const gates = suite?.gates || [];
+        if (gates.length === 0) {
+          vscode.window.showInformationMessage('No Semantic Invariant Gates found.');
+          return;
+        }
+
+        const picked = await vscode.window.showQuickPick(
+          gates.map((g) => ({
+            label: `$(shield) ${g.name || g.id}`,
+            description: `${g.id} · ${g.category}`,
+            detail: g.source || `.codeexplorer/gates/${g.id}.yaml`,
+            gate: g,
+          })),
+          { placeHolder: 'Select Semantic Invariant Gate to edit YAML' }
+        );
+
+        if (!picked) return;
+        gateId = picked.gate.id;
+        filePath = picked.gate.source;
+      }
+
+      if (!filePath && gateId && suite?.gates) {
+        const found = suite.gates.find(
+          (g) => g.id.toLowerCase() === gateId!.toLowerCase()
+        );
+        if (found?.source && found.source !== 'BuiltIn') {
+          filePath = found.source;
+        }
+      }
+
+      let resolvedPath: string | null = null;
+      if (filePath && filePath !== 'BuiltIn') {
+        const abs = path.isAbsolute(filePath) ? filePath : path.join(workspaceRoot, filePath);
+        if (fs.existsSync(abs)) {
+          resolvedPath = abs;
+        }
+      }
+
+      if (!resolvedPath && gateId) {
+        const gatesDir = path.join(workspaceRoot, '.codeexplorer', 'gates');
+        if (fs.existsSync(gatesDir)) {
+          const searchPattern = new vscode.RelativePattern(gatesDir, `**/*${gateId}*.y*ml`);
+          const found = await vscode.workspace.findFiles(searchPattern, undefined, 1);
+          if (found.length > 0) {
+            resolvedPath = found[0].fsPath;
+          }
+        }
+        if (!resolvedPath) {
+          resolvedPath = path.join(gatesDir, `${gateId}.yaml`);
+        }
+      }
+
+      if (!resolvedPath) {
+        vscode.window.showWarningMessage(`Could not resolve YAML file for gate "${gateId || filePath}".`);
+        return;
+      }
+
+      // If file does not exist, create it from gate definition
+      if (!fs.existsSync(resolvedPath)) {
+        const gateDef = suite?.gates?.find((g) => g.id.toLowerCase() === gateId?.toLowerCase());
+        if (gateDef) {
+          const dir = path.dirname(resolvedPath);
+          if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+          }
+          const starterYaml = [
+            `id: ${gateDef.id}`,
+            `name: "${gateDef.name}"`,
+            `category: ${gateDef.category}`,
+            `platform: ${gateDef.platform || 'agnostic'}`,
+            `scope: ${gateDef.scope}`,
+            `dimension: ${gateDef.dimension}`,
+            `severity: ${gateDef.severity}`,
+            gateDef.description ? `description: "${gateDef.description}"` : null,
+            gateDef.remediation ? `remediation: "${gateDef.remediation}"` : null,
+            `query: |`,
+            `  ${gateDef.query.replace(/\n/g, '\n  ')}`,
+            `ratchet:`,
+            `  enabled: ${gateDef.ratchetEnabled}`,
+          ]
+            .filter(Boolean)
+            .join('\n');
+          fs.writeFileSync(resolvedPath, starterYaml, 'utf-8');
+        }
+      }
+
+      try {
+        const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(resolvedPath));
+        await vscode.window.showTextDocument(doc, {
+          viewColumn: vscode.ViewColumn.One,
+          preserveFocus: false,
+        });
+      } catch (err: any) {
+        vscode.window.showErrorMessage(`Failed to open gate YAML file: ${err.message}`);
+      }
+    }
+  );
+
   context.subscriptions.push(
     reindexCommand,
     reindexFullCommand,
@@ -603,7 +733,8 @@ export function registerWorkspaceCommands(
     initAndScanCommand,
     evaluateGatesCommand,
     ratchetGatesCommand,
-    initGatesCommand
+    initGatesCommand,
+    openGateYamlCommand
   );
 }
 

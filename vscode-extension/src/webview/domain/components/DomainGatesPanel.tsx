@@ -13,6 +13,7 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   XIcon,
+  EditIcon,
 } from '../../components/Icons';
 
 export interface DomainGatesPanelProps {
@@ -229,6 +230,27 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
       setLoading(false);
     }
   }, [resolvedHttpUrl, applySuite, onOpenFile]);
+
+  const handleEditGate = useCallback(
+    (targetGate: GateItemDto) => {
+      const filePath =
+        targetGate.source && targetGate.source !== 'BuiltIn'
+          ? targetGate.source
+          : `.codeexplorer/gates/${targetGate.id}.yaml`;
+
+      const vscode = getVsCodeApi();
+      if (vscode) {
+        vscode.postMessage({
+          type: 'OPEN_GATE_YAML',
+          gateId: targetGate.id,
+          filePath,
+        });
+      } else if (onOpenFile) {
+        onOpenFile(filePath, 1);
+      }
+    },
+    [onOpenFile]
+  );
 
   const toggleGateExpand = useCallback((gateId: string) => {
     setExpandedGateIds((prev) => {
@@ -585,21 +607,36 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
                     </div>
                   </div>
                 </div>
-                <span
-                  style={{
-                    fontSize: '9.5px',
-                    fontWeight: 700,
-                    padding: '2px 6px',
-                    borderRadius: '4px',
-                    color: statusColor,
-                    background: statusBg,
-                    flexShrink: 0,
-                    lineHeight: 1.2,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {statusLabel}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    className="floating-dock-btn action-btn edit-gate-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEditGate(gate);
+                    }}
+                    title={`Edit YAML definition (${gate.source || gate.id})`}
+                    style={{ padding: '2px 7px', fontSize: '10px' }}
+                  >
+                    <EditIcon size={10} />
+                    <span>Edit</span>
+                  </button>
+                  <span
+                    style={{
+                      fontSize: '9.5px',
+                      fontWeight: 700,
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      color: statusColor,
+                      background: statusBg,
+                      flexShrink: 0,
+                      lineHeight: 1.2,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {statusLabel}
+                  </span>
+                </div>
               </div>
 
               {isExpanded && (
@@ -644,6 +681,18 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
                       disabled={loading}
                     >
                       {isPending ? 'Evaluate' : 'Re-evaluate'}
+                    </button>
+                    <button
+                      type="button"
+                      className="floating-dock-btn action-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditGate(gate);
+                      }}
+                      title={`Open ${gate.source || gate.id + '.yaml'} in editor`}
+                    >
+                      <EditIcon size={11} />
+                      <span>Edit YAML</span>
                     </button>
                     {gate.ratchetEnabled && (gate.newViolationsCount > 0 || gate.canRatchetDown) && (
                       <button

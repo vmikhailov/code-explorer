@@ -333,6 +333,18 @@ export class GraphPanel {
             }
             break;
           }
+
+          case 'OPEN_GATE_YAML': {
+            try {
+              await vscode.commands.executeCommand('codeExplorer.openGateYaml', {
+                gateId: message.gateId,
+                filePath: message.filePath,
+              });
+            } catch (err: any) {
+              this.outputChannel?.appendLine(`[GraphPanel] OPEN_GATE_YAML error: ${err.message}`);
+            }
+            break;
+          }
         }
       },
       null,

@@ -5,6 +5,17 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.41.4] - 2026-10-14
+
+### Added & Improved
+- **Direct Gate YAML Editing**:
+  - Added an **«Edit»** button opposite each Semantic Invariant Gate in the webview (`DomainGatesPanel`), opening the gate's `.yaml` file directly in the VS Code editor.
+  - Added an **«Edit YAML»** action button in the expanded details section of each gate card next to Evaluate and Ratchet.
+  - Added an inline edit pencil icon (`codeExplorer.openGateYaml`) and context menu action for gate items in the Left Sidebar TreeView (`codeExplorerView`).
+  - Added command `codeExplorer.openGateYaml`: resolves gate YAML paths from `.codeexplorer/gates/**`, automatically generating a starter YAML template if editing a built-in gate that hasn't been extracted to disk yet.
+
+---
+
 ## [1.41.3] - 2026-10-14
 
 ### Changed & Improved
