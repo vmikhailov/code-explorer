@@ -20,6 +20,12 @@ def main():
                 content = f.read()
             pattern = rf"## \[{re.escape(version)}\][^\n]*\n(.*?)(?=\n## \[|\Z)"
             match = re.search(pattern, content, re.DOTALL)
+            if not match:
+                parts = version.split(".")
+                if len(parts) >= 2:
+                    major_minor = f"{parts[0]}.{parts[1]}"
+                    fallback_pattern = rf"## \[{re.escape(major_minor)}\.(?:0|x|\*)\][^\n]*\n(.*?)(?=\n## \[|\Z)"
+                    match = re.search(fallback_pattern, content, re.DOTALL)
             if match:
                 notes = match.group(1).strip()
                 notes = re.sub(r"\n---\s*$", "", notes).strip()
