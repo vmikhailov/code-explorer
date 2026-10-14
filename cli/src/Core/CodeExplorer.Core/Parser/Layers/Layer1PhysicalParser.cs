@@ -141,7 +141,7 @@ public class Layer1PhysicalParser
 
         if (!string.IsNullOrEmpty(relativeDir) && gitignore.IsIgnored(relativeDir, true))
         {
-            ctx.LogDebug($"[Layer1] GitIgnore: Ignoring directory '{relativeDir}'");
+            ctx.Log($"[Layer1] GitIgnore: Skipping ignored directory: '{relativeDir}'");
             return;
         }
 
