@@ -323,7 +323,7 @@ public static class ServerRouteBuilderExtensions
                     return Results.Ok(definitions);
                 }
 
-                var summary = await wsHandler.EvaluateGatesSuiteAsync(gateId, ct);
+                var summary = await wsHandler.EvaluateGatesSuiteAsync(gateId, ct, force: false);
                 return Results.Ok(summary);
             }
             catch (Exception ex)
@@ -338,7 +338,7 @@ public static class ServerRouteBuilderExtensions
             try
             {
                 logger.LogInformation("[REST] POST /api/gates/check (gateId: {GateId})", req?.GateId ?? "all");
-                var summary = await wsHandler.EvaluateGatesSuiteAsync(req?.GateId, ct);
+                var summary = await wsHandler.EvaluateGatesSuiteAsync(req?.GateId, ct, force: true);
                 return Results.Ok(summary);
             }
             catch (Exception ex)

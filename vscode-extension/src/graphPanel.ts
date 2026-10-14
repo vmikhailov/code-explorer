@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { LlmBridgeService } from './services/llmBridgeService';
+import { GateStateManager } from './gateStateManager';
 
 export function getViewTitle(viewMode?: string): string {
   switch (viewMode) {
@@ -163,6 +164,18 @@ export class GraphPanel {
               workspaceRoot: this.workspaceRoot,
               initialViewMode: this.initialViewMode,
             });
+            try {
+              const gateStateManager = GateStateManager.getInstance();
+              const suite = gateStateManager.getSuite();
+              if (suite) {
+                this.panel.webview.postMessage({
+                  type: 'GATES_UPDATED',
+                  suite,
+                  isEvaluating: gateStateManager.isEvaluating(),
+                  evaluatingGateId: gateStateManager.evaluatingGateId(),
+                });
+              }
+            } catch {}
             while (this.pendingMessages.length > 0) {
               const queuedMsg = this.pendingMessages.shift();
               this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] Delivering queued message: ${queuedMsg.type}`);
@@ -259,6 +272,64 @@ export class GraphPanel {
               const fullDetails = message.details ? `${message.message}\n\nDetails:\n${message.details}` : message.message;
               await vscode.env.clipboard.writeText(fullDetails);
               vscode.window.showInformationMessage('CodeExplorer error details copied to clipboard.');
+            }
+            break;
+          }
+
+          case 'GET_GATES': {
+            try {
+              const gateStateManager = GateStateManager.getInstance();
+              const suite = gateStateManager.getSuite();
+              if (suite) {
+                this.panel.webview.postMessage({
+                  type: 'GATES_UPDATED',
+                  suite,
+                  isEvaluating: gateStateManager.isEvaluating(),
+                  evaluatingGateId: gateStateManager.evaluatingGateId(),
+                });
+              } else {
+                gateStateManager.loadSuite().catch((err: any) => {
+                  this.outputChannel?.appendLine(`[GraphPanel] loadSuite error: ${err.message}`);
+                });
+              }
+            } catch (err: any) {
+              this.outputChannel?.appendLine(`[GraphPanel] GET_GATES error: ${err.message}`);
+            }
+            break;
+          }
+
+          case 'EVALUATE_GATES': {
+            try {
+              const gateStateManager = GateStateManager.getInstance();
+              gateStateManager.evaluateSuite(message.gateId).catch((err: any) => {
+                vscode.window.showErrorMessage(`Gate evaluation failed: ${err.message}`);
+              });
+            } catch (err: any) {
+              this.outputChannel?.appendLine(`[GraphPanel] EVALUATE_GATES error: ${err.message}`);
+            }
+            break;
+          }
+
+          case 'RATCHET_GATES': {
+            try {
+              const gateStateManager = GateStateManager.getInstance();
+              gateStateManager.ratchetSuite(message.gateId, message.updateAll).catch((err: any) => {
+                vscode.window.showErrorMessage(`Ratchet baseline failed: ${err.message}`);
+              });
+            } catch (err: any) {
+              this.outputChannel?.appendLine(`[GraphPanel] RATCHET_GATES error: ${err.message}`);
+            }
+            break;
+          }
+
+          case 'INIT_GATES': {
+            try {
+              const gateStateManager = GateStateManager.getInstance();
+              gateStateManager.initStarterGates(message.overwrite).catch((err: any) => {
+                vscode.window.showErrorMessage(`Init starter gate failed: ${err.message}`);
+              });
+            } catch (err: any) {
+              this.outputChannel?.appendLine(`[GraphPanel] INIT_GATES error: ${err.message}`);
             }
             break;
           }

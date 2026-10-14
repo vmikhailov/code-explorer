@@ -1,0 +1,426 @@
+import * as vscode from 'vscode';
+import { ProcessManager, ServerInfo } from './processManager';
+import { GateSuiteSummaryDto, GateItemDto, RatchetGatesResponseDto } from '../../proto/types';
+
+export interface GateSuiteChangeEvent {
+  suite: GateSuiteSummaryDto | null;
+  isEvaluating: boolean;
+  evaluatingGateId?: string | null;
+  actionStatus?: string | null;
+  error?: string | null;
+}
+
+async function fetchJson<T>(urlStr: string, options?: RequestInit): Promise<T> {
+  if (typeof fetch === 'function') {
+    const res = await fetch(urlStr, options);
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+    return (await res.json()) as T;
+  }
+
+  // Fallback using node http module
+  const http = await import('http');
+  const url = new URL(urlStr);
+  return new Promise<T>((resolve, reject) => {
+    const req = http.request(
+      {
+        hostname: url.hostname,
+        port: url.port,
+        path: url.pathname + url.search,
+        method: options?.method || 'GET',
+        headers: options?.headers as any,
+      },
+      (res) => {
+        let body = '';
+        res.on('data', (chunk) => {
+          body += chunk;
+        });
+        res.on('end', () => {
+          try {
+            if (res.statusCode && res.statusCode >= 400) {
+              reject(new Error(`HTTP ${res.statusCode}: ${body || res.statusMessage}`));
+              return;
+            }
+            resolve(JSON.parse(body));
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }
+    );
+    req.on('error', reject);
+    if (options?.body) {
+      req.write(typeof options.body === 'string' ? options.body : JSON.stringify(options.body));
+    }
+    req.end();
+  });
+}
+
+/**
+ * GateStateManager - Centralized single source of truth for Semantic Invariant Gates (SIG).
+ * All UI surfaces (Left TreeView, Right Webview, Command Palette) access gates via this service,
+ * guaranteeing zero duplicate calculations, in-flight request deduplication, and real-time state synchronization.
+ */
+export class GateStateManager implements vscode.Disposable {
+  private static _instance: GateStateManager | null = null;
+
+  private _suite: GateSuiteSummaryDto | null = null;
+  private _isEvaluating = false;
+  private _evaluatingGateId: string | null = null;
+  private _inFlightEvaluation: Promise<GateSuiteSummaryDto | null> | null = null;
+  private _inFlightScope: string | null = null; // 'all' or gateId
+  private readonly _disposables: vscode.Disposable[] = [];
+
+  private readonly _onDidChangeSuite = new vscode.EventEmitter<GateSuiteChangeEvent>();
+  public readonly onDidChangeSuite: vscode.Event<GateSuiteChangeEvent> = this._onDidChangeSuite.event;
+
+  public static initialize(
+    processManager: ProcessManager,
+    getWorkspaceRoot: () => string | undefined,
+    outputChannel: vscode.OutputChannel
+  ): GateStateManager {
+    if (!GateStateManager._instance) {
+      GateStateManager._instance = new GateStateManager(processManager, getWorkspaceRoot, outputChannel);
+    }
+    return GateStateManager._instance;
+  }
+
+  public static getInstance(): GateStateManager {
+    if (!GateStateManager._instance) {
+      throw new Error('GateStateManager has not been initialized yet.');
+    }
+    return GateStateManager._instance;
+  }
+
+  private constructor(
+    private readonly processManager: ProcessManager,
+    private readonly getWorkspaceRoot: () => string | undefined,
+    private readonly outputChannel: vscode.OutputChannel
+  ) {
+    this._disposables.push(
+      this.processManager.onDidServerStart(() => {
+        this.invalidate();
+      }),
+      this.processManager.onDidServerStop(() => {
+        this.invalidate();
+      })
+    );
+  }
+
+  public getSuite(): GateSuiteSummaryDto | null {
+    return this._suite;
+  }
+
+  public isEvaluating(): boolean {
+    return this._isEvaluating;
+  }
+
+  public evaluatingGateId(): string | null {
+    return this._evaluatingGateId;
+  }
+
+  public invalidate(): void {
+    this._suite = null;
+    this._isEvaluating = false;
+    this._evaluatingGateId = null;
+    this._inFlightEvaluation = null;
+    this._inFlightScope = null;
+    this._onDidChangeSuite.fire({
+      suite: null,
+      isEvaluating: false,
+      evaluatingGateId: null,
+    });
+  }
+
+  public setSuite(suite: GateSuiteSummaryDto): void {
+    this._suite = suite;
+    this._isEvaluating = false;
+    this._evaluatingGateId = null;
+    this._inFlightEvaluation = null;
+    this._inFlightScope = null;
+    this._onDidChangeSuite.fire({
+      suite,
+      isEvaluating: false,
+      evaluatingGateId: null,
+    });
+  }
+
+  /**
+   * Loads the gate suite if not loaded yet, or returns cached suite.
+   * If an evaluation or load is currently in-flight, awaits the existing promise (zero duplication).
+   */
+  public async loadSuite(force = false): Promise<GateSuiteSummaryDto | null> {
+    if (!force && this._suite) {
+      return this._suite;
+    }
+
+    if (this._inFlightEvaluation) {
+      return this._inFlightEvaluation;
+    }
+
+    return this.evaluateSuite(undefined);
+  }
+
+  /**
+   * Evaluates all gates or a specific gate by ID.
+   * Deduplicates concurrent calls: if an evaluation is already in flight, attaches to the in-flight operation.
+   */
+  public async evaluateSuite(gateId?: string): Promise<GateSuiteSummaryDto | null> {
+    const scope = gateId ? gateId.trim() : 'all';
+
+    // Deduplication check:
+    // If a full evaluation ('all') is already in flight, any gate request or all-gates request can await it.
+    if (this._inFlightEvaluation && (this._inFlightScope === 'all' || this._inFlightScope === scope)) {
+      return this._inFlightEvaluation;
+    }
+
+    this._isEvaluating = true;
+    this._evaluatingGateId = gateId || null;
+    this._inFlightScope = scope;
+
+    const actionText = gateId ? `Evaluating gate '${gateId}'...` : 'Evaluating all gates...';
+    this.outputChannel.appendLine(`[GateStateManager] ${actionText}`);
+
+    this._onDidChangeSuite.fire({
+      suite: this._suite,
+      isEvaluating: true,
+      evaluatingGateId: this._evaluatingGateId,
+      actionStatus: actionText,
+    });
+
+    const runEvaluation = async (): Promise<GateSuiteSummaryDto | null> => {
+      try {
+        const root = this.getWorkspaceRoot();
+        if (!root) {
+          throw new Error('No active workspace folder.');
+        }
+
+        const serverInfo = await this.processManager.ensureServerStarted(root);
+        if (!serverInfo) {
+          throw new Error('CodeExplorer server is not available.');
+        }
+
+        const res = await fetchJson<GateSuiteSummaryDto>(
+          `${serverInfo.httpUrl}/api/gates/check`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(gateId ? { gateId } : {}),
+          }
+        );
+
+        if (res && Array.isArray(res.gates)) {
+          if (gateId && this._suite && Array.isArray(this._suite.gates)) {
+            // Update individual gate in existing suite
+            const updatedGate = res.gates[0];
+            const nextGates = [...this._suite.gates];
+            const idx = nextGates.findIndex((g) => g.id === gateId);
+            if (idx >= 0 && updatedGate) {
+              nextGates[idx] = updatedGate;
+            } else if (updatedGate) {
+              nextGates.push(updatedGate);
+            }
+
+            let passed = 0;
+            let failed = 0;
+            let newViolations = 0;
+            let toleratedViolations = 0;
+            let ratchetOps = 0;
+            for (const g of nextGates) {
+              if (g.status === 'Passed') passed++;
+              else if (g.status === 'PassedTolerated') {
+                passed++;
+                toleratedViolations += g.toleratedViolationsCount;
+              } else if (g.status === 'FailedNew' || g.status === 'Error') {
+                failed++;
+                newViolations += g.newViolationsCount;
+              }
+              if (g.canRatchetDown) ratchetOps++;
+            }
+
+            this._suite = {
+              ...this._suite,
+              totalGates: nextGates.length,
+              passedCount: passed,
+              failedCount: failed,
+              newViolationsCount: newViolations,
+              toleratedViolationsCount: toleratedViolations,
+              ratchetOpportunities: ratchetOps,
+              isSuccess: failed === 0,
+              gates: nextGates,
+            };
+          } else {
+            this._suite = res;
+          }
+        }
+
+        const finalStatus = this._suite
+          ? this._suite.isSuccess
+            ? `Passed (${this._suite.passedCount}/${this._suite.totalGates})`
+            : `${this._suite.failedCount} gate(s) failed (${this._suite.newViolationsCount} new)`
+          : null;
+
+        this.outputChannel.appendLine(`[GateStateManager] Evaluation completed: ${finalStatus || 'Done'}`);
+
+        return this._suite;
+      } catch (err: any) {
+        this.outputChannel.appendLine(`[GateStateManager] Evaluation failed: ${err.message}`);
+        this._onDidChangeSuite.fire({
+          suite: this._suite,
+          isEvaluating: false,
+          evaluatingGateId: null,
+          error: err?.message || 'Failed to evaluate gates',
+        });
+        throw err;
+      } finally {
+        this._isEvaluating = false;
+        this._evaluatingGateId = null;
+        this._inFlightEvaluation = null;
+        this._inFlightScope = null;
+
+        const completionStatus = this._suite
+          ? this._suite.isSuccess
+            ? `Passed (${this._suite.passedCount}/${this._suite.totalGates})`
+            : `${this._suite.failedCount} gate(s) failed (${this._suite.newViolationsCount} new)`
+          : null;
+
+        this._onDidChangeSuite.fire({
+          suite: this._suite,
+          isEvaluating: false,
+          evaluatingGateId: null,
+          actionStatus: completionStatus,
+        });
+      }
+    };
+
+    this._inFlightEvaluation = runEvaluation();
+    return this._inFlightEvaluation;
+  }
+
+  /**
+   * Ratchets baseline(s) for a gate or all gates, updating tolerance and reloading state.
+   */
+  public async ratchetSuite(gateId?: string, updateAll = false): Promise<RatchetGatesResponseDto> {
+    this._isEvaluating = true;
+    this._evaluatingGateId = gateId || null;
+    const actionText = gateId ? `Ratcheting ${gateId}...` : 'Ratcheting baselines...';
+
+    this._onDidChangeSuite.fire({
+      suite: this._suite,
+      isEvaluating: true,
+      evaluatingGateId: this._evaluatingGateId,
+      actionStatus: actionText,
+    });
+
+    try {
+      const root = this.getWorkspaceRoot();
+      if (!root) {
+        throw new Error('No active workspace folder.');
+      }
+
+      const serverInfo = await this.processManager.ensureServerStarted(root);
+      if (!serverInfo) {
+        throw new Error('CodeExplorer server is not available.');
+      }
+
+      const res = await fetchJson<RatchetGatesResponseDto>(
+        `${serverInfo.httpUrl}/api/gates/ratchet`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(gateId ? { gateId } : { updateAll: updateAll || !gateId }),
+        }
+      );
+
+      if (res && res.suite) {
+        this._suite = res.suite;
+      } else {
+        await this.evaluateSuite(undefined);
+      }
+
+      return res;
+    } catch (err: any) {
+      this.outputChannel.appendLine(`[GateStateManager] Ratchet failed: ${err.message}`);
+      this._onDidChangeSuite.fire({
+        suite: this._suite,
+        isEvaluating: false,
+        evaluatingGateId: null,
+        error: err?.message || 'Failed to ratchet baseline',
+      });
+      throw err;
+    } finally {
+      this._isEvaluating = false;
+      this._evaluatingGateId = null;
+      this._onDidChangeSuite.fire({
+        suite: this._suite,
+        isEvaluating: false,
+        evaluatingGateId: null,
+      });
+    }
+  }
+
+  /**
+   * Initializes starter gate template and updates suite.
+   */
+  public async initStarterGates(overwrite = false): Promise<RatchetGatesResponseDto> {
+    this._isEvaluating = true;
+    this._onDidChangeSuite.fire({
+      suite: this._suite,
+      isEvaluating: true,
+      actionStatus: 'Initializing starter gates...',
+    });
+
+    try {
+      const root = this.getWorkspaceRoot();
+      if (!root) {
+        throw new Error('No active workspace folder.');
+      }
+
+      const serverInfo = await this.processManager.ensureServerStarted(root);
+      if (!serverInfo) {
+        throw new Error('CodeExplorer server is not available.');
+      }
+
+      const res = await fetchJson<RatchetGatesResponseDto>(
+        `${serverInfo.httpUrl}/api/gates/init`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ overwrite }),
+        }
+      );
+
+      if (res && res.suite) {
+        this._suite = res.suite;
+      }
+
+      return res;
+    } catch (err: any) {
+      this.outputChannel.appendLine(`[GateStateManager] Init failed: ${err.message}`);
+      this._onDidChangeSuite.fire({
+        suite: this._suite,
+        isEvaluating: false,
+        evaluatingGateId: null,
+        error: err?.message || 'Failed to init starter gate',
+      });
+      throw err;
+    } finally {
+      this._isEvaluating = false;
+      this._onDidChangeSuite.fire({
+        suite: this._suite,
+        isEvaluating: false,
+        evaluatingGateId: null,
+      });
+    }
+  }
+
+  public dispose(): void {
+    for (const d of this._disposables) {
+      d.dispose();
+    }
+    this._disposables.length = 0;
+    this._onDidChangeSuite.dispose();
+    GateStateManager._instance = null;
+  }
+}

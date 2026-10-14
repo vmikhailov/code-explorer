@@ -8,6 +8,9 @@ import {
   registerIntentCommands
 } from './commands';
 
+import { GateStateManager } from './gateStateManager';
+import { GraphPanel } from './graphPanel';
+
 let processManager: ProcessManager | null = null;
 
 export function activate(context: vscode.ExtensionContext) {
@@ -22,8 +25,24 @@ export function activate(context: vscode.ExtensionContext) {
     return workspaceFolders && workspaceFolders.length > 0 ? workspaceFolders[0].uri.fsPath : undefined;
   };
 
+  // Central Gate State Manager (single source of truth for all gates evaluation)
+  const gateStateManager = GateStateManager.initialize(processManager, getWorkspaceRoot, outputChannel);
+  context.subscriptions.push(gateStateManager);
+
+  // Broadcast gate updates in real-time to all open webviews
+  gateStateManager.onDidChangeSuite((event) => {
+    GraphPanel.broadcast({
+      type: 'GATES_UPDATED',
+      suite: event.suite,
+      isEvaluating: event.isEvaluating,
+      evaluatingGateId: event.evaluatingGateId,
+      actionStatus: event.actionStatus,
+      error: event.error,
+    });
+  });
+
   // Register TreeDataProvider for Sidebar
-  const treeDataProvider = new CodeExplorerTreeDataProvider(processManager, getWorkspaceRoot, outputChannel);
+  const treeDataProvider = new CodeExplorerTreeDataProvider(processManager, getWorkspaceRoot, outputChannel, gateStateManager);
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider('codeExplorerView', treeDataProvider)
   );

@@ -78,6 +78,8 @@ public class WebSocketServerHandler
     private readonly object _idleLock = new();
     private int _isScanning = 0;
     private volatile ScanProgressEventDto? _lastProgress;
+    private GateSuiteSummaryDto? _cachedGateSuite;
+    private readonly SemaphoreSlim _gateEvaluationLock = new(1, 1);
 
     public WebSocketServerHandler(
         IGraphClient graphClient,
@@ -541,6 +543,7 @@ public class WebSocketServerHandler
                     CurrentFile = $"Indexed {nodesCount} nodes, {relsCount} relationships."
                 };
                 _lastProgress = null;
+                InvalidateGatesCache();
                 await BroadcastAsync(WsMessageTypes.ScanProgressEvent, compEv, CancellationToken.None);
             }
             catch (Exception ex)
@@ -657,20 +660,101 @@ public class WebSocketServerHandler
         };
     }
 
-    public async Task<GateSuiteSummaryDto> EvaluateGatesSuiteAsync(string? gateId = null, CancellationToken cancellationToken = default)
+    public void InvalidateGatesCache()
     {
-        var repo = new Core.Gates.Storage.FileGateRepository(_workspaceRoot);
-        var engine = new Core.Gates.Engine.GateExecutionEngine(_graphClient, repo);
+        _cachedGateSuite = null;
+    }
 
-        IEnumerable<Core.Gates.Models.SemanticGate>? targetGates = null;
-        if (!string.IsNullOrWhiteSpace(gateId))
+    public async Task<GateSuiteSummaryDto> EvaluateGatesSuiteAsync(string? gateId = null, CancellationToken cancellationToken = default, bool force = false)
+    {
+        await _gateEvaluationLock.WaitAsync(cancellationToken);
+        try
         {
-            var single = await repo.GetGateByIdAsync(gateId.Trim(), cancellationToken);
-            targetGates = single != null ? [single] : [];
-        }
+            if (string.IsNullOrWhiteSpace(gateId))
+            {
+                if (!force && _cachedGateSuite != null)
+                {
+                    return _cachedGateSuite;
+                }
 
-        var suite = await engine.CheckSuiteAsync(targetGates, cancellationToken: cancellationToken);
-        return MapGateSuiteToDto(suite);
+                var repo = new Core.Gates.Storage.FileGateRepository(_workspaceRoot);
+                var engine = new Core.Gates.Engine.GateExecutionEngine(_graphClient, repo);
+                var suite = await engine.CheckSuiteAsync(null, cancellationToken: cancellationToken);
+                var dto = MapGateSuiteToDto(suite);
+                _cachedGateSuite = dto;
+                return dto;
+            }
+            else
+            {
+                var repo = new Core.Gates.Storage.FileGateRepository(_workspaceRoot);
+                var engine = new Core.Gates.Engine.GateExecutionEngine(_graphClient, repo);
+                var single = await repo.GetGateByIdAsync(gateId.Trim(), cancellationToken);
+                IEnumerable<Core.Gates.Models.SemanticGate>? targetGates = single != null ? [single] : [];
+                var singleSuite = await engine.CheckSuiteAsync(targetGates, cancellationToken: cancellationToken);
+                var singleDto = MapGateSuiteToDto(singleSuite);
+
+                if (_cachedGateSuite != null && singleDto.Gates.Count > 0)
+                {
+                    var updatedGate = singleDto.Gates[0];
+                    var nextGates = _cachedGateSuite.Gates.ToList();
+                    var idx = nextGates.FindIndex(g => string.Equals(g.Id, gateId.Trim(), StringComparison.OrdinalIgnoreCase));
+                    if (idx >= 0)
+                    {
+                        nextGates[idx] = updatedGate;
+                    }
+                    else
+                    {
+                        nextGates.Add(updatedGate);
+                    }
+
+                    int passed = 0;
+                    int failed = 0;
+                    int newViolations = 0;
+                    int toleratedViolations = 0;
+                    int ratchetOpportunities = 0;
+
+                    foreach (var g in nextGates)
+                    {
+                        if (string.Equals(g.Status, "Passed", StringComparison.OrdinalIgnoreCase))
+                        {
+                            passed++;
+                        }
+                        else if (string.Equals(g.Status, "PassedTolerated", StringComparison.OrdinalIgnoreCase))
+                        {
+                            passed++;
+                            toleratedViolations += g.ToleratedViolationsCount;
+                        }
+                        else if (string.Equals(g.Status, "FailedNew", StringComparison.OrdinalIgnoreCase) || string.Equals(g.Status, "Error", StringComparison.OrdinalIgnoreCase))
+                        {
+                            failed++;
+                            newViolations += g.NewViolationsCount;
+                        }
+
+                        if (g.CanRatchetDown) ratchetOpportunities++;
+                    }
+
+                    _cachedGateSuite = new GateSuiteSummaryDto
+                    {
+                        TotalGates = nextGates.Count,
+                        PassedCount = passed,
+                        FailedCount = failed,
+                        NewViolationsCount = newViolations,
+                        ToleratedViolationsCount = toleratedViolations,
+                        RatchetOpportunities = ratchetOpportunities,
+                        IsSuccess = failed == 0,
+                        TotalDurationMs = _cachedGateSuite.TotalDurationMs,
+                        Gates = nextGates
+                    };
+                    return _cachedGateSuite;
+                }
+
+                return singleDto;
+            }
+        }
+        finally
+        {
+            _gateEvaluationLock.Release();
+        }
     }
 
     public async Task<RatchetGatesResponseDto> RatchetGatesSuiteAsync(string? gateId = null, bool updateAll = false, CancellationToken cancellationToken = default)
@@ -717,6 +801,8 @@ public class WebSocketServerHandler
         }
 
         var refreshedSuite = await engine.CheckSuiteAsync(cancellationToken: cancellationToken);
+        var refreshedDto = MapGateSuiteToDto(refreshedSuite);
+        _cachedGateSuite = refreshedDto;
         return new RatchetGatesResponseDto
         {
             Success = true,
@@ -724,7 +810,7 @@ public class WebSocketServerHandler
             Message = updated > 0
                 ? $"Updated baseline for {updated} gate(s)."
                 : "Baselines are already up to date.",
-            Suite = MapGateSuiteToDto(refreshedSuite)
+            Suite = refreshedDto
         };
     }
 
@@ -732,7 +818,7 @@ public class WebSocketServerHandler
     {
         var repo = new Core.Gates.Storage.FileGateRepository(_workspaceRoot);
         var created = await repo.InitStarterGatesAsync(overwrite, cancellationToken);
-        var refreshedSuite = await EvaluateGatesSuiteAsync(null, cancellationToken);
+        var refreshedSuite = await EvaluateGatesSuiteAsync(null, cancellationToken, force: true);
         return new RatchetGatesResponseDto
         {
             Success = true,

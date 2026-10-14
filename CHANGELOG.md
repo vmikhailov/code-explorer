@@ -5,6 +5,23 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.41.2] - 2026-10-14
+
+### Added
+- **Centralized Gate State Manager (`GateStateManager`)**:
+  - Implemented a unified single-source-of-truth service (`GateStateManager`) in the VS Code extension host managing gate suite summaries, evaluation lifecycles, and ratchet operations.
+  - Eliminated duplicate gate calculations: both the Left Sidebar TreeView and Right Webview (`DomainGatesPanel`) query through `GateStateManager` rather than dispatching independent HTTP evaluation requests.
+  - Added in-flight request deduplication: concurrent requests for gate evaluations attach to the single active calculation promise, preventing redundant Cypher query executions.
+  - Integrated bidirectional event broadcasting (`onDidChangeSuite` -> `GATES_UPDATED`), ensuring all open webviews and sidebar tree items reactively update in real time with synchronized pass/fail metrics, spinners, and violation details.
+
+### Performance & Caching
+- **Backend Gate Suite In-Memory Caching (`ce serve`)**:
+  - Added thread-safe in-memory caching (`SemaphoreSlim` + `_cachedGateSuite`) in `WebSocketServerHandler`.
+  - `GET /api/gates` now serves cached gate results in sub-millisecond time.
+  - Caches are automatically invalidated on incremental scans (`ce scan`), explicit check requests (`POST /api/gates/check`), ratchet updates (`POST /api/gates/ratchet`), or starter gate initialization (`POST /api/gates/init`).
+
+---
+
 ## [1.41.1] - 2026-10-14
 
 ### Fixed

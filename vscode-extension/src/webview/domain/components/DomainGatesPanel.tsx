@@ -5,6 +5,7 @@ import {
   GateViolationDto,
   RatchetGatesResponseDto,
 } from '../../../../../proto/types';
+import { getVsCodeApi } from '../../vscodeApi';
 import { FloatingPanel } from '../../components/FloatingPanel';
 import {
   ShieldIcon,
@@ -82,14 +83,30 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
   }, [resolvedHttpUrl, applySuite]);
 
   useEffect(() => {
-    fetchGates();
+    const vscode = getVsCodeApi();
+    if (vscode) {
+      vscode.postMessage({ type: 'GET_GATES' });
+    } else {
+      fetchGates();
+    }
   }, [fetchGates]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       const msg = event.data;
-      if (msg?.type === 'GATES_UPDATED' && msg.suite) {
-        applySuite(msg.suite as GateSuiteSummaryDto);
+      if (msg?.type === 'GATES_UPDATED') {
+        if (msg.suite) {
+          applySuite(msg.suite as GateSuiteSummaryDto);
+        }
+        if (typeof msg.isEvaluating === 'boolean') {
+          setLoading(msg.isEvaluating);
+        }
+        if (msg.actionStatus !== undefined) {
+          setActionStatus(msg.actionStatus);
+        }
+        if (msg.error) {
+          setError(msg.error);
+        }
       }
     };
     window.addEventListener('message', handleMessage);
@@ -98,6 +115,15 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
 
   const handleEvaluate = useCallback(
     async (gateId?: string) => {
+      const vscode = getVsCodeApi();
+      if (vscode) {
+        setLoading(true);
+        setError(null);
+        setActionStatus(gateId ? `Evaluating ${gateId}...` : 'Evaluating all gates...');
+        vscode.postMessage({ type: 'EVALUATE_GATES', gateId });
+        return;
+      }
+
       if (!resolvedHttpUrl) return;
       setLoading(true);
       setError(null);
@@ -130,6 +156,15 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
 
   const handleRatchet = useCallback(
     async (gateId?: string) => {
+      const vscode = getVsCodeApi();
+      if (vscode) {
+        setLoading(true);
+        setError(null);
+        setActionStatus(gateId ? `Ratcheting ${gateId}...` : 'Ratcheting baselines...');
+        vscode.postMessage({ type: 'RATCHET_GATES', gateId });
+        return;
+      }
+
       if (!resolvedHttpUrl) return;
       setLoading(true);
       setError(null);
@@ -161,6 +196,15 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
   );
 
   const handleInitStarterGate = useCallback(async () => {
+    const vscode = getVsCodeApi();
+    if (vscode) {
+      setLoading(true);
+      setError(null);
+      setActionStatus('Initializing starter gate...');
+      vscode.postMessage({ type: 'INIT_GATES' });
+      return;
+    }
+
     if (!resolvedHttpUrl) return;
     setLoading(true);
     setError(null);

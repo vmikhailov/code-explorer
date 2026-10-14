@@ -7,6 +7,7 @@ import { getModelStatus } from './modelManager';
 import { LlmBridgeService } from './services/llmBridgeService';
 import { isProjectKind } from '../../proto/types';
 import { compareSemver } from './binaryManager';
+import { GateStateManager } from './gateStateManager';
 
 export function registerGraphCommands(
   context: vscode.ExtensionContext,
@@ -505,22 +506,9 @@ export function registerWorkspaceCommands(
         },
         async () => {
           try {
-            const serverInfo = await processManager.ensureServerStarted(workspaceRoot);
-            const res = await fetch(`${serverInfo.httpUrl}/api/gates/check`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(gateId ? { gateId } : {}),
-            });
-            if (!res.ok) {
-              throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-            }
-            const suite = (await res.json()) as any;
-            if (!gateId && suite && Array.isArray(suite.gates)) {
-              treeDataProvider.setGatesSuite(suite);
-            } else {
-              treeDataProvider.refresh();
-            }
-            GraphPanel.broadcast({ type: 'GATES_UPDATED', suite });
+            const gateStateManager = GateStateManager.getInstance();
+            const suite = await gateStateManager.evaluateSuite(gateId);
+            if (!suite) return;
 
             if (suite.totalGates === 0) {
               const choice = await vscode.window.showInformationMessage(
@@ -565,20 +553,8 @@ export function registerWorkspaceCommands(
           : itemOrGateId?.data?.gate?.id || itemOrGateId?.data?.gateId;
 
       try {
-        const serverInfo = await processManager.ensureServerStarted(workspaceRoot);
-        const res = await fetch(`${serverInfo.httpUrl}/api/gates/ratchet`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(gateId ? { gateId } : { updateAll: true }),
-        });
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-        }
-        const data = (await res.json()) as any;
-        treeDataProvider.refresh();
-        if (data?.suite) {
-          GraphPanel.broadcast({ type: 'GATES_UPDATED', suite: data.suite });
-        }
+        const gateStateManager = GateStateManager.getInstance();
+        const data = await gateStateManager.ratchetSuite(gateId, !gateId);
         vscode.window.showInformationMessage(
           data?.message || `CodeExplorer: Ratcheted ${data?.updatedGatesCount || 0} gate baseline(s).`
         );
@@ -600,20 +576,8 @@ export function registerWorkspaceCommands(
       }
 
       try {
-        const serverInfo = await processManager.ensureServerStarted(workspaceRoot);
-        const res = await fetch(`${serverInfo.httpUrl}/api/gates/init`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ overwrite: false }),
-        });
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-        }
-        const data = (await res.json()) as any;
-        treeDataProvider.refresh();
-        if (data?.suite) {
-          GraphPanel.broadcast({ type: 'GATES_UPDATED', suite: data.suite });
-        }
+        const gateStateManager = GateStateManager.getInstance();
+        const data = await gateStateManager.initStarterGates(false);
         const examplePath = path.join(workspaceRoot, '.codeexplorer', 'gates', 'example-gate.yaml.example');
         const choice = await vscode.window.showInformationMessage(
           data?.message || 'Starter gate template created in .codeexplorer/gates/',

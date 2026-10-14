@@ -40,11 +40,7 @@ import {
   SelectDrawerNodeCommand,
 } from './commands';
 
-declare function acquireVsCodeApi(): {
-  postMessage(message: any): void;
-  getState(): any;
-  setState(state: any): void;
-};
+import { getVsCodeApi } from './vscodeApi';
 
 declare global {
   interface Window {
@@ -58,10 +54,7 @@ declare global {
   }
 }
 
-let vscodeApi: any = null;
-try {
-  vscodeApi = acquireVsCodeApi();
-} catch {}
+const vscodeApi = getVsCodeApi();
 
 const logToExtension = (level: 'INFO' | 'WARN' | 'ERROR', message: string) => {
   if (level === 'ERROR') {
