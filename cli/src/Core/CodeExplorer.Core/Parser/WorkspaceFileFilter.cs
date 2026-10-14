@@ -305,6 +305,7 @@ public static class WorkspaceFileFilter
 
             if (!string.IsNullOrEmpty(relativeDir) && gitignore.IsIgnored(relativeDir, true))
             {
+                log?.Invoke($"[WorkspaceFileFilter] GitIgnore: Skipping ignored directory '{relativeDir}'");
                 continue;
             }
 

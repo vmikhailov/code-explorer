@@ -14,7 +14,16 @@ public class GitIgnoreMatcher
         "*.bundle.min.js"
     ];
 
-    private readonly List<(string Pattern, Regex Regex, bool IsDirectoryOnly, string? Scope)> _rules = [];
+    private sealed record Rule(
+        string OriginalPattern,
+        string CleanPattern,
+        Regex Regex,
+        bool IsDirectoryOnly,
+        bool IsNegated,
+        bool IsAnchored,
+        string? Scope);
+
+    private readonly List<Rule> _rules = [];
 
     public GitIgnoreMatcher(string workspaceRoot)
     {
@@ -58,8 +67,19 @@ public class GitIgnoreMatcher
         var trimmed = pattern.Trim();
         if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith('#')) return;
 
-        var isDirectoryOnly = false;
+        var isNegated = false;
+        if (trimmed.StartsWith('!'))
+        {
+            isNegated = true;
+            trimmed = trimmed[1..].Trim();
+            if (string.IsNullOrEmpty(trimmed)) return;
+        }
+        else if (trimmed.StartsWith(@"\!"))
+        {
+            trimmed = trimmed[1..];
+        }
 
+        var isDirectoryOnly = false;
         if (trimmed.EndsWith('/'))
         {
             isDirectoryOnly = true;
@@ -67,11 +87,20 @@ public class GitIgnoreMatcher
         }
 
         var isAnchored = false;
-
         if (trimmed.StartsWith('/'))
         {
             isAnchored = true;
             trimmed = trimmed[1..];
+        }
+        else if (trimmed.Contains('/') && !trimmed.StartsWith("**/"))
+        {
+            isAnchored = true;
+        }
+
+        var rawPattern = trimmed;
+        if (rawPattern.StartsWith("**/"))
+        {
+            rawPattern = rawPattern[3..];
         }
 
         var escaped = Regex.Escape(trimmed);
@@ -98,7 +127,14 @@ public class GitIgnoreMatcher
         try
         {
             var regex = new Regex(regexPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
-            _rules.Add((trimmed, regex, isDirectoryOnly, string.IsNullOrEmpty(scope) ? null : scope));
+            _rules.Add(new Rule(
+                pattern,
+                rawPattern.Replace('\\', '/').Trim('/'),
+                regex,
+                isDirectoryOnly,
+                isNegated,
+                isAnchored,
+                string.IsNullOrEmpty(scope) ? null : scope));
         }
         catch
         {
@@ -111,39 +147,147 @@ public class GitIgnoreMatcher
         relativePath = relativePath.Replace('\\', '/').Trim('/');
         if (string.IsNullOrEmpty(relativePath)) return false;
 
-        foreach (var rule in _rules)
+        if (isDirectory)
         {
-            var testPath = relativePath;
-            if (rule.Scope != null)
+            var ignored = false;
+            var lastExclusionIndex = -1;
+
+            for (var i = 0; i < _rules.Count; i++)
             {
-                if (string.Equals(relativePath, rule.Scope, StringComparison.OrdinalIgnoreCase))
+                var rule = _rules[i];
+                var testPath = relativePath;
+
+                if (rule.Scope != null)
                 {
-                    // A scoped rule loaded from inside a directory cannot ignore the directory itself
-                    continue;
+                    if (string.Equals(relativePath, rule.Scope, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // A scoped rule loaded from inside a directory cannot ignore the directory itself
+                        continue;
+                    }
+
+                    if (!relativePath.StartsWith(rule.Scope + "/", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    testPath = relativePath[(rule.Scope.Length + 1)..];
                 }
 
-                if (!relativePath.StartsWith(rule.Scope + "/", StringComparison.OrdinalIgnoreCase))
+                if (rule.Regex.IsMatch(testPath))
                 {
-                    continue;
+                    if (rule.IsNegated)
+                    {
+                        ignored = false;
+                    }
+                    else
+                    {
+                        ignored = true;
+                        lastExclusionIndex = i;
+                    }
                 }
-
-                testPath = relativePath[(rule.Scope.Length + 1)..];
             }
 
-            if (rule.IsDirectoryOnly && !isDirectory)
+            if (ignored && HasLaterNegationUnderneath(relativePath, lastExclusionIndex))
             {
-                // Directory-only rules like "foo/" match a file if it is inside that directory (followed by '/')
-                var m = rule.Regex.Match(testPath);
-                if (m.Success && m.Value.EndsWith('/'))
+                return false;
+            }
+
+            return ignored;
+        }
+        else
+        {
+            var ignoredByDir = false;
+            var ignoredByFile = false;
+
+            for (var i = 0; i < _rules.Count; i++)
+            {
+                var rule = _rules[i];
+                var testPath = relativePath;
+
+                if (rule.Scope != null)
+                {
+                    if (!relativePath.StartsWith(rule.Scope + "/", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    testPath = relativePath[(rule.Scope.Length + 1)..];
+                }
+
+                if (rule.IsDirectoryOnly)
+                {
+                    var m = rule.Regex.Match(testPath);
+                    if (m.Success && m.Value.EndsWith('/'))
+                    {
+                        if (rule.IsNegated)
+                        {
+                            ignoredByDir = false;
+                        }
+                        else
+                        {
+                            ignoredByDir = true;
+                        }
+                    }
+                }
+                else
+                {
+                    if (rule.Regex.IsMatch(testPath))
+                    {
+                        if (rule.IsNegated)
+                        {
+                            ignoredByFile = false;
+                            ignoredByDir = false;
+                        }
+                        else
+                        {
+                            ignoredByFile = true;
+                        }
+                    }
+                }
+            }
+
+            return ignoredByDir || ignoredByFile;
+        }
+    }
+
+    private bool HasLaterNegationUnderneath(string relativeDir, int afterRuleIndex)
+    {
+        if (afterRuleIndex < 0) return false;
+
+        var dirPrefix = relativeDir.EndsWith('/') ? relativeDir : relativeDir + "/";
+
+        for (var i = afterRuleIndex + 1; i < _rules.Count; i++)
+        {
+            var rule = _rules[i];
+            if (!rule.IsNegated) continue;
+
+            if (rule.Scope != null)
+            {
+                if (rule.Scope.StartsWith(dirPrefix, StringComparison.OrdinalIgnoreCase))
                 {
                     return true;
                 }
-                continue;
-            }
 
-            if (rule.Regex.IsMatch(testPath))
+                if (dirPrefix.StartsWith(rule.Scope + "/", StringComparison.OrdinalIgnoreCase))
+                {
+                    var relToScope = dirPrefix[(rule.Scope.Length + 1)..];
+                    if (rule.CleanPattern.StartsWith(relToScope, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+            }
+            else
             {
-                return true;
+                if (rule.CleanPattern.StartsWith(dirPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                if (rule.IsAnchored && rule.CleanPattern.StartsWith(relativeDir + "/", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
             }
         }
 

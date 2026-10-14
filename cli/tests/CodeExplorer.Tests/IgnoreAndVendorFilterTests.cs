@@ -143,4 +143,135 @@ Scripts/vendor/
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
+
+    [Test]
+    public void Test_GitIgnoreMatcher_NegationPattern_ReincludesDirectoryAndFiles()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_negation_test_" + Guid.NewGuid());
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(tempDir, ".gitignore"), """
+**/lib/
+!packages/ui/src/lib/
+""");
+
+            var matcher = new GitIgnoreMatcher(tempDir);
+
+            // Re-included directory and child file
+            matcher.IsIgnored("packages/ui/src/lib", true).Should().BeFalse();
+            matcher.IsIgnored("packages/ui/src/lib/utils.ts", false).Should().BeFalse();
+
+            // Non-negated directory matching **/lib/ and child file
+            matcher.IsIgnored("other/package/lib", true).Should().BeTrue();
+            matcher.IsIgnored("other/package/lib/utils.ts", false).Should().BeTrue();
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public void Test_GitIgnoreMatcher_RuleOrdering_LaterRuleOverridesEarlier()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_ordering_test_" + Guid.NewGuid());
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(tempDir, ".gitignore"), """
+*.log
+!important.log
+!overridden.txt
+overridden.txt
+""");
+
+            var matcher = new GitIgnoreMatcher(tempDir);
+
+            // Later negation un-ignores
+            matcher.IsIgnored("debug.log", false).Should().BeTrue();
+            matcher.IsIgnored("important.log", false).Should().BeFalse();
+
+            // Later positive pattern re-ignores
+            matcher.IsIgnored("overridden.txt", false).Should().BeTrue();
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public void Test_GitIgnoreMatcher_AncestorDirectoryWithDescendantNegation()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_ancestor_test_" + Guid.NewGuid());
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            File.WriteAllText(Path.Combine(tempDir, ".gitignore"), """
+packages/
+!packages/ui/src/lib/
+""");
+
+            var matcher = new GitIgnoreMatcher(tempDir);
+
+            // Ancestor path must not be pruned because a later rule negates a path underneath it
+            matcher.IsIgnored("packages", true).Should().BeFalse();
+            matcher.IsIgnored("packages/ui", true).Should().BeFalse();
+            matcher.IsIgnored("packages/ui/src", true).Should().BeFalse();
+            matcher.IsIgnored("packages/ui/src/lib", true).Should().BeFalse();
+            matcher.IsIgnored("packages/ui/src/lib/utils.ts", false).Should().BeFalse();
+
+            // Another folder in packages/ without negation MUST be ignored
+            matcher.IsIgnored("packages/other", true).Should().BeTrue();
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Test_Layer1Scan_NegatedDirectory_IndexesReincludedFiles()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_scan_negation_test_" + Guid.NewGuid());
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            // Minimal reproduction setup from Issue #5
+            await File.WriteAllTextAsync(Path.Combine(tempDir, ".gitignore"), """
+**/lib/
+!packages/ui/src/lib/
+""");
+
+            var reincludedDir = Path.Combine(tempDir, "packages", "ui", "src", "lib");
+            var excludedLibDir = Path.Combine(tempDir, "apps", "web", "src", "lib");
+            Directory.CreateDirectory(reincludedDir);
+            Directory.CreateDirectory(excludedLibDir);
+
+            await File.WriteAllTextAsync(Path.Combine(reincludedDir, "utils.ts"), "export const cn = (...xs: string[]) => xs.join(' ');");
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "packages", "ui", "src", "index.ts"), "export { cn } from './lib/utils';");
+            await File.WriteAllTextAsync(Path.Combine(excludedLibDir, "internal.ts"), "export const internalHelper = 1;");
+
+            var dbPath = Path.Combine(tempDir, "test_graph.db");
+            await using var client = new SqliteGraphClient(dbPath);
+
+            WorkspaceIndexer.AutoRegisterParsers();
+            var indexer = new WorkspaceIndexer(client);
+            await indexer.IndexAsync(tempDir, tempDir, clear: true);
+
+            var queryResult = await client.ExecuteQueryAsync("MATCH (f:File) RETURN f.path AS path");
+
+            // packages/ui/src/lib/utils.ts must be indexed
+            queryResult.Should().Contain("packages/ui/src/lib/utils.ts");
+            queryResult.Should().Contain("packages/ui/src/index.ts");
+
+            // apps/web/src/lib/internal.ts must be skipped
+            queryResult.Should().NotContain("apps/web/src/lib/internal.ts");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
 }
