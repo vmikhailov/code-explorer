@@ -3580,7 +3580,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       minWidth={280}
       maxWidth={700}
       persistKey="ce_orbit_legend"
-      className="domain-orbit-legend-floating"
+      className="domain-orbit-legend-floating no-body-padding"
     >
       <div
         className="orbit-legend-hint"

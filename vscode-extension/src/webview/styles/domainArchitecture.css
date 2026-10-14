@@ -1530,7 +1530,7 @@
 }
 
 .domain-orbit-legend-body {
-  padding: 6px 8px;
+  padding: 6px 6px 6px 4px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1542,8 +1542,8 @@
 .domain-orbit-legend-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
+  gap: 6px;
+  padding: 5px 6px 5px 4px;
   border-radius: 5px;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
@@ -1619,7 +1619,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 5px 12px;
+  padding: 5px 8px;
   font-size: 9.5px;
   color: #64748b;
   text-transform: uppercase;
@@ -1702,7 +1702,7 @@
   background: transparent;
   border: none;
   cursor: pointer;
-  padding: 1px 3px;
+  padding: 1px 2px;
   color: #94a3b8;
   opacity: 0.75;
   transition: opacity 0.15s ease, transform 0.15s ease, color 0.15s ease;
