@@ -26,18 +26,27 @@ export interface ServerInfo {
   version?: string;
 }
 
+export interface ServerStartOptions {
+  port?: number;
+  idleTimeout?: number;
+}
+
 export class ProcessManager implements vscode.Disposable {
   private serverProcess: cp.ChildProcess | null = null;
   private serverInfo: ServerInfo | null = null;
   private startPromise: Promise<ServerInfo> | null = null;
   private outputChannel: vscode.OutputChannel;
   private binaryManager?: BinaryManager;
+  private isStoppingIntentionally = false;
 
   private _onDidServerStart = new vscode.EventEmitter<ServerInfo>();
   public readonly onDidServerStart = this._onDidServerStart.event;
 
   private _onDidServerStop = new vscode.EventEmitter<void>();
   public readonly onDidServerStop = this._onDidServerStop.event;
+
+  private _onDidUnexpectedExit = new vscode.EventEmitter<{ code: number | null; signal: string | null }>();
+  public readonly onDidUnexpectedExit = this._onDidUnexpectedExit.event;
 
   constructor(outputChannel: vscode.OutputChannel, context?: vscode.ExtensionContext) {
     this.outputChannel = outputChannel;
@@ -156,7 +165,7 @@ export class ProcessManager implements vscode.Disposable {
   /**
    * Returns existing or newly started server info for the given workspace.
    */
-  async ensureServerStarted(workspaceRoot?: string): Promise<ServerInfo> {
+  async ensureServerStarted(workspaceRoot?: string, options?: ServerStartOptions): Promise<ServerInfo> {
     if (!workspaceRoot) {
       throw new Error('No workspace folder is currently open.');
     }
@@ -193,7 +202,7 @@ export class ProcessManager implements vscode.Disposable {
       return this.startPromise;
     }
 
-    this.startPromise = this.startServer(workspaceRoot);
+    this.startPromise = this.startServer(workspaceRoot, options);
     try {
       this.serverInfo = await this.startPromise;
       return this.serverInfo;
@@ -203,13 +212,13 @@ export class ProcessManager implements vscode.Disposable {
   }
 
   /**
-   * Spawns `ce serve` with an ephemeral port and resolves when the ready handshake is received.
+   * Spawns `ce serve` with the specified or configured port and resolves when the ready handshake is received.
    */
-  private async startServer(workspaceRoot: string): Promise<ServerInfo> {
+  private async startServer(workspaceRoot: string, options?: ServerStartOptions): Promise<ServerInfo> {
     const config = vscode.workspace.getConfiguration('codeExplorer');
     const customPath = config.get<string>('executablePath', '');
-    const configuredPort = config.get<number>('serverPort') ?? 0;
-    const idleTimeout = config.get<number>('idleTimeout') ?? 60;
+    const targetPort = options?.port ?? config.get<number>('serverPort') ?? 0;
+    const idleTimeout = options?.idleTimeout ?? config.get<number>('idleTimeout') ?? 0;
 
     this.outputChannel.appendLine(`[ProcessManager] Preparing CodeExplorer server for workspace: ${workspaceRoot}`);
     const executable = await this.findExecutable(workspaceRoot, customPath);
@@ -227,9 +236,9 @@ export class ProcessManager implements vscode.Disposable {
       '--root',
       workspaceRoot,
       '--port',
-      (configuredPort ?? 0).toString(),
+      (targetPort ?? 0).toString(),
       '--idle-timeout',
-      (idleTimeout ?? 60).toString(),
+      (idleTimeout ?? 0).toString(),
     ];
 
     this.outputChannel.appendLine(
@@ -238,6 +247,7 @@ export class ProcessManager implements vscode.Disposable {
 
     return new Promise<ServerInfo>((resolve, reject) => {
       let isReady = false;
+      this.isStoppingIntentionally = false;
       const isBatch =
         process.platform === 'win32' &&
         (executable.command.toLowerCase().endsWith('.cmd') || executable.command.toLowerCase().endsWith('.bat'));
@@ -305,9 +315,12 @@ export class ProcessManager implements vscode.Disposable {
       });
 
       child.on('exit', (code, signal) => {
+        const wasIntentional = this.isStoppingIntentionally;
         this.outputChannel.appendLine(`[Server] Process exited with code ${code}, signal ${signal}`);
-        this.serverProcess = null;
-        this.serverInfo = null;
+        if (this.serverProcess === child) {
+          this.serverProcess = null;
+          this.serverInfo = null;
+        }
         this._onDidServerStop.fire();
         if (!isReady) {
           clearTimeout(timeout);
@@ -319,6 +332,8 @@ export class ProcessManager implements vscode.Disposable {
           );
           (detailedError as any).diagnosticReport = report;
           reject(detailedError);
+        } else if (!wasIntentional) {
+          this._onDidUnexpectedExit.fire({ code, signal });
         }
       });
     });
@@ -430,6 +445,7 @@ export class ProcessManager implements vscode.Disposable {
   }
 
   stopServer(): void {
+    this.isStoppingIntentionally = true;
     if (this.serverProcess && !this.serverProcess.killed) {
       this.outputChannel.appendLine('[Server] Stopping CodeExplorer server process...');
       const pid = this.serverProcess.pid;
@@ -460,6 +476,7 @@ export class ProcessManager implements vscode.Disposable {
     this.stopServer();
     this._onDidServerStart.dispose();
     this._onDidServerStop.dispose();
+    this._onDidUnexpectedExit.dispose();
   }
 }
 

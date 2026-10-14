@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { ProcessManager } from './processManager';
+import { ServerTransport } from './serverTransport';
 import { GraphPanel } from './graphPanel';
 import { CodeExplorerTreeDataProvider } from './codeExplorerTreeProvider';
 import { getModelStatus } from './modelManager';
@@ -17,6 +18,8 @@ export function registerGraphCommands(
   outputChannel: vscode.OutputChannel,
   getWorkspaceRoot: () => string | undefined
 ) {
+  const transport = ServerTransport.getInstance();
+
   // Command: Show Graph
   const showGraphCommand = vscode.commands.registerCommand(
     'codeExplorer.showGraph',
@@ -27,7 +30,7 @@ export function registerGraphCommands(
         return;
       }
 
-      if (!processManager.hasWorkspace(workspaceRoot)) {
+      if (!transport.hasWorkspace(workspaceRoot)) {
         const choice = await vscode.window.showInformationMessage(
           'CodeExplorer: No architecture graph found for this workspace. Initialize and scan now?',
           'Initialize & Scan',
@@ -48,7 +51,7 @@ export function registerGraphCommands(
         async (progress) => {
           try {
             progress.report({ message: 'Connecting to ce serve...' });
-            const serverInfo = await processManager.ensureServerStarted(workspaceRoot);
+            const serverInfo = await transport.ensureConnected(workspaceRoot);
             GraphPanel.createOrShow(context.extensionUri, serverInfo.wsUrl, workspaceRoot, outputChannel, 'semantic');
           } catch (err: any) {
             outputChannel.appendLine(`\n[CodeExplorer Server Activation Error]\n${err.message}\n`);
@@ -102,7 +105,7 @@ export function registerGraphCommands(
           ? service
           : kindOrItem?.data?.serviceName || service;
 
-      if (!processManager.hasWorkspace(workspaceRoot)) {
+      if (!transport.hasWorkspace(workspaceRoot)) {
         const choice = await vscode.window.showInformationMessage(
           'CodeExplorer: No architecture graph found for this workspace. Initialize and scan now?',
           'Initialize & Scan',
@@ -115,7 +118,7 @@ export function registerGraphCommands(
       }
 
       try {
-        const serverInfo = await processManager.ensureServerStarted(workspaceRoot);
+        const serverInfo = await transport.ensureConnected(workspaceRoot);
         const panel = GraphPanel.createOrShow(
           context.extensionUri,
           serverInfo.wsUrl,
@@ -152,7 +155,7 @@ export function registerGraphCommands(
           ? viewModeOrItem
           : viewModeOrItem?.data?.viewMode || (viewModeOrItem?.itemType === 'layer-group' ? 'layers' : 'layers');
 
-      if (!processManager.hasWorkspace(workspaceRoot)) {
+      if (!transport.hasWorkspace(workspaceRoot)) {
         const choice = await vscode.window.showInformationMessage(
           'CodeExplorer: No architecture graph found for this workspace. Initialize and scan now?',
           'Initialize & Scan',
@@ -165,7 +168,7 @@ export function registerGraphCommands(
       }
 
       try {
-        const serverInfo = await processManager.ensureServerStarted(workspaceRoot);
+        const serverInfo = await transport.ensureConnected(workspaceRoot);
         const panel = GraphPanel.createOrShow(
           context.extensionUri,
           serverInfo.wsUrl,
@@ -195,7 +198,7 @@ export function registerGraphCommands(
       if (!workspaceRoot) return;
 
       try {
-        const serverInfo = await processManager.ensureServerStarted(workspaceRoot);
+        const serverInfo = await transport.ensureConnected(workspaceRoot);
         const panel = GraphPanel.createOrShow(
           context.extensionUri,
           serverInfo.wsUrl,
@@ -232,7 +235,7 @@ export function registerGraphCommands(
       if (!targetId) return;
 
       try {
-        const serverInfo = await processManager.ensureServerStarted(workspaceRoot);
+        const serverInfo = await transport.ensureConnected(workspaceRoot);
         const targetMode = isProjectKind(targetKind) ? 'flow' : 'semantic';
         const targetProject = isProjectKind(targetKind)
           ? (nodeIdOrItem?.data?.serviceName || (typeof nodeIdOrItem === 'string' ? nodeIdOrItem : targetId))
@@ -311,6 +314,8 @@ export function registerWorkspaceCommands(
   getWorkspaceRoot: () => string | undefined,
   showWhatsNew: () => Promise<void>
 ) {
+  const transport = ServerTransport.getInstance();
+
   const triggerScan = async (clear: boolean) => {
     const workspaceRoot = getWorkspaceRoot();
     if (!workspaceRoot) {
@@ -318,7 +323,7 @@ export function registerWorkspaceCommands(
       return;
     }
 
-    if (!processManager.hasWorkspace(workspaceRoot)) {
+    if (!transport.hasWorkspace(workspaceRoot)) {
       const choice = await vscode.window.showInformationMessage(
         'CodeExplorer: No architecture graph found for this workspace. Initialize and scan now?',
         'Initialize & Scan',
@@ -378,10 +383,9 @@ export function registerWorkspaceCommands(
         return;
       }
 
-      processManager.stopServer();
       vscode.window.showInformationMessage('CodeExplorer: Restarting graph server...');
       try {
-        await processManager.ensureServerStarted(workspaceRoot);
+        await transport.restart(workspaceRoot);
         treeDataProvider.refresh();
         vscode.window.showInformationMessage('CodeExplorer: Server restarted successfully.');
       } catch (err: any) {
@@ -410,15 +414,14 @@ export function registerWorkspaceCommands(
       try {
         const workspaceRoot = getWorkspaceRoot();
         const result = await bm.checkAndUpdate(false, workspaceRoot);
-        const serverVer = processManager.getServerInfo()?.version;
+        const serverVer = transport.getServerInfo()?.version;
         const currentEngVer = result.currentVersion;
         const needsRestart =
           result.updated || (serverVer && currentEngVer && compareSemver(currentEngVer, serverVer) > 0);
         if (needsRestart) {
-          if (workspaceRoot && processManager.getServerInfo()) {
-            outputChannel.appendLine('[ProcessManager] Restarting server with preferred/updated engine...');
-            processManager.stopServer();
-            await processManager.ensureServerStarted(workspaceRoot);
+          if (workspaceRoot && transport.getServerInfo()) {
+            outputChannel.appendLine('[ServerTransport] Restarting server with preferred/updated engine...');
+            await transport.restart(workspaceRoot);
           }
           treeDataProvider.refresh();
         }
@@ -448,7 +451,7 @@ export function registerWorkspaceCommands(
         },
         async (progress) => {
           try {
-            if (!processManager.hasWorkspace(workspaceRoot)) {
+            if (!transport.hasWorkspace(workspaceRoot)) {
               progress.report({ message: 'Initializing .codeexplorer workspace...' });
               await processManager.runCliCommand(workspaceRoot, ['init']);
             }
@@ -461,7 +464,7 @@ export function registerWorkspaceCommands(
             });
 
             progress.report({ message: 'Starting graph server...' });
-            await processManager.ensureServerStarted(workspaceRoot);
+            await transport.ensureConnected(workspaceRoot);
             treeDataProvider.refresh();
 
             vscode.window

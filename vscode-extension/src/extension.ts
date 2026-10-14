@@ -10,8 +10,10 @@ import {
 
 import { GateStateManager } from './gateStateManager';
 import { GraphPanel } from './graphPanel';
+import { ServerTransport } from './serverTransport';
 
 let processManager: ProcessManager | null = null;
+let serverTransport: ServerTransport | null = null;
 
 export function activate(context: vscode.ExtensionContext) {
   const outputChannel = vscode.window.createOutputChannel('CodeExplorer');
@@ -25,8 +27,12 @@ export function activate(context: vscode.ExtensionContext) {
     return workspaceFolders && workspaceFolders.length > 0 ? workspaceFolders[0].uri.fsPath : undefined;
   };
 
+  // Unified Transport Layer (sticky port allocation, liveness watchdog, pub/sub event bus)
+  serverTransport = ServerTransport.initialize(processManager, getWorkspaceRoot, outputChannel);
+  context.subscriptions.push(serverTransport);
+
   // Central Gate State Manager (single source of truth for all gates evaluation)
-  const gateStateManager = GateStateManager.initialize(processManager, getWorkspaceRoot, outputChannel);
+  const gateStateManager = GateStateManager.initialize(serverTransport, getWorkspaceRoot, outputChannel);
   context.subscriptions.push(gateStateManager);
 
   // Broadcast gate updates in real-time to all open webviews
@@ -42,7 +48,13 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   // Register TreeDataProvider for Sidebar
-  const treeDataProvider = new CodeExplorerTreeDataProvider(processManager, getWorkspaceRoot, outputChannel, gateStateManager);
+  const treeDataProvider = new CodeExplorerTreeDataProvider(
+    processManager,
+    getWorkspaceRoot,
+    outputChannel,
+    gateStateManager,
+    serverTransport
+  );
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider('codeExplorerView', treeDataProvider)
   );
@@ -63,20 +75,26 @@ export function activate(context: vscode.ExtensionContext) {
   };
   updateStatusBarVisibility();
 
-  processManager.onDidServerStart((info) => {
-    statusBarItem.text = '$(check) Code Graph';
-    statusBarItem.tooltip = `CodeExplorer server running at ${info.wsUrl} (HTTP ${info.httpUrl})`;
-  });
-
-  processManager.onDidServerStop(() => {
-    statusBarItem.text = '$(type-hierarchy-sub) Code Graph';
-    statusBarItem.tooltip = 'Show CodeExplorer Architecture Graph';
+  serverTransport.onDidChangeState((event) => {
+    if (event.state === 'connected' && event.serverInfo) {
+      statusBarItem.text = '$(check) Code Graph';
+      statusBarItem.tooltip = `CodeExplorer server running at ${event.serverInfo.wsUrl} (HTTP ${event.serverInfo.httpUrl})`;
+    } else if (event.state === 'reconnecting' || event.state === 'starting') {
+      statusBarItem.text = '$(sync~spin) Code Graph';
+      statusBarItem.tooltip = `CodeExplorer server ${event.state} (port ${event.endpoints?.port ?? 'allocating'})...`;
+    } else if (event.state === 'error') {
+      statusBarItem.text = '$(warning) Code Graph';
+      statusBarItem.tooltip = `CodeExplorer server error: ${event.error || 'Unknown error'}. Click to reopen or restart.`;
+    } else {
+      statusBarItem.text = '$(type-hierarchy-sub) Code Graph';
+      statusBarItem.tooltip = 'Show CodeExplorer Architecture Graph';
+    }
   });
 
   // Check workspace on load or workspace folder changes
   const checkAndInitWorkspace = (workspaceRoot: string) => {
-    if (!workspaceRoot) return;
-    const hasCe = processManager!.hasWorkspace(workspaceRoot);
+    if (!workspaceRoot || !serverTransport) return;
+    const hasCe = serverTransport.hasWorkspace(workspaceRoot);
     if (!hasCe) {
       outputChannel.appendLine(`[CodeExplorer] No .codeexplorer directory found in: ${workspaceRoot}`);
       vscode.window
@@ -92,8 +110,8 @@ export function activate(context: vscode.ExtensionContext) {
         });
     } else {
       outputChannel.appendLine(`[CodeExplorer] Auto-starting graph server on load for: ${workspaceRoot}`);
-      processManager!
-        .ensureServerStarted(workspaceRoot)
+      serverTransport
+        .ensureConnected(workspaceRoot)
         .then((info) => {
           outputChannel.appendLine(`[CodeExplorer] Server ready at ${info.wsUrl}`);
         })
@@ -159,6 +177,9 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
+  if (serverTransport) {
+    serverTransport.dispose();
+  }
   if (processManager) {
     processManager.dispose();
   }

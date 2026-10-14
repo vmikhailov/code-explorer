@@ -132,8 +132,16 @@ public class FileGateRepository : IGateRepository
                   enabled: true
                   baseline: baselines/SIG-M-I-002.json
                 """;
-            await File.WriteAllTextAsync(exampleFile, exampleYaml, cancellationToken);
-            return 1;
+            try
+            {
+                await File.WriteAllTextAsync(exampleFile, exampleYaml, cancellationToken);
+                return 1;
+            }
+            catch (IOException) when (!overwrite && File.Exists(exampleFile))
+            {
+                // Another instance concurrently created the starter example file
+                return 0;
+            }
         }
 
         return 0;

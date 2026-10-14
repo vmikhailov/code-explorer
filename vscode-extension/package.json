@@ -2,7 +2,7 @@
   "name": "code-explorer-vscode",
   "displayName": "CodeExplorer",
   "description": "Visual knowledge graph and codebase intelligence tool for developers and AI agents.",
-  "version": "1.41.5",
+  "version": "1.41.6",
   "publisher": "vmikhailov",
   "license": "MIT",
   "icon": "media/icon_512_quant.png",
@@ -396,8 +396,8 @@
         },
         "codeExplorer.idleTimeout": {
           "type": "number",
-          "default": 60,
-          "description": "Idle timeout in seconds before the background ce.exe server terminates when all windows are closed."
+          "default": 0,
+          "description": "Idle timeout in seconds before the background ce.exe server terminates when all windows are closed (0 = managed by extension transport)."
         },
         "codeExplorer.ai.provider": {
           "type": "string",
@@ -437,7 +437,7 @@
     "build:dev": "node build.mjs",
     "watch": "node build.mjs --watch",
     "typecheck": "tsc --noEmit",
-    "test": "esbuild src/webview/commands/CommandManager.test.ts src/webview/layout/concentricLayout.test.ts src/webview/layout/domainLayouts.test.ts src/binaryManager.test.ts src/webview/utils/wheelZoom.test.ts src/webview/components/FloatingPanel.test.ts src/webview/domain/searchUtils.test.ts src/webview/domain/hiddenState.test.ts src/webview/domain/unifiedSidebar.test.ts src/webview/domain/gateState.test.ts --bundle --platform=node --external:vscode --outdir=dist/test --outbase=src && node dist/test/webview/commands/CommandManager.test.js && node dist/test/webview/layout/concentricLayout.test.js && node dist/test/webview/layout/domainLayouts.test.js && node dist/test/binaryManager.test.js && node dist/test/webview/utils/wheelZoom.test.js && node dist/test/webview/components/FloatingPanel.test.js && node dist/test/webview/domain/searchUtils.test.js && node dist/test/webview/domain/hiddenState.test.js && node dist/test/webview/domain/unifiedSidebar.test.js && node dist/test/webview/domain/gateState.test.js",
+    "test": "esbuild src/webview/commands/CommandManager.test.ts src/webview/layout/concentricLayout.test.ts src/webview/layout/domainLayouts.test.ts src/binaryManager.test.ts src/serverTransport.test.ts src/webview/utils/wheelZoom.test.ts src/webview/components/FloatingPanel.test.ts src/webview/domain/searchUtils.test.ts src/webview/domain/hiddenState.test.ts src/webview/domain/unifiedSidebar.test.ts src/webview/domain/gateState.test.ts --bundle --platform=node --external:vscode --outdir=dist/test --outbase=src && node dist/test/webview/commands/CommandManager.test.js && node dist/test/webview/layout/concentricLayout.test.js && node dist/test/webview/layout/domainLayouts.test.js && node dist/test/binaryManager.test.js && node dist/test/serverTransport.test.js && node dist/test/webview/utils/wheelZoom.test.js && node dist/test/webview/components/FloatingPanel.test.js && node dist/test/webview/domain/searchUtils.test.js && node dist/test/webview/domain/hiddenState.test.js && node dist/test/webview/domain/unifiedSidebar.test.js && node dist/test/webview/domain/gateState.test.js",
     "build:binaries": "node scripts/build-extension-binaries.mjs",
     "package": "node scripts/package-extension.mjs",
     "package:all": "node scripts/package-extension.mjs --all",

@@ -1105,6 +1105,11 @@ export const App: React.FC = () => {
       setConnectionStatus('reconnecting');
       logToExtension('WARN', `Scheduling reconnect attempt #${attempt} in ${Math.round(delay)}ms...`);
 
+      // Notify extension transport to verify server health and revive on the sticky port if needed
+      if (vscodeApi && (attempt === 1 || attempt % 3 === 0)) {
+        vscodeApi.postMessage({ type: 'REQUEST_SERVER_RECONNECT' });
+      }
+
       reconnectTimeoutRef.current = setTimeout(() => {
         if (lastWsUrlRef.current) {
           connectWebSocket(lastWsUrlRef.current);
@@ -1153,6 +1158,21 @@ export const App: React.FC = () => {
       connectWebSocket(initialConfig.wsUrl);
     }
 
+    // Periodic WebSocket keepalive ping to prevent background window suspension/disconnects
+    const keepAliveTimer = setInterval(() => {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        try {
+          wsRef.current.send(
+            JSON.stringify({
+              type: 'PING_REQUEST',
+              requestId: `ping_${Date.now()}`,
+              payload: { timestamp: Date.now() },
+            })
+          );
+        } catch {}
+      }
+    }, 25000);
+
     const handleMessage = (event: MessageEvent) => {
       const msg = event.data;
       switch (msg.type) {
@@ -1168,7 +1188,14 @@ export const App: React.FC = () => {
           if (msg.initialViewMode && msg.initialViewMode !== viewModeRef.current) {
             handleViewModeChangeRef.current(msg.initialViewMode as ViewMode);
           }
-          if (msg.wsUrl && (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED)) {
+          if (
+            msg.wsUrl &&
+            (msg.wsUrl !== lastWsUrlRef.current ||
+              !wsRef.current ||
+              wsRef.current.readyState === WebSocket.CLOSED ||
+              wsRef.current.readyState === WebSocket.CLOSING ||
+              reconnectTimeoutRef.current !== null)
+          ) {
             connectWebSocket(msg.wsUrl);
           }
           break;
@@ -1257,6 +1284,7 @@ export const App: React.FC = () => {
     }
 
     return () => {
+      clearInterval(keepAliveTimer);
       window.removeEventListener('message', handleMessage);
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
@@ -1299,6 +1327,9 @@ export const App: React.FC = () => {
       try {
         wsRef.current.close();
       } catch {}
+    }
+    if (vscodeApi) {
+      vscodeApi.postMessage({ type: 'REQUEST_SERVER_RECONNECT' });
     }
     if (lastWsUrlRef.current) {
       connectWebSocket(lastWsUrlRef.current);

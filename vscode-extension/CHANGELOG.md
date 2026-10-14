@@ -5,6 +5,22 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.41.6] - 2026-10-14
+
+### Added
+- **Unified Server Transport Layer (`ServerTransport`)**:
+  - Centralized all extension-to-server HTTP communication (`get`, `post`), lifecycle management, and event subscriptions into `ServerTransport`.
+  - **Lifetime Sticky Port Allocation**: Allocates a dedicated free TCP port once per VS Code window lifetime and retains it across server restarts, ensuring WebSocket and HTTP endpoints never drift when multiple VS Code windows are open.
+  - **Pub/Sub Event Bus**: Added typed state events (`onDidChangeState`, `onDidServerStart`, `onDidServerStop`) and topic-based subscriptions (`subscribe`/`publish`).
+  - **Liveness Watchdog & Auto-Restart with Circuit Breaker**: Periodic HTTP health checks, automatic exponential-backoff restart on unexpected server exit, sliding-window crash circuit breaker, and transparent retry on transient socket errors.
+
+### Fixed
+- **Multi-Window Connection Loss & Concurrent Starter Gate Race**:
+  - Disabled premature 60s server self-termination (`--idle-timeout 0`) when a second VS Code window is in the background without an active WebSocket tab.
+  - Fixed concurrent `IOException` race in `FileGateRepository.InitStarterGatesAsync` when multiple processes initialize starter gate files simultaneously.
+
+---
+
 ## [1.41.1] - 2026-10-14
 
 ### Fixed

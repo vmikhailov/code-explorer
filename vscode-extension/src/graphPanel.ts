@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { LlmBridgeService } from './services/llmBridgeService';
 import { GateStateManager } from './gateStateManager';
+import { ServerTransport } from './serverTransport';
 
 export function getViewTitle(viewMode?: string): string {
   switch (viewMode) {
@@ -64,6 +65,7 @@ export class GraphPanel {
 
     const existing = GraphPanel.panels.get(mode);
     if (existing) {
+      existing.wsUrl = wsUrl;
       existing.panel.title = getViewTitle(mode);
       existing.panel.reveal(existing.panel.viewColumn ?? column);
       existing.postMessage({
@@ -134,6 +136,26 @@ export class GraphPanel {
     this.panel = panel;
     this.extensionUri = extensionUri;
 
+    // Subscribe to transport server ready events so restarts/recoveries immediately notify the webview
+    try {
+      const transport = ServerTransport.getInstance();
+      this.disposables.push(
+        transport.onDidServerStart((info) => {
+          this.wsUrl = info.wsUrl;
+          if (this.isWebviewReady) {
+            this.panel.webview.postMessage({
+              type: 'SERVER_CONFIG',
+              wsUrl: this.wsUrl,
+              workspaceRoot: this.workspaceRoot,
+              initialViewMode: this.initialViewMode,
+            });
+          }
+        })
+      );
+    } catch {
+      // Transport may not be initialized in isolated unit tests
+    }
+
     // Track active state for currentPanel getter
     this.panel.onDidChangeViewState(
       (e) => {
@@ -182,6 +204,24 @@ export class GraphPanel {
               this.panel.webview.postMessage(queuedMsg);
             }
             break;
+
+          case 'REQUEST_SERVER_RECONNECT': {
+            this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] Webview requested server reconnect verification.`);
+            try {
+              const transport = ServerTransport.getInstance();
+              const info = await transport.verifyHealthyConnection(this.workspaceRoot);
+              this.wsUrl = info.wsUrl;
+              this.panel.webview.postMessage({
+                type: 'SERVER_CONFIG',
+                wsUrl: this.wsUrl,
+                workspaceRoot: this.workspaceRoot,
+                initialViewMode: this.initialViewMode,
+              });
+            } catch (err: any) {
+              this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] Reconnect verification error: ${err?.message || err}`);
+            }
+            break;
+          }
 
           case 'LOG':
             this.outputChannel?.appendLine(`[Webview:${this.viewMode} ${message.level || 'INFO'}] ${message.message}`);

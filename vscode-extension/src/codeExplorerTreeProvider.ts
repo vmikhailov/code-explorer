@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
-import * as http from 'http';
 import * as path from 'path';
 import * as fs from 'fs';
 import { ProcessManager, ServerInfo } from './processManager';
+import { ServerTransport } from './serverTransport';
 import { getModelStatus } from './modelManager';
 import { compareSemver, probeDotnetTool } from './binaryManager';
 import { GateSuiteSummaryDto, GateItemDto, GateViolationDto } from '../../proto/types';
@@ -191,34 +191,6 @@ export class CodeExplorerTreeItem extends vscode.TreeItem {
   }
 }
 
-async function fetchJson<T>(urlStr: string): Promise<T> {
-  if (typeof fetch === 'function') {
-    const res = await fetch(urlStr);
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-    }
-    return (await res.json()) as T;
-  }
-
-  return new Promise<T>((resolve, reject) => {
-    http
-      .get(urlStr, (res) => {
-        let body = '';
-        res.on('data', (chunk) => {
-          body += chunk;
-        });
-        res.on('end', () => {
-          try {
-            resolve(JSON.parse(body));
-          } catch (e) {
-            reject(e);
-          }
-        });
-      })
-      .on('error', reject);
-  });
-}
-
 export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<CodeExplorerTreeItem> {
   private _onDidChangeTreeData: vscode.EventEmitter<CodeExplorerTreeItem | undefined | null | void> =
     new vscode.EventEmitter<CodeExplorerTreeItem | undefined | null | void>();
@@ -229,12 +201,10 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
     private readonly processManager: ProcessManager,
     private readonly getWorkspaceRoot: () => string | undefined,
     private readonly outputChannel: vscode.OutputChannel,
-    private readonly gateStateManager: GateStateManager = GateStateManager.getInstance()
+    private readonly gateStateManager: GateStateManager = GateStateManager.getInstance(),
+    private readonly transport: ServerTransport = ServerTransport.getInstance()
   ) {
-    this.processManager.onDidServerStart(() => {
-      this.refresh();
-    });
-    this.processManager.onDidServerStop(() => {
+    this.transport.onDidChangeState(() => {
       this.refresh();
     });
     this.gateStateManager.onDidChangeSuite(() => {
@@ -272,7 +242,7 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
     const serverInfo = await this.getServerInfo();
     if (serverInfo) {
       try {
-        const meta = await fetchJson<MetadataDto>(`${serverInfo.httpUrl}/api/metadata`);
+        const meta = await this.transport.get<MetadataDto>('/api/metadata', { autoStart: false });
         if (meta) {
           this._metadataCache = meta;
           return meta;
@@ -291,7 +261,7 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
     const serverInfo = await this.getServerInfo();
     if (serverInfo) {
       try {
-        const res = await fetchJson<BoundedContextMapDto>(`${serverInfo.httpUrl}/api/ontology/bounded-contexts`);
+        const res = await this.transport.get<BoundedContextMapDto>('/api/ontology/bounded-contexts', { autoStart: false });
         if (res && res.contexts) {
           this._boundedContextsCache = res;
           return res;
@@ -310,7 +280,7 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
     const serverInfo = await this.getServerInfo();
     if (serverInfo) {
       try {
-        const res = await fetchJson<OntologyLayersResponseDto>(`${serverInfo.httpUrl}/api/ontology/layers`);
+        const res = await this.transport.get<OntologyLayersResponseDto>('/api/ontology/layers', { autoStart: false });
         if (res && res.layers && res.layers.length > 0) {
           this._ontologyCache = res;
           return res;
@@ -327,7 +297,7 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
     const serverInfo = await this.getServerInfo();
     if (serverInfo) {
       try {
-        const res = await fetchJson<ServiceSummaryDto[]>(`${serverInfo.httpUrl}/api/ontology/services`);
+        const res = await this.transport.get<ServiceSummaryDto[]>('/api/ontology/services', { autoStart: false });
         if (Array.isArray(res)) {
           this._servicesCache = res;
           return res;
@@ -346,7 +316,10 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
     const serverInfo = await this.getServerInfo();
     if (serverInfo) {
       try {
-        const res = await fetchJson<ServiceOntologyDetailsDto>(`${serverInfo.httpUrl}/api/ontology/services/${encodeURIComponent(serviceName)}`);
+        const res = await this.transport.get<ServiceOntologyDetailsDto>(
+          `/api/ontology/services/${encodeURIComponent(serviceName)}`,
+          { autoStart: false }
+        );
         if (res && res.groups) {
           this._serviceDetailsCache.set(serviceName, res);
           return res;
@@ -361,9 +334,9 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
   private async getServerInfo(): Promise<ServerInfo | null> {
     const root = this.getWorkspaceRoot();
     if (!root) return null;
-    if (!this.processManager.hasWorkspace(root)) return null;
+    if (!this.transport.hasWorkspace(root)) return null;
 
-    return this.processManager.getServerInfo();
+    return this.transport.getServerInfo();
   }
 
   getTreeItem(element: CodeExplorerTreeItem): vscode.TreeItem {
@@ -466,8 +439,8 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       gatesRoot.tooltip = 'Semantic Invariant Gates (SIG): Architectural fitness functions, OpenCypher checks, and ratchet baselines';
 
       // 5. Management & System (Server, Database, Rescan, Intents, Lifecycle)
-      const serverInfo = this.processManager.getServerInfo();
-      const isStarting = this.processManager.isStarting();
+      const serverInfo = this.transport.getServerInfo();
+      const isStarting = this.transport.isStarting();
       const metaCache = this._metadataCache;
 
       const managementRoot = new CodeExplorerTreeItem(
@@ -1045,8 +1018,8 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
   }
 
   private async getManagementItems(): Promise<CodeExplorerTreeItem[]> {
-    const serverInfo = this.processManager.getServerInfo();
-    const isStarting = this.processManager.isStarting();
+    const serverInfo = this.transport.getServerInfo();
+    const isStarting = this.transport.isStarting();
     const meta = await this.getMetadata();
     const wsRoot = this.getWorkspaceRoot();
 

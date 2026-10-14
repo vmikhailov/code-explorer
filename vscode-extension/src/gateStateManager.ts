@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { ProcessManager, ServerInfo } from './processManager';
-import { GateSuiteSummaryDto, GateItemDto, RatchetGatesResponseDto } from '../../proto/types';
+import { ServerTransport } from './serverTransport';
+import { GateSuiteSummaryDto, RatchetGatesResponseDto } from '../../proto/types';
 
 export interface GateSuiteChangeEvent {
   suite: GateSuiteSummaryDto | null;
@@ -10,57 +10,10 @@ export interface GateSuiteChangeEvent {
   error?: string | null;
 }
 
-async function fetchJson<T>(urlStr: string, options?: RequestInit): Promise<T> {
-  if (typeof fetch === 'function') {
-    const res = await fetch(urlStr, options);
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-    }
-    return (await res.json()) as T;
-  }
-
-  // Fallback using node http module
-  const http = await import('http');
-  const url = new URL(urlStr);
-  return new Promise<T>((resolve, reject) => {
-    const req = http.request(
-      {
-        hostname: url.hostname,
-        port: url.port,
-        path: url.pathname + url.search,
-        method: options?.method || 'GET',
-        headers: options?.headers as any,
-      },
-      (res) => {
-        let body = '';
-        res.on('data', (chunk) => {
-          body += chunk;
-        });
-        res.on('end', () => {
-          try {
-            if (res.statusCode && res.statusCode >= 400) {
-              reject(new Error(`HTTP ${res.statusCode}: ${body || res.statusMessage}`));
-              return;
-            }
-            resolve(JSON.parse(body));
-          } catch (e) {
-            reject(e);
-          }
-        });
-      }
-    );
-    req.on('error', reject);
-    if (options?.body) {
-      req.write(typeof options.body === 'string' ? options.body : JSON.stringify(options.body));
-    }
-    req.end();
-  });
-}
-
 /**
  * GateStateManager - Centralized single source of truth for Semantic Invariant Gates (SIG).
  * All UI surfaces (Left TreeView, Right Webview, Command Palette) access gates via this service,
- * guaranteeing zero duplicate calculations, in-flight request deduplication, and real-time state synchronization.
+ * communicating with the backend exclusively through ServerTransport.
  */
 export class GateStateManager implements vscode.Disposable {
   private static _instance: GateStateManager | null = null;
@@ -77,12 +30,12 @@ export class GateStateManager implements vscode.Disposable {
   public readonly onDidChangeSuite: vscode.Event<GateSuiteChangeEvent> = this._onDidChangeSuite.event;
 
   public static initialize(
-    processManager: ProcessManager,
+    transport: ServerTransport,
     getWorkspaceRoot: () => string | undefined,
     outputChannel: vscode.OutputChannel
   ): GateStateManager {
     if (!GateStateManager._instance) {
-      GateStateManager._instance = new GateStateManager(processManager, getWorkspaceRoot, outputChannel);
+      GateStateManager._instance = new GateStateManager(transport, getWorkspaceRoot, outputChannel);
     }
     return GateStateManager._instance;
   }
@@ -95,16 +48,19 @@ export class GateStateManager implements vscode.Disposable {
   }
 
   private constructor(
-    private readonly processManager: ProcessManager,
+    private readonly transport: ServerTransport,
     private readonly getWorkspaceRoot: () => string | undefined,
     private readonly outputChannel: vscode.OutputChannel
   ) {
     this._disposables.push(
-      this.processManager.onDidServerStart(() => {
+      this.transport.onDidServerStart(() => {
         this.invalidate();
       }),
-      this.processManager.onDidServerStop(() => {
+      this.transport.onDidServerStop(() => {
         this.invalidate();
+      }),
+      this._onDidChangeSuite.event((ev) => {
+        this.transport.publish('gates:updated', ev);
       })
     );
   }
@@ -173,14 +129,9 @@ export class GateStateManager implements vscode.Disposable {
           return null;
         }
 
-        const serverInfo = await this.processManager.ensureServerStarted(root);
-        if (!serverInfo) {
-          return null;
-        }
-
-        const res = await fetchJson<GateSuiteSummaryDto>(
-          `${serverInfo.httpUrl}/api/gates`
-        );
+        const res = await this.transport.get<GateSuiteSummaryDto>('/api/gates', {
+          workspaceRoot: root,
+        });
 
         if (res && Array.isArray(res.gates)) {
           this._suite = res;
@@ -238,18 +189,10 @@ export class GateStateManager implements vscode.Disposable {
           throw new Error('No active workspace folder.');
         }
 
-        const serverInfo = await this.processManager.ensureServerStarted(root);
-        if (!serverInfo) {
-          throw new Error('CodeExplorer server is not available.');
-        }
-
-        const res = await fetchJson<GateSuiteSummaryDto>(
-          `${serverInfo.httpUrl}/api/gates/check`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(gateId ? { gateId } : {}),
-          }
+        const res = await this.transport.post<GateSuiteSummaryDto>(
+          '/api/gates/check',
+          gateId ? { gateId } : {},
+          { workspaceRoot: root, timeoutMs: 120000 }
         );
 
         if (res && Array.isArray(res.gates)) {
@@ -361,18 +304,10 @@ export class GateStateManager implements vscode.Disposable {
         throw new Error('No active workspace folder.');
       }
 
-      const serverInfo = await this.processManager.ensureServerStarted(root);
-      if (!serverInfo) {
-        throw new Error('CodeExplorer server is not available.');
-      }
-
-      const res = await fetchJson<RatchetGatesResponseDto>(
-        `${serverInfo.httpUrl}/api/gates/ratchet`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(gateId ? { gateId } : { updateAll: updateAll || !gateId }),
-        }
+      const res = await this.transport.post<RatchetGatesResponseDto>(
+        '/api/gates/ratchet',
+        gateId ? { gateId } : { updateAll: updateAll || !gateId },
+        { workspaceRoot: root }
       );
 
       if (res && res.suite) {
@@ -419,18 +354,10 @@ export class GateStateManager implements vscode.Disposable {
         throw new Error('No active workspace folder.');
       }
 
-      const serverInfo = await this.processManager.ensureServerStarted(root);
-      if (!serverInfo) {
-        throw new Error('CodeExplorer server is not available.');
-      }
-
-      const res = await fetchJson<RatchetGatesResponseDto>(
-        `${serverInfo.httpUrl}/api/gates/init`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ overwrite }),
-        }
+      const res = await this.transport.post<RatchetGatesResponseDto>(
+        '/api/gates/init',
+        { overwrite },
+        { workspaceRoot: root }
       );
 
       if (res && res.suite) {
