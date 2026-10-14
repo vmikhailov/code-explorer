@@ -95,6 +95,158 @@ public partial class ArchitectureViewEngine
             Version = verStr
         };
 
+        if (db is SqliteGraphClient sqliteClient)
+        {
+            try
+            {
+                var (nodeCounts, relCounts, totalNodes, totalEdges) = await sqliteClient.ExecuteRawAsync(async conn =>
+                {
+                    var nodes = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+                    long totalN = 0;
+                    await using (var cmd = conn.CreateCommand())
+                    {
+                        cmd.CommandText = "SELECT kind, count(*) FROM nodes GROUP BY kind";
+                        await using var reader = await cmd.ExecuteReaderAsync(ct);
+                        while (await reader.ReadAsync(ct))
+                        {
+                            var kind = reader.IsDBNull(0) ? "" : reader.GetString(0);
+                            var cnt = reader.IsDBNull(1) ? 0L : reader.GetInt64(1);
+                            if (!string.IsNullOrEmpty(kind))
+                            {
+                                if (!Mcp.OntologyRegistry.IsSystemNode(kind))
+                                {
+                                    totalN += cnt;
+                                    nodes[kind] = nodes.GetValueOrDefault(kind, 0) + cnt;
+                                    if (kind.Equals("FrontendApp", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        nodes["App"] = nodes.GetValueOrDefault("App", 0) + cnt;
+                                    }
+                                    else if (kind.Equals("SharedLibrary", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        nodes["Library"] = nodes.GetValueOrDefault("Library", 0) + cnt;
+                                    }
+                                    else if (kind.Equals("Test", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        nodes["TestSuite"] = nodes.GetValueOrDefault("TestSuite", 0) + cnt;
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                totalN += cnt;
+                            }
+                        }
+                    }
+
+                    var rels = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+                    long totalR = 0;
+                    await using (var cmd = conn.CreateCommand())
+                    {
+                        cmd.CommandText = "SELECT kind, count(*) FROM edges GROUP BY kind";
+                        await using var reader = await cmd.ExecuteReaderAsync(ct);
+                        while (await reader.ReadAsync(ct))
+                        {
+                            var kind = reader.IsDBNull(0) ? "" : reader.GetString(0);
+                            var cnt = reader.IsDBNull(1) ? 0L : reader.GetInt64(1);
+                            if (!string.IsNullOrEmpty(kind))
+                            {
+                                rels[kind] = cnt;
+                                totalR += cnt;
+                            }
+                        }
+                    }
+
+                    return (nodes, rels, totalN, totalR);
+                }, ct);
+
+                result.NodeCounts = nodeCounts;
+                result.RelationshipCounts = relCounts;
+                result.TotalNodes = totalNodes;
+                result.TotalEdges = totalEdges;
+
+                if (result.NodeCounts.GetValueOrDefault("Service", 0) == 0 &&
+                    result.NodeCounts.GetValueOrDefault("App", 0) == 0 &&
+                    result.NodeCounts.GetValueOrDefault("Project", 0) > 0)
+                {
+                    try
+                    {
+                        var roleQuery =
+                            "MATCH (p:Project) RETURN json_extract(p.properties, '$.role') AS role, json_extract(p.properties, '$.is_library') AS is_lib, count(p) AS cnt";
+                        var roleJson = await db.ExecuteQueryAsync(roleQuery, null, ct);
+
+                        using var roleDoc = JsonDocument.Parse(roleJson);
+
+                        foreach (var row in roleDoc.RootElement.EnumerateArray())
+                        {
+                            var role = row.GetStringProp("role");
+                            var isLib = row.GetStringProp("is_lib");
+
+                            var cnt = row.TryGetProperty("cnt", out var c) && c.ValueKind == JsonValueKind.Number
+                                ? c.GetInt64()
+                                : 0;
+
+                            if (role is "FrontendApp" or "App")
+                            {
+                                result.NodeCounts["App"] = result.NodeCounts.GetValueOrDefault("App", 0) + cnt;
+                            }
+                            else if (role is "Worker")
+                            {
+                                result.NodeCounts["Worker"] =
+                                    result.NodeCounts.GetValueOrDefault("Worker", 0) + cnt;
+                            }
+                            else if (role is "SharedLibrary" or "Library" || isLib == "true")
+                            {
+                                result.NodeCounts["Library"] =
+                                    result.NodeCounts.GetValueOrDefault("Library", 0) + cnt;
+                            }
+                            else if (role is "CliTool")
+                            {
+                                result.NodeCounts["CliTool"] =
+                                    result.NodeCounts.GetValueOrDefault("CliTool", 0) + cnt;
+                            }
+                            else
+                            {
+                                result.NodeCounts["Service"] =
+                                    result.NodeCounts.GetValueOrDefault("Service", 0) + cnt;
+                            }
+                        }
+                    }
+                    catch
+                    {
+                    }
+                }
+
+                foreach (var node in Mcp.OntologyRegistry.AllNodes)
+                {
+                    if (node.Attribute.IsSystemNode || Mcp.OntologyRegistry.IsSystemNode(node.Kind))
+                    {
+                        continue;
+                    }
+
+                    var count = result.NodeCounts.GetValueOrDefault(node.Kind, 0);
+                    if (count > 0)
+                    {
+                        var layerId = node.Attribute.Layer switch
+                        {
+                            OntologyConstants.Layers.Physical => 1,
+                            OntologyConstants.Layers.ProjectBoundary => 2,
+                            OntologyConstants.Layers.Syntactic => 3,
+                            OntologyConstants.Layers.Semantic => 4,
+                            _ => 4
+                        };
+                        result.LayerCounts[layerId] = result.LayerCounts.GetValueOrDefault(layerId, 0) + count;
+                    }
+                }
+                result.LayerCounts[5] = result.TotalEdges;
+
+                return result;
+            }
+            catch
+            {
+                // Fallback to Cypher below if raw execution fails
+            }
+        }
+
         // 1. Node counts by primary label
         try
         {
@@ -985,9 +1137,26 @@ public partial class ArchitectureViewEngine
             // Tally endpoints directly from graph
             try
             {
-                var epCountQuery =
-                    "MATCH (s)-[:CONTAINS]->(ep:Endpoint) WHERE (s:Project OR s:Service OR s:App OR s:Worker OR s:CliTool) RETURN coalesce(s.name, s.id) AS sName, s.id AS sId, count(ep) AS epCount";
-                var epJson = await db.ExecuteQueryAsync(epCountQuery, null, ct);
+                string epJson;
+                if (db is SqliteGraphClient sqliteClient)
+                {
+                    const string fastEpQuery = """
+                        SELECT coalesce(json_extract(s.properties, '$.name'), s.id) AS sName, s.id AS sId, COUNT(ep.id) AS epCount
+                        FROM nodes ep
+                        JOIN edges _r0 ON _r0.to_id = ep.id AND _r0.kind = 'CONTAINS'
+                        JOIN nodes s ON s.id = _r0.from_id
+                        WHERE ep.kind = 'Endpoint'
+                          AND (s.kind IN ('Project', 'Service', 'App', 'Worker', 'CliTool'))
+                        GROUP BY sName, sId;
+                        """;
+                    epJson = await sqliteClient.ExecuteRawAsync(fastEpQuery, null, ct);
+                }
+                else
+                {
+                    var epCountQuery =
+                        "MATCH (s)-[:CONTAINS]->(ep:Endpoint) WHERE (s:Project OR s:Service OR s:App OR s:Worker OR s:CliTool) RETURN coalesce(s.name, s.id) AS sName, s.id AS sId, count(ep) AS epCount";
+                    epJson = await db.ExecuteQueryAsync(epCountQuery, null, ct);
+                }
 
                 using var epDoc = JsonDocument.Parse(epJson);
 

@@ -10,6 +10,7 @@ remediation: Replace raw string literals with domain enums, strongly-typed IDs, 
 query: >-
   MATCH (caller)-[:PASSES_LITERAL]->(lit:CallLiteral)
   WHERE NOT coalesce(caller.is_test, false) AND NOT coalesce(lit.is_test, false)
+    AND coalesce(lit.role, 'Business') = 'Business'
   RETURN 
     lit.file_path AS file,
     lit.line AS line,

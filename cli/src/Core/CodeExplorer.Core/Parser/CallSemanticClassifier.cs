@@ -86,10 +86,11 @@ public static class CallSemanticClassifier
 
     private static readonly HashSet<string> FormattingMethodNames = new(StringComparer.OrdinalIgnoreCase)
     {
-        "Format", "Join", "Concat", "Split", "Replace", "StartsWith", "EndsWith", "Contains",
+        "Format", "Join", "Concat", "Split", "Replace", "ReplaceAll", "StartsWith", "EndsWith", "Contains",
         "Includes", "IndexOf", "LastIndexOf", "Trim", "TrimStart", "TrimEnd", "ToString",
         "PadLeft", "PadRight", "Substring", "Slice", "Combine", "Match", "Matches",
         "Append", "AppendLine", "AppendFormat", "AppendJoin",
+        "ToLower", "ToUpper", "ToLowerCase", "ToUpperCase",
         "Equals", "Compare", "CompareTo", "ReferenceEquals"
     };
 
@@ -172,8 +173,9 @@ public static class CallSemanticClassifier
         }
 
         // 6. Formatting & String/Path manipulation
-        if (receiver.Contains("stringbuilder") || receiver == "sb" || receiver == "path" || receiver == "string" ||
-            (FormattingMethodNames.Contains(methodName) && (receiver.Contains("string") || receiver == "sb" || receiver == "path" || string.IsNullOrEmpty(receiver))))
+        if (receiver.Contains("stringbuilder") || receiver == "sb" || receiver == "path" || receiver == "string" || receiver == "json" ||
+            FormattingMethodNames.Contains(methodName) ||
+            callName.StartsWith("JSON.", StringComparison.OrdinalIgnoreCase))
         {
             return (CallSemanticRole.Formatting, false);
         }
@@ -220,8 +222,8 @@ public static class CallSemanticClassifier
             }
         }
 
-        // 12. Client storage (localStorage, sessionStorage)
-        if (receiver.Contains("localstorage") || receiver.Contains("sessionstorage") || receiver.Contains("storage") || receiver == "prefs" || receiver.Contains("cookies"))
+        // 12. Client storage (localStorage, sessionStorage, cookies)
+        if (receiver.Contains("localstorage") || receiver.Contains("sessionstorage") || receiver.Contains("storage") || receiver == "prefs" || receiver.Contains("cookie"))
         {
             if (methodName is "getItem" or "setItem" or "removeItem" or "hasItem" or "clear" or "get" or "set")
             {
@@ -229,10 +231,11 @@ public static class CallSemanticClassifier
             }
         }
 
-        // 13. Web API / Browser DOM calls
-        if (receiver is "window" or "document" or "navigator" || receiver.EndsWith(".window") || receiver.EndsWith(".document") || receiver.StartsWith("window.") || receiver.StartsWith("document."))
+        // 13. Web API / Browser DOM / URL parameters calls
+        if (receiver is "window" or "document" or "navigator" || receiver.EndsWith(".window") || receiver.EndsWith(".document") || receiver.StartsWith("window.") || receiver.StartsWith("document.") ||
+            receiver.Contains("searchparams") || receiver.Contains("url") || receiver.Contains("params") || receiver.Contains("headers") || receiver.Contains("doc") || receiver.Contains("xml") || receiver.Contains("parser") || receiver.Contains("element"))
         {
-            if (methodName is "open" or "addEventListener" or "removeEventListener" or "postMessage" or "getElementById" or "querySelector" or "querySelectorAll" or "createElement" or "setAttribute" or "getAttribute" or "alert" or "confirm" or "prompt")
+            if (methodName is "open" or "addEventListener" or "removeEventListener" or "postMessage" or "getElementById" or "getElementsByClassName" or "getElementsByTagName" or "querySelector" or "querySelectorAll" or "createElement" or "setAttribute" or "getAttribute" or "alert" or "confirm" or "prompt" or "get" or "set" or "append" or "delete" or "has" or "getAll" or "parseFromString")
             {
                 return (CallSemanticRole.WebAPI, false);
             }

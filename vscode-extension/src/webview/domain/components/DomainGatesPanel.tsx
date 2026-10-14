@@ -227,7 +227,8 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
       dock="top-right"
       isCollapsed={false}
       icon={<ShieldIcon size={14} />}
-      title="Semantic Invariant Gates"
+      title="Invariant Gates"
+      ariaLabel="Semantic Invariant Gates"
       badge={
         totalGates > 0 ? (
           <span
@@ -331,7 +332,7 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
           </div>
         ) : undefined
       }
-      className="domain-gates-panel"
+      className="domain-gates-panel no-body-padding"
       width={360}
       minWidth={280}
       maxWidth={700}
@@ -345,6 +346,7 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
           flex: 1,
           minHeight: 0,
           overflowY: 'auto',
+          overflowX: 'hidden',
           padding: '8px 10px',
           display: 'flex',
           flexDirection: 'column',
@@ -455,6 +457,7 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
                 }`,
                 background: 'rgba(15, 23, 42, 0.65)',
                 overflow: 'hidden',
+                flexShrink: 0,
               }}
             >
               <div
@@ -467,11 +470,25 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
                   gap: '8px',
                   cursor: 'pointer',
                   userSelect: 'none',
+                  minHeight: '38px',
+                  boxSizing: 'border-box',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
-                  {isExpanded ? <ChevronDownIcon size={12} /> : <ChevronRightIcon size={12} />}
-                  <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 14,
+                      height: 14,
+                      flexShrink: 0,
+                      color: '#94a3b8',
+                    }}
+                  >
+                    {isExpanded ? <ChevronDownIcon size={12} /> : <ChevronRightIcon size={12} />}
+                  </span>
+                  <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                     <div
                       style={{
                         fontSize: '12px',
@@ -480,12 +497,13 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
+                        lineHeight: 1.3,
                       }}
                       title={`${gate.name} (${gate.id})`}
                     >
                       {gate.name || gate.id}
                     </div>
-                    <div style={{ fontSize: '10px', color: '#94a3b8' }}>
+                    <div style={{ fontSize: '10px', color: '#94a3b8', lineHeight: 1.2 }}>
                       {gate.id} · {gate.category} · {gate.severity}
                     </div>
                   </div>
@@ -499,6 +517,8 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
                     color: statusColor,
                     background: statusBg,
                     flexShrink: 0,
+                    lineHeight: 1.2,
+                    whiteSpace: 'nowrap',
                   }}
                 >
                   {statusLabel}
@@ -575,7 +595,7 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
                         overflowY: 'auto',
                       }}
                     >
-                      {gate.violations.map((v: GateViolationDto, idx: number) => (
+                      {gate.violations.slice(0, 100).map((v: GateViolationDto, idx: number) => (
                         <div
                           key={`${v.fingerprint}-${idx}`}
                           onClick={() => {
@@ -646,6 +666,21 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
                           )}
                         </div>
                       ))}
+                      {gate.violations.length > 100 && (
+                        <div
+                          style={{
+                            fontSize: '10.5px',
+                            color: '#94a3b8',
+                            textAlign: 'center',
+                            padding: '6px 4px',
+                            background: 'rgba(15, 23, 42, 0.4)',
+                            borderRadius: '4px',
+                            border: '1px dashed rgba(148, 163, 184, 0.2)',
+                          }}
+                        >
+                          Showing first 100 of {gate.violations.length.toLocaleString()} violations
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

@@ -270,6 +270,8 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                           );
                           CREATE INDEX IF NOT EXISTS idx_intents_ws ON intents(workspace_id);
                           CREATE INDEX IF NOT EXISTS idx_intents_file_id ON intents(file_id);
+                          CREATE INDEX IF NOT EXISTS idx_intents_file_path ON intents(file_path);
+                          CREATE INDEX IF NOT EXISTS idx_intents_domain ON intents(domain);
                           CREATE INDEX IF NOT EXISTS idx_intents_hash ON intents(content_hash);
                           CREATE INDEX IF NOT EXISTS idx_intents_errors ON intents(error_count);
 
@@ -316,12 +318,47 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         {
             // Column already exists or freshly created
         }
+
+        try
+        {
+            using var statCmd = _conn.CreateCommand();
+            statCmd.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='sqlite_stat1';";
+            var hasStats = Convert.ToInt32(statCmd.ExecuteScalar()) > 0;
+            if (!hasStats)
+            {
+                statCmd.CommandText = "ANALYZE;";
+                statCmd.ExecuteNonQuery();
+            }
+            else
+            {
+                statCmd.CommandText = "PRAGMA optimize;";
+                statCmd.ExecuteNonQuery();
+            }
+        }
+        catch
+        {
+            // Read-only database or in-memory
+        }
     }
 
-    public Task CreateIndicesAsync()
+    public async Task CreateIndicesAsync()
     {
         CreateIndices();
-        return Task.CompletedTask;
+        await _lock.WaitAsync();
+        try
+        {
+            await using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "ANALYZE; PRAGMA optimize;";
+            await cmd.ExecuteNonQueryAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to analyze database after indexing.");
+        }
+        finally
+        {
+            _lock.Release();
+        }
     }
 
     public async Task ClearDatabaseAsync()

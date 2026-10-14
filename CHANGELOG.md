@@ -5,6 +5,20 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.41.1] - 2026-10-14
+
+### Fixed
+- **Domain Gates Panel Layout & Card Flexbox Compression**:
+  - Fixed flex-shrink squishing on collapsed gate cards by enforcing `flexShrink: 0`, `minHeight: 38px`, and dedicated icon wrapper spans in `DomainGatesPanel.tsx`, preventing card headers, chevrons, and status badges from clipping.
+  - Added `no-body-padding` and `overflowX: 'hidden'` to `DomainGatesPanel` to eliminate double scrollbars and nested flexbox container compression.
+  - Aligned panel header title to `Invariant Gates` with full tooltip to prevent truncated ellipsis (`Semantic Invariant G...`) in docked sidebar layouts.
+  - Capped rendered violations in the webview to the first 100 items with an overflow indicator to safeguard UI performance on large violation sets.
+- **Call Semantic Classifier & Hardcoded Arguments Gate (SIG-M-I-001)**:
+  - Enhanced `CallSemanticClassifier` to categorize standard string manipulations (`Replace`, `ReplaceAll`, `Split`, `Substring`, `Slice`, `Trim`, `ToLower`, `ToUpper`, etc.), JSON serialization, client storage (`Cookie.get`/`Cookie.set`), URL parameters (`URLSearchParams`), and browser DOM methods into `Formatting`, `Storage`, and `WebAPI` semantic roles.
+  - Updated `SIG-M-I-001` YAML gate manifests in `.codeexplorer/gates/` to ensure `AND coalesce(lit.role, 'Business') = 'Business'` is consistently evaluated, eliminating thousands of false positives on platform utilities.
+
+---
+
 ## [1.41.0] - 2026-10-14
 
 ### Added

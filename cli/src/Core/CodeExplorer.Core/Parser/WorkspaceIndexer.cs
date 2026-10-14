@@ -399,6 +399,7 @@ public class WorkspaceIndexer
         LogPersistenceSummary(ctx);
         await SyncFileRegistryAsync(indexedFiles, projects, syntaxTrees, ctx);
         await _dbClient.SetSchemaVersionAsync(IGraphClient.CurrentSchemaVersion);
+        await _dbClient.CreateIndicesAsync();
         Analysis.ArchitectureViewEngine.InvalidateCache();
     }
 
