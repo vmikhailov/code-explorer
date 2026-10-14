@@ -69,6 +69,7 @@ export class GateStateManager implements vscode.Disposable {
   private _isEvaluating = false;
   private _evaluatingGateId: string | null = null;
   private _inFlightEvaluation: Promise<GateSuiteSummaryDto | null> | null = null;
+  private _inFlightLoad: Promise<GateSuiteSummaryDto | null> | null = null;
   private _inFlightScope: string | null = null; // 'all' or gateId
   private readonly _disposables: vscode.Disposable[] = [];
 
@@ -125,6 +126,7 @@ export class GateStateManager implements vscode.Disposable {
     this._isEvaluating = false;
     this._evaluatingGateId = null;
     this._inFlightEvaluation = null;
+    this._inFlightLoad = null;
     this._inFlightScope = null;
     this._onDidChangeSuite.fire({
       suite: null,
@@ -138,6 +140,7 @@ export class GateStateManager implements vscode.Disposable {
     this._isEvaluating = false;
     this._evaluatingGateId = null;
     this._inFlightEvaluation = null;
+    this._inFlightLoad = null;
     this._inFlightScope = null;
     this._onDidChangeSuite.fire({
       suite,
@@ -147,19 +150,58 @@ export class GateStateManager implements vscode.Disposable {
   }
 
   /**
-   * Loads the gate suite if not loaded yet, or returns cached suite.
-   * If an evaluation or load is currently in-flight, awaits the existing promise (zero duplication).
+   * Loads the gate suite definitions or cached suite without executing heavy graph queries.
+   * Gates are ONLY evaluated upon explicit user action (e.g. evaluateSuite / POST /api/gates/check).
    */
   public async loadSuite(force = false): Promise<GateSuiteSummaryDto | null> {
     if (!force && this._suite) {
       return this._suite;
     }
 
+    if (this._inFlightLoad) {
+      return this._inFlightLoad;
+    }
+
     if (this._inFlightEvaluation) {
       return this._inFlightEvaluation;
     }
 
-    return this.evaluateSuite(undefined);
+    this._inFlightLoad = (async (): Promise<GateSuiteSummaryDto | null> => {
+      try {
+        const root = this.getWorkspaceRoot();
+        if (!root) {
+          return null;
+        }
+
+        const serverInfo = await this.processManager.ensureServerStarted(root);
+        if (!serverInfo) {
+          return null;
+        }
+
+        const res = await fetchJson<GateSuiteSummaryDto>(
+          `${serverInfo.httpUrl}/api/gates`
+        );
+
+        if (res && Array.isArray(res.gates)) {
+          this._suite = res;
+          this._onDidChangeSuite.fire({
+            suite: this._suite,
+            isEvaluating: false,
+            evaluatingGateId: null,
+            actionStatus: undefined,
+          });
+        }
+
+        return this._suite;
+      } catch (err: any) {
+        this.outputChannel.appendLine(`[GateStateManager] loadSuite error: ${err?.message}`);
+        return null;
+      } finally {
+        this._inFlightLoad = null;
+      }
+    })();
+
+    return this._inFlightLoad;
   }
 
   /**

@@ -272,3 +272,68 @@ test('InFlightDeduplicator: deduplicates concurrent requests for the same scope'
   assert.equal(executionsCount, 2, 'subsequent call executes afresh after previous completed');
   assert.equal(call3.wasDeduplicated, false);
 });
+
+test('Gate definitions without evaluation: isEvaluated is false when all gates are pending', () => {
+  const definitionsSuite: GateSuiteSummaryDto = {
+    totalGates: 2,
+    passedCount: 0,
+    failedCount: 0,
+    newViolationsCount: 0,
+    toleratedViolationsCount: 0,
+    ratchetOpportunities: 0,
+    isSuccess: true,
+    totalDurationMs: 0,
+    gates: [
+      {
+        id: 'no-direct-db',
+        name: 'No Direct DB',
+        category: 'Architecture',
+        platform: 'any',
+        scope: 'workspace',
+        dimension: 'modularity',
+        severity: 'error',
+        query: 'MATCH ...',
+        source: 'test',
+        ratchetEnabled: false,
+        status: 'Pending',
+        totalViolations: 0,
+        newViolationsCount: 0,
+        toleratedViolationsCount: 0,
+        baselineCount: 0,
+        canRatchetDown: false,
+        durationMs: 0,
+        violations: [],
+      },
+      {
+        id: 'no-cross-domain',
+        name: 'No Cross Domain',
+        category: 'Architecture',
+        platform: 'any',
+        scope: 'workspace',
+        dimension: 'modularity',
+        severity: 'error',
+        query: 'MATCH ...',
+        source: 'test',
+        ratchetEnabled: false,
+        status: 'Pending',
+        totalViolations: 0,
+        newViolationsCount: 0,
+        toleratedViolationsCount: 0,
+        baselineCount: 0,
+        canRatchetDown: false,
+        durationMs: 0,
+        violations: [],
+      },
+    ],
+  };
+
+  const isEvaluated = definitionsSuite.gates.some((g) => g.status !== 'Pending');
+  assert.equal(isEvaluated, false, 'definitions suite should not be marked evaluated');
+
+  // After explicit evaluation of one gate:
+  const evaluatedGate = { ...definitionsSuite.gates[0], status: 'Passed' as const };
+  const nextSuite = updateGateInSuite(definitionsSuite, evaluatedGate);
+  const nextIsEvaluated = nextSuite.gates.some((g) => g.status !== 'Pending');
+  assert.equal(nextIsEvaluated, true, 'suite should be marked evaluated once a gate has been checked');
+});
+

@@ -660,6 +660,8 @@ public class WebSocketServerHandler
         };
     }
 
+    public bool HasCachedGateSuite => _cachedGateSuite != null;
+
     public void InvalidateGatesCache()
     {
         _cachedGateSuite = null;

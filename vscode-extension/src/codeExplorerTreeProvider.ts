@@ -444,8 +444,11 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       if (isEvaluating) {
         gatesRoot.description = 'Evaluating...';
       } else if (gatesCache) {
+        const isEvaluated = gatesCache.gates && gatesCache.gates.length > 0 && gatesCache.gates.some((g) => g.status !== 'Pending');
         if (gatesCache.totalGates === 0) {
           gatesRoot.description = 'No gates configured';
+        } else if (!isEvaluated) {
+          gatesRoot.description = `${gatesCache.totalGates} configured · Not evaluated`;
         } else if (gatesCache.failedCount > 0) {
           gatesRoot.description = `${gatesCache.passedCount}/${gatesCache.totalGates} passed · ${gatesCache.newViolationsCount} new`;
         } else if (gatesCache.toleratedViolationsCount > 0) {
@@ -571,6 +574,9 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       if (isGateEvaluating) {
         item.iconPath = new vscode.ThemeIcon('loading~spin', new vscode.ThemeColor('disabledForeground'));
         item.description = 'Evaluating...';
+      } else if (gate.status === 'Pending') {
+        item.iconPath = new vscode.ThemeIcon('circle-outline', new vscode.ThemeColor('disabledForeground'));
+        item.description = 'Not evaluated';
       } else if (gate.status === 'FailedNew' || gate.status === 'Error') {
         item.iconPath = new vscode.ThemeIcon('error', new vscode.ThemeColor('testing.iconFailed'));
       } else if (gate.status === 'PassedTolerated') {
@@ -579,7 +585,7 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
         item.iconPath = new vscode.ThemeIcon('pass', new vscode.ThemeColor('testing.iconPassed'));
       }
 
-      if (!isGateEvaluating) {
+      if (!isGateEvaluating && gate.status !== 'Pending') {
         const descParts: string[] = [];
         if (gate.newViolationsCount > 0) {
           descParts.push(`${gate.newViolationsCount} new`);

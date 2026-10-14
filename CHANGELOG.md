@@ -5,6 +5,19 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.41.3] - 2026-10-14
+
+### Changed & Improved
+- **Explicit On-Demand Gate Evaluation**:
+  - Eliminated automatic execution of Semantic Invariant Gates on extension activation, tree view loading, or panel opening. Gates are now evaluated **strictly upon explicit user request** (e.g. clicking "Check" in the header, clicking "Evaluate" on an individual gate card, or executing the evaluation command).
+  - Updated backend `GET /api/gates` to return lightweight gate definition metadata (manifest schemas and Pending status in ~1ms without Cypher queries) whenever `evaluate != true` and no cached evaluation exists.
+  - Refactored `GateStateManager.loadSuite()` to retrieve definitions via `GET /api/gates` without triggering background or automatic Cypher graph executions.
+  - Enhanced UI for non-evaluated gate suites:
+    - Left Sidebar TreeView: displays `{total} configured · Not evaluated` on the root section and clean neutral circle-outline icons for pending gates.
+    - Right Webview (`DomainGatesPanel`): displays neutral `{total} gates` badge, informative `{total} gates configured · Click "Check" to evaluate` subtitle, and `NOT CHECKED` badges with explicit "Evaluate" buttons on cards.
+
+---
+
 ## [1.41.2] - 2026-10-14
 
 ### Added

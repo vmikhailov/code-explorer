@@ -316,8 +316,8 @@ public static class ServerRouteBuilderExtensions
         {
             try
             {
-                logger.LogInformation("[REST] GET /api/gates (gateId: {GateId}, evaluate: {Evaluate})", gateId ?? "all", evaluate ?? true);
-                if (evaluate == false && string.IsNullOrWhiteSpace(gateId))
+                logger.LogInformation("[REST] GET /api/gates (gateId: {GateId}, evaluate: {Evaluate})", gateId ?? "all", evaluate);
+                if (string.IsNullOrWhiteSpace(gateId) && (evaluate == false || (evaluate != true && !wsHandler.HasCachedGateSuite)))
                 {
                     var definitions = await wsHandler.GetGateDefinitionsAsync(ct);
                     return Results.Ok(definitions);

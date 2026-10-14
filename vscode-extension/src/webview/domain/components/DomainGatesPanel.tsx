@@ -266,6 +266,11 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
   const newViolationsCount = suite?.newViolationsCount || 0;
   const toleratedCount = suite?.toleratedViolationsCount || 0;
 
+  const isEvaluated = useMemo(() => {
+    if (!suite || !suite.gates || suite.gates.length === 0) return false;
+    return suite.gates.some((g) => g.status !== 'Pending');
+  }, [suite]);
+
   return (
     <FloatingPanel
       dock="top-right"
@@ -278,15 +283,24 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
           <span
             className="floating-dock-badge"
             style={{
-              backgroundColor:
-                failedCount > 0
-                  ? 'rgba(239, 68, 68, 0.2)'
-                  : toleratedCount > 0
-                  ? 'rgba(245, 158, 11, 0.2)'
-                  : 'rgba(16, 185, 129, 0.2)',
-              color: failedCount > 0 ? '#fca5a5' : toleratedCount > 0 ? '#fcd34d' : '#6ee7b7',
+              backgroundColor: !isEvaluated
+                ? 'rgba(148, 163, 184, 0.15)'
+                : failedCount > 0
+                ? 'rgba(239, 68, 68, 0.2)'
+                : toleratedCount > 0
+                ? 'rgba(245, 158, 11, 0.2)'
+                : 'rgba(16, 185, 129, 0.2)',
+              color: !isEvaluated
+                ? '#94a3b8'
+                : failedCount > 0
+                ? '#fca5a5'
+                : toleratedCount > 0
+                ? '#fcd34d'
+                : '#6ee7b7',
               border: `1px solid ${
-                failedCount > 0
+                !isEvaluated
+                  ? 'rgba(148, 163, 184, 0.3)'
+                  : failedCount > 0
                   ? 'rgba(239, 68, 68, 0.35)'
                   : toleratedCount > 0
                   ? 'rgba(245, 158, 11, 0.35)'
@@ -296,7 +310,7 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
               padding: '1px 6px',
             }}
           >
-            {suite?.passedCount ?? 0}/{totalGates}
+            {!isEvaluated ? `${totalGates} gates` : `${suite?.passedCount ?? 0}/${totalGates}`}
           </span>
         ) : undefined
       }
@@ -337,18 +351,24 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
                 color: '#94a3b8',
               }}
             >
-              <span>
-                <strong style={{ color: '#e2e8f0' }}>{suite?.passedCount ?? 0}</strong> passed ·{' '}
-                <strong style={{ color: newViolationsCount > 0 ? '#f87171' : '#94a3b8' }}>
-                  {newViolationsCount}
-                </strong>{' '}
-                new ·{' '}
-                <strong style={{ color: toleratedCount > 0 ? '#fbbf24' : '#94a3b8' }}>
-                  {toleratedCount}
-                </strong>{' '}
-                tolerated
-              </span>
-              {suite?.totalDurationMs !== undefined && (
+              {!isEvaluated ? (
+                <span>
+                  <strong style={{ color: '#e2e8f0' }}>{totalGates}</strong> gates configured · Click &quot;Check&quot; to evaluate
+                </span>
+              ) : (
+                <span>
+                  <strong style={{ color: '#e2e8f0' }}>{suite?.passedCount ?? 0}</strong> passed ·{' '}
+                  <strong style={{ color: newViolationsCount > 0 ? '#f87171' : '#94a3b8' }}>
+                    {newViolationsCount}
+                  </strong>{' '}
+                  new ·{' '}
+                  <strong style={{ color: toleratedCount > 0 ? '#fbbf24' : '#94a3b8' }}>
+                    {toleratedCount}
+                  </strong>{' '}
+                  tolerated
+                </span>
+              )}
+              {isEvaluated && suite?.totalDurationMs !== undefined && (
                 <span>{Math.round(suite.totalDurationMs)}ms</span>
               )}
             </div>
@@ -472,19 +492,32 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
 
         {filteredGates.map((gate: GateItemDto) => {
           const isExpanded = expandedGateIds.has(gate.id);
-          const isPending = gate.status === 'Pending' || gate.status === 'Evaluating';
+          const isPending = gate.status === 'Pending';
+          const isGateEvaluating = gate.status === 'Evaluating' || (loading && actionStatus?.includes(gate.id));
           const isFailed = gate.status === 'FailedNew' || gate.status === 'Error';
           const isTolerated = gate.status === 'PassedTolerated';
-          const statusColor = isPending ? '#94a3b8' : isFailed ? '#f87171' : isTolerated ? '#fbbf24' : '#34d399';
-          const statusBg = isPending
+          const statusColor = isGateEvaluating
+            ? '#38bdf8'
+            : isPending
+            ? '#94a3b8'
+            : isFailed
+            ? '#f87171'
+            : isTolerated
+            ? '#fbbf24'
+            : '#34d399';
+          const statusBg = isGateEvaluating
+            ? 'rgba(56, 189, 248, 0.14)'
+            : isPending
             ? 'rgba(148, 163, 184, 0.14)'
             : isFailed
             ? 'rgba(239, 68, 68, 0.14)'
             : isTolerated
             ? 'rgba(245, 158, 11, 0.14)'
             : 'rgba(16, 185, 129, 0.14)';
-          const statusLabel = isPending
+          const statusLabel = isGateEvaluating
             ? 'EVALUATING...'
+            : isPending
+            ? 'NOT CHECKED'
             : isFailed
             ? `${gate.newViolationsCount} NEW`
             : isTolerated
@@ -610,7 +643,7 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
                       }}
                       disabled={loading}
                     >
-                      Re-evaluate
+                      {isPending ? 'Evaluate' : 'Re-evaluate'}
                     </button>
                     {gate.ratchetEnabled && (gate.newViolationsCount > 0 || gate.canRatchetDown) && (
                       <button
