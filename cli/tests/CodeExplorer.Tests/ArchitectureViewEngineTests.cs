@@ -570,9 +570,14 @@ public class ArchitectureViewEngineTests
         var graph = await _engine.GetSystemContextViewAsync();
 
         // The edge should be lifted to the upgraded Service node ws:service:cpm-aggregator
-        var edge = graph.Edges.FirstOrDefault(e => e.Target == "ws:res:topic:gcp:impression-topic");
+        // and flow from Topic (source) to Service (target)
+        var edge = graph.Edges.FirstOrDefault(e => e.Source == "ws:res:topic:gcp:impression-topic" && e.Target == "ws:service:cpm-aggregator");
         edge.Should().NotBeNull();
-        edge!.Source.Should().Be("ws:service:cpm-aggregator");
+        edge!.Kind.Should().Be("SUBSCRIBES_TO");
+        edge.Category.Should().Be("messaging");
+
+        // Verify there is NO phantom outbound edge from the service to the topic
+        graph.Edges.Any(e => e.Source == "ws:service:cpm-aggregator" && e.Target == "ws:res:topic:gcp:impression-topic").Should().BeFalse();
     }
 }
 

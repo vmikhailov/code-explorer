@@ -312,11 +312,17 @@ public static class ServerRouteBuilderExtensions
             }
         });
 
-        endpoints.MapGet("/api/gates", async (string? gateId, CancellationToken ct) =>
+        endpoints.MapGet("/api/gates", async (string? gateId, bool? evaluate, CancellationToken ct) =>
         {
             try
             {
-                logger.LogInformation("[REST] GET /api/gates (gateId: {GateId})", gateId ?? "all");
+                logger.LogInformation("[REST] GET /api/gates (gateId: {GateId}, evaluate: {Evaluate})", gateId ?? "all", evaluate ?? true);
+                if (evaluate == false && string.IsNullOrWhiteSpace(gateId))
+                {
+                    var definitions = await wsHandler.GetGateDefinitionsAsync(ct);
+                    return Results.Ok(definitions);
+                }
+
                 var summary = await wsHandler.EvaluateGatesSuiteAsync(gateId, ct);
                 return Results.Ok(summary);
             }

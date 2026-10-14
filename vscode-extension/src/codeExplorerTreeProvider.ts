@@ -243,14 +243,25 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
   private _boundedContextsCache: BoundedContextMapDto | null = null;
   private _metadataCache: MetadataDto | null = null;
   private _gatesCache: GateSuiteSummaryDto | null = null;
+  private _gatesEvaluationEpoch = 0;
+  private _isEvaluatingGates = false;
 
   refresh(): void {
+    this._gatesEvaluationEpoch++;
+    this._isEvaluatingGates = false;
     this._ontologyCache = null;
     this._servicesCache = null;
     this._serviceDetailsCache.clear();
     this._boundedContextsCache = null;
     this._metadataCache = null;
     this._gatesCache = null;
+    this._onDidChangeTreeData.fire();
+  }
+
+  setGatesSuite(suite: GateSuiteSummaryDto): void {
+    this._gatesEvaluationEpoch++;
+    this._isEvaluatingGates = false;
+    this._gatesCache = suite;
     this._onDidChangeTreeData.fire();
   }
 
@@ -261,9 +272,10 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
     const serverInfo = await this.getServerInfo();
     if (serverInfo) {
       try {
-        const res = await fetchJson<GateSuiteSummaryDto>(`${serverInfo.httpUrl}/api/gates`);
+        const res = await fetchJson<GateSuiteSummaryDto>(`${serverInfo.httpUrl}/api/gates?evaluate=false`);
         if (res && Array.isArray(res.gates)) {
           this._gatesCache = res;
+          this.startAsyncGatesEvaluation();
           return res;
         }
       } catch (e: any) {
@@ -271,6 +283,95 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       }
     }
     return null;
+  }
+
+  private startAsyncGatesEvaluation(): void {
+    if (!this._gatesCache || !this._gatesCache.gates || this._gatesCache.gates.length === 0) {
+      return;
+    }
+
+    const epoch = ++this._gatesEvaluationEpoch;
+    this._isEvaluatingGates = true;
+
+    const pending = this._gatesCache.gates.filter(
+      (g) => g.status === 'Pending' || g.status === 'Evaluating'
+    );
+    if (pending.length === 0) {
+      this._isEvaluatingGates = false;
+      return;
+    }
+
+    const queue = [...pending];
+    const concurrency = Math.min(2, queue.length);
+
+    const worker = async () => {
+      while (queue.length > 0) {
+        if (this._gatesEvaluationEpoch !== epoch) return;
+        const gate = queue.shift();
+        if (!gate) break;
+
+        try {
+          const serverInfo = await this.getServerInfo();
+          if (!serverInfo || this._gatesEvaluationEpoch !== epoch) return;
+
+          const res = await fetchJson<GateSuiteSummaryDto>(
+            `${serverInfo.httpUrl}/api/gates?gateId=${encodeURIComponent(gate.id)}`
+          );
+          if (this._gatesEvaluationEpoch !== epoch) return;
+
+          if (res && res.gates && res.gates.length > 0) {
+            const evaluated = res.gates[0];
+            this.updateEvaluatedGate(evaluated);
+          }
+        } catch (e: any) {
+          if (this._gatesEvaluationEpoch !== epoch) return;
+          gate.status = 'Error';
+          gate.errorMessage = e?.message || 'Failed to evaluate gate';
+          this.updateEvaluatedGate(gate);
+        }
+      }
+    };
+
+    Promise.all(Array.from({ length: concurrency }, () => worker())).finally(() => {
+      if (this._gatesEvaluationEpoch === epoch) {
+        this._isEvaluatingGates = false;
+        this._onDidChangeTreeData.fire();
+      }
+    });
+  }
+
+  private updateEvaluatedGate(evaluated: GateItemDto): void {
+    if (!this._gatesCache || !this._gatesCache.gates) return;
+    const idx = this._gatesCache.gates.findIndex((g) => g.id === evaluated.id);
+    if (idx >= 0) {
+      this._gatesCache.gates[idx] = evaluated;
+    }
+
+    let passed = 0;
+    let failed = 0;
+    let newViolations = 0;
+    let toleratedViolations = 0;
+    let ratchetOpp = 0;
+
+    for (const g of this._gatesCache.gates) {
+      if (g.status === 'Passed' || g.status === 'PassedTolerated') {
+        passed++;
+      } else if (g.status === 'FailedNew' || g.status === 'Error') {
+        failed++;
+      }
+      newViolations += g.newViolationsCount || 0;
+      toleratedViolations += g.toleratedViolationsCount || 0;
+      if (g.canRatchetDown) ratchetOpp++;
+    }
+
+    this._gatesCache.passedCount = passed;
+    this._gatesCache.failedCount = failed;
+    this._gatesCache.newViolationsCount = newViolations;
+    this._gatesCache.toleratedViolationsCount = toleratedViolations;
+    this._gatesCache.ratchetOpportunities = ratchetOpp;
+    this._gatesCache.isSuccess = failed === 0;
+
+    this._onDidChangeTreeData.fire();
   }
 
   private async getMetadata(): Promise<MetadataDto | null> {
@@ -446,10 +547,16 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
         'Semantic Invariant Gates',
         vscode.TreeItemCollapsibleState.Collapsed
       );
+      gatesRoot.id = 'root-gates';
       gatesRoot.iconPath = new vscode.ThemeIcon('shield');
       if (gatesCache) {
+        const pendingCount = gatesCache.gates.filter(
+          (g) => g.status === 'Pending' || g.status === 'Evaluating'
+        ).length;
         if (gatesCache.totalGates === 0) {
           gatesRoot.description = 'No gates configured';
+        } else if (pendingCount > 0) {
+          gatesRoot.description = `Evaluating ${gatesCache.totalGates - pendingCount}/${gatesCache.totalGates}...`;
         } else if (gatesCache.failedCount > 0) {
           gatesRoot.description = `${gatesCache.passedCount}/${gatesCache.totalGates} passed · ${gatesCache.newViolationsCount} new`;
         } else if (gatesCache.toleratedViolationsCount > 0) {
@@ -554,14 +661,19 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
 
     return suite.gates.map((gate) => {
       const hasViolations = gate.violations && gate.violations.length > 0;
+      const isEvaluating = gate.status === 'Pending' || gate.status === 'Evaluating';
       const item = new CodeExplorerTreeItem(
         'gate-item',
         gate.name || gate.id,
-        hasViolations ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
+        hasViolations && !isEvaluating ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
         { gate }
       );
+      item.id = `gate:${gate.id}`;
 
-      if (gate.status === 'FailedNew' || gate.status === 'Error') {
+      if (isEvaluating) {
+        item.iconPath = new vscode.ThemeIcon('watch', new vscode.ThemeColor('disabledForeground'));
+        item.description = 'Evaluating...';
+      } else if (gate.status === 'FailedNew' || gate.status === 'Error') {
         item.iconPath = new vscode.ThemeIcon('error', new vscode.ThemeColor('testing.iconFailed'));
       } else if (gate.status === 'PassedTolerated') {
         item.iconPath = new vscode.ThemeIcon('warning', new vscode.ThemeColor('problemsWarningIcon.foreground'));
@@ -569,17 +681,19 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
         item.iconPath = new vscode.ThemeIcon('pass', new vscode.ThemeColor('testing.iconPassed'));
       }
 
-      const descParts: string[] = [];
-      if (gate.newViolationsCount > 0) {
-        descParts.push(`${gate.newViolationsCount} new`);
+      if (!isEvaluating) {
+        const descParts: string[] = [];
+        if (gate.newViolationsCount > 0) {
+          descParts.push(`${gate.newViolationsCount} new`);
+        }
+        if (gate.toleratedViolationsCount > 0) {
+          descParts.push(`${gate.toleratedViolationsCount} tolerated`);
+        }
+        if (descParts.length === 0) {
+          descParts.push(gate.canRatchetDown ? 'Passed (can ratchet ↓)' : 'Passed');
+        }
+        item.description = descParts.join(' · ');
       }
-      if (gate.toleratedViolationsCount > 0) {
-        descParts.push(`${gate.toleratedViolationsCount} tolerated`);
-      }
-      if (descParts.length === 0) {
-        descParts.push(gate.canRatchetDown ? 'Passed (can ratchet ↓)' : 'Passed');
-      }
-      item.description = descParts.join(' · ');
 
       const tooltipLines = [
         `Gate: ${gate.name} (${gate.id})`,

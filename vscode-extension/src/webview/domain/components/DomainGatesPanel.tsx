@@ -426,15 +426,20 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
 
         {filteredGates.map((gate: GateItemDto) => {
           const isExpanded = expandedGateIds.has(gate.id);
+          const isPending = gate.status === 'Pending' || gate.status === 'Evaluating';
           const isFailed = gate.status === 'FailedNew' || gate.status === 'Error';
           const isTolerated = gate.status === 'PassedTolerated';
-          const statusColor = isFailed ? '#f87171' : isTolerated ? '#fbbf24' : '#34d399';
-          const statusBg = isFailed
+          const statusColor = isPending ? '#94a3b8' : isFailed ? '#f87171' : isTolerated ? '#fbbf24' : '#34d399';
+          const statusBg = isPending
+            ? 'rgba(148, 163, 184, 0.14)'
+            : isFailed
             ? 'rgba(239, 68, 68, 0.14)'
             : isTolerated
             ? 'rgba(245, 158, 11, 0.14)'
             : 'rgba(16, 185, 129, 0.14)';
-          const statusLabel = isFailed
+          const statusLabel = isPending
+            ? 'EVALUATING...'
+            : isFailed
             ? `${gate.newViolationsCount} NEW`
             : isTolerated
             ? `${gate.toleratedViolationsCount} TOLERATED`

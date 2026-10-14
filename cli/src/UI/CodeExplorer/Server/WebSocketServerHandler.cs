@@ -615,6 +615,48 @@ public class WebSocketServerHandler
         await SendResponseAsync(session, WsMessageTypes.HandshakeResponse, reqId, response, cancellationToken);
     }
 
+    public async Task<GateSuiteSummaryDto> GetGateDefinitionsAsync(CancellationToken cancellationToken = default)
+    {
+        var repo = new Core.Gates.Storage.FileGateRepository(_workspaceRoot);
+        var allGates = await repo.GetAllGatesAsync(cancellationToken);
+
+        return new GateSuiteSummaryDto
+        {
+            TotalGates = allGates.Count,
+            PassedCount = 0,
+            FailedCount = 0,
+            NewViolationsCount = 0,
+            ToleratedViolationsCount = 0,
+            RatchetOpportunities = 0,
+            IsSuccess = true,
+            TotalDurationMs = 0,
+            Gates = allGates.Select(g => new GateItemDto
+            {
+                Id = g.Id,
+                Name = g.Name,
+                Category = g.Category.ToString(),
+                Platform = g.Platform,
+                Scope = g.Scope.ToString(),
+                Dimension = g.Dimension.ToString(),
+                Severity = g.Severity.ToString(),
+                Description = g.Description,
+                Remediation = g.Remediation,
+                Query = g.Query,
+                Source = g.Source,
+                RatchetEnabled = g.Ratchet.Enabled,
+                BaselinePath = g.Ratchet.Baseline,
+                Status = "Pending",
+                TotalViolations = 0,
+                NewViolationsCount = 0,
+                ToleratedViolationsCount = 0,
+                BaselineCount = 0,
+                CanRatchetDown = false,
+                DurationMs = 0,
+                Violations = []
+            }).ToList()
+        };
+    }
+
     public async Task<GateSuiteSummaryDto> EvaluateGatesSuiteAsync(string? gateId = null, CancellationToken cancellationToken = default)
     {
         var repo = new Core.Gates.Storage.FileGateRepository(_workspaceRoot);

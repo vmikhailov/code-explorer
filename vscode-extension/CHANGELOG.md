@@ -5,6 +5,27 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.41.0] - 2026-10-14
+
+### Added
+- **Asynchronous & Individual Semantic Invariant Gate Evaluation**:
+  - Added fast gate definitions retrieval (`GET /api/gates?evaluate=false`) allowing the VS Code extension tree provider to display the full gate suite immediately without blocking.
+  - Implemented asynchronous background evaluation queue in the VS Code TreeView with real-time per-gate progress indicators (clock/watch icon, "Evaluating..." state, dynamic count of evaluated gates in the root item).
+  - Supported `Pending` and `Evaluating` statuses across the VS Code TreeView and DomainGatesPanel webview.
+
+### Performance
+- **Cypher Subquery Optimization (Subquery JOIN vs CROSS JOIN)**:
+  - Eliminated `CROSS JOIN` from `BuildSubqueryPath` in `SqliteCompiler.Expressions.cs`, allowing the SQLite query optimizer to dynamically reorder correlated subquery tables and utilize edge indexes (`idx_edges_to_kind_from`, `idx_edges_from_kind_to`).
+  - Achieved up to 1,300x faster evaluation on complex pattern expression gates (e.g. `SIG-A-B-001` Call Lineage Provenance reduced from 14.8s to 15ms).
+
+### Fixed
+- **Messaging Flow Direction and Pub/Sub Topic Normalization**:
+  - Enforced canonical data flow direction (`Topic -> Service` for subscriptions, `Service -> Topic` for publications) across `ArchitectureViewEngine` and `ProjectFlowView`.
+  - Subscriber services now strictly attach subscription edges to their incoming socket (`receives`), preventing inverted outbound dashed arrows from their `sends` socket into topics.
+  - Added broker-aware topic name normalization in `Layer5AnalysisParser`, canonicalizing broker topics to kebab-case while preserving in-memory event class names (`mediatr`, `cqrs`, `spring`).
+
+---
+
 ## [1.39.0] - 2026-10-13
 
 ### Added

@@ -242,7 +242,7 @@ export interface GateItemDto {
   source: string;
   ratchetEnabled: boolean;
   baselinePath?: string;
-  status: 'Passed' | 'PassedTolerated' | 'FailedNew' | 'Error' | string;
+  status: 'Passed' | 'PassedTolerated' | 'FailedNew' | 'Error' | 'Pending' | 'Evaluating' | string;
   totalViolations: number;
   newViolationsCount: number;
   toleratedViolationsCount: number;

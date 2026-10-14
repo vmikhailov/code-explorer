@@ -1453,12 +1453,12 @@ public class Layer5AnalysisParser
 
         topicName = topicName.Trim('\'', '"', '`');
 
-        if (brokerType == "gcp")
+        if (brokerType is not ("mediatr" or "cqrs" or "spring"))
         {
-            var normalizedGcp = NormalizeGcpTopicName(topicName);
-            if (!string.IsNullOrEmpty(normalizedGcp))
+            var normalizedTopic = WorkspaceConventions.NormalizeTopicName(topicName);
+            if (!string.IsNullOrEmpty(normalizedTopic))
             {
-                topicName = normalizedGcp;
+                topicName = normalizedTopic;
             }
         }
 

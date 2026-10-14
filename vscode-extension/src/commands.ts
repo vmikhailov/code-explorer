@@ -515,7 +515,11 @@ export function registerWorkspaceCommands(
               throw new Error(`HTTP ${res.status}: ${res.statusText}`);
             }
             const suite = (await res.json()) as any;
-            treeDataProvider.refresh();
+            if (!gateId && suite && Array.isArray(suite.gates)) {
+              treeDataProvider.setGatesSuite(suite);
+            } else {
+              treeDataProvider.refresh();
+            }
             GraphPanel.broadcast({ type: 'GATES_UPDATED', suite });
 
             if (suite.totalGates === 0) {

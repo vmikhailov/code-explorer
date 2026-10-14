@@ -935,12 +935,12 @@ public partial class SqliteCompiler
 
             if (!targetIsOuter)
             {
-                fromJoins.Append(fromJoins.Length == 0 ? $"edges {relVar} CROSS JOIN nodes {actualTargetVar}" : $" CROSS JOIN edges {relVar} CROSS JOIN nodes {actualTargetVar}");
+                fromJoins.Append(fromJoins.Length == 0 ? $"edges {relVar} JOIN nodes {actualTargetVar}" : $" JOIN edges {relVar} JOIN nodes {actualTargetVar}");
                 AddNodeFiltersToConditions(targetNode, actualTargetVar, conditions);
             }
             else
             {
-                fromJoins.Append(fromJoins.Length == 0 ? $"edges {relVar}" : $" CROSS JOIN edges {relVar}");
+                fromJoins.Append(fromJoins.Length == 0 ? $"edges {relVar}" : $" JOIN edges {relVar}");
             }
 
             var prevIdSrc = _nodeIdSource.TryGetValue(prevVar, out var pSrc) ? pSrc : $"{prevVar}.id";

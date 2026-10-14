@@ -923,6 +923,32 @@ public partial class ArchitectureViewEngine(IGraphClient db)
                 _ => normalizedKind
             };
 
+            if (category == DependencyCategory.Messaging)
+            {
+                // In data-flow architecture:
+                // - PUBLISH: Service -> Topic (Service sends message to topic)
+                // - SUBSCRIBE: Topic -> Service (Service receives message from topic)
+                var isTopicSrc = srcNode.Kind == NodeKind.Topic || fromId.Contains($":{OntologyConstants.IdPrefixes.Topic}:") || fromId.Contains(":topic:") || fromId.Contains(":res:topic:");
+                var isTopicTgt = tgtNode.Kind == NodeKind.Topic || toId.Contains($":{OntologyConstants.IdPrefixes.Topic}:") || toId.Contains(":topic:") || toId.Contains(":res:topic:");
+
+                if (outKind == "PUBLISHES_TO")
+                {
+                    if (isTopicSrc && !isTopicTgt)
+                    {
+                        (fromId, toId) = (toId, fromId);
+                        (srcNode, tgtNode) = (tgtNode, srcNode);
+                    }
+                }
+                else if (outKind == "SUBSCRIBES_TO")
+                {
+                    if (isTopicTgt && !isTopicSrc)
+                    {
+                        (fromId, toId) = (toId, fromId);
+                        (srcNode, tgtNode) = (tgtNode, srcNode);
+                    }
+                }
+            }
+
             var srcIsSemantic = srcNode.Properties?.GetValueOrDefault("is_semantic_entity") == "true";
             var tgtIsSemantic = tgtNode.Properties?.GetValueOrDefault("is_semantic_entity") == "true";
 
@@ -1589,13 +1615,13 @@ public partial class ArchitectureViewEngine(IGraphClient db)
                         if (srcNode.Kind == NodeKind.Topic || inEdge.Kind == "TRIGGERS" || inEdge.Kind == "SUBSCRIBES_TO")
                         {
                             if (IsInternalTopic(srcNode) || inEdge.Properties?.GetValueOrDefault("is_internal") == "true") continue;
-                            if (graph.Edges.All(e => !(e.Source == service.Id && e.Target == srcNode.Id && e.Kind == "SUBSCRIBES_TO")))
+                            if (graph.Edges.All(e => !(e.Source == srcNode.Id && e.Target == service.Id && (e.Kind == "SUBSCRIBES_TO" || e.Kind == "SUBSCRIBED_BY"))))
                             {
                                 graph.Edges.Add(new GraphEdgeDto
                                 {
-                                    Id = $"{service.Id}->{srcNode.Id}:SUBSCRIBES_TO",
-                                    Source = service.Id,
-                                    Target = srcNode.Id,
+                                    Id = $"{srcNode.Id}->{service.Id}:SUBSCRIBES_TO",
+                                    Source = srcNode.Id,
+                                    Target = service.Id,
                                     Kind = "SUBSCRIBES_TO",
                                     Category = "messaging",
                                     IsTransitive = true,

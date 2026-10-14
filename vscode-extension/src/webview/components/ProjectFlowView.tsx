@@ -680,108 +680,130 @@ const FlowInner: React.FC<ProjectFlowViewProps> = ({
     const edgeKeySet = new Set<string>();
 
     const addEdge = (sourceId: string, targetId: string) => {
-      const key = `${sourceId}->${targetId}`;
-      if (!edgeKeySet.has(key)) {
-        edgeKeySet.add(key);
+      let finalSourceId = sourceId;
+      let finalTargetId = targetId;
 
-        const srcNode = nodeMap.get(sourceId) || nodeMap.get(sourceId.toLowerCase());
-        const tgtNode =
-          nodeMap.get(targetId) ||
-          nodeMap.get(targetId.toLowerCase()) ||
-          visibleNodesMap.get(targetId);
+      let srcNode = nodeMap.get(finalSourceId) || nodeMap.get(finalSourceId.toLowerCase());
+      let tgtNode =
+        nodeMap.get(finalTargetId) ||
+        nodeMap.get(finalTargetId.toLowerCase()) ||
+        visibleNodesMap.get(finalTargetId);
 
-        const edgeObj =
-          edgeLookup.get(key) ||
-          (srcNode && tgtNode ? edgeLookup.get(`${srcNode.id}->${tgtNode.id}`) : undefined);
+      const edgeObj =
+        edgeLookup.get(`${finalSourceId}->${finalTargetId}`) ||
+        (srcNode && tgtNode ? edgeLookup.get(`${srcNode.id}->${tgtNode.id}`) : undefined) ||
+        edgeLookup.get(`${finalTargetId}->${finalSourceId}`) ||
+        (srcNode && tgtNode ? edgeLookup.get(`${tgtNode.id}->${srcNode.id}`) : undefined);
 
-        const category = getEdgeCategory(edgeObj);
-        if (!visibleEdgeTypes[category]) {
-          return;
-        }
-
-        // Check if communication category is active on source/target cards
-        const srcCats = getActiveCategories(sourceId, srcNode?.name);
-        const tgtCats = getActiveCategories(targetId, tgtNode?.name);
-
-        let outCat = 'callsOut';
-        let inCat: string | null = 'acceptsIn';
-        if (category === 'database') {
-          if (sharedDbsOnly && !tgtCats.has('acceptsIn') && !tgtCats.has('dbIn')) {
-            const count = dbUsageCounts.get(targetId.toLowerCase()) || (tgtNode?.name ? dbUsageCounts.get(tgtNode.name.toLowerCase()) : 0) || 0;
-            if (count <= 1) return;
-          }
-          outCat = 'dbOut';
-          inCat = 'acceptsIn';
-        } else if (category === 'messaging') {
-          const k = (edgeObj?.kind || '').toUpperCase();
-          const isSub = k === 'SUBSCRIBES_TO' || k === 'SUBSCRIBED_BY' || k === 'SUBSCRIBES' || k === 'CONSUMES' || k === 'CONSUMES_FROM';
-          if (isSub && tgtNode?.kind === 'Topic') {
-            outCat = 'messagesIn';
-            inCat = 'messagesOut';
-          } else {
-            outCat = 'messagesOut';
-            inCat = 'messagesIn';
-          }
-        } else if (category === 'library') {
-          outCat = 'libsOut';
-          inCat = 'libsIn';
-        }
-
-        const isOutActive = srcCats.has(outCat);
-        const isInActive = inCat ? (tgtCats.has(inCat) || (inCat === 'acceptsIn' && tgtCats.has('dbIn'))) : false;
-
-        // An edge is visible if the source actively requests outbound OR target actively requests inbound
-        if (!isOutActive && !isInActive) {
-          return;
-        }
-
-        const visuals = getEdgeVisuals(edgeObj);
-
-        const isSourceExpanded =
-          expandedCards.has(sourceId) || (srcNode && (expandedCards.has(srcNode.id) || expandedCards.has(srcNode.name)));
-        const isTargetExpanded =
-          expandedCards.has(targetId) || (tgtNode && (expandedCards.has(tgtNode.id) || expandedCards.has(tgtNode.name)));
-
-        let sourceHandle = 'source-default';
-        let targetHandle = 'target-default';
-
-        if (isSourceExpanded) {
-          if (category === 'service_call') sourceHandle = 'source-calls';
-          else if (category === 'database') sourceHandle = 'source-db';
-          else if (category === 'messaging') sourceHandle = 'source-events';
-          else if (category === 'library') sourceHandle = 'source-libs';
-        }
-
-        if (isTargetExpanded) {
-          if (category === 'service_call') targetHandle = 'target-calls';
-          else if (category === 'library') targetHandle = 'target-libs';
-          else if (category === 'messaging') targetHandle = 'target-events';
-          else if (category === 'database') targetHandle = tgtNode?.kind === 'Database' ? 'target-calls' : 'target-default';
-        }
-
-        generatedEdges.push({
-          id: `edge-${key}`,
-          source: sourceId,
-          target: targetId,
-          sourceHandle,
-          targetHandle,
-          type: 'bezier',
-          animated: visuals.animated,
-          className: visuals.className,
-          style: {
-            stroke: visuals.stroke,
-            strokeWidth: visuals.strokeWidth,
-            strokeDasharray: visuals.strokeDasharray,
-          },
-          markerEnd: {
-            type: visuals.markerType,
-            color: visuals.markerColor,
-            width: visuals.markerWidth,
-            height: visuals.markerHeight,
-            strokeWidth: visuals.markerStrokeWidth,
-          },
-        });
+      const category = getEdgeCategory(edgeObj);
+      if (!visibleEdgeTypes[category]) {
+        return;
       }
+
+      if (category === 'messaging') {
+        const k = (edgeObj?.kind || '').toUpperCase();
+        const isSub = k === 'SUBSCRIBES_TO' || k === 'SUBSCRIBED_BY' || k === 'SUBSCRIBES' || k === 'CONSUMES' || k === 'CONSUMES_FROM';
+        const isPub = k === 'PUBLISHES_TO' || k === 'PUBLISHED_BY' || k === 'PUBLISHES' || k === 'PRODUCES';
+
+        // Canonical direction in messaging data flow:
+        // - Subscriptions: Topic -> Service (Service receives from Topic)
+        // - Publications: Service -> Topic (Service sends to Topic)
+        if (isSub && tgtNode?.kind === 'Topic' && srcNode?.kind !== 'Topic') {
+          finalSourceId = targetId;
+          finalTargetId = sourceId;
+          const tmp = srcNode;
+          srcNode = tgtNode;
+          tgtNode = tmp;
+        } else if (isPub && srcNode?.kind === 'Topic' && tgtNode?.kind !== 'Topic') {
+          finalSourceId = targetId;
+          finalTargetId = sourceId;
+          const tmp = srcNode;
+          srcNode = tgtNode;
+          tgtNode = tmp;
+        }
+      }
+
+      const key = `${finalSourceId}->${finalTargetId}`;
+      if (edgeKeySet.has(key)) {
+        return;
+      }
+      edgeKeySet.add(key);
+
+      // Check if communication category is active on source/target cards
+      const srcCats = getActiveCategories(finalSourceId, srcNode?.name);
+      const tgtCats = getActiveCategories(finalTargetId, tgtNode?.name);
+
+      let outCat = 'callsOut';
+      let inCat: string | null = 'acceptsIn';
+      if (category === 'database') {
+        if (sharedDbsOnly && !tgtCats.has('acceptsIn') && !tgtCats.has('dbIn')) {
+          const count = dbUsageCounts.get(finalTargetId.toLowerCase()) || (tgtNode?.name ? dbUsageCounts.get(tgtNode.name.toLowerCase()) : 0) || 0;
+          if (count <= 1) return;
+        }
+        outCat = 'dbOut';
+        inCat = 'acceptsIn';
+      } else if (category === 'messaging') {
+        outCat = 'messagesOut';
+        inCat = 'messagesIn';
+      } else if (category === 'library') {
+        outCat = 'libsOut';
+        inCat = 'libsIn';
+      }
+
+      const isOutActive = srcCats.has(outCat);
+      const isInActive = inCat ? (tgtCats.has(inCat) || (inCat === 'acceptsIn' && tgtCats.has('dbIn'))) : false;
+
+      // An edge is visible if the source actively requests outbound OR target actively requests inbound
+      if (!isOutActive && !isInActive) {
+        return;
+      }
+
+      const visuals = getEdgeVisuals(edgeObj);
+
+      const isSourceExpanded =
+        expandedCards.has(finalSourceId) || (srcNode && (expandedCards.has(srcNode.id) || expandedCards.has(srcNode.name)));
+      const isTargetExpanded =
+        expandedCards.has(finalTargetId) || (tgtNode && (expandedCards.has(tgtNode.id) || expandedCards.has(tgtNode.name)));
+
+      let sourceHandle = 'source-default';
+      let targetHandle = 'target-default';
+
+      if (isSourceExpanded) {
+        if (category === 'service_call') sourceHandle = 'source-calls';
+        else if (category === 'database') sourceHandle = 'source-db';
+        else if (category === 'messaging') sourceHandle = 'source-events';
+        else if (category === 'library') sourceHandle = 'source-libs';
+      }
+
+      if (isTargetExpanded) {
+        if (category === 'service_call') targetHandle = 'target-calls';
+        else if (category === 'library') targetHandle = 'target-libs';
+        else if (category === 'messaging') targetHandle = 'target-events';
+        else if (category === 'database') targetHandle = tgtNode?.kind === 'Database' ? 'target-calls' : 'target-default';
+      }
+
+      generatedEdges.push({
+        id: `edge-${key}`,
+        source: finalSourceId,
+        target: finalTargetId,
+        sourceHandle,
+        targetHandle,
+        type: 'bezier',
+        animated: visuals.animated,
+        className: visuals.className,
+        style: {
+          stroke: visuals.stroke,
+          strokeWidth: visuals.strokeWidth,
+          strokeDasharray: visuals.strokeDasharray,
+        },
+        markerEnd: {
+          type: visuals.markerType,
+          color: visuals.markerColor,
+          width: visuals.markerWidth,
+          height: visuals.markerHeight,
+          strokeWidth: visuals.markerStrokeWidth,
+        },
+      });
     };
 
     // Any edge between two visible nodes in the solution graph is an active visible edge
