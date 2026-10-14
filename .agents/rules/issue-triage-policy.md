@@ -10,14 +10,15 @@ Each newly opened issue is assigned to one of the following categories:
 
 | Category | Agent Decision | GitHub Labels | Action |
 | :--- | :--- | :--- | :--- |
-| **Easy Bug** | Immediate auto-fix | `triaged`, `easy-bug`, `pr-available` | Creates an isolated Git Worktree, fixes the bug, runs tests, pushes PR, comments on the issue |
-| **Medium / Hard Bug** | Analysis + tag author | `triaged`, `complex`, `needs-review` | Analyzes root cause, provides implementation plan and blast-radius evaluation, tags `@vmikhailov` |
+| **Easy Bug** | Auto-fix & Auto-merge | `triaged`, `easy-bug`, `auto-merged` | Creates isolated Git Worktree, fixes bug, runs tests, creates PR, **auto-merges into main**, comments on issue |
+| **Medium Bug** | Prepare PR & Wait for review | `triaged`, `medium-bug`, `needs-review` | Creates isolated Git Worktree, implements fix/tests, creates PR, comments with technical analysis, **waits for @vmikhailov's approval** before merging |
+| **Hard Bug** | Suggest only (no auto-coding) | `triaged`, `hard-bug`, `needs-review` | Analyzes root cause, evaluates blast radius, proposes architectural solutions/plans, tags `@vmikhailov`. **Does not create PR** |
 | **Feature Request** | Architectural review | `triaged`, `enhancement`, `needs-review` | Evaluates alignment with graph ontology/design, proposes architecture, tags `@vmikhailov` |
 | **Needs Repro** | Request details | `needs-repro` | Requests minimal reproduction repository or logs if information is insufficient for diagnosis |
 
 ---
 
-## 2. "Easy Bug" Criteria (Automated Fix)
+## 2. "Easy Bug" Criteria (Auto-Fix & Auto-Merge)
 
 An issue is classified as an **Easy Bug** only if **all** of the following conditions are met:
 1. **Locality**: The fix affects 1–2 files and does not exceed ~50–80 lines (typo, missing null check, incorrect operator, localized edge case in a parser or utility).
@@ -32,18 +33,47 @@ An issue is classified as an **Easy Bug** only if **all** of the following condi
    - Can be covered by an isolated unit test that reproduces the defect and validates the resolution.
    - `dotnet test cli/CodeExplorer.slnx -c Release` completes with **0 warnings and 0 errors**.
 
-> [!CAUTION]
-> If there is any ambiguity, risk of performance degradation, or need for refactoring, the issue **must be escalated to Medium / Hard Bug**. Automated fixes in such scenarios are strictly forbidden.
+**Execution Flow:**
+1. Create isolated worktree: `pwsh -File .scripts/github-triage.ps1 create-worktree -IssueNumber <id>`.
+2. Write reproduction unit test, implement fix, and verify tests pass.
+3. Bump patch version in `cli/Directory.Build.props` and `vscode-extension/package.json`.
+4. Commit, push branch `fix/issue-<id>`, and open PR via `pwsh -File .scripts/github-triage.ps1 create-pr`.
+5. **Auto-merge PR into main**: `pwsh -File .scripts/github-triage.ps1 merge-pr -PullNumber <pr_number>`.
+6. Add labels `triaged`, `easy-bug`, `auto-merged`.
+7. Post a resolution comment on the issue and remove the worktree.
 
 ---
 
-## 3. "Medium / Hard Bug" Criteria (Analysis Without Auto-Fix)
+## 3. "Medium Bug" Criteria (Prepare PR & Wait for Review)
 
-An issue is assigned to this category if:
-- It affects cross-project dependencies (e.g., TypeScript parser + graph enrichment in Core + visualizer).
-- It involves performance, parallelism (`Task`/`Parallel`), memory efficiency (`Span`/`Memory`), or AST traversal logic.
-- It touches Cypher queries, graph storage schema, or blast-radius calculation.
-- It requires choosing between alternative architectural designs.
+An issue is classified as a **Medium Bug** if:
+- It involves moderate complexity across multiple files or internal parser/AST components, but does not touch core storage schemas or breaking public contracts.
+- A well-scoped fix and unit test can be implemented deterministically.
+
+**Execution Flow:**
+1. Create isolated worktree: `pwsh -File .scripts/github-triage.ps1 create-worktree -IssueNumber <id>`.
+2. Implement the fix and regression unit tests.
+3. Bump patch version in `cli/Directory.Build.props` and `vscode-extension/package.json`.
+4. Commit, push branch `fix/issue-<id>`, and open PR via `pwsh -File .scripts/github-triage.ps1 create-pr`.
+5. Add labels `triaged`, `medium-bug`, `needs-review`.
+6. Post a comment on the issue with technical analysis, blast radius, and PR link.
+7. **WAIT for @vmikhailov's review and approval directive before merging**. Do NOT auto-merge.
+8. Clean up worktree.
+
+---
+
+## 4. "Hard Bug" Criteria (Suggest Only - No Auto-Coding)
+
+An issue is classified as a **Hard Bug** if:
+- It affects core SQLite storage schema (`graph.db`), node/edge type ontology, or Cypher compiler.
+- It involves concurrency, parallelism, memory allocations, or multi-threaded scheduling.
+- It requires choosing between alternative architectural designs or breaking changes.
+
+**Execution Flow:**
+- **DO NOT create a worktree or write code**.
+- **DO NOT open a Pull Request**.
+- **JUST SUGGEST**: Provide a structured technical response tagging `@vmikhailov`.
+- Apply labels: `triaged`, `hard-bug`, `needs-review`.
 
 **Agent Response Template:**
 ```markdown
@@ -65,7 +95,7 @@ I've triaged this issue. Here is my technical analysis and recommendation:
 
 ---
 
-## 4. Conflict Prevention & Workspace Safety
+## 5. Conflict Prevention & Workspace Safety
 
 1. **Working Tree Isolation (Git Worktree)**:
    - The agent **never modifies files or switches branches** in the main repository directory.
@@ -89,7 +119,7 @@ I've triaged this issue. Here is my technical analysis and recommendation:
 
 ---
 
-## 5. Repository Owner Directives (@vmikhailov)
+## 6. Repository Owner Directives (@vmikhailov)
 
 1. **Exclusive Command Authority**:
    - ONLY `@vmikhailov` (the repository owner) has the authority to directly command or instruct Agy by name (`Agy`, `@Agy`, `Hey Agy`).
