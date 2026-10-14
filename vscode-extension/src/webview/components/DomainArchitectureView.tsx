@@ -4864,11 +4864,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                   >
                     <InfoIcon size={12} />
                     <span>Info</span>
-                    {selectedNode && (
-                      <span className="tab-badge" style={{ maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {selectedNode.displayName}
-                      </span>
-                    )}
                   </button>
                   {hasOrbitLegend && (
                     <button
