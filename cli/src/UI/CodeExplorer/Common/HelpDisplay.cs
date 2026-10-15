@@ -61,7 +61,6 @@ public static class HelpDisplay
         Console.ResetColor();
         Console.WriteLine("  search <query>          Search identifiers, routes, tables, and topics using fast hybrid vector/trigram ranking");
         Console.WriteLine("  callers <target>        Find all callers, implementors, subclasses, publishers & subscribers (with path:line)");
-        Console.WriteLine("  impact <symbol>         Compute architectural blast radius & inbound dependents of a symbol (with path:line)");
         Console.WriteLine("  trace <start> [end]     Trace call chains and distributed cross-service execution flows");
         Console.WriteLine("  query \"<cypher>\"        Run a read-only OpenCypher query against the knowledge graph (use --no-truncate)");
         Console.WriteLine("  queries                 List all available built-in and workspace custom queries");
@@ -102,7 +101,6 @@ public static class HelpDisplay
         Console.WriteLine("  ce search \"gates\"");
         Console.WriteLine("  ce callers IComponentLibraryParser");
         Console.WriteLine("  ce callers CheckGateAsync");
-        Console.WriteLine("  ce impact GateExecutionEngine");
         Console.WriteLine("  ce view ontology");
         Console.WriteLine("  ce status");
         Console.WriteLine("  ce query \"MATCH (cls:Type)-[:IMPLEMENTS|INHERITS_FROM*1..5]->(i:Type {name: 'ISemanticExtension'}) WHERE cls.kind = 'class' RETURN cls.project_name, count(DISTINCT cls)\" --no-truncate\n");

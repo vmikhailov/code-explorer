@@ -2,7 +2,7 @@ using CommandLine;
 
 namespace CodeExplorer.Options;
 
-[Verb("impact", HelpText = "Analyze blast-radius impact: find all dependents, callers, and references affected by modifying a symbol.")]
+[Verb("impact", Hidden = true, HelpText = "Analyze blast-radius impact: find all dependents, callers, and references affected by modifying a symbol.")]
 public class ImpactOptions
 {
     [Value(0, MetaName = "symbol", Required = true, HelpText = "Target symbol name (Class, Interface, Function, Service, or Table).")]
