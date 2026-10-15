@@ -578,6 +578,16 @@ public partial class SqliteGraphClient
                 "[DB:PostIndex] Saved {TcCount} TRANSITIVELY_CALLS, {AttrCount} ATTRIBUTED_TO, and {ApiCount} project external_apis for prefix '{Prefix}' in {ElapsedMs:F1}ms",
                 result.TransitivelyCalls.Count, result.AttributedTo.Count, result.ProjectExternalApis.Count,
                 widPrefix, sw.Elapsed.TotalMilliseconds);
+
+            try
+            {
+                var searchEngine = new Analysis.IdentifierSearchEngine(_logger);
+                await searchEngine.RebuildIndexAsync(_conn);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[DB:PostIndex] Failed to update identifier vector index: {Message}", ex.Message);
+            }
         }
         finally
         {

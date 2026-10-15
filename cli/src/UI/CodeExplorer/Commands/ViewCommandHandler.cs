@@ -42,6 +42,11 @@ public class ViewCommandHandler : BaseCommandHandler
                 Console.WriteLine();
             }
 
+            Console.WriteLine("### Cypher Node Properties & Query Patterns (`ce query \"<cypher>\" --no-truncate` / `ce callers <target>`)");
+            Console.WriteLine("- **Node Labels**: `Project` (`Service`, `Library`, `Worker`), `ExternalService`, `Type`, `Function`, `Table`, `Topic`, `Endpoint`, `EntryPoint`");
+            Console.WriteLine("- **Direct Properties on `Type` & `Function`**: `n.name`, `n.path` (relative file path), `n.start_line`, `n.project_name`, `n.symbol`, `n.is_test`");
+            Console.WriteLine("- **Key Edges**: `[:CALLS]`, `[:SERVICE_CALL]`, `[:IMPLEMENTS]`, `[:INHERITS_FROM*1..3]`, `[:PERSISTED_IN]`, `[:PUBLISHES_TO]`, `[:SUBSCRIBES_TO]`");
+
             return 0;
         }
 

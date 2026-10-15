@@ -21,7 +21,8 @@ public class Program
         }
         catch { }
 
-        if (args == null || args.Length == 0)
+        if (args == null || args.Length == 0 ||
+            (args.Length == 1 && args[0] is "--help" or "-h" or "help"))
         {
             HelpDisplay.ShowWelcomeAndHelp();
             return 0;
@@ -61,7 +62,8 @@ public class Program
             typeof(ConfigureOptions),
             typeof(GateOptions),
             typeof(CallersOptions),
-            typeof(ImpactOptions)
+            typeof(ImpactOptions),
+            typeof(SearchOptions)
         ]);
 
         if (parseResult is Parsed<object> parsed)
@@ -91,6 +93,7 @@ public class Program
                 GateOptions opts => await GateCommandHandler.HandleAsync(opts),
                 CallersOptions opts => await CallersCommandHandler.HandleAsync(opts),
                 ImpactOptions opts => await ImpactCommandHandler.HandleAsync(opts),
+                SearchOptions opts => await SearchCommandHandler.HandleAsync(opts),
                 _ => 1
             };
         }

@@ -855,6 +855,40 @@ public class CodeExplorerRepository
         var effectiveLimit = Math.Clamp(limit, 1, 500);
         query = query.Replace("LIMIT 10", $"LIMIT {effectiveLimit}");
         var rawJson = await client.ExecuteQueryAsync(query, parameters, cancellationToken);
+
+        if ((rawJson == "[]" || rawJson.StartsWith("[]")) && client is SqliteGraphClient sqliteClient)
+        {
+            try
+            {
+                var engine = new Analysis.IdentifierSearchEngine();
+                var kindFilter = symbolType switch
+                {
+                    "Function" => "Function",
+                    "Class" => "Type",
+                    "Interface" => "Type",
+                    _ => null
+                };
+                var matches = await engine.SearchAsync(sqliteClient.Connection, name, kindFilter, effectiveLimit, ct: cancellationToken);
+                if (matches.Count > 0)
+                {
+                    var mapped = matches.Select(m => new
+                    {
+                        type = m.Kind,
+                        name = m.Name,
+                        fullName = m.FullName,
+                        filePath = m.Path ?? "",
+                        startLine = m.StartLine,
+                        endLine = 0
+                    });
+                    rawJson = JsonSerializer.Serialize(mapped);
+                }
+            }
+            catch
+            {
+                // Fallback gracefully on search error
+            }
+        }
+
         return FormatFindSymbol(rawJson, format, name, effectiveLimit);
     }
 
@@ -1132,6 +1166,28 @@ public class CodeExplorerRepository
         };
         var rawJson = await client.ExecuteQueryAsync(query, parameters, cancellationToken);
 
+        if ((rawJson == "[]" || rawJson.StartsWith("[]")) && client is SqliteGraphClient sqliteClient)
+        {
+            try
+            {
+                var engine = new Analysis.IdentifierSearchEngine();
+                var resolved = await engine.ResolveIdentifierAsync(sqliteClient.Connection, symbolName, ct: cancellationToken);
+                if (resolved != null && resolved.Score >= 0.70f && resolved.NodeId != symbolName && resolved.Name != symbolName)
+                {
+                    parameters["symbolName"] = resolved.NodeId;
+                    var retryJson = await client.ExecuteQueryAsync(query, parameters, cancellationToken);
+                    if (retryJson != "[]" && !retryJson.StartsWith("[]"))
+                    {
+                        rawJson = retryJson;
+                    }
+                }
+            }
+            catch
+            {
+                // Fallback gracefully
+            }
+        }
+
         if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
         {
             using var jsonDoc = JsonDocument.Parse(rawJson);
@@ -1145,6 +1201,53 @@ public class CodeExplorerRepository
         }
 
         return FormatImpactMarkdown(rawJson, symbolName);
+    }
+
+    public async Task<string> SearchIdentifiersAsync(
+        string query,
+        string? kind = null,
+        int limit = 15,
+        string format = "markdown",
+        string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        var client = await ResolveClientAsync(workspacePath);
+        if (await IsEmptyStandbyAsync(client))
+        {
+            return GetStandbyMessage(format);
+        }
+
+        if (client is not SqliteGraphClient sqliteClient)
+        {
+            return "Search is only supported on SQLite workspaces.";
+        }
+
+        var engine = new Analysis.IdentifierSearchEngine();
+        var results = await engine.SearchAsync(sqliteClient.Connection, query, kind, limit, ct: cancellationToken);
+
+        if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
+        {
+            return JsonSerializer.Serialize(results, new JsonSerializerOptions { WriteIndented = true });
+        }
+
+        if (results.Count == 0)
+        {
+            return $"No identifiers found matching '{query}'.";
+        }
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"### Code Identifier Search Results for `{query}`\n");
+        sb.AppendLine($"**Matches Found**: {results.Count}\n");
+        sb.AppendLine("| Score | Kind | Name | Full Name / Route | Location (File:Line) |");
+        sb.AppendLine("| :--- | :--- | :--- | :--- | :--- |");
+
+        foreach (var r in results)
+        {
+            var loc = !string.IsNullOrEmpty(r.Path) ? (r.StartLine > 0 ? $"{r.Path}:{r.StartLine}" : r.Path) : "-";
+            sb.AppendLine($"| {r.Score:F2} | `{r.Kind}` | `{r.Name}` | `{r.FullName}` | `{loc}` |");
+        }
+
+        return sb.ToString().TrimEnd();
     }
 
     public async Task<string> GetCallersAsync(
@@ -1167,6 +1270,28 @@ public class CodeExplorerRepository
             ["includeTests"] = includeTests
         };
         var rawJson = await client.ExecuteQueryAsync(query, parameters, cancellationToken);
+
+        if ((rawJson == "[]" || rawJson.StartsWith("[]")) && client is SqliteGraphClient sqliteClient)
+        {
+            try
+            {
+                var engine = new Analysis.IdentifierSearchEngine();
+                var resolved = await engine.ResolveIdentifierAsync(sqliteClient.Connection, target, ct: cancellationToken);
+                if (resolved != null && resolved.Score >= 0.70f && resolved.NodeId != target && resolved.Name != target)
+                {
+                    parameters["target"] = resolved.NodeId;
+                    var retryJson = await client.ExecuteQueryAsync(query, parameters, cancellationToken);
+                    if (retryJson != "[]" && !retryJson.StartsWith("[]"))
+                    {
+                        rawJson = retryJson;
+                    }
+                }
+            }
+            catch
+            {
+                // Fallback gracefully
+            }
+        }
 
         if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
         {

@@ -312,6 +312,24 @@ public class McpGraphHandler(
 
     [UsedImplicitly]
     [McpServerTool]
+    [Description("Fast hybrid vector and trigram search across code identifiers, routes, tables, and topics. Finds exact or fuzzy matches with sub-millisecond ranking.")]
+    public async Task<CallToolResult> SearchIdentifiersAsync(
+        [Description("Search query (symbol name, route, or colloquial keyword).")] string query,
+        [Description("Optional filter by node kind ('Type', 'Function', 'Member', 'Endpoint', 'Table', 'Topic', 'Project').")] string? kind = null,
+        [Description("Maximum results to return (default: 15).")] int limit = 15,
+        [Description("Format: 'markdown', 'json'. Default: 'markdown'.")] string format = "markdown",
+        [Description("Optional workspace root path.")] string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(query))
+        {
+            return WrapError("Missing 'query' argument.");
+        }
+        return await ExecuteAsync(() => repository.SearchIdentifiersAsync(query, kind, limit, format, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+    }
+
+    [UsedImplicitly]
+    [McpServerTool]
     [Description("Blast-radius impact analysis: all callers, dependents, and references affected by modifying a symbol (Class, Interface, Function, Service, Table). Prioritize over grep.")]
     public async Task<CallToolResult> AnalyzeCodeImpactAsync(
         [Description("Class, interface, function, service, or table name.")] string symbolName,

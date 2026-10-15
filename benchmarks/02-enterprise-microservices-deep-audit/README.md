@@ -45,6 +45,10 @@ By contrast, the **CodeExplorer Graph Agent (`enterprise_ce_graph_agent`)**—us
 | **Cumulative Actual Input Tokens** | `68,776,567 chars` (**~17,194,141 tokens** post-compaction) | `1,573,864 chars` (**~393,466 tokens**) | **43.70x lower actual input load** (`-16.80M` tokens!) |
 | **Blast-Radius Completeness** | **Incomplete (`~82%`)** — **missed 9 RTB microservices & 15+ callers** (`100%` on Tasks 1 & 4; `~81%` on Tasks 2 & 3) | **Complete (`100%` — `0` missed services or callers)** | **Zero blind spots vs. 9 broken downstream services** |
 
+> [!IMPORTANT]
+> **Why Recall in Architecture is a Binary Quality Gate ("Jumping a Chasm 82% of the Way"):**
+> In architectural blast-radius and refactoring analysis, `82%` recall cannot be treated as a modest quantitative deficit. Missing 9 downstream production services and 15+ caller functions means immediate production outages, broken APIs, and silent contract breakage. **"Jumping a chasm 82% of the way" is an absolute operational failure, not an 18% penalty.** Achieving 100% deterministic ground-truth recall is an existential requirement for reliable AI-driven development.
+
 ```mermaid
 flowchart LR
     subgraph Harness["Parallel A/B Benchmark on 324-Service Monorepo (Gemini 3.8 Flash)"]

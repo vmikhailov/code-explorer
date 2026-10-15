@@ -249,6 +249,28 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                               value TEXT NOT NULL
                           );
 
+                          CREATE TABLE IF NOT EXISTS identifier_index (
+                              node_id TEXT PRIMARY KEY,
+                              name TEXT NOT NULL,
+                              full_name TEXT NOT NULL,
+                              kind TEXT NOT NULL,
+                              path TEXT,
+                              start_line INTEGER DEFAULT 0,
+                              embedding BLOB NOT NULL
+                          );
+                          CREATE INDEX IF NOT EXISTS idx_ididx_name ON identifier_index(name);
+                          CREATE INDEX IF NOT EXISTS idx_ididx_fullname ON identifier_index(full_name);
+                          CREATE INDEX IF NOT EXISTS idx_ididx_kind ON identifier_index(kind);
+
+                          CREATE VIRTUAL TABLE IF NOT EXISTS identifier_fts USING fts5(
+                              name,
+                              full_name,
+                              path,
+                              node_id UNINDEXED,
+                              kind UNINDEXED,
+                              tokenize='trigram'
+                          );
+
                           CREATE TABLE IF NOT EXISTS intents (
                               file_path TEXT PRIMARY KEY,
                               workspace_id TEXT NOT NULL,

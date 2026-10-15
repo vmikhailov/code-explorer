@@ -1,0 +1,350 @@
+using System.Data.Common;
+using System.Text.Json;
+using CodeExplorer.Core.Database;
+using Dapper;
+using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
+namespace CodeExplorer.Core.Analysis;
+
+public record IdentifierMatch(
+    string NodeId,
+    string Name,
+    string FullName,
+    string Kind,
+    string? Path,
+    int StartLine,
+    float Score);
+
+public class IdentifierSearchEngine
+{
+    private readonly ILogger _logger;
+
+    public IdentifierSearchEngine(ILogger? logger = null)
+    {
+        _logger = logger ?? NullLogger.Instance;
+    }
+
+    public async Task EnsureIndexAsync(SqliteConnection conn, CancellationToken ct = default)
+    {
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            CREATE TABLE IF NOT EXISTS identifier_index (
+                node_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                full_name TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                path TEXT,
+                start_line INTEGER DEFAULT 0,
+                embedding BLOB NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_ididx_name ON identifier_index(name);
+            CREATE INDEX IF NOT EXISTS idx_ididx_fullname ON identifier_index(full_name);
+            CREATE INDEX IF NOT EXISTS idx_ididx_kind ON identifier_index(kind);
+
+            CREATE VIRTUAL TABLE IF NOT EXISTS identifier_fts USING fts5(
+                name,
+                full_name,
+                path,
+                node_id UNINDEXED,
+                kind UNINDEXED,
+                tokenize='trigram'
+            );
+            """;
+        await cmd.ExecuteNonQueryAsync(ct);
+
+        // Check if index needs populating
+        cmd.CommandText = "SELECT COUNT(*) FROM identifier_index;";
+        var count = Convert.ToInt32(await cmd.ExecuteScalarAsync(ct));
+        if (count == 0)
+        {
+            await RebuildIndexAsync(conn, ct);
+        }
+    }
+
+    public async Task RebuildIndexAsync(SqliteConnection conn, CancellationToken ct = default)
+    {
+        await using var initCmd = conn.CreateCommand();
+        initCmd.CommandText = """
+            CREATE TABLE IF NOT EXISTS identifier_index (
+                node_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                full_name TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                path TEXT,
+                start_line INTEGER DEFAULT 0,
+                embedding BLOB NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_ididx_name ON identifier_index(name);
+            CREATE INDEX IF NOT EXISTS idx_ididx_fullname ON identifier_index(full_name);
+            CREATE INDEX IF NOT EXISTS idx_ididx_kind ON identifier_index(kind);
+
+            CREATE VIRTUAL TABLE IF NOT EXISTS identifier_fts USING fts5(
+                name,
+                full_name,
+                path,
+                node_id UNINDEXED,
+                kind UNINDEXED,
+                tokenize='trigram'
+            );
+            DELETE FROM identifier_index;
+            DELETE FROM identifier_fts;
+            """;
+        await initCmd.ExecuteNonQueryAsync(ct);
+
+        // Extract candidate nodes: Type, Function, Member, Endpoint, Table, Topic, Project, ExternalService
+        var candidateQuery = """
+            SELECT n.id, n.kind, n.properties,
+                   json_extract(o.properties, '$.name') as owner_name
+            FROM nodes n
+            LEFT JOIN edges e ON (e.to_id = n.id AND e.kind IN ('HAS_METHOD', 'HAS_MEMBER'))
+            LEFT JOIN nodes o ON (e.from_id = o.id AND o.kind = 'Type')
+            WHERE n.kind IN ('Type', 'Function', 'Member', 'Endpoint', 'Table', 'Topic', 'Project', 'ExternalService');
+            """;
+
+        await using var selectCmd = conn.CreateCommand();
+        selectCmd.CommandText = candidateQuery;
+        await using var reader = await selectCmd.ExecuteReaderAsync(ct);
+
+        var entries = new List<(string NodeId, string Name, string FullName, string Kind, string? Path, int StartLine, byte[] Embedding)>();
+
+        while (await reader.ReadAsync(ct))
+        {
+            var id = reader.GetString(0);
+            var kind = reader.GetString(1);
+            var propsJson = reader.GetString(2);
+            var ownerName = reader.IsDBNull(3) ? null : reader.GetString(3);
+
+            string name = id;
+            string? path = null;
+            int startLine = 0;
+
+            try
+            {
+                using var doc = JsonDocument.Parse(propsJson);
+                var root = doc.RootElement;
+                if (root.TryGetProperty("name", out var np)) name = np.GetString() ?? id;
+                else if (root.TryGetProperty("route_template", out var rp)) name = rp.GetString() ?? id;
+                else if (root.TryGetProperty("symbol", out var sp)) name = sp.GetString() ?? id;
+
+                if (root.TryGetProperty("path", out var pp)) path = pp.GetString();
+                else if (root.TryGetProperty("file_path", out var fpp)) path = fpp.GetString();
+
+                if (root.TryGetProperty("start_line", out var slp) && slp.TryGetInt32(out var sl)) startLine = sl;
+            }
+            catch
+            {
+                // Ignore parse errors on corrupted JSON
+            }
+
+            var fullName = !string.IsNullOrEmpty(ownerName) && !name.Contains('.')
+                ? $"{ownerName}.{name}"
+                : name;
+
+            // Combine name, full name, and path for vector representation
+            var textToEmbed = $"{fullName} {name} {path ?? ""}";
+            var vec = IdentifierVectorEncoder.Encode(textToEmbed);
+            var bytes = IdentifierVectorEncoder.ToBytes(vec);
+
+            entries.Add((id, name, fullName, kind, path, startLine, bytes));
+        }
+
+        // Batch insert into identifier_index and identifier_fts
+        await using var tx = (SqliteTransaction)await conn.BeginTransactionAsync(ct);
+        const int batchSize = 250;
+        for (int i = 0; i < entries.Count; i += batchSize)
+        {
+            var batch = entries.Skip(i).Take(batchSize).ToList();
+            await using var insertCmd = conn.CreateCommand();
+            insertCmd.Transaction = tx;
+
+            var sb = new System.Text.StringBuilder();
+            sb.Append("INSERT OR REPLACE INTO identifier_index (node_id, name, full_name, kind, path, start_line, embedding) VALUES ");
+            for (int j = 0; j < batch.Count; j++)
+            {
+                if (j > 0) sb.Append(',');
+                sb.Append($"(@id{j}, @nm{j}, @fn{j}, @kd{j}, @pt{j}, @sl{j}, @eb{j})");
+                insertCmd.Parameters.AddWithValue($"@id{j}", batch[j].NodeId);
+                insertCmd.Parameters.AddWithValue($"@nm{j}", batch[j].Name);
+                insertCmd.Parameters.AddWithValue($"@fn{j}", batch[j].FullName);
+                insertCmd.Parameters.AddWithValue($"@kd{j}", batch[j].Kind);
+                insertCmd.Parameters.AddWithValue($"@pt{j}", (object?)batch[j].Path ?? DBNull.Value);
+                insertCmd.Parameters.AddWithValue($"@sl{j}", batch[j].StartLine);
+                insertCmd.Parameters.AddWithValue($"@eb{j}", batch[j].Embedding);
+            }
+            sb.Append(';');
+
+            // FTS inserts
+            foreach (var item in batch)
+            {
+                sb.Append($"INSERT INTO identifier_fts (name, full_name, path, node_id, kind) VALUES ('{EscapeSql(item.Name)}', '{EscapeSql(item.FullName)}', '{EscapeSql(item.Path ?? "")}', '{EscapeSql(item.NodeId)}', '{EscapeSql(item.Kind)}');");
+            }
+
+            insertCmd.CommandText = sb.ToString();
+            await insertCmd.ExecuteNonQueryAsync(ct);
+        }
+
+        await tx.CommitAsync(ct);
+        _logger.LogInformation("[IdentifierSearch] Indexed {Count} identifiers into vector/trigram index", entries.Count);
+    }
+
+    public async Task<IReadOnlyList<IdentifierMatch>> SearchAsync(
+        SqliteConnection conn,
+        string query,
+        string? kindFilter = null,
+        int limit = 10,
+        float minScore = 0.35f,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return Array.Empty<IdentifierMatch>();
+        }
+
+        await EnsureIndexAsync(conn, ct);
+
+        var queryTrim = query.Trim();
+        var queryVec = IdentifierVectorEncoder.Encode(queryTrim);
+
+        // 1. Exact match check
+        await using var exactCmd = conn.CreateCommand();
+        exactCmd.CommandText = """
+            SELECT node_id, name, full_name, kind, path, start_line
+            FROM identifier_index
+            WHERE (name = @q OR full_name = @q OR node_id = @q OR full_name LIKE '%' || @q)
+              AND (@kind IS NULL OR kind = @kind)
+            LIMIT 5;
+            """;
+        exactCmd.Parameters.AddWithValue("@q", queryTrim);
+        exactCmd.Parameters.AddWithValue("@kind", (object?)kindFilter ?? DBNull.Value);
+
+        var exactMatches = new List<IdentifierMatch>();
+        await using (var r = await exactCmd.ExecuteReaderAsync(ct))
+        {
+            while (await r.ReadAsync(ct))
+            {
+                exactMatches.Add(new IdentifierMatch(
+                    r.GetString(0),
+                    r.GetString(1),
+                    r.GetString(2),
+                    r.GetString(3),
+                    r.IsDBNull(4) ? null : r.GetString(4),
+                    r.GetInt32(5),
+                    1.0f));
+            }
+        }
+
+        if (exactMatches.Count > 0 && exactMatches.Any(m => m.Name.Equals(queryTrim, StringComparison.OrdinalIgnoreCase) || m.FullName.Equals(queryTrim, StringComparison.OrdinalIgnoreCase)))
+        {
+            return exactMatches;
+        }
+
+        // 2. Trigram FTS candidates
+        var tokens = IdentifierVectorEncoder.Tokenize(queryTrim);
+        var trigrams = new List<string>();
+        foreach (var t in tokens)
+        {
+            if (t.Length >= 3)
+            {
+                trigrams.Add($"\"{t}\"");
+            }
+        }
+
+        var candidateNodeIds = new HashSet<string>(exactMatches.Select(m => m.NodeId));
+        if (trigrams.Count > 0)
+        {
+            var ftsExpr = string.Join(" OR ", trigrams);
+            await using var ftsCmd = conn.CreateCommand();
+            ftsCmd.CommandText = """
+                SELECT node_id FROM identifier_fts
+                WHERE identifier_fts MATCH @match
+                  AND (@kind IS NULL OR kind = @kind)
+                LIMIT 100;
+                """;
+            ftsCmd.Parameters.AddWithValue("@match", ftsExpr);
+            ftsCmd.Parameters.AddWithValue("@kind", (object?)kindFilter ?? DBNull.Value);
+
+            try
+            {
+                await using var ftsReader = await ftsCmd.ExecuteReaderAsync(ct);
+                while (await ftsReader.ReadAsync(ct))
+                {
+                    candidateNodeIds.Add(ftsReader.GetString(0));
+                }
+            }
+            catch
+            {
+                // Fallback to vector scan on FTS syntax error
+            }
+        }
+
+        // 3. Fetch candidates (or all if candidate set is small) and compute CosineSimilarity
+        var matches = new List<IdentifierMatch>(exactMatches);
+        var selectSql = candidateNodeIds.Count > 0 && candidateNodeIds.Count < 200
+            ? $"""
+               SELECT node_id, name, full_name, kind, path, start_line, embedding
+               FROM identifier_index
+               WHERE node_id IN ({string.Join(",", candidateNodeIds.Select(id => $"'{EscapeSql(id)}'"))})
+                 AND (@kind IS NULL OR kind = @kind);
+               """
+            : """
+               SELECT node_id, name, full_name, kind, path, start_line, embedding
+               FROM identifier_index
+               WHERE (@kind IS NULL OR kind = @kind);
+               """;
+
+        await using var scoreCmd = conn.CreateCommand();
+        scoreCmd.CommandText = selectSql;
+        scoreCmd.Parameters.AddWithValue("@kind", (object?)kindFilter ?? DBNull.Value);
+
+        await using var scoreReader = await scoreCmd.ExecuteReaderAsync(ct);
+        while (await scoreReader.ReadAsync(ct))
+        {
+            var id = scoreReader.GetString(0);
+            if (matches.Any(m => m.NodeId == id)) continue;
+
+            var name = scoreReader.GetString(1);
+            var fullName = scoreReader.GetString(2);
+            var kind = scoreReader.GetString(3);
+            var path = scoreReader.IsDBNull(4) ? null : scoreReader.GetString(4);
+            var startLine = scoreReader.GetInt32(5);
+
+            var blobLength = (int)scoreReader.GetBytes(6, 0, null, 0, 0);
+            var blob = new byte[blobLength];
+            scoreReader.GetBytes(6, 0, blob, 0, blobLength);
+
+            var emb = IdentifierVectorEncoder.FromBytes(blob);
+            var score = IdentifierVectorEncoder.CosineSimilarity(queryVec, emb);
+
+            // Boost prefix or exact case matches
+            if (name.Contains(queryTrim, StringComparison.OrdinalIgnoreCase) ||
+                fullName.Contains(queryTrim, StringComparison.OrdinalIgnoreCase))
+            {
+                score = Math.Max(score, 0.85f);
+            }
+
+            if (score >= minScore)
+            {
+                matches.Add(new IdentifierMatch(id, name, fullName, kind, path, startLine, score));
+            }
+        }
+
+        return matches
+            .OrderByDescending(m => m.Score)
+            .Take(limit)
+            .ToList();
+    }
+
+    public async Task<IdentifierMatch?> ResolveIdentifierAsync(
+        SqliteConnection conn,
+        string target,
+        string? kindFilter = null,
+        CancellationToken ct = default)
+    {
+        var results = await SearchAsync(conn, target, kindFilter, limit: 1, minScore: 0.65f, ct);
+        return results.Count > 0 ? results[0] : null;
+    }
+
+    private static string EscapeSql(string value) => value.Replace("'", "''");
+}

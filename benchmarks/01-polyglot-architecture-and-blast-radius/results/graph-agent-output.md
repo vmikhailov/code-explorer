@@ -1,161 +1,124 @@
-# Architectural & Blast Radius Analysis Report for `code-explorer`
+# Architectural & Impact Analysis Report
+
+### 1. Interface Implementations across the Codebase
+
+#### `IComponentLibraryParser` (16 Implementations)
+All implementations are declared under `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/`:
+1. [`AngularComponentParser`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/AngularComponentParser.cs) &mdash; `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/AngularComponentParser.cs`
+2. [`AspNetCoreComponentParser`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/AspNetCoreComponentParser.cs) &mdash; `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/AspNetCoreComponentParser.cs`
+3. [`DotNetLibraryComponentParser`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/DotNetLibraryComponentParser.cs) &mdash; `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/DotNetLibraryComponentParser.cs`
+4. [`DotNetSchedulerComponentParser`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/DotNetSchedulerComponentParser.cs) &mdash; `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/DotNetSchedulerComponentParser.cs`
+5. [`DotNetTestComponentParser`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/DotNetTestComponentParser.cs) &mdash; `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/DotNetTestComponentParser.cs`
+6. [`DotNetWorkerComponentParser`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/DotNetWorkerComponentParser.cs) &mdash; `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/DotNetWorkerComponentParser.cs`
+7. [`ExpressFastifyComponentParser`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/ExpressFastifyComponentParser.cs) &mdash; `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/ExpressFastifyComponentParser.cs`
+8. [`FastApiComponentParser`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/FastApiComponentParser.cs) &mdash; `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/FastApiComponentParser.cs`
+9. [`GoTestComponentParser`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/GoTestComponentParser.cs) &mdash; `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/GoTestComponentParser.cs`
+10. [`JavaScriptTestRunnerComponentParser`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/JavaScriptTestRunnerComponentParser.cs) &mdash; `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/JavaScriptTestRunnerComponentParser.cs`
+11. [`JavaTestComponentParser`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/JavaTestComponentParser.cs) &mdash; `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/JavaTestComponentParser.cs`
+12. [`NestJsComponentParser`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/NestJsComponentParser.cs) &mdash; `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/NestJsComponentParser.cs`
+13. [`NodeWorkerSchedulerComponentParser`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/NodeWorkerSchedulerComponentParser.cs) &mdash; `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/NodeWorkerSchedulerComponentParser.cs`
+14. [`PythonTestComponentParser`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/PythonTestComponentParser.cs) &mdash; `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/PythonTestComponentParser.cs`
+15. [`ReactNextComponentParser`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/ReactNextComponentParser.cs) &mdash; `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/ReactNextComponentParser.cs`
+16. [`YarpGatewayComponentParser`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/YarpGatewayComponentParser.cs) &mdash; `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/YarpGatewayComponentParser.cs`
+
+#### `IMcpTargetAdapter` (8 Implementations)
+All implementations are declared under `cli/src/UI/CodeExplorer/Configuration/Adapters/`:
+1. [`AntigravityAdapter`](file:///c:/Work/Personal/code-explorer/cli/src/UI/CodeExplorer/Configuration/Adapters/AntigravityAdapter.cs) &mdash; `cli/src/UI/CodeExplorer/Configuration/Adapters/AntigravityAdapter.cs`
+2. [`ClaudeCodeAdapter`](file:///c:/Work/Personal/code-explorer/cli/src/UI/CodeExplorer/Configuration/Adapters/ClaudeCodeAdapter.cs) &mdash; `cli/src/UI/CodeExplorer/Configuration/Adapters/ClaudeCodeAdapter.cs`
+3. [`ClaudeDesktopAdapter`](file:///c:/Work/Personal/code-explorer/cli/src/UI/CodeExplorer/Configuration/Adapters/ClaudeDesktopAdapter.cs) &mdash; `cli/src/UI/CodeExplorer/Configuration/Adapters/ClaudeDesktopAdapter.cs`
+4. [`ClineAdapter`](file:///c:/Work/Personal/code-explorer/cli/src/UI/CodeExplorer/Configuration/Adapters/ClineAdapter.cs) &mdash; `cli/src/UI/CodeExplorer/Configuration/Adapters/ClineAdapter.cs`
+5. [`CursorAdapter`](file:///c:/Work/Personal/code-explorer/cli/src/UI/CodeExplorer/Configuration/Adapters/CursorAdapter.cs) &mdash; `cli/src/UI/CodeExplorer/Configuration/Adapters/CursorAdapter.cs`
+6. [`VsCodeAdapter`](file:///c:/Work/Personal/code-explorer/cli/src/UI/CodeExplorer/Configuration/Adapters/VsCodeAdapter.cs) &mdash; `cli/src/UI/CodeExplorer/Configuration/Adapters/VsCodeAdapter.cs`
+7. [`WindsurfAdapter`](file:///c:/Work/Personal/code-explorer/cli/src/UI/CodeExplorer/Configuration/Adapters/WindsurfAdapter.cs) &mdash; `cli/src/UI/CodeExplorer/Configuration/Adapters/WindsurfAdapter.cs`
+8. [`ZedAdapter`](file:///c:/Work/Personal/code-explorer/cli/src/UI/CodeExplorer/Configuration/Adapters/ZedAdapter.cs) &mdash; `cli/src/UI/CodeExplorer/Configuration/Adapters/ZedAdapter.cs`
+
+#### `ILibraryConfigurationDescriptor` (4 Implementations)
+1. [`DatabaseConfigurationDescriptor`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Parser/StandardConfigurationDescriptors.cs#L9) &mdash; `cli/src/Core/CodeExplorer.Core/Parser/StandardConfigurationDescriptors.cs`
+2. [`MessageBrokerConfigurationDescriptor`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Parser/StandardConfigurationDescriptors.cs#L85) &mdash; `cli/src/Core/CodeExplorer.Core/Parser/StandardConfigurationDescriptors.cs`
+3. [`CloudServicesConfigurationDescriptor`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Parser/StandardConfigurationDescriptors.cs#L141) &mdash; `cli/src/Core/CodeExplorer.Core/Parser/StandardConfigurationDescriptors.cs`
+4. [`SpringFrameworkConfigurationDescriptor`](file:///c:/Work/Personal/code-explorer/cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/SpringFrameworkConfigurationDescriptor.cs#L11) &mdash; `cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/SpringFrameworkConfigurationDescriptor.cs`
+
+#### `ISyntaxEnricher` (3 Implementations)
+1. [`SyntaxEnricher`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Parser/SyntaxEnricher.cs#L15) &mdash; `cli/src/Core/CodeExplorer.Core/Parser/SyntaxEnricher.cs`
+2. [`ColdFusionSyntaxEnricher`](file:///c:/Work/Personal/code-explorer/cli/src/Parsers/CodeExplorer.Parser.ColdFusion/ColdFusionSyntaxEnricher.cs#L10) &mdash; `cli/src/Parsers/CodeExplorer.Parser.ColdFusion/ColdFusionSyntaxEnricher.cs`
+3. [`SqlSyntaxEnricher`](file:///c:/Work/Personal/code-explorer/cli/src/Parsers/CodeExplorer.Parser.SQL/SqlSyntaxEnricher.cs#L9) &mdash; `cli/src/Parsers/CodeExplorer.Parser.SQL/SqlSyntaxEnricher.cs`
 
 ---
 
-## 1. Interface Implementations across the Codebase
+### 2. Blast Radius & Call Chain of `GateExecutionEngine`
 
-### `IComponentLibraryParser` (16 classes)
-All 16 classes implement [`IComponentLibraryParser`](file:///cli/src/Core/CodeExplorer.Core/Parser/Components/IComponentLibraryParser.cs):
+The production (non-test) classes and methods directly calling [`CheckGateAsync`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Gates/Engine/GateExecutionEngine.cs#L23) or [`CheckSuiteAsync`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Gates/Engine/GateExecutionEngine.cs#L69) on [`GateExecutionEngine`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Gates/Engine/GateExecutionEngine.cs), along with their one-hop upstream triggers:
 
-| Class Name | Relative File Path |
-| :--- | :--- |
-| [`AngularComponentParser`](file:///cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/AngularComponentParser.cs) | `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/AngularComponentParser.cs` |
-| [`AspNetCoreComponentParser`](file:///cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/AspNetCoreComponentParser.cs) | `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/AspNetCoreComponentParser.cs` |
-| [`DotNetLibraryComponentParser`](file:///cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/DotNetLibraryComponentParser.cs) | `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/DotNetLibraryComponentParser.cs` |
-| [`DotNetSchedulerComponentParser`](file:///cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/DotNetSchedulerComponentParser.cs) | `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/DotNetSchedulerComponentParser.cs` |
-| [`DotNetTestComponentParser`](file:///cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/DotNetTestComponentParser.cs) | `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/DotNetTestComponentParser.cs` |
-| [`DotNetWorkerComponentParser`](file:///cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/DotNetWorkerComponentParser.cs) | `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/DotNetWorkerComponentParser.cs` |
-| [`ExpressFastifyComponentParser`](file:///cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/ExpressFastifyComponentParser.cs) | `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/ExpressFastifyComponentParser.cs` |
-| [`FastApiComponentParser`](file:///cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/FastApiComponentParser.cs) | `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/FastApiComponentParser.cs` |
-| [`GoTestComponentParser`](file:///cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/GoTestComponentParser.cs) | `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/GoTestComponentParser.cs` |
-| [`JavaScriptTestRunnerComponentParser`](file:///cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/JavaScriptTestRunnerComponentParser.cs) | `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/JavaScriptTestRunnerComponentParser.cs` |
-| [`JavaTestComponentParser`](file:///cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/JavaTestComponentParser.cs) | `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/JavaTestComponentParser.cs` |
-| [`NestJsComponentParser`](file:///cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/NestJsComponentParser.cs) | `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/NestJsComponentParser.cs` |
-| [`NodeWorkerSchedulerComponentParser`](file:///cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/NodeWorkerSchedulerComponentParser.cs) | `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/NodeWorkerSchedulerComponentParser.cs` |
-| [`PythonTestComponentParser`](file:///cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/PythonTestComponentParser.cs) | `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/PythonTestComponentParser.cs` |
-| [`ReactNextComponentParser`](file:///cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/ReactNextComponentParser.cs) | `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/ReactNextComponentParser.cs` |
-| [`YarpGatewayComponentParser`](file:///cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/YarpGatewayComponentParser.cs) | `cli/src/Core/CodeExplorer.Core/Parser/Components/Parsers/YarpGatewayComponentParser.cs` |
-
----
-
-### `IMcpTargetAdapter` (8 classes)
-All 8 classes implement [`IMcpTargetAdapter`](file:///cli/src/UI/CodeExplorer/Configuration/IMcpTargetAdapter.cs):
-
-| Class Name | Relative File Path |
-| :--- | :--- |
-| [`AntigravityAdapter`](file:///cli/src/UI/CodeExplorer/Configuration/Adapters/AntigravityAdapter.cs) | `cli/src/UI/CodeExplorer/Configuration/Adapters/AntigravityAdapter.cs` |
-| [`ClaudeCodeAdapter`](file:///cli/src/UI/CodeExplorer/Configuration/Adapters/ClaudeCodeAdapter.cs) | `cli/src/UI/CodeExplorer/Configuration/Adapters/ClaudeCodeAdapter.cs` |
-| [`ClaudeDesktopAdapter`](file:///cli/src/UI/CodeExplorer/Configuration/Adapters/ClaudeDesktopAdapter.cs) | `cli/src/UI/CodeExplorer/Configuration/Adapters/ClaudeDesktopAdapter.cs` |
-| [`ClineAdapter`](file:///cli/src/UI/CodeExplorer/Configuration/Adapters/ClineAdapter.cs) | `cli/src/UI/CodeExplorer/Configuration/Adapters/ClineAdapter.cs` |
-| [`CursorAdapter`](file:///cli/src/UI/CodeExplorer/Configuration/Adapters/CursorAdapter.cs) | `cli/src/UI/CodeExplorer/Configuration/Adapters/CursorAdapter.cs` |
-| [`VsCodeAdapter`](file:///cli/src/UI/CodeExplorer/Configuration/Adapters/VsCodeAdapter.cs) | `cli/src/UI/CodeExplorer/Configuration/Adapters/VsCodeAdapter.cs` |
-| [`WindsurfAdapter`](file:///cli/src/UI/CodeExplorer/Configuration/Adapters/WindsurfAdapter.cs) | `cli/src/UI/CodeExplorer/Configuration/Adapters/WindsurfAdapter.cs` |
-| [`ZedAdapter`](file:///cli/src/UI/CodeExplorer/Configuration/Adapters/ZedAdapter.cs) | `cli/src/UI/CodeExplorer/Configuration/Adapters/ZedAdapter.cs` |
-
----
-
-### `ILibraryConfigurationDescriptor` (4 classes)
-All 4 classes implement [`ILibraryConfigurationDescriptor`](file:///cli/src/Core/CodeExplorer.Core/Parser/ILibraryConfigurationDescriptor.cs):
-
-| Class Name | Relative File Path |
-| :--- | :--- |
-| [`CloudServicesConfigurationDescriptor`](file:///cli/src/Core/CodeExplorer.Core/Parser/StandardConfigurationDescriptors.cs) | `cli/src/Core/CodeExplorer.Core/Parser/StandardConfigurationDescriptors.cs` |
-| [`DatabaseConfigurationDescriptor`](file:///cli/src/Core/CodeExplorer.Core/Parser/StandardConfigurationDescriptors.cs) | `cli/src/Core/CodeExplorer.Core/Parser/StandardConfigurationDescriptors.cs` |
-| [`MessageBrokerConfigurationDescriptor`](file:///cli/src/Core/CodeExplorer.Core/Parser/StandardConfigurationDescriptors.cs) | `cli/src/Core/CodeExplorer.Core/Parser/StandardConfigurationDescriptors.cs` |
-| [`SpringFrameworkConfigurationDescriptor`](file:///cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/SpringFrameworkConfigurationDescriptor.cs) | `cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/SpringFrameworkConfigurationDescriptor.cs` |
-
----
-
-### `ISyntaxEnricher` (3 classes)
-All 3 classes implement [`ISyntaxEnricher`](file:///cli/src/Core/CodeExplorer.Core/Parser/ISyntaxEnricher.cs):
-
-| Class Name | Relative File Path |
-| :--- | :--- |
-| [`ColdFusionSyntaxEnricher`](file:///cli/src/Parsers/CodeExplorer.Parser.ColdFusion/ColdFusionSyntaxEnricher.cs) | `cli/src/Parsers/CodeExplorer.Parser.ColdFusion/ColdFusionSyntaxEnricher.cs` |
-| [`SqlSyntaxEnricher`](file:///cli/src/Parsers/CodeExplorer.Parser.SQL/SqlSyntaxEnricher.cs) | `cli/src/Parsers/CodeExplorer.Parser.SQL/SqlSyntaxEnricher.cs` |
-| [`SyntaxEnricher`](file:///cli/src/Core/CodeExplorer.Core/Parser/SyntaxEnricher.cs) | `cli/src/Core/CodeExplorer.Core/Parser/SyntaxEnricher.cs` |
-
----
-
-## 2. Blast Radius & Call Chain of `GateExecutionEngine`
-
-Target methods on [`GateExecutionEngine`](file:///cli/src/Core/CodeExplorer.Core/Gates/Engine/GateExecutionEngine.cs):
-- [`CheckGateAsync`](file:///cli/src/Core/CodeExplorer.Core/Gates/Engine/GateExecutionEngine.cs#L23) (evaluates an individual semantic gate against the workspace graph)
-- [`CheckSuiteAsync`](file:///cli/src/Core/CodeExplorer.Core/Gates/Engine/GateExecutionEngine.cs#L69) (evaluates a filtered or complete suite of semantic gates)
-
-### Production (Non-Test) Direct Callers & One-Hop Upstream Triggers
-
-1. **[`GateExecutionEngine.CheckSuiteAsync`](file:///cli/src/Core/CodeExplorer.Core/Gates/Engine/GateExecutionEngine.cs#L69)** (`cli/src/Core/CodeExplorer.Core/Gates/Engine/GateExecutionEngine.cs`)
-   - **Direct Call**: Directly calls [`CheckGateAsync`](file:///cli/src/Core/CodeExplorer.Core/Gates/Engine/GateExecutionEngine.cs#L101) internally for each gate in the filtered suite.
-   - **One Hop Upstream**: Internal engine orchestrator called directly by `CodeExplorerRepository.CheckSemanticGatesAsync`, `GateCommandHandler.HandleAsync`, `WebSocketServerHandler.EvaluateGatesSuiteAsync`, and `WebSocketServerHandler.RatchetGatesSuiteAsync` (each detailed below).
-
-2. **[`CodeExplorerRepository.CheckSemanticGatesAsync`](file:///cli/src/Core/CodeExplorer.Core/Mcp/CodeExplorerRepository.cs#L1878-L1932)** (`cli/src/Core/CodeExplorer.Core/Mcp/CodeExplorerRepository.cs`)
+1. **Class**: [`CodeExplorer.Commands.GateCommandHandler`](file:///c:/Work/Personal/code-explorer/cli/src/UI/CodeExplorer/Commands/GateCommandHandler.cs)
+   - **Method**: [`HandleAsync(GateOptions opts)`](file:///c:/Work/Personal/code-explorer/cli/src/UI/CodeExplorer/Commands/GateCommandHandler.cs#L17) (`cli/src/UI/CodeExplorer/Commands/GateCommandHandler.cs`)
    - **Direct Calls**:
-     - [`engine.CheckGateAsync(singleGate, cancellationToken)`](file:///cli/src/Core/CodeExplorer.Core/Mcp/CodeExplorerRepository.cs#L1920) when a specific `gateId` is provided.
-     - [`engine.CheckSuiteAsync(...)`](file:///cli/src/Core/CodeExplorer.Core/Mcp/CodeExplorerRepository.cs#L1924) when evaluating a suite of gates.
+     - `engine.CheckGateAsync(...)` (lines 196, 222)
+     - `engine.CheckSuiteAsync(...)` (lines 145, 202, 238, 242)
    - **One Hop Upstream Trigger**:
-     - **MCP Tool**: `check_semantic_gates` via [`McpGraphHandler.CheckSemanticGatesAsync`](file:///cli/src/Core/CodeExplorer.Core/Mcp/McpGraphHandler.cs#L652-L667) (`cli/src/Core/CodeExplorer.Core/Mcp/McpGraphHandler.cs`), decorated with `[McpServerTool]`.
+     - **CLI Command**: `ce gate` (subcommands: `check`, `ratchet`, `violations`, `show`), routed from [`Program.Main / Program.HandleAsync`](file:///c:/Work/Personal/code-explorer/cli/src/UI/CodeExplorer/Program.cs#L92) via `GateOptions`.
 
-3. **[`GateCommandHandler.HandleAsync`](file:///cli/src/UI/CodeExplorer/Commands/GateCommandHandler.cs#L17-L244)** (`cli/src/UI/CodeExplorer/Commands/GateCommandHandler.cs`)
+2. **Class**: [`CodeExplorer.Core.Mcp.CodeExplorerRepository`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Mcp/CodeExplorerRepository.cs)
+   - **Method**: [`CheckSemanticGatesAsync(...)`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Mcp/CodeExplorerRepository.cs#L1996) (`cli/src/Core/CodeExplorer.Core/Mcp/CodeExplorerRepository.cs`)
    - **Direct Calls**:
-     - [`engine.CheckGateAsync(gate)`](file:///cli/src/UI/CodeExplorer/Commands/GateCommandHandler.cs#L196) (when `action is "violations" or "show"` with `--gate`) and [line 222](file:///cli/src/UI/CodeExplorer/Commands/GateCommandHandler.cs#L222) (when `action == "check"` with a single `--gate`).
-     - [`engine.CheckSuiteAsync(targetGates, ...)`](file:///cli/src/UI/CodeExplorer/Commands/GateCommandHandler.cs#L145) (when `action == "ratchet"`), [line 202](file:///cli/src/UI/CodeExplorer/Commands/GateCommandHandler.cs#L202) (when `action is "violations" or "show"` without `--gate`), [line 238](file:///cli/src/UI/CodeExplorer/Commands/GateCommandHandler.cs#L238) (when `action == "check"` with multiple comma-separated `--gate` IDs), and [line 242](file:///cli/src/UI/CodeExplorer/Commands/GateCommandHandler.cs#L242) (when `action == "check"` for full suite).
+     - `engine.CheckGateAsync(singleGate, cancellationToken)` (line 2038)
+     - `engine.CheckSuiteAsync(...)` (line 2042)
    - **One Hop Upstream Trigger**:
-     - **CLI Command**: `ce gate [check|ratchet|violations|show]` via [`Program.Main`](file:///cli/src/UI/CodeExplorer/Program.cs#L89) (`cli/src/UI/CodeExplorer/Program.cs`) dispatching [`GateOptions`](file:///cli/src/UI/CodeExplorer/Options/GateOptions.cs#L5) (`cli/src/UI/CodeExplorer/Options/GateOptions.cs`, decorated with `[Verb("gate")]`).
+     - **MCP Tool**: `CheckSemanticGatesAsync` (attribute `[McpServerTool]` on method [`McpGraphHandler.CheckSemanticGatesAsync`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Mcp/McpGraphHandler.cs#L670) in `cli/src/Core/CodeExplorer.Core/Mcp/McpGraphHandler.cs`).
 
-4. **[`WebSocketServerHandler.EvaluateGatesSuiteAsync`](file:///cli/src/UI/CodeExplorer/Server/WebSocketServerHandler.cs#L670-L760)** (`cli/src/UI/CodeExplorer/Server/WebSocketServerHandler.cs`)
+3. **Class**: [`CodeExplorer.Server.WebSocketServerHandler`](file:///c:/Work/Personal/code-explorer/cli/src/UI/CodeExplorer/Server/WebSocketServerHandler.cs)
+   - **Method**: [`EvaluateGatesSuiteAsync(string? gateId, CancellationToken cancellationToken, bool force)`](file:///c:/Work/Personal/code-explorer/cli/src/UI/CodeExplorer/Server/WebSocketServerHandler.cs#L670) (`cli/src/UI/CodeExplorer/Server/WebSocketServerHandler.cs`)
    - **Direct Calls**:
-     - [`engine.CheckSuiteAsync(null, cancellationToken: cancellationToken)`](file:///cli/src/UI/CodeExplorer/Server/WebSocketServerHandler.cs#L684) (full suite evaluation).
-     - [`engine.CheckSuiteAsync(targetGates, cancellationToken: cancellationToken)`](file:///cli/src/UI/CodeExplorer/Server/WebSocketServerHandler.cs#L695) (single-gate evaluation).
+     - `engine.CheckSuiteAsync(...)` (lines 684, 695)
    - **One Hop Upstream Triggers**:
-     - **WebSocket Message Types** (handled in [`WebSocketServerHandler.ProcessMessageAsync`](file:///cli/src/UI/CodeExplorer/Server/WebSocketServerHandler.cs#L451-L463)):
-       - `WsMessageTypes.GetGatesRequest` (`"GET_GATES_REQUEST"`) / `"GET_GATES"`
-       - `WsMessageTypes.EvaluateGatesRequest` (`"EVALUATE_GATES_REQUEST"`) / `"EVALUATE_GATES"`
-     - **HTTP Endpoints** (mapped in [`ServerRouteBuilderExtensions.MapCodeExplorerApi`](file:///cli/src/UI/CodeExplorer/Server/ServerRouteBuilderExtensions.cs#L315-L349)):
-       - `GET /api/gates` (line 315; invokes `wsHandler.EvaluateGatesSuiteAsync` at line 326)
-       - `POST /api/gates/check` (line 336; invokes `wsHandler.EvaluateGatesSuiteAsync` at line 341)
-     - **Internal Server Method**: [`WebSocketServerHandler.InitStarterGatesAsync`](file:///cli/src/UI/CodeExplorer/Server/WebSocketServerHandler.cs#L819-L833) (line 823), which is triggered by:
-       - WebSocket Message Type: `WsMessageTypes.InitGatesRequest` (`"INIT_GATES_REQUEST"`) / `"INIT_GATES"` (lines 474–480)
-       - HTTP Endpoint: `POST /api/gates/init` (lines 366–379)
+     - **HTTP Endpoints**:
+       - `GET /api/gates` (in [`ServerRouteBuilderExtensions.cs`](file:///c:/Work/Personal/code-explorer/cli/src/UI/CodeExplorer/Server/ServerRouteBuilderExtensions.cs#L315))
+       - `POST /api/gates/check` (in [`ServerRouteBuilderExtensions.cs`](file:///c:/Work/Personal/code-explorer/cli/src/UI/CodeExplorer/Server/ServerRouteBuilderExtensions.cs#L336))
+       - `POST /api/gates/init` (in [`ServerRouteBuilderExtensions.cs`](file:///c:/Work/Personal/code-explorer/cli/src/UI/CodeExplorer/Server/ServerRouteBuilderExtensions.cs#L366), calls [`InitStarterGatesAsync`](file:///c:/Work/Personal/code-explorer/cli/src/UI/CodeExplorer/Server/WebSocketServerHandler.cs#L819) which triggers `EvaluateGatesSuiteAsync`)
+     - **WebSocket Message Types**:
+       - `WsMessageTypes.GetGatesRequest` (`"GET_GATES_REQUEST"` / `"GET_GATES"`) ([`WebSocketServerHandler.cs`](file:///c:/Work/Personal/code-explorer/cli/src/UI/CodeExplorer/Server/WebSocketServerHandler.cs#L451))
+       - `WsMessageTypes.EvaluateGatesRequest` (`"EVALUATE_GATES_REQUEST"` / `"EVALUATE_GATES"`) ([`WebSocketServerHandler.cs`](file:///c:/Work/Personal/code-explorer/cli/src/UI/CodeExplorer/Server/WebSocketServerHandler.cs#L453))
+       - `WsMessageTypes.InitGatesRequest` (`"INIT_GATES_REQUEST"` / `"INIT_GATES"`) (via [`InitStarterGatesAsync`](file:///c:/Work/Personal/code-explorer/cli/src/UI/CodeExplorer/Server/WebSocketServerHandler.cs#L474))
 
-5. **[`WebSocketServerHandler.RatchetGatesSuiteAsync`](file:///cli/src/UI/CodeExplorer/Server/WebSocketServerHandler.cs#L762-L817)** (`cli/src/UI/CodeExplorer/Server/WebSocketServerHandler.cs`)
+4. **Class**: [`CodeExplorer.Server.WebSocketServerHandler`](file:///c:/Work/Personal/code-explorer/cli/src/UI/CodeExplorer/Server/WebSocketServerHandler.cs)
+   - **Method**: [`RatchetGatesSuiteAsync(string? gateId, bool updateAll, CancellationToken cancellationToken)`](file:///c:/Work/Personal/code-explorer/cli/src/UI/CodeExplorer/Server/WebSocketServerHandler.cs#L762) (`cli/src/UI/CodeExplorer/Server/WebSocketServerHandler.cs`)
    - **Direct Calls**:
-     - [`engine.CheckSuiteAsync(targetGates, cancellationToken: cancellationToken)`](file:///cli/src/UI/CodeExplorer/Server/WebSocketServerHandler.cs#L783) (evaluates target gates for ratcheting debt calculations).
-     - [`engine.CheckSuiteAsync(cancellationToken: cancellationToken)`](file:///cli/src/UI/CodeExplorer/Server/WebSocketServerHandler.cs#L805) (re-evaluates full suite after saving baselines to refresh the server cache).
+     - `engine.CheckSuiteAsync(...)` (lines 783, 805)
    - **One Hop Upstream Triggers**:
-     - **WebSocket Message Type** (handled in [`WebSocketServerHandler.ProcessMessageAsync`](file:///cli/src/UI/CodeExplorer/Server/WebSocketServerHandler.cs#L465-L472)):
-       - `WsMessageTypes.RatchetGatesRequest` (`"RATCHET_GATES_REQUEST"`) / `"RATCHET_GATES"`
-     - **HTTP Endpoint** (mapped in [`ServerRouteBuilderExtensions.MapCodeExplorerApi`](file:///cli/src/UI/CodeExplorer/Server/ServerRouteBuilderExtensions.cs#L351-L364)):
-       - `POST /api/gates/ratchet` (line 351; invokes `wsHandler.RatchetGatesSuiteAsync` at line 356)
+     - **HTTP Endpoint**: `POST /api/gates/ratchet` (in [`ServerRouteBuilderExtensions.cs`](file:///c:/Work/Personal/code-explorer/cli/src/UI/CodeExplorer/Server/ServerRouteBuilderExtensions.cs#L351))
+     - **WebSocket Message Type**: `WsMessageTypes.RatchetGatesRequest` (`"RATCHET_GATES_REQUEST"` / `"RATCHET_GATES"`) ([`WebSocketServerHandler.cs`](file:///c:/Work/Personal/code-explorer/cli/src/UI/CodeExplorer/Server/WebSocketServerHandler.cs#L465))
+
+5. **Internal Engine Call**:
+   - **Class**: [`CodeExplorer.Core.Gates.Engine.GateExecutionEngine`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Gates/Engine/GateExecutionEngine.cs)
+   - **Method**: [`CheckSuiteAsync(...)`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Gates/Engine/GateExecutionEngine.cs#L69)
+   - **Direct Call**: `CheckGateAsync(gate, cancellationToken)` (line 101) inside the evaluation loop.
+   - **Upstream Triggers**: The upstream callers of `CheckSuiteAsync` listed above.
 
 ---
 
-## 3. Polyglot `ISemanticExtension` Breakdown
+### 3. Polyglot `ISemanticExtension` Breakdown
 
-### Exact Implementation Counts by Parser Project
+#### Class Counts by Parser Project:
+| Parser Project | Count |
+| :--- | :--- |
+| `CodeExplorer.Parser.CSharp` | **25** |
+| `CodeExplorer.Parser.TypeScript` | **51** |
+| `CodeExplorer.Parser.Python` | **18** |
+| `CodeExplorer.Parser.Go` | **19** |
+| `CodeExplorer.Parser.Java` | **9** |
+| `CodeExplorer.Parser.Android` | **0** |
 
-| Parser Project | Exact Count of `ISemanticExtension` Implementations |
-| :--- | :---: |
-| [`CodeExplorer.Parser.CSharp`](file:///cli/src/Parsers/CodeExplorer.Parser.CSharp/CodeExplorer.Parser.CSharp.csproj) | **25** |
-| [`CodeExplorer.Parser.TypeScript`](file:///cli/src/Parsers/CodeExplorer.Parser.TypeScript/CodeExplorer.Parser.TypeScript.csproj) | **51** |
-| [`CodeExplorer.Parser.Python`](file:///cli/src/Parsers/CodeExplorer.Parser.Python/CodeExplorer.Parser.Python.csproj) | **18** |
-| [`CodeExplorer.Parser.Go`](file:///cli/src/Parsers/CodeExplorer.Parser.Go/CodeExplorer.Parser.Go.csproj) | **19** |
-| [`CodeExplorer.Parser.Java`](file:///cli/src/Parsers/CodeExplorer.Parser.Java/CodeExplorer.Parser.Java.csproj) | **9** |
-| [`CodeExplorer.Parser.Android`](file:///cli/src/Parsers/CodeExplorer.Parser.Android/CodeExplorer.Parser.Android.csproj) | **0** |
+#### Implementations in `CodeExplorer.Parser.Java` (9 Classes):
+All declared in `cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/`:
+1. [`GrpcJavaLibraryParser`](file:///c:/Work/Personal/code-explorer/cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/GrpcJavaLibraryParser.cs) &mdash; `cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/GrpcJavaLibraryParser.cs`
+2. [`HttpClientJavaLibraryParser`](file:///c:/Work/Personal/code-explorer/cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/HttpClientJavaLibraryParser.cs) &mdash; `cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/HttpClientJavaLibraryParser.cs`
+3. [`JdbcTemplateLibraryParser`](file:///c:/Work/Personal/code-explorer/cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/JdbcTemplateLibraryParser.cs) &mdash; `cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/JdbcTemplateLibraryParser.cs`
+4. [`JpaLibraryParser`](file:///c:/Work/Personal/code-explorer/cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/JpaLibraryParser.cs) &mdash; `cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/JpaLibraryParser.cs`
+5. [`SpringEventsLibraryParser`](file:///c:/Work/Personal/code-explorer/cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/SpringEventsLibraryParser.cs) &mdash; `cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/SpringEventsLibraryParser.cs`
+6. [`SpringGraphQlLibraryParser`](file:///c:/Work/Personal/code-explorer/cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/SpringGraphQlLibraryParser.cs) &mdash; `cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/SpringGraphQlLibraryParser.cs`
+7. [`SpringKafkaLibraryParser`](file:///c:/Work/Personal/code-explorer/cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/SpringKafkaLibraryParser.cs) &mdash; `cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/SpringKafkaLibraryParser.cs`
+8. [`SpringMvcLibraryParser`](file:///c:/Work/Personal/code-explorer/cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/SpringMvcLibraryParser.cs) &mdash; `cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/SpringMvcLibraryParser.cs`
+9. [`SpringRabbitMqLibraryParser`](file:///c:/Work/Personal/code-explorer/cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/SpringRabbitMqLibraryParser.cs) &mdash; `cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/SpringRabbitMqLibraryParser.cs`
 
----
-
-### `ISemanticExtension` Implementations in `CodeExplorer.Parser.Java` (9 classes)
-
-1. [`GrpcJavaLibraryParser`](file:///cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/GrpcJavaLibraryParser.cs) (`cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/GrpcJavaLibraryParser.cs`)
-2. [`HttpClientJavaLibraryParser`](file:///cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/HttpClientJavaLibraryParser.cs) (`cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/HttpClientJavaLibraryParser.cs`)
-3. [`JdbcTemplateLibraryParser`](file:///cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/JdbcTemplateLibraryParser.cs) (`cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/JdbcTemplateLibraryParser.cs`)
-4. [`JpaLibraryParser`](file:///cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/JpaLibraryParser.cs) (`cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/JpaLibraryParser.cs`)
-5. [`SpringEventsLibraryParser`](file:///cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/SpringEventsLibraryParser.cs) (`cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/SpringEventsLibraryParser.cs`)
-6. [`SpringGraphQlLibraryParser`](file:///cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/SpringGraphQlLibraryParser.cs) (`cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/SpringGraphQlLibraryParser.cs`)
-7. [`SpringKafkaLibraryParser`](file:///cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/SpringKafkaLibraryParser.cs) (`cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/SpringKafkaLibraryParser.cs`)
-8. [`SpringMvcLibraryParser`](file:///cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/SpringMvcLibraryParser.cs) (`cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/SpringMvcLibraryParser.cs`)
-9. [`SpringRabbitMqLibraryParser`](file:///cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/SpringRabbitMqLibraryParser.cs) (`cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/SpringRabbitMqLibraryParser.cs`)
-
-*(Note: [`SpringFrameworkConfigurationDescriptor`](file:///cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/SpringFrameworkConfigurationDescriptor.cs) in `cli/src/Parsers/CodeExplorer.Parser.Java/Libraries/SpringFrameworkConfigurationDescriptor.cs` implements [`ILibraryConfigurationDescriptor`](file:///cli/src/Core/CodeExplorer.Core/Parser/ILibraryConfigurationDescriptor.cs), not `ISemanticExtension`.)*
-
----
-
-### `ISemanticExtension` Implementations in `CodeExplorer.Parser.Android` (0 classes)
-
-- **None (0 classes)**.
-  The `CodeExplorer.Parser.Android` project contains the following components, none of which implement `ISemanticExtension`:
-  - [`AndroidManifestFileParser`](file:///cli/src/Parsers/CodeExplorer.Parser.Android/AndroidManifestFileParser.cs) (implements `IFileParser`)
-  - [`AndroidManifestParser`](file:///cli/src/Parsers/CodeExplorer.Parser.Android/AndroidManifestParser.cs)
-  - [`GradleBuildScriptParser`](file:///cli/src/Parsers/CodeExplorer.Parser.Android/GradleBuildScriptParser.cs)
-  - Data transfer & AST record models: [`AndroidManifestInfo`](file:///cli/src/Parsers/CodeExplorer.Parser.Android/AndroidManifestInfo.cs), [`AndroidActivityInfo`](file:///cli/src/Parsers/CodeExplorer.Parser.Android/AndroidManifestInfo.cs), [`AndroidDeepLinkInfo`](file:///cli/src/Parsers/CodeExplorer.Parser.Android/AndroidManifestInfo.cs), and [`GradleBuildInfo`](file:///cli/src/Parsers/CodeExplorer.Parser.Android/GradleBuildScriptParser.cs)
+#### Implementations in `CodeExplorer.Parser.Android` (0 Classes):
+- **None** (`0` implementations).
+- The project `CodeExplorer.Parser.Android` contains [`AndroidManifestFileParser`](file:///c:/Work/Personal/code-explorer/cli/src/Parsers/CodeExplorer.Parser.Android/AndroidManifestFileParser.cs) (implements `IFileParser`), `AndroidManifestInfo`, `AndroidManifestParser`, `GradleBuildInfo`, and `GradleBuildScriptParser`, none of which implement `ISemanticExtension` (the parser exposes `SemanticExtensions => []`).
