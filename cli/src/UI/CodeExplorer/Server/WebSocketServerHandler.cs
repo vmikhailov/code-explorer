@@ -402,7 +402,7 @@ public class WebSocketServerHandler
                     var impactReq = envelope.Payload.ValueKind == JsonValueKind.Object
                         ? JsonSerializer.Deserialize<GetImpactRequestDto>(envelope.Payload.GetRawText(), JsonOpts)
                         : null;
-                    var impactJson = await _repository.AnalyzeCodeImpactAsync(impactReq?.SymbolName ?? "", _workspaceRoot, cancellationToken);
+                    var impactJson = await _repository.AnalyzeCodeImpactAsync(impactReq?.SymbolName ?? "", format: "json", workspacePath: _workspaceRoot, cancellationToken: cancellationToken);
                     await SendResponseAsync(session, WsMessageTypes.QueryResponse, reqId, new QueryResponseDto
                     {
                         Success = true,

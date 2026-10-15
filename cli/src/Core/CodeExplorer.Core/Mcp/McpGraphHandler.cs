@@ -295,9 +295,27 @@ public class McpGraphHandler(
 
     [UsedImplicitly]
     [McpServerTool]
-    [Description("Blast-radius impact analysis: all callers and dependents affected by modifying a symbol.")]
+    [Description("Find all callers, inbound references, service consumers, or table/topic accessors for a target (functions, microservices, database tables, messaging topics). Prioritize this tool over grep for discovering callers.")]
+    public async Task<CallToolResult> GetCallersAsync(
+        [Description("Target name (Function, Service, Project, Table, Topic, or Type).")] string target,
+        [Description("Format: 'markdown', 'toon', 'json', 'table'. Default: 'markdown'.")] string format = "markdown",
+        [Description("Include test callers (default: false).")] bool includeTests = false,
+        [Description("Optional workspace root path.")] string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(target))
+        {
+            return WrapError("Missing 'target' argument.");
+        }
+        return await ExecuteAsync(() => repository.GetCallersAsync(target, format, includeTests, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+    }
+
+    [UsedImplicitly]
+    [McpServerTool]
+    [Description("Blast-radius impact analysis: all callers, dependents, and references affected by modifying a symbol (Class, Interface, Function, Service, Table). Prioritize over grep.")]
     public async Task<CallToolResult> AnalyzeCodeImpactAsync(
-        [Description("Class, interface, or function name.")] string symbolName,
+        [Description("Class, interface, function, service, or table name.")] string symbolName,
+        [Description("Format: 'markdown', 'toon', 'json', 'table'. Default: 'markdown'.")] string format = "markdown",
         [Description("Optional workspace root path.")] string? workspacePath = null,
         CancellationToken cancellationToken = default)
     {
@@ -305,7 +323,7 @@ public class McpGraphHandler(
         {
             return WrapError("Missing 'symbolName' argument.");
         }
-        return await ExecuteAsync(() => repository.AnalyzeCodeImpactAsync(symbolName, GetCurrentWorkspacePath(workspacePath), cancellationToken));
+        return await ExecuteAsync(() => repository.AnalyzeCodeImpactAsync(symbolName, format, GetCurrentWorkspacePath(workspacePath), cancellationToken));
     }
 
     [UsedImplicitly]

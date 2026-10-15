@@ -1059,9 +1059,14 @@ public class CodeExplorerRepository
             if (funcIdentifier.Contains('.'))
             {
                 var dotMethod = funcIdentifier[(funcIdentifier.LastIndexOf('.') + 1)..];
+                var dotClass = funcIdentifier[..funcIdentifier.LastIndexOf('.')];
+                if (dotClass.Contains('.'))
+                {
+                    dotClass = dotClass[(dotClass.LastIndexOf('.') + 1)..];
+                }
                 var dotRows = await client.ExecuteQueryAsync(
-                    "MATCH (n:Function) WHERE n.name = $mName OR n.symbol ENDS WITH $ident RETURN n.symbol AS symbol LIMIT 5",
-                    new Dictionary<string, object> { ["mName"] = dotMethod, ["ident"] = funcIdentifier },
+                    "MATCH (n:Function) WHERE (n.name = $mName OR n.symbol CONTAINS $mName) AND (n.symbol CONTAINS $cName OR n.file_path CONTAINS $cName) RETURN n.symbol AS symbol LIMIT 5",
+                    new Dictionary<string, object> { ["mName"] = dotMethod, ["cName"] = dotClass },
                     cancellationToken);
                 using (var doc = JsonDocument.Parse(dotRows))
                 {
@@ -1076,14 +1081,14 @@ public class CodeExplorerRepository
                 }
             }
 
-            // 4. Fallback search via contains (same as find_symbol)
+            // 4. Fallback search via contains on name or symbol
             var fuzzyRows = await client.ExecuteQueryAsync(
-                "MATCH (n:Function) WHERE n.name CONTAINS $name RETURN n.symbol AS symbol LIMIT 5",
+                "MATCH (n:Function) WHERE n.name CONTAINS $name OR n.symbol CONTAINS $name RETURN n.symbol AS symbol LIMIT 5",
                 new Dictionary<string, object> { ["name"] = funcIdentifier },
                 cancellationToken);
             using (var doc = JsonDocument.Parse(fuzzyRows))
             {
-                if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() == 1)
+                if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
                 {
                     if (doc.RootElement[0].TryGetProperty("symbol", out var symProp))
                     {
@@ -1112,14 +1117,127 @@ public class CodeExplorerRepository
         return await ExecuteAndFormatQueryAsync(query, parameters, workspacePath, cancellationToken);
     }
 
-    public async Task<string> AnalyzeCodeImpactAsync(string symbolName, string? workspacePath = null, CancellationToken cancellationToken = default)
+    public async Task<string> AnalyzeCodeImpactAsync(string symbolName, string format = "markdown", string? workspacePath = null, CancellationToken cancellationToken = default)
     {
+        var client = await ResolveClientAsync(workspacePath);
+        if (await IsEmptyStandbyAsync(client))
+        {
+            return GetStandbyMessage(format);
+        }
+
         var query = Queries.Get("analyze_code_impact");
         var parameters = new Dictionary<string, object>
         {
             ["symbolName"] = symbolName
         };
-        return await ExecuteAndFormatQueryAsync(query, parameters, workspacePath, cancellationToken);
+        var rawJson = await client.ExecuteQueryAsync(query, parameters, cancellationToken);
+
+        if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
+        {
+            using var jsonDoc = JsonDocument.Parse(rawJson);
+            return JsonSerializer.Serialize(new { results = jsonDoc.RootElement }, CompactJsonOptions);
+        }
+
+        if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
+        {
+            using var jsonDoc = JsonDocument.Parse(rawJson);
+            return ToonYamlSerializer.SerializeToon(jsonDoc.RootElement);
+        }
+
+        return FormatImpactMarkdown(rawJson, symbolName);
+    }
+
+    public async Task<string> GetCallersAsync(
+        string target,
+        string format = "markdown",
+        bool includeTests = false,
+        string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        var client = await ResolveClientAsync(workspacePath);
+        if (await IsEmptyStandbyAsync(client))
+        {
+            return GetStandbyMessage(format);
+        }
+
+        var query = Queries.Get("get_callers");
+        var parameters = new Dictionary<string, object>
+        {
+            ["target"] = target,
+            ["includeTests"] = includeTests
+        };
+        var rawJson = await client.ExecuteQueryAsync(query, parameters, cancellationToken);
+
+        if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
+        {
+            using var jsonDoc = JsonDocument.Parse(rawJson);
+            return JsonSerializer.Serialize(new { results = jsonDoc.RootElement }, CompactJsonOptions);
+        }
+
+        if (format.Equals("toon", StringComparison.OrdinalIgnoreCase))
+        {
+            using var jsonDoc = JsonDocument.Parse(rawJson);
+            return ToonYamlSerializer.SerializeToon(jsonDoc.RootElement);
+        }
+
+        return FormatCallersMarkdown(rawJson, target, includeTests);
+    }
+
+    private static string FormatCallersMarkdown(string rawJson, string target, bool includeTests)
+    {
+        using var doc = JsonDocument.Parse(rawJson);
+        if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
+        {
+            return $"No callers or incoming references found for '{target}'" + (includeTests ? "." : " (test callers excluded; pass --tests to include tests).");
+        }
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"### Callers & Inbound References for `{target}`\n");
+        sb.AppendLine($"**Total Inbound Callers**: {doc.RootElement.GetArrayLength()}\n");
+        sb.AppendLine("| Target | Caller | Kind | Relation | Project / Service | Location (File:Line) |");
+        sb.AppendLine("| :--- | :--- | :--- | :--- | :--- | :--- |");
+
+        foreach (var item in doc.RootElement.EnumerateArray())
+        {
+            var targetName = item.TryGetProperty("targetName", out var tn) ? tn.GetString() ?? "" : target;
+            var callerName = item.TryGetProperty("callerName", out var cn) ? cn.GetString() ?? "" : "";
+            var callerKind = item.TryGetProperty("callerKind", out var ck) ? ck.GetString() ?? "" : "";
+            var relKind = item.TryGetProperty("relKind", out var rk) ? rk.GetString() ?? "" : "";
+            var project = item.TryGetProperty("projectName", out var p) ? p.GetString() ?? "" : "";
+            var loc = item.TryGetProperty("location", out var l) ? l.GetString() ?? "" : "";
+
+            sb.AppendLine($"| `{targetName}` | `{callerName}` | {callerKind} | {relKind} | {project} | `{loc}` |");
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
+    private static string FormatImpactMarkdown(string rawJson, string symbolName)
+    {
+        using var doc = JsonDocument.Parse(rawJson);
+        if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
+        {
+            return $"No direct impact found for symbol '{symbolName}'. No callers, references, or dependent services identified.";
+        }
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"### Blast Radius & Impact Analysis for `{symbolName}`\n");
+        sb.AppendLine($"**Total Dependents**: {doc.RootElement.GetArrayLength()}\n");
+        sb.AppendLine("| Kind | Dependent | Relationship | Location (File:Line) | Symbol |");
+        sb.AppendLine("| :--- | :--- | :--- | :--- | :--- |");
+
+        foreach (var item in doc.RootElement.EnumerateArray())
+        {
+            var depType = item.TryGetProperty("dependentType", out var dt) ? dt.GetString() ?? "" : "";
+            var depName = item.TryGetProperty("dependentName", out var dn) ? dn.GetString() ?? "" : "";
+            var rel = item.TryGetProperty("relationship", out var r) ? r.GetString() ?? "" : "";
+            var loc = item.TryGetProperty("filePath", out var fp) ? fp.GetString() ?? "" : "";
+            var sym = item.TryGetProperty("dependentSymbol", out var ds) ? ds.GetString() ?? "" : "";
+
+            sb.AppendLine($"| {depType} | `{depName}` | {rel} | `{loc}` | `{sym}` |");
+        }
+
+        return sb.ToString().TrimEnd();
     }
 
     public async Task<string> GetAffectedTestsAsync(

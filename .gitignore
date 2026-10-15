@@ -49,4 +49,5 @@ out/
 dist-vsix/
 .bin-cache/
 vscode-extension/bin/
+docs/testing/
 *.orig

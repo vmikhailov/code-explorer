@@ -59,7 +59,9 @@ public class Program
             typeof(TestOptions),
             typeof(CoverageOptions),
             typeof(ConfigureOptions),
-            typeof(GateOptions)
+            typeof(GateOptions),
+            typeof(CallersOptions),
+            typeof(ImpactOptions)
         ]);
 
         if (parseResult is Parsed<object> parsed)
@@ -87,6 +89,8 @@ public class Program
                 TestOptions opts => await TestCommandHandler.HandleAsync(opts),
                 CoverageOptions opts => await CoverageCommandHandler.HandleAsync(opts),
                 GateOptions opts => await GateCommandHandler.HandleAsync(opts),
+                CallersOptions opts => await CallersCommandHandler.HandleAsync(opts),
+                ImpactOptions opts => await ImpactCommandHandler.HandleAsync(opts),
                 _ => 1
             };
         }
