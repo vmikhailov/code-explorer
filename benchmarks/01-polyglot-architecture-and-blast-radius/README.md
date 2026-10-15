@@ -4,7 +4,7 @@
 > - **Run 1B — Fair `ripgrep` (`rg` + `git grep` + `view_file`) vs. `CodeExplorer Graph` (`Gemini 3.8 Flash`)**:
 >   Even when the Baseline Agent has full shell access to **`ripgrep` (`rg`)**, `git grep`, and directory traversal (`28` CLI search commands + `23` `view_file` reads), the **CodeExplorer Graph Agent** completed the 3-part architectural audit **1.89x faster in time-to-answer** (`5m 08s` → `2m 43s`), required **1.64x fewer LLM turns** (`59` → `36`), made **1.63x fewer tool calls** (`57` → `35`), and cut cumulative LLM input tokens by **1.92x** (`1,594,003` → `831,152` tokens).
 > - **Run 1A — Pure `view_file` Navigation (No Shell / Grep) vs. `CodeExplorer Graph` (`Gemini 4 Argon`)**:
->   When shell access was disabled to prevent CLI access (`view_file`-only baseline), the **CodeExplorer Graph Agent** achieved a **5.74x faster time-to-answer** (`15m 01s` → `2m 37s`, or `4.66x` total wall-clock `16m 23s` → `3m 31s`), cut tool calls by **8.86x** (`248` → `28`), shrank raw tool output by **10.74x** (`1.81 MB` → `168.8 KB`), eliminated **2 mid-task context compactions** (after Turns 12 and 29), and reduced actual cumulative LLM input tokens by **9.16x** (`3.47M` → `379.1K`, or **40.40x** uncompacted `15.32M` → `379.1K`).
+>   When shell access was disabled to prevent CLI access (`view_file`-only baseline), the **CodeExplorer Graph Agent** achieved a **5.74x faster time-to-answer** (`15m 01s` → `2m 37s`, or `4.66x` total wall-clock `16m 23s` → `3m 31s`), cut tool calls by **8.86x** (`248` → `28`), shrank raw tool output by **10.74x** (`1.81 MB` → `168.8 KB`), eliminated **2 mid-task context compactions** (after Turns 12 and 29), and reduced actual post-compaction cumulative LLM input tokens by **9.16x** (`3.47M` → `379.1K`).
 
 ---
 
