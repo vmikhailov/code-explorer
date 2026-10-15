@@ -1,6 +1,6 @@
 # Case Study 02: Enterprise Polyglot Microservices Deep Audit (`Ripgrep + 14 Custom Scripts` vs. `CodeExplorer Graph`)
 
-> **Headline Result**: On a production enterprise polyglot microservices monorepo (**450 modules: 324 microservices, 93 shared libraries, 33 background workers, and 13,782 source files** across TypeScript/NestJS, Go, and SQL), equipping **Gemini 3.8 Flash** with **CodeExplorer's OpenCypher Architecture Graph** accelerated time-to-answer by **2.84x** (**`29m 52s` → `10m 30s`**, saving **19 minutes 22 seconds**), reduced LLM reasoning turns by **3.20x** (`285` → `89`), cut tool calls by **3.23x** (`284` → `88`), shrank raw tool output ingested by **2.30x** (`694.9 KB` → `302.2 KB`), eliminated **1 mid-task context compaction** (at Turn 162), and reduced actual post-compaction cumulative LLM input tokens by **3.73x** (`17,194,141` → `4,611,677` tokens, or **8.04x** uncompacted `37.09M` → `4.61M`), while achieving **100% architectural recall** compared to **~82% recall** for the exhaustive `ripgrep` + Python script baseline.
+> **Headline Result**: On a production enterprise polyglot microservices monorepo (**450 modules: 324 microservices, 93 shared libraries, 33 background workers, and 13,782 source files** across TypeScript/NestJS, Go, and SQL), equipping **Gemini 3.8 Flash** with **CodeExplorer's OpenCypher Architecture Graph** accelerated time-to-answer by **2.84x** (**`29m 52s` → `10m 30s`**, saving **19 minutes 22 seconds**), reduced LLM reasoning turns by **3.20x** (`285` → `89`), cut tool calls by **3.23x** (`284` → `88`), shrank raw tool output ingested by **2.30x** (`694.9 KB` → `302.2 KB`), eliminated **1 mid-task context compaction** (at Turn 162), and reduced actual post-compaction cumulative LLM input tokens by **3.73x** (**`17,194,141` → `4,611,677` tokens**), while achieving **100% architectural recall** compared to **~82% recall** for the exhaustive `ripgrep` + Python script baseline.
 
 > [!NOTE]
 > **Commercial Confidentiality & Anonymization**: This benchmark was executed on a real production enterprise distributed platform. To protect commercial intellectual property, all proprietary service names, database table names, messaging topic names, class/interface names, and internal file paths in this public report have been systematically anonymized (`svc-worker-core`, `tbl_traffic_sources`, `BaseEventController`, `ICloudPubSubService`, `IOptimizationCampaignStrategy`), while preserving exact 1-to-1 structural fidelity and verbatim execution telemetry from `transcript_full.jsonl`.
@@ -43,7 +43,6 @@ By contrast, the **CodeExplorer Graph Agent (`enterprise_ce_graph_agent`)** comp
 | **Output + Thinking Tokens** | `~71,595 tokens` | `~24,421 tokens` | **2.93x fewer generated tokens** |
 | **Context Window Compactions** | **1 compaction** (after Turn `162` at `160.3K` tokens) | **0 compactions** | **Zero context loss / compaction delay** |
 | **Cumulative Actual Input Tokens** | `68,776,567 chars` (**~17,194,141 tokens** post-compaction) | `18,446,711 chars` (**~4,611,677 tokens**) | **3.73x lower actual input load** (`-12.58M` tokens!) |
-| **Cumulative Uncompacted Input** | `148,351,909 chars` (`~37,087,977 tokens` hypothetical) | `18,446,711 chars` (`~4,611,677 tokens`) | **8.04x lower uncompacted load** (`-32.48M` tokens!) |
 | **Architectural Recall Across Tasks 1–4** | **~82% overall recall** (`100%` on Tasks 1 & 4; `~81%` on Tasks 2 & 3 — missed `updateEndpoint` RTB wrappers) | **100% recall across all 4 tasks** | **+18% higher cross-service recall** |
 
 ```mermaid
@@ -54,7 +53,7 @@ flowchart LR
         Prompt --> Graph["CodeExplorer Graph Agent\n(OpenCypher Queries + 17 Surgical Reads)"]
     end
 
-    RgBase -->|"285 LLM turns / 694.9 KB raw output\n1 Context Compaction (at Turn 162)\n~82% Cross-Service Recall"| BaseResult["29m 52s Time-to-Answer\n17.19M Actual Input Tokens (37.09M Uncompacted)"]
+    RgBase -->|"285 LLM turns / 694.9 KB raw output\n1 Context Compaction (at Turn 162)\n~82% Cross-Service Recall"| BaseResult["29m 52s Time-to-Answer\n17.19M Actual Input Tokens"]
     Graph -->|"89 LLM turns / 302.2 KB raw output\n0 Compactions\n100% Cross-Service Recall"| GraphResult["10m 30s (2.84x Faster)\n4.61M Actual Input Tokens (3.73x Less)"]
 ```
 
@@ -98,13 +97,12 @@ Every number in the milestone table below matches [`results/metrics.json`](./res
 Cumulative Input Tokens Across Agent Turns (Case Study 02 — Gemini 3.8 Flash)
 =============================================================================
 
-Ripgrep Baseline (Uncompacted Hypothetical, 285 turns) : ████████████████████████████████████████ 37,087,977 tokens (148.35 MB chars)
-Ripgrep Baseline (Actual w/ 1 Compaction,   285 turns) : ███████████████████                      17,194,141 tokens ( 68.78 MB chars)
-CodeExplorer Graph Agent (0 Compactions,     89 turns) : █████                                     4,611,677 tokens ( 18.45 MB chars)
-                                                         ^ 3.73x reduction in actual input tokens (8.04x vs uncompacted)!
+Ripgrep Baseline (Actual w/ 1 Compaction, 285 turns) : ████████████████████████████████████████ 17,194,141 tokens (68.78 MB chars)
+CodeExplorer Graph Agent (0 Compactions,   89 turns) : ███████████                               4,611,677 tokens (18.45 MB chars)
+                                                         ^ 3.73x reduction in actual input tokens!
 ```
 
-| Milestone | Ripgrep Baseline Active Context (`actual post-compaction cum.`) | Graph Agent Active Context (`actual cum.`) |
+| Milestone | Ripgrep Baseline Active Context (`actual cum.`) | Graph Agent Active Context (`actual cum.`) |
 | :--- | :---: | :---: |
 | **Turn 5** | `1,375 tokens` (`5,792` cum.) | `4,694 tokens` (`16,354` cum.) |
 | **Turn 10** | `4,587 tokens` (`19,679` cum.) | `8,945 tokens` (`54,299` cum.) |
@@ -116,10 +114,10 @@ CodeExplorer Graph Agent (0 Compactions,     89 turns) : █████        
 | **Turn 120** | `109,498 tokens` (`6,108,671` cum.) | — |
 | **Turn 150** | `142,300 tokens` (`9,874,708` cum.) | — |
 | **Turn 162 (Pre-Compaction Peak)** | `160,326 tokens` (`11,715,243` cum.) | — |
-| **Turn 163 (Post-Compaction Reset)** | `3,687 tokens` (`11,718,931` actual cum. / `11,880,669` uncomp.) | — |
-| **Turn 200** | `25,653 tokens` (`12,260,325` actual cum. / `18,406,388` uncomp.) | — |
-| **Turn 250** | `62,699 tokens` (`14,577,659` actual cum. / `28,810,647` uncomp.) | — |
-| **Turn 285 (Ripgrep Baseline Done @ 29m 52s)** | **`104,177 tokens` (`17,194,141` actual cum. / `37,087,977` uncomp.)** | — |
+| **Turn 163 (Post-Compaction Reset)** | `3,687 tokens` (`11,718,931` cum.) | — |
+| **Turn 200** | `25,653 tokens` (`12,260,325` cum.) | — |
+| **Turn 250** | `62,699 tokens` (`14,577,659` cum.) | — |
+| **Turn 285 (Ripgrep Baseline Done @ 29m 52s)** | **`104,177 tokens` (`17,194,141` cum.)** | — |
 
 ---
 
