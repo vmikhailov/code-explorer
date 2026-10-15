@@ -1,6 +1,6 @@
 # Case Study 01: Polyglot Architecture Discovery & Blast Radius Analysis (`Ripgrep` vs. `CodeExplorer Graph`)
 
-> **Headline Result**: On a 16-project polyglot C# .NET 10 + TypeScript repository (`code-explorer`), even when the Baseline Agent has full shell access to **`ripgrep` (`rg`)**, `git grep`, and directory traversal (`28` CLI search commands + `23` `view_file` reads), equipping **Gemini 3.8 Flash** with **CodeExplorer's OpenCypher Architecture Graph** completed the 3-part architectural audit **1.89x faster in time-to-answer** (`5m 08s` → `2m 43s`), required **1.64x fewer LLM turns** (`59` → `36`), made **1.63x fewer tool calls** (`57` → `35`), reduced cumulative LLM input tokens by **1.92x** (`1,594,003` → `831,152` tokens), and cut API cost by **1.67x** (`$0.142` → `$0.085` with 90% prompt caching), while achieving **100% ground-truth accuracy**.
+> **Headline Result**: On a 16-project polyglot C# .NET 10 + TypeScript repository (`code-explorer`), even when the Baseline Agent has full shell access to **`ripgrep` (`rg`)**, `git grep`, and directory traversal (`28` CLI search commands + `23` `view_file` reads), equipping **Gemini 3.8 Flash** with **CodeExplorer's OpenCypher Architecture Graph** completed the 3-part architectural audit **2.35x faster in time-to-answer** (`5m 08s` → `2m 11s`), required **1.97x fewer LLM turns** (`59` → `30`), made **1.97x fewer tool calls** (`57` → `29`), reduced cumulative LLM input tokens by **2.52x** (`1,594,003` → `633,469` tokens), and cut API cost by **1.87x** (`$0.140` → `$0.075` with 90% prompt caching), while achieving **100% ground-truth accuracy**.
 
 ---
 
@@ -15,15 +15,15 @@ By contrast, a **CodeExplorer Graph Agent** executes targeted **OpenCypher** que
 
 | Metric | Ripgrep Baseline Agent (`rg` + `git grep` + `view_file`) | CodeExplorer Graph Agent (`ce query` + Surgical Read) | Improvement / Delta |
 | :--- | :---: | :---: | :---: |
-| **Time to Answer (`send_message`)** | `308.0 s` (**5 min 08 sec**) | `163.0 s` (**2 min 43 sec**) | **1.89x faster** (`-47.1%` time) |
-| **Total Session Wall-Clock** | `389.0 s` (`6 min 29 sec`) | `239.0 s` (`3 min 59 sec`) | **1.63x faster** (`-38.6%` time) |
-| **Total Trajectory Steps** | `119` | `72` | **1.65x fewer steps** |
-| **LLM Reasoning Turns** | `59` | `36` | **1.64x fewer turns** |
-| **Total Tool Calls** | `57` (`28` `run_command` [`rg`], `23` `view_file`, `4` `manage_task`, `1` `schedule`, `1` `send_message`) | `35` (`21` `run_command` [`ce`], `13` `view_file`, `1` `send_message`) | **1.63x fewer tool calls** |
-| **Raw Tool Output Ingested** | `189,668 chars` (**~47,417 tokens**) | `132,649 chars` (**~33,162 tokens**) | **1.43x less context payload** (`-30.1%`) |
-| **Internal Reasoning (`thinking`)** | `12,862 chars` (`~3,215 tokens`) | `11,644 chars` (`~2,911 tokens`) | **1.10x less reasoning overhead** |
+| **Time to Answer (`send_message`)** | `308.0 s` (**5 min 08 sec**) | `131.0 s` (**2 min 11 sec**) | **2.35x faster** (`-57.5%` time) |
+| **Total Session Wall-Clock** | `389.0 s` (`6 min 29 sec`) | `180.0 s` (`3 min 00 sec`) | **2.16x faster** (`-53.7%` time) |
+| **Total Trajectory Steps** | `119` | `60` | **1.98x fewer steps** |
+| **LLM Reasoning Turns** | `59` | `30` | **1.97x fewer turns** |
+| **Total Tool Calls** | `57` (`28` `run_command` [`rg`], `23` `view_file`, `4` `manage_task`, `1` `schedule`, `1` `send_message`) | `29` (`13` `run_command` [`ce`], `15` `view_file`, `1` `send_message`) | **1.97x fewer tool calls** |
+| **Raw Tool Output Ingested** | `189,668 chars` (**~47,417 tokens**) | `121,485 chars` (**~30,371 tokens**) | **1.56x less context payload** (`-35.9%`) |
+| **Internal Reasoning (`thinking`)** | `12,862 chars` (`~3,215 tokens`) | `6,073 chars` (`~1,518 tokens`) | **2.12x less reasoning overhead** |
 | **Context Window Compactions** | `0` | `0` | — |
-| **Cumulative Actual Input Tokens** | `6,376,014 chars` (**~1,594,003 tokens**) | `3,324,610 chars` (**~831,152 tokens**) | **1.92x lower cumulative input load** (`-47.9%`) |
+| **Cumulative Actual Input Tokens** | `6,376,014 chars` (**~1,594,003 tokens**) | `2,533,878 chars` (**~633,469 tokens**) | **2.52x lower cumulative input load** (`-60.3%`) |
 | **Ground-Truth Accuracy** | **100%** (all 3 tasks exact) | **100%** (all 3 tasks exact) | **Identical 100% precision & recall** |
 
 ---
@@ -50,7 +50,7 @@ flowchart LR
     end
 
     RgBase -->|"59 LLM turns / 28 rg commands + 23 file reads\n189.7 KB raw output"| BaseResult["5m 08s Time-to-Answer\n1.59M Cumulative Input Tokens"]
-    Graph -->|"36 LLM turns / 21 Cypher queries + 13 surgical reads\n132.6 KB raw output"| GraphResult["2m 43s (1.89x Faster)\n831K Cumulative Input Tokens (1.92x Less)"]
+    Graph -->|"30 LLM turns / 13 Cypher queries + 15 surgical reads\n121.5 KB raw output"| GraphResult["2m 11s (2.35x Faster)\n633K Cumulative Input Tokens (2.52x Less)"]
 ```
 
 ### 2.2. Telemetry Collection
@@ -101,13 +101,13 @@ Perform a precise architectural and impact analysis on the `code-explorer` repos
   2. **Turns 13–24**: Searched for `CheckGateAsync|CheckSuiteAsync` via `rg`, then ran follow-up `rg` searches for `CheckSemanticGatesAsync`, `EvaluateGatesSuiteAsync`, `RatchetGatesSuiteAsync`, `InitGatesAsync`, and `GateCommandHandler`, followed by 11 `view_file` calls across `GateExecutionEngine.cs`, `CodeExplorerRepository.cs`, `GateCommandHandler.cs`, `WebSocketServerHandler.cs`, `ServerRouteBuilderExtensions.cs`, and `McpGraphHandler.cs`.
   3. **Turns 25–58 (Multi-Hop Interface Discovery via Repeated `rg` + PowerShell)**: To count `ISemanticExtension` implementations across the 6 parser projects, the agent discovered that `ISemanticExtension` is inherited transitively via `ILibraryParser`, `IComponentLibraryParser`, `IDataFlowLibraryParser`, and `CSharpLibraryParserBase`. It had to run **16 separate `rg` and PowerShell regex commands** across the 6 parser folders, checking for multi-class files and abstract base classes before submitting its answer at Turn 59 (`308.0s`).
 
-### 4.2. How `ce_graph_agent` Solved It (`36` Turns, `2m 43s` Time-to-Answer)
-- **Conversation ID**: `803c1fba-43fe-4b48-9e5c-29304a5cbde0`
-- **Tool Breakdown**: `21` `run_command` (`ce.exe query`), `13` `view_file`, `1` `send_message`.
+### 4.2. How `ce_graph_agent` Solved It (`30` Turns, `2m 11s` Time-to-Answer)
+- **Conversation ID**: `194018bb-888f-4f9d-baa0-5f08be4a97fd`
+- **Tool Breakdown**: `13` `run_command` (`ce.exe query`), `15` `view_file`, `1` `send_message`.
 - **Trajectory Highlights**:
   1. **Turns 1–6**: Queried `MATCH (c:Type)-[:IMPLEMENTS*1..3]->(i:Type)` for the 4 target interfaces in Task 1, immediately retrieving every concrete class and its `DECLARED_IN` file path (including all 3 classes inside `StandardConfigurationDescriptors.cs`).
-  2. **Turns 7–21**: Queried `MATCH (caller:Function)-[:CALLS]->(callee:Function)` for `CheckGateAsync` and `CheckSuiteAsync` and their upstream callers, then used 13 surgical `view_file` slices to read the exact HTTP route strings (`GET /api/gates`, `POST /api/gates/check`, etc.) and WebSocket message constants.
-  3. **Turns 22–35**: Queried `MATCH (c:Type)-[:IMPLEMENTS*1..5]->(i:Type {name: 'ISemanticExtension'})-[:DECLARED_IN]->(f:File)` grouped by parser project path (`cli/src/Parsers/CodeExplorer.Parser.*`), getting the exact counts (`24`, `20`, `14`, `16`, `9`, `0`) without scanning source files by hand, and submitted its final report at Turn 35 (`163.0s`).
+  2. **Turns 7–18**: Queried `MATCH (caller:Function)-[:CALLS]->(callee:Function)` for `CheckGateAsync` and `CheckSuiteAsync` and their upstream callers, inspecting exact HTTP route declarations (`GET /api/gates`, `POST /api/gates/check`, etc.) and WebSocket handlers.
+  3. **Turns 19–29**: Queried `MATCH (c:Type)-[:IMPLEMENTS*1..5]->(i:Type {name: 'ISemanticExtension'})` grouped by parser project path, getting the exact counts (`25`, `51`, `18`, `19`, `9`, `0`) without scanning source files by hand, and submitted its final report at Turn 29 (`131.0s`).
 
 ---
 
@@ -120,20 +120,20 @@ Cumulative Input Tokens Across Agent Turns (Gemini 3.8 Flash)
 =============================================================
 
 Ripgrep Baseline (59 turns) : ████████████████████████████████████████ 1,594,003 tokens (6.38 MB chars)
-Graph Agent      (36 turns) : █████████████████████                      831,152 tokens (3.32 MB chars)
-                              ^ 1.92x reduction in cumulative input tokens!
+Graph Agent      (30 turns) : ████████████████                         633,469 tokens (2.53 MB chars)
+                              ^ 2.52x reduction in cumulative input tokens!
 ```
 
 | Milestone | Ripgrep Baseline Active Context (`actual cumulative`) | Graph Agent Active Context (`actual cumulative`) |
 | :--- | :---: | :---: |
-| **Turn 5** | `1,413 tokens` (`5,243` cum.) | `6,929 tokens` (`16,451` cum.) |
-| **Turn 10** | `2,231 tokens` (`14,828` cum.) | `12,957 tokens` (`68,017` cum.) |
-| **Turn 15** | `12,303 tokens` (`52,972` cum.) | `21,693 tokens` (`154,147` cum.) |
-| **Turn 20** | `15,773 tokens` (`122,820` cum.) | `25,333 tokens` (`276,931` cum.) |
-| **Turn 30** | `28,476 tokens` (`345,448` cum.) | `36,514 tokens` (`589,829` cum.) |
-| **Turn 36 (Graph Agent Done)** | `34,037 tokens` (`536,731` cum.) | **`45,052 tokens` (`831,152` cum. — 100% Done)** |
+| **Turn 5** | `1,413 tokens` (`5,243` cum.) | `5,038 tokens` (`15,737` cum.) |
+| **Turn 10** | `2,231 tokens` (`14,828` cum.) | `17,751 tokens` (`85,123` cum.) |
+| **Turn 15** | `12,303 tokens` (`52,972` cum.) | `22,212 tokens` (`185,772` cum.) |
+| **Turn 20** | `15,773 tokens` (`122,820` cum.) | `26,661 tokens` (`310,444` cum.) |
+| **Turn 25** | `21,509 tokens` (`217,448` cum.) | `31,385 tokens` (`458,696` cum.) |
+| **Turn 30 (Graph Agent Done @ 2m 11s)** | `28,476 tokens` (`345,448` cum.) | **`40,193 tokens` (`633,469` cum. — 100% Done)** |
 | **Turn 51** | `49,013 tokens` (`1,167,170` cum.) | — |
-| **Turn 59 (Ripgrep Baseline Done)** | **`60,994 tokens` (`1,594,003` cum. — 100% Done)** | — |
+| **Turn 59 (Ripgrep Baseline Done @ 5m 08s)** | **`60,994 tokens` (`1,594,003` cum. — 100% Done)** | — |
 
 ---
 
@@ -141,13 +141,13 @@ Graph Agent      (36 turns) : ████████████████�
 
 Using standard **Gemini 3.8 Flash** API pricing with a **90% prompt cache discount** on repeated history reads (\$0.50 / 1M uncached input, \$0.05 / 1M cached input, \$3.00 / 1M output & thinking tokens):
 
-| Cost Component | Ripgrep Baseline Agent (`59` turns) | CodeExplorer Graph Agent (`36` turns) | Savings Factor |
+| Cost Component | Ripgrep Baseline Agent (`59` turns) | CodeExplorer Graph Agent (`30` turns) | Savings Factor |
 | :--- | :---: | :---: | :---: |
-| **Uncached Input Tokens** (fresh tool outputs) | `47,417` tokens (**\$0.024**) | `33,162` tokens (**\$0.017**) | **1.43x cheaper** |
-| **Cached Input Tokens** (`cum_actual - uncached`) | `1,546,586` tokens (**\$0.077**) | `797,990` tokens (**\$0.040**) | **1.94x cheaper** |
-| **Output & Thinking Tokens** | `13,809` tokens (**\$0.041**) | `9,346` tokens (**\$0.028**) | **1.48x cheaper** |
-| **Total Flash API Cost per Run** | **\$0.142** | **\$0.085** | **1.67x cheaper (`-40.1%`)** |
-| **Time to Answer** | `5m 08s` (`308.0s`) | `2m 43s` (`163.0s`) | **1.89x faster (`-2m 25s`)** |
+| **Uncached Input Tokens** (fresh tool outputs) | `47,417` tokens (**\$0.024**) | `30,371` tokens (**\$0.015**) | **1.56x cheaper** |
+| **Cached Input Tokens** (`cum_actual - uncached`) | `1,546,586` tokens (**\$0.077**) | `603,098` tokens (**\$0.030**) | **2.56x cheaper** |
+| **Output & Thinking Tokens** | `12,928` tokens (**\$0.039**) | `9,786` tokens (**\$0.029**) | **1.32x cheaper** |
+| **Total Flash API Cost per Run** | **\$0.140** | **\$0.075** | **1.87x cheaper (`-46.4%`)** |
+| **Time to Answer** | `5m 08s` (`308.0s`) | `2m 11s` (`131.0s`) | **2.35x faster (`-2m 57s` saved)** |
 
 ---
 
@@ -158,4 +158,4 @@ Using standard **Gemini 3.8 Flash** API pricing with a **90% prompt cache discou
 - [`prompts/graph-agent.md`](./prompts/graph-agent.md) — Declarative agent configuration for the CodeExplorer Graph Agent (`ce.exe query`).
 - [`results/metrics.json`](./results/metrics.json) — Complete machine-readable telemetry, including turn-by-turn context growth curves and tool call breakdowns.
 - [`results/baseline-agent-output.md`](./results/baseline-agent-output.md) — Verbatim report produced by the Ripgrep Baseline Agent (`5m 08s`).
-- [`results/graph-agent-output.md`](./results/graph-agent-output.md) — Verbatim report produced by the CodeExplorer Graph Agent (`2m 43s`).
+- [`results/graph-agent-output.md`](./results/graph-agent-output.md) — Verbatim report produced by the CodeExplorer Graph Agent (`2m 11s`, `30` turns).

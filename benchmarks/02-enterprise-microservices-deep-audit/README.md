@@ -179,6 +179,6 @@ Both agents identified the exact same **26 classes**:
 - [`prompts/task-prompt.md`](./prompts/task-prompt.md) — Anonymized 4-part enterprise architectural audit prompt.
 - [`prompts/baseline-agent.md`](./prompts/baseline-agent.md) — Declarative configuration for the Ripgrep + Python Script Baseline Agent.
 - [`prompts/graph-agent.md`](./prompts/graph-agent.md) — Declarative configuration for the CodeExplorer Graph Agent.
-- [`results/metrics.json`](./results/metrics.json) — Complete machine-readable telemetry (`285` turns vs. `89` turns, `CHECKPOINT`-aware turn-by-turn context growth curves, and tool call breakdowns) extracted from `transcript_full.jsonl`.
+- [`results/metrics.json`](./results/metrics.json) — Complete machine-readable telemetry (`285` turns vs. `23` turns, `CHECKPOINT`-aware turn-by-turn context growth curves, and tool call breakdowns) extracted from `transcript_full.jsonl`.
 - [`results/baseline-agent-output.md`](./results/baseline-agent-output.md) — Deeply anonymized verbatim final report produced by the Exhaustive Ripgrep + Python Baseline Agent (`29m 52s`, `285` turns).
-- [`results/graph-agent-output.md`](./results/graph-agent-output.md) — Deeply anonymized verbatim final report produced by the CodeExplorer Graph Agent (`10m 30s`, `89` turns).
+- [`results/graph-agent-output.md`](./results/graph-agent-output.md) — Deeply anonymized verbatim final report produced by the CodeExplorer Graph Agent (`3m 56s`, `23` turns).
