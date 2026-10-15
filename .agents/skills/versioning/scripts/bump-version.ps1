@@ -67,14 +67,14 @@ if ($TargetVersion) {
 Write-Host "Bumping to:      $newVersion ($Type)" -ForegroundColor Green
 
 # 3. Update cli/Directory.Build.props
-$newProps = $propsContent -replace '<Version Condition="''\$\(Version\)'' == ''''">(\d+)\.(\d+)\.(\d+)</Version>', "<Version Condition=`"`'`$(Version)`' == `"`"`">$newVersion</Version>"
+$newProps = $propsContent -replace '<Version Condition="''\$\(Version\)'' == ''''">(\d+)\.(\d+)\.(\d+)</Version>', ("<Version Condition=""'`$(Version)' == ''"">$newVersion</Version>")
 Set-Content -Path $propsPath -Value $newProps -NoNewline
 Write-Host "  [OK] Updated $propsPath" -ForegroundColor Gray
 
 # 4. Update vscode-extension/package.json
 if (Test-Path $pkgPath) {
     $pkgContent = Get-Content $pkgPath -Raw
-    $newPkg = $pkgContent -replace '("version":\s*")(\d+\.\d+\.\d+)(")', "`$1$newVersion`$3"
+    $newPkg = $pkgContent -replace '("version":\s*")(\d+\.\d+\.\d+)(")', ('$1' + $newVersion + '$3')
     Set-Content -Path $pkgPath -Value $newPkg -NoNewline
     Write-Host "  [OK] Updated $pkgPath" -ForegroundColor Gray
 }
@@ -83,9 +83,9 @@ if (Test-Path $pkgPath) {
 if (Test-Path $pkgLockPath) {
     $pkgLockContent = Get-Content $pkgLockPath -Raw
     # Update top-level version
-    $newLock = $pkgLockContent -replace '("name":\s*"code-explorer-vscode",\s*"version":\s*")(\d+\.\d+\.\d+)(")', "`$1$newVersion`$3"
+    $newLock = $pkgLockContent -replace '("name":\s*"code-explorer-vscode",\s*"version":\s*")(\d+\.\d+\.\d+)(")', ('$1' + $newVersion + '$3')
     # Update packages[""].version
-    $newLock = $newLock -replace '("":\s*\{\s*"name":\s*"code-explorer-vscode",\s*"version":\s*")(\d+\.\d+\.\d+)(")', "`$1$newVersion`$3"
+    $newLock = $newLock -replace '("":\s*\{\s*"name":\s*"code-explorer-vscode",\s*"version":\s*")(\d+\.\d+\.\d+)(")', ('$1' + $newVersion + '$3')
     Set-Content -Path $pkgLockPath -Value $newLock -NoNewline
     Write-Host "  [OK] Updated $pkgLockPath" -ForegroundColor Gray
 }

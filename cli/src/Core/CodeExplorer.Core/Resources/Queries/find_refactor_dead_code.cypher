@@ -7,6 +7,5 @@ WHERE caller IS NULL
 RETURN item.name AS name,
        CASE WHEN item:Type THEN (CASE WHEN item.kind = 'class' THEN 'Class' WHEN item.kind = 'interface' THEN 'Interface' ELSE item.kind END) ELSE labels(item)[0] END AS type,
        coalesce(f.path, '') AS filePath,
-       'dead_code' AS anomalyType,
-       item.symbol AS symbol
-LIMIT 50
+       'dead_code' AS anomalyType
+LIMIT 15

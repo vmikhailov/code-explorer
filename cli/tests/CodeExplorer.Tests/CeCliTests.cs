@@ -218,6 +218,44 @@ public class CeCliTests
     }
 
     [Test]
+    public async Task CeQuery_CompactFlag_OutputsCompactJson()
+    {
+        var (initExit, _, _) = await RunCliAsync("init", "CompactJsonTest", "-d", _tempDir);
+        initExit.Should().Be(0);
+
+        var (exit, output, _) = await RunCliAsync("query", "MATCH (w:Workspace) RETURN w.name AS name", "-d", _tempDir, "-c");
+
+        exit.Should().Be(0);
+        output.Trim().Should().StartWith("[{\"name\":");
+        output.Should().NotContain("\r\n  ");
+    }
+
+    [Test]
+    public async Task CeQuery_ToonFormat_OutputsToon()
+    {
+        var (initExit, _, _) = await RunCliAsync("init", "ToonFormatTest", "-d", _tempDir);
+        initExit.Should().Be(0);
+
+        var (exit, output, _) = await RunCliAsync("query", "MATCH (w:Workspace) RETURN w.name AS name", "-d", _tempDir, "--format", "toon");
+
+        exit.Should().Be(0);
+        output.Should().Contain("[name]:");
+        output.Should().Contain("ToonFormatTest");
+    }
+
+    [Test]
+    public async Task CeQuery_YamlFormat_OutputsYaml()
+    {
+        var (initExit, _, _) = await RunCliAsync("init", "YamlFormatTest", "-d", _tempDir);
+        initExit.Should().Be(0);
+
+        var (exit, output, _) = await RunCliAsync("query", "MATCH (w:Workspace) RETURN w.name AS name", "-d", _tempDir, "--format", "yaml");
+
+        exit.Should().Be(0);
+        output.Should().Contain("- name: YamlFormatTest");
+    }
+
+    [Test]
     public async Task CeTest_WhenNotInWorkspace_ReturnsErrorAndExitCode1()
     {
         var nonWs = Path.Combine(_tempDir, "EmptyNonWs");

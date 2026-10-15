@@ -36,13 +36,16 @@ public class QueryOptions
     [Option('j', "json", Required = false, HelpText = "Output results as formatted JSON (alias for --format json).")]
     public bool Json { get; set; }
 
+    [Option('c', "compact", Required = false, HelpText = "Output compact JSON (no indentation, single line per result).")]
+    public bool Compact { get; set; }
+
     [Option("no-truncate", Required = false, HelpText = "Do not truncate long text values in table columns.")]
     public bool NoTruncate { get; set; }
 
     [Option('p', "param", Required = false, HelpText = "Key-value parameter to pass to the Cypher query (e.g. -p tableName=users). Can be repeated.")]
     public IEnumerable<string>? Params { get; set; }
 
-    [Option("format", Default = "table", HelpText = "Output format: 'table' or 'json'.")]
+    [Option("format", Default = "table", HelpText = "Output format: 'table', 'json', 'yaml', or 'toon'.")]
     public string Format { get; set; } = "table";
 }
 

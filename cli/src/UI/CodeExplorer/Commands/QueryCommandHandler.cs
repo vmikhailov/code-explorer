@@ -157,11 +157,32 @@ public class QueryCommandHandler : BaseCommandHandler
 
             var resultJson = await client.ExecuteQueryAsync(cypherQuery, parameters);
 
+            if (string.Equals(opts.Format, "toon", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine(ToonYamlSerializer.SerializeToon(resultJson));
+                return 0;
+            }
+
+            if (string.Equals(opts.Format, "yaml", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(opts.Format, "yml", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine(ToonYamlSerializer.SerializeYaml(resultJson));
+                return 0;
+            }
+
             bool isJsonFormat = IsJsonFormat(opts.Format, opts.Json);
 
-            if (isJsonFormat)
+            if (opts.Compact || isJsonFormat)
             {
-                Console.WriteLine(resultJson);
+                if (opts.Compact)
+                {
+                    using var doc = JsonDocument.Parse(resultJson);
+                    Console.WriteLine(JsonSerializer.Serialize(doc.RootElement));
+                }
+                else
+                {
+                    Console.WriteLine(resultJson);
+                }
                 return 0;
             }
 
@@ -309,7 +330,7 @@ public class QueryCommandHandler : BaseCommandHandler
             ? new ProjectQueryManager().ListQueries(ws.RootDirectory)
             : [];
 
-        if (IsJsonFormat(opts.Format))
+        if (string.Equals(opts.Format, "toon", StringComparison.OrdinalIgnoreCase))
         {
             var jsonObject = new
             {
@@ -328,7 +349,55 @@ public class QueryCommandHandler : BaseCommandHandler
                     path = q.CypherPath
                 })
             };
-            Console.WriteLine(JsonSerializer.Serialize(jsonObject, new JsonSerializerOptions { WriteIndented = true }));
+            Console.WriteLine(ToonYamlSerializer.SerializeToon(JsonSerializer.Serialize(jsonObject)));
+            return 0;
+        }
+
+        if (string.Equals(opts.Format, "yaml", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(opts.Format, "yml", StringComparison.OrdinalIgnoreCase))
+        {
+            var jsonObject = new
+            {
+                workspace = ws?.RootDirectory,
+                built_in = builtInQueries.Select(q => new
+                {
+                    name = q.Name,
+                    category = q.Category,
+                    description = q.Description
+                }),
+                custom = customQueries.Select(q => new
+                {
+                    name = q.Name,
+                    description = q.Description,
+                    parameters = q.Parameters,
+                    path = q.CypherPath
+                })
+            };
+            Console.WriteLine(ToonYamlSerializer.SerializeYaml(JsonSerializer.Serialize(jsonObject)));
+            return 0;
+        }
+
+        if (opts.Compact || IsJsonFormat(opts.Format, opts.Json))
+        {
+            var jsonObject = new
+            {
+                workspace = ws?.RootDirectory,
+                built_in = builtInQueries.Select(q => new
+                {
+                    name = q.Name,
+                    category = q.Category,
+                    description = q.Description
+                }),
+                custom = customQueries.Select(q => new
+                {
+                    name = q.Name,
+                    description = q.Description,
+                    parameters = q.Parameters,
+                    path = q.CypherPath
+                })
+            };
+            var jsonOptions = opts.Compact ? null : new JsonSerializerOptions { WriteIndented = true };
+            Console.WriteLine(JsonSerializer.Serialize(jsonObject, jsonOptions));
             return 0;
         }
 
