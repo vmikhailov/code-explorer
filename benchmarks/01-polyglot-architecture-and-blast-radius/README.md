@@ -185,15 +185,7 @@ Graph Agent    (16 turns) : █                                           379,12
 
 ---
 
-## 6. Bonus Real-World Discovery During This Benchmark
-
-During Turn 4 of this benchmark, the Graph Agent noticed that `cli/tests/SampleProjects/` (containing 49 polyglot sample/fixture projects used for parser integration tests) was indexed alongside the 16 real solution projects in `.codeexplorer/graph.db`.
-
-While the Graph Agent effortlessly filtered those out using `WHERE f.path CONTAINS 'cli/src/Parsers/'`, this observation directly inspired the **Workspace Scan Exclusions (`.codeexplorer/settings.json`)** feature shipped in **CodeExplorer v1.41.8**, reducing the indexed project count of the `code-explorer` repository from `65` to `16` and making subsequent graph queries even faster.
-
----
-
-## 7. Repository Artifacts in This Folder
+## 6. Repository Artifacts in This Folder
 
 - [`prompts/task-prompt.md`](./prompts/task-prompt.md) — Exact 3-part architectural benchmark prompt.
 - [`prompts/baseline-agent.md`](./prompts/baseline-agent.md) — Declarative agent configuration for the Baseline Agent (no CLI/MCP).
