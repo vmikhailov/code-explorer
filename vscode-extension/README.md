@@ -1,6 +1,6 @@
-# CodeExplorer for VS Code
+# CodeExplorer — Architecture Intelligence for AI Agents & Engineers
 
-CodeExplorer indexes polyglot repositories, microservices, and monorepos into a local SQLite graph database (`graph.db`) and renders interactive architecture diagrams inside Visual Studio Code.
+Static analysis and codebase graph engine for AI coding agents and CI pipelines. CodeExplorer indexes polyglot repositories, microservices, and monorepos into a local SQLite graph database (`graph.db`) with OpenCypher queries, Semantic Invariant Gates (SIG), an MCP server, and interactive VS Code architecture topology.
 
 It runs entirely locally with a bundled single-file engine (`ce`) and requires no external services or containers.
 
