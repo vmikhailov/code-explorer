@@ -40,18 +40,18 @@ public class IdentifierSearchTests
     [Test]
     public async Task IdentifierSearchEngine_ShouldFindExactAndFuzzyMatches()
     {
-        using var conn = new SqliteConnection("Data Source=:memory:;Mode=Memory;Cache=Shared");
+        using var conn = new SqliteConnection($"Data Source=InMemory_{Guid.NewGuid():N};Mode=Memory;");
         conn.Open();
 
         using (var setup = conn.CreateCommand())
         {
             setup.CommandText = """
-                CREATE TABLE nodes (
+                CREATE TABLE IF NOT EXISTS nodes (
                     id TEXT PRIMARY KEY,
                     kind TEXT NOT NULL,
                     properties JSON NOT NULL
                 );
-                CREATE TABLE edges (
+                CREATE TABLE IF NOT EXISTS edges (
                     from_id TEXT NOT NULL,
                     to_id TEXT NOT NULL,
                     kind TEXT NOT NULL,
