@@ -565,10 +565,13 @@ public class WorkspaceIndexer
             var manifestDesc = changedManifests.Count <= 3
                 ? string.Join(", ", changedManifests)
                 : $"{string.Join(", ", changedManifests.Take(3))} (+{changedManifests.Count - 3} more)";
+            var hasDeletedManifests = changeset.Deleted.Any(f => WorkspaceFileFilter.IsManifestFile(Path.GetFileName(f)));
+            var shouldClear = hasDeletedManifests && targetSubPath == null;
             _logger.LogInformation(
-                "[Incremental:Decision] Full rescan triggered: Project manifest modified ({Manifests}). Reindexing workspace structure...",
-                manifestDesc);
-            await IndexAsync(targetPath, workspaceRoot, clear: false, cancellationToken: cancellationToken, progress: progress, enableIntentAnalysis: enableIntentAnalysis);
+                "[Incremental:Decision] Full rescan triggered: Project manifest modified ({Manifests}). Reindexing workspace structure (clear={Clear})...",
+                manifestDesc,
+                shouldClear);
+            await IndexAsync(targetPath, workspaceRoot, clear: shouldClear, cancellationToken: cancellationToken, progress: progress, enableIntentAnalysis: enableIntentAnalysis);
             return true;
         }
 

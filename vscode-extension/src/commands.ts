@@ -726,6 +726,175 @@ export function registerWorkspaceCommands(
     }
   );
 
+  let isUpdatingSettingsProgrammatically = false;
+
+  const rescanAfterSettingsChange = async (reason: string) => {
+    const workspaceRoot = getWorkspaceRoot();
+    if (!workspaceRoot || !transport.hasWorkspace(workspaceRoot)) return;
+
+    treeDataProvider.refresh();
+    outputChannel.appendLine(`[WorkspaceSettings] ${reason} — triggering incremental rescan...`);
+
+    if (GraphPanel.panels.size > 0) {
+      for (const p of GraphPanel.panels.values()) {
+        p.postMessage({ type: 'TRIGGER_SCAN', clear: false });
+      }
+      setTimeout(() => treeDataProvider.refresh(), 2000);
+    } else {
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Window,
+          title: 'CodeExplorer: Updating architecture graph for exclusion changes...',
+        },
+        async () => {
+          try {
+            await processManager.runCliCommand(workspaceRoot, ['index']);
+            treeDataProvider.refresh();
+          } catch (err: any) {
+            outputChannel.appendLine(`[WorkspaceSettings] Rescan failed: ${err.message}`);
+          }
+        }
+      );
+    }
+  };
+
+  // Command: Open Workspace Settings (.codeexplorer/settings.json)
+  const openWorkspaceSettingsCommand = vscode.commands.registerCommand(
+    'codeExplorer.openWorkspaceSettings',
+    async () => {
+      const workspaceRoot = getWorkspaceRoot();
+      if (!workspaceRoot) {
+        vscode.window.showWarningMessage('Please open a workspace folder first.');
+        return;
+      }
+
+      const ceDir = path.join(workspaceRoot, '.codeexplorer');
+      const settingsPath = path.join(ceDir, 'settings.json');
+      try {
+        if (!fs.existsSync(ceDir)) {
+          fs.mkdirSync(ceDir, { recursive: true });
+        }
+        if (!fs.existsSync(settingsPath)) {
+          fs.writeFileSync(settingsPath, JSON.stringify({ exclude: [] }, null, 2) + '\n', 'utf-8');
+        }
+        const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(settingsPath));
+        await vscode.window.showTextDocument(doc, {
+          viewColumn: vscode.ViewColumn.One,
+          preserveFocus: false,
+        });
+      } catch (err: any) {
+        vscode.window.showErrorMessage(`Failed to open .codeexplorer/settings.json: ${err.message}`);
+      }
+    }
+  );
+
+  // Command: Exclude File/Folder from CodeExplorer Scan
+  const excludeFromScanCommand = vscode.commands.registerCommand(
+    'codeExplorer.excludeFromScan',
+    async (uri?: vscode.Uri) => {
+      const workspaceRoot = getWorkspaceRoot();
+      if (!workspaceRoot) {
+        vscode.window.showWarningMessage('Please open a workspace folder first.');
+        return;
+      }
+
+      let relativePattern: string | undefined;
+      if (uri && uri.fsPath) {
+        let rel = path.relative(workspaceRoot, uri.fsPath).replace(/\\/g, '/');
+        if (rel.startsWith('..')) {
+          vscode.window.showWarningMessage('Selected path is outside the active workspace folder.');
+          return;
+        }
+        try {
+          if (fs.statSync(uri.fsPath).isDirectory() && !rel.endsWith('/')) {
+            rel += '/';
+          }
+        } catch {}
+        relativePattern = rel;
+      } else {
+        relativePattern = await vscode.window.showInputBox({
+          prompt: 'Enter a workspace-relative path or glob pattern to exclude from CodeExplorer scan',
+          placeHolder: 'e.g. tests/SampleProjects/ or **/fixtures/**',
+        });
+      }
+
+      if (!relativePattern || !relativePattern.trim()) return;
+      const normalized = relativePattern.trim().replace(/\\/g, '/').replace(/^\/+/, '');
+      if (!normalized) return;
+
+      const ceDir = path.join(workspaceRoot, '.codeexplorer');
+      const settingsPath = path.join(ceDir, 'settings.json');
+
+      try {
+        if (!fs.existsSync(ceDir)) {
+          fs.mkdirSync(ceDir, { recursive: true });
+        }
+
+        let parsed: Record<string, any> = { exclude: [] };
+        if (fs.existsSync(settingsPath)) {
+          try {
+            const raw = fs.readFileSync(settingsPath, 'utf-8');
+            const json = JSON.parse(raw);
+            if (json && typeof json === 'object') {
+              parsed = json;
+            }
+          } catch {}
+        }
+
+        if (!Array.isArray(parsed.exclude)) {
+          parsed.exclude = [];
+        }
+
+        const normTrimmed = normalized.replace(/\/+$/, '').toLowerCase();
+        const alreadyExists = parsed.exclude.some(
+          (p: any) => typeof p === 'string' && p.trim().replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase() === normTrimmed
+        );
+
+        if (alreadyExists) {
+          vscode.window.showInformationMessage(`'${normalized}' is already excluded in .codeexplorer/settings.json.`);
+          return;
+        }
+
+        parsed.exclude.push(normalized);
+        isUpdatingSettingsProgrammatically = true;
+        try {
+          fs.writeFileSync(settingsPath, JSON.stringify(parsed, null, 2) + '\n', 'utf-8');
+        } finally {
+          setTimeout(() => {
+            isUpdatingSettingsProgrammatically = false;
+          }, 500);
+        }
+
+        vscode.window
+          .showInformationMessage(
+            `Excluded '${normalized}' from CodeExplorer scan.`,
+            'Open settings.json'
+          )
+          .then((choice) => {
+            if (choice === 'Open settings.json') {
+              vscode.commands.executeCommand('codeExplorer.openWorkspaceSettings');
+            }
+          });
+
+        await rescanAfterSettingsChange(`Added '${normalized}' to exclude list`);
+      } catch (err: any) {
+        vscode.window.showErrorMessage(`Failed to update .codeexplorer/settings.json: ${err.message}`);
+      }
+    }
+  );
+
+  // Auto-rescan when .codeexplorer/settings.json is saved in the editor
+  const settingsSaveWatcher = vscode.workspace.onDidSaveTextDocument(async (doc) => {
+    if (isUpdatingSettingsProgrammatically) return;
+    const workspaceRoot = getWorkspaceRoot();
+    if (!workspaceRoot) return;
+    const expectedPath = path.normalize(path.join(workspaceRoot, '.codeexplorer', 'settings.json')).toLowerCase();
+    const savedPath = path.normalize(doc.uri.fsPath).toLowerCase();
+    if (savedPath === expectedPath) {
+      await rescanAfterSettingsChange('.codeexplorer/settings.json saved');
+    }
+  });
+
   context.subscriptions.push(
     reindexCommand,
     reindexFullCommand,
@@ -737,7 +906,10 @@ export function registerWorkspaceCommands(
     evaluateGatesCommand,
     ratchetGatesCommand,
     initGatesCommand,
-    openGateYamlCommand
+    openGateYamlCommand,
+    openWorkspaceSettingsCommand,
+    excludeFromScanCommand,
+    settingsSaveWatcher
   );
 }
 

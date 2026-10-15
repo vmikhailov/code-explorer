@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using CodeExplorer.Core.Common;
 
 namespace CodeExplorer.Core.Parser;
 
@@ -39,6 +40,16 @@ public class GitIgnoreMatcher
 
         LoadFile(Path.Combine(workspaceRoot, ".gitignore"));
         LoadFile(Path.Combine(workspaceRoot, ".codeexplorerignore"));
+        LoadWorkspaceSettings(workspaceRoot);
+    }
+
+    public void LoadWorkspaceSettings(string workspaceRoot, string? scope = null)
+    {
+        var settings = WorkspaceSettings.Load(workspaceRoot);
+        foreach (var pattern in settings.Exclude)
+        {
+            AddPattern(pattern, scope);
+        }
     }
 
     public void LoadFile(string filePath)
@@ -64,7 +75,7 @@ public class GitIgnoreMatcher
 
     public void AddPattern(string pattern, string? scope = null)
     {
-        var trimmed = pattern.Trim();
+        var trimmed = pattern.Trim().Replace('\\', '/');
         if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith('#')) return;
 
         var isNegated = false;
@@ -103,7 +114,7 @@ public class GitIgnoreMatcher
             rawPattern = rawPattern[3..];
         }
 
-        var escaped = Regex.Escape(trimmed);
+        var escaped = Regex.Escape(rawPattern);
         var regexPattern = escaped.Replace("\\*", ".*").Replace("\\?", ".");
 
         if (isAnchored)

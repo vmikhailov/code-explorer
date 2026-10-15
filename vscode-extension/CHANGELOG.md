@@ -5,6 +5,16 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.41.8] - 2026-10-15
+
+### Added
+- **Workspace Scan Exclusions (`.codeexplorer/settings.json`)**:
+  - Added support for gitignore/glob-style workspace exclusion patterns in `.codeexplorer/settings.json` (`{ "exclude": [...] }`), automatically created by `ce init`.
+  - `GitIgnoreMatcher` and `WorkspaceIndexer` now load `.codeexplorer/settings.json` exclusions and automatically prune stale `Project` and symbol nodes when manifests are excluded during incremental rescans.
+  - Added **Settings** item under `Management` in the CodeExplorer sidebar (`codeExplorer.openWorkspaceSettings`) and **Exclude from Scan** (`codeExplorer.excludeFromScan`) in the VS Code Explorer context menu, with automatic incremental rescan on save.
+
+---
+
 ## [1.41.7] - 2026-10-15
 
 ### Added

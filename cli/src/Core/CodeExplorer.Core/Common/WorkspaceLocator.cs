@@ -135,6 +135,7 @@ public static class WorkspaceLocator
 
         Directory.CreateDirectory(ceDir);
         Directory.CreateDirectory(queriesDir);
+        WorkspaceSettings.EnsureDefaultSettingsFile(fullDir);
 
         RecordActiveWorkspace(fullDir);
 

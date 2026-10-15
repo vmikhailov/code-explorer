@@ -36,6 +36,7 @@ public static class InitCommandHandler
         Console.ResetColor();
         Console.WriteLine($"  Root:     {ws.RootDirectory}");
         Console.WriteLine($"  Database: {ws.DbPath}");
+        Console.WriteLine($"  Settings: {WorkspaceSettings.GetSettingsPath(ws.RootDirectory)}");
         Console.WriteLine($"  Queries:  {ws.QueriesDirectory}");
         Console.WriteLine($"\nNext: run 'ce scan' to index your codebase.");
         return 0;

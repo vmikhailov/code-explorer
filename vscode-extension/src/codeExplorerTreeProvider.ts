@@ -170,6 +170,7 @@ export type TreeItemType =
   | 'management-rescan'
   | 'management-rebuild'
   | 'management-intent'
+  | 'management-settings'
   | 'management-model'
   | 'management-model-download'
   | 'root-gates'
@@ -1120,7 +1121,41 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       intentItem.tooltip = 'Architectural intents have not been distilled yet. Use inline button to distill intents.';
     }
 
-    return [serverItem, graphItem, intentItem];
+    // 4. Workspace Settings (.codeexplorer/settings.json)
+    let excludeCount = 0;
+    if (wsRoot) {
+      try {
+        const settingsPath = path.join(wsRoot, '.codeexplorer', 'settings.json');
+        if (fs.existsSync(settingsPath)) {
+          const raw = fs.readFileSync(settingsPath, 'utf-8');
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed?.exclude)) {
+            excludeCount = parsed.exclude.filter((p: any) => typeof p === 'string' && p.trim().length > 0).length;
+          }
+        }
+      } catch {}
+    }
+
+    const settingsItem = new CodeExplorerTreeItem(
+      'management-settings',
+      'Settings',
+      vscode.TreeItemCollapsibleState.None
+    );
+    settingsItem.description =
+      excludeCount > 0
+        ? `${excludeCount} excluded ${excludeCount === 1 ? 'path' : 'paths'} · settings.json`
+        : '.codeexplorer/settings.json';
+    settingsItem.iconPath = new vscode.ThemeIcon('settings-gear');
+    settingsItem.tooltip =
+      `Workspace Scan Settings (.codeexplorer/settings.json)\n` +
+      `Excluded paths/patterns: ${excludeCount}\n` +
+      `Click to edit .codeexplorer/settings.json`;
+    settingsItem.command = {
+      command: 'codeExplorer.openWorkspaceSettings',
+      title: 'Open Workspace Settings (.codeexplorer/settings.json)',
+    };
+
+    return [serverItem, graphItem, intentItem, settingsItem];
   }
 
   private formatGraphUpdateTime(date: Date): string {

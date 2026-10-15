@@ -1,0 +1,6 @@
+{
+  "exclude": [
+    "cli/tests/SampleProjects/",
+    "cli/tests/CodeExplorer.Tests/TestData/"
+  ]
+}
