@@ -31,7 +31,7 @@ By contrast, a **CodeExplorer Graph Agent** executes targeted **OpenCypher** que
 To eliminate confounding variables (network variance, model differences, hardware load, or repository state drift), the benchmark was executed as a **simultaneous, paired A/B test** inside Google Antigravity on the `code-explorer` repository (a polyglot C# .NET 10 + TypeScript/React codebase with 16 production/test projects).
 
 ### 2.1. Strict Tool & Environment Isolation
-Both subagents were spawned in parallel at the exact same second (`2026-10-15T00:38:48Z`) using the exact same frontier model (`MODEL_PLACEHOLDER_M417` / Gemini 3.1 Pro) and identical user prompt, with `inheritCustomizations: false` and `inheritMcp: false`:
+Both subagents were spawned in parallel at the exact same second (`2026-10-15T00:38:48Z`) using the exact same frontier model (`Gemini 4 Argon` with `High` reasoning tier) and identical user prompt, with `inheritCustomizations: false` and `inheritMcp: false`:
 
 1. **Baseline Agent ([`prompts/baseline-agent.md`](./prompts/baseline-agent.md))**:
    - **Allowed Tools**: Standard file navigation and reading (`view_file`, `grep_search`, `list_dir`, `find_by_name`, `send_message`).
