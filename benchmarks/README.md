@@ -22,9 +22,9 @@ With **CodeExplorer**, the agent queries a high-level, function-and-type granula
 
 ## Benchmark Suite Index
 
-| Case Study | Task Domain | Duration (`Baseline` → `Graph`) | Tool Calls (`Baseline` → `Graph`) | Raw Context Payload (`Baseline` → `Graph`) | Compactions (`Baseline` → `Graph`) | Cumulative Input Tokens (`Baseline` → `Graph`) | Accuracy |
-| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **[01: Polyglot Architecture Discovery & Blast Radius Analysis](./01-polyglot-architecture-and-blast-radius/README.md)** | Transitive interface census across 6 language parsers + 2-hop upstream call-chain & endpoint blast radius | `16m 23s` → **`3m 31s`** (**4.7x faster**) | `248` → **`28`** (**8.9x fewer**) | `1.81 MB` → **`168.8 KB`** (**10.7x smaller**) | `2` → **`0`** | `~15.32M` → **`~379.1K`** (**40.4x fewer**) | **100%** / **100%** |
+| Case Study | Task Domain | Duration (`Baseline` → `Graph`) | Tool Calls (`Baseline` → `Graph`) | Raw Context Payload (`Baseline` → `Graph`) | Compactions (`Baseline` → `Graph`) | Cumulative Input Tokens (`Baseline` → `Graph`) | Est. Cost w/ Cache (`Baseline` → `Graph`) | Accuracy |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **[01: Polyglot Architecture Discovery & Blast Radius Analysis](./01-polyglot-architecture-and-blast-radius/README.md)** | Transitive interface census across 6 language parsers + 2-hop upstream call-chain & endpoint blast radius | `16m 23s` → **`3m 31s`** (**4.7x faster**) | `248` → **`28`** (**8.9x fewer**) | `1.81 MB` → **`168.8 KB`** (**10.7x smaller**) | `2` → **`0`** | `~15.32M` → **`~379.1K`** (**40.4x fewer**) | `~$4.22` → **`~$0.27`** (**15.6x cheaper**) | **100%** / **100%** |
 
 ---
 

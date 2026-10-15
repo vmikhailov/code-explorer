@@ -185,7 +185,34 @@ Graph Agent    (16 turns) : █                                           379,12
 
 ---
 
-## 6. Repository Artifacts in This Folder
+## 6. Cost & Economic Evaluation (Factoring in Modern Prompt Caching)
+
+A common assumption in LLM economics is that **Prompt / Prefix Caching** (which discounts cached input tokens by 75–90% across subsequent turns) makes context bloat negligible. 
+
+However, an itemized breakdown reveals that even with a **90% cache discount**, the **CodeExplorer Graph Agent is ~15.6x cheaper** per run. The reasons stem directly from the mechanics of agentic execution loops:
+
+1. **Uncached Writes on Every File Read**: When an agent invokes `view_file` (247 times for Baseline), each file's raw text is appended to the prompt as a **new, uncached write** for that turn, billed at full price ($100\%$ or $125\%$ depending on the provider). Baseline wrote **~453,000 fresh tokens** of tool output vs. **~42,000 tokens** for Graph.
+2. **Cache Invalidation from Context Compactions**: Baseline exceeded the context threshold twice, triggering **two mid-trajectory compactions**. Compaction completely rewrites the prompt prefix, destroying the cached KV-state and forcing an expensive cache rebuild. Graph required **0 compactions**.
+3. **Turn-Count Multiplier**: Because Baseline required **51 LLM turns** (vs. **16** for Graph) while carrying an average active context of ~85,000 tokens, it accumulated **14.8M cached token reads** vs. just **337K** for Graph.
+4. **Zero Cache Discount on Reasoning & Output Tokens**: Neither internal thinking/CoT tokens nor output tokens receive cache discounts; they are billed at premium generation rates ($3\times$ to $5\times$ higher than input). Baseline generated **2.5x more thinking tokens** and **8.9x more tool-call JSON**.
+
+### Itemized Cost Comparison (Standard Frontier Pro-Tier Pricing)
+
+*Assumed rates: \$2.00 / 1M uncached input, \$0.20 / 1M cached input (90% discount), \$10.00 / 1M output & reasoning tokens.*
+
+| Cost Component | Baseline Agent (File/Grep) | CodeExplorer Graph Agent | Savings Factor |
+| :--- | :---: | :---: | :---: |
+| **Uncached Input Tokens** (fresh file payloads & prompts) | `~453,000` tokens (**\$0.91**) | `~42,000` tokens (**\$0.08**) | **11.4x cheaper** |
+| **Cached Input Tokens** (history re-reads @ 90% discount) | `~14,800,000` tokens (**\$2.96**) | `~337,000` tokens (**\$0.07**) | **42.3x cheaper** |
+| **Output & Thinking Tokens** (no cache discount) | `~35,000` tokens (**\$0.35**) | `~12,000` tokens (**\$0.12**) | **2.9x cheaper** |
+| **Total API Cost per Execution** | **~\$4.22** | **~\$0.27** | **15.6x cheaper (`-93.6%`)** |
+| **Engineering Time per Query** | `16m 23s` | `3m 31s` | **4.7x faster (`-12m 52s`)** |
+
+> **Takeaway**: Prompt caching cushions, but does not solve, combinatorial context bloat. By operating on pre-indexed graph projections, CodeExplorer achieves a **15.6x reduction in API cost** and saves **nearly 13 minutes of engineer idle time** per complex architectural query.
+
+---
+
+## 7. Repository Artifacts in This Folder
 
 - [`prompts/task-prompt.md`](./prompts/task-prompt.md) — Exact 3-part architectural benchmark prompt.
 - [`prompts/baseline-agent.md`](./prompts/baseline-agent.md) — Declarative agent configuration for the Baseline Agent (no CLI/MCP).
