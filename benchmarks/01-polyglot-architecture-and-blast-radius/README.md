@@ -1,14 +1,10 @@
-# Case Study 01: Polyglot Architecture Discovery & Blast Radius Analysis (`Ripgrep / File Navigation` vs. `CodeExplorer Graph`)
+# Case Study 01: Polyglot Architecture Discovery & Blast Radius Analysis (`Ripgrep` vs. `CodeExplorer Graph`)
 
-> **Headline Results across Two Controlled Runs (100% Ground-Truth Accuracy in All Runs)**:
-> - **Run 1B — Fair `ripgrep` (`rg` + `git grep` + `view_file`) vs. `CodeExplorer Graph` (`Gemini 3.8 Flash`)**:
->   Even when the Baseline Agent has full shell access to **`ripgrep` (`rg`)**, `git grep`, and directory traversal (`28` CLI search commands + `23` `view_file` reads), the **CodeExplorer Graph Agent** completed the 3-part architectural audit **1.89x faster in time-to-answer** (`5m 08s` → `2m 43s`), required **1.64x fewer LLM turns** (`59` → `36`), made **1.63x fewer tool calls** (`57` → `35`), and cut cumulative LLM input tokens by **1.92x** (`1,594,003` → `831,152` tokens).
-> - **Run 1A — Pure `view_file` Navigation (No Shell / Grep) vs. `CodeExplorer Graph` (`Gemini 4 Argon`)**:
->   When shell access was disabled to prevent CLI access (`view_file`-only baseline), the **CodeExplorer Graph Agent** achieved a **5.74x faster time-to-answer** (`15m 01s` → `2m 37s`, or `4.66x` total wall-clock `16m 23s` → `3m 31s`), cut tool calls by **8.86x** (`248` → `28`), shrank raw tool output by **10.74x** (`1.81 MB` → `168.8 KB`), eliminated **2 mid-task context compactions** (after Turns 12 and 29), and reduced actual post-compaction cumulative LLM input tokens by **9.16x** (`3.47M` → `379.1K`).
+> **Headline Result**: On a 16-project polyglot C# .NET 10 + TypeScript repository (`code-explorer`), even when the Baseline Agent has full shell access to **`ripgrep` (`rg`)**, `git grep`, and directory traversal (`28` CLI search commands + `23` `view_file` reads), equipping **Gemini 3.8 Flash** with **CodeExplorer's OpenCypher Architecture Graph** completed the 3-part architectural audit **1.89x faster in time-to-answer** (`5m 08s` → `2m 43s`), required **1.64x fewer LLM turns** (`59` → `36`), made **1.63x fewer tool calls** (`57` → `35`), reduced cumulative LLM input tokens by **1.92x** (`1,594,003` → `831,152` tokens), and cut API cost by **1.67x** (`$0.142` → `$0.085` with 90% prompt caching), while achieving **100% ground-truth accuracy**.
 
 ---
 
-## 1. Executive Summary & Comparative Scorecards
+## 1. Executive Summary & Comparative Scorecard
 
 When AI coding agents tackle non-trivial architectural tasks—such as finding all implementations of a multi-level interface hierarchy across polyglot modules, or tracing the upstream blast radius of an engine method up to HTTP endpoints, WebSocket handlers, CLI verbs, and MCP tools—traditional lexical tools (`ripgrep`, `git grep`, file tree traversal, and file reads) face two structural bottlenecks:
 
@@ -16,8 +12,6 @@ When AI coding agents tackle non-trivial architectural tasks—such as finding a
 2. **Cumulative Context Growth Across Turns**: Because every LLM turn re-sends the active conversation history, every additional `rg` output listing and `view_file` verification slice compounds across all remaining turns.
 
 By contrast, a **CodeExplorer Graph Agent** executes targeted **OpenCypher** queries against the pre-indexed semantic graph (`graph.db`), resolving transitive relationships (`[:IMPLEMENTS*1..3]`, `[:CALLS]`, `[:HAS_METHOD]`, `[:DECLARED_IN]`) in a single query and opening only specific line ranges (`view_file`) for final verification.
-
-### Table 1B: Fair `ripgrep` (`rg` + `git grep` + `view_file`) vs. `CodeExplorer Graph` (`Gemini 3.8 Flash`)
 
 | Metric | Ripgrep Baseline Agent (`rg` + `git grep` + `view_file`) | CodeExplorer Graph Agent (`ce query` + Surgical Read) | Improvement / Delta |
 | :--- | :---: | :---: | :---: |
@@ -34,32 +28,12 @@ By contrast, a **CodeExplorer Graph Agent** executes targeted **OpenCypher** que
 
 ---
 
-### Table 1A: Pure `view_file` Navigation (No Shell / Grep) vs. `CodeExplorer Graph` (`Gemini 4 Argon`)
-
-*Note: In our initial Run 1A, disabling `run_command` on the baseline agent (to prevent it from invoking `ce.exe`) also left it without a shell-based `grep` tool (`view_file` only). We preserve Run 1A below with `CHECKPOINT`-corrected compaction metrics alongside Run 1B above for complete transparency.*
-
-| Metric | File-Only Baseline Agent (`view_file` only, No Shell) | CodeExplorer Graph Agent (`ce query` + Surgical Read) | Improvement / Delta |
-| :--- | :---: | :---: | :---: |
-| **Time to Answer (`send_message`)** | `901.0 s` (**15 min 01 sec**) | `157.0 s` (**2 min 37 sec**) | **5.74x faster** (`-82.6%` time) |
-| **Total Session Wall-Clock** | `983.0 s` (`16 min 23 sec`) | `211.0 s` (`3 min 31 sec`) | **4.66x faster** (`-78.5%` time) |
-| **Total Trajectory Steps** | `302` | `45` | **6.71x fewer steps** |
-| **LLM Reasoning Turns** | `51` | `16` | **3.19x fewer turns** |
-| **Total Tool Calls** | `248` (`247` `view_file`, `1` `send_message`) | `28` (`13` `run_command`, `14` `view_file`, `1` `send_message`) | **8.86x fewer tool calls** |
-| **Raw Tool Output Ingested** | `1,811,803 chars` (**~452,950 tokens**) | `168,769 chars` (**~42,192 tokens**) | **10.74x less context payload** (`-90.7%`) |
-| **Internal Reasoning (`thinking`)** | `32,913 chars` (`~8,228 tokens`) | `13,178 chars` (`~3,294 tokens`) | **2.50x less reasoning overhead** |
-| **Context Window Compactions** | **2 compactions** (after Turns `12` & `29`) | **0 compactions** (peaked at `52,285` tokens) | **Zero context loss / compaction delay** |
-| **Cumulative Actual Input Tokens** | `13,897,717 chars` (**~3,474,429 tokens** post-compaction) | `1,516,485 chars` (**~379,121 tokens**) | **9.16x lower actual input load** (`-89.1%`) |
-| **Cumulative Uncompacted Input** | `61,262,952 chars` (`~15,315,738 tokens` hypothetical) | `1,516,485 chars` (`~379,121 tokens`) | **40.40x lower uncompacted load** (`-97.5%`) |
-| **Ground-Truth Accuracy** | **100%** (all 3 tasks exact) | **100%** (all 3 tasks exact) | **Identical 100% precision & recall** |
-
----
-
 ## 2. Methodology & Controlled Experimental Setup
 
-Both experiments were executed as **simultaneous, paired A/B tests** inside Google Antigravity on the `code-explorer` repository (a polyglot C# .NET 10 + TypeScript/React codebase with 16 production/test projects).
+The experiment was executed as a **simultaneous, paired A/B test** inside Google Antigravity on the `code-explorer` repository (a polyglot C# .NET 10 + TypeScript/React codebase with 16 production/test projects).
 
 ### 2.1. Strict Tool & Environment Isolation
-In **Run 1B (`Gemini 3.8 Flash`)**, both subagents were spawned in parallel at the exact same second (`2026-10-15T10:30:35Z`) with identical user prompts:
+Both subagents were spawned in parallel at the exact same second (`2026-10-15T10:30:35Z`) on **Gemini 3.8 Flash** (`Model: "flash"`) with identical user prompts:
 
 1. **Ripgrep Baseline Agent ([`prompts/baseline-agent.md`](./prompts/baseline-agent.md))**:
    - **Allowed Tools**: `run_command` (for `rg` / `ripgrep`, `git grep`, `Get-ChildItem`, `Select-String`) + `view_file` + `send_message`.
@@ -79,10 +53,10 @@ flowchart LR
     Graph -->|"36 LLM turns / 21 Cypher queries + 13 surgical reads\n132.6 KB raw output"| GraphResult["2m 43s (1.89x Faster)\n831K Cumulative Input Tokens (1.92x Less)"]
 ```
 
-### 2.2. Telemetry & Compaction Accounting
+### 2.2. Telemetry Collection
 All metrics in [`results/metrics.json`](./results/metrics.json) are generated programmatically from the raw `transcript_full.jsonl` files:
-- **Time to Answer (`time_to_answer_seconds`)**: Elapsed time from step 1 (`USER_INPUT`) to the exact step where the agent calls `send_message` with its final report (excluding any post-answer runtime teardown delay).
-- **Compaction-Aware Active Context (`active_context_est_tokens`)**: Whenever the runtime emits a `CHECKPOINT` step (context compaction), the active conversation history resets to the compacted checkpoint summary. Both **actual post-compaction cumulative tokens** (`cumulative_actual_input_est_tokens`) and **hypothetical uncompacted cumulative tokens** (`cumulative_uncompacted_input_est_tokens`) are recorded in `metrics.json`.
+- **Time to Answer (`time_to_answer_seconds`)**: Elapsed time from step 1 (`USER_INPUT`) to the exact step where the agent calls `send_message` with its final report.
+- **Compaction-Aware Active Context (`active_context_est_tokens`)**: Sum of active context tokens processed on each LLM turn ($\sum_{t=1}^T \text{ActiveContext}_t$).
 
 ---
 
@@ -117,7 +91,7 @@ Perform a precise architectural and impact analysis on the `code-explorer` repos
 
 ---
 
-## 4. Detailed Comparison of Execution Trajectories (`Run 1B: Flash`)
+## 4. Detailed Comparison of Execution Trajectories
 
 ### 4.1. How `rg_baseline_agent` Solved It (`59` Turns, `5m 08s` Time-to-Answer)
 - **Conversation ID**: `dc323d20-e714-4d4f-88d5-0a772d365a63`
@@ -137,15 +111,13 @@ Perform a precise architectural and impact analysis on the `code-explorer` repos
 
 ---
 
-## 5. Turn-by-Turn Context Growth Curves (Exact Values from `metrics.json`)
+## 5. Turn-by-Turn Context Growth Curve (Exact Values from `metrics.json`)
 
-Every number in the tables below matches [`results/metrics.json`](./results/metrics.json) to the exact token.
-
-### 5.1. Run 1B (`Gemini 3.8 Flash`: `Ripgrep` vs. `CodeExplorer Graph`)
+Every number in the table below matches [`results/metrics.json`](./results/metrics.json) to the exact token:
 
 ```
-Cumulative Input Tokens Across Agent Turns (Run 1B - Gemini 3.8 Flash)
-======================================================================
+Cumulative Input Tokens Across Agent Turns (Gemini 3.8 Flash)
+=============================================================
 
 Ripgrep Baseline (59 turns) : ████████████████████████████████████████ 1,594,003 tokens (6.38 MB chars)
 Graph Agent      (36 turns) : █████████████████████                      831,152 tokens (3.32 MB chars)
@@ -163,32 +135,11 @@ Graph Agent      (36 turns) : ████████████████�
 | **Turn 51** | `49,013 tokens` (`1,167,170` cum.) | — |
 | **Turn 59 (Ripgrep Baseline Done)** | **`60,994 tokens` (`1,594,003` cum. — 100% Done)** | — |
 
-### 5.2. Run 1A (`Gemini 4 Argon`: `view_file`-only vs. `CodeExplorer Graph`, `CHECKPOINT`-Aware)
-
-In Run 1A, the `view_file`-only Baseline Agent triggered **two `CHECKPOINT` compactions**:
-- **Compaction #1** occurred immediately after **Turn 12** (when active context hit `174,553 tokens`, resetting Turn 13 active context to `5,047 tokens`).
-- **Compaction #2** occurred immediately after **Turn 29** (when active context hit `171,533 tokens`, resetting Turn 30 active context to `4,604 tokens`).
-
-| Milestone | File-Only Baseline Active Context (`actual post-compaction cum.`) | Graph Agent Active Context (`actual cum.`) |
-| :--- | :---: | :---: |
-| **Turn 5** | `39,764 tokens` (`69,920` cum.) | `13,489 tokens` (`36,702` cum.) |
-| **Turn 10** | `131,301 tokens` (`625,484` cum.) | `19,344 tokens` (`122,850` cum.) |
-| **Turn 12 (Pre-Compaction #1 Peak)** | `174,553 tokens` (`937,508` cum.) | `36,000 tokens` (`188,081` cum.) |
-| **Turn 13 (Post-Compaction #1 Reset)** | `5,047 tokens` (`942,555` cum.) | `42,142 tokens` (`230,224` cum.) |
-| **Turn 16 (Graph Agent Done)** | `34,832 tokens` (`1,012,690` cum.) | **`52,285 tokens` (`379,121` cum. — 100% Done)** |
-| **Turn 29 (Pre-Compaction #2 Peak)** | `171,533 tokens` (`2,437,443` cum.) | — |
-| **Turn 30 (Post-Compaction #2 Reset)** | `4,604 tokens` (`2,442,048` cum.) | — |
-| **Turn 51 (Baseline Done)** | **`107,090 tokens` (`3,474,429` actual cum. / `15,315,738` uncompacted)** | — |
-
 ---
 
 ## 6. Cost & Economic Evaluation (With 90% Prompt Caching Discount)
 
-Using standard API pricing with a **90% prompt cache discount** on repeated history reads:
-- **Gemini 3.8 Flash Tier**: \$0.50 / 1M uncached input, \$0.05 / 1M cached input, \$3.00 / 1M output & thinking tokens.
-- **Frontier Pro / Argon Tier**: \$2.00 / 1M uncached input, \$0.20 / 1M cached input, \$10.00 / 1M output & thinking tokens.
-
-### 6.1. Run 1B Cost Breakdown (`Ripgrep` vs. `Graph` on `Gemini 3.8 Flash`)
+Using standard **Gemini 3.8 Flash** API pricing with a **90% prompt cache discount** on repeated history reads (\$0.50 / 1M uncached input, \$0.05 / 1M cached input, \$3.00 / 1M output & thinking tokens):
 
 | Cost Component | Ripgrep Baseline Agent (`59` turns) | CodeExplorer Graph Agent (`36` turns) | Savings Factor |
 | :--- | :---: | :---: | :---: |
@@ -198,27 +149,13 @@ Using standard API pricing with a **90% prompt cache discount** on repeated hist
 | **Total Flash API Cost per Run** | **\$0.142** | **\$0.085** | **1.67x cheaper (`-40.1%`)** |
 | **Time to Answer** | `5m 08s` (`308.0s`) | `2m 43s` (`163.0s`) | **1.89x faster (`-2m 25s`)** |
 
-### 6.2. Run 1A Cost Breakdown (`view_file`-only vs. `Graph` on `Frontier Pro`, Post-Compaction Actuals)
-
-*Note: Even using the **post-compaction actual cumulative input (`3,474,429` tokens)** rather than the uncompacted hypothetical (`15.32M` tokens), and accounting for cache invalidation on the 2 compactions:*
-
-| Cost Component | File-Only Baseline (`51` turns, `2` compactions) | CodeExplorer Graph Agent (`16` turns, `0` compactions) | Savings Factor |
-| :--- | :---: | :---: | :---: |
-| **Uncached Input Tokens** (fresh reads + 2 compaction rebuilds) | `~462,601` tokens (**\$0.925**) | `42,192` tokens (**\$0.084**) | **11.0x cheaper** |
-| **Cached Input Tokens** (`3,011,828` vs `336,929` @ 90% discount) | `3,011,828` tokens (**\$0.602**) | `336,929` tokens (**\$0.067**) | **8.9x cheaper** |
-| **Output & Thinking Tokens** (no cache discount) | `19,920` tokens (**\$0.199**) | `6,869` tokens (**\$0.069**) | **2.9x cheaper** |
-| **Total Pro API Cost per Run (Actual Post-Compaction)** | **\$1.726** | **\$0.220** | **7.85x cheaper (`-87.3%`)** |
-| **Time to Answer** | `15m 01s` (`901.0s`) | `2m 37s` (`157.0s`) | **5.74x faster (`-12m 24s`)** |
-
 ---
 
 ## 7. Repository Artifacts in This Folder
 
 - [`prompts/task-prompt.md`](./prompts/task-prompt.md) — Exact 3-part architectural benchmark prompt.
-- [`prompts/baseline-agent.md`](./prompts/baseline-agent.md) — Declarative agent configuration for the Baseline Agent (`rg_baseline_agent` & `baseline_agent`).
+- [`prompts/baseline-agent.md`](./prompts/baseline-agent.md) — Declarative agent configuration for the Ripgrep Baseline Agent (`rg_baseline_agent`).
 - [`prompts/graph-agent.md`](./prompts/graph-agent.md) — Declarative agent configuration for the CodeExplorer Graph Agent (`ce.exe query`).
-- [`results/metrics.json`](./results/metrics.json) — Complete machine-readable telemetry for **both Run 1A and Run 1B**, including `CHECKPOINT`-aware turn-by-turn context growth curves and tool call breakdowns.
-- [`results/ripgrep-baseline-agent-output.md`](./results/ripgrep-baseline-agent-output.md) — Verbatim report produced by the Ripgrep Baseline Agent in Run 1B (`5m 08s`).
-- [`results/flash-graph-agent-output.md`](./results/flash-graph-agent-output.md) — Verbatim report produced by the CodeExplorer Graph Agent in Run 1B (`2m 43s`).
-- [`results/baseline-agent-output.md`](./results/baseline-agent-output.md) — Verbatim report produced by the File-Only Baseline Agent in Run 1A (`15m 01s` answer / `16m 23s` total).
-- [`results/graph-agent-output.md`](./results/graph-agent-output.md) — Verbatim report produced by the CodeExplorer Graph Agent in Run 1A (`2m 37s` answer / `3m 31s` total).
+- [`results/metrics.json`](./results/metrics.json) — Complete machine-readable telemetry, including turn-by-turn context growth curves and tool call breakdowns.
+- [`results/baseline-agent-output.md`](./results/baseline-agent-output.md) — Verbatim report produced by the Ripgrep Baseline Agent (`5m 08s`).
+- [`results/graph-agent-output.md`](./results/graph-agent-output.md) — Verbatim report produced by the CodeExplorer Graph Agent (`2m 43s`).
