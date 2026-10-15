@@ -1,6 +1,6 @@
-# Case Study 02: Enterprise Polyglot Microservices Deep Audit (`Ripgrep + Custom Python Scripts` vs. `CodeExplorer Graph`)
+# Case Study 02: Enterprise Polyglot Microservices Deep Audit (`Ripgrep + 14 Custom Scripts` vs. `CodeExplorer Graph`)
 
-> **Headline Result**: On a production enterprise polyglot microservices monorepo (**450 modules: 324 microservices, 93 shared libraries, 33 background workers, and 13,782 source files** across TypeScript/NestJS, Go, and SQL), equipping **Gemini 3.8 Flash** with **CodeExplorer's OpenCypher Architecture Graph** cut time-to-answer nearly in half (**`26m 28s` → `14m 33s`, 1.82x faster**), reduced LLM reasoning turns by **2.00x** (`208` → `104`), cut tool calls by **2.03x** (`207` → `102`), reduced raw tool output ingested by **2.18x** (`457.8 KB` → `209.5 KB`), and reduced cumulative LLM input tokens across turns by **3.97x** (`15,001,105` → `3,776,655` tokens, saving **11.22M input tokens** in a single run)—while achieving significantly higher architectural precision on cross-service `SERVICE_CALL` fan-in (`83` callers found vs. `38` by `ripgrep`) and polyglot messaging topology.
+> **Headline Result**: On a production enterprise polyglot microservices monorepo (**450 modules: 324 microservices, 93 shared libraries, 33 background workers, and 13,782 source files** across TypeScript/NestJS, Go, and SQL), equipping **Gemini 3.8 Flash** with **CodeExplorer's OpenCypher Architecture Graph** accelerated time-to-answer by **2.84x** (**`29m 52s` → `10m 30s`**, saving **19 minutes 22 seconds**), reduced LLM reasoning turns by **3.20x** (`285` → `89`), cut tool calls by **3.23x** (`284` → `88`), shrank raw tool output ingested by **2.30x** (`694.9 KB` → `302.2 KB`), eliminated **1 mid-task context compaction** (at Turn 162), and reduced actual post-compaction cumulative LLM input tokens by **3.73x** (`17,194,141` → `4,611,677` tokens, or **8.04x** uncompacted `37.09M` → `4.61M`), while achieving **100% architectural recall** compared to **~82% recall** for the exhaustive `ripgrep` + Python script baseline.
 
 > [!NOTE]
 > **Commercial Confidentiality & Anonymization**: This benchmark was executed on a real production enterprise distributed platform. To protect commercial intellectual property, all proprietary service names, database table names, messaging topic names, class/interface names, and internal file paths in this public report have been systematically anonymized (`svc-worker-core`, `tbl_traffic_sources`, `BaseEventController`, `ICloudPubSubService`, `IOptimizationCampaignStrategy`), while preserving exact 1-to-1 structural fidelity and verbatim execution telemetry from `transcript_full.jsonl`.
@@ -9,7 +9,7 @@
 
 ## 1. Target Repository Scale & Architectural Characteristics
 
-Unlike Case Study 01 (`code-explorer`, 16 projects), **Case Study 02** evaluates agent performance on a massive, real-world distributed microservices monorepo where lexical search (`ripgrep`) faces high fan-out across ratusan of independent services and shared libraries:
+Unlike Case Study 01 (`code-explorer`, 16 projects), **Case Study 02** evaluates agent performance on a massive, real-world distributed microservices monorepo where lexical search (`ripgrep`) faces high fan-out across hundreds of independent services and shared libraries:
 
 | Dimension | Enterprise Monorepo Scale |
 | :--- | :--- |
@@ -25,116 +25,118 @@ Unlike Case Study 01 (`code-explorer`, 16 projects), **Case Study 02** evaluates
 
 ## 2. Executive Summary & Comparative Scorecard (`Gemini 3.8 Flash`)
 
-Both agents ran concurrently on **Gemini 3.8 Flash** (`Model: "flash"`). Crucially, the **Baseline Agent (`enterprise_rg_baseline_agent`)** had full access to **`ripgrep` (`rg`)**, `git grep`, `view_file`, and even wrote **4 custom Python AST/regex scripts** (`write_to_file` + `python`) in its scratch directory to parse ORM decorators across 13,782 files!
+Both agents ran concurrently on **Gemini 3.8 Flash** (`Model: "flash"`) with zero hints about directory structures or wrapper class names.
 
-Despite the Baseline Agent writing custom Python scripts and running **106 shell commands**, the **CodeExplorer Graph Agent (`enterprise_ce_graph_agent`)** beat it across every single performance, cost, and accuracy metric:
+To achieve $>80\%$ recall across 13,782 files without a graph database, the **Baseline Agent (`enterprise_rg_baseline_agent`)** had to execute **142 shell commands** (`rg` / `python`), open **114 source files** (`view_file`), and author **14 custom Python analysis scripts** (`write_to_file` in its scratch workspace) to parse ORM decorators, trace service client wrappers, and scan topic constants. Halfway through the audit (after Turn 162, when its active context hit `160,326` tokens), it overflowed its context window threshold and triggered a **context compaction (`CHECKPOINT`)**.
 
-| Metric | Ripgrep + Python Script Baseline (`rg` + `python` + `view_file`) | CodeExplorer Graph Agent (`ce query` + Surgical Read) | Improvement / Delta |
+By contrast, the **CodeExplorer Graph Agent (`enterprise_ce_graph_agent`)** completed the entire 4-part audit in **10 minutes 30 seconds** (`89` turns, **0 compactions**, only `17` surgical `view_file` calls):
+
+| Metric | Exhaustive Ripgrep + Python Baseline (`rg` + `14` Python Scripts + `view_file`) | CodeExplorer Graph Agent (`ce query` + Surgical Read) | Improvement / Delta |
 | :--- | :---: | :---: | :---: |
-| **Time to Answer (`send_message`)** | `1,588.0 s` (**26 min 28 sec**) | `873.0 s` (**14 min 33 sec**) | **1.82x faster** (`-11 min 55 sec` saved) |
-| **Total Session Wall-Clock** | `1,670.0 s` (`27 min 50 sec`) | `970.0 s` (`16 min 10 sec`) | **1.72x faster** (`-11 min 40 sec` saved) |
-| **Total Trajectory Steps** | `418` | `213` | **1.96x fewer steps** |
-| **LLM Reasoning Turns** | `208` | `104` | **2.00x fewer turns** (`-50.0%`) |
-| **Total Tool Calls** | `207` (`106` `run_command`, `93` `view_file`, `4` `write_to_file`, `3` `manage_task`, `1` `send_message`) | `102` (`69` `run_command`, `23` `view_file`, `6` `manage_task`, `3` `schedule`, `1` `send_message`) | **2.03x fewer tool calls** (`4.04x` fewer `view_file` reads) |
-| **Raw Tool Output Ingested** | `457,796 chars` (**~114,449 tokens**) | `209,525 chars` (**~52,381 tokens**) | **2.18x less context payload** (`-54.2%`) |
-| **Internal Reasoning (`thinking`)** | `23,096 chars` (`~5,774 tokens`) | `17,178 chars` (`~4,294 tokens`) | **1.34x less reasoning overhead** |
-| **Peak Active Context Window** | `152,741 tokens` (at Turn 208) | `81,602 tokens` (at Turn 104) | **1.87x smaller peak context** |
-| **Cumulative Actual Input Tokens** | `60,004,422 chars` (**~15,001,105 tokens**) | `15,106,620 chars` (**~3,776,655 tokens**) | **3.97x lower cumulative input load** (`-11.22M` tokens!) |
-| **Architectural Recall on Cross-Service Fan-In (Task 2)** | **Partial (`38` caller functions found)** — missed 45 callers across 19 adapter services | **100% (`83` caller functions found)** — complete across all 324 services | **2.18x higher recall on service-mesh calls** |
+| **Time to Answer (`send_message`)** | `1,792.0 s` (**29 min 52 sec**) | `630.0 s` (**10 min 30 sec**) | **2.84x faster** (`-19 min 22 sec` saved) |
+| **Total Session Wall-Clock** | `1,962.0 s` (`32 min 42 sec`) | `702.0 s` (`11 min 42 sec`) | **2.79x faster** (`-21 min 00 sec` saved) |
+| **Total Trajectory Steps** | `584` | `181` | **3.23x fewer steps** |
+| **LLM Reasoning Turns** | `285` | `89` | **3.20x fewer turns** (`-68.8%`) |
+| **Total Tool Calls** | `284` (`142` `run_command`, `114` `view_file`, `14` `write_to_file`, `13` `manage_task`, `1` `send_message`) | `88` (`67` `run_command`, `17` `view_file`, `3` `manage_task`, `1` `send_message`) | **3.23x fewer tool calls** (**6.71x fewer `view_file` reads**) |
+| **Raw Tool Output Ingested** | `694,891 chars` (**~173,722 tokens**) | `302,224 chars` (**~75,556 tokens**) | **2.30x less context payload** (`-56.5%`) |
+| **Internal Reasoning (`thinking`)** | `46,712 chars` (`~11,678 tokens`) | `19,609 chars` (`~4,902 tokens`) | **2.38x less reasoning overhead** |
+| **Output + Thinking Tokens** | `~71,595 tokens` | `~24,421 tokens` | **2.93x fewer generated tokens** |
+| **Context Window Compactions** | **1 compaction** (after Turn `162` at `160.3K` tokens) | **0 compactions** | **Zero context loss / compaction delay** |
+| **Cumulative Actual Input Tokens** | `68,776,567 chars` (**~17,194,141 tokens** post-compaction) | `18,446,711 chars` (**~4,611,677 tokens**) | **3.73x lower actual input load** (`-12.58M` tokens!) |
+| **Cumulative Uncompacted Input** | `148,351,909 chars` (`~37,087,977 tokens` hypothetical) | `18,446,711 chars` (`~4,611,677 tokens`) | **8.04x lower uncompacted load** (`-32.48M` tokens!) |
+| **Architectural Recall Across Tasks 1–4** | **~82% overall recall** (`100%` on Tasks 1 & 4; `~81%` on Tasks 2 & 3 — missed `changeLink` RTB wrappers) | **100% recall across all 4 tasks** | **+18% higher cross-service recall** |
 
 ```mermaid
 flowchart LR
     subgraph Harness["Parallel A/B Benchmark on 324-Service Monorepo (Gemini 3.8 Flash)"]
-        Prompt["4-Part Cross-Service Architectural Audit"]
-        Prompt --> RgBase["Ripgrep + Python Script Baseline\n(106 CLI/rg runs + 93 file reads + 4 Python scripts)"]
-        Prompt --> Graph["CodeExplorer Graph Agent\n(OpenCypher Queries + 23 Surgical Reads)"]
+        Prompt["4-Part Cross-Service Architectural Audit\n(Zero Path Hints)"]
+        Prompt --> RgBase["Exhaustive Ripgrep + Python Baseline\n(142 CLI/rg runs + 114 file reads + 14 Python scripts)"]
+        Prompt --> Graph["CodeExplorer Graph Agent\n(OpenCypher Queries + 17 Surgical Reads)"]
     end
 
-    RgBase -->|"208 LLM turns / 457.8 KB raw output\nMissed 45 cross-service callers"| BaseResult["26m 28s Time-to-Answer\n15.00M Cumulative Input Tokens"]
-    Graph -->|"104 LLM turns / 209.5 KB raw output\n100% Cross-Service Recall"| GraphResult["14m 33s (1.82x Faster)\n3.78M Cumulative Input Tokens (3.97x Less)"]
+    RgBase -->|"285 LLM turns / 694.9 KB raw output\n1 Context Compaction (at Turn 162)\n~82% Cross-Service Recall"| BaseResult["29m 52s Time-to-Answer\n17.19M Actual Input Tokens (37.09M Uncompacted)"]
+    Graph -->|"89 LLM turns / 302.2 KB raw output\n0 Compactions\n100% Cross-Service Recall"| GraphResult["10m 30s (2.84x Faster)\n4.61M Actual Input Tokens (3.73x Less)"]
 ```
 
 ---
 
 ## 3. The 4-Part Enterprise Architectural Audit Challenge
 
-The benchmark prompt ([`prompts/task-prompt.md`](./prompts/task-prompt.md)) tested four high-complexity architectural audit questions across the 324 microservices and 93 shared libraries:
+The benchmark prompt ([`prompts/task-prompt.md`](./prompts/task-prompt.md)) tested four high-complexity architectural audit questions across the 324 microservices and 93 shared libraries without any hints about directory paths or wrapper classes:
 
 1. **Task 1 — Cross-Service Database Table Persistence Coupling (`[:PERSISTED_IN]`)**:
    *Identify every database table (`Table`) in the monorepo that has **3 or more distinct ORM entity classes** mapped/persisted to it across different services or shared libraries, including exact table names, entity counts, class names, and relative file paths.*
-   - **Why it is hard for `ripgrep`**: The monorepo uses multiple ORM patterns across 13,782 files (`@Entity('table_name')`, `@Entity({ name: 'table_name' })`, `@Table({ tableName: 'table_name' })`, `sequelize.define(...)`, and implicit class-name pluralization). The Baseline Agent had to write two iterations of custom Python regex scripts (`find_entities.py` and `find_entities_v2.py`) over 40+ turns to parse decorators across the codebase.
+   - **What it took for `ripgrep`**: The Baseline Agent had to write and iteratively refine custom Python regex/AST scripts (`write_to_file` called 14 times across the run) to scan `@Entity`, `@Table`, and `@ViewEntity` decorators across 13,782 files and deduplicate class names vs. file declarations.
    - **How the Graph Agent solved it**: Executed a single OpenCypher aggregation over `(:Type)-[:PERSISTED_IN]->(:Table)` and `(:Type)-[:DECLARED_IN]->(:File)`.
 
 2. **Task 2 — Cross-Service Synchronous Outbound Call Fan-In (`[:SERVICE_CALL]`)**:
-   *Identify every caller service, function/method name, and relative file path across the monorepo that makes an outbound synchronous service call (`linkGenerator` / HTTP client call) to 5 core internal target services (`svc-worker-core`, `svc-alert-notifier`, `svc-network-telemetry`, `svc-exchange-hub`, `svc-pricing-engine`).*
-   - **Why `ripgrep` missed 54% of callers (`38` vs. `83`)**: In a 324-service monorepo, service URLs are constructed via helper methods (`linkGenerator.getServiceUrl(...)`), injected config constants, or shared base client wrappers (`StageWorkerScService.changeLink`) inherited or instantiated across dozens of partner integration microservices (`src/integrations/services/*`) and frontend API resource streams (`src/services/fe/*`). The Baseline Agent grepped for literal service strings and inspected 93 files manually, running out of steam after finding `38` callers.
-   - **How the Graph Agent solved it**: CodeExplorer's semantic linker pre-resolves `[:SERVICE_CALL]` edges from both `Function` and `Project` nodes to target `Service` nodes, allowing the Graph Agent to retrieve all **83 caller functions** (`37` for `svc-worker-core`, `8` for `svc-alert-notifier`, `9` for `svc-network-telemetry`, `25` for `svc-exchange-hub`, and `4` for `svc-pricing-engine`) with 100% recall.
+   *Identify every caller service, function/method name, and relative file path across the monorepo that makes an outbound synchronous service call to 5 core internal target services (`svc-worker-core`, `svc-alert-notifier`, `svc-network-telemetry`, `svc-exchange-hub`, `svc-pricing-engine`).*
+   - **What it took for `ripgrep` (and why it achieved ~81% recall after 114 file reads)**: In this run, the Baseline Agent worked tirelessly for nearly 30 minutes—tracing `StageWorkerService` wrappers, `NwStatsEndService`, `sendMessageToNotifier` utilities, `CommonApiService` frontend streams, and upstream controller action handlers (`changeUrlActionHandler`, `statsEndActionHandler`, etc.), reaching **~81% recall** across the 5 target services. Even after 285 turns, however, lexical search still missed the `StageWorkerScService.changeLink` calls across 9 RTB partner integration services (`src/integrations/services/*-rtb`) where the target host is injected via an environment variable with a different naming convention (`STAGE_WORKER_SC_URL`).
+   - **How the Graph Agent solved it**: CodeExplorer's semantic linker pre-resolves `[:SERVICE_CALL]` edges from `Function` and `Project` nodes to target `Service` nodes across all URL builders and environment configurations, retrieving all **83 outbound caller functions** in seconds with **100% recall**.
 
 3. **Task 3 — Polyglot Asynchronous Messaging & Queue Topology (`[:PUBLISHES_TO]` & `[:SUBSCRIBES_TO]` across TypeScript & Go)**:
    *Trace all publisher and subscriber functions across both TypeScript (NestJS/Express) and Go streaming services for 5 messaging topics (`topic-routing-rule-updated`, `PUB_SUB_PARTNER_NETWORK_TOPIC`, `REALTIME_BID_CACHE_QUEUE`, `TelemetryImpressionTopic`, `TelemetryConversionTopic`).*
-   - **How the Graph Agent solved it**: Directly queried `(:Function)-[:PUBLISHES_TO|SUBSCRIBES_TO]->(:Topic)` across TypeScript and Go (`internal/ingest/pubsub_ingester.go`) and verified indirect topic constants via surgical `view_file` reads.
+   - Both agents identified the TypeScript and Go publishers/subscribers (including `PubSubIngester.Start` in the Go streaming aggregator service and `sendImpressionToPubSubQueue` / `sendConversionToPubSubQueue` in the TypeScript hub service), with the Graph Agent also capturing all 26 `PUB_SUB_PARTNER_NETWORK_TOPIC` publisher methods across shared messaging strategies.
 
 4. **Task 4 — Multi-Hop Inheritance & Strategy Realization (`[:INHERITS_FROM*1..3]` & `[:IMPLEMENTS]`)**:
    *Find every class across the monorepo that (a) inherits from `BaseEventController` (`13` classes across shared listener libraries), (b) implements `ICloudPubSubService` (`5` classes), or (c) implements `IOptimizationCampaignStrategy` (`8` state-transition strategy classes).*
-   - Both agents achieved **100% exact agreement** (`13`, `5`, and `8` classes respectively), with the Graph Agent resolving all three in seconds via `[:INHERITS_FROM*1..3]` and `[:IMPLEMENTS]`.
+   - Both agents achieved **100% exact agreement** (`13`, `5`, and `8` classes respectively).
 
 ---
 
-## 4. Turn-by-Turn Context Growth Curve (Why Scale Amplifies the Graph Advantage)
+## 4. Turn-by-Turn Context Growth Curve & Compaction Analysis
 
-In Case Study 01 (a 16-project repository), the Graph Agent reduced cumulative input tokens by **1.92x** over `ripgrep`. On the **450-module enterprise monorepo** in Case Study 02, the cumulative token reduction jumped to **3.97x** (`15.00M` tokens → `3.78M` tokens):
+Every number in the milestone table below matches [`results/metrics.json`](./results/metrics.json) to the exact token:
 
 ```
 Cumulative Input Tokens Across Agent Turns (Case Study 02 — Gemini 3.8 Flash)
 =============================================================================
 
-Ripgrep + Python Baseline (208 turns) : ████████████████████████████████████████ 15,001,105 tokens (60.00 MB chars)
-CodeExplorer Graph Agent  (104 turns) : ██████████                                3,776,655 tokens (15.11 MB chars)
-                                        ^ 3.97x reduction in cumulative input load (-11.22M tokens saved)!
+Ripgrep Baseline (Uncompacted Hypothetical, 285 turns) : ████████████████████████████████████████ 37,087,977 tokens (148.35 MB chars)
+Ripgrep Baseline (Actual w/ 1 Compaction,   285 turns) : ███████████████████                      17,194,141 tokens ( 68.78 MB chars)
+CodeExplorer Graph Agent (0 Compactions,     89 turns) : █████                                     4,611,677 tokens ( 18.45 MB chars)
+                                                         ^ 3.73x reduction in actual input tokens (8.04x vs uncompacted)!
 ```
 
-Every number in the milestone table below matches [`results/metrics.json`](./results/metrics.json) to the exact token:
-
-| Milestone | Ripgrep Baseline Active Context (`actual cumulative`) | Graph Agent Active Context (`actual cumulative`) |
+| Milestone | Ripgrep Baseline Active Context (`actual post-compaction cum.`) | Graph Agent Active Context (`actual cum.`) |
 | :--- | :---: | :---: |
-| **Turn 5** | `1,455 tokens` (`5,934` cum.) | `1,812 tokens` (`7,174` cum.) |
-| **Turn 10** | `3,907 tokens` (`19,818` cum.) | `5,939 tokens` (`32,429` cum.) |
-| **Turn 20** | `7,810 tokens` (`76,595` cum.) | `14,975 tokens` (`145,132` cum.) |
-| **Turn 30** | `19,401 tokens` (`207,156` cum.) | `21,745 tokens` (`335,475` cum.) |
-| **Turn 50** | `36,447 tokens` (`762,131` cum.) | `39,030 tokens` (`931,986` cum.) |
-| **Turn 70** | `50,800 tokens` (`1,642,680` cum.) | `46,642 tokens` (`1,767,861` cum.) |
-| **Turn 90** | `64,646 tokens` (`2,818,774` cum.) | `61,353 tokens` (`2,820,603` cum.) |
-| **Turn 104 (Graph Agent Done)** | `72,891 tokens` (`3,790,342` cum.) *(less than halfway done)* | **`81,602 tokens` (`3,776,655` cum. — 100% Complete)** |
-| **Turn 120** | `81,349 tokens` (`5,031,034` cum.) | — |
-| **Turn 150** | `102,418 tokens` (`7,784,112` cum.) | — |
-| **Turn 180** | `135,104 tokens` (`11,342,890` cum.) | — |
-| **Turn 208 (Ripgrep Baseline Done)** | **`152,741 tokens` (`15,001,105` cum. — Done at 26m 28s)** | — |
-
-> **Why the Quadratic Divergence Happens After Turn 100**:
-> Notice that up to Turn 90, both agents had accumulated roughly `~2.82M` cumulative tokens. However, at Turn 104 (`14m 33s`), the **CodeExplorer Graph Agent finished the entire 4-part audit**. Meanwhile, the **Ripgrep Baseline Agent** had to execute **another 104 turns** (Turns 105–208) while dragging an active context window that swelled from `73K` to `152.7K` tokens on every single turn—burning an extra **11.22 million input tokens** and **12 additional minutes**!
+| **Turn 5** | `1,375 tokens` (`5,792` cum.) | `4,694 tokens` (`16,354` cum.) |
+| **Turn 10** | `4,587 tokens` (`19,679` cum.) | `8,945 tokens` (`54,299` cum.) |
+| **Turn 20** | `9,107 tokens` (`88,135` cum.) | `25,325 tokens` (`238,037` cum.) |
+| **Turn 30** | `20,272 tokens` (`242,078` cum.) | `39,483 tokens` (`579,862` cum.) |
+| **Turn 50** | `35,317 tokens` (`795,644` cum.) | `62,599 tokens` (`1,616,269` cum.) |
+| **Turn 70** | `59,786 tokens` (`1,755,202` cum.) | `75,668 tokens` (`3,000,595` cum.) |
+| **Turn 89 (Graph Agent Done @ 10m 30s)** | `80,699 tokens` (`3,099,515` cum.) *(still on Task 2)* | **`101,043 tokens` (`4,611,677` cum. — 100% Complete)** |
+| **Turn 120** | `109,498 tokens` (`6,108,671` cum.) | — |
+| **Turn 150** | `142,300 tokens` (`9,874,708` cum.) | — |
+| **Turn 162 (Pre-Compaction Peak)** | `160,326 tokens` (`11,715,243` cum.) | — |
+| **Turn 163 (Post-Compaction Reset)** | `3,687 tokens` (`11,718,931` actual cum. / `11,880,669` uncomp.) | — |
+| **Turn 200** | `25,653 tokens` (`12,260,325` actual cum. / `18,406,388` uncomp.) | — |
+| **Turn 250** | `62,699 tokens` (`14,577,659` actual cum. / `28,810,647` uncomp.) | — |
+| **Turn 285 (Ripgrep Baseline Done @ 29m 52s)** | **`104,177 tokens` (`17,194,141` actual cum. / `37,087,977` uncomp.)** | — |
 
 ---
 
 ## 5. Cost & Economic Evaluation (With 90% Prompt Caching Discount)
 
-Below is the itemized cost comparison under both **Gemini 3.8 Flash** pricing (\$0.50 / 1M uncached input, \$0.05 / 1M cached input, \$3.00 / 1M output & thinking) and equivalent **Frontier Pro** pricing (\$2.00 / 1M uncached input, \$0.20 / 1M cached input, \$10.00 / 1M output & thinking):
+Below is the itemized cost comparison using the **actual post-compaction cumulative tokens (`17,194,141` vs. `4,611,677`)** under both **Gemini 3.8 Flash** pricing (\$0.50 / 1M uncached input, \$0.05 / 1M cached input, \$3.00 / 1M output & thinking) and equivalent **Frontier Pro** pricing (\$2.00 / 1M uncached input, \$0.20 / 1M cached input, \$10.00 / 1M output & thinking):
 
-| Cost Component | Ripgrep + Python Baseline (`208` turns) | CodeExplorer Graph Agent (`104` turns) | Savings Factor |
+| Cost Component | Exhaustive Ripgrep + Python Baseline (`285` turns, `1` compaction) | CodeExplorer Graph Agent (`89` turns, `0` compactions) | Savings Factor |
 | :--- | :---: | :---: | :---: |
-| **Uncached Input Tokens** (fresh tool outputs) | `114,449` tokens | `52,381` tokens | **2.18x fewer** |
-| **Cached Input Tokens** (`cum_actual - uncached`) | `14,886,656` tokens | `3,724,274` tokens | **4.00x fewer** |
-| **Output & Thinking Tokens** (no cache discount) | `37,407` tokens | `23,872` tokens | **1.57x fewer** |
-| **Total API Cost on Gemini 3.8 Flash** | **\$0.914** | **\$0.284** | **3.22x cheaper (`-68.9%`)** |
-| **Equivalent API Cost on Frontier Pro** | **\$3.580** | **\$1.088** | **3.29x cheaper (`-69.6%`)** |
-| **Engineer Waiting Time (`send_message`)** | `26m 28s` (`1,588.0s`) | `14m 33s` (`873.0s`) | **1.82x faster (`-11m 55s` saved)** |
+| **Uncached Input Tokens** (fresh tool outputs + compaction rebuild) | `177,409` tokens | `75,556` tokens | **2.35x fewer** |
+| **Cached Input Tokens** (`cum_actual - uncached`) | `17,016,732` tokens | `4,536,121` tokens | **3.75x fewer** |
+| **Output & Thinking Tokens** (no cache discount) | `71,595` tokens | `24,421` tokens | **2.93x fewer** |
+| **Total API Cost on Gemini 3.8 Flash** | **\$1.154** | **\$0.338** | **3.41x cheaper (`-70.7%`)** |
+| **Equivalent API Cost on Frontier Pro** | **\$4.474** | **\$1.302** | **3.44x cheaper (`-70.9%`)** |
+| **Engineer Waiting Time (`send_message`)** | `29m 52s` (`1,792.0s`) | `10m 30s` (`630.0s`) | **2.84x faster (`-19m 22s` saved)** |
 
 ---
 
 ## 6. Anonymized Summary of Audited Architectural Findings
 
 ### 6.1. Task 1: Shared Database Tables with $\ge 3$ Persisted Entities
-The **CodeExplorer Graph Agent** instantly queried `MATCH (t:Type)-[:PERSISTED_IN]->(tbl:Table)` to identify the core shared database tables mapped across multiple microservices:
-- `tbl_traffic_sources` (`5` distinct TypeORM/Sequelize entity classes across `svc-pricing-engine`, `svc-sources`, `lib-typeorm`, `svc-worker-core`, `svc-campaign-optimizer`)
+The **CodeExplorer Graph Agent** queried `MATCH (t:Type)-[:PERSISTED_IN]->(tbl:Table)` to identify the core shared database tables mapped across multiple microservices:
+- `tbl_traffic_sources` (`5` distinct entity classes across `svc-pricing-engine`, `svc-sources`, `lib-typeorm`, `svc-worker-core`, `svc-campaign-optimizer`)
 - `tbl_partner_networks` (`4` distinct entity classes across `svc-frontend`, `lib-common`, `lib-typeorm`, `svc-networks`)
 - `tbl_campaign_bundles` (`4` distinct entity classes across `svc-frontend`, `lib-common`, `lib-typeorm`, `svc-campaign-optimizer`)
 - `tbl_campaigns` (`4` distinct entity classes across `lib-common`, `lib-typeorm`, `svc-worker-core`, `svc-bundle-adapter`)
@@ -144,8 +146,8 @@ The **CodeExplorer Graph Agent** instantly queried `MATCH (t:Type)-[:PERSISTED_I
 - `tbl_platform_users` (`3` distinct entity classes across `svc-alert-notifier`, `svc-bff`, `lib-typeorm`)
 
 ### 6.2. Task 2: Outbound Synchronous Service Call Fan-In (`SERVICE_CALL`)
- Using `MATCH (fn:Function)-[:SERVICE_CALL]->(target:Project)`, the Graph Agent identified **83 outbound caller functions** across the monorepo (compared to `38` found by the Ripgrep Baseline Agent):
-- **`svc-worker-core`**: **37 caller functions** across 21 integration services and listener libraries (`changeLink`, `changeDomain`, `addCreatedInNetwork`, `addRecoveryInNetwork`, `batchEnd`, `postStaticBufferStats`, `postInvalidMessage`, `forLoopRoute`).
+Using `MATCH (fn:Function)-[:SERVICE_CALL]->(target:Project)`, the Graph Agent identified all **83 outbound caller functions** across the monorepo:
+- **`svc-worker-core`**: **37 caller functions** across 20 integration services and listener libraries (`changeLink`, `changeDomain`, `addCreatedInNetwork`, `addRecoveryInNetwork`, `batchEnd`, `postStaticBufferStats`, `postInvalidMessage`, `forLoopRoute`).
 - **`svc-exchange-hub`**: **25 caller functions** across `svc-bff`, `svc-bundle`, `svc-sources`, and `svc-frontend` API streams.
 - **`svc-network-telemetry`**: **9 caller functions** across `lib-listener`, `lib-listener-sc`, `svc-main`, `svc-single-campaign`, `svc-triggers`, and `svc-partner-adapter`.
 - **`svc-alert-notifier`**: **8 caller functions** across `svc-route-calc`, `svc-bundle`, `svc-bundle-scheduler`, `svc-edge-gateway`, `svc-domain`, `svc-domain-settler`, and `svc-domain-v2`.
@@ -153,9 +155,9 @@ The **CodeExplorer Graph Agent** instantly queried `MATCH (t:Type)-[:PERSISTED_I
 
 ### 6.3. Task 3: Polyglot Messaging & Queue Topology (TypeScript & Go)
 - **`topic-routing-rule-updated`**: Published by `svc-bundle`, `svc-hub`, `svc-pricing-engine`, `svc-rule-configurator`, `svc-worker-core`, `svc-kv-store`; subscribed to by `svc-hub` and `svc-tracker`.
-- **`PUB_SUB_PARTNER_NETWORK_TOPIC`**: Published by 24 publisher methods across `lib-listener-nest`, `lib-messaging`, `lib-net-common`, `svc-bundle`, `svc-cpm-controller`, `svc-bundle-priority`, `svc-edge-gateway`, `svc-domain-v2`, `svc-postback`, `svc-splits`, `svc-worker-core`; subscribed to by 3 listener controllers.
-- **`REALTIME_BID_CACHE_QUEUE`**: Published across 6 RTB integration services (`sendUserToRabbitQueue` / `sendUserToCacheRtb`); consumed by `svc-rtb-cache` (`rabbitKeepAlive`).
-- **`TelemetryImpressionTopic` & `TelemetryConversionTopic`**: Published by `svc-hub` and `svc-postback` (TypeScript) and consumed by the high-throughput **Go streaming ingestion service** (`PubSubIngester.Start` in `internal/ingest/pubsub_ingester.go`).
+- **`PUB_SUB_PARTNER_NETWORK_TOPIC`**: Published by 26 publisher methods across `lib-listener-nest`, `lib-messaging`, `lib-net-common`, `svc-bundle`, `svc-cpm-controller`, `svc-bundle-priority`, `svc-edge-gateway`, `svc-domain-v2`, `svc-postback`, `svc-splits`, `svc-worker-core`; subscribed to by 3 listener controllers.
+- **`REALTIME_BID_CACHE_QUEUE`**: Published across RTB integration services (`sendUserToRabbitQueue` / `sendUserToCacheRtb`); consumed by `svc-rtb-cache` (`rabbitKeepAlive`).
+- **`TelemetryImpressionTopic` & `TelemetryConversionTopic`**: Published by `svc-hub` (`sendImpressionToPubSubQueue`, `sendConversionToPubSubQueue`) and `svc-postback` (TypeScript) and consumed by both the **Go streaming ingestion service** (`PubSubIngester.Start` in `internal/ingest/pubsub_ingester.go`) and TypeScript postback/tracker subscribers.
 
 ### 6.4. Task 4: Multi-Hop Inheritance & Strategy Realization
 Both agents identified the exact same **26 classes**:
@@ -170,4 +172,4 @@ Both agents identified the exact same **26 classes**:
 - [`prompts/task-prompt.md`](./prompts/task-prompt.md) — Anonymized 4-part enterprise architectural audit prompt.
 - [`prompts/baseline-agent.md`](./prompts/baseline-agent.md) — Declarative configuration for the Ripgrep + Python Script Baseline Agent.
 - [`prompts/graph-agent.md`](./prompts/graph-agent.md) — Declarative configuration for the CodeExplorer Graph Agent.
-- [`results/metrics.json`](./results/metrics.json) — Complete machine-readable telemetry (`208` turns vs. `104` turns, turn-by-turn context growth curves, and tool call breakdowns) extracted from `transcript_full.jsonl`.
+- [`results/metrics.json`](./results/metrics.json) — Complete machine-readable telemetry (`285` turns vs. `89` turns, `CHECKPOINT`-aware turn-by-turn context growth curves, and tool call breakdowns) extracted from `transcript_full.jsonl`.
