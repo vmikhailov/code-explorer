@@ -1,6 +1,6 @@
 # Benchmark Task Prompt: Polyglot Architecture Discovery & Blast Radius Analysis
 
-Perform a precise architectural and impact analysis on the `c:\Work\Personal\code-explorer` repository and answer all three questions below with 100% completeness (do not guess or omit items; provide exact class names, method names, and relative file paths):
+Perform a precise architectural and impact analysis on the `code-explorer` repository and answer all three questions below with 100% completeness (do not guess or omit items; provide exact class names, method names, and relative file paths):
 
 1. **Interface Implementations across the Codebase**:
    List every class that implements:

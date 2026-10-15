@@ -1,4 +1,4 @@
-Here is the complete architectural and impact analysis for `c:\Work\Personal\code-explorer`:
+Here is the complete architectural and impact analysis for the `code-explorer` repository:
 
 ---
 

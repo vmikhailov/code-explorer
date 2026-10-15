@@ -28,7 +28,7 @@ By contrast, a **CodeExplorer Graph Agent** executes targeted **OpenCypher** que
 
 ## 2. Methodology & Controlled Experimental Setup
 
-To eliminate confounding variables (network variance, model differences, hardware load, or repository state drift), the benchmark was executed as a **simultaneous, paired A/B test** inside Google Antigravity on the `code-explorer` repository (`c:\Work\Personal\code-explorer`, a polyglot C# .NET 10 + TypeScript/React codebase with 16 production/test projects).
+To eliminate confounding variables (network variance, model differences, hardware load, or repository state drift), the benchmark was executed as a **simultaneous, paired A/B test** inside Google Antigravity on the `code-explorer` repository (a polyglot C# .NET 10 + TypeScript/React codebase with 16 production/test projects).
 
 ### 2.1. Strict Tool & Environment Isolation
 Both subagents were spawned in parallel at the exact same second (`2026-10-15T00:38:48Z`) using the exact same frontier model (`MODEL_PLACEHOLDER_M417` / Gemini 3.1 Pro) and identical user prompt, with `inheritCustomizations: false` and `inheritMcp: false`:
@@ -70,7 +70,7 @@ All metrics were extracted directly from the immutable JSONL execution transcrip
 The full verbatim prompt ([`prompts/task-prompt.md`](./prompts/task-prompt.md)) was designed to test three core capabilities required in real-world software engineering:
 
 ```markdown
-Perform a precise architectural and impact analysis on the `c:\Work\Personal\code-explorer` repository and answer all three questions below with 100% completeness (do not guess or omit items; provide exact class names, method names, and relative file paths):
+Perform a precise architectural and impact analysis on the `code-explorer` repository and answer all three questions below with 100% completeness (do not guess or omit items; provide exact class names, method names, and relative file paths):
 
 1. **Interface Implementations across the Codebase**:
    List every class that implements:
