@@ -53,6 +53,7 @@ public static class ProjectRoleDetector
             ProjectEntityKind.DatabaseMigration => (ProjectRole.DatabaseMigration, false),
             ProjectEntityKind.FunctionApp => (ProjectRole.Service, false),
             ProjectEntityKind.Service => (ProjectRole.Service, false),
+            ProjectEntityKind.ScriptProject => (ProjectRole.ScriptProject, false),
             _ => (ProjectRole.Service, false)
         };
 

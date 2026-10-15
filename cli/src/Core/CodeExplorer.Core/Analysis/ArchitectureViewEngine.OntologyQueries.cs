@@ -457,7 +457,7 @@ public partial class ArchitectureViewEngine
             try
             {
                 var normSrv = WorkspaceConventions.NormalizeServiceName(service);
-                var sQuery = "MATCH (s) WHERE (s.name = $srv OR s.name = $normSrv OR s.raw_name = $srv OR s.id = $srv OR s.id = 'ws:s:' + $srv OR s.id = 'ws:s:' + $normSrv OR s.id = 'ws:app:' + $srv OR s.id = 'ws:p:' + $srv OR s.id = 'workspace:p:' + $srv OR s.id = 'workspace:service:' + $srv OR s.id = 'workspace:app:' + $srv OR s.id = 'workspace:project:' + $srv) AND (s:Service OR s:App OR s:Worker OR s:CliTool OR s:Project) RETURN s.id AS id, coalesce(s.name, s.id) AS name, labels(s)[0] AS kind ORDER BY CASE WHEN labels(s)[0] IN ['Service', 'App', 'Worker', 'CliTool'] THEN 0 ELSE 1 END LIMIT 1";
+                var sQuery = "MATCH (s) WHERE (s.name = $srv OR s.name = $normSrv OR s.raw_name = $srv OR s.id = $srv OR s.id = 'ws:s:' + $srv OR s.id = 'ws:s:' + $normSrv OR s.id = 'ws:app:' + $srv OR s.id = 'ws:p:' + $srv OR s.id = 'workspace:p:' + $srv OR s.id = 'workspace:service:' + $srv OR s.id = 'workspace:app:' + $srv OR s.id = 'workspace:project:' + $srv) AND (s:Service OR s:App OR s:Worker OR s:CliTool OR s:TestSuite OR s:Project) RETURN s.id AS id, coalesce(s.name, s.id) AS name, labels(s)[0] AS kind ORDER BY CASE WHEN labels(s)[0] IN ['Service', 'App', 'Worker', 'CliTool', 'TestSuite'] THEN 0 ELSE 1 END LIMIT 1";
                 var sJson = await db.ExecuteQueryAsync(sQuery, new Dictionary<string, object> { ["srv"] = service, ["normSrv"] = normSrv }, ct);
 
                 using var sDoc = JsonDocument.Parse(sJson);
@@ -1054,7 +1054,7 @@ public partial class ArchitectureViewEngine
         var list = new List<ServiceSummaryDto>();
         try
         {
-            var query = "MATCH (s) WHERE (s:Service OR s:App OR s:Worker OR s:CliTool OR s:FrontendApp) RETURN DISTINCT s.id AS id, coalesce(s.name, s.id) AS name, labels(s) AS lbl, s.role AS role, s.framework AS framework, s.language AS language ORDER BY s.name ASC";
+            var query = "MATCH (s) WHERE (s:Service OR s:App OR s:Worker OR s:CliTool OR s:FrontendApp OR s:TestSuite) RETURN DISTINCT s.id AS id, coalesce(s.name, s.id) AS name, labels(s) AS lbl, s.role AS role, s.framework AS framework, s.language AS language ORDER BY s.name ASC";
             var json = await db.ExecuteQueryAsync(query, null, ct);
 
             using var doc = JsonDocument.Parse(json);
@@ -1065,7 +1065,7 @@ public partial class ArchitectureViewEngine
             if (root.GetArrayLength() == 0)
             {
                 var fallbackQuery =
-                    "MATCH (s:Project) WHERE json_extract(s.properties, '$.role') IN ['Service', 'App', 'FrontendApp', 'Worker', 'CliTool'] RETURN DISTINCT s.id AS id, coalesce(s.name, s.id) AS name, labels(s) AS lbl, s.role AS role, s.framework AS framework, s.language AS language ORDER BY s.name ASC";
+                    "MATCH (s:Project) WHERE json_extract(s.properties, '$.role') IN ['Service', 'App', 'FrontendApp', 'Worker', 'CliTool', 'Test', 'TestSuite'] RETURN DISTINCT s.id AS id, coalesce(s.name, s.id) AS name, labels(s) AS lbl, s.role AS role, s.framework AS framework, s.language AS language ORDER BY s.name ASC";
                 var fbJson = await db.ExecuteQueryAsync(fallbackQuery, null, ct);
                 fallbackDoc = JsonDocument.Parse(fbJson);
                 root = fallbackDoc.RootElement;
@@ -1090,6 +1090,7 @@ public partial class ArchitectureViewEngine
                     else if (r is "Worker") nodeKind = NodeKind.Worker;
                     else if (r is "SharedLibrary" or "Library") nodeKind = NodeKind.Library;
                     else if (r is "CliTool") nodeKind = NodeKind.CliTool;
+                    else if (r is "Test" or "TestSuite") nodeKind = NodeKind.TestSuite;
                 }
                 else if (row.TryGetProperty("lbl", out var lblProp) && lblProp.ValueKind == JsonValueKind.Array)
                 {
@@ -1097,7 +1098,7 @@ public partial class ArchitectureViewEngine
                     {
                         var ls = l.GetString();
 
-                        if (ls is "Service" or "Worker" or "App" or "CliTool" or "FrontendApp")
+                        if (ls is "Service" or "Worker" or "App" or "CliTool" or "FrontendApp" or "TestSuite" or "Test")
                         {
                             nodeKind = EnumExtensions.ParseNodeKind(ls);
                             break;
@@ -1146,7 +1147,7 @@ public partial class ArchitectureViewEngine
                         JOIN edges _r0 ON _r0.to_id = ep.id AND _r0.kind = 'CONTAINS'
                         JOIN nodes s ON s.id = _r0.from_id
                         WHERE ep.kind = 'Endpoint'
-                          AND (s.kind IN ('Project', 'Service', 'App', 'Worker', 'CliTool'))
+                          AND (s.kind IN ('Project', 'Service', 'App', 'Worker', 'CliTool', 'TestSuite'))
                         GROUP BY sName, sId;
                         """;
                     epJson = await sqliteClient.ExecuteRawAsync(fastEpQuery, null, ct);
@@ -1154,7 +1155,7 @@ public partial class ArchitectureViewEngine
                 else
                 {
                     var epCountQuery =
-                        "MATCH (s)-[:CONTAINS]->(ep:Endpoint) WHERE (s:Project OR s:Service OR s:App OR s:Worker OR s:CliTool) RETURN coalesce(s.name, s.id) AS sName, s.id AS sId, count(ep) AS epCount";
+                        "MATCH (s)-[:CONTAINS]->(ep:Endpoint) WHERE (s:Project OR s:Service OR s:App OR s:Worker OR s:CliTool OR s:TestSuite) RETURN coalesce(s.name, s.id) AS sName, s.id AS sId, count(ep) AS epCount";
                     epJson = await db.ExecuteQueryAsync(epCountQuery, null, ct);
                 }
 

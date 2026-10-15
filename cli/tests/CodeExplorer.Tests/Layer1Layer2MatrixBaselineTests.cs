@@ -144,7 +144,7 @@ public class Layer1Layer2MatrixBaselineTests
         var discoveredProjectTypes = projectParsers
             .Select(p => p.ProjectType.ToLowerInvariant())
             .Distinct()
-            .Where(t => t != "sql" && t != "javascript") // SQL is embedded, JavaScript is handled by TypeScriptParser
+            .Where(t => t != "sql" && t != "javascript" && t != "script") // SQL is embedded, JavaScript is handled by TypeScriptParser, script is loose-script fallback
             .ToList();
 
         // 3. Extract all tested project types from expected.json

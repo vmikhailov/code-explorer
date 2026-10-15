@@ -227,67 +227,67 @@ public class Layer4SemanticParser
             extensions["clean_name"] = cleanName;
 
             var isTestProject = project.Role == OntologyConstants.ProjectRoles.Test ||
+                                project.IsTest ||
                                 string.Equals(project.Extensions?.GetValueOrDefault("primary_role"), "TestFramework", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(project.Extensions?.GetValueOrDefault("primary_role"), "Test", StringComparison.OrdinalIgnoreCase) ||
                                 string.Equals(project.Extensions?.GetValueOrDefault("has_test_runner"), "true", StringComparison.OrdinalIgnoreCase) ||
                                 string.Equals(project.Extensions?.GetValueOrDefault("is_test_project"), "true", StringComparison.OrdinalIgnoreCase);
 
-            IOntologyNode workloadNode = project.Role switch
-            {
-                OntologyConstants.ProjectRoles.FrontendApp => new AppNode(
-                    $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.App}:{cleanName}",
+            IOntologyNode workloadNode = isTestProject
+                ? new TestSuiteNode(
+                    $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.TestSuite}:{cleanName}",
                     cleanName,
                     project.Path,
                     project.ProjectType,
-                    extensions),
-
-                OntologyConstants.ProjectRoles.Service => new ServiceNode(
-                    $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Service}:{cleanName}",
-                    cleanName,
-                    project.Path,
-                    project.ProjectType,
-                    extensions),
-
-                OntologyConstants.ProjectRoles.Worker => new WorkerNode(
-                    $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Worker}:{cleanName}",
-                    cleanName,
-                    project.Path,
-                    project.ProjectType,
-                    extensions),
-
-                OntologyConstants.ProjectRoles.SharedLibrary => isTestProject
-                    ? new TestSuiteNode(
-                        $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.TestSuite}:{cleanName}",
+                    extensions)
+                : project.Role switch
+                {
+                    OntologyConstants.ProjectRoles.FrontendApp => new AppNode(
+                        $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.App}:{cleanName}",
                         cleanName,
                         project.Path,
                         project.ProjectType,
-                        extensions)
-                    : new LibraryNode(
+                        extensions),
+
+                    OntologyConstants.ProjectRoles.Service => new ServiceNode(
+                        $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Service}:{cleanName}",
+                        cleanName,
+                        project.Path,
+                        project.ProjectType,
+                        extensions),
+
+                    OntologyConstants.ProjectRoles.Worker => new WorkerNode(
+                        $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Worker}:{cleanName}",
+                        cleanName,
+                        project.Path,
+                        project.ProjectType,
+                        extensions),
+
+                    OntologyConstants.ProjectRoles.SharedLibrary => new LibraryNode(
                         $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Library}:{cleanName}",
                         cleanName,
                         project.Path,
                         project.ProjectType,
                         extensions),
 
-                OntologyConstants.ProjectRoles.CliTool => new CliToolNode(
-                    $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.CliTool}:{cleanName}",
-                    cleanName,
-                    project.Path,
-                    project.ProjectType,
-                    extensions),
+                    OntologyConstants.ProjectRoles.CliTool => new CliToolNode(
+                        $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.CliTool}:{cleanName}",
+                        cleanName,
+                        project.Path,
+                        project.ProjectType,
+                        extensions),
 
-                OntologyConstants.ProjectRoles.Test => new TestSuiteNode(
-                    $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.TestSuite}:{cleanName}",
-                    cleanName,
-                    project.Path,
-                    project.ProjectType,
-                    extensions),
+                    OntologyConstants.ProjectRoles.Test => new TestSuiteNode(
+                        $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.TestSuite}:{cleanName}",
+                        cleanName,
+                        project.Path,
+                        project.ProjectType,
+                        extensions),
 
-                _ => isTestProject
-                    ? new TestSuiteNode($"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.TestSuite}:{cleanName}", cleanName, project.Path, project.ProjectType, extensions)
-                    : project.IsLibrary
+                    _ => project.IsLibrary
                         ? new LibraryNode($"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Library}:{cleanName}", cleanName, project.Path, project.ProjectType, extensions)
                         : new ServiceNode($"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Service}:{cleanName}", cleanName, project.Path, project.ProjectType, extensions)
-            };
+                };
 
             if (!semanticStructureNode.Children.Any(c => c.Id == workloadNode.Id))
             {

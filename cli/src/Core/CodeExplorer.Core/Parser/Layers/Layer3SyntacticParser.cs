@@ -502,19 +502,19 @@ public class Layer3SyntacticParser
         IOntologyNode typedNode;
         if (kind == "Class")
         {
-            typedNode = new TypeNode(symbolId, name, symbolId, fileName, relativePath,
+            typedNode = new TypeNode(symbolId, name, symbolId, relativePath, relativePath,
                 node.StartPosition.Row + 1, node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1, "class",
                 symbolIsTest, projectKind, projectName, stageOrder);
         }
         else if (kind == "Interface")
         {
-            typedNode = new TypeNode(symbolId, name, symbolId, fileName, relativePath,
+            typedNode = new TypeNode(symbolId, name, symbolId, relativePath, relativePath,
                 node.StartPosition.Row + 1, node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1, "interface",
                 symbolIsTest, projectKind, projectName, stageOrder);
         }
         else if (kind == OntologyConstants.NodeLabels.Function)
         {
-            typedNode = new FunctionNode(symbolId, name, symbolId, fileName, relativePath,
+            typedNode = new FunctionNode(symbolId, name, symbolId, relativePath, relativePath,
                 node.StartPosition.Row + 1, node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1,
                 symbolIsTest, projectKind, projectName, stageOrder);
         }

@@ -1,5 +1,5 @@
 MATCH (w:Workspace)
-OPTIONAL MATCH (w)-[:CONTAINS]->(:ProjectsStructure)<-[:LOCATED_IN]-(p:Project)
+OPTIONAL MATCH (w)-[:CONTAINS]->(:ProjectsStructure)-[:CONTAINS]->(p:Project)
 OPTIONAL MATCH (p)-[:LOCATED_IN]->(target) WHERE NOT target:ProjectsStructure
 WITH w, p, target
 OPTIONAL MATCH (target)-[:CONTAINS*0..]->(file:File)

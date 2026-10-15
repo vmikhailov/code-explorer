@@ -9,7 +9,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     idScheme: "{workspaceId}:suite:{suiteName}",
     purpose: "Represents an automated test project, runner suite, or test module (e.g. NUnit/xUnit test project, Jest test suite, pytest suite).",
     layer: OntologyConstants.Layers.Semantic,
-    icon: "flask",
+    icon: "beaker",
     order: 7,
     pluralLabel: "Test Suites"
 )]

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { FloatingPanel } from './FloatingPanel';
-import { EyeOffIcon, LayersIcon, RotateCcwIcon, TagIcon, GitBranchIcon, DockRightIcon, FloatIcon } from './Icons';
+import { EyeOffIcon, LayersIcon, RotateCcwIcon, TagIcon, GitBranchIcon, DockRightIcon, FloatIcon, FlaskIcon } from './Icons';
 
 test('FloatingPanel: renders correct dock corner classes and attributes', () => {
   const htmlTopRight = renderToStaticMarkup(
@@ -93,8 +93,9 @@ test('Icons: clean stroke SVG icons render with consistent viewBox and zero colo
   const tagHtml = renderToStaticMarkup(React.createElement(TagIcon, { size: 12 }));
   const dockHtml = renderToStaticMarkup(React.createElement(DockRightIcon, { size: 12 }));
   const floatHtml = renderToStaticMarkup(React.createElement(FloatIcon, { size: 12 }));
+  const flaskHtml = renderToStaticMarkup(React.createElement(FlaskIcon, { size: 14 }));
 
-  for (const svgHtml of [eyeHtml, layersHtml, resetHtml, tagHtml, dockHtml, floatHtml]) {
+  for (const svgHtml of [eyeHtml, layersHtml, resetHtml, tagHtml, dockHtml, floatHtml, flaskHtml]) {
     assert.ok(svgHtml.includes('<svg'), 'Must render SVG element');
     assert.ok(svgHtml.includes('viewBox="0 0 24 24"'), 'Must have uniform 24x24 viewBox');
     assert.ok(svgHtml.includes('stroke="currentColor"'), 'Must use stroke="currentColor"');

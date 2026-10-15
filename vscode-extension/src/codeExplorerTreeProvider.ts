@@ -720,7 +720,7 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
           vscode.TreeItemCollapsibleState.Collapsed,
           { serviceName: projName, serviceId: s?.serviceId || projName }
         );
-        const icon = s?.kind === 'Worker' ? 'gear' : s?.kind === 'App' || s?.kind === 'FrontendApp' ? 'browser' : 'server-process';
+        const icon = s?.kind === 'Worker' ? 'gear' : s?.kind === 'App' || s?.kind === 'FrontendApp' ? 'browser' : s?.kind === 'TestSuite' ? 'beaker' : s?.kind === 'CliTool' ? 'terminal' : 'server-process';
         item.iconPath = new vscode.ThemeIcon(icon);
 
         if (s) {
@@ -889,7 +889,7 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
         .filter((cat) => !cat.isSystemNode && cat.kind !== 'DataSet')
         .map((cat) => {
         const isRel = cat.layerId === 5;
-        const isServiceWorkload = cat.kind === 'Service' || cat.kind === 'App' || cat.kind === 'Worker' || cat.kind === 'CliTool';
+        const isServiceWorkload = cat.kind === 'Service' || cat.kind === 'App' || cat.kind === 'Worker' || cat.kind === 'CliTool' || cat.kind === 'TestSuite';
         const itemType = isRel ? 'rel-category' : isServiceWorkload ? 'services-category' : 'node-category';
         const collapsibleState = isServiceWorkload && cat.count > 0
           ? vscode.TreeItemCollapsibleState.Collapsed
@@ -906,7 +906,8 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
           }
         );
         item.description = `${cat.count.toLocaleString()}`;
-        item.iconPath = new vscode.ThemeIcon(cat.icon || (isRel ? 'arrow-right' : 'symbol-misc'));
+        const resolvedCatIcon = cat.icon === 'flask' ? 'beaker' : cat.icon;
+        item.iconPath = new vscode.ThemeIcon(resolvedCatIcon || (isRel ? 'arrow-right' : 'symbol-misc'));
         if (!isServiceWorkload) {
           item.command = {
             command: 'codeExplorer.openNodeGrid',
@@ -937,7 +938,7 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
         vscode.TreeItemCollapsibleState.Collapsed,
         { serviceName: s.serviceName, serviceId: s.serviceId, layerTitle }
       );
-      const icon = s.kind === 'Worker' ? 'gear' : s.kind === 'App' || s.kind === 'FrontendApp' ? 'browser' : 'server-process';
+      const icon = s.kind === 'Worker' ? 'gear' : s.kind === 'App' || s.kind === 'FrontendApp' ? 'browser' : s.kind === 'TestSuite' ? 'beaker' : s.kind === 'CliTool' ? 'terminal' : 'server-process';
       item.iconPath = new vscode.ThemeIcon(icon);
       const parts: string[] = [];
       if (s.endpointCount > 0) parts.push(`${s.endpointCount} eps`);

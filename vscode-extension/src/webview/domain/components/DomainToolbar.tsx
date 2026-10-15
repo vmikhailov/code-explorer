@@ -232,7 +232,7 @@ export const DomainToolbar: React.FC<DomainToolbarProps> = ({
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         {/* Entity type pills */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          {(['Database', 'Topic', 'Worker', 'ExternalService'] as EntityKind[]).map((kind) => {
+          {(['Database', 'Topic', 'Worker', 'TestSuite', 'ExternalService'] as EntityKind[]).map((kind) => {
             const isHidden = hiddenTypes.has(kind);
             const label =
               kind === 'Database'
@@ -241,6 +241,8 @@ export const DomainToolbar: React.FC<DomainToolbarProps> = ({
                 ? '📨 Msg'
                 : kind === 'Worker'
                 ? '⚙️ Worker'
+                : kind === 'TestSuite'
+                ? '🧪 Tests'
                 : '🌐 Ext';
             return (
               <button

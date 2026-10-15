@@ -643,7 +643,7 @@ public class RealLifeExecutionTests
     {
         InsertNode("ws:1:ps", "ProjectsStructure", new() { ["name"] = "Projects" });
         InsertEdge("ws:1", "ws:1:ps", "CONTAINS");
-        InsertEdge("ws:1:proj:orders", "ws:1:ps", "LOCATED_IN");
+        InsertEdge("ws:1:ps", "ws:1:proj:orders", "CONTAINS");
         InsertNode("ws:1:proj:orders:db:sql", "Database", new() { ["name"] = "OrdersDb" });
 
         var rows = ExecuteQuery("get_architecture_map_workspace.cypher", new()

@@ -24,6 +24,7 @@ test('computeEchelonTiers: invariant echelon tiers across service graph', () => 
     { id: 'svc:gateway', kind: 'Service' },
     { id: 'svc:core', kind: 'Service' },
     { id: 'worker:cron', kind: 'Worker' },
+    { id: 'suite:unit', kind: 'TestSuite' },
     { id: 'topic:events', kind: 'Topic' },
     { id: 'db:postgres', kind: 'Database' },
   ];
@@ -41,6 +42,7 @@ test('computeEchelonTiers: invariant echelon tiers across service graph', () => 
   assert.equal(tiers.get('topic:events'), 2, 'Topic should be Orbit 2 (between 1st and 2nd echelon)');
   assert.equal(tiers.get('svc:core'), 3, 'Core internal service should be Orbit 3');
   assert.equal(tiers.get('worker:cron'), 3, 'Worker should be Orbit 3 (Second Echelon)');
+  assert.equal(tiers.get('suite:unit'), 3, 'TestSuite should be Orbit 3 (Second Echelon)');
   assert.equal(tiers.get('db:postgres'), 4, 'Database should be Orbit 4');
 });
 

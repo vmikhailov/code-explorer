@@ -490,6 +490,12 @@
   border: 1px solid rgba(192, 38, 211, 0.4);
 }
 
+.badge-test {
+  background: rgba(16, 185, 129, 0.2) !important;
+  color: #34d399 !important;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
 .badge-endpoint {
   background: rgba(56, 189, 248, 0.2) !important;
   color: #38bdf8 !important;

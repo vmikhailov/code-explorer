@@ -48,7 +48,7 @@ public class Layer2ProjectParser
             ctx.CancellationToken.ThrowIfCancellationRequested();
 
             var filesInDir = Directory.GetFiles(dir);
-            var projectParser = WorkspaceIndexer._projectParsers.FirstOrDefault(p => p.IsProjectDirectory(dir, filesInDir));
+            var projectParser = WorkspaceIndexer._projectParsers.Where(p => p is not ScriptProjectParser).FirstOrDefault(p => p.IsProjectDirectory(dir, filesInDir));
             
             if (projectParser != null)
             {
@@ -117,6 +117,67 @@ public class Layer2ProjectParser
             }
         }
 
+        // Pass 2: Fallback ScriptProject detection for directories with loose scripts not enclosed in any project
+        var scriptParser = WorkspaceIndexer._projectParsers.OfType<ScriptProjectParser>().FirstOrDefault();
+        if (!ctx.IsSubtreeScan && scriptParser != null)
+        {
+            foreach (var dir in dirsToCheck)
+            {
+                ctx.CancellationToken.ThrowIfCancellationRequested();
+
+                var relativeProjectDir = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, dir).Replace('\\', '/');
+                if (relativeProjectDir == ".") relativeProjectDir = "";
+
+                // Only trigger if NOT inside an already detected project
+                var isCovered = projects.Any(p =>
+                    string.IsNullOrEmpty(p.Path) ||
+                    relativeProjectDir == p.Path ||
+                    relativeProjectDir.StartsWith(p.Path.TrimEnd('/') + "/"));
+
+                if (isCovered) continue;
+
+                var filesInDir = Directory.GetFiles(dir);
+                if (scriptParser.IsProjectDirectory(dir, filesInDir))
+                {
+                    var folderName = Path.GetFileName(dir);
+                    if (string.IsNullOrEmpty(folderName)) folderName = Path.GetFileName(ctx.AbsoluteWorkspacePath.TrimEnd('/', '\\'));
+                    if (string.IsNullOrEmpty(folderName)) folderName = "ScriptProject";
+                    var projectName = folderName;
+
+                    var projectNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Project}:{relativeProjectDir}:";
+                    if (projects.Any(p => p.Id == projectNodeId)) continue;
+
+                    var manifestProps = scriptParser.ExtractManifestProperties(dir, filesInDir);
+                    var dominantLang = manifestProps.GetValueOrDefault("language") ?? scriptParser.ProjectType;
+
+                    var projectNode = ProjectNodeFactory.Create(
+                        projectNodeId,
+                        projectName,
+                        relativeProjectDir,
+                        dominantLang,
+                        dir,
+                        filesInDir,
+                        null,
+                        manifestProps);
+
+                    projectsStructureNode.Children.Add(projectNode);
+                    projects.Add(projectNode);
+                    packageToProjectMap[projectName] = projectNode;
+                    var normName = WorkspaceConventions.NormalizeServiceName(projectName);
+                    if (!string.IsNullOrEmpty(normName))
+                    {
+                        packageToProjectMap[normName] = projectNode;
+                        WorkspaceConventions.RegisterServiceAlias(projectName, normName);
+                    }
+                    if (!string.Equals(folderName, projectName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        packageToProjectMap[folderName] = projectNode;
+                        WorkspaceConventions.RegisterServiceAlias(folderName, normName ?? projectName);
+                    }
+                }
+            }
+        }
+
         // If subtree scan and some files are not covered by discovered projects,
         // look upwards for enclosing project(s)
         if (ctx.IsSubtreeScan)
@@ -139,7 +200,7 @@ public class Layer2ProjectParser
                     if (!projects.Any(p => p.Id == projectNodeId))
                     {
                         var filesInDir = Directory.GetFiles(dir);
-                        var projectParser = WorkspaceIndexer._projectParsers.FirstOrDefault(p => p.IsProjectDirectory(dir, filesInDir));
+                        var projectParser = WorkspaceIndexer._projectParsers.Where(p => p is not ScriptProjectParser).FirstOrDefault(p => p.IsProjectDirectory(dir, filesInDir));
                         if (projectParser != null)
                         {
                             var projectName = projectParser.GetProjectName(dir, filesInDir);

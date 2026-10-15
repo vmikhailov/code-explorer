@@ -1,5 +1,5 @@
 MATCH (w:Workspace)
-OPTIONAL MATCH (w)-[:CONTAINS]->(ps:ProjectsStructure)<-[:LOCATED_IN]-(p:Project)
+OPTIONAL MATCH (w)-[:CONTAINS]->(ps:ProjectsStructure)-[:CONTAINS]->(p:Project)
 OPTIONAL MATCH (db:Database)
 OPTIONAL MATCH (es:ExternalService)
 WITH w,

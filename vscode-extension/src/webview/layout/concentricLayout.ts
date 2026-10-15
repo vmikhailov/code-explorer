@@ -196,8 +196,8 @@ export function computeEchelonTiers(
       // First echelon services (Gateway-facing): Orbit 1
       // Second echelon services (Internal Domain): Orbit 3 (after Topics)
       echelonMap.set(n.id, t <= 1 ? 1 : 3);
-    } else if (n.kind === 'Worker' || n.kind === 'CliTool') {
-      // Workers merged into Second Echelon (Orbit 3) alongside internal domain services
+    } else if (n.kind === 'Worker' || n.kind === 'CliTool' || n.kind === 'TestSuite') {
+      // Workers, CLI, TestSuites merged into Second Echelon (Orbit 3) alongside internal domain services
       echelonMap.set(n.id, 3);
     } else if (n.kind === 'Database' || n.kind === 'ExternalService') {
       echelonMap.set(n.id, 4);

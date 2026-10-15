@@ -650,6 +650,18 @@
   white-space: nowrap;
 }
 
+.c1-badge-test {
+  font-size: 8.5px;
+  font-weight: 700;
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.16);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  padding: 1.5px 5px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
 .c1-badge-external {
   font-size: 8.5px;
   font-weight: 700;

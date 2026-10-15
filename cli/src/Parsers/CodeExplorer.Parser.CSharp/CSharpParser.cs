@@ -124,6 +124,8 @@ public class CSharpParser : IProjectParser, IFileParser
     {
         if (context.ManifestProperties != null)
         {
+            var manifestType = context.ManifestProperties.GetValueOrDefault("manifest_type");
+            if (manifestType == "test" || context.ManifestProperties.GetValueOrDefault("is_test_project") == "true") return ProjectClassification.Test;
             var sdk = context.ManifestProperties.GetValueOrDefault("sdk");
             if (sdk == "Microsoft.NET.Sdk.Worker") return ProjectClassification.Worker;
             if (sdk == "Microsoft.NET.Sdk.BlazorWebAssembly") return ProjectClassification.WebApp;
@@ -198,9 +200,15 @@ public class CSharpParser : IProjectParser, IFileParser
             }
 
             if (content.Contains("<IsTestProject>true</IsTestProject>", StringComparison.OrdinalIgnoreCase) ||
-                content.Contains("Microsoft.NET.Test.Sdk", StringComparison.OrdinalIgnoreCase))
+                content.Contains("Microsoft.NET.Test.Sdk", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("PackageReference Include=\"xunit\"", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("PackageReference Include=\"NUnit\"", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("PackageReference Include=\"MSTest\"", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("PackageReference Include=\"bunit\"", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("PackageReference Include=\"FluentAssertions\"", StringComparison.OrdinalIgnoreCase))
             {
                 props["manifest_type"] = "test";
+                props["is_test_project"] = "true";
             }
 
             // 2. Inspect <OutputType>

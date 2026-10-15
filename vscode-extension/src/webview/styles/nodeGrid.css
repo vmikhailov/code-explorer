@@ -275,6 +275,12 @@
   border: 1px solid rgba(192, 38, 211, 0.3);
 }
 
+.badge-test {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
 .badge-default {
   background: rgba(156, 163, 175, 0.2);
   color: #9ca3af;

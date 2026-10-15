@@ -88,7 +88,7 @@ export function computeHivePlotLayout(
     let t = n.echelonTier;
     if (t === 2) t = 1; // Merge tier 2 domain services with tier 1 onto Services axis
     if (!axisBuckets.has(t)) {
-      t = n.kind === 'Topic' ? 4 : n.kind === 'Database' ? 5 : n.kind === 'Worker' ? 3 : 1;
+      t = n.kind === 'Topic' ? 4 : n.kind === 'Database' ? 5 : (n.kind === 'Worker' || n.kind === 'TestSuite' || n.kind === 'CliTool') ? 3 : 1;
     }
     axisBuckets.get(t)!.push(n.id);
   }

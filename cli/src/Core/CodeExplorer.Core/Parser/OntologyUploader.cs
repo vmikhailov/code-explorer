@@ -80,7 +80,7 @@ public static class OntologyUploader
                     ctx.AddRelsCount(1);
                 }
 
-                var fnFilePath = (node as FunctionNode)?.FilePath ?? node.Path;
+                var fnFilePath = !string.IsNullOrEmpty(node.Path) ? node.Path : (node as FunctionNode)?.FilePath;
                 if (!string.IsNullOrEmpty(fnFilePath))
                 {
                     var fnFileId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.File}:{fnFilePath}";

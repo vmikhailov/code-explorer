@@ -49,5 +49,10 @@ public enum ProjectEntityKind
     /// <summary>
     /// Command-line tool, developer script, or administrative CLI utility.
     /// </summary>
-    CliTool
+    CliTool,
+
+    /// <summary>
+    /// Loose script collection or fallback project for unparented scripts.
+    /// </summary>
+    ScriptProject
 }

@@ -22,6 +22,7 @@ export type EntityKind =
   | 'Worker'
   | 'CliTool'
   | 'Library'
+  | 'TestSuite'
   | 'Database'
   | 'Topic'
   | 'ExternalService';

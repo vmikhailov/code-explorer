@@ -92,7 +92,7 @@ public class GraphQLFileParser : IFileParser
                 symbolId,
                 primaryHookName,
                 symbolId,
-                fileName,
+                relativePath,
                 relativePath,
                 op.StartLine,
                 op.EndLine,

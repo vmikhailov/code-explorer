@@ -171,6 +171,7 @@ export const NodeGridView: React.FC<NodeGridViewProps> = ({
 
   const getKindBadgeClass = (kind: string) => {
     const k = kind?.toLowerCase() || '';
+    if (k.includes('test') || k.includes('suite')) return 'badge-test';
     if (k.includes('endpoint')) return 'badge-endpoint';
     if (k.includes('database') || k.includes('table')) return 'badge-db';
     if (k.includes('service') || k.includes('project')) return 'badge-service';
@@ -183,6 +184,9 @@ export const NodeGridView: React.FC<NodeGridViewProps> = ({
 
   const getKindIcon = (kind: string) => {
     switch (kind) {
+      case 'TestSuite':
+      case 'Test':
+        return '🧪';
       case 'Service':
         return '⚙️';
       case 'App':

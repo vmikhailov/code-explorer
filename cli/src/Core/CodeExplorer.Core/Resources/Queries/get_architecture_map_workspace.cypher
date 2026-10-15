@@ -1,6 +1,6 @@
 MATCH (w:Workspace)
 MATCH (w)-[:CONTAINS]->(ps:ProjectsStructure)
-OPTIONAL MATCH (ps)<-[:LOCATED_IN]-(p:Project)
+OPTIONAL MATCH (ps)-[:CONTAINS]->(p:Project)
 OPTIONAL MATCH (db:Database) WHERE db.id STARTS WITH p.id
 WITH w, p, collect(DISTINCT db.name) AS projectDbs
 WITH w,

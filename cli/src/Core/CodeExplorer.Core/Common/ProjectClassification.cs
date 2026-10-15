@@ -21,4 +21,5 @@ public record ProjectClassification(
     public static readonly ProjectClassification DesktopApp = new(ProjectEntityKind.App, ProjectEntitySubKind.Desktop);
     public static readonly ProjectClassification CliApp = new(ProjectEntityKind.CliTool, ProjectEntitySubKind.Cli);
     public static readonly ProjectClassification CliTool = new(ProjectEntityKind.CliTool, ProjectEntitySubKind.Cli);
+    public static readonly ProjectClassification ScriptProject = new(ProjectEntityKind.ScriptProject);
 }

@@ -38,5 +38,10 @@ public enum ProjectRole
     /// <summary>
     /// Unit, integration, or end-to-end test suite (e.g. NUnit, xUnit, Jest, Vitest, Playwright).
     /// </summary>
-    Test
+    Test,
+
+    /// <summary>
+    /// Loose script collection or fallback project for unparented scripts.
+    /// </summary>
+    ScriptProject
 }

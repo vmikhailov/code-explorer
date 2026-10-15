@@ -1068,8 +1068,8 @@ public partial class ArchitectureViewEngine(IGraphClient db)
         var projectToWorkloadMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         var nodesQuery = includeLibraries
-            ? "MATCH (n) WHERE labels(n)[0] IN ['Project', 'Service', 'App', 'Library', 'Worker', 'CliTool', 'Database', 'ExternalService'] OR (labels(n)[0] = 'Topic' AND (n.broker_type IS NULL OR (n.broker_type <> 'mediatr' AND n.broker_type <> 'in-memory')) AND (n.is_internal IS NULL OR n.is_internal <> 'true')) OR (labels(n)[0] = 'Package' AND (n.is_external = 'true' OR n.is_external = true OR (n.is_external IS NULL AND NOT (n)-[:IMPLEMENTED_BY]->(:Project)))) RETURN n.id AS id, labels(n)[0] AS kind, n.name AS name, n.display_name AS display_name, n.path AS path, n.framework AS framework, n.role AS role, n.is_library AS is_library, n.db_type AS db_type, n.project_type AS project_type, n.package_type AS package_type, n.type AS pkg_type, n.version AS version, n.properties AS properties, n.layer AS layer, n.layerId AS layerId, n.layerName AS layerName, n.layerOrder AS layerOrder, n.layerColor AS layerColor, n.layerIcon AS layerIcon, n.package_count AS package_count"
-            : "MATCH (n) WHERE labels(n)[0] IN ['Service', 'App', 'Worker', 'CliTool', 'Database', 'ExternalService'] OR (labels(n)[0] = 'Topic' AND (n.broker_type IS NULL OR (n.broker_type <> 'mediatr' AND n.broker_type <> 'in-memory')) AND (n.is_internal IS NULL OR n.is_internal <> 'true')) OR (labels(n)[0] = 'Project' AND (n.is_library <> 'true' OR n.is_library IS NULL) AND (n.role <> 'SharedLibrary' AND n.role <> 'Test' OR n.role IS NULL)) RETURN n.id AS id, labels(n)[0] AS kind, n.name AS name, n.display_name AS display_name, n.path AS path, n.framework AS framework, n.role AS role, n.is_library AS is_library, n.db_type AS db_type, n.project_type AS project_type, n.package_type AS package_type, n.type AS pkg_type, n.version AS version, n.properties AS properties, n.layer AS layer, n.layerId AS layerId, n.layerName AS layerName, n.layerOrder AS layerOrder, n.layerColor AS layerColor, n.layerIcon AS layerIcon, n.package_count AS package_count";
+            ? "MATCH (n) WHERE labels(n)[0] IN ['Project', 'Service', 'App', 'Library', 'Worker', 'CliTool', 'TestSuite', 'Database', 'ExternalService'] OR (labels(n)[0] = 'Topic' AND (n.broker_type IS NULL OR (n.broker_type <> 'mediatr' AND n.broker_type <> 'in-memory')) AND (n.is_internal IS NULL OR n.is_internal <> 'true')) OR (labels(n)[0] = 'Package' AND (n.is_external = 'true' OR n.is_external = true OR (n.is_external IS NULL AND NOT (n)-[:IMPLEMENTED_BY]->(:Project)))) RETURN n.id AS id, labels(n)[0] AS kind, n.name AS name, n.display_name AS display_name, n.path AS path, n.framework AS framework, n.role AS role, n.is_library AS is_library, n.db_type AS db_type, n.project_type AS project_type, n.package_type AS package_type, n.type AS pkg_type, n.version AS version, n.properties AS properties, n.layer AS layer, n.layerId AS layerId, n.layerName AS layerName, n.layerOrder AS layerOrder, n.layerColor AS layerColor, n.layerIcon AS layerIcon, n.package_count AS package_count"
+            : "MATCH (n) WHERE labels(n)[0] IN ['Service', 'App', 'Worker', 'CliTool', 'TestSuite', 'Database', 'ExternalService'] OR (labels(n)[0] = 'Topic' AND (n.broker_type IS NULL OR (n.broker_type <> 'mediatr' AND n.broker_type <> 'in-memory')) AND (n.is_internal IS NULL OR n.is_internal <> 'true')) OR (labels(n)[0] = 'Project' AND (n.is_library <> 'true' OR n.is_library IS NULL) AND (n.role <> 'SharedLibrary' OR n.role IS NULL)) RETURN n.id AS id, labels(n)[0] AS kind, n.name AS name, n.display_name AS display_name, n.path AS path, n.framework AS framework, n.role AS role, n.is_library AS is_library, n.db_type AS db_type, n.project_type AS project_type, n.package_type AS package_type, n.type AS pkg_type, n.version AS version, n.properties AS properties, n.layer AS layer, n.layerId AS layerId, n.layerName AS layerName, n.layerOrder AS layerOrder, n.layerColor AS layerColor, n.layerIcon AS layerIcon, n.package_count AS package_count";
 
         var nodesJson = await db.ExecuteQueryAsync(nodesQuery, null, ct);
         using var nodesDoc = JsonDocument.Parse(nodesJson);
@@ -1391,7 +1391,7 @@ public partial class ArchitectureViewEngine(IGraphClient db)
 
 
     public static bool IsProjectNodeKind(NodeKind kind) =>
-        kind is NodeKind.Project or NodeKind.Service or NodeKind.App or NodeKind.Ingress or NodeKind.Library or NodeKind.SharedLibrary or NodeKind.Worker or NodeKind.CliTool;
+        kind is NodeKind.Project or NodeKind.Service or NodeKind.App or NodeKind.Ingress or NodeKind.Library or NodeKind.SharedLibrary or NodeKind.Worker or NodeKind.CliTool or NodeKind.TestSuite;
 
     public static bool IsProjectNodeKind(string? kind) =>
         IsProjectNodeKind(EnumExtensions.ParseNodeKind(kind));
@@ -1399,6 +1399,7 @@ public partial class ArchitectureViewEngine(IGraphClient db)
     public static bool IsLibraryProject(GraphNodeDto? node)
     {
         if (node == null) return false;
+        if (node.Kind is NodeKind.TestSuite) return false;
         if (node.Kind is NodeKind.Library or NodeKind.SharedLibrary)
         {
             return true;
@@ -1413,7 +1414,8 @@ public partial class ArchitectureViewEngine(IGraphClient db)
         if (projectType == "library") return true;
 
         var role = node.Properties?.GetValueOrDefault("role");
-        if (role is "SharedLibrary" or "Test") return true;
+        if (role is "Test" or "TestSuite") return false;
+        if (role is "SharedLibrary") return true;
         if (role is "Service" or "FrontendApp" or "Worker" or "CliTool") return false;
 
         var (_, isLib) = ProjectRoleDetector.DetectRole(

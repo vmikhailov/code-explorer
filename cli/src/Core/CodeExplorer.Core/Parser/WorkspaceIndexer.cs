@@ -11,7 +11,7 @@ namespace CodeExplorer.Core.Parser;
 
 public class WorkspaceIndexer
 {
-    internal static readonly List<IProjectParser> _projectParsers = [];
+    internal static readonly List<IProjectParser> _projectParsers = [new ScriptProjectParser()];
     internal static readonly List<IFileParser> _fileParsers = [];
 
     public static void Register(object parser)
@@ -19,7 +19,20 @@ public class WorkspaceIndexer
         if (parser is IProjectParser projectParser)
         {
             if (_projectParsers.All(p => p.GetType() != projectParser.GetType()))
-                _projectParsers.Add(projectParser);
+            {
+                if (projectParser is ScriptProjectParser)
+                {
+                    _projectParsers.Add(projectParser);
+                }
+                else
+                {
+                    var scriptIdx = _projectParsers.FindIndex(p => p is ScriptProjectParser);
+                    if (scriptIdx >= 0)
+                        _projectParsers.Insert(scriptIdx, projectParser);
+                    else
+                        _projectParsers.Add(projectParser);
+                }
+            }
 
             foreach (var desc in projectParser.ConfigurationDescriptors)
             {
@@ -69,8 +82,8 @@ public class WorkspaceIndexer
                 continue;
             }
 
-            // Ensure TypeScriptParser precedes JavaScriptParser for proper TypeScript priority
-            types = [.. types.OrderBy(t => t.Name == "JavaScriptParser" ? 1 : 0)];
+            // Ensure TypeScriptParser precedes JavaScriptParser, and ScriptProjectParser is always last
+            types = [.. types.OrderBy(t => t.Name == "ScriptProjectParser" ? 2 : (t.Name == "JavaScriptParser" ? 1 : 0))];
 
             foreach (var type in types)
             {

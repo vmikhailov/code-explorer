@@ -263,7 +263,8 @@ public sealed class TestEvidenceClassifier : IProjectEntityClassifier
             return fn.EndsWith(".test.ts") || fn.EndsWith(".spec.ts") ||
                    fn.EndsWith(".test.js") || fn.EndsWith(".spec.js") ||
                    fn.EndsWith("tests.cs") || fn.EndsWith("test.cs") ||
-                   fn.EndsWith("test.java");
+                   fn.EndsWith("test.java") || fn.EndsWith("_test.go") ||
+                   fn.StartsWith("test_") || fn.EndsWith("_test.py");
         }))
         {
             return ProjectClassification.Test;

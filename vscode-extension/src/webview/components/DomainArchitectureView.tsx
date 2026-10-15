@@ -90,6 +90,7 @@ export type EntityKind =
   | 'Worker'
   | 'CliTool'
   | 'Library'
+  | 'TestSuite'
   | 'Database'
   | 'Topic'
   | 'ExternalService';
@@ -1628,6 +1629,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     let serviceCount = 0;
     let workerCount = 0;
     let cliCount = 0;
+    let testSuiteCount = 0;
     let dbCount = 0;
     let topicCount = 0;
     let extCount = 0;
@@ -1642,6 +1644,14 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       let bgColor = '#e53935';
       let borderColor = '#7f1d1d';
       let size = 50;
+
+      const isTest =
+        node.kind === 'TestSuite' ||
+        node.kind === 'Test' ||
+        node.properties?.role === 'Test' ||
+        node.properties?.role === 'TestSuite' ||
+        node.properties?.is_test_project === 'true' ||
+        node.properties?.has_test_runner === 'true';
 
       const isApp =
         node.kind === 'App' ||
@@ -1676,7 +1686,14 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         node.kind === 'SharedLibrary' ||
         node.properties?.is_library === 'true';
 
-      if (isApp) {
+      if (isTest) {
+        testSuiteCount++;
+        tag = ':TestSuite';
+        nodeKind = 'TestSuite';
+        bgColor = '#059669';
+        borderColor = '#047857';
+        size = 48;
+      } else if (isApp) {
         appCount++;
         tag = ':App';
         nodeKind = 'App';
@@ -2062,7 +2079,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       const displayName = dMeta?.displayName || domKey;
 
       const workloadNodes = entities.filter(
-        (e) => e.kind === 'Service' || e.kind === 'App' || e.kind === 'Worker' || e.kind === 'CliTool'
+        (e) => e.kind === 'Service' || e.kind === 'App' || e.kind === 'Worker' || e.kind === 'CliTool' || e.kind === 'TestSuite'
       );
       if (workloadNodes.length === 0) continue;
 
@@ -2118,6 +2135,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         services: serviceCount,
         workers: workerCount,
         cli: cliCount,
+        testSuites: testSuiteCount,
         libraries: libCount,
         databases: dbCount,
         singleConnDbs: singleConnDbCount,
@@ -4172,6 +4190,17 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               >
                 {hiddenTypes.has('CliTool') && <span className="filter-cross">✕</span>}
                 💻 CLI ({rawGraph.counts.cli})
+              </button>
+            )}
+            {rawGraph.counts.testSuites > 0 && (
+              <button
+                type="button"
+                className={`hud-type-filter-btn ${hiddenTypes.has('TestSuite') ? 'is-hidden' : 'is-active'}`}
+                onClick={() => toggleTypeVisibility('TestSuite')}
+                title={hiddenTypes.has('TestSuite') ? 'Show Test Suites' : 'Hide Test Suites'}
+              >
+                {hiddenTypes.has('TestSuite') && <span className="filter-cross">✕</span>}
+                🧪 Tests ({rawGraph.counts.testSuites})
               </button>
             )}
             {rawGraph.counts.libraries > 0 && (
