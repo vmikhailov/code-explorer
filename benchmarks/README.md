@@ -20,12 +20,12 @@ When an agent relies purely on `ripgrep` and file reading:
 
 ## Benchmark Summary
 
-| Case Study & Codebase Scale | Speed & Turn Reduction (`Ripgrep` → `Graph`) | Token & Cost Savings w/ 90% Cache (`Ripgrep` → `Graph`) | Architectural Recall (`Ripgrep` → `Graph`) |
+| Case Study & Codebase Scale | Speed & Turn Reduction (`Ripgrep` → `Graph`) | Token & Cost Savings w/ 90% Cache (`Ripgrep` → `Graph`) | Blast-Radius Completeness (`Ripgrep` → `Graph`) |
 | :--- | :--- | :--- | :--- |
-| **[01: Polyglot Architecture & Blast Radius](./01-polyglot-architecture-and-blast-radius/README.md)**<br>`16` projects, C# .NET 10 + TypeScript | **`1.89x` faster** (`5m 08s` → `2m 43s`)<br>**`1.64x` fewer turns** (`59` → `36`) | **`1.92x` fewer tokens** (`1.59M` → `831K`)<br>**`1.67x` cheaper** (`$0.142` → `$0.085`) | **`100%` → `100%`**<br>*(Source-Verified)* |
-| **[02: Enterprise Microservices Deep Audit](./02-enterprise-microservices-deep-audit/README.md)**<br>`450` modules (`324` services, `13,782` files, TS + Go + SQL) | **`2.84x` faster** (`29m 52s` → `10m 30s`)<br>**`3.20x` fewer turns** (`285` → `89`) | **`3.73x` fewer tokens** (`17.19M` → `4.61M`)<br>**`3.41x` cheaper** (`$1.154` → `$0.338`) | **`~82%` → `100%`**<br>*(Source-Verified)* |
+| **[01: Polyglot Architecture & Blast Radius](./01-polyglot-architecture-and-blast-radius/README.md)**<br>`16` projects, C# .NET 10 + TypeScript | **`1.89x` faster** (`5m 08s` → `2m 43s`)<br>**`1.64x` fewer turns** (`59` → `36`) | **`1.92x` fewer tokens** (`1.59M` → `831K`)<br>**`1.67x` cheaper** (`$0.142` → `$0.085`) | **`Complete` → `Complete`**<br>(`100%` — `0` missed callers) |
+| **[02: Enterprise Microservices Deep Audit](./02-enterprise-microservices-deep-audit/README.md)**<br>`450` modules (`324` services, `13,782` files, TS + Go + SQL) | **`2.84x` faster** (`29m 52s` → `10m 30s`)<br>**`3.20x` fewer turns** (`285` → `89`) | **`3.73x` fewer tokens** (`17.19M` → `4.61M`)<br>**`3.41x` cheaper** (`$1.154` → `$0.338`) | **`Incomplete` → `Complete`**<br>(`9` services / `15+` callers missed (`~82%`) → **`0` missed (`100%`)**) |
 
-> **Key Takeaway — Scale Amplifies the Graph Advantage**: As repository complexity grows from **16 projects** (Case Study 01) to **450 modules / 324 microservices** (Case Study 02), the speedup increases from **`1.89x` to `2.84x`** (saving **nearly 20 minutes** per audit) and the cumulative token reduction doubles from **`1.92x` to `3.73x`** (saving **12.58M input tokens** per run).
+> **Why `82%` Recall in Impact Analysis Is Like Jumping 82% Across a Chasm**: In architectural refactoring and contract migration, blast-radius completeness is binary. If an agent audits a shared service contract or message topic and finds `82%` of callers—missing **9 production RTB microservices and 15+ caller functions** because their target URLs are injected via environment constants—deploying that change breaks 9 services in production. As repository scale grows from **16 projects** to **324 microservices**, CodeExplorer not only cuts time by **2.84x** and tokens by **3.73x**, but turns an unsafe, incomplete grep heuristic into a **100% complete architectural guarantee (`0` blind spots)**.
 
 ---
 
