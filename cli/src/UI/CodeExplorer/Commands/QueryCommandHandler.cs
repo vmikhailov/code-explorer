@@ -181,7 +181,32 @@ public class QueryCommandHandler : BaseCommandHandler
 
                 var columns = rows[0].EnumerateObject().Select(p => p.Name).ToList();
                 var maxLimit = opts.NoTruncate ? int.MaxValue : 80;
-                var colWidths = columns.ToDictionary(c => c, c => c.Length);
+
+                static string FormatColumnHeader(string rawCol)
+                {
+                    if (rawCol.StartsWith("CASE WHEN ", StringComparison.OrdinalIgnoreCase) &&
+                        rawCol.Contains(".kind", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return "labels";
+                    }
+
+                    var propMatch = Regex.Match(rawCol, @"^json_extract\((\w+)\.properties,\s*'\$\.([^']+)'\)$");
+                    if (propMatch.Success)
+                    {
+                        return $"{propMatch.Groups[1].Value}.{propMatch.Groups[2].Value}";
+                    }
+
+                    var jsonMatch = Regex.Match(rawCol, @"^json\((\w+)\.properties\)$");
+                    if (jsonMatch.Success)
+                    {
+                        return $"properties({jsonMatch.Groups[1].Value})";
+                    }
+
+                    return rawCol.Length > 48 ? rawCol[..45] + "..." : rawCol;
+                }
+
+                var displayHeaders = columns.ToDictionary(c => c, FormatColumnHeader);
+                var colWidths = columns.ToDictionary(c => c, c => displayHeaders[c].Length);
                 bool wasTruncated = false;
 
                 static string FormatCell(JsonElement elem)
@@ -225,7 +250,7 @@ public class QueryCommandHandler : BaseCommandHandler
 
                 // Print header
                 Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.WriteLine(string.Join(" | ", columns.Select(c => c.PadRight(colWidths[c]))));
+                Console.WriteLine(string.Join(" | ", columns.Select(c => displayHeaders[c].PadRight(colWidths[c]))));
                 Console.WriteLine(string.Join("-+-", columns.Select(c => new string('-', colWidths[c]))));
                 Console.ResetColor();
 

@@ -1,11 +1,10 @@
-MATCH (target) WHERE (target:Type OR target:Function OR target:Project OR target:Table OR target:Topic) 
+MATCH (target) WHERE (target:Type OR target:Function OR target:Project OR target:ExternalService OR target:Table OR target:Topic) 
   AND (target.symbol = $symbolName 
        OR target.name = $symbolName 
        OR target.id = $symbolName
        OR target.graphql_field = $symbolName 
        OR target.graphql_operation = $symbolName
        OR target.symbol ENDS WITH $symbolName 
-       OR target.symbol CONTAINS $symbolName
        OR target.name CONTAINS $symbolName)
 MATCH (target)<-[r:USES_TYPE|CALLS|SERVICE_CALL|CALLS_ENDPOINT|IMPLEMENTS|INHERITS_FROM|PUBLISHES_TO|SUBSCRIBES_TO|TRIGGERS|QUERIED_BY|PERSISTED_IN]-(dependent)
 OPTIONAL MATCH (dependent)-[:DECLARED_IN]->(f:File)
@@ -22,14 +21,10 @@ RETURN
   dependent.symbol AS dependentSymbol,
   type(r) AS relationship,
   CASE 
-    WHEN dependent.file_path IS NOT NULL AND dependent.start_line IS NOT NULL 
-    THEN dependent.file_path + ':' + toString(dependent.start_line)
-    WHEN dependent.file_path IS NOT NULL 
-    THEN dependent.file_path
-    WHEN f.path IS NOT NULL AND dependent.start_line IS NOT NULL 
-    THEN f.path + ':' + toString(dependent.start_line)
-    WHEN f.path IS NOT NULL 
-    THEN f.path
+    WHEN COALESCE(dependent.path, dependent.file_path, f.path) IS NOT NULL AND dependent.start_line IS NOT NULL 
+    THEN COALESCE(dependent.path, dependent.file_path, f.path) + ':' + toString(dependent.start_line)
+    WHEN COALESCE(dependent.path, dependent.file_path, f.path) IS NOT NULL 
+    THEN COALESCE(dependent.path, dependent.file_path, f.path)
     ELSE '' 
   END AS filePath
 ORDER BY dependentType, dependentName
