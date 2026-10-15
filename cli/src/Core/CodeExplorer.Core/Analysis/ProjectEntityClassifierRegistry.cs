@@ -197,6 +197,7 @@ public sealed class ManifestEvidenceClassifier : IProjectEntityClassifier
         if (manifestType is "function" or "serverless") return ProjectClassification.FunctionApp;
         if (manifestType == "mobile" || frameworkType == "mobile") return ProjectClassification.MobileApp;
         if (manifestType == "desktop" || frameworkType == "desktop") return ProjectClassification.DesktopApp;
+        if (manifestType == "script") return ProjectClassification.ScriptProject;
 
         if (cloudRuntime == "cloudflare-worker") return ProjectClassification.Worker;
 

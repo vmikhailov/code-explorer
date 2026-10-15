@@ -6,9 +6,19 @@ trigger: always_on
 
 Whenever fixes or features are made to CodeExplorer (CLI or VS Code Extension):
 
-1. **Increment Version**:
-   - Update `<Version>` in [cli/Directory.Build.props](file:///c:/Work/Personal/code-explorer/cli/Directory.Build.props) (e.g. from `1.17.0` to `1.18.0`). The assembly, file, informational, and NuGet package versions follow `$(Version)`.
-   - Update `"version"` in [vscode-extension/package.json](file:///c:/Work/Personal/code-explorer/vscode-extension/package.json) to match.
+1. **Increment Version via SemVer (Skill: `versioning`)**:
+   - Always follow the `versioning` skill ([.agents/skills/versioning/SKILL.md](file:///c:/Work/Personal/code-explorer/.agents/skills/versioning/SKILL.md)):
+     - **Bug Fixes (PATCH)**: Increment only the last digit (`MAJOR.MINOR.(PATCH + 1)`). Example: `1.44.0` -> `1.44.1`.
+     - **New Features / Functionality (MINOR)**: Increment the second digit (`MAJOR.(MINOR + 1).0`), resetting PATCH to `0`. Example: `1.44.0` -> `1.45.0`.
+     - **Fundamental Paradigm Shift (MAJOR)**: Increment the first digit (`(MAJOR + 1).0.0`), resetting MINOR and PATCH to `0`. **STRICT REQUIREMENT**: Bumping MAJOR is forbidden without explicit prior user consent/approval.
+   - Synchronize across all three version-bearing files:
+     - `<Version>` in [cli/Directory.Build.props](file:///c:/Work/Personal/code-explorer/cli/Directory.Build.props).
+     - `"version"` in [vscode-extension/package.json](file:///c:/Work/Personal/code-explorer/vscode-extension/package.json).
+     - `"version"` in [vscode-extension/package-lock.json](file:///c:/Work/Personal/code-explorer/vscode-extension/package-lock.json).
+   - Alternatively, execute the helper script:
+     ```bash
+     pwsh .agents/skills/versioning/scripts/bump-version.ps1 -Type patch # or -Type minor
+     ```
 
 2. **Verify Build and Test Suites**:
    - **CLI**:

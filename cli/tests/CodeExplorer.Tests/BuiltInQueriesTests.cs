@@ -175,4 +175,50 @@ export class OrdersController {
             doc.RootElement.GetArrayLength().Should().BeGreaterThan(0, "find_symbol_function failed");
         }
     }
+
+    [Test]
+    public async Task Test_GetArchitectureMapWorkspace_ReturnsProjects()
+    {
+        var query = Queries.Get("get_architecture_map_workspace");
+        var res = await _client.ExecuteQueryAsync(query);
+
+        using var doc = JsonDocument.Parse(res);
+        var array = doc.RootElement.EnumerateArray().ToList();
+        array.Count.Should().BeGreaterThan(0);
+        var projects = array[0].GetProperty("projects").EnumerateArray().ToList();
+        projects.Count.Should().BeGreaterThanOrEqualTo(2);
+        var projectNames = projects.Select(p => p.GetProperty("name").GetString()).ToList();
+        projectNames.Should().Contain("ProjectA");
+        projectNames.Should().Contain("ProjectB");
+    }
+
+    [Test]
+    public async Task Test_GetArchitectureOverview_ReturnsProjects()
+    {
+        var query = Queries.Get("get_architecture_overview");
+        var res = await _client.ExecuteQueryAsync(query);
+
+        using var doc = JsonDocument.Parse(res);
+        var array = doc.RootElement.EnumerateArray().ToList();
+        array.Count.Should().BeGreaterThan(0);
+        var totalProjects = array[0].GetProperty("totalProjects").GetInt32();
+        totalProjects.Should().BeGreaterThanOrEqualTo(2);
+    }
+
+    [Test]
+    public async Task Test_InspectDataLineage_EmptyOrNullTableName_ReturnsWithoutError()
+    {
+        var query = Queries.Get("inspect_data_lineage");
+        var resEmpty = await _client.ExecuteQueryAsync(query, new Dictionary<string, object?> { ["tableName"] = "" });
+        using (var docEmpty = JsonDocument.Parse(resEmpty))
+        {
+            docEmpty.RootElement.ValueKind.Should().Be(JsonValueKind.Array);
+        }
+
+        var resNull = await _client.ExecuteQueryAsync(query, new Dictionary<string, object?> { ["tableName"] = null });
+        using (var docNull = JsonDocument.Parse(resNull))
+        {
+            docNull.RootElement.ValueKind.Should().Be(JsonValueKind.Array);
+        }
+    }
 }
