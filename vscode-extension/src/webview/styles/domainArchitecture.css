@@ -910,6 +910,227 @@
 }
 
 /* ==========================================================================
+   Visibility Panel & Quick Toggles
+   ========================================================================== */
+
+.visibility-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.visibility-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.visibility-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #94a3b8;
+}
+
+.visibility-section-hint {
+  font-size: 9.5px;
+  color: #64748b;
+}
+
+.visibility-restore-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.visibility-restore-btn:hover {
+  background: rgba(239, 68, 68, 0.3);
+  color: #ffffff;
+  border-color: #ef4444;
+}
+
+.visibility-type-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 5px;
+}
+
+.visibility-type-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.visibility-type-card:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.visibility-type-card.is-visible {
+  color: #f1f5f9;
+}
+
+.visibility-type-card.is-hidden {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #94a3b8;
+}
+
+.visibility-type-card.is-hidden .visibility-type-name {
+  text-decoration: line-through;
+  opacity: 0.65;
+}
+
+.visibility-type-left {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.visibility-type-icon {
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.visibility-type-name {
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.visibility-type-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.visibility-type-count {
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 10px;
+  color: #cbd5e1;
+}
+
+.visibility-type-eye {
+  display: flex;
+  align-items: center;
+  color: #94a3b8;
+}
+
+.visibility-type-card.is-visible .visibility-type-eye {
+  color: #38bdf8;
+}
+
+.visibility-type-card.is-hidden .visibility-type-eye {
+  color: #fca5a5;
+}
+
+.visibility-presets-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.visibility-preset-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 9px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.visibility-preset-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.visibility-preset-item.is-active {
+  background: rgba(147, 51, 234, 0.12);
+  border-color: rgba(168, 85, 247, 0.4);
+}
+
+.visibility-preset-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.visibility-preset-icon {
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.visibility-preset-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.visibility-preset-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.visibility-preset-item.is-active .visibility-preset-label {
+  color: #f3e8ff;
+}
+
+.visibility-preset-desc {
+  font-size: 9.5px;
+  color: #64748b;
+}
+
+.visibility-preset-toggle {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #64748b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.15s ease;
+}
+
+.visibility-preset-toggle.is-on {
+  background: rgba(168, 85, 247, 0.25);
+  color: #f3e8ff;
+  border-color: #a855f7;
+}
+
+/* ==========================================================================
    Floating Node Inspector Panel (when node selected)
    ========================================================================== */
 

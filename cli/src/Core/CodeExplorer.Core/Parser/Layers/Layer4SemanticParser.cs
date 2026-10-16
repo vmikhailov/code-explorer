@@ -230,7 +230,6 @@ public class Layer4SemanticParser
                                 project.IsTest ||
                                 string.Equals(project.Extensions?.GetValueOrDefault("primary_role"), "TestFramework", StringComparison.OrdinalIgnoreCase) ||
                                 string.Equals(project.Extensions?.GetValueOrDefault("primary_role"), "Test", StringComparison.OrdinalIgnoreCase) ||
-                                string.Equals(project.Extensions?.GetValueOrDefault("has_test_runner"), "true", StringComparison.OrdinalIgnoreCase) ||
                                 string.Equals(project.Extensions?.GetValueOrDefault("is_test_project"), "true", StringComparison.OrdinalIgnoreCase);
 
             IOntologyNode workloadNode = isTestProject

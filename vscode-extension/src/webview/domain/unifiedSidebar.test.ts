@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-export type SidebarTab = 'info' | 'orbits' | 'hidden' | 'gates';
+export type SidebarTab = 'info' | 'orbits' | 'visibility' | 'gates' | 'hidden';
 
 export function resolveEffectiveSidebarTab(
   tab: SidebarTab,
@@ -34,6 +34,8 @@ export function handleSelectionChange(
 test('unifiedSidebar: resolveEffectiveSidebarTab falls back to info if orbits not active', () => {
   assert.equal(resolveEffectiveSidebarTab('info', false), 'info');
   assert.equal(resolveEffectiveSidebarTab('info', true), 'info');
+  assert.equal(resolveEffectiveSidebarTab('visibility', false), 'visibility');
+  assert.equal(resolveEffectiveSidebarTab('visibility', true), 'visibility');
   assert.equal(resolveEffectiveSidebarTab('hidden', false), 'hidden');
   assert.equal(resolveEffectiveSidebarTab('hidden', true), 'hidden');
   assert.equal(resolveEffectiveSidebarTab('gates', false), 'gates');
@@ -47,11 +49,11 @@ test('unifiedSidebar: resolveEffectiveSidebarTab falls back to info if orbits no
 });
 
 test('unifiedSidebar: selection change auto-switches to info tab and opens sidebar', () => {
-  // 1. Sidebar is currently closed and on hidden tab
+  // 1. Sidebar is currently closed and on visibility tab
   const state1 = handleSelectionChange(
     { id: 'service:payments', displayName: 'PaymentsService' },
     null,
-    'hidden',
+    'visibility',
     false
   );
   assert.equal(state1.isOpen, true, 'Sidebar must open on node selection');

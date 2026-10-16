@@ -23,7 +23,7 @@ import { DomainOverrideModal } from './DomainOverrideModal';
 import { attachNormalizedCytoscapeWheel } from '../utils/wheelZoom';
 import { DomainGridView } from '../domain/components/DomainGridView';
 import { DomainInspector } from '../domain/components/DomainInspector';
-import { DomainHiddenPanel } from '../domain/components/DomainHiddenPanel';
+import { DomainVisibilityPanel } from '../domain/components/DomainVisibilityPanel';
 import { DomainGatesPanel } from '../domain/components/DomainGatesPanel';
 import { matchesSearchTokens } from '../domain/searchUtils';
 import { Group, Panel, Separator } from 'react-resizable-panels';
@@ -1233,11 +1233,12 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   }, [isDisplayOpen]);
 
   // Unified Right Side Panel State
-  const [rightSidebarTab, setRightSidebarTab] = useState<'info' | 'orbits' | 'hidden' | 'gates'>(() => {
+  const [rightSidebarTab, setRightSidebarTab] = useState<'info' | 'orbits' | 'visibility' | 'gates'>(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
         const saved = localStorage.getItem('ce_domain_sidebar_tab');
-        if (saved === 'info' || saved === 'orbits' || saved === 'hidden' || saved === 'gates') return saved;
+        if (saved === 'info' || saved === 'orbits' || saved === 'visibility' || saved === 'gates') return saved;
+        if (saved === 'hidden') return 'visibility';
       } catch {}
     }
     return 'info';
@@ -1253,7 +1254,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     return true;
   });
 
-  const handleSidebarTabChange = useCallback((tab: 'info' | 'orbits' | 'hidden' | 'gates') => {
+  const handleSidebarTabChange = useCallback((tab: 'info' | 'orbits' | 'visibility' | 'gates') => {
     setRightSidebarTab(tab);
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
@@ -1650,8 +1651,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         node.kind === 'Test' ||
         node.properties?.role === 'Test' ||
         node.properties?.role === 'TestSuite' ||
-        node.properties?.is_test_project === 'true' ||
-        node.properties?.has_test_runner === 'true';
+        node.properties?.is_test_project === 'true';
 
       const isApp =
         node.kind === 'App' ||
@@ -2496,7 +2496,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   // Derived docked panels visibility and active tab selection
   const hasHiddenEntities = hiddenCount > 0;
   const hasOrbitLegend = layoutName.startsWith('concentric') && orbitLegendItems.length > 0;
-  const effectiveSidebarTab: 'info' | 'orbits' | 'hidden' | 'gates' =
+  const effectiveSidebarTab: 'info' | 'orbits' | 'visibility' | 'gates' =
     rightSidebarTab === 'orbits' && !hasOrbitLegend
       ? 'info'
       : rightSidebarTab;
@@ -3747,45 +3747,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               </button>
             </div>
 
-            {/* Layout & Curve Selector (Graph mode only) */}
-            {presentationMode === 'graph' && (
-            <div className="domain-hud-layout-select">
-              <select
-                value={layoutName}
-                onChange={(e) => handleLayoutChange(e.target.value as any)}
-                title="Graph Layout"
-                className="domain-layout-dropdown"
-              >
-                <option value="concentric">🎯 Concentric (Original)</option>
-                <option value="concentric-equispaced">🪐 Concentric: Equispaced</option>
-                <option value="concentric-polar-force">🪐 Concentric: Polar Force</option>
-                <option value="concentric-sectors">🪐 Concentric: Domain Sectors</option>
-                <option value="swimlanes">🏊 Swimlanes (Pipeline)</option>
-                <option value="clusters">🏝️ Domain Islands (Bounded Contexts)</option>
-                <option value="hive">🕸️ Hive Plot (Multi-Axis)</option>
-                <option value="cose">⚡ Force (COSE)</option>
-              </select>
-
-              <select
-                value={edgeCurveMode}
-                onChange={(e) => handleEdgeCurveModeChange(e.target.value as any)}
-                title="Line Style: Straight, Bezier curve, or Bypass Inner Orbits"
-                className="domain-layout-dropdown"
-              >
-                <option value="bezier">〰️ Bezier Curves</option>
-                <option value="straight">📏 Straight Lines</option>
-                <option value="avoid-inner">🛡️ Bypass Inner Orbits</option>
-              </select>
-            </div>
-            )}
-
             {/* Display & Sliders Tuning Popover */}
             <div className="domain-hud-popover-anchor" ref={displayMenuRef}>
               <button
                 type="button"
                 className={`domain-hud-btn domain-hud-display-btn ${isDisplayOpen ? 'is-active' : ''}`}
                 onClick={() => setIsDisplayOpen((prev) => !prev)}
-                title="Fine-tune display settings (Font size, Edge curvature, Air spacing, Wheel sensitivity)"
+                title="Fine-tune display settings (Layout, Line style, Font size, Edge curvature, Air spacing, Wheel sensitivity)"
               >
                 🎛️ Display <span style={{ fontSize: '9px', marginLeft: 2 }}>▾</span>
               </button>
@@ -3805,6 +3773,53 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                   </div>
 
                   <div className="display-popover-body">
+                    {/* Graph Layout Selection */}
+                    {presentationMode === 'graph' && (
+                      <div className="display-setting-row" title="Select graph layout algorithm">
+                        <div className="setting-label-row">
+                          <span className="setting-icon">📐</span>
+                          <span className="setting-name">Graph Layout</span>
+                        </div>
+                        <select
+                          value={layoutName}
+                          onChange={(e) => handleLayoutChange(e.target.value as any)}
+                          title="Graph Layout"
+                          className="domain-layout-dropdown"
+                          style={{ width: '100%', marginTop: '4px' }}
+                        >
+                          <option value="concentric">🎯 Concentric (Original)</option>
+                          <option value="concentric-equispaced">🪐 Concentric: Equispaced</option>
+                          <option value="concentric-polar-force">🪐 Concentric: Polar Force</option>
+                          <option value="concentric-sectors">🪐 Concentric: Domain Sectors</option>
+                          <option value="swimlanes">🏊 Swimlanes (Pipeline)</option>
+                          <option value="clusters">🏝️ Domain Islands (Bounded Contexts)</option>
+                          <option value="hive">🕸️ Hive Plot (Multi-Axis)</option>
+                          <option value="cose">⚡ Force (COSE)</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Edge Curve Mode */}
+                    {presentationMode === 'graph' && (
+                      <div className="display-setting-row" title="Line Style: Straight, Bezier curve, or Bypass Inner Orbits">
+                        <div className="setting-label-row">
+                          <span className="setting-icon">〰️</span>
+                          <span className="setting-name">Line Style</span>
+                        </div>
+                        <select
+                          value={edgeCurveMode}
+                          onChange={(e) => handleEdgeCurveModeChange(e.target.value as any)}
+                          title="Line Style: Straight, Bezier curve, or Bypass Inner Orbits"
+                          className="domain-layout-dropdown"
+                          style={{ width: '100%', marginTop: '4px' }}
+                        >
+                          <option value="bezier">〰️ Bezier Curves</option>
+                          <option value="straight">📏 Straight Lines</option>
+                          <option value="avoid-inner">🛡️ Bypass Inner Orbits</option>
+                        </select>
+                      </div>
+                    )}
+
                     {/* 1. Font Size Control */}
                     <div className="display-setting-row" title="Adjust graph label font size (7px - 24px)">
                       <div className="setting-label-row">
@@ -4340,30 +4355,45 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               <InfoIcon size={12} className="btn-icon" /> Details
             </button>
 
-            {/* Hidden entities sidebar toggle button */}
-            {hiddenCount > 0 && (
-              <button
-                type="button"
-                className={`hud-type-filter-btn ${isRightSidebarOpen && effectiveSidebarTab === 'hidden' ? 'is-active is-filter-on' : ''}`}
-                onClick={() => {
-                  if (isRightSidebarOpen && effectiveSidebarTab === 'hidden') {
-                    handleToggleSidebar(false);
-                  } else {
-                    handleToggleSidebar(true);
-                    handleSidebarTabChange('hidden');
-                  }
-                }}
-                title={isRightSidebarOpen && effectiveSidebarTab === 'hidden' ? 'Close Hidden entities sidebar' : 'Open Hidden entities sidebar'}
-                style={isRightSidebarOpen && effectiveSidebarTab === 'hidden' ? {
-                  background: 'rgba(239, 68, 68, 0.25)',
-                  borderColor: '#ef4444',
-                  color: '#fca5a5',
-                  fontWeight: 600,
-                } : undefined}
-              >
-                <EyeOffIcon size={12} className="btn-icon" /> Hidden ({hiddenCount})
-              </button>
-            )}
+            {/* Visibility sidebar tab toggle button */}
+            <button
+              type="button"
+              className={`hud-type-filter-btn ${isRightSidebarOpen && effectiveSidebarTab === 'visibility' ? 'is-active is-filter-on' : ''}`}
+              onClick={() => {
+                if (isRightSidebarOpen && effectiveSidebarTab === 'visibility') {
+                  handleToggleSidebar(false);
+                } else {
+                  handleToggleSidebar(true);
+                  handleSidebarTabChange('visibility');
+                }
+              }}
+              title={isRightSidebarOpen && effectiveSidebarTab === 'visibility' ? 'Close Visibility & Filters sidebar' : 'Open Visibility & Filters sidebar'}
+              style={
+                isRightSidebarOpen && effectiveSidebarTab === 'visibility'
+                  ? {
+                      background: 'rgba(56, 189, 248, 0.25)',
+                      borderColor: '#38bdf8',
+                      color: '#e0f2fe',
+                      fontWeight: 600,
+                    }
+                  : hiddenCount > 0
+                  ? {
+                      background: 'rgba(239, 68, 68, 0.2)',
+                      borderColor: '#ef4444',
+                      color: '#fca5a5',
+                      fontWeight: 600,
+                    }
+                  : undefined
+              }
+            >
+              <EyeIcon size={12} className="btn-icon" />
+              <span>Visibility</span>
+              {hiddenCount > 0 && (
+                <span style={{ fontSize: '9.5px', marginLeft: 4, background: 'rgba(239, 68, 68, 0.35)', padding: '1px 5px', borderRadius: '10px' }}>
+                  {hiddenCount}
+                </span>
+              )}
+            </button>
 
             {/* Orbit legend sidebar toggle button for concentric layout */}
             {hasOrbitLegend && (
@@ -4908,13 +4938,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                   )}
                   <button
                     type="button"
-                    className={`domain-sidebar-tab ${effectiveSidebarTab === 'hidden' ? 'is-active' : ''}`}
-                    onClick={() => handleSidebarTabChange('hidden')}
-                    title="Hidden Entities and Filters"
+                    className={`domain-sidebar-tab ${effectiveSidebarTab === 'visibility' ? 'is-active' : ''}`}
+                    onClick={() => handleSidebarTabChange('visibility')}
+                    title="Visibility, Entity Filters, and Architectural Presets"
                   >
-                    <EyeOffIcon size={12} />
-                    <span>Hidden</span>
-                    <span className="tab-badge">{hiddenCount}</span>
+                    <EyeIcon size={12} />
+                    <span>Visibility</span>
+                    {hiddenCount > 0 && <span className="tab-badge">{hiddenCount}</span>}
                   </button>
                   <button
                     type="button"
@@ -4971,8 +5001,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                   />
                 )}
                 {effectiveSidebarTab === 'orbits' && renderOrbitLegend(true)}
-                {effectiveSidebarTab === 'hidden' && (
-                  <DomainHiddenPanel
+                {effectiveSidebarTab === 'visibility' && (
+                  <DomainVisibilityPanel
                     nodeDetailMap={rawGraph.detailMap}
                     echelonMap={rawGraph.echelonMap}
                     hiddenNodeIds={hiddenNodeIds}
@@ -4980,8 +5010,23 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                     hiddenOrbitTiers={hiddenOrbitTiers}
                     hideSingleConnectionDbs={hideSingleConnectionDbs}
                     hideIsolatedNodes={hideIsolatedNodes}
+                    showTransitiveEdges={showTransitiveEdges}
+                    counts={{
+                      ...rawGraph.counts,
+                      transitiveCalls: stats.transitiveCalls,
+                    }}
                     onUnhideNode={unhideNode}
                     onRestoreAll={restoreAllHiddenNodes}
+                    onToggleType={toggleTypeVisibility}
+                    onToggleSingleConnectionDbs={() => {
+                      forceRelayoutRef.current = true;
+                      setHideSingleConnectionDbs((prev) => !prev);
+                    }}
+                    onToggleIsolatedNodes={() => {
+                      forceRelayoutRef.current = true;
+                      setHideIsolatedNodes((prev) => !prev);
+                    }}
+                    onToggleTransitiveEdges={handleToggleTransitiveEdges}
                     isCollapsed={false}
                     docked={true}
                     onClose={() => handleToggleSidebar(false)}

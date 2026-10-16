@@ -20,6 +20,8 @@ tar -czf - \
   all_services_clean.png \
   selected_services_clean.png \
   project_flow.png \
+  robots.txt \
+  sitemap.xml \
   CNAME | \
   ssh -i "$SSH_KEY" -o BatchMode=yes -o StrictHostKeyChecking=accept-new "${TARGET_USER}@${TARGET_HOST}" \
     "tar -xzf - -C '${TARGET_DIR}' && chown -R root:root '${TARGET_DIR}' && chmod 755 '${TARGET_DIR}' && chmod 644 '${TARGET_DIR}'/*"
