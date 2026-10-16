@@ -101,9 +101,9 @@ public static class CypherTokenizer
             // Identifiers
             .Match(Identifier.CStyle, CypherToken.Identifier)
 
-            // String literals: single and double quotes with escaping
-            .Match(Span.Regex(@"'([^'\\]|\\.)*'"), CypherToken.StringLiteral)
-            .Match(Span.Regex(@"""([^""\\]|\\.)*"""), CypherToken.StringLiteral)
+            // String literals: single and double quotes with escaping (multiline, escaped quotes \' and '')
+            .Match(Span.Regex(@"(?s)'(?:[^'\\]|\\.|'')*'"), CypherToken.StringLiteral)
+            .Match(Span.Regex(@"(?s)""(?:[^""\\]|\\.|"""")*"""), CypherToken.StringLiteral)
 
             // Numbers: hexadecimal, exponential, decimal, or integer
             .Match(Span.Regex(@"0x[0-9a-fA-F]+"), CypherToken.Number)

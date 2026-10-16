@@ -74,10 +74,13 @@ public static class CypherSecurityValidator
         var noComments = Regex.Replace(text, @"//.*", "");
         // Remove block comments /* ... */
         noComments = Regex.Replace(noComments, @"/\*[\s\S]*?\*/", "");
-        // Remove string literals '...' and "..."
-        var noStrings = Regex.Replace(noComments, @"'([^'\\]|\\.)*'", "");
-        noStrings = Regex.Replace(noStrings, @"""([^""\\]|\\.)*""", "");
+        // Remove string literals '...' and "..." (supporting multiline and escaped quotes \' and '')
+        var noStrings = Regex.Replace(noComments, @"(?s)'(?:[^'\\]|\\.|'')*'", "");
+        noStrings = Regex.Replace(noStrings, @"(?s)""(?:[^""\\]|\\.|"""")*""", "");
         // Remove backtick identifiers `...`
-        return Regex.Replace(noStrings, @"`[^`]+`", "");
+        var noBackticks = Regex.Replace(noStrings, @"`[^`]+`", "");
+        // Strip property access (e.g. .set, .merge) and labels (e.g. :Set) so non-mutating tokens are not flagged
+        var noProps = Regex.Replace(noBackticks, @"\.\s*[a-zA-Z0-9_]+", "");
+        return Regex.Replace(noProps, @":\s*[a-zA-Z0-9_]+", "");
     }
 }

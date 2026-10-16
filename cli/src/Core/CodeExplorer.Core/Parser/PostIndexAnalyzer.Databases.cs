@@ -57,6 +57,10 @@ public partial class PostIndexAnalyzer
 
             if (KnownDbEnginesAndNames.Contains(tech))
             {
+                if (!IsValidSchemaIdentifier(schema))
+                {
+                    return false;
+                }
                 return true;
             }
         }
@@ -84,6 +88,34 @@ public partial class PostIndexAnalyzer
             lower.Contains("_rules") || lower.Contains("jsonb_") || lower.Contains("dblink")) return false;
 
         return false;
+    }
+
+    public static bool IsValidSchemaIdentifier(string? schema)
+    {
+        if (string.IsNullOrWhiteSpace(schema)) return false;
+        var clean = schema.Trim('\'', '"', '`', ' ', ';');
+        if (clean.Length < 2 || clean.Length > 64) return false;
+        if (clean.Contains('\n') || clean.Contains('\r') || clean.Contains(';') ||
+            clean.Contains('(') || clean.Contains(')') || clean.Contains(' ') ||
+            clean.Contains(',') || clean.Contains('=') || clean.Contains('[') || clean.Contains(']'))
+        {
+            return false;
+        }
+        if (clean.Equals("default", StringComparison.OrdinalIgnoreCase) ||
+            clean.Equals("dbo", StringComparison.OrdinalIgnoreCase) ||
+            clean.Equals("public", StringComparison.OrdinalIgnoreCase) ||
+            clean.Equals("main", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+        if (NestedSqlParser.IsSqlKeyword(clean)) return false;
+        if (clean.EndsWith("Schema", StringComparison.OrdinalIgnoreCase) &&
+            !clean.Equals("schema", StringComparison.OrdinalIgnoreCase) &&
+            !clean.Equals("public", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+        return Regex.IsMatch(clean, @"^[a-zA-Z_][a-zA-Z0-9_-]*$");
     }
 
     public static (string CanonicalName, string CanonicalType, string CanonicalKey) CanonicalizeDatabase(
@@ -132,9 +164,10 @@ public partial class PostIndexAnalyzer
             return ($"{techName}.{schemaPart}", techType, $"{techKey}:{schemaClean}");
         }
 
-        // 2. If an explicit rawSchema is provided
+        // 2. If an explicit rawSchema is provided and valid
         if (!string.IsNullOrWhiteSpace(rawSchema) && 
-            !rawSchema.Equals("database", StringComparison.OrdinalIgnoreCase))
+            !rawSchema.Equals("database", StringComparison.OrdinalIgnoreCase) &&
+            IsValidSchemaIdentifier(rawSchema))
         {
             var effectiveTech = !string.IsNullOrWhiteSpace(effectiveRawEngine)
                 ? effectiveRawEngine

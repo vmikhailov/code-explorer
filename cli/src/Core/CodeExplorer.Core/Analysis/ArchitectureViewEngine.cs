@@ -1329,8 +1329,8 @@ public partial class ArchitectureViewEngine(IGraphClient db)
 
         if (string.IsNullOrWhiteSpace(projectScope)) return graph;
 
-        // Query all components declared in or persisted in this project
-        var query = "MATCH (p)-[:CONTAINS*1..3]->(c) WHERE (p:Project OR p:Service OR p:App OR p:Worker OR p:Library OR p:CliTool OR p:FrontendApp OR p:SharedLibrary) AND (p.id = $scope OR p.name = $scope) AND labels(c)[0] IN ['Endpoint', 'EntryPoint', 'Type', 'Table', 'Query'] RETURN c.id AS id, labels(c)[0] AS kind, c.name AS name, c.path AS path";
+        // Query all components declared in or persisted in this project (excluding unit tests)
+        var query = "MATCH (p)-[:CONTAINS*1..3]->(c) WHERE (p:Project OR p:Service OR p:App OR p:Worker OR p:Library OR p:CliTool OR p:FrontendApp OR p:SharedLibrary) AND (p.id = $scope OR p.name = $scope) AND labels(c)[0] IN ['Endpoint', 'EntryPoint', 'Type', 'Table', 'Query'] AND (c.is_test IS NULL OR c.is_test = false) RETURN c.id AS id, labels(c)[0] AS kind, c.name AS name, c.path AS path";
         var resJson = await db.ExecuteQueryAsync(query, new Dictionary<string, object?> { ["scope"] = projectScope }, ct);
 
         using var doc = JsonDocument.Parse(resJson);
@@ -1353,41 +1353,54 @@ public partial class ArchitectureViewEngine(IGraphClient db)
         // Query internal component relationships: CALLS, EXPOSES_ENDPOINT, PERSISTED_IN, QUERIES_DB
         if (compIds.Count > 0)
         {
-            var inListStr = string.Join(", ", compIds.Select(id => $"'{id.Replace("'", "''")}'"));
+            var seenEdges = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            var relsQuery =
-                $"MATCH (src)-[r]->(tgt) WHERE src.id IN [{inListStr}] AND tgt.id IN [{inListStr}] RETURN src.id AS from_id, tgt.id AS to_id, r.kind AS kind";
-            var relsJson = await db.ExecuteQueryAsync(relsQuery, null, ct);
-
-            using var relsDoc = JsonDocument.Parse(relsJson);
-
-            foreach (var elem in relsDoc.RootElement.EnumerateArray())
+            foreach (var batch in compIds.Chunk(200))
             {
-                var fromId = elem.GetProperty("from_id").GetString()!;
-                var toId = elem.GetProperty("to_id").GetString()!;
-                var kind = elem.GetProperty("kind").GetString()!;
+                var inListStr = string.Join(", ", batch.Select(EscapeCypherStringLiteral));
 
-                var (category, depType, normalizedKind) =
-                    PostIndexAnalyzer.NormalizeEdgeCategory(kind, null, null);
+                var relsQuery =
+                    $"MATCH (src)-[r]->(tgt) WHERE src.id IN [{inListStr}] RETURN src.id AS from_id, tgt.id AS to_id, r.kind AS kind";
+                var relsJson = await db.ExecuteQueryAsync(relsQuery, null, ct);
 
-                var categoryStr = category.ToCategoryString();
-                graph.Edges.Add(new GraphEdgeDto
+                using var relsDoc = JsonDocument.Parse(relsJson);
+
+                foreach (var elem in relsDoc.RootElement.EnumerateArray())
                 {
-                    Id = $"{fromId}->{toId}:{normalizedKind}",
-                    Source = fromId,
-                    Target = toId,
-                    Kind = normalizedKind,
-                    Category = categoryStr,
-                    Properties = new Dictionary<string, string>
+                    var fromId = elem.GetProperty("from_id").GetString()!;
+                    var toId = elem.GetProperty("to_id").GetString()!;
+                    var kind = elem.GetProperty("kind").GetString()!;
+
+                    if (!compIds.Contains(toId)) continue;
+
+                    var (category, depType, normalizedKind) =
+                        PostIndexAnalyzer.NormalizeEdgeCategory(kind, null, null);
+
+                    var edgeId = $"{fromId}->{toId}:{normalizedKind}";
+                    if (!seenEdges.Add(edgeId)) continue;
+
+                    var categoryStr = category.ToCategoryString();
+                    graph.Edges.Add(new GraphEdgeDto
                     {
-                        ["category"] = categoryStr, ["dependency_type"] = depType
-                    }
-                });
+                        Id = edgeId,
+                        Source = fromId,
+                        Target = toId,
+                        Kind = normalizedKind,
+                        Category = categoryStr,
+                        Properties = new Dictionary<string, string>
+                        {
+                            ["category"] = categoryStr, ["dependency_type"] = depType
+                        }
+                    });
+                }
             }
         }
 
         return graph;
     }
+
+    private static string EscapeCypherStringLiteral(string s) =>
+        $"'{s.Replace(@"\", @"\\").Replace("'", @"\'")}'";
 
 
     public static bool IsProjectNodeKind(NodeKind kind) =>

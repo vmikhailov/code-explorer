@@ -19,6 +19,11 @@ public class CypherSecurityValidatorTests
     [TestCase("MATCH (n) RETURN n.`set`")]
     [TestCase("MATCH (n:Set) RETURN n")]
     [TestCase("MATCH (p:Project)-[:DEPENDS_ON]->(dep:Project) RETURN p.name, dep.name")]
+    [TestCase("MATCH (n) WHERE n.id IN ['workspace:entry:afisha:Vitest:Suite:Eli\\'s Pub calendar page', 'workspace:entry:afisha:Vitest:Suite:hall''s own title'] RETURN n")]
+    [TestCase("MATCH (n) WHERE n.query = 'SELECT \n FROM table \n WHERE action = \\'SET\\'' RETURN n")]
+    [TestCase("MATCH (n) WHERE n.description = \"Line 1 \n SET n.val = 1 \n Line 2\" RETURN n")]
+    [TestCase("MATCH (n) WHERE n.name = 'bullmq:set' RETURN n")]
+    [TestCase("MATCH (src)-[r]->(tgt) WHERE src.id IN ['bullmq:set', 'bullmq:merge'] RETURN src.id")]
     public void ValidateReadOnly_ValidReadQueriesWithSubstrings_DoesNotThrow(string query)
     {
         Assert.DoesNotThrow(() => CypherSecurityValidator.ValidateReadOnly(query));
