@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { GraphData, GraphNode } from '../../../../proto/types';
+import { getNodePresentation } from '../nodePresentation';
 import { ViewMode } from '../commands';
 
 export interface NodeCategorySelection {
@@ -169,77 +170,6 @@ export const NodeGridView: React.FC<NodeGridViewProps> = ({
     }
   };
 
-  const getKindBadgeClass = (kind: string) => {
-    const k = kind?.toLowerCase() || '';
-    if (k.includes('test') || k.includes('suite')) return 'badge-test';
-    if (k.includes('endpoint')) return 'badge-endpoint';
-    if (k.includes('database') || k.includes('table')) return 'badge-db';
-    if (k.includes('service') || k.includes('project')) return 'badge-service';
-    if (k.includes('type') || k.includes('class')) return 'badge-type';
-    if (k.includes('function') || k.includes('method')) return 'badge-fn';
-    if (k.includes('topic')) return 'badge-topic';
-    if (k.includes('worker')) return 'badge-worker';
-    return 'badge-default';
-  };
-
-  const getKindIcon = (kind: string) => {
-    switch (kind) {
-      case 'TestSuite':
-      case 'Test':
-        return '🧪';
-      case 'Service':
-        return '⚙️';
-      case 'App':
-        return '🌐';
-      case 'Worker':
-        return '⚡';
-      case 'CliTool':
-        return '💻';
-      case 'Library':
-        return '📚';
-      case 'Package':
-        return '📦';
-      case 'Procedure':
-        return '⚙️';
-      case 'DataSet':
-        return '📊';
-      case 'Project':
-        return '📦';
-      case 'Endpoint':
-        return '🌐';
-      case 'Database':
-        return '🗄️';
-      case 'Table':
-        return '📋';
-      case 'Topic':
-        return '📬';
-      case 'EntryPoint':
-        return '🚪';
-      case 'ExternalService':
-        return '☁️';
-      case 'CloudService':
-        return '⚡';
-      case 'ApiInUse':
-        return '🔌';
-      case 'Query':
-        return '🔍';
-      case 'Type':
-        return '🔷';
-      case 'Function':
-        return '⚡';
-      case 'Member':
-        return '🔹';
-      case 'File':
-        return '📄';
-      case 'Folder':
-        return '📁';
-      case 'GitSettings':
-        return '🌿';
-      default:
-        return '🔹';
-    }
-  };
-
   const formatKeyDetails = (node: NodeDto | GraphNode): string => {
     const props = node.properties || {};
     const parts: string[] = [];
@@ -293,7 +223,7 @@ export const NodeGridView: React.FC<NodeGridViewProps> = ({
             <span className="breadcrumb-layer">{currentLayer}</span>
             <span className="breadcrumb-separator">/</span>
             <span className="breadcrumb-kind">
-              {getKindIcon(currentKind)} {currentKind === 'all' ? (currentService ? `${currentService} Nodes` : 'All Graph Nodes') : currentKind.startsWith('Layer') ? `${currentKind} Items` : (currentKind || 'All Nodes')}
+              {getNodePresentation({ kind: currentKind }).icon} {currentKind === 'all' ? (currentService ? `${currentService} Nodes` : 'All Graph Nodes') : currentKind.startsWith('Layer') ? `${currentKind} Items` : (currentKind || 'All Nodes')}
             </span>
           </div>
           <span className="total-badge">{totalCount.toLocaleString()} items</span>
@@ -394,14 +324,14 @@ export const NodeGridView: React.FC<NodeGridViewProps> = ({
                     style={{ cursor: 'pointer' }}
                   >
                     <td className="td-name">
-                      <span className="row-icon">{getKindIcon(node.kind)}</span>
+                      <span className="row-icon">{getNodePresentation(node).icon}</span>
                       <span className="row-name" title={node.id}>
                         {name}
                       </span>
                     </td>
 
                     <td className="td-kind">
-                      <span className={`kind-tag ${getKindBadgeClass(node.kind)}`}>{node.kind}</span>
+                      <span className={`kind-tag ${getNodePresentation(node).badgeClass}`}>{node.kind}</span>
                     </td>
 
                     {!isResourceCategory && (

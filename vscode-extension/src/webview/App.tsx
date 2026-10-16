@@ -155,6 +155,9 @@ export const App: React.FC = () => {
   });
   const [flowGraph, setFlowGraph] = useState<GraphData | null>(null);
   const [fullGraph, setFullGraph] = useState<GraphData | null>(null);
+  const [c1Graph, setC1Graph] = useState<GraphData | null>(null);
+  const [layersGraph, setLayersGraph] = useState<GraphData | null>(null);
+  const [domainGraph, setDomainGraph] = useState<GraphData | null>(null);
   const [contextsGraph, setContextsGraph] = useState<GraphData | null>(null);
   const [focusTargetContext, setFocusTargetContext] = useState<{ contextName?: string; contextId?: string; domainId?: string } | null>(null);
   const [cypherQuery, setCypherQuery] = useState<string>('');
@@ -311,6 +314,33 @@ export const App: React.FC = () => {
     sendWsMessage(req);
   }, [sendWsMessage]);
 
+  const requestC1 = useCallback(() => {
+    const req: WebSocketMessage = {
+      type: 'GET_VIEW_REQUEST',
+      requestId: `req_view_c1_${Date.now()}`,
+      payload: { view: 'c1' },
+    };
+    sendWsMessage(req);
+  }, [sendWsMessage]);
+
+  const requestLayers = useCallback(() => {
+    const req: WebSocketMessage = {
+      type: 'GET_VIEW_REQUEST',
+      requestId: `req_view_layers_${Date.now()}`,
+      payload: { view: 'layers' },
+    };
+    sendWsMessage(req);
+  }, [sendWsMessage]);
+
+  const requestDomain = useCallback(() => {
+    const req: WebSocketMessage = {
+      type: 'GET_VIEW_REQUEST',
+      requestId: `req_view_domain_${Date.now()}`,
+      payload: { view: 'domain' },
+    };
+    sendWsMessage(req);
+  }, [sendWsMessage]);
+
   const handleSaveAiSettings = useCallback((settings: AiSettings) => {
     setAiSettings(settings);
     if (vscodeApi) {
@@ -361,6 +391,15 @@ export const App: React.FC = () => {
   const fullGraphRef = useRef<GraphData | null>(null);
   fullGraphRef.current = fullGraph;
 
+  const c1GraphRef = useRef<GraphData | null>(null);
+  c1GraphRef.current = c1Graph;
+
+  const layersGraphRef = useRef<GraphData | null>(null);
+  layersGraphRef.current = layersGraph;
+
+  const domainGraphRef = useRef<GraphData | null>(null);
+  domainGraphRef.current = domainGraph;
+
   const flowGraphRef = useRef<GraphData | null>(null);
   flowGraphRef.current = flowGraph;
 
@@ -394,6 +433,18 @@ export const App: React.FC = () => {
         if (!contextsGraphRef.current || contextsGraphRef.current.nodes?.length === 0) {
           requestContexts();
         }
+      } else if (targetMode === 'layers') {
+        if (!layersGraphRef.current || layersGraphRef.current.nodes?.length === 0) {
+          requestLayers();
+        }
+      } else if (targetMode === 'semantic') {
+        if (!domainGraphRef.current || domainGraphRef.current.nodes?.length === 0) {
+          requestDomain();
+        }
+      } else if (targetMode === 'c1') {
+        if (!c1GraphRef.current || c1GraphRef.current.nodes?.length === 0) {
+          requestC1();
+        }
       } else if (targetMode === 'settings') {
         if (vscodeApi) {
           vscodeApi.postMessage({ type: 'GET_AI_SETTINGS' });
@@ -402,7 +453,7 @@ export const App: React.FC = () => {
         requestArchitecture();
       }
     },
-    [commandManager, requestDependencies, requestArchitecture, requestContexts]
+    [commandManager, requestDependencies, requestArchitecture, requestContexts, requestLayers, requestDomain, requestC1]
   );
 
   const handleSelectProject = useCallback(
@@ -879,7 +930,18 @@ export const App: React.FC = () => {
                 payload: { clear: true },
               });
             } else {
-              // Fetch full architecture (with layer classifications)
+              // Fetch dedicated graph for initial view mode
+              if (viewModeRef.current === 'layers') {
+                requestLayers();
+              } else if (viewModeRef.current === 'semantic') {
+                requestDomain();
+              } else if (viewModeRef.current === 'c1') {
+                requestC1();
+              } else if (viewModeRef.current === 'contexts') {
+                requestContexts();
+              }
+
+              // Fetch full architecture for background catalog & global search
               requestArchitecture();
 
               // Fetch dependencies for default or active project
@@ -887,11 +949,6 @@ export const App: React.FC = () => {
                 requestDependencies(selectedProjectRef.current);
               } else {
                 requestDependencies();
-              }
-
-              // Fetch bounded contexts if initial view mode is contexts
-              if (viewModeRef.current === 'contexts') {
-                requestContexts();
               }
             }
             break;
@@ -956,13 +1013,22 @@ export const App: React.FC = () => {
               const nodeCount = resp.graph.nodes?.length || 0;
               const edgeCount = resp.graph.edges?.length || 0;
               const isContexts = msg.requestId?.startsWith('req_view_contexts') || resp.graph.metadata?.view === 'BoundedContexts' || resp.graph.metadata?.graphType === 'contexts';
+              const isLayers = msg.requestId?.startsWith('req_view_layers') || resp.graph.metadata?.view === 'Tiers' || resp.graph.metadata?.graphType === 'tiers';
+              const isDomain = msg.requestId?.startsWith('req_view_domain') || resp.graph.metadata?.view === 'DomainMap' || resp.graph.metadata?.graphType === 'domain';
+              const isC1 = msg.requestId?.startsWith('req_view_c1');
               const isArch = msg.requestId?.startsWith('req_arch') || resp.graph.metadata?.graphType === 'architecture';
               const isFlow = msg.requestId?.startsWith('req_dep') || resp.graph.metadata?.graphType === 'flow';
               const hasColumns = resp.graph.nodes?.some((n) => n.properties?.column);
-              const isFlowGraph = isFlow || (!isArch && !isContexts && hasColumns);
-              logToExtension('INFO', `Query response received: ${nodeCount} nodes, ${edgeCount} edges (type=${isContexts ? 'contexts' : isFlowGraph ? 'flow' : 'architecture'})`);
+              const isFlowGraph = isFlow || (!isArch && !isContexts && !isLayers && !isDomain && hasColumns);
+              logToExtension('INFO', `Query response received: ${nodeCount} nodes, ${edgeCount} edges (type=${isContexts ? 'contexts' : isLayers ? 'layers' : isDomain ? 'domain' : isC1 ? 'c1' : isFlowGraph ? 'flow' : 'architecture'})`);
               if (isContexts) {
                 setContextsGraph(resp.graph);
+              } else if (isLayers) {
+                setLayersGraph(resp.graph);
+              } else if (isDomain) {
+                setDomainGraph(resp.graph);
+              } else if (isC1) {
+                setC1Graph(resp.graph);
               } else if (isFlowGraph) {
                 setFlowGraph(resp.graph);
                 const metadata = resp.graph.metadata;
@@ -1490,7 +1556,10 @@ export const App: React.FC = () => {
           {/* Global Loading Overlay when fetching initial graph data */}
           {((viewMode === 'flow' && !flowGraph) ||
             (viewMode === 'contexts' && !contextsGraph) ||
-            (viewMode !== 'flow' && viewMode !== 'contexts' && viewMode !== 'settings' && !fullGraph)) &&
+            (viewMode === 'layers' && !layersGraph && !fullGraph) ||
+            (viewMode === 'semantic' && !domainGraph && !fullGraph) ||
+            (viewMode === 'c1' && !c1Graph && !fullGraph) ||
+            (viewMode !== 'flow' && viewMode !== 'contexts' && viewMode !== 'layers' && viewMode !== 'semantic' && viewMode !== 'c1' && viewMode !== 'settings' && !fullGraph)) &&
             connectionStatus !== 'error' &&
             connectionStatus !== 'disconnected' && (
               <div className="view-loading-overlay">
@@ -1502,6 +1571,12 @@ export const App: React.FC = () => {
                         ? `Loading dependencies for ${selectedProject || 'project'}...`
                         : viewMode === 'contexts'
                         ? 'Loading Bounded Context Map...'
+                        : viewMode === 'layers'
+                        ? 'Loading Architecture Tiers...'
+                        : viewMode === 'semantic'
+                        ? 'Loading Domain Architecture...'
+                        : viewMode === 'c1'
+                        ? 'Loading System Context...'
                         : 'Loading architecture graph...'}
                     </span>
                     <span className="view-loading-subtitle">
@@ -1515,7 +1590,7 @@ export const App: React.FC = () => {
           <ErrorBoundary onLogError={(err) => logToExtension('ERROR', `View crash: ${err.message}\n${err.stack}`)}>
             {viewMode === 'c1' && (
               <C1SystemContextView
-                graph={fullGraph}
+                graph={c1Graph || fullGraph}
                 onOpenFile={handleOpenFile}
                 onDrillDownToC2={handleDrillDownToFlow}
                 onSelectNode={handleSelectDrawerNode}
@@ -1525,7 +1600,7 @@ export const App: React.FC = () => {
 
             {viewMode === 'semantic' && (
               <DomainArchitectureView
-                graph={fullGraph}
+                graph={domainGraph || fullGraph}
                 serverHttpUrl={serverHttpUrl}
                 onOpenFile={handleOpenFile}
                 onFocusInFlow={handleDrillDownToFlow}
@@ -1558,7 +1633,7 @@ export const App: React.FC = () => {
 
             {viewMode === 'layers' && (
               <LayeredArchitectureView
-                graph={fullGraph}
+                graph={layersGraph || fullGraph}
                 onOpenFile={handleOpenFile}
                 onFocusInFlow={handleDrillDownToFlow}
                 showTests={showTests}

@@ -1036,40 +1036,29 @@ public partial class ArchitectureViewEngine(IGraphClient db)
         }
     }
 
-    /// <summary>
-    /// C1: System Context View.
-    /// Retrieves top-level executable services, external APIs, databases, and message topics with materialized macro-edges.
-    /// </summary>
-    public async Task<GraphDataDto> GetSystemContextViewAsync(
+    internal async Task<GraphDataDto> BuildBaseArchitectureTopologyAsync(
         bool includeLibraries = false,
+        bool includeTopics = true,
         string? projectFilter = null,
         bool sharedDatabasesOnly = false,
         CancellationToken ct = default)
     {
-        var dbKey = ResolveDbCachePrefix();
-        var cacheKey = $"{dbKey}:c1:libs={includeLibraries}:filter={projectFilter ?? ""}:sharedDbs={sharedDatabasesOnly}";
-        if (SystemContextCache.TryGetValue(cacheKey, out var cached))
-        {
-            return cached;
-        }
-
         var graph = new GraphDataDto
         {
-            Metadata = new Dictionary<string, string>
-            {
-                ["view"] = "SystemContext",
-                ["level"] = "C1",
-                ["graphType"] = "architecture"
-            }
+            Metadata = new Dictionary<string, string>()
         };
 
         var nodeMap = new Dictionary<string, GraphNodeDto>(StringComparer.OrdinalIgnoreCase);
         var dbIdToCanonicalId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var projectToWorkloadMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
+        var topicClause = includeTopics
+            ? " OR (labels(n)[0] = 'Topic' AND (n.broker_type IS NULL OR (n.broker_type <> 'mediatr' AND n.broker_type <> 'in-memory')) AND (n.is_internal IS NULL OR n.is_internal <> 'true'))"
+            : "";
+
         var nodesQuery = includeLibraries
-            ? "MATCH (n) WHERE labels(n)[0] IN ['Project', 'Service', 'App', 'Library', 'Worker', 'CliTool', 'TestSuite', 'Database', 'ExternalService'] OR (labels(n)[0] = 'Topic' AND (n.broker_type IS NULL OR (n.broker_type <> 'mediatr' AND n.broker_type <> 'in-memory')) AND (n.is_internal IS NULL OR n.is_internal <> 'true')) OR (labels(n)[0] = 'Package' AND (n.is_external = 'true' OR n.is_external = true OR (n.is_external IS NULL AND NOT (n)-[:IMPLEMENTED_BY]->(:Project)))) RETURN n.id AS id, labels(n)[0] AS kind, n.name AS name, n.display_name AS display_name, n.path AS path, n.framework AS framework, n.role AS role, n.is_library AS is_library, n.db_type AS db_type, n.project_type AS project_type, n.package_type AS package_type, n.type AS pkg_type, n.version AS version, n.properties AS properties, n.layer AS layer, n.layerId AS layerId, n.layerName AS layerName, n.layerOrder AS layerOrder, n.layerColor AS layerColor, n.layerIcon AS layerIcon, n.package_count AS package_count"
-            : "MATCH (n) WHERE labels(n)[0] IN ['Service', 'App', 'Worker', 'CliTool', 'TestSuite', 'Database', 'ExternalService'] OR (labels(n)[0] = 'Topic' AND (n.broker_type IS NULL OR (n.broker_type <> 'mediatr' AND n.broker_type <> 'in-memory')) AND (n.is_internal IS NULL OR n.is_internal <> 'true')) OR (labels(n)[0] = 'Project' AND (n.is_library <> 'true' OR n.is_library IS NULL) AND (n.role <> 'SharedLibrary' OR n.role IS NULL)) RETURN n.id AS id, labels(n)[0] AS kind, n.name AS name, n.display_name AS display_name, n.path AS path, n.framework AS framework, n.role AS role, n.is_library AS is_library, n.db_type AS db_type, n.project_type AS project_type, n.package_type AS package_type, n.type AS pkg_type, n.version AS version, n.properties AS properties, n.layer AS layer, n.layerId AS layerId, n.layerName AS layerName, n.layerOrder AS layerOrder, n.layerColor AS layerColor, n.layerIcon AS layerIcon, n.package_count AS package_count";
+            ? $"MATCH (n) WHERE labels(n)[0] IN ['Project', 'Service', 'App', 'Library', 'Worker', 'CliTool', 'TestSuite', 'Database', 'ExternalService']{topicClause} OR (labels(n)[0] = 'Package' AND (n.is_external = 'true' OR n.is_external = true OR (n.is_external IS NULL AND NOT (n)-[:IMPLEMENTED_BY]->(:Project)))) RETURN n.id AS id, labels(n)[0] AS kind, n.name AS name, n.display_name AS display_name, n.path AS path, n.framework AS framework, n.role AS role, n.is_library AS is_library, n.db_type AS db_type, n.project_type AS project_type, n.package_type AS package_type, n.type AS pkg_type, n.version AS version, n.properties AS properties, n.layer AS layer, n.layerId AS layerId, n.layerName AS layerName, n.layerOrder AS layerOrder, n.layerColor AS layerColor, n.layerIcon AS layerIcon, n.package_count AS package_count"
+            : $"MATCH (n) WHERE labels(n)[0] IN ['Service', 'App', 'Worker', 'CliTool', 'TestSuite', 'Database', 'ExternalService']{topicClause} OR (labels(n)[0] = 'Project' AND (n.is_library <> 'true' OR n.is_library IS NULL) AND (n.role <> 'SharedLibrary' OR n.role IS NULL)) RETURN n.id AS id, labels(n)[0] AS kind, n.name AS name, n.display_name AS display_name, n.path AS path, n.framework AS framework, n.role AS role, n.is_library AS is_library, n.db_type AS db_type, n.project_type AS project_type, n.package_type AS package_type, n.type AS pkg_type, n.version AS version, n.properties AS properties, n.layer AS layer, n.layerId AS layerId, n.layerName AS layerName, n.layerOrder AS layerOrder, n.layerColor AS layerColor, n.layerIcon AS layerIcon, n.package_count AS package_count";
 
         var nodesJson = await db.ExecuteQueryAsync(nodesQuery, null, ct);
         using var nodesDoc = JsonDocument.Parse(nodesJson);
@@ -1095,6 +1084,38 @@ public partial class ArchitectureViewEngine(IGraphClient db)
         graph.Metadata["allProjects"] = JsonSerializer.Serialize(allProjects);
         var projectPaths = await GetProjectPathsMapAsync(ct);
         graph.Metadata["projectPaths"] = JsonSerializer.Serialize(projectPaths);
+
+        return graph;
+    }
+
+    /// <summary>
+    /// C1: System Context View.
+    /// Retrieves top-level executable services, external APIs, databases, and message topics with materialized macro-edges.
+    /// </summary>
+    public async Task<GraphDataDto> GetSystemContextViewAsync(
+        bool includeLibraries = false,
+        string? projectFilter = null,
+        bool sharedDatabasesOnly = false,
+        CancellationToken ct = default)
+    {
+        var dbKey = ResolveDbCachePrefix();
+        var cacheKey = $"{dbKey}:c1:libs={includeLibraries}:filter={projectFilter ?? ""}:sharedDbs={sharedDatabasesOnly}";
+        if (SystemContextCache.TryGetValue(cacheKey, out var cached))
+        {
+            return cached;
+        }
+
+        var graph = await BuildBaseArchitectureTopologyAsync(
+            includeLibraries: includeLibraries,
+            includeTopics: true,
+            projectFilter: projectFilter,
+            sharedDatabasesOnly: sharedDatabasesOnly,
+            ct: ct);
+
+        graph.Metadata ??= new Dictionary<string, string>();
+        graph.Metadata["view"] = "SystemContext";
+        graph.Metadata["level"] = "C1";
+        graph.Metadata["graphType"] = "architecture";
 
         SystemContextCache[cacheKey] = graph;
         return graph;

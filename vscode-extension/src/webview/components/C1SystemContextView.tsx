@@ -17,6 +17,7 @@ import {
   MarkerType,
 } from '@xyflow/react';
 import { GraphData, GraphNode, isProjectKind } from '../../../../proto/types';
+import { getNodePresentation } from '../nodePresentation';
 import { calculateNormalizedZoomFactor, calculateAnchorPan, attachNormalizedCytoscapeWheel } from '../utils/wheelZoom';
 import {
   C1LaconicCardNode,
@@ -118,61 +119,6 @@ const nodeTypes = {
   c1External: C1ExternalCardNode as any,
   c1Swimlane: C1SwimlaneCardNode as any,
 };
-
-// ============================================================================
-// Node Classifier: Strictly Apps, Services, External (No Libs, Not DBs)
-// ============================================================================
-function classifyNode(node: GraphNode): C1Category | null {
-  const kind = (node.kind || '').toLowerCase();
-  const role = (node.properties?.role || '').toLowerCase();
-  const isLib =
-    node.properties?.is_library === 'true' ||
-    (node.properties as any)?.is_library === true ||
-    role === 'sharedlibrary';
-
-  // 1. Strictly exclude: Libraries, Databases, Topics/Queues, Endpoints, AST Types
-  if (kind === 'library' || kind === 'sharedlibrary' || isLib) return null;
-  if (kind === 'database' || kind === 'table' || kind === 'column' || kind === 'query') return null;
-  if (kind === 'topic' || kind === 'queue' || kind === 'broker') return null;
-  if (kind === 'endpoint' || kind === 'entrypoint' || kind === 'type' || kind === 'function') return null;
-  if (kind === 'workspace' || kind === 'package' || role === 'test' || kind === 'test') return null;
-
-  // 2. External Services
-  if (kind === 'externalservice' || kind === 'cloudservice' || role === 'externalservice') {
-    return 'external';
-  }
-
-  // 3. Apps & Frontends (Ingress tier)
-  if (
-    kind === 'app' ||
-    kind === 'frontendapp' ||
-    kind === 'ingress' ||
-    role === 'app' ||
-    role === 'frontendapp' ||
-    role === 'ingress'
-  ) {
-    return 'app';
-  }
-
-
-  // 4. Services & Workers (Core domain microservices)
-  if (
-    kind === 'service' ||
-    kind === 'worker' ||
-    kind === 'clitool' ||
-    role === 'service' ||
-    role === 'worker' ||
-    role === 'clitool'
-  ) {
-    return 'service';
-  }
-
-  if (isProjectKind(node.kind)) {
-    return 'service';
-  }
-
-  return null;
-}
 
 // ============================================================================
 // Inner ReactFlow Canvas
@@ -338,7 +284,7 @@ export const C1SystemContextView: React.FC<C1SystemContextViewProps> = ({
     let extCount = 0;
 
     for (const node of graph?.nodes || []) {
-      const cat = classifyNode(node);
+      const cat = getNodePresentation(node).c1Category;
       if (!cat) continue;
 
       if (cat === 'app') appCount++;

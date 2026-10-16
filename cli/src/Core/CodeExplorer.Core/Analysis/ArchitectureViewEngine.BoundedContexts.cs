@@ -730,7 +730,7 @@ public partial class ArchitectureViewEngine
 
     public async Task<ServiceContractDto> GetServiceContractsAsync(string serviceName, string direction = "all", CancellationToken ct = default)
     {
-        var archGraph = await GetSystemContextViewAsync(includeLibraries: true, projectFilter: null, ct: ct);
+        var archGraph = await BuildBaseArchitectureTopologyAsync(includeLibraries: true, includeTopics: true, projectFilter: null, sharedDatabasesOnly: false, ct: ct);
         var targetNode = archGraph.Nodes.FirstOrDefault(n => n.Name.Equals(serviceName, StringComparison.OrdinalIgnoreCase) || n.Id.Equals(serviceName, StringComparison.OrdinalIgnoreCase));
 
         var contract = new ServiceContractDto
@@ -851,7 +851,7 @@ public partial class ArchitectureViewEngine
 
     public async Task<CrossServiceFlowDto> TraceCrossServiceFlowAsync(string startService, string? entryPoint = null, int maxDepth = 3, CancellationToken ct = default)
     {
-        var archGraph = await GetSystemContextViewAsync(includeLibraries: true, projectFilter: null, ct: ct);
+        var archGraph = await BuildBaseArchitectureTopologyAsync(includeLibraries: true, includeTopics: true, projectFilter: null, sharedDatabasesOnly: false, ct: ct);
         var startNode = archGraph.Nodes.FirstOrDefault(n => n.Name.Equals(startService, StringComparison.OrdinalIgnoreCase) || n.Id.Equals(startService, StringComparison.OrdinalIgnoreCase));
 
         var flow = new CrossServiceFlowDto

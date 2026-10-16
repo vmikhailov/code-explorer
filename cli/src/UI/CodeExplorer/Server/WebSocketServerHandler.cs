@@ -240,16 +240,16 @@ public class WebSocketServerHandler
                     {
                         "serviceflow" or "flow" or "c2" => Core.Analysis.ArchitectureViewType.ServiceFlow,
                         "component" or "c3" => Core.Analysis.ArchitectureViewType.Component,
-                        "domain" or "domainmap" or "domain-map" => Core.Analysis.ArchitectureViewType.DomainMap,
+                        "domain" or "domainmap" or "domain-map" or "semantic" => Core.Analysis.ArchitectureViewType.DomainMap,
                         "contexts" or "boundedcontexts" or "contextmap" or "context-map" or "boundedcontext" or "bounded-context" => Core.Analysis.ArchitectureViewType.BoundedContexts,
-                        "tiers" or "tiered" => Core.Analysis.ArchitectureViewType.Tiers,
+                        "tiers" or "tiered" or "layers" or "layered" => Core.Analysis.ArchitectureViewType.Tiers,
                         _ => Core.Analysis.ArchitectureViewType.SystemContext
                     };
                     var viewGraph = await _archQueryService.GetViewAsync(new Core.Analysis.ArchitectureViewRequest
                     {
                         ViewType = viewType,
                         Scope = viewReq?.Scope,
-                        IncludeLibraries = viewReq?.IncludeLibraries ?? false
+                        IncludeLibraries = viewReq?.IncludeLibraries ?? (viewType == Core.Analysis.ArchitectureViewType.Tiers)
                     }, cancellationToken);
                     await SendResponseAsync(session, WsMessageTypes.GetViewResponse, reqId, new QueryResponseDto
                     {

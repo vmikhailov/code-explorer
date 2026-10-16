@@ -1,0 +1,22 @@
+id: SIG-C-I-002
+category: Architectural
+platform: agnostic
+scope: Class
+dimension: Rules
+name: View Presentation Purity and Ontology Decoupling
+severity: Error
+description: View components must not implement fragmented ad-hoc node classification, language guessing, or badge styling functions; all presentation must be centralized in the unified nodePresentation module.
+remediation: Remove local classification helpers (getProjectLanguageLabel, classifyNode, getKindBadgeClass, getKindIcon) from view components and delegate to the unified nodePresentation module.
+query: >-
+  MATCH (fn:Function)
+  WHERE coalesce(fn.path, fn.file_path) CONTAINS 'webview/components'
+    AND fn.name IN ['getProjectLanguageLabel', 'classifyNode', 'getKindBadgeClass', 'getKindIcon']
+    AND NOT coalesce(fn.is_test, false)
+  RETURN 
+    coalesce(fn.path, fn.file_path) AS file,
+    coalesce(fn.start_line, 0) AS line,
+    fn.name AS symbol,
+    'nodePresentation.ts' AS target,
+    'View presentation purity violation: view component implements ad-hoc node classification instead of using unified nodePresentation module' AS message
+ratchet:
+  enabled: false

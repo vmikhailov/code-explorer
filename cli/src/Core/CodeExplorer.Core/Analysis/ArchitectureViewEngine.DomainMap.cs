@@ -135,7 +135,7 @@ public partial class ArchitectureViewEngine
 
     public async Task<DomainArchitectureDto> GetDomainArchitectureAsync(bool includeLibraries = false, CancellationToken ct = default)
     {
-        var archGraph = await GetSystemContextViewAsync(includeLibraries: includeLibraries, projectFilter: null, ct: ct);
+        var archGraph = await BuildBaseArchitectureTopologyAsync(includeLibraries: includeLibraries, includeTopics: false, projectFilter: null, sharedDatabasesOnly: false, ct: ct);
         var result = new DomainArchitectureDto();
 
         var projToDomainMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -584,10 +584,26 @@ public partial class ArchitectureViewEngine
 
     public async Task<GraphDataDto> GetTieredArchitectureGraphAsync(bool includeLibraries = true, CancellationToken ct = default)
     {
-        var arch = await GetSystemContextViewAsync(includeLibraries, null, ct: ct);
+        var dbKey = ResolveDbCachePrefix();
+        var cacheKey = $"{dbKey}:tiers:libs={includeLibraries}";
+        if (SystemContextCache.TryGetValue(cacheKey, out var cached))
+        {
+            return cached;
+        }
+
+        var arch = await BuildBaseArchitectureTopologyAsync(
+            includeLibraries: includeLibraries,
+            includeTopics: false,
+            projectFilter: null,
+            sharedDatabasesOnly: false,
+            ct: ct);
+
         arch.Metadata ??= new Dictionary<string, string>();
         arch.Metadata["view"] = "Tiers";
         arch.Metadata["level"] = "Tiers";
+        arch.Metadata["graphType"] = "tiers";
+
+        SystemContextCache[cacheKey] = arch;
         return arch;
     }
 }

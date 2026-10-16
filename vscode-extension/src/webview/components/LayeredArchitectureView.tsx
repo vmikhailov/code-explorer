@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { GraphData, GraphNode } from '../../../../proto/types';
 import { LayerDefinition, getLayersFromGraph } from '../layers';
+import { getNodePresentation } from '../nodePresentation';
 
 export interface LayeredArchitectureViewProps {
   graph: GraphData | null;
@@ -62,20 +63,6 @@ export const LayeredArchitectureView: React.FC<LayeredArchitectureViewProps> = (
     }
     return { incomingCounts: inc, outgoingCounts: out };
   }, [graph]);
-
-  const getProjectLanguageLabel = (node: GraphNode) => {
-    if (node.kind === 'Database') return node.properties?.db_type || 'DB';
-    if (node.kind === 'ExternalService') return 'Service';
-    const pt = (node.properties?.project_type || node.properties?.language || '').toLowerCase();
-    if (pt === 'go' || pt === 'golang') return 'Go';
-    if (pt === 'csharp' || pt === 'cs' || pt === 'dotnet') return 'C#';
-    if (pt === 'typescript' || pt === 'ts') return 'TypeScript';
-    if (pt === 'javascript' || pt === 'js') return 'JavaScript';
-    if (pt === 'python' || pt === 'py') return 'Python';
-    if (pt === 'java') return 'Java';
-    if (pt === 'sql') return 'SQL';
-    return node.properties?.framework || 'Project';
-  };
 
   const localToggleLayer = (layerId: string) => {
     setLocalCollapsedLayers((prev) => {
@@ -202,7 +189,7 @@ export const LayeredArchitectureView: React.FC<LayeredArchitectureViewProps> = (
                 ) : (
                   <div className="layer-nodes-grid">
                     {nodes.map((node) => {
-                      const isDb = node.kind === 'Database';
+                      const presentation = getNodePresentation(node);
                       const inCount = incomingCounts[node.id] || 0;
                       const outCount = outgoingCounts[node.id] || 0;
 
@@ -219,7 +206,7 @@ export const LayeredArchitectureView: React.FC<LayeredArchitectureViewProps> = (
                               className="tier-node-kind"
                               style={{ color: layer.color, backgroundColor: `${layer.color}15` }}
                             >
-                              {getProjectLanguageLabel(node)}
+                              {presentation.badgeLabel}
                             </span>
                             <div className="tier-io-badges">
                               {inCount > 0 && (
@@ -241,7 +228,7 @@ export const LayeredArchitectureView: React.FC<LayeredArchitectureViewProps> = (
                           )}
 
                           <div className="tier-card-actions">
-                            {!isDb && (
+                            {presentation.isExecutable && (
                               <button
                                 className="tier-flow-btn"
                                 onClick={() => onFocusInFlow(node.name)}

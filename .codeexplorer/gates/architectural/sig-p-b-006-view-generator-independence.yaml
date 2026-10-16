@@ -1,0 +1,23 @@
+id: SIG-P-B-006
+category: Architectural
+platform: agnostic
+scope: Module
+dimension: Boundaries
+name: View Generator Independence and Decoupling
+severity: Error
+description: Specialized architecture view generators (Tiers, DomainMap, BoundedContexts) must produce dedicated graphs and must not delegate to or wrap the monolithic GetSystemContextViewAsync.
+remediation: Decouple specialized view generators. Each view must query and construct its own dedicated graph without calling GetSystemContextViewAsync.
+query: >-
+  MATCH (caller:Function)-[:CALLS]->(callee:Function)
+  WHERE callee.name = 'GetSystemContextViewAsync'
+    AND caller.name IN ['GetTieredArchitectureGraphAsync', 'GetDomainMapAsync', 'GetDomainArchitectureAsync', 'GetBoundedContextsViewAsync', 'GetServiceContractsAsync', 'TraceCrossServiceFlowAsync']
+    AND coalesce(caller.file_path, caller.path) CONTAINS 'ArchitectureViewEngine'
+    AND NOT coalesce(caller.is_test, false)
+  RETURN 
+    coalesce(caller.path, caller.file_path) AS file,
+    coalesce(caller.start_line, 0) AS line,
+    caller.name AS symbol,
+    callee.name AS target,
+    'View isolation violation: specialized view generator illegally delegates to monolithic GetSystemContextViewAsync' AS message
+ratchet:
+  enabled: false
