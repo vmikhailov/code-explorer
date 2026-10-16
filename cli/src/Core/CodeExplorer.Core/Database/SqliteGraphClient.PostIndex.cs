@@ -50,11 +50,10 @@ public partial class SqliteGraphClient
 
             cmd.CommandText = """
                               SELECT n.id, n.kind, json_extract(n.properties, '$.name') AS name,
-                                     json_extract(p.properties, '$.name') AS parent_name
+                                     (SELECT json_extract(p.properties, '$.name') FROM nodes p WHERE p.id = e.from_id AND p.kind = 'Type') AS parent_name
                               FROM temp_target_names t
                               JOIN nodes n ON json_extract(n.properties, '$.name') = t.val
                               LEFT JOIN edges e ON e.to_id = n.id AND e.kind IN ('HAS_METHOD', 'CONTAINS')
-                              LEFT JOIN nodes p ON p.id = e.from_id AND p.kind = 'Type'
                               WHERE n.kind IN ('Type', 'Function', 'Procedure', 'Table', 'EntryPoint', 'Endpoint')
                                 AND (length(@widPrefix) = 0 OR n.id LIKE @widPrefix || '%');
                               """;

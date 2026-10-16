@@ -65,6 +65,8 @@ public class IdentifierSearchEngine
 
     public async Task RebuildIndexAsync(SqliteConnection conn, CancellationToken ct = default)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
         await using var initCmd = conn.CreateCommand();
         initCmd.CommandText = """
             CREATE TABLE IF NOT EXISTS identifier_index (
@@ -94,12 +96,13 @@ public class IdentifierSearchEngine
         await initCmd.ExecuteNonQueryAsync(ct);
 
         // Extract candidate nodes: Type, Function, Member, Endpoint, Table, Topic, Project, ExternalService
+        // Use correlated subquery for owner_name to ensure SQLite uses primary key index lookup on nodes(id)
+        // rather than full table scanning nodes across tens/hundreds of thousands of candidate rows.
         var candidateQuery = """
             SELECT n.id, n.kind, n.properties,
-                   json_extract(o.properties, '$.name') as owner_name
+                   (SELECT json_extract(o.properties, '$.name') FROM nodes o WHERE o.id = e.from_id AND o.kind = 'Type') as owner_name
             FROM nodes n
             LEFT JOIN edges e ON (e.to_id = n.id AND e.kind IN ('HAS_METHOD', 'HAS_MEMBER'))
-            LEFT JOIN nodes o ON (e.from_id = o.id AND o.kind = 'Type')
             WHERE n.kind IN ('Type', 'Function', 'Member', 'Endpoint', 'Table', 'Topic', 'Project', 'ExternalService');
             """;
 
@@ -150,43 +153,48 @@ public class IdentifierSearchEngine
             entries.Add((id, name, fullName, kind, path, startLine, bytes));
         }
 
-        // Batch insert into identifier_index and identifier_fts
+        // Batch insert into identifier_index
         await using var tx = (SqliteTransaction)await conn.BeginTransactionAsync(ct);
         const int batchSize = 250;
         for (int i = 0; i < entries.Count; i += batchSize)
         {
-            var batch = entries.Skip(i).Take(batchSize).ToList();
+            int countThisBatch = Math.Min(batchSize, entries.Count - i);
             await using var insertCmd = conn.CreateCommand();
             insertCmd.Transaction = tx;
 
             var sb = new System.Text.StringBuilder();
             sb.Append("INSERT OR REPLACE INTO identifier_index (node_id, name, full_name, kind, path, start_line, embedding) VALUES ");
-            for (int j = 0; j < batch.Count; j++)
+            for (int j = 0; j < countThisBatch; j++)
             {
+                var item = entries[i + j];
                 if (j > 0) sb.Append(',');
                 sb.Append($"(@id{j}, @nm{j}, @fn{j}, @kd{j}, @pt{j}, @sl{j}, @eb{j})");
-                insertCmd.Parameters.AddWithValue($"@id{j}", batch[j].NodeId);
-                insertCmd.Parameters.AddWithValue($"@nm{j}", batch[j].Name);
-                insertCmd.Parameters.AddWithValue($"@fn{j}", batch[j].FullName);
-                insertCmd.Parameters.AddWithValue($"@kd{j}", batch[j].Kind);
-                insertCmd.Parameters.AddWithValue($"@pt{j}", (object?)batch[j].Path ?? DBNull.Value);
-                insertCmd.Parameters.AddWithValue($"@sl{j}", batch[j].StartLine);
-                insertCmd.Parameters.AddWithValue($"@eb{j}", batch[j].Embedding);
+                insertCmd.Parameters.AddWithValue($"@id{j}", item.NodeId);
+                insertCmd.Parameters.AddWithValue($"@nm{j}", item.Name);
+                insertCmd.Parameters.AddWithValue($"@fn{j}", item.FullName);
+                insertCmd.Parameters.AddWithValue($"@kd{j}", item.Kind);
+                insertCmd.Parameters.AddWithValue($"@pt{j}", (object?)item.Path ?? DBNull.Value);
+                insertCmd.Parameters.AddWithValue($"@sl{j}", item.StartLine);
+                insertCmd.Parameters.AddWithValue($"@eb{j}", item.Embedding);
             }
             sb.Append(';');
-
-            // FTS inserts
-            foreach (var item in batch)
-            {
-                sb.Append($"INSERT INTO identifier_fts (name, full_name, path, node_id, kind) VALUES ('{EscapeSql(item.Name)}', '{EscapeSql(item.FullName)}', '{EscapeSql(item.Path ?? "")}', '{EscapeSql(item.NodeId)}', '{EscapeSql(item.Kind)}');");
-            }
-
             insertCmd.CommandText = sb.ToString();
             await insertCmd.ExecuteNonQueryAsync(ct);
         }
 
+        // Populate identifier_fts in a single statement directly from identifier_index (vastly faster than per-row string batches)
+        await using var ftsCmd = conn.CreateCommand();
+        ftsCmd.Transaction = tx;
+        ftsCmd.CommandText = """
+            INSERT INTO identifier_fts (name, full_name, path, node_id, kind)
+            SELECT name, full_name, coalesce(path, ''), node_id, kind
+            FROM identifier_index;
+            """;
+        await ftsCmd.ExecuteNonQueryAsync(ct);
+
         await tx.CommitAsync(ct);
-        _logger.LogInformation("[IdentifierSearch] Indexed {Count} identifiers into vector/trigram index", entries.Count);
+        sw.Stop();
+        _logger.LogInformation("[IdentifierSearch] Indexed {Count} identifiers into vector/trigram index in {ElapsedMs:F1}ms", entries.Count, sw.Elapsed.TotalMilliseconds);
     }
 
     public async Task<IReadOnlyList<IdentifierMatch>> SearchAsync(
