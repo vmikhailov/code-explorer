@@ -50,10 +50,21 @@ public record ProjectComponentProfile
         var isLibraryManifest = manifestType == "library" || context.ManifestProperties.GetValueOrDefault("is_library") == "true";
         var isWorkerManifest = manifestType == "worker";
 
+        var isApplicationManifest = manifestType == "application" ||
+                                    context.ManifestProperties.GetValueOrDefault("framework_type") is "web" or "frontend" or "mobile" ||
+                                    context.ManifestProperties.GetValueOrDefault("has_grpc") == "true" ||
+                                    context.FilesInDirectory.Any(f => Path.GetFileName(f).Equals("main.go", StringComparison.OrdinalIgnoreCase));
+
         if (isTestManifest) combinedCapabilities |= ComponentCapabilities.TestRunner;
         if (isCliManifest) combinedCapabilities |= ComponentCapabilities.CliTool;
         if (isLibraryManifest) combinedCapabilities |= ComponentCapabilities.SharedLibrary;
         if (isWorkerManifest) combinedCapabilities |= ComponentCapabilities.QueueWorker;
+        if (isApplicationManifest && (context.ManifestProperties.GetValueOrDefault("framework_type") == "web" ||
+                                      context.ManifestProperties.GetValueOrDefault("has_grpc") == "true" ||
+                                      context.FilesInDirectory.Any(f => Path.GetFileName(f).Equals("main.go", StringComparison.OrdinalIgnoreCase))))
+        {
+            combinedCapabilities |= ComponentCapabilities.HttpEndpoints;
+        }
 
         // Collect all detected candidate roles
         var allRoles = new HashSet<LibraryRole>();
@@ -100,7 +111,7 @@ public record ProjectComponentProfile
                         combinedCapabilities.HasFlag(ComponentCapabilities.SharedLibrary) ||
                         combinedCapabilities.HasFlag(ComponentCapabilities.UiLibrary);
 
-        if (isTestManifest || (combinedCapabilities.HasFlag(ComponentCapabilities.TestRunner) && !hasActiveWorkload && !isLibrary))
+        if (isTestManifest || (combinedCapabilities.HasFlag(ComponentCapabilities.TestRunner) && !hasActiveWorkload && !isLibrary && !isApplicationManifest))
         {
             dominantRole = LibraryRole.TestFramework;
         }
@@ -119,6 +130,15 @@ public record ProjectComponentProfile
         else if (isLibrary)
         {
             dominantRole = LibraryRole.SharedLibrary;
+        }
+        else if (isApplicationManifest)
+        {
+            if (context.ManifestProperties.GetValueOrDefault("framework_type") == "mobile")
+                dominantRole = LibraryRole.FrontendFramework;
+            else if (context.ManifestProperties.GetValueOrDefault("framework_type") == "frontend")
+                dominantRole = LibraryRole.FrontendFramework;
+            else
+                dominantRole = LibraryRole.WebService;
         }
         else if (combinedCapabilities.HasFlag(ComponentCapabilities.ApiGateway))
         {

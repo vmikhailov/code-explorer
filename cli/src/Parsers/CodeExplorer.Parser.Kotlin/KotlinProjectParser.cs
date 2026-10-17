@@ -169,9 +169,36 @@ public class KotlinProjectParser : IProjectParser
         }
         else if (info.IsKotlinProject)
         {
-            props["manifest_type"] = "library";
             props["sdk"] = "JVM";
             props["framework"] = "Kotlin";
+
+            var isApp = info.IsApplication;
+            var buildGradle = Path.Combine(directoryPath, "build.gradle");
+            var buildGradleKts = Path.Combine(directoryPath, "build.gradle.kts");
+            var gradleFile = File.Exists(buildGradleKts) ? buildGradleKts : (File.Exists(buildGradle) ? buildGradle : null);
+            if (gradleFile != null)
+            {
+                try
+                {
+                    var content = File.ReadAllText(gradleFile);
+                    if (content.Contains("io.grpc") || content.Contains("grpc-netty") || content.Contains("grpc-protobuf"))
+                    {
+                        props["has_grpc"] = "true";
+                        isApp = true;
+                    }
+                }
+                catch { }
+            }
+
+            if (isApp)
+            {
+                props["manifest_type"] = "application";
+                props["framework_type"] = "web";
+            }
+            else
+            {
+                props["manifest_type"] = "library";
+            }
         }
 
         return props;

@@ -345,4 +345,118 @@ public class ProjectLayerClassifierTests
         // Integration -> Egress
         layers["egr_nrt"].LayerId.Should().Be(StandardLayers.Egress.LayerId);
     }
+
+    [Test]
+    public void Classify_OpenTelemetryDemo_ClassifiesInternalServicesAndToolsAccurately()
+    {
+        var projects = new List<ProjectClassifierItem>
+        {
+            // 1. C# internal backend service with gRPC (cart) -> Must be Components!
+            new()
+            {
+                Id = "p_cart",
+                Name = "cart",
+                FilePath = "src/cart/src/cart.csproj",
+                Role = "Service",
+                Extensions = new Dictionary<string, string> { ["sdk"] = "Microsoft.NET.Sdk.Web", ["has_grpc"] = "true", ["framework_type"] = "web" }
+            },
+
+            // 2. Next.js Web frontend (frontend) -> Must be Ingress!
+            new()
+            {
+                Id = "p_frontend",
+                Name = "frontend",
+                FilePath = "src/frontend/package.json",
+                Role = "FrontendApp",
+                Extensions = new Dictionary<string, string> { ["is_frontend_app"] = "true", ["framework_type"] = "frontend" }
+            },
+
+            // 3. React Native Mobile App (react-native-app) -> Must be Ingress!
+            new()
+            {
+                Id = "p_mobile",
+                Name = "react-native-app",
+                FilePath = "src/react-native-app/package.json",
+                Role = "FrontendApp",
+                Extensions = new Dictionary<string, string> { ["is_frontend_app"] = "true", ["framework_type"] = "mobile" }
+            },
+
+            // 4. Internal Go tooling (internal/tools) -> Must be Tests & Verification!
+            new()
+            {
+                Id = "p_tools",
+                Name = "tools",
+                FilePath = "internal/tools/go.mod",
+                Role = "CliTool",
+                Extensions = new Dictionary<string, string> { ["is_internal_tool"] = "true", ["manifest_type"] = "tool" }
+            },
+
+            // 5. Documentation generator (src/telemetry-docs) -> Must be Tests & Verification!
+            new()
+            {
+                Id = "p_docs",
+                Name = "telemetry-docs",
+                FilePath = "src/telemetry-docs/mkdocs.yml",
+                Role = "CliTool",
+                Extensions = new Dictionary<string, string> { ["manifest_type"] = "cli" }
+            },
+
+            // 6. Go backend service with gRPC (checkout) -> Must be Components!
+            new()
+            {
+                Id = "p_checkout",
+                Name = "checkout",
+                FilePath = "src/checkout/go.mod",
+                Role = "Service",
+                Extensions = new Dictionary<string, string> { ["has_grpc"] = "true", ["framework_type"] = "web" }
+            },
+
+            // 7. Node.js backend service with gRPC (payment) -> Must be Components!
+            new()
+            {
+                Id = "p_payment",
+                Name = "payment",
+                FilePath = "src/payment/package.json",
+                Role = "Service",
+                Extensions = new Dictionary<string, string> { ["has_grpc"] = "true", ["framework_type"] = "web" }
+            },
+
+            // 8. Java backend service with gRPC (ad) -> Must be Components!
+            new()
+            {
+                Id = "p_ad",
+                Name = "ad",
+                FilePath = "src/ad/build.gradle",
+                Role = "Service",
+                Extensions = new Dictionary<string, string> { ["has_grpc"] = "true", ["framework_type"] = "web" }
+            },
+
+            // 9. Kotlin backend service with gRPC (fraud-detection) -> Must be Components!
+            new()
+            {
+                Id = "p_fraud",
+                Name = "fraud-detection",
+                FilePath = "src/fraud-detection/build.gradle.kts",
+                Role = "Service",
+                Extensions = new Dictionary<string, string> { ["has_grpc"] = "true", ["framework_type"] = "web" }
+            }
+        };
+
+        var layers = ProjectLayerClassifier.Classify(projects, new List<DependencyItem>());
+
+        // Frontend & Mobile Apps -> Ingress
+        layers["p_frontend"].LayerId.Should().Be(StandardLayers.Ingress.LayerId);
+        layers["p_mobile"].LayerId.Should().Be(StandardLayers.Ingress.LayerId);
+
+        // Internal Microservices -> Components
+        layers["p_cart"].LayerId.Should().Be(StandardLayers.Components.LayerId);
+        layers["p_checkout"].LayerId.Should().Be(StandardLayers.Components.LayerId);
+        layers["p_payment"].LayerId.Should().Be(StandardLayers.Components.LayerId);
+        layers["p_ad"].LayerId.Should().Be(StandardLayers.Components.LayerId);
+        layers["p_fraud"].LayerId.Should().Be(StandardLayers.Components.LayerId);
+
+        // Internal Tooling & Documentation -> Tests & Verification
+        layers["p_tools"].LayerId.Should().Be(StandardLayers.Tests.LayerId);
+        layers["p_docs"].LayerId.Should().Be(StandardLayers.Tests.LayerId);
+    }
 }

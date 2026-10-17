@@ -257,6 +257,21 @@ public class JavaParser : IProjectParser, IFileParser
             {
                 var content = File.ReadAllText(gradleFile);
 
+                var hasAppPlugin = content.Contains("id 'application'") ||
+                                   content.Contains("id \"application\"") ||
+                                   content.Contains("id(\"application\")") ||
+                                   content.Contains("apply plugin: 'application'") ||
+                                   content.Contains("apply plugin: \"application\"") ||
+                                   content.Contains("mainClass", StringComparison.OrdinalIgnoreCase) ||
+                                   content.Contains("mainClassName", StringComparison.OrdinalIgnoreCase);
+
+                var hasGrpc = content.Contains("io.grpc") ||
+                              content.Contains("grpc-netty") ||
+                              content.Contains("grpc-services") ||
+                              content.Contains("grpc-protobuf");
+
+                if (hasGrpc) props["has_grpc"] = "true";
+
                 if (content.Contains("com.android.application", StringComparison.OrdinalIgnoreCase) ||
                     content.Contains("com.android.library", StringComparison.OrdinalIgnoreCase) ||
                     content.Contains("dev.flutter.flutter-gradle-plugin", StringComparison.OrdinalIgnoreCase) ||
@@ -272,7 +287,8 @@ public class JavaParser : IProjectParser, IFileParser
                 else if (content.Contains("org.springframework.boot", StringComparison.OrdinalIgnoreCase) ||
                          content.Contains("spring-boot", StringComparison.OrdinalIgnoreCase) ||
                          content.Contains("io.quarkus", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("io.micronaut", StringComparison.OrdinalIgnoreCase))
+                         content.Contains("io.micronaut", StringComparison.OrdinalIgnoreCase) ||
+                         hasAppPlugin || hasGrpc)
                 {
                     props["manifest_type"] = "application";
                     props["framework_type"] = "web";

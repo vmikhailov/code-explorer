@@ -319,11 +319,6 @@ public class CSharpParser : IProjectParser, IFileParser
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
             }
-
-            if (isWeb && (props.ContainsKey("has_graphql") || props.ContainsKey("has_grpc") || props.ContainsKey("has_controllers")))
-            {
-                props["has_ingress_contract"] = "true";
-            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

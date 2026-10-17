@@ -284,7 +284,7 @@ public sealed class FrontendEvidenceClassifier : IProjectEntityClassifier
 
     private static readonly HashSet<string> FrontendPackageTokens = new(StringComparer.OrdinalIgnoreCase)
     {
-        "react", "react-dom", "@angular/core", "vue", "svelte", "solid-js", "preact"
+        "react", "react-dom", "@angular/core", "vue", "svelte", "solid-js", "preact", "react-native", "expo"
     };
 
     public ProjectClassification? Classify(
@@ -308,6 +308,13 @@ public sealed class FrontendEvidenceClassifier : IProjectEntityClassifier
         if (filesInDirectory.Any(f => Path.GetFileName(f).Equals("ng-package.json", StringComparison.OrdinalIgnoreCase)))
         {
             return null;
+        }
+
+        // React Native and Expo Mobile applications
+        if ((dependencies != null && dependencies.Any(d => d.Equals("react-native", StringComparison.OrdinalIgnoreCase) || d.Equals("expo", StringComparison.OrdinalIgnoreCase))) ||
+            filesInDirectory.Any(f => Path.GetFileName(f).Equals("app.json", StringComparison.OrdinalIgnoreCase)))
+        {
+            return ProjectClassification.MobileApp;
         }
 
         // Web bundler and framework configs

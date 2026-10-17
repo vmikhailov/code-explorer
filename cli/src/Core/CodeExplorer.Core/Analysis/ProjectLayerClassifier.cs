@@ -152,8 +152,8 @@ public static class ProjectLayerClassifier
             var inDegree = incomingCount.GetValueOrDefault(p.Id, 0);
             var outDegree = outgoingCount.GetValueOrDefault(p.Id, 0);
 
-            // 1. Tests Layer
-            if (IsTest(p))
+            // 1. Tests & Verification Layer (Tests, Benchmarks, Generator/Doc Tools, Internal Developer Tooling)
+            if (IsTest(p) || IsInternalToolOrUtility(p))
             {
                 result[p.Id] = StandardLayers.Tests;
                 continue;
@@ -257,6 +257,9 @@ public static class ProjectLayerClassifier
         // Libraries can never be Ingress
         if (IsFoundation(p)) return false;
 
+        // Internal tools, generator utilities, and doc builders can never be Ingress
+        if (IsInternalToolOrUtility(p)) return false;
+
         // Workers and Schedulers can never be Ingress (unless it's an explicit CLI tool)
         if (IsWorkerOrScheduler(p) && !IsCli(p)) return false;
 
@@ -270,7 +273,7 @@ public static class ProjectLayerClassifier
             return true;
         }
 
-        // 2. CLI Tools (Command-line applications)
+        // 2. CLI Tools (Command-line applications, provided they are client entrypoints and not internal tools)
         if (IsCli(p))
         {
             return true;
@@ -278,8 +281,7 @@ public static class ProjectLayerClassifier
 
         // 3. API Gateways & Reverse Proxies / BFFs
         if (p.Extensions?.GetValueOrDefault("is_api_gateway") == "true" ||
-            p.Extensions?.GetValueOrDefault("gateway_type") == "reverse_proxy" ||
-            p.Extensions?.GetValueOrDefault("has_ingress_contract") == "true")
+            p.Extensions?.GetValueOrDefault("gateway_type") == "reverse_proxy")
         {
             return true;
         }
@@ -305,8 +307,40 @@ public static class ProjectLayerClassifier
         return false;
     }
 
+    public static bool IsInternalToolOrUtility(ProjectClassifierItem p)
+    {
+        if (p.Extensions?.GetValueOrDefault("is_internal_tool") == "true" ||
+            p.Extensions?.GetValueOrDefault("manifest_type") == "tool")
+        {
+            return true;
+        }
+
+        var lowerName = (p.Name ?? "").ToLowerInvariant();
+        if (lowerName is "tools" or "tooling" or "telemetry-docs" or "doc-gen" or "docs-gen")
+        {
+            return true;
+        }
+
+        var normPath = "/" + (p.FilePath ?? "").Replace('\\', '/').Trim('/') + "/";
+        if (normPath.Contains("/internal/tools/") || normPath.Contains("/internal/tooling/") ||
+            normPath.Contains("/src/telemetry-docs/") || normPath.Contains("/telemetry-docs/"))
+        {
+            // If it's a web service or frontend app, it's not a utility script
+            if (string.Equals(p.Role, "Service", StringComparison.OrdinalIgnoreCase) &&
+                p.Extensions?.GetValueOrDefault("framework_type") == "web")
+            {
+                return false;
+            }
+            return true;
+        }
+
+        return false;
+    }
+
     public static bool IsCli(ProjectClassifierItem p)
     {
+        if (IsInternalToolOrUtility(p)) return false;
+
         return string.Equals(p.Role, "CliTool", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(p.Role, "CliApp", StringComparison.OrdinalIgnoreCase) ||
                string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "CliTool", StringComparison.OrdinalIgnoreCase) ||

@@ -391,8 +391,11 @@ public class TypeScriptParser : IProjectParser, IFileParser
                 }
 
                 // Framework and workload detection
+                var hasGrpcDeps = allDeps.Any(d => d is "@grpc/grpc-js" or "grpc" || d.StartsWith("@grpc/"));
+                if (hasGrpcDeps) props["has_grpc"] = "true";
+
                 var hasWebFramework =
-                    allDeps.Any(d => d is "express" or "@nestjs/core" or "fastify" or "koa" or "hono");
+                    hasGrpcDeps || allDeps.Any(d => d is "express" or "@nestjs/core" or "fastify" or "koa" or "hono");
 
                 var hasWorkerDeps = allDeps.Any(d =>
                     d is "@nestjs/schedule" or "@nestjs/bull" or "@nestjs/bullmq" or "bullmq" or "bull" or "amqplib"
@@ -400,7 +403,10 @@ public class TypeScriptParser : IProjectParser, IFileParser
                         or "agenda" || d.StartsWith("cloudflare-", StringComparison.OrdinalIgnoreCase)
                         || d.StartsWith("@cloudflare/", StringComparison.OrdinalIgnoreCase)) || hasWrangler;
 
-                var hasFrontendDeps = allDeps.Any(d =>
+                var hasMobileDeps = allDeps.Any(d => d is "react-native" or "expo" || d.StartsWith("expo-") || d.StartsWith("@expo/")) ||
+                                    filesInDirectory.Any(f => Path.GetFileName(f).Equals("app.json", StringComparison.OrdinalIgnoreCase));
+
+                var hasFrontendDeps = hasMobileDeps || allDeps.Any(d =>
                     d is "react" or "react-dom" or "@angular/core" or "vue" or "svelte" or "solid-js" or "next"
                         or "nuxt");
 
@@ -482,6 +488,12 @@ public class TypeScriptParser : IProjectParser, IFileParser
                     props["framework_type"] = "worker";
                     if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "worker";
                 }
+                else if (hasMobileDeps)
+                {
+                    props["framework_type"] = "mobile";
+                    props["is_frontend_app"] = "true";
+                    if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "application";
+                }
                 else if (hasFrontendDeps)
                 {
                     props["framework_type"] = "frontend";
@@ -504,6 +516,14 @@ public class TypeScriptParser : IProjectParser, IFileParser
                              d.StartsWith("@aws-cdk/") || d.StartsWith("@pulumi/") || d == "serverless"))
                 {
                     props["framework_type"] = "cloud";
+                }
+                else if (hasPrimaryAppStartScript)
+                {
+                    if (!props.ContainsKey("manifest_type"))
+                    {
+                        props["manifest_type"] = "application";
+                        props["framework_type"] = "service";
+                    }
                 }
                 else if (hasExplicitExports)
                 {

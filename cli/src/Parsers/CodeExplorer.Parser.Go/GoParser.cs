@@ -148,6 +148,108 @@ public class GoParser : IProjectParser, IFileParser
         return null;
     }
 
+    public Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory)
+    {
+        var props = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        var normPath = "/" + directoryPath.Replace('\\', '/').Trim('/') + "/";
+        var dirName = Path.GetFileName(directoryPath.TrimEnd('/', '\\')).ToLowerInvariant();
+        var isTestDir = dirName is "test" or "tests" ||
+                        normPath.EndsWith("/test/") || normPath.EndsWith("/tests/") ||
+                        normPath.EndsWith("/e2e/") || normPath.EndsWith("/qa/");
+
+        var isInternalTool = dirName is "tools" or "tooling" ||
+                             normPath.EndsWith("/internal/tools/") || normPath.EndsWith("/internal/tooling/");
+
+        if (isInternalTool)
+        {
+            props["manifest_type"] = "tool";
+            props["is_internal_tool"] = "true";
+        }
+
+        var goFiles = filesInDirectory.Where(f => f.EndsWith(".go", StringComparison.OrdinalIgnoreCase)).ToList();
+        var hasNonTestGo = goFiles.Any(f => !f.EndsWith("_test.go", StringComparison.OrdinalIgnoreCase));
+        var hasMainGo = goFiles.Any(f => Path.GetFileName(f).Equals("main.go", StringComparison.OrdinalIgnoreCase));
+
+        if (isTestDir || (goFiles.Count > 0 && !hasNonTestGo))
+        {
+            props["manifest_type"] = "test";
+            props["is_test_project"] = "true";
+            return props;
+        }
+
+        var goModPath = Path.Combine(directoryPath, "go.mod");
+        var hasGrpc = false;
+        var hasWeb = false;
+        var hasCobraOrCli = false;
+
+        if (File.Exists(goModPath))
+        {
+            try
+            {
+                var content = File.ReadAllText(goModPath);
+                if (content.Contains("github.com/spf13/cobra") ||
+                    content.Contains("github.com/urfave/cli") ||
+                    content.Contains("github.com/spf13/pflag"))
+                {
+                    hasCobraOrCli = true;
+                }
+                if (content.Contains("google.golang.org/grpc"))
+                {
+                    hasGrpc = true;
+                    props["has_grpc"] = "true";
+                }
+                if (content.Contains("github.com/gin-gonic/gin") ||
+                    content.Contains("github.com/labstack/echo") ||
+                    content.Contains("github.com/gofiber/fiber"))
+                {
+                    hasWeb = true;
+                }
+            }
+            catch { }
+        }
+
+        var isWorker = dirName.EndsWith("-worker") || dirName.EndsWith("_worker") || dirName.EndsWith(".worker") ||
+                       dirName.EndsWith("-consumer") || dirName.EndsWith("_consumer") || dirName.EndsWith(".consumer") ||
+                       dirName.EndsWith("-scheduler") || dirName.EndsWith("_scheduler") ||
+                       goFiles.Any(f => Path.GetFileName(f).ToLowerInvariant().Contains("worker"));
+
+        if (isWorker)
+        {
+            props["manifest_type"] = "worker";
+            props["framework_type"] = "worker";
+        }
+        else if (hasMainGo)
+        {
+            if (isInternalTool)
+            {
+                props["manifest_type"] = "tool";
+            }
+            else if (hasGrpc || hasWeb)
+            {
+                props["manifest_type"] = "application";
+                props["framework_type"] = "web";
+            }
+            else if (hasCobraOrCli || normPath.EndsWith("/cmd/") || normPath.EndsWith("/cli/") || dirName.EndsWith("-cli") || dirName.EndsWith("_cli") || dirName == "cli")
+            {
+                props["manifest_type"] = "cli";
+                props["has_cli_bin"] = "true";
+            }
+            else
+            {
+                props["manifest_type"] = "application";
+                props["framework_type"] = "web";
+            }
+        }
+        else if (hasGrpc || hasWeb)
+        {
+            props["manifest_type"] = "application";
+            props["framework_type"] = "web";
+        }
+
+        return props;
+    }
+
     public async Task<ProjectDependencyInfo> ParseDependenciesAsync(string projectDirectory)
     {
         var localProjectPaths = new List<string>();

@@ -21,11 +21,19 @@ public class GoTestComponentParser : IComponentLibraryParser
 
     public ComponentAnalysisResult AnalyzeManifest(ProjectContext context)
     {
+        var isDedicatedTest = context.ManifestProperties.GetValueOrDefault("manifest_type") == "test" ||
+                              context.ManifestProperties.GetValueOrDefault("is_test_project") == "true" ||
+                              (context.ProjectName ?? "").EndsWith(".test", StringComparison.OrdinalIgnoreCase) ||
+                              (context.ProjectName ?? "").EndsWith(".tests", StringComparison.OrdinalIgnoreCase);
+
+        var isApp = context.ManifestProperties.GetValueOrDefault("manifest_type") == "application" ||
+                    context.FilesInDirectory.Any(f => Path.GetFileName(f).Equals("main.go", StringComparison.OrdinalIgnoreCase));
+
         return new ComponentAnalysisResult
         {
             ComponentId = Id,
             ComponentName = Name,
-            Role = LibraryRole.TestFramework,
+            Role = (isDedicatedTest && !isApp) ? LibraryRole.TestFramework : LibraryRole.General,
             Capabilities = ComponentCapabilities.TestRunner,
             Metadata = new Dictionary<string, string>
             {

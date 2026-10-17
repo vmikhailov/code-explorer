@@ -17,7 +17,8 @@ public record GradleBuildInfo(
     string? CompileSdk,
     string? Group,
     string? Version,
-    string? ArchivesBaseName
+    string? ArchivesBaseName,
+    bool IsApplication = false
 );
 
 public static class GradleBuildScriptParser
@@ -76,11 +77,29 @@ public static class GradleBuildScriptParser
         string? version = null;
         string? archivesBaseName = null;
 
+        var isApp = isAndroidApp;
+
         if (buildFile != null && File.Exists(buildFile))
         {
             try
             {
                 var buildText = File.ReadAllText(buildFile);
+
+                isApp = isAndroidApp ||
+                        buildText.Contains("id 'application'") ||
+                        buildText.Contains("id \"application\"") ||
+                        buildText.Contains("id(\"application\")") ||
+                        buildText.Contains("apply plugin: 'application'") ||
+                        buildText.Contains("apply plugin: \"application\"") ||
+                        Regex.IsMatch(buildText, @"\bapplication\b(?!\s*id)") ||
+                        buildText.Contains("org.springframework.boot", StringComparison.OrdinalIgnoreCase) ||
+                        buildText.Contains("io.quarkus", StringComparison.OrdinalIgnoreCase) ||
+                        buildText.Contains("io.micronaut", StringComparison.OrdinalIgnoreCase) ||
+                        buildText.Contains("mainClass", StringComparison.OrdinalIgnoreCase) ||
+                        buildText.Contains("mainClassName", StringComparison.OrdinalIgnoreCase) ||
+                        buildText.Contains("io.grpc", StringComparison.OrdinalIgnoreCase) ||
+                        buildText.Contains("grpc-netty", StringComparison.OrdinalIgnoreCase) ||
+                        buildText.Contains("grpc-services", StringComparison.OrdinalIgnoreCase);
 
                 // Check for plugins
                 var pluginMatches = Regex.Matches(buildText, @"(?:id|apply\s+plugin:)\s*[\(""'\s]*([a-zA-Z0-9_.\-]+)[\)""'\s]*(?:\s+apply\s+(true|false))?");
@@ -195,7 +214,8 @@ public static class GradleBuildScriptParser
             CompileSdk: compileSdk,
             Group: group,
             Version: version,
-            ArchivesBaseName: archivesBaseName
+            ArchivesBaseName: archivesBaseName,
+            IsApplication: isApp
         );
     }
 
