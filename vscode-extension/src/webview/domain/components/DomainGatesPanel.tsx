@@ -16,7 +16,6 @@ import {
   EditIcon,
   PlusIcon,
 } from '../../components/Icons';
-import { GateEditorModal } from './GateEditorModal';
 import { useServerTransport, webviewTransport } from '../../services/webviewTransport';
 
 export interface DomainGatesPanelProps {
@@ -42,8 +41,6 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [expandedGateIds, setExpandedGateIds] = useState<Set<string>>(new Set());
-  const [isEditorOpen, setIsEditorOpen] = useState<boolean>(false);
-  const [editingGate, setEditingGate] = useState<GateItemDto | null>(null);
 
   const { httpUrl: transportHttpUrl } = useServerTransport();
   const resolvedHttpUrl = serverHttpUrl || transportHttpUrl;
@@ -105,32 +102,11 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
         if (msg.error) {
           setError(msg.error);
         }
-      } else if (msg?.type === 'OPEN_GATE_EDITOR') {
-        const gId = msg.gateId;
-        if (gId && suite?.gates) {
-          const g = suite.gates.find((x) => x.id.toLowerCase() === gId.toLowerCase());
-          setEditingGate(g || null);
-        } else {
-          setEditingGate(null);
-        }
-        setIsEditorOpen(true);
       }
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [applySuite, suite]);
-
-  useEffect(() => {
-    if (!gateEditorRequest) return;
-    const gId = gateEditorRequest.gateId;
-    if (gId && suite?.gates) {
-      const g = suite.gates.find((x) => x.id.toLowerCase() === gId.toLowerCase());
-      setEditingGate(g || null);
-    } else {
-      setEditingGate(null);
-    }
-    setIsEditorOpen(true);
-  }, [gateEditorRequest, suite]);
+  }, [applySuite]);
 
   const handleEvaluate = useCallback(
     async (gateId?: string) => {
@@ -238,27 +214,18 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
   }, [resolvedHttpUrl, applySuite, onOpenFile]);
 
   const handleCreateGate = useCallback(() => {
-    setEditingGate(null);
-    setIsEditorOpen(true);
+    const vscode = getVsCodeApi();
+    if (vscode) {
+      vscode.postMessage({ type: 'OPEN_VIEW', viewMode: 'gate-editor', gateId: undefined });
+    }
   }, []);
 
   const handleEditGate = useCallback((targetGate: GateItemDto) => {
-    setEditingGate(targetGate);
-    setIsEditorOpen(true);
+    const vscode = getVsCodeApi();
+    if (vscode) {
+      vscode.postMessage({ type: 'OPEN_VIEW', viewMode: 'gate-editor', gateId: targetGate?.id });
+    }
   }, []);
-
-  const handleGateSaved = useCallback(
-    (savedGate: GateItemDto) => {
-      setActionStatus(`Gate '${savedGate.id}' saved successfully`);
-      const vscode = getVsCodeApi();
-      if (vscode) {
-        vscode.postMessage({ type: 'EVALUATE_GATES', gateId: savedGate.id });
-      } else {
-        fetchGates();
-      }
-    },
-    [fetchGates]
-  );
 
   const toggleGateExpand = useCallback((gateId: string) => {
     setExpandedGateIds((prev) => {
@@ -302,8 +269,7 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
   }, [suite]);
 
   return (
-    <>
-      <FloatingPanel
+    <FloatingPanel
         dock="top-right"
         docked={docked}
         isCollapsed={false}
@@ -861,14 +827,5 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
         })}
       </div>
     </FloatingPanel>
-    <GateEditorModal
-      isOpen={isEditorOpen}
-      gate={editingGate}
-      serverHttpUrl={resolvedHttpUrl}
-      onSaveSuccess={handleGateSaved}
-      onClose={() => setIsEditorOpen(false)}
-      onOpenFile={onOpenFile}
-    />
-  </>
   );
 };

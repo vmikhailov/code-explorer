@@ -32,7 +32,7 @@ export interface WebviewServerTransportOptions {
 
 /**
  * WebviewServerTransport
- * Single shared transport layer for all Webview components (App, DomainGatesPanel, GateEditorModal).
+ * Single shared transport layer for all Webview components (App, DomainGatesPanel, GateEditorView).
  * Encapsulates WebSocket connection lifecycle, keepalive pings, reconnect backoff,
  * URL synchronization, and unified JSON REST fetcher.
  */

@@ -590,10 +590,10 @@ export function registerWorkspaceCommands(
           serverInfo.wsUrl,
           workspaceRoot,
           outputChannel,
-          'semantic'
+          'gate-editor'
         );
-        panel.postMessage({ type: 'SET_VIEW_MODE', viewMode: 'semantic' });
-        panel.postMessage({ type: 'OPEN_GATE_EDITOR' });
+        panel.postMessage({ type: 'SET_VIEW_MODE', viewMode: 'gate-editor' });
+        panel.postMessage({ type: 'OPEN_GATE_EDITOR', gateId: undefined });
       } catch (err: any) {
         outputChannel.appendLine(`[createGate Error] ${err.message}`);
         vscode.window.showErrorMessage(`Failed to open Gate Editor: ${err.message}`);
@@ -624,9 +624,9 @@ export function registerWorkspaceCommands(
           serverInfo.wsUrl,
           workspaceRoot,
           outputChannel,
-          'semantic'
+          'gate-editor'
         );
-        panel.postMessage({ type: 'SET_VIEW_MODE', viewMode: 'semantic' });
+        panel.postMessage({ type: 'SET_VIEW_MODE', viewMode: 'gate-editor' });
         panel.postMessage({ type: 'OPEN_GATE_EDITOR', gateId });
       } catch (err: any) {
         outputChannel.appendLine(`[editGate Error] ${err.message}`);

@@ -25,6 +25,8 @@ export function getViewTitle(viewMode?: string): string {
       return 'CodeExplorer: Mermaid Diagram';
     case 'settings':
       return 'CodeExplorer: AI & Model Settings';
+    case 'gate-editor':
+      return 'CodeExplorer: Gate Editor';
     default:
       return 'CodeExplorer: Architecture';
   }
@@ -287,8 +289,23 @@ export class GraphPanel {
             break;
 
           case 'OPEN_VIEW':
-            this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] OPEN_VIEW requested: ${message.viewMode} (project=${message.project})`);
-            await vscode.commands.executeCommand('codeExplorer.openView', message.viewMode, message.project);
+            this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] OPEN_VIEW requested: ${message.viewMode} (project=${message.project}, gateId=${message.gateId})`);
+            if (message.viewMode === 'gate-editor') {
+              const panel = GraphPanel.createOrShow(
+                this.extensionUri,
+                this.transport,
+                this.wsUrl,
+                this.workspaceRoot,
+                this.outputChannel,
+                'gate-editor'
+              );
+              panel.postMessage({ type: 'SET_VIEW_MODE', viewMode: 'gate-editor' });
+              if (message.gateId !== undefined) {
+                panel.postMessage({ type: 'OPEN_GATE_EDITOR', gateId: message.gateId });
+              }
+            } else {
+              await vscode.commands.executeCommand('codeExplorer.openView', message.viewMode, message.project);
+            }
             break;
 
           case 'TRIGGER_INTENT':

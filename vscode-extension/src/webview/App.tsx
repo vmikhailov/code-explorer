@@ -24,6 +24,7 @@ import { C1SystemContextView } from './components/C1SystemContextView';
 import { NodeGridView, NodeCategorySelection } from './components/NodeGridView';
 import { MermaidDiagramView } from './components/MermaidDiagramView';
 import { SettingsView, AiSettings, ModelDescriptor, ModelStatus } from './components/SettingsView';
+import { GateEditorView } from './components/GateEditorView';
 import {
   CommandManager,
   CommandProvider,
@@ -1249,7 +1250,7 @@ export const App: React.FC = () => {
 
         case 'OPEN_GATE_EDITOR':
           logToExtension('INFO', `Received OPEN_GATE_EDITOR from extension: gateId=${msg.gateId}`);
-          handleViewModeChangeRef.current('semantic');
+          handleViewModeChangeRef.current('gate-editor');
           setGateEditorRequest({ gateId: msg.gateId, timestamp: Date.now() });
           break;
 
@@ -1310,7 +1311,7 @@ export const App: React.FC = () => {
   return (
     <CommandProvider manager={commandManager}>
       <div id="app">
-        {viewMode !== 'grid' && viewMode !== 'semantic' && (
+        {viewMode !== 'grid' && viewMode !== 'semantic' && viewMode !== 'settings' && viewMode !== 'gate-editor' && (
           <Toolbar
             viewMode={viewMode}
             onSwitchViewMode={(m) => handleViewModeChange(m)}
@@ -1470,7 +1471,7 @@ export const App: React.FC = () => {
             (viewMode === 'layers' && !layersGraph && !fullGraph) ||
             (viewMode === 'semantic' && !domainGraph && !fullGraph) ||
             (viewMode === 'c1' && !c1Graph && !fullGraph) ||
-            (viewMode !== 'flow' && viewMode !== 'contexts' && viewMode !== 'layers' && viewMode !== 'semantic' && viewMode !== 'c1' && viewMode !== 'settings' && !fullGraph)) &&
+            (viewMode !== 'flow' && viewMode !== 'contexts' && viewMode !== 'layers' && viewMode !== 'semantic' && viewMode !== 'c1' && viewMode !== 'settings' && viewMode !== 'gate-editor' && !fullGraph)) &&
             connectionStatus !== 'error' &&
             connectionStatus !== 'disconnected' && (
               <div className="view-loading-overlay">
@@ -1657,11 +1658,19 @@ export const App: React.FC = () => {
                 isTesting={isTestingAi}
               />
             )}
+
+            {viewMode === 'gate-editor' && (
+              <GateEditorView
+                gateId={gateEditorRequest?.gateId}
+                serverHttpUrl={serverHttpUrl}
+                onOpenFile={handleOpenFile}
+              />
+            )}
           </ErrorBoundary>
         </main>
 
-        {/* Slide-out drawer for node inspection across all views (suppressed in semantic domain view which has its own floating inspector) */}
-        {selectedDrawerNode && viewMode !== 'semantic' && (
+        {/* Slide-out drawer for node inspection across all views (suppressed in semantic domain view, settings, and gate editor) */}
+        {selectedDrawerNode && viewMode !== 'semantic' && viewMode !== 'settings' && viewMode !== 'gate-editor' && (
           <aside className="drawer" role="complementary" aria-label="Node Inspector">
             <div className="drawer-header">
               <span className={`badge badge-${(selectedDrawerNode.kind || '').toLowerCase()}`}>
