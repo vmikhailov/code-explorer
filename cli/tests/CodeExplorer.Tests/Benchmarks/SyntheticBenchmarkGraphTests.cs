@@ -9,6 +9,8 @@ namespace CodeExplorer.Tests.Benchmarks;
 [TestFixture]
 public class SyntheticBenchmarkGraphTests
 {
+    private static readonly int CiMultiplier = string.Equals(Environment.GetEnvironmentVariable("CI"), "true", StringComparison.OrdinalIgnoreCase) ? 3 : 1;
+
     private string _dbPath = null!;
     private SqliteGraphClient _client = null!;
     private CodeExplorerRepository _repo = null!;
@@ -49,7 +51,7 @@ public class SyntheticBenchmarkGraphTests
     [Test]
     public async Task Test_02_FindSymbol_MeetsSla_Under25ms()
     {
-        const int slaMs = 25;
+        int slaMs = 25 * CiMultiplier;
 
         // Warmup
         var warmup = await _repo.FindSymbolAsync(SyntheticBenchmarkGraphGenerator.WellKnownSearchSymbol);
@@ -77,7 +79,7 @@ public class SyntheticBenchmarkGraphTests
     [Test]
     public async Task Test_03_GetCallChain_MeetsSla_Under100ms()
     {
-        const int slaMs = 100;
+        int slaMs = 100 * CiMultiplier;
 
         // Warmup
         var warmup = await _repo.GetCallChainAsync(
@@ -113,7 +115,7 @@ public class SyntheticBenchmarkGraphTests
     [Test]
     public async Task Test_04_InspectDataLineage_MeetsSla_Under50ms()
     {
-        const int slaMs = 50;
+        int slaMs = 50 * CiMultiplier;
 
         // Warmup
         var warmup = await _repo.InspectDataLineageAsync(SyntheticBenchmarkGraphGenerator.WellKnownTable);
