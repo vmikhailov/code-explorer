@@ -17,51 +17,58 @@ test('deriveHttpUrl: normalizes WebSocket URLs to base HTTP URLs', () => {
 
 test('WebviewServerTransport: holds current URLs and updates listeners', () => {
   const transport = new WebviewServerTransport();
-  transport.updateUrls('ws://127.0.0.1:61234/ws');
+  try {
+    transport.updateUrls('ws://127.0.0.1:61234/ws');
 
-  assert.equal(transport.getWsUrl(), 'ws://127.0.0.1:61234/ws');
-  assert.equal(transport.getHttpUrl(), 'http://127.0.0.1:61234');
+    assert.equal(transport.getWsUrl(), 'ws://127.0.0.1:61234/ws');
+    assert.equal(transport.getHttpUrl(), 'http://127.0.0.1:61234');
 
-  let notifiedUrls: TransportUrls | null = null;
-  const unsubscribe = transport.onUrlChange((urls) => {
-    notifiedUrls = urls;
-  });
+    let notifiedUrls: TransportUrls | null = null;
+    const unsubscribe = transport.onUrlChange((urls) => {
+      notifiedUrls = urls;
+    });
 
-  transport.updateUrls('ws://127.0.0.1:62000/ws');
-  assert.ok(notifiedUrls !== null);
-  const received = notifiedUrls as TransportUrls;
-  assert.equal(received.wsUrl, 'ws://127.0.0.1:62000/ws');
-  assert.equal(received.httpUrl, 'http://127.0.0.1:62000');
+    transport.updateUrls('ws://127.0.0.1:62000/ws');
+    assert.ok(notifiedUrls !== null);
+    const received = notifiedUrls as TransportUrls;
+    assert.equal(received.wsUrl, 'ws://127.0.0.1:62000/ws');
+    assert.equal(received.httpUrl, 'http://127.0.0.1:62000');
 
-  unsubscribe();
-  notifiedUrls = null;
-  transport.updateUrls('ws://127.0.0.1:63000/ws');
-  assert.equal(notifiedUrls, null);
+    unsubscribe();
+    notifiedUrls = null;
+    transport.updateUrls('ws://127.0.0.1:63000/ws');
+    assert.equal(notifiedUrls, null);
+  } finally {
+    transport.disconnect();
+  }
 });
 
 test('WebviewServerTransport: connection state notifications and reconnectNow', () => {
   const transport = new WebviewServerTransport();
-  const states: WebviewConnectionState[] = [];
+  try {
+    const states: WebviewConnectionState[] = [];
 
-  const unsubState = transport.onConnectionStateChange((state) => {
-    states.push(state);
-  });
+    const unsubState = transport.onConnectionStateChange((state) => {
+      states.push(state);
+    });
 
-  transport.updateUrls('ws://127.0.0.1:55555/ws');
-  transport.reconnectNow();
+    transport.updateUrls('ws://127.0.0.1:55555/ws');
+    transport.reconnectNow();
 
-  assert.ok(states.includes('reconnecting'));
-  assert.equal(transport.getWsUrl(), 'ws://127.0.0.1:55555/ws');
-  unsubState();
+    assert.ok(states.includes('reconnecting'));
+    assert.equal(transport.getWsUrl(), 'ws://127.0.0.1:55555/ws');
+    unsubState();
+  } finally {
+    transport.disconnect();
+  }
 });
 
 test('WebviewServerTransport: fetchJson sends correct headers and parses JSON', async () => {
   const transport = new WebviewServerTransport();
-  transport.updateUrls('http://127.0.0.1:54321'); // Or ws://127.0.0.1:54321/ws
-
-  // Mock global fetch
   const originalFetch = global.fetch;
   try {
+    transport.updateUrls('http://127.0.0.1:54321'); // Or ws://127.0.0.1:54321/ws
+
     let requestedUrl = '';
     let requestedInit: RequestInit | undefined;
 
@@ -83,15 +90,16 @@ test('WebviewServerTransport: fetchJson sends correct headers and parses JSON', 
     assert.equal((requestedInit?.headers as any)?.Accept, 'application/json');
   } finally {
     global.fetch = originalFetch;
+    transport.disconnect();
   }
 });
 
 test('WebviewServerTransport: fetchJson throws descriptive error on non-ok status', async () => {
   const transport = new WebviewServerTransport();
-  transport.updateUrls('ws://127.0.0.1:54321/ws');
-
   const originalFetch = global.fetch;
   try {
+    transport.updateUrls('ws://127.0.0.1:54321/ws');
+
     global.fetch = (async () => {
       return {
         ok: false,
@@ -109,5 +117,28 @@ test('WebviewServerTransport: fetchJson throws descriptive error on non-ok statu
     );
   } finally {
     global.fetch = originalFetch;
+    transport.disconnect();
+  }
+});
+
+test('WebviewServerTransport: wsFactory and max reconnect attempts cap', () => {
+  let createdSockets = 0;
+  const transport = new WebviewServerTransport({
+    wsFactory: () => {
+      createdSockets++;
+      const mockWs: any = {
+        readyState: 0,
+        close: () => {},
+        send: () => {},
+      };
+      return mockWs as unknown as WebSocket;
+    },
+  });
+
+  try {
+    transport.connect('ws://127.0.0.1:55555/ws');
+    assert.equal(createdSockets, 1);
+  } finally {
+    transport.disconnect();
   }
 });

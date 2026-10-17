@@ -5,6 +5,18 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.46.6] - 2026-10-17
+
+### Fixed
+- **Webview Transport Event Loop Lifecycle**:
+  - Resolved hanging test suite in Node 24 where native `WebSocket` instantiation triggered indefinite reconnection timers without `.unref()`.
+  - Added `MAX_RECONNECT_ATTEMPTS = 8` cap in `WebviewServerTransport`, marking state as `error` on exhaustion instead of retrying indefinitely.
+  - Unrefed all reconnect and keep-alive timers (`unref()`) to prevent holding the Node.js event loop open during unit testing or teardown.
+  - Restricted native WebSocket instantiation in `connect()` strictly to browser webview environments (`window !== undefined`) or explicit test mock factories (`wsFactory`).
+  - Added explicit `disconnect()` / `dispose()` teardown in unit tests and enforced a 15-minute timeout on CI and Release workflows.
+
+---
+
 ## [1.41.4] - 2026-10-14
 
 ### Added & Improved

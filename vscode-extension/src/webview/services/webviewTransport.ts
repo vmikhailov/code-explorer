@@ -26,6 +26,10 @@ export function deriveHttpUrl(wsUrl?: string): string {
     .replace(/\/ws$/i, '');
 }
 
+export interface WebviewServerTransportOptions {
+  wsFactory?: (url: string) => WebSocket;
+}
+
 /**
  * WebviewServerTransport
  * Single shared transport layer for all Webview components (App, DomainGatesPanel, GateEditorModal).
@@ -33,6 +37,7 @@ export function deriveHttpUrl(wsUrl?: string): string {
  * URL synchronization, and unified JSON REST fetcher.
  */
 export class WebviewServerTransport {
+  public static readonly MAX_RECONNECT_ATTEMPTS = 8;
   private static _instance: WebviewServerTransport | null = null;
 
   private _wsUrl = '';
@@ -44,6 +49,7 @@ export class WebviewServerTransport {
   private _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private _keepAliveTimer: ReturnType<typeof setInterval> | null = null;
   private _isManuallyClosed = false;
+  private _wsFactory?: (url: string) => WebSocket;
 
   private readonly _urlListeners = new Set<(urls: TransportUrls) => void>();
   private readonly _stateListeners = new Set<(state: WebviewConnectionState) => void>();
@@ -57,7 +63,10 @@ export class WebviewServerTransport {
     return WebviewServerTransport._instance;
   }
 
-  public constructor() {
+  public constructor(options?: WebviewServerTransportOptions) {
+    if (options?.wsFactory) {
+      this._wsFactory = options.wsFactory;
+    }
     if (typeof window !== 'undefined') {
       const config = window.__CE_CONFIG__;
       if (config?.wsUrl) {
@@ -69,6 +78,10 @@ export class WebviewServerTransport {
       }
       this.setupWindowListener();
     }
+  }
+
+  public setWsFactory(factory?: (url: string) => WebSocket): void {
+    this._wsFactory = factory;
   }
 
   public getWsUrl(): string {
@@ -174,10 +187,15 @@ export class WebviewServerTransport {
     this.setConnectionState(this._reconnectAttempt > 0 ? 'reconnecting' : 'connecting');
 
     try {
-      if (typeof WebSocket === 'undefined') {
+      let ws: WebSocket | null = null;
+      if (this._wsFactory) {
+        ws = this._wsFactory(targetUrl);
+      } else if (typeof window !== 'undefined' && typeof WebSocket !== 'undefined') {
+        ws = new WebSocket(targetUrl);
+      } else {
+        // In Node.js environment (e.g. unit tests without a mock wsFactory), do not instantiate native WebSocket
         return;
       }
-      const ws = new WebSocket(targetUrl);
       this._ws = ws;
 
       ws.onopen = () => {
@@ -238,6 +256,11 @@ export class WebviewServerTransport {
 
         const attempt = this._reconnectAttempt + 1;
         this._reconnectAttempt = attempt;
+        if (this._reconnectAttempt >= WebviewServerTransport.MAX_RECONNECT_ATTEMPTS) {
+          this.setConnectionState('error');
+          return;
+        }
+
         const delay = Math.min(1000 * Math.pow(1.5, Math.min(attempt, 8)), 10000);
 
         this.setConnectionState('reconnecting');
@@ -248,6 +271,7 @@ export class WebviewServerTransport {
             this.connect(this._wsUrl);
           }
         }, delay);
+        (this._reconnectTimer as any)?.unref?.();
       };
     } catch {
       this.setConnectionState('error');
@@ -331,14 +355,22 @@ export class WebviewServerTransport {
   public close(): void {
     this.clearReconnectTimer();
     this.stopKeepAlive();
+    this._isManuallyClosed = true;
     if (this._ws) {
-      this._isManuallyClosed = true;
       try {
         this._ws.close(1000);
       } catch {}
       this._ws = null;
     }
     this.setConnectionState('disconnected');
+  }
+
+  public disconnect(): void {
+    this.close();
+  }
+
+  public dispose(): void {
+    this.close();
   }
 
   private clearReconnectTimer(): void {
@@ -363,6 +395,7 @@ export class WebviewServerTransport {
         } catch {}
       }
     }, 25000);
+    (this._keepAliveTimer as any)?.unref?.();
   }
 
   private stopKeepAlive(): void {
