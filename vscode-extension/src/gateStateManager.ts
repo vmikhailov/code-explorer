@@ -1,6 +1,12 @@
 import * as vscode from 'vscode';
 import { ServerTransport } from './serverTransport';
-import { GateSuiteSummaryDto, RatchetGatesResponseDto } from '../../proto/types';
+import {
+  GateSuiteSummaryDto,
+  RatchetGatesResponseDto,
+  GateItemDto,
+  SaveGateResponseDto,
+  TestGateResponseDto,
+} from '../../proto/types';
 
 export interface GateSuiteChangeEvent {
   suite: GateSuiteSummaryDto | null;
@@ -382,6 +388,56 @@ export class GateStateManager implements vscode.Disposable {
         evaluatingGateId: null,
       });
     }
+  }
+
+  /**
+   * Saves or updates a gate YAML definition, re-evaluates the suite, and notifies all UI surfaces.
+   */
+  public async saveGate(gate: Partial<GateItemDto>, targetPath?: string): Promise<SaveGateResponseDto> {
+    this.outputChannel.appendLine(`[GateStateManager] Saving gate '${gate.id}'...`);
+    try {
+      const root = this.getWorkspaceRoot();
+      if (!root) {
+        throw new Error('No active workspace folder.');
+      }
+
+      const res = await this.transport.post<SaveGateResponseDto>(
+        '/api/gates/save',
+        { gate, targetPath },
+        { workspaceRoot: root }
+      );
+
+      if (res && res.suite) {
+        this.setSuite(res.suite);
+      } else {
+        await this.loadSuite(true);
+      }
+
+      return res;
+    } catch (err: any) {
+      this.outputChannel.appendLine(`[GateStateManager] Save gate failed: ${err.message}`);
+      throw err;
+    }
+  }
+
+  /**
+   * Validates and dry-runs a gate Cypher query against the graph, returning detected violations.
+   */
+  public async testGateQuery(
+    query: string,
+    gateId?: string,
+    parameters?: Record<string, string>
+  ): Promise<TestGateResponseDto> {
+    const root = this.getWorkspaceRoot();
+    if (!root) {
+      throw new Error('No active workspace folder.');
+    }
+
+    return await this.transport.post<TestGateResponseDto>(
+      '/api/gates/test',
+      { query, gateId, parameters },
+      { workspaceRoot: root }
+    );
   }
 
   public dispose(): void {

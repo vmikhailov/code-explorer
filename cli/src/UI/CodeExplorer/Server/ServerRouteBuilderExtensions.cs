@@ -378,6 +378,46 @@ public static class ServerRouteBuilderExtensions
             }
         });
 
+        endpoints.MapPost("/api/gates/save", async (Core.Protocol.SaveGateRequestDto? req, CancellationToken ct) =>
+        {
+            try
+            {
+                if (req?.Gate == null)
+                {
+                    return Results.BadRequest(new { error = "Request payload must include 'gate'." });
+                }
+
+                logger.LogInformation("[REST] POST /api/gates/save (gateId: {GateId})", req.Gate.Id);
+                var result = await wsHandler.SaveGateAsync(req.Gate, req.TargetPath, ct);
+                return Results.Ok(result);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/gates/save");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapPost("/api/gates/test", async (Core.Protocol.TestGateRequestDto? req, CancellationToken ct) =>
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(req?.Query))
+                {
+                    return Results.BadRequest(new { error = "Request payload must include 'query'." });
+                }
+
+                logger.LogInformation("[REST] POST /api/gates/test (query length: {Len})", req.Query.Length);
+                var result = await wsHandler.TestGateQueryAsync(req.Query, req.GateId, req.Parameters, ct);
+                return Results.Ok(result);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/gates/test");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
         return endpoints;
     }
 }

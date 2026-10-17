@@ -21,6 +21,8 @@ export type MessageType =
   | 'EVALUATE_GATES_REQUEST'
   | 'RATCHET_GATES_REQUEST'
   | 'INIT_GATES_REQUEST'
+  | 'SAVE_GATE_REQUEST'
+  | 'TEST_GATE_REQUEST'
   // Server -> Client responses
   | 'HANDSHAKE_RESPONSE'
   | 'PONG_RESPONSE'
@@ -32,6 +34,8 @@ export type MessageType =
   | 'EVALUATE_GATES_RESPONSE'
   | 'RATCHET_GATES_RESPONSE'
   | 'INIT_GATES_RESPONSE'
+  | 'SAVE_GATE_RESPONSE'
+  | 'TEST_GATE_RESPONSE'
   | 'ERROR_RESPONSE'
   // Broadcast events
   | 'GRAPH_PATCH_EVENT'
@@ -283,6 +287,35 @@ export interface RatchetGatesResponseDto {
 
 export interface InitGatesRequestDto {
   overwrite?: boolean;
+}
+
+export interface SaveGateRequestDto {
+  gate: Partial<GateItemDto>;
+  targetPath?: string;
+}
+
+export interface SaveGateResponseDto {
+  success: boolean;
+  message: string;
+  filePath?: string;
+  gate?: GateItemDto;
+  suite?: GateSuiteSummaryDto;
+}
+
+export interface TestGateRequestDto {
+  query: string;
+  gateId?: string;
+  parameters?: Record<string, string>;
+}
+
+export interface TestGateResponseDto {
+  success: boolean;
+  durationMs: number;
+  violationsCount: number;
+  violations: GateViolationDto[];
+  projectedColumns: string[];
+  missingColumns: string[];
+  error?: string;
 }
 
 // ============================================================================

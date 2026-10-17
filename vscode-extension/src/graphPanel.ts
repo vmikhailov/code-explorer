@@ -385,6 +385,50 @@ export class GraphPanel {
             }
             break;
           }
+
+          case 'SAVE_GATE': {
+            try {
+              const gateStateManager = GateStateManager.getInstance();
+              const result = await gateStateManager.saveGate(message.gate, message.targetPath);
+              this.panel.webview.postMessage({
+                type: 'GATE_SAVED',
+                requestId: message.requestId,
+                success: true,
+                result,
+              });
+            } catch (err: any) {
+              this.outputChannel?.appendLine(`[GraphPanel] SAVE_GATE error: ${err.message}`);
+              this.panel.webview.postMessage({
+                type: 'GATE_SAVED',
+                requestId: message.requestId,
+                success: false,
+                error: err?.message || 'Failed to save gate',
+              });
+            }
+            break;
+          }
+
+          case 'TEST_GATE': {
+            try {
+              const gateStateManager = GateStateManager.getInstance();
+              const result = await gateStateManager.testGateQuery(message.query, message.gateId, message.parameters);
+              this.panel.webview.postMessage({
+                type: 'GATE_TEST_RESULT',
+                requestId: message.requestId,
+                success: true,
+                result,
+              });
+            } catch (err: any) {
+              this.outputChannel?.appendLine(`[GraphPanel] TEST_GATE error: ${err.message}`);
+              this.panel.webview.postMessage({
+                type: 'GATE_TEST_RESULT',
+                requestId: message.requestId,
+                success: false,
+                error: err?.message || 'Failed to test query',
+              });
+            }
+            break;
+          }
         }
       },
       null,

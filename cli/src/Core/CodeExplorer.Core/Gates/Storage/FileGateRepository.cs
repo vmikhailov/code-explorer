@@ -159,4 +159,77 @@ public class FileGateRepository : IGateRepository
 
         return Path.Combine(_baselinesDir, $"{gate.Id}.json");
     }
+
+    public async Task<string> SaveGateAsync(SemanticGate gate, string? targetPath = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(gate);
+        if (string.IsNullOrWhiteSpace(gate.Id))
+        {
+            throw new ArgumentException("Gate ID cannot be empty.", nameof(gate));
+        }
+
+        string fullPath;
+        if (!string.IsNullOrWhiteSpace(targetPath))
+        {
+            fullPath = Path.IsPathRooted(targetPath)
+                ? targetPath
+                : Path.Combine(_workspacePath, targetPath.TrimStart('/', '\\'));
+        }
+        else if (!string.IsNullOrWhiteSpace(gate.Source) && !string.Equals(gate.Source, "BuiltIn", StringComparison.OrdinalIgnoreCase) && gate.Source.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase))
+        {
+            fullPath = Path.IsPathRooted(gate.Source)
+                ? gate.Source
+                : Path.Combine(_workspacePath, gate.Source.TrimStart('/', '\\'));
+        }
+        else
+        {
+            var categorySubdir = gate.Category.ToString().ToLowerInvariant();
+            var categoryDir = Path.Combine(_gatesDir, categorySubdir);
+            var safeId = string.Join("-", gate.Id.ToLowerInvariant().Split(Path.GetInvalidFileNameChars()));
+            fullPath = Path.Combine(categoryDir, $"{safeId}.yaml");
+        }
+
+        var dir = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+        {
+            Directory.CreateDirectory(dir);
+        }
+
+        var yaml = GateSerializer.SerializeGate(gate);
+        await File.WriteAllTextAsync(fullPath, yaml, cancellationToken);
+
+        var relPath = Path.GetRelativePath(_workspacePath, fullPath).Replace('\\', '/');
+        return relPath;
+    }
+
+    public Task<bool> DeleteGateAsync(string gateId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(gateId) || !Directory.Exists(_gatesDir))
+        {
+            return Task.FromResult(false);
+        }
+
+        var files = Directory.GetFiles(_gatesDir, "*.yaml", SearchOption.AllDirectories)
+            .Concat(Directory.GetFiles(_gatesDir, "*.yml", SearchOption.AllDirectories));
+
+        foreach (var file in files)
+        {
+            try
+            {
+                var content = File.ReadAllText(file);
+                var gate = GateSerializer.DeserializeGate(content, file);
+                if (string.Equals(gate.Id, gateId.Trim(), StringComparison.OrdinalIgnoreCase))
+                {
+                    File.Delete(file);
+                    return Task.FromResult(true);
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
+        return Task.FromResult(false);
+    }
 }

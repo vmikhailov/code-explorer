@@ -27,6 +27,8 @@ public static class WsMessageTypes
     public const string EvaluateGatesRequest = "EVALUATE_GATES_REQUEST";
     public const string RatchetGatesRequest = "RATCHET_GATES_REQUEST";
     public const string InitGatesRequest = "INIT_GATES_REQUEST";
+    public const string SaveGateRequest = "SAVE_GATE_REQUEST";
+    public const string TestGateRequest = "TEST_GATE_REQUEST";
 
     // Server -> Client responses
     public const string HandshakeResponse = "HANDSHAKE_RESPONSE";
@@ -41,6 +43,8 @@ public static class WsMessageTypes
     public const string EvaluateGatesResponse = "EVALUATE_GATES_RESPONSE";
     public const string RatchetGatesResponse = "RATCHET_GATES_RESPONSE";
     public const string InitGatesResponse = "INIT_GATES_RESPONSE";
+    public const string SaveGateResponse = "SAVE_GATE_RESPONSE";
+    public const string TestGateResponse = "TEST_GATE_RESPONSE";
     public const string ErrorResponse = "ERROR_RESPONSE";
 
     // Server -> Client broadcast events
@@ -1280,6 +1284,76 @@ public class InitGatesRequestDto
 {
     [JsonPropertyName("overwrite")]
     public bool Overwrite { get; set; }
+}
+
+public class SaveGateRequestDto
+{
+    [JsonPropertyName("gate")]
+    public GateItemDto Gate { get; set; } = default!;
+
+    [JsonPropertyName("targetPath")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TargetPath { get; set; }
+}
+
+public class SaveGateResponseDto
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+
+    [JsonPropertyName("filePath")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? FilePath { get; set; }
+
+    [JsonPropertyName("gate")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GateItemDto? Gate { get; set; }
+
+    [JsonPropertyName("suite")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GateSuiteSummaryDto? Suite { get; set; }
+}
+
+public class TestGateRequestDto
+{
+    [JsonPropertyName("query")]
+    public string Query { get; set; } = string.Empty;
+
+    [JsonPropertyName("gateId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? GateId { get; set; }
+
+    [JsonPropertyName("parameters")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, string>? Parameters { get; set; }
+}
+
+public class TestGateResponseDto
+{
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+
+    [JsonPropertyName("durationMs")]
+    public double DurationMs { get; set; }
+
+    [JsonPropertyName("violationsCount")]
+    public int ViolationsCount { get; set; }
+
+    [JsonPropertyName("violations")]
+    public List<GateViolationDto> Violations { get; set; } = [];
+
+    [JsonPropertyName("projectedColumns")]
+    public List<string> ProjectedColumns { get; set; } = [];
+
+    [JsonPropertyName("missingColumns")]
+    public List<string> MissingColumns { get; set; } = [];
+
+    [JsonPropertyName("error")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Error { get; set; }
 }
 
 

@@ -480,6 +480,34 @@ public class WebSocketServerHandler
                     await SendResponseAsync(session, WsMessageTypes.InitGatesResponse, reqId, initResult, cancellationToken);
                     break;
 
+                case WsMessageTypes.SaveGateRequest:
+                case "SAVE_GATE":
+                    var saveReq = envelope.Payload.ValueKind == JsonValueKind.Object
+                        ? JsonSerializer.Deserialize<SaveGateRequestDto>(envelope.Payload.GetRawText(), JsonOpts)
+                        : null;
+                    if (saveReq?.Gate == null)
+                    {
+                        await SendErrorAsync(session, reqId, "INVALID_PAYLOAD", "Payload must contain 'gate'.", cancellationToken);
+                        break;
+                    }
+                    var saveResult = await SaveGateAsync(saveReq.Gate, saveReq.TargetPath, cancellationToken);
+                    await SendResponseAsync(session, WsMessageTypes.SaveGateResponse, reqId, saveResult, cancellationToken);
+                    break;
+
+                case WsMessageTypes.TestGateRequest:
+                case "TEST_GATE":
+                    var testReq = envelope.Payload.ValueKind == JsonValueKind.Object
+                        ? JsonSerializer.Deserialize<TestGateRequestDto>(envelope.Payload.GetRawText(), JsonOpts)
+                        : null;
+                    if (string.IsNullOrWhiteSpace(testReq?.Query))
+                    {
+                        await SendErrorAsync(session, reqId, "INVALID_PAYLOAD", "Payload must contain 'query'.", cancellationToken);
+                        break;
+                    }
+                    var testResult = await TestGateQueryAsync(testReq.Query, testReq.GateId, testReq.Parameters, cancellationToken);
+                    await SendResponseAsync(session, WsMessageTypes.TestGateResponse, reqId, testResult, cancellationToken);
+                    break;
+
                 default:
                     await SendErrorAsync(session, reqId, "UNKNOWN_TYPE", $"Unknown message type: '{envelope.Type}'", cancellationToken);
                     break;
@@ -830,6 +858,164 @@ public class WebSocketServerHandler
                 : ".codeexplorer/gates/ starter template already exists.",
             Suite = refreshedSuite
         };
+    }
+
+    public async Task<SaveGateResponseDto> SaveGateAsync(GateItemDto gateDto, string? targetPath = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(gateDto);
+        if (string.IsNullOrWhiteSpace(gateDto.Id))
+        {
+            return new SaveGateResponseDto
+            {
+                Success = false,
+                Message = "Gate ID must not be empty."
+            };
+        }
+
+        if (string.IsNullOrWhiteSpace(gateDto.Query))
+        {
+            return new SaveGateResponseDto
+            {
+                Success = false,
+                Message = "Gate query must not be empty."
+            };
+        }
+
+        var category = Enum.TryParse<Core.Gates.Models.GateCategory>(gateDto.Category, true, out var cat) ? cat : Core.Gates.Models.GateCategory.Architectural;
+        var platform = !string.IsNullOrWhiteSpace(gateDto.Platform) ? gateDto.Platform.Trim().ToLowerInvariant() : "agnostic";
+        var scope = Enum.TryParse<Core.Gates.Models.InvariantScope>(gateDto.Scope, true, out var sc) ? sc : Core.Gates.Models.InvariantScope.Module;
+        var dim = Enum.TryParse<Core.Gates.Models.InvariantDimension>(gateDto.Dimension, true, out var dm) ? dm : Core.Gates.Models.InvariantDimension.Boundaries;
+        var sev = Enum.TryParse<Core.Gates.Models.GateSeverity>(gateDto.Severity, true, out var sv) ? sv : Core.Gates.Models.GateSeverity.Error;
+
+        var gate = new Core.Gates.Models.SemanticGate
+        {
+            Id = gateDto.Id.Trim(),
+            Name = !string.IsNullOrWhiteSpace(gateDto.Name) ? gateDto.Name.Trim() : gateDto.Id.Trim(),
+            Category = category,
+            Platform = platform,
+            Scope = scope,
+            Dimension = dim,
+            Severity = sev,
+            Description = gateDto.Description?.Trim(),
+            Remediation = gateDto.Remediation?.Trim(),
+            Query = gateDto.Query.Trim(),
+            Ratchet = new Core.Gates.Models.GateRatchetSettings
+            {
+                Enabled = gateDto.RatchetEnabled,
+                Baseline = gateDto.BaselinePath
+            },
+            Source = gateDto.Source ?? string.Empty
+        };
+
+        var repo = new Core.Gates.Storage.FileGateRepository(_workspaceRoot);
+        var savedPath = await repo.SaveGateAsync(gate, targetPath, cancellationToken);
+        InvalidateGatesCache();
+
+        var refreshedSuite = await EvaluateGatesSuiteAsync(null, cancellationToken, force: true);
+        var savedGateItem = refreshedSuite.Gates.FirstOrDefault(g => string.Equals(g.Id, gate.Id, StringComparison.OrdinalIgnoreCase)) ?? gateDto;
+        savedGateItem.Source = savedPath;
+
+        return new SaveGateResponseDto
+        {
+            Success = true,
+            Message = $"Gate '{gate.Id}' saved successfully to '{savedPath}'.",
+            FilePath = savedPath,
+            Gate = savedGateItem,
+            Suite = refreshedSuite
+        };
+    }
+
+    public async Task<TestGateResponseDto> TestGateQueryAsync(string query, string? gateId = null, Dictionary<string, string>? parameters = null, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return new TestGateResponseDto
+            {
+                Success = false,
+                Error = "Query must not be empty."
+            };
+        }
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            var paramDict = new Dictionary<string, object?>();
+            if (parameters != null)
+            {
+                foreach (var (k, v) in parameters)
+                {
+                    paramDict[k] = v;
+                }
+            }
+
+            var rawJson = await _graphClient.ExecuteQueryAsync(query, paramDict, cancellationToken);
+            sw.Stop();
+
+            var effectiveGateId = !string.IsNullOrWhiteSpace(gateId) ? gateId.Trim() : "TEST_GATE";
+            var violations = Core.Gates.Engine.GateExecutionEngine.ParseViolations(effectiveGateId, rawJson);
+
+            var projectedCols = new List<string>();
+            if (!string.IsNullOrWhiteSpace(rawJson))
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(rawJson);
+                    if (doc.RootElement.ValueKind == JsonValueKind.Array)
+                    {
+                        var first = doc.RootElement.EnumerateArray().FirstOrDefault();
+                        if (first.ValueKind == JsonValueKind.Object)
+                        {
+                            foreach (var prop in first.EnumerateObject())
+                            {
+                                projectedCols.Add(prop.Name);
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    // ignore JSON inspection errors
+                }
+            }
+
+            var requiredContract = new[] { "file", "line", "symbol", "target", "message" };
+            var missingCols = requiredContract
+                .Where(req => !projectedCols.Any(c => string.Equals(c, req, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+
+            var vDtos = violations.Take(50).Select(v => new GateViolationDto
+            {
+                GateId = v.GateId,
+                File = v.File,
+                Line = v.Line,
+                Column = v.Column,
+                Symbol = v.Symbol,
+                Target = v.Target,
+                Message = v.Message,
+                Fingerprint = v.Fingerprint,
+                IsTolerated = false
+            }).ToList();
+
+            return new TestGateResponseDto
+            {
+                Success = true,
+                DurationMs = Math.Round(sw.Elapsed.TotalMilliseconds, 2),
+                ViolationsCount = violations.Count,
+                Violations = vDtos,
+                ProjectedColumns = projectedCols,
+                MissingColumns = missingCols
+            };
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            return new TestGateResponseDto
+            {
+                Success = false,
+                DurationMs = Math.Round(sw.Elapsed.TotalMilliseconds, 2),
+                Error = ex.Message
+            };
+        }
     }
 
     private static GateSuiteSummaryDto MapGateSuiteToDto(Core.Gates.Models.GateSuiteResult suite)

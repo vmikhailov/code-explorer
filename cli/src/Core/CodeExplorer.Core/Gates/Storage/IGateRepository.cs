@@ -31,4 +31,15 @@ public interface IGateRepository
     /// Initializes default starter gates in the workspace (.codeexplorer/gates).
     /// </summary>
     Task<int> InitStarterGatesAsync(bool overwrite = false, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Saves or updates a gate YAML definition in the workspace (.codeexplorer/gates).
+    /// Returns the workspace-relative path of the saved gate file.
+    /// </summary>
+    Task<string> SaveGateAsync(SemanticGate gate, string? targetPath = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes a workspace gate YAML file. Returns true if found and deleted.
+    /// </summary>
+    Task<bool> DeleteGateAsync(string gateId, CancellationToken cancellationToken = default);
 }

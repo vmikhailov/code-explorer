@@ -110,7 +110,7 @@ public class GateExecutionEngine
         };
     }
 
-    private static List<GateViolation> ParseViolations(string gateId, string rawJson)
+    public static List<GateViolation> ParseViolations(string gateId, string rawJson)
     {
         var violations = new List<GateViolation>();
         if (string.IsNullOrWhiteSpace(rawJson)) return violations;

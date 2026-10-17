@@ -14,7 +14,9 @@ import {
   ChevronRightIcon,
   XIcon,
   EditIcon,
+  PlusIcon,
 } from '../../components/Icons';
+import { GateEditorModal } from './GateEditorModal';
 
 export interface DomainGatesPanelProps {
   serverHttpUrl?: string;
@@ -37,6 +39,8 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [expandedGateIds, setExpandedGateIds] = useState<Set<string>>(new Set());
+  const [isEditorOpen, setIsEditorOpen] = useState<boolean>(false);
+  const [editingGate, setEditingGate] = useState<GateItemDto | null>(null);
 
   const resolvedHttpUrl = useMemo(() => {
     if (serverHttpUrl) return serverHttpUrl;
@@ -231,25 +235,27 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
     }
   }, [resolvedHttpUrl, applySuite, onOpenFile]);
 
-  const handleEditGate = useCallback(
-    (targetGate: GateItemDto) => {
-      const filePath =
-        targetGate.source && targetGate.source !== 'BuiltIn'
-          ? targetGate.source
-          : `.codeexplorer/gates/${targetGate.id}.yaml`;
+  const handleCreateGate = useCallback(() => {
+    setEditingGate(null);
+    setIsEditorOpen(true);
+  }, []);
 
+  const handleEditGate = useCallback((targetGate: GateItemDto) => {
+    setEditingGate(targetGate);
+    setIsEditorOpen(true);
+  }, []);
+
+  const handleGateSaved = useCallback(
+    (savedGate: GateItemDto) => {
+      setActionStatus(`Gate '${savedGate.id}' saved successfully`);
       const vscode = getVsCodeApi();
       if (vscode) {
-        vscode.postMessage({
-          type: 'OPEN_GATE_YAML',
-          gateId: targetGate.id,
-          filePath,
-        });
-      } else if (onOpenFile) {
-        onOpenFile(filePath, 1);
+        vscode.postMessage({ type: 'EVALUATE_GATES', gateId: savedGate.id });
+      } else {
+        fetchGates();
       }
     },
-    [onOpenFile]
+    [fetchGates]
   );
 
   const toggleGateExpand = useCallback((gateId: string) => {
@@ -294,7 +300,8 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
   }, [suite]);
 
   return (
-    <FloatingPanel
+    <>
+      <FloatingPanel
       dock="top-right"
       isCollapsed={false}
       icon={<ShieldIcon size={14} />}
@@ -338,6 +345,15 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
       }
       headerActions={
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <button
+            type="button"
+            className="floating-dock-btn action-btn new-gate-btn"
+            onClick={handleCreateGate}
+            title="Create a new Semantic Invariant Gate"
+          >
+            <PlusIcon size={11} />
+            <span>New Gate</span>
+          </button>
           <button
             type="button"
             className="floating-dock-btn action-btn"
@@ -500,14 +516,25 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
                 Define architectural invariants as OpenCypher rules in{' '}
                 <code>.codeexplorer/gates/*.yaml</code> with automatic ratchet baselines.
               </p>
-              <button
-                type="button"
-                className="floating-dock-btn action-btn"
-                style={{ marginTop: '10px', padding: '5px 12px' }}
-                onClick={handleInitStarterGate}
-              >
-                + Initialize Starter Gate
-              </button>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '10px', justifyContent: 'center' }}>
+                <button
+                  type="button"
+                  className="floating-dock-btn action-btn"
+                  style={{ padding: '5px 12px' }}
+                  onClick={handleCreateGate}
+                >
+                  <PlusIcon size={11} />
+                  <span>Create Gate</span>
+                </button>
+                <button
+                  type="button"
+                  className="floating-dock-btn action-btn"
+                  style={{ padding: '5px 12px' }}
+                  onClick={handleInitStarterGate}
+                >
+                  <span>Initialize Starter Gate</span>
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -816,5 +843,14 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
         })}
       </div>
     </FloatingPanel>
+    <GateEditorModal
+      isOpen={isEditorOpen}
+      gate={editingGate}
+      serverHttpUrl={resolvedHttpUrl}
+      onSaveSuccess={handleGateSaved}
+      onClose={() => setIsEditorOpen(false)}
+      onOpenFile={onOpenFile}
+    />
+  </>
   );
 };

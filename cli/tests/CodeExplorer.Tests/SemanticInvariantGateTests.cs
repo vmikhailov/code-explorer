@@ -1016,6 +1016,44 @@ public class SemanticInvariantGateTests
         res.Violations[0].Message.Should().Contain("uses stringly-typed primitive string for taxonomy/classification");
     }
 
+    [Test]
+    public async Task FileGateRepository_SaveGateAsync_PersistsYamlAndReloadsCorrectly()
+    {
+        var repo = new FileGateRepository(_tempWorkspace);
+        var gate = new SemanticGate
+        {
+            Id = "SIG-CUSTOM-001",
+            Name = "Custom Test Invariant Gate",
+            Category = GateCategory.Architectural,
+            Platform = "dotnet",
+            Scope = InvariantScope.Module,
+            Dimension = InvariantDimension.Boundaries,
+            Severity = GateSeverity.Warning,
+            Description = "Custom description for testing.",
+            Remediation = "Fix the custom issue.",
+            Query = "MATCH (n:Type) RETURN n.path AS file, 1 AS line, n.name AS symbol, '' AS target, 'test message' AS message",
+            Ratchet = new GateRatchetSettings { Enabled = false }
+        };
+
+        var savedPath = await repo.SaveGateAsync(gate);
+        savedPath.Should().NotBeNullOrEmpty();
+        savedPath.Should().EndWith("sig-custom-001.yaml");
+
+        var loaded = await repo.GetGateByIdAsync("SIG-CUSTOM-001");
+        loaded.Should().NotBeNull();
+        loaded!.Id.Should().Be("SIG-CUSTOM-001");
+        loaded.Name.Should().Be("Custom Test Invariant Gate");
+        loaded.Severity.Should().Be(GateSeverity.Warning);
+        loaded.Platform.Should().Be("dotnet");
+        loaded.Ratchet.Enabled.Should().BeFalse();
+
+        var deleted = await repo.DeleteGateAsync("SIG-CUSTOM-001");
+        deleted.Should().BeTrue();
+
+        var afterDelete = await repo.GetGateByIdAsync("SIG-CUSTOM-001");
+        afterDelete.Should().BeNull();
+    }
+
     private class MockGateDbClient : IGraphClient
     {
         public string QueryResponse { get; set; } = "[]";

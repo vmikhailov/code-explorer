@@ -228,6 +228,56 @@ public class ApiServerTests
         text.Should().Contain("WebSocket connection expected");
     }
 
+    [Test]
+    public async Task RestApi_GatesSaveAndTest_Succeeds()
+    {
+        // 1. Test Cypher query via POST /api/gates/test
+        var testReq = new Core.Protocol.TestGateRequestDto
+        {
+            Query = "MATCH (p:Project) RETURN p.name AS symbol, '' AS target, 'test project' AS message, 'Sample.csproj' AS file, 1 AS line"
+        };
+        var testContent = new StringContent(JsonSerializer.Serialize(testReq), Encoding.UTF8, "application/json");
+        var testRes = await _httpClient.PostAsync($"{_httpBaseUrl}/api/gates/test", testContent);
+        testRes.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var testJson = await testRes.Content.ReadAsStringAsync();
+        var testResult = JsonSerializer.Deserialize<Core.Protocol.TestGateResponseDto>(testJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        testResult.Should().NotBeNull();
+        testResult!.Success.Should().BeTrue();
+        testResult.ProjectedColumns.Should().Contain("symbol");
+        testResult.ProjectedColumns.Should().Contain("file");
+        testResult.MissingColumns.Should().BeEmpty();
+
+        // 2. Save gate via POST /api/gates/save
+        var saveReq = new Core.Protocol.SaveGateRequestDto
+        {
+            Gate = new Core.Protocol.GateItemDto
+            {
+                Id = "SIG-TEST-API-001",
+                Name = "API Test Gate",
+                Category = "Architectural",
+                Platform = "agnostic",
+                Scope = "Project",
+                Dimension = "Rules",
+                Severity = "Warning",
+                Description = "Testing gate save API endpoint.",
+                Remediation = "None",
+                Query = testReq.Query,
+                RatchetEnabled = false
+            }
+        };
+        var saveContent = new StringContent(JsonSerializer.Serialize(saveReq), Encoding.UTF8, "application/json");
+        var saveRes = await _httpClient.PostAsync($"{_httpBaseUrl}/api/gates/save", saveContent);
+        saveRes.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var saveJson = await saveRes.Content.ReadAsStringAsync();
+        var saveResult = JsonSerializer.Deserialize<Core.Protocol.SaveGateResponseDto>(saveJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        saveResult.Should().NotBeNull();
+        saveResult!.Success.Should().BeTrue();
+        saveResult.FilePath.Should().NotBeNullOrEmpty();
+        saveResult.Gate?.Id.Should().Be("SIG-TEST-API-001");
+    }
+
     // ==========================================
     // WEBSOCKET PROTOCOL & VALIDATION TESTS
     // ==========================================
