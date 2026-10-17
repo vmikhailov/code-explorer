@@ -1815,13 +1815,16 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       }
       dList.push(detail);
 
+      const clampedName = displayName.length > 32 ? displayName.slice(0, 30).trimEnd() + '…' : displayName;
+
       cyNodes.push({
         group: 'nodes',
         data: {
           id: node.id,
           name: node.name || displayName,
           displayName,
-          displayLabel: `${tag}\n${displayName}`,
+          displayLabel: `${tag}\n${clampedName}`,
+          rawLabel: displayName,
           kind: nodeKind,
           bgColor,
           borderColor,

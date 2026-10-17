@@ -2,6 +2,7 @@ using AwesomeAssertions;
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
+using CodeExplorer.Core.Protocol;
 using CodeExplorer.Cypher.Common;
 using NUnit.Framework;
 
@@ -578,6 +579,165 @@ public class ArchitectureViewEngineTests
 
         // Verify there is NO phantom outbound edge from the service to the topic
         graph.Edges.Any(e => e.Source == "ws:service:cpm-aggregator" && e.Target == "ws:res:topic:gcp:impression-topic").Should().BeFalse();
+    }
+
+    [Test]
+    public void ExtractDomainKey_IgnoresRunawayDomainProperties_FallsBackToDeterministicNaming()
+    {
+        var runaway = "Performance & Scalability Tests For ECommerce Platform With Automated Load Generation";
+        var node = new GraphNodeDto
+        {
+            Id = "ws:project:cartservice",
+            Name = "cartservice",
+            FilePath = "src/cartservice/cartservice.csproj",
+            Properties = new Dictionary<string, string>
+            {
+                ["domain"] = runaway,
+                ["intent_domain"] = runaway,
+                ["domainId"] = "dom:runaway"
+            }
+        };
+
+        var (domainKey, domainDisplayName, _) = ArchitectureViewEngine.ExtractDomainKey(node);
+
+        // Runaway string should be ignored, falling back to directory structure 'cartservice'
+        domainKey.Should().Be("domain:cartservice");
+        domainDisplayName.Should().Be("Cartservice");
+    }
+
+    [Test]
+    public async Task GetDomainArchitectureAsync_ExcludesTestSuitesDocsAndLoadGenerators()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_domain_arch_test_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var dbPath = Path.Combine(tempDir, "graph.db").Replace('\\', '/');
+            using var db = new SqliteGraphClient(dbPath);
+            await db.CreateIndicesAsync();
+            var engine = new ArchitectureViewEngine(db);
+
+            // Upload projects: a real service, a test suite, a load generator, and a docs project
+            await db.UploadNodesAsync(
+            [
+                new("ws:project:order-service:", "Project", new Dictionary<string, object>
+                {
+                    ["name"] = "order-service",
+                    ["path"] = "src/order-service",
+                    ["role"] = "Service",
+                    ["domainId"] = "dom:ordermanagement",
+                    ["domain"] = "OrderManagement"
+                }),
+                new("ws:project:telemetry-docs:", "Project", new Dictionary<string, object>
+                {
+                    ["name"] = "telemetry-docs",
+                    ["path"] = "docs/telemetry-docs",
+                    ["role"] = "Service",
+                    ["domainId"] = "dom:telemetrydocs",
+                    ["domain"] = "TelemetryDocs",
+                    ["domainDisplayName"] = "Telemetry Docs"
+                }),
+                new("ws:project:loadgenerator:", "Project", new Dictionary<string, object>
+                {
+                    ["name"] = "loadgenerator",
+                    ["path"] = "src/loadgenerator",
+                    ["role"] = "Service",
+                    ["domainId"] = "dom:testinginfrastructure",
+                    ["domain"] = "TestingInfrastructure"
+                }),
+                new("ws:project:tracetesting:", "Project", new Dictionary<string, object>
+                {
+                    ["name"] = "tracetesting",
+                    ["path"] = "src/tracetesting",
+                    ["role"] = "Service"
+                })
+            ]);
+
+            var domainArch = await engine.GetDomainArchitectureAsync();
+
+            // Only order-service domain should be present!
+            domainArch.Nodes.Any(n => n.DisplayName == "Order Management" || n.Name == "order-service").Should().BeTrue();
+            domainArch.Nodes.Any(n => n.DisplayName.Contains("Telemetry Docs") || n.Name.Contains("telemetry-docs")).Should().BeFalse();
+            domainArch.Nodes.Any(n => n.DisplayName.Contains("Testing Infrastructure") || n.Id.EndsWith("testinginfrastructure")).Should().BeFalse();
+            domainArch.Nodes.Any(n => n.Name.Contains("loadgenerator")).Should().BeFalse();
+            domainArch.Nodes.Any(n => n.Name.Contains("tracetesting")).Should().BeFalse();
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Test]
+    public async Task GetBoundedContextMap_ExcludesTestSuitesDocsAndSanitizesRunawayDomains()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_bc_map_test_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var dbPath = Path.Combine(tempDir, "graph.db").Replace('\\', '/');
+            using var db = new SqliteGraphClient(dbPath);
+            await db.CreateIndicesAsync();
+            var engine = new ArchitectureViewEngine(db);
+
+            var runaway = "Performance & Scalability Tests For ECommerce Platform With Automated Load Generation";
+
+            // Upload projects: a service with runaway domain, a test suite, a load generator, and a docs project
+            await db.UploadNodesAsync(
+            [
+                new("ws:project:cartservice:", "Project", new Dictionary<string, object>
+                {
+                    ["name"] = "cartservice",
+                    ["path"] = "src/cartservice/cartservice.csproj",
+                    ["role"] = "Service",
+                    ["domainId"] = "dom:runaway",
+                    ["domain"] = runaway
+                }),
+                new("ws:project:telemetry-docs:", "Project", new Dictionary<string, object>
+                {
+                    ["name"] = "telemetry-docs",
+                    ["path"] = "docs/telemetry-docs",
+                    ["role"] = "Service",
+                    ["domainId"] = "dom:telemetrydocs",
+                    ["domain"] = "TelemetryDocs",
+                    ["domainDisplayName"] = "Telemetry Docs"
+                }),
+                new("ws:project:loadgenerator:", "Project", new Dictionary<string, object>
+                {
+                    ["name"] = "loadgenerator",
+                    ["path"] = "src/loadgenerator",
+                    ["role"] = "Service",
+                    ["domainId"] = "dom:testinginfrastructure",
+                    ["domain"] = "TestingInfrastructure"
+                }),
+                new("ws:project:frontend.tests:", "Project", new Dictionary<string, object>
+                {
+                    ["name"] = "frontend.tests",
+                    ["path"] = "tests/frontend.tests",
+                    ["role"] = "Test"
+                })
+            ]);
+
+            var bcMap = await engine.GetBoundedContextMapAsync();
+
+            // 1. Verify runaway domain is sanitized (does NOT have the 80+ char sentence)
+            bcMap.Contexts.Any(c => c.Name.Contains("PerformanceScalabilityTestsForECommercePlatform")).Should().BeFalse();
+            var cartCtx = bcMap.Contexts.FirstOrDefault(c => c.Projects.Contains("cartservice"));
+            cartCtx.Should().NotBeNull();
+            cartCtx!.DisplayName.Length.Should().BeLessThanOrEqualTo(35);
+
+            // 2. Verify test/docs contexts and projects are excluded
+            bcMap.Contexts.Any(c => c.DisplayName.Contains("Telemetry Docs") || c.Projects.Contains("telemetry-docs")).Should().BeFalse();
+            bcMap.Contexts.Any(c => c.DisplayName.Contains("Testing Infrastructure") || c.Projects.Contains("loadgenerator")).Should().BeFalse();
+            bcMap.Contexts.Any(c => c.Projects.Contains("frontend.tests")).Should().BeFalse();
+
+            // 3. Verify domain aggregation is also clean
+            bcMap.Domains.Any(d => d.DisplayName.Contains("Telemetry Docs") || d.DisplayName.Contains("Testing Infrastructure")).Should().BeFalse();
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
     }
 }
 

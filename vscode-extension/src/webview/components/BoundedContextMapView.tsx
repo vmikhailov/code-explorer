@@ -378,11 +378,14 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
 
     const cyNodes = filteredContexts.map((c) => {
       const size = Math.min(120, Math.max(52, 48 + c.fileCount * 3 + c.targetEntities.length * 4));
+      const clampedName = c.displayName.length > 35 ? c.displayName.slice(0, 33).trimEnd() + '…' : c.displayName;
       return {
         data: {
           id: c.id,
           name: c.name,
-          displayLabel: `${c.displayName}\n(${c.fileCount} files)`,
+          displayName: c.displayName,
+          displayLabel: `${clampedName}\n(${c.fileCount} files)`,
+          rawLabel: c.displayName,
           bgColor: c.bgColor,
           borderColor: c.borderColor,
           size,

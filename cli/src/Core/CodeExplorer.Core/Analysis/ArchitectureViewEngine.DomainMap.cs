@@ -22,6 +22,93 @@ public partial class ArchitectureViewEngine
     private static readonly string[] IngressKeywords = ["admin", "app", "ui", "fe", "gateway", "bff", "portal", "web", "client-app", "landing"];
     private static readonly string[] IngressFrameworks = ["angular", "react", "vue", "svelte", "next", "vite", "blazor", "express", "fastify"];
 
+    internal static bool IsRunawayDomainName(string? rawDomain)
+    {
+        if (string.IsNullOrWhiteSpace(rawDomain)) return false;
+        var clean = rawDomain.Trim();
+        if (clean.StartsWith("domain:", StringComparison.OrdinalIgnoreCase)) clean = clean["domain:".Length..].Trim();
+        if (clean.StartsWith("dom:", StringComparison.OrdinalIgnoreCase)) clean = clean["dom:".Length..].Trim();
+        if (clean.Length > 40) return true;
+        var words = clean.Split([' ', '_', '-'], StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length > 4) return true;
+        var formatted = WorkspaceConventions.FormatDomainDisplayName(ToPascalCase(clean));
+        if (formatted.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length > 5) return true;
+        return false;
+    }
+
+    internal static bool IsTestOrDocsDomain(string? domainKey, string? domainDisplayName)
+    {
+        if (!string.IsNullOrWhiteSpace(domainKey))
+        {
+            var cleanKey = domainKey.Trim();
+            if (cleanKey.EndsWith(":testinginfrastructure", StringComparison.OrdinalIgnoreCase) ||
+                cleanKey.EndsWith(":developertooling", StringComparison.OrdinalIgnoreCase) ||
+                cleanKey.EndsWith(":telemetrydocs", StringComparison.OrdinalIgnoreCase) ||
+                cleanKey.EndsWith(":tests", StringComparison.OrdinalIgnoreCase) ||
+                cleanKey.EndsWith(":test", StringComparison.OrdinalIgnoreCase) ||
+                cleanKey.Contains("testinginfrastructure", StringComparison.OrdinalIgnoreCase) ||
+                cleanKey.Contains("telemetrydocs", StringComparison.OrdinalIgnoreCase) ||
+                cleanKey.Contains("tests", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(domainDisplayName))
+        {
+            var disp = domainDisplayName.Trim();
+            if (string.Equals(disp, "Testing Infrastructure", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(disp, "Developer Tooling", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(disp, "Telemetry Docs", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (disp.Contains("Tests", StringComparison.OrdinalIgnoreCase) ||
+                disp.Contains("Testing", StringComparison.OrdinalIgnoreCase) ||
+                disp.EndsWith("Docs", StringComparison.OrdinalIgnoreCase) ||
+                disp.EndsWith("Documentation", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    internal static bool IsTestOrDocsProject(string? projectName, string? filePath)
+    {
+        var name = (projectName ?? "").Trim().ToLowerInvariant();
+        var rawPath = (filePath ?? "").Replace('\\', '/').Trim().ToLowerInvariant();
+        var pathWithoutExt = rawPath.EndsWith(".csproj") || rawPath.EndsWith(".fsproj") || rawPath.EndsWith(".json")
+            ? Path.GetFileNameWithoutExtension(rawPath).ToLowerInvariant()
+            : Path.GetFileName(rawPath.TrimEnd('/')).ToLowerInvariant();
+
+        string[] testDocsSuffixes = ["-docs", "_docs", "docs", "test", "tests", "tracetesting", "loadgenerator", "benchmark", "benchmarks"];
+        foreach (var s in testDocsSuffixes)
+        {
+            if (name == s || name.EndsWith(s) || pathWithoutExt == s || pathWithoutExt.EndsWith(s))
+            {
+                return true;
+            }
+        }
+
+        if (name.Contains("tracetesting") || name.Contains("loadgenerator") || name.Contains("benchmark") ||
+            rawPath.Contains("/tracetesting/") || rawPath.Contains("/loadgenerator/") || rawPath.Contains("/benchmarks/") ||
+            rawPath.Contains("/test/") || rawPath.Contains("/tests/") || rawPath.Contains("/docs/"))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsTestOrDocsProjectOrDomain(GraphNodeDto node, string domainKey, string domainDisplayName)
+    {
+        if (IsTestOrDocsDomain(domainKey, domainDisplayName)) return true;
+        return IsTestOrDocsProject(node.Name, node.FilePath);
+    }
+
     public static (string DomainKey, string DomainDisplayName, bool IsIngressHint) ExtractDomainKey(GraphNodeDto node)
     {
         var name = node.Name ?? "";
@@ -31,7 +118,7 @@ public partial class ArchitectureViewEngine
         // 0. Explicit domain / intent_domain from node properties
         if (node.Properties != null)
         {
-            if (node.Properties.TryGetValue("domain", out var expDomain) && !string.IsNullOrWhiteSpace(expDomain))
+            if (node.Properties.TryGetValue("domain", out var expDomain) && !string.IsNullOrWhiteSpace(expDomain) && !IsRunawayDomainName(expDomain))
             {
                 var clean = ToPascalCase(expDomain);
                 var isIngressHint = IngressKeywords.Any(kw => lowerName.Contains(kw)) ||
@@ -45,7 +132,7 @@ public partial class ArchitectureViewEngine
                     : WorkspaceConventions.FormatDomainDisplayName(clean);
                 return (domainKey, disp, isIngressHint);
             }
-            if (node.Properties.TryGetValue("intent_domain", out var intDomain) && !string.IsNullOrWhiteSpace(intDomain))
+            if (node.Properties.TryGetValue("intent_domain", out var intDomain) && !string.IsNullOrWhiteSpace(intDomain) && !IsRunawayDomainName(intDomain))
             {
                 var clean = ToPascalCase(intDomain);
                 var isIngressHint = IngressKeywords.Any(kw => lowerName.Contains(kw)) ||
@@ -161,7 +248,7 @@ public partial class ArchitectureViewEngine
             }
 
             var (domainKey, domainDisplayName, isIngressHint) = ExtractDomainKey(node);
-            if (string.Equals(domainKey, "domain:testinginfrastructure", StringComparison.OrdinalIgnoreCase))
+            if (IsTestOrDocsProjectOrDomain(node, domainKey, domainDisplayName))
             {
                 continue;
             }

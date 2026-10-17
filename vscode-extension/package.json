@@ -2,7 +2,7 @@
   "name": "code-explorer-vscode",
   "displayName": "CodeExplorer",
   "description": "Architecture Intelligence for AI Agents & Engineers. OpenCypher codebase graph, Semantic Invariant Gates, MCP server, and interactive topology.",
-  "version": "1.46.6",
+  "version": "1.46.7",
   "publisher": "vmikhailov",
   "license": "MIT",
   "icon": "media/icon_512_quant.png",

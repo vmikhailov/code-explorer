@@ -76,6 +76,13 @@ public partial class ArchitectureViewEngine
             candidate = candidate["context:".Length..];
         if (candidate.StartsWith("dom:", StringComparison.OrdinalIgnoreCase))
             candidate = candidate["dom:".Length..];
+        if (candidate.StartsWith("domain:", StringComparison.OrdinalIgnoreCase))
+            candidate = candidate["domain:".Length..];
+
+        if (IsRunawayDomainName(candidate))
+        {
+            candidate = WorkspaceConventions.CanonicalizeDomain(candidate, projectName, filePath);
+        }
 
         // Clean project name to domain if it contains dots or resembles a project name
         if (candidate.Contains('.') || candidate.Contains('/') || candidate.Contains('\\'))
@@ -286,7 +293,33 @@ public partial class ArchitectureViewEngine
                 normRel.Equals(s.RelativePath.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase))
                 ?? rootSig;
 
-            var cat = CategorizeBoundedContext(rec.Domain, rec.FilePath, matchedProj?.Name);
+            if (matchedProj != null && (matchedProj.Role is "Test" or "TestSuite" || IsTestOrDocsProject(matchedProj.Name, matchedProj.RelativePath)))
+            {
+                continue;
+            }
+
+            if (IsTestOrDocsProject(null, rec.FilePath))
+            {
+                continue;
+            }
+
+            var recDomain = rec.Domain;
+            if (IsRunawayDomainName(recDomain))
+            {
+                recDomain = WorkspaceConventions.CanonicalizeDomain(recDomain, matchedProj?.Name, rec.FilePath);
+            }
+
+            if (IsTestOrDocsDomain(null, recDomain))
+            {
+                continue;
+            }
+
+            var cat = CategorizeBoundedContext(recDomain, rec.FilePath, matchedProj?.Name);
+            if (IsTestOrDocsDomain(cat.DomainId, cat.DomainName) || IsTestOrDocsDomain(cat.CanonicalKey, cat.DisplayName))
+            {
+                continue;
+            }
+
             if (!domainGroups.TryGetValue(cat.CanonicalKey, out var group))
             {
                 group = (cat, []);
@@ -515,11 +548,31 @@ public partial class ArchitectureViewEngine
         var contextGroups = new Dictionary<string, (BoundedContextCategory Category, List<ProjectSignature> Projects)>(StringComparer.OrdinalIgnoreCase);
         foreach (var sig in signatures)
         {
+            if (sig.Role is "Test" or "TestSuite" || IsTestOrDocsProject(sig.Name, sig.RelativePath))
+            {
+                continue;
+            }
+
             var effectiveDomain = !string.IsNullOrWhiteSpace(sig.ExistingDomain)
                 ? sig.ExistingDomain
                 : (serviceToDomain.TryGetValue(sig.Name, out var td) ? td : null);
 
+            if (IsRunawayDomainName(effectiveDomain))
+            {
+                effectiveDomain = WorkspaceConventions.CanonicalizeDomain(effectiveDomain, sig.Name, sig.RelativePath, sig.Role);
+            }
+
+            if (IsTestOrDocsDomain(null, effectiveDomain))
+            {
+                continue;
+            }
+
             var cat = CategorizeBoundedContext(effectiveDomain, sig.RelativePath, sig.Name);
+            if (IsTestOrDocsDomain(cat.DomainId, cat.DomainName) || IsTestOrDocsDomain(cat.CanonicalKey, cat.DisplayName))
+            {
+                continue;
+            }
+
             if (!contextGroups.TryGetValue(cat.CanonicalKey, out var grp))
             {
                 grp = (cat, []);

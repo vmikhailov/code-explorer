@@ -738,5 +738,48 @@ Domain Entities:
         WorkspaceConventions.FormatDomainDisplayName("OrderManagement").Should().Be("Order Management");
         WorkspaceConventions.FormatDomainDisplayName("IdentityAndAccess").Should().Be("Identity & Access");
     }
+
+    [Test]
+    public void CanonicalizeDomain_RejectsRunawayHallucinatedDomain_FallsBackToHeuristicsOrTruncatedWords()
+    {
+        // 1. Runaway string with directory path available -> falls back to directory heuristic
+        var runawayString = "Performance & Scalability Tests For ECommerce Platform With Automated Load Generation";
+        var res1 = WorkspaceConventions.CanonicalizeDomain(runawayString, null, "services/billing/invoicing-service");
+        res1.Should().Be("Billing");
+
+        // 2. Runaway string with project name available -> falls back to project heuristic
+        var res2 = WorkspaceConventions.CanonicalizeDomain(runawayString, "order-service");
+        res2.Should().Be("OrderService");
+
+        // 3. Runaway string with NO project or directory -> extracts first 3 words
+        var res3 = WorkspaceConventions.CanonicalizeDomain(runawayString);
+        res3.Should().Be("PerformanceScalabilityTests");
+
+        // 4. Valid domain under 40 chars and <= 5 words is accepted
+        var res4 = WorkspaceConventions.CanonicalizeDomain("BillingAndPayments");
+        res4.Should().Be("BillingAndPayments");
+    }
+
+    [Test]
+    public void NativeIntentPredictor_SanitizePredictedDomainName_CleansHallucinationsAndSentences()
+    {
+        // 1. Strips '&' and handles 2 words
+        NativeIntentPredictor.SanitizePredictedDomainName("Billing & Payments").Should().Be("BillingPayments");
+
+        // 2. Deduplicates consecutive words
+        NativeIntentPredictor.SanitizePredictedDomainName("Ordering Ordering System").Should().Be("OrderingSystem");
+
+        // 3. Rejects sentences
+        NativeIntentPredictor.SanitizePredictedDomainName("This microservice is responsible for processing payments.").Should().Be("Core");
+        NativeIntentPredictor.SanitizePredictedDomainName("The service handles all user authentication workflows.").Should().Be("Core");
+
+        // 4. Truncates long runaway strings (> 4 words or > 40 chars) to at most 3 words
+        var runaway = "Performance & Scalability Tests For ECommerce Platform That Runs Daily";
+        NativeIntentPredictor.SanitizePredictedDomainName(runaway).Should().Be("PerformanceScalabilityTests");
+
+        // 5. Handles prefixes 'domain:' and 'dom:'
+        NativeIntentPredictor.SanitizePredictedDomainName("dom:telemetry").Should().Be("Telemetry");
+        NativeIntentPredictor.SanitizePredictedDomainName("domain:identity_access").Should().Be("IdentityAccess");
+    }
 }
 

@@ -214,7 +214,11 @@ public sealed class DomainTaxonomyEngine
         if (cleanRaw.StartsWith("dom:", StringComparison.OrdinalIgnoreCase))
             cleanRaw = cleanRaw["dom:".Length..];
 
-        if (!string.IsNullOrWhiteSpace(cleanRaw) && !GenericDomainWords.Contains(cleanRaw))
+        var isRunaway = cleanRaw.Length > 45 ||
+                        cleanRaw.Split([' ', '_', '-'], StringSplitOptions.RemoveEmptyEntries).Length > 5 ||
+                        FormatDomainDisplayName(cleanRaw).Split(' ', StringSplitOptions.RemoveEmptyEntries).Length > 6;
+
+        if (!string.IsNullOrWhiteSpace(cleanRaw) && !GenericDomainWords.Contains(cleanRaw) && !isRunaway)
         {
             return ToPascalCase(cleanRaw);
         }
@@ -247,6 +251,24 @@ public sealed class DomainTaxonomyEngine
                 if (svcPascal.Length > 2)
                 {
                     return svcPascal;
+                }
+            }
+        }
+
+        // 7. Fallback if rawDomain was runaway and directory/project heuristics yielded nothing:
+        // Extract at most the first 3 meaningful words instead of returning a runaway sentence
+        if (isRunaway && !string.IsNullOrWhiteSpace(cleanRaw))
+        {
+            var words = cleanRaw.Split([' ', '_', '-', '/', '&', ':', '.'], StringSplitOptions.RemoveEmptyEntries)
+                .Where(w => !string.IsNullOrWhiteSpace(w) && w.Length > 1 && !GenericDomainWords.Contains(w))
+                .Take(3)
+                .ToList();
+            if (words.Count > 0)
+            {
+                var truncated = string.Join("", words.Select(ToPascalCase));
+                if (truncated.Length > 2)
+                {
+                    return truncated;
                 }
             }
         }

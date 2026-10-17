@@ -577,6 +577,71 @@ ws ::= [ \t\n\r]*
         }
     }
 
+    public static string SanitizePredictedDomainName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "Core";
+
+        var clean = name.Trim();
+        if (clean.StartsWith("domain:", StringComparison.OrdinalIgnoreCase))
+            clean = clean["domain:".Length..].Trim();
+        if (clean.StartsWith("dom:", StringComparison.OrdinalIgnoreCase))
+            clean = clean["dom:".Length..].Trim();
+
+        clean = clean.Trim('"', '\'', '`', '.', ':', ';', ',', '!', '?');
+
+        // Check for sentence patterns (e.g. starts with "This ", "The ", contains verbs like "is responsible for", "handles all", etc.)
+        if (clean.EndsWith('.') ||
+            clean.StartsWith("This ", StringComparison.OrdinalIgnoreCase) ||
+            clean.StartsWith("The ", StringComparison.OrdinalIgnoreCase) ||
+            clean.StartsWith("It ", StringComparison.OrdinalIgnoreCase) ||
+            clean.StartsWith("A ", StringComparison.OrdinalIgnoreCase) ||
+            clean.StartsWith("An ", StringComparison.OrdinalIgnoreCase) ||
+            clean.Contains(" is ", StringComparison.OrdinalIgnoreCase) ||
+            clean.Contains(" responsible ", StringComparison.OrdinalIgnoreCase) ||
+            clean.Contains(" handles ", StringComparison.OrdinalIgnoreCase) ||
+            clean.Contains(" provides ", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Core";
+        }
+
+        // Split into words, stripping '&', separators
+        var rawWords = clean.Split([' ', '_', '-', '/', '\\', '&', ',', ';', '(', ')'], StringSplitOptions.RemoveEmptyEntries);
+
+        // Deduplicate consecutive or identical words (e.g. "Order Order" -> "Order")
+        var words = new List<string>();
+        foreach (var w in rawWords)
+        {
+            var trimmed = w.Trim('"', '\'', '.', ':', ';', ',');
+            if (trimmed.Length == 0) continue;
+            if (trimmed.Equals("and", StringComparison.OrdinalIgnoreCase)) continue;
+            if (words.Count == 0 || !words[^1].Equals(trimmed, StringComparison.OrdinalIgnoreCase))
+            {
+                words.Add(trimmed);
+            }
+        }
+
+        if (words.Count == 0) return "Core";
+
+        // If the name exceeds 4 words or 40 chars, take at most the first 3 words
+        if (words.Count > 4 || clean.Length > 40)
+        {
+            words = words.Take(3).ToList();
+        }
+
+        var sb = new StringBuilder();
+        foreach (var w in words)
+        {
+            if (w.Length > 0)
+            {
+                sb.Append(char.ToUpperInvariant(w[0]));
+                if (w.Length > 1) sb.Append(w[1..]);
+            }
+        }
+
+        var result = sb.ToString();
+        return result.Length >= 2 ? result : "Core";
+    }
+
     private SystemDomainsResult? ParseSystemDomainsJsonResult(string rawOutput)
     {
         if (string.IsNullOrWhiteSpace(rawOutput)) return null;
@@ -586,7 +651,16 @@ ws ::= [ \t\n\r]*
             if (RobustJsonParser.TryDeserialize<SystemDomainsResult>(rawOutput, out var parsed, _jsonOptions) &&
                 parsed?.Domains != null && parsed.Domains.Count > 0)
             {
-                return parsed;
+                var sanitized = new List<SystemDomainAssignment>();
+                foreach (var d in parsed.Domains)
+                {
+                    var cleanName = SanitizePredictedDomainName(d.Name);
+                    if (!string.IsNullOrWhiteSpace(cleanName))
+                    {
+                        sanitized.Add(d with { Name = cleanName });
+                    }
+                }
+                return sanitized.Count > 0 ? new SystemDomainsResult(sanitized) : null;
             }
         }
         catch
@@ -863,6 +937,9 @@ ws ::= [ \t\n\r]*
                     var cap = doc.RootElement.TryGetProperty("capability", out var capp) ? capp.GetString() ?? $"Handles {signature.Name} business capabilities." : $"Handles {signature.Name} business capabilities.";
                     var dom = doc.RootElement.TryGetProperty("suggested_domain", out var domp) ? domp.GetString() ?? "Core" : "Core";
 
+                    bc = SanitizePredictedDomainName(bc);
+                    dom = SanitizePredictedDomainName(dom);
+
                     var aggs = new List<string>();
                     if (doc.RootElement.TryGetProperty("primary_aggregates", out var aggsProp) && aggsProp.ValueKind == JsonValueKind.Array)
                     {
@@ -940,7 +1017,9 @@ ws ::= [ \t\n\r]*
             if (RobustJsonParser.TryDeserialize<ProjectBoundedContextResult>(rawOutput, out var parsed, _jsonOptions) &&
                 parsed != null && !string.IsNullOrWhiteSpace(parsed.BoundedContext))
             {
-                return parsed;
+                var cleanBc = SanitizePredictedDomainName(parsed.BoundedContext);
+                var cleanDom = SanitizePredictedDomainName(parsed.SuggestedDomain);
+                return parsed with { BoundedContext = cleanBc, SuggestedDomain = cleanDom };
             }
         }
         catch
@@ -1262,7 +1341,8 @@ ws ::= [ \t\n\r]*
     {
         if (RobustJsonParser.TryDeserialize<BatchInferenceResult>(rawOutput, out var parsed, _jsonOptions) && parsed != null)
         {
-            return parsed with { FilePath = filePath };
+            var cleanDom = !string.IsNullOrWhiteSpace(parsed.Domain) ? SanitizePredictedDomainName(parsed.Domain) : parsed.Domain;
+            return parsed with { FilePath = filePath, Domain = cleanDom };
         }
         return null;
     }
@@ -1272,7 +1352,7 @@ ws ::= [ \t\n\r]*
         if (RobustJsonParser.TryDeserialize<ProjectIntentResult>(rawOutput, out var parsed, _jsonOptions) &&
             parsed != null && !string.IsNullOrWhiteSpace(parsed.Domain))
         {
-            return parsed;
+            return parsed with { Domain = SanitizePredictedDomainName(parsed.Domain) };
         }
         return null;
     }

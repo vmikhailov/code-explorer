@@ -42,7 +42,15 @@ public partial class SqliteGraphClient
                            COALESCE(json_extract(properties, '$.name'), '') AS name,
                            COALESCE(json_extract(properties, '$.path'), '') AS path,
                            COALESCE(json_extract(properties, '$.role'), json_extract(properties, '$.primary_role'), '') AS role,
-                           json_extract(properties, '$.intent_domain') AS intent_domain,
+                           COALESCE(
+                               json_extract(properties, '$.intent_domain'),
+                               json_extract(properties, '$.domain'),
+                               (SELECT json_extract(d.properties, '$.name')
+                                FROM edges e
+                                JOIN nodes d ON e.to_id = d.id AND d.kind = 'Domain'
+                                WHERE e.from_id = nodes.id AND e.kind IN ('EXPOSES_DOMAIN', 'BELONGS_TO_DOMAIN')
+                                LIMIT 1)
+                           ) AS intent_domain,
                            json_extract(properties, '$.intent_summary') AS intent_summary
                     FROM nodes
                     WHERE kind = 'Project'
