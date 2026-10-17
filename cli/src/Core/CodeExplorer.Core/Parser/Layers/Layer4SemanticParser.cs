@@ -269,7 +269,7 @@ public class Layer4SemanticParser
                         project.ProjectType,
                         extensions),
 
-                    OntologyConstants.ProjectRoles.CliTool => new CliToolNode(
+                    OntologyConstants.ProjectRoles.CliTool or OntologyConstants.ProjectRoles.ScriptProject or "ScriptProject" => new CliToolNode(
                         $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.CliTool}:{cleanName}",
                         cleanName,
                         project.Path,

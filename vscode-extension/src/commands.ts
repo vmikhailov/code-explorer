@@ -569,6 +569,66 @@ export function registerWorkspaceCommands(
     }
   );
 
+  // Command: Create New Semantic Invariant Gate in Visual Editor
+  const createGateCommand = vscode.commands.registerCommand(
+    'codeExplorer.createGate',
+    async () => {
+      const workspaceRoot = getWorkspaceRoot();
+      if (!workspaceRoot) {
+        vscode.window.showWarningMessage('Please open a workspace folder first.');
+        return;
+      }
+      try {
+        const serverInfo = await transport.ensureConnected(workspaceRoot);
+        const panel = GraphPanel.createOrShow(
+          context.extensionUri,
+          serverInfo.wsUrl,
+          workspaceRoot,
+          outputChannel,
+          'semantic'
+        );
+        panel.postMessage({ type: 'SET_VIEW_MODE', viewMode: 'semantic' });
+        panel.postMessage({ type: 'OPEN_GATE_EDITOR' });
+      } catch (err: any) {
+        outputChannel.appendLine(`[createGate Error] ${err.message}`);
+        vscode.window.showErrorMessage(`Failed to open Gate Editor: ${err.message}`);
+      }
+    }
+  );
+
+  // Command: Edit Semantic Invariant Gate in Visual Editor
+  const editGateCommand = vscode.commands.registerCommand(
+    'codeExplorer.editGate',
+    async (itemOrGateId?: any) => {
+      const workspaceRoot = getWorkspaceRoot();
+      if (!workspaceRoot) {
+        vscode.window.showWarningMessage('Please open a workspace folder first.');
+        return;
+      }
+
+      const gateId: string | undefined =
+        typeof itemOrGateId === 'string'
+          ? itemOrGateId
+          : itemOrGateId?.data?.gate?.id || itemOrGateId?.data?.gateId || itemOrGateId?.id?.replace(/^gate:/, '');
+
+      try {
+        const serverInfo = await transport.ensureConnected(workspaceRoot);
+        const panel = GraphPanel.createOrShow(
+          context.extensionUri,
+          serverInfo.wsUrl,
+          workspaceRoot,
+          outputChannel,
+          'semantic'
+        );
+        panel.postMessage({ type: 'SET_VIEW_MODE', viewMode: 'semantic' });
+        panel.postMessage({ type: 'OPEN_GATE_EDITOR', gateId });
+      } catch (err: any) {
+        outputChannel.appendLine(`[editGate Error] ${err.message}`);
+        vscode.window.showErrorMessage(`Failed to open Gate Editor: ${err.message}`);
+      }
+    }
+  );
+
   // Command: Initialize Starter Gate
   const initGatesCommand = vscode.commands.registerCommand(
     'codeExplorer.initGates',
@@ -903,6 +963,8 @@ export function registerWorkspaceCommands(
     updateEngineCommand,
     whatsNewCommand,
     initAndScanCommand,
+    createGateCommand,
+    editGateCommand,
     evaluateGatesCommand,
     ratchetGatesCommand,
     initGatesCommand,

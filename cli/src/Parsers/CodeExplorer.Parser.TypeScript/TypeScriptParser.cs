@@ -468,14 +468,31 @@ public class TypeScriptParser : IProjectParser, IFileParser
                                                    s.Name.Equals("start:prod", StringComparison.OrdinalIgnoreCase) ||
                                                    s.Name.Equals("serve", StringComparison.OrdinalIgnoreCase));
 
-                var isLibraryByContract = !isWorkerProject && (hasPeerDeps || hasPublishConfig || hasPublishScript || (hasExplicitExports && !hasPrimaryAppStartScript));
+                var isVsCodeExtension = (root.TryGetProperty("engines", out var enginesProp) &&
+                                         enginesProp.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                                         enginesProp.TryGetProperty("vscode", out _)) ||
+                                        (root.TryGetProperty("contributes", out var contributesProp) &&
+                                         contributesProp.ValueKind == System.Text.Json.JsonValueKind.Object) ||
+                                        (root.TryGetProperty("activationEvents", out var actProp) &&
+                                         actProp.ValueKind == System.Text.Json.JsonValueKind.Array) ||
+                                        allDeps.Contains("@types/vscode");
+
+                var isLibraryByContract = !isWorkerProject && !isVsCodeExtension && (hasPeerDeps || hasPublishConfig || hasPublishScript || (hasExplicitExports && !hasPrimaryAppStartScript));
                 if (isLibraryByContract)
                 {
                     props["is_library"] = "true";
                     if (!props.ContainsKey("manifest_type")) props["manifest_type"] = "library";
                 }
 
-                if (hasWebFramework)
+                if (isVsCodeExtension)
+                {
+                    props["manifest_type"] = "application";
+                    props["framework_type"] = "extension";
+                    props["ui_type"] = "extension";
+                    props["is_vscode_extension"] = "true";
+                    props.Remove("is_library");
+                }
+                else if (hasWebFramework)
                 {
                     props["framework_type"] = "web";
                     if (!props.ContainsKey("manifest_type"))

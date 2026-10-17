@@ -1089,7 +1089,7 @@ public partial class ArchitectureViewEngine
                     if (r is "FrontendApp" or "App") nodeKind = NodeKind.App;
                     else if (r is "Worker") nodeKind = NodeKind.Worker;
                     else if (r is "SharedLibrary" or "Library") nodeKind = NodeKind.Library;
-                    else if (r is "CliTool") nodeKind = NodeKind.CliTool;
+                    else if (r is "CliTool" or "ScriptProject") nodeKind = NodeKind.CliTool;
                     else if (r is "Test" or "TestSuite") nodeKind = NodeKind.TestSuite;
                 }
                 else if (row.TryGetProperty("lbl", out var lblProp) && lblProp.ValueKind == JsonValueKind.Array)
@@ -1098,9 +1098,9 @@ public partial class ArchitectureViewEngine
                     {
                         var ls = l.GetString();
 
-                        if (ls is "Service" or "Worker" or "App" or "CliTool" or "FrontendApp" or "TestSuite" or "Test")
+                        if (ls is "Service" or "Worker" or "App" or "CliTool" or "FrontendApp" or "TestSuite" or "Test" or "ScriptProject")
                         {
-                            nodeKind = EnumExtensions.ParseNodeKind(ls);
+                            nodeKind = ls is "ScriptProject" ? NodeKind.CliTool : EnumExtensions.ParseNodeKind(ls);
                             break;
                         }
                     }

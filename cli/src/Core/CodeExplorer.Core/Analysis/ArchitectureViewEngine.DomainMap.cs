@@ -69,13 +69,16 @@ public partial class ArchitectureViewEngine
         var suffixMatch = SubProjectSuffixRegex.Match(name);
         if (suffixMatch.Success)
         {
+            var matchedSuffix = suffixMatch.Groups[1].Value;
+            var isTestSuffix = matchedSuffix is "Test" or "Tests" or "UnitTests" or "IntegrationTests";
             var parentName = name[..suffixMatch.Index];
             var dotParts = parentName.Split('.');
             var shortName = dotParts[^1];
             var isIngressHint = IngressKeywords.Any(kw => lowerName.Contains(kw)) ||
                                 string.Equals(node.Properties?.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
                                 string.Equals(node.Properties?.GetValueOrDefault("layerId"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase);
-            return ($"domain:{parentName.ToLowerInvariant()}", $"{shortName} Service", isIngressHint);
+            var displayName = isTestSuffix ? $"{shortName} Tests" : $"{shortName} Service";
+            return ($"domain:{parentName.ToLowerInvariant()}", displayName, isIngressHint);
         }
 
         // 2. Directory structure (safe against Windows drive letters C:/ and container roots)
@@ -149,7 +152,20 @@ public partial class ArchitectureViewEngine
         {
             if (!IsProjectNodeKind(node.Kind)) continue;
 
+            if (node.Kind is NodeKind.TestSuite or NodeKind.Test ||
+                string.Equals(node.Properties?.GetValueOrDefault("role"), "Test", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(node.Properties?.GetValueOrDefault("role"), "TestSuite", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(node.Properties?.GetValueOrDefault("entity_kind"), "Test", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             var (domainKey, domainDisplayName, isIngressHint) = ExtractDomainKey(node);
+            if (string.Equals(domainKey, "domain:testinginfrastructure", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             projToDomainMap[node.Id] = domainKey;
             projToDomainMap[node.Name] = domainKey;
 
@@ -168,16 +184,29 @@ public partial class ArchitectureViewEngine
                                  string.Equals(node.Properties?.GetValueOrDefault("layerId"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
                                  isIngressHint) &&
                                 node.Kind != NodeKind.Worker &&
-                                node.Properties?.GetValueOrDefault("role") != "Worker";
+                                node.Properties?.GetValueOrDefault("role") != "Worker" &&
+                                node.Kind != NodeKind.CliTool &&
+                                node.Properties?.GetValueOrDefault("role") != "CliTool";
                 domainZoneMap[domainKey] = isIngress ? "ingress" : "service";
                 domainNameMap[domainKey] = (node.Name, domainDisplayName, node.Properties?.GetValueOrDefault("framework"), node.Properties?.GetValueOrDefault("language") ?? node.Properties?.GetValueOrDefault("project_type"));
+            }
+
+            var resolvedKind = node.Kind;
+            if (resolvedKind == NodeKind.Project)
+            {
+                var role = node.Properties?.GetValueOrDefault("role");
+                if (role is "CliTool" or "ScriptProject") resolvedKind = NodeKind.CliTool;
+                else if (role is "FrontendApp" or "App") resolvedKind = NodeKind.App;
+                else if (role is "Worker") resolvedKind = NodeKind.Worker;
+                else if (role is "SharedLibrary" or "Library") resolvedKind = NodeKind.Library;
             }
 
             pList.Add(new DomainProjectInfoDto
             {
                 Id = node.Id,
                 Name = node.Name,
-                Kind = node.Kind,
+                Kind = resolvedKind,
+                Role = node.Properties?.GetValueOrDefault("role"),
                 FilePath = node.FilePath,
                 IsLibrary = isLib
             });
@@ -195,7 +224,9 @@ public partial class ArchitectureViewEngine
                                      string.Equals(node.Properties?.GetValueOrDefault("layerId"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
                                      isIngressHint) &&
                                     node.Kind != NodeKind.Worker &&
-                                    node.Properties?.GetValueOrDefault("role") != "Worker";
+                                    node.Properties?.GetValueOrDefault("role") != "Worker" &&
+                                    node.Kind != NodeKind.CliTool &&
+                                    node.Properties?.GetValueOrDefault("role") != "CliTool";
                     domainZoneMap[domainKey] = isIngress ? "ingress" : "service";
                 }
             }
@@ -363,6 +394,12 @@ public partial class ArchitectureViewEngine
             var isWorker = primary?.Kind == NodeKind.Worker ||
                            primary?.Properties?.GetValueOrDefault("role") == "Worker" ||
                            projects.Any(p => p.Kind == NodeKind.Worker);
+            var isCli = (projects.Count > 0 && projects.All(p => p.Kind == NodeKind.CliTool || string.Equals(p.Role, "CliTool", StringComparison.OrdinalIgnoreCase) || string.Equals(p.Role, "ScriptProject", StringComparison.OrdinalIgnoreCase))) ||
+                        primary?.Kind == NodeKind.CliTool ||
+                        string.Equals(primary?.Properties?.GetValueOrDefault("role"), "CliTool", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(primary?.Properties?.GetValueOrDefault("role"), "ScriptProject", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(primary?.Properties?.GetValueOrDefault("entity_kind"), "CliTool", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(primary?.Properties?.GetValueOrDefault("entity_kind"), "ScriptProject", StringComparison.OrdinalIgnoreCase);
 
             string tag;
             NodeKind nodeKind;
@@ -370,11 +407,20 @@ public partial class ArchitectureViewEngine
             string borderColor;
             int size;
 
-            if (isIngress)
+            if (isCli)
+            {
+                stats.CliTools++;
+                tag = ":CLI";
+                nodeKind = NodeKind.CliTool;
+                bgColor = "#0284c7";
+                borderColor = "#0369a1";
+                size = 50;
+            }
+            else if (isIngress)
             {
                 stats.Ingress++;
-                tag = ":Ingress";
-                nodeKind = NodeKind.Ingress;
+                tag = ":App";
+                nodeKind = NodeKind.App;
                 bgColor = "#0288d1";
                 borderColor = "#01579b";
                 size = 54;
@@ -489,7 +535,7 @@ public partial class ArchitectureViewEngine
         var validNodeIds = nodes.Select(n => n.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var filteredEdges = macroEdges.Values.Where(e => validNodeIds.Contains(e.Source) && validNodeIds.Contains(e.Target)).ToList();
 
-        stats.TotalDomains = nodes.Count(n => n.Kind is NodeKind.Service or NodeKind.Ingress or NodeKind.Worker);
+        stats.TotalDomains = nodes.Count(n => n.Kind is NodeKind.Service or NodeKind.Ingress or NodeKind.App or NodeKind.CliTool or NodeKind.Worker);
         stats.ServiceCalls = filteredEdges.Where(e => e.Category == "service_call").Sum(e => e.Count);
         stats.Messages = filteredEdges.Where(e => e.Category == "messaging").Sum(e => e.Count);
 

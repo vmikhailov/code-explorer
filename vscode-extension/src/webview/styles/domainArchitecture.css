@@ -103,10 +103,10 @@
 }
 
 .domain-hud-primary-row {
-  padding: 4px 12px;
+  padding: 5px 12px;
   gap: 12px;
   background: rgba(15, 23, 42, 0.6);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom: none;
 }
 
 .domain-hud-controls-left {

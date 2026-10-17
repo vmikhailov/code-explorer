@@ -557,6 +557,10 @@ public class DomainProjectInfoDto
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? FilePath { get; set; }
 
+    [JsonPropertyName("role")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Role { get; set; }
+
     [JsonPropertyName("isLibrary")]
     public bool IsLibrary { get; set; }
 }
@@ -663,6 +667,9 @@ public class DomainStatsDto
 
     [JsonPropertyName("libraries")]
     public int Libraries { get; set; }
+
+    [JsonPropertyName("cliTools")]
+    public int CliTools { get; set; }
 
     [JsonPropertyName("databases")]
     public int Databases { get; set; }

@@ -17,7 +17,7 @@ public class ScriptProjectParser : IProjectParser
     public static bool IsScriptFile(string filePath)
     {
         var ext = Path.GetExtension(filePath).ToLowerInvariant();
-        return ext is ".py" or ".ps1" or ".sh" or ".cs" or ".js" or ".ts" or ".mjs" or ".cjs" or ".rb" or ".bash" or ".zsh";
+        return ext is ".ps1" or ".sh" or ".bash" or ".zsh" or ".py" or ".rb" or ".pl" or ".bat" or ".cmd";
     }
 
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
@@ -49,10 +49,11 @@ public class ScriptProjectParser : IProjectParser
         var lang = dominant switch
         {
             ".py" => "python",
-            ".ts" or ".js" or ".mjs" or ".cjs" => "typescript",
-            ".cs" => "csharp",
             ".ps1" => "powershell",
             ".sh" or ".bash" or ".zsh" => "shell",
+            ".rb" => "ruby",
+            ".pl" => "perl",
+            ".bat" or ".cmd" => "batch",
             _ => "script"
         };
 

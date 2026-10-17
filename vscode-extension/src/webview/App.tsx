@@ -160,6 +160,7 @@ export const App: React.FC = () => {
   const [domainGraph, setDomainGraph] = useState<GraphData | null>(null);
   const [contextsGraph, setContextsGraph] = useState<GraphData | null>(null);
   const [focusTargetContext, setFocusTargetContext] = useState<{ contextName?: string; contextId?: string; domainId?: string } | null>(null);
+  const [gateEditorRequest, setGateEditorRequest] = useState<{ gateId?: string; timestamp: number } | null>(null);
   const [cypherQuery, setCypherQuery] = useState<string>('');
   const [selectedDrawerNode, setSelectedDrawerNode] = useState<GraphNode | null>(null);
   const [drawerUsages, setDrawerUsages] = useState<Array<{
@@ -1326,6 +1327,12 @@ export const App: React.FC = () => {
           setFocusTargetContext({ contextName: msg.contextName, contextId: msg.contextId, domainId: msg.domainId });
           break;
 
+        case 'OPEN_GATE_EDITOR':
+          logToExtension('INFO', `Received OPEN_GATE_EDITOR from extension: gateId=${msg.gateId}`);
+          handleViewModeChangeRef.current('semantic');
+          setGateEditorRequest({ gateId: msg.gateId, timestamp: Date.now() });
+          break;
+
         case 'AI_SETTINGS_DATA':
           logToExtension('INFO', 'Received AI_SETTINGS_DATA from extension');
           setAiSettings(msg.settings);
@@ -1405,7 +1412,7 @@ export const App: React.FC = () => {
   return (
     <CommandProvider manager={commandManager}>
       <div id="app">
-        {viewMode !== 'grid' && (
+        {viewMode !== 'grid' && viewMode !== 'semantic' && (
           <Toolbar
             viewMode={viewMode}
             onSwitchViewMode={(m) => handleViewModeChange(m)}
@@ -1424,11 +1431,17 @@ export const App: React.FC = () => {
               }
             }}
             onRefresh={() => {
-              if (viewMode === 'flow') {
-                requestDependencies(selectedProject);
+              if ((viewMode as string) === 'semantic') {
+                setDomainGraph(null);
+                requestDomain();
               } else if (viewMode === 'contexts') {
                 setContextsGraph(null);
                 requestContexts();
+              } else if (viewMode === 'layers') {
+                setLayersGraph(null);
+                requestLayers();
+              } else if (viewMode === 'flow') {
+                requestDependencies(selectedProject);
               } else {
                 requestArchitecture();
               }
@@ -1607,6 +1620,11 @@ export const App: React.FC = () => {
                 onSwitchToContexts={() => handleViewModeChange('contexts')}
                 onSetDomainOverride={handleSetDomainOverride}
                 availableDomains={availableDomains}
+                onRefresh={() => {
+                  setDomainGraph(null);
+                  requestDomain();
+                }}
+                gateEditorRequest={gateEditorRequest}
               />
             )}
 

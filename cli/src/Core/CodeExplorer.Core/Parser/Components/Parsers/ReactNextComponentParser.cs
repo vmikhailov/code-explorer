@@ -17,11 +17,15 @@ public class ReactNextComponentParser : IComponentLibraryParser
     public bool CanHandle(ProjectContext context)
     {
         return context.Dependencies.Any(d => FrontendFrameworks.Contains(d)) ||
-               context.FilesInDirectory.Any(f => Path.GetFileName(f).Equals("app.json", StringComparison.OrdinalIgnoreCase));
+               context.FilesInDirectory.Any(f => Path.GetFileName(f).Equals("app.json", StringComparison.OrdinalIgnoreCase)) ||
+               context.ManifestProperties.GetValueOrDefault("is_vscode_extension") == "true" ||
+               context.ManifestProperties.GetValueOrDefault("framework_type") == "extension";
     }
 
     public ComponentAnalysisResult AnalyzeManifest(ProjectContext context)
     {
+        var isVsCodeExtension = context.ManifestProperties.GetValueOrDefault("is_vscode_extension") == "true" ||
+                                context.ManifestProperties.GetValueOrDefault("framework_type") == "extension";
         var hasNext = context.Dependencies.Any(d => d.Equals("next", StringComparison.OrdinalIgnoreCase));
         var hasNuxt = context.Dependencies.Any(d => d.Equals("nuxt", StringComparison.OrdinalIgnoreCase));
         var hasReactNative = context.Dependencies.Any(d => d.Equals("react-native", StringComparison.OrdinalIgnoreCase) || d.Equals("expo", StringComparison.OrdinalIgnoreCase)) ||
@@ -33,11 +37,13 @@ public class ReactNextComponentParser : IComponentLibraryParser
         var hasIndexHtml = context.FilesInDirectory.Any(f =>
             Path.GetFileName(f).Equals("index.html", StringComparison.OrdinalIgnoreCase));
 
-        if (hasNext || hasNuxt || hasReactNative || (manifestType == "application" && !isExplicitLibrary) || (hasIndexHtml && !isExplicitLibrary))
+        if (isVsCodeExtension || hasNext || hasNuxt || hasReactNative || (manifestType == "application" && !isExplicitLibrary) || (hasIndexHtml && !isExplicitLibrary))
         {
-            var appName = hasReactNative
-                ? (context.Dependencies.Any(d => d.Equals("expo", StringComparison.OrdinalIgnoreCase)) ? "Expo App" : "React Native App")
-                : (hasNext ? "Next.js" : (hasNuxt ? "Nuxt" : "React App"));
+            var appName = isVsCodeExtension
+                ? "VS Code Extension"
+                : (hasReactNative
+                    ? (context.Dependencies.Any(d => d.Equals("expo", StringComparison.OrdinalIgnoreCase)) ? "Expo App" : "React Native App")
+                    : (hasNext ? "Next.js" : (hasNuxt ? "Nuxt" : "React App")));
 
             return new ComponentAnalysisResult
             {
@@ -47,9 +53,9 @@ public class ReactNextComponentParser : IComponentLibraryParser
                 Capabilities = ComponentCapabilities.FrontendApp,
                 Metadata = new Dictionary<string, string>
                 {
-                    ["ui_type"] = hasReactNative ? "mobile" : "application",
+                    ["ui_type"] = isVsCodeExtension ? "extension" : (hasReactNative ? "mobile" : "application"),
                     ["is_frontend_app"] = "true",
-                    ["framework_type"] = hasReactNative ? "mobile" : "frontend"
+                    ["framework_type"] = isVsCodeExtension ? "extension" : (hasReactNative ? "mobile" : "frontend")
                 }
             };
         }

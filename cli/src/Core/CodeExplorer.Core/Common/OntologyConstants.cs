@@ -168,6 +168,7 @@ public static class OntologyConstants
         public const string Worker = "Worker";
         public const string DatabaseMigration = "DatabaseMigration";
         public const string CliTool = "CliTool";
+        public const string ScriptProject = "ScriptProject";
         public const string Test = "Test";
     }
 

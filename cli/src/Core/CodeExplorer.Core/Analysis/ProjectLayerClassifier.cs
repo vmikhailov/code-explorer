@@ -214,6 +214,15 @@ public static class ProjectLayerClassifier
             return false;
         }
 
+        // VS Code extension, Desktop App, or Frontend App is never Foundation
+        if (p.Extensions?.GetValueOrDefault("is_vscode_extension") == "true" ||
+            p.Extensions?.GetValueOrDefault("framework_type") == "extension" ||
+            string.Equals(p.Role, "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(p.Role, "App", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
         // Explicit library role or flag
         if (p.IsLibrary) return true;
 
@@ -263,12 +272,14 @@ public static class ProjectLayerClassifier
         // Workers and Schedulers can never be Ingress (unless it's an explicit CLI tool)
         if (IsWorkerOrScheduler(p) && !IsCli(p)) return false;
 
-        // 1. Frontend Apps (End-user UI Web Applications)
+        // 1. Frontend Apps (End-user UI Web Applications, Desktop Apps, VS Code Extensions)
         if (string.Equals(p.Role, "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(p.Role, "App", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "App", StringComparison.OrdinalIgnoreCase) ||
-            p.Extensions?.GetValueOrDefault("is_frontend_app") == "true")
+            p.Extensions?.GetValueOrDefault("is_frontend_app") == "true" ||
+            p.Extensions?.GetValueOrDefault("is_vscode_extension") == "true" ||
+            p.Extensions?.GetValueOrDefault("framework_type") == "extension")
         {
             return true;
         }
@@ -309,6 +320,12 @@ public static class ProjectLayerClassifier
 
     public static bool IsInternalToolOrUtility(ProjectClassifierItem p)
     {
+        if (p.Extensions?.GetValueOrDefault("is_vscode_extension") == "true" ||
+            p.Extensions?.GetValueOrDefault("framework_type") == "extension")
+        {
+            return false;
+        }
+
         if (p.Extensions?.GetValueOrDefault("is_internal_tool") == "true" ||
             p.Extensions?.GetValueOrDefault("manifest_type") == "tool")
         {

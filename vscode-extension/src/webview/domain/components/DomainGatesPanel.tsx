@@ -24,6 +24,7 @@ export interface DomainGatesPanelProps {
   onSuiteLoaded?: (suite: GateSuiteSummaryDto) => void;
   docked?: boolean;
   onClose?: () => void;
+  gateEditorRequest?: { gateId?: string; timestamp: number } | null;
 }
 
 export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
@@ -32,6 +33,7 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
   onSuiteLoaded,
   docked = true,
   onClose,
+  gateEditorRequest,
 }) => {
   const [suite, setSuite] = useState<GateSuiteSummaryDto | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -112,11 +114,32 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
         if (msg.error) {
           setError(msg.error);
         }
+      } else if (msg?.type === 'OPEN_GATE_EDITOR') {
+        const gId = msg.gateId;
+        if (gId && suite?.gates) {
+          const g = suite.gates.find((x) => x.id.toLowerCase() === gId.toLowerCase());
+          setEditingGate(g || null);
+        } else {
+          setEditingGate(null);
+        }
+        setIsEditorOpen(true);
       }
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [applySuite]);
+  }, [applySuite, suite]);
+
+  useEffect(() => {
+    if (!gateEditorRequest) return;
+    const gId = gateEditorRequest.gateId;
+    if (gId && suite?.gates) {
+      const g = suite.gates.find((x) => x.id.toLowerCase() === gId.toLowerCase());
+      setEditingGate(g || null);
+    } else {
+      setEditingGate(null);
+    }
+    setIsEditorOpen(true);
+  }, [gateEditorRequest, suite]);
 
   const handleEvaluate = useCallback(
     async (gateId?: string) => {
@@ -302,58 +325,65 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
   return (
     <>
       <FloatingPanel
-      dock="top-right"
-      isCollapsed={false}
-      icon={<ShieldIcon size={14} />}
-      title="Invariant Gates"
-      ariaLabel="Semantic Invariant Gates"
-      badge={
-        totalGates > 0 ? (
-          <span
-            className="floating-dock-badge"
-            style={{
-              backgroundColor: !isEvaluated
-                ? 'rgba(148, 163, 184, 0.15)'
-                : failedCount > 0
-                ? 'rgba(239, 68, 68, 0.2)'
-                : toleratedCount > 0
-                ? 'rgba(245, 158, 11, 0.2)'
-                : 'rgba(16, 185, 129, 0.2)',
-              color: !isEvaluated
-                ? '#94a3b8'
-                : failedCount > 0
-                ? '#fca5a5'
-                : toleratedCount > 0
-                ? '#fcd34d'
-                : '#6ee7b7',
-              border: `1px solid ${
-                !isEvaluated
-                  ? 'rgba(148, 163, 184, 0.3)'
+        dock="top-right"
+        docked={docked}
+        isCollapsed={false}
+        icon={<ShieldIcon size={14} />}
+        title="Invariant Gates"
+        ariaLabel="Semantic Invariant Gates"
+        badge={
+          totalGates > 0 ? (
+            <span
+              className="floating-dock-badge"
+              style={{
+                backgroundColor: !isEvaluated
+                  ? 'rgba(148, 163, 184, 0.15)'
                   : failedCount > 0
-                  ? 'rgba(239, 68, 68, 0.35)'
+                  ? 'rgba(239, 68, 68, 0.2)'
                   : toleratedCount > 0
-                  ? 'rgba(245, 158, 11, 0.35)'
-                  : 'rgba(16, 185, 129, 0.35)'
-              }`,
-              fontSize: '10px',
-              padding: '1px 6px',
-            }}
-          >
-            {!isEvaluated ? `${totalGates} gates` : `${suite?.passedCount ?? 0}/${totalGates}`}
-          </span>
-        ) : undefined
-      }
-      headerActions={
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <button
-            type="button"
-            className="floating-dock-btn action-btn new-gate-btn"
-            onClick={handleCreateGate}
-            title="Create a new Semantic Invariant Gate"
-          >
-            <PlusIcon size={11} />
-            <span>New Gate</span>
-          </button>
+                  ? 'rgba(245, 158, 11, 0.2)'
+                  : 'rgba(16, 185, 129, 0.2)',
+                color: !isEvaluated
+                  ? '#94a3b8'
+                  : failedCount > 0
+                  ? '#fca5a5'
+                  : toleratedCount > 0
+                  ? '#fcd34d'
+                  : '#6ee7b7',
+                border: `1px solid ${
+                  !isEvaluated
+                    ? 'rgba(148, 163, 184, 0.3)'
+                    : failedCount > 0
+                    ? 'rgba(239, 68, 68, 0.35)'
+                    : toleratedCount > 0
+                    ? 'rgba(245, 158, 11, 0.35)'
+                    : 'rgba(16, 185, 129, 0.35)'
+                }`,
+                fontSize: '10px',
+                padding: '1px 6px',
+              }}
+            >
+              {!isEvaluated ? `${totalGates} gates` : `${suite?.passedCount ?? 0}/${totalGates}`}
+            </span>
+          ) : undefined
+        }
+        headerActions={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <button
+              type="button"
+              className="floating-dock-btn action-btn new-gate-btn"
+              onClick={handleCreateGate}
+              title="Create a new Semantic Invariant Gate"
+              style={{
+                background: 'rgba(56, 189, 248, 0.16)',
+                borderColor: 'rgba(56, 189, 248, 0.45)',
+                color: '#38bdf8',
+                fontWeight: 600,
+              }}
+            >
+              <PlusIcon size={11} />
+              <span>+ New Gate</span>
+            </button>
           <button
             type="button"
             className="floating-dock-btn action-btn"
@@ -439,7 +469,6 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
       minWidth={280}
       maxWidth={700}
       persistKey="ce_gates_panel"
-      docked={docked}
       onClose={onClose}
     >
       <div
@@ -643,9 +672,19 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
                       handleEditGate(gate);
                     }}
                     title={`Edit YAML definition (${gate.source || gate.id})`}
-                    style={{ padding: '2px 7px', fontSize: '10px' }}
+                    style={{
+                      padding: '2px 8px',
+                      fontSize: '10.5px',
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      borderColor: 'rgba(255, 255, 255, 0.22)',
+                      color: '#f1f5f9',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      cursor: 'pointer',
+                    }}
                   >
-                    <EditIcon size={10} />
+                    <EditIcon size={11} />
                     <span>Edit</span>
                   </button>
                   <span

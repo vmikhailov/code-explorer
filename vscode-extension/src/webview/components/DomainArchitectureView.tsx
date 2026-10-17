@@ -71,6 +71,8 @@ export interface DomainArchitectureViewProps {
   onSwitchToContexts?: () => void;
   onSetDomainOverride?: (serviceName: string, domain: string, context?: string, reset?: boolean) => void;
   availableDomains?: string[];
+  onRefresh?: () => void;
+  gateEditorRequest?: { gateId?: string; timestamp: number } | null;
 }
 
 export interface DomainProjectInfo {
@@ -817,6 +819,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   onSwitchToContexts,
   onSetDomainOverride,
   availableDomains = [],
+  onRefresh,
+  gateEditorRequest,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
@@ -1291,6 +1295,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       }
     }
   }, [selectedNode, selectedEdge]);
+
+  // Handle external OPEN_GATE_EDITOR requests (from left tree view or commands)
+  useEffect(() => {
+    if (!gateEditorRequest) return;
+    handleToggleSidebar(true);
+    handleSidebarTabChange('gates');
+  }, [gateEditorRequest, handleToggleSidebar, handleSidebarTabChange]);
 
   // Restore all hidden entities across individual hides, category filters, and orbits
   const restoreAllHiddenNodes = useCallback(() => {
@@ -4109,356 +4120,78 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               >
                 ⛶ Fit
               </button>
+              {onRefresh && (
+                <button
+                  type="button"
+                  className="domain-hud-btn refresh-btn"
+                  onClick={onRefresh}
+                  title="Reload Domain Microservice Map"
+                >
+                  🔄 Refresh
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Search */}
-          <div className="domain-hud-search">
-            <input
-              type="text"
-              className="domain-search-input"
-              placeholder="Search domain or service..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  const matches = cyRef.current?.nodes('.search-match');
-                  if (matches && matches.length > 0) {
-                    cyRef.current?.animate({ fit: { eles: matches, padding: 80 }, duration: 350 });
-                  }
-                }
-              }}
-            />
-            {searchMatchCount !== null && (
-              <span
-                className={`domain-search-count ${searchMatchCount === 0 ? 'is-zero' : ''}`}
-                title={searchMatchCount === 0 ? 'No matches found' : `${searchMatchCount} matching entities (Press Enter to focus)`}
-                onClick={() => {
-                  const matches = cyRef.current?.nodes('.search-match');
-                  if (matches && matches.length > 0) {
-                    cyRef.current?.animate({ fit: { eles: matches, padding: 80 }, duration: 350 });
+          {/* Search & Sidebar Controls */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="domain-hud-search">
+              <input
+                type="text"
+                className="domain-search-input"
+                placeholder="Search domain or service..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const matches = cyRef.current?.nodes('.search-match');
+                    if (matches && matches.length > 0) {
+                      cyRef.current?.animate({ fit: { eles: matches, padding: 80 }, duration: 350 });
+                    }
                   }
                 }}
-              >
-                {searchMatchCount}
-              </span>
-            )}
-            {searchQuery && (
-              <button
-                type="button"
-                className="domain-search-clear"
-                onClick={() => setSearchQuery('')}
-                title="Clear search"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Tier 2: Entity Filter Ribbon & Live Graph Telemetry */}
-        <div className="domain-hud-row domain-hud-secondary-row">
-          {/* Entity Type Toggle Filters Ribbon */}
-          <div className="domain-hud-filter-group">
-            {rawGraph.counts.ingress > 0 && (
-              <button
-                type="button"
-                className={`hud-type-filter-btn ${hiddenTypes.has('App') || hiddenTypes.has('Ingress') ? 'is-hidden' : 'is-active'}`}
-                onClick={() => {
-                  toggleTypeVisibility('App');
-                  toggleTypeVisibility('Ingress');
-                }}
-                title={hiddenTypes.has('App') || hiddenTypes.has('Ingress') ? 'Show Applications' : 'Hide Applications'}
-              >
-                {(hiddenTypes.has('App') || hiddenTypes.has('Ingress')) && <span className="filter-cross">✕</span>}
-                🌐 Apps ({rawGraph.counts.ingress})
-              </button>
-            )}
-            {rawGraph.counts.services > 0 && (
-              <button
-                type="button"
-                className={`hud-type-filter-btn ${hiddenTypes.has('Service') ? 'is-hidden' : 'is-active'}`}
-                onClick={() => toggleTypeVisibility('Service')}
-                title={hiddenTypes.has('Service') ? 'Show Domain Services' : 'Hide Domain Services'}
-              >
-                {hiddenTypes.has('Service') && <span className="filter-cross">✕</span>}
-                ⚙️ Services ({rawGraph.counts.services})
-              </button>
-            )}
-            {rawGraph.counts.workers > 0 && (
-              <button
-                type="button"
-                className={`hud-type-filter-btn ${hiddenTypes.has('Worker') ? 'is-hidden' : 'is-active'}`}
-                onClick={() => toggleTypeVisibility('Worker')}
-                title={hiddenTypes.has('Worker') ? 'Show Background Workers' : 'Hide Background Workers'}
-              >
-                {hiddenTypes.has('Worker') && <span className="filter-cross">✕</span>}
-                ⚡ Workers ({rawGraph.counts.workers})
-              </button>
-            )}
-            {rawGraph.counts.cli > 0 && (
-              <button
-                type="button"
-                className={`hud-type-filter-btn ${hiddenTypes.has('CliTool') ? 'is-hidden' : 'is-active'}`}
-                onClick={() => toggleTypeVisibility('CliTool')}
-                title={hiddenTypes.has('CliTool') ? 'Show CLI Tools' : 'Hide CLI Tools'}
-              >
-                {hiddenTypes.has('CliTool') && <span className="filter-cross">✕</span>}
-                💻 CLI ({rawGraph.counts.cli})
-              </button>
-            )}
-            {rawGraph.counts.testSuites > 0 && (
-              <button
-                type="button"
-                className={`hud-type-filter-btn ${hiddenTypes.has('TestSuite') ? 'is-hidden' : 'is-active'}`}
-                onClick={() => toggleTypeVisibility('TestSuite')}
-                title={hiddenTypes.has('TestSuite') ? 'Show Test Suites' : 'Hide Test Suites'}
-              >
-                {hiddenTypes.has('TestSuite') && <span className="filter-cross">✕</span>}
-                🧪 Tests ({rawGraph.counts.testSuites})
-              </button>
-            )}
-            {rawGraph.counts.libraries > 0 && (
-              <button
-                type="button"
-                className={`hud-type-filter-btn ${hiddenTypes.has('Library') ? 'is-hidden' : 'is-active'}`}
-                onClick={() => toggleTypeVisibility('Library')}
-                title={hiddenTypes.has('Library') ? 'Show Libraries' : 'Hide Libraries'}
-              >
-                {hiddenTypes.has('Library') && <span className="filter-cross">✕</span>}
-                📚 Libs ({rawGraph.counts.libraries})
-              </button>
-            )}
-            {rawGraph.counts.databases > 0 && (
-              <button
-                type="button"
-                className={`hud-type-filter-btn ${hiddenTypes.has('Database') ? 'is-hidden' : 'is-active'}`}
-                onClick={() => toggleTypeVisibility('Database')}
-                title={hiddenTypes.has('Database') ? 'Show Databases' : 'Hide Databases'}
-              >
-                {hiddenTypes.has('Database') && <span className="filter-cross">✕</span>}
-                🗄️ DBs ({rawGraph.counts.databases})
-              </button>
-            )}
-            {rawGraph.counts.databases > 0 && (
-              <button
-                type="button"
-                className={`hud-type-filter-btn ${hideSingleConnectionDbs ? 'is-active is-filter-on' : ''}`}
-                onClick={() => {
-                  forceRelayoutRef.current = true;
-                  setHideSingleConnectionDbs((prev) => !prev);
-                }}
-                title={
-                  hideSingleConnectionDbs
-                    ? `Showing only shared databases (${rawGraph.counts.sharedDbs} shared). Click to show all databases.`
-                    : `Hide databases with only 1 connection (${rawGraph.counts.singleConnDbs} dedicated 1:1 DBs). Keeps only shared databases.`
-                }
-                style={
-                  hideSingleConnectionDbs
-                    ? {
-                        background: 'rgba(147, 51, 234, 0.28)',
-                        borderColor: '#a855f7',
-                        color: '#f3e8ff',
-                        fontWeight: 600,
-                      }
-                    : undefined
-                }
-              >
-                {hideSingleConnectionDbs ? '🔗 Shared DBs Only' : '🗄️ Hide 1:1 DBs'}
-                <span style={{ opacity: 0.85, fontSize: '0.88em', marginLeft: 3 }}>
-                  ({hideSingleConnectionDbs ? rawGraph.counts.sharedDbs : rawGraph.counts.singleConnDbs})
+              />
+              {searchMatchCount !== null && (
+                <span
+                  className={`domain-search-count ${searchMatchCount === 0 ? 'is-zero' : ''}`}
+                  title={searchMatchCount === 0 ? 'No matches found' : `${searchMatchCount} matching entities (Press Enter to focus)`}
+                  onClick={() => {
+                    const matches = cyRef.current?.nodes('.search-match');
+                    if (matches && matches.length > 0) {
+                      cyRef.current?.animate({ fit: { eles: matches, padding: 80 }, duration: 350 });
+                    }
+                  }}
+                >
+                  {searchMatchCount}
                 </span>
-              </button>
-            )}
-            <button
-              type="button"
-              className={`hud-type-filter-btn ${hideIsolatedNodes ? 'is-active is-filter-on' : ''}`}
-              onClick={() => {
-                forceRelayoutRef.current = true;
-                setHideIsolatedNodes((prev) => !prev);
-              }}
-              title={
-                hideIsolatedNodes
-                  ? 'Showing only connected services/nodes. Click to show isolated services.'
-                  : 'Hide isolated/disconnected services (leaves only nodes participating in service calls or shared resources)'
-              }
-              style={
-                hideIsolatedNodes
-                  ? {
-                      background: 'rgba(234, 179, 8, 0.25)',
-                      borderColor: '#eab308',
-                      color: '#fef08a',
-                      fontWeight: 600,
-                    }
-                  : undefined
-              }
-            >
-              {hideIsolatedNodes ? '🏝️ Connected Only' : '🏝️ Hide Isolated'}
-            </button>
-            {rawGraph.counts.topics > 0 && (
-              <button
-                type="button"
-                className={`hud-type-filter-btn ${hiddenTypes.has('Topic') ? 'is-hidden' : 'is-active'}`}
-                onClick={() => toggleTypeVisibility('Topic')}
-                title={hiddenTypes.has('Topic') ? 'Show Message Topics' : 'Hide Message Topics'}
-              >
-                {hiddenTypes.has('Topic') && <span className="filter-cross">✕</span>}
-                📬 Topics ({rawGraph.counts.topics})
-              </button>
-            )}
-            {rawGraph.counts.external > 0 && (
-              <button
-                type="button"
-                className={`hud-type-filter-btn ${hiddenTypes.has('ExternalService') ? 'is-hidden' : 'is-active'}`}
-                onClick={() => toggleTypeVisibility('ExternalService')}
-                title={hiddenTypes.has('ExternalService') ? 'Show External Services' : 'Hide External Services'}
-              >
-                {hiddenTypes.has('ExternalService') && <span className="filter-cross">✕</span>}
-                🔌 External ({rawGraph.counts.external})
-              </button>
-            )}
+              )}
+              {searchQuery && (
+                <button
+                  type="button"
+                  className="domain-search-clear"
+                  onClick={() => setSearchQuery('')}
+                  title="Clear search"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
 
+            {/* Sidebar toggle button */}
             <button
               type="button"
-              className={`hud-type-filter-btn ${showTransitiveEdges ? 'is-active' : 'is-hidden'}`}
-              onClick={handleToggleTransitiveEdges}
-              title={showTransitiveEdges ? 'Hide Transitive Messaging Links (Contracted Topic Chords)' : 'Show Transitive Messaging Links'}
-              style={{
-                borderColor: showTransitiveEdges ? 'rgba(192, 132, 252, 0.5)' : undefined,
-                color: showTransitiveEdges ? '#c084fc' : undefined,
-              }}
+              className={`domain-hud-btn sidebar-toggle-btn ${isRightSidebarOpen ? 'is-active' : ''}`}
+              onClick={() => handleToggleSidebar(!isRightSidebarOpen)}
+              title={isRightSidebarOpen ? 'Close Right Sidebar' : 'Open Right Sidebar (Info, Orbits, Visibility, Gates)'}
             >
-              {!showTransitiveEdges && <span className="filter-cross">✕</span>}
-              ╌ Transitive ({stats.transitiveCalls})
-            </button>
-
-            {/* Inspector sidebar tab toggle button */}
-            <button
-              type="button"
-              className={`hud-type-filter-btn ${isRightSidebarOpen && effectiveSidebarTab === 'info' ? 'is-active is-filter-on' : ''}`}
-              onClick={() => {
-                if (isRightSidebarOpen && effectiveSidebarTab === 'info') {
-                  handleToggleSidebar(false);
-                } else {
-                  handleToggleSidebar(true);
-                  handleSidebarTabChange('info');
-                }
-              }}
-              title={isRightSidebarOpen && effectiveSidebarTab === 'info' ? 'Close Inspector panel' : 'Open Inspector panel'}
-              style={isRightSidebarOpen && effectiveSidebarTab === 'info' ? {
-                background: 'rgba(56, 189, 248, 0.25)',
-                borderColor: '#38bdf8',
-                color: '#e0f2fe',
-                fontWeight: 600,
-              } : undefined}
-            >
-              <InfoIcon size={12} className="btn-icon" /> Details
-            </button>
-
-            {/* Visibility sidebar tab toggle button */}
-            <button
-              type="button"
-              className={`hud-type-filter-btn ${isRightSidebarOpen && effectiveSidebarTab === 'visibility' ? 'is-active is-filter-on' : ''}`}
-              onClick={() => {
-                if (isRightSidebarOpen && effectiveSidebarTab === 'visibility') {
-                  handleToggleSidebar(false);
-                } else {
-                  handleToggleSidebar(true);
-                  handleSidebarTabChange('visibility');
-                }
-              }}
-              title={isRightSidebarOpen && effectiveSidebarTab === 'visibility' ? 'Close Visibility & Filters sidebar' : 'Open Visibility & Filters sidebar'}
-              style={
-                isRightSidebarOpen && effectiveSidebarTab === 'visibility'
-                  ? {
-                      background: 'rgba(56, 189, 248, 0.25)',
-                      borderColor: '#38bdf8',
-                      color: '#e0f2fe',
-                      fontWeight: 600,
-                    }
-                  : hiddenCount > 0
-                  ? {
-                      background: 'rgba(239, 68, 68, 0.2)',
-                      borderColor: '#ef4444',
-                      color: '#fca5a5',
-                      fontWeight: 600,
-                    }
-                  : undefined
-              }
-            >
-              <EyeIcon size={12} className="btn-icon" />
-              <span>Visibility</span>
+              <span className="btn-icon">🗂️</span>
+              <span className="btn-text">{isRightSidebarOpen ? 'Hide Panel' : 'Panel'}</span>
               {hiddenCount > 0 && (
                 <span style={{ fontSize: '9.5px', marginLeft: 4, background: 'rgba(239, 68, 68, 0.35)', padding: '1px 5px', borderRadius: '10px' }}>
                   {hiddenCount}
                 </span>
               )}
             </button>
-
-            {/* Orbit legend sidebar toggle button for concentric layout */}
-            {hasOrbitLegend && (
-              <button
-                type="button"
-                className={`hud-type-filter-btn ${isRightSidebarOpen && effectiveSidebarTab === 'orbits' ? 'is-active is-filter-on' : ''}`}
-                onClick={() => {
-                  if (isRightSidebarOpen && effectiveSidebarTab === 'orbits') {
-                    handleToggleSidebar(false);
-                  } else {
-                    handleToggleSidebar(true);
-                    handleSidebarTabChange('orbits');
-                  }
-                }}
-                title={isRightSidebarOpen && effectiveSidebarTab === 'orbits' ? 'Close Orbit Legend sidebar' : 'Open Orbit Legend sidebar'}
-                style={isRightSidebarOpen && effectiveSidebarTab === 'orbits' ? {
-                  background: 'rgba(56, 189, 248, 0.25)',
-                  borderColor: '#38bdf8',
-                  color: '#e0f2fe',
-                  fontWeight: 600,
-                } : undefined}
-              >
-                <LayersIcon size={12} className="btn-icon" /> Orbits ({orbitLegendItems.length})
-              </button>
-            )}
-
-            {/* Reset Filters / Hidden Button */}
-            {hiddenCount > 0 && (
-              <button
-                type="button"
-                className="domain-hud-reset-hidden-btn"
-                onClick={unhideAll}
-                title="Reset all hidden nodes and type filters"
-              >
-                <EyeOffIcon size={12} className="btn-icon" /> Reset All ({hiddenCount})
-              </button>
-            )}
-          </div>
-
-          {/* Stats Badges */}
-          <div className="domain-hud-stats">
-            <span
-              className="hud-stat-pill"
-              title="Service Calls (RPC / HTTP): Solid line = Direct call"
-            >
-              ⚡ {stats.serviceCalls} Calls
-            </span>
-            {stats.transitiveCalls > 0 && (
-              <span
-                className="hud-stat-pill"
-                onClick={handleToggleTransitiveEdges}
-                title={showTransitiveEdges ? 'Transitive messaging connections (click to hide)' : 'Transitive messaging connections (click to show)'}
-                style={{
-                  borderColor: showTransitiveEdges ? 'rgba(192, 132, 252, 0.45)' : 'rgba(255, 255, 255, 0.15)',
-                  color: showTransitiveEdges ? '#c084fc' : '#888',
-                  textDecoration: showTransitiveEdges ? 'none' : 'line-through',
-                  cursor: 'pointer',
-                }}
-              >
-                ╌ {stats.transitiveCalls} via hidden
-              </span>
-            )}
-            <span className="hud-stat-pill" title="Message Flows (Pub / Sub)">
-              ✉️ {stats.messages} Msgs
-            </span>
           </div>
         </div>
       </div>
@@ -5041,6 +4774,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                     }}
                     docked={true}
                     onClose={() => handleToggleSidebar(false)}
+                    gateEditorRequest={gateEditorRequest}
                   />
                 )}
               </div>

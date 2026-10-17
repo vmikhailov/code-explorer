@@ -154,35 +154,15 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         </button>
       </div>
 
-      {/* View Title Badge or View Switcher */}
+      {/* View Title Badge */}
       <div className="view-mode-title-badge">
-        {onSwitchViewMode ? (
-          <select
-            className="view-mode-select-dropdown"
-            value={viewMode}
-            onChange={(e) => onSwitchViewMode(e.target.value as ViewMode)}
-            title="Switch Architecture View Mode"
-          >
-            <option value="semantic">🌐 Domain Microservices</option>
-            <option value="contexts">🧩 Bounded Contexts</option>
-            <option value="layers">🏛️ Architecture Tiers</option>
-            <option value="flow">🔀 Project Flow</option>
-            <option value="settings">⚙️ Settings & AI Models</option>
-            {/* Kept commented out:
-            <option value="c1">🌍 System Context</option>
-            <option value="full">🕸️ Physical Graph</option>
-            <option value="mermaid">📊 Mermaid Architecture</option>
-            */}
-          </select>
-        ) : (
-          <span className="view-mode-badge-text">
-            {viewMode === 'semantic' && '🌐 Domain Microservices'}
-            {viewMode === 'contexts' && '🧩 Bounded Context Map'}
-            {viewMode === 'layers' && '🏛️ Architecture Tiers'}
-            {viewMode === 'flow' && '🔀 Project Flow'}
-            {viewMode === 'settings' && '⚙️ Settings & AI Models'}
-          </span>
-        )}
+        <span className="view-mode-badge-text">
+          {viewMode === 'semantic' && '🌐 Domain Microservices'}
+          {viewMode === 'contexts' && '🧩 Bounded Context Map'}
+          {viewMode === 'layers' && '🏛️ Architecture Tiers'}
+          {viewMode === 'flow' && '🔀 Project Flow'}
+          {viewMode === 'settings' && '⚙️ Settings & AI Models'}
+        </span>
       </div>
 
       {/* Dynamic Controls based on Mode */}

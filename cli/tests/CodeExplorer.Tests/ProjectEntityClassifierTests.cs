@@ -227,4 +227,86 @@ public class ProjectEntityClassifierTests
         node.SecondaryRoles.Should().Contain("Scheduler");
         node.AllRoles.Should().Contain("WebService").And.Contain("Scheduler");
     }
+
+    [Test]
+    public void Classify_IdentifiesVsCodeExtensionAsFrontendAppInIngress()
+    {
+        var extensions = new Dictionary<string, string>
+        {
+            ["is_vscode_extension"] = "true",
+            ["framework_type"] = "extension",
+            ["ui_type"] = "extension",
+            ["manifest_type"] = "application"
+        };
+
+        var classification = ProjectEntityClassifierRegistry.Classify(
+            "/workspace/vscode-extension",
+            ["/workspace/vscode-extension/package.json"],
+            "vscode-extension",
+            "code-explorer-vscode",
+            "typescript",
+            dependencies: ["react", "react-dom", "@types/vscode"],
+            extensions: extensions
+        );
+
+        classification.Kind.Should().Be(ProjectEntityKind.App);
+        classification.SubKind.Should().Be(ProjectEntitySubKind.Desktop);
+
+        var (role, isLib, _) = ProjectRoleDetector.Detect(
+            "/workspace/vscode-extension",
+            ["/workspace/vscode-extension/package.json"],
+            "vscode-extension",
+            "code-explorer-vscode",
+            "typescript",
+            dependencies: ["react", "react-dom", "@types/vscode"],
+            extensions: extensions
+        );
+
+        role.Should().Be(ProjectRole.FrontendApp);
+        isLib.Should().BeFalse();
+
+        var layer = ProjectLayerClassifier.Classify(
+            [
+                new ProjectClassifierItem
+                {
+                    Id = "ws:p:vscode-extension:",
+                    Name = "code-explorer-vscode",
+                    FilePath = "vscode-extension",
+                    Role = role.ToString(),
+                    IsLibrary = isLib,
+                    Extensions = extensions
+                }
+            ],
+            []
+        );
+
+        layer["ws:p:vscode-extension:"].LayerId.Should().Be(StandardLayers.Ingress.LayerId);
+    }
+
+    [Test]
+    public void Classify_IdentifiesToolsDirectoryWithMixedCaseAsCliTool()
+    {
+        var classification = ProjectEntityClassifierRegistry.Classify(
+            "/workspace/cli/src/Tools/CodeExplorer.OntologyGen",
+            ["/workspace/cli/src/Tools/CodeExplorer.OntologyGen/Program.cs"],
+            "cli/src/Tools/CodeExplorer.OntologyGen",
+            "CodeExplorer.OntologyGen",
+            "csharp"
+        );
+
+        classification.Kind.Should().Be(ProjectEntityKind.CliTool);
+        classification.SubKind.Should().Be(ProjectEntitySubKind.Cli);
+    }
+
+    [Test]
+    public void ScriptProjectParser_DoesNotTreatTsOrJsAsScripts()
+    {
+        CodeExplorer.Core.Parser.ScriptProjectParser.IsScriptFile("file.ts").Should().BeFalse();
+        CodeExplorer.Core.Parser.ScriptProjectParser.IsScriptFile("file.js").Should().BeFalse();
+        CodeExplorer.Core.Parser.ScriptProjectParser.IsScriptFile("file.mjs").Should().BeFalse();
+        CodeExplorer.Core.Parser.ScriptProjectParser.IsScriptFile("file.cs").Should().BeFalse();
+        CodeExplorer.Core.Parser.ScriptProjectParser.IsScriptFile("file.ps1").Should().BeTrue();
+        CodeExplorer.Core.Parser.ScriptProjectParser.IsScriptFile("file.sh").Should().BeTrue();
+        CodeExplorer.Core.Parser.ScriptProjectParser.IsScriptFile("file.py").Should().BeTrue();
+    }
 }

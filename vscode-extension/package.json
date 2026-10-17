@@ -2,7 +2,7 @@
   "name": "code-explorer-vscode",
   "displayName": "CodeExplorer",
   "description": "Architecture Intelligence for AI Agents & Engineers. OpenCypher codebase graph, Semantic Invariant Gates, MCP server, and interactive topology.",
-  "version": "1.46.2",
+  "version": "1.46.3",
   "publisher": "vmikhailov",
   "license": "MIT",
   "icon": "media/icon_512_quant.png",
@@ -160,6 +160,16 @@
         "icon": "$(megaphone)"
       },
       {
+        "command": "codeExplorer.createGate",
+        "title": "CodeExplorer: New Semantic Invariant Gate",
+        "icon": "$(add)"
+      },
+      {
+        "command": "codeExplorer.editGate",
+        "title": "CodeExplorer: Edit Gate in Visual Editor",
+        "icon": "$(edit)"
+      },
+      {
         "command": "codeExplorer.evaluateGates",
         "title": "CodeExplorer: Evaluate Semantic Invariant Gates",
         "icon": "$(shield)"
@@ -215,24 +225,34 @@
       ],
       "view/item/context": [
         {
+          "command": "codeExplorer.createGate",
+          "when": "viewItem == root-gates",
+          "group": "inline@0"
+        },
+        {
           "command": "codeExplorer.evaluateGates",
           "when": "viewItem == root-gates || viewItem == gate-item",
           "group": "inline@1"
         },
         {
+          "command": "codeExplorer.editGate",
+          "when": "viewItem == gate-item",
+          "group": "inline@2"
+        },
+        {
           "command": "codeExplorer.ratchetGates",
           "when": "viewItem == root-gates || viewItem == gate-item",
-          "group": "inline@2"
+          "group": "inline@3"
         },
         {
           "command": "codeExplorer.openGateYaml",
           "when": "viewItem == gate-item",
-          "group": "inline@3"
+          "group": "inline@4"
         },
         {
           "command": "codeExplorer.initGates",
           "when": "viewItem == root-gates",
-          "group": "inline@3"
+          "group": "inline@4"
         },
         {
           "command": "codeExplorer.refreshTree",

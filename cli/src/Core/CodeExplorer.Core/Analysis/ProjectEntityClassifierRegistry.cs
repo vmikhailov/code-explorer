@@ -98,7 +98,14 @@ public static class ProjectEntityClassifierRegistry
         {
             if (componentProfile.PrimaryRole == Parser.LibraryRole.TestFramework) return ProjectClassification.Test;
             if (componentProfile.PrimaryRole == Parser.LibraryRole.CliFramework) return ProjectClassification.CliApp;
-            if (componentProfile.PrimaryRole == Parser.LibraryRole.FrontendFramework) return ProjectClassification.WebApp;
+            if (componentProfile.PrimaryRole == Parser.LibraryRole.FrontendFramework)
+            {
+                if (extensions != null && (extensions.GetValueOrDefault("is_vscode_extension") == "true" || extensions.GetValueOrDefault("framework_type") == "extension" || extensions.GetValueOrDefault("ui_type") == "extension"))
+                {
+                    return ProjectClassification.DesktopApp;
+                }
+                return ProjectClassification.WebApp;
+            }
             if (componentProfile.PrimaryRole == Parser.LibraryRole.UiComponentLibrary) return ProjectClassification.Library;
             if (componentProfile.PrimaryRole is Parser.LibraryRole.Scheduler or Parser.LibraryRole.WorkerService) return ProjectClassification.Worker;
             if (componentProfile.PrimaryRole == Parser.LibraryRole.SharedLibrary) return ProjectClassification.Library;
@@ -185,10 +192,13 @@ public sealed class ManifestEvidenceClassifier : IProjectEntityClassifier
 
         var manifestType = extensions.GetValueOrDefault("manifest_type")?.ToLowerInvariant();
         var frameworkType = extensions.GetValueOrDefault("framework_type")?.ToLowerInvariant();
+        var uiType = extensions.GetValueOrDefault("ui_type")?.ToLowerInvariant();
+        var isVsCodeExtension = extensions.GetValueOrDefault("is_vscode_extension") == "true";
         var hasCliBin = extensions.GetValueOrDefault("has_cli_bin") == "true";
         var cloudRuntime = extensions.GetValueOrDefault("cloud_runtime");
-        var normRelPath = "/" + (relativeProjectDir ?? "").Replace('\\', '/').Trim('/') + "/";
+        var normRelPath = "/" + (relativeProjectDir ?? "").Replace('\\', '/').Trim('/').ToLowerInvariant() + "/";
 
+        if (isVsCodeExtension || frameworkType == "extension" || uiType == "extension") return ProjectClassification.DesktopApp;
         if (manifestType == "library") return ProjectClassification.Library;
         if (manifestType == "cli" || hasCliBin) return ProjectClassification.CliApp;
         if (manifestType == "worker" || frameworkType == "worker") return ProjectClassification.Worker;
@@ -296,8 +306,15 @@ public sealed class FrontendEvidenceClassifier : IProjectEntityClassifier
         IReadOnlyList<string>? dependencies,
         IReadOnlyDictionary<string, string>? extensions)
     {
-        var normRelPath = "/" + (relativeProjectDir ?? "").Replace('\\', '/').Trim('/') + "/";
+        var normRelPath = "/" + (relativeProjectDir ?? "").Replace('\\', '/').Trim('/').ToLowerInvariant() + "/";
         var normName = (projectName ?? "").Trim().ToLowerInvariant();
+
+        if (extensions?.GetValueOrDefault("is_vscode_extension") == "true" ||
+            extensions?.GetValueOrDefault("framework_type") == "extension" ||
+            extensions?.GetValueOrDefault("ui_type") == "extension")
+        {
+            return ProjectClassification.DesktopApp;
+        }
 
         // Standard library path or Angular library package manifest -> not a frontend application
         if (normRelPath.Contains("/src/lib/") || normRelPath.Contains("/lib/") || normRelPath.Contains("/libs/"))
@@ -425,7 +442,7 @@ public sealed class CliEvidenceClassifier : IProjectEntityClassifier
         IReadOnlyDictionary<string, string>? extensions)
     {
         var normName = (projectName ?? "").Trim().ToLowerInvariant();
-        var normRelPath = "/" + (relativeProjectDir ?? "").Replace('\\', '/').Trim('/') + "/";
+        var normRelPath = "/" + (relativeProjectDir ?? "").Replace('\\', '/').Trim('/').ToLowerInvariant() + "/";
 
         if (normName.EndsWith("-cli") || normName.EndsWith("_cli") || normName.EndsWith(".cli") ||
             normName.EndsWith("-tool") || normName.EndsWith("_tool") || normName.EndsWith(".tool") ||
@@ -502,7 +519,7 @@ public sealed class LibraryEvidenceClassifier : IProjectEntityClassifier
         IReadOnlyDictionary<string, string>? extensions)
     {
         var normName = (projectName ?? "").Trim().ToLowerInvariant();
-        var normRelPath = "/" + (relativeProjectDir ?? "").Replace('\\', '/').Trim('/') + "/";
+        var normRelPath = "/" + (relativeProjectDir ?? "").Replace('\\', '/').Trim('/').ToLowerInvariant() + "/";
 
         // 1. Angular library manifest (ng-package.json or ngPackage in package.json)
         if (filesInDirectory.Any(f => Path.GetFileName(f).Equals("ng-package.json", StringComparison.OrdinalIgnoreCase)))
