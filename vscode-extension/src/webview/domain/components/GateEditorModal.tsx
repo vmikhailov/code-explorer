@@ -8,6 +8,7 @@ import {
 import { getVsCodeApi } from '../../vscodeApi';
 import { CypherEditor } from './CypherEditor';
 import { ShieldIcon, EditIcon, CheckIcon, XIcon, RotateCcwIcon } from '../../components/Icons';
+import { useServerTransport, webviewTransport } from '../../services/webviewTransport';
 
 export interface GateEditorModalProps {
   isOpen: boolean;
@@ -90,28 +91,8 @@ export const GateEditorModal: React.FC<GateEditorModalProps> = ({
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const [activeWsUrl, setActiveWsUrl] = useState<string | undefined>(() => {
-    return typeof window !== 'undefined' ? window.__CE_CONFIG__?.wsUrl : undefined;
-  });
-
-  useEffect(() => {
-    const handleMsg = (e: MessageEvent) => {
-      if ((e.data?.type === 'UPDATE_WS_URL' || e.data?.type === 'SERVER_CONFIG') && e.data?.wsUrl) {
-        setActiveWsUrl(e.data.wsUrl);
-      }
-    };
-    window.addEventListener('message', handleMsg);
-    return () => window.removeEventListener('message', handleMsg);
-  }, []);
-
-  const resolvedHttpUrl = useMemo(() => {
-    if (serverHttpUrl) return serverHttpUrl;
-    const wsUrl = activeWsUrl || (typeof window !== 'undefined' ? window.__CE_CONFIG__?.wsUrl : undefined);
-    if (wsUrl) {
-      return wsUrl.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://').replace(/\/ws$/, '');
-    }
-    return '';
-  }, [serverHttpUrl, activeWsUrl]);
+  const { httpUrl: transportHttpUrl } = useServerTransport();
+  const resolvedHttpUrl = serverHttpUrl || transportHttpUrl;
 
   // Reset or initialize state whenever modal opens or gate changes
   useEffect(() => {
@@ -221,7 +202,7 @@ export const GateEditorModal: React.FC<GateEditorModalProps> = ({
     }
 
     try {
-      const res = await fetch(`${resolvedHttpUrl}/api/gates/test`, {
+      const data = await webviewTransport.fetchJson<TestGateResponseDto>('/api/gates/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -230,11 +211,6 @@ export const GateEditorModal: React.FC<GateEditorModalProps> = ({
         }),
       });
 
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      }
-
-      const data = (await res.json()) as TestGateResponseDto;
       if (data.success) {
         setTestResult(data);
         setTestError(null);
@@ -296,7 +272,7 @@ export const GateEditorModal: React.FC<GateEditorModalProps> = ({
     }
 
     try {
-      const res = await fetch(`${resolvedHttpUrl}/api/gates/save`, {
+      const data = await webviewTransport.fetchJson<SaveGateResponseDto>('/api/gates/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -305,11 +281,6 @@ export const GateEditorModal: React.FC<GateEditorModalProps> = ({
         }),
       });
 
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      }
-
-      const data = (await res.json()) as SaveGateResponseDto;
       if (data.success && data.gate) {
         onSaveSuccess(data.gate);
         onClose();

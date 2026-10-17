@@ -16,9 +16,9 @@ export function registerGraphCommands(
   processManager: ProcessManager,
   treeDataProvider: CodeExplorerTreeDataProvider,
   outputChannel: vscode.OutputChannel,
-  getWorkspaceRoot: () => string | undefined
+  getWorkspaceRoot: () => string | undefined,
+  transport: ServerTransport = ServerTransport.getInstance()
 ) {
-  const transport = ServerTransport.getInstance();
 
   // Command: Show Graph
   const showGraphCommand = vscode.commands.registerCommand(
@@ -52,7 +52,7 @@ export function registerGraphCommands(
           try {
             progress.report({ message: 'Connecting to ce serve...' });
             const serverInfo = await transport.ensureConnected(workspaceRoot);
-            GraphPanel.createOrShow(context.extensionUri, serverInfo.wsUrl, workspaceRoot, outputChannel, 'semantic');
+            GraphPanel.createOrShow(context.extensionUri, transport, serverInfo.wsUrl, workspaceRoot, outputChannel, 'semantic');
           } catch (err: any) {
             outputChannel.appendLine(`\n[CodeExplorer Server Activation Error]\n${err.message}\n`);
             const firstLine = err.message.split('\n')[0] || 'Server process failed';
@@ -121,6 +121,7 @@ export function registerGraphCommands(
         const serverInfo = await transport.ensureConnected(workspaceRoot);
         const panel = GraphPanel.createOrShow(
           context.extensionUri,
+          transport,
           serverInfo.wsUrl,
           workspaceRoot,
           outputChannel,
@@ -171,6 +172,7 @@ export function registerGraphCommands(
         const serverInfo = await transport.ensureConnected(workspaceRoot);
         const panel = GraphPanel.createOrShow(
           context.extensionUri,
+          transport,
           serverInfo.wsUrl,
           workspaceRoot,
           outputChannel,
@@ -201,6 +203,7 @@ export function registerGraphCommands(
         const serverInfo = await transport.ensureConnected(workspaceRoot);
         const panel = GraphPanel.createOrShow(
           context.extensionUri,
+          transport,
           serverInfo.wsUrl,
           workspaceRoot,
           outputChannel,
@@ -242,6 +245,7 @@ export function registerGraphCommands(
           : undefined;
         const panel = GraphPanel.createOrShow(
           context.extensionUri,
+          transport,
           serverInfo.wsUrl,
           workspaceRoot,
           outputChannel,
@@ -582,6 +586,7 @@ export function registerWorkspaceCommands(
         const serverInfo = await transport.ensureConnected(workspaceRoot);
         const panel = GraphPanel.createOrShow(
           context.extensionUri,
+          transport,
           serverInfo.wsUrl,
           workspaceRoot,
           outputChannel,
@@ -615,6 +620,7 @@ export function registerWorkspaceCommands(
         const serverInfo = await transport.ensureConnected(workspaceRoot);
         const panel = GraphPanel.createOrShow(
           context.extensionUri,
+          transport,
           serverInfo.wsUrl,
           workspaceRoot,
           outputChannel,

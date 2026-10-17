@@ -41,6 +41,7 @@ import {
 } from './commands';
 
 import { getVsCodeApi } from './vscodeApi';
+import { useServerTransport, webviewTransport } from './services/webviewTransport';
 
 declare global {
   interface Window {
@@ -185,12 +186,7 @@ export const App: React.FC = () => {
   const [gridCategory, setGridCategory] = useState<NodeCategorySelection | null>(() => {
     return (initialConfig?.initialGridCategory as NodeCategorySelection) || null;
   });
-  const [serverHttpUrl, setServerHttpUrl] = useState<string>(() => {
-    if (initialConfig?.wsUrl) {
-      return initialConfig.wsUrl.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://').replace(/\/ws$/, '');
-    }
-    return '';
-  });
+  const { httpUrl: serverHttpUrl } = useServerTransport();
 
   // AI Settings & Models State
   const [aiSettings, setAiSettings] = useState<AiSettings | null>(null);
@@ -204,10 +200,6 @@ export const App: React.FC = () => {
   const [activeError, setActiveError] = useState<ErrorInfo | null>(null);
   const [showErrorDetails, setShowErrorDetails] = useState<boolean>(false);
   const [copiedError, setCopiedError] = useState<boolean>(false);
-  const lastWsUrlRef = useRef<string>('');
-  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reconnectAttemptRef = useRef<number>(0);
-  const isManuallyClosedRef = useRef<boolean>(false);
   const flowFitViewRef = useRef<(() => void) | null>(null);
 
   // Global dependency counts derived from full architecture graph
@@ -272,15 +264,14 @@ export const App: React.FC = () => {
   });
   const [collapsedLayers, setCollapsedLayers] = useState<Set<string>>(new Set());
 
-  const wsRef = useRef<WebSocket | null>(null);
   const workspaceRootRef = useRef<string>('');
 
   const sendWsMessage = useCallback((msg: WebSocketMessage) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+    const sent = webviewTransport.send(msg);
+    if (sent) {
       logToExtension('INFO', `Sending WS message '${msg.type}' (${msg.requestId || 'no-id'})`);
-      wsRef.current.send(JSON.stringify(msg));
     } else {
-      logToExtension('WARN', `Cannot send '${msg.type}': WebSocket is not open (state: ${wsRef.current?.readyState})`);
+      logToExtension('WARN', `Cannot send '${msg.type}': WebSocket is not open (state: ${webviewTransport.getConnectionState()})`);
     }
   }, []);
 
@@ -856,51 +847,9 @@ export const App: React.FC = () => {
     sendWsMessage(req);
   }, [cypherQuery, sendWsMessage]);
 
-  const connectWebSocket = useCallback((url: string) => {
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
-    }
-
-    if (wsRef.current) {
+  const handleWsMessage = useCallback(
+    (msg: WebSocketMessage) => {
       try {
-        isManuallyClosedRef.current = true;
-        wsRef.current.close();
-      } catch {}
-      wsRef.current = null;
-    }
-    isManuallyClosedRef.current = false;
-
-    lastWsUrlRef.current = url;
-    const httpUrl = url.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://').replace(/\/ws$/, '');
-    setServerHttpUrl(httpUrl);
-    logToExtension('INFO', `Connecting to backend WebSocket at ${url} (HTTP: ${httpUrl})...`);
-    setConnectionStatus(reconnectAttemptRef.current > 0 ? 'reconnecting' : 'connecting');
-    const ws = new WebSocket(url);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      logToExtension('INFO', `Connected to backend WebSocket at ${url}`);
-      setConnectionStatus('connected');
-      reconnectAttemptRef.current = 0;
-      setActiveError(null);
-      // 1. Handshake
-      const handshake: WebSocketMessage<HandshakeRequest> = {
-        type: 'HANDSHAKE_REQUEST',
-        requestId: 'req_handshake_1',
-        payload: {
-          clientVersion: '0.1.0',
-          clientName: 'vscode-extension',
-          workspacePath: workspaceRootRef.current,
-        },
-      };
-      ws.send(JSON.stringify(handshake));
-
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const msg: WebSocketMessage = JSON.parse(event.data);
         switch (msg.type) {
           case 'HANDSHAKE_RESPONSE': {
             const resp = msg.payload as HandshakeResponse;
@@ -1145,49 +1094,33 @@ export const App: React.FC = () => {
         logToExtension('ERROR', `Failed to parse WS message: ${err?.message || err}`);
         console.error('Failed to parse WS message:', err);
       }
-    };
+    },
+    [requestDependencies, requestArchitecture, requestContexts, requestLayers, requestDomain, requestC1, selectedProject, sendWsMessage]
+  );
 
-    ws.onerror = () => {
-      logToExtension('ERROR', `WebSocket connection error at ${url}`);
-      setConnectionStatus('error');
-      if (vscodeApi) {
-        vscodeApi.postMessage({ type: 'REQUEST_RECONNECT' });
+  useEffect(() => {
+    const unsubMsg = webviewTransport.onMessage(handleWsMessage);
+    const unsubState = webviewTransport.onConnectionStateChange((state) => {
+      setConnectionStatus(state);
+      if (state === 'connected') {
+        setActiveError(null);
       }
+    });
+    const unsubError = webviewTransport.onError(() => {
       setActiveError((prev) => prev ?? {
         code: 'CONNECTION_FAILED',
-        message: `Failed to connect to CodeExplorer server at ${url}`,
+        message: `Failed to connect to CodeExplorer server at ${webviewTransport.getWsUrl()}`,
         details: 'Verify that the backend process is running and that port conflicts or firewall rules are not blocking WebSocket connections.',
         timestamp: Date.now(),
       });
+    });
+
+    return () => {
+      unsubMsg();
+      unsubState();
+      unsubError();
     };
-
-    ws.onclose = (ev) => {
-      logToExtension('WARN', `WebSocket closed (code: ${ev.code}, reason: ${ev.reason || 'none'})`);
-      if (isManuallyClosedRef.current || ev.code === 1000) {
-        setConnectionStatus('disconnected');
-        return;
-      }
-
-      const attempt = reconnectAttemptRef.current + 1;
-      reconnectAttemptRef.current = attempt;
-      const delay = Math.min(1000 * Math.pow(1.5, Math.min(attempt, 8)), 10000);
-
-      setConnectionStatus('reconnecting');
-      logToExtension('WARN', `Scheduling reconnect attempt #${attempt} in ${Math.round(delay)}ms...`);
-
-      // Notify extension transport to verify server health and get the current active wsUrl
-      if (vscodeApi) {
-        vscodeApi.postMessage({ type: 'REQUEST_RECONNECT' });
-        vscodeApi.postMessage({ type: 'REQUEST_SERVER_RECONNECT' });
-      }
-
-      reconnectTimeoutRef.current = setTimeout(() => {
-        if (lastWsUrlRef.current) {
-          connectWebSocket(lastWsUrlRef.current);
-        }
-      }, delay);
-    };
-  }, [requestDependencies, requestArchitecture]);
+  }, [handleWsMessage]);
 
   const handleTriggerScan = useCallback((clear: boolean = false) => {
     if (connectionStatus !== 'connected') {
@@ -1224,25 +1157,11 @@ export const App: React.FC = () => {
     // Immediate connection if initial configuration has wsUrl
     if (initialConfig?.workspaceRoot) {
       workspaceRootRef.current = initialConfig.workspaceRoot;
+      webviewTransport.setWorkspaceRoot(initialConfig.workspaceRoot);
     }
     if (initialConfig?.wsUrl) {
-      connectWebSocket(initialConfig.wsUrl);
+      webviewTransport.connect(initialConfig.wsUrl);
     }
-
-    // Periodic WebSocket keepalive ping to prevent background window suspension/disconnects
-    const keepAliveTimer = setInterval(() => {
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        try {
-          wsRef.current.send(
-            JSON.stringify({
-              type: 'PING_REQUEST',
-              requestId: `ping_${Date.now()}`,
-              payload: { timestamp: Date.now() },
-            })
-          );
-        } catch {}
-      }
-    }, 25000);
 
     const handleMessage = (event: MessageEvent) => {
       const msg = event.data;
@@ -1250,28 +1169,7 @@ export const App: React.FC = () => {
         case 'UPDATE_WS_URL':
           logToExtension('INFO', `Received UPDATE_WS_URL: ${msg.wsUrl}`);
           if (msg.wsUrl) {
-            if (typeof window !== 'undefined') {
-              if (!window.__CE_CONFIG__) {
-                window.__CE_CONFIG__ = {};
-              }
-              window.__CE_CONFIG__.wsUrl = msg.wsUrl;
-            }
-            const http = msg.wsUrl.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://').replace(/\/ws$/, '');
-            setServerHttpUrl(http);
-            lastWsUrlRef.current = msg.wsUrl;
-            reconnectAttemptRef.current = 0;
-            if (reconnectTimeoutRef.current) {
-              clearTimeout(reconnectTimeoutRef.current);
-              reconnectTimeoutRef.current = null;
-            }
-            if (wsRef.current) {
-              isManuallyClosedRef.current = true;
-              try {
-                wsRef.current.close();
-              } catch {}
-              wsRef.current = null;
-            }
-            connectWebSocket(msg.wsUrl);
+            webviewTransport.updateUrls(msg.wsUrl);
           }
           break;
 
@@ -1279,35 +1177,13 @@ export const App: React.FC = () => {
           logToExtension('INFO', `Received SERVER_CONFIG: wsUrl=${msg.wsUrl}, workspace=${msg.workspaceRoot}, initialViewMode=${msg.initialViewMode}`);
           if (msg.workspaceRoot) {
             workspaceRootRef.current = msg.workspaceRoot;
+            webviewTransport.setWorkspaceRoot(msg.workspaceRoot);
           }
           if (msg.wsUrl) {
-            if (typeof window !== 'undefined') {
-              if (!window.__CE_CONFIG__) {
-                window.__CE_CONFIG__ = {};
-              }
-              window.__CE_CONFIG__.wsUrl = msg.wsUrl;
-            }
-            const http = msg.wsUrl.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://').replace(/\/ws$/, '');
-            setServerHttpUrl(http);
-            lastWsUrlRef.current = msg.wsUrl;
+            webviewTransport.updateUrls(msg.wsUrl);
           }
           if (msg.initialViewMode && msg.initialViewMode !== viewModeRef.current) {
             handleViewModeChangeRef.current(msg.initialViewMode as ViewMode);
-          }
-          if (
-            msg.wsUrl &&
-            (msg.wsUrl !== lastWsUrlRef.current ||
-              !wsRef.current ||
-              wsRef.current.readyState === WebSocket.CLOSED ||
-              wsRef.current.readyState === WebSocket.CLOSING ||
-              reconnectTimeoutRef.current !== null)
-          ) {
-            if (reconnectTimeoutRef.current) {
-              clearTimeout(reconnectTimeoutRef.current);
-              reconnectTimeoutRef.current = null;
-            }
-            reconnectAttemptRef.current = 0;
-            connectWebSocket(msg.wsUrl);
           }
           break;
 
@@ -1401,19 +1277,10 @@ export const App: React.FC = () => {
     }
 
     return () => {
-      clearInterval(keepAliveTimer);
       window.removeEventListener('message', handleMessage);
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-      if (wsRef.current) {
-        isManuallyClosedRef.current = true;
-        try {
-          wsRef.current.close();
-        } catch {}
-      }
+      webviewTransport.close();
     };
-  }, [connectWebSocket, initialConfig]);
+  }, [initialConfig]);
 
   const handleCopyError = useCallback(() => {
     if (!activeError) return;
@@ -1435,28 +1302,10 @@ export const App: React.FC = () => {
 
   const handleReconnect = useCallback(() => {
     setActiveError(null);
-    reconnectAttemptRef.current = 0;
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
-    }
-    if (wsRef.current) {
-      try {
-        isManuallyClosedRef.current = true;
-        wsRef.current.close();
-      } catch {}
-      wsRef.current = null;
-    }
     setConnectionStatus('reconnecting');
     logToExtension('INFO', 'User clicked Reconnect Now. Requesting active server port from extension host...');
-    if (vscodeApi) {
-      vscodeApi.postMessage({ type: 'REQUEST_RECONNECT' });
-      vscodeApi.postMessage({ type: 'REQUEST_SERVER_RECONNECT' });
-    }
-    if (lastWsUrlRef.current) {
-      connectWebSocket(lastWsUrlRef.current);
-    }
-  }, [connectWebSocket]);
+    webviewTransport.reconnectNow();
+  }, []);
 
   return (
     <CommandProvider manager={commandManager}>

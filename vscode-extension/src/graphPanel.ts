@@ -4,7 +4,6 @@ import * as fs from 'fs';
 import { LlmBridgeService } from './services/llmBridgeService';
 import { GateStateManager } from './gateStateManager';
 import { ServerTransport } from './serverTransport';
-import { ProcessManager } from './processManager';
 
 export function getViewTitle(viewMode?: string): string {
   switch (viewMode) {
@@ -45,18 +44,6 @@ export class GraphPanel {
     }
   }
 
-  private static _processManager?: ProcessManager;
-  public static setProcessManager(pm: ProcessManager): void {
-    GraphPanel._processManager = pm;
-  }
-  public static getProcessManager(): ProcessManager | undefined {
-    if (GraphPanel._processManager) return GraphPanel._processManager;
-    try {
-      return ServerTransport.getInstance().getProcessManager();
-    } catch {
-      return undefined;
-    }
-  }
 
   public static updateAllWsUrls(newWsUrl: string): void {
     for (const panel of GraphPanel.panels.values()) {
@@ -83,6 +70,7 @@ export class GraphPanel {
 
   public static createOrShow(
     extensionUri: vscode.Uri,
+    transport: ServerTransport,
     wsUrl: string,
     workspaceRoot: string,
     outputChannel?: vscode.OutputChannel,
@@ -134,7 +122,7 @@ export class GraphPanel {
       }
     );
 
-    const newPanel = new GraphPanel(panel, extensionUri, wsUrl, workspaceRoot, outputChannel, mode, project, initialGridCategory);
+    const newPanel = new GraphPanel(panel, extensionUri, transport, wsUrl, workspaceRoot, outputChannel, mode, project, initialGridCategory);
     GraphPanel.panels.set(mode, newPanel);
     GraphPanel.activePanel = newPanel;
 
@@ -159,6 +147,7 @@ export class GraphPanel {
   private constructor(
     panel: vscode.WebviewPanel,
     extensionUri: vscode.Uri,
+    private readonly transport: ServerTransport,
     private wsUrl: string,
     private workspaceRoot: string,
     private outputChannel?: vscode.OutputChannel,
@@ -170,11 +159,10 @@ export class GraphPanel {
     this.panel = panel;
     this.extensionUri = extensionUri;
 
-    // Subscribe to transport server ready events so restarts/recoveries immediately notify the webview
-    try {
-      const transport = ServerTransport.getInstance();
+    // Subscribe once to transport state changes and server start events so restarts/recoveries immediately notify the webview
+    if (this.transport) {
       this.disposables.push(
-        transport.onDidServerStart((info) => {
+        this.transport.onDidServerStart((info) => {
           this.wsUrl = info.wsUrl;
           if (this.isWebviewReady) {
             this.panel.webview.postMessage({
@@ -188,10 +176,25 @@ export class GraphPanel {
               initialViewMode: this.initialViewMode,
             });
           }
+        }),
+        this.transport.onDidChangeState((snapshot) => {
+          if (snapshot.endpoints?.wsUrl && snapshot.endpoints.wsUrl !== this.wsUrl) {
+            this.wsUrl = snapshot.endpoints.wsUrl;
+            if (this.isWebviewReady) {
+              this.panel.webview.postMessage({
+                type: 'UPDATE_WS_URL',
+                wsUrl: this.wsUrl,
+              });
+              this.panel.webview.postMessage({
+                type: 'SERVER_CONFIG',
+                wsUrl: this.wsUrl,
+                workspaceRoot: this.workspaceRoot,
+                initialViewMode: this.initialViewMode,
+              });
+            }
+          }
         })
       );
-    } catch {
-      // Transport may not be initialized in isolated unit tests
     }
 
     // Track active state for currentPanel getter
@@ -252,54 +255,21 @@ export class GraphPanel {
           case 'REQUEST_SERVER_RECONNECT': {
             this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] Webview requested server reconnect handshake (${message.type}).`);
             try {
-              let activeWsUrl: string | undefined;
-
-              // 1. Try unified ServerTransport first
-              try {
-                const transport = ServerTransport.getInstance();
-                const info = await transport.verifyHealthyConnection(this.workspaceRoot);
-                activeWsUrl = info.wsUrl;
-              } catch (transportErr: any) {
-                this.outputChannel?.appendLine(
-                  `[GraphPanel:${this.viewMode}] ServerTransport reconnect verification notice: ${transportErr?.message || transportErr}. Falling back to ProcessManager...`
-                );
-              }
-
-              // 2. Fall back to ProcessManager directly if needed
-              if (!activeWsUrl) {
-                const pm = GraphPanel.getProcessManager();
-                if (pm) {
-                  const info = await pm.ensureServerStarted(this.workspaceRoot);
-                  activeWsUrl = info.wsUrl;
-                }
-              }
-
-              if (!activeWsUrl) {
-                const pm = GraphPanel.getProcessManager();
-                const currentInfo = pm?.getServerInfo();
-                if (currentInfo?.wsUrl) {
-                  activeWsUrl = currentInfo.wsUrl;
-                }
-              }
-
-              if (activeWsUrl) {
-                this.wsUrl = activeWsUrl;
-                this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] Responding with UPDATE_WS_URL: ${this.wsUrl}`);
-                this.panel.webview.postMessage({
-                  type: 'UPDATE_WS_URL',
-                  wsUrl: this.wsUrl,
-                });
-                this.panel.webview.postMessage({
-                  type: 'SERVER_CONFIG',
-                  wsUrl: this.wsUrl,
-                  workspaceRoot: this.workspaceRoot,
-                  initialViewMode: this.initialViewMode,
-                });
-                // Synchronize all open panels with the active server port
-                GraphPanel.updateAllWsUrls(this.wsUrl);
-              } else {
-                throw new Error('Unable to determine active server WebSocket URL.');
-              }
+              const info = await this.transport.verifyHealthyConnection(this.workspaceRoot);
+              this.wsUrl = info.wsUrl;
+              this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] Responding with UPDATE_WS_URL: ${this.wsUrl}`);
+              this.panel.webview.postMessage({
+                type: 'UPDATE_WS_URL',
+                wsUrl: this.wsUrl,
+              });
+              this.panel.webview.postMessage({
+                type: 'SERVER_CONFIG',
+                wsUrl: this.wsUrl,
+                workspaceRoot: this.workspaceRoot,
+                initialViewMode: this.initialViewMode,
+              });
+              // Synchronize all open panels with the active server port
+              GraphPanel.updateAllWsUrls(this.wsUrl);
             } catch (err: any) {
               const errMsg = err?.message || String(err);
               this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] Reconnect verification error: ${errMsg}`);

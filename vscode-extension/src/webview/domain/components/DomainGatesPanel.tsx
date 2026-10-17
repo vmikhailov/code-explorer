@@ -17,6 +17,7 @@ import {
   PlusIcon,
 } from '../../components/Icons';
 import { GateEditorModal } from './GateEditorModal';
+import { useServerTransport, webviewTransport } from '../../services/webviewTransport';
 
 export interface DomainGatesPanelProps {
   serverHttpUrl?: string;
@@ -44,28 +45,8 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
   const [isEditorOpen, setIsEditorOpen] = useState<boolean>(false);
   const [editingGate, setEditingGate] = useState<GateItemDto | null>(null);
 
-  const [activeWsUrl, setActiveWsUrl] = useState<string | undefined>(() => {
-    return typeof window !== 'undefined' ? window.__CE_CONFIG__?.wsUrl : undefined;
-  });
-
-  useEffect(() => {
-    const handleMsg = (e: MessageEvent) => {
-      if ((e.data?.type === 'UPDATE_WS_URL' || e.data?.type === 'SERVER_CONFIG') && e.data?.wsUrl) {
-        setActiveWsUrl(e.data.wsUrl);
-      }
-    };
-    window.addEventListener('message', handleMsg);
-    return () => window.removeEventListener('message', handleMsg);
-  }, []);
-
-  const resolvedHttpUrl = useMemo(() => {
-    if (serverHttpUrl) return serverHttpUrl;
-    const wsUrl = activeWsUrl || (typeof window !== 'undefined' ? window.__CE_CONFIG__?.wsUrl : undefined);
-    if (wsUrl) {
-      return wsUrl.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://').replace(/\/ws$/, '');
-    }
-    return '';
-  }, [serverHttpUrl, activeWsUrl]);
+  const { httpUrl: transportHttpUrl } = useServerTransport();
+  const resolvedHttpUrl = serverHttpUrl || transportHttpUrl;
 
   const applySuite = useCallback(
     (nextSuite: GateSuiteSummaryDto) => {
@@ -90,11 +71,7 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${resolvedHttpUrl}/api/gates`);
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      }
-      const data = (await res.json()) as GateSuiteSummaryDto;
+      const data = await webviewTransport.fetchJson<GateSuiteSummaryDto>('/api/gates');
       applySuite(data);
     } catch (err: any) {
       setError(err?.message || 'Failed to load gates');
@@ -171,15 +148,11 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
       setError(null);
       setActionStatus(gateId ? `Evaluating ${gateId}...` : 'Evaluating all gates...');
       try {
-        const res = await fetch(`${resolvedHttpUrl}/api/gates/check`, {
+        const data = await webviewTransport.fetchJson<GateSuiteSummaryDto>('/api/gates/check', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(gateId ? { gateId } : {}),
         });
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-        }
-        const data = (await res.json()) as GateSuiteSummaryDto;
         applySuite(data);
         setActionStatus(
           data.isSuccess
@@ -212,15 +185,11 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
       setError(null);
       setActionStatus(gateId ? `Ratcheting ${gateId}...` : 'Ratcheting baselines...');
       try {
-        const res = await fetch(`${resolvedHttpUrl}/api/gates/ratchet`, {
+        const data = await webviewTransport.fetchJson<RatchetGatesResponseDto>('/api/gates/ratchet', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(gateId ? { gateId } : { updateAll: true }),
         });
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-        }
-        const data = (await res.json()) as RatchetGatesResponseDto;
         if (data.suite) {
           applySuite(data.suite);
         } else {
@@ -251,15 +220,11 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${resolvedHttpUrl}/api/gates/init`, {
+      const data = await webviewTransport.fetchJson<RatchetGatesResponseDto>('/api/gates/init', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ overwrite: false }),
       });
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      }
-      const data = (await res.json()) as RatchetGatesResponseDto;
       if (data.suite) {
         applySuite(data.suite);
       }

@@ -22,15 +22,6 @@ export function activate(context: vscode.ExtensionContext) {
   processManager = new ProcessManager(outputChannel, context);
   context.subscriptions.push(processManager);
 
-  // Provide ProcessManager to GraphPanel for webview reconnect handshakes
-  GraphPanel.setProcessManager(processManager);
-
-  // Automatically update all active WebviewPanels whenever server starts or restarts on a port
-  processManager.onDidServerStart((info) => {
-    outputChannel.appendLine(`[CodeExplorer] Server started on port ${info.port} (${info.wsUrl}). Synchronizing open webviews...`);
-    GraphPanel.updateAllWsUrls(info.wsUrl);
-  });
-
   const getWorkspaceRoot = (): string | undefined => {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     return workspaceFolders && workspaceFolders.length > 0 ? workspaceFolders[0].uri.fsPath : undefined;
@@ -39,6 +30,12 @@ export function activate(context: vscode.ExtensionContext) {
   // Unified Transport Layer (sticky port allocation, liveness watchdog, pub/sub event bus)
   serverTransport = ServerTransport.initialize(processManager, getWorkspaceRoot, outputChannel);
   context.subscriptions.push(serverTransport);
+
+  // Automatically update all active WebviewPanels whenever server starts or restarts on a port
+  serverTransport.onDidServerStart((info) => {
+    outputChannel.appendLine(`[CodeExplorer] Server started on port ${info.port} (${info.wsUrl}). Synchronizing open webviews...`);
+    GraphPanel.updateAllWsUrls(info.wsUrl);
+  });
 
   // Central Gate State Manager (single source of truth for all gates evaluation)
   const gateStateManager = GateStateManager.initialize(serverTransport, getWorkspaceRoot, outputChannel);
@@ -158,7 +155,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
   };
 
-  registerGraphCommands(context, processManager, treeDataProvider, outputChannel, getWorkspaceRoot);
+  registerGraphCommands(context, processManager, treeDataProvider, outputChannel, getWorkspaceRoot, serverTransport);
   registerWorkspaceCommands(context, processManager, treeDataProvider, outputChannel, getWorkspaceRoot, showWhatsNew);
   registerIntentCommands(context, processManager, treeDataProvider, outputChannel, getWorkspaceRoot);
 
