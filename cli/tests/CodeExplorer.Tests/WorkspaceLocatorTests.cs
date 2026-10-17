@@ -42,6 +42,12 @@ public class WorkspaceLocatorTests
         Directory.Exists(Path.Combine(_tempDir, ".codeexplorer")).Should().BeTrue();
         Directory.Exists(ws.QueriesDirectory).Should().BeTrue();
         ws.DbPath.Should().Be(Path.Combine(_tempDir, ".codeexplorer", "graph.db"));
+
+        var gitIgnorePath = Path.Combine(_tempDir, ".codeexplorer", ".gitignore");
+        File.Exists(gitIgnorePath).Should().BeTrue();
+        var gitIgnoreContent = File.ReadAllText(gitIgnorePath);
+        gitIgnoreContent.Should().Contain("*.db");
+        gitIgnoreContent.Should().Contain("*.lock");
     }
 
     [Test]

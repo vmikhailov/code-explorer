@@ -1,0 +1,5 @@
+# Ignore local SQLite graph database, journal/WAL files, and locks
+*.db
+*.db-*
+*.lock
+*.tmp

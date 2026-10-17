@@ -31,6 +31,8 @@ public static class WorkspaceLocator
                     break;
                 }
 
+                EnsureGitIgnore(ceDir);
+
                 return new WorkspaceInfo(
                     RootDirectory: current.FullName,
                     DbPath: Path.Combine(ceDir, DbFileName),
@@ -135,10 +137,47 @@ public static class WorkspaceLocator
 
         Directory.CreateDirectory(ceDir);
         Directory.CreateDirectory(queriesDir);
+        EnsureGitIgnore(ceDir);
         WorkspaceSettings.EnsureDefaultSettingsFile(fullDir);
 
         RecordActiveWorkspace(fullDir);
 
         return new WorkspaceInfo(fullDir, dbPath, queriesDir);
+    }
+
+    /// <summary>
+    /// Ensures that local SQLite databases, WAL files, and concurrency locks inside
+    /// the workspace directory (.codeexplorer) are ignored by git.
+    /// </summary>
+    public static void EnsureGitIgnore(string ceDirectory)
+    {
+        try
+        {
+            var gitIgnorePath = Path.Combine(ceDirectory, ".gitignore");
+            if (!File.Exists(gitIgnorePath))
+            {
+                const string content = """
+                    # Ignore local SQLite graph database, journal/WAL files, and locks
+                    *.db
+                    *.db-*
+                    *.lock
+                    *.tmp
+
+                    """;
+                File.WriteAllText(gitIgnorePath, content);
+            }
+            else
+            {
+                var existing = File.ReadAllText(gitIgnorePath);
+                if (!existing.Contains("*.db"))
+                {
+                    File.AppendAllText(gitIgnorePath, "\n*.db\n*.db-*\n*.lock\n*.tmp\n");
+                }
+            }
+        }
+        catch
+        {
+            // Best effort
+        }
     }
 }
