@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import { LlmBridgeService } from './services/llmBridgeService';
 import { GateStateManager } from './gateStateManager';
 import { ServerTransport } from './serverTransport';
+import { ProcessManager } from './processManager';
 
 export function getViewTitle(viewMode?: string): string {
   switch (viewMode) {
@@ -44,6 +45,35 @@ export class GraphPanel {
     }
   }
 
+  private static _processManager?: ProcessManager;
+  public static setProcessManager(pm: ProcessManager): void {
+    GraphPanel._processManager = pm;
+  }
+  public static getProcessManager(): ProcessManager | undefined {
+    if (GraphPanel._processManager) return GraphPanel._processManager;
+    try {
+      return ServerTransport.getInstance().getProcessManager();
+    } catch {
+      return undefined;
+    }
+  }
+
+  public static updateAllWsUrls(newWsUrl: string): void {
+    for (const panel of GraphPanel.panels.values()) {
+      panel.wsUrl = newWsUrl;
+      panel.postMessage({
+        type: 'UPDATE_WS_URL',
+        wsUrl: newWsUrl,
+      });
+      panel.postMessage({
+        type: 'SERVER_CONFIG',
+        wsUrl: newWsUrl,
+        workspaceRoot: panel.workspaceRoot,
+        initialViewMode: panel.initialViewMode,
+      });
+    }
+  }
+
   private readonly panel: vscode.WebviewPanel;
   private readonly extensionUri: vscode.Uri;
   private readonly viewMode: string;
@@ -68,6 +98,10 @@ export class GraphPanel {
       existing.wsUrl = wsUrl;
       existing.panel.title = getViewTitle(mode);
       existing.panel.reveal(existing.panel.viewColumn ?? column);
+      existing.postMessage({
+        type: 'UPDATE_WS_URL',
+        wsUrl,
+      });
       existing.postMessage({
         type: 'SERVER_CONFIG',
         wsUrl,
@@ -144,6 +178,10 @@ export class GraphPanel {
           this.wsUrl = info.wsUrl;
           if (this.isWebviewReady) {
             this.panel.webview.postMessage({
+              type: 'UPDATE_WS_URL',
+              wsUrl: this.wsUrl,
+            });
+            this.panel.webview.postMessage({
               type: 'SERVER_CONFIG',
               wsUrl: this.wsUrl,
               workspaceRoot: this.workspaceRoot,
@@ -181,6 +219,10 @@ export class GraphPanel {
             this.isWebviewReady = true;
             this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] Webview ready. Sending SERVER_CONFIG.`);
             this.panel.webview.postMessage({
+              type: 'UPDATE_WS_URL',
+              wsUrl: this.wsUrl,
+            });
+            this.panel.webview.postMessage({
               type: 'SERVER_CONFIG',
               wsUrl: this.wsUrl,
               workspaceRoot: this.workspaceRoot,
@@ -205,20 +247,67 @@ export class GraphPanel {
             }
             break;
 
+          case 'REQUEST_RECONNECT':
+          case 'REQUEST_WS_URL':
           case 'REQUEST_SERVER_RECONNECT': {
-            this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] Webview requested server reconnect verification.`);
+            this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] Webview requested server reconnect handshake (${message.type}).`);
             try {
-              const transport = ServerTransport.getInstance();
-              const info = await transport.verifyHealthyConnection(this.workspaceRoot);
-              this.wsUrl = info.wsUrl;
-              this.panel.webview.postMessage({
-                type: 'SERVER_CONFIG',
-                wsUrl: this.wsUrl,
-                workspaceRoot: this.workspaceRoot,
-                initialViewMode: this.initialViewMode,
-              });
+              let activeWsUrl: string | undefined;
+
+              // 1. Try unified ServerTransport first
+              try {
+                const transport = ServerTransport.getInstance();
+                const info = await transport.verifyHealthyConnection(this.workspaceRoot);
+                activeWsUrl = info.wsUrl;
+              } catch (transportErr: any) {
+                this.outputChannel?.appendLine(
+                  `[GraphPanel:${this.viewMode}] ServerTransport reconnect verification notice: ${transportErr?.message || transportErr}. Falling back to ProcessManager...`
+                );
+              }
+
+              // 2. Fall back to ProcessManager directly if needed
+              if (!activeWsUrl) {
+                const pm = GraphPanel.getProcessManager();
+                if (pm) {
+                  const info = await pm.ensureServerStarted(this.workspaceRoot);
+                  activeWsUrl = info.wsUrl;
+                }
+              }
+
+              if (!activeWsUrl) {
+                const pm = GraphPanel.getProcessManager();
+                const currentInfo = pm?.getServerInfo();
+                if (currentInfo?.wsUrl) {
+                  activeWsUrl = currentInfo.wsUrl;
+                }
+              }
+
+              if (activeWsUrl) {
+                this.wsUrl = activeWsUrl;
+                this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] Responding with UPDATE_WS_URL: ${this.wsUrl}`);
+                this.panel.webview.postMessage({
+                  type: 'UPDATE_WS_URL',
+                  wsUrl: this.wsUrl,
+                });
+                this.panel.webview.postMessage({
+                  type: 'SERVER_CONFIG',
+                  wsUrl: this.wsUrl,
+                  workspaceRoot: this.workspaceRoot,
+                  initialViewMode: this.initialViewMode,
+                });
+                // Synchronize all open panels with the active server port
+                GraphPanel.updateAllWsUrls(this.wsUrl);
+              } else {
+                throw new Error('Unable to determine active server WebSocket URL.');
+              }
             } catch (err: any) {
-              this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] Reconnect verification error: ${err?.message || err}`);
+              const errMsg = err?.message || String(err);
+              this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] Reconnect verification error: ${errMsg}`);
+              this.panel.webview.postMessage({
+                type: 'SHOW_ERROR',
+                message: `Failed to reconnect to CodeExplorer server: ${errMsg}`,
+                details: err?.stack || errMsg,
+              });
             }
             break;
           }

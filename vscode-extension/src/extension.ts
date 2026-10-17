@@ -22,6 +22,15 @@ export function activate(context: vscode.ExtensionContext) {
   processManager = new ProcessManager(outputChannel, context);
   context.subscriptions.push(processManager);
 
+  // Provide ProcessManager to GraphPanel for webview reconnect handshakes
+  GraphPanel.setProcessManager(processManager);
+
+  // Automatically update all active WebviewPanels whenever server starts or restarts on a port
+  processManager.onDidServerStart((info) => {
+    outputChannel.appendLine(`[CodeExplorer] Server started on port ${info.port} (${info.wsUrl}). Synchronizing open webviews...`);
+    GraphPanel.updateAllWsUrls(info.wsUrl);
+  });
+
   const getWorkspaceRoot = (): string | undefined => {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     return workspaceFolders && workspaceFolders.length > 0 ? workspaceFolders[0].uri.fsPath : undefined;

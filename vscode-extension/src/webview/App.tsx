@@ -1150,6 +1150,9 @@ export const App: React.FC = () => {
     ws.onerror = () => {
       logToExtension('ERROR', `WebSocket connection error at ${url}`);
       setConnectionStatus('error');
+      if (vscodeApi) {
+        vscodeApi.postMessage({ type: 'REQUEST_RECONNECT' });
+      }
       setActiveError((prev) => prev ?? {
         code: 'CONNECTION_FAILED',
         message: `Failed to connect to CodeExplorer server at ${url}`,
@@ -1172,8 +1175,9 @@ export const App: React.FC = () => {
       setConnectionStatus('reconnecting');
       logToExtension('WARN', `Scheduling reconnect attempt #${attempt} in ${Math.round(delay)}ms...`);
 
-      // Notify extension transport to verify server health and revive on the sticky port if needed
-      if (vscodeApi && (attempt === 1 || attempt % 3 === 0)) {
+      // Notify extension transport to verify server health and get the current active wsUrl
+      if (vscodeApi) {
+        vscodeApi.postMessage({ type: 'REQUEST_RECONNECT' });
         vscodeApi.postMessage({ type: 'REQUEST_SERVER_RECONNECT' });
       }
 
@@ -1243,14 +1247,49 @@ export const App: React.FC = () => {
     const handleMessage = (event: MessageEvent) => {
       const msg = event.data;
       switch (msg.type) {
+        case 'UPDATE_WS_URL':
+          logToExtension('INFO', `Received UPDATE_WS_URL: ${msg.wsUrl}`);
+          if (msg.wsUrl) {
+            if (typeof window !== 'undefined') {
+              if (!window.__CE_CONFIG__) {
+                window.__CE_CONFIG__ = {};
+              }
+              window.__CE_CONFIG__.wsUrl = msg.wsUrl;
+            }
+            const http = msg.wsUrl.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://').replace(/\/ws$/, '');
+            setServerHttpUrl(http);
+            lastWsUrlRef.current = msg.wsUrl;
+            reconnectAttemptRef.current = 0;
+            if (reconnectTimeoutRef.current) {
+              clearTimeout(reconnectTimeoutRef.current);
+              reconnectTimeoutRef.current = null;
+            }
+            if (wsRef.current) {
+              isManuallyClosedRef.current = true;
+              try {
+                wsRef.current.close();
+              } catch {}
+              wsRef.current = null;
+            }
+            connectWebSocket(msg.wsUrl);
+          }
+          break;
+
         case 'SERVER_CONFIG':
           logToExtension('INFO', `Received SERVER_CONFIG: wsUrl=${msg.wsUrl}, workspace=${msg.workspaceRoot}, initialViewMode=${msg.initialViewMode}`);
           if (msg.workspaceRoot) {
             workspaceRootRef.current = msg.workspaceRoot;
           }
           if (msg.wsUrl) {
+            if (typeof window !== 'undefined') {
+              if (!window.__CE_CONFIG__) {
+                window.__CE_CONFIG__ = {};
+              }
+              window.__CE_CONFIG__.wsUrl = msg.wsUrl;
+            }
             const http = msg.wsUrl.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://').replace(/\/ws$/, '');
             setServerHttpUrl(http);
+            lastWsUrlRef.current = msg.wsUrl;
           }
           if (msg.initialViewMode && msg.initialViewMode !== viewModeRef.current) {
             handleViewModeChangeRef.current(msg.initialViewMode as ViewMode);
@@ -1263,6 +1302,11 @@ export const App: React.FC = () => {
               wsRef.current.readyState === WebSocket.CLOSING ||
               reconnectTimeoutRef.current !== null)
           ) {
+            if (reconnectTimeoutRef.current) {
+              clearTimeout(reconnectTimeoutRef.current);
+              reconnectTimeoutRef.current = null;
+            }
+            reconnectAttemptRef.current = 0;
             connectWebSocket(msg.wsUrl);
           }
           break;
@@ -1398,10 +1442,15 @@ export const App: React.FC = () => {
     }
     if (wsRef.current) {
       try {
+        isManuallyClosedRef.current = true;
         wsRef.current.close();
       } catch {}
+      wsRef.current = null;
     }
+    setConnectionStatus('reconnecting');
+    logToExtension('INFO', 'User clicked Reconnect Now. Requesting active server port from extension host...');
     if (vscodeApi) {
+      vscodeApi.postMessage({ type: 'REQUEST_RECONNECT' });
       vscodeApi.postMessage({ type: 'REQUEST_SERVER_RECONNECT' });
     }
     if (lastWsUrlRef.current) {
@@ -1525,7 +1574,7 @@ export const App: React.FC = () => {
                     onClick={handleReconnect}
                     title="Reconnect to server"
                   >
-                    {connectionStatus === 'reconnecting' ? 'Reconnecting now...' : 'Reconnect'}
+                    {connectionStatus === 'reconnecting' ? 'Reconnecting now...' : 'Reconnect Now'}
                   </button>
                 )}
                 <button

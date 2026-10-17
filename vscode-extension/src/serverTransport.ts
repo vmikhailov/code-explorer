@@ -277,6 +277,10 @@ export class ServerTransport implements vscode.Disposable {
     );
   }
 
+  public getProcessManager(): ProcessManager {
+    return this.processManager;
+  }
+
   // ---------------------------------------------------------------------------
   // 1. Pub/Sub Subscription Mechanism
   // ---------------------------------------------------------------------------

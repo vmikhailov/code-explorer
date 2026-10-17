@@ -231,6 +231,9 @@ async function runTests() {
       assert.strictEqual(info2.httpUrl, `http://127.0.0.1:${stickyPort}`);
       assert.strictEqual(startedPorts.length, 2);
       assert.strictEqual(startedPorts[0], startedPorts[1], 'Both starts must bind to the exact same sticky port');
+
+      // Verify getProcessManager returns the ProcessManager instance
+      assert.strictEqual(transport.getProcessManager(), mockProcessManager, 'getProcessManager must return the underlying manager');
     } finally {
       mockProcessManager.stopServer();
       transport.dispose();

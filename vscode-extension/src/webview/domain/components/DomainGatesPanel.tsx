@@ -44,14 +44,28 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
   const [isEditorOpen, setIsEditorOpen] = useState<boolean>(false);
   const [editingGate, setEditingGate] = useState<GateItemDto | null>(null);
 
+  const [activeWsUrl, setActiveWsUrl] = useState<string | undefined>(() => {
+    return typeof window !== 'undefined' ? window.__CE_CONFIG__?.wsUrl : undefined;
+  });
+
+  useEffect(() => {
+    const handleMsg = (e: MessageEvent) => {
+      if ((e.data?.type === 'UPDATE_WS_URL' || e.data?.type === 'SERVER_CONFIG') && e.data?.wsUrl) {
+        setActiveWsUrl(e.data.wsUrl);
+      }
+    };
+    window.addEventListener('message', handleMsg);
+    return () => window.removeEventListener('message', handleMsg);
+  }, []);
+
   const resolvedHttpUrl = useMemo(() => {
     if (serverHttpUrl) return serverHttpUrl;
-    const wsUrl = typeof window !== 'undefined' ? window.__CE_CONFIG__?.wsUrl : undefined;
+    const wsUrl = activeWsUrl || (typeof window !== 'undefined' ? window.__CE_CONFIG__?.wsUrl : undefined);
     if (wsUrl) {
       return wsUrl.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://').replace(/\/ws$/, '');
     }
     return '';
-  }, [serverHttpUrl]);
+  }, [serverHttpUrl, activeWsUrl]);
 
   const applySuite = useCallback(
     (nextSuite: GateSuiteSummaryDto) => {
