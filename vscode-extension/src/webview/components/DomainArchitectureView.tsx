@@ -162,6 +162,101 @@ export interface SelectedEdgeDetail {
 
 export type DomainNodeDetail = SelectedNodeDetail;
 
+/**
+ * In-Circle Vector SVG Badge (mini vector icon + 3-letter uppercase code inside node circle)
+ */
+const BADGE_SVG_CACHE = new Map<string, string>();
+
+export function getNodeBadgeSvgDataUri(kind: EntityKind | string): string {
+  const cached = BADGE_SVG_CACHE.get(kind);
+  if (cached) return cached;
+
+  let code = 'SVC';
+  let iconSvg = '';
+
+  switch (kind) {
+    case 'App':
+    case 'Ingress':
+    case 'FrontendApp':
+      code = 'APP';
+      iconSvg = `
+        <rect x="19" y="14" width="26" height="19" rx="2.5" />
+        <line x1="19" y1="20.5" x2="45" y2="20.5" />
+        <circle cx="23.5" cy="17.2" r="0.9" fill="#ffffff" stroke="none" />
+        <circle cx="26.5" cy="17.2" r="0.9" fill="#ffffff" stroke="none" />
+        <circle cx="29.5" cy="17.2" r="0.9" fill="#ffffff" stroke="none" />
+        <rect x="23" y="24" width="6" height="5.5" rx="1" stroke-width="1.8" />
+        <line x1="32.5" y1="24.5" x2="40.5" y2="24.5" stroke-width="1.8" />
+        <line x1="32.5" y1="28.5" x2="37.5" y2="28.5" stroke-width="1.8" />
+      `;
+      break;
+    case 'Worker':
+      code = 'WRK';
+      iconSvg = `
+        <path d="M34 13 L23.5 24 L31.5 24 L29 35.5 L40.5 23 L32.5 23 Z" />
+      `;
+      break;
+    case 'CliTool':
+      code = 'CLI';
+      iconSvg = `
+        <rect x="19" y="14" width="26" height="19" rx="3" />
+        <path d="M24.5 20.5 L29 23.5 L24.5 26.5" />
+        <line x1="32" y1="26.5" x2="38" y2="26.5" />
+      `;
+      break;
+    case 'Database':
+      code = 'DB';
+      iconSvg = `
+        <ellipse cx="32" cy="16" rx="11" ry="3.8" />
+        <path d="M21 16 v15 a11 3.8 0 0 0 22 0 v-15" />
+        <path d="M21 23.5 a11 3.8 0 0 0 22 0" />
+      `;
+      break;
+    case 'Topic':
+      code = 'MSG';
+      iconSvg = `
+        <rect x="19.5" y="16" width="25" height="17" rx="2.5" />
+        <path d="M20.5 17.5 L32 25.5 L43.5 17.5" />
+      `;
+      break;
+    case 'ExternalService':
+      code = 'EXT';
+      iconSvg = `
+        <path d="M23 29.5 h18 a5.5 5.5 0 0 0 2 -10.5 a7 7 0 0 0 -13 -3 a5.5 5.5 0 0 0 -7 13.5 z" />
+      `;
+      break;
+    case 'Library':
+      code = 'LIB';
+      iconSvg = `
+        <path d="M32 14 L43 19 L32 24 L21 19 Z" />
+        <path d="M21 24 L32 29 L43 24" />
+        <path d="M21 29 L32 34 L43 29" />
+      `;
+      break;
+    case 'TestSuite':
+      code = 'TST';
+      iconSvg = `
+        <path d="M32 13 L43 17 V24.5 C43 30.5 32 35.5 32 35.5 C32 35.5 21 30.5 21 24.5 V17 Z" />
+        <path d="M27 24 L30.5 27.5 L37 21" stroke-width="2.6" />
+      `;
+      break;
+    case 'Service':
+    default:
+      code = 'SVC';
+      iconSvg = `
+        <path d="M32 12 L43 18 L43 30 L32 36 L21 30 L21 18 Z" />
+        <path d="M32 24 L32 36 M32 24 L21 18 M32 24 L43 18" />
+      `;
+      break;
+  }
+
+  const rawSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><g stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.95">${iconSvg.trim()}</g><text x="32" y="50" text-anchor="middle" fill="#ffffff" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-size="11.5" font-weight="800" letter-spacing="0.8">${code}</text></svg>`;
+
+  const uri = `data:image/svg+xml;utf8,${encodeURIComponent(rawSvg.replace(/\s+/g, ' '))}`;
+  BADGE_SVG_CACHE.set(kind, uri);
+  return uri;
+}
+
 // Cytoscape stylesheets matching the circular Neo4j / graph ontology styling
 const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
   // Base Node Style (Circular Discs)
@@ -172,6 +267,11 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
       'width': 'data(size)',
       'height': 'data(size)',
       'background-color': 'data(bgColor)',
+      'background-image': 'data(badgeSvg)',
+      'background-fit': 'contain',
+      'background-clip': 'node',
+      'background-width': '100%',
+      'background-height': '100%',
       'border-width': 3,
       'border-color': 'data(borderColor)',
       'border-opacity': 0.9,
@@ -1655,7 +1755,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       let nodeKind: EntityKind = 'Service';
       let bgColor = '#e53935';
       let borderColor = '#7f1d1d';
-      let size = 50;
+      let size = 54;
 
       const isTest =
         node.kind === 'TestSuite' ||
@@ -1703,56 +1803,56 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         nodeKind = 'TestSuite';
         bgColor = '#059669';
         borderColor = '#047857';
-        size = 48;
+        size = 52;
       } else if (isApp) {
         appCount++;
         tag = ':App';
         nodeKind = 'App';
         bgColor = '#0288d1';
         borderColor = '#01579b';
-        size = 54;
+        size = 58;
       } else if (isWorker) {
         workerCount++;
         tag = ':Worker';
         nodeKind = 'Worker';
         bgColor = '#c026d3';
         borderColor = '#86198f';
-        size = 48;
+        size = 52;
       } else if (isCli) {
         cliCount++;
         tag = ':CliTool';
         nodeKind = 'CliTool';
         bgColor = '#d97706';
         borderColor = '#92400e';
-        size = 48;
+        size = 52;
       } else if (isDb) {
         dbCount++;
         tag = ':DB';
         nodeKind = 'Database';
         bgColor = '#7b1fa2';
         borderColor = '#4a148c';
-        size = 48;
+        size = 52;
       } else if (isTopic) {
         topicCount++;
         tag = ':Topic';
         nodeKind = 'Topic';
         bgColor = '#f59e0b';
         borderColor = '#b45309';
-        size = 46;
+        size = 50;
       } else if (isExt) {
         extCount++;
         tag = ':External';
         nodeKind = 'ExternalService';
         bgColor = '#26a69a';
         borderColor = '#004d40';
-        size = 44;
+        size = 50;
       } else if (isLib) {
         libCount++;
         tag = ':Library';
         nodeKind = 'Library';
         bgColor = '#4b5563';
         borderColor = '#374151';
-        size = 40;
+        size = 46;
       } else {
         serviceCount++;
       }
@@ -1823,7 +1923,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           id: node.id,
           name: node.name || displayName,
           displayName,
-          displayLabel: `${tag}\n${clampedName}`,
+          displayLabel: clampedName,
+          badgeSvg: getNodeBadgeSvgDataUri(nodeKind),
           rawLabel: displayName,
           kind: nodeKind,
           bgColor,
