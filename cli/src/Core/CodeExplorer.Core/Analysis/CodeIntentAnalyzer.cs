@@ -454,7 +454,7 @@ public static class CodeIntentAnalyzer
                                 fallbackDomain = WorkspaceConventions.CanonicalizeDomain(null, sig.Name, sig.RelativePath, sig.Role);
                             }
 
-                            if (string.IsNullOrWhiteSpace(fallbackDomain)) fallbackDomain = "CoreDomain";
+                            if (string.IsNullOrWhiteSpace(fallbackDomain) || WorkspaceConventions.GenericFolderRoots.Contains(fallbackDomain)) fallbackDomain = "CoreDomain";
                             var fallbackRole = $"Component of {fallbackDomain} domain";
                             projectDomainMap[sig.Name] = (fallbackDomain, fallbackRole);
                             projectIntentsToSave[sig.Name] = (fallbackDomain, fallbackRole, []);
@@ -1052,13 +1052,8 @@ public static class CodeIntentAnalyzer
         var segments = relativePath.Replace('\\', '/').Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
         if (segments.Length <= 1) return null;
 
-        var skipRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "src", "services", "microservices", "apps", "packages", "libs", "modules", "projects", "cmd", "home", "users", "cli", "ui", "uis", "tools", "bffs", "gateways", "apigateways"
-        };
-
         var idx = 0;
-        while (idx < segments.Length - 1 && skipRoots.Contains(segments[idx]))
+        while (idx < segments.Length - 1 && WorkspaceConventions.GenericFolderRoots.Contains(segments[idx]))
         {
             idx++;
         }
@@ -1066,8 +1061,11 @@ public static class CodeIntentAnalyzer
         if (idx < segments.Length)
         {
             var candidate = segments[idx];
+            if (WorkspaceConventions.GenericFolderRoots.Contains(candidate)) return null;
             var norm = WorkspaceConventions.NormalizeServiceName(candidate);
+            if (WorkspaceConventions.GenericFolderRoots.Contains(norm)) return null;
             var pascal = ToPascalCase(norm);
+            if (WorkspaceConventions.GenericFolderRoots.Contains(pascal)) return null;
             if (pascal.Length > 2) return pascal;
         }
         return null;

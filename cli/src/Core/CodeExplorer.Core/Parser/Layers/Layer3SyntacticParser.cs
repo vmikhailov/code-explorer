@@ -930,14 +930,19 @@ public class Layer3SyntacticParser
             path = domainOrService;
             var segments = domainOrService.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
             string? candidate = null;
-            foreach (var seg in segments)
+            for (var i = 0; i < segments.Length; i++)
             {
+                var seg = segments[i];
                 if (seg.Equals("api", StringComparison.OrdinalIgnoreCase)) continue;
                 if (seg.StartsWith("v", StringComparison.OrdinalIgnoreCase) && seg.Length <= 6 && seg.Skip(1).All(c => char.IsDigit(c) || c == '.')) continue;
                 if (seg.Equals("assets", StringComparison.OrdinalIgnoreCase) || seg.Equals("static", StringComparison.OrdinalIgnoreCase) || seg.Equals("public", StringComparison.OrdinalIgnoreCase))
                 {
                     candidate = null;
                     break;
+                }
+                if ((seg.Equals("gateway", StringComparison.OrdinalIgnoreCase) || seg.Equals("gw", StringComparison.OrdinalIgnoreCase)) && i + 1 < segments.Length)
+                {
+                    continue;
                 }
                 candidate = seg;
                 break;

@@ -322,6 +322,8 @@ public partial class PostIndexAnalyzer
             return null;
         }
 
+        cleanKey = ConfigStore.StripServiceOptionsSuffixes(cleanKey);
+
         if (WorkspaceConventions.TryGetServiceAlias(cleanKey, out var aliased))
         {
             cleanKey = aliased.ToLowerInvariant();
@@ -358,6 +360,16 @@ public partial class PostIndexAnalyzer
         if (string.IsNullOrWhiteSpace(normKey)) return null;
 
         var projList = projects.ToList();
+
+        // 0. Direct suffix/segment match (e.g. 'spa-bff' -> FoodDelivery.Spa.Bff, 'gateway' -> FoodDelivery.ApiGateway)
+        var dotNorm = cleanKey.Replace("-", ".").Replace("_", ".");
+        var directMatch = projList.FirstOrDefault(p =>
+            !p.IsLibrary &&
+            (p.Name.EndsWith("." + dotNorm, StringComparison.OrdinalIgnoreCase) ||
+             p.Name.EndsWith("." + cleanKey, StringComparison.OrdinalIgnoreCase) ||
+             (normKey is "gateway" or "apigateway" && (p.Name.EndsWith("Gateway", StringComparison.OrdinalIgnoreCase) || p.Name.Contains("ApiGateway", StringComparison.OrdinalIgnoreCase))) ||
+             p.Name.Replace(".", "").Replace("-", "").EndsWith(normKey, StringComparison.OrdinalIgnoreCase)));
+        if (directMatch != null) return directMatch;
 
         // 1. Exact domain match on non-library project
         var exactNonLib = projList.FirstOrDefault(p =>

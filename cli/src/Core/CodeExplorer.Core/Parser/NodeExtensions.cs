@@ -27,9 +27,10 @@ namespace CodeExplorer.Core.Parser
                 func = firstChild.Id != IntPtr.Zero ? firstChild : null;
             }
 
-            while (func.IsValid() && (func.Type is TreeSitterSyntax.Common.AwaitExpression or TreeSitterSyntax.Common.ParenthesizedExpression))
+            while (func.IsValid() && (func.Type is TreeSitterSyntax.Common.AwaitExpression or TreeSitterSyntax.Common.ParenthesizedExpression ||
+                                      func.Type.Contains("instantiation") || func.Type.Contains("type_arguments") || func.Type == "expression_with_type_arguments"))
             {
-                var inner = func.Children.FirstOrDefault(c => c.IsValid() && c.Type != "await" && c.Type != "(" && c.Type != ")");
+                var inner = func.Children.FirstOrDefault(c => c.IsValid() && c.Type != "await" && c.Type != "(" && c.Type != ")" && !c.Type.Contains("type_argument"));
                 if (inner.IsValid())
                 {
                     func = inner;

@@ -16,6 +16,7 @@ public class AxiosLibraryParser : ISemanticExtension
     public IReadOnlyList<string> SupportedPatterns => ["axios", "@nestjs/axios", "@nestjs/common"];
 
     public bool IsImplemented => true;
+    public bool IsBuiltIn => true;
 
     private static bool IsHttpCallNode(Node node)
     {
@@ -62,7 +63,8 @@ public class AxiosLibraryParser : ISemanticExtension
                 objText.Equals("client") ||
                 objText.Equals("this.client") ||
                 objText.Equals("api") ||
-                objText.Equals("this.api"))
+                objText.Equals("this.api") ||
+                ((objText is "this" or "super") && IsEnclosingClassApiClient(node)))
             {
                 var args = AstHelper.GetCallArguments(node);
                 if (args.Count > 0 && args[0].Is(TreeSitterSyntax.TypeScript.Object))
@@ -77,6 +79,27 @@ public class AxiosLibraryParser : ISemanticExtension
             }
         }
 
+        return false;
+    }
+
+    private static bool IsEnclosingClassApiClient(Node node)
+    {
+        var curr = node.Parent;
+        while (curr.IsValid())
+        {
+            if (curr.Is(TreeSitterSyntax.TypeScript.ClassDeclaration))
+            {
+                var text = curr.Text;
+                if (text.Contains("extends ApiClient") || text.Contains("extends HttpClient") ||
+                    text.Contains("extends RestClient") || text.Contains("extends BaseApiClient") ||
+                    text.Contains("extends BaseClient") || text.Contains("extends ApiBase"))
+                {
+                    return true;
+                }
+                return false;
+            }
+            curr = curr.Parent;
+        }
         return false;
     }
 
@@ -205,6 +228,17 @@ public class AxiosLibraryParser : ISemanticExtension
             if (!string.IsNullOrEmpty(resolved)) return resolved;
         }
 
+        // 3. Check for super(url) or super(spaBffAddress) in constructor
+        var superMatch = System.Text.RegularExpressions.Regex.Match(
+            classText,
+            @"super\s*\(\s*([^,)\n]+)");
+        if (superMatch.Success)
+        {
+            var rawExpr = superMatch.Groups[1].Value.Trim().Trim('\'', '"', '`');
+            var resolved = ResolveBaseUrlExpression(classNode, rawExpr, projectContext);
+            if (!string.IsNullOrEmpty(resolved)) return resolved;
+        }
+
         return null;
     }
 
@@ -213,6 +247,22 @@ public class AxiosLibraryParser : ISemanticExtension
         if (string.IsNullOrWhiteSpace(rawExpr)) return null;
 
         var clean = rawExpr.StartsWith("this.", StringComparison.OrdinalIgnoreCase) ? rawExpr[5..].Trim() : rawExpr.Trim();
+
+        // If it's a relative path e.g. /gateway/spa-bff/catalogs
+        if (clean.StartsWith('/'))
+        {
+            return clean;
+        }
+
+        // Check if clean was assigned locally in constructor, e.g. let spaBffAddress = '/gateway/spa-bff/catalogs'
+        var classText = classNode.Text;
+        var localAssign = System.Text.RegularExpressions.Regex.Match(
+            classText,
+            $@"(?:let|const|var|this\.)\s+{System.Text.RegularExpressions.Regex.Escape(clean)}\s*=\s*['""]([^'""]+)['""]");
+        if (localAssign.Success)
+        {
+            return localAssign.Groups[1].Value.Trim();
+        }
 
         // If it's a direct URL
         if (Uri.TryCreate(clean, UriKind.Absolute, out var uri) && !string.IsNullOrEmpty(uri.Host))
@@ -224,7 +274,6 @@ public class AxiosLibraryParser : ISemanticExtension
         // If it's a field name like _baseUrl, check if constructor assigns it: this._baseUrl = config.get('ID_HELPER_NEST')
         if (clean.StartsWith('_') || clean.Equals("baseUrl", StringComparison.OrdinalIgnoreCase) || clean.Equals("apiUrl", StringComparison.OrdinalIgnoreCase))
         {
-            var classText = classNode.Text;
             var assignMatch = System.Text.RegularExpressions.Regex.Match(
                 classText,
                 $@"(?:this\.)?{System.Text.RegularExpressions.Regex.Escape(clean)}\s*=\s*([^;\n]+)");

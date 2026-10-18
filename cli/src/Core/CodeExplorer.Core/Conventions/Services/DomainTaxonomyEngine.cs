@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using CodeExplorer.Core.Common;
 
 namespace CodeExplorer.Core.Conventions.Services;
 
@@ -15,10 +16,7 @@ public sealed class DomainTaxonomyEngine
         "table", "tables", "database", "sql", "boundedcontext", "context"
     };
 
-    private static readonly HashSet<string> SkipRootDirs = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "src", "services", "microservices", "apps", "packages", "libs", "modules", "projects", "cmd", "home", "users"
-    };
+    private static readonly HashSet<string> SkipRootDirs = WorkspaceConventions.GenericFolderRoots;
 
     private readonly Dictionary<string, string> _projectToDomain;
     private readonly Dictionary<string, string> _serviceOverrides;
@@ -218,7 +216,7 @@ public sealed class DomainTaxonomyEngine
                         cleanRaw.Split([' ', '_', '-'], StringSplitOptions.RemoveEmptyEntries).Length > 5 ||
                         FormatDomainDisplayName(cleanRaw).Split(' ', StringSplitOptions.RemoveEmptyEntries).Length > 6;
 
-        if (!string.IsNullOrWhiteSpace(cleanRaw) && !GenericDomainWords.Contains(cleanRaw) && !isRunaway)
+        if (!string.IsNullOrWhiteSpace(cleanRaw) && !GenericDomainWords.Contains(cleanRaw) && !WorkspaceConventions.GenericFolderRoots.Contains(cleanRaw) && !isRunaway)
         {
             return ToPascalCase(cleanRaw);
         }
@@ -233,10 +231,13 @@ public sealed class DomainTaxonomyEngine
             if (meaningful.Count >= 1)
             {
                 var cleanDir = _serviceResolver.NormalizeServiceName(meaningful[0]);
-                var dirPascal = ToPascalCase(cleanDir);
-                if (dirPascal.Length > 2)
+                if (!WorkspaceConventions.GenericFolderRoots.Contains(cleanDir) && !WorkspaceConventions.GenericFolderRoots.Contains(meaningful[0]))
                 {
-                    return dirPascal;
+                    var dirPascal = ToPascalCase(cleanDir);
+                    if (!WorkspaceConventions.GenericFolderRoots.Contains(dirPascal) && dirPascal.Length > 2)
+                    {
+                        return dirPascal;
+                    }
                 }
             }
         }

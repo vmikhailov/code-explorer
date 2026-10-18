@@ -38,7 +38,7 @@ public partial class ArchitectureViewEngine
         sb.AppendLine("## Bounded Contexts & Services");
         sb.AppendLine("| Domain | Kind | Projects | Inbound Calls | Outbound Calls | Databases | Topics |");
         sb.AppendLine("|---|---|---|---|---|---|---|");
-        foreach (var d in dto.Nodes.Where(n => n.Kind is NodeKind.Service or NodeKind.Ingress or NodeKind.Worker or NodeKind.Library))
+        foreach (var d in dto.Nodes.Where(n => n.Kind is NodeKind.Service or NodeKind.Ingress or NodeKind.Worker or NodeKind.Library or NodeKind.App or NodeKind.CliTool))
         {
             var pCount = d.Projects.Count > 0 ? string.Join(", ", d.Projects.Select(p => p.Name)) : d.Name;
             sb.AppendLine($"| {d.DisplayName} | `{d.Kind.ToCypherLabel()}` | {pCount} | {d.InboundCallsCount} | {d.OutboundCallsCount} | {d.DbCount} | {d.MessagingCount} |");

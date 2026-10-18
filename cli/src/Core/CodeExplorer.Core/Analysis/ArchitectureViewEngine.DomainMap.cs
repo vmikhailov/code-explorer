@@ -147,30 +147,45 @@ public partial class ArchitectureViewEngine
         var lowerName = name.ToLowerInvariant();
         var isAspire = IsAspireOrchestrator(name);
 
+        // For App nodes (FrontendApp), ALWAYS preserve node.Name as DisplayName and domainKey so an App name is never altered or merged
+        var isAppNode = node.Kind == NodeKind.App ||
+                        string.Equals(node.Properties?.GetValueOrDefault("role"), "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(node.Properties?.GetValueOrDefault("role"), "App", StringComparison.OrdinalIgnoreCase);
+        if (isAppNode && !string.IsNullOrWhiteSpace(name))
+        {
+            return ($"domain:{name.ToLowerInvariant()}", name, true);
+        }
+
         // 0. Explicit domain / intent_domain from node properties
         if (node.Properties != null)
         {
             if (node.Properties.TryGetValue("domain", out var expDomain) && !string.IsNullOrWhiteSpace(expDomain) && !IsRunawayDomainName(expDomain))
             {
                 var clean = ToPascalCase(expDomain);
-                var isIngressHint = !isAspire && (IngressKeywords.Any(kw => lowerName.Contains(kw)) ||
-                                    string.Equals(node.Properties.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
-                                    string.Equals(node.Properties.GetValueOrDefault("layerId"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase));
-                var domainKey = node.Properties.TryGetValue("domainId", out var expId) && !string.IsNullOrWhiteSpace(expId)
-                    ? expId
-                    : $"domain:{clean.ToLowerInvariant()}";
-                var disp = node.Properties.TryGetValue("domainDisplayName", out var expDisp) && !string.IsNullOrWhiteSpace(expDisp)
-                    ? expDisp
-                    : WorkspaceConventions.FormatDomainDisplayName(clean);
-                return (domainKey, disp, isIngressHint);
+                if (!WorkspaceConventions.GenericFolderRoots.Contains(expDomain) && !WorkspaceConventions.GenericFolderRoots.Contains(clean))
+                {
+                    var isIngressHint = !isAspire && (IngressKeywords.Any(kw => lowerName.Contains(kw)) ||
+                                        string.Equals(node.Properties.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
+                                        string.Equals(node.Properties.GetValueOrDefault("layerId"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase));
+                    var domainKey = node.Properties.TryGetValue("domainId", out var expId) && !string.IsNullOrWhiteSpace(expId)
+                        ? expId
+                        : $"domain:{clean.ToLowerInvariant()}";
+                    var disp = node.Properties.TryGetValue("domainDisplayName", out var expDisp) && !string.IsNullOrWhiteSpace(expDisp)
+                        ? expDisp
+                        : WorkspaceConventions.FormatDomainDisplayName(clean);
+                    return (domainKey, disp, isIngressHint);
+                }
             }
             if (node.Properties.TryGetValue("intent_domain", out var intDomain) && !string.IsNullOrWhiteSpace(intDomain) && !IsRunawayDomainName(intDomain))
             {
                 var clean = ToPascalCase(intDomain);
-                var isIngressHint = !isAspire && (IngressKeywords.Any(kw => lowerName.Contains(kw)) ||
-                                    string.Equals(node.Properties.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
-                                    string.Equals(node.Properties.GetValueOrDefault("layerId"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase));
-                return ($"domain:{clean.ToLowerInvariant()}", WorkspaceConventions.FormatDomainDisplayName(clean), isIngressHint);
+                if (!WorkspaceConventions.GenericFolderRoots.Contains(intDomain) && !WorkspaceConventions.GenericFolderRoots.Contains(clean))
+                {
+                    var isIngressHint = !isAspire && (IngressKeywords.Any(kw => lowerName.Contains(kw)) ||
+                                        string.Equals(node.Properties.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
+                                        string.Equals(node.Properties.GetValueOrDefault("layerId"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase));
+                    return ($"domain:{clean.ToLowerInvariant()}", WorkspaceConventions.FormatDomainDisplayName(clean), isIngressHint);
+                }
             }
         }
 
@@ -178,10 +193,13 @@ public partial class ArchitectureViewEngine
         if (WorkspaceConventions.TryGetConfiguredDomain(name, node.FilePath, out var configuredDomain))
         {
             var clean = ToPascalCase(configuredDomain);
-            var isIngressHint = !isAspire && (IngressKeywords.Any(kw => lowerName.Contains(kw)) ||
-                                string.Equals(node.Properties?.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
-                                string.Equals(node.Properties?.GetValueOrDefault("layerId"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase));
-            return ($"domain:{clean.ToLowerInvariant()}", WorkspaceConventions.FormatDomainDisplayName(clean), isIngressHint);
+            if (!WorkspaceConventions.GenericFolderRoots.Contains(configuredDomain) && !WorkspaceConventions.GenericFolderRoots.Contains(clean))
+            {
+                var isIngressHint = !isAspire && (IngressKeywords.Any(kw => lowerName.Contains(kw)) ||
+                                    string.Equals(node.Properties?.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase) ||
+                                    string.Equals(node.Properties?.GetValueOrDefault("layerId"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase));
+                return ($"domain:{clean.ToLowerInvariant()}", WorkspaceConventions.FormatDomainDisplayName(clean), isIngressHint);
+            }
         }
 
         // 1. Suffix match
@@ -208,21 +226,19 @@ public partial class ArchitectureViewEngine
                             .Where(p => p != ".." && p != "." && !Regex.IsMatch(p, @"^[a-zA-Z]:$"))
                             .ToArray();
 
-            var skipRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            {
-                "src", "services", "microservices", "apps", "packages", "libs", "modules", "projects", "cmd", "home", "users", "cli", "ui", "uis", "tools", "bffs", "gateways", "apigateways"
-            };
-
             var hasFileExt = parts.Length > 0 && Path.HasExtension(parts[^1]);
             var candidateParts = hasFileExt ? parts.Take(parts.Length - 1) : parts;
-            var meaningful = candidateParts.Where(p => !skipRoots.Contains(p)).ToList();
+            var meaningful = candidateParts.Where(p => !WorkspaceConventions.GenericFolderRoots.Contains(p)).ToList();
             if (meaningful.Count >= 1)
             {
                 var folder = meaningful[0];
                 var cleanName = ToPascalCase(WorkspaceConventions.NormalizeServiceName(folder));
-                var isIngressHint = !isAspire && (IngressKeywords.Any(kw => folder.Contains(kw, StringComparison.OrdinalIgnoreCase)) ||
-                                    string.Equals(node.Properties?.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase));
-                return ($"domain:{folder.ToLowerInvariant()}", WorkspaceConventions.FormatDomainDisplayName(cleanName), isIngressHint);
+                if (!WorkspaceConventions.GenericFolderRoots.Contains(folder) && !WorkspaceConventions.GenericFolderRoots.Contains(cleanName))
+                {
+                    var isIngressHint = !isAspire && (IngressKeywords.Any(kw => folder.Contains(kw, StringComparison.OrdinalIgnoreCase)) ||
+                                        string.Equals(node.Properties?.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase));
+                    return ($"domain:{folder.ToLowerInvariant()}", WorkspaceConventions.FormatDomainDisplayName(cleanName), isIngressHint);
+                }
             }
         }
 
@@ -292,10 +308,18 @@ public partial class ArchitectureViewEngine
                 continue;
             }
 
+            var isLib = IsLibraryProject(node);
+
+            // Never merge two separate runnable Layer 4 workloads (!IsLibraryProject(node)) into one node on the Domain Map
+            if (!isLib && domainProjectsMap.TryGetValue(domainKey, out var existingWorkloads) && existingWorkloads.Any(p => !p.IsLibrary))
+            {
+                var norm = WorkspaceConventions.NormalizeServiceName(node.Name).ToLowerInvariant();
+                domainKey = $"domain:{norm}";
+                domainDisplayName = WorkspaceConventions.FormatDomainDisplayName(WorkspaceConventions.ToPascalCase(norm));
+            }
+
             projToDomainMap[node.Id] = domainKey;
             projToDomainMap[node.Name] = domainKey;
-
-            var isLib = IsLibraryProject(node);
 
             if (!domainProjectsMap.TryGetValue(domainKey, out var pList))
             {
@@ -517,21 +541,23 @@ public partial class ArchitectureViewEngine
 
             var zone = domainZoneMap.GetValueOrDefault(domainId, "service");
             var isIngress = zone == "ingress";
-            var isWorker = primary?.Kind == NodeKind.Worker ||
-                           primary?.Properties?.GetValueOrDefault("role") == "Worker" ||
-                           projects.Any(p => p.Kind == NodeKind.Worker);
-            var nonLibProjects = projects.Where(p => !p.IsLibrary && p.Kind is not (NodeKind.Library or NodeKind.SharedLibrary)).ToList();
-            var isCli = (nonLibProjects.Count > 0 && nonLibProjects.All(p => p.Kind == NodeKind.CliTool || string.Equals(p.Role, "CliTool", StringComparison.OrdinalIgnoreCase) || string.Equals(p.Role, "ScriptProject", StringComparison.OrdinalIgnoreCase))) ||
-                        primary?.Kind == NodeKind.CliTool ||
-                        string.Equals(primary?.Properties?.GetValueOrDefault("role"), "CliTool", StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(primary?.Properties?.GetValueOrDefault("role"), "ScriptProject", StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(primary?.Properties?.GetValueOrDefault("entity_kind"), "CliTool", StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(primary?.Properties?.GetValueOrDefault("entity_kind"), "ScriptProject", StringComparison.OrdinalIgnoreCase);
+            // Determine nodeKind directly from the runnable workload primary.Kind 1-to-1
+            var primaryKind = primary?.Kind ?? (projects.FirstOrDefault(p => !p.IsLibrary)?.Kind ?? NodeKind.Service);
+            var primaryRole = primary?.Properties?.GetValueOrDefault("role") ?? projects.FirstOrDefault(p => !p.IsLibrary)?.Role;
+            var primaryEntityKind = primary?.Properties?.GetValueOrDefault("entity_kind");
 
-            var isApp = (primary?.Kind == NodeKind.App ||
-                         string.Equals(primary?.Properties?.GetValueOrDefault("role"), "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
-                         string.Equals(primary?.Properties?.GetValueOrDefault("role"), "App", StringComparison.OrdinalIgnoreCase) ||
-                         projects.Any(p => p.Kind == NodeKind.App || string.Equals(p.Role, "FrontendApp", StringComparison.OrdinalIgnoreCase) || string.Equals(p.Role, "App", StringComparison.OrdinalIgnoreCase)));
+            var isCli = primaryKind == NodeKind.CliTool ||
+                        string.Equals(primaryRole, "CliTool", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(primaryRole, "ScriptProject", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(primaryEntityKind, "CliTool", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(primaryEntityKind, "ScriptProject", StringComparison.OrdinalIgnoreCase);
+
+            var isApp = !isCli && (primaryKind == NodeKind.App ||
+                        string.Equals(primaryRole, "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(primaryRole, "App", StringComparison.OrdinalIgnoreCase));
+
+            var isWorker = !isCli && !isApp && (primaryKind == NodeKind.Worker ||
+                           string.Equals(primaryRole, "Worker", StringComparison.OrdinalIgnoreCase));
 
             string tag;
             NodeKind nodeKind;

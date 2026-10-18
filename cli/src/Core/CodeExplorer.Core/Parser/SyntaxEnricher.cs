@@ -463,7 +463,11 @@ public class SyntaxEnricher : ISyntaxEnricher
 
         var servicesIdx = parts.FindLastIndex(p => p.Equals("services", StringComparison.OrdinalIgnoreCase) || p.Equals("service", StringComparison.OrdinalIgnoreCase));
         string segment;
-        if (servicesIdx >= 0 && servicesIdx + 1 < parts.Count)
+        if (parts.Count >= 2 && (parts[^1].Equals("Bff", StringComparison.OrdinalIgnoreCase) || parts[^1].Equals("Bffs", StringComparison.OrdinalIgnoreCase)))
+        {
+            segment = parts[^2] + "-" + parts[^1];
+        }
+        else if (servicesIdx >= 0 && servicesIdx + 1 < parts.Count)
         {
             segment = parts[servicesIdx + 1];
         }
@@ -473,7 +477,10 @@ public class SyntaxEnricher : ISyntaxEnricher
         }
 
         var cleaned = WorkspaceConventions.NormalizeServiceName(segment);
-        cleaned = ScopeSuffixRegex.Replace(cleaned, "");
+        if (!cleaned.EndsWith("-bff", StringComparison.OrdinalIgnoreCase) && !cleaned.EndsWith("bff", StringComparison.OrdinalIgnoreCase))
+        {
+            cleaned = ScopeSuffixRegex.Replace(cleaned, "");
+        }
         cleaned = Regex.Replace(cleaned.ToLowerInvariant(), @"[-_]{2,}", "-").Trim('_', '-');
         return cleaned;
     }

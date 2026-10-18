@@ -479,6 +479,50 @@ public static class ConfigStore
         );
 
         _discoveredUrls.Add(endpoint);
+
+        // If URL has path (e.g. https://localhost:3001/spa-bff), check if path points to a downstream service
+        if (uri.AbsolutePath.Length > 1)
+        {
+            var firstSeg = uri.AbsolutePath.Trim('/').Split('/')[0];
+            if (!string.IsNullOrWhiteSpace(firstSeg) &&
+                !firstSeg.Equals("api", StringComparison.OrdinalIgnoreCase) &&
+                !firstSeg.StartsWith("v", StringComparison.OrdinalIgnoreCase) &&
+                !firstSeg.Equals(serviceName, StringComparison.OrdinalIgnoreCase))
+            {
+                var pathEndpoint = new DiscoveredServiceUrl(
+                    SourceFilePath: filePath,
+                    ProjectName: projectName,
+                    ConfigKey: keyPath + "#" + firstSeg,
+                    ServiceName: firstSeg,
+                    Url: url,
+                    Scheme: uri.Scheme,
+                    Host: host,
+                    Port: uri.Port > 0 && uri.Port != 80 && uri.Port != 443 ? uri.Port : null,
+                    IsExternal: isExternal
+                );
+                _discoveredUrls.Add(pathEndpoint);
+            }
+        }
+    }
+
+    public static string StripServiceOptionsSuffixes(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return string.Empty;
+        var clean = name.Trim();
+        var suffixes = new[]
+        {
+            "RestClientOptions", "ClientOptions", "HttpOptions", "ApiOptions",
+            "ServiceOptions", "GrpcOptions", "RestClient", "HttpClient", "Options"
+        };
+        foreach (var s in suffixes)
+        {
+            if (clean.EndsWith(s, StringComparison.OrdinalIgnoreCase) && clean.Length > s.Length)
+            {
+                clean = clean[..^s.Length];
+                break;
+            }
+        }
+        return clean.Trim('-', '_');
     }
 
     private static string ExtractServiceNameFromKeyPath(string keyPath)
@@ -486,17 +530,62 @@ public static class ConfigStore
         var parts = keyPath.Split([':', '.'], StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 0) return string.Empty;
 
+        // 1. Check for YARP / ReverseProxy clusters or routes (e.g. Yarp:Clusters:spa-bff:Destinations:... or ReverseProxy:Clusters:api-bff:...)
+        for (int i = 0; i < parts.Length - 1; i++)
+        {
+            if (parts[i].Equals("clusters", StringComparison.OrdinalIgnoreCase) ||
+                parts[i].Equals("routes", StringComparison.OrdinalIgnoreCase))
+            {
+                var clusterOrRoute = parts[i + 1];
+                if (!string.IsNullOrWhiteSpace(clusterOrRoute))
+                {
+                    if (clusterOrRoute.Contains('/')) clusterOrRoute = clusterOrRoute.Split('/')[0];
+                    return StripServiceOptionsSuffixes(clusterOrRoute);
+                }
+            }
+        }
+
+        // 2. Check for standard leaf URL/address properties
         var last = parts[^1];
         if (last.Equals("url", StringComparison.OrdinalIgnoreCase) ||
             last.Equals("baseurl", StringComparison.OrdinalIgnoreCase) ||
             last.Equals("uri", StringComparison.OrdinalIgnoreCase) ||
             last.Equals("endpoint", StringComparison.OrdinalIgnoreCase) ||
             last.Equals("address", StringComparison.OrdinalIgnoreCase) ||
+            last.Equals("baseaddress", StringComparison.OrdinalIgnoreCase) ||
             last.Equals("host", StringComparison.OrdinalIgnoreCase))
         {
-            return parts.Length > 1 ? parts[^2] : last;
+            var target = parts.Length > 1 ? parts[^2] : last;
+            if (target.Contains('/')) target = target.Split('/')[0];
+            return StripServiceOptionsSuffixes(target);
         }
 
-        return last;
+        // 3. Check for env var formats like VITE_GATEWAY_API_BASE_URL or SERVICES__CATALOGS__HTTP__0
+        if (keyPath.Contains('_'))
+        {
+            var envParts = keyPath.Split('_', StringSplitOptions.RemoveEmptyEntries);
+            var meaningful = envParts.Where(p =>
+                !p.Equals("VITE", StringComparison.OrdinalIgnoreCase) &&
+                !p.Equals("NEXT", StringComparison.OrdinalIgnoreCase) &&
+                !p.Equals("PUBLIC", StringComparison.OrdinalIgnoreCase) &&
+                !p.Equals("REACT", StringComparison.OrdinalIgnoreCase) &&
+                !p.Equals("APP", StringComparison.OrdinalIgnoreCase) &&
+                !p.Equals("BASE", StringComparison.OrdinalIgnoreCase) &&
+                !p.Equals("URL", StringComparison.OrdinalIgnoreCase) &&
+                !p.Equals("URI", StringComparison.OrdinalIgnoreCase) &&
+                !p.Equals("API", StringComparison.OrdinalIgnoreCase) &&
+                !p.Equals("HOST", StringComparison.OrdinalIgnoreCase) &&
+                !p.Equals("ENDPOINT", StringComparison.OrdinalIgnoreCase) &&
+                !p.Equals("SERVICES", StringComparison.OrdinalIgnoreCase) &&
+                !p.Equals("HTTP", StringComparison.OrdinalIgnoreCase) &&
+                !p.Equals("HTTPS", StringComparison.OrdinalIgnoreCase) &&
+                !int.TryParse(p, out _)).ToList();
+            if (meaningful.Count > 0)
+            {
+                return StripServiceOptionsSuffixes(meaningful[^1]);
+            }
+        }
+
+        return StripServiceOptionsSuffixes(last);
     }
 }

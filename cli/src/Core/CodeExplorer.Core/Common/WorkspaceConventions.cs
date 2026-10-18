@@ -83,6 +83,13 @@ public static class WorkspaceConventions
 
     public static IReadOnlySet<string> HttpMethodVerbs => NetworkEntityValidator.HttpMethodVerbs;
 
+    public static readonly HashSet<string> GenericFolderRoots = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "src", "services", "microservices", "apps", "packages", "libs", "modules", "projects",
+        "cmd", "home", "users", "cli", "ui", "uis", "tools", "bffs", "bff", "gateways",
+        "apigateways", "spa", "web", "clients", "hosts", "buildingblocks"
+    };
+
     public static int? GetPipelineStageOrder(string? symbolOrPath, string? typeName = null)
     {
         // Pipeline stage order metadata is now managed via architectural attributes/manifests, not ambient string matching.

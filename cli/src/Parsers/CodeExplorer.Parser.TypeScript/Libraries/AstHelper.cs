@@ -468,8 +468,9 @@ public static class AstHelper
         return false;
     }
 
-    public static bool IsStringLiteralNode(Node node)
+    public static bool IsStringLiteralNode(Node? node)
     {
+        if (node is null || !node.IsValid()) return false;
         return node.IsAny(TreeSitterSyntax.TypeScript.String,
                            TreeSitterSyntax.TypeScript.TemplateString,
                            TreeSitterSyntax.Common.StringLiteral,
@@ -764,6 +765,11 @@ public static class AstHelper
                         return !string.IsNullOrEmpty(cleanTail) ? $"/{cleanTail}" : null;
                     }
                     return null;
+                }
+
+                if (string.IsNullOrWhiteSpace(tail) || tail.StartsWith('?'))
+                {
+                    return resolvedBase;
                 }
 
                 if (resolvedBase.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
@@ -1080,95 +1086,51 @@ public static class AstHelper
                                 }
                             }
 
-                            if (valNode.IsValid())
+                            if (valNode is not null &&
+                                valNode.IsValid() &&
+                                !valNode.Is(TreeSitterSyntax.TypeScript.TypeAnnotation) &&
+                                !valNode.Type.Contains("type") &&
+                                !valNode.Text.Trim().StartsWith(':'))
                             {
-                                if (valNode.Is(TreeSitterSyntax.TypeScript.TypeAnnotation) || valNode.Type.Contains("type") || valNode.Text.Trim().StartsWith(':'))
-                                {
-                                    continue;
-                                }
                                 if (IsStringLiteralNode(valNode))
                                 {
                                     return valNode.Text.Trim('\'', '"', '`');
                                 }
                                 var identText = valNode.Text.Trim();
-                                if (identText.StartsWith(':') || identText.Equals("Topic", StringComparison.OrdinalIgnoreCase) || identText.Equals("string", StringComparison.OrdinalIgnoreCase))
+                                if (!identText.StartsWith(':') && !identText.Equals("Topic", StringComparison.OrdinalIgnoreCase) && !identText.Equals("string", StringComparison.OrdinalIgnoreCase))
                                 {
-                                    continue;
+                                    if (RouteDictionaryRegistry.TryResolve(identText, out var rp, out var rs))
+                                    {
+                                        return !string.IsNullOrEmpty(rs) ? $"{rs}{rp}" : rp;
+                                    }
+                                    var varVal = FindVariableInitializerInAst(curr, identText);
+                                    if (!string.IsNullOrEmpty(varVal)) return varVal;
+                                    return identText;
                                 }
-                                if (RouteDictionaryRegistry.TryResolve(identText, out var rp, out var rs))
-                                {
-                                    return !string.IsNullOrEmpty(rs) ? $"{rs}{rp}" : rp;
-                                }
-                                var varVal = FindVariableInitializerInAst(curr, identText);
-                                if (!string.IsNullOrEmpty(varVal)) return varVal;
-                                return identText;
                             }
 
                             // If no inline initializer, check constructor for this.<cleanProp> = ...
-                            var ctor = body.Children.FirstOrDefault(c => c.Is("method_definition") && (c.Text.StartsWith("constructor") || c.GetField(TreeSitterSyntax.Fields.Name)?.Text == "constructor"));
+                            var ctor = body.Children.FirstOrDefault(c => (c.Is("method_definition") || c.Is("constructor") || c.Type.Contains("constructor")) &&
+                                                                        (c.Text.StartsWith("constructor") || c.GetField(TreeSitterSyntax.Fields.Name)?.Text == "constructor" || c.Type.Contains("constructor")));
                             if (ctor.IsValid())
                             {
                                 var match = Regex.Match(ctor.Text, $@"(?:this\.)?{Regex.Escape(cleanProp)}\s*=\s*([^;]+)");
                                 if (match.Success)
                                 {
-                                    var rhs = match.Groups[1].Value.Trim();
-
-                                    // 1. Direct string literal
-                                    if ((rhs.StartsWith('\'') && rhs.EndsWith('\'')) ||
-                                        (rhs.StartsWith('"') && rhs.EndsWith('"')) ||
-                                        (rhs.StartsWith('`') && rhs.EndsWith('`')))
-                                    {
-                                        var lit = rhs.Trim('\'', '"', '`');
-                                        if (!string.IsNullOrEmpty(lit) && !lit.StartsWith(':') && !lit.Equals("string", StringComparison.OrdinalIgnoreCase))
-                                        {
-                                            return lit;
-                                        }
-                                    }
-
-                                    // 2. Chained .topic(...) call
-                                    var topicMatch = Regex.Match(rhs, @"\.topic\s*\(\s*([^,\)]+)");
-                                    if (topicMatch.Success)
-                                    {
-                                        var topicArg = topicMatch.Groups[1].Value.Trim().Trim('\'', '"', '`');
-                                        var cleanTopicArg = topicArg.StartsWith("this.", StringComparison.OrdinalIgnoreCase) ? topicArg[5..] : topicArg;
-                                        if (ConstantRegistry.TryResolve(null, cleanTopicArg, out var resTopic))
-                                        {
-                                            return resTopic;
-                                        }
-                                        if (!string.IsNullOrEmpty(topicArg) && !topicArg.StartsWith(':') && !topicArg.Equals("Topic", StringComparison.OrdinalIgnoreCase))
-                                        {
-                                            return topicArg;
-                                        }
-                                    }
-
-                                    // 3. Config call
-                                    var cfgMatch = Regex.Match(rhs, @"(?:getString|get)\s*\(\s*['""]([^'""]+)['""]\s*\)");
-                                    if (cfgMatch.Success)
-                                    {
-                                        var key = cfgMatch.Groups[1].Value.Trim();
-                                        if (ConstantRegistry.TryResolve(null, key, out var resKey))
-                                        {
-                                            return resKey;
-                                        }
-                                        return key;
-                                    }
-
-                                    // 4. Template string or variable on RHS: e.g. `${BUNDLES_HOST}/api/trafficbacks` or `foo`
-                                    if (rhs.StartsWith('`') && rhs.EndsWith('`'))
-                                    {
-                                        var rawTpl = rhs.Trim('`');
-                                        var decomp = TryDecomposeTemplateString(curr, rawTpl);
-                                        if (!string.IsNullOrEmpty(decomp)) return decomp;
-                                    }
-                                    else
-                                    {
-                                        var resExpr = ResolveTemplateExpression(curr, rhs);
-                                        if (!string.IsNullOrEmpty(resExpr)) return resExpr;
-                                    }
+                                    var res = EvaluateRhs(curr, match.Groups[1].Value.Trim());
+                                    if (!string.IsNullOrEmpty(res)) return res;
                                 }
                             }
                         }
                     }
+                }
+
+                // Fallback: check class body text for this.<cleanProp> = ... assignment in constructor or methods
+                var bodyAssignMatch = Regex.Match(body.Text, $@"(?:this\.)?{Regex.Escape(cleanProp)}\s*=\s*([^;\r\n]+)");
+                if (bodyAssignMatch.Success)
+                {
+                    var res = EvaluateRhs(curr, bodyAssignMatch.Groups[1].Value.Trim());
+                    if (!string.IsNullOrEmpty(res)) return res;
                 }
             }
 
@@ -1240,11 +1202,78 @@ public static class AstHelper
                             }
                         }
                     }
+
+                    var bodyAssignMatch = Regex.Match(body.Text, $@"(?:this\.)?{Regex.Escape(cleanProp)}\s*=\s*([^;\r\n]+)");
+                    if (bodyAssignMatch.Success)
+                    {
+                        var res = EvaluateRhs(curr, bodyAssignMatch.Groups[1].Value.Trim());
+                        if (!string.IsNullOrEmpty(res)) return res;
+                    }
                 }
             }
 
             curr = curr.Parent;
         }
+        return null;
+    }
+
+    private static string? EvaluateRhs(Node curr, string rhs)
+    {
+        if (string.IsNullOrWhiteSpace(rhs)) return null;
+
+        // 1. Direct string literal
+        if ((rhs.StartsWith('\'') && rhs.EndsWith('\'')) ||
+            (rhs.StartsWith('"') && rhs.EndsWith('"')) ||
+            (rhs.StartsWith('`') && rhs.EndsWith('`')))
+        {
+            var lit = rhs.Trim('\'', '"', '`');
+            if (!string.IsNullOrEmpty(lit) && !lit.StartsWith(':') && !lit.Equals("string", StringComparison.OrdinalIgnoreCase))
+            {
+                return lit;
+            }
+        }
+
+        // 2. Chained .topic(...) call
+        var topicMatch = Regex.Match(rhs, @"\.topic\s*\(\s*([^,\)]+)");
+        if (topicMatch.Success)
+        {
+            var topicArg = topicMatch.Groups[1].Value.Trim().Trim('\'', '"', '`');
+            var cleanTopicArg = topicArg.StartsWith("this.", StringComparison.OrdinalIgnoreCase) ? topicArg[5..] : topicArg;
+            if (ConstantRegistry.TryResolve(null, cleanTopicArg, out var resTopic))
+            {
+                return resTopic;
+            }
+            if (!string.IsNullOrEmpty(topicArg) && !topicArg.StartsWith(':') && !topicArg.Equals("Topic", StringComparison.OrdinalIgnoreCase))
+            {
+                return topicArg;
+            }
+        }
+
+        // 3. Config call
+        var cfgMatch = Regex.Match(rhs, @"(?:getString|get)\s*\(\s*['""]([^'""]+)['""]\s*\)");
+        if (cfgMatch.Success)
+        {
+            var key = cfgMatch.Groups[1].Value.Trim();
+            if (ConstantRegistry.TryResolve(null, key, out var resKey))
+            {
+                return resKey;
+            }
+            return key;
+        }
+
+        // 4. Template string or variable on RHS: e.g. `${BUNDLES_HOST}/api/trafficbacks` or `foo`
+        if (rhs.StartsWith('`') && rhs.EndsWith('`'))
+        {
+            var rawTpl = rhs.Trim('`');
+            var decomp = TryDecomposeTemplateString(curr, rawTpl);
+            if (!string.IsNullOrEmpty(decomp)) return decomp;
+        }
+        else
+        {
+            var resExpr = ResolveTemplateExpression(curr, rhs);
+            if (!string.IsNullOrEmpty(resExpr)) return resExpr;
+        }
+
         return null;
     }
 
