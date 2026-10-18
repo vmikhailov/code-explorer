@@ -231,7 +231,13 @@ public class SyntaxEnricher : ISyntaxEnricher
 
                         CanonicalResource? canonicalRes = ctx.ResourceRegistry?.ResolveResource(canonicalDbName, expectedDbType: dbType, expectedEngine: targetEngine);
 
-                        if (canonicalRes == null && ctx.ResourceRegistry != null)
+                        var isLibraryWithoutDb = (projectNode.Role is "Library" or "SharedLibrary" ||
+                                                  projectNode.IsLibrary ||
+                                                  projectNode.EntityKind == ProjectEntityKind.Library) &&
+                                                 string.IsNullOrEmpty(declaredSchema) &&
+                                                 ctx.ResourceRegistry?.AllResources.Any(r => r.ProjectId != null && r.ProjectId.Equals(projectNode.Id, StringComparison.OrdinalIgnoreCase)) != true;
+
+                        if (canonicalRes == null && ctx.ResourceRegistry != null && !isLibraryWithoutDb)
                         {
                             var aliasList = new List<string> { canonicalDbName };
                             if (!string.IsNullOrEmpty(declaredSchema) &&
@@ -278,7 +284,7 @@ public class SyntaxEnricher : ISyntaxEnricher
                         }
 
                         var semanticNodeForDb = ctx.SemanticStructure;
-                        if (semanticNodeForDb != null)
+                        if (semanticNodeForDb != null && !isLibraryWithoutDb)
                         {
                             // Remove any previous generic placeholder Database node that might have been registered before a driver was detected
                             semanticNodeForDb.Children.RemoveAll(c => c is DatabaseNode dn && (string.Equals(dn.Name, "Database", StringComparison.OrdinalIgnoreCase) || dn.Id.EndsWith(":database:relational:database", StringComparison.OrdinalIgnoreCase) || dn.Id.EndsWith($":{OntologyConstants.IdPrefixes.Database}:relational:database", StringComparison.OrdinalIgnoreCase)));

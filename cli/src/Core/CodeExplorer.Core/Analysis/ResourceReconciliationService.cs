@@ -121,6 +121,42 @@ public class ResourceReconciliationService
                 }
             }
 
+            var strippedRaw = StripDatabaseSuffix(rawName);
+            if (!string.IsNullOrEmpty(strippedRaw) && !string.Equals(strippedRaw, rawName, StringComparison.OrdinalIgnoreCase))
+            {
+                var normStripped = NormalizeAlias(strippedRaw);
+                if (!string.IsNullOrEmpty(normStripped) && !IsDisallowedDatabaseAlias(normStripped))
+                {
+                    aliasSet.Add(normStripped);
+                    _aliasToResourceId[normStripped] = id;
+                }
+            }
+
+            var strippedCanonical = StripDatabaseSuffix(canonicalName);
+            if (!string.IsNullOrEmpty(strippedCanonical) && !string.Equals(strippedCanonical, canonicalName, StringComparison.OrdinalIgnoreCase))
+            {
+                var normStrippedC = NormalizeAlias(strippedCanonical);
+                if (!string.IsNullOrEmpty(normStrippedC) && !IsDisallowedDatabaseAlias(normStrippedC))
+                {
+                    aliasSet.Add(normStrippedC);
+                    _aliasToResourceId[normStrippedC] = id;
+                }
+            }
+
+            // Also register {engine}.{alias} so e.g. "PostgreSQL.ordering" resolves to orderingdb
+            if (!string.IsNullOrWhiteSpace(engine) && !IsGenericConfigKey(engine))
+            {
+                var normEng = NormalizeEngineName(engine).ToLowerInvariant();
+                foreach (var a in aliasSet.ToList())
+                {
+                    if (!a.Contains('.') && !IsGenericConfigKey(a))
+                    {
+                        var prefixed = $"{normEng}.{a}";
+                        _aliasToResourceId.TryAdd(prefixed, id);
+                    }
+                }
+            }
+
             // Note: engine is intentionally NOT registered as an alias in aliasSet or _aliasToResourceId.
             // Engine names (e.g. "postgresql", "redis") are technology families, not unique resource aliases.
             // Matching by engine is handled dynamically in ResolveResource when unique.
@@ -251,6 +287,37 @@ public class ResourceReconciliationService
                 return found;
             }
 
+            // If alias contains technology prefix (e.g. PostgreSQL.ordering or postgresql.orderingdb)
+            if (norm.Contains('.'))
+            {
+                var dotParts = norm.Split('.', 2);
+                var engPrefix = NormalizeEngineName(dotParts[0]);
+                var schSuffix = dotParts[1].Trim();
+                var strippedSch = StripDatabaseSuffix(schSuffix);
+
+                if (_aliasToResourceId.TryGetValue(schSuffix, out var schId) && _resourcesById.TryGetValue(schId, out var schFound))
+                {
+                    if (string.Equals(NormalizeEngineName(schFound.Engine), engPrefix, StringComparison.OrdinalIgnoreCase))
+                        return schFound;
+                }
+                if (!string.Equals(strippedSch, schSuffix, StringComparison.OrdinalIgnoreCase) &&
+                    _aliasToResourceId.TryGetValue(strippedSch, out var strId) && _resourcesById.TryGetValue(strId, out var strFound))
+                {
+                    if (string.Equals(NormalizeEngineName(strFound.Engine), engPrefix, StringComparison.OrdinalIgnoreCase))
+                        return strFound;
+                }
+            }
+
+            var strippedNorm = StripDatabaseSuffix(norm);
+            if (!string.Equals(strippedNorm, norm, StringComparison.OrdinalIgnoreCase))
+            {
+                if (_aliasToResourceId.TryGetValue(strippedNorm, out var strId) && _resourcesById.TryGetValue(strId, out var strFound))
+                {
+                    if (expectedDbType == null || string.Equals(strFound.DbType, expectedDbType, StringComparison.OrdinalIgnoreCase))
+                        return strFound;
+                }
+            }
+
             // Check if alias contains database path segment (e.g. host:5432/dbname)
             if (norm.Contains('/'))
             {
@@ -348,7 +415,8 @@ public class ResourceReconciliationService
             var sch = dotParts[1].Trim();
             if (!string.IsNullOrEmpty(sch) && !IsGenericConfigKey(sch))
             {
-                var full = $"{eng}.{sch}";
+                var strippedSch = StripDatabaseSuffix(sch);
+                var full = $"{eng}.{strippedSch}";
                 return WorkspaceConventions.TryGetDatabaseAlias(full, out var dbAlias) ? dbAlias : full;
             }
         }
@@ -378,6 +446,50 @@ public class ResourceReconciliationService
         if (string.IsNullOrWhiteSpace(trimmed) || IsGenericConfigKey(trimmed.ToLowerInvariant()))
         {
             return safeEngine;
+        }
+
+        return trimmed;
+    }
+
+    public static bool IsEngineDbName(string lower)
+    {
+        return lower is "mongodb" or "cosmosdb" or "dynamodb" or "couchdb" or "mariadb" or 
+                        "influxdb" or "duckdb" or "leveldb" or "rocksdb" or "alloydb" or "tidb";
+    }
+
+    public static string StripDatabaseSuffix(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return name;
+        var trimmed = name.Trim();
+        var lower = trimmed.ToLowerInvariant();
+
+        if (IsEngineDbName(lower))
+        {
+            return trimmed;
+        }
+
+        if (lower.EndsWith("_database") && trimmed.Length > 9 && (trimmed.Length - 9) >= 3)
+        {
+            trimmed = trimmed[..^9].TrimEnd('_', '-');
+        }
+        else if (lower.EndsWith("database") && trimmed.Length > 8 && (trimmed.Length - 8) >= 3)
+        {
+            trimmed = trimmed[..^8].TrimEnd('_', '-');
+        }
+        else if (lower.EndsWith("_db") && trimmed.Length > 3 && (trimmed.Length - 3) >= 3)
+        {
+            trimmed = trimmed[..^3].TrimEnd('_', '-');
+        }
+        else if (lower.EndsWith("-db") && trimmed.Length > 3 && (trimmed.Length - 3) >= 3)
+        {
+            trimmed = trimmed[..^3].TrimEnd('_', '-');
+        }
+        else if (lower.EndsWith("db") && trimmed.Length > 2 && (trimmed.Length - 2) >= 3)
+        {
+            if (!IsEngineDbName(lower))
+            {
+                trimmed = trimmed[..^2].TrimEnd('_', '-');
+            }
         }
 
         return trimmed;

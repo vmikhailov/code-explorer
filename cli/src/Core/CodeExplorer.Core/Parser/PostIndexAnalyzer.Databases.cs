@@ -146,7 +146,7 @@ public partial class PostIndexAnalyzer
 
             var (techName, techType, techKey) = CanonicalizeTechnologyOnly(techPrefix, type);
             var schemaPart = dotParts[1].Trim();
-            schemaPart = WorkspaceConventions.NormalizeServiceName(schemaPart);
+            schemaPart = ResourceReconciliationService.StripDatabaseSuffix(WorkspaceConventions.NormalizeServiceName(schemaPart));
             schemaPart = schemaPart.Replace("--", "-").Trim('_', '-');
 
             if (schemaPart.Equals("dbo", StringComparison.OrdinalIgnoreCase) && techName.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
@@ -184,7 +184,7 @@ public partial class PostIndexAnalyzer
 
             var (techName, techType, techKey) = CanonicalizeTechnologyOnly(effectiveTech, type);
             var schemaPart = rawSchema.Trim();
-            schemaPart = WorkspaceConventions.NormalizeServiceName(schemaPart);
+            schemaPart = ResourceReconciliationService.StripDatabaseSuffix(WorkspaceConventions.NormalizeServiceName(schemaPart));
             schemaPart = schemaPart.Replace("--", "-").Trim('_', '-');
 
             if (schemaPart.Equals("dbo", StringComparison.OrdinalIgnoreCase) && techName.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
@@ -228,7 +228,7 @@ public partial class PostIndexAnalyzer
                 !trimmed.Equals(techKey, StringComparison.OrdinalIgnoreCase) &&
                 !KnownDbEnginesAndNames.Contains(trimmed.ToLowerInvariant()))
             {
-                var schemaPart = WorkspaceConventions.NormalizeServiceName(trimmed);
+                var schemaPart = ResourceReconciliationService.StripDatabaseSuffix(WorkspaceConventions.NormalizeServiceName(trimmed));
                 schemaPart = schemaPart.Replace("--", "-").Trim('_', '-');
 
                 if (schemaPart.Equals("dbo", StringComparison.OrdinalIgnoreCase) && techName.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
@@ -383,7 +383,7 @@ public partial class PostIndexAnalyzer
             var list = group.DistinctBy(n => n.Id).ToList();
             if (list.Count <= 1) continue;
 
-            // 1. Check singular vs plural schema pairs
+            // 1. Check equivalent schema / catalog pairs (stem vs stem+db, singular vs plural, etc.)
             for (int i = 0; i < list.Count; i++)
             {
                 var n1 = list[i];
@@ -399,11 +399,36 @@ public partial class PostIndexAnalyzer
 
                     if (!string.IsNullOrEmpty(s1) && !string.IsNullOrEmpty(s2))
                     {
-                        // If s2 is plural of s1 (s1 + "s" or s1 + "es"), map n1 (singular) -> n2 (plural)
-                        if (s2.Equals(s1 + "s", StringComparison.OrdinalIgnoreCase) ||
-                            s2.Equals(s1 + "es", StringComparison.OrdinalIgnoreCase))
+                        var s1Clean = s1.Trim().ToLowerInvariant();
+                        var s2Clean = s2.Trim().ToLowerInvariant();
+
+                        var s1Stem = ResourceReconciliationService.StripDatabaseSuffix(s1Clean);
+                        var s2Stem = ResourceReconciliationService.StripDatabaseSuffix(s2Clean);
+
+                        var s1Singular = s1Stem.EndsWith("es") ? s1Stem[..^2] : (s1Stem.EndsWith("s") ? s1Stem[..^1] : s1Stem);
+                        var s2Singular = s2Stem.EndsWith("es") ? s2Stem[..^2] : (s2Stem.EndsWith("s") ? s2Stem[..^1] : s2Stem);
+
+                        if (s1Singular.Equals(s2Singular, StringComparison.OrdinalIgnoreCase))
                         {
-                            remap[n1.Id] = n2.Id;
+                            var hasSuffix1 = !s1Clean.Equals(s1Stem, StringComparison.OrdinalIgnoreCase);
+                            var hasSuffix2 = !s2Clean.Equals(s2Stem, StringComparison.OrdinalIgnoreCase);
+
+                            if (hasSuffix2 && !hasSuffix1)
+                            {
+                                // n2 has db suffix, n1 is clean stem -> map n2 -> n1
+                                remap[n2.Id] = n1.Id;
+                            }
+                            else if (hasSuffix1 && !hasSuffix2)
+                            {
+                                // n1 has db suffix, n2 is clean stem -> map n1 -> n2
+                                remap[n1.Id] = n2.Id;
+                            }
+                            else if (s2Clean.Equals(s1Clean + "s", StringComparison.OrdinalIgnoreCase) ||
+                                     s2Clean.Equals(s1Clean + "es", StringComparison.OrdinalIgnoreCase))
+                            {
+                                // If s2 is plural of s1 (s1 + "s" or s1 + "es"), map n1 (singular) -> n2 (plural)
+                                remap[n1.Id] = n2.Id;
+                            }
                         }
                     }
                 }
@@ -418,9 +443,15 @@ public partial class PostIndexAnalyzer
 
             if (concreteNodes.Count > 0)
             {
-                // Prefer a plural or longest schema concrete node
+                // Prefer a clean stem without redundant db suffix, or plural / longest schema concrete node
                 var winner = concreteNodes
-                    .OrderByDescending(n => {
+                    .OrderBy(n => {
+                        var s = n.Schema;
+                        if (string.IsNullOrEmpty(s) && n.Name.Contains('.')) s = n.Name.Split('.', 2)[1];
+                        var stem = ResourceReconciliationService.StripDatabaseSuffix(s);
+                        return !s.Equals(stem, StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+                    })
+                    .ThenByDescending(n => {
                         var s = n.Schema;
                         if (string.IsNullOrEmpty(s) && n.Name.Contains('.')) s = n.Name.Split('.', 2)[1];
                         return s.Length;
@@ -651,6 +682,15 @@ public partial class PostIndexAnalyzer
                     }
                 );
                 canonicalDbNodes[canonicalId] = canonicalNode;
+            }
+
+            var targetCanonical = canonicalDbNodes[canonicalId];
+            foreach (var child in db.Children)
+            {
+                if (!targetCanonical.Children.Any(c => c.Id == child.Id))
+                {
+                    targetCanonical.Children.Add(child);
+                }
             }
 
             // Also map child DataSetNodes (representing schemas in SQL) to their canonical database nodes
@@ -1049,6 +1089,28 @@ public partial class PostIndexAnalyzer
         }
 
         // 2. Gather project references and consolidate databases per service/project
+        var libraryProjects = projects.Where(p => 
+            p.Role is "Library" or "SharedLibrary" ||
+            p.IsLibrary ||
+            p.EntityKind == ProjectEntityKind.Library ||
+            p.Path.Contains("/Infrastructure/", StringComparison.OrdinalIgnoreCase) ||
+            p.Path.Contains("\\Infrastructure\\", StringComparison.OrdinalIgnoreCase)
+        ).ToDictionary(p => p.Id, p => p, StringComparer.OrdinalIgnoreCase);
+
+        var serviceToReferencedLibs = new Dictionary<string, List<ProjectNode>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var rel in allRelationships.Where(r => r.Kind == OntologyConstants.Relationships.DependsOn))
+        {
+            if (libraryProjects.TryGetValue(rel.To, out var libProj))
+            {
+                if (!serviceToReferencedLibs.TryGetValue(rel.From, out var libList))
+                {
+                    libList = [];
+                    serviceToReferencedLibs[rel.From] = libList;
+                }
+                libList.Add(libProj);
+            }
+        }
+
         var projectDbEdges = new List<(ProjectNode Owner, string CanonicalTarget, Relationship OriginalRel)>();
 
         foreach (var rel in allRelationships)
@@ -1071,6 +1133,19 @@ public partial class PostIndexAnalyzer
                     }
 
                     projectDbEdges.Add((owner, canonicalTarget, rel));
+
+                    // Also attribute this DB target to any service that references this owner library
+                    foreach (var (svcId, libs) in serviceToReferencedLibs)
+                    {
+                        if (libs.Any(l => l.Id == owner.Id))
+                        {
+                            var svcProj = projects.FirstOrDefault(p => p.Id == svcId);
+                            if (svcProj != null && !IsTestSource(svcProj.Id, svcProj.Path))
+                            {
+                                projectDbEdges.Add((svcProj, canonicalTarget, rel));
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1097,17 +1172,58 @@ public partial class PostIndexAnalyzer
                         ? sc
                         : (name.Contains('.') ? name.Split('.', 2)[1] : "");
                     return (n.Id, name, engine, schema);
-                });
+                })
+                .DistinctBy(t => t.Id)
+                .ToList();
 
             var localRemap = ResolveDatabaseConsolidations(candidateNodes);
             foreach (var (loser, winner) in localRemap)
             {
                 globalConsolidationRemap[loser] = winner;
             }
+
+            // Consolidate single configured database with AST schema nodes for the service
+            foreach (var engGroup in candidateNodes.GroupBy(n => n.engine, StringComparer.OrdinalIgnoreCase))
+            {
+                var engList = engGroup.ToList();
+                if (engList.Count <= 1) continue;
+
+                var cfgNodes = engList.Where(n => {
+                    var nodeObj = canonicalDbNodes.GetValueOrDefault(n.Id);
+                    return nodeObj?.Extensions != null && nodeObj.Extensions.TryGetValue("from_config", out var fc) && fc == "true";
+                }).ToList();
+
+                var astNodes = engList.Where(n => !cfgNodes.Any(c => c.Id == n.Id)).ToList();
+
+                if (cfgNodes.Count == 1 && astNodes.Count > 0)
+                {
+                    var cfg = cfgNodes[0];
+                    foreach (var ast in astNodes)
+                    {
+                        var astStem = ResourceReconciliationService.StripDatabaseSuffix(ast.schema);
+                        var cfgStem = ResourceReconciliationService.StripDatabaseSuffix(cfg.schema);
+                        if (string.Equals(astStem, cfgStem, StringComparison.OrdinalIgnoreCase) && !string.Equals(ast.schema, cfg.schema, StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (!cfg.schema.Equals(cfgStem, StringComparison.OrdinalIgnoreCase) && ast.schema.Equals(astStem, StringComparison.OrdinalIgnoreCase))
+                            {
+                                globalConsolidationRemap[cfg.Id] = ast.Id;
+                                continue;
+                            }
+                        }
+
+                        globalConsolidationRemap[ast.Id] = cfg.Id;
+                    }
+                }
+            }
         }
 
         if (globalConsolidationRemap.Count > 0)
         {
+            foreach (var (loserId, winnerId) in globalConsolidationRemap)
+            {
+                rawToCanonical[loserId] = winnerId;
+            }
+
             foreach (var k in rawToCanonical.Keys.ToList())
             {
                 var cur = rawToCanonical[k];
@@ -1116,14 +1232,55 @@ public partial class PostIndexAnalyzer
                     rawToCanonical[k] = win;
                 }
             }
-            foreach (var loserId in globalConsolidationRemap.Keys)
+
+            foreach (var (loserId, winnerId) in globalConsolidationRemap)
             {
+                if (canonicalDbNodes.TryGetValue(loserId, out var loserNode) &&
+                    canonicalDbNodes.TryGetValue(winnerId, out var winnerNode))
+                {
+                    foreach (var child in loserNode.Children)
+                    {
+                        if (!winnerNode.Children.Any(c => c.Id == child.Id))
+                        {
+                            winnerNode.Children.Add(child);
+                        }
+                    }
+                }
                 canonicalDbNodes.Remove(loserId);
             }
         }
 
+        // Remove any generic engine-only or library-only database nodes when concrete database nodes exist
+        var concreteEngines = canonicalDbNodes.Values
+            .Where(n => {
+                var s = n.Extensions?.GetValueOrDefault("schema") ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[1] : "");
+                return !string.IsNullOrWhiteSpace(s) && !s.Equals("default", StringComparison.OrdinalIgnoreCase);
+            })
+            .Select(n => n.Extensions?.GetValueOrDefault("engine") ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[0] : n.Name))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var genericOrLibraryDbsToPurge = canonicalDbNodes.Values
+            .Where(n => {
+                var eng = n.Extensions?.GetValueOrDefault("engine") ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[0] : n.Name);
+                var s = n.Extensions?.GetValueOrDefault("schema") ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[1] : "");
+                var isGenericOrLibrary = string.IsNullOrWhiteSpace(s) ||
+                                         s.Equals("default", StringComparison.OrdinalIgnoreCase) ||
+                                         s.Equals("integrationeventlogef", StringComparison.OrdinalIgnoreCase) ||
+                                         n.Name.Equals(eng, StringComparison.OrdinalIgnoreCase) ||
+                                         n.Name.EndsWith(".integrationeventlogef", StringComparison.OrdinalIgnoreCase);
+                return isGenericOrLibrary && concreteEngines.Contains(eng);
+            })
+            .ToList();
+
+        foreach (var purgeNode in genericOrLibraryDbsToPurge)
+        {
+            canonicalDbNodes.Remove(purgeNode.Id);
+            rawToCanonical.Remove(purgeNode.Id);
+        }
+
         // 3. Add canonical nodes to SemanticStructure and upload
-        if (ctx.SemanticStructure is { } semanticStructure)
+        var semanticStructure = ctx.SemanticStructure ?? l4Result.SemanticStructure;
+        if (semanticStructure != null)
         {
             if (!string.IsNullOrWhiteSpace(primaryRelationalEngine))
             {
@@ -1143,7 +1300,7 @@ public partial class PostIndexAnalyzer
             }
         }
 
-        if (canonicalDbNodes.Count > 0)
+        if (canonicalDbNodes.Count > 0 && ctx.DbClient != null)
         {
             ctx.LogDebug($"[PostIndexAnalyzer] Materializing {canonicalDbNodes.Count} canonical Database nodes into graph...");
             await ctx.DbClient.UploadNodesAsync([.. canonicalDbNodes.Values.Select(Node.FromNode)]);
@@ -1198,49 +1355,52 @@ public partial class PostIndexAnalyzer
             }
         }
 
-        if (canonicalRels.Count > 0)
+        if (canonicalRels.Count > 0 && ctx.DbClient != null)
         {
             ctx.LogDebug($"[PostIndexAnalyzer] Materializing {canonicalRels.Count} direct project->canonical database relationships...");
             await ctx.DbClient.UploadRelationshipsAsync(canonicalRels);
             ctx.AddRelsCount(canonicalRels.Count);
         }
 
-        // Clean up duplicate non-canonical database nodes
-        foreach (var (rawId, canonicalId) in rawToCanonical)
+        if (ctx.DbClient != null)
         {
-            if (!string.Equals(rawId, canonicalId, StringComparison.Ordinal))
+            // Clean up duplicate non-canonical database nodes
+            foreach (var (rawId, canonicalId) in rawToCanonical)
             {
-                await ctx.DbClient.ExecuteWriteAsync("UPDATE OR IGNORE edges SET to_id = @canonicalId WHERE to_id = @rawId;", new { canonicalId, rawId });
-                await ctx.DbClient.ExecuteWriteAsync("DELETE FROM edges WHERE to_id = @rawId;", new { rawId });
-                await ctx.DbClient.ExecuteWriteAsync("UPDATE OR IGNORE edges SET from_id = @canonicalId WHERE from_id = @rawId;", new { canonicalId, rawId });
-                await ctx.DbClient.ExecuteWriteAsync("DELETE FROM edges WHERE from_id = @rawId;", new { rawId });
-                await ctx.DbClient.ExecuteWriteAsync("DELETE FROM nodes WHERE id = @rawId;", new { rawId });
+                if (!string.Equals(rawId, canonicalId, StringComparison.Ordinal))
+                {
+                    await ctx.DbClient.ExecuteWriteAsync("UPDATE OR IGNORE edges SET to_id = @canonicalId WHERE to_id = @rawId;", new { canonicalId, rawId });
+                    await ctx.DbClient.ExecuteWriteAsync("DELETE FROM edges WHERE to_id = @rawId;", new { rawId });
+                    await ctx.DbClient.ExecuteWriteAsync("UPDATE OR IGNORE edges SET from_id = @canonicalId WHERE from_id = @rawId;", new { canonicalId, rawId });
+                    await ctx.DbClient.ExecuteWriteAsync("DELETE FROM edges WHERE from_id = @rawId;", new { rawId });
+                    await ctx.DbClient.ExecuteWriteAsync("DELETE FROM nodes WHERE id = @rawId;", new { rawId });
+                }
             }
-        }
 
-        // Remove any improper CONTAINS edges pointing to Database nodes (Databases are infrastructure, only contained in semantic_structure)
-        await ctx.DbClient.ExecuteWriteAsync(
-            "DELETE FROM edges WHERE kind = 'CONTAINS' AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database') AND from_id NOT LIKE '%semantic_structure%';");
-
-        // Purge any remaining phantom Database nodes that were not canonicalized
-        var validIds = canonicalDbNodes.Keys.ToList();
-        if (validIds.Count > 0)
-        {
-            var placeholders = string.Join(",", validIds.Select((_, i) => $"@p{i}"));
-            var paramDict = new Dictionary<string, object>();
-            for (int i = 0; i < validIds.Count; i++) paramDict[$"p{i}"] = validIds[i];
-
+            // Remove any improper CONTAINS edges pointing to Database nodes (Databases are infrastructure, only contained in semantic_structure)
             await ctx.DbClient.ExecuteWriteAsync(
-                $"DELETE FROM edges WHERE (to_id NOT IN ({placeholders}) AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database')) OR (from_id NOT IN ({placeholders}) AND from_id IN (SELECT id FROM nodes WHERE kind = 'Database'));",
-                paramDict);
-            await ctx.DbClient.ExecuteWriteAsync(
-                $"DELETE FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders});",
-                paramDict);
-        }
-        else
-        {
-            await ctx.DbClient.ExecuteWriteAsync("DELETE FROM edges WHERE to_id IN (SELECT id FROM nodes WHERE kind = 'Database') OR from_id IN (SELECT id FROM nodes WHERE kind = 'Database');");
-            await ctx.DbClient.ExecuteWriteAsync("DELETE FROM nodes WHERE kind = 'Database';");
+                "DELETE FROM edges WHERE kind = 'CONTAINS' AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database') AND from_id NOT LIKE '%semantic_structure%';");
+
+            // Purge any remaining phantom Database nodes that were not canonicalized
+            var validIds = canonicalDbNodes.Keys.ToList();
+            if (validIds.Count > 0)
+            {
+                var placeholders = string.Join(",", validIds.Select((_, i) => $"@p{i}"));
+                var paramDict = new Dictionary<string, object>();
+                for (int i = 0; i < validIds.Count; i++) paramDict[$"p{i}"] = validIds[i];
+
+                await ctx.DbClient.ExecuteWriteAsync(
+                    $"DELETE FROM edges WHERE (to_id NOT IN ({placeholders}) AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database')) OR (from_id NOT IN ({placeholders}) AND from_id IN (SELECT id FROM nodes WHERE kind = 'Database'));",
+                    paramDict);
+                await ctx.DbClient.ExecuteWriteAsync(
+                    $"DELETE FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders});",
+                    paramDict);
+            }
+            else
+            {
+                await ctx.DbClient.ExecuteWriteAsync("DELETE FROM edges WHERE to_id IN (SELECT id FROM nodes WHERE kind = 'Database') OR from_id IN (SELECT id FROM nodes WHERE kind = 'Database');");
+                await ctx.DbClient.ExecuteWriteAsync("DELETE FROM nodes WHERE kind = 'Database';");
+            }
         }
 
         return (canonicalRels, rawToCanonical);
@@ -1491,17 +1651,60 @@ public partial class PostIndexAnalyzer
                     var engine = t.info.Engine;
                     var schema = name.Contains('.') ? name.Split('.', 2)[1] : "";
                     return (t.CanonicalTarget, name, engine, schema);
-                });
+                })
+                .DistinctBy(t => t.CanonicalTarget)
+                .ToList();
 
             var localRemap = ResolveDatabaseConsolidations(candidateNodes);
             foreach (var (loser, winner) in localRemap)
             {
                 globalConsolidationRemap[loser] = winner;
             }
+
+            // Consolidate single configured database with AST schema nodes for the service
+            foreach (var engGroup in candidateNodes.GroupBy(n => n.engine, StringComparer.OrdinalIgnoreCase))
+            {
+                var engList = engGroup.ToList();
+                if (engList.Count <= 1) continue;
+
+                var cfgNodes = engList.Where(n => {
+                    // Check if node has a catalog/schema name without generic prefix
+                    var s = n.schema;
+                    return !string.IsNullOrWhiteSpace(s) && !s.Equals("default", StringComparison.OrdinalIgnoreCase);
+                }).ToList();
+
+                if (cfgNodes.Count > 1)
+                {
+                    // Check if one has clean stem (ordering) and another has db suffix (orderingdb)
+                    for (int i = 0; i < cfgNodes.Count; i++)
+                    {
+                        var n1 = cfgNodes[i];
+                        var s1Stem = ResourceReconciliationService.StripDatabaseSuffix(n1.schema);
+                        for (int j = 0; j < cfgNodes.Count; j++)
+                        {
+                            if (i == j) continue;
+                            var n2 = cfgNodes[j];
+                            var s2Stem = ResourceReconciliationService.StripDatabaseSuffix(n2.schema);
+                            if (string.Equals(s1Stem, s2Stem, StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (!n2.schema.Equals(s2Stem, StringComparison.OrdinalIgnoreCase) && n1.schema.Equals(s1Stem, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    globalConsolidationRemap[n2.CanonicalTarget] = n1.CanonicalTarget;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         if (globalConsolidationRemap.Count > 0)
         {
+            foreach (var (loserId, winnerId) in globalConsolidationRemap)
+            {
+                rawToCanonical[loserId] = winnerId;
+            }
+
             foreach (var k in rawToCanonical.Keys.ToList())
             {
                 var cur = rawToCanonical[k];
@@ -1514,6 +1717,35 @@ public partial class PostIndexAnalyzer
             {
                 canonicalNodes.Remove(loserId);
             }
+        }
+
+        // Remove any generic engine-only or library-only database nodes when concrete database nodes exist
+        var concreteEngines = canonicalNodes.Values
+            .Where(info => {
+                var s = info.Name.Contains('.') ? info.Name.Split('.', 2)[1] : "";
+                return !string.IsNullOrWhiteSpace(s) && !s.Equals("default", StringComparison.OrdinalIgnoreCase);
+            })
+            .Select(info => info.Engine)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var genericOrLibraryDbsToPurge = canonicalNodes
+            .Where(kvp => {
+                var (id, info) = kvp;
+                var s = info.Name.Contains('.') ? info.Name.Split('.', 2)[1] : "";
+                var isGenericOrLibrary = string.IsNullOrWhiteSpace(s) ||
+                                         s.Equals("default", StringComparison.OrdinalIgnoreCase) ||
+                                         s.Equals("integrationeventlogef", StringComparison.OrdinalIgnoreCase) ||
+                                         info.Name.Equals(info.Engine, StringComparison.OrdinalIgnoreCase) ||
+                                         info.Name.EndsWith(".integrationeventlogef", StringComparison.OrdinalIgnoreCase);
+                return isGenericOrLibrary && concreteEngines.Contains(info.Engine);
+            })
+            .Select(kvp => kvp.Key)
+            .ToList();
+
+        foreach (var purgeId in genericOrLibraryDbsToPurge)
+        {
+            canonicalNodes.Remove(purgeId);
+            rawToCanonical.Remove(purgeId);
         }
 
         // 2. Upload canonical Database nodes (only active, consolidated nodes)

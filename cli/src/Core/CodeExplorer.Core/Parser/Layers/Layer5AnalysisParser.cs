@@ -2539,6 +2539,15 @@ public class Layer5AnalysisParser
             {
                 return true;
             }
+
+            if (ext.Segments.Length >= 3)
+            {
+                var extWithoutFirst = "/" + string.Join("/", ext.Segments.Skip(1)) + "/";
+                if (ep.CleanPath.StartsWith(extWithoutFirst, StringComparison.OrdinalIgnoreCase) && !ep.IsApiPrefixOnly)
+                {
+                    return true;
+                }
+            }
         }
 
         if (!string.IsNullOrEmpty(ext.ServiceDomainNorm) && ext.ServiceDomainNorm != "*" && ext.ServiceDomainNorm != "unknown-service" && ext.ServiceDomainNorm.StartsWith('/'))
