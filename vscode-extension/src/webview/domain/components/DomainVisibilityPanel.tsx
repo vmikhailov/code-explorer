@@ -3,6 +3,7 @@ import { SelectedNodeDetail, EntityKind } from '../types';
 import { useDomainArchitecture } from '../context/DomainArchitectureContext';
 import { FloatingPanel } from '../../components/FloatingPanel';
 import { EyeIcon, EyeOffIcon, RotateCcwIcon, XIcon } from '../../components/Icons';
+import { EntityNodeBadge } from '../entityBadges';
 
 export interface HiddenItem {
   id: string;
@@ -123,7 +124,7 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
     { kind: 'TestSuite', label: 'Tests', icon: '🧪', color: '#059669', count: entityTypeCounts.testSuites },
     { kind: 'Database', label: 'Databases', icon: '🗄️', color: '#7b1fa2', count: entityTypeCounts.databases },
     { kind: 'Topic', label: 'Topics', icon: '📬', color: '#f59e0b', count: entityTypeCounts.topics },
-    { kind: 'ExternalService', label: 'External', icon: '🔌', color: '#0891b2', count: entityTypeCounts.external },
+    { kind: 'ExternalService', label: 'External', icon: '🔌', color: '#26a69a', count: entityTypeCounts.external },
     { kind: 'App', label: 'Apps', icon: '🌐', color: '#0288d1', count: entityTypeCounts.ingress },
     { kind: 'CliTool', label: 'CLI Tools', icon: '💻', color: '#d97706', count: entityTypeCounts.cli },
     { kind: 'Library', label: 'Libraries', icon: '📚', color: '#4b5563', count: entityTypeCounts.libraries },
@@ -228,7 +229,7 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
                 title={isHidden ? `Show ${item.label}` : `Hide ${item.label}`}
               >
                 <div className="visibility-type-left">
-                  <span className="visibility-type-icon">{item.icon}</span>
+                  <EntityNodeBadge kind={item.kind} size={24} />
                   <span className="visibility-type-name">{item.label}</span>
                 </div>
                 <div className="visibility-type-right">
@@ -263,7 +264,7 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
             title="Hide dedicated databases connected to only 1 service, revealing only shared data stores"
           >
             <div className="visibility-preset-main">
-              <span className="visibility-preset-icon">🗄️</span>
+              <EntityNodeBadge kind="Database" size={20} />
               <div className="visibility-preset-text">
                 <span className="visibility-preset-label">Hide 1:1 Databases</span>
                 <span className="visibility-preset-desc">
@@ -382,12 +383,7 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
               className="domain-hidden-list-item"
               title={`${item.label} (${item.kind}, ${item.reasonTag}). Click ✕ to restore.`}
             >
-              <span
-                className="hidden-kind-tag"
-                style={{ backgroundColor: item.badgeColor }}
-              >
-                {item.kindTag}
-              </span>
+              <EntityNodeBadge kind={item.kind} size={20} />
               <span className="hidden-item-name">{item.label}</span>
               {item.reasonTag && (
                 <span className="hidden-reason-tag">{item.reasonTag}</span>

@@ -10,6 +10,7 @@ import {
   GitBranchIcon,
   ExternalLinkIcon,
 } from '../../components/Icons';
+import { EntityNodeBadge, EntityCodeBadge, getEntityBadgeMeta } from '../entityBadges';
 
 export interface RawEdgeInfo {
   id: string;
@@ -24,6 +25,7 @@ export interface RawEdgeInfo {
 export interface NodeConnectionItem {
   id: string;
   name: string;
+  kind?: string;
   kindTag: string;
   bgColor: string;
   count: number;
@@ -119,8 +121,9 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
           map.set(e.source, {
             id: e.source,
             name,
-            kindTag: sourceDetail?.displayTag || ':CALLER',
-            bgColor: sourceDetail?.bgColor || '#38bdf8',
+            kind: sourceDetail?.kind || 'Service',
+            kindTag: getEntityBadgeMeta(sourceDetail?.kind || 'Service').code,
+            bgColor: sourceDetail?.bgColor || getEntityBadgeMeta(sourceDetail?.kind || 'Service').bgColor,
             count: e.count,
             label: e.label,
           });
@@ -145,8 +148,9 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
           map.set(e.target, {
             id: e.target,
             name,
-            kindTag: targetDetail?.displayTag || ':SERVICE',
-            bgColor: targetDetail?.bgColor || '#e53935',
+            kind: targetDetail?.kind || 'Service',
+            kindTag: getEntityBadgeMeta(targetDetail?.kind || 'Service').code,
+            bgColor: targetDetail?.bgColor || getEntityBadgeMeta(targetDetail?.kind || 'Service').bgColor,
             count: e.count,
             label: e.label,
           });
@@ -171,8 +175,9 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
           map.set(e.target, {
             id: e.target,
             name,
-            kindTag: targetDetail?.displayTag || ':DB',
-            bgColor: targetDetail?.bgColor || '#a855f7',
+            kind: targetDetail?.kind || 'Database',
+            kindTag: getEntityBadgeMeta(targetDetail?.kind || 'Database').code,
+            bgColor: targetDetail?.bgColor || getEntityBadgeMeta(targetDetail?.kind || 'Database').bgColor,
             count: e.count,
           });
         }
@@ -186,8 +191,9 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
           map.set(e.source, {
             id: e.source,
             name,
-            kindTag: sourceDetail?.displayTag || ':SERVICE',
-            bgColor: sourceDetail?.bgColor || '#38bdf8',
+            kind: sourceDetail?.kind || 'Service',
+            kindTag: getEntityBadgeMeta(sourceDetail?.kind || 'Service').code,
+            bgColor: sourceDetail?.bgColor || getEntityBadgeMeta(sourceDetail?.kind || 'Service').bgColor,
             count: e.count,
           });
         }
@@ -228,8 +234,9 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
         map.set(otherId, {
           id: otherId,
           name,
-          kindTag: otherDetail?.displayTag || ':TOPIC',
-          bgColor: otherDetail?.bgColor || '#f59e0b',
+          kind: otherDetail?.kind || 'Topic',
+          kindTag: getEntityBadgeMeta(otherDetail?.kind || 'Topic').code,
+          bgColor: otherDetail?.bgColor || getEntityBadgeMeta(otherDetail?.kind || 'Topic').bgColor,
           count: e.count,
           label,
         });
@@ -277,9 +284,10 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
           expandTooltip={`Click to expand details for ${selectedNode.displayName}`}
           title={selectedNode.displayName}
           badge={
-            <span className="inspector-badge" style={{ backgroundColor: selectedNode.bgColor }}>
-              {selectedNode.displayTag}
-            </span>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <EntityNodeBadge kind={selectedNode.kind} size={20} />
+              <EntityCodeBadge kind={selectedNode.kind} />
+            </div>
           }
           headerActions={
             hideNode ? (
@@ -340,9 +348,10 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
           }
           collapsedTitle={selectedNode.displayName}
           collapsedBadge={
-            <span className="inspector-badge" style={{ backgroundColor: selectedNode.bgColor }}>
-              {selectedNode.displayTag}
-            </span>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <EntityNodeBadge kind={selectedNode.kind} size={18} />
+              <EntityCodeBadge kind={selectedNode.kind} />
+            </div>
           }
         >
           {/* Inspector Body */}
@@ -427,13 +436,8 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                             onClick={() => handleSelectNodeById(item.id)}
                             title={`Jump to caller ${item.name}`}
                           >
-                            <div className="connection-item-main">
-                              <span
-                                className="inspector-badge"
-                                style={{ backgroundColor: item.bgColor, fontSize: '8.5px', padding: '1px 5px' }}
-                              >
-                                {item.kindTag}
-                              </span>
+                            <div className="connection-item-main" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <EntityNodeBadge kind={item.kind || 'Service'} size={18} />
                               <span className="connection-item-name">{item.name}</span>
                             </div>
                             <div className="connection-item-meta">
@@ -476,13 +480,8 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                             onClick={() => handleSelectNodeById(item.id)}
                             title={`Jump to downstream service ${item.name}`}
                           >
-                            <div className="connection-item-main">
-                              <span
-                                className="inspector-badge"
-                                style={{ backgroundColor: item.bgColor, fontSize: '8.5px', padding: '1px 5px' }}
-                              >
-                                {item.kindTag}
-                              </span>
+                            <div className="connection-item-main" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <EntityNodeBadge kind={item.kind || 'Service'} size={18} />
                               <span className="connection-item-name">{item.name}</span>
                             </div>
                             <div className="connection-item-meta">
@@ -525,13 +524,8 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                             onClick={() => handleSelectNodeById(item.id)}
                             title={`Jump to ${item.name}`}
                           >
-                            <div className="connection-item-main">
-                              <span
-                                className="inspector-badge"
-                                style={{ backgroundColor: item.bgColor, fontSize: '8.5px', padding: '1px 5px' }}
-                              >
-                                {item.kindTag}
-                              </span>
+                            <div className="connection-item-main" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <EntityNodeBadge kind={item.kind || 'Database'} size={18} />
                               <span className="connection-item-name">{item.name}</span>
                             </div>
                             <div className="connection-item-meta">
@@ -572,13 +566,8 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                             onClick={() => handleSelectNodeById(item.id)}
                             title={`Jump to ${item.name}`}
                           >
-                            <div className="connection-item-main">
-                              <span
-                                className="inspector-badge"
-                                style={{ backgroundColor: item.bgColor, fontSize: '8.5px', padding: '1px 5px' }}
-                              >
-                                {item.kindTag}
-                              </span>
+                            <div className="connection-item-main" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <EntityNodeBadge kind={item.kind || 'Topic'} size={18} />
                               <span className="connection-item-name">{item.name}</span>
                             </div>
                             <div className="connection-item-meta">
@@ -708,13 +697,9 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                 className="inspector-edge-endpoint-btn"
                 onClick={() => handleSelectNodeById(selectedEdge.sourceId)}
                 title={`Inspect ${selectedEdge.sourceName}`}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
               >
-                <span
-                  className="inspector-badge"
-                  style={{ backgroundColor: selectedEdge.sourceBgColor, padding: '1px 5px', fontSize: '9px' }}
-                >
-                  {selectedEdge.sourceTag}
-                </span>
+                <EntityNodeBadge kind={selectedEdge.sourceKind || 'Service'} size={18} />
                 <span className="endpoint-name">{selectedEdge.sourceName}</span>
               </div>
 
@@ -724,13 +709,9 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                 className="inspector-edge-endpoint-btn"
                 onClick={() => handleSelectNodeById(selectedEdge.targetId)}
                 title={`Inspect ${selectedEdge.targetName}`}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
               >
-                <span
-                  className="inspector-badge"
-                  style={{ backgroundColor: selectedEdge.targetBgColor, padding: '1px 5px', fontSize: '9px' }}
-                >
-                  {selectedEdge.targetTag}
-                </span>
+                <EntityNodeBadge kind={selectedEdge.targetKind || 'Service'} size={18} />
                 <span className="endpoint-name">{selectedEdge.targetName}</span>
               </div>
             </div>

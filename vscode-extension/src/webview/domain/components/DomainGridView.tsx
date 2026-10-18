@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { DomainGroupSummary, SelectedNodeDetail, EntityKind } from '../types';
 import { useDomainArchitecture } from '../context/DomainArchitectureContext';
 import { matchesSearchTokens } from '../searchUtils';
+import { EntityNodeBadge } from '../entityBadges';
 
 export interface DomainGridViewProps {
   domainGroups: DomainGroupSummary[];
@@ -211,20 +212,8 @@ export const DomainGridView: React.FC<DomainGridViewProps> = (props) => {
                               }}
                             >
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
-                                  <span
-                                    style={{
-                                      fontSize: 10,
-                                      fontWeight: 600,
-                                      padding: '1px 6px',
-                                      borderRadius: 4,
-                                      background: node.bgColor,
-                                      color: '#fff',
-                                      flexShrink: 0,
-                                    }}
-                                  >
-                                    {node.displayTag}
-                                  </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 7, overflow: 'hidden' }}>
+                                  <EntityNodeBadge kind={node.kind} size={22} />
                                   <span
                                     style={{
                                       fontWeight: 500,
