@@ -697,13 +697,23 @@ public partial class ArchitectureViewEngine(IGraphClient db)
             return;
         }
 
+        var role = props.GetValueOrDefault("role");
+        var isCliTool = projNode.Kind == NodeKind.CliTool ||
+                        string.Equals(role, "CliTool", StringComparison.OrdinalIgnoreCase);
+
+        if (isCliTool)
+        {
+            projNode.Kind = NodeKind.CliTool;
+        }
+
         props["is_library"] = isLibProject ? "true" : "false";
-        props["entity_type"] = isLibProject ? "library" : "service";
+        props["entity_type"] = isLibProject ? "library" : (isCliTool ? "clitool" : "service");
         props["is_semantic_entity"] = isLibProject ? "false" : "true";
 
         if (!props.ContainsKey("layer"))
         {
             var isAppOrFrontend = kind is "App" or "FrontendApp" ||
+                                  isCliTool ||
                                   string.Equals(props.GetValueOrDefault("role"), "FrontendApp",
                                       StringComparison.OrdinalIgnoreCase) ||
                                   string.Equals(props.GetValueOrDefault("role"), "App",
@@ -711,7 +721,7 @@ public partial class ArchitectureViewEngine(IGraphClient db)
                                   (name?.ToLowerInvariant().Contains("gateway") == true);
 
             var defaultLayer = isLibProject ? StandardLayers.Foundation :
-                isAppOrFrontend ? StandardLayers.Ingress : StandardLayers.Components;
+                (isAppOrFrontend || isCliTool) ? StandardLayers.Ingress : StandardLayers.Components;
             props["layer"] = defaultLayer.LayerId;
             props["layerId"] = defaultLayer.LayerId;
             props["layerName"] = defaultLayer.LayerName;

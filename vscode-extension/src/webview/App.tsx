@@ -928,6 +928,12 @@ export const App: React.FC = () => {
               }
               if (viewModeRef.current === 'contexts') {
                 requestContexts();
+              } else if (viewModeRef.current === 'semantic') {
+                requestDomain();
+              } else if (viewModeRef.current === 'layers') {
+                requestLayers();
+              } else if (viewModeRef.current === 'c1') {
+                requestC1();
               }
             } else if (scanEv.phase === 'Failed') {
               setIsScanning(false);

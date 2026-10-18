@@ -9,8 +9,11 @@ export function parseSemver(version: string): ParsedSemver | null {
   if (!version || typeof version !== 'string') return null;
 
   const trimmed = version.trim();
-  // Strip leading non-digits (e.g. "v1.22.4", "ce 1.22.4", "ce-1.22.4")
-  const cleaned = trimmed.replace(/^[^0-9]*/, '');
+  // Match a real SemVer pattern containing at least MAJOR.MINOR (\d+\.\d+)
+  const match = trimmed.match(/(?:^|[^\w.])v?(\d+\.\d+(?:\.\d+)?(?:\.\d+)?(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)/);
+  if (!match) return null;
+
+  const cleaned = match[1];
   if (!cleaned) return null;
 
   let buildMetadata: string | undefined;
@@ -30,10 +33,10 @@ export function parseSemver(version: string): ParsedSemver | null {
   }
 
   const parts = core.split('.').map((p) => parseInt(p, 10));
-  if (isNaN(parts[0])) return null;
+  if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) return null;
 
   const major = parts[0];
-  const minor = parts.length > 1 && !isNaN(parts[1]) ? parts[1] : 0;
+  const minor = parts[1];
   const patch = parts.length > 2 && !isNaN(parts[2]) ? parts[2] : 0;
   const buildNumber = parts.length > 3 && !isNaN(parts[3]) ? parts[3] : undefined;
 
@@ -51,10 +54,11 @@ export function parseSemver(version: string): ParsedSemver | null {
 /**
  * Normalizes a version string to clean canonical semver "MAJOR.MINOR.PATCH[-PRERELEASE]".
  * Strips build metadata (+...) and normalizes 4-part assembly versions.
+ * Returns empty string if string does not contain a valid semver.
  */
 export function cleanSemver(version: string): string {
   const p = parseSemver(version);
-  if (!p) return version.replace(/^v/, '').trim();
+  if (!p) return '';
   const pre = p.prerelease ? `-${p.prerelease}` : '';
   return `${p.major}.${p.minor}.${p.patch}${pre}`;
 }

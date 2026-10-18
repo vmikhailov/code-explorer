@@ -255,10 +255,18 @@ export const ProjectCardNode = memo((props: any) => {
   };
 
   const projectType = (graphNode.properties?.project_type || graphNode.properties?.language || '').toLowerCase();
+  const isCli =
+    graphNode.kind === 'CliTool' ||
+    graphNode.properties?.role === 'CliTool' ||
+    graphNode.properties?.role === 'clitool' ||
+    graphNode.properties?.entity_type === 'clitool' ||
+    graphNode.properties?.displayTag === ':CLI';
+
   const isLibrary =
     !isDatabase &&
     !isPackage &&
     !isTopic &&
+    !isCli &&
     graphNode.kind !== 'ExternalService' &&
     (graphNode.properties?.is_library === 'true' ||
       projectType === 'library' ||
@@ -268,7 +276,10 @@ export const ProjectCardNode = memo((props: any) => {
   let badgeColor = '#c084fc';
   let badgeLabel = 'Project';
 
-  if (isDatabase) {
+  if (isCli) {
+    badgeColor = '#d97706';
+    badgeLabel = 'CLI';
+  } else if (isDatabase) {
     badgeColor = '#34d399';
     badgeLabel = graphNode.properties?.db_type || 'Database';
   } else if (isTopic) {

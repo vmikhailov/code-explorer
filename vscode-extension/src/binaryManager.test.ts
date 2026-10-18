@@ -10,6 +10,7 @@ import {
   isBuildDifferenceOnly,
   selectEngineExecutable,
   probeCommandVersion,
+  extractVersionFromOutput,
   getBestInstalledEngine,
   probeAllInstalledEngines,
   InstalledEngineCandidate,
@@ -100,6 +101,19 @@ test('parseSemver and cleanSemver: parses complex version strings', () => {
   assert.equal(p3.prerelease, 'preview.1');
   assert.equal(p3.buildMetadata, 'build.55');
   assert.equal(cleanSemver('v1.22.4-preview.1+build.55'), '1.22.4-preview.1');
+});
+
+test('cleanSemver & extractVersionFromOutput: ignores startup warning lines with temp paths and extracts valid semver', () => {
+  const warningLine = "[DiscoverParserAssemblies] Warning: Could not load DLL from 'C:\\Users\\viach\\AppData\\Local\\Temp\\.net\\ce\\-ZFt6mpvEmAQ\\aspnetcorev2_inprocess.dll': An attempt was made to load a program with an incorrect format.";
+  assert.equal(cleanSemver(warningLine), '');
+  assert.equal(parseSemver(warningLine), null);
+
+  const fullOutput = `${warningLine}\n[DiscoverParserAssemblies] Warning: Could not load DLL from 'C:\\Users\\viach\\AppData\\Local\\Temp\\.net\\ce\\-ZFt6mpvEmAQ\\e_sqlite3.dll'\nce 1.45.2\n`;
+  const ver = extractVersionFromOutput(fullOutput);
+  assert.equal(ver, '1.45.2');
+
+  const warningsOnly = `${warningLine}\n[DiscoverParserAssemblies] Warning: Could not load DLL from 'foo'`;
+  assert.equal(extractVersionFromOutput(warningsOnly), null);
 });
 
 test('isBuildDifferenceOnly: detects build differences correctly', () => {

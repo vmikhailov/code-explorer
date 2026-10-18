@@ -31,6 +31,7 @@ export const C1LaconicCardNode = memo((props: any) => {
 
   const title = data.displayName || data.name;
   const isWorker = data.kind?.toLowerCase() === 'worker';
+  const isCli = data.kind?.toLowerCase() === 'clitool' || (data as any).role?.toLowerCase() === 'clitool';
   const isLR = (data.orientation || 'LR') === 'LR';
   const targetPos = isLR ? Position.Left : Position.Top;
   const sourcePos = isLR ? Position.Right : Position.Bottom;
@@ -38,6 +39,8 @@ export const C1LaconicCardNode = memo((props: any) => {
   const badgeText =
     data.category === 'app'
       ? 'APP'
+      : isCli
+      ? 'CLI'
       : data.category === 'external'
       ? 'EXT'
       : isWorker
@@ -47,6 +50,8 @@ export const C1LaconicCardNode = memo((props: any) => {
   const badgeClass =
     data.category === 'app'
       ? 'laconic-badge-app'
+      : isCli
+      ? 'laconic-badge-cli'
       : data.category === 'external'
       ? 'laconic-badge-ext'
       : 'laconic-badge-svc';
@@ -198,15 +203,16 @@ export const C1ServiceCardNode = memo((props: any) => {
   if (!data) return null;
 
   const title = data.displayName || data.name;
-  const isWorker = data.kind.toLowerCase() === 'worker';
-  const tech = data.framework || data.language || (isWorker ? 'Worker' : 'Service');
+  const isWorker = data.kind?.toLowerCase() === 'worker';
+  const isCli = data.kind?.toLowerCase() === 'clitool' || (data as any).role?.toLowerCase() === 'clitool';
+  const tech = data.framework || data.language || (isCli ? 'CLI Tool' : isWorker ? 'Worker' : 'Service');
   const isLR = (data.orientation || 'LR') === 'LR';
   const targetPos = isLR ? Position.Left : Position.Top;
   const sourcePos = isLR ? Position.Right : Position.Bottom;
 
   return (
     <div
-      className={`c1-node-card c1-service-card ${isWorker ? 'is-worker' : ''} ${data.isSelected ? 'is-selected' : ''}`}
+      className={`c1-node-card c1-service-card ${isWorker ? 'is-worker' : ''} ${isCli ? 'is-cli' : ''} ${data.isSelected ? 'is-selected' : ''}`}
       style={{
         width: data.width ? `${data.width}px` : undefined,
       }}
@@ -224,8 +230,8 @@ export const C1ServiceCardNode = memo((props: any) => {
 
       <div className="c1-card-header">
         <div className="c1-card-badge-wrap">
-          <span className={isWorker ? 'c1-badge-worker' : 'c1-badge-service'}>
-            {isWorker ? '⚡ WORKER' : '⚙️ SERVICE'}
+          <span className={isCli ? 'c1-badge-cli' : isWorker ? 'c1-badge-worker' : 'c1-badge-service'}>
+            {isCli ? '⌨️ CLI' : isWorker ? '⚡ WORKER' : '⚙️ SERVICE'}
           </span>
           <span className="c1-tech-pill" title={tech}>{tech}</span>
         </div>

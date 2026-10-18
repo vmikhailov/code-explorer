@@ -46,9 +46,16 @@ public partial class ArchitectureViewEngine
                 cleanKey.EndsWith(":telemetrydocs", StringComparison.OrdinalIgnoreCase) ||
                 cleanKey.EndsWith(":tests", StringComparison.OrdinalIgnoreCase) ||
                 cleanKey.EndsWith(":test", StringComparison.OrdinalIgnoreCase) ||
+                cleanKey.EndsWith(":homebrew", StringComparison.OrdinalIgnoreCase) ||
+                cleanKey.EndsWith(":scripts", StringComparison.OrdinalIgnoreCase) ||
+                cleanKey.EndsWith(":site", StringComparison.OrdinalIgnoreCase) ||
+                cleanKey.EndsWith(":.agents", StringComparison.OrdinalIgnoreCase) ||
+                cleanKey.EndsWith(":agents", StringComparison.OrdinalIgnoreCase) ||
                 cleanKey.Contains("testinginfrastructure", StringComparison.OrdinalIgnoreCase) ||
                 cleanKey.Contains("telemetrydocs", StringComparison.OrdinalIgnoreCase) ||
-                cleanKey.Contains("tests", StringComparison.OrdinalIgnoreCase))
+                cleanKey.Contains("tests", StringComparison.OrdinalIgnoreCase) ||
+                cleanKey.Contains("homebrew", StringComparison.OrdinalIgnoreCase) ||
+                cleanKey.Contains(".agents", StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
@@ -59,7 +66,12 @@ public partial class ArchitectureViewEngine
             var disp = domainDisplayName.Trim();
             if (string.Equals(disp, "Testing Infrastructure", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(disp, "Developer Tooling", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(disp, "Telemetry Docs", StringComparison.OrdinalIgnoreCase))
+                string.Equals(disp, "Telemetry Docs", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(disp, "Homebrew", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(disp, "Scripts", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(disp, "Site", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(disp, "Agents", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(disp, ".agents", StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
@@ -84,7 +96,7 @@ public partial class ArchitectureViewEngine
             ? Path.GetFileNameWithoutExtension(rawPath).ToLowerInvariant()
             : Path.GetFileName(rawPath.TrimEnd('/')).ToLowerInvariant();
 
-        string[] testDocsSuffixes = ["-docs", "_docs", "docs", "test", "tests", "tracetesting", "loadgenerator", "benchmark", "benchmarks"];
+        string[] testDocsSuffixes = ["-docs", "_docs", "docs", "test", "tests", "tracetesting", "loadgenerator", "benchmark", "benchmarks", "homebrew", "scripts", "site", ".agents"];
         foreach (var s in testDocsSuffixes)
         {
             if (name == s || name.EndsWith(s) || pathWithoutExt == s || pathWithoutExt.EndsWith(s))
@@ -95,7 +107,8 @@ public partial class ArchitectureViewEngine
 
         if (name.Contains("tracetesting") || name.Contains("loadgenerator") || name.Contains("benchmark") ||
             rawPath.Contains("/tracetesting/") || rawPath.Contains("/loadgenerator/") || rawPath.Contains("/benchmarks/") ||
-            rawPath.Contains("/test/") || rawPath.Contains("/tests/") || rawPath.Contains("/docs/"))
+            rawPath.Contains("/test/") || rawPath.Contains("/tests/") || rawPath.Contains("/docs/") ||
+            rawPath.Contains("/homebrew/") || rawPath.Contains("/scripts/") || rawPath.Contains("/site/") || rawPath.Contains("/.agents/"))
         {
             return true;
         }
@@ -106,6 +119,10 @@ public partial class ArchitectureViewEngine
     private static bool IsTestOrDocsProjectOrDomain(GraphNodeDto node, string domainKey, string domainDisplayName)
     {
         if (IsTestOrDocsDomain(domainKey, domainDisplayName)) return true;
+        if (string.Equals(node.Properties?.GetValueOrDefault("role"), "ScriptProject", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
         return IsTestOrDocsProject(node.Name, node.FilePath);
     }
 
@@ -178,10 +195,12 @@ public partial class ArchitectureViewEngine
 
             var skipRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
-                "src", "services", "microservices", "apps", "packages", "libs", "modules", "projects", "cmd", "home", "users"
+                "src", "services", "microservices", "apps", "packages", "libs", "modules", "projects", "cmd", "home", "users", "cli", "ui", "tools"
             };
 
-            var meaningful = parts.Take(parts.Length - 1).Where(p => !skipRoots.Contains(p)).ToList();
+            var hasFileExt = parts.Length > 0 && Path.HasExtension(parts[^1]);
+            var candidateParts = hasFileExt ? parts.Take(parts.Length - 1) : parts;
+            var meaningful = candidateParts.Where(p => !skipRoots.Contains(p)).ToList();
             if (meaningful.Count >= 1)
             {
                 var folder = meaningful[0];
@@ -481,7 +500,8 @@ public partial class ArchitectureViewEngine
             var isWorker = primary?.Kind == NodeKind.Worker ||
                            primary?.Properties?.GetValueOrDefault("role") == "Worker" ||
                            projects.Any(p => p.Kind == NodeKind.Worker);
-            var isCli = (projects.Count > 0 && projects.All(p => p.Kind == NodeKind.CliTool || string.Equals(p.Role, "CliTool", StringComparison.OrdinalIgnoreCase) || string.Equals(p.Role, "ScriptProject", StringComparison.OrdinalIgnoreCase))) ||
+            var nonLibProjects = projects.Where(p => !p.IsLibrary && p.Kind is not (NodeKind.Library or NodeKind.SharedLibrary)).ToList();
+            var isCli = (nonLibProjects.Count > 0 && nonLibProjects.All(p => p.Kind == NodeKind.CliTool || string.Equals(p.Role, "CliTool", StringComparison.OrdinalIgnoreCase) || string.Equals(p.Role, "ScriptProject", StringComparison.OrdinalIgnoreCase))) ||
                         primary?.Kind == NodeKind.CliTool ||
                         string.Equals(primary?.Properties?.GetValueOrDefault("role"), "CliTool", StringComparison.OrdinalIgnoreCase) ||
                         string.Equals(primary?.Properties?.GetValueOrDefault("role"), "ScriptProject", StringComparison.OrdinalIgnoreCase) ||

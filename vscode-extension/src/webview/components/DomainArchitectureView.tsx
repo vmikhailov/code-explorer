@@ -320,6 +320,22 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
       'border-color': '#86198f',
     },
   },
+  // CliTool
+  {
+    selector: 'node[kind = "CliTool"]',
+    style: {
+      'background-color': '#d97706',
+      'border-color': '#92400e',
+    },
+  },
+  // TestSuite
+  {
+    selector: 'node[kind = "TestSuite"]',
+    style: {
+      'background-color': '#059669',
+      'border-color': '#047857',
+    },
+  },
   // Library
   {
     selector: 'node[kind = "Library"]',
@@ -1776,7 +1792,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
       const isCli =
         node.kind === 'CliTool' ||
-        node.properties?.role === 'CliTool';
+        node.properties?.role === 'CliTool' ||
+        node.properties?.displayTag === ':CLI' ||
+        node.properties?.entity_type === 'clitool';
 
       const isDb =
         node.kind === 'Database' ||

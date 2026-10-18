@@ -7,6 +7,33 @@ import { cleanSemver, compareSemver } from './semver';
 import { getExecutableName, findInPath } from './platform';
 
 /**
+ * Extracts a normalized SemVer string from command output, ignoring warning/log lines.
+ * Checks stdout first, iterating from bottom to top, and falls back to stderr.
+ */
+export function extractVersionFromOutput(stdout?: string | null, stderr?: string | null): string | null {
+  const parseLines = (text: string | null | undefined): string | null => {
+    if (!text) return null;
+    const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    // Iterate from bottom to top looking for a line starting with a version pattern
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i];
+      if (/^\s*(?:ce\s+|ce-)?v?\d+\.\d+(?:\.\d+)?/i.test(line)) {
+        const cleaned = cleanSemver(line);
+        if (cleaned) return cleaned;
+      }
+    }
+    // Fallback: check any line from bottom to top with cleanSemver
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const cleaned = cleanSemver(lines[i]);
+      if (cleaned) return cleaned;
+    }
+    return null;
+  };
+
+  return parseLines(stdout) || parseLines(stderr);
+}
+
+/**
  * Runs a command with '--version' and returns the normalized SemVer string, or null on failure.
  */
 export function probeCommandVersion(cmd: string, args: string[] = []): string | null {
@@ -19,10 +46,8 @@ export function probeCommandVersion(cmd: string, args: string[] = []): string | 
       windowsHide: true,
       shell: isBatch,
     });
-    const output = (res.stdout && res.stdout.trim().length > 0 ? res.stdout : res.stderr)?.trim();
-    if (res.status === 0 && output) {
-      const firstLine = output.split(/\r?\n/)[0];
-      return cleanSemver(firstLine);
+    if (res.status === 0) {
+      return extractVersionFromOutput(res.stdout, res.stderr);
     }
   } catch {
     // Ignore execution failure

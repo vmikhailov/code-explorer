@@ -37,10 +37,17 @@ export function getNodePresentation(
   const isExt = kindLower === 'externalservice' || kindLower === 'cloudservice' || roleLower === 'externalservice';
   const isTest = kindLower === 'testsuite' || kindLower === 'test' || roleLower === 'test';
   const isEp = kindLower === 'endpoint' || kindLower === 'entrypoint';
+  const isCli =
+    kindLower === 'clitool' ||
+    roleLower === 'clitool' ||
+    props.entity_type === 'clitool' ||
+    props.displayTag === ':CLI';
 
   // Badge label
   let badgeLabel = 'Project';
-  if (isDb) {
+  if (isCli) {
+    badgeLabel = 'CLI';
+  } else if (isDb) {
     badgeLabel = (props.engine || props.db_type || 'DB').toUpperCase();
   } else if (isTopic) {
     badgeLabel = (props.broker_type || 'QUEUE').toUpperCase();
@@ -77,6 +84,7 @@ export function getNodePresentation(
   // Badge CSS class
   let badgeClass = 'badge-default';
   if (isTest) badgeClass = 'badge-test';
+  else if (isCli) badgeClass = 'badge-cli';
   else if (isEp) badgeClass = 'badge-endpoint';
   else if (isDb) badgeClass = 'badge-db';
   else if (isTopic) badgeClass = 'badge-topic';
