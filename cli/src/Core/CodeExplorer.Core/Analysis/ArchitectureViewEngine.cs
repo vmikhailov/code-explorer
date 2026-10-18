@@ -1090,6 +1090,34 @@ public partial class ArchitectureViewEngine(IGraphClient db)
             FilterSharedDatabases(graph);
         }
 
+        // Exclude Database nodes that have NO USES_DB / READS_FROM / WRITES_TO edges from non-test workloads
+        var nonTestNodeIds = graph.Nodes
+            .Where(n => n.Kind != NodeKind.TestSuite && 
+                        (n.Properties == null || (!string.Equals(n.Properties.GetValueOrDefault("role"), "Test", StringComparison.OrdinalIgnoreCase) &&
+                                                  !string.Equals(n.Properties.GetValueOrDefault("role"), "TestSuite", StringComparison.OrdinalIgnoreCase) &&
+                                                  !string.Equals(n.Properties.GetValueOrDefault("is_test"), "true", StringComparison.OrdinalIgnoreCase) &&
+                                                  !string.Equals(n.Properties.GetValueOrDefault("entity_kind"), "Test", StringComparison.OrdinalIgnoreCase))) &&
+                        !WorkspaceConventions.IsTestFilePath(n.FilePath))
+            .Select(n => n.Id)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var usedDbIds = graph.Edges
+            .Where(e => (e.Kind is "USES_DB" or "READS_FROM" or "WRITES_TO" or "ACCESSES_TABLE" || string.Equals(e.Category, "database", StringComparison.OrdinalIgnoreCase)) &&
+                        (nonTestNodeIds.Contains(e.Source) || nonTestNodeIds.Contains(e.Target)))
+            .SelectMany(e => new[] { e.Source, e.Target })
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var orphanOrTestOnlyDbs = graph.Nodes
+            .Where(n => n.Kind == NodeKind.Database && !usedDbIds.Contains(n.Id))
+            .Select(n => n.Id)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (orphanOrTestOnlyDbs.Count > 0)
+        {
+            graph.Nodes.RemoveAll(n => orphanOrTestOnlyDbs.Contains(n.Id));
+            graph.Edges.RemoveAll(e => orphanOrTestOnlyDbs.Contains(e.Source) || orphanOrTestOnlyDbs.Contains(e.Target));
+        }
+
         var allProjects = await GetAllProjectsAsync(ct);
         graph.Metadata["allProjects"] = JsonSerializer.Serialize(allProjects);
         var projectPaths = await GetProjectPathsMapAsync(ct);

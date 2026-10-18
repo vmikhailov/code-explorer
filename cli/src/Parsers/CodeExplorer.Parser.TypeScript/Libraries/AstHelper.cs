@@ -69,6 +69,11 @@ public static class AstHelper
                 return cVal;
             }
 
+            if (WorkspaceConventions.IsGenericUrlStemOrVariable(varName))
+            {
+                return null;
+            }
+
             if (varName.Equals("Topic", StringComparison.OrdinalIgnoreCase) ||
                 varName.Equals("string", StringComparison.OrdinalIgnoreCase) ||
                 varName.Equals("undefined", StringComparison.OrdinalIgnoreCase) ||
@@ -86,6 +91,10 @@ public static class AstHelper
             var stripped = CleanIdentifierSuffix(varName);
             if (stripped != varName)
             {
+                if (WorkspaceConventions.IsGenericUrlStemOrVariable(stripped))
+                {
+                    return null;
+                }
                 return stripped;
             }
         }
@@ -741,9 +750,22 @@ public static class AstHelper
         {
             var expr = tplMatch.Groups[1].Value.Trim();
             var tail = tplMatch.Groups[2].Value.Trim();
+
+
+
             var resolvedBase = ResolveTemplateExpression(node, expr);
             if (!string.IsNullOrEmpty(resolvedBase))
             {
+                if (WorkspaceConventions.IsGenericUrlStemOrVariable(resolvedBase))
+                {
+                    if (!string.IsNullOrWhiteSpace(tail))
+                    {
+                        var cleanTail = tail.TrimStart('/');
+                        return !string.IsNullOrEmpty(cleanTail) ? $"/{cleanTail}" : null;
+                    }
+                    return null;
+                }
+
                 if (resolvedBase.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
                     resolvedBase.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
                 {
@@ -771,6 +793,16 @@ public static class AstHelper
                         if (string.IsNullOrEmpty(leafVal)) leafVal = FindClassFieldInitializerInAst(node, leafProp);
                         if (!string.IsNullOrEmpty(leafVal))
                         {
+                            if (WorkspaceConventions.IsGenericUrlStemOrVariable(leafVal))
+                            {
+                                if (!string.IsNullOrWhiteSpace(tail))
+                                {
+                                    var cleanTail = tail.TrimStart('/');
+                                    return !string.IsNullOrEmpty(cleanTail) ? $"/{cleanTail}" : null;
+                                }
+                                return null;
+                            }
+
                             if (leafVal.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
                                 leafVal.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
                             {
@@ -784,6 +816,16 @@ public static class AstHelper
                         }
                     }
                 }
+            }
+
+            if (WorkspaceConventions.IsGenericUrlStemOrVariable(expr) || (expr.Contains('.') && WorkspaceConventions.IsGenericUrlStemOrVariable(expr.Split('.').Last())))
+            {
+                if (!string.IsNullOrWhiteSpace(tail))
+                {
+                    var cleanTail = tail.TrimStart('/');
+                    return !string.IsNullOrEmpty(cleanTail) ? $"/{cleanTail}" : null;
+                }
+                return null;
             }
         }
 
@@ -965,7 +1007,7 @@ public static class AstHelper
         return CleanIdentifierSuffix(cleanIdent);
     }
 
-    private static string CleanIdentifierSuffix(string ident)
+    public static string CleanIdentifierSuffix(string ident)
     {
         var suffixes = new[] { "BaseUrl", "BaseURL", "Url", "URL", "Host", "Domain", "Client", "Endpoint", "Service" };
         foreach (var s in suffixes)
@@ -973,7 +1015,14 @@ public static class AstHelper
             if (ident.EndsWith(s, StringComparison.OrdinalIgnoreCase) && ident.Length > s.Length)
             {
                 var stripped = ident[..^s.Length].TrimEnd('_', '-');
-                if (stripped.Length >= 2) return stripped;
+                if (stripped.Length >= 2)
+                {
+                    if (WorkspaceConventions.IsGenericUrlStemOrVariable(stripped))
+                    {
+                        return ident;
+                    }
+                    return stripped;
+                }
             }
         }
         return ident;

@@ -982,7 +982,9 @@ public class Layer3SyntacticParser
             domainOrService = normalizedDomain;
         }
 
-        if (WorkspaceConventions.IsGarbageExternalService(domainOrService))
+        var isGarbage = WorkspaceConventions.IsGarbageExternalService(domainOrService) ||
+                        WorkspaceConventions.IsGenericUrlStemOrVariable(domainOrService);
+        if (isGarbage)
         {
             domainOrService = "unknown-service";
         }
@@ -1003,16 +1005,21 @@ public class Layer3SyntacticParser
             ext["caller_symbol_id"] = parentScopeId;
         }
 
-        if (slashIdx == 0)
+        if (slashIdx == 0 || (isGarbage && path.StartsWith('/') && path != "/"))
         {
             ext["is_relative_path"] = "true";
             ext["inferred_from_path"] = "true";
             ext["is_internal"] = "true";
+            ext["is_external"] = "false";
             ext["url"] = path;
         }
         else if (domainOrService is "localhost" or "127.0.0.1" || domainOrService.StartsWith("localhost:") || domainOrService.StartsWith("127.0.0.1:"))
         {
             ext["is_internal"] = "true";
+            ext["is_external"] = "false";
+        }
+        else if (isGarbage || domainOrService == "unknown-service")
+        {
             ext["is_external"] = "false";
         }
         else

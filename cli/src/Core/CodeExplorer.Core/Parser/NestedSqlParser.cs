@@ -531,13 +531,19 @@ public static class NestedSqlParser
             if (!dbNodes.TryGetValue(dbKey, out var dbNode))
             {
                 var dbNodeId = $"{dbPrefix}:{dbKey}";
-                dbNode = new DatabaseNode(dbNodeId, fullDbName, filePath, targetDbType, new Dictionary<string, string>
+                var extensions = new Dictionary<string, string>
                 {
                     ["name"] = fullDbName,
                     ["engine"] = targetEngine,
                     ["schema"] = schemaName,
                     ["db_type"] = targetDbType
-                });
+                };
+                if (WorkspaceConventions.IsTestFilePath(filePath))
+                {
+                    extensions["is_test"] = "true";
+                    extensions["role"] = "Test";
+                }
+                dbNode = new DatabaseNode(dbNodeId, fullDbName, filePath, targetDbType, extensions);
                 dbNodes[dbKey] = dbNode;
                 queryNode.Children.Add(dbNode);
             }
@@ -595,13 +601,19 @@ public static class NestedSqlParser
             if (!dbNodes.TryGetValue(dbKey, out var dbNode))
             {
                 var dbNodeId = $"{dbPrefix}:{dbKey}";
-                dbNode = new DatabaseNode(dbNodeId, fullDbName, filePath, "relational", new Dictionary<string, string>
+                var extensions = new Dictionary<string, string>
                 {
                     ["name"] = fullDbName,
                     ["engine"] = targetEngine,
                     ["schema"] = schemaName,
                     ["db_type"] = "relational"
-                });
+                };
+                if (WorkspaceConventions.IsTestFilePath(filePath))
+                {
+                    extensions["is_test"] = "true";
+                    extensions["role"] = "Test";
+                }
+                dbNode = new DatabaseNode(dbNodeId, fullDbName, filePath, "relational", extensions);
                 dbNodes[dbKey] = dbNode;
                 queryNode.Children.Add(dbNode);
             }

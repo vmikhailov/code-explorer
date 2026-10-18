@@ -77,6 +77,12 @@ public static class WorkspaceConventions
 
     public static bool IsGarbageExternalService(string domain) => _current.NetworkValidator.IsGarbageExternalService(domain);
 
+    public static bool IsGenericUrlStemOrVariable(string? name) => NetworkEntityValidator.IsGenericUrlStemOrVariable(name);
+
+    public static IReadOnlySet<string> GenericUrlVariableStems => NetworkEntityValidator.GenericUrlVariableStems;
+
+    public static IReadOnlySet<string> HttpMethodVerbs => NetworkEntityValidator.HttpMethodVerbs;
+
     public static int? GetPipelineStageOrder(string? symbolOrPath, string? typeName = null)
     {
         // Pipeline stage order metadata is now managed via architectural attributes/manifests, not ambient string matching.

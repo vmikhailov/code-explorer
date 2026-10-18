@@ -577,7 +577,7 @@ public partial class ArchitectureViewEngine
         foreach (var (dbId, dbNode) in dbNodes)
         {
             var isUsed = macroEdges.Values.Any(e => e.Target.Equals(dbId, StringComparison.OrdinalIgnoreCase) || e.Source.Equals(dbId, StringComparison.OrdinalIgnoreCase));
-            if (!isUsed && dbNodes.Count > 20) continue;
+            if (!isUsed) continue;
 
             stats.Databases++;
             nodes.Add(new DomainEntityDto
@@ -621,7 +621,7 @@ public partial class ArchitectureViewEngine
         foreach (var (extId, extNode) in extNodes)
         {
             var isUsed = macroEdges.Values.Any(e => e.Target.Equals(extId, StringComparison.OrdinalIgnoreCase) || e.Source.Equals(extId, StringComparison.OrdinalIgnoreCase));
-            if (!isUsed && extNodes.Count > 25) continue;
+            if (!isUsed) continue;
 
             stats.External++;
             nodes.Add(new DomainEntityDto

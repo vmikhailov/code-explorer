@@ -96,10 +96,35 @@ public class AxiosLibraryParser : ISemanticExtension
             if (args.Count > 0 && args[0].IsValid())
             {
                 var targetArg = args[0];
-                if (targetArg.Is(TreeSitterSyntax.TypeScript.Object) &&
-                    AstHelper.TryGetObjectProperty(targetArg, "url", out var urlProp))
+                var func = node.GetFunctionNode();
+                string? verb = null;
+                if (func.IsValid() && func.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+                {
+                    var propNode = func.GetField(TreeSitterSyntax.Fields.Property);
+                    if (propNode.IsValid())
+                    {
+                        verb = propNode.Text.ToLowerInvariant();
+                    }
+                }
+
+                var firstArgText = targetArg.IsValid() && targetArg.Text != null
+                    ? targetArg.Text.Trim('\'', '"', '`')
+                    : "";
+
+                if (args.Count > 1 && (verb == "request" || WorkspaceConventions.HttpMethodVerbs.Contains(firstArgText)))
+                {
+                    targetArg = args[1];
+                }
+                else if (targetArg.Is(TreeSitterSyntax.TypeScript.Object) &&
+                    AstHelper.TryGetObjectProperty(targetArg, "url", out var urlProp) && urlProp.IsValid())
                 {
                     targetArg = urlProp;
+                }
+
+                if (!targetArg.IsValid() ||
+                    (targetArg.Text != null && WorkspaceConventions.HttpMethodVerbs.Contains(targetArg.Text.Trim('\'', '"', '`'))))
+                {
+                    return null;
                 }
 
                 var projectContext = projectName ?? ctx?.WorkspaceId;
@@ -253,15 +278,7 @@ public class AxiosLibraryParser : ISemanticExtension
 
     private static string CleanSuffix(string ident)
     {
-        var suffixes = new[] { "BaseUrl", "BaseURL", "Url", "URL", "Host", "Domain", "Client", "Endpoint", "Service" };
-        foreach (var s in suffixes)
-        {
-            if (ident.EndsWith(s, StringComparison.OrdinalIgnoreCase) && ident.Length > s.Length)
-            {
-                return ident[..^s.Length].TrimEnd('_', '-');
-            }
-        }
-        return ident;
+        return AstHelper.CleanIdentifierSuffix(ident);
     }
 
     public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)

@@ -542,16 +542,16 @@ public partial class PostIndexAnalyzer
             var isRelativePath = GetStringProp(row, "is_relative_path");
             var isExt = GetStringProp(row, "is_ext");
 
-            if (isExt == "true") continue;
-
             var cand = !string.IsNullOrWhiteSpace(domain) ? domain : name;
             if (string.IsNullOrWhiteSpace(cand)) cand = ExtractDomainFromExternalServiceId(id);
 
-            if (IsGarbageExternalService(cand))
+            if (cand != "unknown-service" && (IsGarbageExternalService(cand) || WorkspaceConventions.IsGenericUrlStemOrVariable(cand)))
             {
                 idsToDelete.Add(id);
                 continue;
             }
+
+            if (isExt == "true") continue;
 
             // Check if this ExternalService matches an internal project with high confidence
             var matchingProj = FindMatchingServiceProject(cand, projectList);

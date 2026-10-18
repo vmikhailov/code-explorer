@@ -13,6 +13,39 @@ public sealed class NetworkEntityValidator
     private static readonly Regex ValidDnsLabelRegex = new(@"^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex Ipv4Regex = new(@"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", RegexOptions.Compiled);
 
+    public static readonly HashSet<string> GenericUrlVariableStems = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "serverhttp", "resolvedhttp", "download", "cleanep", "http", "server", "base", "api", "target",
+        "request", "full", "ws", "endpoint", "url", "uri", "host", "origin", "client",
+        "post", "get", "put", "delete", "patch", "options", "head", "ep"
+    };
+
+    public static readonly HashSet<string> HttpMethodVerbs = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "get", "post", "put", "delete", "patch", "head", "options"
+    };
+
+    public static bool IsGenericUrlStemOrVariable(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        var clean = name.Trim().Trim('\'', '"', '`').ToLowerInvariant();
+        if (GenericUrlVariableStems.Contains(clean) || HttpMethodVerbs.Contains(clean)) return true;
+
+        var suffixes = new[] { "baseurl", "url", "host", "domain", "client", "endpoint", "service", "ep" };
+        foreach (var s in suffixes)
+        {
+            if (clean.EndsWith(s) && clean.Length > s.Length)
+            {
+                var stripped = clean[..^s.Length].TrimEnd('_', '-');
+                if (GenericUrlVariableStems.Contains(stripped) || HttpMethodVerbs.Contains(stripped))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private readonly HashSet<string> _customGarbageHosts;
 
     public NetworkEntityValidator(IEnumerable<string>? customGarbageHosts = null)
@@ -71,7 +104,8 @@ public sealed class NetworkEntityValidator
 
         // 7. Generic path segment or variable placeholders when extracted without a host
         if (lower is "service" or "services" or "host" or "hostname" or "url" or "uri" or "base" or "base_url"
-            or "http-call" or "not-supported" or "urlquery" or "swagger" or "api" or "app" or "prod" or "dev" or "stage")
+            or "http-call" or "not-supported" or "urlquery" or "swagger" or "api" or "app" or "prod" or "dev" or "stage"
+            || IsGenericUrlStemOrVariable(lower))
         {
             return true;
         }

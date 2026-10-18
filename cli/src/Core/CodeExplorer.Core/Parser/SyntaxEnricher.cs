@@ -178,6 +178,12 @@ public class SyntaxEnricher : ISyntaxEnricher
                             ? (DetectDeclaredSchema(projectNode, fileNode, _syntaxTree) ?? GetDefaultSchemaForEngine(targetEngine, dbType))
                             : null;
 
+                        if (targetEngine.Equals("SQLite", StringComparison.OrdinalIgnoreCase) &&
+                            (declaredSchema == null || declaredSchema.Equals("dbo", StringComparison.OrdinalIgnoreCase) || declaredSchema.Equals("default", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            declaredSchema = "main";
+                        }
+
                         var canonicalDbName = !string.IsNullOrEmpty(declaredSchema)
                             ? $"{targetEngine}.{declaredSchema}"
                             : targetEngine;
@@ -219,6 +225,11 @@ public class SyntaxEnricher : ISyntaxEnricher
                         if (!string.IsNullOrEmpty(declaredSchema))
                         {
                             extensions["schema"] = declaredSchema;
+                        }
+                        if (projectNode.IsTest || WorkspaceConventions.IsTestFilePath(fileNode.Path))
+                        {
+                            extensions["is_test"] = "true";
+                            extensions["role"] = "Test";
                         }
                         if (isOrm)
                         {

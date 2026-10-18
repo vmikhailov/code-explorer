@@ -153,6 +153,10 @@ public partial class PostIndexAnalyzer
             {
                 schemaPart = "public";
             }
+            if ((schemaPart.Equals("dbo", StringComparison.OrdinalIgnoreCase) || schemaPart.Equals("default", StringComparison.OrdinalIgnoreCase)) && techName.Equals("SQLite", StringComparison.OrdinalIgnoreCase))
+            {
+                schemaPart = "main";
+            }
 
             var schemaClean = Regex.Replace(schemaPart.ToLowerInvariant(), @"[^a-z0-9_-]", "_").Trim('_');
             if (string.IsNullOrEmpty(schemaClean))
@@ -186,6 +190,10 @@ public partial class PostIndexAnalyzer
             if (schemaPart.Equals("dbo", StringComparison.OrdinalIgnoreCase) && techName.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
             {
                 schemaPart = "public";
+            }
+            if ((schemaPart.Equals("dbo", StringComparison.OrdinalIgnoreCase) || schemaPart.Equals("default", StringComparison.OrdinalIgnoreCase)) && techName.Equals("SQLite", StringComparison.OrdinalIgnoreCase))
+            {
+                schemaPart = "main";
             }
 
             var schemaClean = Regex.Replace(schemaPart.ToLowerInvariant(), @"[^a-z0-9_-]", "_").Trim('_');
@@ -363,8 +371,88 @@ public partial class PostIndexAnalyzer
         foreach (var p in l4Result.Prev.Prev.Projects) CollectDbNodes(p);
         foreach (var f in l4Result.Prev.Prev.Prev.Files) CollectDbNodes(f);
 
+        var projects = l4Result.Prev.Prev.Projects;
+        var files = l4Result.Prev.Prev.Prev.Files;
+        var fileToProject = prebuiltFileToProject != null
+            ? (prebuiltFileToProject as Dictionary<string, ProjectNode> ?? new Dictionary<string, ProjectNode>(prebuiltFileToProject, StringComparer.OrdinalIgnoreCase))
+            : Layer2ProjectParser.BuildFileToProjectMap(files, projects);
+
+        bool IsTestSource(string fromId, string? fromPath)
+        {
+            if (!string.IsNullOrEmpty(fromPath) && WorkspaceConventions.IsTestFilePath(fromPath))
+                return true;
+
+            if (fileToProject.TryGetValue(fromId, out var p))
+            {
+                if (p.IsTest || string.Equals(p.Role, "Test", StringComparison.OrdinalIgnoreCase) ||
+                    (p.Extensions != null && p.Extensions.TryGetValue("is_test", out var it) && (it == "true" || it == "1")) ||
+                    WorkspaceConventions.IsTestFilePath(p.Path))
+                {
+                    return true;
+                }
+            }
+
+            var matchingProj = projects.FirstOrDefault(pr => pr.Id == fromId || fromId.StartsWith(pr.Id, StringComparison.OrdinalIgnoreCase));
+            if (matchingProj != null)
+            {
+                if (matchingProj.IsTest || string.Equals(matchingProj.Role, "Test", StringComparison.OrdinalIgnoreCase) ||
+                    (matchingProj.Extensions != null && matchingProj.Extensions.TryGetValue("is_test", out var it) && (it == "true" || it == "1")) ||
+                    WorkspaceConventions.IsTestFilePath(matchingProj.Path))
+                {
+                    return true;
+                }
+            }
+
+            if (WorkspaceConventions.IsTestFilePath(fromId) ||
+                fromId.Contains("/tests/", StringComparison.OrdinalIgnoreCase) ||
+                fromId.Contains("\\tests\\", StringComparison.OrdinalIgnoreCase) ||
+                fromId.Contains(".Tests", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            return false;
+        }
+
+        var nonTestAccessedTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var rel in allRelationships)
+        {
+            if (rel.Kind == OntologyConstants.Relationships.Contains)
+                continue;
+
+            var isDbOrTableRel = rel.Kind == OntologyConstants.Relationships.UsesDb ||
+                                 rel.Kind == OntologyConstants.Relationships.Configures ||
+                                 rel.Kind == OntologyConstants.Relationships.ReadsFrom ||
+                                 rel.Kind == OntologyConstants.Relationships.WritesTo ||
+                                 rel.Kind == OntologyConstants.Relationships.DependsOn;
+            if (!isDbOrTableRel) continue;
+
+            if (!rel.To.Contains(":db:") && !rel.To.Contains(":database:") && !rel.To.Contains(":res:db:"))
+                continue;
+
+            var filePath = rel.Properties != null && rel.Properties.TryGetValue("file_path", out var fp) ? fp?.ToString() : null;
+            if (!IsTestSource(rel.From, filePath))
+            {
+                nonTestAccessedTargets.Add(rel.To);
+                var parts = rel.To.Split(':');
+                var accum = "";
+                for (int i = 0; i < parts.Length; i++)
+                {
+                    accum = i == 0 ? parts[i] : $"{accum}:{parts[i]}";
+                    nonTestAccessedTargets.Add(accum);
+                }
+            }
+        }
+
         var primaryRelationalEngine = allDbNodes
-            .Where(d => string.IsNullOrEmpty(d.DbType) || d.DbType.Equals("relational", StringComparison.OrdinalIgnoreCase))
+            .Where(d => {
+                var isDeclaredInProduction = !string.IsNullOrEmpty(d.Path) && !WorkspaceConventions.IsTestFilePath(d.Path);
+                var isExplicitTest = (d.Extensions != null && d.Extensions.TryGetValue("is_test", out var itVal) && (itVal == "true" || itVal == "1")) ||
+                                     (d.Extensions != null && d.Extensions.TryGetValue("role", out var rVal) && rVal.Equals("Test", StringComparison.OrdinalIgnoreCase)) ||
+                                     WorkspaceConventions.IsTestFilePath(d.Path);
+                var hasNonTest = (!isExplicitTest && isDeclaredInProduction) ||
+                                 nonTestAccessedTargets.Contains(d.Id) ||
+                                 d.Children.Any(c => nonTestAccessedTargets.Contains(c.Id));
+                return hasNonTest && (string.IsNullOrEmpty(d.DbType) || d.DbType.Equals("relational", StringComparison.OrdinalIgnoreCase));
+            })
             .Select(d => {
                 if (d.Extensions != null && d.Extensions.TryGetValue("engine", out var eng) && !string.IsNullOrWhiteSpace(eng))
                     return eng;
@@ -380,6 +468,17 @@ public partial class PostIndexAnalyzer
 
         foreach (var db in allDbNodes)
         {
+            var isDeclaredInProduction = !string.IsNullOrEmpty(db.Path) && !WorkspaceConventions.IsTestFilePath(db.Path);
+            var isExplicitTest = (db.Extensions != null && db.Extensions.TryGetValue("is_test", out var itVal) && (itVal == "true" || itVal == "1")) ||
+                                 (db.Extensions != null && db.Extensions.TryGetValue("role", out var rVal) && rVal.Equals("Test", StringComparison.OrdinalIgnoreCase)) ||
+                                 WorkspaceConventions.IsTestFilePath(db.Path);
+            var hasNonTestAccess = (!isExplicitTest && isDeclaredInProduction) ||
+                                   nonTestAccessedTargets.Contains(db.Id) ||
+                                   db.Children.Any(c => nonTestAccessedTargets.Contains(c.Id));
+            if (!hasNonTestAccess)
+            {
+                continue;
+            }
             var rawEngine = (db.Extensions != null && db.Extensions.TryGetValue("engine", out var eng) && !string.IsNullOrWhiteSpace(eng))
                 ? eng
                 : null;
@@ -400,7 +499,7 @@ public partial class PostIndexAnalyzer
                 (existingNode.Extensions != null && existingNode.Extensions.TryGetValue("engine", out var exEng) && exEng.Equals(existingNode.Name, StringComparison.OrdinalIgnoreCase) && !engineToUse.Equals(cName, StringComparison.OrdinalIgnoreCase)))
             {
                 var dispName = cName.Contains('.')
-                    ? cName
+                    ? (cName.Equals("SQLite.main", StringComparison.OrdinalIgnoreCase) ? "SQLite" : cName)
                     : (!string.IsNullOrWhiteSpace(engineToUse) && !engineToUse.Equals(cName, StringComparison.OrdinalIgnoreCase)
                         ? $"{cName} ({engineToUse}) [{cType}]"
                         : $"{cName} [{cType}]");
@@ -475,24 +574,36 @@ public partial class PostIndexAnalyzer
         // Also inspect all relationships for DB targets not caught above
         foreach (var rel in allRelationships)
         {
+            if (rel.Kind == OntologyConstants.Relationships.Contains)
+                continue;
+
             var isDbRel = rel.Kind == OntologyConstants.Relationships.UsesDb ||
                           rel.Kind == OntologyConstants.Relationships.Configures ||
-                          rel.To.Contains(":db:") || rel.To.Contains(":database:") || rel.To.Contains(":res:db:");
-            if (isDbRel && !rawToCanonical.ContainsKey(rel.To))
+                          rel.Kind == OntologyConstants.Relationships.ReadsFrom ||
+                          rel.Kind == OntologyConstants.Relationships.WritesTo ||
+                          rel.Kind == OntologyConstants.Relationships.DependsOn;
+            if (!isDbRel && !rel.To.Contains(":db:") && !rel.To.Contains(":database:") && !rel.To.Contains(":res:db:"))
+                continue;
+
+            if (!rawToCanonical.ContainsKey(rel.To))
             {
+                var filePath = rel.Properties != null && rel.Properties.TryGetValue("file_path", out var fp) ? fp?.ToString() : null;
+                if (IsTestSource(rel.From, filePath)) continue;
+                if (!nonTestAccessedTargets.Contains(rel.To)) continue;
+
                 var parts = rel.To.Split(':');
                 var rawName = parts.Length > 0 ? parts[^1] : "";
                 if (string.IsNullOrWhiteSpace(rawName)) continue;
 
                 var rawType = "relational";
-                if (rel.Properties.TryGetValue("db_type", out var dtObj) && dtObj != null)
+                if (rel.Properties != null && rel.Properties.TryGetValue("db_type", out var dtObj) && dtObj != null)
                 {
                     rawType = dtObj.ToString() ?? "relational";
                 }
-                var rawEngine = rel.Properties.TryGetValue("engine", out var engObj) && engObj != null
+                var rawEngine = rel.Properties != null && rel.Properties.TryGetValue("engine", out var engObj) && engObj != null
                     ? engObj.ToString()
                     : null;
-                var rawSchema = rel.Properties.TryGetValue("schema", out var schObj) && schObj != null
+                var rawSchema = rel.Properties != null && rel.Properties.TryGetValue("schema", out var schObj) && schObj != null
                     ? schObj.ToString()
                     : null;
 
@@ -516,7 +627,7 @@ public partial class PostIndexAnalyzer
                     (existingNode.Extensions != null && existingNode.Extensions.TryGetValue("engine", out var exEng) && exEng.Equals(existingNode.Name, StringComparison.OrdinalIgnoreCase) && !engineToUse.Equals(cName, StringComparison.OrdinalIgnoreCase)))
                 {
                     var dispName = cName.Contains('.')
-                        ? cName
+                        ? (cName.Equals("SQLite.main", StringComparison.OrdinalIgnoreCase) ? "SQLite" : cName)
                         : (!string.IsNullOrWhiteSpace(engineToUse) && !engineToUse.Equals(cName, StringComparison.OrdinalIgnoreCase)
                             ? $"{cName} ({engineToUse}) [{cType}]"
                             : $"{cName} [{cType}]");
@@ -593,12 +704,6 @@ public partial class PostIndexAnalyzer
         }
 
         // 3. Link projects to canonical database nodes
-        var projects = l4Result.Prev.Prev.Projects;
-        var files = l4Result.Prev.Prev.Prev.Files;
-        var fileToProject = prebuiltFileToProject != null
-            ? (prebuiltFileToProject as Dictionary<string, ProjectNode> ?? new Dictionary<string, ProjectNode>(prebuiltFileToProject, StringComparer.OrdinalIgnoreCase))
-            : Layer2ProjectParser.BuildFileToProjectMap(files, projects);
-
         var canonicalRels = new List<Relationship>();
         var seen = new HashSet<(string From, string To)>();
 
@@ -616,6 +721,11 @@ public partial class PostIndexAnalyzer
 
                 if (owner != null && owner.Id != canonicalTarget)
                 {
+                    if (IsTestSource(owner.Id, owner.Path))
+                    {
+                        continue;
+                    }
+
                     if (seen.Add((owner.Id, canonicalTarget)))
                     {
                         var props = new Dictionary<string, object>
@@ -692,11 +802,16 @@ public partial class PostIndexAnalyzer
             for (int i = 0; i < validIds.Count; i++) paramDict[$"p{i}"] = validIds[i];
 
             await ctx.DbClient.ExecuteWriteAsync(
-                $"DELETE FROM edges WHERE kind = 'USES_DB' AND to_id NOT IN ({placeholders}) AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database');",
+                $"DELETE FROM edges WHERE (to_id NOT IN ({placeholders}) AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database')) OR (from_id NOT IN ({placeholders}) AND from_id IN (SELECT id FROM nodes WHERE kind = 'Database'));",
                 paramDict);
             await ctx.DbClient.ExecuteWriteAsync(
                 $"DELETE FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders});",
                 paramDict);
+        }
+        else
+        {
+            await ctx.DbClient.ExecuteWriteAsync("DELETE FROM edges WHERE to_id IN (SELECT id FROM nodes WHERE kind = 'Database') OR from_id IN (SELECT id FROM nodes WHERE kind = 'Database');");
+            await ctx.DbClient.ExecuteWriteAsync("DELETE FROM nodes WHERE kind = 'Database';");
         }
 
         return (canonicalRels, rawToCanonical);
@@ -710,8 +825,81 @@ public partial class PostIndexAnalyzer
         var rawToCanonical = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var canonicalNodes = new Dictionary<string, (string Name, string DbType, string Key, string Engine)>(StringComparer.OrdinalIgnoreCase);
 
-        // 1. Query databases
-        var dbQuery = "MATCH (d:Database) RETURN d.id AS id, d.name AS name, d.db_type AS db_type, d.engine AS engine, d.schema AS schema";
+        // 1. Query projects to identify test projects
+        var projQuery = "MATCH (p:Project) RETURN p.id AS id, p.name AS name, p.path AS path, p.role AS role, json_extract(p.properties, '$.is_test') AS is_test, json_extract(p.properties, '$.entity_kind') AS entity_kind";
+        var projsJson = await db.ExecuteQueryAsync(projQuery, null, cancellationToken);
+        var projectList = new List<(string Id, string Name, string? Path, bool IsTest)>();
+        using (var projsDoc = JsonDocument.Parse(projsJson))
+        {
+            foreach (var row in projsDoc.RootElement.EnumerateArray())
+            {
+                var pId = GetStringProp(row, "id");
+                var pName = GetStringProp(row, "name");
+                var pPath = row.TryGetProperty("path", out var pt) && pt.ValueKind == JsonValueKind.String ? pt.GetString() : null;
+                var pRole = row.TryGetProperty("role", out var rl) && rl.ValueKind == JsonValueKind.String ? rl.GetString() : "";
+                var isTestProp = row.TryGetProperty("is_test", out var it) && it.ValueKind == JsonValueKind.String ? it.GetString() : "";
+                var entityKind = row.TryGetProperty("entity_kind", out var ek) && ek.ValueKind == JsonValueKind.String ? ek.GetString() : "";
+
+                var isTest = string.Equals(pRole, "Test", StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(pRole, "TestSuite", StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(isTestProp, "true", StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(isTestProp, "1", StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(entityKind, "Test", StringComparison.OrdinalIgnoreCase) ||
+                             WorkspaceConventions.IsTestFilePath(pPath) ||
+                             (!string.IsNullOrEmpty(pId) && (pId.Contains("/tests/", StringComparison.OrdinalIgnoreCase) || pId.Contains("\\tests\\", StringComparison.OrdinalIgnoreCase) || pId.Contains(".Tests", StringComparison.OrdinalIgnoreCase)));
+
+                if (!string.IsNullOrEmpty(pId))
+                {
+                    projectList.Add((pId, pName, pPath, isTest));
+                }
+            }
+        }
+
+        // 2. Query relationships to find targets accessed by non-test callers
+        var edgesQuery = "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['USES_DB', 'CONFIGURES', 'DEPENDS_ON', 'READS_FROM', 'WRITES_TO'] RETURN src.id AS source, tgt.id AS target, r.kind AS kind, r.properties AS properties, src.role AS src_role, src.path AS src_path, json_extract(src.properties, '$.is_test') AS src_is_test";
+        var edgesJson = await db.ExecuteQueryAsync(edgesQuery, null, cancellationToken);
+        var nonTestAccessedTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using (var edgesDoc = JsonDocument.Parse(edgesJson))
+        {
+            foreach (var row in edgesDoc.RootElement.EnumerateArray())
+            {
+                var src = GetStringProp(row, "source");
+                var tgt = GetStringProp(row, "target");
+                if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
+
+                var srcRole = row.TryGetProperty("src_role", out var sr) && sr.ValueKind == JsonValueKind.String ? sr.GetString() : "";
+                var srcPath = row.TryGetProperty("src_path", out var sp) && sp.ValueKind == JsonValueKind.String ? sp.GetString() : "";
+                var srcIsTest = row.TryGetProperty("src_is_test", out var sit) && sit.ValueKind == JsonValueKind.String ? sit.GetString() : "";
+
+                var matchingProj = projectList.FirstOrDefault(p => p.Id == src || src.StartsWith(p.Id, StringComparison.OrdinalIgnoreCase) || (!string.IsNullOrEmpty(p.Path) && src.Contains(p.Path, StringComparison.OrdinalIgnoreCase)));
+
+                var isTest = (!string.IsNullOrEmpty(matchingProj.Id) && matchingProj.IsTest) ||
+                             string.Equals(srcRole, "Test", StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(srcRole, "TestSuite", StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(srcIsTest, "true", StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(srcIsTest, "1", StringComparison.OrdinalIgnoreCase) ||
+                             WorkspaceConventions.IsTestFilePath(srcPath) ||
+                             WorkspaceConventions.IsTestFilePath(src) ||
+                             src.Contains("/tests/", StringComparison.OrdinalIgnoreCase) ||
+                             src.Contains("\\tests\\", StringComparison.OrdinalIgnoreCase) ||
+                             src.Contains(".Tests", StringComparison.OrdinalIgnoreCase);
+
+                if (!isTest)
+                {
+                    nonTestAccessedTargets.Add(tgt);
+                    var parts = tgt.Split(':');
+                    var accum = "";
+                    for (int i = 0; i < parts.Length; i++)
+                    {
+                        accum = i == 0 ? parts[i] : $"{accum}:{parts[i]}";
+                        nonTestAccessedTargets.Add(accum);
+                    }
+                }
+            }
+        }
+
+        // 3. Query databases
+        var dbQuery = "MATCH (d:Database) RETURN d.id AS id, d.name AS name, d.db_type AS db_type, d.engine AS engine, d.schema AS schema, d.path AS path, json_extract(d.properties, '$.is_test') AS is_test, d.role AS role";
         var dbJson = await db.ExecuteQueryAsync(dbQuery, null, cancellationToken);
         string? primaryRelationalEngine = null;
         using (var dbDoc = JsonDocument.Parse(dbJson))
@@ -745,6 +933,18 @@ public partial class PostIndexAnalyzer
                 var rawEngine = row.TryGetProperty("engine", out var eg) && eg.ValueKind == JsonValueKind.String ? eg.GetString() : null;
                 if (!IsLikelyDatabaseName(name, rawEngine) && !IsLikelyDatabaseName(id, rawEngine)) continue;
 
+                var dPath = row.TryGetProperty("path", out var dp) && dp.ValueKind == JsonValueKind.String ? dp.GetString() : null;
+                var isDeclaredInProduction = !string.IsNullOrEmpty(dPath) && !WorkspaceConventions.IsTestFilePath(dPath);
+                var isExplicitTest = (row.TryGetProperty("is_test", out var dit) && dit.ValueKind == JsonValueKind.String && (dit.GetString() == "true" || dit.GetString() == "1")) ||
+                                     (row.TryGetProperty("role", out var drl) && drl.ValueKind == JsonValueKind.String && string.Equals(drl.GetString(), "Test", StringComparison.OrdinalIgnoreCase)) ||
+                                     WorkspaceConventions.IsTestFilePath(dPath);
+
+                var hasNonTestAccess = (!isExplicitTest && isDeclaredInProduction) || nonTestAccessedTargets.Contains(id);
+                if (!hasNonTestAccess)
+                {
+                    continue;
+                }
+
                 var dbType = row.TryGetProperty("db_type", out var dt) && dt.ValueKind == JsonValueKind.String ? (dt.GetString() ?? "Database") : "Database";
                 var rawSchema = row.TryGetProperty("schema", out var sc) && sc.ValueKind == JsonValueKind.String ? sc.GetString() : null;
 
@@ -776,6 +976,7 @@ public partial class PostIndexAnalyzer
                 var dsId = GetStringProp(row, "id");
                 var dsName = GetStringProp(row, "name");
                 if (string.IsNullOrEmpty(dsId) || string.IsNullOrEmpty(dsName)) continue;
+                if (!nonTestAccessedTargets.Contains(dsId)) continue;
 
                 var targetEngine = !string.IsNullOrWhiteSpace(primaryRelationalEngine) ? primaryRelationalEngine : "PostgreSQL";
                 var (cName, cType, cKey) = CanonicalizeDatabase(targetEngine, "relational", null, dsName, primaryRelationalEngine);
@@ -800,7 +1001,7 @@ public partial class PostIndexAnalyzer
         foreach (var (canonicalId, (cName, cType, cKey, engineToUse)) in canonicalNodes)
         {
             var dispName = cName.Contains('.')
-                ? cName
+                ? (cName.Equals("SQLite.main", StringComparison.OrdinalIgnoreCase) ? "SQLite" : cName)
                 : (!string.IsNullOrWhiteSpace(engineToUse) && !engineToUse.Equals(cName, StringComparison.OrdinalIgnoreCase)
                     ? $"{cName} ({engineToUse}) [{cType}]"
                     : $"{cName} [{cType}]");
@@ -829,148 +1030,131 @@ public partial class PostIndexAnalyzer
 
         await db.UploadNodesAsync(nodesToUpload);
 
-        // 3. Query projects
-        var projQuery = "MATCH (p:Project) RETURN p.id AS id, p.name AS name, p.path AS path";
-        var projsJson = await db.ExecuteQueryAsync(projQuery, null, cancellationToken);
+        // 4. Query relationships targeting any database
+        var relEdgesQuery =
+            "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['USES_DB', 'CONFIGURES', 'DEPENDS_ON'] RETURN src.id AS source, tgt.id AS target, r.kind AS kind, r.properties AS properties";
+        var relEdgesJson = await db.ExecuteQueryAsync(relEdgesQuery, null, cancellationToken);
 
-        using (var projsDoc = JsonDocument.Parse(projsJson))
+        using (var edgesDoc = JsonDocument.Parse(relEdgesJson))
         {
-            var projectList = new List<(string Id, string Name, string? Path)>();
+            var relationshipsToUpload = new List<Relationship>();
+            var seen = new HashSet<(string From, string To)>();
 
-            foreach (var row in projsDoc.RootElement.EnumerateArray())
+            foreach (var row in edgesDoc.RootElement.EnumerateArray())
             {
-                var pId = GetStringProp(row, "id");
-                var pName = GetStringProp(row, "name");
+                var src = GetStringProp(row, "source");
+                var tgt = GetStringProp(row, "target");
+                if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
 
-                var pPath = row.TryGetProperty("path", out var pt) && pt.ValueKind == JsonValueKind.String
-                    ? pt.GetString()
-                    : null;
-
-                if (!string.IsNullOrEmpty(pId))
+                if (rawToCanonical.TryGetValue(tgt, out var canonicalId))
                 {
-                    projectList.Add((pId, pName, pPath));
-                }
-            }
+                    // Resolve owning project
+                    string? projId = null;
+                    var exactProj = projectList.FirstOrDefault(p => p.Id == src);
 
-            // 4. Query relationships targeting any database
-            var edgesQuery =
-                "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['USES_DB', 'CONFIGURES', 'DEPENDS_ON'] RETURN src.id AS source, tgt.id AS target, r.kind AS kind, r.properties AS properties";
-            var edgesJson = await db.ExecuteQueryAsync(edgesQuery, null, cancellationToken);
-
-            using (var edgesDoc = JsonDocument.Parse(edgesJson))
-            {
-                var relationshipsToUpload = new List<Relationship>();
-                var seen = new HashSet<(string From, string To)>();
-
-                foreach (var row in edgesDoc.RootElement.EnumerateArray())
-                {
-                    var src = GetStringProp(row, "source");
-                    var tgt = GetStringProp(row, "target");
-                    if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
-
-                    if (rawToCanonical.TryGetValue(tgt, out var canonicalId))
+                    if (!string.IsNullOrEmpty(exactProj.Id))
                     {
-                        // Resolve owning project
-                        string? projId = null;
-                        var exactProj = projectList.FirstOrDefault(p => p.Id == src);
+                        if (exactProj.IsTest) continue;
+                        projId = exactProj.Id;
+                    }
+                    else
+                    {
+                        var matched = projectList.FirstOrDefault(p =>
+                            src.StartsWith(p.Id, StringComparison.OrdinalIgnoreCase) ||
+                            (!string.IsNullOrEmpty(p.Path) &&
+                             src.Contains(p.Path, StringComparison.OrdinalIgnoreCase)));
+                        if (matched.IsTest) continue;
+                        projId = matched.Id;
+                    }
 
-                        if (!string.IsNullOrEmpty(exactProj.Id))
+                    if (!string.IsNullOrEmpty(projId) && projId != canonicalId)
+                    {
+                        if (seen.Add((projId, canonicalId)))
                         {
-                            projId = exactProj.Id;
-                        }
-                        else
-                        {
-                            var matched = projectList.FirstOrDefault(p =>
-                                src.StartsWith(p.Id, StringComparison.OrdinalIgnoreCase) ||
-                                (!string.IsNullOrEmpty(p.Path) &&
-                                 src.Contains(p.Path, StringComparison.OrdinalIgnoreCase)));
-                            projId = matched.Id;
-                        }
-
-                        if (!string.IsNullOrEmpty(projId) && projId != canonicalId)
-                        {
-                            if (seen.Add((projId, canonicalId)))
+                            var props = new Dictionary<string, object>
                             {
-                                var props = new Dictionary<string, object>
-                                {
-                                    ["dependency_type"] = "database",
-                                    ["is_semantic"] = "true",
-                                    ["is_canonical"] = "true"
-                                };
+                                ["dependency_type"] = "database",
+                                ["is_semantic"] = "true",
+                                ["is_canonical"] = "true"
+                            };
 
-                                if (row.TryGetProperty("properties", out var pElem) &&
-                                    pElem.ValueKind == JsonValueKind.Object)
+                            if (row.TryGetProperty("properties", out var pElem) &&
+                                pElem.ValueKind == JsonValueKind.Object)
+                            {
+                                foreach (var jp in pElem.EnumerateObject())
                                 {
-                                    foreach (var jp in pElem.EnumerateObject())
+                                    if (!props.ContainsKey(jp.Name))
                                     {
-                                        if (!props.ContainsKey(jp.Name))
-                                        {
-                                            props[jp.Name] = jp.Value.ToString();
-                                        }
+                                        props[jp.Name] = jp.Value.ToString();
                                     }
                                 }
-
-                                relationshipsToUpload.Add(new Relationship(projId, canonicalId,
-                                    OntologyConstants.Relationships.UsesDb, props));
                             }
+
+                            relationshipsToUpload.Add(new Relationship(projId, canonicalId,
+                                OntologyConstants.Relationships.UsesDb, props));
                         }
                     }
                 }
+            }
 
-                if (relationshipsToUpload.Count > 0)
+            if (relationshipsToUpload.Count > 0)
+            {
+                await db.UploadRelationshipsAsync(relationshipsToUpload);
+            }
+
+            // 5. Clean up duplicate / project-scoped database nodes where id != canonicalId
+            foreach (var (rawId, canonicalId) in rawToCanonical)
+            {
+                if (!string.Equals(rawId, canonicalId, StringComparison.Ordinal))
                 {
-                    await db.UploadRelationshipsAsync(relationshipsToUpload);
-                }
+                    await db.ExecuteWriteAsync(
+                        "UPDATE OR IGNORE edges SET to_id = @canonicalId WHERE to_id = @rawId;",
+                        new { canonicalId, rawId }, cancellationToken);
 
-                // 5. Clean up duplicate / project-scoped database nodes where id != canonicalId
-                foreach (var (rawId, canonicalId) in rawToCanonical)
-                {
-                    if (!string.Equals(rawId, canonicalId, StringComparison.Ordinal))
-                    {
-                        await db.ExecuteWriteAsync(
-                            "UPDATE OR IGNORE edges SET to_id = @canonicalId WHERE to_id = @rawId;",
-                            new { canonicalId, rawId }, cancellationToken);
-
-                        await db.ExecuteWriteAsync("DELETE FROM edges WHERE to_id = @rawId;", new { rawId },
-                            cancellationToken);
-
-                        await db.ExecuteWriteAsync(
-                            "UPDATE OR IGNORE edges SET from_id = @canonicalId WHERE from_id = @rawId;",
-                            new { canonicalId, rawId }, cancellationToken);
-
-                        await db.ExecuteWriteAsync("DELETE FROM edges WHERE from_id = @rawId;", new { rawId },
-                            cancellationToken);
-
-                        await db.ExecuteWriteAsync("DELETE FROM nodes WHERE id = @rawId;", new { rawId },
-                            cancellationToken);
-                    }
-                }
-
-                // Remove any improper CONTAINS edges pointing to Database nodes (Databases are infrastructure, only contained in semantic_structure)
-                await db.ExecuteWriteAsync(
-                    "DELETE FROM edges WHERE kind = 'CONTAINS' AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database') AND from_id NOT LIKE '%semantic_structure%';",
-                    null, cancellationToken);
-
-                // Purge any remaining phantom Database nodes that were not canonicalized
-                var validIds = canonicalNodes.Keys.ToList();
-
-                if (validIds.Count > 0)
-                {
-                    var placeholders = string.Join(",", validIds.Select((_, i) => $"@p{i}"));
-                    var paramDict = new Dictionary<string, object>();
-                    for (int i = 0; i < validIds.Count; i++) paramDict[$"p{i}"] = validIds[i];
+                    await db.ExecuteWriteAsync("DELETE FROM edges WHERE to_id = @rawId;", new { rawId },
+                        cancellationToken);
 
                     await db.ExecuteWriteAsync(
-                        $"DELETE FROM edges WHERE kind = 'USES_DB' AND to_id NOT IN ({placeholders}) AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database');",
-                        paramDict, cancellationToken);
+                        "UPDATE OR IGNORE edges SET from_id = @canonicalId WHERE from_id = @rawId;",
+                        new { canonicalId, rawId }, cancellationToken);
 
-                    await db.ExecuteWriteAsync(
-                        $"DELETE FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders});", paramDict,
+                    await db.ExecuteWriteAsync("DELETE FROM edges WHERE from_id = @rawId;", new { rawId },
+                        cancellationToken);
+
+                    await db.ExecuteWriteAsync("DELETE FROM nodes WHERE id = @rawId;", new { rawId },
                         cancellationToken);
                 }
-
-                return new CanonicalizeDatabasesResult(nodesToUpload.Count, relationshipsToUpload.Count);
             }
+
+            // Remove any improper CONTAINS edges pointing to Database nodes (Databases are infrastructure, only contained in semantic_structure)
+            await db.ExecuteWriteAsync(
+                "DELETE FROM edges WHERE kind = 'CONTAINS' AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database') AND from_id NOT LIKE '%semantic_structure%';",
+                null, cancellationToken);
+
+            // Purge any remaining phantom Database nodes that were not canonicalized
+            var validIds = canonicalNodes.Keys.ToList();
+
+            if (validIds.Count > 0)
+            {
+                var placeholders = string.Join(",", validIds.Select((_, i) => $"@p{i}"));
+                var paramDict = new Dictionary<string, object>();
+                for (int i = 0; i < validIds.Count; i++) paramDict[$"p{i}"] = validIds[i];
+
+                await db.ExecuteWriteAsync(
+                    $"DELETE FROM edges WHERE (to_id NOT IN ({placeholders}) AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database')) OR (from_id NOT IN ({placeholders}) AND from_id IN (SELECT id FROM nodes WHERE kind = 'Database'));",
+                    paramDict, cancellationToken);
+
+                await db.ExecuteWriteAsync(
+                    $"DELETE FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders});", paramDict,
+                    cancellationToken);
+            }
+            else
+            {
+                await db.ExecuteWriteAsync("DELETE FROM edges WHERE to_id IN (SELECT id FROM nodes WHERE kind = 'Database') OR from_id IN (SELECT id FROM nodes WHERE kind = 'Database');", null, cancellationToken);
+                await db.ExecuteWriteAsync("DELETE FROM nodes WHERE kind = 'Database';", null, cancellationToken);
+            }
+
+            return new CanonicalizeDatabasesResult(nodesToUpload.Count, relationshipsToUpload.Count);
         }
     }
 }
