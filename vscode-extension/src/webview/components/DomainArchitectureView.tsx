@@ -4420,7 +4420,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                 width: '100%',
                 height: '100%',
                 pointerEvents: 'none',
-                zIndex: 2,
+                zIndex: 0,
               }}
             >
               <g transform={`translate(${cyTransform.pan.x}, ${cyTransform.pan.y}) scale(${cyTransform.zoom})`}>
