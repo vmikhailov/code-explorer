@@ -211,6 +211,41 @@ public partial class PostIndexAnalyzer
             return ($"{techName}.{defaultSchema}", techType, $"{techKey}:{schemaClean}");
         }
 
+        // 4. Config-created DB node: rawName is a catalog/schema (e.g. "customers") and explicit rawEngine is a known engine (e.g. "PostgreSQL", "MongoDB")
+        var explicitEngine = !string.IsNullOrWhiteSpace(rawEngine) &&
+                             !rawEngine.Equals("Database", StringComparison.OrdinalIgnoreCase) &&
+                             !rawEngine.Equals("default", StringComparison.OrdinalIgnoreCase)
+            ? rawEngine
+            : null;
+
+        if (!string.IsNullOrWhiteSpace(explicitEngine) &&
+            !trimmed.Equals("Database", StringComparison.OrdinalIgnoreCase) &&
+            !trimmed.Equals("default", StringComparison.OrdinalIgnoreCase) &&
+            IsValidSchemaIdentifier(trimmed))
+        {
+            var (techName, techType, techKey) = CanonicalizeTechnologyOnly(explicitEngine, type);
+            if (!trimmed.Equals(techName, StringComparison.OrdinalIgnoreCase) &&
+                !trimmed.Equals(techKey, StringComparison.OrdinalIgnoreCase) &&
+                !KnownDbEnginesAndNames.Contains(trimmed.ToLowerInvariant()))
+            {
+                var schemaPart = WorkspaceConventions.NormalizeServiceName(trimmed);
+                schemaPart = schemaPart.Replace("--", "-").Trim('_', '-');
+
+                if (schemaPart.Equals("dbo", StringComparison.OrdinalIgnoreCase) && techName.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
+                {
+                    schemaPart = "public";
+                }
+                if ((schemaPart.Equals("dbo", StringComparison.OrdinalIgnoreCase) || schemaPart.Equals("default", StringComparison.OrdinalIgnoreCase)) && techName.Equals("SQLite", StringComparison.OrdinalIgnoreCase))
+                {
+                    schemaPart = "main";
+                }
+
+                var schemaClean = Regex.Replace(schemaPart.ToLowerInvariant(), @"[^a-z0-9_-]", "_").Trim('_');
+                if (string.IsNullOrEmpty(schemaClean)) schemaClean = GetDefaultSchemaForEngine(techName, techType);
+                return ($"{techName}.{schemaPart}", techType, $"{techKey}:{schemaClean}");
+            }
+        }
+
         return CanonicalizeTechnologyOnly(trimmed, type);
     }
 
@@ -334,6 +369,94 @@ public partial class PostIndexAnalyzer
         }
 
         return $"{wid}:{OntologyConstants.IdPrefixes.Database}:{cType.ToLowerInvariant()}:{cKey.ToLowerInvariant()}";
+    }
+
+    public static Dictionary<string, string> ResolveDatabaseConsolidations(
+        IEnumerable<(string Id, string Name, string Engine, string Schema)> candidateNodes)
+    {
+        var remap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var nodesByEngine = candidateNodes
+            .GroupBy(n => n.Engine, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var group in nodesByEngine)
+        {
+            var list = group.DistinctBy(n => n.Id).ToList();
+            if (list.Count <= 1) continue;
+
+            // 1. Check singular vs plural schema pairs
+            for (int i = 0; i < list.Count; i++)
+            {
+                var n1 = list[i];
+                var s1 = n1.Schema;
+                if (string.IsNullOrEmpty(s1) && n1.Name.Contains('.')) s1 = n1.Name.Split('.', 2)[1];
+
+                for (int j = 0; j < list.Count; j++)
+                {
+                    if (i == j) continue;
+                    var n2 = list[j];
+                    var s2 = n2.Schema;
+                    if (string.IsNullOrEmpty(s2) && n2.Name.Contains('.')) s2 = n2.Name.Split('.', 2)[1];
+
+                    if (!string.IsNullOrEmpty(s1) && !string.IsNullOrEmpty(s2))
+                    {
+                        // If s2 is plural of s1 (s1 + "s" or s1 + "es"), map n1 (singular) -> n2 (plural)
+                        if (s2.Equals(s1 + "s", StringComparison.OrdinalIgnoreCase) ||
+                            s2.Equals(s1 + "es", StringComparison.OrdinalIgnoreCase))
+                        {
+                            remap[n1.Id] = n2.Id;
+                        }
+                    }
+                }
+            }
+
+            // 2. Generic engine-only node alongside concrete schema node
+            var concreteNodes = list.Where(n => {
+                var s = n.Schema;
+                if (string.IsNullOrEmpty(s) && n.Name.Contains('.')) s = n.Name.Split('.', 2)[1];
+                return !string.IsNullOrWhiteSpace(s) && !s.Equals("default", StringComparison.OrdinalIgnoreCase);
+            }).ToList();
+
+            if (concreteNodes.Count > 0)
+            {
+                // Prefer a plural or longest schema concrete node
+                var winner = concreteNodes
+                    .OrderByDescending(n => {
+                        var s = n.Schema;
+                        if (string.IsNullOrEmpty(s) && n.Name.Contains('.')) s = n.Name.Split('.', 2)[1];
+                        return s.Length;
+                    })
+                    .First();
+
+                while (remap.TryGetValue(winner.Id, out var nextWinner) && nextWinner != winner.Id)
+                {
+                    winner = list.First(n => n.Id == nextWinner);
+                }
+
+                var genericNodes = list.Where(n => {
+                    var s = n.Schema;
+                    if (string.IsNullOrEmpty(s) && n.Name.Contains('.')) s = n.Name.Split('.', 2)[1];
+                    return string.IsNullOrWhiteSpace(s) || s.Equals("default", StringComparison.OrdinalIgnoreCase);
+                }).ToList();
+
+                foreach (var genNode in genericNodes)
+                {
+                    remap[genNode.Id] = winner.Id;
+                }
+            }
+        }
+
+        // Resolve transitive remappings
+        foreach (var k in remap.Keys.ToList())
+        {
+            var target = remap[k];
+            while (remap.TryGetValue(target, out var nextTarget) && nextTarget != target)
+            {
+                target = nextTarget;
+            }
+            remap[k] = target;
+        }
+
+        return remap;
     }
 
     public static async Task<(List<Relationship> CanonicalRels, Dictionary<string, string> RawToCanonicalMap)> CanonicalizeDatabasesInMemoryAsync(
@@ -675,7 +798,81 @@ public partial class PostIndexAnalyzer
             canonicalDbNodes.Remove($"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Database}:relational:database");
         }
 
-        // 2. Add canonical nodes to SemanticStructure and upload
+        // 2. Gather project references and consolidate databases per service/project
+        var projectDbEdges = new List<(ProjectNode Owner, string CanonicalTarget, Relationship OriginalRel)>();
+
+        foreach (var rel in allRelationships)
+        {
+            var isDbRel = rel.Kind == OntologyConstants.Relationships.UsesDb ||
+                          rel.Kind == OntologyConstants.Relationships.Configures ||
+                          rawToCanonical.ContainsKey(rel.To);
+            if (!isDbRel) continue;
+
+            if (rawToCanonical.TryGetValue(rel.To, out var canonicalTarget))
+            {
+                var owner = projects.FirstOrDefault(p => p.Id == rel.From || rel.From.StartsWith(p.Id, StringComparison.OrdinalIgnoreCase))
+                            ?? (fileToProject.TryGetValue(rel.From, out var fp) ? fp : null);
+
+                if (owner != null && owner.Id != canonicalTarget)
+                {
+                    if (IsTestSource(owner.Id, owner.Path))
+                    {
+                        continue;
+                    }
+
+                    projectDbEdges.Add((owner, canonicalTarget, rel));
+                }
+            }
+        }
+
+        var edgesByService = projectDbEdges
+            .GroupBy(e => {
+                var domain = SyntaxEnricher.CleanProjectNameToDomain(e.Owner.Name);
+                return !string.IsNullOrEmpty(domain) ? domain : e.Owner.Id;
+            }, StringComparer.OrdinalIgnoreCase);
+
+        var globalConsolidationRemap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var sGroup in edgesByService)
+        {
+            var candidateNodes = sGroup
+                .Select(e => canonicalDbNodes.GetValueOrDefault(e.CanonicalTarget))
+                .Where(n => n != null)
+                .Select(n => {
+                    var name = n!.Name;
+                    var engine = (n.Extensions != null && n.Extensions.TryGetValue("engine", out var eng) && !string.IsNullOrWhiteSpace(eng))
+                        ? eng
+                        : (name.Contains('.') ? name.Split('.', 2)[0] : name);
+                    var schema = (n.Extensions != null && n.Extensions.TryGetValue("schema", out var sc) && !string.IsNullOrWhiteSpace(sc))
+                        ? sc
+                        : (name.Contains('.') ? name.Split('.', 2)[1] : "");
+                    return (n.Id, name, engine, schema);
+                });
+
+            var localRemap = ResolveDatabaseConsolidations(candidateNodes);
+            foreach (var (loser, winner) in localRemap)
+            {
+                globalConsolidationRemap[loser] = winner;
+            }
+        }
+
+        if (globalConsolidationRemap.Count > 0)
+        {
+            foreach (var k in rawToCanonical.Keys.ToList())
+            {
+                var cur = rawToCanonical[k];
+                if (globalConsolidationRemap.TryGetValue(cur, out var win))
+                {
+                    rawToCanonical[k] = win;
+                }
+            }
+            foreach (var loserId in globalConsolidationRemap.Keys)
+            {
+                canonicalDbNodes.Remove(loserId);
+            }
+        }
+
+        // 3. Add canonical nodes to SemanticStructure and upload
         if (ctx.SemanticStructure != null)
         {
             if (!string.IsNullOrWhiteSpace(primaryRelationalEngine))
@@ -703,66 +900,48 @@ public partial class PostIndexAnalyzer
             ctx.AddNodesCount(canonicalDbNodes.Count);
         }
 
-        // 3. Link projects to canonical database nodes
+        // 4. Link projects to canonical database nodes
         var canonicalRels = new List<Relationship>();
         var seen = new HashSet<(string From, string To)>();
 
-        foreach (var rel in allRelationships)
+        foreach (var (owner, rawTarget, rel) in projectDbEdges)
         {
-            var isDbRel = rel.Kind == OntologyConstants.Relationships.UsesDb ||
-                          rel.Kind == OntologyConstants.Relationships.Configures ||
-                          rawToCanonical.ContainsKey(rel.To);
-            if (!isDbRel) continue;
-
-            if (rawToCanonical.TryGetValue(rel.To, out var canonicalTarget))
+            var target = globalConsolidationRemap.TryGetValue(rawTarget, out var win) ? win : rawTarget;
+            if (owner.Id != target && seen.Add((owner.Id, target)))
             {
-                var owner = projects.FirstOrDefault(p => p.Id == rel.From || rel.From.StartsWith(p.Id, StringComparison.OrdinalIgnoreCase))
-                            ?? (fileToProject.TryGetValue(rel.From, out var fp) ? fp : null);
-
-                if (owner != null && owner.Id != canonicalTarget)
+                var props = new Dictionary<string, object>
                 {
-                    if (IsTestSource(owner.Id, owner.Path))
+                    ["dependency_type"] = "database",
+                    ["is_semantic"] = "true",
+                    ["is_canonical"] = "true"
+                };
+                if (rel.Properties != null)
+                {
+                    foreach (var (k, v) in rel.Properties)
                     {
-                        continue;
-                    }
-
-                    if (seen.Add((owner.Id, canonicalTarget)))
-                    {
-                        var props = new Dictionary<string, object>
+                        if (v != null && !props.ContainsKey(k))
                         {
-                            ["dependency_type"] = "database",
-                            ["is_semantic"] = "true",
-                            ["is_canonical"] = "true"
-                        };
-                        if (rel.Properties != null)
-                        {
-                            foreach (var (k, v) in rel.Properties)
-                            {
-                                if (v != null && !props.ContainsKey(k))
-                                {
-                                    props[k] = v;
-                                }
-                            }
+                            props[k] = v;
                         }
-                        canonicalRels.Add(new Relationship(
-                            owner.Id,
-                            canonicalTarget,
-                            OntologyConstants.Relationships.UsesDb,
-                            props
-                        ));
                     }
-                    else if (rel.Properties != null)
+                }
+                canonicalRels.Add(new Relationship(
+                    owner.Id,
+                    target,
+                    OntologyConstants.Relationships.UsesDb,
+                    props
+                ));
+            }
+            else if (rel.Properties != null)
+            {
+                var existing = canonicalRels.FirstOrDefault(r => r.From == owner.Id && r.To == target);
+                if (existing?.Properties != null)
+                {
+                    foreach (var (k, v) in rel.Properties)
                     {
-                        var existing = canonicalRels.FirstOrDefault(r => r.From == owner.Id && r.To == canonicalTarget);
-                        if (existing?.Properties != null)
+                        if (v != null && !existing.Properties.ContainsKey(k))
                         {
-                            foreach (var (k, v) in rel.Properties)
-                            {
-                                if (v != null && !existing.Properties.ContainsKey(k))
-                                {
-                                    existing.Properties[k] = v;
-                                }
-                            }
+                            existing.Properties[k] = v;
                         }
                     }
                 }
@@ -996,7 +1175,98 @@ public partial class PostIndexAnalyzer
             return new CanonicalizeDatabasesResult(0, 0);
         }
 
-        // 2. Upload canonical Database nodes
+        // 4. Query relationships targeting any database and consolidate per service/project
+        var relEdgesQuery =
+            "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['USES_DB', 'CONFIGURES', 'DEPENDS_ON'] RETURN src.id AS source, tgt.id AS target, r.kind AS kind, r.properties AS properties";
+        var relEdgesJson = await db.ExecuteQueryAsync(relEdgesQuery, null, cancellationToken);
+
+        var projectDbEdges = new List<((string Id, string Name) Owner, string CanonicalTarget, JsonElement Properties)>();
+
+        using (var edgesDoc = JsonDocument.Parse(relEdgesJson))
+        {
+            foreach (var row in edgesDoc.RootElement.EnumerateArray())
+            {
+                var src = GetStringProp(row, "source");
+                var tgt = GetStringProp(row, "target");
+                if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
+
+                if (rawToCanonical.TryGetValue(tgt, out var canonicalId))
+                {
+                    // Resolve owning project
+                    string? projId = null;
+                    string projName = "";
+                    var exactProj = projectList.FirstOrDefault(p => p.Id == src);
+
+                    if (!string.IsNullOrEmpty(exactProj.Id))
+                    {
+                        if (exactProj.IsTest) continue;
+                        projId = exactProj.Id;
+                        projName = exactProj.Name;
+                    }
+                    else
+                    {
+                        var matched = projectList.FirstOrDefault(p =>
+                            src.StartsWith(p.Id, StringComparison.OrdinalIgnoreCase) ||
+                            (!string.IsNullOrEmpty(p.Path) &&
+                             src.Contains(p.Path, StringComparison.OrdinalIgnoreCase)));
+                        if (matched.IsTest) continue;
+                        projId = matched.Id;
+                        projName = matched.Name;
+                    }
+
+                    if (!string.IsNullOrEmpty(projId) && projId != canonicalId)
+                    {
+                        row.TryGetProperty("properties", out var pElem);
+                        projectDbEdges.Add(((projId, projName), canonicalId, pElem.Clone()));
+                    }
+                }
+            }
+        }
+
+        var edgesByService = projectDbEdges
+            .GroupBy(e => {
+                var domain = SyntaxEnricher.CleanProjectNameToDomain(e.Owner.Name);
+                return !string.IsNullOrEmpty(domain) ? domain : e.Owner.Id;
+            }, StringComparer.OrdinalIgnoreCase);
+
+        var globalConsolidationRemap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var sGroup in edgesByService)
+        {
+            var candidateNodes = sGroup
+                .Select(e => canonicalNodes.TryGetValue(e.CanonicalTarget, out var info) ? (e.CanonicalTarget, info) : default)
+                .Where(t => t.CanonicalTarget != null)
+                .Select(t => {
+                    var name = t.info.Name;
+                    var engine = t.info.Engine;
+                    var schema = name.Contains('.') ? name.Split('.', 2)[1] : "";
+                    return (t.CanonicalTarget, name, engine, schema);
+                });
+
+            var localRemap = ResolveDatabaseConsolidations(candidateNodes);
+            foreach (var (loser, winner) in localRemap)
+            {
+                globalConsolidationRemap[loser] = winner;
+            }
+        }
+
+        if (globalConsolidationRemap.Count > 0)
+        {
+            foreach (var k in rawToCanonical.Keys.ToList())
+            {
+                var cur = rawToCanonical[k];
+                if (globalConsolidationRemap.TryGetValue(cur, out var win))
+                {
+                    rawToCanonical[k] = win;
+                }
+            }
+            foreach (var loserId in globalConsolidationRemap.Keys)
+            {
+                canonicalNodes.Remove(loserId);
+            }
+        }
+
+        // 2. Upload canonical Database nodes (only active, consolidated nodes)
         var nodesToUpload = new List<Node>();
         foreach (var (canonicalId, (cName, cType, cKey, engineToUse)) in canonicalNodes)
         {
@@ -1028,79 +1298,47 @@ public partial class PostIndexAnalyzer
             nodesToUpload.Add(new Node(canonicalId, "Database", props));
         }
 
-        await db.UploadNodesAsync(nodesToUpload);
-
-        // 4. Query relationships targeting any database
-        var relEdgesQuery =
-            "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['USES_DB', 'CONFIGURES', 'DEPENDS_ON'] RETURN src.id AS source, tgt.id AS target, r.kind AS kind, r.properties AS properties";
-        var relEdgesJson = await db.ExecuteQueryAsync(relEdgesQuery, null, cancellationToken);
-
-        using (var edgesDoc = JsonDocument.Parse(relEdgesJson))
+        if (nodesToUpload.Count > 0)
         {
-            var relationshipsToUpload = new List<Relationship>();
-            var seen = new HashSet<(string From, string To)>();
+            await db.UploadNodesAsync(nodesToUpload);
+        }
 
-            foreach (var row in edgesDoc.RootElement.EnumerateArray())
+        // 3. Upload relationships targeting consolidated canonical databases
+        var relationshipsToUpload = new List<Relationship>();
+        var seen = new HashSet<(string From, string To)>();
+
+        foreach (var (owner, rawTarget, propsElem) in projectDbEdges)
+        {
+            var target = globalConsolidationRemap.TryGetValue(rawTarget, out var win) ? win : rawTarget;
+            if (owner.Id != target && seen.Add((owner.Id, target)))
             {
-                var src = GetStringProp(row, "source");
-                var tgt = GetStringProp(row, "target");
-                if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
-
-                if (rawToCanonical.TryGetValue(tgt, out var canonicalId))
+                var props = new Dictionary<string, object>
                 {
-                    // Resolve owning project
-                    string? projId = null;
-                    var exactProj = projectList.FirstOrDefault(p => p.Id == src);
+                    ["dependency_type"] = "database",
+                    ["is_semantic"] = "true",
+                    ["is_canonical"] = "true"
+                };
 
-                    if (!string.IsNullOrEmpty(exactProj.Id))
+                if (propsElem.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var jp in propsElem.EnumerateObject())
                     {
-                        if (exactProj.IsTest) continue;
-                        projId = exactProj.Id;
-                    }
-                    else
-                    {
-                        var matched = projectList.FirstOrDefault(p =>
-                            src.StartsWith(p.Id, StringComparison.OrdinalIgnoreCase) ||
-                            (!string.IsNullOrEmpty(p.Path) &&
-                             src.Contains(p.Path, StringComparison.OrdinalIgnoreCase)));
-                        if (matched.IsTest) continue;
-                        projId = matched.Id;
-                    }
-
-                    if (!string.IsNullOrEmpty(projId) && projId != canonicalId)
-                    {
-                        if (seen.Add((projId, canonicalId)))
+                        if (!props.ContainsKey(jp.Name))
                         {
-                            var props = new Dictionary<string, object>
-                            {
-                                ["dependency_type"] = "database",
-                                ["is_semantic"] = "true",
-                                ["is_canonical"] = "true"
-                            };
-
-                            if (row.TryGetProperty("properties", out var pElem) &&
-                                pElem.ValueKind == JsonValueKind.Object)
-                            {
-                                foreach (var jp in pElem.EnumerateObject())
-                                {
-                                    if (!props.ContainsKey(jp.Name))
-                                    {
-                                        props[jp.Name] = jp.Value.ToString();
-                                    }
-                                }
-                            }
-
-                            relationshipsToUpload.Add(new Relationship(projId, canonicalId,
-                                OntologyConstants.Relationships.UsesDb, props));
+                            props[jp.Name] = jp.Value.ToString();
                         }
                     }
                 }
-            }
 
-            if (relationshipsToUpload.Count > 0)
-            {
-                await db.UploadRelationshipsAsync(relationshipsToUpload);
+                relationshipsToUpload.Add(new Relationship(owner.Id, target,
+                    OntologyConstants.Relationships.UsesDb, props));
             }
+        }
+
+        if (relationshipsToUpload.Count > 0)
+        {
+            await db.UploadRelationshipsAsync(relationshipsToUpload);
+        }
 
             // 5. Clean up duplicate / project-scoped database nodes where id != canonicalId
             foreach (var (rawId, canonicalId) in rawToCanonical)
@@ -1157,4 +1395,3 @@ public partial class PostIndexAnalyzer
             return new CanonicalizeDatabasesResult(nodesToUpload.Count, relationshipsToUpload.Count);
         }
     }
-}

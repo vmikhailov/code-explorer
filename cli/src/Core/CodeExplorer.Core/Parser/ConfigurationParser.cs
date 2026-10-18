@@ -83,8 +83,26 @@ public static class ConfigurationParser
         var lower = connStr.ToLowerInvariant();
         var lowerName = name.ToLowerInvariant();
 
-        if (lower.StartsWith("postgres://") || lower.StartsWith("postgresql://") || lower.StartsWith("jdbc:postgresql://") ||
-            lower.Contains("host=") && lower.Contains("database=") && (lower.Contains("username=") || lower.Contains("user id=")))
+        var isPostgres = lower.StartsWith("postgres://") ||
+                         lower.StartsWith("postgresql://") ||
+                         lower.Contains("jdbc:postgresql://") ||
+                         lowerName.Contains("postgres") ||
+                         lowerName.Contains("npgsql") ||
+                         lower.Contains("port=5432") ||
+                         lower.Contains("user id=postgres") ||
+                         lower.Contains("username=postgres") ||
+                         lower.Contains("include error detail=") ||
+                         lower.Contains("search path=") ||
+                         lower.Contains("searchpath=") ||
+                         ((lower.Contains("host=") || lower.Contains("server=")) && lower.Contains("database=") && (lower.Contains("username=") || lower.Contains("user id=postgres") || lower.Contains("port=5432")));
+
+        var isMySql = lower.StartsWith("mysql://") ||
+                      lower.StartsWith("jdbc:mysql://") ||
+                      lowerName.Contains("mysql") ||
+                      lower.Contains("port=3306") ||
+                      lower.Contains("uid=root");
+
+        if (isPostgres)
         {
             CreateDatabaseNode("PostgreSQL", "relational", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
         }
@@ -106,13 +124,13 @@ public static class ConfigurationParser
             var ch = ExtractChannelName(connStr, name);
             CreateTopicNode("kafka", ch, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
         }
+        else if (isMySql)
+        {
+            CreateDatabaseNode("MySQL", "relational", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
+        }
         else if (lower.Contains("data source=") || lower.Contains("server=") || lower.StartsWith("jdbc:sqlserver://") || lowerName.Contains("sqlserver") || lowerName.Contains("mssql"))
         {
             CreateDatabaseNode("SQL Server", "relational", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
-        }
-        else if (lower.StartsWith("mysql://") || lower.StartsWith("jdbc:mysql://") || lowerName.Contains("mysql"))
-        {
-            CreateDatabaseNode("MySQL", "relational", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
         }
         else if (lower.Contains(".db") || lower.Contains(".sqlite") || lowerName.Contains("sqlite"))
         {
@@ -165,14 +183,21 @@ public static class ConfigurationParser
 
     public static string ExtractChannelName(string connStr, string defaultName)
     {
-        if (string.IsNullOrWhiteSpace(connStr)) return defaultName;
+        var leaf = ExtractKeyLeaf(defaultName);
+        if (string.IsNullOrWhiteSpace(connStr)) return leaf;
         var uriMatch = Regex.Match(connStr, @"^[a-zA-Z][a-zA-Z0-9+:.-]*://[^/]+/([^?#;\s]+)", RegexOptions.IgnoreCase);
         if (uriMatch.Success)
         {
             var ch = uriMatch.Groups[1].Value.Trim().Trim('"', '\'');
             if (IsValidCatalogName(ch)) return ch;
         }
-        return defaultName;
+        return leaf;
+    }
+
+    private static string ExtractKeyLeaf(string key)
+    {
+        var sepIdx = Math.Max(key.LastIndexOf(':'), key.LastIndexOf('.'));
+        return sepIdx >= 0 && sepIdx < key.Length - 1 ? key[(sepIdx + 1)..] : key;
     }
 
     public static void CreateDatabaseNode(
@@ -196,6 +221,7 @@ public static class ConfigurationParser
         var isGenericConfigKey = !string.IsNullOrWhiteSpace(customName) &&
             (customName.Contains('_') ||
              customName.Contains('.') ||
+             customName.Contains(':') ||
              customName.Equals("spring-datasource", StringComparison.OrdinalIgnoreCase) ||
              customName.Equals("spring.datasource.url", StringComparison.OrdinalIgnoreCase) ||
              customName.Equals("database", StringComparison.OrdinalIgnoreCase) ||
@@ -251,7 +277,12 @@ public static class ConfigurationParser
 
         if (!containerNode.Children.Any(c => c.Id == dbId))
         {
-            var dbNode = new DatabaseNode(dbId, dbName, relativePath, dbType, new Dictionary<string, string> { ["engine"] = engine });
+            var ext = new Dictionary<string, string> { ["engine"] = engine };
+            if (!string.IsNullOrWhiteSpace(catalog))
+            {
+                ext["schema"] = catalog;
+            }
+            var dbNode = new DatabaseNode(dbId, dbName, relativePath, dbType, ext);
             containerNode.Children.Add(dbNode);
             ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Database, dbName, dbId);
         }

@@ -42,16 +42,15 @@ public sealed class DatabaseConfigurationDescriptor : ILibraryConfigurationDescr
                       lowerVal.StartsWith("jdbc:mysql://") ||
                       lowerVal.StartsWith("mysql://") ||
                       (lowerVal.Contains("data source=") && lowerVal.Contains(".db")) ||
-                      (lowerVal.Contains("host=") && lowerVal.Contains("database="));
+                      ((lowerVal.Contains("host=") || lowerVal.Contains("server=")) && lowerVal.Contains("database="));
 
         if (!isConnStringKey && !isDbVal)
         {
             return false;
         }
 
-        var connName = ExtractKeyLeaf(key);
         ConfigurationParser.InferAndCreateServiceFromConnectionString(
-            connName,
+            key,
             value,
             relativePath,
             fileNodeId,

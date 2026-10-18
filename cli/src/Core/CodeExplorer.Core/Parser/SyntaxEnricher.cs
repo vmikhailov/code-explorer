@@ -174,8 +174,8 @@ public class SyntaxEnricher : ISyntaxEnricher
                         if (!string.IsNullOrEmpty(detectedType)) dbType = detectedType;
                         else if (dbType == "unknown") dbType = "relational";
 
-                        var declaredSchema = dbType.Equals("relational", StringComparison.OrdinalIgnoreCase)
-                            ? (DetectDeclaredSchema(projectNode, fileNode, _syntaxTree) ?? GetDefaultSchemaForEngine(targetEngine, dbType))
+                        var declaredSchema = (dbType.Equals("relational", StringComparison.OrdinalIgnoreCase) || dbType.Equals("document", StringComparison.OrdinalIgnoreCase))
+                            ? (DetectDeclaredSchema(projectNode, fileNode, _syntaxTree, dbType) ?? (dbType.Equals("relational", StringComparison.OrdinalIgnoreCase) ? GetDefaultSchemaForEngine(targetEngine, dbType) : null))
                             : null;
 
                         if (targetEngine.Equals("SQLite", StringComparison.OrdinalIgnoreCase) &&
@@ -391,7 +391,7 @@ public class SyntaxEnricher : ISyntaxEnricher
     private static readonly ConcurrentDictionary<string, string> _projectSchemaCache = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly Regex SchemaCallRegex = new(@"HasDefaultSchema\s*\(\s*[""']?([^""'\)]+)[""']?\s*\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex SchemaConstRegex = new(@"(?:SchemaName|DefaultSchemaName)\s*=\s*[""']?([^""';]+)[""']?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex SchemaConstRegex = new(@"(?:SchemaName|DefaultSchemaName|DefaultSchema)\s*=\s*[""']?([^""';]+)[""']?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex TypeOrmSchemaRegex = new(@"@(?:Entity|ViewEntity|Table)\s*\(\s*\{[^}]*schema\s*:\s*[""']?([A-Za-z0-9_.]+)[""']?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex ToTableSchemaRegex = new(@"ToTable\s*\(\s*[""'][^""']+[""']\s*,\s*(?:schema:\s*)?[""']?([A-Za-z0-9_.]+)[""']?\s*\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex DataSourceSchemaRegex = new(@"\b(?:schema|defaultSchema)\s*:\s*[""']([A-Za-z0-9_-]+)[""']", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -439,7 +439,7 @@ public class SyntaxEnricher : ISyntaxEnricher
         return cleaned;
     }
 
-    public static string? DetectDeclaredSchema(ProjectNode? projectNode, FileNode? fileNode, SyntaxTree? syntaxTree)
+    public static string? DetectDeclaredSchema(ProjectNode? projectNode, FileNode? fileNode, SyntaxTree? syntaxTree, string? dbType = null)
     {
         // 1. Check if any symbol in fileNode has schema extension
         if (fileNode != null)
@@ -487,7 +487,47 @@ public class SyntaxEnricher : ISyntaxEnricher
         if (fileNode != null && !string.IsNullOrEmpty(fileNode.Name))
         {
             var fileName = Path.GetFileNameWithoutExtension(fileNode.Name);
+            if (fileName.Length > 2 && fileName[0] == 'I' && char.IsUpper(fileName[1]))
+            {
+                fileName = fileName[1..];
+            }
             var lower = fileName.ToLowerInvariant();
+            if (lower.EndsWith("readdbcontext") && lower.Length > 13)
+            {
+                var inferred = lower[..^13].Trim('_', '-');
+                if (!string.IsNullOrEmpty(inferred) && !ResourceReconciliationService.IsGenericConfigKey(inferred))
+                {
+                    if (projectNode != null) _projectSchemaCache[projectNode.Id] = inferred;
+                    return inferred;
+                }
+            }
+            if (lower.EndsWith("writedbcontext") && lower.Length > 14)
+            {
+                var inferred = lower[..^14].Trim('_', '-');
+                if (!string.IsNullOrEmpty(inferred) && !ResourceReconciliationService.IsGenericConfigKey(inferred))
+                {
+                    if (projectNode != null) _projectSchemaCache[projectNode.Id] = inferred;
+                    return inferred;
+                }
+            }
+            if (lower.EndsWith("readcontext") && lower.Length > 11)
+            {
+                var inferred = lower[..^11].Trim('_', '-');
+                if (!string.IsNullOrEmpty(inferred) && !ResourceReconciliationService.IsGenericConfigKey(inferred))
+                {
+                    if (projectNode != null) _projectSchemaCache[projectNode.Id] = inferred;
+                    return inferred;
+                }
+            }
+            if (lower.EndsWith("writecontext") && lower.Length > 12)
+            {
+                var inferred = lower[..^12].Trim('_', '-');
+                if (!string.IsNullOrEmpty(inferred) && !ResourceReconciliationService.IsGenericConfigKey(inferred))
+                {
+                    if (projectNode != null) _projectSchemaCache[projectNode.Id] = inferred;
+                    return inferred;
+                }
+            }
             if (lower.EndsWith("dbcontext") && lower.Length > 9)
             {
                 var inferred = lower[..^9].Trim('_', '-');
@@ -509,7 +549,8 @@ public class SyntaxEnricher : ISyntaxEnricher
         }
 
         // 5. Infer from project name if project is named e.g. Lidoma.Tournament or internal-service-networks
-        if (projectNode != null && !string.IsNullOrEmpty(projectNode.Name))
+        // Do not infer schema from project name for document databases (e.g. MongoDB), as collections/documents don't have relational schemas unless explicit
+        if (!string.Equals(dbType, "document", StringComparison.OrdinalIgnoreCase) && projectNode != null && !string.IsNullOrEmpty(projectNode.Name))
         {
             var cleanSegment = CleanProjectNameToDomain(projectNode.Name);
             if (!string.IsNullOrEmpty(cleanSegment) && !ResourceReconciliationService.IsGenericConfigKey(cleanSegment) && cleanSegment.Length >= 3)
@@ -555,6 +596,7 @@ public class SyntaxEnricher : ISyntaxEnricher
         if (string.IsNullOrWhiteSpace(schema)) return true;
         var clean = schema.Trim('\'', '"', ' ', ';');
         return clean.Equals("DefaultSchemaName", StringComparison.OrdinalIgnoreCase) ||
+               clean.Equals("DefaultSchema", StringComparison.OrdinalIgnoreCase) ||
                clean.Equals("SchemaName", StringComparison.OrdinalIgnoreCase) ||
                clean.Equals("Schema", StringComparison.OrdinalIgnoreCase);
     }

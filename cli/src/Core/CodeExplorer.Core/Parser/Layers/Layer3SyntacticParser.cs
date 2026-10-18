@@ -589,7 +589,14 @@ public class Layer3SyntacticParser
             var resolvedName = name;
             if (ConstantRegistry.TryResolve(relativePath, name, out var rName))
             {
-                resolvedName = rName;
+                if (!string.IsNullOrWhiteSpace(rName) &&
+                    !rName.Contains("://") &&
+                    !rName.StartsWith("http", StringComparison.OrdinalIgnoreCase) &&
+                    !rName.Contains('/') &&
+                    !rName.Contains(' '))
+                {
+                    resolvedName = rName;
+                }
             }
             var tableId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Table}:{resolvedName.ToLowerInvariant()}";
             typedNode = new TableNode(tableId, resolvedName, relativePath);
