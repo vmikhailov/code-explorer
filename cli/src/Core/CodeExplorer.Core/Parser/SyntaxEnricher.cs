@@ -81,6 +81,7 @@ public class SyntaxEnricher : ISyntaxEnricher
 
     public virtual async Task EnrichAsync(ProjectNode projectNode, ParsingContext ctx)
     {
+        ArgumentNullException.ThrowIfNull(projectNode);
         var packageNames = projectNode.Children
             .OfType<PackageNode>()
             .Select(p => p.Name)
@@ -175,8 +176,48 @@ public class SyntaxEnricher : ISyntaxEnricher
                         else if (dbType == "unknown") dbType = "relational";
 
                         var declaredSchema = (dbType.Equals("relational", StringComparison.OrdinalIgnoreCase) || dbType.Equals("document", StringComparison.OrdinalIgnoreCase))
-                            ? (DetectDeclaredSchema(projectNode, fileNode, _syntaxTree, dbType) ?? (dbType.Equals("relational", StringComparison.OrdinalIgnoreCase) ? GetDefaultSchemaForEngine(targetEngine, dbType) : null))
+                            ? DetectDeclaredSchema(projectNode, fileNode, _syntaxTree, dbType)
                             : null;
+
+                        if (declaredSchema == null && ctx.ResourceRegistry != null)
+                        {
+                            var projRes = ctx.ResourceRegistry.AllResources
+                                .FirstOrDefault(r => r.Kind == OntologyConstants.NodeLabels.Database &&
+                                                     string.Equals(r.Engine, targetEngine, StringComparison.OrdinalIgnoreCase) &&
+                                                     r.ProjectId != null && string.Equals(r.ProjectId, projectNode.Id, StringComparison.OrdinalIgnoreCase));
+
+                            if (projRes == null)
+                            {
+                                var projDomain = CleanProjectNameToDomain(projectNode.Name);
+                                if (!string.IsNullOrEmpty(projDomain))
+                                {
+                                    projRes = ctx.ResourceRegistry.AllResources
+                                        .FirstOrDefault(r => r.Kind == OntologyConstants.NodeLabels.Database &&
+                                                             string.Equals(r.Engine, targetEngine, StringComparison.OrdinalIgnoreCase) &&
+                                                             r.ProjectId != null &&
+                                                             (CleanProjectNameToDomain(r.ProjectId).Equals(projDomain, StringComparison.OrdinalIgnoreCase) ||
+                                                              r.DeclaringFilePath?.Replace('\\', '/').ToLowerInvariant().Contains($"/{projDomain.ToLowerInvariant()}/") == true));
+                                }
+                            }
+
+                            if (projRes != null)
+                            {
+                                var cfgSchema = projRes.Properties.TryGetValue("schema", out var s) ? s : null;
+                                if (string.IsNullOrEmpty(cfgSchema) && projRes.Name.Contains('.'))
+                                {
+                                    cfgSchema = projRes.Name.Split('.', 2)[1];
+                                }
+                                else if (string.IsNullOrEmpty(cfgSchema) && !projRes.Name.Equals(targetEngine, StringComparison.OrdinalIgnoreCase) && !ResourceReconciliationService.IsGenericConfigKey(projRes.Name))
+                                {
+                                    cfgSchema = projRes.Name;
+                                }
+
+                                if (IsValidSchemaName(cfgSchema))
+                                {
+                                    declaredSchema = cfgSchema;
+                                }
+                            }
+                        }
 
                         if (targetEngine.Equals("SQLite", StringComparison.OrdinalIgnoreCase) &&
                             (declaredSchema == null || declaredSchema.Equals("dbo", StringComparison.OrdinalIgnoreCase) || declaredSchema.Equals("default", StringComparison.OrdinalIgnoreCase)))
@@ -188,9 +229,9 @@ public class SyntaxEnricher : ISyntaxEnricher
                             ? $"{targetEngine}.{declaredSchema}"
                             : targetEngine;
 
-                        CanonicalResource? canonicalRes = ctx.ResourceRegistry.ResolveResource(canonicalDbName, expectedDbType: dbType, expectedEngine: targetEngine);
+                        CanonicalResource? canonicalRes = ctx.ResourceRegistry?.ResolveResource(canonicalDbName, expectedDbType: dbType, expectedEngine: targetEngine);
 
-                        if (canonicalRes == null)
+                        if (canonicalRes == null && ctx.ResourceRegistry != null)
                         {
                             var aliasList = new List<string> { canonicalDbName };
                             if (!string.IsNullOrEmpty(declaredSchema) &&
@@ -214,7 +255,7 @@ public class SyntaxEnricher : ISyntaxEnricher
                             );
                         }
 
-                        var dbId = canonicalRes.Id;
+                        var dbId = canonicalRes?.Id ?? ResourceReconciliationService.BuildCanonicalDatabaseId(ctx.WorkspaceId, dbType, canonicalDbName);
 
                         var extensions = new Dictionary<string, string>
                         {
@@ -388,8 +429,6 @@ public class SyntaxEnricher : ISyntaxEnricher
                "peewee" or "gorm" or "jpa" or "jdbctemplate" or "knex";
     }
 
-    private static readonly ConcurrentDictionary<string, string> _projectSchemaCache = new(StringComparer.OrdinalIgnoreCase);
-
     private static readonly Regex SchemaCallRegex = new(@"HasDefaultSchema\s*\(\s*[""']?([^""'\)]+)[""']?\s*\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex SchemaConstRegex = new(@"(?:SchemaName|DefaultSchemaName|DefaultSchema)\s*=\s*[""']?([^""';]+)[""']?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex TypeOrmSchemaRegex = new(@"@(?:Entity|ViewEntity|Table)\s*\(\s*\{[^}]*schema\s*:\s*[""']?([A-Za-z0-9_.]+)[""']?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -441,7 +480,7 @@ public class SyntaxEnricher : ISyntaxEnricher
 
     public static string? DetectDeclaredSchema(ProjectNode? projectNode, FileNode? fileNode, SyntaxTree? syntaxTree, string? dbType = null)
     {
-        // 1. Check if any symbol in fileNode has schema extension
+        // 1. Check if any symbol in fileNode has explicit schema extension
         if (fileNode != null)
         {
             var found = FindSchemaInNode(fileNode);
@@ -453,13 +492,12 @@ public class SyntaxEnricher : ISyntaxEnricher
                 }
                 if (IsValidSchemaName(found))
                 {
-                    if (projectNode != null) _projectSchemaCache[projectNode.Id] = found;
                     return found;
                 }
             }
         }
 
-        // 2. Scan source file text if available
+        // 2. Scan source file text if available for explicit schema declarations
         if (syntaxTree != null && !string.IsNullOrEmpty(syntaxTree.FilePath) && File.Exists(syntaxTree.FilePath))
         {
             var fileSchema = ScanFileTextForSchema(syntaxTree.FilePath);
@@ -471,91 +509,8 @@ public class SyntaxEnricher : ISyntaxEnricher
                 }
                 if (IsValidSchemaName(fileSchema))
                 {
-                    if (projectNode != null) _projectSchemaCache[projectNode.Id] = fileSchema;
                     return fileSchema;
                 }
-            }
-        }
-
-        // 3. Check project cache
-        if (projectNode != null && _projectSchemaCache.TryGetValue(projectNode.Id, out var cachedSchema))
-        {
-            return cachedSchema;
-        }
-
-        // 4. Infer from DbContext or Model class name in the file name
-        if (fileNode != null && !string.IsNullOrEmpty(fileNode.Name))
-        {
-            var fileName = Path.GetFileNameWithoutExtension(fileNode.Name);
-            if (fileName.Length > 2 && fileName[0] == 'I' && char.IsUpper(fileName[1]))
-            {
-                fileName = fileName[1..];
-            }
-            var lower = fileName.ToLowerInvariant();
-            if (lower.EndsWith("readdbcontext") && lower.Length > 13)
-            {
-                var inferred = lower[..^13].Trim('_', '-');
-                if (!string.IsNullOrEmpty(inferred) && !ResourceReconciliationService.IsGenericConfigKey(inferred))
-                {
-                    if (projectNode != null) _projectSchemaCache[projectNode.Id] = inferred;
-                    return inferred;
-                }
-            }
-            if (lower.EndsWith("writedbcontext") && lower.Length > 14)
-            {
-                var inferred = lower[..^14].Trim('_', '-');
-                if (!string.IsNullOrEmpty(inferred) && !ResourceReconciliationService.IsGenericConfigKey(inferred))
-                {
-                    if (projectNode != null) _projectSchemaCache[projectNode.Id] = inferred;
-                    return inferred;
-                }
-            }
-            if (lower.EndsWith("readcontext") && lower.Length > 11)
-            {
-                var inferred = lower[..^11].Trim('_', '-');
-                if (!string.IsNullOrEmpty(inferred) && !ResourceReconciliationService.IsGenericConfigKey(inferred))
-                {
-                    if (projectNode != null) _projectSchemaCache[projectNode.Id] = inferred;
-                    return inferred;
-                }
-            }
-            if (lower.EndsWith("writecontext") && lower.Length > 12)
-            {
-                var inferred = lower[..^12].Trim('_', '-');
-                if (!string.IsNullOrEmpty(inferred) && !ResourceReconciliationService.IsGenericConfigKey(inferred))
-                {
-                    if (projectNode != null) _projectSchemaCache[projectNode.Id] = inferred;
-                    return inferred;
-                }
-            }
-            if (lower.EndsWith("dbcontext") && lower.Length > 9)
-            {
-                var inferred = lower[..^9].Trim('_', '-');
-                if (!string.IsNullOrEmpty(inferred) && !ResourceReconciliationService.IsGenericConfigKey(inferred))
-                {
-                    if (projectNode != null) _projectSchemaCache[projectNode.Id] = inferred;
-                    return inferred;
-                }
-            }
-            if (lower.EndsWith("context") && lower.Length > 7)
-            {
-                var inferred = lower[..^7].Trim('_', '-');
-                if (!string.IsNullOrEmpty(inferred) && !ResourceReconciliationService.IsGenericConfigKey(inferred))
-                {
-                    if (projectNode != null) _projectSchemaCache[projectNode.Id] = inferred;
-                    return inferred;
-                }
-            }
-        }
-
-        // 5. Infer from project name if project is named e.g. Lidoma.Tournament or internal-service-networks
-        // Do not infer schema from project name for document databases (e.g. MongoDB), as collections/documents don't have relational schemas unless explicit
-        if (!string.Equals(dbType, "document", StringComparison.OrdinalIgnoreCase) && projectNode != null && !string.IsNullOrEmpty(projectNode.Name))
-        {
-            var cleanSegment = CleanProjectNameToDomain(projectNode.Name);
-            if (!string.IsNullOrEmpty(cleanSegment) && !ResourceReconciliationService.IsGenericConfigKey(cleanSegment) && cleanSegment.Length >= 3)
-            {
-                return cleanSegment;
             }
         }
 

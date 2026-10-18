@@ -247,7 +247,28 @@ public static class ConfigurationParser
         var dbId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Database}:{dbType}:{dbName.ToLowerInvariant()}";
 
         var aliases = new List<string>();
-        if (!string.IsNullOrWhiteSpace(customName)) aliases.Add(customName);
+        if (!string.IsNullOrWhiteSpace(customName))
+        {
+            aliases.Add(customName);
+            var colIdx = customName.IndexOf(':');
+            if (colIdx > 0)
+            {
+                var section = customName[..colIdx];
+                if (!string.IsNullOrWhiteSpace(section) && !aliases.Contains(section, StringComparer.OrdinalIgnoreCase))
+                {
+                    aliases.Add(section);
+                }
+            }
+            var dotIdx = customName.IndexOf('.');
+            if (dotIdx > 0)
+            {
+                var section = customName[..dotIdx];
+                if (!string.IsNullOrWhiteSpace(section) && !aliases.Contains(section, StringComparer.OrdinalIgnoreCase))
+                {
+                    aliases.Add(section);
+                }
+            }
+        }
         if (!string.IsNullOrWhiteSpace(catalog)) aliases.Add(catalog);
         if (!string.IsNullOrWhiteSpace(engine)) aliases.Add(engine);
 
@@ -264,6 +285,16 @@ public static class ConfigurationParser
             projId = id;
         }
 
+        var regProps = new Dictionary<string, string>
+        {
+            ["from_config"] = "true",
+            ["config_key"] = customName ?? ""
+        };
+        if (!string.IsNullOrWhiteSpace(catalog))
+        {
+            regProps["schema"] = catalog;
+        }
+
         ctx.ResourceRegistry.RegisterResource(
             workspaceId,
             dbName,
@@ -272,12 +303,18 @@ public static class ConfigurationParser
             OntologyConstants.NodeLabels.Database,
             relativePath,
             projId,
-            aliases
+            aliases,
+            regProps
         );
 
         if (!containerNode.Children.Any(c => c.Id == dbId))
         {
-            var ext = new Dictionary<string, string> { ["engine"] = engine };
+            var ext = new Dictionary<string, string>
+            {
+                ["engine"] = engine,
+                ["from_config"] = "true",
+                ["config_key"] = customName ?? ""
+            };
             if (!string.IsNullOrWhiteSpace(catalog))
             {
                 ext["schema"] = catalog;

@@ -1054,7 +1054,7 @@ public static class CodeIntentAnalyzer
 
         var skipRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            "src", "services", "apps", "packages", "modules", "libs", "projects"
+            "src", "services", "microservices", "apps", "packages", "libs", "modules", "projects", "cmd", "home", "users", "cli", "ui", "uis", "tools", "bffs", "gateways", "apigateways"
         };
 
         var idx = 0;

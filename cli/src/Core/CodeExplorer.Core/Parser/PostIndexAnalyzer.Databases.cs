@@ -798,6 +798,256 @@ public partial class PostIndexAnalyzer
             canonicalDbNodes.Remove($"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Database}:relational:database");
         }
 
+        // 1.5. Track AST-verified database usages per project/service domain and prune unverified config DB edges
+        var projectsByDomain = projects
+            .GroupBy(p => {
+                var d = SyntaxEnricher.CleanProjectNameToDomain(p.Name);
+                return !string.IsNullOrEmpty(d) ? d : p.Id;
+            }, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+
+        var domainVerifiedEngines = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var domainVerifiedDbTypes = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var domainVerifiedKeys = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var domainHasCodeFiles = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (domain, domainProjs) in projectsByDomain)
+        {
+            var domainProjIds = domainProjs.Select(p => p.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            // Also include referenced projects via DEPENDS_ON within the domain or related
+            foreach (var rel in allRelationships.Where(r => r.Kind == OntologyConstants.Relationships.DependsOn))
+            {
+                if (domainProjIds.Contains(rel.From)) domainProjIds.Add(rel.To);
+            }
+
+            var domainFileNodes = files.Where(f => fileToProject.TryGetValue(f.Id, out var p) && domainProjIds.Contains(p.Id) && !IsTestSource(f.Id, f.Path)).ToList();
+            var domainCodeFiles = domainFileNodes.Where(f =>
+                !f.Path.EndsWith(".json", StringComparison.OrdinalIgnoreCase) &&
+                !f.Path.EndsWith(".xml", StringComparison.OrdinalIgnoreCase) &&
+                !f.Path.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase) &&
+                !f.Path.EndsWith(".yml", StringComparison.OrdinalIgnoreCase) &&
+                !f.Path.EndsWith(".config", StringComparison.OrdinalIgnoreCase)).ToList();
+
+            domainHasCodeFiles[domain] = domainCodeFiles.Count > 0;
+
+            var vEngines = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var vDbTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var vKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            domainVerifiedEngines[domain] = vEngines;
+            domainVerifiedDbTypes[domain] = vDbTypes;
+            domainVerifiedKeys[domain] = vKeys;
+
+            if (domainCodeFiles.Count == 0)
+            {
+                // Synthetic / config-only test: all config DBs are considered verified
+                continue;
+            }
+
+            // 1. AST usages from non-config database relationships
+            foreach (var rel in allRelationships)
+            {
+                if (rel.Kind == OntologyConstants.Relationships.Contains) continue;
+                var isDbUsageRel = rel.Kind == OntologyConstants.Relationships.UsesDb ||
+                                   rel.Kind == OntologyConstants.Relationships.ReadsFrom ||
+                                   rel.Kind == OntologyConstants.Relationships.WritesTo ||
+                                   rel.Kind == OntologyConstants.Relationships.QueriedBy;
+                if (!isDbUsageRel) continue;
+
+                var isFromDomain = domainProjIds.Contains(rel.From) ||
+                                   (fileToProject.TryGetValue(rel.From, out var pOwner) && domainProjIds.Contains(pOwner.Id));
+                if (!isFromDomain) continue;
+
+                var targetDb = allDbNodes.FirstOrDefault(d => d.Id == rel.To || rel.To.StartsWith(d.Id, StringComparison.OrdinalIgnoreCase));
+                var isFromConfig = (targetDb?.Extensions != null && targetDb.Extensions.TryGetValue("from_config", out var fc) && fc == "true") ||
+                                   (rel.Properties != null && rel.Properties.TryGetValue("from_config", out var rfc) && rfc?.ToString() == "true");
+
+                if (!isFromConfig && targetDb != null)
+                {
+                    var eng = targetDb.Extensions?.GetValueOrDefault("engine") ?? (targetDb.Name.Contains('.') ? targetDb.Name.Split('.', 2)[0] : targetDb.Name);
+                    if (!string.IsNullOrWhiteSpace(eng) && !eng.Equals("Database", StringComparison.OrdinalIgnoreCase) && !eng.Equals("default", StringComparison.OrdinalIgnoreCase))
+                    {
+                        vEngines.Add(ResourceReconciliationService.NormalizeEngineName(eng));
+                    }
+                    if (!string.IsNullOrWhiteSpace(targetDb.DbType))
+                    {
+                        vDbTypes.Add(targetDb.DbType);
+                    }
+                }
+            }
+
+            // 2. Package references (NuGet/NPM) in projects of this domain
+            foreach (var proj in domainProjs)
+            {
+                foreach (var pkg in proj.Children.OfType<PackageNode>())
+                {
+                    var pkgLower = pkg.Name.ToLowerInvariant();
+                    if (pkgLower.Contains("npgsql") || pkgLower.Contains("postgres"))
+                    {
+                        vEngines.Add("PostgreSQL");
+                        vDbTypes.Add("relational");
+                    }
+                    if (pkgLower.Contains("mongo"))
+                    {
+                        vEngines.Add("MongoDB");
+                        vDbTypes.Add("document");
+                    }
+                    if (pkgLower.Contains("redis") || pkgLower.Contains("stackexchange.redis"))
+                    {
+                        vEngines.Add("Redis");
+                        vDbTypes.Add("cache");
+                    }
+                    if (pkgLower.Contains("mysql") || pkgLower.Contains("pomelo"))
+                    {
+                        vEngines.Add("MySQL");
+                        vDbTypes.Add("relational");
+                    }
+                    if (pkgLower.Contains("sqlclient") || pkgLower.Contains("sqlserver"))
+                    {
+                        vEngines.Add("SQL Server");
+                        vDbTypes.Add("relational");
+                    }
+                    if (pkgLower.Contains("sqlite"))
+                    {
+                        vEngines.Add("SQLite");
+                        vDbTypes.Add("relational");
+                    }
+                    if (pkgLower.Contains("marten"))
+                    {
+                        vEngines.Add("PostgreSQL");
+                        vDbTypes.Add("relational");
+                        vDbTypes.Add("document");
+                    }
+                    if (pkgLower.Contains("entityframeworkcore") || pkgLower.Contains("dapper"))
+                    {
+                        vDbTypes.Add("relational");
+                    }
+                }
+            }
+
+            // 3. Scan code file content for config keys or driver usage
+            foreach (var cf in domainCodeFiles)
+            {
+                var absPath = Path.IsPathRooted(cf.Path)
+                    ? cf.Path
+                    : Path.Combine(ctx.AbsoluteWorkspacePath, cf.Path);
+
+                if (File.Exists(absPath))
+                {
+                    try
+                    {
+                        var text = File.ReadAllText(absPath);
+                        if (text.Contains("PostgresOptions", StringComparison.OrdinalIgnoreCase) || text.Contains("Npgsql", StringComparison.OrdinalIgnoreCase))
+                        {
+                            vKeys.Add("PostgresOptions");
+                            vEngines.Add("PostgreSQL");
+                            vDbTypes.Add("relational");
+                        }
+                        if (text.Contains("MongoOptions", StringComparison.OrdinalIgnoreCase) || text.Contains("MongoDB", StringComparison.OrdinalIgnoreCase) || text.Contains("MongoDbContext", StringComparison.OrdinalIgnoreCase))
+                        {
+                            vKeys.Add("MongoOptions");
+                            vEngines.Add("MongoDB");
+                            vDbTypes.Add("document");
+                        }
+                        if (text.Contains("RedisOptions", StringComparison.OrdinalIgnoreCase) || text.Contains("StackExchange.Redis", StringComparison.OrdinalIgnoreCase) || text.Contains("ConnectionMultiplexer", StringComparison.OrdinalIgnoreCase))
+                        {
+                            vKeys.Add("RedisOptions");
+                            vEngines.Add("Redis");
+                            vDbTypes.Add("cache");
+                        }
+                        if (text.Contains("MySqlOptions", StringComparison.OrdinalIgnoreCase) || text.Contains("MySql", StringComparison.OrdinalIgnoreCase))
+                        {
+                            vKeys.Add("MySqlOptions");
+                            vEngines.Add("MySQL");
+                            vDbTypes.Add("relational");
+                        }
+                        if (text.Contains("SqliteOptions", StringComparison.OrdinalIgnoreCase) || text.Contains("Sqlite", StringComparison.OrdinalIgnoreCase))
+                        {
+                            vKeys.Add("SqliteOptions");
+                            vEngines.Add("SQLite");
+                            vDbTypes.Add("relational");
+                        }
+                        if (text.Contains("SqlServerOptions", StringComparison.OrdinalIgnoreCase) || text.Contains("SqlClient", StringComparison.OrdinalIgnoreCase))
+                        {
+                            vKeys.Add("SqlServerOptions");
+                            vEngines.Add("SQL Server");
+                            vDbTypes.Add("relational");
+                        }
+                        if (text.Contains("ConnectionStrings", StringComparison.OrdinalIgnoreCase) || text.Contains("GetConnectionString", StringComparison.OrdinalIgnoreCase))
+                        {
+                            vKeys.Add("ConnectionStrings");
+                        }
+                    }
+                    catch { }
+                }
+            }
+        }
+
+        // Prune unverified config USES_DB edges
+        var unverifiedEdges = new List<Relationship>();
+        foreach (var rel in allRelationships)
+        {
+            if (rel.Kind != OntologyConstants.Relationships.UsesDb) continue;
+
+            var targetDb = allDbNodes.FirstOrDefault(d => d.Id == rel.To || rel.To.StartsWith(d.Id, StringComparison.OrdinalIgnoreCase));
+            var isConfigDb = targetDb?.Extensions != null && targetDb.Extensions.TryGetValue("from_config", out var fc) && fc == "true";
+            if (!isConfigDb || targetDb == null) continue;
+
+            var owner = projects.FirstOrDefault(p => p.Id == rel.From || rel.From.StartsWith(p.Id, StringComparison.OrdinalIgnoreCase))
+                        ?? (fileToProject.TryGetValue(rel.From, out var fp) ? fp : null);
+            if (owner == null) continue;
+
+            var domain = SyntaxEnricher.CleanProjectNameToDomain(owner.Name);
+            if (string.IsNullOrEmpty(domain)) domain = owner.Id;
+
+            if (domainHasCodeFiles.TryGetValue(domain, out var hasFiles) && !hasFiles)
+            {
+                // Synthetic / config-only test project: keep
+                continue;
+            }
+
+            var eng = targetDb.Extensions?.GetValueOrDefault("engine") ?? (targetDb.Name.Contains('.') ? targetDb.Name.Split('.', 2)[0] : targetDb.Name);
+            var normEng = ResourceReconciliationService.NormalizeEngineName(eng);
+            var key = targetDb.Extensions?.GetValueOrDefault("config_key");
+
+            var vEngines = domainVerifiedEngines.GetValueOrDefault(domain, []);
+            var vDbTypes = domainVerifiedDbTypes.GetValueOrDefault(domain, []);
+            var vKeys = domainVerifiedKeys.GetValueOrDefault(domain, []);
+
+            var isVerified = vEngines.Contains(normEng) ||
+                             (!string.IsNullOrEmpty(key) && (vKeys.Contains(key) || key.Split([':', '.']).Any(part => vKeys.Contains(part)))) ||
+                             (targetDb.DbType.Equals("relational", StringComparison.OrdinalIgnoreCase) && vDbTypes.Contains("relational"));
+
+            if (!isVerified)
+            {
+                unverifiedEdges.Add(rel);
+            }
+        }
+
+        if (unverifiedEdges.Count > 0)
+        {
+            foreach (var unv in unverifiedEdges)
+            {
+                allRelationships.Remove(unv);
+                ctx.TreeRelationships.Remove(unv);
+                ctx.GlobalProjectDependencies.Remove(unv);
+            }
+
+            // Remove any unverified config databases that now have 0 non-test incoming edges
+            var remainingTargets = allRelationships.Where(r => r.Kind == OntologyConstants.Relationships.UsesDb).Select(r => r.To).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var orphanedConfigDbs = allDbNodes.Where(d => d.Extensions != null && d.Extensions.TryGetValue("from_config", out var fc) && fc == "true" && !remainingTargets.Contains(d.Id)).ToList();
+            foreach (var oDb in orphanedConfigDbs)
+            {
+                allDbNodes.Remove(oDb);
+                canonicalDbNodes.Remove(oDb.Id);
+                if (rawToCanonical.TryGetValue(oDb.Id, out var cId))
+                {
+                    canonicalDbNodes.Remove(cId);
+                    rawToCanonical.Remove(oDb.Id);
+                }
+            }
+        }
+
         // 2. Gather project references and consolidate databases per service/project
         var projectDbEdges = new List<(ProjectNode Owner, string CanonicalTarget, Relationship OriginalRel)>();
 
@@ -873,11 +1123,11 @@ public partial class PostIndexAnalyzer
         }
 
         // 3. Add canonical nodes to SemanticStructure and upload
-        if (ctx.SemanticStructure != null)
+        if (ctx.SemanticStructure is { } semanticStructure)
         {
             if (!string.IsNullOrWhiteSpace(primaryRelationalEngine))
             {
-                ctx.SemanticStructure.Children.RemoveAll(c => c is DatabaseNode dn &&
+                semanticStructure.Children.RemoveAll(c => c is DatabaseNode dn &&
                     (string.Equals(dn.Name, "Database", StringComparison.OrdinalIgnoreCase) ||
                      dn.Id.EndsWith(":database:relational:database", StringComparison.OrdinalIgnoreCase) ||
                      dn.Id.EndsWith($":{OntologyConstants.IdPrefixes.Database}:relational:database", StringComparison.OrdinalIgnoreCase)));
@@ -885,9 +1135,9 @@ public partial class PostIndexAnalyzer
 
             foreach (var node in canonicalDbNodes.Values)
             {
-                if (!ctx.SemanticStructure.Children.Any(c => c.Id == node.Id))
+                if (!semanticStructure.Children.Any(c => c.Id == node.Id))
                 {
-                    ctx.SemanticStructure.Children.Add(node);
+                    semanticStructure.Children.Add(node);
                 }
                 ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Database, node.Name, node.Id);
             }
