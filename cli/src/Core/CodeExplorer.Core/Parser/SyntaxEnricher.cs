@@ -313,8 +313,11 @@ public class SyntaxEnricher : ISyntaxEnricher
 
                         var usesDbRel = new UsesDbRelationship(fileNode.Id, dbId, relExt);
                         ctx.AddGlobalProjectDependency(Relationship.FromRelationship(usesDbRel));
-                        var projUsesDbRel = new UsesDbRelationship(projectNode.Id, dbId, relExt);
-                        ctx.AddGlobalProjectDependency(Relationship.FromRelationship(projUsesDbRel));
+                        if (!isLibraryWithoutDb)
+                        {
+                            var projUsesDbRel = new UsesDbRelationship(projectNode.Id, dbId, relExt);
+                            ctx.AddGlobalProjectDependency(Relationship.FromRelationship(projUsesDbRel));
+                        }
                         break;
 
                     case "api":

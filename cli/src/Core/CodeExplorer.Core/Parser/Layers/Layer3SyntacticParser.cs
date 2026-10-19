@@ -543,8 +543,10 @@ public class Layer3SyntacticParser
                         }
                     }
                 }
-                typedNode = NestedSqlParser.ParseNestedSql(sqlCandidate, symbolId, relativePath, ctx, name) ??
-                            new QueryNode(symbolId, name, NestedSqlParser.CleanQueryText(sqlCandidate), relativePath);
+                var qStartLine = (int)node.StartPosition.Row + 1;
+                var qEndLine = (int)node.EndPosition.Row + 1;
+                typedNode = NestedSqlParser.ParseNestedSql(sqlCandidate, symbolId, relativePath, ctx, name, qStartLine, qEndLine) ??
+                            new QueryNode(symbolId, name, NestedSqlParser.CleanQueryText(sqlCandidate), relativePath, qStartLine, qEndLine);
             }
         }
         else if (kind == OntologyConstants.NodeLabels.EntryPoint)

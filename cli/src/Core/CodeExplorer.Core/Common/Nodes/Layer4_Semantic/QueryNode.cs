@@ -17,6 +17,8 @@ public record QueryNode(
     string Name,
     string QueryText,
     string Path,
+    int StartLine = 0,
+    int EndLine = 0,
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {

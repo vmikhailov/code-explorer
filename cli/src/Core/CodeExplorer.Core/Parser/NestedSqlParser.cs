@@ -238,7 +238,7 @@ public static class NestedSqlParser
         return cleaned;
     }
 
-    public static QueryNode? ParseNestedSql(string rawText, string id, string filePath, ParsingContext? ctx = null, string? customQueryName = null)
+    public static QueryNode? ParseNestedSql(string rawText, string id, string filePath, ParsingContext? ctx = null, string? customQueryName = null, int startLine = 0, int endLine = 0)
     {
         if (!TryParseSql(rawText, out var firstWord, out var cleanedSql))
         {
@@ -250,7 +250,9 @@ public static class NestedSqlParser
             id,
             queryName,
             cleanedSql,
-            filePath
+            filePath,
+            startLine,
+            endLine
         );
 
         BuildSqlHierarchy(cleanedSql, rawText, queryNode, filePath, ctx);

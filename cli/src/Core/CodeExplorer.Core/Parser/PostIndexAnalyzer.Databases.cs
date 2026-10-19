@@ -1111,6 +1111,54 @@ public partial class PostIndexAnalyzer
             }
         }
 
+        // Detect libraries referenced by multiple distinct service domains (e.g. IntegrationEventLogEF)
+        var libReferencingDomains = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (svcId, libs) in serviceToReferencedLibs)
+        {
+            var svcProj = projects.FirstOrDefault(p => p.Id == svcId) ?? (fileToProject.TryGetValue(svcId, out var fp) ? fp : null);
+            if (svcProj == null || IsTestSource(svcProj.Id, svcProj.Path)) continue;
+            var dom = SyntaxEnricher.CleanProjectNameToDomain(svcProj.Name);
+            if (string.IsNullOrEmpty(dom)) dom = svcProj.Id;
+            foreach (var l in libs)
+            {
+                if (!libReferencingDomains.TryGetValue(l.Id, out var domSet))
+                {
+                    domSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    libReferencingDomains[l.Id] = domSet;
+                }
+                domSet.Add(dom);
+            }
+        }
+
+        var multiDomainSharedLibs = libReferencingDomains
+            .Where(kvp => kvp.Value.Count > 1)
+            .Select(kvp => kvp.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        bool IsGenericOrLibraryDbId(string targetId)
+        {
+            var node = canonicalDbNodes.GetValueOrDefault(targetId);
+            if (node == null) return true;
+            var eng = node.Extensions?.GetValueOrDefault("engine") ?? (node.Name.Contains('.') ? node.Name.Split('.', 2)[0] : node.Name);
+            var sch = node.Extensions?.GetValueOrDefault("schema") ?? (node.Name.Contains('.') ? node.Name.Split('.', 2)[1] : "");
+            return string.IsNullOrWhiteSpace(sch) ||
+                   sch.Equals("default", StringComparison.OrdinalIgnoreCase) ||
+                   sch.Equals("integrationeventlogef", StringComparison.OrdinalIgnoreCase) ||
+                   sch.Equals(eng, StringComparison.OrdinalIgnoreCase) ||
+                   node.Name.Equals(eng, StringComparison.OrdinalIgnoreCase) ||
+                   node.Name.EndsWith(".integrationeventlogef", StringComparison.OrdinalIgnoreCase);
+        }
+
+        var concreteEnginesCount = canonicalDbNodes.Values
+            .Where(n => {
+                var s = n.Extensions?.GetValueOrDefault("schema") ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[1] : "");
+                return !string.IsNullOrWhiteSpace(s) &&
+                       !s.Equals("default", StringComparison.OrdinalIgnoreCase) &&
+                       !s.Equals("integrationeventlogef", StringComparison.OrdinalIgnoreCase);
+            })
+            .GroupBy(n => n.Extensions?.GetValueOrDefault("engine") ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[0] : n.Name), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
+
         var projectDbEdges = new List<(ProjectNode Owner, string CanonicalTarget, Relationship OriginalRel)>();
 
         foreach (var rel in allRelationships)
@@ -1132,17 +1180,30 @@ public partial class PostIndexAnalyzer
                         continue;
                     }
 
-                    projectDbEdges.Add((owner, canonicalTarget, rel));
+                    var isMultiDomainLib = multiDomainSharedLibs.Contains(owner.Id);
+                    var isGenericTarget = IsGenericOrLibraryDbId(canonicalTarget);
+
+                    // A shared library referenced by >1 distinct service domains that has no database of its own
+                    // must not create a project-level USES_DB edge to a generic db or service db.
+                    if (!isMultiDomainLib || !isGenericTarget)
+                    {
+                        projectDbEdges.Add((owner, canonicalTarget, rel));
+                    }
 
                     // Also attribute this DB target to any service that references this owner library
-                    foreach (var (svcId, libs) in serviceToReferencedLibs)
+                    // BUT: when owner is a multi-domain shared library with a generic target, do NOT propagate it
+                    // because each calling service domain will use its own database!
+                    if (!isMultiDomainLib || !isGenericTarget)
                     {
-                        if (libs.Any(l => l.Id == owner.Id))
+                        foreach (var (svcId, libs) in serviceToReferencedLibs)
                         {
-                            var svcProj = projects.FirstOrDefault(p => p.Id == svcId);
-                            if (svcProj != null && !IsTestSource(svcProj.Id, svcProj.Path))
+                            if (libs.Any(l => l.Id == owner.Id))
                             {
-                                projectDbEdges.Add((svcProj, canonicalTarget, rel));
+                                var svcProj = projects.FirstOrDefault(p => p.Id == svcId);
+                                if (svcProj != null && !IsTestSource(svcProj.Id, svcProj.Path))
+                                {
+                                    projectDbEdges.Add((svcProj, canonicalTarget, rel));
+                                }
                             }
                         }
                     }
@@ -1157,9 +1218,11 @@ public partial class PostIndexAnalyzer
             }, StringComparer.OrdinalIgnoreCase);
 
         var globalConsolidationRemap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var domainScopedRemap = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var sGroup in edgesByService)
         {
+            var domainKey = sGroup.Key;
             var candidateNodes = sGroup
                 .Select(e => canonicalDbNodes.GetValueOrDefault(e.CanonicalTarget))
                 .Where(n => n != null)
@@ -1179,7 +1242,24 @@ public partial class PostIndexAnalyzer
             var localRemap = ResolveDatabaseConsolidations(candidateNodes);
             foreach (var (loser, winner) in localRemap)
             {
-                globalConsolidationRemap[loser] = winner;
+                var loserNode = canonicalDbNodes.GetValueOrDefault(loser);
+                var loserEng = loserNode?.Extensions?.GetValueOrDefault("engine") ?? (loserNode?.Name.Contains('.') == true ? loserNode.Name.Split('.', 2)[0] : loserNode?.Name ?? "");
+                var isLoserGeneric = IsGenericOrLibraryDbId(loser);
+
+                if (isLoserGeneric && concreteEnginesCount.GetValueOrDefault(loserEng) > 1)
+                {
+                    // Multi-database engine: do NOT remap generic node globally! Scope to domain.
+                    if (!domainScopedRemap.TryGetValue(domainKey, out var dMap))
+                    {
+                        dMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                        domainScopedRemap[domainKey] = dMap;
+                    }
+                    dMap[loser] = winner;
+                }
+                else
+                {
+                    globalConsolidationRemap[loser] = winner;
+                }
             }
 
             // Consolidate single configured database with AST schema nodes for the service
@@ -1313,7 +1393,26 @@ public partial class PostIndexAnalyzer
 
         foreach (var (owner, rawTarget, rel) in projectDbEdges)
         {
-            var target = globalConsolidationRemap.TryGetValue(rawTarget, out var win) ? win : rawTarget;
+            var domain = SyntaxEnricher.CleanProjectNameToDomain(owner.Name);
+            if (string.IsNullOrEmpty(domain)) domain = owner.Id;
+
+            var target = rawTarget;
+            if (domainScopedRemap.TryGetValue(domain, out var dMap) && dMap.TryGetValue(target, out var dWin))
+            {
+                target = dWin;
+            }
+            else if (globalConsolidationRemap.TryGetValue(target, out var win))
+            {
+                target = win;
+            }
+
+            var targetNode = canonicalDbNodes.GetValueOrDefault(target);
+            var targetEng = targetNode?.Extensions?.GetValueOrDefault("engine") ?? (targetNode?.Name.Contains('.') == true ? targetNode.Name.Split('.', 2)[0] : targetNode?.Name ?? "");
+            if (IsGenericOrLibraryDbId(target) && concreteEnginesCount.GetValueOrDefault(targetEng) > 1)
+            {
+                continue;
+            }
+
             if (owner.Id != target && seen.Add((owner.Id, target)))
             {
                 var props = new Dictionary<string, object>
@@ -1364,6 +1463,22 @@ public partial class PostIndexAnalyzer
 
         if (ctx.DbClient != null)
         {
+            // Apply domain-scoped remappings to edges
+            foreach (var (domain, dMap) in domainScopedRemap)
+            {
+                var domProjs = projectsByDomain.GetValueOrDefault(domain, []);
+                var domProjIds = domProjs.Select(p => p.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                foreach (var (loserId, winnerId) in dMap)
+                {
+                    foreach (var pId in domProjIds)
+                    {
+                        await ctx.DbClient.ExecuteWriteAsync(
+                            "UPDATE OR IGNORE edges SET to_id = @winnerId WHERE to_id = @loserId AND from_id LIKE @pIdPrefix;",
+                            new { winnerId, loserId, pIdPrefix = $"{pId}%" });
+                    }
+                }
+            }
+
             // Clean up duplicate non-canonical database nodes
             foreach (var (rawId, canonicalId) in rawToCanonical)
             {
