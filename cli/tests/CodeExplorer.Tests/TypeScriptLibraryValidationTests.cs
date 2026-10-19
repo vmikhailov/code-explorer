@@ -1590,7 +1590,8 @@ export class CampaignsController {
     [Test]
     public async Task Test_Adsterra_SingleRepoScan_ProjectAndEndpoints()
     {
-        var tempWorkspace = Path.Combine(Path.GetTempPath(), "adsterra-sc-nest");
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"ce-ts-{Guid.NewGuid():N}");
+        var tempWorkspace = Path.Combine(tempRoot, "adsterra-sc-nest");
         var srcDir = Path.Combine(tempWorkspace, "src");
         Directory.CreateDirectory(srcDir);
         try
@@ -1645,7 +1646,7 @@ export class CampaignsController {
         }
         finally
         {
-            if (Directory.Exists(tempWorkspace)) Directory.Delete(tempWorkspace, true);
+            if (Directory.Exists(tempRoot)) Directory.Delete(tempRoot, true);
         }
     }
 

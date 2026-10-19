@@ -110,14 +110,23 @@ public class CodeIntentAnalyzerTests
         await client.CreateIndicesAsync();
 
         var channel = System.Threading.Channels.Channel.CreateUnbounded<Func<Task>>();
-        var tempDir = Path.GetTempPath();
-        var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-        ctx.WorkspaceId = "test_ws";
+        var tempDir = Path.Combine(Path.GetTempPath(), $"ce-intent-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            ctx.WorkspaceId = "test_ws";
 
-        // Call EnrichAsync - should not throw, should log fallback message
-        await CodeIntentAnalyzer.EnrichAsync(ctx);
+            // Call EnrichAsync - should not throw, should log fallback message
+            await CodeIntentAnalyzer.EnrichAsync(ctx);
 
-        Assert.Pass();
+            Assert.Pass();
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
     }
 
     [Test]

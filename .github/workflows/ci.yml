@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ master, main ]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -27,7 +31,7 @@ jobs:
         run: dotnet build cli/CodeExplorer.slnx -c Release
 
       - name: Run test suite
-        run: dotnet test cli/CodeExplorer.slnx -c Release --no-build --logger "console;verbosity=normal"
+        run: dotnet test cli/CodeExplorer.slnx -c Release --no-build -m:1 --logger "console;verbosity=normal"
 
       - name: Verify Architecture Gates
         run: |
