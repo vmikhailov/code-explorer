@@ -211,8 +211,23 @@ public class CSharpParser : IProjectParser, IFileParser
                 props["is_test_project"] = "true";
             }
 
+            var isUiClientApp = System.Text.RegularExpressions.Regex.IsMatch(content, @"<UseMaui>\s*true\s*</UseMaui>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
+                                System.Text.RegularExpressions.Regex.IsMatch(content, @"<UseWPF>\s*true\s*</UseWPF>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
+                                System.Text.RegularExpressions.Regex.IsMatch(content, @"<UseWindowsForms>\s*true\s*</UseWindowsForms>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
+                                content.Contains("Microsoft.NET.Sdk.BlazorWebAssembly", StringComparison.OrdinalIgnoreCase);
+
+            if (isUiClientApp)
+            {
+                props["framework_type"] = "frontend";
+                props["ui_type"] = "clientapp";
+                props["manifest_type"] = "application";
+                props["role"] = "FrontendApp";
+                props["kind"] = "App";
+                props["is_library"] = "false";
+            }
+
             // 2. Inspect <OutputType>
-            var outputTypeMatch = System.Text.RegularExpressions.Regex.Match(content, @"<OutputType>\s*([A-Za-z0-9]+)\s*</OutputType>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            var outputTypeMatch = System.Text.RegularExpressions.Regex.Match(content, @"<OutputType(?:\s+[^>]*)?>\s*([A-Za-z0-9]+)\s*</OutputType>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
             if (outputTypeMatch.Success)
             {
                 var outputType = outputTypeMatch.Groups[1].Value;
@@ -223,10 +238,11 @@ public class CSharpParser : IProjectParser, IFileParser
                     {
                         props["manifest_type"] = "application";
                     }
+                    props["is_library"] = "false";
                 }
                 else if (outputType.Equals("Library", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (!props.ContainsKey("manifest_type") && props.GetValueOrDefault("sdk") != "Microsoft.NET.Sdk.Web")
+                    if (!props.ContainsKey("manifest_type") && props.GetValueOrDefault("sdk") != "Microsoft.NET.Sdk.Web" && !isUiClientApp)
                     {
                         props["manifest_type"] = "library";
                     }
@@ -235,7 +251,7 @@ public class CSharpParser : IProjectParser, IFileParser
             else
             {
                 // In .NET SDK, OutputType defaults to Library if not Exe
-                if (props.GetValueOrDefault("sdk") == "Microsoft.NET.Sdk" && !props.ContainsKey("manifest_type"))
+                if (props.GetValueOrDefault("sdk") == "Microsoft.NET.Sdk" && !props.ContainsKey("manifest_type") && !isUiClientApp)
                 {
                     props["output_type"] = "Library";
                     props["manifest_type"] = "library";

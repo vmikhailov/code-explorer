@@ -2331,7 +2331,14 @@ public class Layer5AnalysisParser
 
             if (!string.Equals(a, b, StringComparison.OrdinalIgnoreCase))
             {
-                return false;
+                var cleanA = a.Replace("-", "").Replace("_", "").ToLowerInvariant();
+                var cleanB = b.Replace("-", "").Replace("_", "").ToLowerInvariant();
+                var cleanAWithoutService = cleanA.EndsWith("service", StringComparison.Ordinal) ? cleanA[..^7] : cleanA;
+                var cleanBWithoutService = cleanB.EndsWith("service", StringComparison.Ordinal) ? cleanB[..^7] : cleanB;
+                if (cleanAWithoutService != cleanBWithoutService && cleanAWithoutService.TrimEnd('s') != cleanBWithoutService.TrimEnd('s'))
+                {
+                    return false;
+                }
             }
 
             hasExactMatch = true;
@@ -2352,6 +2359,9 @@ public class Layer5AnalysisParser
                     var cleanDomain = CleanServiceDomain(serviceDomain);
                     var cleanSeg = seg.Replace("-", "").Replace("_", "").ToLowerInvariant();
                     if (cleanDomain == cleanSeg || cleanDomain.TrimEnd('s') == cleanSeg.TrimEnd('s')) continue;
+                    var cleanSegWithoutService = cleanSeg.EndsWith("service", StringComparison.Ordinal) ? cleanSeg[..^7] : cleanSeg;
+                    var cleanDomainWithoutService = cleanDomain.EndsWith("service", StringComparison.Ordinal) ? cleanDomain[..^7] : cleanDomain;
+                    if (cleanDomainWithoutService == cleanSegWithoutService || cleanDomainWithoutService.TrimEnd('s') == cleanSegWithoutService.TrimEnd('s')) continue;
                 }
                 return false;
             }
@@ -2515,6 +2525,35 @@ public class Layer5AnalysisParser
             return true;
         }
 
+        if ((string.Equals(ext.Service.Protocol, "grpc", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(ep.Endpoint.Protocol, "gRPC", StringComparison.OrdinalIgnoreCase)) &&
+            ext.Segments.Length > 0 && ep.Segments.Length > 0)
+        {
+            var extMethod = ext.Segments[^1];
+            var epMethod = ep.Segments[^1];
+            if (string.Equals(extMethod, epMethod, StringComparison.OrdinalIgnoreCase))
+            {
+                var extServiceStem = ext.Segments.Length > 1 ? ext.Segments[^2] : ext.RawDomain;
+                var epServiceStem = ep.Segments.Length > 1 ? ep.Segments[^2] : "";
+
+                var cleanExtStem = extServiceStem.Replace("-", "").Replace("_", "").ToLowerInvariant();
+                var cleanEpStem = epServiceStem.Replace("-", "").Replace("_", "").ToLowerInvariant();
+                if (cleanExtStem.EndsWith("service", StringComparison.Ordinal)) cleanExtStem = cleanExtStem[..^7];
+                if (cleanEpStem.EndsWith("service", StringComparison.Ordinal)) cleanEpStem = cleanEpStem[..^7];
+
+                if (!string.IsNullOrEmpty(cleanExtStem) && !string.IsNullOrEmpty(cleanEpStem) &&
+                    (cleanExtStem == cleanEpStem || cleanExtStem.TrimEnd('s') == cleanEpStem.TrimEnd('s')))
+                {
+                    return true;
+                }
+
+                if (string.IsNullOrEmpty(epServiceStem) && ep.TargetProj != null && projectMatcher(ep.TargetProj, ext.Service.DomainOrService ?? ""))
+                {
+                    return true;
+                }
+            }
+        }
+
         if (ext.CleanPath != "//" && ep.CleanPath != "//")
         {
             if (ep.CleanPath.EndsWith(ext.CleanPath, StringComparison.OrdinalIgnoreCase))
@@ -2564,7 +2603,7 @@ public class Layer5AnalysisParser
 
     private bool IsMatch(ExternalServiceNode extService, EndpointNode endpoint) => IsMatch(extService, endpoint, null);
 
-    private bool IsMatch(ExternalServiceNode extService, EndpointNode endpoint, ProjectNode? targetProj)
+    internal bool IsMatch(ExternalServiceNode extService, EndpointNode endpoint, ProjectNode? targetProj)
     {
         var prepExt = PrepareExternalService(extService, null);
         var prepEp = PrepareEndpoint(endpoint, targetProj);

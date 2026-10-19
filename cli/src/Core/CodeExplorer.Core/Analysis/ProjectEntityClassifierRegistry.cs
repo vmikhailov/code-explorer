@@ -211,6 +211,13 @@ public sealed class ManifestEvidenceClassifier : IProjectEntityClassifier
 
         if (cloudRuntime == "cloudflare-worker") return ProjectClassification.Worker;
 
+        if (extensions.GetValueOrDefault("role") == "FrontendApp" || extensions.GetValueOrDefault("kind") == "App")
+        {
+            if (manifestType == "mobile" || frameworkType == "mobile" || uiType == "mobile") return ProjectClassification.MobileApp;
+            if (manifestType == "desktop" || frameworkType == "desktop" || uiType == "desktop") return ProjectClassification.DesktopApp;
+            return ProjectClassification.WebApp;
+        }
+
         if (frameworkType == "frontend")
         {
             if (normRelPath.Contains("/src/lib/") || normRelPath.Contains("/libs/") || normRelPath.Contains("/lib/"))

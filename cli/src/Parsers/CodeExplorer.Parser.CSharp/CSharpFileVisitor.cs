@@ -54,6 +54,11 @@ public class CSharpFileVisitor : BaseParserVisitor
             return OntologyConstants.NodeLabels.ExternalService;
         }
 
+        if (IsGrpcClientCall(node))
+        {
+            return OntologyConstants.NodeLabels.ExternalService;
+        }
+
         if (IsInsideInterpolatedString(node))
         {
             return null;
@@ -103,6 +108,11 @@ public class CSharpFileVisitor : BaseParserVisitor
             return ExtractHttpClientTarget(node);
         }
 
+        if (IsGrpcClientCall(node))
+        {
+            return ExtractGrpcClientTarget(node);
+        }
+
         if (IsInsideInterpolatedString(node))
         {
             return null;
@@ -124,6 +134,10 @@ public class CSharpFileVisitor : BaseParserVisitor
 
     private static string? ExtractHttpClientTarget(Node node) => Libraries.HttpClientLibraryParser.ExtractTarget(node);
 
+    private static bool IsGrpcClientCall(Node node) => Libraries.GrpcCSharpLibraryParser.IsGrpcClientCall(node);
+
+    private static string? ExtractGrpcClientTarget(Node node) => Libraries.GrpcCSharpLibraryParser.ExtractClientTarget(node);
+
     private static string? ExtractCSharpAttributeRoute(Node attributeNode) => Libraries.AspNetCoreLibraryParser.ExtractRoute(attributeNode);
 
     protected override void CollectCustomReferencesForSymbol(
@@ -133,7 +147,14 @@ public class CSharpFileVisitor : BaseParserVisitor
     {
         if (symbolNode.Kind == OntologyConstants.NodeLabels.EntryPoint)
         {
-            var curr = node.Parent;
+            var curr = node.IsAny(
+                TreeSitterSyntax.CSharp.MethodDeclaration,
+                TreeSitterSyntax.CSharp.LocalFunctionStatement,
+                TreeSitterSyntax.CSharp.ConstructorDeclaration,
+                TreeSitterSyntax.Common.FunctionDeclaration)
+                ? node
+                : node.Parent;
+
             while (curr.IsValid() && !curr.IsAny(
                 TreeSitterSyntax.CSharp.MethodDeclaration,
                 TreeSitterSyntax.CSharp.LocalFunctionStatement,

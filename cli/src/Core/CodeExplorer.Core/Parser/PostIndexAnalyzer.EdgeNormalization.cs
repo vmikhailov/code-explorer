@@ -585,8 +585,6 @@ public partial class PostIndexAnalyzer
                 continue;
             }
 
-            if (isExt == "true") continue;
-
             // Check if this ExternalService matches an internal project with high confidence
             var matchingProj = FindMatchingServiceProject(cand, projectList);
             if (matchingProj != null)
@@ -594,6 +592,8 @@ public partial class PostIndexAnalyzer
                 idsToDelete.Add(id);
                 continue;
             }
+
+            if (isExt == "true") continue;
 
             // A candidate is synthesized from a relative path if explicitly flagged, starting with '/',
             // or if the candidate service name is simply the first segment of the path without an explicit network host.
