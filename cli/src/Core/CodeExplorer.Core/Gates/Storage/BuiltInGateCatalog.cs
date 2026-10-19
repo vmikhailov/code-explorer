@@ -18,7 +18,11 @@ public static class BuiltInGateCatalog
         OntologyLayerStrictHierarchyGate,
         OntologyModelCohesionGate,
         DisallowStringlyTypedTaxonomiesGate,
-        SemanticRuntimeEntityKindIntegrityGate
+        SemanticRuntimeEntityKindIntegrityGate,
+        RustUnsafeCodeIsolationGate,
+        RustCleanArchitectureCrateBoundaryGate,
+        RustAsyncTokioAntiBlockingGate,
+        RustUnparameterizedSqlQueryGate
     ];
 
     public static IReadOnlyList<SemanticGate> GetExampleGates() =>
@@ -33,6 +37,10 @@ public static class BuiltInGateCatalog
         OntologyModelCohesionGate,
         DisallowStringlyTypedTaxonomiesGate,
         SemanticRuntimeEntityKindIntegrityGate,
+        RustUnsafeCodeIsolationGate,
+        RustCleanArchitectureCrateBoundaryGate,
+        RustAsyncTokioAntiBlockingGate,
+        RustUnparameterizedSqlQueryGate,
         new SemanticGate
         {
             Id = "SIG-P-B-001",
@@ -777,4 +785,144 @@ public static class BuiltInGateCatalog
         },
         Source = "BuiltIn"
     };
+
+    public static readonly SemanticGate RustUnsafeCodeIsolationGate = new()
+    {
+        Id = "SIG-R-S-001",
+        Category = GateCategory.Platform,
+        Platform = "rust",
+        Scope = InvariantScope.Method,
+        Dimension = InvariantDimension.Boundaries,
+        Name = "Unsafe Code Isolation Invariant",
+        Severity = GateSeverity.Error,
+        Description = "Memory safety is Rust's primary value proposition. Unsafe functions and blocks must be isolated to low-level hardware or foreign abstraction crates (sys, native, ffi) and are strictly forbidden in business logic, HTTP handlers, or application services.",
+        Remediation = "Move unsafe code into a dedicated low-level crate (e.g. *-sys or *-native) or encapsulate it behind safe abstractions.",
+        Query = """
+            MATCH (fn:Function)-[:DECLARED_IN]->(f:File)<-[:CONTAINS]-(p:Project)
+            WHERE fn.is_unsafe = true
+              AND NOT toLower(coalesce(p.path, p.name, '')) CONTAINS "sys"
+              AND NOT toLower(coalesce(p.path, p.name, '')) CONTAINS "native"
+              AND NOT toLower(coalesce(p.path, p.name, '')) CONTAINS "ffi"
+              AND NOT coalesce(fn.is_test, false)
+            RETURN 
+              coalesce(f.path, fn.file_path, 'unknown') AS file,
+              coalesce(fn.start_line, fn.line_number, 1) AS line,
+              fn.name AS symbol,
+              p.name AS target,
+              'Unsafe function declared outside approved FFI/sys boundary: ' + fn.name AS message
+            """,
+        Ratchet = new GateRatchetSettings
+        {
+            Enabled = true,
+            Baseline = "baselines/SIG-R-S-001.json"
+        },
+        Source = "BuiltIn"
+    };
+
+    public static readonly SemanticGate RustCleanArchitectureCrateBoundaryGate = new()
+    {
+        Id = "SIG-R-A-001",
+        Category = GateCategory.Architectural,
+        Platform = "rust",
+        Scope = InvariantScope.Module,
+        Dimension = InvariantDimension.Boundaries,
+        Name = "Clean Architecture Crate Boundary Invariant",
+        Severity = GateSeverity.Error,
+        Description = "Domain crates (core, domain) must remain pure and decoupled from infrastructure. A domain crate must never depend on web frameworks (axum, actix-web, rocket) or database drivers/ORMs (sqlx, diesel, sea-orm).",
+        Remediation = "Remove infrastructure dependencies from domain/core crates. Declare interfaces/traits in domain and implement them in infrastructure adapter crates.",
+        Query = """
+            MATCH (p:Project)-[:DEPENDS_ON]->(pkg:Package)
+            WHERE (toLower(p.name) CONTAINS "domain" OR toLower(p.name) CONTAINS "core")
+              AND pkg.name IN ["axum", "actix-web", "rocket", "sqlx", "diesel", "sea-orm"]
+            RETURN 
+              coalesce(p.path, p.file_path, p.name) AS file,
+              1 AS line,
+              p.name AS symbol,
+              pkg.name AS target,
+              'Domain project violates Clean Architecture by depending on infrastructure crate: ' + pkg.name AS message
+            """,
+        Ratchet = new GateRatchetSettings
+        {
+            Enabled = true,
+            Baseline = "baselines/SIG-R-A-001.json"
+        },
+        Source = "BuiltIn"
+    };
+
+    public static readonly SemanticGate RustAsyncTokioAntiBlockingGate = new()
+    {
+        Id = "SIG-R-C-001",
+        Category = GateCategory.Platform,
+        Platform = "rust",
+        Scope = InvariantScope.Method,
+        Dimension = InvariantDimension.Rules,
+        Name = "Async Tokio Runtime Anti-Blocking Invariant",
+        Severity = GateSeverity.Error,
+        Description = "Invoking synchronous blocking functions (std::thread::sleep, std::fs::read/write, reqwest::blocking) inside an async function starves the Tokio executor threadpool.",
+        Remediation = "Replace blocking calls with their Tokio non-blocking equivalents (e.g. tokio::time::sleep, tokio::fs) or offload via tokio::task::spawn_blocking.",
+        Query = """
+            MATCH (fn:Function)-[:CALLS]->(target)
+            WHERE fn.is_async = true
+              AND (
+                target.full_name IN [
+                  "std::thread::sleep", "std::fs::read", "std::fs::write",
+                  "std::fs::read_to_string", "reqwest::blocking"
+                ]
+                OR target.name IN [
+                  "std::thread::sleep", "std::fs::read", "std::fs::write",
+                  "std::fs::read_to_string", "reqwest::blocking"
+                ]
+              )
+              AND NOT coalesce(fn.is_test, false)
+            RETURN 
+              coalesce(fn.file_path, fn.path, 'unknown') AS file,
+              coalesce(fn.start_line, 1) AS line,
+              fn.name AS symbol,
+              coalesce(target.full_name, target.name) AS target,
+              'Async function invokes blocking call: ' + coalesce(target.full_name, target.name) AS message
+            """,
+        Ratchet = new GateRatchetSettings
+        {
+            Enabled = true,
+            Baseline = "baselines/SIG-R-C-001.json"
+        },
+        Source = "BuiltIn"
+    };
+
+    public static readonly SemanticGate RustUnparameterizedSqlQueryGate = new()
+    {
+        Id = "SIG-R-D-001",
+        Category = GateCategory.Platform,
+        Platform = "rust",
+        Scope = InvariantScope.Method,
+        Dimension = InvariantDimension.Rules,
+        Name = "Unparameterized SQL Query Invariance",
+        Severity = GateSeverity.Error,
+        Description = "Enforce parameter binding in database queries. String formatting (format!) within a database query represents a critical SQL injection vulnerability.",
+        Remediation = "Use query parameter bindings ($1, $2 or ?) instead of format! macro string concatenation.",
+        Query = """
+            MATCH (fn:Function)-[:QUERIES_DB]->(tbl:Table),
+                  (fn)-[:CALLS]->(lit:CallLiteral)
+            WHERE (lit.text CONTAINS "format!" OR lit.value CONTAINS "format!")
+              AND (
+                toUpper(coalesce(lit.text, lit.value)) CONTAINS "SELECT"
+                OR toUpper(coalesce(lit.text, lit.value)) CONTAINS "DELETE"
+                OR toUpper(coalesce(lit.text, lit.value)) CONTAINS "UPDATE"
+                OR toUpper(coalesce(lit.text, lit.value)) CONTAINS "INSERT"
+              )
+            RETURN 
+              coalesce(fn.file_path, fn.path, lit.file_path, 'unknown') AS file,
+              coalesce(lit.line, fn.start_line, 1) AS line,
+              fn.name AS symbol,
+              tbl.name AS target,
+              'Dynamic string formatting detected in SQL query: ' + coalesce(lit.text, lit.value) AS message
+            """,
+        Ratchet = new GateRatchetSettings
+        {
+            Enabled = true,
+            Baseline = "baselines/SIG-R-D-001.json"
+        },
+        Source = "BuiltIn"
+    };
 }
+

@@ -223,14 +223,7 @@ export function probeAllInstalledEngines(options?: ProbeInstalledOptions): Insta
     try {
       const storedBin = path.join(options.globalStorageBinDir, getExecutableName('ce'));
       if (fs.existsSync(storedBin)) {
-        let ver = probeCommandVersion(storedBin);
-        if (!ver) {
-          const verFile = path.join(options.globalStorageBinDir, 'version.json');
-          if (fs.existsSync(verFile)) {
-            const data = JSON.parse(fs.readFileSync(verFile, 'utf8'));
-            if (data.version) ver = cleanSemver(data.version);
-          }
-        }
+        const ver = probeCommandVersion(storedBin);
         if (ver) {
           addCandidate({
             command: storedBin,
@@ -238,6 +231,15 @@ export function probeAllInstalledEngines(options?: ProbeInstalledOptions): Insta
             version: ver,
             source: 'downloaded',
           });
+        } else {
+          // Stored binary cannot be executed (corrupted / missing dependencies). Clean it up.
+          try {
+            fs.unlinkSync(storedBin);
+            const verFile = path.join(options.globalStorageBinDir, 'version.json');
+            if (fs.existsSync(verFile)) fs.unlinkSync(verFile);
+          } catch {
+            // Ignore
+          }
         }
       }
     } catch {

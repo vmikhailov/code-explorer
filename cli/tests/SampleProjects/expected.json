@@ -233,5 +233,35 @@
     "projectType": "typescript",
     "entityKind": "Library",
     "isLibrary": true
+  },
+  "rust/microservices-workspace/crates/admin-cli": {
+    "projectType": "rust",
+    "entityKind": "CliTool",
+    "isLibrary": false
+  },
+  "rust/microservices-workspace/crates/auth-service": {
+    "projectType": "rust",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
+  "rust/microservices-workspace/crates/domain-models": {
+    "projectType": "rust",
+    "entityKind": "Library",
+    "isLibrary": true
+  },
+  "rust/microservices-workspace/crates/order-processor": {
+    "projectType": "rust",
+    "entityKind": "Worker",
+    "isLibrary": false
+  },
+  "rust/microservices-workspace/crates/payment-gateway": {
+    "projectType": "rust",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
+  "rust/microservices-workspace/tests/e2e": {
+    "projectType": "rust",
+    "entityKind": "Test",
+    "isLibrary": true
   }
 }
