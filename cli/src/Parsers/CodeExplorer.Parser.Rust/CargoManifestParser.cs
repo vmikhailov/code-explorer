@@ -502,12 +502,20 @@ public static class CargoManifestParser
         {
             if (dep.IsWorkspace && rootManifest.Workspace.WorkspaceDependencies.TryGetValue(dep.Name, out var wsDep))
             {
-                dep.Version ??= wsDep.Version;
+                dep.Version ??= !string.IsNullOrEmpty(wsDep.Rev)
+                    ? $"git:{wsDep.Rev[..Math.Min(7, wsDep.Rev.Length)]}"
+                    : (!string.IsNullOrEmpty(wsDep.Branch)
+                        ? $"git:{wsDep.Branch}"
+                        : (!string.IsNullOrEmpty(wsDep.Tag)
+                            ? $"git:{wsDep.Tag}"
+                            : wsDep.Version));
                 dep.Path ??= wsDep.Path;
                 dep.ResolvedAbsolutePath ??= wsDep.ResolvedAbsolutePath;
                 dep.Git ??= wsDep.Git;
                 dep.Branch ??= wsDep.Branch;
                 dep.Tag ??= wsDep.Tag;
+                dep.Rev ??= wsDep.Rev;
+                dep.PackageName ??= wsDep.PackageName;
                 if (wsDep.Features.Count > 0)
                 {
                     foreach (var feat in wsDep.Features)
@@ -606,6 +614,8 @@ public class CargoDependency
     public string? Git { get; set; }
     public string? Branch { get; set; }
     public string? Tag { get; set; }
+    public string? Rev { get; set; }
+    public string? PackageName { get; set; }
     public List<string> Features { get; } = [];
 
     public CargoDependency(string name, string section)
