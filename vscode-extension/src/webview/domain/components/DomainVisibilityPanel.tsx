@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { SelectedNodeDetail, EntityKind } from '../types';
+import { SelectedNodeDetail, EntityKind, CustomNodeGroup } from '../types';
 import { useDomainArchitecture } from '../context/DomainArchitectureContext';
 import { FloatingPanel } from '../../components/FloatingPanel';
 import { EyeIcon, EyeOffIcon, RotateCcwIcon, XIcon } from '../../components/Icons';
-import { EntityNodeBadge } from '../entityBadges';
+import { EntityNodeBadge, getEntityBadgeMeta } from '../entityBadges';
 
 export interface HiddenItem {
   id: string;
@@ -23,6 +23,13 @@ export interface DomainVisibilityPanelProps {
   hideSingleConnectionDbs?: boolean;
   hideIsolatedNodes?: boolean;
   showTransitiveEdges?: boolean;
+  groupedTypes?: Set<EntityKind>;
+  onToggleTypeGrouping?: (kind: EntityKind) => void;
+  customGroups?: CustomNodeGroup[];
+  onCreateCustomGroup?: (name: string, nodeIds: string[]) => void;
+  onToggleCustomGroupCollapse?: (groupId: string) => void;
+  onDeleteCustomGroup?: (groupId: string) => void;
+  onSelectGroupNode?: (groupId: string) => void;
   counts?: {
     ingress?: number;
     services?: number;
@@ -80,6 +87,48 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
   const toggleIsolated = props.onToggleIsolatedNodes || (() => ctx?.setHideIsolatedNodes?.((p: boolean) => !p));
   const toggleTransitive = props.onToggleTransitiveEdges || (() => ctx?.setShowTransitiveEdges?.((p: boolean) => !p));
   const nodeDetailMap = props.nodeDetailMap;
+
+  const groupedTypes: Set<EntityKind> = props.groupedTypes || ctx?.groupedTypes || new Set<EntityKind>();
+  const toggleTypeGrouping = props.onToggleTypeGrouping || ctx?.toggleTypeGrouping;
+  const customGroups: CustomNodeGroup[] = props.customGroups || ctx?.customGroups || [];
+  const createCustomGroup = props.onCreateCustomGroup || ctx?.createCustomGroup;
+  const toggleCustomGroupCollapse = props.onToggleCustomGroupCollapse || ctx?.toggleCustomGroupCollapse;
+  const deleteCustomGroup = props.onDeleteCustomGroup || ctx?.deleteCustomGroup;
+  const onSelectGroupNode = props.onSelectGroupNode;
+
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [groupEntitySearch, setGroupEntitySearch] = useState('');
+  const [groupSelectedNodeIds, setGroupSelectedNodeIds] = useState<Set<string>>(new Set());
+
+  const availableNodesForGroup = useMemo(() => {
+    const list: SelectedNodeDetail[] = [];
+    const q = groupEntitySearch.trim().toLowerCase();
+    for (const [id, node] of nodeDetailMap.entries()) {
+      if (hiddenNodeIds.has(id)) continue;
+      if (hiddenTypes.has(node.kind)) continue;
+      if (node.isGroup) continue;
+      if (q) {
+        const name = (node.displayName || node.name || '').toLowerCase();
+        const kind = (node.kind || '').toLowerCase();
+        if (!name.includes(q) && !kind.includes(q)) continue;
+      }
+      list.push(node);
+    }
+    list.sort((a, b) => (a.displayName || a.name).localeCompare(b.displayName || b.name));
+    return list;
+  }, [nodeDetailMap, hiddenNodeIds, hiddenTypes, groupEntitySearch]);
+
+  const handleCreateGroupSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (groupSelectedNodeIds.size === 0 || !createCustomGroup) return;
+    const name = newGroupName.trim() || `Group (${groupSelectedNodeIds.size})`;
+    createCustomGroup(name, Array.from(groupSelectedNodeIds));
+    setNewGroupName('');
+    setGroupEntitySearch('');
+    setGroupSelectedNodeIds(new Set());
+    setIsCreatingGroup(false);
+  };
 
   const [hiddenSearchQuery, setHiddenSearchQuery] = useState('');
 
@@ -206,6 +255,8 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
   const hasAnyFiltersOrHidden =
     allHiddenItems.length > 0 ||
     hiddenTypes.size > 0 ||
+    groupedTypes.size > 0 ||
+    customGroups.length > 0 ||
     hideSingleConnectionDbs ||
     hideIsolatedNodes;
 
@@ -215,17 +266,24 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
       <div className="visibility-section">
         <div className="visibility-section-header">
           <span className="visibility-section-title">Entity Types</span>
-          <span className="visibility-section-hint">Click to show/hide category</span>
+          <span className="visibility-section-hint">Click card to hide; click ⊞ to group into 1 node</span>
         </div>
         <div className="visibility-type-grid">
           {entityTypes.map((item) => {
             const isHidden = hiddenTypes.has(item.kind);
+            const isGrouped = groupedTypes.has(item.kind);
             return (
-              <button
+              <div
                 key={item.kind}
-                type="button"
+                role="button"
+                tabIndex={0}
                 className={`visibility-type-card ${isHidden ? 'is-hidden' : 'is-visible'}`}
                 onClick={() => handleToggleKind(item.kind)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    handleToggleKind(item.kind);
+                  }
+                }}
                 title={isHidden ? `Show ${item.label}` : `Hide ${item.label}`}
               >
                 <div className="visibility-type-left">
@@ -239,17 +297,336 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
                   >
                     {item.count}
                   </span>
+                  {toggleTypeGrouping && (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      className={`visibility-type-group-btn ${isGrouped ? 'is-active' : ''}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleTypeGrouping(item.kind);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.stopPropagation();
+                          toggleTypeGrouping(item.kind);
+                        }
+                      }}
+                      title={
+                        isGrouped
+                          ? `Ungroup ${item.label} (Show individual nodes on canvas)`
+                          : `Group all ${item.label} into 1 summary node on canvas`
+                      }
+                    >
+                      ⊞
+                    </span>
+                  )}
                   <span className="visibility-type-eye">
                     {isHidden ? <EyeOffIcon size={12} /> : <EyeIcon size={12} />}
                   </span>
                 </div>
-              </button>
+              </div>
             );
           })}
         </div>
       </div>
 
-      {/* 2. Architectural Presets */}
+      {/* 2. Node Groups */}
+      <div className="visibility-section">
+        <div className="visibility-section-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <span className="visibility-section-title">Node Groups</span>
+            <span className="visibility-section-hint">Collapse entities into summary discs</span>
+          </div>
+          <button
+            type="button"
+            className="visibility-new-group-btn"
+            onClick={() => setIsCreatingGroup((prev) => !prev)}
+            style={{
+              background: isCreatingGroup ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.06)',
+              border: `1px solid ${isCreatingGroup ? 'rgba(56, 189, 248, 0.5)' : 'rgba(255, 255, 255, 0.12)'}`,
+              borderRadius: 4,
+              color: isCreatingGroup ? '#38bdf8' : '#cbd5e1',
+              padding: '2px 8px',
+              fontSize: '10.5px',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            {isCreatingGroup ? 'Cancel' : '+ New Group'}
+          </button>
+        </div>
+
+        {/* Active Groups List */}
+        <div className="visibility-groups-list" style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
+          {/* Active Category Groups */}
+          {Array.from(groupedTypes).map((kind) => {
+            const count = Array.from(nodeDetailMap.values()).filter(
+              (n) => (n.kind === kind || (kind === 'App' && n.kind === 'Ingress')) && !hiddenNodeIds.has(n.id)
+            ).length;
+            const meta = getEntityBadgeMeta(kind);
+            return (
+              <div
+                key={`group-cat-${kind}`}
+                className="visibility-group-item"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '5px 8px',
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: 5,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <EntityNodeBadge kind={kind} size={20} />
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: '#f1f5f9' }}>
+                    {meta.label}s ({count})
+                  </span>
+                  <span style={{ fontSize: '9px', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', padding: '1px 4px', borderRadius: 3 }}>
+                    Category
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => toggleTypeGrouping && toggleTypeGrouping(kind)}
+                  title="Ungroup category"
+                  style={{
+                    background: 'none',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    borderRadius: 3,
+                    color: '#94a3b8',
+                    fontSize: '10px',
+                    padding: '1px 6px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Ungroup
+                </button>
+              </div>
+            );
+          })}
+
+          {/* Active Custom Groups */}
+          {customGroups.map((group) => {
+            const memberCount = group.nodeIds.length;
+            return (
+              <div
+                key={group.id}
+                className="visibility-group-item"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '5px 8px',
+                  background: 'rgba(79, 70, 229, 0.12)',
+                  border: '1px solid rgba(79, 70, 229, 0.35)',
+                  borderRadius: 5,
+                }}
+              >
+                <div
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: onSelectGroupNode ? 'pointer' : 'default', minWidth: 0, flex: 1 }}
+                  onClick={() => onSelectGroupNode?.(`group:custom:${group.id}`)}
+                  title={`Inspect ${group.name}`}
+                >
+                  <EntityNodeBadge kind="Group" size={20} />
+                  <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: '#e0e7ff' }}>
+                      {group.name}
+                    </span>
+                    <span style={{ fontSize: '9.5px', color: '#a5b4fc', marginLeft: 4 }}>
+                      ({memberCount})
+                    </span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <button
+                    type="button"
+                    onClick={() => toggleCustomGroupCollapse && toggleCustomGroupCollapse(group.id)}
+                    title={group.collapsed ? 'Expand to individual nodes' : 'Collapse into summary node'}
+                    style={{
+                      background: group.collapsed ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255, 255, 255, 0.06)',
+                      border: `1px solid ${group.collapsed ? 'rgba(56, 189, 248, 0.4)' : 'rgba(255, 255, 255, 0.12)'}`,
+                      borderRadius: 3,
+                      color: group.collapsed ? '#38bdf8' : '#cbd5e1',
+                      fontSize: '10px',
+                      padding: '1px 6px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {group.collapsed ? 'Expand' : 'Collapse'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteCustomGroup && deleteCustomGroup(group.id)}
+                    title="Ungroup / Delete group"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#94a3b8',
+                      fontSize: '12px',
+                      padding: '1px 4px',
+                      cursor: 'pointer',
+                      lineHeight: 1,
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+
+          {groupedTypes.size === 0 && customGroups.length === 0 && !isCreatingGroup && (
+            <div style={{ fontSize: '10.5px', color: '#64748b', fontStyle: 'italic', padding: '2px 0' }}>
+              No active groups. Click ⊞ on an entity type above, Shift+Click nodes on canvas, or create a group below.
+            </div>
+          )}
+        </div>
+
+        {/* "+ New Group" Creator Form */}
+        {isCreatingGroup && (
+          <form
+            onSubmit={handleCreateGroupSubmit}
+            style={{
+              marginTop: 8,
+              padding: '8px',
+              background: 'rgba(0, 0, 0, 0.25)',
+              border: '1px solid rgba(56, 189, 248, 0.25)',
+              borderRadius: 6,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+            }}
+          >
+            <input
+              type="text"
+              placeholder="Group name (e.g. Order Subsystem)..."
+              value={newGroupName}
+              onChange={(e) => setNewGroupName(e.target.value)}
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                borderRadius: 4,
+                padding: '4px 8px',
+                fontSize: '11px',
+                color: '#f8fafc',
+                outline: 'none',
+              }}
+            />
+
+            <input
+              type="text"
+              placeholder="Filter entities to select..."
+              value={groupEntitySearch}
+              onChange={(e) => setGroupEntitySearch(e.target.value)}
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                background: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: 4,
+                padding: '3px 6px',
+                fontSize: '10.5px',
+                color: '#cbd5e1',
+                outline: 'none',
+              }}
+            />
+
+            <div
+              style={{
+                maxHeight: 160,
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 2,
+                padding: '2px 0',
+              }}
+            >
+              {availableNodesForGroup.map((node) => {
+                const isSelected = groupSelectedNodeIds.has(node.id);
+                return (
+                  <label
+                    key={node.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      fontSize: '11px',
+                      padding: '3px 4px',
+                      borderRadius: 3,
+                      background: isSelected ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => {
+                        setGroupSelectedNodeIds((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(node.id)) next.delete(node.id);
+                          else next.add(node.id);
+                          return next;
+                        });
+                      }}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    <EntityNodeBadge kind={node.kind} size={16} />
+                    <span style={{ color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {node.displayName || node.name}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, paddingTop: 4 }}>
+              <span style={{ fontSize: '10px', color: '#94a3b8' }}>
+                {groupSelectedNodeIds.size} selected
+              </span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => setIsCreatingGroup(false)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#94a3b8',
+                    fontSize: '11px',
+                    cursor: 'pointer',
+                    padding: '3px 8px',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={groupSelectedNodeIds.size === 0}
+                  onClick={handleCreateGroupSubmit}
+                  style={{
+                    background: groupSelectedNodeIds.size > 0 ? '#0284c7' : 'rgba(255, 255, 255, 0.08)',
+                    color: groupSelectedNodeIds.size > 0 ? '#ffffff' : '#64748b',
+                    border: 'none',
+                    borderRadius: 4,
+                    padding: '3px 10px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    cursor: groupSelectedNodeIds.size > 0 ? 'pointer' : 'default',
+                  }}
+                >
+                  Create Group ({groupSelectedNodeIds.size})
+                </button>
+              </div>
+            </div>
+          </form>
+        )}
+      </div>
+
+      {/* 3. Architectural Presets */}
       <div className="visibility-section">
         <div className="visibility-section-header">
           <span className="visibility-section-title">Architectural Presets</span>

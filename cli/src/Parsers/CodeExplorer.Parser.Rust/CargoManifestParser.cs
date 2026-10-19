@@ -40,7 +40,7 @@ public static class CargoManifestParser
         if (model.TryGetValue("workspace", out var wsObj) && wsObj is TomlTable wsTable)
         {
             manifest.HasWorkspace = true;
-            manifest.Workspace = ParseWorkspaceTable(wsTable);
+            manifest.Workspace = ParseWorkspaceTable(wsTable, dirPath);
         }
 
         // 2. Parse [package]
@@ -100,6 +100,20 @@ public static class CargoManifestParser
                     if (!manifest.BinTargets.Any(b => b.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
                     {
                         manifest.BinTargets.Add(new CargoTarget(name, rel));
+                    }
+                }
+
+                foreach (var subDir in Directory.EnumerateDirectories(binDir))
+                {
+                    var mainRs = Path.Combine(subDir, "main.rs");
+                    if (File.Exists(mainRs))
+                    {
+                        var name = Path.GetFileName(subDir);
+                        var rel = Path.GetRelativePath(dirPath, mainRs).Replace('\\', '/');
+                        if (!manifest.BinTargets.Any(b => b.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            manifest.BinTargets.Add(new CargoTarget(name, rel));
+                        }
                     }
                 }
             }
@@ -269,7 +283,7 @@ public static class CargoManifestParser
         return results.ToList();
     }
 
-    private static CargoWorkspace ParseWorkspaceTable(TomlTable wsTable)
+    private static CargoWorkspace ParseWorkspaceTable(TomlTable wsTable, string baseDir)
     {
         var ws = new CargoWorkspace();
 
@@ -305,7 +319,7 @@ public static class CargoManifestParser
 
         if (wsTable.TryGetValue("dependencies", out var wsDepsObj) && wsDepsObj is TomlTable wsDepsTable)
         {
-            foreach (var dep in ParseDependencies(wsDepsTable, "workspace.dependencies", string.Empty))
+            foreach (var dep in ParseDependencies(wsDepsTable, "workspace.dependencies", baseDir))
             {
                 ws.WorkspaceDependencies[dep.Name] = dep;
             }
@@ -406,6 +420,27 @@ public static class CargoManifestParser
                 if (depTable.TryGetValue("tag", out var t) && t is string tStr)
                 {
                     dep.Tag = tStr;
+                }
+
+                if (depTable.TryGetValue("rev", out var r) && r is string rStr)
+                {
+                    dep.Rev = rStr;
+                }
+
+                if (depTable.TryGetValue("package", out var pkg) && pkg is string pkgStr)
+                {
+                    dep.PackageName = pkgStr;
+                }
+
+                if (!string.IsNullOrEmpty(dep.Git) && string.IsNullOrEmpty(dep.Version))
+                {
+                    dep.Version = !string.IsNullOrEmpty(dep.Rev)
+                        ? $"git:{dep.Rev[..Math.Min(7, dep.Rev.Length)]}"
+                        : (!string.IsNullOrEmpty(dep.Branch)
+                            ? $"git:{dep.Branch}"
+                            : (!string.IsNullOrEmpty(dep.Tag)
+                                ? $"git:{dep.Tag}"
+                                : "git"));
                 }
 
                 if (depTable.TryGetValue("features", out var f) && f is TomlArray fArr)

@@ -7,6 +7,7 @@ import {
   SelectedNodeDetail,
   SelectedEdgeDetail,
   DomainArchitectureViewProps,
+  CustomNodeGroup,
 } from '../types';
 
 export interface DomainArchitectureContextValue {
@@ -20,6 +21,19 @@ export interface DomainArchitectureContextValue {
   selectNode: (node: SelectedNodeDetail | null) => void;
   selectEdge: (edge: SelectedEdgeDetail | null) => void;
   clearSelection: () => void;
+
+  // Node Grouping & Multi-Selection
+  groupedTypes: Set<EntityKind>;
+  toggleTypeGrouping: (kind: EntityKind) => void;
+  customGroups: CustomNodeGroup[];
+  createCustomGroup: (name: string, nodeIds: string[]) => void;
+  toggleCustomGroupCollapse: (groupId: string) => void;
+  deleteCustomGroup: (groupId: string) => void;
+  removeNodeFromCustomGroup: (groupId: string, nodeId: string) => void;
+  multiSelectedNodeIds: Set<string>;
+  setMultiSelectedNodeIds: React.Dispatch<React.SetStateAction<Set<string>>>;
+  toggleMultiSelectedNode: (id: string) => void;
+  clearMultiSelection: () => void;
 
   // Filtering
   searchQuery: string;
@@ -140,7 +154,43 @@ export const DomainArchitectureProvider: React.FC<DomainArchitectureProviderProp
   });
   const [showTransitiveEdges, setShowTransitiveEdges] = useState(true);
 
+  // Grouped Types & Custom Groups (persisted in localStorage)
+  const [groupedTypes, setGroupedTypes] = useState<Set<EntityKind>>(() => {
+    try {
+      const saved = localStorage.getItem('ce_domain_grouped_types');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return new Set<EntityKind>(parsed);
+      }
+    } catch { }
+    return new Set<EntityKind>();
+  });
+
+  const [customGroups, setCustomGroups] = useState<CustomNodeGroup[]>(() => {
+    try {
+      const saved = localStorage.getItem('ce_domain_custom_groups');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch { }
+    return [];
+  });
+
+  const [multiSelectedNodeIds, setMultiSelectedNodeIds] = useState<Set<string>>(new Set());
+
   // Sync hidden and filter states to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('ce_domain_grouped_types', JSON.stringify([...groupedTypes]));
+    } catch { }
+  }, [groupedTypes]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ce_domain_custom_groups', JSON.stringify(customGroups));
+    } catch { }
+  }, [customGroups]);
   useEffect(() => {
     try {
       localStorage.setItem('ce_domain_hidden_types', JSON.stringify([...hiddenTypes]));
@@ -242,6 +292,60 @@ export const DomainArchitectureProvider: React.FC<DomainArchitectureProviderProp
     });
   }, []);
 
+  const toggleTypeGrouping = useCallback((kind: EntityKind) => {
+    setGroupedTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(kind)) next.delete(kind);
+      else next.add(kind);
+      return next;
+    });
+  }, []);
+
+  const createCustomGroup = useCallback((name: string, nodeIds: string[]) => {
+    const newGroup: CustomNodeGroup = {
+      id: 'cg_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6),
+      name: name.trim() || `Group (${nodeIds.length})`,
+      nodeIds: Array.from(new Set(nodeIds)),
+      collapsed: true,
+    };
+    setCustomGroups((prev) => [...prev, newGroup]);
+    setMultiSelectedNodeIds(new Set());
+  }, []);
+
+  const toggleCustomGroupCollapse = useCallback((groupId: string) => {
+    setCustomGroups((prev) =>
+      prev.map((g) => (g.id === groupId ? { ...g, collapsed: !g.collapsed } : g))
+    );
+  }, []);
+
+  const deleteCustomGroup = useCallback((groupId: string) => {
+    setCustomGroups((prev) => prev.filter((g) => g.id !== groupId));
+  }, []);
+
+  const removeNodeFromCustomGroup = useCallback((groupId: string, nodeId: string) => {
+    setCustomGroups((prev) =>
+      prev
+        .map((g) => {
+          if (g.id !== groupId) return g;
+          return { ...g, nodeIds: g.nodeIds.filter((id) => id !== nodeId) };
+        })
+        .filter((g) => g.nodeIds.length > 0)
+    );
+  }, []);
+
+  const toggleMultiSelectedNode = useCallback((id: string) => {
+    setMultiSelectedNodeIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const clearMultiSelection = useCallback(() => {
+    setMultiSelectedNodeIds(new Set());
+  }, []);
+
   const restoreAllHiddenNodes = useCallback(() => {
     setHiddenNodeIds(new Set());
     setHiddenTypes(new Set());
@@ -275,6 +379,17 @@ export const DomainArchitectureProvider: React.FC<DomainArchitectureProviderProp
       selectNode,
       selectEdge,
       clearSelection,
+      groupedTypes,
+      toggleTypeGrouping,
+      customGroups,
+      createCustomGroup,
+      toggleCustomGroupCollapse,
+      deleteCustomGroup,
+      removeNodeFromCustomGroup,
+      multiSelectedNodeIds,
+      setMultiSelectedNodeIds,
+      toggleMultiSelectedNode,
+      clearMultiSelection,
       searchQuery,
       setSearchQuery,
       hiddenTypes,
@@ -325,6 +440,16 @@ export const DomainArchitectureProvider: React.FC<DomainArchitectureProviderProp
       selectNode,
       selectEdge,
       clearSelection,
+      groupedTypes,
+      toggleTypeGrouping,
+      customGroups,
+      createCustomGroup,
+      toggleCustomGroupCollapse,
+      deleteCustomGroup,
+      removeNodeFromCustomGroup,
+      multiSelectedNodeIds,
+      toggleMultiSelectedNode,
+      clearMultiSelection,
       searchQuery,
       hiddenTypes,
       toggleTypeVisibility,

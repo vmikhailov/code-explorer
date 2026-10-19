@@ -232,13 +232,13 @@ public static class OntologyUploader
             collectedRelationships.Add(locatedInRel);
             ctx.AddRelsCount(1);
         }
+    }
 
-            // 4. Collect unresolved references/dependencies
-            if (node.References.Count > 0)
-            {
-                ctx.AddGlobalReferences(node.References);
-            }
-        }
+    // 4. Collect unresolved references/dependencies
+    if (node.References.Count > 0)
+    {
+        ctx.AddGlobalReferences(node.References);
+    }
 
         // 5. Recursively collect all children
         foreach (var child in node.Children)

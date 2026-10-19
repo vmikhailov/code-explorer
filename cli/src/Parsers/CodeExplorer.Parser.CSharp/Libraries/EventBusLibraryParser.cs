@@ -75,7 +75,7 @@ public class EventBusLibraryParser : ISemanticExtension
         if (IsHandlerMethod(node))
         {
             var msg = ExtractHandlerMethodMessageType(node);
-            return !string.IsNullOrEmpty(msg) ? $"Consumer:{msg}" : "Consumer";
+            return !string.IsNullOrEmpty(msg) ? $"Handle:{msg}" : "Handle";
         }
 
         return null;
@@ -126,12 +126,16 @@ public class EventBusLibraryParser : ISemanticExtension
     {
         if (!node.Is(TreeSitterSyntax.CSharp.MethodDeclaration)) return false;
 
-        // Skip methods declared in interfaces
+        // Skip methods declared in interfaces or inside an event handler class
         var parent = node.Parent;
         while (parent.IsValid())
         {
             if (parent.Is(TreeSitterSyntax.CSharp.InterfaceDeclaration)) return false;
-            if (parent.IsAny(TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration)) break;
+            if (parent.IsAny(TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration))
+            {
+                if (IsHandlerClass(parent)) return false;
+                break;
+            }
             parent = parent.Parent;
         }
 
@@ -200,7 +204,7 @@ public class EventBusLibraryParser : ISemanticExtension
             if (typeNode.IsValid())
             {
                 var clean = CleanTypeName(typeNode.Text);
-                if (IsValidConcreteEventType(clean))
+                if (IsValidConcreteEventType(clean) && clean.EndsWith("IntegrationEvent", StringComparison.Ordinal))
                 {
                     return clean;
                 }

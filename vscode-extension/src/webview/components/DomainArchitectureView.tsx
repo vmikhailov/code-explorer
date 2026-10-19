@@ -39,7 +39,7 @@ import {
   InfoIcon,
   ShieldIcon,
 } from './Icons';
-import { DomainGroupSummary, PresentationMode } from '../domain/types';
+import { DomainGroupSummary, PresentationMode, CustomNodeGroup } from '../domain/types';
 import { useCommand } from '../commands/CommandContext';
 import {
   HideNodeCommand,
@@ -98,7 +98,8 @@ export type EntityKind =
   | 'TestSuite'
   | 'Database'
   | 'Topic'
-  | 'ExternalService';
+  | 'ExternalService'
+  | 'Group';
 
 export interface SelectedNodeDetail {
   id: string;
@@ -124,6 +125,12 @@ export interface SelectedNodeDetail {
   messagingCount: number;
   tier?: number;
   tierLabel?: string;
+  isGroup?: boolean;
+  groupType?: 'category' | 'custom';
+  groupKind?: EntityKind;
+  customGroupId?: string;
+  memberNodes?: SelectedNodeDetail[];
+  internalConnections?: ConnectionDetailItem[];
 }
 
 export interface ConnectionDetailItem {
@@ -172,7 +179,7 @@ export type DomainNodeDetail = SelectedNodeDetail;
  * In-Circle Vector SVG Badge (mini vector icon + 3-letter uppercase code inside node circle)
  * Re-exported from shared entityBadges module.
  */
-import { getNodeBadgeSvgDataUri } from '../domain/entityBadges';
+import { getNodeBadgeSvgDataUri, getEntityBadgeMeta } from '../domain/entityBadges';
 export { getNodeBadgeSvgDataUri };
 
 // Cytoscape stylesheets matching the circular Neo4j / graph ontology styling
@@ -284,6 +291,34 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
     style: {
       'background-color': '#26a69a',
       'border-color': '#004d40',
+    },
+  },
+  // Group Node
+  {
+    selector: 'node[kind = "Group"]',
+    style: {
+      'background-color': '#4f46e5',
+      'border-color': '#312e81',
+    },
+  },
+  {
+    selector: 'node.group-node',
+    style: {
+      'width': 62,
+      'height': 62,
+      'border-width': 4.5,
+      'border-style': 'double',
+    },
+  },
+  // Multi-Selected Node Ring (Shift+Click canvas selection)
+  {
+    selector: 'node.multi-selected',
+    style: {
+      'border-color': '#38bdf8',
+      'border-width': 4.5,
+      'underlay-color': '#38bdf8',
+      'underlay-padding': '8px',
+      'underlay-opacity': 0.65,
     },
   },
   // Selected Node Highlight
@@ -1205,6 +1240,123 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       localStorage.setItem('ce_hide_isolated_nodes', String(hideIsolatedNodes));
     } catch { }
   }, [hideIsolatedNodes]);
+
+  // Grouped Types & Custom Groups (persisted in localStorage)
+  const [groupedTypes, setGroupedTypes] = useState<Set<EntityKind>>(() => {
+    try {
+      const saved = localStorage.getItem('ce_domain_grouped_types');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return new Set<EntityKind>(parsed);
+      }
+    } catch { }
+    return new Set<EntityKind>();
+  });
+
+  const [customGroups, setCustomGroups] = useState<CustomNodeGroup[]>(() => {
+    try {
+      const saved = localStorage.getItem('ce_domain_custom_groups');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch { }
+    return [];
+  });
+
+  const [multiSelectedNodeIds, setMultiSelectedNodeIds] = useState<Set<string>>(new Set());
+  const [floatingGroupName, setFloatingGroupName] = useState('');
+  const multiSelectedNodeIdsRef = useRef(multiSelectedNodeIds);
+  multiSelectedNodeIdsRef.current = multiSelectedNodeIds;
+  const effectiveDetailMapRef = useRef<Map<string, SelectedNodeDetail>>(new Map());
+
+  // Sync grouped types and custom groups to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('ce_domain_grouped_types', JSON.stringify([...groupedTypes]));
+    } catch { }
+  }, [groupedTypes]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ce_domain_custom_groups', JSON.stringify(customGroups));
+    } catch { }
+  }, [customGroups]);
+
+  // Sync multi-selected classes to Cytoscape
+  useEffect(() => {
+    if (!cyRef.current) return;
+    const cy = cyRef.current;
+    cy.batch(() => {
+      cy.nodes().each((node) => {
+        if (multiSelectedNodeIds.has(node.id())) {
+          node.addClass('multi-selected');
+        } else {
+          node.removeClass('multi-selected');
+        }
+      });
+    });
+  }, [multiSelectedNodeIds]);
+
+  const toggleTypeGrouping = useCallback((kind: EntityKind) => {
+    forceRelayoutRef.current = true;
+    setGroupedTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(kind)) next.delete(kind);
+      else next.add(kind);
+      return next;
+    });
+  }, []);
+
+  const createCustomGroup = useCallback((name: string, nodeIds: string[]) => {
+    forceRelayoutRef.current = true;
+    const newGroup: CustomNodeGroup = {
+      id: 'cg_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6),
+      name: name.trim() || `Group (${nodeIds.length})`,
+      nodeIds: Array.from(new Set(nodeIds)),
+      collapsed: true,
+    };
+    setCustomGroups((prev) => [...prev, newGroup]);
+    setMultiSelectedNodeIds(new Set());
+  }, []);
+
+  const toggleCustomGroupCollapse = useCallback((groupId: string) => {
+    forceRelayoutRef.current = true;
+    setCustomGroups((prev) =>
+      prev.map((g) => (g.id === groupId ? { ...g, collapsed: !g.collapsed } : g))
+    );
+  }, []);
+
+  const deleteCustomGroup = useCallback((groupId: string) => {
+    forceRelayoutRef.current = true;
+    setCustomGroups((prev) => prev.filter((g) => g.id !== groupId));
+  }, []);
+
+  const removeNodeFromCustomGroup = useCallback((groupId: string, nodeId: string) => {
+    forceRelayoutRef.current = true;
+    setCustomGroups((prev) =>
+      prev
+        .map((g) => {
+          if (g.id !== groupId) return g;
+          return { ...g, nodeIds: g.nodeIds.filter((id) => id !== nodeId) };
+        })
+        .filter((g) => g.nodeIds.length > 0)
+    );
+  }, []);
+
+  const toggleMultiSelectedNode = useCallback((id: string) => {
+    setMultiSelectedNodeIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const clearMultiSelection = useCallback(() => {
+    setMultiSelectedNodeIds(new Set());
+  }, []);
+
   const [showTransitiveEdges, setShowTransitiveEdges] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem('ce_show_transitive_edges');
@@ -1646,7 +1798,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   }, [hiddenNodeIds, forcedVisibleNodeIds, executeCommand]);
 
   const handleSelectNodeById = useCallback((id: string) => {
-    const detail = rawGraphRef.current?.detailMap?.get(id);
+    const detail = effectiveDetailMapRef.current?.get(id) || rawGraphRef.current?.detailMap?.get(id);
     if (detail) {
       setSelectedEdge(null);
       setSelectedNode(detail);
@@ -2231,7 +2383,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   rawGraphRef.current = rawGraph;
 
   // 2. Visible Graph Memo with Directional Transitive Contraction
-  const { elements, visibleNodes, visibleEdges, hiddenNodeIdSet, stats, hiddenCount } = useMemo(() => {
+  const { elements, visibleNodes, visibleEdges, hiddenNodeIdSet, stats, hiddenCount, effectiveDetailMap, effectiveRawEdges } = useMemo(() => {
     const hiddenNodeIdSet = new Set<string>();
     for (const node of rawGraph.allNodes) {
       const id = node.data.id as string;
@@ -2252,13 +2404,188 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       }
     }
 
-    const visibleNodes = rawGraph.allNodes.filter((n) => !hiddenNodeIdSet.has(n.data.id as string));
-    const visibleNodeIds = new Set<string>(visibleNodes.map((n) => n.data.id as string));
+    const unhiddenRawNodes = rawGraph.allNodes.filter((n) => !hiddenNodeIdSet.has(n.data.id as string));
+    const unhiddenNodeIds = new Set<string>(unhiddenRawNodes.map((n) => n.data.id as string));
+
+    const nodeToGroupId = new Map<string, string>();
+    const synthesizedGroupNodes: SelectedNodeDetail[] = [];
+    const synthesizedGroupCyNodes: cytoscape.ElementDefinition[] = [];
+
+    // 1. Custom Groups (precedence over category collapse)
+    for (const group of customGroups) {
+      if (!group.collapsed) continue;
+      const memberIds = group.nodeIds.filter((id) => unhiddenNodeIds.has(id));
+      if (memberIds.length < 1) continue;
+
+      const groupId = `group:custom:${group.id}`;
+      for (const mId of memberIds) {
+        nodeToGroupId.set(mId, groupId);
+      }
+
+      const memberNodes = memberIds
+        .map((id) => rawGraph.detailMap.get(id)!)
+        .filter(Boolean);
+      const memberTiers = memberNodes.map((m) => m.tier ?? rawGraph.echelonMap.get(m.id) ?? 2);
+      const minTier = memberTiers.length > 0 ? Math.min(...memberTiers) : 2;
+
+      const allSameKind = memberNodes.length > 0 && memberNodes.every((m) => m.kind === memberNodes[0].kind);
+      const groupKind: EntityKind = allSameKind ? memberNodes[0].kind : 'Group';
+      const badgeMeta = getEntityBadgeMeta(groupKind);
+      const displayName = `${group.name} (${memberNodes.length})`;
+      const badgeSvg = getNodeBadgeSvgDataUri(groupKind, { isGroup: true, count: memberNodes.length });
+
+      const groupDetail: SelectedNodeDetail = {
+        id: groupId,
+        name: group.name,
+        displayName,
+        kind: groupKind,
+        isGroup: true,
+        groupType: 'custom',
+        customGroupId: group.id,
+        groupKind: allSameKind ? groupKind : undefined,
+        memberNodes,
+        internalConnections: [],
+        displayTag: allSameKind ? badgeMeta.code : 'GRP',
+        bgColor: badgeMeta.bgColor,
+        borderColor: badgeMeta.borderColor,
+        tier: minTier,
+        tierLabel: ORBIT_TITLES[minTier] || `Tier ${minTier + 1}`,
+        inboundCallsCount: 0,
+        outboundCallsCount: 0,
+        dbCount: 0,
+        messagingCount: 0,
+        projects: memberNodes.flatMap((m) => m.projects || []),
+      };
+
+      synthesizedGroupNodes.push(groupDetail);
+      synthesizedGroupCyNodes.push({
+        group: 'nodes',
+        classes: 'group-node',
+        data: {
+          id: groupId,
+          name: group.name,
+          displayLabel: displayName,
+          kind: groupKind,
+          isGroup: 'true',
+          groupType: 'custom',
+          size: 62,
+          bgColor: badgeMeta.bgColor,
+          borderColor: badgeMeta.borderColor,
+          badgeSvg,
+          echelonTier: minTier,
+          inboundCalls: 0,
+          outboundCalls: 0,
+          dbCount: 0,
+          messagingCount: 0,
+        },
+      });
+    }
+
+    // 2. Category Groups (for kinds in groupedTypes)
+    const CATEGORY_PLURAL_LABELS: Record<string, string> = {
+      Service: 'Services',
+      Worker: 'Workers',
+      TestSuite: 'Tests',
+      Database: 'Databases',
+      Topic: 'Topics',
+      ExternalService: 'External',
+      App: 'Apps',
+      CliTool: 'CLI Tools',
+      Library: 'Libraries',
+    };
+
+    for (const kind of groupedTypes) {
+      if (hiddenTypes.has(kind)) continue;
+      const memberIds = unhiddenRawNodes
+        .filter((n) => {
+          const k = (n.data as any).kind as EntityKind;
+          const id = n.data.id as string;
+          return (k === kind || (kind === 'App' && k === 'Ingress')) && !nodeToGroupId.has(id);
+        })
+        .map((n) => n.data.id as string);
+
+      if (memberIds.length < 2) continue; // Only collapse if >= 2 visible nodes
+
+      const groupId = `group:kind:${kind}`;
+      for (const mId of memberIds) {
+        nodeToGroupId.set(mId, groupId);
+      }
+
+      const memberNodes = memberIds
+        .map((id) => rawGraph.detailMap.get(id)!)
+        .filter(Boolean);
+      const memberTiers = memberNodes.map((m) => m.tier ?? rawGraph.echelonMap.get(m.id) ?? 2);
+      const minTier = memberTiers.length > 0 ? Math.min(...memberTiers) : 2;
+
+      const badgeMeta = getEntityBadgeMeta(kind);
+      const pluralLabel = CATEGORY_PLURAL_LABELS[kind] || `${kind}s`;
+      const displayName = `${pluralLabel} (${memberNodes.length})`;
+      const badgeSvg = getNodeBadgeSvgDataUri(kind, { isGroup: true, count: memberNodes.length });
+
+      const groupDetail: SelectedNodeDetail = {
+        id: groupId,
+        name: pluralLabel,
+        displayName,
+        kind,
+        isGroup: true,
+        groupType: 'category',
+        groupKind: kind,
+        memberNodes,
+        internalConnections: [],
+        displayTag: badgeMeta.code,
+        bgColor: badgeMeta.bgColor,
+        borderColor: badgeMeta.borderColor,
+        tier: minTier,
+        tierLabel: ORBIT_TITLES[minTier] || `Tier ${minTier + 1}`,
+        inboundCallsCount: 0,
+        outboundCallsCount: 0,
+        dbCount: 0,
+        messagingCount: 0,
+        projects: memberNodes.flatMap((m) => m.projects || []),
+      };
+
+      synthesizedGroupNodes.push(groupDetail);
+      synthesizedGroupCyNodes.push({
+        group: 'nodes',
+        classes: 'group-node',
+        data: {
+          id: groupId,
+          name: pluralLabel,
+          displayLabel: displayName,
+          kind,
+          isGroup: 'true',
+          groupType: 'category',
+          size: 62,
+          bgColor: badgeMeta.bgColor,
+          borderColor: badgeMeta.borderColor,
+          badgeSvg,
+          echelonTier: minTier,
+          inboundCalls: 0,
+          outboundCalls: 0,
+          dbCount: 0,
+          messagingCount: 0,
+        },
+      });
+    }
+
+    const effectiveDetailMap = new Map<string, SelectedNodeDetail>(rawGraph.detailMap);
+    for (const g of synthesizedGroupNodes) {
+      effectiveDetailMap.set(g.id, g);
+    }
+    effectiveDetailMapRef.current = effectiveDetailMap;
+
+    const ungroupedNodes = unhiddenRawNodes.filter((n) => !nodeToGroupId.has(n.data.id as string));
+    const initialVisibleNodes = [...ungroupedNodes, ...synthesizedGroupCyNodes];
+    const visibleNodeIds = new Set<string>(initialVisibleNodes.map((n) => n.data.id as string));
 
     // Collect all interactions between connected node pairs (deduplicating parallel lines)
     interface RawInteraction {
       source: string;
       target: string;
+      originalSourceId?: string;
+      originalSourceName?: string;
+      originalTargetId?: string;
+      originalTargetName?: string;
       category: 'service_call' | 'database' | 'messaging' | 'external';
       kind: string;
       label: string;
@@ -2279,10 +2606,15 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         pairInteractionsMap.set(pKey, list);
       }
       const viaKey = (item.viaNames || []).join('>');
+      const origSrc = item.originalSourceId || item.source;
+      const origTgt = item.originalTargetId || item.target;
+
       const existing = list.find(
         (x) =>
           x.source === item.source &&
           x.target === item.target &&
+          (x.originalSourceId || x.source) === origSrc &&
+          (x.originalTargetId || x.target) === origTgt &&
           x.category === item.category &&
           x.kind === item.kind &&
           (x.viaNames || []).join('>') === viaKey
@@ -2296,21 +2628,48 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       }
     };
 
-    // 1. Direct edges between visible nodes
+    // 1. Direct edges between raw nodes (mapping through nodeToGroupId)
     const directVisibleEdgeKeys = new Set<string>();
     for (const e of rawGraph.rawEdges) {
-      if (visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target)) {
-        recordInteraction({
-          source: e.source,
-          target: e.target,
-          category: e.category,
-          kind: e.label || 'CALLS',
-          label: e.label,
-          count: e.count,
-          isTransitive: Boolean(e.isTransitive),
-          isInferred: Boolean(e.isInferred),
-        });
-        directVisibleEdgeKeys.add(`${e.source}->${e.target}`);
+      if (unhiddenNodeIds.has(e.source) && unhiddenNodeIds.has(e.target)) {
+        const effU = nodeToGroupId.get(e.source) ?? e.source;
+        const effV = nodeToGroupId.get(e.target) ?? e.target;
+
+        if (effU === effV && e.source !== e.target) {
+          // Internal connection within group
+          const gDetail = effectiveDetailMap.get(effU);
+          if (gDetail && gDetail.internalConnections) {
+            gDetail.internalConnections.push({
+              id: `${effU}:int:${e.source}->${e.target}:${e.category}:${e.kind || e.label}`,
+              sourceId: e.source,
+              sourceName: rawGraph.detailMap.get(e.source)?.displayName || e.source,
+              targetId: e.target,
+              targetName: rawGraph.detailMap.get(e.target)?.displayName || e.target,
+              category: e.category,
+              kind: e.kind || e.label || 'CALLS',
+              label: e.label,
+              count: e.count,
+              isTransitive: Boolean(e.isTransitive),
+              isInferred: Boolean(e.isInferred),
+            });
+          }
+        } else if (effU !== effV && visibleNodeIds.has(effU) && visibleNodeIds.has(effV)) {
+          recordInteraction({
+            source: effU,
+            target: effV,
+            originalSourceId: e.source,
+            originalSourceName: rawGraph.detailMap.get(e.source)?.displayName || e.source,
+            originalTargetId: e.target,
+            originalTargetName: rawGraph.detailMap.get(e.target)?.displayName || e.target,
+            category: e.category,
+            kind: e.label || 'CALLS',
+            label: e.label,
+            count: e.count,
+            isTransitive: Boolean(e.isTransitive),
+            isInferred: Boolean(e.isInferred),
+          });
+          directVisibleEdgeKeys.add(`${effU}->${effV}`);
+        }
       }
     }
 
@@ -2325,21 +2684,47 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       for (const p of pubs) {
         for (const s of subs) {
           if (p === s) continue;
-          if (visibleNodeIds.has(s) && visibleNodeIds.has(p)) {
-            // Direct edge takes precedence if already directly connected in this direction
-            if (directVisibleEdgeKeys.has(`${p}->${s}`)) continue;
+          if (unhiddenNodeIds.has(s) && unhiddenNodeIds.has(p)) {
+            const effP = nodeToGroupId.get(p) ?? p;
+            const effS = nodeToGroupId.get(s) ?? s;
 
-            recordInteraction({
-              source: p,
-              target: s,
-              category: 'messaging',
-              kind: 'PUBLISHES_TO',
-              label: `Topic: ${tName}`,
-              count: 1,
-              isTransitive: true,
-              isInferred: true,
-              viaNames: [tName],
-            });
+            if (effP === effS && p !== s) {
+              const gDetail = effectiveDetailMap.get(effP);
+              if (gDetail && gDetail.internalConnections) {
+                gDetail.internalConnections.push({
+                  id: `${effP}:int:${p}->${s}:messaging:PUBLISHES_TO`,
+                  sourceId: p,
+                  sourceName: rawGraph.detailMap.get(p)?.displayName || p,
+                  targetId: s,
+                  targetName: rawGraph.detailMap.get(s)?.displayName || s,
+                  category: 'messaging',
+                  kind: 'PUBLISHES_TO',
+                  label: `Topic: ${tName}`,
+                  count: 1,
+                  isTransitive: true,
+                  isInferred: true,
+                  viaNames: [tName],
+                });
+              }
+            } else if (effP !== effS && visibleNodeIds.has(effP) && visibleNodeIds.has(effS)) {
+              if (directVisibleEdgeKeys.has(`${effP}->${effS}`)) continue;
+
+              recordInteraction({
+                source: effP,
+                target: effS,
+                originalSourceId: p,
+                originalSourceName: rawGraph.detailMap.get(p)?.displayName || p,
+                originalTargetId: s,
+                originalTargetName: rawGraph.detailMap.get(s)?.displayName || s,
+                category: 'messaging',
+                kind: 'PUBLISHES_TO',
+                label: `Topic: ${tName}`,
+                count: 1,
+                isTransitive: true,
+                isInferred: true,
+                viaNames: [tName],
+              });
+            }
           }
         }
       }
@@ -2347,10 +2732,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
     // 3. Direct service-to-service pub/sub chords (when no visible topic connects them)
     for (const chord of rawGraph.directPubSubChords.values()) {
-      if (visibleNodeIds.has(chord.source) && visibleNodeIds.has(chord.target)) {
+      if (unhiddenNodeIds.has(chord.source) && unhiddenNodeIds.has(chord.target)) {
+        const effSrc = nodeToGroupId.get(chord.source) ?? chord.source;
+        const effTgt = nodeToGroupId.get(chord.target) ?? chord.target;
+
         const hasVisibleTopic = Array.from(rawGraph.topicPublishers.keys()).some(
           (tId) =>
-            visibleNodeIds.has(tId) &&
+            unhiddenNodeIds.has(tId) &&
             ((rawGraph.topicPublishers.get(tId)?.has(chord.target) &&
               rawGraph.topicSubscribers.get(tId)?.has(chord.source)) ||
               (rawGraph.topicPublishers.get(tId)?.has(chord.source) &&
@@ -2358,17 +2746,41 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         );
 
         if (!hasVisibleTopic) {
-          recordInteraction({
-            source: chord.source,
-            target: chord.target,
-            category: 'messaging',
-            kind: chord.label,
-            label: `${chord.label} (event-bus)`,
-            count: chord.count,
-            isTransitive: true,
-            isInferred: true,
-            viaNames: ['event-bus'],
-          });
+          if (effSrc === effTgt && chord.source !== chord.target) {
+            const gDetail = effectiveDetailMap.get(effSrc);
+            if (gDetail && gDetail.internalConnections) {
+              gDetail.internalConnections.push({
+                id: `${effSrc}:int:${chord.source}->${chord.target}:messaging:${chord.label}`,
+                sourceId: chord.source,
+                sourceName: rawGraph.detailMap.get(chord.source)?.displayName || chord.source,
+                targetId: chord.target,
+                targetName: rawGraph.detailMap.get(chord.target)?.displayName || chord.target,
+                category: 'messaging',
+                kind: chord.label,
+                label: `${chord.label} (event-bus)`,
+                count: chord.count,
+                isTransitive: true,
+                isInferred: true,
+                viaNames: ['event-bus'],
+              });
+            }
+          } else if (effSrc !== effTgt && visibleNodeIds.has(effSrc) && visibleNodeIds.has(effTgt)) {
+            recordInteraction({
+              source: effSrc,
+              target: effTgt,
+              originalSourceId: chord.source,
+              originalSourceName: rawGraph.detailMap.get(chord.source)?.displayName || chord.source,
+              originalTargetId: chord.target,
+              originalTargetName: rawGraph.detailMap.get(chord.target)?.displayName || chord.target,
+              category: 'messaging',
+              kind: chord.label,
+              label: `${chord.label} (event-bus)`,
+              count: chord.count,
+              isTransitive: true,
+              isInferred: true,
+              viaNames: ['event-bus'],
+            });
+          }
         }
       }
     }
@@ -2464,8 +2876,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         },
       });
 
-      const sDetail = rawGraph.detailMap.get(edgeSource);
-      const tDetail = rawGraph.detailMap.get(edgeTarget);
+      const sDetail = effectiveDetailMap.get(edgeSource);
+      const tDetail = effectiveDetailMap.get(edgeTarget);
 
       edgeDetailMap.set(edgeId, {
         id: edgeId,
@@ -2491,10 +2903,10 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         primaryCategory: edgeCategory,
         items: interactions.map((i, idx) => ({
           id: `${edgeId}:item:${idx}`,
-          sourceId: i.source,
-          sourceName: rawGraph.detailMap.get(i.source)?.displayName || i.source,
-          targetId: i.target,
-          targetName: rawGraph.detailMap.get(i.target)?.displayName || i.target,
+          sourceId: i.originalSourceId || i.source,
+          sourceName: i.originalSourceName || effectiveDetailMap.get(i.source)?.displayName || i.source,
+          targetId: i.originalTargetId || i.target,
+          targetName: i.originalTargetName || effectiveDetailMap.get(i.target)?.displayName || i.target,
           category: i.category,
           kind: i.kind,
           label: i.label,
@@ -2504,11 +2916,63 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           viaNames: i.viaNames,
         })),
       });
+
+      // Update group node metrics
+      if (sDetail?.isGroup) {
+        sDetail.outboundCallsCount += (serviceCallsCount + interactions.filter(i => i.category === 'external').reduce((s, i) => s + i.count, 0));
+        sDetail.dbCount += dbCount;
+        sDetail.messagingCount += messagingCount;
+      }
+      if (tDetail?.isGroup) {
+        tDetail.inboundCallsCount += (serviceCallsCount + interactions.filter(i => i.category === 'external').reduce((s, i) => s + i.count, 0));
+        tDetail.dbCount += dbCount;
+        tDetail.messagingCount += messagingCount;
+      }
+    }
+
+    // Reflect updated metrics onto synthesized Cytoscape group nodes
+    for (const gn of synthesizedGroupCyNodes) {
+      const d = effectiveDetailMap.get(gn.data.id as string);
+      if (d) {
+        (gn.data as any).inboundCalls = d.inboundCallsCount;
+        (gn.data as any).outboundCalls = d.outboundCallsCount;
+        (gn.data as any).dbCount = d.dbCount;
+        (gn.data as any).messagingCount = d.messagingCount;
+      }
+    }
+
+    // Build effectiveRawEdges for DomainInspector
+    const effectiveRawEdges: Array<{
+      id: string;
+      source: string;
+      target: string;
+      category: 'service_call' | 'database' | 'messaging' | 'external';
+      label: string;
+      count: number;
+      kind?: string;
+    }> = [];
+
+    for (const e of rawGraph.rawEdges) {
+      if (unhiddenNodeIds.has(e.source) && unhiddenNodeIds.has(e.target)) {
+        const effS = nodeToGroupId.get(e.source) ?? e.source;
+        const effT = nodeToGroupId.get(e.target) ?? e.target;
+        if (effS !== effT) {
+          effectiveRawEdges.push({
+            id: e.id,
+            source: effS,
+            target: effT,
+            category: e.category,
+            label: e.label,
+            count: e.count,
+            kind: e.kind,
+          });
+        }
+      }
     }
 
     edgeDetailMapRef.current = edgeDetailMap;
 
-    let finalVisibleNodes = visibleNodes;
+    let finalVisibleNodes = initialVisibleNodes;
     if (hideIsolatedNodes) {
       const connectedNodeIds = new Set<string>();
       for (const e of visibleEdges) {
@@ -2519,13 +2983,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           connectedNodeIds.add(t);
         }
       }
-      for (const n of visibleNodes) {
+      for (const n of initialVisibleNodes) {
         const nid = n.data.id as string;
         if (!connectedNodeIds.has(nid) && !forcedVisibleNodeIds.has(nid)) {
           hiddenNodeIdSet.add(nid);
         }
       }
-      finalVisibleNodes = visibleNodes.filter((n) => !hiddenNodeIdSet.has(n.data.id as string));
+      finalVisibleNodes = initialVisibleNodes.filter((n) => !hiddenNodeIdSet.has(n.data.id as string));
     }
 
     const visibleNodeIdSet = new Set(finalVisibleNodes.map((n) => n.data.id as string));
@@ -2558,6 +3022,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       visibleEdges: safeVisibleEdges,
       hiddenNodeIdSet,
       hiddenCount: rawGraph.allNodes.length - finalVisibleNodes.length,
+      effectiveDetailMap,
+      effectiveRawEdges,
       stats: {
         total: finalVisibleNodes.length,
         ingress: rawGraph.counts.ingress,
@@ -2570,9 +3036,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         transitiveCalls,
       },
     };
-  }, [rawGraph, hiddenTypes, hiddenNodeIds, hiddenOrbitTiers, forcedVisibleNodeIds, hideSingleConnectionDbs, hideIsolatedNodes, showTransitiveEdges]);
+  }, [rawGraph, hiddenTypes, hiddenNodeIds, hiddenOrbitTiers, forcedVisibleNodeIds, hideSingleConnectionDbs, hideIsolatedNodes, showTransitiveEdges, groupedTypes, customGroups]);
 
-  const nodeDetailMap = rawGraph.detailMap;
+  const nodeDetailMap = effectiveDetailMap;
 
   // Derived docked panels visibility and active tab selection
   const hasHiddenEntities = hiddenCount > 0;
@@ -2602,7 +3068,20 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     cy.on('tap', 'node', (evt) => {
       const node = evt.target;
       const nodeId = node.id();
-      const detail = rawGraphRef.current?.detailMap?.get(nodeId);
+      const origEvent = evt.originalEvent as MouseEvent | undefined;
+      const isMultiKey = Boolean(origEvent && (origEvent.shiftKey || origEvent.ctrlKey || origEvent.metaKey));
+
+      if (isMultiKey) {
+        toggleMultiSelectedNode(nodeId);
+        return;
+      }
+
+      // Normal single click - clear multi-selection if any
+      if (multiSelectedNodeIdsRef.current.size > 0) {
+        clearMultiSelection();
+      }
+
+      const detail = effectiveDetailMapRef.current?.get(nodeId) || rawGraphRef.current?.detailMap?.get(nodeId);
       if (detail) {
         setSelectedEdge(null);
         setSelectedNode(detail);
@@ -2656,6 +3135,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     cy.on('tap', (evt) => {
       setContextMenu(null);
       if (evt.target === cy) {
+        if (multiSelectedNodeIdsRef.current.size > 0) {
+          clearMultiSelection();
+        }
         setSelectedNode(null);
         setSelectedEdge(null);
         onSelectNodeRef.current?.(null);
@@ -2672,7 +3154,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       setContextMenu(null);
       const node = evt.target;
       const nodeId = node.id();
-      const detail = rawGraphRef.current?.detailMap?.get(nodeId);
+      const detail = effectiveDetailMapRef.current?.get(nodeId) || rawGraphRef.current?.detailMap?.get(nodeId);
       if (detail && (detail.kind === 'Service' || detail.kind === 'Ingress') && onFocusInFlowRef.current) {
         onFocusInFlowRef.current(detail.name);
       }
@@ -2682,7 +3164,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     cy.on('cxttap', 'node', (evt) => {
       const node = evt.target;
       const nodeId = node.id();
-      const detail = rawGraphRef.current?.detailMap?.get(nodeId);
+      const detail = effectiveDetailMapRef.current?.get(nodeId) || rawGraphRef.current?.detailMap?.get(nodeId);
       if (!detail) return;
 
       const renderedPos = evt.renderedPosition;
@@ -4656,6 +5138,100 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         </>
       )}
 
+          {/* Floating Canvas Multi-Select Action Bar */}
+          {multiSelectedNodeIds.size > 0 && (
+            <div
+              className="canvas-multiselect-bar"
+              style={{
+                position: 'absolute',
+                bottom: 24,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 999,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                background: 'rgba(15, 23, 42, 0.92)',
+                border: '1px solid rgba(56, 189, 248, 0.4)',
+                borderRadius: 8,
+                padding: '6px 12px',
+                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45)',
+                backdropFilter: 'blur(8px)',
+              }}
+            >
+              <span style={{ fontSize: '12px', fontWeight: 600, color: '#38bdf8' }}>
+                {multiSelectedNodeIds.size} selected
+              </span>
+              <input
+                type="text"
+                placeholder="Group name (optional)..."
+                value={floatingGroupName}
+                onChange={(e) => setFloatingGroupName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    createCustomGroup(
+                      floatingGroupName.trim() || `Group (${multiSelectedNodeIds.size})`,
+                      Array.from(multiSelectedNodeIds)
+                    );
+                    setFloatingGroupName('');
+                  }
+                }}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: 4,
+                  padding: '3px 8px',
+                  fontSize: '11px',
+                  color: '#f8fafc',
+                  outline: 'none',
+                  width: 150,
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  createCustomGroup(
+                    floatingGroupName.trim() || `Group (${multiSelectedNodeIds.size})`,
+                    Array.from(multiSelectedNodeIds)
+                  );
+                  setFloatingGroupName('');
+                }}
+                style={{
+                  background: '#0284c7',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 4,
+                  padding: '4px 10px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                <span>Group</span>
+              </button>
+              <button
+                type="button"
+                onClick={clearMultiSelection}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  color: '#94a3b8',
+                  borderRadius: 4,
+                  padding: '4px 8px',
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                }}
+                title="Clear multi-selection"
+              >
+                Clear
+              </button>
+            </div>
+          )}
+
           {/* Context Menu for Nodes */}
           {contextMenu && (
             <div
@@ -4675,6 +5251,36 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                 <span className="context-menu-kind">{contextMenu.nodeKind}</span>
               </div>
               <div className="context-menu-divider" />
+              {multiSelectedNodeIds.size > 1 && (
+                <button
+                  type="button"
+                  className="context-menu-item"
+                  onClick={() => {
+                    createCustomGroup(`Group (${multiSelectedNodeIds.size})`, Array.from(multiSelectedNodeIds));
+                    setContextMenu(null);
+                  }}
+                >
+                  <span>Group {multiSelectedNodeIds.size} Selected</span>
+                </button>
+              )}
+              {contextMenu.nodeId.startsWith('group:') && (
+                <button
+                  type="button"
+                  className="context-menu-item"
+                  onClick={() => {
+                    const gId = contextMenu.nodeId;
+                    if (gId.startsWith('group:custom:')) {
+                      deleteCustomGroup(gId.replace('group:custom:', ''));
+                    } else if (gId.startsWith('group:kind:')) {
+                      toggleTypeGrouping(gId.replace('group:kind:', '') as EntityKind);
+                    }
+                    setContextMenu(null);
+                    setSelectedNode(null);
+                  }}
+                >
+                  <span>Ungroup / Expand</span>
+                </button>
+              )}
               <button
                 type="button"
                 className="context-menu-item"
@@ -4778,7 +5384,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                     selectedNode={selectedNode}
                     selectedEdge={selectedEdge}
                     nodeDetailMap={nodeDetailMap}
-                    rawEdges={rawGraph.rawEdges}
+                    rawEdges={effectiveRawEdges}
                     isInspectorCollapsed={isInspectorCollapsed}
                     onToggleCollapse={setIsInspectorCollapsed}
                     isEdgeInspectorCollapsed={isEdgeInspectorCollapsed}
@@ -4794,6 +5400,20 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                       cyRef.current?.elements().removeClass('highlighted dimmed');
                     }}
                     onHideNode={hideNode}
+                    onUngroupNode={(node) => {
+                      if (node.id.startsWith('group:custom:')) {
+                        const cId = node.customGroupId || node.id.replace('group:custom:', '');
+                        deleteCustomGroup(cId);
+                      } else if (node.id.startsWith('group:kind:') || node.groupKind) {
+                        const kind = (node.groupKind || node.id.replace('group:kind:', '')) as EntityKind;
+                        toggleTypeGrouping(kind);
+                      }
+                      setSelectedNode(null);
+                    }}
+                    onRemoveFromGroup={(groupId, memberId) => {
+                      const cId = groupId.startsWith('group:custom:') ? groupId.replace('group:custom:', '') : groupId;
+                      removeNodeFromCustomGroup(cId, memberId);
+                    }}
                     onFocusInFlow={onFocusInFlow}
                     onOpenFile={onOpenFile}
                     onOpenOverrideModal={(name) => {
@@ -4806,7 +5426,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                 {effectiveSidebarTab === 'orbits' && renderOrbitLegend(true)}
                 {effectiveSidebarTab === 'visibility' && (
                   <DomainVisibilityPanel
-                    nodeDetailMap={rawGraph.detailMap}
+                    nodeDetailMap={nodeDetailMap}
                     echelonMap={rawGraph.echelonMap}
                     hiddenNodeIds={hiddenNodeIds}
                     hiddenTypes={hiddenTypes}
@@ -4833,6 +5453,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                     isCollapsed={false}
                     docked={true}
                     onClose={() => handleToggleSidebar(false)}
+                    groupedTypes={groupedTypes}
+                    onToggleTypeGrouping={toggleTypeGrouping}
+                    customGroups={customGroups}
+                    onCreateCustomGroup={createCustomGroup}
+                    onToggleCustomGroupCollapse={toggleCustomGroupCollapse}
+                    onDeleteCustomGroup={deleteCustomGroup}
+                    onSelectGroupNode={handleSelectNodeById}
                   />
                 )}
                 {effectiveSidebarTab === 'gates' && (

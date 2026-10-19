@@ -171,10 +171,34 @@ export const ENTITY_BADGES: Record<string, EntityBadgeMeta> = {
       </>
     ),
   },
+  Group: {
+    kind: 'Group',
+    code: 'GRP',
+    label: 'Group',
+    bgColor: '#4f46e5',
+    borderColor: '#312e81',
+    rawIconSvg: `
+      <polygon points="32 14 46 21 32 28 18 21 32 14" />
+      <path d="M18 26 L32 33 L46 26" />
+      <path d="M18 31 L32 38 L46 31" />
+    `,
+    iconPaths: (
+      <>
+        <polygon points="32 14 46 21 32 28 18 21 32 14" />
+        <path d="M18 26 L32 33 L46 26" />
+        <path d="M18 31 L32 38 L46 31" />
+      </>
+    ),
+  },
 };
 
 export function getEntityBadgeMeta(kind: EntityKind | string): EntityBadgeMeta {
   switch (kind) {
+    case 'Group':
+    case 'group':
+    case 'Groups':
+    case 'GRP':
+      return ENTITY_BADGES.Group;
     case 'App':
     case 'Ingress':
     case 'FrontendApp':
@@ -223,19 +247,43 @@ export function getEntityBadgeMeta(kind: EntityKind | string): EntityBadgeMeta {
 
 const BADGE_SVG_CACHE = new Map<string, string>();
 
+export interface NodeBadgeOptions {
+  isGroup?: boolean;
+  count?: number;
+}
+
 /**
  * Returns a Data URI for the circular graph node badge containing the white vector icon
  * and 3-letter uppercase code. Cached for fast Cytoscape rendering.
+ * When options.isGroup is true, embeds an outer dashed ring and optional count indicator.
  */
-export function getNodeBadgeSvgDataUri(kind: EntityKind | string): string {
-  const cached = BADGE_SVG_CACHE.get(kind);
+export function getNodeBadgeSvgDataUri(
+  kind: EntityKind | string,
+  options?: NodeBadgeOptions
+): string {
+  const isGroup = Boolean(options?.isGroup);
+  const count = options?.count;
+  const cacheKey = `${kind}:${isGroup ? `grp:${count ?? ''}` : 'single'}`;
+  const cached = BADGE_SVG_CACHE.get(cacheKey);
   if (cached) return cached;
 
   const meta = getEntityBadgeMeta(kind);
-  const rawSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"><g stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.95">${meta.rawIconSvg.trim()}</g><text x="32" y="50" text-anchor="middle" fill="#ffffff" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-size="11.5" font-weight="800" letter-spacing="0.8">${meta.code}</text></svg>`;
+  const clusterRing = isGroup
+    ? '<circle cx="32" cy="32" r="29" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1.5" stroke-dasharray="4 2" />'
+    : '';
+
+  let codeText = meta.code;
+  if (isGroup && count && count > 0) {
+    codeText = `${meta.code} ×${count}`;
+  }
+
+  const fontSize = codeText.length > 5 ? '9.5' : '11.5';
+  const letterSpacing = codeText.length > 5 ? '0.4' : '0.8';
+
+  const rawSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">${clusterRing}<g stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.95">${meta.rawIconSvg.trim()}</g><text x="32" y="50" text-anchor="middle" fill="#ffffff" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-size="${fontSize}" font-weight="800" letter-spacing="${letterSpacing}">${codeText}</text></svg>`;
 
   const uri = `data:image/svg+xml;utf8,${encodeURIComponent(rawSvg.replace(/\s+/g, ' '))}`;
-  BADGE_SVG_CACHE.set(kind, uri);
+  BADGE_SVG_CACHE.set(cacheKey, uri);
   return uri;
 }
 

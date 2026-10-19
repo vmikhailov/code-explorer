@@ -263,6 +263,8 @@ export interface DomainInspectorProps {
   isEdgeInspectorCollapsed?: boolean;
   onToggleEdgeCollapse?: (collapsed: boolean) => void;
   onHideNode?: (id: string) => void;
+  onUngroupNode?: (node: SelectedNodeDetail) => void;
+  onRemoveFromGroup?: (groupId: string, nodeId: string) => void;
   onFocusInFlow?: (name: string) => void;
   onOpenFile?: (path: string, line?: number) => void;
   onOpenOverrideModal?: (name: string) => void;
@@ -284,6 +286,8 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
   const isInspectorCollapsed = props.isInspectorCollapsed !== undefined ? props.isInspectorCollapsed : !!ctx?.isInspectorCollapsed;
   const setIsInspectorCollapsed = props.onToggleCollapse || ctx?.setIsInspectorCollapsed;
   const hideNode = props.onHideNode || ctx?.hideNode;
+  const onUngroupNode = props.onUngroupNode;
+  const onRemoveFromGroup = props.onRemoveFromGroup;
   const onFocusInFlow = props.onFocusInFlow || ctx?.onFocusInFlow;
   const onOpenFile = props.onOpenFile || ctx?.onOpenFile;
   const openOverrideModal = props.onOpenOverrideModal || ctx?.openOverrideModal;
@@ -530,17 +534,37 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
             </div>
           }
           headerActions={
-            hideNode ? (
-              <button
-                type="button"
-                className="floating-dock-btn action-btn hide-btn"
-                onClick={() => hideNode(selectedNode.id)}
-                title="Hide this node (Transitive connections bypass it) [Shortcut: H, Del]"
-              >
-                <EyeOffIcon size={12} />
-                <span>Hide</span>
-              </button>
-            ) : undefined
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              {selectedNode.isGroup && onUngroupNode && (
+                <button
+                  type="button"
+                  className="floating-dock-btn action-btn ungroup-btn"
+                  onClick={() => onUngroupNode(selectedNode)}
+                  title="Ungroup / Expand this group back into individual nodes"
+                  style={{
+                    background: 'rgba(56, 189, 248, 0.15)',
+                    color: '#38bdf8',
+                    border: '1px solid rgba(56, 189, 248, 0.35)',
+                    padding: '2px 8px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                  }}
+                >
+                  <span>Ungroup</span>
+                </button>
+              )}
+              {hideNode && (
+                <button
+                  type="button"
+                  className="floating-dock-btn action-btn hide-btn"
+                  onClick={() => hideNode(selectedNode.id)}
+                  title="Hide this node (Transitive connections bypass it) [Shortcut: H, Del]"
+                >
+                  <EyeOffIcon size={12} />
+                  <span>Hide</span>
+                </button>
+              )}
+            </div>
           }
           subtitle={
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
@@ -649,8 +673,164 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                   )}
                 </div>
 
+                {/* Grouped Entities Section */}
+                {selectedNode.isGroup && selectedNode.memberNodes && selectedNode.memberNodes.length > 0 && (
+                  <div className={`inspector-section ${collapsedSections['grouped-entities'] ? 'is-collapsed' : 'is-expanded'}`}>
+                    <div
+                      className="inspector-section-header"
+                      onClick={() => toggleSection('grouped-entities')}
+                      title={collapsedSections['grouped-entities'] ? 'Expand grouped entities' : 'Collapse grouped entities'}
+                      style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span className="inspector-section-title">
+                          Grouped Entities ({selectedNode.memberNodes.length})
+                        </span>
+                        <span
+                          className="tab-badge"
+                          style={{
+                            backgroundColor: 'rgba(56, 189, 248, 0.2)',
+                            color: '#38bdf8',
+                            border: '1px solid rgba(56, 189, 248, 0.35)',
+                            fontSize: '9.5px',
+                            padding: '1px 5px',
+                          }}
+                        >
+                          {selectedNode.memberNodes.length}
+                        </span>
+                      </div>
+                      <span className="inspector-section-toggle">
+                        {collapsedSections['grouped-entities'] ? <ChevronRightIcon size={12} /> : <ChevronDownIcon size={12} />}
+                      </span>
+                    </div>
+                    {!collapsedSections['grouped-entities'] && (
+                      <div className="inspector-conn-list" style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}>
+                        {selectedNode.memberNodes.map((m: SelectedNodeDetail) => (
+                          <div
+                            key={m.id}
+                            className="inspector-conn-item"
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '5px 8px',
+                              borderRadius: 4,
+                              background: 'rgba(255, 255, 255, 0.03)',
+                              border: '1px solid rgba(255, 255, 255, 0.06)',
+                              cursor: 'pointer',
+                            }}
+                            onClick={() => handleSelectNodeById(m.id)}
+                            title={`Inspect ${m.displayName || m.name}`}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
+                              <EntityNodeBadge kind={m.kind} size={18} />
+                              <span style={{ fontSize: '11px', color: '#e2e8f0', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {m.displayName || m.name}
+                              </span>
+                              {m.tier !== undefined && (
+                                <span style={{ fontSize: '9px', color: '#94a3b8', background: 'rgba(255, 255, 255, 0.05)', padding: '1px 4px', borderRadius: 3 }}>
+                                  T{m.tier}
+                                </span>
+                              )}
+                            </div>
+                            {selectedNode.groupType === 'custom' && selectedNode.customGroupId && onRemoveFromGroup && (
+                              <button
+                                type="button"
+                                className="action-icon-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onRemoveFromGroup(selectedNode.customGroupId!, m.id);
+                                }}
+                                title="Remove from group"
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#94a3b8',
+                                  cursor: 'pointer',
+                                  padding: '2px 4px',
+                                  lineHeight: 1,
+                                }}
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Internal Connections Section */}
+                {selectedNode.isGroup && selectedNode.internalConnections && selectedNode.internalConnections.length > 0 && (
+                  <div className={`inspector-section ${collapsedSections['internal-connections'] ? 'is-collapsed' : 'is-expanded'}`}>
+                    <div
+                      className="inspector-section-header"
+                      onClick={() => toggleSection('internal-connections')}
+                      title={collapsedSections['internal-connections'] ? 'Expand internal connections' : 'Collapse internal connections'}
+                      style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span className="inspector-section-title">
+                          Internal Connections ({selectedNode.internalConnections.length})
+                        </span>
+                        <span
+                          className="tab-badge"
+                          style={{
+                            backgroundColor: 'rgba(168, 85, 247, 0.2)',
+                            color: '#c084fc',
+                            border: '1px solid rgba(168, 85, 247, 0.35)',
+                            fontSize: '9.5px',
+                            padding: '1px 5px',
+                          }}
+                        >
+                          {selectedNode.internalConnections.length}
+                        </span>
+                      </div>
+                      <span className="inspector-section-toggle">
+                        {collapsedSections['internal-connections'] ? <ChevronRightIcon size={12} /> : <ChevronDownIcon size={12} />}
+                      </span>
+                    </div>
+                    {!collapsedSections['internal-connections'] && (
+                      <div className="inspector-conn-list" style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}>
+                        {selectedNode.internalConnections.map((item: ConnectionDetailItem) => (
+                          <div
+                            key={item.id}
+                            className="inspector-conn-item"
+                            style={{
+                              padding: '6px 8px',
+                              borderRadius: 4,
+                              background: 'rgba(255, 255, 255, 0.03)',
+                              border: '1px solid rgba(255, 255, 255, 0.06)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: 2,
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '11px', color: '#e2e8f0' }}>
+                                <span style={{ fontWeight: 600, color: '#38bdf8' }}>{item.sourceName}</span>
+                                <span style={{ color: '#64748b' }}>➔</span>
+                                <span style={{ fontWeight: 600, color: '#a78bfa' }}>{item.targetName}</span>
+                              </div>
+                              {item.count > 1 && (
+                                <span style={{ fontSize: '9.5px', fontWeight: 700, background: 'rgba(255, 255, 255, 0.08)', color: '#cbd5e1', padding: '1px 5px', borderRadius: 3 }}>
+                                  {item.count}×
+                                </span>
+                              )}
+                            </div>
+                            {item.label && (
+                              <div style={{ fontSize: '10px', color: '#94a3b8' }}>{item.label}</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Metrics Grid */}
-                {(selectedNode.kind === 'Service' || selectedNode.kind === 'Ingress' || selectedNode.kind === 'Worker' || selectedNode.kind === 'App') && (
+                {(selectedNode.isGroup || selectedNode.kind === 'Service' || selectedNode.kind === 'Ingress' || selectedNode.kind === 'Worker' || selectedNode.kind === 'App') && (
                   <div className="inspector-metrics-grid">
                     <div className="inspector-metric-card" title="Inbound calls from other services">
                       <span className="metric-val">{selectedNode.inboundCallsCount}</span>

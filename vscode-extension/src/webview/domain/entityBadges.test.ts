@@ -15,6 +15,8 @@ test('entityBadges: getEntityBadgeMeta maps all standard and alias kinds correct
     { kind: 'ExternalService', expectedCode: 'EXT', expectedBgColor: '#26a69a' },
     { kind: 'Library', expectedCode: 'LIB', expectedBgColor: '#4b5563' },
     { kind: 'TestSuite', expectedCode: 'TST', expectedBgColor: '#059669' },
+    { kind: 'Group', expectedCode: 'GRP', expectedBgColor: '#4f46e5' },
+    { kind: 'group', expectedCode: 'GRP', expectedBgColor: '#4f46e5' },
   ];
 
   for (const c of cases) {
@@ -32,4 +34,12 @@ test('entityBadges: getNodeBadgeSvgDataUri returns valid SVG data URI with 3-let
   assert.ok(decoded.includes('<svg'), 'Should contain svg tag');
   assert.ok(decoded.includes('SVC'), 'Should contain SVC text');
   assert.ok(decoded.includes('viewBox="0 0 64 64"'), 'Should have standard 64x64 viewBox');
+});
+
+test('entityBadges: getNodeBadgeSvgDataUri with isGroup returns dashed cluster ring and count indicator', () => {
+  const uri = getNodeBadgeSvgDataUri('Topic', { isGroup: true, count: 14 });
+  assert.ok(uri.startsWith('data:image/svg+xml;utf8,'), 'Should start with SVG data URI prefix');
+  const decoded = decodeURIComponent(uri.replace('data:image/svg+xml;utf8,', ''));
+  assert.ok(decoded.includes('stroke-dasharray="4 2"'), 'Should contain dashed cluster ring');
+  assert.ok(decoded.includes('MSG ×14'), 'Should contain count indicator MSG ×14');
 });

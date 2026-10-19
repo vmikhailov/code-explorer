@@ -25,7 +25,15 @@ export type EntityKind =
   | 'TestSuite'
   | 'Database'
   | 'Topic'
-  | 'ExternalService';
+  | 'ExternalService'
+  | 'Group';
+
+export interface CustomNodeGroup {
+  id: string;
+  name: string;
+  nodeIds: string[];
+  collapsed: boolean;
+}
 
 export interface DomainProjectInfo {
   id: string;
@@ -64,6 +72,12 @@ export interface SelectedNodeDetail {
   messagingCount: number;
   tier?: number;
   tierLabel?: string;
+  isGroup?: boolean;
+  groupType?: 'category' | 'custom';
+  groupKind?: EntityKind;
+  customGroupId?: string;
+  memberNodes?: SelectedNodeDetail[];
+  internalConnections?: ConnectionDetailItem[];
 }
 
 export interface ConnectionDetailItem {

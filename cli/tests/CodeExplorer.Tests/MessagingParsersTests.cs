@@ -934,9 +934,33 @@ using System.Threading.Tasks;
 
 namespace MyApp.Events;
 
-public record OrderPaymentSucceededIntegrationEvent(string OrderId);
-public record OrderPaymentFailedIntegrationEvent(string OrderId);
-public record OrderStockConfirmedIntegrationEvent(string OrderId);
+public class IntegrationEvent
+{
+    public string Id { get; set; } = """";
+}
+
+public class OrderPaymentSucceededIntegrationEvent : IntegrationEvent
+{
+    public string OrderId { get; set; }
+    public OrderPaymentSucceededIntegrationEvent(string orderId) => OrderId = orderId;
+}
+
+public class OrderPaymentFailedIntegrationEvent : IntegrationEvent
+{
+    public string OrderId { get; set; }
+    public OrderPaymentFailedIntegrationEvent(string orderId) => OrderId = orderId;
+}
+
+public class OrderStockConfirmedIntegrationEvent : IntegrationEvent
+{
+    public string OrderId { get; set; }
+    public OrderStockConfirmedIntegrationEvent(string orderId) => OrderId = orderId;
+}
+
+public interface IIntegrationEventHandler<in TIntegrationEvent>
+{
+    Task Handle(TIntegrationEvent @event);
+}
 
 public interface IEventBus
 {
@@ -948,7 +972,7 @@ public interface IEventBusBuilder
     IEventBusBuilder AddSubscription<T, TH>();
 }
 
-public class OrderStatusChangedToStockConfirmedIntegrationEventHandler
+public class OrderStatusChangedToStockConfirmedIntegrationEventHandler : IIntegrationEventHandler<OrderStatusChangedToStockConfirmedIntegrationEvent>
 {
     private readonly IEventBus _eventBus;
 
@@ -962,11 +986,18 @@ public class OrderStatusChangedToStockConfirmedIntegrationEventHandler
         builder.AddSubscription<OrderStockConfirmedIntegrationEvent, OrderStatusChangedToStockConfirmedIntegrationEventHandler>();
     }
 
-    public async Task Handle(bool succeeded, string orderId)
+    public async Task Handle(OrderStatusChangedToStockConfirmedIntegrationEvent @event)
     {
-        var orderPaymentIntegrationEvent = succeeded
-            ? (object)new OrderPaymentSucceededIntegrationEvent(orderId)
-            : new OrderPaymentFailedIntegrationEvent(orderId);
+        IntegrationEvent orderPaymentIntegrationEvent;
+
+        if (true)
+        {
+            orderPaymentIntegrationEvent = new OrderPaymentSucceededIntegrationEvent(@event.OrderId);
+        }
+        else
+        {
+            orderPaymentIntegrationEvent = new OrderPaymentFailedIntegrationEvent(@event.OrderId);
+        }
 
         await _eventBus.PublishAsync(orderPaymentIntegrationEvent);
     }
@@ -990,15 +1021,22 @@ public class OrderStatusChangedToStockConfirmedIntegrationEventHandler
 
             var refs = FindReferences(fileNode.Children);
 
-            // SubscribesTo OrderStockConfirmedIntegrationEvent via AddSubscription
+            // SubscribesTo OrderStockConfirmedIntegrationEvent via AddSubscription / IIntegrationEventHandler
             refs.Any(r => r.Kind == "SUBSCRIBES_TO" && r.TargetName == "eventbus:OrderStockConfirmedIntegrationEvent")
                 .Should().BeTrue("Expected AddSubscription to emit SUBSCRIBES_TO");
 
-            // PublishesTo both ternary outcomes: OrderPaymentSucceededIntegrationEvent AND OrderPaymentFailedIntegrationEvent
+            // PublishesTo both branch outcomes: OrderPaymentSucceededIntegrationEvent AND OrderPaymentFailedIntegrationEvent
             refs.Any(r => r.Kind == "PUBLISHES_TO" && r.TargetName == "eventbus:OrderPaymentSucceededIntegrationEvent")
-                .Should().BeTrue("Expected ternary success branch to emit PUBLISHES_TO");
+                .Should().BeTrue("Expected success branch to emit PUBLISHES_TO");
             refs.Any(r => r.Kind == "PUBLISHES_TO" && r.TargetName == "eventbus:OrderPaymentFailedIntegrationEvent")
-                .Should().BeTrue("Expected ternary failed branch to emit PUBLISHES_TO");
+                .Should().BeTrue("Expected failed branch to emit PUBLISHES_TO");
+
+            await OntologyUploader.UploadNodeTreeAsync(fileNode, "parent-id", ctx);
+
+            ctx.GlobalReferences.Any(r => r.Kind == "PUBLISHES_TO" && r.TargetName == "eventbus:OrderPaymentSucceededIntegrationEvent")
+                .Should().BeTrue("Expected OntologyUploader to preserve OrderPaymentSucceededIntegrationEvent in ctx.GlobalReferences");
+            ctx.GlobalReferences.Any(r => r.Kind == "PUBLISHES_TO" && r.TargetName == "eventbus:OrderPaymentFailedIntegrationEvent")
+                .Should().BeTrue("Expected OntologyUploader to preserve OrderPaymentFailedIntegrationEvent in ctx.GlobalReferences");
         }
         finally
         {
