@@ -138,6 +138,7 @@ public class SyntaxEnricher : ISyntaxEnricher
                 switch (mainType)
                 {
                     case "db":
+                    {
                         var dbEngine = parser.Name;
                         var dbType = "unknown";
                         var parts = parser.Type.Split(':');
@@ -147,20 +148,18 @@ public class SyntaxEnricher : ISyntaxEnricher
                         }
 
                         var isOrm = IsOrmLibrary(parser.Id);
-                        
-                        // If it's an ORM, record API usage
-                        if (isOrm)
+
+                        // Always record USES_API for the ORM / DB driver library
+                        var apiPrefix = isOrm ? "orm" : "api";
+                        var ormApiId = $"{projectNode.Id}{apiPrefix}:{parser.Id}";
+                        var semanticNode = ctx.SemanticStructure;
+                        if (semanticNode != null && !semanticNode.Children.Any(c => c.Id == ormApiId))
                         {
-                            var ormApiId = $"{projectNode.Id}orm:{parser.Id}";
-                            var semanticNode = ctx.SemanticStructure;
-                            if (semanticNode != null && !semanticNode.Children.Any(c => c.Id == ormApiId))
-                            {
-                                var ormNode = new ApiInUseNode(ormApiId, parser.Name, fileNode.Path);
-                                semanticNode.Children.Add(ormNode);
-                            }
-                            var usesOrmRel = new UsesApiRelationship(fileNode.Id, ormApiId);
-                            ctx.AddGlobalProjectDependency(Relationship.FromRelationship(usesOrmRel));
+                            var apiNode = new ApiInUseNode(ormApiId, parser.Name, fileNode.Path);
+                            semanticNode.Children.Add(apiNode);
                         }
+                        var ormUsesApiRel = new UsesApiRelationship(fileNode.Id, ormApiId);
+                        ctx.AddGlobalProjectDependency(Relationship.FromRelationship(ormUsesApiRel));
 
                         var (detectedEngine, detectedType) = isOrm
                             ? DetectProjectDatabaseDriver(projectNode, ctx)
@@ -170,38 +169,50 @@ public class SyntaxEnricher : ISyntaxEnricher
                             ? detectedEngine
                             : (!string.IsNullOrEmpty(dbEngine) && !dbEngine.Equals("Database", StringComparison.OrdinalIgnoreCase)
                                 ? ResourceReconciliationService.NormalizeEngineName(dbEngine)
-                                : "PostgreSQL");
+                                : null);
 
                         if (!string.IsNullOrEmpty(detectedType)) dbType = detectedType;
                         else if (dbType == "unknown") dbType = "relational";
 
+                        // Step A: Check DetectDeclaredSchema(projectNode, fileNode, _syntaxTree, dbType)
                         var declaredSchema = (dbType.Equals("relational", StringComparison.OrdinalIgnoreCase) || dbType.Equals("document", StringComparison.OrdinalIgnoreCase))
                             ? DetectDeclaredSchema(projectNode, fileNode, _syntaxTree, dbType)
                             : null;
 
+                        CanonicalResource? canonicalRes = null;
+
+                        // Step B: If declaredSchema == null, check if THIS exact project (r.ProjectId == projectNode.Id) ALREADY has a concrete configured :Database resource
                         if (declaredSchema == null && ctx.ResourceRegistry != null)
                         {
                             var projRes = ctx.ResourceRegistry.AllResources
                                 .FirstOrDefault(r => r.Kind == OntologyConstants.NodeLabels.Database &&
-                                                     string.Equals(r.Engine, targetEngine, StringComparison.OrdinalIgnoreCase) &&
-                                                     r.ProjectId != null && string.Equals(r.ProjectId, projectNode.Id, StringComparison.OrdinalIgnoreCase));
+                                                     (string.IsNullOrEmpty(targetEngine) || string.Equals(r.Engine, targetEngine, StringComparison.OrdinalIgnoreCase)) &&
+                                                     r.ProjectId != null && string.Equals(r.ProjectId, projectNode.Id, StringComparison.OrdinalIgnoreCase) &&
+                                                     !r.Name.Equals(targetEngine, StringComparison.OrdinalIgnoreCase) &&
+                                                     !ResourceReconciliationService.IsGenericConfigKey(r.Name));
 
-                            if (projRes == null)
+                            if (projRes == null && !string.IsNullOrEmpty(projectNode.Path))
                             {
-                                var projDomain = CleanProjectNameToDomain(projectNode.Name);
-                                if (!string.IsNullOrEmpty(projDomain))
+                                var projDir = Path.GetDirectoryName(projectNode.Path)?.Replace('\\', '/').TrimEnd('/');
+                                if (!string.IsNullOrEmpty(projDir))
                                 {
                                     projRes = ctx.ResourceRegistry.AllResources
                                         .FirstOrDefault(r => r.Kind == OntologyConstants.NodeLabels.Database &&
-                                                             string.Equals(r.Engine, targetEngine, StringComparison.OrdinalIgnoreCase) &&
-                                                             r.ProjectId != null &&
-                                                             (CleanProjectNameToDomain(r.ProjectId).Equals(projDomain, StringComparison.OrdinalIgnoreCase) ||
-                                                              r.DeclaringFilePath?.Replace('\\', '/').ToLowerInvariant().Contains($"/{projDomain.ToLowerInvariant()}/") == true));
+                                                             (string.IsNullOrEmpty(targetEngine) || string.Equals(r.Engine, targetEngine, StringComparison.OrdinalIgnoreCase)) &&
+                                                             !r.Name.Equals(targetEngine, StringComparison.OrdinalIgnoreCase) &&
+                                                             !ResourceReconciliationService.IsGenericConfigKey(r.Name) &&
+                                                             r.DeclaringFilePath != null &&
+                                                             r.DeclaringFilePath.Replace('\\', '/').StartsWith(projDir + "/", StringComparison.OrdinalIgnoreCase));
                                 }
                             }
 
                             if (projRes != null)
                             {
+                                if (string.IsNullOrEmpty(targetEngine) && !string.IsNullOrEmpty(projRes.Engine))
+                                {
+                                    targetEngine = projRes.Engine;
+                                }
+
                                 var cfgSchema = projRes.Properties.TryGetValue("schema", out var s) ? s : null;
                                 if (string.IsNullOrEmpty(cfgSchema) && projRes.Name.Contains('.'))
                                 {
@@ -215,23 +226,45 @@ public class SyntaxEnricher : ISyntaxEnricher
                                 if (IsValidSchemaName(cfgSchema))
                                 {
                                     declaredSchema = cfgSchema;
+                                    canonicalRes = projRes;
                                 }
                             }
                         }
 
-                        if (targetEngine.Equals("SQLite", StringComparison.OrdinalIgnoreCase) &&
+                        if (!string.IsNullOrEmpty(targetEngine) && targetEngine.Equals("SQLite", StringComparison.OrdinalIgnoreCase) &&
                             (declaredSchema == null || declaredSchema.Equals("dbo", StringComparison.OrdinalIgnoreCase) || declaredSchema.Equals("default", StringComparison.OrdinalIgnoreCase)))
                         {
                             declaredSchema = "main";
                         }
 
-                        var canonicalDbName = !string.IsNullOrEmpty(declaredSchema)
-                            ? $"{targetEngine}.{declaredSchema}"
-                            : targetEngine;
+                        var isRelational = string.Equals(dbType, "relational", StringComparison.OrdinalIgnoreCase);
 
-                        CanonicalResource? canonicalRes = null;
+                        if (isRelational && string.IsNullOrEmpty(declaredSchema) && canonicalRes == null)
+                        {
+                            if (!projectNode.IsLibrary && HasEntityOrTableDeclaration(fileNode, _syntaxTree))
+                            {
+                                var domain = CleanProjectNameToDomain(projectNode.Name);
+                                if (!string.IsNullOrEmpty(domain) && IsValidSchemaName(domain))
+                                {
+                                    declaredSchema = domain;
+                                }
+                            }
+                        }
 
-                        if (!string.IsNullOrEmpty(declaredSchema))
+                        // Step C: Strict Evidence Gate in SyntaxEnricher.cs:
+                        // If after Step A and Step B we STILL have no concrete declaredSchema AND no resolved concrete canonicalRes from ResourceRegistry
+                        // for relational databases (i.e. mere imports without entity/table definitions or schema):
+                        // DO NOT create a DatabaseNode, DO NOT register an engine-only resource in ResourceRegistry, and DO NOT emit UsesDbRelationship! Simply break; out of case "db":!
+                        if (string.IsNullOrEmpty(targetEngine) || (isRelational && string.IsNullOrEmpty(declaredSchema) && canonicalRes == null))
+                        {
+                            break;
+                        }
+
+                        var canonicalDbName = canonicalRes != null
+                            ? canonicalRes.Name
+                            : (!string.IsNullOrEmpty(declaredSchema) ? $"{targetEngine}.{declaredSchema}" : targetEngine);
+
+                        if (canonicalRes == null && !string.IsNullOrEmpty(declaredSchema))
                         {
                             canonicalRes = ctx.ResourceRegistry?.ResolveResource(canonicalDbName, expectedDbType: dbType, expectedEngine: targetEngine);
                             if (canonicalRes == null)
@@ -243,18 +276,15 @@ public class SyntaxEnricher : ISyntaxEnricher
                                 canonicalDbName = canonicalRes.Name;
                             }
                         }
-                        else
+
+                        if (string.IsNullOrEmpty(canonicalDbName) ||
+                            (isRelational && (canonicalDbName.Equals(targetEngine, StringComparison.OrdinalIgnoreCase) ||
+                                              canonicalDbName.Equals("Database", StringComparison.OrdinalIgnoreCase) ||
+                                              canonicalDbName.Equals("default", StringComparison.OrdinalIgnoreCase) ||
+                                              IsOrmLibrary(canonicalDbName) ||
+                                              PostIndexAnalyzer.IsAbstractEngineOnlyDatabase(canonicalDbName, declaredSchema, dbType, null))))
                         {
-                            // 1. If declaredSchema is empty, try to resolve via project domain first
-                            var domain = CleanProjectNameToDomain(projectNode.Name);
-                            if (!string.IsNullOrEmpty(domain))
-                            {
-                                canonicalRes = ctx.ResourceRegistry?.ResolveResource(domain, expectedDbType: dbType, expectedEngine: targetEngine);
-                                if (canonicalRes != null)
-                                {
-                                    canonicalDbName = canonicalRes.Name;
-                                }
-                            }
+                            break;
                         }
 
                         if (canonicalRes == null && ctx.ResourceRegistry != null)
@@ -336,6 +366,7 @@ public class SyntaxEnricher : ISyntaxEnricher
                         var projUsesDbRel = new UsesDbRelationship(projectNode.Id, dbId, relExt);
                         ctx.AddGlobalProjectDependency(Relationship.FromRelationship(projUsesDbRel));
                         break;
+                    }
 
                     case "api":
                         var apiId = $"{projectNode.Id}api:{parser.Id}";
@@ -590,6 +621,43 @@ public class SyntaxEnricher : ISyntaxEnricher
                clean.Equals("DefaultSchema", StringComparison.OrdinalIgnoreCase) ||
                clean.Equals("SchemaName", StringComparison.OrdinalIgnoreCase) ||
                clean.Equals("Schema", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool HasEntityOrTableDeclaration(FileNode? fileNode, SyntaxTree? syntaxTree)
+    {
+        if (fileNode != null && HasEntityOrTableNode(fileNode))
+        {
+            return true;
+        }
+
+        if (syntaxTree != null && !string.IsNullOrEmpty(syntaxTree.FilePath) && File.Exists(syntaxTree.FilePath))
+        {
+            try
+            {
+                var text = File.ReadAllText(syntaxTree.FilePath);
+                if (Regex.IsMatch(text, @"\b(?:DbContext|DbSet\s*<|__tablename__|@Entity|@Table|@ViewEntity|declarative_base|modelBuilder\.Entity)\b", RegexOptions.IgnoreCase))
+                {
+                    return true;
+                }
+            }
+            catch { }
+        }
+
+        return false;
+    }
+
+    private static bool HasEntityOrTableNode(IOntologyNode node)
+    {
+        if (node is TableNode) return true;
+        if (node.Extensions != null && (node.Extensions.ContainsKey("table") || node.Extensions.ContainsKey("entity")))
+        {
+            return true;
+        }
+        foreach (var child in node.Children)
+        {
+            if (HasEntityOrTableNode(child)) return true;
+        }
+        return false;
     }
 
     private static string? ScanFileTextForSchema(string filePath)
@@ -938,19 +1006,17 @@ public class SyntaxEnricher : ISyntaxEnricher
                 }
             }
 
-            // 5. Fallback: check if another project in the workspace or config already registered a concrete relational database
+            // 5. Check if THIS project has a concrete relational database configured in ResourceRegistry
             if (ctx.ResourceRegistry != null)
             {
-                var existingConcreteRelational = ctx.ResourceRegistry.AllResources
-                    .Where(r => string.Equals(r.DbType, "relational", StringComparison.OrdinalIgnoreCase) &&
-                                !ResourceReconciliationService.IsGenericConfigKey(r.Engine) &&
-                                !string.Equals(r.Name, "Database", StringComparison.OrdinalIgnoreCase))
-                    .Select(r => r.Engine)
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-                if (existingConcreteRelational.Count == 1)
+                var thisProjRelational = ctx.ResourceRegistry.AllResources
+                    .FirstOrDefault(r => string.Equals(r.ProjectId, projectNode.Id, StringComparison.OrdinalIgnoreCase) &&
+                                         string.Equals(r.DbType, "relational", StringComparison.OrdinalIgnoreCase) &&
+                                         !ResourceReconciliationService.IsGenericConfigKey(r.Engine) &&
+                                         !string.Equals(r.Name, "Database", StringComparison.OrdinalIgnoreCase));
+                if (thisProjRelational != null && !string.IsNullOrEmpty(thisProjRelational.Engine))
                 {
-                    var res = (existingConcreteRelational[0], "relational");
+                    var res = (thisProjRelational.Engine, "relational");
                     _projectDriverCache[projectNode.Id] = res;
                     return res;
                 }

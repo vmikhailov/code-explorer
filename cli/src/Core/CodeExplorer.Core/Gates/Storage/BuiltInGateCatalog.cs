@@ -19,6 +19,7 @@ public static class BuiltInGateCatalog
         OntologyModelCohesionGate,
         DisallowStringlyTypedTaxonomiesGate,
         SemanticRuntimeEntityKindIntegrityGate,
+        NoAbstractEngineDatabaseNodesGate,
         RustUnsafeCodeIsolationGate,
         RustCleanArchitectureCrateBoundaryGate,
         RustAsyncTokioAntiBlockingGate,
@@ -37,6 +38,7 @@ public static class BuiltInGateCatalog
         OntologyModelCohesionGate,
         DisallowStringlyTypedTaxonomiesGate,
         SemanticRuntimeEntityKindIntegrityGate,
+        NoAbstractEngineDatabaseNodesGate,
         RustUnsafeCodeIsolationGate,
         RustCleanArchitectureCrateBoundaryGate,
         RustAsyncTokioAntiBlockingGate,
@@ -782,6 +784,48 @@ public static class BuiltInGateCatalog
         {
             Enabled = true,
             Baseline = "baselines/SIG-O-B-001.json"
+        },
+        Source = "BuiltIn"
+    };
+
+    public static readonly SemanticGate NoAbstractEngineDatabaseNodesGate = new()
+    {
+        Id = "SIG-O-B-002",
+        Category = GateCategory.Architectural,
+        Platform = "agnostic",
+        Scope = InvariantScope.Module,
+        Dimension = InvariantDimension.Boundaries,
+        Name = "No Abstract Engine-Only Database Nodes",
+        Severity = GateSeverity.Error,
+        Description = "Database nodes must represent concrete databases with a valid schema or catalog (e.g. 'PostgreSQL.catalog', 'Redis.basket'). Abstract engine-only or driver-only database nodes (such as 'PostgreSQL', 'MongoDB', 'Redis', 'Database', or generic placeholders) violate domain boundaries and cross-service isolation.",
+        Remediation = "Ensure projects declare an explicit database schema in connection strings or code, or avoid creating database nodes for bare driver/ORM library references.",
+        Query = """
+            MATCH (d:Database)
+            WHERE coalesce(d.db_type, '') <> 'cache'
+              AND (
+                d.name IN ['PostgreSQL', 'Postgres', 'SQL Server', 'SQLServer', 'SqlServer', 'MSSQL', 'MySQL', 'MariaDB', 'SQLite', 'MongoDB', 'Mongo', 'Oracle', 'Database', 'db', 'default', 'relational', 'EF-Core', 'Dapper', 'TypeORM', 'Prisma', 'Hibernate', 'NHibernate', 'Sequelize', 'Drizzle']
+                OR coalesce(d.schema, '') = 'default'
+                OR d.schema IN ['PostgreSQL', 'Postgres', 'SQL Server', 'SQLServer', 'SqlServer', 'MSSQL', 'MySQL', 'MariaDB', 'SQLite', 'MongoDB', 'Mongo', 'Oracle', 'Database', 'db', 'default', 'relational', 'EF-Core', 'Dapper', 'TypeORM', 'Prisma', 'Hibernate', 'NHibernate', 'Sequelize', 'Drizzle']
+                OR d.id ENDS WITH ':relational:postgresql'
+                OR d.id ENDS WITH ':relational:sqlserver'
+                OR d.id ENDS WITH ':relational:mysql'
+                OR d.id ENDS WITH ':relational:sqlite'
+                OR d.id ENDS WITH ':relational:database'
+                OR d.id ENDS WITH ':document:mongodb'
+                OR d.id ENDS WITH ':default:default'
+              )
+            RETURN 
+              coalesce(d.file_path, d.path, 'architecture') AS file,
+              coalesce(d.start_line, 1) AS line,
+              coalesce(d.start_col, 1) AS column,
+              d.name AS symbol,
+              coalesce(d.engine, 'unknown') AS target,
+              'Abstract engine-only database node ' + d.name + ' (' + d.id + ') is not associated with a concrete schema or domain database' AS message
+            """,
+        Ratchet = new GateRatchetSettings
+        {
+            Enabled = true,
+            Baseline = "baselines/SIG-O-B-002.json"
         },
         Source = "BuiltIn"
     };

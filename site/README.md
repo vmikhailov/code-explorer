@@ -37,7 +37,7 @@ Visit: `http://localhost:8080`
 
 ## Deployment
 
-The website is hosted on Nginx on the DigitalOcean droplet (`calendars.cc` / `146.190.24.85`) under `/var/www/code-explorer` with SSL via Let's Encrypt.
+The website is hosted on Nginx on the DigitalOcean droplet (`146.190.24.85`) under `/var/www/code-explorer` with SSL via Let's Encrypt.
 
 To deploy changes to production:
 

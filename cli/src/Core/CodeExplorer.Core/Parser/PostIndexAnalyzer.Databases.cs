@@ -30,6 +30,67 @@ public partial class PostIndexAnalyzer
         "typeorm", "sequelize", "prisma", "drizzle", "dapper", "ef-core"
     };
 
+    public static readonly HashSet<string> AbstractEngineNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "postgresql", "postgres", "sql server", "sqlserver", "mssql", "mysql", "mariadb", "sqlite",
+        "mongodb", "mongo", "oracle", "database", "db", "default", "relational",
+        "ef-core", "dapper", "typeorm", "prisma", "hibernate", "nhibernate", "sequelize", "drizzle"
+    };
+
+    public static bool IsAbstractEngineOnlyDatabase(string? name, string? schema, string? dbType, string? id)
+    {
+        if (string.Equals(dbType, "cache", StringComparison.OrdinalIgnoreCase)) return false;
+
+        if (!string.IsNullOrEmpty(name))
+        {
+            var trimmedName = name.Trim();
+            if (AbstractEngineNames.Contains(trimmedName)) return true;
+        }
+
+        if (!string.IsNullOrEmpty(schema))
+        {
+            var trimmedSchema = schema.Trim();
+            if (trimmedSchema.Equals("default", StringComparison.OrdinalIgnoreCase) ||
+                AbstractEngineNames.Contains(trimmedSchema))
+            {
+                return true;
+            }
+        }
+
+        if (!string.IsNullOrEmpty(id))
+        {
+            if (id.EndsWith(":relational:postgresql", StringComparison.OrdinalIgnoreCase) ||
+                id.EndsWith(":relational:sqlserver", StringComparison.OrdinalIgnoreCase) ||
+                id.EndsWith(":relational:mysql", StringComparison.OrdinalIgnoreCase) ||
+                id.EndsWith(":relational:sqlite", StringComparison.OrdinalIgnoreCase) ||
+                id.EndsWith(":relational:database", StringComparison.OrdinalIgnoreCase) ||
+                id.EndsWith(":document:mongodb", StringComparison.OrdinalIgnoreCase) ||
+                id.EndsWith(":default:default", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static bool IsValidTableIdentifier(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        var clean = name.Trim('`', '"', '\'', '[', ']').Trim();
+        if (clean.Length < 1 || clean.Length > 128) return false;
+        if (clean.Contains(' ') || clean.Contains('\t') || clean.Contains('\n') || clean.Contains('\r')) return false;
+        var parts = clean.Split('.');
+        foreach (var p in parts)
+        {
+            var trimmedPart = p.Trim('`', '"', '\'', '[', ']').Trim();
+            if (string.IsNullOrWhiteSpace(trimmedPart)) return false;
+            if (NestedSqlParser.IsSqlKeyword(trimmedPart)) return false;
+            if (!Regex.IsMatch(trimmedPart, @"^[a-zA-Z_][a-zA-Z0-9_\*]*$")) return false;
+        }
+        return true;
+    }
+
     public static bool IsLikelyDatabaseName(string? name, string? engine = null)
     {
         if (string.IsNullOrWhiteSpace(name)) return false;
@@ -1252,11 +1313,11 @@ public partial class PostIndexAnalyzer
             {
                 var loserNode = canonicalDbNodes.GetValueOrDefault(loser);
                 var loserEng = loserNode?.Extensions?.GetValueOrDefault("engine") ?? (loserNode?.Name.Contains('.') == true ? loserNode.Name.Split('.', 2)[0] : loserNode?.Name ?? "");
-                var isLoserGeneric = IsGenericOrLibraryDbId(loser);
+                var isLoserGeneric = IsGenericOrLibraryDbId(loser) || IsAbstractEngineOnlyDatabase(loserNode?.Name, loserNode?.Extensions?.GetValueOrDefault("schema"), loserNode?.DbType, loser);
 
                 if (isLoserGeneric || concreteEnginesCount.GetValueOrDefault(loserEng) > 1)
                 {
-                    // Multi-database engine: do NOT remap generic node globally! Scope to domain.
+                    // Multi-database engine or abstract engine node: do NOT remap generic node globally! Scope to domain.
                     if (!domainScopedRemap.TryGetValue(domainKey, out var dMap))
                     {
                         dMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -1305,6 +1366,16 @@ public partial class PostIndexAnalyzer
                         globalConsolidationRemap[ast.Id] = cfg.Id;
                     }
                 }
+            }
+        }
+
+        // Guard: globalConsolidationRemap must NEVER map an engine-only ID
+        foreach (var k in globalConsolidationRemap.Keys.ToList())
+        {
+            var node = canonicalDbNodes.GetValueOrDefault(k);
+            if (IsGenericOrLibraryDbId(k) || IsAbstractEngineOnlyDatabase(node?.Name, node?.Extensions?.GetValueOrDefault("schema"), node?.DbType, k))
+            {
+                globalConsolidationRemap.Remove(k);
             }
         }
 
@@ -1367,6 +1438,45 @@ public partial class PostIndexAnalyzer
         {
             canonicalDbNodes.Remove(purgeNode.Id);
             rawToCanonical.Remove(purgeNode.Id);
+        }
+
+        // Remove any abstract engine-only database nodes
+        var abstractDbsToPurge = canonicalDbNodes.Values
+            .Where(n => IsAbstractEngineOnlyDatabase(n.Name, n.Extensions?.GetValueOrDefault("schema"), n.DbType, n.Id))
+            .ToList();
+
+        foreach (var purgeNode in abstractDbsToPurge)
+        {
+            canonicalDbNodes.Remove(purgeNode.Id);
+            rawToCanonical.Remove(purgeNode.Id);
+        }
+
+        foreach (var cNode in canonicalDbNodes.Values)
+        {
+            var eng = cNode.Extensions?.GetValueOrDefault("engine") ?? (cNode.Name.Contains('.') ? cNode.Name.Split('.', 2)[0] : cNode.Name);
+            var sch = cNode.Extensions?.GetValueOrDefault("schema") ?? (cNode.Name.Contains('.') ? cNode.Name.Split('.', 2)[1] : "");
+
+            cNode.Children.RemoveAll(c => c is TableNode tn && !IsValidTableIdentifier(tn.Name));
+            foreach (var child in cNode.Children)
+            {
+                if (child.Extensions != null)
+                {
+                    child.Extensions["engine"] = eng;
+                    if (!string.IsNullOrEmpty(sch)) child.Extensions["schema"] = sch;
+                }
+                if (child is DataSetNode ds)
+                {
+                    ds.Children.RemoveAll(c => c is TableNode tn && !IsValidTableIdentifier(tn.Name));
+                    foreach (var tc in ds.Children)
+                    {
+                        if (tc.Extensions != null)
+                        {
+                            tc.Extensions["engine"] = eng;
+                            tc.Extensions["schema"] = !string.IsNullOrEmpty(ds.Name) ? ds.Name : sch;
+                        }
+                    }
+                }
+            }
         }
 
         // 3. Add canonical nodes to SemanticStructure and upload
@@ -1895,7 +2005,8 @@ public partial class PostIndexAnalyzer
             {
                 var loserNode = canonicalNodes.TryGetValue(loser, out var lInfo) ? lInfo : default;
                 var loserEng = loserNode.Engine ?? (loserNode.Name?.Contains('.') == true ? loserNode.Name.Split('.', 2)[0] : loserNode.Name ?? "");
-                var isLoserGeneric = IsGenericOrLibraryDbId(loser);
+                var loserSch = loserNode.Name?.Contains('.') == true ? loserNode.Name.Split('.', 2)[1] : "";
+                var isLoserGeneric = IsGenericOrLibraryDbId(loser) || IsAbstractEngineOnlyDatabase(loserNode.Name, loserSch, loserNode.DbType, loser);
 
                 if (isLoserGeneric || concreteEnginesCount.GetValueOrDefault(loserEng) > 1)
                 {
@@ -1954,6 +2065,17 @@ public partial class PostIndexAnalyzer
             }
         }
 
+        // Guard: globalConsolidationRemap must NEVER map an engine-only ID
+        foreach (var k in globalConsolidationRemap.Keys.ToList())
+        {
+            var node = canonicalNodes.TryGetValue(k, out var cInfo) ? cInfo : default;
+            var sch = node.Name?.Contains('.') == true ? node.Name.Split('.', 2)[1] : "";
+            if (IsGenericOrLibraryDbId(k) || IsAbstractEngineOnlyDatabase(node.Name, sch, node.DbType, k))
+            {
+                globalConsolidationRemap.Remove(k);
+            }
+        }
+
         if (globalConsolidationRemap.Count > 0)
         {
             foreach (var (loserId, winnerId) in globalConsolidationRemap)
@@ -1999,6 +2121,22 @@ public partial class PostIndexAnalyzer
             .ToList();
 
         foreach (var purgeId in genericOrLibraryDbsToPurge)
+        {
+            canonicalNodes.Remove(purgeId);
+            rawToCanonical.Remove(purgeId);
+        }
+
+        // Remove any abstract engine-only database nodes
+        var abstractDbsToPurge = canonicalNodes
+            .Where(kvp => {
+                var (id, info) = kvp;
+                var sch = info.Name.Contains('.') ? info.Name.Split('.', 2)[1] : "";
+                return IsAbstractEngineOnlyDatabase(info.Name, sch, info.DbType, id);
+            })
+            .Select(kvp => kvp.Key)
+            .ToList();
+
+        foreach (var purgeId in abstractDbsToPurge)
         {
             canonicalNodes.Remove(purgeId);
             rawToCanonical.Remove(purgeId);
@@ -2058,6 +2196,11 @@ public partial class PostIndexAnalyzer
             else if (globalConsolidationRemap.TryGetValue(target, out var win))
             {
                 target = win;
+            }
+
+            if (!canonicalNodes.ContainsKey(target))
+            {
+                continue;
             }
 
             var targetNode = canonicalNodes.TryGetValue(target, out var tInfo) ? tInfo : default;
@@ -2167,6 +2310,50 @@ public partial class PostIndexAnalyzer
             {
                 await db.ExecuteWriteAsync("DELETE FROM edges WHERE to_id IN (SELECT id FROM nodes WHERE kind = 'Database') OR from_id IN (SELECT id FROM nodes WHERE kind = 'Database');", null, cancellationToken);
                 await db.ExecuteWriteAsync("DELETE FROM nodes WHERE kind = 'Database';", null, cancellationToken);
+            }
+
+            // Purge any invalid Table nodes (e.g. containing spaces like 'ordering api')
+            await db.ExecuteWriteAsync(
+                "DELETE FROM edges WHERE to_id IN (SELECT id FROM nodes WHERE kind = 'Table' AND json_extract(properties, '$.name') LIKE '% %') OR from_id IN (SELECT id FROM nodes WHERE kind = 'Table' AND json_extract(properties, '$.name') LIKE '% %');",
+                null, cancellationToken);
+            await db.ExecuteWriteAsync(
+                "DELETE FROM nodes WHERE kind = 'Table' AND json_extract(properties, '$.name') LIKE '% %';",
+                null, cancellationToken);
+
+            // Propagate canonical engine and schema to child DataSets and Tables
+            foreach (var (canonicalId, (cName, _, _, engineToUse)) in canonicalNodes)
+            {
+                var sch = cName.Contains('.') ? cName.Split('.', 2)[1] : "";
+                if (string.IsNullOrWhiteSpace(engineToUse)) continue;
+
+                await db.ExecuteWriteAsync(@"
+                    UPDATE nodes 
+                    SET properties = json_set(COALESCE(NULLIF(properties, ''), '{}'), '$.engine', @engineToUse, '$.schema', COALESCE(json_extract(properties, '$.name'), @sch))
+                    WHERE id IN (
+                        SELECT to_id FROM edges WHERE from_id = @canonicalId AND kind = 'CONTAINS'
+                    ) AND kind = 'DataSet';",
+                    new { canonicalId, engineToUse, sch }, cancellationToken);
+
+                await db.ExecuteWriteAsync(@"
+                    UPDATE nodes 
+                    SET properties = json_set(COALESCE(NULLIF(properties, ''), '{}'), '$.engine', @engineToUse, '$.schema', @sch)
+                    WHERE id IN (
+                        SELECT to_id FROM edges WHERE from_id = @canonicalId AND kind = 'CONTAINS'
+                    ) AND kind = 'Table';",
+                    new { canonicalId, engineToUse, sch }, cancellationToken);
+
+                await db.ExecuteWriteAsync(@"
+                    UPDATE nodes 
+                    SET properties = json_set(COALESCE(NULLIF(properties, ''), '{}'), 
+                        '$.engine', @engineToUse, 
+                        '$.schema', COALESCE((SELECT json_extract(ds.properties, '$.name') FROM nodes ds JOIN edges e2 ON ds.id = e2.from_id WHERE e2.to_id = nodes.id AND e2.kind = 'CONTAINS' LIMIT 1), @sch)
+                    )
+                    WHERE id IN (
+                        SELECT e2.to_id FROM edges e1
+                        JOIN edges e2 ON e1.to_id = e2.from_id AND e2.kind = 'CONTAINS'
+                        WHERE e1.from_id = @canonicalId AND e1.kind = 'CONTAINS'
+                    ) AND kind = 'Table';",
+                    new { canonicalId, engineToUse, sch }, cancellationToken);
             }
 
             return new CanonicalizeDatabasesResult(nodesToUpload.Count, relationshipsToUpload.Count);

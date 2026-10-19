@@ -28,7 +28,7 @@ public class OrmDataLineageTests
         // 1. C# with EF Core DbContext and [Table("customers")]
         var csharpDir = Path.Combine(_tempWorkspace, "DotNetOrmApp").Replace('\\', '/');
         Directory.CreateDirectory(csharpDir);
-        await File.WriteAllTextAsync(Path.Combine(csharpDir, "DotNetOrmApp.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
+        await File.WriteAllTextAsync(Path.Combine(csharpDir, "DotNetOrmApp.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><ItemGroup><PackageReference Include=\"Npgsql.EntityFrameworkCore.PostgreSQL\" Version=\"8.0.0\" /></ItemGroup></Project>");
 
         var csharpCode = @"
 using System.ComponentModel.DataAnnotations.Schema;
@@ -96,7 +96,7 @@ public class Account {
         // 3. TypeScript with TypeORM @Entity('typeorm_products')
         var tsDir = Path.Combine(_tempWorkspace, "TsOrmApp").Replace('\\', '/');
         Directory.CreateDirectory(tsDir);
-        await File.WriteAllTextAsync(Path.Combine(tsDir, "package.json"), "{\"name\": \"ts-orm-app\", \"dependencies\": {\"typeorm\": \"^0.3.0\"}}");
+        await File.WriteAllTextAsync(Path.Combine(tsDir, "package.json"), "{\"name\": \"ts-orm-app\", \"dependencies\": {\"typeorm\": \"^0.3.0\", \"pg\": \"^8.11.0\"}}");
 
         var tsCode = @"
 import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
@@ -449,24 +449,24 @@ export class Product {
                     }),
 
                 // Project-scoped database node
-                new("workspace:project:order_service:db:typeorm", "Database",
-                    new Dictionary<string, object> { ["name"] = "TypeORM", ["db_type"] = "relational" }),
+                new("workspace:project:order_service:db:orders", "Database",
+                    new Dictionary<string, object> { ["name"] = "PostgreSQL.orders", ["engine"] = "PostgreSQL", ["schema"] = "orders", ["db_type"] = "relational" }),
 
                 // Cased raw database node
-                new("workspace:database:relational:PostgreSQL", "Database",
-                    new Dictionary<string, object> { ["name"] = "PostgreSQL", ["db_type"] = "relational" }),
+                new("workspace:database:relational:PostgreSQL.orders", "Database",
+                    new Dictionary<string, object> { ["name"] = "PostgreSQL.orders", ["engine"] = "PostgreSQL", ["schema"] = "orders", ["db_type"] = "relational" }),
 
-                // Generic database name
+                // Generic database name with stem
                 new("workspace:database:relational:orders_db", "Database",
-                    new Dictionary<string, object> { ["name"] = "orders_db", ["db_type"] = "relational" })
+                    new Dictionary<string, object> { ["name"] = "PostgreSQL.orders_db", ["engine"] = "PostgreSQL", ["schema"] = "orders_db", ["db_type"] = "relational" })
             };
             await db.UploadNodesAsync(nodes);
 
             var rels = new List<Relationship>
             {
-                new("workspace:project:order_service", "workspace:project:order_service:db:typeorm", "USES_DB",
+                new("workspace:project:order_service", "workspace:project:order_service:db:orders", "USES_DB",
                     new Dictionary<string, object> { ["kind"] = "USES_DB" }),
-                new("workspace:project:billing_service", "workspace:database:relational:PostgreSQL", "USES_DB",
+                new("workspace:project:billing_service", "workspace:database:relational:PostgreSQL.orders", "USES_DB",
                     new Dictionary<string, object> { ["kind"] = "USES_DB" }),
                 new("workspace:project:billing_service", "workspace:database:relational:orders_db", "USES_DB",
                     new Dictionary<string, object> { ["kind"] = "USES_DB" })
@@ -477,32 +477,30 @@ export class Product {
             await analyzer.RunAsync("workspace");
 
             // 1. Verify canonical database nodes exist in the graph
-            var typeOrmDb = await db.ExecuteQueryAsync(
-                "MATCH (d:Database) WHERE d.id = 'workspace:db:relational:database' RETURN d.id AS id, d.name AS name, d.is_canonical AS is_canonical");
+            var canonicalDb = await db.ExecuteQueryAsync(
+                "MATCH (d:Database) WHERE d.id = 'workspace:db:relational:postgresql:orders' RETURN d.id AS id, d.name AS name, d.is_canonical AS is_canonical");
 
-            using (var doc = JsonDocument.Parse(typeOrmDb))
+            using (var doc = JsonDocument.Parse(canonicalDb))
             {
                 var rows = doc.RootElement.EnumerateArray().ToList();
                 rows.Should().HaveCount(1);
-                rows[0].GetProperty("name").GetString().Should().Be("Database");
+                rows[0].GetProperty("name").GetString().Should().Be("PostgreSQL.orders");
                 rows[0].GetProperty("is_canonical").GetString().Should().Be("true");
             }
 
-            var postgresDb = await db.ExecuteQueryAsync(
-                "MATCH (d:Database) WHERE d.id = 'workspace:db:relational:postgresql' RETURN d.id AS id, d.name AS name");
-
-            using (var doc = JsonDocument.Parse(postgresDb))
-            {
-                var rows = doc.RootElement.EnumerateArray().ToList();
-                rows.Should().HaveCount(1);
-                rows[0].GetProperty("name").GetString().Should().Be("PostgreSQL");
-            }
-
-            // 2. Verify non-canonical project-scoped node was cleaned up
+            // 2. Verify non-canonical project-scoped and consolidated nodes were cleaned up
             var staleDb = await db.ExecuteQueryAsync(
-                "MATCH (d:Database) WHERE d.id = 'workspace:project:order_service:db:typeorm' RETURN d.id AS id");
+                "MATCH (d:Database) WHERE d.id = 'workspace:project:order_service:db:orders' RETURN d.id AS id");
 
             using (var doc = JsonDocument.Parse(staleDb))
+            {
+                doc.RootElement.EnumerateArray().Count().Should().Be(0);
+            }
+
+            var consolidatedDb = await db.ExecuteQueryAsync(
+                "MATCH (d:Database) WHERE d.id = 'workspace:database:relational:orders_db' RETURN d.id AS id");
+
+            using (var doc = JsonDocument.Parse(consolidatedDb))
             {
                 doc.RootElement.EnumerateArray().Count().Should().Be(0);
             }
@@ -516,7 +514,7 @@ export class Product {
                 var rows = doc.RootElement.EnumerateArray().ToList();
                 rows.Should().HaveCount(1);
 
-                rows[0].GetProperty("dbId").GetString().Should().Be("workspace:db:relational:database");
+                rows[0].GetProperty("dbId").GetString().Should().Be("workspace:db:relational:postgresql:orders");
                 rows[0].GetProperty("isCanonical").GetString().Should().Be("true");
             }
 
@@ -526,10 +524,8 @@ export class Product {
             using (var doc = JsonDocument.Parse(billingUsesDb))
             {
                 var rows = doc.RootElement.EnumerateArray().ToList();
-                rows.Should().HaveCount(2);
-                var targets = rows.Select(r => r.GetProperty("dbId").GetString()).ToList();
-                targets.Should().Contain("workspace:db:relational:postgresql");
-                targets.Should().Contain("workspace:db:relational:orders_db");
+                rows.Should().HaveCount(1);
+                rows[0].GetProperty("dbId").GetString().Should().Be("workspace:db:relational:postgresql:orders");
             }
         }
         finally
@@ -572,7 +568,7 @@ public class MyEntityConfiguration : IEntityTypeConfiguration<MyEntity>
 {
     public void Configure(EntityTypeBuilder<MyEntity> builder)
     {
-        builder.ToTable(""my_entities"");
+        builder.ToTable(""my_entities"", ""myapp"");
     }
 }
 public class MyEntity { public int Id { get; set; } }
@@ -600,7 +596,7 @@ public class MyEntity { public int Id { get; set; } }
             var resources = ctx.ResourceRegistry.AllResources.ToList();
             resources.Should().HaveCount(1);
 
-            new[] { "PostgreSQL.myapp", "PostgreSQL.public", "PostgreSQL" }.Should().Contain(resources[0].Name);
+            resources[0].Name.Should().Be("PostgreSQL.myapp");
             resources[0].Engine.Should().Be("PostgreSQL");
             resources[0].DbType.Should().Be("relational");
         }

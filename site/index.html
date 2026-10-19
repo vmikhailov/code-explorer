@@ -1802,6 +1802,9 @@
       .hero-title { font-size: 32px; letter-spacing: -0.8px; }
       .hero-subtitle { font-size: 16px; }
       .nav-links { display: none; }
+      .hero-cta-group { flex-direction: column; width: 100%; }
+      .hero-cta-group > * { width: 100%; justify-content: center; }
+      .hero-github-cta { order: -1; border-color: var(--accent-indigo) !important; background: rgba(99, 102, 241, 0.14) !important; }
       .grid-3 { grid-template-columns: 1fr; }
       .grid-2 { grid-template-columns: 1fr; }
       .gate-dimensions-grid { grid-template-columns: 1fr; }
@@ -1848,13 +1851,13 @@
       </ul>
 
       <div class="nav-actions">
-        <a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">
+        <a href="/go/github" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
             <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
           </svg>
           <span>GitHub</span>
         </a>
-        <a href="https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode" target="_blank" rel="noopener" class="btn btn-primary btn-sm">
+        <a href="/go/vscode" target="_blank" rel="noopener" class="btn btn-primary btn-sm">
           <span>VS Code Extension</span>
         </a>
       </div>
@@ -1876,20 +1879,27 @@
       </p>
 
       <div style="margin-bottom: 24px;">
-        <a href="https://github.com/vmikhailov/code-explorer/releases" target="_blank" rel="noopener" class="hero-badge-wrap" style="margin-bottom: 0;">
+        <a href="/go/releases" target="_blank" rel="noopener" class="hero-badge-wrap" style="margin-bottom: 0;">
           <span class="hero-badge-dot"></span>
-          <span id="heroReleaseBadge">v1.38.4 Released</span>
+          <span id="heroReleaseBadge">v1.47.2 Released</span>
           <span style="color: var(--text-muted); opacity: 0.5;">•</span>
           <span>View on GitHub &rarr;</span>
         </a>
       </div>
 
       <div class="hero-cta-group">
-        <a href="https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode" target="_blank" rel="noopener" class="btn btn-primary btn-lg">
+        <a href="/go/vscode" target="_blank" rel="noopener" class="btn btn-primary btn-lg">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
             <path d="M17.583 2.167L7.208 11.25 2.75 7.625l-2 1.167v6.416l2 1.167 4.458-3.625 10.375 9.083L24 19.333V4.667l-6.417-2.5zm0 3.208l3.667 1.458v10.334l-3.667 1.458-6.583-6.625 6.583-6.625zM4.75 9.875l2.458 2-2.458 2V9.875z"/>
           </svg>
           <span>Install for VS Code</span>
+        </a>
+
+        <a href="/go/github" target="_blank" rel="noopener" class="btn btn-ghost btn-lg hero-github-cta" style="padding: 11px 20px; border: 1px solid var(--border-standard);">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+          </svg>
+          <span>★ Star on GitHub</span>
         </a>
 
         <button class="copy-command-btn" onclick="copySnippet('brew install vmikhailov/tap/ce', 'Homebrew command copied!')">
@@ -3010,18 +3020,18 @@
         <div>
           <div class="footer-col-title">Ecosystem</div>
           <ul class="footer-col-links">
-            <li><a href="https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode" target="_blank" rel="noopener">VS Code Marketplace</a></li>
-            <li><a href="https://open-vsx.org/extension/vmikhailov/code-explorer-vscode" target="_blank" rel="noopener">Open VSX Registry</a></li>
-            <li><a href="https://www.nuget.org/packages/CodeExplorer.Cli" target="_blank" rel="noopener">NuGet CLI Package</a></li>
-            <li><a href="https://github.com/vmikhailov/homebrew-tap" target="_blank" rel="noopener">Homebrew Tap</a></li>
+            <li><a href="/go/vscode" target="_blank" rel="noopener">VS Code Marketplace</a></li>
+            <li><a href="/go/openvsx" target="_blank" rel="noopener">Open VSX Registry</a></li>
+            <li><a href="/go/nuget" target="_blank" rel="noopener">NuGet CLI Package</a></li>
+            <li><a href="/go/homebrew" target="_blank" rel="noopener">Homebrew Tap</a></li>
           </ul>
         </div>
 
         <div>
           <div class="footer-col-title">Project</div>
           <ul class="footer-col-links">
-            <li><a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener">GitHub Repository</a></li>
-            <li><a href="https://github.com/vmikhailov/code-explorer/issues" target="_blank" rel="noopener">Issue Tracker</a></li>
+            <li><a href="/go/github" target="_blank" rel="noopener">GitHub Repository</a></li>
+            <li><a href="/go/issues" target="_blank" rel="noopener">Issue Tracker</a></li>
             <li><a href="https://github.com/vmikhailov/code-explorer/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
             <li><a href="https://github.com/vmikhailov/code-explorer/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a></li>
           </ul>
@@ -3030,7 +3040,7 @@
 
       <div class="footer-bottom">
         <div>© 2026 Viacheslav Mikhailov. Open source under the MIT License.</div>
-        <div style="font-family: var(--font-mono);">ce <span id="footerCeVersion">v1.38.4</span> • .NET 10.0 • SQLite Graph</div>
+        <div style="font-family: var(--font-mono);">ce <span id="footerCeVersion">v1.47.2</span> • .NET 10.0 • SQLite Graph</div>
       </div>
     </div>
   </footer>
@@ -3676,6 +3686,10 @@ ratchet:
     }
 
     function copySnippet(text, message = 'Copied to clipboard!') {
+      try {
+        const evt = text.includes('brew ') ? '/event/copy-brew' : (text.includes('mcp') ? '/event/copy-mcp' : '/event/copy-cli');
+        if (navigator.sendBeacon) navigator.sendBeacon(evt);
+      } catch (_) {}
       navigator.clipboard.writeText(text).then(() => {
         showToast(message);
       }).catch(() => {

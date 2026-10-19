@@ -264,7 +264,9 @@ public static class NestedSqlParser
     {
         if (string.IsNullOrEmpty(part)) return "";
         var clean = part.Trim().Trim('`', '"', '\'', '[', ']');
-        if (ConstantRegistry.TryResolve(null, clean, out var resolved) && !string.IsNullOrWhiteSpace(resolved))
+        if (ConstantRegistry.TryResolve(null, clean, out var resolved) &&
+            !string.IsNullOrWhiteSpace(resolved) &&
+            PostIndexAnalyzer.IsValidTableIdentifier(resolved))
         {
             return resolved;
         }
@@ -523,6 +525,7 @@ public static class NestedSqlParser
 
             var schemaName = !string.IsNullOrEmpty(tableRef.Schema) ? tableRef.Schema : defaultSchema;
             var tableName = tableRef.Table;
+            if (!PostIndexAnalyzer.IsValidTableIdentifier(tableName)) continue;
 
             var fullDbName = !string.IsNullOrEmpty(concreteDbName)
                 ? concreteDbName

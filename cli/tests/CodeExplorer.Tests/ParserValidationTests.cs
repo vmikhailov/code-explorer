@@ -784,10 +784,13 @@ public class ParserValidationTests
 
             // Test C# Semantic Analyzer with relational (EntityFramework)
             // Test C# Semantic Model with relational (EntityFramework)
-            var csProj = new ProjectNode("cs_project", "cs_project", "cs_project", "csharp");
+            var csProjDir = Path.Combine(tempWorkspace, "cs_project");
+            Directory.CreateDirectory(csProjDir);
+            await File.WriteAllTextAsync(Path.Combine(csProjDir, "cs_project.csproj"), "<Project><ItemGroup><PackageReference Include=\"Npgsql.EntityFrameworkCore.PostgreSQL\" Version=\"8.0\" /></ItemGroup></Project>");
 
-            var csFile = new FileNode("cs_file", "Repository.cs", "Repository.cs",
-                tempWorkspace + "/Repository.cs");
+            var csFile = new FileNode("cs_file", "Repository.cs", "Repository.cs", Path.Combine(csProjDir, "Repository.cs"));
+            await File.WriteAllTextAsync(csFile.FullPath, "using Microsoft.EntityFrameworkCore; class MyContext : DbContext { protected override void OnModelCreating(ModelBuilder b) => b.HasDefaultSchema(\"catalog\"); }");
+            var csProj = new ProjectNode("cs_project", "cs_project", csProjDir, "csharp");
             csProj.Children.Add(csFile);
             var csParser = new CSharpParser();
 

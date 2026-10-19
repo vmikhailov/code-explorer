@@ -383,4 +383,80 @@ public class SemanticRuntimeParityGateTests
         catNodes.Total.Should().Be(1, "Only external RabbitMQ topic should be returned in Category Nodes");
         catNodes.Nodes[0].Name.Should().Be("EventBus");
     }
+
+    [Test]
+    public async Task BuiltInGateCatalog_ContainsSigOB002_AndCatchesAbstractEngineDatabases()
+    {
+        var gate = BuiltInGateCatalog.GetDefaultGates().FirstOrDefault(g => g.Id == "SIG-O-B-002");
+        gate.Should().NotBeNull();
+        gate!.Name.Should().Be("No Abstract Engine-Only Database Nodes");
+
+        using var db = new SqliteGraphClient(":memory:");
+
+        // 1. Insert clean concrete databases
+        await db.UploadNodesAsync([
+            new("ws:db:postgresql:catalog", "Database", new() { ["name"] = "PostgreSQL.catalog", ["engine"] = "PostgreSQL", ["schema"] = "catalog", ["db_type"] = "relational" }),
+            new("ws:db:redis:basket", "Database", new() { ["name"] = "Redis.basket", ["engine"] = "Redis", ["schema"] = "basket", ["db_type"] = "cache" })
+        ]);
+
+        var gateRepo = new FileGateRepository(_tempDir);
+        var engine = new GateExecutionEngine(db, gateRepo);
+        var resultValid = await engine.CheckGateAsync(gate);
+        resultValid.Violations.Should().BeEmpty();
+
+        // 2. Insert abstract engine database nodes
+        await db.UploadNodesAsync([
+            new("ws:db:relational:postgresql", "Database", new() { ["name"] = "PostgreSQL", ["engine"] = "PostgreSQL", ["schema"] = "default", ["db_type"] = "relational" }),
+            new("ws:db:document:mongodb", "Database", new() { ["name"] = "MongoDB", ["engine"] = "MongoDB", ["schema"] = "", ["db_type"] = "document" })
+        ]);
+
+        var resultInvalid = await engine.CheckGateAsync(gate);
+        resultInvalid.Violations.Count.Should().Be(2);
+        resultInvalid.Violations.Any(v => v.Symbol == "PostgreSQL").Should().BeTrue();
+        resultInvalid.Violations.Any(v => v.Symbol == "MongoDB").Should().BeTrue();
+    }
+
+    [Test]
+    public async Task SyntaxEnricher_DoesNotCreateDatabaseNode_WhenFileOnlyImportsOrmOrDriverWithoutSchema()
+    {
+        var tempWorkspace = Path.Combine(Path.GetTempPath(), "ce_syntax_db_" + Guid.NewGuid().ToString("N")).Replace('\\', '/');
+        Directory.CreateDirectory(tempWorkspace);
+        try
+        {
+            var appDir = Path.Combine(tempWorkspace, "Apps", "MyApp");
+            Directory.CreateDirectory(appDir);
+            var file = Path.Combine(appDir, "Repository.cs");
+            await File.WriteAllTextAsync(file, """
+                using Microsoft.EntityFrameworkCore;
+                using Npgsql;
+
+                public class Repository
+                {
+                    public void Run() { }
+                }
+                """);
+
+            var channel = System.Threading.Channels.Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
+            ctx.SemanticStructure = new CodeExplorer.Core.Common.Nodes.Layer4_Semantic.SemanticStructureNode("ws:semantic_structure", "root", tempWorkspace);
+
+            var csharpParser = new CSharpParser();
+            using var syntaxTree = await csharpParser.ParseAsync(file, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            CodeExplorer.Core.Parser.Layers.Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var projectNode = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode("workspace:project:MyApp", "MyApp", appDir, "csharp", new Dictionary<string, string>());
+
+            var enricher = csharpParser.GetSyntaxEnricher(syntaxTree);
+            await enricher.EnrichAsync(projectNode, ctx);
+
+            // Assert NO DatabaseNode created under SemanticStructure
+            var dbs = ctx.SemanticStructure.Children.OfType<CodeExplorer.Core.Common.Nodes.Layer4_Semantic.DatabaseNode>().ToList();
+            dbs.Should().BeEmpty("Mere imports of EF Core or Npgsql without declared schema or config must not create a Database node");
+        }
+        finally
+        {
+            try { Directory.Delete(tempWorkspace, true); } catch { }
+        }
+    }
 }

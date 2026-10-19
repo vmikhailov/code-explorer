@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TARGET_HOST="${TARGET_HOST:-calendars.cc}"
+TARGET_HOST="${TARGET_HOST:-146.190.24.85}"
 TARGET_USER="${TARGET_USER:-root}"
 TARGET_DIR="${TARGET_DIR:-/var/www/code-explorer}"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/hermes_mikhailov}"

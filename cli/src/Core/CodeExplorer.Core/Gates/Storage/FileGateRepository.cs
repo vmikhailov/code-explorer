@@ -57,7 +57,11 @@ public class FileGateRepository : IGateRepository
         if (string.IsNullOrWhiteSpace(gateId)) return null;
 
         var all = await GetAllGatesAsync(cancellationToken);
-        return all.FirstOrDefault(g => string.Equals(g.Id, gateId.Trim(), StringComparison.OrdinalIgnoreCase));
+        var found = all.FirstOrDefault(g => string.Equals(g.Id, gateId.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (found != null) return found;
+
+        return BuiltInGateCatalog.GetDefaultGates().FirstOrDefault(g => string.Equals(g.Id, gateId.Trim(), StringComparison.OrdinalIgnoreCase))
+            ?? BuiltInGateCatalog.GetExampleGates().FirstOrDefault(g => string.Equals(g.Id, gateId.Trim(), StringComparison.OrdinalIgnoreCase));
     }
 
     public async Task<GateBaseline?> LoadBaselineAsync(SemanticGate gate, CancellationToken cancellationToken = default)

@@ -218,30 +218,66 @@ public static class ConfigurationParser
             catalog = ExtractDatabaseCatalog(connStr, engine);
         }
 
-        var isGenericConfigKey = !string.IsNullOrWhiteSpace(customName) &&
-            (customName.Contains('_') ||
-             customName.Contains('.') ||
-             customName.Contains(':') ||
-             customName.Equals("spring-datasource", StringComparison.OrdinalIgnoreCase) ||
-             customName.Equals("spring.datasource.url", StringComparison.OrdinalIgnoreCase) ||
-             customName.Equals("database", StringComparison.OrdinalIgnoreCase) ||
-             customName.Equals("defaultconnection", StringComparison.OrdinalIgnoreCase) ||
-             customName.Equals("connectionstring", StringComparison.OrdinalIgnoreCase) ||
-             customName.Equals("connectionstrings", StringComparison.OrdinalIgnoreCase) ||
-             customName.Equals("db", StringComparison.OrdinalIgnoreCase));
+        var leaf = !string.IsNullOrWhiteSpace(customName) ? ExtractKeyLeaf(customName) : null;
+        var isGenericConfigKey = !string.IsNullOrWhiteSpace(leaf) &&
+            (leaf.Equals("database", StringComparison.OrdinalIgnoreCase) ||
+             leaf.Equals("defaultconnection", StringComparison.OrdinalIgnoreCase) ||
+             leaf.Equals("connectionstring", StringComparison.OrdinalIgnoreCase) ||
+             leaf.Equals("connectionstrings", StringComparison.OrdinalIgnoreCase) ||
+             leaf.Equals("spring-datasource", StringComparison.OrdinalIgnoreCase) ||
+             leaf.Equals("spring.datasource.url", StringComparison.OrdinalIgnoreCase) ||
+             leaf.Equals("db", StringComparison.OrdinalIgnoreCase));
 
-        string dbName;
+        string? dbName = null;
         if (!string.IsNullOrWhiteSpace(catalog))
         {
             dbName = catalog;
         }
-        else if (!isGenericConfigKey && !string.IsNullOrWhiteSpace(customName))
+        else if (!isGenericConfigKey && !string.IsNullOrWhiteSpace(leaf))
         {
-            dbName = customName;
+            var cleanCustom = leaf;
+            if (cleanCustom.EndsWith("Options", StringComparison.OrdinalIgnoreCase) && cleanCustom.Length > "Options".Length)
+            {
+                cleanCustom = cleanCustom[..^"Options".Length];
+            }
+            dbName = cleanCustom;
         }
-        else
+
+        var isCache = string.Equals(dbType, "cache", StringComparison.OrdinalIgnoreCase) ||
+                      string.Equals(engine, "Redis", StringComparison.OrdinalIgnoreCase);
+
+        if (string.IsNullOrWhiteSpace(dbName))
         {
-            dbName = engine;
+            if (isCache)
+            {
+                var domain = containerNode is ProjectNode proj ? SyntaxEnricher.CleanProjectNameToDomain(proj.Name) : "";
+                dbName = !string.IsNullOrEmpty(domain) ? $"{domain}.cache" : "cache";
+            }
+            else
+            {
+                if (containerNode is ProjectNode projNode && !projNode.IsLibrary)
+                {
+                    var domain = SyntaxEnricher.CleanProjectNameToDomain(projNode.Name);
+                    if (!string.IsNullOrWhiteSpace(domain))
+                    {
+                        dbName = WorkspaceConventions.NormalizeServiceName(domain);
+                    }
+                }
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(dbName))
+        {
+            return;
+        }
+
+        if (!isCache)
+        {
+            if (string.Equals(dbName, engine, StringComparison.OrdinalIgnoreCase) ||
+                PostIndexAnalyzer.IsAbstractEngineOnlyDatabase(dbName, catalog, dbType, null))
+            {
+                return;
+            }
         }
 
         var dbId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Database}:{dbType}:{dbName.ToLowerInvariant()}";
