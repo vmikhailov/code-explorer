@@ -646,6 +646,64 @@ public partial class PostIndexAnalyzer
         }
     }
 
+    public static async Task PurgePlaceholderTopicsAsync(
+        IGraphClient db,
+        string widPrefix,
+        CancellationToken cancellationToken = default)
+    {
+        var topicQuery = "MATCH (t:Topic) RETURN t.id AS id, t.name AS name";
+        var topicsJson = await db.ExecuteQueryAsync(topicQuery, null, cancellationToken);
+        using var topicsDoc = JsonDocument.Parse(topicsJson);
+
+        var placeholderIds = new List<string>();
+        var concreteExternalTopicCount = 0;
+
+        foreach (var row in topicsDoc.RootElement.EnumerateArray())
+        {
+            var id = GetStringProp(row, "id");
+            var name = GetStringProp(row, "name");
+            if (string.IsNullOrEmpty(id)) continue;
+
+            if (id.Contains(":mediatr:", StringComparison.OrdinalIgnoreCase) || id.Contains(":in-memory:", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var lowerName = (name ?? "").ToLowerInvariant();
+            var isPlaceholder = lowerName is "eventbus" or "event-bus" or "rabbitmq"
+                || id.Contains(":top:rabbitmq:eventbus", StringComparison.OrdinalIgnoreCase)
+                || id.Contains(":top:eventbus:eventbus", StringComparison.OrdinalIgnoreCase);
+
+            if (isPlaceholder)
+            {
+                placeholderIds.Add(id);
+            }
+            else
+            {
+                concreteExternalTopicCount++;
+            }
+        }
+
+        if (concreteExternalTopicCount > 0 && placeholderIds.Count > 0)
+        {
+            const int deleteBatchSize = 100;
+            for (int i = 0; i < placeholderIds.Count; i += deleteBatchSize)
+            {
+                var chunk = placeholderIds.Skip(i).Take(deleteBatchSize).ToList();
+                var paramDict = new Dictionary<string, object>();
+                var inParams = string.Join(", ", chunk.Select((id, idx) =>
+                {
+                    var p = $"@id{idx}";
+                    paramDict[$"id{idx}"] = id;
+                    return p;
+                }));
+
+                var sql = $"DELETE FROM edges WHERE from_id IN ({inParams}) OR to_id IN ({inParams}); DELETE FROM nodes WHERE id IN ({inParams});";
+                await db.ExecuteWriteAsync(sql, paramDict, cancellationToken);
+            }
+        }
+    }
+
     public Task DeduplicateProjectNodesAsync(string widPrefix = "", CancellationToken cancellationToken = default)
         => DeduplicateProjectNodesAsync(db, widPrefix, cancellationToken);
 

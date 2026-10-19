@@ -44,6 +44,7 @@ public class CSharpParser : IProjectParser, IFileParser
         new Libraries.HotChocolateLibraryParser(),
         new Libraries.GrpcCSharpLibraryParser(),
         new Libraries.MassTransitLibraryParser(),
+        new Libraries.EventBusLibraryParser(),
         new Libraries.MediatRLibraryParser(),
         new Libraries.KafkaFlowLibraryParser(),
         new Libraries.OrleansLibraryParser(),
@@ -313,11 +314,36 @@ public class CSharpParser : IProjectParser, IFileParser
                 hasAppCapability = true;
             }
 
+            var hasProtobufServer = false;
+            if (content.Contains("<Protobuf", StringComparison.OrdinalIgnoreCase))
+            {
+                var matches = System.Text.RegularExpressions.Regex.Matches(content, @"<Protobuf\b([^>]*)/?>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                foreach (System.Text.RegularExpressions.Match m in matches)
+                {
+                    var tag = m.Groups[1].Value;
+                    var gsMatch = System.Text.RegularExpressions.Regex.Match(tag, @"GrpcServices\s*=\s*[""']([^""']+)[""']", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    if (gsMatch.Success)
+                    {
+                        var mode = gsMatch.Groups[1].Value;
+                        if (mode.Equals("Server", StringComparison.OrdinalIgnoreCase) || mode.Equals("Both", StringComparison.OrdinalIgnoreCase))
+                        {
+                            hasProtobufServer = true;
+                            break;
+                        }
+                    }
+                    else if (content.Contains("Grpc.AspNetCore", StringComparison.OrdinalIgnoreCase))
+                    {
+                        hasProtobufServer = true;
+                        break;
+                    }
+                }
+            }
+
             if (content.Contains("Grpc.AspNetCore", StringComparison.OrdinalIgnoreCase) ||
                 content.Contains("Yarp.ReverseProxy", StringComparison.OrdinalIgnoreCase) ||
                 content.Contains("Ocelot", StringComparison.OrdinalIgnoreCase) ||
                 content.Contains("HotChocolate", StringComparison.OrdinalIgnoreCase) ||
-                content.Contains("<Protobuf", StringComparison.OrdinalIgnoreCase))
+                hasProtobufServer)
             {
                 hasServiceCapability = true;
                 if (content.Contains("HotChocolate", StringComparison.OrdinalIgnoreCase)) props["has_graphql"] = "true";
@@ -373,11 +399,14 @@ public class CSharpParser : IProjectParser, IFileParser
                             props["has_graphql"] = "true";
                             hasServiceCapability = true;
                         }
-                        else if (fileName.EndsWith("GrpcService.cs", StringComparison.OrdinalIgnoreCase) ||
-                                 fileName.EndsWith("Grpc.cs", StringComparison.OrdinalIgnoreCase))
+                        else if (fileName.EndsWith("GrpcService.cs", StringComparison.OrdinalIgnoreCase))
                         {
                             props["has_grpc"] = "true";
                             hasServiceCapability = true;
+                        }
+                        else if (fileName.EndsWith("Grpc.cs", StringComparison.OrdinalIgnoreCase))
+                        {
+                            props["has_grpc"] = "true";
                         }
 
                         if (fileName is "Startup.cs" or "Program.cs" or "ServiceStartup.cs" ||
@@ -404,10 +433,14 @@ public class CSharpParser : IProjectParser, IFileParser
                                 props["has_graphql"] = "true";
                                 hasServiceCapability = true;
                             }
-                            if (fileText.Contains("MapGrpcService") || fileText.Contains("AddGrpcService") || fileText.Contains("AddGrpcClient"))
+                            if (fileText.Contains("MapGrpcService") || fileText.Contains("AddGrpcService"))
                             {
                                 props["has_grpc"] = "true";
                                 hasServiceCapability = true;
+                            }
+                            else if (fileText.Contains("AddGrpcClient"))
+                            {
+                                props["has_grpc"] = "true";
                             }
                             if (fileText.Contains("MapControllers") || fileText.Contains("AddControllers") ||
                                 fileText.Contains("[ApiController]") || fileText.Contains("ControllerBase") ||

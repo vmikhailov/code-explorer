@@ -829,6 +829,182 @@ export class OrderPublisher {
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
+
+    [Test]
+    public async Task Test_EventBusLibraryParser_ConsumerAndPublish()
+    {
+        var parser = new CSharpParser();
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_eventbus_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var tempFilePath = Path.Combine(tempDir, "OrderEvents.cs");
+
+        var code = @"
+using System.Threading.Tasks;
+
+namespace MyApp.Events;
+
+public record OrderStartedIntegrationEvent(string OrderId);
+
+public interface IEventBus
+{
+    Task PublishAsync(object @event);
+}
+
+public interface IIntegrationEventHandler<in TIntegrationEvent>
+{
+    Task Handle(TIntegrationEvent @event);
+}
+
+public class OrderStartedIntegrationEventHandler : IIntegrationEventHandler<OrderStartedIntegrationEvent>
+{
+    private readonly IEventBus _eventBus;
+
+    public OrderStartedIntegrationEventHandler(IEventBus eventBus)
+    {
+        _eventBus = eventBus;
+    }
+
+    public async Task Handle(OrderStartedIntegrationEvent @event)
+    {
+        var eventMessage = new OrderStartedIntegrationEvent(@event.OrderId);
+        await _eventBus.PublishAsync(eventMessage);
+    }
+}
+";
+        await File.WriteAllTextAsync(tempFilePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+
+            await using var client = new InMemoryGraphClient();
+
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+
+            using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId,
+                ctx.AbsoluteWorkspacePath);
+
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var fileNode = syntaxTree.FileNode;
+            fileNode.Should().NotBeNull();
+
+            var entryPoints = FindEntryPointNodes(fileNode.Children);
+            var refs = FindReferences(fileNode.Children);
+
+            // Verify EntryPoint created for IIntegrationEventHandler
+            var consumerEp = entryPoints.FirstOrDefault(e => e.EntryType == "Consumer");
+            consumerEp.Should().NotBeNull("Expected EventBus EntryPointNode for IIntegrationEventHandler");
+            consumerEp!.Name.Should().Contain("OrderStartedIntegrationEvent");
+
+            // Verify SubscribesTo relationship to OrderStartedIntegrationEvent
+            var subRel = refs.FirstOrDefault(r =>
+                r.Kind == "SUBSCRIBES_TO" && r.TargetName == "eventbus:OrderStartedIntegrationEvent");
+            subRel.Should().NotBeNull("Expected SUBSCRIBES_TO reference for OrderStartedIntegrationEvent message");
+
+            // Verify PublishesTo relationship to OrderStartedIntegrationEvent
+            var pubRel = refs.FirstOrDefault(r =>
+                r.Kind == "PUBLISHES_TO" && r.TargetName == "eventbus:OrderStartedIntegrationEvent");
+            pubRel.Should().NotBeNull("Expected PUBLISHES_TO reference for OrderStartedIntegrationEvent message");
+
+            // Verify Layer5 TopicNode creation:
+            var newTopicNodes = Layer5AnalysisParser.ResolveMessagingReferenceForTest(pubRel!, ctx);
+
+            newTopicNodes.Should().ContainSingle();
+            var topic = newTopicNodes[0];
+            topic.Name.Should().Be("OrderStartedIntegrationEvent");
+            topic.BrokerType.Should().Be("eventbus");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Test_EventBusLibraryParser_AddSubscriptionAndTernaryPublish()
+    {
+        var parser = new CSharpParser();
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_eventbus_ternary_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var tempFilePath = Path.Combine(tempDir, "OrderProcessor.cs");
+
+        var code = @"
+using System.Threading.Tasks;
+
+namespace MyApp.Events;
+
+public record OrderPaymentSucceededIntegrationEvent(string OrderId);
+public record OrderPaymentFailedIntegrationEvent(string OrderId);
+public record OrderStockConfirmedIntegrationEvent(string OrderId);
+
+public interface IEventBus
+{
+    Task PublishAsync(object @event);
+}
+
+public interface IEventBusBuilder
+{
+    IEventBusBuilder AddSubscription<T, TH>();
+}
+
+public class OrderStatusChangedToStockConfirmedIntegrationEventHandler
+{
+    private readonly IEventBus _eventBus;
+
+    public OrderStatusChangedToStockConfirmedIntegrationEventHandler(IEventBus eventBus)
+    {
+        _eventBus = eventBus;
+    }
+
+    public void Configure(IEventBusBuilder builder)
+    {
+        builder.AddSubscription<OrderStockConfirmedIntegrationEvent, OrderStatusChangedToStockConfirmedIntegrationEventHandler>();
+    }
+
+    public async Task Handle(bool succeeded, string orderId)
+    {
+        var orderPaymentIntegrationEvent = succeeded
+            ? (object)new OrderPaymentSucceededIntegrationEvent(orderId)
+            : new OrderPaymentFailedIntegrationEvent(orderId);
+
+        await _eventBus.PublishAsync(orderPaymentIntegrationEvent);
+    }
+}
+";
+        await File.WriteAllTextAsync(tempFilePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+
+            using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId,
+                ctx.AbsoluteWorkspacePath);
+
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var fileNode = syntaxTree.FileNode;
+            fileNode.Should().NotBeNull();
+
+            var refs = FindReferences(fileNode.Children);
+
+            // SubscribesTo OrderStockConfirmedIntegrationEvent via AddSubscription
+            refs.Any(r => r.Kind == "SUBSCRIBES_TO" && r.TargetName == "eventbus:OrderStockConfirmedIntegrationEvent")
+                .Should().BeTrue("Expected AddSubscription to emit SUBSCRIBES_TO");
+
+            // PublishesTo both ternary outcomes: OrderPaymentSucceededIntegrationEvent AND OrderPaymentFailedIntegrationEvent
+            refs.Any(r => r.Kind == "PUBLISHES_TO" && r.TargetName == "eventbus:OrderPaymentSucceededIntegrationEvent")
+                .Should().BeTrue("Expected ternary success branch to emit PUBLISHES_TO");
+            refs.Any(r => r.Kind == "PUBLISHES_TO" && r.TargetName == "eventbus:OrderPaymentFailedIntegrationEvent")
+                .Should().BeTrue("Expected ternary failed branch to emit PUBLISHES_TO");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
 }
 
 

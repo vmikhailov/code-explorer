@@ -1335,6 +1335,15 @@ public class Layer5AnalysisParser
         }
     }
 
+    internal static List<TopicNode> ResolveMessagingReferenceForTest(Reference refItem, ParsingContext ctx)
+    {
+        var topics = new List<TopicNode>();
+        var symbols = new SymbolLookups([], [], [], [], [], [], [], [], [], []);
+        var bindings = new BindingLookups([], [], []);
+        ResolveMessagingReference(refItem, ctx, symbols, bindings, topics, new HashSet<string>(), []);
+        return topics;
+    }
+
     private static void ResolveMessagingReference(
         Reference refItem,
         ParsingContext ctx,
@@ -1354,6 +1363,7 @@ public class Layer5AnalysisParser
             _ when topicName.StartsWith("pubsub:", StringComparison.OrdinalIgnoreCase) => ("gcp", topicName["pubsub:".Length..]),
             _ when topicName.StartsWith("mediatr:", StringComparison.OrdinalIgnoreCase) => ("mediatr", topicName["mediatr:".Length..]),
             _ when topicName.StartsWith("masstransit:", StringComparison.OrdinalIgnoreCase) => ("masstransit", topicName["masstransit:".Length..]),
+            _ when topicName.StartsWith("eventbus:", StringComparison.OrdinalIgnoreCase) => ("eventbus", topicName["eventbus:".Length..]),
             _ when topicName.StartsWith("spring:", StringComparison.OrdinalIgnoreCase) => ("spring", topicName["spring:".Length..]),
             _ when topicName.StartsWith("cqrs:", StringComparison.OrdinalIgnoreCase) => ("cqrs", topicName["cqrs:".Length..]),
             _ when topicName.StartsWith("event:", StringComparison.OrdinalIgnoreCase) => ("event", topicName["event:".Length..]),
@@ -1380,7 +1390,7 @@ public class Layer5AnalysisParser
             }
         }
 
-        if (topicName.Contains("await", StringComparison.OrdinalIgnoreCase) || topicName.Contains('('))
+        if (topicName.Contains('(') || System.Text.RegularExpressions.Regex.IsMatch(topicName, @"\bawait\s+", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
         {
             var innerMatch = System.Text.RegularExpressions.Regex.Match(topicName, @"\(\s*([^,\)]+)\s*\)");
             if (innerMatch.Success)
@@ -1453,7 +1463,7 @@ public class Layer5AnalysisParser
 
         topicName = topicName.Trim('\'', '"', '`');
 
-        if (brokerType is not ("mediatr" or "cqrs" or "spring"))
+        if (brokerType is not ("mediatr" or "cqrs" or "spring" or "eventbus"))
         {
             var normalizedTopic = WorkspaceConventions.NormalizeTopicName(topicName);
             if (!string.IsNullOrEmpty(normalizedTopic))

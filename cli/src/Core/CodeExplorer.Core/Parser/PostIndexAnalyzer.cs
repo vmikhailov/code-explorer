@@ -28,6 +28,8 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         await NormalizeEdgesAsync(db, widPrefix);
         ctx?.Log("[PostIndexAnalyzer] Purging phantom external services...");
         await PurgePhantomExternalServicesAsync(db, widPrefix);
+        ctx?.Log("[PostIndexAnalyzer] Purging placeholder topics...");
+        await PurgePlaceholderTopicsAsync(db, widPrefix);
         ctx?.Log("[PostIndexAnalyzer] Deduplicating project nodes...");
         await DeduplicateProjectNodesAsync(db, widPrefix);
 
@@ -374,6 +376,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         ctx.Log("[PostIndexAnalyzer] Normalizing architectural edges and cleaning database...");
         await NormalizeEdgesAsync(ctx.DbClient, widPrefix, ctx.CancellationToken);
         await PurgePhantomExternalServicesAsync(ctx.DbClient, widPrefix, ctx.CancellationToken);
+        await PurgePlaceholderTopicsAsync(ctx.DbClient, widPrefix, ctx.CancellationToken);
         await DeduplicateProjectNodesAsync(ctx.DbClient, widPrefix, ctx.CancellationToken);
 
         ctx.Log($"[PostIndexAnalyzer] In-memory analysis complete: {result.TransitivelyCalls.Count} TRANSITIVELY_CALLS, {result.AttributedTo.Count} ATTRIBUTED_TO, {directProjectRels.Count} direct project edges, {liftedSemanticRels.Count} lifted semantic edges, {result.ProjectExternalApis.Count} project external_apis.");
