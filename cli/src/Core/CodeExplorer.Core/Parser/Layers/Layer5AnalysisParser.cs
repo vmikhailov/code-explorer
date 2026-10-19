@@ -1366,6 +1366,7 @@ public class Layer5AnalysisParser
             _ when topicName.StartsWith("eventbus:", StringComparison.OrdinalIgnoreCase) => ("eventbus", topicName["eventbus:".Length..]),
             _ when topicName.StartsWith("spring:", StringComparison.OrdinalIgnoreCase) => ("spring", topicName["spring:".Length..]),
             _ when topicName.StartsWith("cqrs:", StringComparison.OrdinalIgnoreCase) => ("cqrs", topicName["cqrs:".Length..]),
+            _ when topicName.StartsWith("nats:", StringComparison.OrdinalIgnoreCase) => ("nats", topicName["nats:".Length..]),
             _ when topicName.StartsWith("event:", StringComparison.OrdinalIgnoreCase) => ("event", topicName["event:".Length..]),
             _ => (brokerType, topicName)
         };

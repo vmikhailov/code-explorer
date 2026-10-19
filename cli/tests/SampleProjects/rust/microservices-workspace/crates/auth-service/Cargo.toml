@@ -1,0 +1,13 @@
+[package]
+name = "auth-service"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "auth-service"
+path = "src/main.rs"
+
+[dependencies]
+axum = "0.7"
+sqlx = { version = "0.7", features = ["postgres"] }
+domain-models = { path = "../domain-models" }

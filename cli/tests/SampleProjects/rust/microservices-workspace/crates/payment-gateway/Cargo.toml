@@ -1,0 +1,12 @@
+[package]
+name = "payment-gateway"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "payment-gateway"
+path = "src/main.rs"
+
+[dependencies]
+tonic = "0.11"
+domain-models = { path = "../domain-models" }

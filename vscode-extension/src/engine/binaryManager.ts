@@ -111,15 +111,26 @@ export class BinaryManager {
     const binPath = this.getStoredBinaryPath();
     if (!binPath || !fs.existsSync(binPath)) return null;
 
-    const cached = this.getCachedVersion();
     const probed = probeCommandVersion(binPath);
-    const version = probed || cached;
-    if (!version) return null;
+    if (!probed) {
+      // Stored binary cannot be executed (corrupted / missing dependencies). Clean it up.
+      try {
+        fs.unlinkSync(binPath);
+        const binDir = this.getBinDir();
+        if (binDir) {
+          const verFile = path.join(binDir, 'version.json');
+          if (fs.existsSync(verFile)) fs.unlinkSync(verFile);
+        }
+      } catch {
+        // Ignore
+      }
+      return null;
+    }
 
     return {
       command: binPath,
       args: [],
-      version,
+      version: probed,
     };
   }
 

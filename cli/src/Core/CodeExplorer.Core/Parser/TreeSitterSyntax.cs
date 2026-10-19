@@ -292,4 +292,73 @@ public static class TreeSitterSyntax
         public const string Modifier = "modifier";
         public const string ArrayAccess = "array_access";
     }
+
+    public static class Rust
+    {
+        // Item Declarations
+        public const string SourceFile = "source_file";
+        public const string ModItem = "mod_item";
+        public const string StructItem = "struct_item";
+        public const string EnumItem = "enum_item";
+        public const string EnumVariant = "enum_variant";
+        public const string EnumVariantList = "enum_variant_list";
+        public const string UnionItem = "union_item";
+        public const string TraitItem = "trait_item";
+        public const string ImplItem = "impl_item";
+        public const string FunctionItem = "function_item";
+        public const string FunctionSignatureItem = "function_signature_item";
+        public const string MacroDefinition = "macro_definition";
+        public const string MacroInvocation = "macro_invocation";
+        public const string ConstItem = "const_item";
+        public const string StaticItem = "static_item";
+        public const string TypeItem = "type_item";
+        public const string UseDeclaration = "use_declaration";
+        public const string ExternCrateDeclaration = "extern_crate_declaration";
+        public const string ForeignModItem = "foreign_mod_item";
+
+        // Structural Elements & Bodies
+        public const string DeclarationList = "declaration_list";
+        public const string FieldDeclarationList = "field_declaration_list";
+        public const string FieldDeclaration = "field_declaration";
+        public const string OrderedFieldDeclarationList = "ordered_field_declaration_list";
+        public const string Parameters = "parameters";
+        public const string Parameter = "parameter";
+        public const string SelfParameter = "self_parameter";
+        public const string Block = "block";
+        public const string TypeParameters = "type_parameters";
+        public const string WhereClause = "where_clause";
+        public const string VisibilityModifier = "visibility_modifier";
+        public const string AttributeItem = "attribute_item";
+        public const string InnerAttributeItem = "inner_attribute_item";
+
+        // Expressions & Calls
+        public const string CallExpression = "call_expression";
+        public const string FieldExpression = "field_expression";
+        public const string AwaitExpression = "await_expression";
+        public const string TryExpression = "try_expression";
+        public const string ClosureExpression = "closure_expression";
+        public const string MatchExpression = "match_expression";
+        public const string LetDeclaration = "let_declaration";
+        public const string AssignmentExpression = "assignment_expression";
+        public const string BinaryExpression = "binary_expression";
+        public const string UnaryExpression = "unary_expression";
+        public const string ReturnExpression = "return_expression";
+        public const string GenericFunction = "generic_function";
+
+        // Literals & Identifiers
+        public const string Identifier = "identifier";
+        public const string TypeIdentifier = "type_identifier";
+        public const string FieldIdentifier = "field_identifier";
+        public const string ScopedIdentifier = "scoped_identifier";
+        public const string ScopedTypeIdentifier = "scoped_type_identifier";
+        public const string StringLiteral = "string_literal";
+        public const string RawStringLiteral = "raw_string_literal";
+        public const string IntegerLiteral = "integer_literal";
+        public const string BooleanLiteral = "boolean_literal";
+
+        // Fields
+        public const string Trait = "trait";
+        public const string ReturnType = "return_type";
+        public const string GenericType = "generic_type";
+    }
 }

@@ -494,16 +494,19 @@ public class Layer3SyntacticParser
             (syntactic.Properties.TryGetValue(OntologyConstants.PropertyNames.IsTest, out var propIsTest) && bool.TryParse(propIsTest, out var b) && b);
         var stageOrder = syntactic.Properties.TryGetValue("stage_order", out var so) && int.TryParse(so, out var parsedOrder) ? parsedOrder : (int?)null;
 
-        var isType = kind == "Class" || kind == "Interface" || kind == OntologyConstants.NodeLabels.Type;
+        var isType = kind is "Class" or "Interface" or "Struct" or "Enum" or OntologyConstants.NodeLabels.Type;
         var mappedKind = isType ? "Type" : kind;
         var idSuffix = overloadIndex > 1 ? $"#{overloadIndex}" : "";
         var symbolId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:{mappedKind}:{name}{idSuffix}";
 
         IOntologyNode typedNode;
-        if (kind == "Class")
+        if (kind is "Class" or "Struct" or "Enum" || kind == OntologyConstants.NodeLabels.Type)
         {
+            var typeKind = syntactic.Properties.TryGetValue("type_kind", out var tk)
+                ? tk
+                : (kind == OntologyConstants.NodeLabels.Type ? "class" : kind.ToLowerInvariant());
             typedNode = new TypeNode(symbolId, name, symbolId, relativePath, relativePath,
-                node.StartPosition.Row + 1, node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1, "class",
+                node.StartPosition.Row + 1, node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1, typeKind,
                 symbolIsTest, projectKind, projectName, stageOrder);
         }
         else if (kind == "Interface")
@@ -600,6 +603,12 @@ public class Layer3SyntacticParser
             }
             var tableId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Table}:{resolvedName.ToLowerInvariant()}";
             typedNode = new TableNode(tableId, resolvedName, relativePath);
+        }
+        else if (kind == OntologyConstants.NodeLabels.Topic)
+        {
+            var broker = syntactic.Properties.GetValueOrDefault("broker_type") ?? "event";
+            var topicId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Topic}:{broker}:{name.ToLowerInvariant()}";
+            typedNode = new TopicNode(topicId, name, relativePath, broker);
         }
         else if (kind == OntologyConstants.NodeLabels.CallLiteral)
         {

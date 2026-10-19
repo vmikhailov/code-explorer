@@ -1,0 +1,13 @@
+[package]
+name = "order-processor"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "order-processor"
+path = "src/main.rs"
+
+[dependencies]
+rdkafka = "0.36"
+sea-orm = "0.12"
+domain-models = { path = "../domain-models" }
