@@ -542,7 +542,7 @@ public partial class ArchitectureViewEngine(IGraphClient db)
 
         if (string.IsNullOrEmpty(dispName))
         {
-            dispName = $"{name} [{st}]";
+            dispName = st == "Service" ? name : $"{name} [{st}]";
         }
 
         var path = props.GetValueOrDefault("path");

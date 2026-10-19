@@ -557,7 +557,29 @@ public partial class PostIndexAnalyzer
             var cand = !string.IsNullOrWhiteSpace(domain) ? domain : name;
             if (string.IsNullOrWhiteSpace(cand)) cand = ExtractDomainFromExternalServiceId(id);
 
+            // Purge wildcard, query fragment, or invalid artifacts
+            if (cand.StartsWith('*') ||
+                cand.StartsWith('?') ||
+                cand.StartsWith('&') ||
+                cand.StartsWith('=') ||
+                cand.Contains("api-version=") ||
+                cand.Contains('=') ||
+                cand.Contains('&') ||
+                cand.Contains('?') ||
+                (name != null && (name.StartsWith('*') || name.StartsWith('?') || name.StartsWith('&') || name.Contains("api-version=") || name.Contains('='))) ||
+                (domain != null && (domain.StartsWith('*') || domain.StartsWith('?') || domain.StartsWith('&') || domain.Contains("api-version=") || domain.Contains('='))))
+            {
+                idsToDelete.Add(id);
+                continue;
+            }
+
             if (cand != "unknown-service" && (IsGarbageExternalService(cand) || WorkspaceConventions.IsGenericUrlStemOrVariable(cand)))
+            {
+                idsToDelete.Add(id);
+                continue;
+            }
+
+            if (cand == "unknown-service" && !servicesCallingEndpoints.Contains(id))
             {
                 idsToDelete.Add(id);
                 continue;

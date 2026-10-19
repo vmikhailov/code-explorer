@@ -417,6 +417,15 @@ public partial class ArchitectureViewEngine
             }
             else if (node.Kind == NodeKind.ExternalService)
             {
+                var name = node.DisplayName ?? node.Name ?? "";
+                if (node.Id.Contains("unknown-service", StringComparison.OrdinalIgnoreCase) ||
+                    name.Contains("unknown-service", StringComparison.OrdinalIgnoreCase) ||
+                    name.StartsWith('*') || name.StartsWith('?') || name.StartsWith('&') ||
+                    name.Contains("api-version=") || name.Contains('='))
+                {
+                    continue;
+                }
+
                 extNodes[node.Id] = node;
                 projToDomainMap[node.Id] = node.Id;
             }

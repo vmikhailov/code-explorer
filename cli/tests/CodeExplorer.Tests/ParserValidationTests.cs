@@ -1235,6 +1235,100 @@ public class DicomClient {
     }
 
     [Test]
+    public async Task Test_CSharpParser_HttpClientClassFieldAndHelperMethodResolution()
+    {
+        var parser = new CSharpParser();
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_test_csharp_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var tempFilePath = Path.Combine(tempDir, "OrderingAndCatalogServices.cs");
+
+        var code = @"
+using System;
+using System.Net.Http;
+using System.Net.Http.Json;
+using System.Threading.Tasks;
+
+namespace Test;
+
+public class OrderingService(HttpClient httpClient)
+{
+    private readonly string remoteServiceBaseUrl = ""/api/Orders/"";
+
+    public Task<string[]> GetOrders()
+    {
+        return httpClient.GetFromJsonAsync<string[]>(remoteServiceBaseUrl);
+    }
+
+    public Task CreateOrder(object request)
+    {
+        var requestMessage = new HttpRequestMessage(HttpMethod.Post, remoteServiceBaseUrl);
+        return httpClient.SendAsync(requestMessage);
+    }
+}
+
+public class CatalogService(HttpClient httpClient)
+{
+    private readonly string remoteServiceBaseUrl = ""api/catalog/"";
+
+    public async Task<string> GetCatalogItems(int pageIndex, int pageSize)
+    {
+        var uri = GetAllCatalogItemsUri(remoteServiceBaseUrl, pageIndex, pageSize);
+        var result = await httpClient.GetFromJsonAsync<string>($""{uri}&api-version=2.0"");
+        return result;
+    }
+
+    private static string GetAllCatalogItemsUri(string baseUri, int pageIndex, int pageSize)
+    {
+        return baseUri + ""items"";
+    }
+}
+
+public static class StartupExtensions
+{
+    public static void Configure(dynamic builder)
+    {
+        builder.Services.AddHttpClient<CatalogService>(o => o.BaseAddress = new(""https+http://catalog-api""));
+    }
+}
+";
+        await File.WriteAllTextAsync(tempFilePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+
+            using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var fileNode = syntaxTree.FileNode;
+            fileNode.Should().NotBeNull();
+
+            var extServices = FindExternalServiceNodes(fileNode.Children);
+
+            // 1. Verify *&api-version=2.0 is NOT generated
+            extServices.Any(es => es.Name.Contains("api-version=") || es.Name.StartsWith("*")).Should().BeFalse("Wildcard query string artifacts should never become external services");
+
+            // 2. Verify AddHttpClient resolved catalog-api
+            var catalogApi = extServices.FirstOrDefault(es => es.DomainOrService == "catalog-api" || es.Name == "catalog-api");
+            catalogApi.Should().NotBeNull("AddHttpClient should resolve target host catalog-api");
+
+            // 3. Verify OrderingService class field was resolved for GetFromJsonAsync and SendAsync
+            var orders = extServices.Where(es => es.Path.Contains("Orders")).ToList();
+            orders.Should().NotBeEmpty("Class field remoteServiceBaseUrl should be resolved for OrderingService");
+
+            // 4. Verify CatalogService helper method + interpolation resolved to catalog path
+            var catalogItems = extServices.Where(es => es.Path.Contains("catalog")).ToList();
+            catalogItems.Should().NotBeEmpty("Helper method + interpolation should resolve to catalog path");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
     public async Task Test_CSharpParser_RestSharp()
     {
         var parser = new CSharpParser();

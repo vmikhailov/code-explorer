@@ -126,6 +126,24 @@ public static class RouteDictionaryRegistry
         }
     }
 
+    public static bool TryResolveServiceDomain(string key, out string domain)
+    {
+        domain = string.Empty;
+        if (string.IsNullOrWhiteSpace(key)) return false;
+        if (_serviceDomains.TryGetValue(key, out var d))
+        {
+            domain = d;
+            return true;
+        }
+        var normKey = WorkspaceConventions.NormalizeServiceName(key);
+        if (!string.IsNullOrEmpty(normKey) && _serviceDomains.TryGetValue(normKey, out d))
+        {
+            domain = d;
+            return true;
+        }
+        return false;
+    }
+
     public static void RegisterAlias(string aliasKey, string targetKey)
     {
         if (!string.IsNullOrEmpty(aliasKey) && !string.IsNullOrEmpty(targetKey))
@@ -234,6 +252,12 @@ public static class RouteDictionaryRegistry
     public static string NormalizeResolvedUrl(string raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+
+        // Strip query string if present (? or &)
+        var qIdxEarly = raw.IndexOf('?');
+        if (qIdxEarly >= 0) raw = raw[..qIdxEarly];
+        var ampIdxEarly = raw.IndexOf('&');
+        if (ampIdxEarly >= 0) raw = raw[..ampIdxEarly];
 
         if (WorkspaceConventions.TryMatchRouteFunction(raw, out var routeKey))
         {

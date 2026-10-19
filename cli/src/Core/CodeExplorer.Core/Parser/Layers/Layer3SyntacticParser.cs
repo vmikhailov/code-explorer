@@ -848,8 +848,32 @@ public class Layer3SyntacticParser
             }
         }
 
+        // Strip query string if present (? or &)
+        var qEarly = cleanName.IndexOf('?');
+        if (qEarly >= 0) cleanName = cleanName[..qEarly];
+        var ampEarly = cleanName.IndexOf('&');
+        if (ampEarly >= 0) cleanName = cleanName[..ampEarly];
+
+        // Normalize wildcard-relative path like */api/v1/... to /api/v1/...
+        if (cleanName.StartsWith("*/"))
+        {
+            cleanName = cleanName[1..];
+        }
+
+        var stripped = cleanName.Trim('*', '?', '&', '=', '/', ' ');
+        if (string.IsNullOrWhiteSpace(stripped))
+        {
+            cleanName = "unknown-service";
+        }
+
         if (WorkspaceConventions.IsTestFilePath(relativePath) ||
             string.IsNullOrWhiteSpace(cleanName) ||
+            cleanName == "unknown-service" ||
+            cleanName.StartsWith('*') ||
+            cleanName.StartsWith('?') ||
+            cleanName.StartsWith('&') ||
+            cleanName.StartsWith('=') ||
+            cleanName.Contains("api-version=") ||
             cleanName.Length > 256 ||
             cleanName.Contains('\n') ||
             cleanName.Contains('\r') ||
@@ -920,7 +944,8 @@ public class Layer3SyntacticParser
                 domainOrService = domainOrService[..slashIdx];
             }
         }
-        else if (slashIdx == 0)
+
+        if (slashIdx == 0)
         {
             var qIdx0 = domainOrService.IndexOf('?');
             if (qIdx0 >= 0) domainOrService = domainOrService[..qIdx0];
@@ -970,7 +995,29 @@ public class Layer3SyntacticParser
             domainOrService = domainOrService[..colonPortIdx];
         }
 
-        if (domainOrService.Contains('.'))
+        var qIdxDomain = domainOrService.IndexOf('?');
+        if (qIdxDomain >= 0) domainOrService = domainOrService[..qIdxDomain];
+        var ampIdxDomain = domainOrService.IndexOf('&');
+        if (ampIdxDomain >= 0) domainOrService = domainOrService[..ampIdxDomain];
+        var eqIdxDomain = domainOrService.IndexOf('=');
+        if (eqIdxDomain >= 0) domainOrService = domainOrService[..eqIdxDomain];
+
+        if (domainOrService.StartsWith('*') ||
+            domainOrService.StartsWith('?') ||
+            domainOrService.StartsWith('&') ||
+            domainOrService.StartsWith('=') ||
+            domainOrService.Contains('&') ||
+            domainOrService.Contains('?') ||
+            domainOrService.Contains('=') ||
+            domainOrService.Contains('*') ||
+            domainOrService.Contains('{') ||
+            domainOrService.Contains('}') ||
+            domainOrService.Contains(' ') ||
+            string.IsNullOrWhiteSpace(domainOrService.Trim('*', '?', '&', '=', '/', ' ')))
+        {
+            domainOrService = "unknown-service";
+        }
+        else if (domainOrService.Contains('.'))
         {
             if (domainOrService.Contains(' ') || domainOrService.Any(c => c is '"' or '\'' or '{' or '}'))
             {
@@ -1030,7 +1077,8 @@ public class Layer3SyntacticParser
             ext["is_internal"] = "true";
             ext["is_external"] = "false";
         }
-        else if (isGarbage || domainOrService == "unknown-service")
+        else if (isGarbage || domainOrService == "unknown-service" ||
+                 domainOrService.StartsWith('*') || domainOrService.StartsWith('?') || domainOrService.StartsWith('&') || domainOrService.StartsWith('='))
         {
             ext["is_external"] = "false";
         }
