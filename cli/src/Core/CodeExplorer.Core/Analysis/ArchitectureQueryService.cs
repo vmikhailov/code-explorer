@@ -85,4 +85,9 @@ public class ArchitectureQueryService(IGraphClient db) : IArchitectureQueryServi
     {
         return _viewEngine.GetNodeUsagesAsync(nodeId, ct);
     }
+
+    public Task<DatabaseEvidenceResponseDto> GetDatabaseEvidenceAsync(string databaseId, string? serviceId = null, CancellationToken ct = default)
+    {
+        return _viewEngine.GetDatabaseEvidenceAsync(databaseId, serviceId, ct);
+    }
 }

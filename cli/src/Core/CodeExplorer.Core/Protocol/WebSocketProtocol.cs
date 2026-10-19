@@ -1390,5 +1390,70 @@ public class TestGateResponseDto
     public string? Error { get; set; }
 }
 
+public class DatabaseEvidenceItemDto
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("kind")]
+    public string Kind { get; set; } = string.Empty; // "query", "orm", "table", "config", "migration"
+
+    [JsonPropertyName("title")]
+    public string Title { get; set; } = string.Empty;
+
+    [JsonPropertyName("operation")]
+    public string Operation { get; set; } = string.Empty; // "SELECT", "INSERT", "UPDATE", "DELETE", "ORM", "TABLE", "CONFIG", "MIGRATION"
+
+    [JsonPropertyName("filePath")]
+    public string FilePath { get; set; } = string.Empty;
+
+    [JsonPropertyName("lineStart")]
+    public int LineStart { get; set; }
+
+    [JsonPropertyName("lineEnd")]
+    public int LineEnd { get; set; }
+
+    [JsonPropertyName("codeSnippet")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CodeSnippet { get; set; }
+
+    [JsonPropertyName("callerSymbol")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CallerSymbol { get; set; }
+
+    [JsonPropertyName("serviceName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ServiceName { get; set; }
+
+    [JsonPropertyName("reason")]
+    public string Reason { get; set; } = string.Empty;
+}
+
+public class DatabaseEvidenceResponseDto
+{
+    [JsonPropertyName("databaseId")]
+    public string DatabaseId { get; set; } = string.Empty;
+
+    [JsonPropertyName("databaseName")]
+    public string DatabaseName { get; set; } = string.Empty;
+
+    [JsonPropertyName("engine")]
+    public string Engine { get; set; } = string.Empty;
+
+    [JsonPropertyName("schema")]
+    public string Schema { get; set; } = string.Empty;
+
+    [JsonPropertyName("serviceId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ServiceId { get; set; }
+
+    [JsonPropertyName("totalCount")]
+    public int TotalCount { get; set; }
+
+    [JsonPropertyName("items")]
+    public List<DatabaseEvidenceItemDto> Items { get; set; } = [];
+}
+
+
 
 

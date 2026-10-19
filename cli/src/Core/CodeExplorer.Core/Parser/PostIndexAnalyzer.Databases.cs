@@ -1137,6 +1137,14 @@ public partial class PostIndexAnalyzer
 
         bool IsGenericOrLibraryDbId(string targetId)
         {
+            if (targetId.EndsWith(":relational:postgresql", StringComparison.OrdinalIgnoreCase) ||
+                targetId.EndsWith(":document:mongodb", StringComparison.OrdinalIgnoreCase) ||
+                targetId.EndsWith(":keyvalue:redis", StringComparison.OrdinalIgnoreCase) ||
+                targetId.EndsWith(":relational:database", StringComparison.OrdinalIgnoreCase) ||
+                targetId.EndsWith(":database:relational:database", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
             var node = canonicalDbNodes.GetValueOrDefault(targetId);
             if (node == null) return true;
             var eng = node.Extensions?.GetValueOrDefault("engine") ?? (node.Name.Contains('.') ? node.Name.Split('.', 2)[0] : node.Name);
@@ -1246,7 +1254,7 @@ public partial class PostIndexAnalyzer
                 var loserEng = loserNode?.Extensions?.GetValueOrDefault("engine") ?? (loserNode?.Name.Contains('.') == true ? loserNode.Name.Split('.', 2)[0] : loserNode?.Name ?? "");
                 var isLoserGeneric = IsGenericOrLibraryDbId(loser);
 
-                if (isLoserGeneric && concreteEnginesCount.GetValueOrDefault(loserEng) > 1)
+                if (isLoserGeneric || concreteEnginesCount.GetValueOrDefault(loserEng) > 1)
                 {
                     // Multi-database engine: do NOT remap generic node globally! Scope to domain.
                     if (!domainScopedRemap.TryGetValue(domainKey, out var dMap))
@@ -1282,7 +1290,10 @@ public partial class PostIndexAnalyzer
                     {
                         var astStem = ResourceReconciliationService.StripDatabaseSuffix(ast.schema);
                         var cfgStem = ResourceReconciliationService.StripDatabaseSuffix(cfg.schema);
-                        if (string.Equals(astStem, cfgStem, StringComparison.OrdinalIgnoreCase) && !string.Equals(ast.schema, cfg.schema, StringComparison.OrdinalIgnoreCase))
+                        if ((string.Equals(astStem, cfgStem, StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(cfgStem, astStem + "s", StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(cfgStem, astStem + "es", StringComparison.OrdinalIgnoreCase)) &&
+                            !string.Equals(ast.schema, cfg.schema, StringComparison.OrdinalIgnoreCase))
                         {
                             if (!cfg.schema.Equals(cfgStem, StringComparison.OrdinalIgnoreCase) && ast.schema.Equals(astStem, StringComparison.OrdinalIgnoreCase))
                             {
@@ -1408,7 +1419,7 @@ public partial class PostIndexAnalyzer
 
             var targetNode = canonicalDbNodes.GetValueOrDefault(target);
             var targetEng = targetNode?.Extensions?.GetValueOrDefault("engine") ?? (targetNode?.Name.Contains('.') == true ? targetNode.Name.Split('.', 2)[0] : targetNode?.Name ?? "");
-            if (IsGenericOrLibraryDbId(target) && concreteEnginesCount.GetValueOrDefault(targetEng) > 1)
+            if (IsGenericOrLibraryDbId(target) && concreteEnginesCount.GetValueOrDefault(targetEng) > 0)
             {
                 continue;
             }
@@ -1532,7 +1543,7 @@ public partial class PostIndexAnalyzer
         // 1. Query projects to identify test projects
         var projQuery = "MATCH (p:Project) RETURN p.id AS id, p.name AS name, p.path AS path, p.role AS role, json_extract(p.properties, '$.is_test') AS is_test, json_extract(p.properties, '$.entity_kind') AS entity_kind";
         var projsJson = await db.ExecuteQueryAsync(projQuery, null, cancellationToken);
-        var projectList = new List<(string Id, string Name, string? Path, bool IsTest)>();
+        var projectList = new List<(string Id, string Name, string? Path, bool IsTest, bool IsLibrary)>();
         using (var projsDoc = JsonDocument.Parse(projsJson))
         {
             foreach (var row in projsDoc.RootElement.EnumerateArray())
@@ -1552,9 +1563,14 @@ public partial class PostIndexAnalyzer
                              WorkspaceConventions.IsTestFilePath(pPath) ||
                              (!string.IsNullOrEmpty(pId) && (pId.Contains("/tests/", StringComparison.OrdinalIgnoreCase) || pId.Contains("\\tests\\", StringComparison.OrdinalIgnoreCase) || pId.Contains(".Tests", StringComparison.OrdinalIgnoreCase)));
 
+                var isLibrary = string.Equals(pRole, "Library", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(pRole, "SharedLibrary", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(entityKind, "Library", StringComparison.OrdinalIgnoreCase) ||
+                                (!string.IsNullOrEmpty(pPath) && (pPath.Contains("/Infrastructure/", StringComparison.OrdinalIgnoreCase) || pPath.Contains("\\Infrastructure\\", StringComparison.OrdinalIgnoreCase)));
+
                 if (!string.IsNullOrEmpty(pId))
                 {
-                    projectList.Add((pId, pName, pPath, isTest));
+                    projectList.Add((pId, pName, pPath, isTest, isLibrary));
                 }
             }
         }
@@ -1705,6 +1721,9 @@ public partial class PostIndexAnalyzer
             "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['USES_DB', 'CONFIGURES', 'DEPENDS_ON'] RETURN src.id AS source, tgt.id AS target, r.kind AS kind, r.properties AS properties";
         var relEdgesJson = await db.ExecuteQueryAsync(relEdgesQuery, null, cancellationToken);
 
+        var libraryProjects = projectList.Where(p => p.IsLibrary).ToDictionary(p => p.Id, p => p, StringComparer.OrdinalIgnoreCase);
+        var serviceToReferencedLibs = new Dictionary<string, List<(string Id, string Name)>>(StringComparer.OrdinalIgnoreCase);
+
         var projectDbEdges = new List<((string Id, string Name) Owner, string CanonicalTarget, JsonElement Properties)>();
 
         using (var edgesDoc = JsonDocument.Parse(relEdgesJson))
@@ -1713,7 +1732,22 @@ public partial class PostIndexAnalyzer
             {
                 var src = GetStringProp(row, "source");
                 var tgt = GetStringProp(row, "target");
+                var kind = GetStringProp(row, "kind");
                 if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
+
+                if (string.Equals(kind, "DEPENDS_ON", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (libraryProjects.TryGetValue(tgt, out var lib))
+                    {
+                        if (!serviceToReferencedLibs.TryGetValue(src, out var lList))
+                        {
+                            lList = [];
+                            serviceToReferencedLibs[src] = lList;
+                        }
+                        lList.Add((lib.Id, lib.Name));
+                    }
+                    continue;
+                }
 
                 if (rawToCanonical.TryGetValue(tgt, out var canonicalId))
                 {
@@ -1748,6 +1782,90 @@ public partial class PostIndexAnalyzer
             }
         }
 
+        // Detect libraries referenced by multiple distinct service domains (e.g. IntegrationEventLogEF)
+        var libReferencingDomains = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (svcId, libs) in serviceToReferencedLibs)
+        {
+            var svcProj = projectList.FirstOrDefault(p => p.Id == svcId);
+            if (svcProj.IsTest || string.IsNullOrEmpty(svcProj.Id)) continue;
+            var dom = SyntaxEnricher.CleanProjectNameToDomain(svcProj.Name);
+            if (string.IsNullOrEmpty(dom)) dom = svcProj.Id;
+            foreach (var l in libs)
+            {
+                if (!libReferencingDomains.TryGetValue(l.Id, out var domSet))
+                {
+                    domSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    libReferencingDomains[l.Id] = domSet;
+                }
+                domSet.Add(dom);
+            }
+        }
+
+        var multiDomainSharedLibs = libReferencingDomains
+            .Where(kvp => kvp.Value.Count > 1)
+            .Select(kvp => kvp.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        bool IsGenericOrLibraryDbId(string targetId)
+        {
+            if (targetId.EndsWith(":relational:postgresql", StringComparison.OrdinalIgnoreCase) ||
+                targetId.EndsWith(":document:mongodb", StringComparison.OrdinalIgnoreCase) ||
+                targetId.EndsWith(":keyvalue:redis", StringComparison.OrdinalIgnoreCase) ||
+                targetId.EndsWith(":relational:database", StringComparison.OrdinalIgnoreCase) ||
+                targetId.EndsWith(":database:relational:database", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+            if (!canonicalNodes.TryGetValue(targetId, out var info)) return true;
+            var eng = info.Engine;
+            var sch = info.Name.Contains('.') ? info.Name.Split('.', 2)[1] : "";
+            return string.IsNullOrWhiteSpace(sch) ||
+                   sch.Equals("default", StringComparison.OrdinalIgnoreCase) ||
+                   sch.Equals("integrationeventlogef", StringComparison.OrdinalIgnoreCase) ||
+                   sch.Equals(eng, StringComparison.OrdinalIgnoreCase) ||
+                   info.Name.Equals(eng, StringComparison.OrdinalIgnoreCase) ||
+                   info.Name.EndsWith(".integrationeventlogef", StringComparison.OrdinalIgnoreCase);
+        }
+
+        var concreteEnginesCount = canonicalNodes.Values
+            .Where(info => {
+                var s = info.Name.Contains('.') ? info.Name.Split('.', 2)[1] : "";
+                return !string.IsNullOrWhiteSpace(s) &&
+                       !s.Equals("default", StringComparison.OrdinalIgnoreCase) &&
+                       !s.Equals("integrationeventlogef", StringComparison.OrdinalIgnoreCase);
+            })
+            .GroupBy(info => info.Engine, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
+
+        // Filter out edges from multiDomainSharedLibs to generic databases, and propagate non-generic lib edges to services
+        var filteredProjectDbEdges = new List<((string Id, string Name) Owner, string CanonicalTarget, JsonElement Properties)>();
+        foreach (var edge in projectDbEdges)
+        {
+            var isMultiDomainLib = multiDomainSharedLibs.Contains(edge.Owner.Id);
+            var isGenericTarget = IsGenericOrLibraryDbId(edge.CanonicalTarget);
+
+            if (!isMultiDomainLib || !isGenericTarget)
+            {
+                filteredProjectDbEdges.Add(edge);
+            }
+
+            if (!isMultiDomainLib || !isGenericTarget)
+            {
+                foreach (var (svcId, libs) in serviceToReferencedLibs)
+                {
+                    if (libs.Any(l => l.Id == edge.Owner.Id))
+                    {
+                        var svcProj = projectList.FirstOrDefault(p => p.Id == svcId);
+                        if (!string.IsNullOrEmpty(svcProj.Id) && !svcProj.IsTest)
+                        {
+                            filteredProjectDbEdges.Add(((svcProj.Id, svcProj.Name), edge.CanonicalTarget, edge.Properties));
+                        }
+                    }
+                }
+            }
+        }
+        projectDbEdges = filteredProjectDbEdges;
+
         var edgesByService = projectDbEdges
             .GroupBy(e => {
                 var domain = SyntaxEnricher.CleanProjectNameToDomain(e.Owner.Name);
@@ -1755,9 +1873,11 @@ public partial class PostIndexAnalyzer
             }, StringComparer.OrdinalIgnoreCase);
 
         var globalConsolidationRemap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var domainScopedRemap = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var sGroup in edgesByService)
         {
+            var domainKey = sGroup.Key;
             var candidateNodes = sGroup
                 .Select(e => canonicalNodes.TryGetValue(e.CanonicalTarget, out var info) ? (e.CanonicalTarget, info) : default)
                 .Where(t => t.CanonicalTarget != null)
@@ -1773,7 +1893,23 @@ public partial class PostIndexAnalyzer
             var localRemap = ResolveDatabaseConsolidations(candidateNodes);
             foreach (var (loser, winner) in localRemap)
             {
-                globalConsolidationRemap[loser] = winner;
+                var loserNode = canonicalNodes.TryGetValue(loser, out var lInfo) ? lInfo : default;
+                var loserEng = loserNode.Engine ?? (loserNode.Name?.Contains('.') == true ? loserNode.Name.Split('.', 2)[0] : loserNode.Name ?? "");
+                var isLoserGeneric = IsGenericOrLibraryDbId(loser);
+
+                if (isLoserGeneric || concreteEnginesCount.GetValueOrDefault(loserEng) > 1)
+                {
+                    if (!domainScopedRemap.TryGetValue(domainKey, out var dMap))
+                    {
+                        dMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                        domainScopedRemap[domainKey] = dMap;
+                    }
+                    dMap[loser] = winner;
+                }
+                else
+                {
+                    globalConsolidationRemap[loser] = winner;
+                }
             }
 
             // Consolidate single configured database with AST schema nodes for the service
@@ -1806,6 +1942,11 @@ public partial class PostIndexAnalyzer
                                 {
                                     globalConsolidationRemap[n2.CanonicalTarget] = n1.CanonicalTarget;
                                 }
+                            }
+                            else if (string.Equals(s1Stem, s2Stem + "s", StringComparison.OrdinalIgnoreCase) ||
+                                     string.Equals(s1Stem, s2Stem + "es", StringComparison.OrdinalIgnoreCase))
+                            {
+                                globalConsolidationRemap[n2.CanonicalTarget] = n1.CanonicalTarget;
                             }
                         }
                     }
@@ -1906,7 +2047,26 @@ public partial class PostIndexAnalyzer
 
         foreach (var (owner, rawTarget, propsElem) in projectDbEdges)
         {
-            var target = globalConsolidationRemap.TryGetValue(rawTarget, out var win) ? win : rawTarget;
+            var domain = SyntaxEnricher.CleanProjectNameToDomain(owner.Name);
+            if (string.IsNullOrEmpty(domain)) domain = owner.Id;
+
+            var target = rawTarget;
+            if (domainScopedRemap.TryGetValue(domain, out var dMap) && dMap.TryGetValue(target, out var dWin))
+            {
+                target = dWin;
+            }
+            else if (globalConsolidationRemap.TryGetValue(target, out var win))
+            {
+                target = win;
+            }
+
+            var targetNode = canonicalNodes.TryGetValue(target, out var tInfo) ? tInfo : default;
+            var targetEng = targetNode.Engine ?? (targetNode.Name?.Contains('.') == true ? targetNode.Name.Split('.', 2)[0] : targetNode.Name ?? "");
+            if (IsGenericOrLibraryDbId(target) && concreteEnginesCount.GetValueOrDefault(targetEng) > 0)
+            {
+                continue;
+            }
+
             if (owner.Id != target && seen.Add((owner.Id, target)))
             {
                 var props = new Dictionary<string, object>
@@ -1935,6 +2095,26 @@ public partial class PostIndexAnalyzer
         if (relationshipsToUpload.Count > 0)
         {
             await db.UploadRelationshipsAsync(relationshipsToUpload);
+        }
+
+        // Apply domain-scoped remappings to edges
+        foreach (var (domain, dMap) in domainScopedRemap)
+        {
+            var domProjIds = projectList.Where(p => {
+                var d = SyntaxEnricher.CleanProjectNameToDomain(p.Name);
+                if (string.IsNullOrEmpty(d)) d = p.Id;
+                return d.Equals(domain, StringComparison.OrdinalIgnoreCase);
+            }).Select(p => p.Id).ToList();
+
+            foreach (var (loserId, winnerId) in dMap)
+            {
+                foreach (var pId in domProjIds)
+                {
+                    await db.ExecuteWriteAsync(
+                        "UPDATE OR IGNORE edges SET to_id = @winnerId WHERE to_id = @loserId AND from_id LIKE @pIdPrefix;",
+                        new { winnerId, loserId, pIdPrefix = $"{pId}%" }, cancellationToken);
+                }
+            }
         }
 
             // 5. Clean up duplicate / project-scoped database nodes where id != canonicalId

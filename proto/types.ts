@@ -318,6 +318,25 @@ export interface TestGateResponseDto {
   error?: string;
 }
 
+export interface DatabaseEvidenceItemDto {
+  kind: string;
+  operation: string;
+  title: string;
+  snippet?: string;
+  filePath?: string;
+  lineStart: number;
+  lineEnd: number;
+  callerSymbol?: string;
+  confidence?: string;
+}
+
+export interface DatabaseEvidenceResponseDto {
+  databaseId: string;
+  databaseName: string;
+  serviceId?: string;
+  evidence: DatabaseEvidenceItemDto[];
+}
+
 // ============================================================================
 // Envelope Message
 // ============================================================================

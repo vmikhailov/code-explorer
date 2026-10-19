@@ -229,15 +229,35 @@ public class SyntaxEnricher : ISyntaxEnricher
                             ? $"{targetEngine}.{declaredSchema}"
                             : targetEngine;
 
-                        CanonicalResource? canonicalRes = ctx.ResourceRegistry?.ResolveResource(canonicalDbName, expectedDbType: dbType, expectedEngine: targetEngine);
+                        CanonicalResource? canonicalRes = null;
 
-                        var isLibraryWithoutDb = (projectNode.Role is "Library" or "SharedLibrary" ||
-                                                  projectNode.IsLibrary ||
-                                                  projectNode.EntityKind == ProjectEntityKind.Library) &&
-                                                 string.IsNullOrEmpty(declaredSchema) &&
-                                                 ctx.ResourceRegistry?.AllResources.Any(r => r.ProjectId != null && r.ProjectId.Equals(projectNode.Id, StringComparison.OrdinalIgnoreCase)) != true;
+                        if (!string.IsNullOrEmpty(declaredSchema))
+                        {
+                            canonicalRes = ctx.ResourceRegistry?.ResolveResource(canonicalDbName, expectedDbType: dbType, expectedEngine: targetEngine);
+                            if (canonicalRes == null)
+                            {
+                                canonicalRes = ctx.ResourceRegistry?.ResolveResource(declaredSchema, expectedDbType: dbType, expectedEngine: targetEngine);
+                            }
+                            if (canonicalRes != null)
+                            {
+                                canonicalDbName = canonicalRes.Name;
+                            }
+                        }
+                        else
+                        {
+                            // 1. If declaredSchema is empty, try to resolve via project domain first
+                            var domain = CleanProjectNameToDomain(projectNode.Name);
+                            if (!string.IsNullOrEmpty(domain))
+                            {
+                                canonicalRes = ctx.ResourceRegistry?.ResolveResource(domain, expectedDbType: dbType, expectedEngine: targetEngine);
+                                if (canonicalRes != null)
+                                {
+                                    canonicalDbName = canonicalRes.Name;
+                                }
+                            }
+                        }
 
-                        if (canonicalRes == null && ctx.ResourceRegistry != null && !isLibraryWithoutDb)
+                        if (canonicalRes == null && ctx.ResourceRegistry != null)
                         {
                             var aliasList = new List<string> { canonicalDbName };
                             if (!string.IsNullOrEmpty(declaredSchema) &&
@@ -284,7 +304,7 @@ public class SyntaxEnricher : ISyntaxEnricher
                         }
 
                         var semanticNodeForDb = ctx.SemanticStructure;
-                        if (semanticNodeForDb != null && !isLibraryWithoutDb)
+                        if (semanticNodeForDb != null)
                         {
                             // Remove any previous generic placeholder Database node that might have been registered before a driver was detected
                             semanticNodeForDb.Children.RemoveAll(c => c is DatabaseNode dn && (string.Equals(dn.Name, "Database", StringComparison.OrdinalIgnoreCase) || dn.Id.EndsWith(":database:relational:database", StringComparison.OrdinalIgnoreCase) || dn.Id.EndsWith($":{OntologyConstants.IdPrefixes.Database}:relational:database", StringComparison.OrdinalIgnoreCase)));
@@ -313,11 +333,8 @@ public class SyntaxEnricher : ISyntaxEnricher
 
                         var usesDbRel = new UsesDbRelationship(fileNode.Id, dbId, relExt);
                         ctx.AddGlobalProjectDependency(Relationship.FromRelationship(usesDbRel));
-                        if (!isLibraryWithoutDb)
-                        {
-                            var projUsesDbRel = new UsesDbRelationship(projectNode.Id, dbId, relExt);
-                            ctx.AddGlobalProjectDependency(Relationship.FromRelationship(projUsesDbRel));
-                        }
+                        var projUsesDbRel = new UsesDbRelationship(projectNode.Id, dbId, relExt);
+                        ctx.AddGlobalProjectDependency(Relationship.FromRelationship(projUsesDbRel));
                         break;
 
                     case "api":
@@ -441,7 +458,7 @@ public class SyntaxEnricher : ISyntaxEnricher
     private static readonly Regex SchemaCallRegex = new(@"HasDefaultSchema\s*\(\s*[""']?([^""'\)]+)[""']?\s*\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex SchemaConstRegex = new(@"(?:SchemaName|DefaultSchemaName|DefaultSchema)\s*=\s*[""']?([^""';]+)[""']?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex TypeOrmSchemaRegex = new(@"@(?:Entity|ViewEntity|Table)\s*\(\s*\{[^}]*schema\s*:\s*[""']?([A-Za-z0-9_.]+)[""']?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex ToTableSchemaRegex = new(@"ToTable\s*\(\s*[""'][^""']+[""']\s*,\s*(?:schema:\s*)?[""']?([A-Za-z0-9_.]+)[""']?\s*\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex ToTableSchemaRegex = new(@"ToTable\s*\(\s*[^,]+\s*,\s*(?:schema:\s*)?[""']?([A-Za-z0-9_.]+)[""']?\s*\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex DataSourceSchemaRegex = new(@"\b(?:schema|defaultSchema)\s*:\s*[""']([A-Za-z0-9_-]+)[""']", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex ScopePrefixRegex = new(
@@ -548,7 +565,10 @@ public class SyntaxEnricher : ISyntaxEnricher
         if (clean.Equals("default", StringComparison.OrdinalIgnoreCase) ||
             clean.Equals("dbo", StringComparison.OrdinalIgnoreCase) ||
             clean.Equals("public", StringComparison.OrdinalIgnoreCase) ||
-            clean.Equals("main", StringComparison.OrdinalIgnoreCase))
+            clean.Equals("main", StringComparison.OrdinalIgnoreCase) ||
+            clean.Equals("order", StringComparison.OrdinalIgnoreCase) ||
+            clean.Equals("user", StringComparison.OrdinalIgnoreCase) ||
+            clean.Equals("group", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
@@ -606,6 +626,25 @@ public class SyntaxEnricher : ISyntaxEnricher
             {
                 var val = m4.Groups[1].Value.Trim().Trim('\'', '"');
                 if (ConstantRegistry.TryResolve(filePath, val, out var resolved) && IsValidSchemaName(resolved)) return resolved;
+                if (val.Contains('.'))
+                {
+                    var memberName = val.Split('.').Last();
+                    if (ConstantRegistry.TryResolve(filePath, memberName, out var resMember) && IsValidSchemaName(resMember)) return resMember;
+
+                    if (memberName.Equals("DefaultSchema", StringComparison.OrdinalIgnoreCase) ||
+                        memberName.Equals("SchemaName", StringComparison.OrdinalIgnoreCase) ||
+                        memberName.Equals("DefaultSchemaName", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var typeName = val.Split('.')[0];
+                        var resolvedFromFile = FindConstantInProjectOrDirectory(filePath, memberName, typeName);
+                        if (!string.IsNullOrEmpty(resolvedFromFile) && IsValidSchemaName(resolvedFromFile))
+                        {
+                            ConstantRegistry.Register(filePath, val, resolvedFromFile);
+                            ConstantRegistry.Register(filePath, memberName, resolvedFromFile);
+                            return resolvedFromFile;
+                        }
+                    }
+                }
                 if (IsValidSchemaName(val)) return val;
             }
 
@@ -617,6 +656,55 @@ public class SyntaxEnricher : ISyntaxEnricher
                 {
                     if (ConstantRegistry.TryResolve(filePath, val, out var resolved) && IsValidSchemaName(resolved)) return resolved;
                     if (IsValidSchemaName(val)) return val;
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+        return null;
+    }
+
+    private static string? FindConstantInProjectOrDirectory(string filePath, string memberName, string? typeName = null)
+    {
+        try
+        {
+            var rx = new Regex(@"(?:const\s+string\s+|string\s+)?" + Regex.Escape(memberName) + @"\s*=\s*[""']([^""']+)[""']", RegexOptions.IgnoreCase);
+            var dir = Path.GetDirectoryName(filePath);
+            if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return null;
+
+            // 1. Check current directory files
+            foreach (var f in Directory.EnumerateFiles(dir, "*.cs"))
+            {
+                var match = rx.Match(File.ReadAllText(f));
+                if (match.Success) return match.Groups[1].Value.Trim().Trim('\'', '"');
+            }
+
+            // 2. Find project root directory and search files (e.g. typeName.cs or all .cs files)
+            var projDir = dir;
+            while (projDir != null && !Directory.EnumerateFiles(projDir, "*.csproj").Any())
+            {
+                var parent = Directory.GetParent(projDir);
+                if (parent == null || parent.FullName == projDir) break;
+                projDir = parent.FullName;
+            }
+
+            if (projDir != null && Directory.Exists(projDir))
+            {
+                if (!string.IsNullOrWhiteSpace(typeName))
+                {
+                    var candidateFile = Directory.EnumerateFiles(projDir, $"{typeName}.cs", SearchOption.AllDirectories).FirstOrDefault();
+                    if (candidateFile != null && File.Exists(candidateFile))
+                    {
+                        var match = rx.Match(File.ReadAllText(candidateFile));
+                        if (match.Success) return match.Groups[1].Value.Trim().Trim('\'', '"');
+                    }
+                }
+
+                foreach (var f in Directory.EnumerateFiles(projDir, "*.cs", SearchOption.AllDirectories))
+                {
+                    var match = rx.Match(File.ReadAllText(f));
+                    if (match.Success) return match.Groups[1].Value.Trim().Trim('\'', '"');
                 }
             }
         }

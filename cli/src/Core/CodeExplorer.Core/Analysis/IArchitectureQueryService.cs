@@ -81,5 +81,10 @@ public interface IArchitectureQueryService
     /// Retrieves all places (services, files, functions) where a given node (e.g. database or topic) is used.
     /// </summary>
     Task<NodeUsagesResponseDto> GetNodeUsagesAsync(string nodeId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Retrieves database decision and query evidence (SQL queries, ORM entities, tables, configs, migrations) for a given database, optionally scoped to a service.
+    /// </summary>
+    Task<DatabaseEvidenceResponseDto> GetDatabaseEvidenceAsync(string databaseId, string? serviceId = null, CancellationToken ct = default);
 }
 

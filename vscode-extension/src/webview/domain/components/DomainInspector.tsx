@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { SelectedNodeDetail, SelectedEdgeDetail, DomainProjectInfo, ConnectionDetailItem } from '../types';
 import { useDomainArchitecture } from '../context/DomainArchitectureContext';
 import { FloatingPanel } from '../../components/FloatingPanel';
@@ -11,6 +11,222 @@ import {
   ExternalLinkIcon,
 } from '../../components/Icons';
 import { EntityNodeBadge, EntityCodeBadge, getEntityBadgeMeta } from '../entityBadges';
+import { webviewTransport } from '../../services/webviewTransport';
+import { DatabaseEvidenceItemDto, DatabaseEvidenceResponseDto } from '../../../../../proto/types';
+
+export interface DatabaseEvidenceSectionProps {
+  databaseId: string;
+  databaseName?: string;
+  serviceId?: string;
+  onOpenFile?: (path: string, line?: number) => void;
+  defaultExpanded?: boolean;
+}
+
+export const DatabaseEvidenceSection: React.FC<DatabaseEvidenceSectionProps> = ({
+  databaseId,
+  serviceId,
+  onOpenFile,
+  defaultExpanded = true,
+}) => {
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const [evidence, setEvidence] = useState<DatabaseEvidenceItemDto[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchEvidence = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const queryParams = new URLSearchParams({ id: databaseId });
+        if (serviceId) queryParams.set('service', serviceId);
+        const data = await webviewTransport.fetchJson<DatabaseEvidenceResponseDto>(
+          `/api/database/evidence?${queryParams.toString()}`
+        );
+        if (!cancelled) {
+          setEvidence(data?.evidence || []);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setError(err?.message || 'Failed to load database evidence');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+    fetchEvidence();
+    return () => {
+      cancelled = true;
+    };
+  }, [databaseId, serviceId]);
+
+  const getOpBadgeStyle = (op: string) => {
+    const upper = (op || '').toUpperCase();
+    switch (upper) {
+      case 'SELECT':
+        return { bg: 'rgba(56, 189, 248, 0.2)', border: 'rgba(56, 189, 248, 0.4)', text: '#38bdf8' };
+      case 'INSERT':
+        return { bg: 'rgba(74, 222, 128, 0.2)', border: 'rgba(74, 222, 128, 0.4)', text: '#4ade80' };
+      case 'UPDATE':
+        return { bg: 'rgba(251, 191, 36, 0.2)', border: 'rgba(251, 191, 36, 0.4)', text: '#fbbf24' };
+      case 'DELETE':
+        return { bg: 'rgba(248, 113, 113, 0.2)', border: 'rgba(248, 113, 113, 0.4)', text: '#f87171' };
+      case 'ORM':
+        return { bg: 'rgba(192, 132, 252, 0.2)', border: 'rgba(192, 132, 252, 0.4)', text: '#c084fc' };
+      case 'MIGRATION':
+        return { bg: 'rgba(244, 114, 182, 0.2)', border: 'rgba(244, 114, 182, 0.4)', text: '#f472b6' };
+      case 'CONFIG':
+      default:
+        return { bg: 'rgba(148, 163, 184, 0.2)', border: 'rgba(148, 163, 184, 0.4)', text: '#94a3b8' };
+    }
+  };
+
+  return (
+    <div className={`inspector-section ${isExpanded ? 'is-expanded' : 'is-collapsed'}`}>
+      <div
+        className="inspector-section-header"
+        onClick={() => setIsExpanded((prev) => !prev)}
+        title={isExpanded ? 'Collapse database evidence' : 'Expand database evidence'}
+      >
+        <span className="inspector-section-title">
+          Database Evidence {serviceId ? `(${serviceId})` : ''} {loading ? '(loading...)' : `(${evidence.length})`}
+        </span>
+        <span className="inspector-section-toggle">
+          {isExpanded ? <ChevronDownIcon size={12} /> : <ChevronRightIcon size={12} />}
+        </span>
+      </div>
+
+      {isExpanded && (
+        <div className="inspector-evidence-list" style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '6px 8px' }}>
+          {loading && (
+            <div className="inspector-empty-hint" style={{ color: '#94a3b8' }}>
+              Fetching query & schema evidence...
+            </div>
+          )}
+          {error && (
+            <div className="inspector-empty-hint" style={{ color: '#f87171' }}>
+              Error: {error}
+            </div>
+          )}
+          {!loading && !error && evidence.length === 0 && (
+            <div className="inspector-empty-hint">
+              No direct SQL queries, ORM entities, or migrations found for this database.
+            </div>
+          )}
+          {!loading && evidence.map((item, idx) => {
+            const badgeStyle = getOpBadgeStyle(item.operation || item.kind);
+            return (
+              <div
+                key={idx}
+                className="inspector-evidence-card"
+                style={{
+                  padding: '8px 10px',
+                  borderRadius: 6,
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.07)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 5,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <span
+                      style={{
+                        fontSize: '9.5px',
+                        fontWeight: 700,
+                        padding: '1px 6px',
+                        borderRadius: 3,
+                        background: badgeStyle.bg,
+                        color: badgeStyle.text,
+                        border: `1px solid ${badgeStyle.border}`,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                      }}
+                    >
+                      {item.operation || item.kind}
+                    </span>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: '#f1f5f9' }}>
+                      {item.title}
+                    </span>
+                  </div>
+                  {item.confidence && (
+                    <span
+                      style={{
+                        fontSize: '9px',
+                        fontWeight: 600,
+                        padding: '1px 4px',
+                        borderRadius: 2,
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        color: '#94a3b8',
+                      }}
+                    >
+                      {item.confidence}
+                    </span>
+                  )}
+                </div>
+
+                {item.snippet && (
+                  <pre
+                    style={{
+                      margin: '2px 0 0 0',
+                      padding: '5px 8px',
+                      background: 'rgba(0, 0, 0, 0.35)',
+                      borderRadius: 4,
+                      border: '1px solid rgba(255, 255, 255, 0.05)',
+                      fontSize: '10px',
+                      fontFamily: 'monospace',
+                      color: '#e2e8f0',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-all',
+                      maxHeight: '120px',
+                      overflowY: 'auto',
+                    }}
+                  >
+                    <code>{item.snippet}</code>
+                  </pre>
+                )}
+
+                {item.callerSymbol && (
+                  <div style={{ fontSize: '10px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ color: '#64748b' }}>caller:</span>
+                    <code style={{ color: '#cbd5e1', fontSize: '10px' }}>{item.callerSymbol}</code>
+                  </div>
+                )}
+
+                {item.filePath && (
+                  <div
+                    style={{
+                      fontSize: '10px',
+                      color: '#38bdf8',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      cursor: onOpenFile ? 'pointer' : 'default',
+                      textDecoration: 'underline',
+                      marginTop: 2,
+                    }}
+                    onClick={() => onOpenFile?.(item.filePath!, item.lineStart || 1)}
+                    title={`Open ${item.filePath}:${item.lineStart || 1}`}
+                  >
+                    <ExternalLinkIcon size={10} />
+                    <span>
+                      {item.filePath.split(/[/\\]/).slice(-2).join('/')}
+                      {item.lineStart > 0 ? `:${item.lineStart}` : ''}
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export interface RawEdgeInfo {
   id: string;
@@ -79,6 +295,9 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
   const [localEdgeCollapsed, setLocalEdgeCollapsed] = useState(false);
   const isEdgeInspectorCollapsed = props.isEdgeInspectorCollapsed !== undefined ? props.isEdgeInspectorCollapsed : localEdgeCollapsed;
   const setIsEdgeInspectorCollapsed = props.onToggleEdgeCollapse || setLocalEdgeCollapsed;
+
+  // Local state for expanded database evidence under service
+  const [expandedDbEvidenceId, setExpandedDbEvidenceId] = useState<string | null>(null);
 
   // Accordion section collapse state
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
@@ -540,6 +759,16 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                   </div>
                 )}
 
+                {/* Database Node Evidence Inspector */}
+                {selectedNode.kind === 'Database' && (
+                  <DatabaseEvidenceSection
+                    databaseId={selectedNode.id}
+                    databaseName={selectedNode.displayName}
+                    onOpenFile={onOpenFile}
+                    defaultExpanded={true}
+                  />
+                )}
+
                 {/* Accordion: Databases */}
                 {(dbConnections.length > 0 || selectedNode.dbCount > 0) && (
                   <div className={`inspector-section ${collapsedSections['databases'] ? 'is-collapsed' : 'is-expanded'}`}>
@@ -558,20 +787,54 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                     {!collapsedSections['databases'] && (
                       <div className="inspector-connection-list">
                         {dbConnections.map((item) => (
-                          <div
-                            key={item.id}
-                            className="inspector-connection-item"
-                            onClick={() => handleSelectNodeById(item.id)}
-                            title={`Jump to ${item.name}`}
-                          >
-                            <div className="connection-item-main" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <EntityNodeBadge kind={item.kind || 'Database'} size={18} />
-                              <span className="connection-item-name">{item.name}</span>
+                          <div key={item.id} style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+                            <div
+                              className="inspector-connection-item"
+                              onClick={() => handleSelectNodeById(item.id)}
+                              title={`Jump to ${item.name}`}
+                            >
+                              <div className="connection-item-main" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <EntityNodeBadge kind={item.kind || 'Database'} size={18} />
+                                <span className="connection-item-name">{item.name}</span>
+                              </div>
+                              <div className="connection-item-meta" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                {selectedNode.kind !== 'Database' && (
+                                  <button
+                                    type="button"
+                                    style={{
+                                      fontSize: '9px',
+                                      fontWeight: 600,
+                                      padding: '1px 5px',
+                                      borderRadius: 3,
+                                      background: expandedDbEvidenceId === item.id ? 'rgba(56, 189, 248, 0.3)' : 'rgba(255, 255, 255, 0.08)',
+                                      color: expandedDbEvidenceId === item.id ? '#38bdf8' : '#cbd5e1',
+                                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                                      cursor: 'pointer',
+                                    }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setExpandedDbEvidenceId((prev) => (prev === item.id ? null : item.id));
+                                    }}
+                                    title="Inspect queries and evidence for this database"
+                                  >
+                                    {expandedDbEvidenceId === item.id ? 'Hide Evidence' : 'Evidence'}
+                                  </button>
+                                )}
+                                <span className="connection-count-badge">{item.count} links</span>
+                                <span className="connection-jump-arrow">➔</span>
+                              </div>
                             </div>
-                            <div className="connection-item-meta">
-                              <span className="connection-count-badge">{item.count} links</span>
-                              <span className="connection-jump-arrow">➔</span>
-                            </div>
+                            {expandedDbEvidenceId === item.id && (
+                              <div style={{ marginLeft: 6, marginTop: 4, marginBottom: 6 }}>
+                                <DatabaseEvidenceSection
+                                  databaseId={item.id}
+                                  databaseName={item.name}
+                                  serviceId={selectedNode.name}
+                                  onOpenFile={onOpenFile}
+                                  defaultExpanded={true}
+                                />
+                              </div>
+                            )}
                           </div>
                         ))}
                         {dbConnections.length === 0 && (
@@ -807,6 +1070,39 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                   )}
                 </div>
               </div>
+
+              {/* Database Evidence Inspector for Database Edge */}
+              {(selectedEdge.targetKind === 'Database' ||
+                selectedEdge.sourceKind === 'Database' ||
+                selectedEdge.items.some((it: ConnectionDetailItem) => it.category === 'database')) && (
+                <div style={{ padding: '4px 12px' }}>
+                  <DatabaseEvidenceSection
+                    databaseId={
+                      selectedEdge.targetKind === 'Database'
+                        ? selectedEdge.targetId
+                        : selectedEdge.sourceKind === 'Database'
+                        ? selectedEdge.sourceId
+                        : selectedEdge.targetId
+                    }
+                    databaseName={
+                      selectedEdge.targetKind === 'Database'
+                        ? selectedEdge.targetName
+                        : selectedEdge.sourceKind === 'Database'
+                        ? selectedEdge.sourceName
+                        : selectedEdge.targetName
+                    }
+                    serviceId={
+                      selectedEdge.targetKind === 'Database'
+                        ? selectedEdge.sourceName
+                        : selectedEdge.sourceKind === 'Database'
+                        ? selectedEdge.targetName
+                        : selectedEdge.sourceName
+                    }
+                    onOpenFile={onOpenFile}
+                    defaultExpanded={true}
+                  />
+                </div>
+              )}
 
               {/* Edge Breakdown List */}
               <div

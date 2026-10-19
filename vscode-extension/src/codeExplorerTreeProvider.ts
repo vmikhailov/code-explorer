@@ -5,7 +5,7 @@ import { ProcessManager, ServerInfo } from './processManager';
 import { ServerTransport } from './serverTransport';
 import { getModelStatus } from './modelManager';
 import { compareSemver, probeDotnetTool } from './binaryManager';
-import { GateSuiteSummaryDto, GateItemDto, GateViolationDto } from '../../proto/types';
+import { GateSuiteSummaryDto, GateItemDto, GateViolationDto, DatabaseEvidenceResponseDto, DatabaseEvidenceItemDto } from '../../proto/types';
 import { GateStateManager } from './gateStateManager';
 
 export interface MetadataDto {
@@ -162,6 +162,9 @@ export type TreeItemType =
   | 'rel-category'
   | 'services-container'
   | 'services-category'
+  | 'database-category'
+  | 'database-node-item'
+  | 'database-evidence-item'
   | 'ontology-service'
   | 'service-group'
   | 'service-item'
@@ -498,6 +501,14 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
 
     if (element.itemType === 'services-container' || element.itemType === 'services-category') {
       return this.getServicesListItems(element.data?.layerTitle, element.data?.kind);
+    }
+
+    if (element.itemType === 'database-category') {
+      return this.getDatabaseListItems();
+    }
+
+    if (element.itemType === 'database-node-item') {
+      return this.getDatabaseEvidenceItems(element.data?.databaseId, element.data?.serviceId);
     }
 
     if (element.itemType === 'ontology-service') {
@@ -895,8 +906,9 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
         .map((cat) => {
         const isRel = cat.layerId === 5;
         const isServiceWorkload = cat.kind === 'Service' || cat.kind === 'App' || cat.kind === 'Worker' || cat.kind === 'CliTool' || cat.kind === 'TestSuite';
-        const itemType = isRel ? 'rel-category' : isServiceWorkload ? 'services-category' : 'node-category';
-        const collapsibleState = isServiceWorkload && cat.count > 0
+        const isDatabase = cat.kind === 'Database';
+        const itemType = isRel ? 'rel-category' : isServiceWorkload ? 'services-category' : isDatabase ? 'database-category' : 'node-category';
+        const collapsibleState = (isServiceWorkload || isDatabase) && cat.count > 0
           ? vscode.TreeItemCollapsibleState.Collapsed
           : vscode.TreeItemCollapsibleState.None;
 
@@ -913,7 +925,7 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
         item.description = `${cat.count.toLocaleString()}`;
         const resolvedCatIcon = cat.icon === 'flask' ? 'beaker' : cat.icon;
         item.iconPath = new vscode.ThemeIcon(resolvedCatIcon || (isRel ? 'arrow-right' : 'symbol-misc'));
-        if (!isServiceWorkload) {
+        if (!isServiceWorkload && !isDatabase) {
           item.command = {
             command: 'codeExplorer.openNodeGrid',
             title: `Open ${cat.label} Grid`,
@@ -1002,11 +1014,12 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
     const sorted = [...items].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
 
     return sorted.map((it) => {
+      const isDb = it.kind === 'Database' || categoryKey === 'databases';
       const item = new CodeExplorerTreeItem(
-        'service-item',
+        isDb ? 'database-node-item' : 'service-item',
         it.name,
-        vscode.TreeItemCollapsibleState.None,
-        { serviceName, item: it }
+        isDb ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
+        isDb ? { databaseId: it.id, databaseName: it.name, serviceId: serviceName } : { serviceName, item: it }
       );
 
       const icon = it.kind === 'Endpoint' ? 'radio-tower'
@@ -1017,7 +1030,7 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
 
       item.iconPath = new vscode.ThemeIcon(icon);
       item.description = it.details || (it.protocol ? `[${it.protocol}]` : '');
-      if (it.filePath) {
+      if (it.filePath && !isDb) {
         item.command = {
           command: 'codeExplorer.openSource',
           title: `Go to ${it.name}`,
@@ -1026,6 +1039,92 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
       }
       return item;
     });
+  }
+
+  private async getDatabaseListItems(): Promise<CodeExplorerTreeItem[]> {
+    try {
+      const resp = await this.transport.get<NodesResponseDto>('/api/nodes?kind=Database&limit=500');
+      if (!resp || !resp.nodes || resp.nodes.length === 0) {
+        return [new CodeExplorerTreeItem('empty-notice', 'No databases found', vscode.TreeItemCollapsibleState.None)];
+      }
+
+      const sorted = [...resp.nodes].sort((a, b) => (a.displayName || a.name).localeCompare(b.displayName || b.name));
+
+      return sorted.map((n) => {
+        const item = new CodeExplorerTreeItem(
+          'database-node-item',
+          n.displayName || n.name,
+          vscode.TreeItemCollapsibleState.Collapsed,
+          { databaseId: n.id, databaseName: n.name }
+        );
+        item.iconPath = new vscode.ThemeIcon('database');
+        item.description = n.properties?.['engine'] || n.properties?.['db_type'] || 'database';
+        item.tooltip = `${n.displayName || n.name}\nID: ${n.id}\nEngine: ${n.properties?.['engine'] || 'Unknown'}\nSchema: ${n.properties?.['schema'] || 'default'}`;
+        return item;
+      });
+    } catch (err: any) {
+      return [new CodeExplorerTreeItem('empty-notice', `Failed to load databases: ${err?.message || err}`, vscode.TreeItemCollapsibleState.None)];
+    }
+  }
+
+  private async getDatabaseEvidenceItems(databaseId?: string, serviceId?: string): Promise<CodeExplorerTreeItem[]> {
+    if (!databaseId) return [];
+    try {
+      const queryParams = new URLSearchParams({ id: databaseId });
+      if (serviceId) queryParams.set('service', serviceId);
+      const res = await this.transport.get<DatabaseEvidenceResponseDto>(`/api/database/evidence?${queryParams.toString()}`);
+      if (!res || !res.evidence || res.evidence.length === 0) {
+        return [new CodeExplorerTreeItem('empty-notice', 'No query or model evidence recorded', vscode.TreeItemCollapsibleState.None)];
+      }
+
+      return res.evidence.map((ev: DatabaseEvidenceItemDto) => {
+        const opTag = ev.operation ? `[${ev.operation.toUpperCase()}] ` : '';
+        const item = new CodeExplorerTreeItem(
+          'database-evidence-item',
+          `${opTag}${ev.title}`,
+          vscode.TreeItemCollapsibleState.None,
+          { evidence: ev }
+        );
+
+        const filename = ev.filePath ? path.basename(ev.filePath) : '';
+        const lineStr = ev.lineStart > 0 ? `:${ev.lineStart}` : '';
+        item.description = ev.callerSymbol
+          ? `${ev.callerSymbol} (${filename}${lineStr})`
+          : filename ? `${filename}${lineStr}` : '';
+
+        const tooltipParts: string[] = [];
+        tooltipParts.push(`${ev.kind} (${ev.operation}) - ${ev.title}`);
+        if (ev.callerSymbol) tooltipParts.push(`Caller: ${ev.callerSymbol}`);
+        if (ev.filePath) tooltipParts.push(`File: ${ev.filePath}${lineStr}`);
+        if (ev.confidence) tooltipParts.push(`Confidence: ${ev.confidence}`);
+        if (ev.snippet) tooltipParts.push(`\n-- Snippet:\n${ev.snippet}`);
+        item.tooltip = tooltipParts.join('\n');
+
+        const opUpper = (ev.operation || '').toUpperCase();
+        const iconName = opUpper === 'SELECT' ? 'search'
+          : opUpper === 'INSERT' ? 'diff-added'
+          : opUpper === 'UPDATE' ? 'edit'
+          : opUpper === 'DELETE' ? 'trash'
+          : ev.kind === 'Migration' ? 'history'
+          : ev.kind === 'Configuration' ? 'gear'
+          : ev.kind === 'Entity' || ev.kind === 'Table' ? 'table'
+          : 'database';
+
+        item.iconPath = new vscode.ThemeIcon(iconName);
+
+        if (ev.filePath) {
+          item.command = {
+            command: 'codeExplorer.openSource',
+            title: `Go to ${ev.title}`,
+            arguments: [ev.filePath, ev.lineStart || 1],
+          };
+        }
+
+        return item;
+      });
+    } catch (err: any) {
+      return [new CodeExplorerTreeItem('empty-notice', `Failed to load evidence: ${err?.message || err}`, vscode.TreeItemCollapsibleState.None)];
+    }
   }
 
   private async getManagementItems(): Promise<CodeExplorerTreeItem[]> {

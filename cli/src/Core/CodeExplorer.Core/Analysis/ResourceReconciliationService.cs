@@ -287,6 +287,16 @@ public class ResourceReconciliationService
                 return found;
             }
 
+            foreach (var variant in GetPluralSingularVariants(norm))
+            {
+                if (_aliasToResourceId.TryGetValue(variant, out var vId) && _resourcesById.TryGetValue(vId, out var vFound))
+                {
+                    if ((expectedEngine == null || string.Equals(NormalizeEngineName(vFound.Engine), NormalizeEngineName(expectedEngine), StringComparison.OrdinalIgnoreCase)) &&
+                        (expectedDbType == null || string.Equals(vFound.DbType, expectedDbType, StringComparison.OrdinalIgnoreCase)))
+                        return vFound;
+                }
+            }
+
             // If alias contains technology prefix (e.g. PostgreSQL.ordering or postgresql.orderingdb)
             if (norm.Contains('.'))
             {
@@ -300,21 +310,48 @@ public class ResourceReconciliationService
                     if (string.Equals(NormalizeEngineName(schFound.Engine), engPrefix, StringComparison.OrdinalIgnoreCase))
                         return schFound;
                 }
-                if (!string.Equals(strippedSch, schSuffix, StringComparison.OrdinalIgnoreCase) &&
-                    _aliasToResourceId.TryGetValue(strippedSch, out var strId) && _resourcesById.TryGetValue(strId, out var strFound))
+                foreach (var variant in GetPluralSingularVariants(schSuffix))
                 {
-                    if (string.Equals(NormalizeEngineName(strFound.Engine), engPrefix, StringComparison.OrdinalIgnoreCase))
-                        return strFound;
+                    if (_aliasToResourceId.TryGetValue(variant, out var vSchId) && _resourcesById.TryGetValue(vSchId, out var vSchFound))
+                    {
+                        if (string.Equals(NormalizeEngineName(vSchFound.Engine), engPrefix, StringComparison.OrdinalIgnoreCase))
+                            return vSchFound;
+                    }
+                }
+                if (!string.Equals(strippedSch, schSuffix, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (_aliasToResourceId.TryGetValue(strippedSch, out var strId) && _resourcesById.TryGetValue(strId, out var strFound))
+                    {
+                        if (string.Equals(NormalizeEngineName(strFound.Engine), engPrefix, StringComparison.OrdinalIgnoreCase))
+                            return strFound;
+                    }
+                    foreach (var variant in GetPluralSingularVariants(strippedSch))
+                    {
+                        if (_aliasToResourceId.TryGetValue(variant, out var vStrId) && _resourcesById.TryGetValue(vStrId, out var vStrFound))
+                        {
+                            if (string.Equals(NormalizeEngineName(vStrFound.Engine), engPrefix, StringComparison.OrdinalIgnoreCase))
+                                return vStrFound;
+                        }
+                    }
                 }
             }
 
             var strippedNorm = StripDatabaseSuffix(norm);
             if (!string.Equals(strippedNorm, norm, StringComparison.OrdinalIgnoreCase))
             {
-                if (_aliasToResourceId.TryGetValue(strippedNorm, out var strId) && _resourcesById.TryGetValue(strId, out var strFound))
+                if (_aliasToResourceId.TryGetValue(strippedNorm, out var nStrId) && _resourcesById.TryGetValue(nStrId, out var nStrFound))
                 {
-                    if (expectedDbType == null || string.Equals(strFound.DbType, expectedDbType, StringComparison.OrdinalIgnoreCase))
-                        return strFound;
+                    if (expectedDbType == null || string.Equals(nStrFound.DbType, expectedDbType, StringComparison.OrdinalIgnoreCase))
+                        return nStrFound;
+                }
+                foreach (var variant in GetPluralSingularVariants(strippedNorm))
+                {
+                    if (_aliasToResourceId.TryGetValue(variant, out var vnStrId) && _resourcesById.TryGetValue(vnStrId, out var vnStrFound))
+                    {
+                        if ((expectedEngine == null || string.Equals(NormalizeEngineName(vnStrFound.Engine), NormalizeEngineName(expectedEngine), StringComparison.OrdinalIgnoreCase)) &&
+                            (expectedDbType == null || string.Equals(vnStrFound.DbType, expectedDbType, StringComparison.OrdinalIgnoreCase)))
+                            return vnStrFound;
+                    }
                 }
             }
 
@@ -343,6 +380,21 @@ public class ResourceReconciliationService
                     if (expectedDbType != null && !string.Equals(res.DbType, expectedDbType, StringComparison.OrdinalIgnoreCase))
                         continue;
                     return res;
+                }
+
+                foreach (var variant in GetPluralSingularVariants(norm))
+                {
+                    var schPart = res.Name.Contains('.') ? res.Name.Split('.', 2)[1] : res.Name;
+                    if (res.Aliases.Contains(variant) ||
+                        string.Equals(res.Name, variant, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(schPart, variant, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (expectedDbType != null && !string.Equals(res.DbType, expectedDbType, StringComparison.OrdinalIgnoreCase))
+                            continue;
+                        if (expectedEngine != null && !string.Equals(NormalizeEngineName(res.Engine), NormalizeEngineName(expectedEngine), StringComparison.OrdinalIgnoreCase))
+                            continue;
+                        return res;
+                    }
                 }
             }
         }
@@ -378,6 +430,21 @@ public class ResourceReconciliationService
         }
 
         return null;
+    }
+
+    private static IEnumerable<string> GetPluralSingularVariants(string s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) yield break;
+        yield return s + "s";
+        yield return s + "es";
+        if (s.EndsWith("es", StringComparison.OrdinalIgnoreCase) && s.Length > 4)
+        {
+            yield return s[..^2];
+        }
+        if (s.EndsWith("s", StringComparison.OrdinalIgnoreCase) && s.Length > 3)
+        {
+            yield return s[..^1];
+        }
     }
 
     /// <summary>

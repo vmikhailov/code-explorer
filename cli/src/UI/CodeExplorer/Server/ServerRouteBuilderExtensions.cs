@@ -295,6 +295,25 @@ public static class ServerRouteBuilderExtensions
             }
         });
 
+        endpoints.MapGet("/api/database/evidence", async (IArchitectureQueryService archQueryService, string? id, string? service, CancellationToken ct) =>
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    return Results.BadRequest(new { error = "Query parameter 'id' is required." });
+                }
+                logger.LogInformation("[REST] GET /api/database/evidence (id: {Id}, service: {Service})", id, service);
+                var evidence = await archQueryService.GetDatabaseEvidenceAsync(id, service, ct);
+                return Results.Ok(evidence);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/database/evidence");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
         endpoints.MapGet("/api/diagram", async (IGraphClient graphClient, string? type, string? format, string? project, bool? includeLibraries, CancellationToken ct) =>
         {
             try
