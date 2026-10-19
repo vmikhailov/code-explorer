@@ -19,7 +19,7 @@ public partial class PostIndexAnalyzer
         return CanonicalizeDatabasesAsync(db, widPrefix, ct);
     }
 
-    private static readonly HashSet<string> KnownDbEnginesAndNames = new(StringComparer.OrdinalIgnoreCase)
+    public static readonly HashSet<string> KnownDbEnginesAndNames = new(StringComparer.OrdinalIgnoreCase)
     {
         "postgresql", "postgres", "mysql", "mariadb", "sqlite", "sqlite3",
         "clickhouse", "bigquery", "redis", "mongodb", "mongo",
@@ -33,14 +33,12 @@ public partial class PostIndexAnalyzer
     public static readonly HashSet<string> AbstractEngineNames = new(StringComparer.OrdinalIgnoreCase)
     {
         "postgresql", "postgres", "sql server", "sqlserver", "mssql", "mysql", "mariadb", "sqlite",
-        "mongodb", "mongo", "oracle", "database", "db", "default", "relational",
+        "mongodb", "mongo", "oracle", "database", "db", "default", "relational", "redis", "cache",
         "ef-core", "dapper", "typeorm", "prisma", "hibernate", "nhibernate", "sequelize", "drizzle"
     };
 
     public static bool IsAbstractEngineOnlyDatabase(string? name, string? schema, string? dbType, string? id)
     {
-        if (string.Equals(dbType, "cache", StringComparison.OrdinalIgnoreCase)) return false;
-
         if (!string.IsNullOrEmpty(name))
         {
             var trimmedName = name.Trim();
@@ -65,6 +63,8 @@ public partial class PostIndexAnalyzer
                 id.EndsWith(":relational:sqlite", StringComparison.OrdinalIgnoreCase) ||
                 id.EndsWith(":relational:database", StringComparison.OrdinalIgnoreCase) ||
                 id.EndsWith(":document:mongodb", StringComparison.OrdinalIgnoreCase) ||
+                id.EndsWith(":cache:redis", StringComparison.OrdinalIgnoreCase) ||
+                id.EndsWith(":keyvalue:redis", StringComparison.OrdinalIgnoreCase) ||
                 id.EndsWith(":default:default", StringComparison.OrdinalIgnoreCase))
             {
                 return true;
@@ -1315,7 +1315,7 @@ public partial class PostIndexAnalyzer
                 var loserEng = loserNode?.Extensions?.GetValueOrDefault("engine") ?? (loserNode?.Name.Contains('.') == true ? loserNode.Name.Split('.', 2)[0] : loserNode?.Name ?? "");
                 var isLoserGeneric = IsGenericOrLibraryDbId(loser) || IsAbstractEngineOnlyDatabase(loserNode?.Name, loserNode?.Extensions?.GetValueOrDefault("schema"), loserNode?.DbType, loser);
 
-                if (isLoserGeneric || concreteEnginesCount.GetValueOrDefault(loserEng) > 1)
+                if (isLoserGeneric)
                 {
                     // Multi-database engine or abstract engine node: do NOT remap generic node globally! Scope to domain.
                     if (!domainScopedRemap.TryGetValue(domainKey, out var dMap))
@@ -1353,17 +1353,20 @@ public partial class PostIndexAnalyzer
                         var cfgStem = ResourceReconciliationService.StripDatabaseSuffix(cfg.schema);
                         if ((string.Equals(astStem, cfgStem, StringComparison.OrdinalIgnoreCase) ||
                              string.Equals(cfgStem, astStem + "s", StringComparison.OrdinalIgnoreCase) ||
-                             string.Equals(cfgStem, astStem + "es", StringComparison.OrdinalIgnoreCase)) &&
+                             string.Equals(cfgStem, astStem + "es", StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(astStem, cfgStem + "s", StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(astStem, cfgStem + "es", StringComparison.OrdinalIgnoreCase)) &&
                             !string.Equals(ast.schema, cfg.schema, StringComparison.OrdinalIgnoreCase))
                         {
                             if (!cfg.schema.Equals(cfgStem, StringComparison.OrdinalIgnoreCase) && ast.schema.Equals(astStem, StringComparison.OrdinalIgnoreCase))
                             {
                                 globalConsolidationRemap[cfg.Id] = ast.Id;
-                                continue;
+                            }
+                            else
+                            {
+                                globalConsolidationRemap[ast.Id] = cfg.Id;
                             }
                         }
-
-                        globalConsolidationRemap[ast.Id] = cfg.Id;
                     }
                 }
             }
@@ -1446,6 +1449,27 @@ public partial class PostIndexAnalyzer
             .ToList();
 
         foreach (var purgeNode in abstractDbsToPurge)
+        {
+            canonicalDbNodes.Remove(purgeNode.Id);
+            rawToCanonical.Remove(purgeNode.Id);
+        }
+
+        // Remove any test database nodes (name/schema ends with -test, _test, or test config with 0 non-test callers)
+        var testDbsToPurge = canonicalDbNodes.Values
+            .Where(n => {
+                var s = n.Extensions?.GetValueOrDefault("schema") ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[1] : "");
+                var isTestName = s.EndsWith("-test", StringComparison.OrdinalIgnoreCase) ||
+                                 s.EndsWith("_test", StringComparison.OrdinalIgnoreCase) ||
+                                 n.Name.EndsWith("-test", StringComparison.OrdinalIgnoreCase) ||
+                                 n.Name.EndsWith("_test", StringComparison.OrdinalIgnoreCase);
+                var isExplicitTest = (n.Extensions != null && n.Extensions.TryGetValue("is_test", out var it) && (it == "true" || it == "1")) ||
+                                     (n.Extensions != null && n.Extensions.TryGetValue("role", out var r) && r.Equals("Test", StringComparison.OrdinalIgnoreCase)) ||
+                                     WorkspaceConventions.IsTestFilePath(n.Path);
+                return (isTestName || isExplicitTest) && !nonTestAccessedTargets.Contains(n.Id);
+            })
+            .ToList();
+
+        foreach (var purgeNode in testDbsToPurge)
         {
             canonicalDbNodes.Remove(purgeNode.Id);
             rawToCanonical.Remove(purgeNode.Id);
@@ -2008,7 +2032,7 @@ public partial class PostIndexAnalyzer
                 var loserSch = loserNode.Name?.Contains('.') == true ? loserNode.Name.Split('.', 2)[1] : "";
                 var isLoserGeneric = IsGenericOrLibraryDbId(loser) || IsAbstractEngineOnlyDatabase(loserNode.Name, loserSch, loserNode.DbType, loser);
 
-                if (isLoserGeneric || concreteEnginesCount.GetValueOrDefault(loserEng) > 1)
+                if (isLoserGeneric)
                 {
                     if (!domainScopedRemap.TryGetValue(domainKey, out var dMap))
                     {
@@ -2058,6 +2082,11 @@ public partial class PostIndexAnalyzer
                                      string.Equals(s1Stem, s2Stem + "es", StringComparison.OrdinalIgnoreCase))
                             {
                                 globalConsolidationRemap[n2.CanonicalTarget] = n1.CanonicalTarget;
+                            }
+                            else if (string.Equals(s2Stem, s1Stem + "s", StringComparison.OrdinalIgnoreCase) ||
+                                     string.Equals(s2Stem, s1Stem + "es", StringComparison.OrdinalIgnoreCase))
+                            {
+                                globalConsolidationRemap[n1.CanonicalTarget] = n2.CanonicalTarget;
                             }
                         }
                     }
@@ -2137,6 +2166,26 @@ public partial class PostIndexAnalyzer
             .ToList();
 
         foreach (var purgeId in abstractDbsToPurge)
+        {
+            canonicalNodes.Remove(purgeId);
+            rawToCanonical.Remove(purgeId);
+        }
+
+        // Remove any test database nodes
+        var testDbsToPurge = canonicalNodes
+            .Where(kvp => {
+                var (id, info) = kvp;
+                var sch = info.Name.Contains('.') ? info.Name.Split('.', 2)[1] : "";
+                var isTestName = sch.EndsWith("-test", StringComparison.OrdinalIgnoreCase) ||
+                                 sch.EndsWith("_test", StringComparison.OrdinalIgnoreCase) ||
+                                 info.Name.EndsWith("-test", StringComparison.OrdinalIgnoreCase) ||
+                                 info.Name.EndsWith("_test", StringComparison.OrdinalIgnoreCase);
+                return isTestName && !nonTestAccessedTargets.Contains(id);
+            })
+            .Select(kvp => kvp.Key)
+            .ToList();
+
+        foreach (var purgeId in testDbsToPurge)
         {
             canonicalNodes.Remove(purgeId);
             rawToCanonical.Remove(purgeId);

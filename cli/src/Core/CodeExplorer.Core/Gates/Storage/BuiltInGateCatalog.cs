@@ -801,17 +801,18 @@ public static class BuiltInGateCatalog
         Remediation = "Ensure projects declare an explicit database schema in connection strings or code, or avoid creating database nodes for bare driver/ORM library references.",
         Query = """
             MATCH (d:Database)
-            WHERE coalesce(d.db_type, '') <> 'cache'
-              AND (
-                d.name IN ['PostgreSQL', 'Postgres', 'SQL Server', 'SQLServer', 'SqlServer', 'MSSQL', 'MySQL', 'MariaDB', 'SQLite', 'MongoDB', 'Mongo', 'Oracle', 'Database', 'db', 'default', 'relational', 'EF-Core', 'Dapper', 'TypeORM', 'Prisma', 'Hibernate', 'NHibernate', 'Sequelize', 'Drizzle']
+            WHERE (
+                toLower(d.name) IN ['postgresql', 'postgres', 'sql server', 'sqlserver', 'mssql', 'mysql', 'mariadb', 'sqlite', 'mongodb', 'mongo', 'oracle', 'database', 'db', 'default', 'relational', 'redis', 'cache', 'ef-core', 'dapper', 'typeorm', 'prisma', 'hibernate', 'nhibernate', 'sequelize', 'drizzle']
                 OR coalesce(d.schema, '') = 'default'
-                OR d.schema IN ['PostgreSQL', 'Postgres', 'SQL Server', 'SQLServer', 'SqlServer', 'MSSQL', 'MySQL', 'MariaDB', 'SQLite', 'MongoDB', 'Mongo', 'Oracle', 'Database', 'db', 'default', 'relational', 'EF-Core', 'Dapper', 'TypeORM', 'Prisma', 'Hibernate', 'NHibernate', 'Sequelize', 'Drizzle']
+                OR toLower(coalesce(d.schema, '')) IN ['postgresql', 'postgres', 'sql server', 'sqlserver', 'mssql', 'mysql', 'mariadb', 'sqlite', 'mongodb', 'mongo', 'oracle', 'database', 'db', 'default', 'relational', 'redis', 'cache', 'ef-core', 'dapper', 'typeorm', 'prisma', 'hibernate', 'nhibernate', 'sequelize', 'drizzle']
                 OR d.id ENDS WITH ':relational:postgresql'
                 OR d.id ENDS WITH ':relational:sqlserver'
                 OR d.id ENDS WITH ':relational:mysql'
                 OR d.id ENDS WITH ':relational:sqlite'
                 OR d.id ENDS WITH ':relational:database'
                 OR d.id ENDS WITH ':document:mongodb'
+                OR d.id ENDS WITH ':cache:redis'
+                OR d.id ENDS WITH ':keyvalue:redis'
                 OR d.id ENDS WITH ':default:default'
               )
             RETURN 

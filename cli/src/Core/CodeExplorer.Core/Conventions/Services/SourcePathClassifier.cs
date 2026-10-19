@@ -12,12 +12,17 @@ public static class SourcePathClassifier
     {
         if (string.IsNullOrWhiteSpace(path)) return false;
         var normalized = path.Replace('\\', '/').ToLowerInvariant();
-        return normalized.Contains("/test/") ||
+        return normalized.StartsWith("test/") ||
+               normalized.StartsWith("tests/") ||
+               normalized.Contains("/test/") ||
                normalized.Contains("/tests/") ||
                normalized.Contains("/__tests__/") ||
                normalized.Contains("/testing/") ||
                normalized.Contains("/specs/") ||
                normalized.Contains("/spec/") ||
+               normalized.Contains(".tests/") ||
+               normalized.Contains(".test/") ||
+               normalized.Contains(".integrationtests/") ||
                normalized.EndsWith(".spec.ts") ||
                normalized.EndsWith(".spec.js") ||
                normalized.EndsWith(".spec.jsx") ||

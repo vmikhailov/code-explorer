@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
@@ -226,7 +227,11 @@ public static class ConfigurationParser
              leaf.Equals("connectionstrings", StringComparison.OrdinalIgnoreCase) ||
              leaf.Equals("spring-datasource", StringComparison.OrdinalIgnoreCase) ||
              leaf.Equals("spring.datasource.url", StringComparison.OrdinalIgnoreCase) ||
-             leaf.Equals("db", StringComparison.OrdinalIgnoreCase));
+             leaf.Equals("db", StringComparison.OrdinalIgnoreCase) ||
+             leaf.Equals(engine, StringComparison.OrdinalIgnoreCase) ||
+             PostIndexAnalyzer.AbstractEngineNames.Contains(leaf) ||
+             PostIndexAnalyzer.KnownDbEnginesAndNames.Contains(leaf) ||
+             ResourceReconciliationService.IsGenericConfigKey(leaf));
 
         string? dbName = null;
         if (!string.IsNullOrWhiteSpace(catalog))
@@ -235,12 +240,17 @@ public static class ConfigurationParser
         }
         else if (!isGenericConfigKey && !string.IsNullOrWhiteSpace(leaf))
         {
-            var cleanCustom = leaf;
+            var cleanCustom = leaf!;
             if (cleanCustom.EndsWith("Options", StringComparison.OrdinalIgnoreCase) && cleanCustom.Length > "Options".Length)
             {
                 cleanCustom = cleanCustom[..^"Options".Length];
             }
-            dbName = cleanCustom;
+            if (!cleanCustom.Equals(engine, StringComparison.OrdinalIgnoreCase) &&
+                !PostIndexAnalyzer.AbstractEngineNames.Contains(cleanCustom) &&
+                !ResourceReconciliationService.IsGenericConfigKey(cleanCustom))
+            {
+                dbName = cleanCustom;
+            }
         }
 
         var isCache = string.Equals(dbType, "cache", StringComparison.OrdinalIgnoreCase) ||
@@ -251,11 +261,19 @@ public static class ConfigurationParser
             if (isCache)
             {
                 var domain = containerNode is ProjectNode proj ? SyntaxEnricher.CleanProjectNameToDomain(proj.Name) : "";
-                dbName = !string.IsNullOrEmpty(domain) ? $"{domain}.cache" : "cache";
+                if (!string.IsNullOrEmpty(domain))
+                {
+                    dbName = $"Redis.{domain}";
+                    catalog ??= domain;
+                }
+                else
+                {
+                    dbName = "Redis.cache";
+                }
             }
             else
             {
-                if (containerNode is ProjectNode projNode && !projNode.IsLibrary)
+                if (containerNode is ProjectNode projNode && !projNode.IsLibrary && !projNode.IsTest && projNode.EntityKind != ProjectEntityKind.Test)
                 {
                     var domain = SyntaxEnricher.CleanProjectNameToDomain(projNode.Name);
                     if (!string.IsNullOrWhiteSpace(domain))
@@ -321,6 +339,9 @@ public static class ConfigurationParser
             projId = id;
         }
 
+        var isTestContainer = (containerNode is ProjectNode pNode && (pNode.IsTest || pNode.EntityKind == ProjectEntityKind.Test || pNode.Role == "Test")) ||
+                              WorkspaceConventions.IsTestFilePath(relativePath);
+
         var regProps = new Dictionary<string, string>
         {
             ["from_config"] = "true",
@@ -329,6 +350,11 @@ public static class ConfigurationParser
         if (!string.IsNullOrWhiteSpace(catalog))
         {
             regProps["schema"] = catalog;
+        }
+        if (isTestContainer)
+        {
+            regProps["is_test"] = "true";
+            regProps["role"] = "Test";
         }
 
         ctx.ResourceRegistry.RegisterResource(
@@ -354,6 +380,11 @@ public static class ConfigurationParser
             if (!string.IsNullOrWhiteSpace(catalog))
             {
                 ext["schema"] = catalog;
+            }
+            if (isTestContainer)
+            {
+                ext["is_test"] = "true";
+                ext["role"] = "Test";
             }
             var dbNode = new DatabaseNode(dbId, dbName, relativePath, dbType, ext);
             containerNode.Children.Add(dbNode);
