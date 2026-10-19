@@ -1337,7 +1337,6 @@ export const App: React.FC = () => {
             }}
             onRefresh={() => {
               if ((viewMode as string) === 'semantic') {
-                setDomainGraph(null);
                 requestDomain();
               } else if (viewMode === 'contexts') {
                 setContextsGraph(null);
@@ -1518,7 +1517,7 @@ export const App: React.FC = () => {
 
             {viewMode === 'semantic' && (
               <DomainArchitectureView
-                graph={domainGraph || fullGraph}
+                graph={domainGraph}
                 serverHttpUrl={serverHttpUrl}
                 onOpenFile={handleOpenFile}
                 onFocusInFlow={handleDrillDownToFlow}
@@ -1526,7 +1525,6 @@ export const App: React.FC = () => {
                 onSetDomainOverride={handleSetDomainOverride}
                 availableDomains={availableDomains}
                 onRefresh={() => {
-                  setDomainGraph(null);
                   requestDomain();
                 }}
                 gateEditorRequest={gateEditorRequest}

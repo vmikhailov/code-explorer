@@ -223,9 +223,9 @@ public class ProjectEntityClassifierTests
 
         node.Role.Should().Be("Service");
         node.IsLibrary.Should().BeFalse();
-        node.PrimaryRole.Should().Be("WebService");
-        node.SecondaryRoles.Should().Contain("Scheduler");
-        node.AllRoles.Should().Contain("WebService").And.Contain("Scheduler");
+        node.PrimaryRole.Should().Be("Service");
+        node.SecondaryRoles.Should().Contain("Worker");
+        node.AllRoles.Should().Contain("Service").And.Contain("Worker");
     }
 
     [Test]

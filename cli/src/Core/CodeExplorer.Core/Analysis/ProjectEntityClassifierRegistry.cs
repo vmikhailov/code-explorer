@@ -106,6 +106,53 @@ public static class ProjectEntityClassifierRegistry
             return ProjectClassification.Library;
         }
 
+        // Manifest-driven primary_role priority from dialect parser (CSharpParser, etc.)
+        if (extensions != null)
+        {
+            var pRole = extensions.GetValueOrDefault("primary_role");
+            var r = extensions.GetValueOrDefault("role");
+            if (pRole == "App" || r == "FrontendApp" || r == "App")
+            {
+                if (extensions is Dictionary<string, string> d)
+                {
+                    d["primary_role"] = "App";
+                    d.TryAdd("secondary_roles", "[]");
+                    d.TryAdd("all_roles", System.Text.Json.JsonSerializer.Serialize(new[] { "App" }));
+                }
+                return ProjectClassification.WebApp;
+            }
+            if (pRole == "Worker" || r == "Worker")
+            {
+                if (extensions is Dictionary<string, string> d)
+                {
+                    d["primary_role"] = "Worker";
+                    d.TryAdd("secondary_roles", "[]");
+                    d.TryAdd("all_roles", System.Text.Json.JsonSerializer.Serialize(new[] { "Worker" }));
+                }
+                return ProjectClassification.Worker;
+            }
+            if (pRole == "CliTool" || r == "CliTool")
+            {
+                if (extensions is Dictionary<string, string> d)
+                {
+                    d["primary_role"] = "CliTool";
+                    d.TryAdd("secondary_roles", "[]");
+                    d.TryAdd("all_roles", System.Text.Json.JsonSerializer.Serialize(new[] { "CliTool" }));
+                }
+                return ProjectClassification.CliTool;
+            }
+            if (pRole == "Service" || r == "Service")
+            {
+                if (extensions is Dictionary<string, string> d)
+                {
+                    d["primary_role"] = "Service";
+                    d.TryAdd("secondary_roles", "[]");
+                    d.TryAdd("all_roles", System.Text.Json.JsonSerializer.Serialize(new[] { "Service" }));
+                }
+                return ProjectClassification.Service;
+            }
+        }
+
         // 1. Component Library Parsers (Angular, NestJS, React/Next, ASP.NET Core, etc.)
         var componentProfile = Parser.Components.ComponentLibraryParserRegistry.AnalyzeProject(projectContext);
         if (extensions is Dictionary<string, string> dict)
@@ -114,12 +161,18 @@ public static class ProjectEntityClassifierRegistry
             dict["component_role"] = componentProfile.PrimaryRole.ToString();
             dict["component_is_library"] = componentProfile.IsLibrary ? "true" : "false";
 
-            if (componentProfile.PrimaryRole != Parser.LibraryRole.General)
+            if (componentProfile.PrimaryRole != Parser.LibraryRole.General && !dict.ContainsKey("primary_role"))
             {
                 dict["primary_role"] = componentProfile.PrimaryRole.ToString();
             }
-            dict["secondary_roles"] = System.Text.Json.JsonSerializer.Serialize(componentProfile.SecondaryRoles.Select(r => r.ToString()));
-            dict["all_roles"] = System.Text.Json.JsonSerializer.Serialize(componentProfile.AllRoles.Select(r => r.ToString()));
+            if (!dict.ContainsKey("secondary_roles"))
+            {
+                dict["secondary_roles"] = System.Text.Json.JsonSerializer.Serialize(componentProfile.SecondaryRoles.Select(r => r.ToString()));
+            }
+            if (!dict.ContainsKey("all_roles"))
+            {
+                dict["all_roles"] = System.Text.Json.JsonSerializer.Serialize(componentProfile.AllRoles.Select(r => r.ToString()));
+            }
 
             if (componentProfile.Capabilities.HasFlag(Parser.Components.ComponentCapabilities.UiLibrary)) dict["is_ui_library"] = "true";
             if (componentProfile.Capabilities.HasFlag(Parser.Components.ComponentCapabilities.FrontendApp)) dict["is_frontend_app"] = "true";

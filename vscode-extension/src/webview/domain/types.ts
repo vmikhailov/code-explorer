@@ -31,6 +31,9 @@ export interface DomainProjectInfo {
   id: string;
   name: string;
   kind?: string;
+  role?: string;
+  primaryRole?: string;
+  secondaryRoles?: string[];
   filePath?: string;
   lineStart?: number;
   isLibrary?: boolean;
@@ -42,6 +45,9 @@ export interface SelectedNodeDetail {
   name: string;
   displayName: string;
   kind: EntityKind;
+  primaryRole?: string;
+  secondaryRoles?: string[];
+  properties?: Record<string, string>;
   domain?: string;
   displayTag: string;
   bgColor: string;

@@ -66,6 +66,8 @@ export interface ServiceSummaryDto {
   serviceName: string;
   serviceId: string;
   kind: string;
+  primaryRole?: string;
+  secondaryRoles?: string[];
   framework?: string;
   language?: string;
   endpointCount: number;
@@ -714,9 +716,12 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
     if (context.projects && context.projects.length > 0) {
       for (const projName of context.projects) {
         const s = serviceMap.get(projName.toLowerCase());
+        const secondarySuffix = s?.secondaryRoles && s.secondaryRoles.length > 0
+          ? ` [+${s.secondaryRoles.map(r => r.slice(0, 3).toUpperCase()).join(', +')}]`
+          : '';
         const item = new CodeExplorerTreeItem(
           'ontology-service',
-          projName,
+          `${projName}${secondarySuffix}`,
           vscode.TreeItemCollapsibleState.Collapsed,
           { serviceName: projName, serviceId: s?.serviceId || projName }
         );
@@ -932,9 +937,12 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
     const targetKind = kindFilter || 'Service';
     const serviceList = services.filter((s) => s.kind === targetKind || (!s.kind && targetKind === 'Service'));
     return serviceList.map((s) => {
+      const secondarySuffix = s.secondaryRoles && s.secondaryRoles.length > 0
+        ? ` [+${s.secondaryRoles.map(r => r.slice(0, 3).toUpperCase()).join(', +')}]`
+        : '';
       const item = new CodeExplorerTreeItem(
         'ontology-service',
-        s.serviceName,
+        `${s.serviceName}${secondarySuffix}`,
         vscode.TreeItemCollapsibleState.Collapsed,
         { serviceName: s.serviceName, serviceId: s.serviceId, layerTitle }
       );
@@ -956,7 +964,8 @@ export class CodeExplorerTreeDataProvider implements vscode.TreeDataProvider<Cod
         counts.push(`Downstream Services: ${s.serviceCount}`);
       }
       counts.push(`External APIs: ${s.externalCount}`);
-      item.tooltip = `${s.serviceName} (${s.kind}${s.framework ? ` • ${s.framework}` : ''}${s.language ? ` • ${s.language}` : ''})\n` +
+      const secText = s.secondaryRoles && s.secondaryRoles.length > 0 ? ` [Secondary: ${s.secondaryRoles.join(', ')}]` : '';
+      item.tooltip = `${s.serviceName} (${s.kind}${secText}${s.framework ? ` • ${s.framework}` : ''}${s.language ? ` • ${s.language}` : ''})\n` +
         counts.join(' | ');
       return item;
     });

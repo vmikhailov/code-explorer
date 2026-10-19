@@ -561,6 +561,14 @@ public class DomainProjectInfoDto
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Role { get; set; }
 
+    [JsonPropertyName("primaryRole")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? PrimaryRole { get; set; }
+
+    [JsonPropertyName("secondaryRoles")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? SecondaryRoles { get; set; }
+
     [JsonPropertyName("isLibrary")]
     public bool IsLibrary { get; set; }
 }
@@ -578,6 +586,14 @@ public class DomainEntityDto
 
     [JsonPropertyName("kind")]
     public NodeKind Kind { get; set; } = NodeKind.Service;
+
+    [JsonPropertyName("primaryRole")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? PrimaryRole { get; set; }
+
+    [JsonPropertyName("secondaryRoles")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? SecondaryRoles { get; set; }
 
     [JsonPropertyName("displayTag")]
     public string DisplayTag { get; set; } = ":Service";
@@ -605,6 +621,10 @@ public class DomainEntityDto
     [JsonPropertyName("primaryFilePath")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? PrimaryFilePath { get; set; }
+
+    [JsonPropertyName("properties")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, string>? Properties { get; set; }
 
     [JsonPropertyName("projects")]
     public List<DomainProjectInfoDto> Projects { get; set; } = [];
@@ -962,6 +982,13 @@ public class ServiceSummaryDto
 
     [JsonPropertyName("kind")]
     public NodeKind Kind { get; set; } = NodeKind.Service;
+
+    [JsonPropertyName("primaryRole")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? PrimaryRole { get; set; }
+
+    [JsonPropertyName("secondaryRoles")]
+    public List<string> SecondaryRoles { get; set; } = [];
 
     [JsonPropertyName("framework")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

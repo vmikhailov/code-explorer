@@ -250,4 +250,137 @@ public class SemanticRuntimeParityGateTests
         domainArch.Stats.Services.Should().Be(1);
         domainArch.Stats.Workers.Should().Be(1);
     }
+
+    [Test]
+    public void CSharpParser_ClassifyProject_WebAppHasAppPrimaryRoleAndServiceSecondaryRole()
+    {
+        var parser = new CSharpParser();
+        var projDir = Path.Combine(_tempDir, "WebApp");
+        Directory.CreateDirectory(projDir);
+        var csproj = Path.Combine(projDir, "WebApp.csproj");
+        File.WriteAllText(csproj, """
+            <Project Sdk="Microsoft.NET.Sdk.Web">
+              <PropertyGroup>
+                <TargetFramework>net10.0</TargetFramework>
+                <OutputType>Exe</OutputType>
+              </PropertyGroup>
+            </Project>
+            """);
+        var razorFile = Path.Combine(projDir, "App.razor");
+        File.WriteAllText(razorFile, "<h1>eShop WebApp</h1>");
+
+        var files = Directory.GetFiles(projDir);
+        var props = parser.ExtractManifestProperties(projDir, files);
+        var context = new ProjectContext(projDir, "src/WebApp", "WebApp", "csharp", files, [], props);
+        var classification = parser.ClassifyProject(context);
+
+        classification.Should().NotBeNull();
+        classification!.Kind.Should().Be(ProjectEntityKind.App);
+        props["primary_role"].Should().Be("App");
+        props["secondary_roles"].Should().Contain("Service");
+    }
+
+    [Test]
+    public void CSharpParser_ClassifyProject_OrderingApiHasServicePrimaryRoleAndWorkerSecondaryRole()
+    {
+        var parser = new CSharpParser();
+        var projDir = Path.Combine(_tempDir, "Ordering.API");
+        Directory.CreateDirectory(projDir);
+        var csproj = Path.Combine(projDir, "Ordering.API.csproj");
+        File.WriteAllText(csproj, """
+            <Project Sdk="Microsoft.NET.Sdk.Web">
+              <PropertyGroup>
+                <TargetFramework>net10.0</TargetFramework>
+                <OutputType>Exe</OutputType>
+              </PropertyGroup>
+            </Project>
+            """);
+        var csFile = Path.Combine(projDir, "GracePeriodManagerService.cs");
+        File.WriteAllText(csFile, """
+            using Microsoft.Extensions.Hosting;
+            public class GracePeriodManagerService : BackgroundService
+            {
+                protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.CompletedTask;
+            }
+            """);
+
+        var files = Directory.GetFiles(projDir);
+        var props = parser.ExtractManifestProperties(projDir, files);
+        var context = new ProjectContext(projDir, "src/Ordering.API", "Ordering.API", "csharp", files, [], props);
+        var classification = parser.ClassifyProject(context);
+
+        classification.Should().NotBeNull();
+        classification!.Kind.Should().Be(ProjectEntityKind.Service);
+        props["primary_role"].Should().Be("Service");
+        props["secondary_roles"].Should().Contain("Worker");
+    }
+
+    [Test]
+    public async Task GrpcCSharpLibraryParser_ChatState_RejectsFakeGrpcService()
+    {
+        var projDir = Path.Combine(_tempDir, "FakeGrpcApp");
+        Directory.CreateDirectory(projDir);
+        var csproj = Path.Combine(projDir, "FakeGrpcApp.csproj");
+        await File.WriteAllTextAsync(csproj, "<Project Sdk=\"Microsoft.NET.Sdk\"><ItemGroup><PackageReference Include=\"Grpc.Net.Client\" Version=\"2.60.0\" /></ItemGroup></Project>");
+
+        var code = """
+        using System;
+        using System.Threading.Tasks;
+        using Grpc.Core;
+
+        public interface IChatClient
+        {
+            object? GetService(Type serviceType, object? serviceKey = null);
+        }
+
+        public class ChatState
+        {
+            private readonly IChatClient _chatClient;
+            public ChatState(IChatClient chatClient) => _chatClient = chatClient;
+
+            public object? GetChatService()
+            {
+                try
+                {
+                    return _chatClient.GetService(typeof(string));
+                }
+                catch (RpcException)
+                {
+                    return null;
+                }
+            }
+        }
+        """;
+        await File.WriteAllTextAsync(Path.Combine(projDir, "ChatState.cs"), code);
+
+        var dbPath = Path.Combine(_tempDir, "test_chat.db");
+        await using var client = new SqliteGraphClient(dbPath);
+        WorkspaceIndexer.AutoRegisterParsers();
+        var indexer = new WorkspaceIndexer(client);
+        await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
+
+        var resJson = await client.ExecuteQueryAsync("MATCH (e:ExternalService) RETURN e.id AS id, e.name AS name");
+        using var doc = System.Text.Json.JsonDocument.Parse(resJson);
+        var externalServices = doc.RootElement.EnumerateArray().ToList();
+        externalServices.Any(e => e.GetProperty("name").GetString() == "chat" || e.GetProperty("id").GetString()!.Contains(":grpc:chat")).Should().BeFalse("IChatClient.GetService must not be recognized as a gRPC external service call");
+    }
+
+    [Test]
+    public async Task OntologyQueries_InternalMediatRTopicsAreFilteredFromParity()
+    {
+        using var db = new SqliteGraphClient(":memory:");
+        await db.UploadNodesAsync([
+            new("ws:top:rabbitmq:eventbus", "Topic", new() { ["name"] = "EventBus", ["broker_type"] = "rabbitmq", ["is_internal"] = "false" }),
+            new("ws:top:mediatr:CreateOrderCommand", "Topic", new() { ["name"] = "CreateOrderCommand", ["broker_type"] = "mediatr", ["is_internal"] = "true" }),
+            new("ws:top:mediatr:OrderStartedDomainEvent", "Topic", new() { ["name"] = "OrderStartedDomainEvent", ["broker_type"] = "mediatr", ["is_internal"] = "true" })
+        ]);
+
+        var engine = new ArchitectureViewEngine(db);
+        var meta = await engine.GetMetadataAsync();
+        meta.NodeCounts.GetValueOrDefault("Topic", 0).Should().Be(1, "Only external RabbitMQ topic should be counted in Layer 4 metadata");
+
+        var catNodes = await engine.GetNodesAsync("Topic");
+        catNodes.Total.Should().Be(1, "Only external RabbitMQ topic should be returned in Category Nodes");
+        catNodes.Nodes[0].Name.Should().Be("EventBus");
+    }
 }

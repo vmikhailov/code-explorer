@@ -105,7 +105,7 @@ public partial class ArchitectureViewEngine
                     long totalN = 0;
                     await using (var cmd = conn.CreateCommand())
                     {
-                        cmd.CommandText = "SELECT kind, count(*) FROM nodes GROUP BY kind";
+                        cmd.CommandText = "SELECT kind, count(*) FROM nodes WHERE (kind != 'Topic' OR (coalesce(json_extract(properties, '$.is_internal'), 'false') != 'true' AND coalesce(json_extract(properties, '$.broker_type'), '') NOT IN ('mediatr', 'in-memory'))) GROUP BY kind";
                         await using var reader = await cmd.ExecuteReaderAsync(ct);
                         while (await reader.ReadAsync(ct))
                         {
@@ -250,7 +250,7 @@ public partial class ArchitectureViewEngine
         // 1. Node counts by primary label
         try
         {
-            var nodeQuery = "MATCH (n) RETURN labels(n)[0] AS lbl, count(n) AS cnt";
+            var nodeQuery = "MATCH (n) WHERE (labels(n)[0] <> 'Topic' OR (coalesce(n.is_internal, 'false') <> 'true' AND coalesce(n.broker_type, '') <> 'mediatr' AND coalesce(n.broker_type, '') <> 'in-memory')) RETURN labels(n)[0] AS lbl, count(n) AS cnt";
             var nodeJson = await db.ExecuteQueryAsync(nodeQuery, null, ct);
 
             using var nodeDoc = JsonDocument.Parse(nodeJson);
@@ -583,7 +583,7 @@ public partial class ArchitectureViewEngine
         }
         else if (string.Equals(safeKind, "Layer4", StringComparison.OrdinalIgnoreCase))
         {
-            layerFilter = "WHERE (n:Service OR n:App OR n:Worker OR n:Library OR n:CliTool OR n:TestSuite OR n:Test OR n:EntryPoint OR n:Endpoint OR n:Procedure OR n:Database OR n:Table OR n:DataSet OR n:Topic OR n:ExternalService OR n:CloudService OR n:ApiInUse OR n:Query)";
+            layerFilter = "WHERE (n:Service OR n:App OR n:Worker OR n:Library OR n:CliTool OR n:TestSuite OR n:Test OR n:EntryPoint OR n:Endpoint OR n:Procedure OR n:Database OR n:Table OR n:DataSet OR (n:Topic AND coalesce(n.is_internal, 'false') <> 'true' AND coalesce(n.broker_type, '') <> 'mediatr' AND coalesce(n.broker_type, '') <> 'in-memory') OR n:ExternalService OR n:CloudService OR n:ApiInUse OR n:Query)";
             safeKind = null;
         }
         else if (string.Equals(safeKind, "App", StringComparison.OrdinalIgnoreCase) && serviceId == null)
@@ -611,6 +611,10 @@ public partial class ArchitectureViewEngine
             layerFilter = "WHERE (n:Service)";
             safeKind = null;
         }
+        else if (string.Equals(safeKind, "Topic", StringComparison.OrdinalIgnoreCase) && serviceId == null)
+        {
+            layerFilter = "WHERE (coalesce(n.is_internal, 'false') <> 'true' AND coalesce(n.broker_type, '') <> 'mediatr' AND coalesce(n.broker_type, '') <> 'in-memory')";
+        }
         else if ((string.Equals(safeKind, "TestSuite", StringComparison.OrdinalIgnoreCase) || string.Equals(safeKind, "Test", StringComparison.OrdinalIgnoreCase)) && serviceId == null)
         {
             layerFilter = "WHERE (n:TestSuite OR n:Test)";
@@ -620,7 +624,7 @@ public partial class ArchitectureViewEngine
         if (safeKind == null && layerFilter == null && serviceId == null)
         {
             // Default macro filter for unconstrained / 'all' queries (prevents pulling thousands of raw AST symbols)
-            layerFilter = "WHERE (n:Service OR n:App OR n:Worker OR n:Library OR n:CliTool OR n:TestSuite OR n:Test OR n:EntryPoint OR n:Endpoint OR n:Database OR n:Table OR n:Topic OR n:ExternalService OR n:CloudService)";
+            layerFilter = "WHERE (n:Service OR n:App OR n:Worker OR n:Library OR n:CliTool OR n:TestSuite OR n:Test OR n:EntryPoint OR n:Endpoint OR n:Database OR n:Table OR (n:Topic AND coalesce(n.is_internal, 'false') <> 'true' AND coalesce(n.broker_type, '') <> 'mediatr' AND coalesce(n.broker_type, '') <> 'in-memory') OR n:ExternalService OR n:CloudService)";
         }
 
         var matchClause = safeKind != null ? $"MATCH (n:{safeKind})" : "MATCH (n)";
@@ -642,7 +646,7 @@ public partial class ArchitectureViewEngine
             }
             else if (string.Equals(safeKind, "Topic", StringComparison.OrdinalIgnoreCase))
             {
-                matchClause = $"MATCH (s)-[:PUBLISHES_TO|SUBSCRIBED_BY|SUBSCRIBES_TO|TRIGGERS]-(n:Topic) WHERE (s.id = '{sIdEsc}' OR s.name = '{sNameEsc}')";
+                matchClause = $"MATCH (s)-[:PUBLISHES_TO|SUBSCRIBED_BY|SUBSCRIBES_TO|TRIGGERS]-(n:Topic) WHERE (s.id = '{sIdEsc}' OR s.name = '{sNameEsc}') AND (coalesce(n.is_internal, 'false') <> 'true' AND coalesce(n.broker_type, '') <> 'mediatr' AND coalesce(n.broker_type, '') <> 'in-memory')";
             }
             else if (string.Equals(safeKind, "ExternalService", StringComparison.OrdinalIgnoreCase))
             {
@@ -1054,7 +1058,7 @@ public partial class ArchitectureViewEngine
         var list = new List<ServiceSummaryDto>();
         try
         {
-            var query = "MATCH (s) WHERE (s:Service OR s:App OR s:Worker OR s:CliTool OR s:FrontendApp OR s:TestSuite) RETURN DISTINCT s.id AS id, coalesce(s.name, s.id) AS name, labels(s) AS lbl, s.role AS role, s.framework AS framework, s.language AS language ORDER BY s.name ASC";
+            var query = "MATCH (s) WHERE (s:Service OR s:App OR s:Worker OR s:CliTool OR s:FrontendApp OR s:TestSuite) RETURN DISTINCT s.id AS id, coalesce(s.name, s.id) AS name, labels(s) AS lbl, s.role AS role, s.primary_role AS primary_role, s.secondary_roles AS secondary_roles, s.framework AS framework, s.language AS language ORDER BY s.name ASC";
             var json = await db.ExecuteQueryAsync(query, null, ct);
 
             using var doc = JsonDocument.Parse(json);
@@ -1065,7 +1069,7 @@ public partial class ArchitectureViewEngine
             if (root.GetArrayLength() == 0)
             {
                 var fallbackQuery =
-                    "MATCH (s:Project) WHERE json_extract(s.properties, '$.role') IN ['Service', 'App', 'FrontendApp', 'Worker', 'CliTool', 'Test', 'TestSuite'] RETURN DISTINCT s.id AS id, coalesce(s.name, s.id) AS name, labels(s) AS lbl, s.role AS role, s.framework AS framework, s.language AS language ORDER BY s.name ASC";
+                    "MATCH (s:Project) WHERE json_extract(s.properties, '$.role') IN ['Service', 'App', 'FrontendApp', 'Worker', 'CliTool', 'Test', 'TestSuite'] RETURN DISTINCT s.id AS id, coalesce(s.name, s.id) AS name, labels(s) AS lbl, s.role AS role, s.primary_role AS primary_role, s.secondary_roles AS secondary_roles, s.framework AS framework, s.language AS language ORDER BY s.name ASC";
                 var fbJson = await db.ExecuteQueryAsync(fallbackQuery, null, ct);
                 fallbackDoc = JsonDocument.Parse(fbJson);
                 root = fallbackDoc.RootElement;
@@ -1106,6 +1110,58 @@ public partial class ArchitectureViewEngine
                     }
                 }
 
+                var primaryRole = row.GetStringProp("primary_role");
+                if (string.IsNullOrEmpty(primaryRole) && row.TryGetProperty("role", out var rProp))
+                {
+                    primaryRole = rProp.GetString();
+                }
+
+                var secondaryRolesList = new List<string>();
+                if (row.TryGetProperty("secondary_roles", out var secProp))
+                {
+                    if (secProp.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var el in secProp.EnumerateArray())
+                        {
+                            var val = el.GetString();
+                            if (!string.IsNullOrWhiteSpace(val) && !secondaryRolesList.Contains(val, StringComparer.OrdinalIgnoreCase))
+                                secondaryRolesList.Add(val);
+                        }
+                    }
+                    else if (secProp.ValueKind == JsonValueKind.String)
+                    {
+                        var rawSec = secProp.GetString();
+                        if (!string.IsNullOrWhiteSpace(rawSec))
+                        {
+                            if (rawSec.TrimStart().StartsWith("["))
+                            {
+                                try
+                                {
+                                    using var secDoc = JsonDocument.Parse(rawSec);
+                                    if (secDoc.RootElement.ValueKind == JsonValueKind.Array)
+                                    {
+                                        foreach (var el in secDoc.RootElement.EnumerateArray())
+                                        {
+                                            var val = el.GetString();
+                                            if (!string.IsNullOrWhiteSpace(val) && !secondaryRolesList.Contains(val, StringComparer.OrdinalIgnoreCase))
+                                                secondaryRolesList.Add(val);
+                                        }
+                                    }
+                                }
+                                catch { }
+                            }
+                            else
+                            {
+                                foreach (var part in rawSec.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                                {
+                                    if (!string.IsNullOrWhiteSpace(part) && !secondaryRolesList.Contains(part, StringComparer.OrdinalIgnoreCase))
+                                        secondaryRolesList.Add(part);
+                                }
+                            }
+                        }
+                    }
+                }
+
                 if (!serviceMap.TryGetValue(name, out var existing))
                 {
                     var dto = new ServiceSummaryDto
@@ -1113,15 +1169,24 @@ public partial class ArchitectureViewEngine
                         ServiceId = id,
                         ServiceName = name,
                         Kind = nodeKind,
+                        PrimaryRole = primaryRole,
+                        SecondaryRoles = secondaryRolesList,
                         Framework = row.GetStringProp("framework"),
                         Language = row.GetStringProp("language")
                     };
                     serviceMap[name] = dto;
                 }
-                else if (existing.Kind == NodeKind.Project && nodeKind != NodeKind.Project)
+                else
                 {
-                    existing.ServiceId = id;
-                    existing.Kind = nodeKind;
+                    if (existing.Kind == NodeKind.Project && nodeKind != NodeKind.Project)
+                    {
+                        existing.ServiceId = id;
+                        existing.Kind = nodeKind;
+                    }
+                    if (!string.IsNullOrEmpty(primaryRole) && string.IsNullOrEmpty(existing.PrimaryRole))
+                        existing.PrimaryRole = primaryRole;
+                    if (secondaryRolesList.Count > 0 && existing.SecondaryRoles.Count == 0)
+                        existing.SecondaryRoles = secondaryRolesList;
 
                     if (!string.IsNullOrEmpty(row.GetStringProp("framework")))
                         existing.Framework = row.GetStringProp("framework");
@@ -1406,7 +1471,12 @@ public partial class ArchitectureViewEngine
                 }
                 else if (edge.Category == "messaging" || edge.Kind is "PUBLISHES_TO" or "TRIGGERS" or "SUBSCRIBES_TO" || tgtNode?.Kind == NodeKind.Topic)
                 {
-                    if (seenTopics.Add(tgtName))
+                    var isInternal = edge.Properties?.GetValueOrDefault("is_internal") == "true" ||
+                                     tgtNode?.Properties?.GetValueOrDefault("is_internal") == "true" ||
+                                     string.Equals(tgtNode?.Properties?.GetValueOrDefault("broker_type"), "mediatr", StringComparison.OrdinalIgnoreCase) ||
+                                     edge.Target.Contains(":mediatr:");
+
+                    if (!isInternal && seenTopics.Add(tgtName))
                     {
                         var isSubscriber = edge.Kind is "SUBSCRIBES_TO" or "SUBSCRIBES" or "SUBSCRIBED_BY" or "CONSUMES";
                         topicGroup.Items.Add(new ServiceCapabilityItemDto
@@ -1522,7 +1592,12 @@ public partial class ArchitectureViewEngine
                 {
                     var srcNode = archGraph.Nodes.FirstOrDefault(n => n.Id.Equals(edge.Source, StringComparison.OrdinalIgnoreCase));
                     var topicName = srcNode?.Name ?? edge.Source;
-                    if (seenTopics.Add(topicName))
+                    var isInternal = edge.Properties?.GetValueOrDefault("is_internal") == "true" ||
+                                     srcNode?.Properties?.GetValueOrDefault("is_internal") == "true" ||
+                                     string.Equals(srcNode?.Properties?.GetValueOrDefault("broker_type"), "mediatr", StringComparison.OrdinalIgnoreCase) ||
+                                     edge.Source.Contains(":mediatr:");
+
+                    if (!isInternal && seenTopics.Add(topicName))
                     {
                         var isPub = edge.Kind is "PUBLISHES" or "PUBLISHES_TO" or "PUBLISHED_BY";
                         topicGroup.Items.Add(new ServiceCapabilityItemDto

@@ -1,3 +1,5 @@
+using System.Linq;
+using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
@@ -232,6 +234,72 @@ public class Layer4SemanticParser
                                 string.Equals(project.Extensions?.GetValueOrDefault("primary_role"), "Test", StringComparison.OrdinalIgnoreCase) ||
                                 string.Equals(project.Extensions?.GetValueOrDefault("is_test_project"), "true", StringComparison.OrdinalIgnoreCase);
 
+            var canonicalPrimaryRole = isTestProject
+                ? "Test"
+                : (ProjectNodeFactory.NormalizeRoleName(extensions.GetValueOrDefault("primary_role"))
+                   ?? ProjectNodeFactory.NormalizeRoleName(project.Role)
+                   ?? (project.IsLibrary ? "Library" : "Service"));
+
+            var secRolesList = new List<string>();
+            if (extensions.TryGetValue("secondary_roles", out var secJson) && !string.IsNullOrWhiteSpace(secJson))
+            {
+                try
+                {
+                    using var sDoc = System.Text.Json.JsonDocument.Parse(secJson);
+                    if (sDoc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    {
+                        foreach (var item in sDoc.RootElement.EnumerateArray())
+                        {
+                            var norm = ProjectNodeFactory.NormalizeRoleName(item.GetString());
+                            if (norm != null && norm != canonicalPrimaryRole && !secRolesList.Contains(norm))
+                            {
+                                secRolesList.Add(norm);
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    // Fallback
+                }
+            }
+
+            if (!project.IsLibrary && !isTestProject && canonicalPrimaryRole is "Service" or "App" or "Worker" or "CliTool")
+            {
+                if (project.Children.OfType<EndpointNode>().Any() && canonicalPrimaryRole != "Service")
+                {
+                    if (!secRolesList.Contains("Service"))
+                    {
+                        secRolesList.Add("Service");
+                    }
+                }
+
+                var hasWorkerSignals = string.Equals(extensions.GetValueOrDefault("is_queue_worker"), "true", StringComparison.OrdinalIgnoreCase) ||
+                                      string.Equals(extensions.GetValueOrDefault("is_scheduler"), "true", StringComparison.OrdinalIgnoreCase) ||
+                                      l3Result.Prev.ProjectDependencies.Any(d => d.From == project.Id && (d.Kind == "SUBSCRIBES" || d.Kind == "SUBSCRIBES_TO" || d.Kind == "CONSUMES" || d.Kind == "TRIGGERS"));
+
+                if (hasWorkerSignals && canonicalPrimaryRole != "Worker")
+                {
+                    if (!secRolesList.Contains("Worker"))
+                    {
+                        secRolesList.Add("Worker");
+                    }
+                }
+            }
+
+            secRolesList.Remove(canonicalPrimaryRole);
+
+            extensions["primary_role"] = canonicalPrimaryRole;
+            extensions["secondary_roles"] = System.Text.Json.JsonSerializer.Serialize(secRolesList);
+            extensions["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { canonicalPrimaryRole }.Concat(secRolesList).Distinct().ToList());
+
+            if (project.Extensions != null)
+            {
+                project.Extensions["primary_role"] = canonicalPrimaryRole;
+                project.Extensions["secondary_roles"] = extensions["secondary_roles"];
+                project.Extensions["all_roles"] = extensions["all_roles"];
+            }
+
             IOntologyNode workloadNode = isTestProject
                 ? new TestSuiteNode(
                     $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.TestSuite}:{cleanName}",
@@ -239,44 +307,44 @@ public class Layer4SemanticParser
                     project.Path,
                     project.ProjectType,
                     extensions)
-                : project.Role switch
+                : canonicalPrimaryRole switch
                 {
-                    OntologyConstants.ProjectRoles.FrontendApp => new AppNode(
+                    "App" => new AppNode(
                         $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.App}:{cleanName}",
                         cleanName,
                         project.Path,
                         project.ProjectType,
                         extensions),
 
-                    OntologyConstants.ProjectRoles.Service => new ServiceNode(
+                    "Service" => new ServiceNode(
                         $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Service}:{cleanName}",
                         cleanName,
                         project.Path,
                         project.ProjectType,
                         extensions),
 
-                    OntologyConstants.ProjectRoles.Worker => new WorkerNode(
+                    "Worker" => new WorkerNode(
                         $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Worker}:{cleanName}",
                         cleanName,
                         project.Path,
                         project.ProjectType,
                         extensions),
 
-                    OntologyConstants.ProjectRoles.SharedLibrary => new LibraryNode(
+                    "Library" => new LibraryNode(
                         $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Library}:{cleanName}",
                         cleanName,
                         project.Path,
                         project.ProjectType,
                         extensions),
 
-                    OntologyConstants.ProjectRoles.CliTool or OntologyConstants.ProjectRoles.ScriptProject or "ScriptProject" => new CliToolNode(
+                    "CliTool" => new CliToolNode(
                         $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.CliTool}:{cleanName}",
                         cleanName,
                         project.Path,
                         project.ProjectType,
                         extensions),
 
-                    OntologyConstants.ProjectRoles.Test => new TestSuiteNode(
+                    "Test" => new TestSuiteNode(
                         $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.TestSuite}:{cleanName}",
                         cleanName,
                         project.Path,

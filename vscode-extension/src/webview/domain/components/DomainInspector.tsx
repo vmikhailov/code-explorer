@@ -284,9 +284,30 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
           expandTooltip={`Click to expand details for ${selectedNode.displayName}`}
           title={selectedNode.displayName}
           badge={
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               <EntityNodeBadge kind={selectedNode.kind} size={20} />
               <EntityCodeBadge kind={selectedNode.kind} />
+              {selectedNode.secondaryRoles?.map((r: string) => (
+                <span
+                  key={r}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 3,
+                    fontSize: 10,
+                    fontWeight: 600,
+                    padding: '1px 5px',
+                    borderRadius: 3,
+                    backgroundColor: 'var(--vscode-badge-background, rgba(255, 255, 255, 0.1))',
+                    color: 'var(--vscode-badge-foreground, #ccc)',
+                    border: '1px solid var(--vscode-editorGroup-border, rgba(255, 255, 255, 0.15))',
+                  }}
+                  title={`Secondary Role: ${r}`}
+                >
+                  <EntityNodeBadge kind={r as any} size={12} />
+                  +{r.slice(0, 3).toUpperCase()}
+                </span>
+              ))}
             </div>
           }
           headerActions={
@@ -351,6 +372,25 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
               <EntityNodeBadge kind={selectedNode.kind} size={18} />
               <EntityCodeBadge kind={selectedNode.kind} />
+              {selectedNode.secondaryRoles?.map((r: string) => (
+                <span
+                  key={r}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 2,
+                    fontSize: 9,
+                    fontWeight: 600,
+                    padding: '0 4px',
+                    borderRadius: 2,
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    color: '#ccc',
+                  }}
+                  title={`Secondary Role: ${r}`}
+                >
+                  +{r.slice(0, 3).toUpperCase()}
+                </span>
+              ))}
             </div>
           }
         >
@@ -613,6 +653,15 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                             <span className="subproject-dot">•</span>
                             <span className="subproject-name">{p.name}</span>
                             {p.isLibrary && <span className="subproject-lib-tag">lib</span>}
+                            {p.secondaryRoles?.map((r: string) => (
+                              <span
+                                key={r}
+                                className="subproject-lib-tag"
+                                style={{ background: 'rgba(168, 85, 247, 0.2)', color: '#c084fc' }}
+                              >
+                                +{r.slice(0, 3).toUpperCase()}
+                              </span>
+                            ))}
                             {p.gitBranch && (
                               <span
                                 className="subproject-lib-tag"

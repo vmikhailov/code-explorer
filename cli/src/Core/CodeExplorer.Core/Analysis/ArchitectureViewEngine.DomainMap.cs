@@ -273,9 +273,43 @@ public partial class ArchitectureViewEngine
                node.Id.Contains(":in-memory:", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static List<string> ParseSecondaryRoles(string? rawSecondary)
+    {
+        if (string.IsNullOrWhiteSpace(rawSecondary)) return [];
+        var result = new List<string>();
+        if (rawSecondary.TrimStart().StartsWith("["))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(rawSecondary);
+                if (doc.RootElement.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var el in doc.RootElement.EnumerateArray())
+                    {
+                        var val = el.GetString();
+                        if (!string.IsNullOrWhiteSpace(val) && !result.Contains(val, StringComparer.OrdinalIgnoreCase))
+                        {
+                            result.Add(val);
+                        }
+                    }
+                    return result;
+                }
+            }
+            catch { }
+        }
+        foreach (var part in rawSecondary.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (!string.IsNullOrWhiteSpace(part) && !result.Contains(part, StringComparer.OrdinalIgnoreCase))
+            {
+                result.Add(part);
+            }
+        }
+        return result;
+    }
+
     public async Task<DomainArchitectureDto> GetDomainArchitectureAsync(bool includeLibraries = false, CancellationToken ct = default)
     {
-        var archGraph = await BuildBaseArchitectureTopologyAsync(includeLibraries: includeLibraries, includeTopics: false, projectFilter: null, sharedDatabasesOnly: false, ct: ct);
+        var archGraph = await BuildBaseArchitectureTopologyAsync(includeLibraries: includeLibraries, includeTopics: true, projectFilter: null, sharedDatabasesOnly: false, ct: ct);
         var result = new DomainArchitectureDto();
 
         var projToDomainMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -357,6 +391,8 @@ public partial class ArchitectureViewEngine
                 Name = node.Name,
                 Kind = resolvedKind,
                 Role = node.Properties?.GetValueOrDefault("role"),
+                PrimaryRole = node.Properties?.GetValueOrDefault("primary_role") ?? node.Properties?.GetValueOrDefault("role"),
+                SecondaryRoles = ParseSecondaryRoles(node.Properties?.GetValueOrDefault("secondary_roles")),
                 FilePath = node.FilePath,
                 IsLibrary = isLib
             });
@@ -611,12 +647,32 @@ public partial class ArchitectureViewEngine
                 size = 50;
             }
 
+            var effectivePrimaryRole = primary?.Properties?.GetValueOrDefault("primary_role") ?? primaryRole;
+            var effectiveSecRoles = ParseSecondaryRoles(primary?.Properties?.GetValueOrDefault("secondary_roles"));
+            if (effectiveSecRoles.Count == 0)
+            {
+                foreach (var p in projects)
+                {
+                    if (p.SecondaryRoles != null && p.SecondaryRoles.Count > 0)
+                    {
+                        effectiveSecRoles = p.SecondaryRoles;
+                        break;
+                    }
+                }
+            }
+
+            var entityProps = primary?.Properties != null ? new Dictionary<string, string>(primary.Properties) : new Dictionary<string, string>();
+            if (!string.IsNullOrEmpty(effectivePrimaryRole)) entityProps["primary_role"] = effectivePrimaryRole;
+            if (effectiveSecRoles.Count > 0) entityProps["secondary_roles"] = JsonSerializer.Serialize(effectiveSecRoles);
+
             nodes.Add(new DomainEntityDto
             {
                 Id = domainId,
                 Name = meta.Name,
                 DisplayName = meta.DisplayName,
                 Kind = nodeKind,
+                PrimaryRole = effectivePrimaryRole,
+                SecondaryRoles = effectiveSecRoles.Count > 0 ? effectiveSecRoles : null,
                 DisplayTag = tag,
                 Zone = zone,
                 BgColor = bgColor,
@@ -625,6 +681,7 @@ public partial class ArchitectureViewEngine
                 Framework = meta.Framework,
                 Language = meta.Language,
                 PrimaryFilePath = primary?.FilePath ?? projects.FirstOrDefault()?.FilePath,
+                Properties = entityProps,
                 Projects = projects,
                 InboundCallsCount = inCalls.GetValueOrDefault(domainId),
                 OutboundCallsCount = outCalls.GetValueOrDefault(domainId),
@@ -832,7 +889,7 @@ public partial class ArchitectureViewEngine
 
         var arch = await BuildBaseArchitectureTopologyAsync(
             includeLibraries: includeLibraries,
-            includeTopics: false,
+            includeTopics: true,
             projectFilter: null,
             sharedDatabasesOnly: false,
             ct: ct);

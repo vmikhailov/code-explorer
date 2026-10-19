@@ -79,6 +79,9 @@ export interface DomainProjectInfo {
   id: string;
   name: string;
   kind?: string;
+  role?: string;
+  primaryRole?: string;
+  secondaryRoles?: string[];
   filePath?: string;
   lineStart?: number;
   isLibrary?: boolean;
@@ -102,6 +105,9 @@ export interface SelectedNodeDetail {
   name: string;
   displayName: string;
   kind: EntityKind;
+  primaryRole?: string;
+  secondaryRoles?: string[];
+  properties?: Record<string, string>;
   domain?: string;
   displayTag: string;
   bgColor: string;
@@ -1812,12 +1818,34 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       }
 
       const displayName = node.displayName || node.name || node.id;
+      let secondaryRoles: string[] = [];
+      const rawSecRoles = node.properties?.secondary_roles;
+      if (rawSecRoles) {
+        if (rawSecRoles.trim().startsWith('[')) {
+          try {
+            const parsed = JSON.parse(rawSecRoles);
+            if (Array.isArray(parsed)) {
+              secondaryRoles = parsed.map(String);
+            }
+          } catch {
+            // fallback
+          }
+        }
+        if (secondaryRoles.length === 0) {
+          secondaryRoles = rawSecRoles.split(',').map((s) => s.trim()).filter(Boolean);
+        }
+      }
+      const primaryRole = node.properties?.primary_role || node.properties?.role;
+
       const detail: SelectedNodeDetail = {
         id: node.id,
         name: node.name || displayName,
         displayName,
         domain,
         kind: nodeKind,
+        primaryRole,
+        secondaryRoles: secondaryRoles.length > 0 ? secondaryRoles : undefined,
+        properties: node.properties,
         displayTag: tag,
         bgColor,
         borderColor,
@@ -1831,6 +1859,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             id: node.id,
             name: node.name || displayName,
             kind: node.kind,
+            primaryRole,
+            secondaryRoles: secondaryRoles.length > 0 ? secondaryRoles : undefined,
             filePath: node.filePath,
             lineStart: node.lineStart ?? (node.properties?.start_line ? parseInt(node.properties.start_line, 10) : undefined),
             isLibrary: isLib,

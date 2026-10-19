@@ -129,6 +129,14 @@ public class CSharpParser : IProjectParser, IFileParser
             if (context.ManifestProperties.GetValueOrDefault("is_orchestrator") == "true" ||
                 context.ManifestProperties.GetValueOrDefault("role") == "Library" ||
                 manifestType == "library") return ProjectClassification.Library;
+
+            var primaryRole = context.ManifestProperties.GetValueOrDefault("primary_role");
+            var role = context.ManifestProperties.GetValueOrDefault("role");
+            if (primaryRole == "App" || role == "FrontendApp" || role == "App") return ProjectClassification.WebApp;
+            if (primaryRole == "Worker" || role == "Worker") return ProjectClassification.Worker;
+            if (primaryRole == "CliTool" || role == "CliTool") return ProjectClassification.CliTool;
+            if (primaryRole == "Service" || role == "Service") return ProjectClassification.Service;
+
             var sdk = context.ManifestProperties.GetValueOrDefault("sdk");
             if (sdk == "Microsoft.NET.Sdk.Worker") return ProjectClassification.Worker;
             if (sdk == "Microsoft.NET.Sdk.BlazorWebAssembly") return ProjectClassification.WebApp;
@@ -151,7 +159,8 @@ public class CSharpParser : IProjectParser, IFileParser
             var projName = Path.GetFileNameWithoutExtension(csprojFile);
             var normalizedDir = directoryPath.Replace('\\', '/').Trim('/');
 
-            // Test Project Priority: detect test projects FIRST before Maui, Exe, or Web SDK checks
+            // Stage 1 (Hard Physical Gates)
+            // 1.1 Test Suite Priority: detect test projects FIRST before Maui, Exe, or Web SDK checks
             var isTest = System.Text.RegularExpressions.Regex.IsMatch(content, @"<IsTestProject>\s*true\s*</IsTestProject>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
                          System.Text.RegularExpressions.Regex.IsMatch(content, @"<IsTestingPlatformApplication>\s*true\s*</IsTestingPlatformApplication>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
                          content.Contains("Microsoft.NET.Test.Sdk", StringComparison.OrdinalIgnoreCase) ||
@@ -187,6 +196,27 @@ public class CSharpParser : IProjectParser, IFileParser
                 props["is_library"] = "false";
                 props["role"] = "Test";
                 props["kind"] = "TestSuite";
+                props["primary_role"] = "Test";
+                props["secondary_roles"] = "[]";
+                props["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { "Test" });
+                return props;
+            }
+
+            // 1.2 Aspire AppHost (.AppHost / Aspire.AppHost.Sdk)
+            var isAspireAppHost = content.Contains("Aspire.AppHost.Sdk", StringComparison.OrdinalIgnoreCase) ||
+                                  projName.EndsWith(".AppHost", StringComparison.OrdinalIgnoreCase);
+            if (isAspireAppHost)
+            {
+                props["sdk"] = "Aspire.AppHost.Sdk";
+                props["is_library"] = "true";
+                props["is_orchestrator"] = "true";
+                props["manifest_type"] = "library";
+                props["role"] = "Library";
+                props["kind"] = "Library";
+                props["primary_role"] = "Library";
+                props["secondary_roles"] = "[]";
+                props["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { "Library" });
+                return props;
             }
 
             var outputTypeMatch = System.Text.RegularExpressions.Regex.Match(content, @"<OutputType(?:\s+[^>]*)?>\s*([A-Za-z0-9]+)\s*</OutputType>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
@@ -194,66 +224,53 @@ public class CSharpParser : IProjectParser, IFileParser
                                (outputTypeMatch.Groups[1].Value.Equals("Exe", StringComparison.OrdinalIgnoreCase) ||
                                 outputTypeMatch.Groups[1].Value.Equals("WinExe", StringComparison.OrdinalIgnoreCase));
 
-            // Aspire AppHost (.AppHost / Aspire.AppHost.Sdk)
-            var isAspireAppHost = !isTest && (content.Contains("Aspire.AppHost.Sdk", StringComparison.OrdinalIgnoreCase) ||
-                                              projName.EndsWith(".AppHost", StringComparison.OrdinalIgnoreCase));
-            if (isAspireAppHost)
+            var isWebSdk = content.Contains("Sdk=\"Microsoft.NET.Sdk.Web\"", StringComparison.OrdinalIgnoreCase) ||
+                           content.Contains("Sdk='Microsoft.NET.Sdk.Web'", StringComparison.OrdinalIgnoreCase);
+            var isWorkerSdk = content.Contains("Sdk=\"Microsoft.NET.Sdk.Worker\"", StringComparison.OrdinalIgnoreCase) ||
+                             content.Contains("Sdk='Microsoft.NET.Sdk.Worker'", StringComparison.OrdinalIgnoreCase);
+            var isBlazorWasmSdk = content.Contains("Sdk=\"Microsoft.NET.Sdk.BlazorWebAssembly\"", StringComparison.OrdinalIgnoreCase) ||
+                                  content.Contains("Sdk='Microsoft.NET.Sdk.BlazorWebAssembly'", StringComparison.OrdinalIgnoreCase);
+
+            var isUiClientApp = System.Text.RegularExpressions.Regex.IsMatch(content, @"<UseMaui>\s*true\s*</UseMaui>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
+                                System.Text.RegularExpressions.Regex.IsMatch(content, @"<UseWPF>\s*true\s*</UseWPF>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
+                                System.Text.RegularExpressions.Regex.IsMatch(content, @"<UseWindowsForms>\s*true\s*</UseWindowsForms>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
+                                isBlazorWasmSdk ||
+                                content.Contains("Avalonia", StringComparison.OrdinalIgnoreCase) ||
+                                content.Contains("Uno.Sdk", StringComparison.OrdinalIgnoreCase);
+
+            var hasWebConfig = filesInDirectory.Any(f => Path.GetFileName(f).Equals("web.config", StringComparison.OrdinalIgnoreCase));
+            var hasWebGuid = content.Contains("{349c5851-65df-11da-9384-00065b846f21}", StringComparison.OrdinalIgnoreCase) ||
+                             content.Contains("{E3E379DF-F4C6-4180-9B81-6769533ABE47}", StringComparison.OrdinalIgnoreCase) ||
+                             content.Contains("{E53F8FEA-EAE0-44A6-8774-FFD645390401}", StringComparison.OrdinalIgnoreCase);
+            var isLegacyWeb = hasWebConfig || hasWebGuid;
+
+            // 1.3 Physical Non-Runnable Gate: If not Web SDK and no Exe/WinExe and not UI Client App and not legacy web -> Library
+            if (!isWebSdk && !isLegacyWeb && !isWorkerSdk && !isBlazorWasmSdk && !hasExeOutput && !isUiClientApp)
             {
-                props["sdk"] = "Aspire.AppHost.Sdk";
+                props["manifest_type"] = "library";
                 props["is_library"] = "true";
                 props["role"] = "Library";
                 props["kind"] = "Library";
-                props["is_orchestrator"] = "true";
-                props["manifest_type"] = "library";
+                props["primary_role"] = "Library";
+                props["secondary_roles"] = "[]";
+                props["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { "Library" });
+                return props;
             }
 
-            // 1. Inspect SDK
-            if (content.Contains("Sdk=\"Microsoft.NET.Sdk.Web\"", StringComparison.OrdinalIgnoreCase) ||
-                content.Contains("Sdk='Microsoft.NET.Sdk.Web'", StringComparison.OrdinalIgnoreCase))
+            if (isWebSdk || isLegacyWeb)
             {
-                props["sdk"] = "Microsoft.NET.Sdk.Web";
+                if (isWebSdk) props["sdk"] = "Microsoft.NET.Sdk.Web";
                 props["framework_type"] = "web";
-                if (!isTest && !isAspireAppHost)
-                {
-                    props["manifest_type"] = "application";
-                }
             }
-            else if (content.Contains("Sdk=\"Microsoft.NET.Sdk.Worker\"", StringComparison.OrdinalIgnoreCase) ||
-                     content.Contains("Sdk='Microsoft.NET.Sdk.Worker'", StringComparison.OrdinalIgnoreCase))
+            else if (isWorkerSdk)
             {
                 props["sdk"] = "Microsoft.NET.Sdk.Worker";
                 props["framework_type"] = "worker";
-                if (!isTest && !isAspireAppHost)
-                {
-                    props["manifest_type"] = "worker";
-                }
             }
-            else if (content.Contains("Sdk=\"Microsoft.NET.Sdk.BlazorWebAssembly\"", StringComparison.OrdinalIgnoreCase) ||
-                     content.Contains("Sdk='Microsoft.NET.Sdk.BlazorWebAssembly'", StringComparison.OrdinalIgnoreCase))
+            else if (isBlazorWasmSdk)
             {
                 props["sdk"] = "Microsoft.NET.Sdk.BlazorWebAssembly";
                 props["framework_type"] = "frontend";
-                if (!isTest && !isAspireAppHost)
-                {
-                    props["manifest_type"] = "application";
-                }
-            }
-            else if (content.Contains("Sdk=\"Microsoft.NET.Sdk.Razor\"", StringComparison.OrdinalIgnoreCase) ||
-                     content.Contains("Sdk='Microsoft.NET.Sdk.Razor'", StringComparison.OrdinalIgnoreCase))
-            {
-                props["sdk"] = "Microsoft.NET.Sdk.Razor";
-                props["framework_type"] = "web";
-                if (hasExeOutput && !isTest && !isAspireAppHost)
-                {
-                    props["manifest_type"] = "application";
-                }
-                else if (!isTest && !isAspireAppHost)
-                {
-                    props["manifest_type"] = "library";
-                    props["is_library"] = "true";
-                    props["role"] = "Library";
-                    props["kind"] = "Library";
-                }
             }
             else if (content.Contains("Sdk=\"Microsoft.NET.Sdk\"", StringComparison.OrdinalIgnoreCase) ||
                      content.Contains("Sdk='Microsoft.NET.Sdk'", StringComparison.OrdinalIgnoreCase))
@@ -261,144 +278,149 @@ public class CSharpParser : IProjectParser, IFileParser
                 props["sdk"] = "Microsoft.NET.Sdk";
             }
 
-            // Legacy .NET Framework web indicators (web.config or classic Web ProjectTypeGuids)
-            var hasWebConfig = filesInDirectory.Any(f => Path.GetFileName(f).Equals("web.config", StringComparison.OrdinalIgnoreCase));
-            var hasWebGuid = content.Contains("{349c5851-65df-11da-9384-00065b846f21}", StringComparison.OrdinalIgnoreCase) ||
-                             content.Contains("{E3E379DF-F4C6-4180-9B81-6769533ABE47}", StringComparison.OrdinalIgnoreCase) ||
-                             content.Contains("{E53F8FEA-EAE0-44A6-8774-FFD645390401}", StringComparison.OrdinalIgnoreCase);
-
-            if ((hasWebConfig || hasWebGuid) && !isTest && !isAspireAppHost)
-            {
-                props["framework_type"] = "web";
-                props["manifest_type"] = "application";
-            }
-
-            if (content.Contains("Microsoft.Azure.Functions.Worker", StringComparison.OrdinalIgnoreCase) ||
-                content.Contains("Microsoft.NET.Sdk.Functions", StringComparison.OrdinalIgnoreCase))
-            {
-                if (!isTest && !isAspireAppHost)
-                {
-                    props["manifest_type"] = "function";
-                }
-            }
-
-            var isUiClientApp = !isTest && !isAspireAppHost && (
-                                System.Text.RegularExpressions.Regex.IsMatch(content, @"<UseMaui>\s*true\s*</UseMaui>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
-                                System.Text.RegularExpressions.Regex.IsMatch(content, @"<UseWPF>\s*true\s*</UseWPF>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
-                                System.Text.RegularExpressions.Regex.IsMatch(content, @"<UseWindowsForms>\s*true\s*</UseWindowsForms>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
-                                content.Contains("Microsoft.NET.Sdk.BlazorWebAssembly", StringComparison.OrdinalIgnoreCase));
-
-            if (isUiClientApp)
-            {
-                props["framework_type"] = "frontend";
-                props["ui_type"] = "clientapp";
-                props["manifest_type"] = "application";
-                props["role"] = "FrontendApp";
-                props["kind"] = "App";
-                props["is_library"] = "false";
-            }
-
-            // 2. Inspect <OutputType>
             if (outputTypeMatch.Success)
             {
-                var outputType = outputTypeMatch.Groups[1].Value;
-                props["output_type"] = outputType;
-                if (!isTest && !isAspireAppHost && (outputType.Equals("Exe", StringComparison.OrdinalIgnoreCase) || outputType.Equals("WinExe", StringComparison.OrdinalIgnoreCase)))
-                {
-                    if (!props.ContainsKey("manifest_type"))
-                    {
-                        props["manifest_type"] = "application";
-                    }
-                    props["is_library"] = "false";
-                }
-                else if (outputType.Equals("Library", StringComparison.OrdinalIgnoreCase))
-                {
-                    if (!props.ContainsKey("manifest_type") && props.GetValueOrDefault("sdk") != "Microsoft.NET.Sdk.Web" && !isUiClientApp && !isTest && !isAspireAppHost)
-                    {
-                        props["manifest_type"] = "library";
-                    }
-                }
-            }
-            else
-            {
-                // In .NET SDK, OutputType defaults to Library if not Exe
-                if (props.GetValueOrDefault("sdk") == "Microsoft.NET.Sdk" && !props.ContainsKey("manifest_type") && !isUiClientApp && !isTest && !isAspireAppHost)
-                {
-                    props["output_type"] = "Library";
-                    props["manifest_type"] = "library";
-                }
+                props["output_type"] = outputTypeMatch.Groups[1].Value;
             }
 
-            // 3. Inspect <IsPackable>
+            // Inspect <IsPackable>
             var isPackableMatch = System.Text.RegularExpressions.Regex.Match(content, @"<IsPackable>\s*(true|false)\s*</IsPackable>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
             if (isPackableMatch.Success)
             {
                 props["is_packable"] = isPackableMatch.Groups[1].Value.ToLowerInvariant();
             }
 
-            // 4. Inspect CLI / Tool properties (<PackAsTool>true</PackAsTool> or ToolCommandName)
-            if (content.Contains("<PackAsTool>true</PackAsTool>", StringComparison.OrdinalIgnoreCase) ||
-                content.Contains("<ToolCommandName>", StringComparison.OrdinalIgnoreCase))
+            // Inspect CLI tool metadata
+            var hasCliBin = content.Contains("<PackAsTool>true</PackAsTool>", StringComparison.OrdinalIgnoreCase) ||
+                            content.Contains("<ToolCommandName>", StringComparison.OrdinalIgnoreCase);
+            if (hasCliBin) props["has_cli_bin"] = "true";
+
+            // Stage 2 (Runnable Workload Capabilities — App, CliTool, Service, Worker)
+            var hasAppCapability = isUiClientApp;
+            var hasWorkerCapability = isWorkerSdk;
+            var hasCliCapability = hasCliBin;
+            var hasServiceCapability = isWebSdk || isLegacyWeb;
+
+            var isExplicitBackendApi = projName.EndsWith(".API", StringComparison.OrdinalIgnoreCase) ||
+                                       projName.EndsWith(".Api", StringComparison.OrdinalIgnoreCase) ||
+                                       projName.Contains(".Bff", StringComparison.OrdinalIgnoreCase) ||
+                                       projName.Contains("Gateway", StringComparison.OrdinalIgnoreCase);
+
+            if (content.Contains("Microsoft.AspNetCore.Components.Web", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("Microsoft.AspNetCore.Components.QuickGrid", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("QuickGrid", StringComparison.OrdinalIgnoreCase))
             {
-                props["has_cli_bin"] = "true";
-                props["manifest_type"] = "cli";
+                hasAppCapability = true;
             }
 
-            // 5. Inspect Ingress Contracts (GraphQL, gRPC, Controllers) for Web / Service projects
-            var sdk = props.GetValueOrDefault("sdk");
-            var isWeb = sdk == "Microsoft.NET.Sdk.Web" ||
-                        string.Equals(props.GetValueOrDefault("framework_type"), "web", StringComparison.OrdinalIgnoreCase);
+            if (content.Contains("Grpc.AspNetCore", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("Yarp.ReverseProxy", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("Ocelot", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("HotChocolate", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("<Protobuf", StringComparison.OrdinalIgnoreCase))
+            {
+                hasServiceCapability = true;
+                if (content.Contains("HotChocolate", StringComparison.OrdinalIgnoreCase)) props["has_graphql"] = "true";
+                if (content.Contains("Grpc", StringComparison.OrdinalIgnoreCase) || content.Contains("<Protobuf", StringComparison.OrdinalIgnoreCase)) props["has_grpc"] = "true";
+            }
 
-            var hasGraphQl = content.Contains("HotChocolate", StringComparison.OrdinalIgnoreCase) ||
-                             content.Contains("GraphQL", StringComparison.OrdinalIgnoreCase) ||
-                             content.Contains("GrapQL", StringComparison.OrdinalIgnoreCase);
-            var hasGrpc = content.Contains("Grpc.AspNetCore", StringComparison.OrdinalIgnoreCase) ||
-                          content.Contains("Grpc.Tools", StringComparison.OrdinalIgnoreCase) ||
-                          content.Contains("<Protobuf", StringComparison.OrdinalIgnoreCase);
+            if (content.Contains("Hangfire", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("Quartz", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("MassTransit", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("EventBusRabbitMQ", StringComparison.OrdinalIgnoreCase))
+            {
+                hasWorkerCapability = true;
+            }
 
-            if (hasGraphQl) props["has_graphql"] = "true";
-            if (hasGrpc) props["has_grpc"] = "true";
+            if (content.Contains("System.CommandLine", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("Spectre.Console", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("Cocona", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("CommandLineParser", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("McMaster.Extensions.CommandLineUtils", StringComparison.OrdinalIgnoreCase))
+            {
+                hasCliCapability = true;
+            }
 
+            // Inspect directory files for concrete capabilities
             try
             {
-                var csFiles = WorkspaceFileFilter.EnumerateFiles(directoryPath, "*.cs");
-                foreach (var file in csFiles)
+                var allFiles = WorkspaceFileFilter.EnumerateFiles(directoryPath, "*").ToList();
+                foreach (var file in allFiles)
                 {
-                    var fileName = Path.GetFileName(file);
-                    if (fileName.EndsWith("Controller.cs", StringComparison.OrdinalIgnoreCase))
+                    var ext = Path.GetExtension(file).ToLowerInvariant();
+                    if (ext == ".razor")
                     {
-                        props["has_controllers"] = "true";
+                        hasAppCapability = true;
                     }
-                    else if (fileName.EndsWith("Query.cs", StringComparison.OrdinalIgnoreCase) ||
-                             fileName.EndsWith("Queries.cs", StringComparison.OrdinalIgnoreCase) ||
-                             fileName.EndsWith("Mutation.cs", StringComparison.OrdinalIgnoreCase) ||
-                             fileName.EndsWith("Mutations.cs", StringComparison.OrdinalIgnoreCase) ||
-                             fileName.EndsWith("Subscription.cs", StringComparison.OrdinalIgnoreCase))
+                    else if (ext == ".cshtml")
                     {
-                        props["has_graphql"] = "true";
+                        hasAppCapability = true;
                     }
-                    else if (fileName.EndsWith("GrpcService.cs", StringComparison.OrdinalIgnoreCase) ||
-                             fileName.EndsWith("Grpc.cs", StringComparison.OrdinalIgnoreCase))
+                    else if (ext == ".cs")
                     {
-                        props["has_grpc"] = "true";
-                    }
-
-                    if (fileName is "Startup.cs" or "Program.cs" or "ServiceStartup.cs" || fileName.EndsWith("Module.cs", StringComparison.OrdinalIgnoreCase))
-                    {
-                        var fileText = File.ReadAllText(file);
-                        if (fileText.Contains("AddGraphQLServer") || fileText.Contains("MapGraphQL") ||
-                            fileText.Contains("AddQueryType") || fileText.Contains("AddMutationType"))
-                        {
-                            props["has_graphql"] = "true";
-                        }
-                        if (fileText.Contains("MapGrpcService") || fileText.Contains("AddGrpcService") || fileText.Contains("AddGrpcClient"))
-                        {
-                            props["has_grpc"] = "true";
-                        }
-                        if (fileText.Contains("MapControllers") || fileText.Contains("AddControllers") ||
-                            fileText.Contains("[ApiController]") || fileText.Contains("ControllerBase"))
+                        var fileName = Path.GetFileName(file);
+                        if (fileName.EndsWith("Controller.cs", StringComparison.OrdinalIgnoreCase))
                         {
                             props["has_controllers"] = "true";
+                            hasServiceCapability = true;
+                        }
+                        else if (fileName.EndsWith("Query.cs", StringComparison.OrdinalIgnoreCase) ||
+                                 fileName.EndsWith("Queries.cs", StringComparison.OrdinalIgnoreCase) ||
+                                 fileName.EndsWith("Mutation.cs", StringComparison.OrdinalIgnoreCase) ||
+                                 fileName.EndsWith("Mutations.cs", StringComparison.OrdinalIgnoreCase) ||
+                                 fileName.EndsWith("Subscription.cs", StringComparison.OrdinalIgnoreCase))
+                        {
+                            props["has_graphql"] = "true";
+                            hasServiceCapability = true;
+                        }
+                        else if (fileName.EndsWith("GrpcService.cs", StringComparison.OrdinalIgnoreCase) ||
+                                 fileName.EndsWith("Grpc.cs", StringComparison.OrdinalIgnoreCase))
+                        {
+                            props["has_grpc"] = "true";
+                            hasServiceCapability = true;
+                        }
+
+                        if (fileName is "Startup.cs" or "Program.cs" or "ServiceStartup.cs" ||
+                            fileName.EndsWith("Service.cs", StringComparison.OrdinalIgnoreCase) ||
+                            fileName.EndsWith("Module.cs", StringComparison.OrdinalIgnoreCase) ||
+                            fileName.EndsWith("Worker.cs", StringComparison.OrdinalIgnoreCase) ||
+                            fileName.EndsWith("Consumer.cs", StringComparison.OrdinalIgnoreCase) ||
+                            fileName.EndsWith("Handler.cs", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var fileText = File.ReadAllText(file);
+                            if (fileText.Contains("AddRazorComponents") || fileText.Contains("MapRazorComponents"))
+                            {
+                                hasAppCapability = true;
+                            }
+                            if (fileText.Contains("BackgroundService") || fileText.Contains("IHostedService") ||
+                                fileText.Contains("IIntegrationEventHandler") || fileText.Contains("IConsumer<") ||
+                                fileText.Contains("IJob"))
+                            {
+                                hasWorkerCapability = true;
+                            }
+                            if (fileText.Contains("AddGraphQLServer") || fileText.Contains("MapGraphQL") ||
+                                fileText.Contains("AddQueryType") || fileText.Contains("AddMutationType"))
+                            {
+                                props["has_graphql"] = "true";
+                                hasServiceCapability = true;
+                            }
+                            if (fileText.Contains("MapGrpcService") || fileText.Contains("AddGrpcService") || fileText.Contains("AddGrpcClient"))
+                            {
+                                props["has_grpc"] = "true";
+                                hasServiceCapability = true;
+                            }
+                            if (fileText.Contains("MapControllers") || fileText.Contains("AddControllers") ||
+                                fileText.Contains("[ApiController]") || fileText.Contains("ControllerBase") ||
+                                fileText.Contains("MapGet(") || fileText.Contains("MapPost("))
+                            {
+                                props["has_controllers"] = "true";
+                                hasServiceCapability = true;
+                            }
+                            if (fileText.Contains("System.CommandLine") || fileText.Contains("Spectre.Console") ||
+                                fileText.Contains("CommandLineApplication"))
+                            {
+                                hasCliCapability = true;
+                            }
                         }
                     }
                 }
@@ -406,6 +428,75 @@ public class CSharpParser : IProjectParser, IFileParser
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
             }
+
+            // Apply Strict Dominance Order
+            string primaryRole;
+            string role;
+            string kind;
+            string manifestType;
+
+            var isExplicitCliTool = hasCliBin ||
+                                    content.Contains("System.CommandLine", StringComparison.OrdinalIgnoreCase) ||
+                                    content.Contains("Spectre.Console", StringComparison.OrdinalIgnoreCase) ||
+                                    content.Contains("Cocona", StringComparison.OrdinalIgnoreCase);
+
+            if (hasCliCapability && isExplicitCliTool)
+            {
+                primaryRole = "CliTool";
+                role = "CliTool";
+                kind = "CliTool";
+                manifestType = "cli";
+            }
+            else if (hasAppCapability && !isExplicitBackendApi)
+            {
+                primaryRole = "App";
+                role = "FrontendApp";
+                kind = "App";
+                manifestType = "application";
+                props["framework_type"] = "frontend";
+            }
+            else if (hasServiceCapability)
+            {
+                primaryRole = "Service";
+                role = "Service";
+                kind = "Service";
+                manifestType = "application";
+                props["framework_type"] = "web";
+            }
+            else if (hasWorkerCapability)
+            {
+                primaryRole = "Worker";
+                role = "Worker";
+                kind = "Worker";
+                manifestType = "worker";
+                props["framework_type"] = "worker";
+            }
+            else
+            {
+                primaryRole = "CliTool";
+                role = "CliTool";
+                kind = "CliTool";
+                manifestType = "cli";
+            }
+
+            var detectedRoles = new List<string>();
+            if (hasAppCapability) detectedRoles.Add("App");
+            if (hasServiceCapability) detectedRoles.Add("Service");
+            if (hasWorkerCapability) detectedRoles.Add("Worker");
+            if (hasCliCapability) detectedRoles.Add("CliTool");
+
+            var secondaryRoles = detectedRoles
+                .Where(r => !string.Equals(r, primaryRole, StringComparison.OrdinalIgnoreCase))
+                .Distinct()
+                .ToList();
+
+            props["primary_role"] = primaryRole;
+            props["role"] = role;
+            props["kind"] = kind;
+            props["manifest_type"] = manifestType;
+            props["is_library"] = "false";
+            props["secondary_roles"] = System.Text.Json.JsonSerializer.Serialize(secondaryRoles);
+            props["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { primaryRole }.Concat(secondaryRoles).Distinct());
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

@@ -234,6 +234,13 @@ public partial class ArchitectureViewEngine(IGraphClient db)
         var pkgCount = elem.GetStringProp("package_count", props.GetValueOrDefault("package_count", ""));
         if (!string.IsNullOrEmpty(pkgCount)) props["package_count"] = pkgCount;
 
+        var primaryRole = elem.GetStringProp("primary_role", props.GetValueOrDefault("primary_role", ""));
+        if (!string.IsNullOrEmpty(primaryRole)) props["primary_role"] = primaryRole;
+        var secondaryRoles = elem.GetStringProp("secondary_roles", props.GetValueOrDefault("secondary_roles", ""));
+        if (!string.IsNullOrEmpty(secondaryRoles)) props["secondary_roles"] = secondaryRoles;
+        var allRoles = elem.GetStringProp("all_roles", props.GetValueOrDefault("all_roles", ""));
+        if (!string.IsNullOrEmpty(allRoles)) props["all_roles"] = allRoles;
+
         return props;
     }
 
@@ -471,7 +478,7 @@ public partial class ArchitectureViewEngine(IGraphClient db)
 
         var isExplicitExternal = props.GetValueOrDefault("is_external") == "true";
 
-        if (!isExplicitExternal)
+        if (!isExplicitExternal || (!name.Contains('.') && discovery.InternalProjectsLookup.Count > 0))
         {
             var domain = SyntaxEnricher.CleanProjectNameToDomain(name);
             var extIdDomain = PostIndexAnalyzer.ExtractDomainFromExternalServiceId(id);
@@ -502,7 +509,7 @@ public partial class ArchitectureViewEngine(IGraphClient db)
                 }
             }
 
-            if (matchedProjId == null && (discovery.ProjectCandidates.Count > 0 || discovery.EndpointCandidates.Count > 0))
+            if (matchedProjId == null && !isExplicitExternal && (discovery.ProjectCandidates.Count > 0 || discovery.EndpointCandidates.Count > 0))
             {
                 var svcPath = props.GetValueOrDefault("path");
                 var effectiveCall = !string.IsNullOrEmpty(svcPath) && svcPath != "/" ? svcPath : name;
@@ -624,7 +631,7 @@ public partial class ArchitectureViewEngine(IGraphClient db)
                     foreach (var key in new[]
                              {
                                  "path", "FilePath", "layer", "layerId", "layerName", "layerOrder", "layerColor",
-                                 "layerIcon"
+                                 "layerIcon", "primary_role", "secondary_roles", "all_roles"
                              })
                     {
                         if (!props.ContainsKey(key) && rawProj.Properties.TryGetValue(key, out var val))
@@ -674,7 +681,7 @@ public partial class ArchitectureViewEngine(IGraphClient db)
                     foreach (var key in new[]
                              {
                                  "path", "FilePath", "layer", "layerId", "layerName", "layerOrder", "layerColor",
-                                 "layerIcon"
+                                 "layerIcon", "primary_role", "secondary_roles", "all_roles"
                              })
                     {
                         if (!existingWorkload.Properties.ContainsKey(key) &&

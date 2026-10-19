@@ -214,7 +214,13 @@ public class GrpcCSharpLibraryParser : ISemanticExtension
         var angleIdx = mName.IndexOf('<');
         if (angleIdx > 0) mName = mName[..angleIdx].Trim();
 
-        if (mName is "Dispose" or "ToString" or "Equals" or "GetHashCode" or "GetType" or "Configure" or "Add" or "Wait" or "AsTask")
+        if (mName is "Dispose" or "ToString" or "Equals" or "GetHashCode" or "GetType" or "Configure" or "Add" or "Wait" or "AsTask"
+            or "GetService" or "GetRequiredService" or "GetKeyedService"
+            or "GetResponse" or "GetResponseAsync" or "GetStreamingResponseAsync"
+            or "CompleteAsync" or "CompleteStreamingAsync"
+            or "GetAsync" or "PostAsync" or "PutAsync" or "DeleteAsync" or "SendAsync"
+            or "GetFromJsonAsync" or "PostAsJsonAsync" or "PutAsJsonAsync"
+            or "GetStringAsync" or "GetByteArrayAsync" or "GetStreamAsync" or "CreateClient")
             return false;
 
         var rText = exprChild.Text.Trim();
@@ -225,12 +231,81 @@ public class GrpcCSharpLibraryParser : ISemanticExtension
         if (rText.Contains('.'))
             rText = rText[(rText.LastIndexOf('.') + 1)..].Trim();
 
+        var unadorned = rText.TrimStart('_');
+
+        if (string.Equals(unadorned, "httpClient", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(unadorned, "chatClient", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(unadorned, "innerClient", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(unadorned, "aiClient", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(unadorned, "openAiClient", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(unadorned, "ollamaClient", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(unadorned, "blobClient", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(unadorned, "queueClient", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(unadorned, "tableClient", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(unadorned, "serviceBusClient", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(unadorned, "s3Client", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(unadorned, "mongoClient", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(unadorned, "redisClient", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(unadorned, "elasticClient", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(unadorned, "telemetryClient", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(unadorned, "secretClient", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(unadorned, "keyVaultClient", StringComparison.OrdinalIgnoreCase))
+            return false;
+
         var isClientReceiver = rText.EndsWith("Client", StringComparison.OrdinalIgnoreCase) ||
                                (rText.StartsWith("Get", StringComparison.OrdinalIgnoreCase) && rText.EndsWith("Client", StringComparison.OrdinalIgnoreCase)) ||
                                rText.Equals("client", StringComparison.OrdinalIgnoreCase) ||
                                rText.Equals("_client", StringComparison.OrdinalIgnoreCase);
 
         if (!isClientReceiver) return false;
+
+        // Check declared field/parameter type of receiver in enclosing class
+        var parentClass = GetParentClassNode(node);
+        if (parentClass != null && parentClass.IsValid())
+        {
+            foreach (var child in parentClass.FindDescendantsOfType(TreeSitterSyntax.CSharp.VariableDeclarator))
+            {
+                var vName = child.GetField(TreeSitterSyntax.Fields.Name);
+                if (vName != null && vName.IsValid() && vName.Text.TrimStart('_').Equals(unadorned, StringComparison.OrdinalIgnoreCase))
+                {
+                    var parentDecl = child.Parent;
+                    var typeNode = parentDecl?.GetField(TreeSitterSyntax.Fields.Type);
+                    if (typeNode != null && typeNode.IsValid())
+                    {
+                        var tText = typeNode.Text.Trim();
+                        if (tText.Equals("IChatClient", StringComparison.OrdinalIgnoreCase) ||
+                            tText.Equals("HttpClient", StringComparison.OrdinalIgnoreCase) ||
+                            (!tText.Contains("Grpc", StringComparison.OrdinalIgnoreCase) &&
+                             !tText.Contains('.') &&
+                             !tText.EndsWith("Client", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            return false;
+                        }
+                    }
+                }
+            }
+
+            foreach (var param in parentClass.FindDescendantsOfType(TreeSitterSyntax.CSharp.Parameter))
+            {
+                var pName = param.GetField(TreeSitterSyntax.Fields.Name);
+                if (pName != null && pName.IsValid() && pName.Text.TrimStart('_').Equals(unadorned, StringComparison.OrdinalIgnoreCase))
+                {
+                    var typeNode = param.GetField(TreeSitterSyntax.Fields.Type);
+                    if (typeNode != null && typeNode.IsValid())
+                    {
+                        var tText = typeNode.Text.Trim();
+                        if (tText.Equals("IChatClient", StringComparison.OrdinalIgnoreCase) ||
+                            tText.Equals("HttpClient", StringComparison.OrdinalIgnoreCase) ||
+                            (!tText.Contains("Grpc", StringComparison.OrdinalIgnoreCase) &&
+                             !tText.Contains('.') &&
+                             !tText.EndsWith("Client", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
 
         receiverText = rText;
         methodName = mName;
