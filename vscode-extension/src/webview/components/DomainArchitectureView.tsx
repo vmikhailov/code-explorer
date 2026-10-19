@@ -1696,11 +1696,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         node.kind === 'App' ||
         node.kind === 'FrontendApp' ||
         node.properties?.role === 'App' ||
-        node.properties?.role === 'FrontendApp';
+        node.properties?.role === 'FrontendApp' ||
+        node.properties?.entity_type === 'app';
 
       const isWorker =
         node.kind === 'Worker' ||
-        node.properties?.role === 'Worker';
+        node.properties?.role === 'Worker' ||
+        node.properties?.entity_type === 'worker';
 
       const isCli =
         node.kind === 'CliTool' ||
@@ -1711,21 +1713,25 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       const isDb =
         node.kind === 'Database' ||
         node.properties?.role === 'database' ||
-        node.properties?.role === 'Database';
+        node.properties?.role === 'Database' ||
+        node.properties?.entity_type === 'database';
 
       const isTopic =
         node.kind === 'Topic' ||
         node.properties?.role === 'topic' ||
-        node.properties?.role === 'Topic';
+        node.properties?.role === 'Topic' ||
+        node.properties?.entity_type === 'topic';
 
       const isExt =
         node.kind === 'ExternalService' ||
-        node.properties?.role === 'ExternalService';
+        node.properties?.role === 'ExternalService' ||
+        node.properties?.entity_type === 'external';
 
       const isLib =
         node.kind === 'Library' ||
         node.kind === 'SharedLibrary' ||
-        node.properties?.is_library === 'true';
+        node.properties?.is_library === 'true' ||
+        node.properties?.entity_type === 'library';
 
       if (isTest) {
         testSuiteCount++;

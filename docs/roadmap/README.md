@@ -10,6 +10,7 @@ This directory tracks the engineering roadmap, active epic specifications, and a
 | :--- | :--- | :--- |
 | [**`todo.md`**](./todo.md) | Granular Master Task Checklist across all Epics | 📋 Single Source of Truth |
 | [**`semantic-invariant-gates-plan.md`**](./semantic-invariant-gates-plan.md) | Active Epic Specification: Semantic Invariant Gates & Ratchets | 🚀 In Progress (v1.32.0) |
+| [**`rust-support-roadmap.md`**](./rust-support-roadmap.md) | Epic Specification: Rust Language Support (`CodeExplorer.Parser.Rust`) | 📋 Approved / Roadmap |
 | [**`../architecture/fractal-orthogonal-invariant-matrix.md`**](../architecture/fractal-orthogonal-invariant-matrix.md) | Formal FOIM $5 \times 4$ Architecture Specification | 🏛️ Reference Specification |
 | [**`../proposals/semantic-invariant-gates-proposal.md`**](../proposals/semantic-invariant-gates-proposal.md) | Polyglot Gates Proposal & 34-Gate Catalog ("Gates on Growth") | 💡 Active Proposal |
 

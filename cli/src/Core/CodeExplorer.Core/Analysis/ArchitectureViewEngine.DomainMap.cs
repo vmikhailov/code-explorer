@@ -746,7 +746,33 @@ public partial class ArchitectureViewEngine
                     ["dbCount"] = d.DbCount.ToString(),
                     ["messagingCount"] = d.MessagingCount.ToString(),
                     ["framework"] = d.Framework ?? "",
-                    ["language"] = d.Language ?? ""
+                    ["language"] = d.Language ?? "",
+                    ["entity_type"] = d.Kind switch
+                    {
+                        NodeKind.App => "app",
+                        NodeKind.Service => "service",
+                        NodeKind.Worker => "worker",
+                        NodeKind.CliTool => "clitool",
+                        NodeKind.Database => "database",
+                        NodeKind.Topic => "topic",
+                        NodeKind.ExternalService => "external",
+                        NodeKind.TestSuite => "testsuite",
+                        NodeKind.Library => "library",
+                        _ => d.Kind.ToString().ToLowerInvariant()
+                    },
+                    ["role"] = d.Kind switch
+                    {
+                        NodeKind.App => "App",
+                        NodeKind.Service => "Service",
+                        NodeKind.Worker => "Worker",
+                        NodeKind.CliTool => "CliTool",
+                        NodeKind.TestSuite => "Test",
+                        NodeKind.Library => "Library",
+                        _ => d.Kind.ToString()
+                    },
+                    ["is_library"] = d.Kind == NodeKind.Library ? "true" : "false",
+                    ["domain"] = d.Name,
+                    ["domainDisplayName"] = d.DisplayName
                 }
             });
         }

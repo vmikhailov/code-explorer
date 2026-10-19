@@ -63,6 +63,49 @@ public static class ProjectEntityClassifierRegistry
             dependencies ?? [],
             extensions ?? new Dictionary<string, string>());
 
+        // Test project top priority: test projects must NEVER be classified as runnable service/app workloads
+        var normName = (projectName ?? "").Trim().ToLowerInvariant();
+        var normRelPath = "/" + (relativeProjectDir ?? "").Replace('\\', '/').Trim('/') + "/";
+        var isTestProject = (extensions != null && (
+                                extensions.GetValueOrDefault("is_test_project") == "true" ||
+                                extensions.GetValueOrDefault("manifest_type") == "test" ||
+                                string.Equals(extensions.GetValueOrDefault("role"), "Test", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(extensions.GetValueOrDefault("kind"), "TestSuite", StringComparison.OrdinalIgnoreCase))) ||
+                            normName.EndsWith(".tests") || normName.EndsWith(".unittests") ||
+                            normName.EndsWith(".functionaltests") || normName.EndsWith(".integrationtests") ||
+                            normName.EndsWith(".test") ||
+                            normRelPath.Contains("/test/") || normRelPath.Contains("/tests/") ||
+                            normRelPath.Contains("/spec/") || normRelPath.Contains("/specs/") ||
+                            normRelPath.Contains("/__tests__/") || normRelPath.Contains("/e2e/") ||
+                            normRelPath.Contains("/qa/");
+
+        if (isTestProject)
+        {
+            if (extensions is Dictionary<string, string> d)
+            {
+                d["is_test_project"] = "true";
+                d["primary_role"] = ProjectEntityKind.Test.ToString();
+                d.TryAdd("secondary_roles", "[]");
+                d.TryAdd("all_roles", System.Text.Json.JsonSerializer.Serialize(new[] { d["primary_role"] }));
+            }
+            return ProjectClassification.Test;
+        }
+
+        // Orchestrator / explicit library priority
+        if (extensions != null && (
+            extensions.GetValueOrDefault("is_orchestrator") == "true" ||
+            extensions.GetValueOrDefault("role") == "Library" ||
+            extensions.GetValueOrDefault("manifest_type") == "library"))
+        {
+            if (extensions is Dictionary<string, string> d)
+            {
+                d["primary_role"] = ProjectEntityKind.Library.ToString();
+                d.TryAdd("secondary_roles", "[]");
+                d.TryAdd("all_roles", System.Text.Json.JsonSerializer.Serialize(new[] { d["primary_role"] }));
+            }
+            return ProjectClassification.Library;
+        }
+
         // 1. Component Library Parsers (Angular, NestJS, React/Next, ASP.NET Core, etc.)
         var componentProfile = Parser.Components.ComponentLibraryParserRegistry.AnalyzeProject(projectContext);
         if (extensions is Dictionary<string, string> dict)
@@ -143,8 +186,8 @@ public static class ProjectEntityClassifierRegistry
             var classification = snapshot[i].Classify(
                 directoryPath,
                 filesInDirectory,
-                relativeProjectDir,
-                projectName,
+                relativeProjectDir ?? "",
+                projectName ?? "",
                 normType,
                 dependencies,
                 extensions);

@@ -60,7 +60,10 @@ public partial class ArchitectureViewEngine(IGraphClient db)
             !string.IsNullOrWhiteSpace(sqliteClient.DbPath) &&
             !string.Equals(sqliteClient.DbPath, ":memory:", StringComparison.OrdinalIgnoreCase))
         {
-            return sqliteClient.DbPath;
+            var dbPath = sqliteClient.DbPath;
+            long dbLastWriteTicks = File.Exists(dbPath) ? File.GetLastWriteTimeUtc(dbPath).Ticks : 0;
+            long walLastWriteTicks = File.Exists(dbPath + "-wal") ? File.GetLastWriteTimeUtc(dbPath + "-wal").Ticks : 0;
+            return $"{dbPath}:{dbLastWriteTicks}:{walLastWriteTicks}";
         }
 
         return $"mem:{System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(db)}";
@@ -598,10 +601,24 @@ public partial class ArchitectureViewEngine(IGraphClient db)
             projectToWorkloadMap[trimmedAssoc] = id;
             projectToWorkloadMap[trimmedAssoc + ":"] = id;
 
-            if (nodeMap.TryGetValue(associatedProjectId, out var rawProj) ||
-                nodeMap.TryGetValue(trimmedAssoc, out rawProj) ||
-                nodeMap.TryGetValue(trimmedAssoc + ":", out rawProj))
+            GraphNodeDto? rawProj = null;
+            if (!nodeMap.TryGetValue(associatedProjectId, out rawProj) &&
+                !nodeMap.TryGetValue(trimmedAssoc, out rawProj) &&
+                !nodeMap.TryGetValue(trimmedAssoc + ":", out rawProj))
             {
+                var nPath = props.GetValueOrDefault("path");
+                rawProj = nodeMap.Values.FirstOrDefault(p =>
+                    p.Kind == NodeKind.Project && (
+                        (!string.IsNullOrEmpty(nPath) && string.Equals(p.FilePath, nPath, StringComparison.OrdinalIgnoreCase)) ||
+                        string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)));
+            }
+
+            if (rawProj != null)
+            {
+                projectToWorkloadMap[rawProj.Id] = id;
+                projectToWorkloadMap[rawProj.Id.TrimEnd(':')] = id;
+                projectToWorkloadMap[rawProj.Id.TrimEnd(':') + ":"] = id;
+
                 if (rawProj.Properties != null)
                 {
                     foreach (var key in new[]
@@ -627,10 +644,30 @@ public partial class ArchitectureViewEngine(IGraphClient db)
         }
         else if (kind == "Project")
         {
-            if ((projectToWorkloadMap.TryGetValue(id, out var workloadId) ||
-                 projectToWorkloadMap.TryGetValue(id.TrimEnd(':'), out workloadId) ||
-                 projectToWorkloadMap.TryGetValue(id.TrimEnd(':') + ":", out workloadId)) &&
-                nodeMap.TryGetValue(workloadId, out var existingWorkload))
+            string? workloadId = null;
+            if (projectToWorkloadMap.TryGetValue(id, out var wId) ||
+                projectToWorkloadMap.TryGetValue(id.TrimEnd(':'), out wId) ||
+                projectToWorkloadMap.TryGetValue(id.TrimEnd(':') + ":", out wId))
+            {
+                workloadId = wId;
+            }
+            else
+            {
+                var pPath = props.GetValueOrDefault("path");
+                var matchingWorkload = nodeMap.Values.FirstOrDefault(w =>
+                    (w.Kind is NodeKind.App or NodeKind.Service or NodeKind.Worker or NodeKind.CliTool or NodeKind.Library or NodeKind.TestSuite) &&
+                    ((!string.IsNullOrEmpty(pPath) && string.Equals(w.FilePath, pPath, StringComparison.OrdinalIgnoreCase)) ||
+                     string.Equals(w.Name, name, StringComparison.OrdinalIgnoreCase)));
+                if (matchingWorkload != null)
+                {
+                    workloadId = matchingWorkload.Id;
+                    projectToWorkloadMap[id] = workloadId;
+                    projectToWorkloadMap[id.TrimEnd(':')] = workloadId;
+                    projectToWorkloadMap[id.TrimEnd(':') + ":"] = workloadId;
+                }
+            }
+
+            if (workloadId != null && nodeMap.TryGetValue(workloadId, out var existingWorkload))
             {
                 if (existingWorkload.Properties != null && props != null)
                 {
@@ -655,9 +692,7 @@ public partial class ArchitectureViewEngine(IGraphClient db)
                 return;
             }
 
-            if (projectToWorkloadMap.ContainsKey(id) ||
-                projectToWorkloadMap.ContainsKey(id.TrimEnd(':')) ||
-                projectToWorkloadMap.ContainsKey(id.TrimEnd(':') + ":"))
+            if (workloadId != null)
             {
                 return;
             }
@@ -697,17 +732,43 @@ public partial class ArchitectureViewEngine(IGraphClient db)
             return;
         }
 
-        var role = props.GetValueOrDefault("role");
+        var role = props.GetValueOrDefault("role", "");
         var isCliTool = projNode.Kind == NodeKind.CliTool ||
                         string.Equals(role, "CliTool", StringComparison.OrdinalIgnoreCase);
+        var isApp = projNode.Kind == NodeKind.App ||
+                    kind == "App" || kind == "FrontendApp" ||
+                    string.Equals(role, "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(role, "App", StringComparison.OrdinalIgnoreCase);
+        var isWorker = projNode.Kind == NodeKind.Worker ||
+                       kind == "Worker" ||
+                       string.Equals(role, "Worker", StringComparison.OrdinalIgnoreCase);
+        var isTestSuite = projNode.Kind == NodeKind.TestSuite ||
+                          kind == "TestSuite" || kind == "Test" ||
+                          string.Equals(role, "Test", StringComparison.OrdinalIgnoreCase);
 
-        if (isCliTool)
+        if (isApp)
+        {
+            projNode.Kind = NodeKind.App;
+        }
+        else if (isCliTool)
         {
             projNode.Kind = NodeKind.CliTool;
         }
+        else if (isWorker)
+        {
+            projNode.Kind = NodeKind.Worker;
+        }
+        else if (isTestSuite)
+        {
+            projNode.Kind = NodeKind.TestSuite;
+        }
 
         props["is_library"] = isLibProject ? "true" : "false";
-        props["entity_type"] = isLibProject ? "library" : (isCliTool ? "clitool" : "service");
+        props["entity_type"] = isLibProject ? "library"
+            : (isApp ? "app"
+            : (isCliTool ? "clitool"
+            : (isWorker ? "worker"
+            : (isTestSuite ? "testsuite" : "service"))));
         props["is_semantic_entity"] = isLibProject ? "false" : "true";
 
         if (!props.ContainsKey("layer"))
@@ -761,7 +822,10 @@ public partial class ArchitectureViewEngine(IGraphClient db)
         bool includeLibraries,
         string? projectFilter)
     {
-        foreach (var elem in nodesDoc.RootElement.EnumerateArray())
+        var sortedElems = nodesDoc.RootElement.EnumerateArray()
+            .OrderBy(e => e.GetStringProp("kind") == "Project" ? 1 : 0);
+
+        foreach (var elem in sortedElems)
         {
             var id = elem.GetStringProp("id");
             var kind = elem.GetStringProp("kind");

@@ -96,7 +96,29 @@ public interface IProjectParser
             if (frameworkType == "web" || frameworkType == "api") return ProjectClassification.Service;
         }
 
-        // 2. Inversion of Control: Query dialect's application framework packages
+        // 2. Inversion of Control: Query dialect's test framework packages FIRST!
+        var testPackages = parser.Packages.Where(p => p.Role == LibraryRole.TestFramework);
+        var normProjectName = (context.ProjectName ?? "").Trim().ToLowerInvariant();
+        var isTestByName = normProjectName.EndsWith(".tests") ||
+                           normProjectName.EndsWith(".unittests") ||
+                           normProjectName.EndsWith(".functionaltests") ||
+                           normProjectName.EndsWith(".integrationtests") ||
+                           normProjectName.EndsWith(".test");
+
+        if (isTestByName)
+        {
+            return ProjectClassification.Test;
+        }
+
+        foreach (var tp in testPackages)
+        {
+            if (tp.Matches(context))
+            {
+                return ProjectClassification.Test;
+            }
+        }
+
+        // 3. Inversion of Control: Query dialect's application framework packages
         var appPackages = parser.Packages.Where(p => p.Role is LibraryRole.WebFramework
             or LibraryRole.WebService
             or LibraryRole.FrontendFramework
@@ -123,16 +145,6 @@ public interface IProjectParser
                     LibraryRole.DatabaseMigration => ProjectClassification.DatabaseMigration,
                     _ => null
                 };
-            }
-        }
-
-        // 3. Inversion of Control: Query dialect's test framework packages
-        var testPackages = parser.Packages.Where(p => p.Role == LibraryRole.TestFramework);
-        foreach (var tp in testPackages)
-        {
-            if (tp.Matches(context))
-            {
-                return ProjectClassification.Test;
             }
         }
 

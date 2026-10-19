@@ -17,7 +17,8 @@ public static class BuiltInGateCatalog
         CoreZeroDomainHardcodesGate,
         OntologyLayerStrictHierarchyGate,
         OntologyModelCohesionGate,
-        DisallowStringlyTypedTaxonomiesGate
+        DisallowStringlyTypedTaxonomiesGate,
+        SemanticRuntimeEntityKindIntegrityGate
     ];
 
     public static IReadOnlyList<SemanticGate> GetExampleGates() =>
@@ -31,6 +32,7 @@ public static class BuiltInGateCatalog
         OntologyLayerStrictHierarchyGate,
         OntologyModelCohesionGate,
         DisallowStringlyTypedTaxonomiesGate,
+        SemanticRuntimeEntityKindIntegrityGate,
         new SemanticGate
         {
             Id = "SIG-P-B-001",
@@ -729,6 +731,49 @@ public static class BuiltInGateCatalog
         {
             Enabled = true,
             Baseline = "baselines/SIG-C-C-001.json"
+        },
+        Source = "BuiltIn"
+    };
+
+    public static readonly SemanticGate SemanticRuntimeEntityKindIntegrityGate = new()
+    {
+        Id = "SIG-O-B-001",
+        Category = GateCategory.Architectural,
+        Platform = "agnostic",
+        Scope = InvariantScope.Module,
+        Dimension = InvariantDimension.Boundaries,
+        Name = "Semantic Runtime Entity & View Kind Integrity",
+        Severity = GateSeverity.Error,
+        Description = "Enforces strict parity and integrity between physical project roles, Layer 4 semantic workloads, and architectural view node kinds. Test projects must never be classified as runnable App/Service/Worker workloads, and workload node labels must strictly align with their kind property.",
+        Remediation = "Ensure test projects reference test frameworks or match test naming conventions, and verify project classifiers do not overwrite test or workload kinds with conflicting defaults.",
+        Query = """
+            MATCH (n)
+            WHERE (n:App OR n:Service OR n:Worker OR n:CliTool)
+              AND (
+                coalesce(n.is_test_project, 'false') = 'true'
+                OR coalesce(n.role, '') = 'Test'
+                OR toLower(n.name) ENDS WITH '.unittests'
+                OR toLower(n.name) ENDS WITH '.functionaltests'
+                OR toLower(n.name) ENDS WITH '.integrationtests'
+                OR toLower(n.name) ENDS WITH '.tests'
+                OR toLower(n.name) ENDS WITH '.test'
+                OR (n:App AND n.kind IS NOT NULL AND n.kind <> 'App')
+                OR (n:Service AND n.kind IS NOT NULL AND n.kind <> 'Service')
+                OR (n:Worker AND n.kind IS NOT NULL AND n.kind <> 'Worker')
+                OR (n:CliTool AND n.kind IS NOT NULL AND n.kind <> 'CliTool')
+              )
+            RETURN 
+              coalesce(n.path, n.file_path, 'unknown') AS file,
+              coalesce(n.start_line, 1) AS line,
+              coalesce(n.start_col, 1) AS column,
+              n.name AS symbol,
+              labels(n)[0] AS target,
+              'Workload node ' + n.name + ' has invalid entity type, misclassified test project, or kind mismatch with label ' + labels(n)[0] AS message
+            """,
+        Ratchet = new GateRatchetSettings
+        {
+            Enabled = true,
+            Baseline = "baselines/SIG-O-B-001.json"
         },
         Source = "BuiltIn"
     };

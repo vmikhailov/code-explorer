@@ -126,6 +126,9 @@ public class CSharpParser : IProjectParser, IFileParser
         {
             var manifestType = context.ManifestProperties.GetValueOrDefault("manifest_type");
             if (manifestType == "test" || context.ManifestProperties.GetValueOrDefault("is_test_project") == "true") return ProjectClassification.Test;
+            if (context.ManifestProperties.GetValueOrDefault("is_orchestrator") == "true" ||
+                context.ManifestProperties.GetValueOrDefault("role") == "Library" ||
+                manifestType == "library") return ProjectClassification.Library;
             var sdk = context.ManifestProperties.GetValueOrDefault("sdk");
             if (sdk == "Microsoft.NET.Sdk.Worker") return ProjectClassification.Worker;
             if (sdk == "Microsoft.NET.Sdk.BlazorWebAssembly") return ProjectClassification.WebApp;
@@ -145,6 +148,64 @@ public class CSharpParser : IProjectParser, IFileParser
         try
         {
             var content = File.ReadAllText(csprojFile);
+            var projName = Path.GetFileNameWithoutExtension(csprojFile);
+            var normalizedDir = directoryPath.Replace('\\', '/').Trim('/');
+
+            // Test Project Priority: detect test projects FIRST before Maui, Exe, or Web SDK checks
+            var isTest = System.Text.RegularExpressions.Regex.IsMatch(content, @"<IsTestProject>\s*true\s*</IsTestProject>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
+                         System.Text.RegularExpressions.Regex.IsMatch(content, @"<IsTestingPlatformApplication>\s*true\s*</IsTestingPlatformApplication>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
+                         content.Contains("Microsoft.NET.Test.Sdk", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("MSTest.Sdk", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("MSTest.TestFramework", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("MSTest", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("Include=\"xunit", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("Include='xunit", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("Include=\"NUnit", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("Include='NUnit", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("Include=\"nunit", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("Include='nunit", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("Include=\"TUnit", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("Include='TUnit", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("Include=\"Verify.Xunit", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("Include='Verify.Xunit", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("Include=\"Verify.NUnit", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("Include='Verify.NUnit", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("Include=\"bunit", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("Include=\"FluentAssertions", StringComparison.OrdinalIgnoreCase) ||
+                         projName.EndsWith(".UnitTests", StringComparison.OrdinalIgnoreCase) ||
+                         projName.EndsWith(".FunctionalTests", StringComparison.OrdinalIgnoreCase) ||
+                         projName.EndsWith(".IntegrationTests", StringComparison.OrdinalIgnoreCase) ||
+                         projName.EndsWith(".Tests", StringComparison.OrdinalIgnoreCase) ||
+                         projName.EndsWith(".Test", StringComparison.OrdinalIgnoreCase) ||
+                         projName.EndsWith("Tests", StringComparison.OrdinalIgnoreCase) ||
+                         projName.EndsWith("Test", StringComparison.OrdinalIgnoreCase);
+
+            if (isTest)
+            {
+                props["manifest_type"] = "test";
+                props["is_test_project"] = "true";
+                props["is_library"] = "false";
+                props["role"] = "Test";
+                props["kind"] = "TestSuite";
+            }
+
+            var outputTypeMatch = System.Text.RegularExpressions.Regex.Match(content, @"<OutputType(?:\s+[^>]*)?>\s*([A-Za-z0-9]+)\s*</OutputType>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            var hasExeOutput = outputTypeMatch.Success &&
+                               (outputTypeMatch.Groups[1].Value.Equals("Exe", StringComparison.OrdinalIgnoreCase) ||
+                                outputTypeMatch.Groups[1].Value.Equals("WinExe", StringComparison.OrdinalIgnoreCase));
+
+            // Aspire AppHost (.AppHost / Aspire.AppHost.Sdk)
+            var isAspireAppHost = !isTest && (content.Contains("Aspire.AppHost.Sdk", StringComparison.OrdinalIgnoreCase) ||
+                                              projName.EndsWith(".AppHost", StringComparison.OrdinalIgnoreCase));
+            if (isAspireAppHost)
+            {
+                props["sdk"] = "Aspire.AppHost.Sdk";
+                props["is_library"] = "true";
+                props["role"] = "Library";
+                props["kind"] = "Library";
+                props["is_orchestrator"] = "true";
+                props["manifest_type"] = "library";
+            }
 
             // 1. Inspect SDK
             if (content.Contains("Sdk=\"Microsoft.NET.Sdk.Web\"", StringComparison.OrdinalIgnoreCase) ||
@@ -152,28 +213,47 @@ public class CSharpParser : IProjectParser, IFileParser
             {
                 props["sdk"] = "Microsoft.NET.Sdk.Web";
                 props["framework_type"] = "web";
-                props["manifest_type"] = "application";
+                if (!isTest && !isAspireAppHost)
+                {
+                    props["manifest_type"] = "application";
+                }
             }
             else if (content.Contains("Sdk=\"Microsoft.NET.Sdk.Worker\"", StringComparison.OrdinalIgnoreCase) ||
                      content.Contains("Sdk='Microsoft.NET.Sdk.Worker'", StringComparison.OrdinalIgnoreCase))
             {
                 props["sdk"] = "Microsoft.NET.Sdk.Worker";
                 props["framework_type"] = "worker";
-                props["manifest_type"] = "worker";
+                if (!isTest && !isAspireAppHost)
+                {
+                    props["manifest_type"] = "worker";
+                }
             }
             else if (content.Contains("Sdk=\"Microsoft.NET.Sdk.BlazorWebAssembly\"", StringComparison.OrdinalIgnoreCase) ||
                      content.Contains("Sdk='Microsoft.NET.Sdk.BlazorWebAssembly'", StringComparison.OrdinalIgnoreCase))
             {
                 props["sdk"] = "Microsoft.NET.Sdk.BlazorWebAssembly";
                 props["framework_type"] = "frontend";
-                props["manifest_type"] = "application";
+                if (!isTest && !isAspireAppHost)
+                {
+                    props["manifest_type"] = "application";
+                }
             }
             else if (content.Contains("Sdk=\"Microsoft.NET.Sdk.Razor\"", StringComparison.OrdinalIgnoreCase) ||
                      content.Contains("Sdk='Microsoft.NET.Sdk.Razor'", StringComparison.OrdinalIgnoreCase))
             {
                 props["sdk"] = "Microsoft.NET.Sdk.Razor";
                 props["framework_type"] = "web";
-                props["manifest_type"] = "application";
+                if (hasExeOutput && !isTest && !isAspireAppHost)
+                {
+                    props["manifest_type"] = "application";
+                }
+                else if (!isTest && !isAspireAppHost)
+                {
+                    props["manifest_type"] = "library";
+                    props["is_library"] = "true";
+                    props["role"] = "Library";
+                    props["kind"] = "Library";
+                }
             }
             else if (content.Contains("Sdk=\"Microsoft.NET.Sdk\"", StringComparison.OrdinalIgnoreCase) ||
                      content.Contains("Sdk='Microsoft.NET.Sdk'", StringComparison.OrdinalIgnoreCase))
@@ -187,7 +267,7 @@ public class CSharpParser : IProjectParser, IFileParser
                              content.Contains("{E3E379DF-F4C6-4180-9B81-6769533ABE47}", StringComparison.OrdinalIgnoreCase) ||
                              content.Contains("{E53F8FEA-EAE0-44A6-8774-FFD645390401}", StringComparison.OrdinalIgnoreCase);
 
-            if (hasWebConfig || hasWebGuid)
+            if ((hasWebConfig || hasWebGuid) && !isTest && !isAspireAppHost)
             {
                 props["framework_type"] = "web";
                 props["manifest_type"] = "application";
@@ -196,25 +276,17 @@ public class CSharpParser : IProjectParser, IFileParser
             if (content.Contains("Microsoft.Azure.Functions.Worker", StringComparison.OrdinalIgnoreCase) ||
                 content.Contains("Microsoft.NET.Sdk.Functions", StringComparison.OrdinalIgnoreCase))
             {
-                props["manifest_type"] = "function";
+                if (!isTest && !isAspireAppHost)
+                {
+                    props["manifest_type"] = "function";
+                }
             }
 
-            if (content.Contains("<IsTestProject>true</IsTestProject>", StringComparison.OrdinalIgnoreCase) ||
-                content.Contains("Microsoft.NET.Test.Sdk", StringComparison.OrdinalIgnoreCase) ||
-                content.Contains("PackageReference Include=\"xunit\"", StringComparison.OrdinalIgnoreCase) ||
-                content.Contains("PackageReference Include=\"NUnit\"", StringComparison.OrdinalIgnoreCase) ||
-                content.Contains("PackageReference Include=\"MSTest\"", StringComparison.OrdinalIgnoreCase) ||
-                content.Contains("PackageReference Include=\"bunit\"", StringComparison.OrdinalIgnoreCase) ||
-                content.Contains("PackageReference Include=\"FluentAssertions\"", StringComparison.OrdinalIgnoreCase))
-            {
-                props["manifest_type"] = "test";
-                props["is_test_project"] = "true";
-            }
-
-            var isUiClientApp = System.Text.RegularExpressions.Regex.IsMatch(content, @"<UseMaui>\s*true\s*</UseMaui>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
+            var isUiClientApp = !isTest && !isAspireAppHost && (
+                                System.Text.RegularExpressions.Regex.IsMatch(content, @"<UseMaui>\s*true\s*</UseMaui>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
                                 System.Text.RegularExpressions.Regex.IsMatch(content, @"<UseWPF>\s*true\s*</UseWPF>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
                                 System.Text.RegularExpressions.Regex.IsMatch(content, @"<UseWindowsForms>\s*true\s*</UseWindowsForms>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
-                                content.Contains("Microsoft.NET.Sdk.BlazorWebAssembly", StringComparison.OrdinalIgnoreCase);
+                                content.Contains("Microsoft.NET.Sdk.BlazorWebAssembly", StringComparison.OrdinalIgnoreCase));
 
             if (isUiClientApp)
             {
@@ -227,12 +299,11 @@ public class CSharpParser : IProjectParser, IFileParser
             }
 
             // 2. Inspect <OutputType>
-            var outputTypeMatch = System.Text.RegularExpressions.Regex.Match(content, @"<OutputType(?:\s+[^>]*)?>\s*([A-Za-z0-9]+)\s*</OutputType>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
             if (outputTypeMatch.Success)
             {
                 var outputType = outputTypeMatch.Groups[1].Value;
                 props["output_type"] = outputType;
-                if (outputType.Equals("Exe", StringComparison.OrdinalIgnoreCase) || outputType.Equals("WinExe", StringComparison.OrdinalIgnoreCase))
+                if (!isTest && !isAspireAppHost && (outputType.Equals("Exe", StringComparison.OrdinalIgnoreCase) || outputType.Equals("WinExe", StringComparison.OrdinalIgnoreCase)))
                 {
                     if (!props.ContainsKey("manifest_type"))
                     {
@@ -242,7 +313,7 @@ public class CSharpParser : IProjectParser, IFileParser
                 }
                 else if (outputType.Equals("Library", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (!props.ContainsKey("manifest_type") && props.GetValueOrDefault("sdk") != "Microsoft.NET.Sdk.Web" && !isUiClientApp)
+                    if (!props.ContainsKey("manifest_type") && props.GetValueOrDefault("sdk") != "Microsoft.NET.Sdk.Web" && !isUiClientApp && !isTest && !isAspireAppHost)
                     {
                         props["manifest_type"] = "library";
                     }
@@ -251,7 +322,7 @@ public class CSharpParser : IProjectParser, IFileParser
             else
             {
                 // In .NET SDK, OutputType defaults to Library if not Exe
-                if (props.GetValueOrDefault("sdk") == "Microsoft.NET.Sdk" && !props.ContainsKey("manifest_type") && !isUiClientApp)
+                if (props.GetValueOrDefault("sdk") == "Microsoft.NET.Sdk" && !props.ContainsKey("manifest_type") && !isUiClientApp && !isTest && !isAspireAppHost)
                 {
                     props["output_type"] = "Library";
                     props["manifest_type"] = "library";
