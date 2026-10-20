@@ -23,7 +23,8 @@ public static class BuiltInGateCatalog
         RustUnsafeCodeIsolationGate,
         RustCleanArchitectureCrateBoundaryGate,
         RustAsyncTokioAntiBlockingGate,
-        RustUnparameterizedSqlQueryGate
+        RustUnparameterizedSqlQueryGate,
+        GodClassProhibitionGate
     ];
 
     public static IReadOnlyList<SemanticGate> GetExampleGates() =>
@@ -43,6 +44,7 @@ public static class BuiltInGateCatalog
         RustCleanArchitectureCrateBoundaryGate,
         RustAsyncTokioAntiBlockingGate,
         RustUnparameterizedSqlQueryGate,
+        GodClassProhibitionGate,
         new SemanticGate
         {
             Id = "SIG-P-B-001",
@@ -966,6 +968,41 @@ public static class BuiltInGateCatalog
         {
             Enabled = true,
             Baseline = "baselines/SIG-R-D-001.json"
+        },
+        Source = "BuiltIn"
+    };
+
+    public static readonly SemanticGate GodClassProhibitionGate = new()
+    {
+        Id = "SIG-C-R-001",
+        Category = GateCategory.Architectural,
+        Platform = "agnostic",
+        Scope = InvariantScope.Class,
+        Dimension = InvariantDimension.Resources,
+        Name = "God Class Prohibition",
+        Severity = GateSeverity.Error,
+        Description = "Classes and structs must not exceed 1,000 lines of code or declare more than 30 methods in a single type unit. Monolithic 'God Classes' accumulate unrelated responsibilities, violate the Single Responsibility Principle (SRP), and degrade maintainability.",
+        Remediation = "Decompose the God Class into smaller, cohesive domain services, handlers, or strategy classes with focused responsibilities.",
+        Query = """
+            MATCH (t:Type)
+            WHERE coalesce(t.kind, 'class') IN ['class', 'struct']
+              AND NOT coalesce(t.is_test, false)
+              AND NOT (coalesce(t.path, t.file_path, '') CONTAINS 'Test' OR coalesce(t.path, t.file_path, '') CONTAINS 'test')
+            OPTIONAL MATCH (t)-[:HAS_METHOD]->(m:Function)
+            WITH t, count(m) AS method_count, coalesce(t.loc, t.end_line - t.start_line + 1) AS loc
+            WHERE loc > 1000 OR method_count > 30
+            RETURN 
+              coalesce(t.path, t.file_path) AS file,
+              coalesce(t.start_line, 1) AS line,
+              coalesce(t.start_col, 1) AS column,
+              t.name AS symbol,
+              'GodClass' AS target,
+              'God class detected: ' + t.name + ' has ' + toString(loc) + ' LOC and ' + toString(method_count) + ' methods (max allowed: 1000 LOC / 30 methods)' AS message
+            """,
+        Ratchet = new GateRatchetSettings
+        {
+            Enabled = true,
+            Baseline = "baselines/SIG-C-R-001.json"
         },
         Source = "BuiltIn"
     };
