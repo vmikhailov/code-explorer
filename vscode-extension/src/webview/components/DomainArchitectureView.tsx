@@ -3372,30 +3372,38 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         savedPositions.set(n.id(), { ...n.position() });
       });
       const hadExisting = savedPositions.size > 0;
-      const isInitial = !hadExisting || layoutChanged || isForced;
+      const isInitial = !hadExisting;
 
       if (isInitial) {
         setIsPreparing(true);
         setPreparingStatus('Synthesizing domain clusters...');
-        // Yield execution to the browser event loop so React renders the loading overlay immediately
-        await new Promise((resolve) => setTimeout(resolve, 30));
+        // Yield execution to the browser event loop so React renders the loading overlay on initial empty load
+        await new Promise((resolve) => setTimeout(resolve, 16));
         if (cancelled) return;
       }
 
-      cy.elements().remove();
-      cy.add(elements);
-      applyEdgeLabelVisibility(cy, edgeLabelsOnHoverRef.current);
-      if (searchQueryRef.current.trim()) {
-        applySearchHighlight(cy, searchQueryRef.current);
-      }
+      cy.batch(() => {
+        cy.elements().remove();
+        cy.add(elements);
+        applyEdgeLabelVisibility(cy, edgeLabelsOnHoverRef.current);
+        if (searchQueryRef.current.trim()) {
+          applySearchHighlight(cy, searchQueryRef.current);
+        }
+
+        if (hadExisting && !layoutChanged && layoutName === 'cose') {
+          cy.nodes().forEach((n) => {
+            const pos = savedPositions.get(n.id());
+            if (pos) {
+              n.position(pos);
+            }
+          });
+        }
+      });
 
       if (hadExisting && !layoutChanged && layoutName === 'cose') {
         let hasNewNodes = false;
         cy.nodes().forEach((n) => {
-          const pos = savedPositions.get(n.id());
-          if (pos) {
-            n.position(pos);
-          } else {
+          if (!savedPositions.has(n.id())) {
             hasNewNodes = true;
           }
         });
@@ -3408,11 +3416,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       }
 
       if (cancelled) return;
-      if (isInitial) {
-        setPreparingStatus('Computing force-directed topology...');
-        await new Promise((resolve) => setTimeout(resolve, 15));
-        if (cancelled) return;
-      }
 
       if (activeLayoutRef.current) {
         try {
