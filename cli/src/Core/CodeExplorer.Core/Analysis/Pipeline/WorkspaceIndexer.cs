@@ -61,6 +61,8 @@ public class WorkspaceIndexer
         {
             Components.ComponentLibraryParserRegistry.Register(componentParser);
         }
+
+        WorkspaceFileFilter.ResetDefault();
     }
 
     /// <summary>
@@ -383,7 +385,7 @@ public class WorkspaceIndexer
         var sharedChannel = Channel.CreateUnbounded<Func<Task>>(
             new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
 
-        return new ParsingContext(
+        var ctx = new ParsingContext(
             absoluteWorkspacePath,
             absoluteWorkspacePath,
             _dbClient,
@@ -394,6 +396,9 @@ public class WorkspaceIndexer
             progress: progress,
             logger: _logger,
             enableIntentAnalysis: enableIntentAnalysis);
+
+        ctx.FileFilter = new WorkspaceFileFilter(_projectParsers, _fileParsers);
+        return ctx;
     }
 
     private async Task RunParsingPipelineAsync(ParsingContext ctx)
@@ -494,9 +499,9 @@ public class WorkspaceIndexer
         });
 
         // Register all project manifests across the workspace
-        var gitignore = new GitIgnoreMatcher(ctx.AbsoluteWorkspacePath);
-        var candidateManifests = WorkspaceFileFilter.EnumerateCandidateFiles(ctx.AbsoluteWorkspacePath, ctx.AbsoluteWorkspacePath, gitignore)
-            .Where(f => WorkspaceFileFilter.IsManifestFile(Path.GetFileName(f)));
+        var gitignore = new GitIgnoreMatcher(ctx.AbsoluteWorkspacePath, ctx.FileFilter);
+        var candidateManifests = ctx.FileFilter.EnumerateCandidateFiles(ctx.AbsoluteWorkspacePath, ctx.AbsoluteWorkspacePath, gitignore)
+            .Where(f => ctx.FileFilter.IsManifestFile(Path.GetFileName(f)));
 
         foreach (var relPath in candidateManifests)
         {
@@ -560,8 +565,9 @@ public class WorkspaceIndexer
             return true;
         }
 
-        var gitignore = new GitIgnoreMatcher(absoluteWorkspacePath);
-        var allFiles = WorkspaceFileFilter.EnumerateCandidateFiles(
+        var filter = new WorkspaceFileFilter(_projectParsers, _fileParsers);
+        var gitignore = new GitIgnoreMatcher(absoluteWorkspacePath, filter);
+        var allFiles = filter.EnumerateCandidateFiles(
             absoluteTargetPath,
             absoluteWorkspacePath,
             gitignore,
@@ -583,7 +589,7 @@ public class WorkspaceIndexer
             changeset.Added.Count, changeset.Modified.Count, changeset.Deleted.Count);
 
         var changedManifests = changeset.Added.Concat(changeset.Modified).Concat(changeset.Deleted)
-            .Where(f => WorkspaceFileFilter.IsManifestFile(Path.GetFileName(f)))
+            .Where(f => filter.IsManifestFile(Path.GetFileName(f)))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -592,7 +598,7 @@ public class WorkspaceIndexer
             var manifestDesc = changedManifests.Count <= 3
                 ? string.Join(", ", changedManifests)
                 : $"{string.Join(", ", changedManifests.Take(3))} (+{changedManifests.Count - 3} more)";
-            var hasDeletedManifests = changeset.Deleted.Any(f => WorkspaceFileFilter.IsManifestFile(Path.GetFileName(f)));
+            var hasDeletedManifests = changeset.Deleted.Any(f => filter.IsManifestFile(Path.GetFileName(f)));
             var shouldClear = hasDeletedManifests && targetSubPath == null;
             _logger.LogInformation(
                 "[Incremental:Decision] Full rescan triggered: Project manifest modified ({Manifests}). Reindexing workspace structure (clear={Clear})...",

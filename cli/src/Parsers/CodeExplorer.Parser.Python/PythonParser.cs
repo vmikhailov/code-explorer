@@ -13,7 +13,8 @@ public class PythonParser : IProjectParser, IFileParser
 
     public string ProjectType => "python";
 
-    public IReadOnlyCollection<string> ExcludedFolders => ["venv", ".venv", "__pycache__"];
+    public IReadOnlyCollection<string> ExcludedFolders => ["venv", ".venv", "__pycache__", ".pytest_cache", ".mypy_cache"];
+    public IReadOnlyCollection<string> ManifestFileNames => ["requirements.txt", "pyproject.toml", "setup.py", "Pipfile"];
 
     public bool IsConfigurationFile(string fileName)
     {

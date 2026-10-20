@@ -13,7 +13,12 @@ public class ColdFusionProjectParser : IProjectParser
 
     public IReadOnlyCollection<string> ExcludedFolders =>
     [
-        ".git", ".svn", ".hg", "node_modules", "bin", "obj", ".idea", ".vscode", "dist", "build", ".codeexplorer"
+        ".svn", ".hg", "node_modules", "bin", "obj", "dist", "build", "WEB-INF"
+    ];
+
+    public IReadOnlyCollection<string> ManifestFileNames =>
+    [
+        "Application.cfc", "Application.cfm", "box.json", "coldfusion.json"
     ];
 
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)

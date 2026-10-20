@@ -273,4 +273,51 @@ packages/
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
+
+    [Test]
+    public void Test_WorkspaceFileFilter_DynamicExclusions_FromConnectedParsers_WithDeduplication()
+    {
+        var csParser = new CodeExplorer.Parser.CSharp.CSharpParser();
+        var tsParser = new CodeExplorer.Parser.TypeScript.TypeScriptParser();
+        var pyParser = new CodeExplorer.Parser.Python.PythonParser();
+
+        // 1. C# only filter
+        var csOnlyFilter = new WorkspaceFileFilter([csParser], []);
+        csOnlyFilter.ActiveExcludedDirectoryNames.Should().Contain("bin");
+        csOnlyFilter.ActiveExcludedDirectoryNames.Should().Contain("obj");
+        csOnlyFilter.ActiveExcludedDirectoryNames.Should().Contain(".git");
+        csOnlyFilter.ActiveExcludedDirectoryNames.Should().NotContain("node_modules");
+        csOnlyFilter.ActiveExcludedDirectoryNames.Should().NotContain("__pycache__");
+        csOnlyFilter.IsManifestFile("app.csproj").Should().BeTrue();
+        csOnlyFilter.IsManifestFile("package.json").Should().BeFalse();
+
+        // 2. TypeScript only filter
+        var tsOnlyFilter = new WorkspaceFileFilter([tsParser], []);
+        tsOnlyFilter.ActiveExcludedDirectoryNames.Should().Contain("node_modules");
+        tsOnlyFilter.ActiveExcludedDirectoryNames.Should().Contain("dist");
+        tsOnlyFilter.ActiveExcludedDirectoryNames.Should().Contain(".git");
+        tsOnlyFilter.ActiveExcludedDirectoryNames.Should().NotContain("bin");
+        tsOnlyFilter.ActiveExcludedDirectoryNames.Should().NotContain("obj");
+        tsOnlyFilter.IsManifestFile("package.json").Should().BeTrue();
+        tsOnlyFilter.IsManifestFile("app.csproj").Should().BeFalse();
+
+        // 3. Combined C#, TS, and Python filter - verifying deduplication & combined exclusions
+        var combinedFilter = new WorkspaceFileFilter([csParser, tsParser, pyParser], []);
+        combinedFilter.ActiveExcludedDirectoryNames.Should().Contain("bin");
+        combinedFilter.ActiveExcludedDirectoryNames.Should().Contain("obj");
+        combinedFilter.ActiveExcludedDirectoryNames.Should().Contain("node_modules");
+        combinedFilter.ActiveExcludedDirectoryNames.Should().Contain("__pycache__");
+        combinedFilter.ActiveExcludedDirectoryNames.Should().Contain("venv");
+        combinedFilter.ActiveExcludedDirectoryNames.Should().Contain(".git");
+
+        // Deduplication check: every item in ActiveExcludedDirectoryNames is unique (case-insensitive)
+        var count = combinedFilter.ActiveExcludedDirectoryNames.Count;
+        var distinctCount = combinedFilter.ActiveExcludedDirectoryNames.Distinct(StringComparer.OrdinalIgnoreCase).Count();
+        count.Should().Be(distinctCount);
+
+        combinedFilter.IsManifestFile("app.csproj").Should().BeTrue();
+        combinedFilter.IsManifestFile("package.json").Should().BeTrue();
+        combinedFilter.IsManifestFile("requirements.txt").Should().BeTrue();
+        combinedFilter.IsManifestFile("unknown.txt").Should().BeFalse();
+    }
 }

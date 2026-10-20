@@ -25,6 +25,11 @@ public class JavaParser : IProjectParser, IFileParser
         "target", "build", ".gradle", ".mvn", "bin", "out", ".idea", ".settings", ".metadata"
     ];
 
+    public IReadOnlyCollection<string> ManifestFileNames =>
+    [
+        "pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts", "AndroidManifest.xml"
+    ];
+
     public bool IsConfigurationFile(string fileName)
     {
         var lower = fileName.ToLowerInvariant();

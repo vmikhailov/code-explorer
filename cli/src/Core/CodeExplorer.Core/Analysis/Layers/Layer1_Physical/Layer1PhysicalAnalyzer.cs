@@ -71,7 +71,7 @@ public class Layer1PhysicalParser
 
         var files = new List<FileNode>();
         var folders = new List<FolderNode>();
-        var gitignore = new GitIgnoreMatcher(ctx.AbsoluteWorkspacePath);
+        var gitignore = new GitIgnoreMatcher(ctx.AbsoluteWorkspacePath, ctx.FileFilter);
 
         if (!ctx.IsSubtreeScan)
         {
@@ -119,7 +119,7 @@ public class Layer1PhysicalParser
         var relativeDir = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, currentDir).Replace('\\', '/');
         if (relativeDir == ".") relativeDir = "";
 
-        if (currentDir != ctx.AbsoluteWorkspacePath && WorkspaceFileFilter.IsExcludedDirectory(dirName, currentDir))
+        if (currentDir != ctx.AbsoluteWorkspacePath && ctx.FileFilter.IsExcludedDirectory(dirName, currentDir))
         {
             ctx.Log($"[Layer1] Skipping excluded directory: '{relativeDir}'");
             return;
@@ -194,12 +194,12 @@ public class Layer1PhysicalParser
                 continue;
             }
 
-            if (!WorkspaceFileFilter.IsSupportedSourceOrConfigFile(fileInfo.Name))
+            if (!ctx.FileFilter.IsSupportedSourceOrConfigFile(fileInfo.Name))
             {
                 continue;
             }
 
-            if (WorkspaceFileFilter.ShouldSkipFile(fileInfo))
+            if (ctx.FileFilter.ShouldSkipFile(fileInfo))
             {
                 continue;
             }
@@ -240,10 +240,10 @@ public class Layer1PhysicalParser
         return bytes[^1] == (byte)'\n' ? newlines : newlines + 1;
     }
 
-    public static HashSet<string> ExcludedDirectoryNames => WorkspaceFileFilter.ExcludedDirectoryNames;
-    public static bool IsExcludedDirectory(string dirName) => WorkspaceFileFilter.IsExcludedDirectory(dirName);
-    public static bool IsSupportedFile(string fileName) => WorkspaceFileFilter.IsSupportedSourceOrConfigFile(fileName);
-    public static bool ShouldSkipFileName(string fileName) => WorkspaceFileFilter.ShouldSkipFileName(fileName);
-    public static bool ShouldSkipFile(FileInfo fileInfo) => WorkspaceFileFilter.ShouldSkipFile(fileInfo);
+    public static HashSet<string> ExcludedDirectoryNames => new(WorkspaceFileFilter.ExcludedDirectoryNames, StringComparer.OrdinalIgnoreCase);
+    public static bool IsExcludedDirectory(string dirName) => WorkspaceFileFilter.Default.IsExcludedDirectory(dirName);
+    public static bool IsSupportedFile(string fileName) => WorkspaceFileFilter.Default.IsSupportedSourceOrConfigFile(fileName);
+    public static bool ShouldSkipFileName(string fileName) => WorkspaceFileFilter.Default.ShouldSkipFileName(fileName);
+    public static bool ShouldSkipFile(FileInfo fileInfo) => WorkspaceFileFilter.Default.ShouldSkipFile(fileInfo);
     public static bool IsMinifiedContent(string filePath) => WorkspaceFileFilter.IsMinifiedContent(filePath);
 }

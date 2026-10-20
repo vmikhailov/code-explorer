@@ -1,39 +1,90 @@
 namespace CodeExplorer.Core.Parser;
 
 /// <summary>
-/// Unified single source of truth for directory traversal, excluded paths, and file filtering.
-/// Used symmetrically by Layer 1 full scan, incremental scan, FileWatcher, and project parsers.
+/// Dynamic file and directory filter configured from connected platform-specific parsers.
+/// Enforces directory exclusions, manifest identification, file filtering, and deduplication.
 /// </summary>
-public static class WorkspaceFileFilter
+public class WorkspaceFileFilter
 {
     public const long MaxSourceFileSize = 1_048_576; // 1 MB limit for AST parsing
 
     /// <summary>
-    /// Canonical single source of truth for excluded directory names across the entire system.
+    /// Universal developer tooling / VCS directories that are always excluded regardless of connected parsers.
     /// </summary>
-    public static readonly HashSet<string> ExcludedDirectoryNames = new(StringComparer.OrdinalIgnoreCase)
+    public static readonly HashSet<string> UniversalExcludedDirectoryNames = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".git", ".github", ".vscode", ".idea", ".vs", ".go", "node_modules",
-        "bin", "obj", "dist", "build", ".build", ".next", ".nuxt",
-        ".turbo", ".cache", ".output", "out", "coverage", "scratch", "demo",
-        "vendor", "bower_components", "third_party", "thirdparty", "3rdparty",
+        ".git", ".github", ".vscode", ".idea", ".vs",
+        "scratch", "demo", "third_party", "thirdparty", "3rdparty",
         ".codeexplorer", ".packages", ".agents", ".gemini", ".claude", ".cursor"
     };
 
-    public static readonly HashSet<string> ManifestFileNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "package.json", "pom.xml", "go.mod", "Cargo.toml", "Directory.Build.props", "Directory.Build.targets",
-        "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts", "AndroidManifest.xml"
-    };
+    private readonly HashSet<string> _excludedDirectoryNames = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _manifestFileNames = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _manifestExtensions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly IReadOnlyList<IProjectParser> _projectParsers;
+    private readonly IReadOnlyList<IFileParser> _fileParsers;
 
-    public static bool IsExcludedDirectory(string dirName, string? fullPath = null)
+    public IReadOnlySet<string> ActiveExcludedDirectoryNames => _excludedDirectoryNames;
+    public IReadOnlySet<string> ActiveManifestFileNames => _manifestFileNames;
+    public IReadOnlySet<string> ActiveManifestExtensions => _manifestExtensions;
+    public IReadOnlyList<IProjectParser> ConnectedProjectParsers => _projectParsers;
+    public IReadOnlyList<IFileParser> ConnectedFileParsers => _fileParsers;
+
+    public WorkspaceFileFilter(
+        IEnumerable<IProjectParser>? projectParsers = null,
+        IEnumerable<IFileParser>? fileParsers = null)
+    {
+        var projList = (projectParsers ?? []).ToList();
+        var fileList = (fileParsers ?? []).Concat(projList.OfType<IFileParser>()).Distinct().ToList();
+
+        _projectParsers = projList;
+        _fileParsers = fileList;
+
+        // 1. Seed universal VCS / tooling directories
+        foreach (var dir in UniversalExcludedDirectoryNames)
+        {
+            _excludedDirectoryNames.Add(dir);
+        }
+
+        // 2. Query connected platform-specific parsers and deduplicate
+        foreach (var parser in _projectParsers)
+        {
+            foreach (var folder in parser.ExcludedFolders)
+            {
+                if (!string.IsNullOrWhiteSpace(folder))
+                {
+                    _excludedDirectoryNames.Add(folder.Trim());
+                }
+            }
+
+            foreach (var manifest in parser.ManifestFileNames)
+            {
+                if (!string.IsNullOrWhiteSpace(manifest))
+                {
+                    _manifestFileNames.Add(manifest.Trim());
+                }
+            }
+
+            foreach (var ext in parser.ManifestExtensions)
+            {
+                if (!string.IsNullOrWhiteSpace(ext))
+                {
+                    var normalized = ext.Trim();
+                    if (!normalized.StartsWith('.')) normalized = "." + normalized;
+                    _manifestExtensions.Add(normalized);
+                }
+            }
+        }
+    }
+
+    public bool IsExcludedDirectory(string dirName, string? fullPath = null)
     {
         if (dirName.Equals("bin", StringComparison.OrdinalIgnoreCase))
         {
             return IsBuildOutputBinDirectory(fullPath);
         }
 
-        if (ExcludedDirectoryNames.Contains(dirName))
+        if (_excludedDirectoryNames.Contains(dirName))
             return true;
 
         if (dirName.Equals("packages", StringComparison.OrdinalIgnoreCase) && fullPath != null)
@@ -125,13 +176,21 @@ public static class WorkspaceFileFilter
         return false;
     }
 
-    public static bool IsManifestFile(string fileName)
+    public bool IsManifestFile(string fileName)
     {
-        var ext = Path.GetExtension(fileName).ToLowerInvariant();
-        return ext is ".csproj" or ".fsproj" or ".vbproj" || ManifestFileNames.Contains(fileName);
+        if (_manifestFileNames.Contains(fileName)) return true;
+        var ext = Path.GetExtension(fileName);
+        if (!string.IsNullOrEmpty(ext) && _manifestExtensions.Contains(ext)) return true;
+
+        foreach (var p in _projectParsers)
+        {
+            if (p.IsManifestFile(fileName)) return true;
+        }
+
+        return false;
     }
 
-    public static bool ShouldSkipFileName(string fileName)
+    public bool ShouldSkipFileName(string fileName)
     {
         var fn = fileName.ToLowerInvariant();
 
@@ -139,26 +198,23 @@ public static class WorkspaceFileFilter
         if (fn.Contains("mock")) return true;
 
         // 2. Scratch, temporary, playground, and debug scratch files
-        if (fn.StartsWith("scratch") || fn.Contains(".scratch.") || fn.Contains("_scratch.") ||
-            fn.StartsWith("temp_") || fn.StartsWith("tmp_") ||
-            fn.EndsWith("_debug.ts") || fn.EndsWith("_debug.js") ||
-            fn.StartsWith("debug_") || fn.Contains("playground") || fn.Contains("scratchpad"))
+        if (fn.StartWithIC("scratch") || fn.Contains(".scratch.") || fn.Contains("_scratch.") ||
+            fn.StartWithIC("temp_") || fn.StartWithIC("tmp_") ||
+            fn.StartWithIC("debug_") || fn.Contains("playground") || fn.Contains("scratchpad"))
         {
             return true;
         }
 
-        // 3. TypeScript Ambient Declaration files (no executable code/endpoints/calls)
-        if (fn.EndsWith(".d.ts")) return true;
-
-        // 4. Minified, bundle, and vendor file conventions
-        if (fn.EndsWith(".min.js") || fn.EndsWith(".min.mjs") || fn.EndsWith(".min.cjs") ||
-            fn.EndsWith(".min.css") || fn.EndsWith(".bundle.js") || fn.EndsWith(".bundle.min.js")) return true;
-        if (fn.Contains(".min.")) return true;
+        // 3. Platform parser specific skip rules
+        foreach (var p in _projectParsers)
+        {
+            if (p.ShouldSkipFileName(fileName)) return true;
+        }
 
         return false;
     }
 
-    public static bool ShouldSkipFile(FileInfo fileInfo)
+    public bool ShouldSkipFile(FileInfo fileInfo)
     {
         if (ShouldSkipFileName(fileInfo.Name)) return true;
 
@@ -229,29 +285,22 @@ public static class WorkspaceFileFilter
         return false;
     }
 
-    /// <summary>
-    /// Checks if a file is a source code file or configuration file that produces a File node in Layer 1.
-    /// Excludes project manifests (.csproj, package.json, etc.) which are handled at Layer 2 (Boundaries).
-    /// </summary>
-    public static bool IsSupportedSourceOrConfigFile(string fileName)
+    public bool IsSupportedSourceOrConfigFile(string fileName)
     {
         var ext = Path.GetExtension(fileName).ToLowerInvariant();
-        var hasParser = WorkspaceIndexer._fileParsers.Any(p => p.CanParse(ext) || p.CanParseFile(fileName));
-        var isConfigFile = ConfigurationParser.IsConfigurationFile(fileName);
-        var isAndroidManifest = fileName.Equals("AndroidManifest.xml", StringComparison.OrdinalIgnoreCase);
+        var hasParser = _fileParsers.Any(p => p.CanParse(ext) || p.CanParseFile(fileName));
+        var isConfigFile = ConfigurationParser.IsConfigurationFile(fileName) ||
+                           _projectParsers.Any(p => p.IsConfigurationFile(fileName));
 
-        return hasParser || isConfigFile || isAndroidManifest;
+        return hasParser || isConfigFile;
     }
 
-    /// <summary>
-    /// Checks if a file is tracked by the workspace indexer (source files, config files, AND project manifests).
-    /// </summary>
-    public static bool IsSupportedFileType(string fileName)
+    public bool IsSupportedFileType(string fileName)
     {
         return IsSupportedSourceOrConfigFile(fileName) || IsManifestFile(fileName);
     }
 
-    public static bool IsCandidateSourceFile(string fullPath)
+    public bool IsCandidateSourceFile(string fullPath)
     {
         var normalized = fullPath.Replace('\\', '/');
         var parts = normalized.Split('/');
@@ -308,11 +357,7 @@ public static class WorkspaceFileFilter
         }
     }
 
-    /// <summary>
-    /// Unified directory and file enumeration that enforces all GitIgnore rules, excluded directories,
-    /// libman vendor exclusions, and file-level filters consistently across full and incremental scanning.
-    /// </summary>
-    public static List<string> EnumerateCandidateFiles(
+    public List<string> EnumerateCandidateFiles(
         string targetPath,
         string workspaceRoot,
         GitIgnoreMatcher gitignore,
@@ -428,10 +473,7 @@ public static class WorkspaceFileFilter
         return result;
     }
 
-    /// <summary>
-    /// Enumerate files recursively while strictly pruning any ExcludedDirectoryNames.
-    /// </summary>
-    public static IEnumerable<string> EnumerateFiles(string rootDir, string searchPattern = "*")
+    public IEnumerable<string> EnumerateFiles(string rootDir, string searchPattern = "*")
     {
         if (!Directory.Exists(rootDir)) yield break;
 
@@ -479,10 +521,7 @@ public static class WorkspaceFileFilter
         }
     }
 
-    /// <summary>
-    /// Enumerate directories recursively while strictly pruning any ExcludedDirectoryNames.
-    /// </summary>
-    public static IEnumerable<string> EnumerateDirectories(string rootDir)
+    public IEnumerable<string> EnumerateDirectories(string rootDir)
     {
         if (!Directory.Exists(rootDir)) yield break;
 
@@ -519,4 +558,39 @@ public static class WorkspaceFileFilter
             }
         }
     }
+
+    #region Static Forwarding Fallbacks for Global / Backward-Compatible Access
+
+    private static WorkspaceFileFilter? s_default;
+    private static readonly object s_lock = new();
+
+    public static WorkspaceFileFilter Default
+    {
+        get
+        {
+            if (s_default == null)
+            {
+                lock (s_lock)
+                {
+                    s_default ??= new WorkspaceFileFilter(
+                        WorkspaceIndexer.GetAllProjectParsers(),
+                        WorkspaceIndexer.GetAllFileParsers());
+                }
+            }
+            return s_default;
+        }
+    }
+
+    public static void ResetDefault()
+    {
+        lock (s_lock)
+        {
+            s_default = null;
+        }
+    }
+
+    public static IReadOnlySet<string> ExcludedDirectoryNames => Default.ActiveExcludedDirectoryNames;
+    public static IReadOnlySet<string> ManifestFileNames => Default.ActiveManifestFileNames;
+
+    #endregion
 }

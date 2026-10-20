@@ -54,6 +54,10 @@ public class JavaScriptParser : IProjectParser, IFileParser
     public Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory) =>
         _tsParser.ExtractManifestProperties(directoryPath, filesInDirectory);
 
+    public IReadOnlyCollection<string> ManifestFileNames => _tsParser.ManifestFileNames;
+    public IReadOnlyCollection<string> ManifestExtensions => _tsParser.ManifestExtensions;
+    public bool ShouldSkipFileName(string fileName) => _tsParser.ShouldSkipFileName(fileName);
+
     public string GetProjectName(string directoryPath, string[] filesInDirectory)
     {
         return _tsParser.GetProjectName(directoryPath, filesInDirectory);

@@ -15,6 +15,32 @@ public interface IProjectParser
     IReadOnlyCollection<string> ExcludedFolders { get; }
 
     /// <summary>
+    /// Specific manifest file names (e.g., "package.json", "go.mod", "Cargo.toml", "pom.xml", "Directory.Build.props")
+    /// recognized by this dialect parser.
+    /// </summary>
+    IReadOnlyCollection<string> ManifestFileNames => [];
+
+    /// <summary>
+    /// Specific manifest file extensions (e.g., ".csproj", ".fsproj", ".vbproj") recognized by this dialect parser.
+    /// </summary>
+    IReadOnlyCollection<string> ManifestExtensions => [];
+
+    /// <summary>
+    /// Checks whether the given file name or path is a project manifest file for this dialect.
+    /// </summary>
+    bool IsManifestFile(string fileName)
+    {
+        if (ManifestFileNames.Any(m => m.Equals(fileName, StringComparison.OrdinalIgnoreCase))) return true;
+        var ext = Path.GetExtension(fileName);
+        return !string.IsNullOrEmpty(ext) && ManifestExtensions.Any(e => e.Equals(ext, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Checks whether a file with the given name should be skipped by this dialect (e.g. ambient declaration .d.ts, minified bundles).
+    /// </summary>
+    bool ShouldSkipFileName(string fileName) => false;
+
+    /// <summary>
     /// Checks if the given directory contains a project for this language, based on files in it.
     /// </summary>
     bool IsProjectDirectory(string directoryPath, string[] filesInDirectory);

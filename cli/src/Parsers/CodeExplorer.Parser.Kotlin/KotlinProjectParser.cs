@@ -17,6 +17,11 @@ public class KotlinProjectParser : IProjectParser
         "build", ".gradle", "bin", "out", ".idea"
     ];
 
+    public IReadOnlyCollection<string> ManifestFileNames =>
+    [
+        "build.gradle.kts", "build.gradle", "settings.gradle.kts", "settings.gradle", "pom.xml", "AndroidManifest.xml"
+    ];
+
     public bool IsConfigurationFile(string fileName) => false;
 
     public IReadOnlyList<ILibraryConfigurationDescriptor> ConfigurationDescriptors => [];

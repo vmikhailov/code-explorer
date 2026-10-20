@@ -9,16 +9,19 @@ public class FileWatcher : IDisposable
     private readonly FileSystemWatcher _watcher;
     private readonly System.Timers.Timer _debounceTimer;
     private readonly ConcurrentDictionary<string, byte> _pendingChanges = new(StringComparer.OrdinalIgnoreCase);
+    private readonly WorkspaceFileFilter _fileFilter;
     private readonly object _lock = new();
     private bool _isDisposed;
 
     public FileWatcher(
         string workspacePath,
         Func<IReadOnlyList<string>, Task> onBatchChanged,
-        double debounceMs = 300)
+        double debounceMs = 300,
+        WorkspaceFileFilter? fileFilter = null)
     {
         _workspacePath = Path.GetFullPath(workspacePath);
         _onBatchChanged = onBatchChanged;
+        _fileFilter = fileFilter ?? WorkspaceFileFilter.Default;
 
         _debounceTimer = new System.Timers.Timer(debounceMs)
         {
@@ -108,24 +111,24 @@ public class FileWatcher : IDisposable
         }
     }
 
-    private static bool ShouldIgnore(string fullPath)
+    private bool ShouldIgnore(string fullPath)
     {
         var normalized = fullPath.Replace('\\', '/');
         var parts = normalized.Split('/');
         foreach (var part in parts)
         {
-            if (WorkspaceFileFilter.IsExcludedDirectory(part))
+            if (_fileFilter.IsExcludedDirectory(part))
                 return true;
         }
 
         var fileName = Path.GetFileName(normalized);
-        if (WorkspaceFileFilter.ShouldSkipFileName(fileName))
+        if (_fileFilter.ShouldSkipFileName(fileName))
             return true;
 
         if (Directory.Exists(fullPath))
             return false;
 
-        return !WorkspaceFileFilter.IsSupportedFileType(fileName);
+        return !_fileFilter.IsSupportedFileType(fileName);
     }
 
     public void Dispose()

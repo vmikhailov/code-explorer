@@ -19,6 +19,7 @@ public class RustParser : IProjectParser, IFileParser
     public string ProjectType => "rust";
 
     public IReadOnlyCollection<string> ExcludedFolders => ["target"];
+    public IReadOnlyCollection<string> ManifestFileNames => ["Cargo.toml"];
 
     public bool UsesTreeSitter => true;
 

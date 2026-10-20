@@ -14,7 +14,24 @@ public class TypeScriptParser : IProjectParser, IFileParser
 
     public string ProjectType => "typescript";
 
-    public IReadOnlyCollection<string> ExcludedFolders => ["node_modules", "dist", "build", ".next", "out"];
+    public IReadOnlyCollection<string> ExcludedFolders =>
+    [
+        "node_modules", "dist", "build", ".build", ".next", ".nuxt",
+        ".turbo", ".cache", ".output", "out", "coverage", "bower_components"
+    ];
+
+    public IReadOnlyCollection<string> ManifestFileNames => ["package.json"];
+    public IReadOnlyCollection<string> ManifestExtensions => [];
+
+    public bool ShouldSkipFileName(string fileName)
+    {
+        var fn = fileName.ToLowerInvariant();
+        return fn.EndsWith(".d.ts") ||
+               fn.EndsWith(".min.js") || fn.EndsWith(".min.mjs") || fn.EndsWith(".min.cjs") ||
+               fn.EndsWith(".bundle.js") || fn.EndsWith(".bundle.min.js") ||
+               fn.Contains(".min.") ||
+               fn.EndsWith("_debug.ts") || fn.EndsWith("_debug.js");
+    }
 
     public bool IsConfigurationFile(string fileName)
     {
@@ -193,7 +210,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
     {
         try
         {
-            var allFiles = WorkspaceFileFilter.EnumerateFiles(directoryPath, "*").ToList();
+            var allFiles = WorkspaceFileFilter.Default.EnumerateFiles(directoryPath, "*").ToList();
             bool hasAnyDts = false;
             foreach (var f in allFiles)
             {

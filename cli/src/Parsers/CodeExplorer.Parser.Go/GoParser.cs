@@ -12,7 +12,8 @@ public class GoParser : IProjectParser, IFileParser
 
     public string ProjectType => "go";
 
-    public IReadOnlyCollection<string> ExcludedFolders => ["vendor"];
+    public IReadOnlyCollection<string> ExcludedFolders => ["vendor", ".go"];
+    public IReadOnlyCollection<string> ManifestFileNames => ["go.mod"];
 
     public bool IsConfigurationFile(string fileName)
     {

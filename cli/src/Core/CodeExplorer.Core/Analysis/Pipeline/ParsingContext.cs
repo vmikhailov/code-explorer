@@ -27,6 +27,7 @@ public class ParsingContext
     public SyntaxStructureNode? SyntaxStructure { get; set; }
     public SemanticStructureNode? SemanticStructure { get; set; }
     public ResourceReconciliationService ResourceRegistry { get; } = new();
+    public WorkspaceFileFilter FileFilter { get; set; } = WorkspaceFileFilter.Default;
 
     private readonly IProgress<IndexingProgress>? _progress;
     private readonly object _progressLock = new();

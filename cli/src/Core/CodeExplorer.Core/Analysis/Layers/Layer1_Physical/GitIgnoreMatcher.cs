@@ -27,10 +27,11 @@ public class GitIgnoreMatcher
     private readonly string _workspaceRoot;
     private readonly List<Rule> _rules = [];
 
-    public GitIgnoreMatcher(string workspaceRoot)
+    public GitIgnoreMatcher(string workspaceRoot, WorkspaceFileFilter? fileFilter = null)
     {
         _workspaceRoot = workspaceRoot;
-        foreach (var dir in WorkspaceFileFilter.ExcludedDirectoryNames)
+        var filter = fileFilter ?? WorkspaceFileFilter.Default;
+        foreach (var dir in filter.ActiveExcludedDirectoryNames)
         {
             AddPattern(dir + "/");
         }

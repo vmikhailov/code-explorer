@@ -14,6 +14,8 @@ public class CSharpParser : IProjectParser, IFileParser
     public string ProjectType => "csharp";
 
     public IReadOnlyCollection<string> ExcludedFolders => ["bin", "obj", ".vs"];
+    public IReadOnlyCollection<string> ManifestExtensions => [".csproj", ".fsproj", ".vbproj"];
+    public IReadOnlyCollection<string> ManifestFileNames => ["Directory.Build.props", "Directory.Build.targets", "packages.config"];
 
     public bool IsConfigurationFile(string fileName)
     {
@@ -416,7 +418,7 @@ public class CSharpParser : IProjectParser, IFileParser
             // Inspect directory files for concrete capabilities
             try
             {
-                var allFiles = WorkspaceFileFilter.EnumerateFiles(directoryPath, "*").ToList();
+                var allFiles = WorkspaceFileFilter.Default.EnumerateFiles(directoryPath, "*").ToList();
                 foreach (var file in allFiles)
                 {
                     var ext = Path.GetExtension(file).ToLowerInvariant();
