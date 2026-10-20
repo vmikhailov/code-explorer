@@ -21,6 +21,16 @@ public interface IFileParser
     bool CanParseFile(string filePath) => CanParse(Path.GetExtension(filePath));
 
     /// <summary>
+    /// Checks whether a file with the given name should be skipped by this file parser.
+    /// </summary>
+    bool ShouldSkipFileName(string fileName) => false;
+
+    /// <summary>
+    /// Checks whether a file should be skipped by this file parser (e.g. minified content, generated bundles).
+    /// </summary>
+    bool ShouldSkipFile(FileInfo fileInfo) => false;
+
+    /// <summary>
     /// Indicates whether this parser uses Tree-Sitter for AST-level parsing.
     /// </summary>
     bool UsesTreeSitter { get; }

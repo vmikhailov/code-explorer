@@ -11,12 +11,7 @@ public class WorkspaceFileFilter
     /// <summary>
     /// Universal developer tooling / VCS directories that are always excluded regardless of connected parsers.
     /// </summary>
-    public static readonly HashSet<string> UniversalExcludedDirectoryNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".git", ".github", ".vscode", ".idea", ".vs",
-        "scratch", "demo", "third_party", "thirdparty", "3rdparty",
-        ".codeexplorer", ".packages", ".agents", ".gemini", ".claude", ".cursor"
-    };
+    public static IReadOnlySet<string> UniversalExcludedDirectoryNames => WorkspaceSettings.DefaultExcludedDirectories;
 
     private readonly HashSet<string> _excludedDirectoryNames = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _manifestFileNames = new(StringComparer.OrdinalIgnoreCase);
@@ -32,7 +27,8 @@ public class WorkspaceFileFilter
 
     public WorkspaceFileFilter(
         IEnumerable<IProjectParser>? projectParsers = null,
-        IEnumerable<IFileParser>? fileParsers = null)
+        IEnumerable<IFileParser>? fileParsers = null,
+        IEnumerable<string>? excludedDirectories = null)
     {
         var projList = (projectParsers ?? []).ToList();
         var fileList = (fileParsers ?? []).Concat(projList.OfType<IFileParser>()).Distinct().ToList();
@@ -40,13 +36,15 @@ public class WorkspaceFileFilter
         _projectParsers = projList;
         _fileParsers = fileList;
 
-        // 1. Seed universal VCS / tooling directories
-        foreach (var dir in UniversalExcludedDirectoryNames)
+        var excluded = excludedDirectories ?? WorkspaceSettings.DefaultExcludedDirectories;
+        foreach (var dir in excluded)
         {
-            _excludedDirectoryNames.Add(dir);
+            if (!string.IsNullOrWhiteSpace(dir))
+            {
+                _excludedDirectoryNames.Add(dir.Trim());
+            }
         }
 
-        // 2. Query connected platform-specific parsers and deduplicate
         foreach (var parser in _projectParsers)
         {
             foreach (var folder in parser.ExcludedFolders)
@@ -70,107 +68,41 @@ public class WorkspaceFileFilter
                 if (!string.IsNullOrWhiteSpace(ext))
                 {
                     var normalized = ext.Trim();
-                    if (!normalized.StartsWith('.')) normalized = "." + normalized;
+                    if (!normalized.StartsWith('.'))
+                    {
+                        normalized = string.Concat('.', normalized);
+                    }
                     _manifestExtensions.Add(normalized);
                 }
             }
         }
     }
 
+    public bool? CheckDirectoryExclusion(string dirName, string? fullPath = null)
+    {
+        foreach (var parser in _projectParsers)
+        {
+            var decision = parser.CheckDirectoryExclusion(dirName, fullPath);
+            if (decision.HasValue)
+            {
+                return decision.Value;
+            }
+        }
+
+        return null;
+    }
+
     public bool IsExcludedDirectory(string dirName, string? fullPath = null)
     {
-        if (dirName.Equals("bin", StringComparison.OrdinalIgnoreCase))
+        var decision = CheckDirectoryExclusion(dirName, fullPath);
+        if (decision.HasValue)
         {
-            return IsBuildOutputBinDirectory(fullPath);
+            return decision.Value;
         }
 
         if (_excludedDirectoryNames.Contains(dirName))
-            return true;
-
-        if (dirName.Equals("packages", StringComparison.OrdinalIgnoreCase) && fullPath != null)
-        {
-            return IsNuGetPackagesDirectory(fullPath);
-        }
-
-        return false;
-    }
-
-    public static bool IsBuildOutputBinDirectory(string? fullPath)
-    {
-        if (string.IsNullOrEmpty(fullPath)) return true;
-
-        try
-        {
-            var norm = fullPath.Replace('\\', '/');
-            var binIdx = norm.IndexOf("/bin/", StringComparison.OrdinalIgnoreCase);
-            var binDir = fullPath;
-            if (binIdx >= 0)
-            {
-                binDir = fullPath[..(binIdx + 4)];
-            }
-            else if (norm.EndsWith("/bin", StringComparison.OrdinalIgnoreCase))
-            {
-                binDir = fullPath;
-            }
-
-            var parent = Path.GetDirectoryName(binDir);
-            if (parent != null)
-            {
-                var parentName = Path.GetFileName(parent);
-                if (parentName.Equals("src", StringComparison.OrdinalIgnoreCase))
-                    return false;
-
-                if (File.Exists(Path.Combine(parent, "Cargo.toml")) || File.Exists(Path.Combine(parent, "package.json")))
-                    return false;
-            }
-
-            if (Directory.Exists(binDir) && Directory.EnumerateFiles(binDir, "*.rs", SearchOption.AllDirectories).Any())
-            {
-                return false;
-            }
-
-            if (fullPath.EndsWith(".rs", StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-        }
-        catch
         {
             return true;
-        }
-
-        return true;
-    }
-
-    public static bool IsNuGetPackagesDirectory(string fullPath)
-    {
-        try
-        {
-            // If it contains JS/TS workspace configuration, it is never a NuGet cache
-            if (File.Exists(Path.Combine(fullPath, "package.json")))
-                return false;
-
-            var parent = Path.GetDirectoryName(fullPath);
-            if (parent != null &&
-                (File.Exists(Path.Combine(parent, "pnpm-workspace.yaml")) ||
-                 File.Exists(Path.Combine(parent, "lerna.json")) ||
-                 File.Exists(Path.Combine(parent, "turbo.json"))))
-            {
-                return false;
-            }
-
-            if (File.Exists(Path.Combine(fullPath, "repositories.config")))
-                return true;
-
-            if (parent != null && File.Exists(Path.Combine(parent, "packages.config")))
-                return true;
-
-            if (Directory.Exists(fullPath) && Directory.EnumerateFiles(fullPath, "*.nupkg", SearchOption.TopDirectoryOnly).Any())
-                return true;
-        }
-        catch
-        {
-            // Best effort
         }
 
         return false;
@@ -192,23 +124,14 @@ public class WorkspaceFileFilter
 
     public bool ShouldSkipFileName(string fileName)
     {
-        var fn = fileName.ToLowerInvariant();
-
-        // 1. Mocks and synthetic stubs
-        if (fn.Contains("mock")) return true;
-
-        // 2. Scratch, temporary, playground, and debug scratch files
-        if (fn.StartWithIC("scratch") || fn.Contains(".scratch.") || fn.Contains("_scratch.") ||
-            fn.StartWithIC("temp_") || fn.StartWithIC("tmp_") ||
-            fn.StartWithIC("debug_") || fn.Contains("playground") || fn.Contains("scratchpad"))
-        {
-            return true;
-        }
-
-        // 3. Platform parser specific skip rules
         foreach (var p in _projectParsers)
         {
             if (p.ShouldSkipFileName(fileName)) return true;
+        }
+
+        foreach (var f in _fileParsers)
+        {
+            if (f.ShouldSkipFileName(fileName)) return true;
         }
 
         return false;
@@ -218,7 +141,6 @@ public class WorkspaceFileFilter
     {
         if (ShouldSkipFileName(fileInfo.Name)) return true;
 
-        // Oversized source files (> 1 MB are bundled distributions or generated data tables)
         try
         {
             if (fileInfo.Length > MaxSourceFileSize)
@@ -231,14 +153,14 @@ public class WorkspaceFileFilter
             // Ignore file access errors
         }
 
-        // Minification heuristic: check first 4KB for extremely long lines (> 1000 chars)
-        var fileName = fileInfo.Name.ToLowerInvariant();
-        if (fileName.EndsWith(".js") || fileName.EndsWith(".ts") || fileName.EndsWith(".css"))
+        foreach (var p in _projectParsers)
         {
-            if (IsMinifiedContent(fileInfo.FullName))
-            {
-                return true;
-            }
+            if (p.ShouldSkipFile(fileInfo)) return true;
+        }
+
+        foreach (var f in _fileParsers)
+        {
+            if (f.ShouldSkipFile(fileInfo)) return true;
         }
 
         return false;
@@ -317,46 +239,6 @@ public class WorkspaceFileFilter
         return IsSupportedFileType(fileName);
     }
 
-    public static void RegisterLibManExclusions(
-        string libmanPath,
-        string currentDir,
-        string workspaceRoot,
-        GitIgnoreMatcher gitignore,
-        Action<string>? log = null)
-    {
-        try
-        {
-            var content = File.ReadAllText(libmanPath);
-            using var doc = System.Text.Json.JsonDocument.Parse(content);
-            if (doc.RootElement.TryGetProperty("libraries", out var libs) &&
-                libs.ValueKind == System.Text.Json.JsonValueKind.Array)
-            {
-                foreach (var lib in libs.EnumerateArray())
-                {
-                    if (lib.TryGetProperty("destination", out var destProp) &&
-                        destProp.ValueKind == System.Text.Json.JsonValueKind.String)
-                    {
-                        var dest = destProp.GetString();
-                        if (!string.IsNullOrWhiteSpace(dest))
-                        {
-                            var fullDest = Path.GetFullPath(Path.Combine(currentDir, dest));
-                            var relDest = Path.GetRelativePath(workspaceRoot, fullDest).Replace('\\', '/').Trim('/');
-                            if (!string.IsNullOrEmpty(relDest))
-                            {
-                                gitignore.AddPattern(relDest + "/");
-                                log?.Invoke($"[WorkspaceFileFilter] LibMan: Excluded library destination '{relDest}'");
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            log?.Invoke($"[WorkspaceFileFilter] Error reading libman.json: {ex.Message}");
-        }
-    }
-
     public List<string> EnumerateCandidateFiles(
         string targetPath,
         string workspaceRoot,
@@ -372,42 +254,30 @@ public class WorkspaceFileFilter
         while (stack.Count > 0)
         {
             var currentDir = stack.Pop();
-            var relativeDir = Path.GetRelativePath(workspaceRoot, currentDir).Replace('\\', '/');
-            if (relativeDir == ".") relativeDir = "";
+            var isRoot = string.Equals(currentDir, workspaceRoot, StringComparison.OrdinalIgnoreCase);
+            var relativeDir = isRoot ? string.Empty : Path.GetRelativePath(workspaceRoot, currentDir).Replace('\\', '/');
 
             var dirName = Path.GetFileName(currentDir);
             if (string.IsNullOrEmpty(dirName)) dirName = currentDir;
 
             if (IsExcludedDirectory(dirName, currentDir))
             {
-                log?.Invoke($"[WorkspaceFileFilter] Skipping excluded directory '{relativeDir}'");
                 continue;
             }
 
             if (!string.IsNullOrEmpty(relativeDir))
             {
-                var nestedGitIgnore = Path.Combine(currentDir, ".gitignore");
-                if (File.Exists(nestedGitIgnore))
-                {
-                    gitignore.LoadScopedFile(nestedGitIgnore, relativeDir);
-                }
-                var nestedCeIgnore = Path.Combine(currentDir, ".codeexplorerignore");
-                if (File.Exists(nestedCeIgnore))
-                {
-                    gitignore.LoadScopedFile(nestedCeIgnore, relativeDir);
-                }
+                gitignore.LoadScopedDirectory(currentDir, relativeDir);
             }
 
             if (!string.IsNullOrEmpty(relativeDir) && gitignore.IsIgnored(relativeDir, true))
             {
-                log?.Invoke($"[WorkspaceFileFilter] GitIgnore: Skipping ignored directory '{relativeDir}'");
                 continue;
             }
 
-            var libmanPath = Path.Combine(currentDir, "libman.json");
-            if (File.Exists(libmanPath))
+            foreach (var parser in _projectParsers)
             {
-                RegisterLibManExclusions(libmanPath, currentDir, workspaceRoot, gitignore, log);
+                parser.OnDirectoryScan(currentDir, relativeDir, gitignore, log);
             }
 
             DirectoryInfo dirInfo;
@@ -473,7 +343,7 @@ public class WorkspaceFileFilter
         return result;
     }
 
-    public IEnumerable<string> EnumerateFiles(string rootDir, string searchPattern = "*")
+    public IEnumerable<string> EnumerateFiles(string rootDir, string? searchPattern = null)
     {
         if (!Directory.Exists(rootDir)) yield break;
 
@@ -507,7 +377,9 @@ public class WorkspaceFileFilter
             string[] files;
             try
             {
-                files = Directory.GetFiles(currentDir, searchPattern);
+                files = searchPattern != null
+                    ? Directory.GetFiles(currentDir, searchPattern)
+                    : Directory.GetFiles(currentDir);
             }
             catch
             {

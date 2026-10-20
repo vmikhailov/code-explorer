@@ -127,16 +127,7 @@ public class Layer1PhysicalParser
 
         if (!string.IsNullOrEmpty(relativeDir))
         {
-            var nestedGitIgnore = Path.Combine(currentDir, ".gitignore");
-            if (File.Exists(nestedGitIgnore))
-            {
-                gitignore.LoadScopedFile(nestedGitIgnore, relativeDir);
-            }
-            var nestedCeIgnore = Path.Combine(currentDir, ".codeexplorerignore");
-            if (File.Exists(nestedCeIgnore))
-            {
-                gitignore.LoadScopedFile(nestedCeIgnore, relativeDir);
-            }
+            gitignore.LoadScopedDirectory(currentDir, relativeDir);
         }
 
         if (!string.IsNullOrEmpty(relativeDir) && gitignore.IsIgnored(relativeDir, true))
@@ -145,10 +136,9 @@ public class Layer1PhysicalParser
             return;
         }
 
-        var libmanPath = Path.Combine(currentDir, "libman.json");
-        if (File.Exists(libmanPath))
+        foreach (var parser in ctx.FileFilter.ConnectedProjectParsers)
         {
-            WorkspaceFileFilter.RegisterLibManExclusions(libmanPath, currentDir, ctx.AbsoluteWorkspacePath, gitignore, ctx.LogDebug);
+            parser.OnDirectoryScan(currentDir, relativeDir, gitignore, ctx.LogDebug);
         }
 
         var currentParentNode = parentNode;

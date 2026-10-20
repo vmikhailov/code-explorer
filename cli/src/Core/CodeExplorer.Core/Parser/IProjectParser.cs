@@ -62,9 +62,47 @@ public interface IProjectParser
     }
 
     /// <summary>
+    /// Checks whether a directory should be excluded or explicitly retained by this dialect.
+    /// Returns true to exclude, false to explicitly retain/include (overriding name-based exclusion),
+    /// or null for no opinion.
+    /// </summary>
+    bool? CheckDirectoryExclusion(string dirName, string? fullPath = null) => null;
+
+    /// <summary>
+    /// Checks whether a directory should be excluded by this dialect.
+    /// </summary>
+    bool IsExcludedDirectory(string dirName, string? fullPath = null) => CheckDirectoryExclusion(dirName, fullPath) ?? false;
+
+    /// <summary>
+    /// Default rule for skipping synthetic stubs, mocks, and scratch files.
+    /// </summary>
+    public static bool DefaultShouldSkipFileName(string fileName)
+    {
+        var fn = fileName.ToLowerInvariant();
+        if (fn.Contains("mock")) return true;
+        if (fn.StartWithIC("scratch") || fn.Contains(".scratch.") || fn.Contains("_scratch.") ||
+            fn.StartWithIC("temp_") || fn.StartWithIC("tmp_") ||
+            fn.StartWithIC("debug_") || fn.Contains("playground") || fn.Contains("scratchpad"))
+        {
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
     /// Checks whether a file with the given name should be skipped by this dialect (e.g. ambient declaration .d.ts, minified bundles).
     /// </summary>
-    bool ShouldSkipFileName(string fileName) => false;
+    bool ShouldSkipFileName(string fileName) => DefaultShouldSkipFileName(fileName);
+
+    /// <summary>
+    /// Checks whether a file should be skipped by this dialect (e.g. minified content, generated bundles).
+    /// </summary>
+    bool ShouldSkipFile(FileInfo fileInfo) => false;
+
+    /// <summary>
+    /// Callback during directory scanning allowing dialect-specific configuration registration (e.g. LibMan).
+    /// </summary>
+    void OnDirectoryScan(string directoryPath, string relativeDir, GitIgnoreMatcher gitignore, Action<string>? log = null) { }
 
     /// <summary>
     /// Checks if the given directory contains a project for this language, based on files in it.

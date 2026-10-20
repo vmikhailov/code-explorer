@@ -24,6 +24,16 @@ public sealed class WorkspaceSettings
     };
 
     /// <summary>
+    /// Universal developer tooling / VCS directories that are always excluded regardless of connected parsers.
+    /// </summary>
+    public static readonly HashSet<string> DefaultExcludedDirectories = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".git", ".github", ".vscode", ".idea", ".vs",
+        "scratch", "demo", "third_party", "thirdparty", "3rdparty",
+        ".codeexplorer", ".packages", ".agents", ".gemini", ".claude", ".cursor"
+    };
+
+    /// <summary>
     /// Gitignore/glob-style patterns or relative directory/file paths to exclude from scanning.
     /// </summary>
     [JsonPropertyName("exclude")]

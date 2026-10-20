@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -16,6 +17,151 @@ public class CSharpParser : IProjectParser, IFileParser
     public IReadOnlyCollection<string> ExcludedFolders => ["bin", "obj", ".vs"];
     public IReadOnlyCollection<string> ManifestExtensions => [".csproj", ".fsproj", ".vbproj"];
     public IReadOnlyCollection<string> ManifestFileNames => ["Directory.Build.props", "Directory.Build.targets", "packages.config"];
+
+    public bool? CheckDirectoryExclusion(string dirName, string? fullPath = null)
+    {
+        if (dirName.Equals("bin", StringComparison.OrdinalIgnoreCase))
+        {
+            return IsBuildOutputBinDirectory(fullPath);
+        }
+
+        if (dirName.Equals("packages", StringComparison.OrdinalIgnoreCase) && fullPath != null)
+        {
+            if (IsNuGetPackagesDirectory(fullPath))
+                return true;
+        }
+
+        return null;
+    }
+
+    public static bool IsBuildOutputBinDirectory(string? fullPath)
+    {
+        if (string.IsNullOrEmpty(fullPath)) return true;
+
+        try
+        {
+            var norm = fullPath.Replace('\\', '/');
+            var binIdx = norm.IndexOf("/bin/", StringComparison.OrdinalIgnoreCase);
+            var binDir = fullPath;
+            if (binIdx >= 0)
+            {
+                binDir = fullPath[..(binIdx + 4)];
+            }
+            else if (norm.EndsWith("/bin", StringComparison.OrdinalIgnoreCase))
+            {
+                binDir = fullPath;
+            }
+
+            var parent = Path.GetDirectoryName(binDir);
+            if (parent != null)
+            {
+                var parentName = Path.GetFileName(parent);
+                if (parentName.Equals("src", StringComparison.OrdinalIgnoreCase))
+                    return false;
+
+                if (File.Exists(Path.Combine(parent, "Cargo.toml")) || File.Exists(Path.Combine(parent, "package.json")))
+                    return false;
+            }
+
+            if (Directory.Exists(binDir) && Directory.EnumerateFiles(binDir, "*.rs", SearchOption.AllDirectories).Any())
+            {
+                return false;
+            }
+
+            if (fullPath.EndsWith(".rs", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+        catch
+        {
+            return true;
+        }
+
+        return true;
+    }
+
+    public static bool IsNuGetPackagesDirectory(string fullPath)
+    {
+        try
+        {
+            // If it contains JS/TS workspace configuration, it is never a NuGet cache
+            if (File.Exists(Path.Combine(fullPath, "package.json")))
+                return false;
+
+            var parent = Path.GetDirectoryName(fullPath);
+            if (parent != null &&
+                (File.Exists(Path.Combine(parent, "pnpm-workspace.yaml")) ||
+                 File.Exists(Path.Combine(parent, "lerna.json")) ||
+                 File.Exists(Path.Combine(parent, "turbo.json"))))
+            {
+                return false;
+            }
+
+            if (File.Exists(Path.Combine(fullPath, "repositories.config")))
+                return true;
+
+            if (parent != null && File.Exists(Path.Combine(parent, "packages.config")))
+                return true;
+
+            if (Directory.Exists(fullPath) && Directory.EnumerateFiles(fullPath, "*.nupkg", SearchOption.TopDirectoryOnly).Any())
+                return true;
+        }
+        catch
+        {
+            // Best effort
+        }
+
+        return false;
+    }
+
+    public void OnDirectoryScan(string directoryPath, string relativeDir, GitIgnoreMatcher gitignore, Action<string>? log = null)
+    {
+        var libmanPath = Path.Combine(directoryPath, "libman.json");
+        if (File.Exists(libmanPath))
+        {
+            RegisterLibManExclusions(libmanPath, directoryPath, gitignore, log);
+        }
+    }
+
+    public static void RegisterLibManExclusions(
+        string libmanPath,
+        string currentDir,
+        GitIgnoreMatcher gitignore,
+        Action<string>? log = null)
+    {
+        try
+        {
+            var content = File.ReadAllText(libmanPath);
+            using var doc = JsonDocument.Parse(content);
+            if (doc.RootElement.TryGetProperty("libraries", out var libs) &&
+                libs.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var lib in libs.EnumerateArray())
+                {
+                    if (lib.TryGetProperty("destination", out var destProp) &&
+                        destProp.ValueKind == JsonValueKind.String)
+                    {
+                        var dest = destProp.GetString();
+                        if (!string.IsNullOrWhiteSpace(dest))
+                        {
+                            var fullDest = Path.GetFullPath(Path.Combine(currentDir, dest));
+                            var relDest = Path.GetRelativePath(gitignore.WorkspaceRoot, fullDest).Replace('\\', '/').Trim('/');
+                            if (!string.IsNullOrEmpty(relDest))
+                            {
+                                gitignore.AddPattern(relDest + "/");
+                                log?.Invoke($"[CSharpParser] LibMan: Excluded library destination '{relDest}'");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            log?.Invoke($"[CSharpParser] Error reading libman.json: {ex.Message}");
+        }
+    }
 
     public bool IsConfigurationFile(string fileName)
     {

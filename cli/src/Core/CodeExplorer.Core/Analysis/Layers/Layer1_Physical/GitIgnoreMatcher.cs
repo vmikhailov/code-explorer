@@ -24,14 +24,19 @@ public class GitIgnoreMatcher
         bool IsAnchored,
         string? Scope);
 
+    public static readonly string[] IgnoreFileNames = [".gitignore", ".codeexplorerignore"];
+
     private readonly string _workspaceRoot;
+    private readonly WorkspaceFileFilter _filter;
     private readonly List<Rule> _rules = [];
+
+    public string WorkspaceRoot => _workspaceRoot;
 
     public GitIgnoreMatcher(string workspaceRoot, WorkspaceFileFilter? fileFilter = null)
     {
         _workspaceRoot = workspaceRoot;
-        var filter = fileFilter ?? WorkspaceFileFilter.Default;
-        foreach (var dir in filter.ActiveExcludedDirectoryNames)
+        _filter = fileFilter ?? WorkspaceFileFilter.Default;
+        foreach (var dir in _filter.ActiveExcludedDirectoryNames)
         {
             AddPattern(dir + "/");
         }
@@ -41,9 +46,25 @@ public class GitIgnoreMatcher
             AddPattern(pattern);
         }
 
-        LoadFile(Path.Combine(workspaceRoot, ".gitignore"));
-        LoadFile(Path.Combine(workspaceRoot, ".codeexplorerignore"));
+        foreach (var ignoreFileName in IgnoreFileNames)
+        {
+            LoadFile(Path.Combine(workspaceRoot, ignoreFileName));
+        }
         LoadWorkspaceSettings(workspaceRoot);
+    }
+
+    public void LoadScopedDirectory(string currentDir, string relativeDir)
+    {
+        if (string.IsNullOrEmpty(relativeDir)) return;
+
+        foreach (var ignoreFileName in IgnoreFileNames)
+        {
+            var filePath = Path.Combine(currentDir, ignoreFileName);
+            if (File.Exists(filePath))
+            {
+                LoadScopedFile(filePath, relativeDir);
+            }
+        }
     }
 
     public void LoadWorkspaceSettings(string workspaceRoot, string? scope = null)
@@ -189,13 +210,10 @@ public class GitIgnoreMatcher
 
                 if (rule.Regex.IsMatch(testPath))
                 {
-                    if (rule.CleanPattern.Equals("bin", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(_workspaceRoot))
+                    if (!string.IsNullOrEmpty(_workspaceRoot) &&
+                        _filter.CheckDirectoryExclusion(rule.CleanPattern, Path.Combine(_workspaceRoot, relativePath)) == false)
                     {
-                        var fullPath = Path.Combine(_workspaceRoot, relativePath);
-                        if (!WorkspaceFileFilter.IsBuildOutputBinDirectory(fullPath))
-                        {
-                            continue;
-                        }
+                        continue;
                     }
 
                     if (rule.IsNegated)
@@ -242,13 +260,10 @@ public class GitIgnoreMatcher
                     var m = rule.Regex.Match(testPath);
                     if (m.Success && m.Value.EndsWith('/'))
                     {
-                        if (rule.CleanPattern.Equals("bin", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(_workspaceRoot))
+                        if (!string.IsNullOrEmpty(_workspaceRoot) &&
+                            _filter.CheckDirectoryExclusion(rule.CleanPattern, Path.Combine(_workspaceRoot, relativePath)) == false)
                         {
-                            var fullPath = Path.Combine(_workspaceRoot, relativePath);
-                            if (!WorkspaceFileFilter.IsBuildOutputBinDirectory(fullPath))
-                            {
-                                continue;
-                            }
+                            continue;
                         }
 
                         if (rule.IsNegated)

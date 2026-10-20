@@ -21,6 +21,24 @@ public class RustParser : IProjectParser, IFileParser
     public IReadOnlyCollection<string> ExcludedFolders => ["target"];
     public IReadOnlyCollection<string> ManifestFileNames => ["Cargo.toml"];
 
+    public bool? CheckDirectoryExclusion(string dirName, string? fullPath = null)
+    {
+        if (dirName.Equals("bin", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(fullPath))
+        {
+            try
+            {
+                var norm = fullPath.Replace('\\', '/');
+                if (norm.EndsWith(".rs", StringComparison.OrdinalIgnoreCase)) return false;
+                if (Directory.Exists(fullPath) && Directory.EnumerateFiles(fullPath, "*.rs", SearchOption.AllDirectories).Any()) return false;
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+        return null;
+    }
+
     public bool UsesTreeSitter => true;
 
     public LanguageSyntaxProfile SyntaxProfile => RustSyntaxProfile.Instance;

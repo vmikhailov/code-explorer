@@ -26,11 +26,32 @@ public class TypeScriptParser : IProjectParser, IFileParser
     public bool ShouldSkipFileName(string fileName)
     {
         var fn = fileName.ToLowerInvariant();
-        return fn.EndsWith(".d.ts") ||
-               fn.EndsWith(".min.js") || fn.EndsWith(".min.mjs") || fn.EndsWith(".min.cjs") ||
-               fn.EndsWith(".bundle.js") || fn.EndsWith(".bundle.min.js") ||
-               fn.Contains(".min.") ||
-               fn.EndsWith("_debug.ts") || fn.EndsWith("_debug.js");
+        if (fn.EndsWith(".d.ts") ||
+            fn.EndsWith(".min.js") || fn.EndsWith(".min.mjs") || fn.EndsWith(".min.cjs") ||
+            fn.EndsWith(".bundle.js") || fn.EndsWith(".bundle.min.js") ||
+            fn.Contains(".min.") ||
+            fn.EndsWith("_debug.ts") || fn.EndsWith("_debug.js"))
+        {
+            return true;
+        }
+
+        return IProjectParser.DefaultShouldSkipFileName(fileName);
+    }
+
+    public bool ShouldSkipFile(FileInfo fileInfo)
+    {
+        var ext = fileInfo.Extension;
+        if (ext.Equals(".js", StringComparison.OrdinalIgnoreCase) ||
+            ext.Equals(".ts", StringComparison.OrdinalIgnoreCase) ||
+            ext.Equals(".css", StringComparison.OrdinalIgnoreCase))
+        {
+            if (WorkspaceFileFilter.IsMinifiedContent(fileInfo.FullName))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public bool IsConfigurationFile(string fileName)
