@@ -30,7 +30,7 @@ public static partial class AstHelper
                 }
             }
 
-            var decomposed = TryDecomposeTemplateString(argNode, text);
+            var decomposed = TryDecomposeTemplateString(argNode, text, depth + 1, visitedVars);
             if (!string.IsNullOrEmpty(decomposed))
             {
                 return NormalizeResolvedUrl(decomposed);
@@ -57,7 +57,7 @@ public static partial class AstHelper
             var val = FindVariableInitializerInAst(argNode, varName, depth + 1, visitedVars, contextOrProject);
             if (val != null)
             {
-                var subDecomp = TryDecomposeTemplateString(argNode, val);
+                var subDecomp = TryDecomposeTemplateString(argNode, val, depth + 1, visitedVars);
                 return NormalizeResolvedUrl(subDecomp ?? val);
             }
 
@@ -122,10 +122,10 @@ public static partial class AstHelper
                     return propConst;
                 }
 
-                var classVal = FindClassFieldInitializerInAst(argNode, propName);
+                var classVal = FindClassFieldInitializerInAst(argNode, propName, depth + 1, visitedVars);
                 if (!string.IsNullOrEmpty(classVal))
                 {
-                    var subDecomp = TryDecomposeTemplateString(argNode, classVal);
+                    var subDecomp = TryDecomposeTemplateString(argNode, classVal, depth + 1, visitedVars);
                     return NormalizeResolvedUrl(subDecomp ?? classVal);
                 }
             }
@@ -155,17 +155,17 @@ public static partial class AstHelper
                 }
 
                 var propText = prop.Text;
-                var classVal = FindClassFieldInitializerInAst(argNode, propText);
+                var classVal = FindClassFieldInitializerInAst(argNode, propText, depth + 1, visitedVars);
                 if (!string.IsNullOrEmpty(classVal))
                 {
-                    var subDecomp = TryDecomposeTemplateString(argNode, classVal);
+                    var subDecomp = TryDecomposeTemplateString(argNode, classVal, depth + 1, visitedVars);
                     return NormalizeResolvedUrl(subDecomp ?? classVal);
                 }
 
                 var val = FindVariableInitializerInAst(argNode, propText, depth + 1, visitedVars);
                 if (val != null)
                 {
-                    var subDecomp = TryDecomposeTemplateString(argNode, val);
+                    var subDecomp = TryDecomposeTemplateString(argNode, val, depth + 1, visitedVars);
                     return NormalizeResolvedUrl(subDecomp ?? val);
                 }
 
@@ -189,7 +189,7 @@ public static partial class AstHelper
                 TryGetObjectProperty(argNode, "queue", out tp) ||
                 TryGetObjectProperty(argNode, "queueName", out tp))
             {
-                var resolved = ResolveStringOrTemplate(tp);
+                var resolved = ResolveStringOrTemplate(tp, contextOrProject, depth + 1, visitedVars);
                 if (!string.IsNullOrEmpty(resolved)) return resolved;
             }
         }
@@ -225,7 +225,7 @@ public static partial class AstHelper
                     ? func.GetField(TreeSitterSyntax.Fields.Property)
                     : default;
                 var funcName = propNode.IsValid() ? propNode.Text : funcText;
-                var methodRet = FindMethodReturnInAst(argNode, funcName);
+                var methodRet = FindMethodReturnInAst(argNode, funcName, depth + 1, visitedVars);
                 if (!string.IsNullOrEmpty(methodRet))
                 {
                     return NormalizeResolvedUrl(methodRet);
@@ -260,9 +260,9 @@ public static partial class AstHelper
         return RouteDictionaryRegistry.NormalizeResolvedUrl(raw);
     }
 
-    private static string? TryDecomposeTemplateString(Node node, string raw)
+    private static string? TryDecomposeTemplateString(Node node, string raw, int depth = 0, HashSet<string>? visitedVars = null)
     {
-        if (string.IsNullOrWhiteSpace(raw)) return null;
+        if (depth > MaxRecursionDepth || string.IsNullOrWhiteSpace(raw)) return null;
 
         // 1. https://bundles.${domain}/... or http://service.${domain}/...
         var subMatch = Regex.Match(raw, @"^(https?://[a-zA-Z0-9_\-]+)\.\$\{");
@@ -280,7 +280,7 @@ public static partial class AstHelper
             var expr = tplMatch.Groups[1].Value.Trim();
             var tail = tplMatch.Groups[2].Value.Trim();
 
-            var resolvedBase = ResolveTemplateExpression(node, expr);
+            var resolvedBase = ResolveTemplateExpression(node, expr, depth + 1, visitedVars);
             if (!string.IsNullOrEmpty(resolvedBase))
             {
                 if (WorkspaceConventions.IsGenericUrlStemOrVariable(resolvedBase))
@@ -318,11 +318,11 @@ public static partial class AstHelper
                 {
                     var parentExpr = string.Join('.', dotParts[..^1]);
                     var leafProp = dotParts[^1];
-                    var parentTypeOrVal = ResolveTemplateExpression(node, parentExpr);
+                    var parentTypeOrVal = ResolveTemplateExpression(node, parentExpr, depth + 1, visitedVars);
                     if (!string.IsNullOrEmpty(parentTypeOrVal))
                     {
-                        var leafVal = FindClassFieldInitializerInAst(node, $"{parentTypeOrVal}.{leafProp}");
-                        if (string.IsNullOrEmpty(leafVal)) leafVal = FindClassFieldInitializerInAst(node, leafProp);
+                        var leafVal = FindClassFieldInitializerInAst(node, $"{parentTypeOrVal}.{leafProp}", depth + 1, visitedVars);
+                        if (string.IsNullOrEmpty(leafVal)) leafVal = FindClassFieldInitializerInAst(node, leafProp, depth + 1, visitedVars);
                         if (!string.IsNullOrEmpty(leafVal))
                         {
                             if (WorkspaceConventions.IsGenericUrlStemOrVariable(leafVal))
@@ -367,7 +367,7 @@ public static partial class AstHelper
             var resolved = Regex.Replace(raw, @"\$\{([a-zA-Z0-9_\.]+)\}", m =>
             {
                 var expr = m.Groups[1].Value.Trim();
-                var val = ResolveTemplateExpression(node, expr);
+                var val = ResolveTemplateExpression(node, expr, depth + 1, visitedVars);
                 if (!string.IsNullOrEmpty(val)) return val;
                 if (ConstantRegistry.TryResolve(null, expr, out var cVal)) return cVal;
                 var shortName = expr.Contains('.') ? expr.Split('.')[^1] : expr;
@@ -388,158 +388,178 @@ public static partial class AstHelper
         return null;
     }
 
-    private static string? ResolveTemplateExpression(Node node, string expr, int depth = 0)
+    private static string? ResolveTemplateExpression(Node node, string expr, int depth = 0, HashSet<string>? visitedVars = null)
     {
-        if (depth > 4 || string.IsNullOrWhiteSpace(expr)) return null;
+        if (depth > 4 || depth > MaxRecursionDepth || string.IsNullOrWhiteSpace(expr)) return null;
 
-        // 1. Binary OR / Nullish coalescing: options.apiUrl || 'https://bundles.${domain}'
-        foreach (var op in new[] { "||", "??" })
+        visitedVars ??= new HashSet<string>(StringComparer.Ordinal);
+        var exprKey = $"expr:{expr.Trim()}";
+        if (!visitedVars.Add(exprKey)) return null;
+
+        try
         {
-            if (expr.Contains(op))
+            // 1. Binary OR / Nullish coalescing: options.apiUrl || 'https://bundles.${domain}'
+            foreach (var op in new[] { "||", "??" })
             {
-                var parts = expr.Split([op], StringSplitOptions.TrimEntries);
-                // First pass: look for string literal or absolute URL
-                foreach (var part in parts)
+                if (expr.Contains(op))
                 {
-                    var strMatch = Regex.Match(part, @"['""`]([^'""`]+)['""`]");
-                    if (strMatch.Success)
+                    var parts = expr.Split([op], StringSplitOptions.TrimEntries);
+                    // First pass: look for string literal or absolute URL
+                    foreach (var part in parts)
                     {
-                        var s = strMatch.Groups[1].Value;
-                        var subMatch = Regex.Match(s, @"^(https?://[a-zA-Z0-9_\-]+)\.\$\{");
-                        if (subMatch.Success) return subMatch.Groups[1].Value;
-                        if (s.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || s.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-                            return s;
+                        var strMatch = Regex.Match(part, @"['""`]([^'""`]+)['""`]");
+                        if (strMatch.Success)
+                        {
+                            var s = strMatch.Groups[1].Value;
+                            var subMatch = Regex.Match(s, @"^(https?://[a-zA-Z0-9_\-]+)\.\$\{");
+                            if (subMatch.Success) return subMatch.Groups[1].Value;
+                            if (s.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || s.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                                return s;
+                        }
                     }
-                }
-                // Second pass: concrete url resolved from member or identifier
-                foreach (var part in parts)
-                {
-                    var resolved = ResolveTemplateExpression(node, part, depth + 1);
-                    if (!string.IsNullOrEmpty(resolved) &&
-                        (resolved.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                         resolved.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+
+                    // Evaluate each part at most ONCE and reuse across priority passes
+                    var resolvedParts = new string?[parts.Length];
+                    for (var i = 0; i < parts.Length; i++)
                     {
-                        return resolved;
+                        resolvedParts[i] = ResolveTemplateExpression(node, parts[i], depth + 1, visitedVars);
                     }
-                }
-                // Third pass: member / identifier with non-empty resolution
-                foreach (var part in parts)
-                {
-                    if (part.Contains('.') && !part.StartsWith("process.env", StringComparison.OrdinalIgnoreCase) && !part.StartsWith("env.", StringComparison.OrdinalIgnoreCase) && !part.StartsWith("env?.", StringComparison.OrdinalIgnoreCase))
+
+                    // Second pass: concrete url resolved from member or identifier
+                    for (var i = 0; i < parts.Length; i++)
                     {
-                        var resolved = ResolveTemplateExpression(node, part, depth + 1);
+                        var resolved = resolvedParts[i];
+                        if (!string.IsNullOrEmpty(resolved) &&
+                            (resolved.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                             resolved.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            return resolved;
+                        }
+                    }
+                    // Third pass: member / identifier with non-empty resolution
+                    for (var i = 0; i < parts.Length; i++)
+                    {
+                        var part = parts[i];
+                        if (part.Contains('.') && !part.StartsWith("process.env", StringComparison.OrdinalIgnoreCase) && !part.StartsWith("env.", StringComparison.OrdinalIgnoreCase) && !part.StartsWith("env?.", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var resolved = resolvedParts[i];
+                            if (!string.IsNullOrEmpty(resolved)) return resolved;
+                        }
+                    }
+                    // Fourth pass: env or config
+                    foreach (var part in parts)
+                    {
+                        var envMatch = Regex.Match(part, @"(?:process\.env|env\??|config(?:\.get)?)\.([A-Za-z0-9_]+)");
+                        if (envMatch.Success) return envMatch.Groups[1].Value;
+                    }
+                    // Fifth pass: general fallback
+                    for (var i = 0; i < parts.Length; i++)
+                    {
+                        var resolved = resolvedParts[i];
                         if (!string.IsNullOrEmpty(resolved)) return resolved;
                     }
                 }
-                // Fourth pass: env or config
-                foreach (var part in parts)
+            }
+
+            // 1b. ConstantRegistry lookup: TELEGRAM_BOT_API_BASE_URL, BQ_ROUTES_CALC_API_HOST, ID_HELPER_NEST, etc.
+            if (ConstantRegistry.TryResolve(null, expr, out var constVal) && !string.IsNullOrEmpty(constVal))
+            {
+                return constVal;
+            }
+
+            if (expr.StartsWith("this.", StringComparison.OrdinalIgnoreCase) &&
+                ConstantRegistry.TryResolve(null, expr[5..], out var strippedVal) && !string.IsNullOrEmpty(strippedVal))
+            {
+                return strippedVal;
+            }
+
+            if (expr.Contains('.') &&
+                ConstantRegistry.TryResolve(null, expr.Split('.').Last(), out var leafVal) && !string.IsNullOrEmpty(leafVal))
+            {
+                return leafVal;
+            }
+
+            // 1c. RouteDictionaryRegistry lookup
+            if (RouteDictionaryRegistry.TryResolve(expr, out var rPath, out var rSvc))
+            {
+                var cleanPath = rPath.Split('?')[0];
+                return CombineServiceAndPath(rSvc, cleanPath);
+            }
+
+            // 2. Member / field access: this.<prop>, ClassName.<prop>
+            if (expr.StartsWith("this.", StringComparison.OrdinalIgnoreCase) ||
+                (expr.Contains('.') && !expr.Contains('(') && !expr.StartsWith("process.env", StringComparison.OrdinalIgnoreCase) && !expr.StartsWith("env.", StringComparison.OrdinalIgnoreCase) && !expr.StartsWith("env?.", StringComparison.OrdinalIgnoreCase)))
+            {
+                var propName = expr.Split('.').Last().Trim();
+                var classVal = FindClassFieldInitializerInAst(node, propName, depth + 1, visitedVars);
+                if (!string.IsNullOrEmpty(classVal)) return classVal;
+                if (expr.StartsWith("this.", StringComparison.OrdinalIgnoreCase))
                 {
-                    var envMatch = Regex.Match(part, @"(?:process\.env|env\??|config(?:\.get)?)\.([A-Za-z0-9_]+)");
-                    if (envMatch.Success) return envMatch.Groups[1].Value;
-                }
-                // Fifth pass: general fallback
-                foreach (var part in parts)
-                {
-                    var resolved = ResolveTemplateExpression(node, part, depth + 1);
-                    if (!string.IsNullOrEmpty(resolved)) return resolved;
+                    return CleanIdentifierSuffix(propName);
                 }
             }
-        }
 
-        // 1b. ConstantRegistry lookup: TELEGRAM_BOT_API_BASE_URL, BQ_ROUTES_CALC_API_HOST, ID_HELPER_NEST, etc.
-        if (ConstantRegistry.TryResolve(null, expr, out var constVal) && !string.IsNullOrEmpty(constVal))
-        {
-            return constVal;
-        }
-
-        if (expr.StartsWith("this.", StringComparison.OrdinalIgnoreCase) &&
-            ConstantRegistry.TryResolve(null, expr[5..], out var strippedVal) && !string.IsNullOrEmpty(strippedVal))
-        {
-            return strippedVal;
-        }
-
-        if (expr.Contains('.') &&
-            ConstantRegistry.TryResolve(null, expr.Split('.').Last(), out var leafVal) && !string.IsNullOrEmpty(leafVal))
-        {
-            return leafVal;
-        }
-
-        // 1c. RouteDictionaryRegistry lookup
-        if (RouteDictionaryRegistry.TryResolve(expr, out var rPath, out var rSvc))
-        {
-            var cleanPath = rPath.Split('?')[0];
-            return CombineServiceAndPath(rSvc, cleanPath);
-        }
-
-        // 2. Member / field access: this.<prop>, ClassName.<prop>
-        if (expr.StartsWith("this.", StringComparison.OrdinalIgnoreCase) ||
-            (expr.Contains('.') && !expr.Contains('(') && !expr.StartsWith("process.env", StringComparison.OrdinalIgnoreCase) && !expr.StartsWith("env.", StringComparison.OrdinalIgnoreCase) && !expr.StartsWith("env?.", StringComparison.OrdinalIgnoreCase)))
-        {
-            var propName = expr.Split('.').Last().Trim();
-            var classVal = FindClassFieldInitializerInAst(node, propName);
-            if (!string.IsNullOrEmpty(classVal)) return classVal;
-            if (expr.StartsWith("this.", StringComparison.OrdinalIgnoreCase))
+            // 3. Env / config: process.env.HUB_INGEST_URL, env?.HUB_INGEST_URL, config.get('HUB_INGEST_URL')
+            var envDirect = Regex.Match(expr, @"(?:process\.env|env\??|config(?:\.get)?)\.([A-Za-z0-9_]+)");
+            if (envDirect.Success)
             {
-                return CleanIdentifierSuffix(propName);
+                return envDirect.Groups[1].Value;
             }
-        }
 
-        // 3. Env / config: process.env.HUB_INGEST_URL, env?.HUB_INGEST_URL, config.get('HUB_INGEST_URL')
-        var envDirect = Regex.Match(expr, @"(?:process\.env|env\??|config(?:\.get)?)\.([A-Za-z0-9_]+)");
-        if (envDirect.Success)
-        {
-            return envDirect.Groups[1].Value;
-        }
-
-        var configGetMatch = Regex.Match(expr, @"config\.get\(['""]([A-Za-z0-9_]+)['""]\)");
-        if (configGetMatch.Success)
-        {
-            return configGetMatch.Groups[1].Value;
-        }
-
-        // 4. Method call: e.g. getHubUrl(env) or TelemetryReporter.getHubUrl(env)
-        var callMatch = Regex.Match(expr, @"^(?:[A-Za-z0-9_]+\.)?([A-Za-z0-9_]+)\(");
-        if (callMatch.Success)
-        {
-            var methodName = callMatch.Groups[1].Value;
-            var methodRet = FindMethodReturnInAst(node, methodName, depth + 1);
-            if (!string.IsNullOrEmpty(methodRet)) return methodRet;
-        }
-
-        // 5. Variable access: strip trailing method calls like baseUrl.replace(...)
-        var cleanIdent = Regex.Replace(expr, @"\.[a-zA-Z0-9_]+\(.*?\)", "").Trim();
-        if (!Regex.IsMatch(cleanIdent, @"^[A-Za-z_$][A-Za-z0-9_$.]*$"))
-        {
-            return null;
-        }
-
-        // Check if there is a variable in the local scope
-        var localVal = FindVariableInitializerInAst(node, cleanIdent);
-        if (!string.IsNullOrEmpty(localVal))
-        {
-            if (localVal.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                localVal.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            var configGetMatch = Regex.Match(expr, @"config\.get\(['""]([A-Za-z0-9_]+)['""]\)");
+            if (configGetMatch.Success)
             {
+                return configGetMatch.Groups[1].Value;
+            }
+
+            // 4. Method call: e.g. getHubUrl(env) or TelemetryReporter.getHubUrl(env)
+            var callMatch = Regex.Match(expr, @"^(?:[A-Za-z0-9_]+\.)?([A-Za-z0-9_]+)\(");
+            if (callMatch.Success)
+            {
+                var methodName = callMatch.Groups[1].Value;
+                var methodRet = FindMethodReturnInAst(node, methodName, depth + 1, visitedVars);
+                if (!string.IsNullOrEmpty(methodRet)) return methodRet;
+            }
+
+            // 5. Variable access: strip trailing method calls like baseUrl.replace(...)
+            var cleanIdent = Regex.Replace(expr, @"\.[a-zA-Z0-9_]+\(.*?\)", "").Trim();
+            if (!Regex.IsMatch(cleanIdent, @"^[A-Za-z_$][A-Za-z0-9_$.]*$"))
+            {
+                return null;
+            }
+
+            // Check if there is a variable in the local scope
+            var localVal = FindVariableInitializerInAst(node, cleanIdent, depth + 1, visitedVars);
+            if (!string.IsNullOrEmpty(localVal))
+            {
+                if (localVal.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                    localVal.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                {
+                    return localVal;
+                }
+                var subDecomp = TryDecomposeTemplateString(node, localVal, depth + 1, visitedVars);
+                if (!string.IsNullOrEmpty(subDecomp)) return subDecomp;
+
                 return localVal;
             }
-            var subDecomp = TryDecomposeTemplateString(node, localVal);
-            if (!string.IsNullOrEmpty(subDecomp)) return subDecomp;
 
-            return localVal;
+            // Check if file has a fallback definition for *apiUrl* or *baseUrl*
+            if (depth == 0 &&
+                (cleanIdent.EndsWith("url", StringComparison.OrdinalIgnoreCase) ||
+                 cleanIdent.EndsWith("client", StringComparison.OrdinalIgnoreCase) ||
+                 cleanIdent.EndsWith("service", StringComparison.OrdinalIgnoreCase)))
+            {
+                var fileFallback = FindFileLevelFallbackUrl(node, cleanIdent, depth + 1, visitedVars);
+                if (!string.IsNullOrEmpty(fileFallback)) return fileFallback;
+            }
+
+            // 6. Suffix cleanup: hubUrl -> hub
+            return CleanIdentifierSuffix(cleanIdent);
         }
-
-        // Check if file has a fallback definition for *apiUrl* or *baseUrl*
-        if (depth == 0 &&
-            (cleanIdent.EndsWith("url", StringComparison.OrdinalIgnoreCase) ||
-             cleanIdent.EndsWith("client", StringComparison.OrdinalIgnoreCase) ||
-             cleanIdent.EndsWith("service", StringComparison.OrdinalIgnoreCase)))
+        finally
         {
-            var fileFallback = FindFileLevelFallbackUrl(node, cleanIdent, depth + 1);
-            if (!string.IsNullOrEmpty(fileFallback)) return fileFallback;
+            visitedVars.Remove(exprKey);
         }
-
-        // 6. Suffix cleanup: hubUrl -> hub
-        return CleanIdentifierSuffix(cleanIdent);
     }
 
     public static string CleanIdentifierSuffix(string ident)
@@ -563,9 +583,9 @@ public static partial class AstHelper
         return ident;
     }
 
-    private static string? FindMethodReturnInAst(Node node, string methodName, int depth = 0)
+    private static string? FindMethodReturnInAst(Node node, string methodName, int depth = 0, HashSet<string>? visitedVars = null)
     {
-        if (depth > 4) return null;
+        if (depth > 4 || depth > MaxRecursionDepth) return null;
         string? targetClassName = null;
         var cleanMethod = methodName.Trim();
         if (cleanMethod.Contains('.'))
@@ -597,7 +617,7 @@ public static partial class AstHelper
                     {
                         foreach (var m in child.Children)
                         {
-                            var res = CheckMethodNode(m, cleanMethod, depth);
+                            var res = CheckMethodNode(m, cleanMethod, depth, visitedVars);
                             if (res != null) return res;
                         }
                     }
@@ -619,15 +639,15 @@ public static partial class AstHelper
                                 var expBody = expChild.FindChildOfType(TreeSitterSyntax.TypeScript.ClassBody) ?? expChild;
                                 foreach (var m in expBody.Children)
                                 {
-                                    var res = CheckMethodNode(m, cleanMethod, depth);
+                                    var res = CheckMethodNode(m, cleanMethod, depth, visitedVars);
                                     if (res != null) return res;
                                 }
                             }
-                            var expCheck = CheckMethodNode(expChild, cleanMethod, depth);
+                            var expCheck = CheckMethodNode(expChild, cleanMethod, depth, visitedVars);
                             if (expCheck != null) return expCheck;
                         }
                     }
-                    var checkRes = CheckMethodNode(child, cleanMethod, depth);
+                    var checkRes = CheckMethodNode(child, cleanMethod, depth, visitedVars);
                     if (checkRes != null) return checkRes;
                 }
             }
@@ -635,7 +655,7 @@ public static partial class AstHelper
         }
         return null;
 
-        static string? CheckMethodNode(Node mNode, string mName, int d)
+        static string? CheckMethodNode(Node mNode, string mName, int d, HashSet<string>? visited)
         {
             if (mNode.Type.Contains("method") || mNode.Type.Contains("function"))
             {
@@ -650,7 +670,7 @@ public static partial class AstHelper
                         var exprNode = ret.Children.LastOrDefault(c => c.IsValid() && c.Type != ";" && c.Type != TreeSitterSyntax.Fields.Return);
                         if (exprNode.IsValid())
                         {
-                            return ResolveTemplateExpression(mNode, exprNode.Text, d + 1);
+                            return ResolveTemplateExpression(mNode, exprNode.Text, d + 1, visited);
                         }
                     }
                 }
@@ -670,7 +690,7 @@ public static partial class AstHelper
         }
     }
 
-    private static string? FindFileLevelFallbackUrl(Node node, string hint, int depth = 0)
+    private static string? FindFileLevelFallbackUrl(Node node, string hint, int depth = 0, HashSet<string>? visitedVars = null)
     {
         if (depth > 2) return null;
         var root = node;
@@ -691,7 +711,7 @@ public static partial class AstHelper
                     if (valNode.IsValid())
                     {
                         var text = valNode.Text.Trim();
-                        var res = ResolveTemplateExpression(root, text, depth + 1);
+                        var res = ResolveTemplateExpression(root, text, depth + 1, visitedVars);
                         if (!string.IsNullOrEmpty(res) &&
                             (res.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
                              res.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))

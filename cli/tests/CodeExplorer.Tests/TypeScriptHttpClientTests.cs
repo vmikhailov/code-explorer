@@ -209,4 +209,33 @@ export function serviceHealthGuard(requiredServices: string[]) {
         svc.DomainOrService.Should().Be("unknown-service");
         svc.Path.Should().Be("/ping");
     }
+
+    [Test]
+    public async Task Test_CyclicAndSuffixClassFields_DoNotStackOverflow()
+    {
+        var code = """
+import axios from 'axios';
+
+export class DedalosApiClient {
+    private url: string;
+    private baseUrl: string;
+    private apiUrl: string;
+
+    constructor(options: any) {
+        const baseUrl = this.url || options.baseUrl;
+        this.url = options.url || this.baseUrl || `${this.apiUrl}/v1`;
+        this.baseUrl = this.url || this.apiUrl;
+        this.apiUrl = `${this.baseUrl}/service` || this.url;
+    }
+
+    public async fetchItems() {
+        const requestUrl = `${this.url}/items`;
+        return await axios.get(requestUrl);
+    }
+}
+""";
+
+        using var ws = await TestWorkspace.CreateAsync(code);
+        ws.FileNode.Should().NotBeNull();
+    }
 }

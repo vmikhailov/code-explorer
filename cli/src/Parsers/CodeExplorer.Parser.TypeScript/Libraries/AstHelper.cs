@@ -14,9 +14,9 @@ public static partial class AstHelper
         return WorkspaceConventions.IsValidTopicOrQueueName(s);
     }
 
-    public static string? ResolveTopicOrQueue(Node? argNode, string? contextOrProject = null)
+    public static string? ResolveTopicOrQueue(Node? argNode, string? contextOrProject = null, int depth = 0, HashSet<string>? visitedVars = null)
     {
-        if (!argNode.IsValid()) return null;
+        if (depth > MaxRecursionDepth || !argNode.IsValid()) return null;
 
         // 1. Literal string or template
         if (IsStringLiteralNode(argNode))
@@ -63,7 +63,7 @@ public static partial class AstHelper
             }
 
             // Normal member expression: this.topicName, this.ruleTreeTopic
-            var memberVal = ResolveStringOrTemplate(argNode, contextOrProject);
+            var memberVal = ResolveStringOrTemplate(argNode, contextOrProject, depth + 1, visitedVars);
             if (!string.IsNullOrEmpty(memberVal) && IsValidTopicOrQueueLiteral(memberVal))
             {
                 if (WorkspaceConventions.TryGetTopicAlias(memberVal, out var mapped)) return mapped;
@@ -76,7 +76,7 @@ public static partial class AstHelper
         // 3. CallExpression (configService.getString('RULE_TREE_TOPIC'), getTopic('orders'))
         if (argNode.Is(TreeSitterSyntax.TypeScript.CallExpression))
         {
-            var firstArg = ExtractFirstStringArgument(argNode);
+            var firstArg = ExtractFirstStringArgument(argNode, contextOrProject, depth + 1, visitedVars);
             if (!string.IsNullOrEmpty(firstArg))
             {
                 if (ConstantRegistry.TryResolve(contextOrProject, firstArg, out var resVal) && !string.IsNullOrEmpty(resVal))
@@ -104,7 +104,7 @@ public static partial class AstHelper
                 }
             }
 
-            var callVal = ResolveStringOrTemplate(argNode, contextOrProject);
+            var callVal = ResolveStringOrTemplate(argNode, contextOrProject, depth + 1, visitedVars);
             if (!string.IsNullOrEmpty(callVal) && IsValidTopicOrQueueLiteral(callVal))
             {
                 return callVal;
@@ -129,7 +129,7 @@ public static partial class AstHelper
             }
 
             // B. Check AST variable or field initializer in current scope
-            var astVal = FindVariableInitializerInAst(argNode, varName);
+            var astVal = FindVariableInitializerInAst(argNode, varName, depth + 1, visitedVars, contextOrProject);
             if (!string.IsNullOrEmpty(astVal) && IsValidTopicOrQueueLiteral(astVal))
             {
                 if (WorkspaceConventions.TryGetTopicAlias(astVal, out var mapped)) return mapped;
@@ -160,16 +160,16 @@ public static partial class AstHelper
                 TryGetObjectProperty(argNode, "queue", out tp) ||
                 TryGetObjectProperty(argNode, "queueName", out tp))
             {
-                return ResolveTopicOrQueue(tp, contextOrProject);
+                return ResolveTopicOrQueue(tp, contextOrProject, depth + 1, visitedVars);
             }
         }
 
         return null;
     }
 
-    public static string? ExtractFirstStringArgument(Node? callNode, string? contextOrProject = null)
+    public static string? ExtractFirstStringArgument(Node? callNode, string? contextOrProject = null, int depth = 0, HashSet<string>? visitedVars = null)
     {
-        if (!callNode.IsValid()) return null;
+        if (depth > MaxRecursionDepth || !callNode.IsValid()) return null;
 
         var argList = callNode.GetField(TreeSitterSyntax.Fields.Arguments)
             ?? callNode.FindChildOfType(TreeSitterSyntax.TypeScript.Arguments);
@@ -188,7 +188,7 @@ public static partial class AstHelper
                 c.IsValid() && (c.Is(TreeSitterSyntax.TypeScript.Identifier) || c.Is(TreeSitterSyntax.TypeScript.MemberExpression)));
             if (firstArgExpr.IsValid())
             {
-                return ResolveStringOrTemplate(firstArgExpr, contextOrProject);
+                return ResolveStringOrTemplate(firstArgExpr, contextOrProject, depth + 1, visitedVars);
             }
         }
 
@@ -296,7 +296,7 @@ public static partial class AstHelper
             {
                 if (curr.Is("class_body") || curr.Is("class_declaration") || curr.Type.Contains("class"))
                 {
-                    var fieldVal = FindClassFieldInitializerInAst(curr, cleanVar);
+                    var fieldVal = FindClassFieldInitializerInAst(curr, cleanVar, depth + 1, visitedVars);
                     if (fieldVal != null) return fieldVal;
                 }
 
@@ -363,7 +363,7 @@ public static partial class AstHelper
                                                         ? funcNode.GetField(TreeSitterSyntax.Fields.Property)
                                                         : default;
                                                     var funcName = propNode.IsValid() ? propNode.Text : funcNode.Text;
-                                                    var methodRet = FindMethodReturnInAst(valNode, funcName);
+                                                    var methodRet = FindMethodReturnInAst(valNode, funcName, depth + 1, visitedVars);
                                                     if (!string.IsNullOrEmpty(methodRet)) return methodRet;
                                                 }
 
@@ -502,8 +502,10 @@ public static partial class AstHelper
         }
     }
 
-    private static string? FindClassFieldInitializerInAst(Node node, string propName)
+    private static string? FindClassFieldInitializerInAst(Node node, string propName, int depth = 0, HashSet<string>? visitedVars = null)
     {
+        if (depth > MaxRecursionDepth || string.IsNullOrWhiteSpace(propName)) return null;
+
         string? targetClassName = null;
         var cleanProp = propName.Trim();
         if (cleanProp.Contains('.'))
@@ -512,117 +514,36 @@ public static partial class AstHelper
             targetClassName = parts[0];
             cleanProp = parts[^1];
         }
+        if (string.IsNullOrWhiteSpace(cleanProp)) return null;
 
-        var curr = node;
-        while (curr.IsValid())
+        visitedVars ??= new HashSet<string>(StringComparer.Ordinal);
+        var visitKey = $"field:{targetClassName}:{cleanProp}";
+        if (!visitedVars.Add(visitKey)) return null;
+
+        try
         {
-            if (curr.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.ClassBody))
+            var assignPattern = $@"(?<![A-Za-z0-9_$])this\.{Regex.Escape(cleanProp)}\b\s*(?<![=!<>])=(?!=)\s*([^;\r\n]+)";
+            var curr = node;
+            var steps = 0;
+            while (curr.IsValid() && ++steps <= 50)
             {
-                var classDecl = curr.Is(TreeSitterSyntax.TypeScript.ClassDeclaration)
-                    ? curr
-                    : curr.Parent.Is(TreeSitterSyntax.TypeScript.ClassDeclaration) ? curr.Parent : default;
-                if (!string.IsNullOrEmpty(targetClassName) && classDecl.IsValid())
+                if (curr.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.ClassBody))
                 {
-                    var cNameNode = classDecl.GetField(TreeSitterSyntax.Fields.Name) ??
-                                    classDecl.GetChildForField(TreeSitterSyntax.Fields.Name);
-                    if (cNameNode.IsValid() && !string.Equals(cNameNode.Text, targetClassName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        curr = curr.Parent;
-                        continue;
-                    }
-                }
-
-                var body = curr.Is(TreeSitterSyntax.TypeScript.ClassBody) ? curr : curr.FindChildOfType(TreeSitterSyntax.TypeScript.ClassBody) ?? curr;
-                foreach (var member in body.Children)
-                {
-                    if (member.Type.Contains("field") || member.Type.Contains("property"))
-                    {
-                        var nameNode = member.GetField(TreeSitterSyntax.Fields.Name) ??
-                                       member.GetChildForField(TreeSitterSyntax.Fields.Name) ??
-                                       member.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.TypeScript.PropertyIdentifier, TreeSitterSyntax.TypeScript.Identifier));
-                        if (nameNode.IsValid() && string.Equals(nameNode.Text, cleanProp, StringComparison.OrdinalIgnoreCase))
-                        {
-                            var valNode = member.GetField(TreeSitterSyntax.Fields.Value) ??
-                                          member.GetChildForField(TreeSitterSyntax.Fields.Value);
-
-                            if (!valNode.IsValid())
-                            {
-                                var eq = member.Children.FirstOrDefault(c => c.Text == "=");
-                                if (eq.IsValid() && eq.NextSibling.IsValid())
-                                {
-                                    valNode = eq.NextSibling;
-                                }
-                            }
-
-                            if (valNode is not null &&
-                                valNode.IsValid() &&
-                                !valNode.Is(TreeSitterSyntax.TypeScript.TypeAnnotation) &&
-                                !valNode.Type.Contains("type") &&
-                                !valNode.Text.Trim().StartsWith(':'))
-                            {
-                                if (IsStringLiteralNode(valNode))
-                                {
-                                    return valNode.Text.Trim('\'', '"', '`');
-                                }
-                                var identText = valNode.Text.Trim();
-                                if (!identText.StartsWith(':') && !identText.Equals("Topic", StringComparison.OrdinalIgnoreCase) && !identText.Equals("string", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    if (RouteDictionaryRegistry.TryResolve(identText, out var rp, out var rs))
-                                    {
-                                        return !string.IsNullOrEmpty(rs) ? $"{rs}{rp}" : rp;
-                                    }
-                                    var varVal = FindVariableInitializerInAst(curr, identText);
-                                    if (!string.IsNullOrEmpty(varVal)) return varVal;
-                                    return identText;
-                                }
-                            }
-
-                            // If no inline initializer, check constructor for this.<cleanProp> = ...
-                            var ctor = body.Children.FirstOrDefault(c => (c.Is("method_definition") || c.Is("constructor") || c.Type.Contains("constructor")) &&
-                                                                        (c.Text.StartsWith("constructor") || c.GetField(TreeSitterSyntax.Fields.Name)?.Text == "constructor" || c.Type.Contains("constructor")));
-                            if (ctor.IsValid())
-                            {
-                                var match = Regex.Match(ctor.Text, $@"(?:this\.)?{Regex.Escape(cleanProp)}\s*=\s*([^;]+)");
-                                if (match.Success)
-                                {
-                                    var res = EvaluateRhs(curr, match.Groups[1].Value.Trim());
-                                    if (!string.IsNullOrEmpty(res)) return res;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Fallback: check class body text for this.<cleanProp> = ... assignment in constructor or methods
-                var bodyAssignMatch = Regex.Match(body.Text, $@"(?:this\.)?{Regex.Escape(cleanProp)}\s*=\s*([^;\r\n]+)");
-                if (bodyAssignMatch.Success)
-                {
-                    var res = EvaluateRhs(curr, bodyAssignMatch.Groups[1].Value.Trim());
-                    if (!string.IsNullOrEmpty(res)) return res;
-                }
-            }
-
-            if (curr.Is(TreeSitterSyntax.TypeScript.Program))
-            {
-                // Search direct classes and exported classes
-                var classDecls = curr.Children
-                    .SelectMany(c => c.Is(TreeSitterSyntax.TypeScript.ClassDeclaration) 
-                        ? [c] 
-                        : (c.Is("export_statement") ? c.Children.Where(sub => sub.Is(TreeSitterSyntax.TypeScript.ClassDeclaration)) : []));
-
-                foreach (var classDecl in classDecls)
-                {
-                    if (!string.IsNullOrEmpty(targetClassName))
+                    var classDecl = curr.Is(TreeSitterSyntax.TypeScript.ClassDeclaration)
+                        ? curr
+                        : curr.Parent.Is(TreeSitterSyntax.TypeScript.ClassDeclaration) ? curr.Parent : default;
+                    if (!string.IsNullOrEmpty(targetClassName) && classDecl.IsValid())
                     {
                         var cNameNode = classDecl.GetField(TreeSitterSyntax.Fields.Name) ??
                                         classDecl.GetChildForField(TreeSitterSyntax.Fields.Name);
                         if (cNameNode.IsValid() && !string.Equals(cNameNode.Text, targetClassName, StringComparison.OrdinalIgnoreCase))
                         {
+                            curr = curr.Parent;
                             continue;
                         }
                     }
 
-                    var body = classDecl.FindChildOfType(TreeSitterSyntax.TypeScript.ClassBody) ?? classDecl;
+                    var body = curr.Is(TreeSitterSyntax.TypeScript.ClassBody) ? curr : curr.FindChildOfType(TreeSitterSyntax.TypeScript.ClassBody) ?? curr;
                     foreach (var member in body.Children)
                     {
                         if (member.Type.Contains("field") || member.Type.Contains("property"))
@@ -644,57 +565,185 @@ public static partial class AstHelper
                                     }
                                 }
 
-                                if (valNode.IsValid())
+                                if (valNode is not null &&
+                                    valNode.IsValid() &&
+                                    !valNode.Is(TreeSitterSyntax.TypeScript.TypeAnnotation) &&
+                                    !valNode.Type.Contains("type") &&
+                                    !valNode.Text.Trim().StartsWith(':'))
                                 {
-                                    if (valNode.Is(TreeSitterSyntax.TypeScript.TypeAnnotation) || valNode.Type.Contains("type") || valNode.Text.Trim().StartsWith(':'))
-                                    {
-                                        continue;
-                                    }
                                     if (IsStringLiteralNode(valNode))
                                     {
-                                        return valNode.Text.Trim('\'', '"', '`');
+                                        var rawLit = valNode.Text.Trim('\'', '"', '`');
+                                        if (rawLit.Contains("${"))
+                                        {
+                                            var decomp = TryDecomposeTemplateString(curr, rawLit, depth + 1, visitedVars);
+                                            if (!string.IsNullOrEmpty(decomp)) return decomp;
+                                        }
+                                        return rawLit;
                                     }
                                     var identText = valNode.Text.Trim();
-                                    if (identText.StartsWith(':') || identText.Equals("Topic", StringComparison.OrdinalIgnoreCase) || identText.Equals("string", StringComparison.OrdinalIgnoreCase))
+                                    if (!identText.StartsWith(':') && !identText.Equals("Topic", StringComparison.OrdinalIgnoreCase) && !identText.Equals("string", StringComparison.OrdinalIgnoreCase))
                                     {
-                                        continue;
+                                        if (RouteDictionaryRegistry.TryResolve(identText, out var rp, out var rs))
+                                        {
+                                            return !string.IsNullOrEmpty(rs) ? $"{rs}{rp}" : rp;
+                                        }
+                                        var varVal = FindVariableInitializerInAst(curr, identText, depth + 1, visitedVars);
+                                        if (!string.IsNullOrEmpty(varVal)) return varVal;
+                                        return identText;
                                     }
-                                    if (RouteDictionaryRegistry.TryResolve(identText, out var rp, out var rs))
+                                }
+
+                                // If no inline initializer, check constructor for this.<cleanProp> = ...
+                                var ctor = body.Children.FirstOrDefault(c => (c.Is("method_definition") || c.Is("constructor") || c.Type.Contains("constructor")) &&
+                                                                            (c.Text.StartsWith("constructor") || c.GetField(TreeSitterSyntax.Fields.Name)?.Text == "constructor" || c.Type.Contains("constructor")));
+                                if (ctor.IsValid())
+                                {
+                                    var match = Regex.Match(ctor.Text, assignPattern);
+                                    if (match.Success)
                                     {
-                                        return !string.IsNullOrEmpty(rs) ? $"{rs}{rp}" : rp;
+                                        var res = EvaluateRhs(curr, match.Groups[1].Value.Trim(), depth + 1, visitedVars);
+                                        if (!string.IsNullOrEmpty(res)) return res;
                                     }
-                                    var varVal = FindVariableInitializerInAst(curr, identText);
-                                    if (!string.IsNullOrEmpty(varVal)) return varVal;
-                                    return identText;
                                 }
                             }
                         }
                     }
 
-                    var bodyAssignMatch = Regex.Match(body.Text, $@"(?:this\.)?{Regex.Escape(cleanProp)}\s*=\s*([^;\r\n]+)");
-                    if (bodyAssignMatch.Success)
+                    // Fallback: check class body text for this.<cleanProp> = ... assignment in constructor or methods
+                    if (body.EndPosition.Row - body.StartPosition.Row <= 500)
                     {
-                        var res = EvaluateRhs(curr, bodyAssignMatch.Groups[1].Value.Trim());
-                        if (!string.IsNullOrEmpty(res)) return res;
+                        var bodyAssignMatch = Regex.Match(body.Text, assignPattern);
+                        if (bodyAssignMatch.Success)
+                        {
+                            var res = EvaluateRhs(curr, bodyAssignMatch.Groups[1].Value.Trim(), depth + 1, visitedVars);
+                            if (!string.IsNullOrEmpty(res)) return res;
+                        }
                     }
                 }
-            }
 
-            curr = curr.Parent;
+                if (curr.Is(TreeSitterSyntax.TypeScript.Program))
+                {
+                    // Search direct classes and exported classes
+                    var classDecls = curr.Children
+                        .SelectMany(c => c.Is(TreeSitterSyntax.TypeScript.ClassDeclaration)
+                            ? [c]
+                            : (c.Is("export_statement") ? c.Children.Where(sub => sub.Is(TreeSitterSyntax.TypeScript.ClassDeclaration)) : []));
+
+                    foreach (var classDecl in classDecls)
+                    {
+                        if (!string.IsNullOrEmpty(targetClassName))
+                        {
+                            var cNameNode = classDecl.GetField(TreeSitterSyntax.Fields.Name) ??
+                                            classDecl.GetChildForField(TreeSitterSyntax.Fields.Name);
+                            if (cNameNode.IsValid() && !string.Equals(cNameNode.Text, targetClassName, StringComparison.OrdinalIgnoreCase))
+                            {
+                                continue;
+                            }
+                        }
+
+                        var body = classDecl.FindChildOfType(TreeSitterSyntax.TypeScript.ClassBody) ?? classDecl;
+                        foreach (var member in body.Children)
+                        {
+                            if (member.Type.Contains("field") || member.Type.Contains("property"))
+                            {
+                                var nameNode = member.GetField(TreeSitterSyntax.Fields.Name) ??
+                                               member.GetChildForField(TreeSitterSyntax.Fields.Name) ??
+                                               member.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.TypeScript.PropertyIdentifier, TreeSitterSyntax.TypeScript.Identifier));
+                                if (nameNode.IsValid() && string.Equals(nameNode.Text, cleanProp, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    var valNode = member.GetField(TreeSitterSyntax.Fields.Value) ??
+                                                  member.GetChildForField(TreeSitterSyntax.Fields.Value);
+
+                                    if (!valNode.IsValid())
+                                    {
+                                        var eq = member.Children.FirstOrDefault(c => c.Text == "=");
+                                        if (eq.IsValid() && eq.NextSibling.IsValid())
+                                        {
+                                            valNode = eq.NextSibling;
+                                        }
+                                    }
+
+                                    if (valNode.IsValid())
+                                    {
+                                        if (valNode.Is(TreeSitterSyntax.TypeScript.TypeAnnotation) || valNode.Type.Contains("type") || valNode.Text.Trim().StartsWith(':'))
+                                        {
+                                            continue;
+                                        }
+                                        if (IsStringLiteralNode(valNode))
+                                        {
+                                            var rawLit = valNode.Text.Trim('\'', '"', '`');
+                                            if (rawLit.Contains("${"))
+                                            {
+                                                var decomp = TryDecomposeTemplateString(curr, rawLit, depth + 1, visitedVars);
+                                                if (!string.IsNullOrEmpty(decomp)) return decomp;
+                                            }
+                                            return rawLit;
+                                        }
+                                        var identText = valNode.Text.Trim();
+                                        if (identText.StartsWith(':') || identText.Equals("Topic", StringComparison.OrdinalIgnoreCase) || identText.Equals("string", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            continue;
+                                        }
+                                        if (RouteDictionaryRegistry.TryResolve(identText, out var rp, out var rs))
+                                        {
+                                            return !string.IsNullOrEmpty(rs) ? $"{rs}{rp}" : rp;
+                                        }
+                                        var varVal = FindVariableInitializerInAst(curr, identText, depth + 1, visitedVars);
+                                        if (!string.IsNullOrEmpty(varVal)) return varVal;
+                                        return identText;
+                                    }
+                                }
+                            }
+                        }
+
+                        if (body.EndPosition.Row - body.StartPosition.Row <= 500)
+                        {
+                            var bodyAssignMatch = Regex.Match(body.Text, assignPattern);
+                            if (bodyAssignMatch.Success)
+                            {
+                                var res = EvaluateRhs(curr, bodyAssignMatch.Groups[1].Value.Trim(), depth + 1, visitedVars);
+                                if (!string.IsNullOrEmpty(res)) return res;
+                            }
+                        }
+                    }
+                }
+
+                curr = curr.Parent;
+            }
+            return null;
         }
-        return null;
+        finally
+        {
+            visitedVars.Remove(visitKey);
+        }
     }
 
-    private static string? EvaluateRhs(Node curr, string rhs)
+    private static string? EvaluateRhs(Node curr, string rhs, int depth = 0, HashSet<string>? visitedVars = null)
     {
-        if (string.IsNullOrWhiteSpace(rhs)) return null;
+        if (depth > MaxRecursionDepth || string.IsNullOrWhiteSpace(rhs)) return null;
 
-        // 1. Direct string literal
-        if ((rhs.StartsWith('\'') && rhs.EndsWith('\'')) ||
-            (rhs.StartsWith('"') && rhs.EndsWith('"')) ||
-            (rhs.StartsWith('`') && rhs.EndsWith('`')))
+        // 1. Template string on RHS: e.g. `${BUNDLES_HOST}/api/trafficbacks`
+        if (rhs.StartsWith('`') && rhs.EndsWith('`'))
         {
-            var lit = rhs.Trim('\'', '"', '`');
+            var rawTpl = rhs.Trim('`');
+            if (rawTpl.Contains("${"))
+            {
+                var decomp = TryDecomposeTemplateString(curr, rawTpl, depth + 1, visitedVars);
+                if (!string.IsNullOrEmpty(decomp)) return decomp;
+            }
+            if (!string.IsNullOrEmpty(rawTpl) && !rawTpl.StartsWith(':') && !rawTpl.Equals("string", StringComparison.OrdinalIgnoreCase))
+            {
+                return rawTpl;
+            }
+            return null;
+        }
+
+        // 1b. Direct string literal
+        if ((rhs.StartsWith('\'') && rhs.EndsWith('\'')) ||
+            (rhs.StartsWith('"') && rhs.EndsWith('"')))
+        {
+            var lit = rhs.Trim('\'', '"');
             if (!string.IsNullOrEmpty(lit) && !lit.StartsWith(':') && !lit.Equals("string", StringComparison.OrdinalIgnoreCase))
             {
                 return lit;
@@ -729,18 +778,9 @@ public static partial class AstHelper
             return key;
         }
 
-        // 4. Template string or variable on RHS: e.g. `${BUNDLES_HOST}/api/trafficbacks` or `foo`
-        if (rhs.StartsWith('`') && rhs.EndsWith('`'))
-        {
-            var rawTpl = rhs.Trim('`');
-            var decomp = TryDecomposeTemplateString(curr, rawTpl);
-            if (!string.IsNullOrEmpty(decomp)) return decomp;
-        }
-        else
-        {
-            var resExpr = ResolveTemplateExpression(curr, rhs);
-            if (!string.IsNullOrEmpty(resExpr)) return resExpr;
-        }
+        // 4. General expression on RHS
+        var resExpr = ResolveTemplateExpression(curr, rhs, depth + 1, visitedVars);
+        if (!string.IsNullOrEmpty(resExpr)) return resExpr;
 
         return null;
     }
