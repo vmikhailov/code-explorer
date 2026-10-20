@@ -15,12 +15,9 @@ const version = pkgJson.version || '1.10.0';
 
 export const TARGET_PLATFORMS = [
   { rid: 'win-x64', vsceTarget: 'win32-x64', binName: 'ce.exe' },
-  { rid: 'win-arm64', vsceTarget: 'win32-arm64', binName: 'ce.exe' },
-  { rid: 'linux-x64', vsceTarget: 'linux-x64', binName: 'ce' },
-  { rid: 'linux-arm64', vsceTarget: 'linux-arm64', binName: 'ce' },
-  { rid: 'osx-x64', vsceTarget: 'darwin-x64', binName: 'ce' },
   { rid: 'osx-arm64', vsceTarget: 'darwin-arm64', binName: 'ce' },
 ];
+
 
 const args = process.argv.slice(2);
 const isAll = args.includes('--all');

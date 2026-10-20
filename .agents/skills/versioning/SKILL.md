@@ -145,8 +145,12 @@ Once verified:
    git push origin main --tags
    ```
 
-4. **CI/CD Automation**:
-   The unified GitHub Actions workflow ([`.github/workflows/release.yml`](file:///c:/Work/Personal/code-explorer/.github/workflows/release.yml)) is triggered automatically by the tag:
-   - Compiles native binaries for 6 architectures (Win/Linux/macOS x64 & ARM64).
-   - Packs and publishes `CodeExplorer.Cli` to NuGet.org.
-   - Packages the `.vsix` extension and publishes to VS Code Marketplace & Open VSX Registry.
+4. **CI/CD Automation (Unified Tag Release)**:
+   The unified GitHub Actions workflow ([`.github/workflows/release.yml`](file:///c:/Work/Personal/code-explorer/.github/workflows/release.yml)) is triggered strictly by the tag:
+   - Builds native single-file binaries for **win-x64** and **osx-arm64** (reduced native matrix).
+   - Packs and publishes universal `codeexplorer.cli` NuGet tool package to NuGet.org and GitHub Releases (serving non-native architectures: `linux-*`, `osx-x64`, `win-arm64`).
+   - Packages lightweight universal `.vsix` extension and publishes to VS Code Marketplace & Open VSX Registry.
+   - **Important**: Do **NOT** schedule any timer/hook or background check to monitor GitHub Actions after pushing the tag. The user monitors GitHub Actions manually.
+
+
+

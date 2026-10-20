@@ -14,7 +14,9 @@ export interface TargetInfo {
   archiveName: string;
   binName: string;
   format: ArchiveFormat;
+  hasNativeBinary: boolean;
 }
+
 
 export interface EngineVersionConfig {
   pattern: string;

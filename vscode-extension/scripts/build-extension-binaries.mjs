@@ -14,10 +14,6 @@ const csprojPath = path.resolve(repoRoot, 'cli', 'src', 'UI', 'CodeExplorer', 'C
  */
 export const TARGET_PLATFORMS = [
   { rid: 'win-x64', vsceTarget: 'win32-x64', binName: 'ce.exe' },
-  { rid: 'win-arm64', vsceTarget: 'win32-arm64', binName: 'ce.exe' },
-  { rid: 'linux-x64', vsceTarget: 'linux-x64', binName: 'ce' },
-  { rid: 'linux-arm64', vsceTarget: 'linux-arm64', binName: 'ce' },
-  { rid: 'osx-x64', vsceTarget: 'darwin-x64', binName: 'ce' },
   { rid: 'osx-arm64', vsceTarget: 'darwin-arm64', binName: 'ce' },
 ];
 
@@ -56,11 +52,9 @@ if (ridArg) {
   const arch = process.arch;
   let matchingRid = 'win-x64';
   if (platform === 'win32') {
-    matchingRid = arch === 'arm64' ? 'win-arm64' : 'win-x64';
-  } else if (platform === 'darwin') {
-    matchingRid = arch === 'arm64' ? 'osx-arm64' : 'osx-x64';
-  } else if (platform === 'linux') {
-    matchingRid = arch === 'arm64' ? 'linux-arm64' : 'linux-x64';
+    matchingRid = 'win-x64';
+  } else if (platform === 'darwin' && arch === 'arm64') {
+    matchingRid = 'osx-arm64';
   }
   selectedTargets = TARGET_PLATFORMS.filter((t) => t.rid === matchingRid);
 }

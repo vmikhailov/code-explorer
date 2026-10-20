@@ -15,7 +15,7 @@ import {
 } from './semver';
 import { ensureExecutablePermissions, extractArchive, resolveTargetAsset } from './platform';
 import { GITHUB_REPO, downloadFileWithRedirects, probeEngineVersion } from './downloader';
-import { probeCommandVersion } from './discovery';
+import { probeCommandVersion, probeDotnetTool } from './discovery';
 import { getBestInstalledEngine } from './selector';
 
 function getVsCode(): typeof import('vscode') | undefined {
@@ -249,10 +249,16 @@ export class BinaryManager {
     }
 
     // 2. Query remote releases for the best target
-    const resolved = await probeEngineVersion(extVersion, userSetting, this.outputChannel, target.archiveName);
-    const targetVersion = resolved.version;
+    let targetVersion = extVersion;
+    let resolved: { version: string; assetUrl?: string } | null = null;
+    try {
+      resolved = await probeEngineVersion(extVersion, userSetting, this.outputChannel, target.archiveName);
+      targetVersion = resolved.version;
+    } catch (e: any) {
+      this.outputChannel.appendLine(`[BinaryManager] Remote version probe fallback: ${e?.message || e}`);
+    }
 
-    // 3. Version comparison: avoid redundant download if installed version is >= target version
+    // 3. Version comparison: avoid redundant download/install if installed version is >= target version
     if (!options.forceReinstall && currentVersion) {
       const cmp = compareSemver(currentVersion, targetVersion);
       if (cmp >= 0 || isBuildDifferenceOnly(currentVersion, targetVersion)) {
@@ -261,7 +267,7 @@ export class BinaryManager {
           : `Installed CodeExplorer engine (v${currentVersion}${bestInstalled ? ` via ${bestInstalled.source}` : ''}) is newer than remote release (v${targetVersion}).`;
 
         this.outputChannel.appendLine(
-          `[BinaryManager] Installed engine (v${currentVersion}) is >= remote release (v${targetVersion}). Skipping download.`
+          `[BinaryManager] Installed engine (v${currentVersion}) is >= target release (v${targetVersion}). Skipping download/install.`
         );
 
         return {
@@ -275,22 +281,132 @@ export class BinaryManager {
       }
     }
 
-    // 4. Remote version is higher (or forced): download and install
-    await this.downloadAndExtract(resolved, target, binDir, binPath);
+    // 4. If platform has native binary, attempt download and extraction
+    if (target.hasNativeBinary) {
+      try {
+        const toDownload = resolved || { version: targetVersion };
+        await this.downloadAndExtract(toDownload, target, binDir, binPath);
 
-    const msg = currentVersion
-      ? `CodeExplorer engine updated from v${currentVersion} to v${targetVersion}.`
-      : `CodeExplorer engine v${targetVersion} is ready.`;
+        const msg = currentVersion
+          ? `CodeExplorer engine updated from v${currentVersion} to v${targetVersion}.`
+          : `CodeExplorer engine v${targetVersion} is ready.`;
 
-    return {
-      command: binPath,
-      args: [],
-      currentVersion,
-      targetVersion,
-      updated: true,
-      message: msg,
-    };
+        return {
+          command: binPath,
+          args: [],
+          currentVersion,
+          targetVersion,
+          updated: true,
+          message: msg,
+        };
+      } catch (err: any) {
+        this.outputChannel.appendLine(
+          `[BinaryManager] Native binary download failed (${err?.message || err}). Falling back to dotnet tool install.`
+        );
+      }
+    }
+
+    // 5. Fallback: dotnet tool installation for universal / non-native architectures or download failures
+    const dotnetVersion = probeCommandVersion('dotnet');
+    if (dotnetVersion) {
+      const tool = await this.installOrUpdateDotnetTool(targetVersion, options.workspaceRoot);
+      if (tool) {
+        return {
+          command: tool.command,
+          args: tool.args,
+          currentVersion,
+          targetVersion: tool.version || targetVersion,
+          updated: true,
+          message: `CodeExplorer dotnet tool v${tool.version || targetVersion} is ready.`,
+        };
+      }
+    } else {
+      this.notifyDotnetRequired(target);
+    }
+
+    // Fallback to existing installed engine if any
+    if (bestInstalled) {
+      this.outputChannel.appendLine(
+        `[BinaryManager] Falling back to existing installed engine v${bestInstalled.version} (${bestInstalled.source}).`
+      );
+      return {
+        command: bestInstalled.command,
+        args: bestInstalled.args,
+        currentVersion,
+        targetVersion: bestInstalled.version,
+        updated: false,
+        message: `Using existing CodeExplorer engine v${bestInstalled.version}.`,
+      };
+    }
+
+    throw new Error(
+      `CodeExplorer engine is not available for ${target.platform}-${target.arch}. Please install .NET 10 or later from https://dotnet.microsoft.com/download.`
+    );
   }
+
+  /**
+   * Attempts to install or update the global dotnet tool `codeexplorer.cli`.
+   */
+  private async installOrUpdateDotnetTool(
+    targetVersion: string,
+    workspaceRoot?: string
+  ): Promise<{ command: string; args: string[]; version: string } | null> {
+    const cp = require('child_process');
+    this.outputChannel.appendLine(
+      `[BinaryManager] Attempting to install/update global dotnet tool codeexplorer.cli v${targetVersion}...`
+    );
+
+    const runCmd = (args: string[]) => {
+      try {
+        return cp.spawnSync('dotnet', args, {
+          encoding: 'utf8',
+          windowsHide: true,
+          timeout: 60000,
+        });
+      } catch (e: any) {
+        return { status: 1, stderr: e?.message || String(e) };
+      }
+    };
+
+    // 1. Try install first
+    let res = runCmd(['tool', 'install', '-g', 'codeexplorer.cli', '--version', targetVersion]);
+    if (res.status !== 0) {
+      // 2. If install failed (e.g. already installed), try update
+      this.outputChannel.appendLine(
+        `[BinaryManager] dotnet tool install exited with ${res.status}. Attempting dotnet tool update...`
+      );
+      res = runCmd(['tool', 'update', '-g', 'codeexplorer.cli', '--version', targetVersion]);
+    }
+
+    if (res.status === 0) {
+      this.outputChannel.appendLine(`[BinaryManager] Successfully installed/updated dotnet tool.`);
+    } else {
+      this.outputChannel.appendLine(`[BinaryManager] dotnet tool install/update warning: ${res.stderr || res.stdout}`);
+    }
+
+    // Probe to see if the tool is now available
+    const probed = probeDotnetTool(workspaceRoot);
+    if (probed) {
+      return probed;
+    }
+    return null;
+  }
+
+  /**
+   * Shows an actionable notification when .NET runtime is missing on non-native platform.
+   */
+  private notifyDotnetRequired(target: TargetInfo): void {
+    const vscode = getVsCode();
+    const msg = `CodeExplorer requires the .NET SDK/Runtime on ${target.platform} (${target.arch}). Please install .NET 10 or later to run the engine.`;
+    if (vscode?.window?.showErrorMessage) {
+      vscode.window.showErrorMessage(msg, 'Download .NET').then((choice: any) => {
+        if (choice === 'Download .NET') {
+          vscode.env?.openExternal?.(vscode.Uri.parse('https://dotnet.microsoft.com/download'));
+        }
+      });
+    }
+  }
+
 
   private async downloadAndExtract(
     resolved: { version: string; assetUrl?: string },

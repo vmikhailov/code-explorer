@@ -17,42 +17,56 @@ import {
   getExecutableName,
   findInPath,
   ensureExecutablePermissions,
+  isNativeBinarySupported,
 } from './binaryManager';
 
-test('resolveTargetAsset: correctly resolves platform archives and binary names', () => {
+test('resolveTargetAsset: correctly resolves platform archives, binary names, and native binary availability', () => {
   // Windows
   const win64 = resolveTargetAsset('win32', 'x64');
   assert.equal(win64.archiveName, 'ce-win-x64.zip');
   assert.equal(win64.binName, 'ce.exe');
   assert.equal(win64.format, 'zip');
+  assert.equal(win64.hasNativeBinary, true);
+  assert.equal(isNativeBinarySupported('win32', 'x64'), true);
 
   const winArm = resolveTargetAsset('win32', 'arm64');
   assert.equal(winArm.archiveName, 'ce-win-arm64.zip');
   assert.equal(winArm.binName, 'ce.exe');
   assert.equal(winArm.format, 'zip');
+  assert.equal(winArm.hasNativeBinary, false);
+  assert.equal(isNativeBinarySupported('win32', 'arm64'), false);
 
   // Linux
   const linux64 = resolveTargetAsset('linux', 'x64');
   assert.equal(linux64.archiveName, 'ce-linux-x64.tar.gz');
   assert.equal(linux64.binName, 'ce');
   assert.equal(linux64.format, 'tar.gz');
+  assert.equal(linux64.hasNativeBinary, false);
+  assert.equal(isNativeBinarySupported('linux', 'x64'), false);
 
   const linuxArm = resolveTargetAsset('linux', 'arm64');
   assert.equal(linuxArm.archiveName, 'ce-linux-arm64.tar.gz');
   assert.equal(linuxArm.binName, 'ce');
   assert.equal(linuxArm.format, 'tar.gz');
+  assert.equal(linuxArm.hasNativeBinary, false);
+  assert.equal(isNativeBinarySupported('linux', 'arm64'), false);
 
   // macOS
   const osxArm = resolveTargetAsset('darwin', 'arm64');
   assert.equal(osxArm.archiveName, 'ce-osx-arm64.tar.gz');
   assert.equal(osxArm.binName, 'ce');
   assert.equal(osxArm.format, 'tar.gz');
+  assert.equal(osxArm.hasNativeBinary, true);
+  assert.equal(isNativeBinarySupported('darwin', 'arm64'), true);
 
   const osx64 = resolveTargetAsset('darwin', 'x64');
   assert.equal(osx64.archiveName, 'ce-osx-x64.tar.gz');
   assert.equal(osx64.binName, 'ce');
   assert.equal(osx64.format, 'tar.gz');
+  assert.equal(osx64.hasNativeBinary, false);
+  assert.equal(isNativeBinarySupported('darwin', 'x64'), false);
 });
+
 
 test('getEngineConfigFromExtensionVersion: derives ^major.minor.0 pattern dynamically from extension version', () => {
   const cfg1 = getEngineConfigFromExtensionVersion('1.11.3');
