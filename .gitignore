@@ -50,5 +50,7 @@ dist-vsix/
 .bin-cache/
 vscode-extension/bin/
 docs/testing/
+docs/ats-*
+docs/presentations/
 *.orig
 .stats_auth
