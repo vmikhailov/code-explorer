@@ -48,6 +48,36 @@ import {
   UnhideNodeCommand,
   RestoreAllHiddenNodesCommand,
 } from '../commands/commands';
+import { getVsCodeApi } from '../vscodeApi';
+
+const domainSessionMemory = new Map<string, string>();
+
+function readDomainSessionValue(key: string): string | null {
+  if (domainSessionMemory.has(key)) {
+    return domainSessionMemory.get(key) ?? null;
+  }
+  try {
+    const api = getVsCodeApi();
+    const state = api?.getState();
+    if (state?.domainSession && typeof state.domainSession[key] === 'string') {
+      domainSessionMemory.set(key, state.domainSession[key]);
+      return state.domainSession[key];
+    }
+  } catch { }
+  return null;
+}
+
+function writeDomainSessionValue(key: string, value: string): void {
+  domainSessionMemory.set(key, value);
+  try {
+    const api = getVsCodeApi();
+    if (api) {
+      const current = api.getState() || {};
+      const domainSession = { ...(current.domainSession || {}), [key]: value };
+      api.setState({ ...current, domainSession });
+    }
+  } catch { }
+}
 
 export type DomainLayoutName =
   | 'concentric'
@@ -1150,24 +1180,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       });
     }
   }, [applySearchHighlight]);
-  const getScopedStorageKey = useCallback((baseKey: string): string => {
-    try {
-      if (typeof window !== 'undefined') {
-        const root = (window as any).__CE_CONFIG__?.workspaceRoot;
-        if (root && typeof root === 'string' && root.trim().length > 0) {
-          return `${baseKey}::${root.trim().replace(/\\/g, '/').toLowerCase()}`;
-        }
-        if (window.location?.host && !window.location.protocol.startsWith('vscode-webview')) {
-          return `${baseKey}::${window.location.host.toLowerCase()}`;
-        }
-      }
-    } catch { }
-    return baseKey;
-  }, []);
-
   const [hiddenTypes, setHiddenTypes] = useState<Set<EntityKind>>(() => {
     try {
-      const saved = localStorage.getItem(getScopedStorageKey('ce_domain_hidden_types'));
+      const saved = readDomainSessionValue('ce_domain_hidden_types');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return new Set<EntityKind>(parsed);
@@ -1177,7 +1192,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   });
   const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(() => {
     try {
-      const saved = localStorage.getItem(getScopedStorageKey('ce_domain_hidden_node_ids'));
+      const saved = readDomainSessionValue('ce_domain_hidden_node_ids');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return new Set<string>(parsed);
@@ -1187,7 +1202,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   });
   const [hiddenOrbitTiers, setHiddenOrbitTiers] = useState<Set<number>>(() => {
     try {
-      const saved = localStorage.getItem(getScopedStorageKey('ce_domain_hidden_orbit_tiers'));
+      const saved = readDomainSessionValue('ce_domain_hidden_orbit_tiers');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return new Set<number>(parsed);
@@ -1197,7 +1212,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   });
   const [forcedVisibleNodeIds, setForcedVisibleNodeIds] = useState<Set<string>>(() => {
     try {
-      const saved = localStorage.getItem(getScopedStorageKey('ce_domain_forced_visible_nodes'));
+      const saved = readDomainSessionValue('ce_domain_forced_visible_nodes');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return new Set<string>(parsed);
@@ -1207,60 +1222,48 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   });
   const [hideSingleConnectionDbs, setHideSingleConnectionDbs] = useState<boolean>(() => {
     try {
-      const saved = localStorage.getItem(getScopedStorageKey('ce_hide_single_connection_dbs'));
+      const saved = readDomainSessionValue('ce_hide_single_connection_dbs');
       return saved !== null ? saved === 'true' : false;
     } catch { }
     return false;
   });
   const [hideIsolatedNodes, setHideIsolatedNodes] = useState<boolean>(() => {
     try {
-      const saved = localStorage.getItem(getScopedStorageKey('ce_hide_isolated_nodes'));
+      const saved = readDomainSessionValue('ce_hide_isolated_nodes');
       return saved !== null ? saved === 'true' : false;
     } catch { }
     return false;
   });
 
-  // Sync hidden and filter states to localStorage
+  // Sync hidden and filter states to in-memory webview session state
   useEffect(() => {
-    try {
-      localStorage.setItem(getScopedStorageKey('ce_domain_hidden_types'), JSON.stringify([...hiddenTypes]));
-    } catch { }
-  }, [hiddenTypes, getScopedStorageKey]);
+    writeDomainSessionValue('ce_domain_hidden_types', JSON.stringify([...hiddenTypes]));
+  }, [hiddenTypes]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(getScopedStorageKey('ce_domain_hidden_node_ids'), JSON.stringify([...hiddenNodeIds]));
-    } catch { }
-  }, [hiddenNodeIds, getScopedStorageKey]);
+    writeDomainSessionValue('ce_domain_hidden_node_ids', JSON.stringify([...hiddenNodeIds]));
+  }, [hiddenNodeIds]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(getScopedStorageKey('ce_domain_hidden_orbit_tiers'), JSON.stringify([...hiddenOrbitTiers]));
-    } catch { }
-  }, [hiddenOrbitTiers, getScopedStorageKey]);
+    writeDomainSessionValue('ce_domain_hidden_orbit_tiers', JSON.stringify([...hiddenOrbitTiers]));
+  }, [hiddenOrbitTiers]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(getScopedStorageKey('ce_domain_forced_visible_nodes'), JSON.stringify([...forcedVisibleNodeIds]));
-    } catch { }
-  }, [forcedVisibleNodeIds, getScopedStorageKey]);
+    writeDomainSessionValue('ce_domain_forced_visible_nodes', JSON.stringify([...forcedVisibleNodeIds]));
+  }, [forcedVisibleNodeIds]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(getScopedStorageKey('ce_hide_single_connection_dbs'), String(hideSingleConnectionDbs));
-    } catch { }
-  }, [hideSingleConnectionDbs, getScopedStorageKey]);
+    writeDomainSessionValue('ce_hide_single_connection_dbs', String(hideSingleConnectionDbs));
+  }, [hideSingleConnectionDbs]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(getScopedStorageKey('ce_hide_isolated_nodes'), String(hideIsolatedNodes));
-    } catch { }
-  }, [hideIsolatedNodes, getScopedStorageKey]);
+    writeDomainSessionValue('ce_hide_isolated_nodes', String(hideIsolatedNodes));
+  }, [hideIsolatedNodes]);
 
-  // Grouped Types & Custom Groups (persisted in localStorage per workspace)
+  // Grouped Types & Custom Groups (held in in-memory webview session state)
   const [groupedTypes, setGroupedTypes] = useState<Set<EntityKind>>(() => {
     try {
-      const saved = localStorage.getItem(getScopedStorageKey('ce_domain_grouped_types'));
+      const saved = readDomainSessionValue('ce_domain_grouped_types');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return new Set<EntityKind>(parsed);
@@ -1271,7 +1274,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
   const [customGroups, setCustomGroups] = useState<CustomNodeGroup[]>(() => {
     try {
-      const saved = localStorage.getItem(getScopedStorageKey('ce_domain_custom_groups'));
+      const saved = readDomainSessionValue('ce_domain_custom_groups');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return parsed;
@@ -1286,18 +1289,14 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   multiSelectedNodeIdsRef.current = multiSelectedNodeIds;
   const effectiveDetailMapRef = useRef<Map<string, SelectedNodeDetail>>(new Map());
 
-  // Sync grouped types and custom groups to localStorage
+  // Sync grouped types and custom groups to in-memory webview session state
   useEffect(() => {
-    try {
-      localStorage.setItem(getScopedStorageKey('ce_domain_grouped_types'), JSON.stringify([...groupedTypes]));
-    } catch { }
-  }, [groupedTypes, getScopedStorageKey]);
+    writeDomainSessionValue('ce_domain_grouped_types', JSON.stringify([...groupedTypes]));
+  }, [groupedTypes]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(getScopedStorageKey('ce_domain_custom_groups'), JSON.stringify(customGroups));
-    } catch { }
-  }, [customGroups, getScopedStorageKey]);
+    writeDomainSessionValue('ce_domain_custom_groups', JSON.stringify(customGroups));
+  }, [customGroups]);
 
   // Sync multi-selected classes to Cytoscape
   useEffect(() => {
