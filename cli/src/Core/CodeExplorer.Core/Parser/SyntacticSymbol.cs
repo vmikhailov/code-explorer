@@ -18,5 +18,6 @@ public class SyntacticSymbol(string kind, string name, Node node)
     public string? RequestType { get; set; }
     public string? ResponseType { get; set; }
     public string? OperationType { get; set; }
+    public string? ParentScopeId { get; set; }
     public Dictionary<string, string> Properties { get; } = new(StringComparer.OrdinalIgnoreCase);
 }

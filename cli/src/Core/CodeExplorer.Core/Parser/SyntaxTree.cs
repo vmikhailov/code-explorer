@@ -16,6 +16,8 @@ public class SyntaxTree : IDisposable
     public List<RawImport> RawImports { get; }
     public List<RawVariable> RawVariables { get; }
     public List<RawTypeBinding> RawTypeBindings { get; }
+    public SyntacticSymbol? RootSymbol { get; set; }
+    public List<SyntacticSymbol> SemanticSymbols { get; } = [];
 
     public SyntaxTree(
         string filePath,

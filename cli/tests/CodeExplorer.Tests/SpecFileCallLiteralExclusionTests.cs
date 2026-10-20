@@ -3,7 +3,7 @@ using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Components.Parsers;
+using CodeExplorer.Parser.TypeScript.Components;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.TypeScript;
 using NUnit.Framework;
