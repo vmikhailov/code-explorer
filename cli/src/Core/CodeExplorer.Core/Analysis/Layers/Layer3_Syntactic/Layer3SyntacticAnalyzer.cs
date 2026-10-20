@@ -145,33 +145,27 @@ public partial class Layer3SyntacticParser
             }
         }
 
-        var fileContents = new List<(string Content, string? ProjectName, string FullPath)>();
-        foreach (var (fPath, pName) in allCandidateFiles)
+        Parallel.ForEach(allCandidateFiles, new ParallelOptions { CancellationToken = ctx.CancellationToken }, item =>
         {
+            var (fPath, pName) = item;
             try
             {
-                if (File.Exists(fPath))
-                {
-                    var content = await File.ReadAllTextAsync(fPath);
-                    RouteDictionaryRegistry.ScanServiceDomains(content);
-                    fileContents.Add((content, pName, fPath));
-                }
-            }
-            catch { }
-        }
+                var fi = new FileInfo(fPath);
+                if (!fi.Exists || fi.Length > 1024 * 1024) return;
 
-        foreach (var (content, pName, fPath) in fileContents)
-        {
-            try
-            {
+                var content = File.ReadAllText(fPath);
+                RouteDictionaryRegistry.ScanServiceDomains(content);
                 RouteDictionaryRegistry.ScanAndRegister(content);
                 ConstantRegistry.ScanAndRegister(fPath, content, pName);
 
                 var fileParser = WorkspaceIndexer.GetParserForFile(fPath);
                 fileParser?.DiscoverDeclarations(fPath, content, pName, ctx);
             }
-            catch { }
-        }
+            catch
+            {
+                // Graceful skip on concurrent file access or reading errors
+            }
+        });
 
         foreach (var project in l2Result.Projects)
         {
@@ -607,10 +601,27 @@ public partial class Layer3SyntacticParser
     public static bool IsRouteOrConfigCandidate(string path)
     {
         if (string.IsNullOrWhiteSpace(path)) return false;
-        var p = path.ToLowerInvariant();
-        return (p.EndsWith(".ts") || p.EndsWith(".js") || p.EndsWith(".cs") || p.EndsWith(".go") || p.EndsWith(".py") || p.EndsWith(".json")) &&
-               (p.Contains("route") || p.Contains("const") || p.Contains("config") || p.Contains("api") || p.Contains("endpoint") || p.Contains("url") || p.Contains("env") ||
-                p.Contains("client") || p.Contains("service") || p.Contains("importer") || p.Contains("catalog") || p.Contains("gateway") || p.Contains("http") ||
-                p.Contains("main.") || p.Contains("app.") || p.Contains("bootstrap.") || p.Contains("index.") || p.Contains("program.") || p.Contains("startup."));
+        var normalized = path.Replace('\\', '/').ToLowerInvariant();
+        var ext = Path.GetExtension(normalized);
+        if (ext is not (".ts" or ".js" or ".cs" or ".go" or ".py" or ".json"))
+            return false;
+
+        var fileName = Path.GetFileName(normalized);
+        if (fileName.Contains("route") || fileName.Contains("const") || fileName.Contains("config") ||
+            fileName.Contains("api") || fileName.Contains("endpoint") || fileName.Contains("url") ||
+            fileName.Contains("env") || fileName.Contains("client") || fileName.Contains("service") ||
+            fileName.Contains("importer") || fileName.Contains("catalog") || fileName.Contains("gateway") ||
+            fileName.Contains("http") || fileName.StartsWith("main.") || fileName.StartsWith("app.") ||
+            fileName.StartsWith("bootstrap.") || fileName.StartsWith("index.") ||
+            fileName.StartsWith("program.") || fileName.StartsWith("startup."))
+        {
+            return true;
+        }
+
+        // Dedicated route / configuration / constants directory segments
+        return normalized.Contains("/routes/") || normalized.Contains("/route/") ||
+               normalized.Contains("/config/") || normalized.Contains("/configs/") ||
+               normalized.Contains("/constants/") || normalized.Contains("/endpoints/") ||
+               normalized.Contains("/gateways/");
     }
 }

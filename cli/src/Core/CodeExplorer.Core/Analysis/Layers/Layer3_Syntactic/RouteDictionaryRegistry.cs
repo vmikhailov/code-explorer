@@ -21,6 +21,8 @@ public static class RouteDictionaryRegistry
     private static readonly ConcurrentDictionary<string, string> _mountPrefixes =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(1);
+
     public static void RegisterMountPrefix(string filePath, string mountPrefix)
     {
         if (string.IsNullOrWhiteSpace(filePath) || string.IsNullOrWhiteSpace(mountPrefix)) return;
@@ -323,70 +325,77 @@ public static class RouteDictionaryRegistry
     {
         if (string.IsNullOrWhiteSpace(content)) return;
 
-        // 1. Extract SERVICE_DOMAINS / SERVICES mapping: KEY: 'service-name' or 'http://service-name'
-        var serviceDomainsMatches = Regex.Matches(content, @"(?:SERVICE_DOMAINS|SERVICES|Services)\s*(?::\s*[^=]+)?\s*=\s*\{([\s\S]*?)\}(?:\s*as\s+const)?;", RegexOptions.Multiline);
-        foreach (Match sm in serviceDomainsMatches)
+        try
         {
-            var body = sm.Groups[1].Value;
-            var domainMatches = Regex.Matches(body, @"['""]?([A-Za-z0-9_\-]+)['""]?\s*:\s*['""]([^'""]+)['""]");
-            foreach (Match dm in domainMatches)
+            // 1. Extract SERVICE_DOMAINS / SERVICES mapping: KEY: 'service-name' or 'http://service-name'
+            var serviceDomainsMatches = Regex.Matches(content, @"(?:SERVICE_DOMAINS|SERVICES|Services)\s*(?::\s*[^=]+)?\s*=\s*\{([\s\S]*?)\}(?:\s*as\s+const)?;", RegexOptions.Multiline, RegexTimeout);
+            foreach (Match sm in serviceDomainsMatches)
             {
-                var sKey = dm.Groups[1].Value;
-                var sVal = dm.Groups[2].Value.Trim();
-                if (sVal.StartWithIC("http://") || sVal.StartWithIC("https://"))
+                var body = sm.Groups[1].Value;
+                var domainMatches = Regex.Matches(body, @"['""]?([A-Za-z0-9_\-]+)['""]?\s*:\s*['""]([^'""]+)['""]", RegexOptions.None, RegexTimeout);
+                foreach (Match dm in domainMatches)
                 {
-                    try
+                    var sKey = dm.Groups[1].Value;
+                    var sVal = dm.Groups[2].Value.Trim();
+                    if (sVal.StartWithIC("http://") || sVal.StartWithIC("https://"))
                     {
-                        var uri = new Uri(sVal);
-                        sVal = uri.Host;
+                        try
+                        {
+                            var uri = new Uri(sVal);
+                            sVal = uri.Host;
+                        }
+                        catch
+                        {
+                            sVal = sVal.Replace("http://", "").Replace("https://", "").Trim('/');
+                        }
                     }
-                    catch
+                    var normSVal = WorkspaceConventions.NormalizeServiceName(sVal);
+                    if (string.IsNullOrEmpty(normSVal)) normSVal = sVal;
+                    _serviceDomains[sKey] = normSVal;
+                    var normSKey = WorkspaceConventions.NormalizeServiceName(sKey);
+                    if (!string.IsNullOrEmpty(normSKey))
                     {
-                        sVal = sVal.Replace("http://", "").Replace("https://", "").Trim('/');
+                        _serviceDomains[normSKey] = normSVal;
                     }
                 }
-                var normSVal = WorkspaceConventions.NormalizeServiceName(sVal);
-                if (string.IsNullOrEmpty(normSVal)) normSVal = sVal;
-                _serviceDomains[sKey] = normSVal;
-                var normSKey = WorkspaceConventions.NormalizeServiceName(sKey);
-                if (!string.IsNullOrEmpty(normSKey))
+            }
+
+            // JSON format for Services: "Services": { "Bundle": "http://bundle-service", ... }
+            var jsonServicesMatch = Regex.Match(content, @"""Services""\s*:\s*\{([\s\S]*?)\}", RegexOptions.Multiline, RegexTimeout);
+            if (jsonServicesMatch.Success)
+            {
+                var body = jsonServicesMatch.Groups[1].Value;
+                var domainMatches = Regex.Matches(body, @"""([A-Za-z0-9_\-]+)""\s*:\s*""([^""]+)""", RegexOptions.None, RegexTimeout);
+                foreach (Match dm in domainMatches)
                 {
-                    _serviceDomains[normSKey] = normSVal;
+                    var sKey = dm.Groups[1].Value;
+                    var sVal = dm.Groups[2].Value.Trim();
+                    if (sVal.StartWithIC("http://") || sVal.StartWithIC("https://"))
+                    {
+                        try
+                        {
+                            var uri = new Uri(sVal);
+                            sVal = uri.Host;
+                        }
+                        catch
+                        {
+                            sVal = sVal.Replace("http://", "").Replace("https://", "").Trim('/');
+                        }
+                    }
+                    var normSVal = WorkspaceConventions.NormalizeServiceName(sVal);
+                    if (string.IsNullOrEmpty(normSVal)) normSVal = sVal;
+                    _serviceDomains[sKey] = normSVal;
+                    var normSKey = WorkspaceConventions.NormalizeServiceName(sKey);
+                    if (!string.IsNullOrEmpty(normSKey))
+                    {
+                        _serviceDomains[normSKey] = normSVal;
+                    }
                 }
             }
         }
-
-        // JSON format for Services: "Services": { "Bundle": "http://bundle-service", ... }
-        var jsonServicesMatch = Regex.Match(content, @"""Services""\s*:\s*\{([\s\S]*?)\}", RegexOptions.Multiline);
-        if (jsonServicesMatch.Success)
+        catch (RegexMatchTimeoutException)
         {
-            var body = jsonServicesMatch.Groups[1].Value;
-            var domainMatches = Regex.Matches(body, @"""([A-Za-z0-9_\-]+)""\s*:\s*""([^""]+)""");
-            foreach (Match dm in domainMatches)
-            {
-                var sKey = dm.Groups[1].Value;
-                var sVal = dm.Groups[2].Value.Trim();
-                if (sVal.StartWithIC("http://") || sVal.StartWithIC("https://"))
-                {
-                    try
-                    {
-                        var uri = new Uri(sVal);
-                        sVal = uri.Host;
-                    }
-                    catch
-                    {
-                        sVal = sVal.Replace("http://", "").Replace("https://", "").Trim('/');
-                    }
-                }
-                var normSVal = WorkspaceConventions.NormalizeServiceName(sVal);
-                if (string.IsNullOrEmpty(normSVal)) normSVal = sVal;
-                _serviceDomains[sKey] = normSVal;
-                var normSKey = WorkspaceConventions.NormalizeServiceName(sKey);
-                if (!string.IsNullOrEmpty(normSKey))
-                {
-                    _serviceDomains[normSKey] = normSVal;
-                }
-            }
+            // Safeguard against catastrophic backtracking
         }
     }
 
@@ -394,7 +403,9 @@ public static class RouteDictionaryRegistry
     {
         if (string.IsNullOrWhiteSpace(content)) return;
 
-        ScanServiceDomains(content);
+        try
+        {
+            ScanServiceDomains(content);
 
         // 1a-1. Top-level string/URL constant declarations:
         // const apiRoot = 'https://api.HOSTNAME/api/v1';
@@ -417,7 +428,7 @@ public static class RouteDictionaryRegistry
         // export const environment = { ... }, const urlMap = { ... }, const Endpoints = { ... }
         var envDictMatches = Regex.Matches(content,
             @"(?:export\s+)?(?:const|let|var)\s+([A-Za-z0-9_]+)\s*(?::\s*[^=]+)?\s*=\s*\{([\s\S]*?)\}(?:\s*as\s+const)?\s*(?:;|\n|$)",
-            RegexOptions.Multiline);
+            RegexOptions.Multiline, RegexTimeout);
         foreach (Match m in envDictMatches)
         {
             var varName = m.Groups[1].Value;
@@ -488,7 +499,7 @@ public static class RouteDictionaryRegistry
             }
 
             // Nested dictionary endpoints: gameList: { endpoint: env.games, ... }
-            var nestedMatches = Regex.Matches(body, @"([A-Za-z0-9_]+)\s*:\s*\{[\s\S]*?endpoint\s*:\s*(?:([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)|['""`]([^'""`\r\n]+)['""`])[\s\S]*?\}");
+            var nestedMatches = Regex.Matches(body, @"([A-Za-z0-9_]+)\s*:\s*\{[\s\S]*?endpoint\s*:\s*(?:([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)|['""`]([^'""`\r\n]+)['""`])[\s\S]*?\}", RegexOptions.None, RegexTimeout);
             foreach (Match nm in nestedMatches)
             {
                 var secName = nm.Groups[1].Value;
@@ -594,11 +605,11 @@ public static class RouteDictionaryRegistry
         }
 
         // 2. Extract API_ROUTES / ROUTES blocks: SERVICE_KEY: [ { route: 'KEY', path: 'PATH' } ]
-        var apiRoutesMatch = Regex.Match(content, @"(?:API_ROUTES|ROUTES)\s*(?::\s*[^=]+)?\s*=\s*\{([\s\S]*?)\}(?:\s*as\s+const)?;", RegexOptions.Multiline);
+        var apiRoutesMatch = Regex.Match(content, @"(?:API_ROUTES|ROUTES)\s*(?::\s*[^=]+)?\s*=\s*\{([\s\S]*?)\}(?:\s*as\s+const)?;", RegexOptions.Multiline, RegexTimeout);
         if (apiRoutesMatch.Success)
         {
             var body = apiRoutesMatch.Groups[1].Value;
-            var serviceBlocks = Regex.Matches(body, @"['""]?([A-Za-z0-9_\-]+)['""]?\s*:\s*\[([\s\S]*?)\]", RegexOptions.Multiline);
+            var serviceBlocks = Regex.Matches(body, @"['""]?([A-Za-z0-9_\-]+)['""]?\s*:\s*\[([\s\S]*?)\]", RegexOptions.Multiline, RegexTimeout);
             foreach (Match sb in serviceBlocks)
             {
                 var sKey = sb.Groups[1].Value;
@@ -679,6 +690,11 @@ public static class RouteDictionaryRegistry
             {
                 _serviceDomains[normK] = normVal;
             }
+        }
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            // Safeguard against catastrophic backtracking
         }
     }
 

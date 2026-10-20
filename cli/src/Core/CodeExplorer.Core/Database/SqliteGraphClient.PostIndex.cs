@@ -30,6 +30,7 @@ public partial class SqliteGraphClient
         try
         {
             await using var cmdInit = _conn.CreateCommand();
+            cmdInit.CommandTimeout = CommandTimeoutSeconds;
             cmdInit.Parameters.AddWithValue("@namesJson", namesJson);
             cmdInit.CommandText = """
                                   DROP TABLE IF EXISTS temp_target_names;
@@ -39,39 +40,68 @@ public partial class SqliteGraphClient
             await cmdInit.ExecuteNonQueryAsync(cancellationToken);
 
             await using var cmd = _conn.CreateCommand();
+            cmd.CommandTimeout = CommandTimeoutSeconds;
             cmd.Parameters.AddWithValue("@widPrefix", widPrefix);
 
             cmd.CommandText = """
-                              SELECT n.id, n.kind, json_extract(n.properties, '$.name') AS name,
-                                     (SELECT json_extract(p.properties, '$.name') FROM nodes p WHERE p.id = e.from_id AND p.kind = 'Type') AS parent_name
+                              SELECT n.id, n.kind, json_extract(n.properties, '$.name') AS name
                               FROM temp_target_names t
                               JOIN nodes n ON json_extract(n.properties, '$.name') = t.val
-                              LEFT JOIN edges e ON e.to_id = n.id AND e.kind IN ('HAS_METHOD', 'CONTAINS')
                               WHERE n.kind IN ('Type', 'Function', 'Procedure', 'Table', 'EntryPoint', 'Endpoint')
                                 AND (length(@widPrefix) = 0 OR n.id LIKE @widPrefix || '%');
                               """;
 
-            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            var functionNodes = new List<(string Id, string Name)>();
 
-            while (await reader.ReadAsync(cancellationToken))
+            await using (var reader = await cmd.ExecuteReaderAsync(cancellationToken))
             {
-                var id = reader.GetString(0);
-                var kind = reader.GetString(1);
-                var name = reader.IsDBNull(2) ? "" : reader.GetString(2);
-                var parentName = reader.IsDBNull(3) ? null : reader.GetString(3);
-
-                if (!string.IsNullOrEmpty(name))
+                while (await reader.ReadAsync(cancellationToken))
                 {
-                    result[(kind, name)] = id;
+                    var id = reader.GetString(0);
+                    var kind = reader.GetString(1);
+                    var name = reader.IsDBNull(2) ? "" : reader.GetString(2);
 
-                    if (kind == "Endpoint" || kind == "EntryPoint")
+                    if (!string.IsNullOrEmpty(name))
                     {
-                        result[(kind, name.Replace(":", " "))] = id;
+                        result[(kind, name)] = id;
+
+                        if (kind == "Endpoint" || kind == "EntryPoint")
+                        {
+                            result[(kind, name.Replace(":", " "))] = id;
+                        }
+
+                        if (kind == "Function")
+                        {
+                            functionNodes.Add((id, name));
+                        }
                     }
+                }
+            }
 
-                    if (kind == "Function" && !string.IsNullOrEmpty(parentName))
+            // Secondary lookup ONLY for Function nodes: resolve parent Type name without cartesian explosion on other symbols
+            if (functionNodes.Count > 0)
+            {
+                var fnMap = functionNodes.ToDictionary(f => f.Id, f => f.Name, StringComparer.Ordinal);
+                var fnIdsJson = JsonSerializer.Serialize(fnMap.Keys);
+
+                await using var fnCmd = _conn.CreateCommand();
+                fnCmd.CommandTimeout = CommandTimeoutSeconds;
+                fnCmd.Parameters.AddWithValue("@fnIdsJson", fnIdsJson);
+                fnCmd.CommandText = """
+                                    SELECT e.to_id, json_extract(p.properties, '$.name') AS parent_name
+                                    FROM json_each(@fnIdsJson) j
+                                    JOIN edges e ON e.to_id = j.value AND e.kind IN ('HAS_METHOD', 'CONTAINS')
+                                    JOIN nodes p ON p.id = e.from_id AND p.kind = 'Type';
+                                    """;
+
+                await using var fnReader = await fnCmd.ExecuteReaderAsync(cancellationToken);
+                while (await fnReader.ReadAsync(cancellationToken))
+                {
+                    var fnId = fnReader.GetString(0);
+                    var parentName = fnReader.IsDBNull(1) ? null : fnReader.GetString(1);
+                    if (!string.IsNullOrEmpty(parentName) && fnMap.TryGetValue(fnId, out var fnName))
                     {
-                        result[(kind, $"{parentName}.{name}")] = id;
+                        result[("Function", $"{parentName}.{fnName}")] = fnId;
                     }
                 }
             }
@@ -81,6 +111,7 @@ public partial class SqliteGraphClient
             try
             {
                 await using var cmdClean = _conn.CreateCommand();
+                cmdClean.CommandTimeout = CommandTimeoutSeconds;
                 cmdClean.CommandText = "DROP TABLE IF EXISTS temp_target_names;";
                 await cmdClean.ExecuteNonQueryAsync(CancellationToken.None);
             }
@@ -115,6 +146,7 @@ public partial class SqliteGraphClient
         try
         {
             await using var cmdInit = _conn.CreateCommand();
+            cmdInit.CommandTimeout = CommandTimeoutSeconds;
             cmdInit.Parameters.AddWithValue("@typesJson", typesJson);
             cmdInit.CommandText = """
                                   DROP TABLE IF EXISTS temp_target_types;
@@ -124,6 +156,7 @@ public partial class SqliteGraphClient
             await cmdInit.ExecuteNonQueryAsync(cancellationToken);
 
             await using var cmd = _conn.CreateCommand();
+            cmd.CommandTimeout = CommandTimeoutSeconds;
             cmd.Parameters.AddWithValue("@widPrefix", widPrefix);
 
             cmd.CommandText = """
@@ -163,6 +196,7 @@ public partial class SqliteGraphClient
             try
             {
                 await using var cmdClean = _conn.CreateCommand();
+                cmdClean.CommandTimeout = CommandTimeoutSeconds;
                 cmdClean.CommandText = "DROP TABLE IF EXISTS temp_target_types;";
                 await cmdClean.ExecuteNonQueryAsync(CancellationToken.None);
             }
@@ -199,6 +233,7 @@ public partial class SqliteGraphClient
         try
         {
             await using var cmd = _conn.CreateCommand();
+            cmd.CommandTimeout = CommandTimeoutSeconds;
 
             cmd.Parameters.AddWithValue("@widPrefix", widPrefix);
             cmd.Parameters.AddWithValue("@needEndpoints", needEndpoints ? 1 : 0);
@@ -311,6 +346,7 @@ public partial class SqliteGraphClient
             var sinkDomains = new Dictionary<string, string?>();
             await using (var cmd = _conn.CreateCommand())
             {
+                cmd.CommandTimeout = CommandTimeoutSeconds;
                 cmd.CommandText = "SELECT id, kind, COALESCE(json_extract(properties, '$.domain_or_service'), json_extract(properties, '$.name')) FROM nodes WHERE kind IN ('ExternalService', 'DB', 'Database', 'Query', 'CloudService');";
 
                 await using (var reader = await cmd.ExecuteReaderAsync())
@@ -330,6 +366,7 @@ public partial class SqliteGraphClient
             var callsAdjacency = new Dictionary<string, List<string>>();
             await using (var cmd = _conn.CreateCommand())
             {
+                cmd.CommandTimeout = CommandTimeoutSeconds;
                 cmd.CommandText = """
                     SELECT from_id, to_id FROM edges WHERE kind IN ('CALLS', 'CALLS_ENDPOINT', 'USES_DB')
                     UNION
@@ -358,6 +395,7 @@ public partial class SqliteGraphClient
             var implements = new Dictionary<string, List<string>>(); // epId -> list of fnIds
             await using (var cmd = _conn.CreateCommand())
             {
+                cmd.CommandTimeout = CommandTimeoutSeconds;
                 cmd.CommandText = "SELECT from_id, to_id, kind FROM edges WHERE kind IN ('IMPLEMENTS', 'IMPLEMENTED_BY', 'EXPOSED_BY');";
 
                 await using (var reader = await cmd.ExecuteReaderAsync())
@@ -388,6 +426,7 @@ public partial class SqliteGraphClient
             var entryPointIds = new List<string>();
             await using (var cmd = _conn.CreateCommand())
             {
+                cmd.CommandTimeout = CommandTimeoutSeconds;
                 cmd.CommandText = "SELECT id FROM nodes WHERE kind IN ('EntryPoint', 'Endpoint') AND (length(@widPrefix) = 0 OR id LIKE @widPrefix || '%');";
                 cmd.Parameters.AddWithValue("@widPrefix", widPrefix);
 
@@ -404,6 +443,7 @@ public partial class SqliteGraphClient
             var callers = new List<string>();
             await using (var cmd = _conn.CreateCommand())
             {
+                cmd.CommandTimeout = CommandTimeoutSeconds;
                 cmd.CommandText = "SELECT id FROM nodes WHERE kind IN ('Function', 'Method') AND (length(@widPrefix) = 0 OR id LIKE @widPrefix || '%');";
                 cmd.Parameters.AddWithValue("@widPrefix", widPrefix);
 
@@ -421,6 +461,7 @@ public partial class SqliteGraphClient
             var epSet = new HashSet<string>(entryPointIds);
             await using (var cmd = _conn.CreateCommand())
             {
+                cmd.CommandTimeout = CommandTimeoutSeconds;
                 cmd.CommandText = """
                     SELECT p.id, e.to_id
                     FROM nodes p
@@ -482,6 +523,7 @@ public partial class SqliteGraphClient
 
             await using (var delCmd = _conn.CreateCommand())
             {
+                delCmd.CommandTimeout = CommandTimeoutSeconds;
                 delCmd.Transaction = tx;
 
                 delCmd.CommandText =
@@ -498,6 +540,7 @@ public partial class SqliteGraphClient
             if (result.TransitivelyCalls.Count > 0)
             {
                 await using var insCmd = _conn.CreateCommand();
+                insCmd.CommandTimeout = CommandTimeoutSeconds;
 
                 insCmd.Transaction = tx;
 
@@ -520,6 +563,7 @@ public partial class SqliteGraphClient
             if (result.AttributedTo.Count > 0)
             {
                 await using var insCmd = _conn.CreateCommand();
+                insCmd.CommandTimeout = CommandTimeoutSeconds;
 
                 insCmd.Transaction = tx;
 
@@ -547,6 +591,7 @@ public partial class SqliteGraphClient
             if (result.ProjectExternalApis.Count > 0)
             {
                 await using var updCmd = _conn.CreateCommand();
+                updCmd.CommandTimeout = CommandTimeoutSeconds;
 
                 updCmd.Transaction = tx;
 
@@ -596,6 +641,7 @@ public partial class SqliteGraphClient
             await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync();
 
             await using var updCmd = _conn.CreateCommand();
+            updCmd.CommandTimeout = CommandTimeoutSeconds;
 
             updCmd.Transaction = tx;
 
