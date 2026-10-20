@@ -1,8 +1,8 @@
 {
   "name": "code-explorer-vscode",
-  "displayName": "CodeExplorer",
-  "description": "Architecture Intelligence for AI Agents & Engineers. OpenCypher codebase graph, Semantic Invariant Gates, MCP server, and interactive topology.",
-  "version": "1.48.3",
+  "displayName": "CodeExplorer — AI Architecture Graph, MCP & Gates",
+  "description": "MCP Server, OpenCypher Codebase Graph & Semantic Invariant Gates (SIG) for AI Coding Agents (Claude Code, Cursor, Copilot) and Enterprise Architecture.",
+  "version": "1.48.5",
   "publisher": "vmikhailov",
   "license": "MIT",
   "icon": "media/icon_512_quant.png",
@@ -10,28 +10,51 @@
     "type": "git",
     "url": "https://github.com/vmikhailov/code-explorer"
   },
-  "homepage": "https://github.com/vmikhailov/code-explorer#readme",
+  "homepage": "https://code-explorer.mikhailov.cc",
   "bugs": {
     "url": "https://github.com/vmikhailov/code-explorer/issues"
   },
   "keywords": [
+    "mcp",
+    "mcp-server",
+    "ai-agents",
+    "claude-code",
+    "cursor",
+    "copilot",
+    "windsurf",
     "architecture",
+    "semantic-invariant-gates",
+    "architecture-gates",
+    "static-analysis",
+    "code-graph",
+    "opencypher",
+    "cypher",
     "dependency-graph",
-    "code-explorer",
-    "visualizer",
+    "data-lineage",
+    "blast-radius",
+    "microservices",
+    "linter",
     "csharp",
     "dotnet",
+    "roslyn",
     "typescript",
-    "microservices",
+    "java",
+    "kotlin",
+    "python",
+    "golang",
+    "sql",
+    "sqlite",
     "ast"
   ],
   "engines": {
     "vscode": "^1.90.0"
   },
   "categories": [
-    "Programming Languages",
+    "AI",
+    "Linters",
     "Visualization",
-    "Other"
+    "Programming Languages",
+    "Testing"
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
