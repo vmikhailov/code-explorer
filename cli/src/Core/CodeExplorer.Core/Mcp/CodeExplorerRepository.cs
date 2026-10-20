@@ -2,7 +2,6 @@
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Diagrams;
-using CodeExplorer.Cypher.Parser;
 
 namespace CodeExplorer.Core.Mcp;
 

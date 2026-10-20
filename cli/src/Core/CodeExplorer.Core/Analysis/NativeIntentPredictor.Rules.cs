@@ -1,5 +1,4 @@
 using System.Text;
-using System.Text.Json;
 using CodeExplorer.Core.Database;
 using LLama;
 using LLama.Common;

@@ -1,4 +1,3 @@
-using AwesomeAssertions;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Incremental;
 using CodeExplorer.Options;

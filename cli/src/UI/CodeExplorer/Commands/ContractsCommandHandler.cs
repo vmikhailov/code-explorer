@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Mcp;
 using CodeExplorer.Options;

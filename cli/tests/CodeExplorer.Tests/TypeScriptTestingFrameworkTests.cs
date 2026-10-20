@@ -1,11 +1,8 @@
 using System.Threading.Channels;
-using AwesomeAssertions;
 using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.TypeScript;

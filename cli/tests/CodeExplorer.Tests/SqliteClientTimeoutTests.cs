@@ -1,4 +1,3 @@
-using AwesomeAssertions;
 using CodeExplorer.Core.Database;
 using NUnit.Framework;
 

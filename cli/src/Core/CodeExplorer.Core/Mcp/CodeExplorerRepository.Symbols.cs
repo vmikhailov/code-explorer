@@ -1,8 +1,6 @@
 using System.Text.Json;
 using CodeExplorer.Core.Analysis.Testing;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
-using CodeExplorer.Cypher.Parser;
 
 namespace CodeExplorer.Core.Mcp;
 

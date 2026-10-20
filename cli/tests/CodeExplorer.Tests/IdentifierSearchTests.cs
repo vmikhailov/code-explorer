@@ -1,4 +1,3 @@
-using AwesomeAssertions;
 using CodeExplorer.Core.Analysis;
 using Microsoft.Data.Sqlite;
 using NUnit.Framework;

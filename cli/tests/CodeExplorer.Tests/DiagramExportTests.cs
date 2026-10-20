@@ -1,4 +1,3 @@
-using AwesomeAssertions;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Diagrams;
 using CodeExplorer.Core.Parser;

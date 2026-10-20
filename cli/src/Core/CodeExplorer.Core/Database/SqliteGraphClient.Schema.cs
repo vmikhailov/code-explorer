@@ -1,5 +1,4 @@
 ﻿using Dapper;
-using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 
 namespace CodeExplorer.Core.Database;

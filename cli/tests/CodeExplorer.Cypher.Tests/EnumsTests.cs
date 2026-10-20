@@ -1,4 +1,3 @@
-using AwesomeAssertions;
 using CodeExplorer.Cypher.Common;
 using NUnit.Framework;
 

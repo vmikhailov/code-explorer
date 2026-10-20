@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using System.Xml.Linq;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Parser.Android;
 

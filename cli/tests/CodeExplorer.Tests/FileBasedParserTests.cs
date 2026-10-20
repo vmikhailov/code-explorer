@@ -1,4 +1,3 @@
-using AwesomeAssertions;
 using CodeExplorer.Parser.CSharp;
 using CodeExplorer.Parser.Go;
 using CodeExplorer.Parser.Python;

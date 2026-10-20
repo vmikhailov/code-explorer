@@ -1,5 +1,4 @@
 using System.Linq.Expressions;
-using System.Reflection;
 using CodeExplorer.Cypher.Ast;
 using CodeExplorer.Cypher.Common;
 using CodeExplorer.Cypher.Linq.Entities;

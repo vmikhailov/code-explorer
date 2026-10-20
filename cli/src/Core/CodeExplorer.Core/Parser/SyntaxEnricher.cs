@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;

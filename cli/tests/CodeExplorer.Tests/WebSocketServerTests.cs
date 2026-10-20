@@ -1,7 +1,6 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
-using AwesomeAssertions;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Protocol;

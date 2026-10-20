@@ -1,15 +1,12 @@
 using System.Threading.Channels;
-using AwesomeAssertions;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.CSharp;
-using CodeExplorer.Parser.CSharp.Libraries;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;

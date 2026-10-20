@@ -1,6 +1,4 @@
-using AwesomeAssertions;
 using CodeExplorer.Core.Analysis;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Database;

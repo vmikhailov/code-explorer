@@ -1,4 +1,3 @@
-using System.Collections.Frozen;
 using System.Globalization;
 using System.Text;
 using CodeExplorer.Cypher.Ast;

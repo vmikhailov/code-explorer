@@ -1,4 +1,3 @@
-using AwesomeAssertions;
 using CodeExplorer.Cypher.Ast;
 using CodeExplorer.Cypher.Compiler;
 using CodeExplorer.Cypher.Linq;

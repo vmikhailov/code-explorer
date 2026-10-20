@@ -1,4 +1,3 @@
-using AwesomeAssertions;
 using NUnit.Framework;
 using OntologyGen;
 

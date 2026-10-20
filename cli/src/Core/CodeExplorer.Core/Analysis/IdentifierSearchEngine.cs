@@ -1,7 +1,4 @@
-using System.Data.Common;
 using System.Text.Json;
-using CodeExplorer.Core.Database;
-using Dapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;

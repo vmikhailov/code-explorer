@@ -1,6 +1,4 @@
 using System.Text.Json;
-using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
-using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using Dapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;

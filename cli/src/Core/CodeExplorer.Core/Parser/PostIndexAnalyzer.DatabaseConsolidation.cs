@@ -1,8 +1,6 @@
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Common.Nodes;
-using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
 namespace CodeExplorer.Core.Parser;
 

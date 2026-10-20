@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Threading.Channels;
-using AwesomeAssertions;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;

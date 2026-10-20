@@ -1,5 +1,3 @@
-using System.Reflection;
-using AwesomeAssertions;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Database;

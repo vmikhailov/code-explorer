@@ -1,7 +1,4 @@
 using System.Threading.Channels;
-using AwesomeAssertions;
-using CodeExplorer.Core.Common.Nodes;
-using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.Rust;

@@ -1,4 +1,3 @@
-using AwesomeAssertions;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Gates.Engine;

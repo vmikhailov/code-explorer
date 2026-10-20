@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Conventions.Models;
 using CodeExplorer.Core.Conventions.Services;
 
 namespace CodeExplorer.Core.Conventions;

@@ -1,4 +1,3 @@
-using System.Linq;
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;

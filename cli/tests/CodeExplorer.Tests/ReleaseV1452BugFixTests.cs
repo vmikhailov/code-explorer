@@ -1,4 +1,3 @@
-using AwesomeAssertions;
 using CodeExplorer.Core.Parser;
 using NUnit.Framework;
 

@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
 using JetBrains.Annotations;
 using Microsoft.AspNetCore.Http;

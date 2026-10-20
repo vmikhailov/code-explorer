@@ -1,7 +1,6 @@
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
-using AwesomeAssertions;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using NUnit.Framework;

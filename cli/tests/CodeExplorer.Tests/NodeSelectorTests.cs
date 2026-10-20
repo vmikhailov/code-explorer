@@ -1,4 +1,3 @@
-using AwesomeAssertions;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Parser.TypeScript;
 using CodeExplorer.Tests.Shared;

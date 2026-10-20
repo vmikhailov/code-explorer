@@ -1,12 +1,9 @@
-using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Protocol;
 using CodeExplorer.Cypher.Common;
-using ArchitectureViewType = CodeExplorer.Core.Analysis.ArchitectureViewType;
 
 namespace CodeExplorer.Core.Analysis;
 

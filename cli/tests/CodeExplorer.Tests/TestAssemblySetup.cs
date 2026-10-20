@@ -1,4 +1,3 @@
-using System.Threading;
 using CodeExplorer.Core.Parser;
 using NUnit.Framework;
 

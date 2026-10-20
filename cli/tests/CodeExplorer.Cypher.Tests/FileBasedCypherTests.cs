@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using AwesomeAssertions;
 using CodeExplorer.Cypher.Compiler;
 using CodeExplorer.Cypher.Parser;
 using CodeExplorer.Cypher.Tests.Shared;

@@ -1,5 +1,4 @@
 using System.Reflection;
-using AwesomeAssertions;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser.Layers;
 using NUnit.Framework;

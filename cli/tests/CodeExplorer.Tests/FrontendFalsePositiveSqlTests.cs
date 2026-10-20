@@ -1,5 +1,3 @@
-using AwesomeAssertions;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Conventions.Services;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Parser.TypeScript;

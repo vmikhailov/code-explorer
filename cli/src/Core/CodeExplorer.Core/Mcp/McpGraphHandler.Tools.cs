@@ -1,7 +1,5 @@
 using System.ComponentModel;
 using CodeExplorer.Core.Analysis;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Database;
 using JetBrains.Annotations;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;

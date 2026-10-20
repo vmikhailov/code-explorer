@@ -1,6 +1,4 @@
 using System.Diagnostics;
-using System.Text.Json;
-using CodeExplorer.Common;
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
