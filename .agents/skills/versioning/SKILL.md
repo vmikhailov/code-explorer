@@ -150,3 +150,8 @@ Once verified:
    - Compiles native binaries for 6 architectures (Win/Linux/macOS x64 & ARM64).
    - Packs and publishes `CodeExplorer.Cli` to NuGet.org.
    - Packages the `.vsix` extension and publishes to VS Code Marketplace & Open VSX Registry.
+
+5. **Post-Push GitHub Actions Verification (+10 Minutes Deferred Check)**:
+   - During night or long-running task processing, **always** schedule a deferred `+10 minutes` (`DurationSeconds: 600`, `TimerCondition: "never"`) check using the `schedule` tool after pushing a commit or release tag.
+   - When triggered, run `gh run list --limit 5` (and `gh run view <id> --log-failed` if needed) to confirm the GitHub Actions workflow succeeded, and self-heal any failure automatically.
+

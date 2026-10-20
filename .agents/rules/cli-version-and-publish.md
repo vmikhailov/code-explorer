@@ -51,3 +51,6 @@ Whenever fixes or features are made to CodeExplorer (CLI or VS Code Extension):
      - Packages and publishes `CodeExplorer.Cli` to NuGet.org.
      - Typechecks, tests, packages the VS Code Extension (`.vsix`), attaches it to the GitHub Release, and publishes to VS Code Marketplace & Open VSX Registry.
 
+5. **Post-Push GitHub Actions Verification (+10 Minutes Deferred Task)**:
+   - During night or long-running task processing, after pushing commits/tags to GitHub, **ALWAYS schedule a deferred `+10 minutes` (`DurationSeconds: 600`) timer via the `schedule` tool** (`TimerCondition: "never"`) to check the GitHub Actions workflow status (`gh run list --limit 5` / `gh run view`).
+   - When the timer fires, verify that all CI/Release workflow jobs succeeded. If any job failed, automatically inspect the failure logs (`gh run view <run-id> --log-failed`), fix the issue, increment the patch version, and re-verify until the GitHub Actions build is green.
