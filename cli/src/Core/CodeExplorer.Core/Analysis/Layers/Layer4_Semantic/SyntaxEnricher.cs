@@ -232,7 +232,11 @@ public partial class SyntaxEnricher : ISyntaxEnricher
 
                         if (projRes == null && !string.IsNullOrEmpty(projectNode.Path))
                         {
-                            var projDir = Path.GetDirectoryName(projectNode.Path)?.Replace('\\', '/').TrimEnd('/');
+                            // ProjectNode.Path is already the project directory; only strip a trailing project file name.
+                            var projPath = projectNode.Path.Replace('\\', '/').TrimEnd('/');
+                            var projDir = Path.HasExtension(projPath) && projPath.EndsWith("proj", StringComparison.OrdinalIgnoreCase)
+                                ? Path.GetDirectoryName(projPath)?.Replace('\\', '/').TrimEnd('/')
+                                : projPath;
                             if (!string.IsNullOrEmpty(projDir))
                             {
                                 projRes = ctx.ResourceRegistry.AllResources

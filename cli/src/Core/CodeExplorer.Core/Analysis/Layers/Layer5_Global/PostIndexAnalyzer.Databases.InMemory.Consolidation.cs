@@ -469,14 +469,8 @@ public partial class PostIndexAnalyzer
                 var sch = cNode.Extensions?.GetValueOrDefault("schema") ?? (cNode.Name.Contains('.') ? cNode.Name.Split('.', 2)[1] : "");
                 if (!string.IsNullOrWhiteSpace(sch) && !sch.Equals("default", StringComparison.OrdinalIgnoreCase) && !sch.Equals(eng, StringComparison.OrdinalIgnoreCase))
                 {
+                    // Only the owner's direct edges count; library-derived edges must not mark consumers as owning a DB.
                     RecordOwnConcreteEngine(owner.Id, eng);
-                    foreach (var (svcId, libs) in serviceToReferencedLibs)
-                    {
-                        if (libs.Any(l => l.Id == owner.Id))
-                        {
-                            RecordOwnConcreteEngine(svcId, eng);
-                        }
-                    }
                 }
             }
         }
@@ -564,7 +558,9 @@ public partial class PostIndexAnalyzer
                             {
                                 var svcHasOwnDbForEngine = serviceOwnDomainConcreteEngines.TryGetValue(svcProj.Id, out var svcEngs) &&
                                                            svcEngs.Contains(targetEng);
-                                if (!isMultiDomainLib || !isGenericTarget || !svcHasOwnDbForEngine)
+                                // A service with its own concrete DB for this engine must not inherit a shared library's DB.
+                                var skipLibInheritance = svcHasOwnDbForEngine && isLibraryOwner && !isTrulyEngineOnlyTarget;
+                                if (!skipLibInheritance && (!isMultiDomainLib || !isGenericTarget || !svcHasOwnDbForEngine))
                                 {
                                     projectDbEdges.Add((svcProj, canonicalTarget, rel, isRawImplicitEdge));
                                 }
