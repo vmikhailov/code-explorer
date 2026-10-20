@@ -673,6 +673,28 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                   )}
                 </div>
 
+                {/* Metrics Grid */}
+                {(selectedNode.isGroup || selectedNode.kind === 'Service' || selectedNode.kind === 'Ingress' || selectedNode.kind === 'Worker' || selectedNode.kind === 'App') && (
+                  <div className="inspector-metrics-grid">
+                    <div className="inspector-metric-card" title="Inbound calls from other services">
+                      <span className="metric-val">{selectedNode.inboundCallsCount}</span>
+                      <span className="metric-lbl">Inbound Calls</span>
+                    </div>
+                    <div className="inspector-metric-card" title="Outbound calls to downstream services">
+                      <span className="metric-val">{selectedNode.outboundCallsCount}</span>
+                      <span className="metric-lbl">Outbound Calls</span>
+                    </div>
+                    <div className="inspector-metric-card" title="Databases used directly">
+                      <span className="metric-val">{selectedNode.dbCount}</span>
+                      <span className="metric-lbl">Databases</span>
+                    </div>
+                    <div className="inspector-metric-card" title="Topics published or subscribed">
+                      <span className="metric-val">{selectedNode.messagingCount}</span>
+                      <span className="metric-lbl">Topics</span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Grouped Entities Section */}
                 {selectedNode.isGroup && selectedNode.memberNodes && selectedNode.memberNodes.length > 0 && (
                   <div className={`inspector-section ${collapsedSections['grouped-entities'] ? 'is-collapsed' : 'is-expanded'}`}>
@@ -704,7 +726,17 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                       </span>
                     </div>
                     {!collapsedSections['grouped-entities'] && (
-                      <div className="inspector-conn-list" style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}>
+                      <div
+                        className="inspector-conn-list"
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 4,
+                          marginTop: 6,
+                          maxHeight: 260,
+                          overflowY: 'auto',
+                        }}
+                      >
                         {selectedNode.memberNodes.map((m: SelectedNodeDetail) => (
                           <div
                             key={m.id}
@@ -718,6 +750,7 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                               background: 'rgba(255, 255, 255, 0.03)',
                               border: '1px solid rgba(255, 255, 255, 0.06)',
                               cursor: 'pointer',
+                              flexShrink: 0,
                             }}
                             onClick={() => handleSelectNodeById(m.id)}
                             title={`Inspect ${m.displayName || m.name}`}
@@ -792,7 +825,17 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                       </span>
                     </div>
                     {!collapsedSections['internal-connections'] && (
-                      <div className="inspector-conn-list" style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}>
+                      <div
+                        className="inspector-conn-list"
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 4,
+                          marginTop: 6,
+                          maxHeight: 240,
+                          overflowY: 'auto',
+                        }}
+                      >
                         {selectedNode.internalConnections.map((item: ConnectionDetailItem) => (
                           <div
                             key={item.id}
@@ -805,6 +848,7 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                               display: 'flex',
                               flexDirection: 'column',
                               gap: 2,
+                              flexShrink: 0,
                             }}
                           >
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
@@ -826,28 +870,6 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                         ))}
                       </div>
                     )}
-                  </div>
-                )}
-
-                {/* Metrics Grid */}
-                {(selectedNode.isGroup || selectedNode.kind === 'Service' || selectedNode.kind === 'Ingress' || selectedNode.kind === 'Worker' || selectedNode.kind === 'App') && (
-                  <div className="inspector-metrics-grid">
-                    <div className="inspector-metric-card" title="Inbound calls from other services">
-                      <span className="metric-val">{selectedNode.inboundCallsCount}</span>
-                      <span className="metric-lbl">Inbound Calls</span>
-                    </div>
-                    <div className="inspector-metric-card" title="Outbound calls to downstream services">
-                      <span className="metric-val">{selectedNode.outboundCallsCount}</span>
-                      <span className="metric-lbl">Outbound Calls</span>
-                    </div>
-                    <div className="inspector-metric-card" title="Databases used directly">
-                      <span className="metric-val">{selectedNode.dbCount}</span>
-                      <span className="metric-lbl">Databases</span>
-                    </div>
-                    <div className="inspector-metric-card" title="Topics published or subscribed">
-                      <span className="metric-val">{selectedNode.messagingCount}</span>
-                      <span className="metric-lbl">Topics</span>
-                    </div>
                   </div>
                 )}
 
@@ -1070,7 +1092,7 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                 )}
 
                 {/* Accordion: Clustered Subprojects */}
-                {selectedNode.projects && selectedNode.projects.length > 1 && (
+                {!selectedNode.isGroup && selectedNode.projects && selectedNode.projects.length > 1 && (
                   <div className={`inspector-section ${collapsedSections['projects'] ? 'is-collapsed' : 'is-expanded'}`}>
                     <div
                       className="inspector-section-header"
