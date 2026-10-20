@@ -135,7 +135,9 @@ export class ProcessManager implements vscode.Disposable {
       if (child.stdout) {
         const rl = readline.createInterface({ input: child.stdout });
         rl.on('line', (line) => {
-          this.outputChannel.appendLine(`[ce stdout] ${line}`);
+          if (line.trim()) {
+            this.outputChannel.appendLine(`[ce] ${line}`);
+          }
           onLine?.(line);
         });
       }
@@ -143,7 +145,9 @@ export class ProcessManager implements vscode.Disposable {
       if (child.stderr) {
         const rl = readline.createInterface({ input: child.stderr });
         rl.on('line', (line) => {
-          this.outputChannel.appendLine(`[ce stderr] ${line}`);
+          if (line.trim()) {
+            this.outputChannel.appendLine(`[ce] ${line}`);
+          }
         });
       }
 
@@ -272,7 +276,9 @@ export class ProcessManager implements vscode.Disposable {
       if (child.stdout) {
         const rl = readline.createInterface({ input: child.stdout });
         rl.on('line', (line) => {
-          this.outputChannel.appendLine(`[ce stdout] ${line}`);
+          if (line.trim()) {
+            this.outputChannel.appendLine(`[ce] ${line}`);
+          }
           if (!isReady && line.trim().startsWith('{')) {
             try {
               const data = JSON.parse(line.trim());
@@ -293,10 +299,12 @@ export class ProcessManager implements vscode.Disposable {
 
       const stderrChunks: string[] = [];
       if (child.stderr) {
-        child.stderr.on('data', (chunk) => {
-          const text = chunk.toString();
-          stderrChunks.push(text);
-          this.outputChannel.appendLine(`[ce stderr] ${text}`);
+        const rlErr = readline.createInterface({ input: child.stderr });
+        rlErr.on('line', (line) => {
+          stderrChunks.push(line + '\n');
+          if (line.trim()) {
+            this.outputChannel.appendLine(`[ce] ${line}`);
+          }
         });
       }
 
