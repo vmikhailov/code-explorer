@@ -372,6 +372,15 @@ public partial class PostIndexAnalyzer(IGraphClient db)
             await ctx.DbClient.UploadNodesAsync(updatedProjectNodes);
         }
 
+        try
+        {
+            await ctx.DbClient.ExecuteWriteAsync("PRAGMA wal_checkpoint(PASSIVE); ANALYZE;");
+        }
+        catch
+        {
+            // Ignored for in-memory / mock clients
+        }
+
         // Normalize edges in SQLite graph database
         ctx.Log("[PostIndexAnalyzer] Normalizing architectural edges and cleaning database...");
         await NormalizeEdgesAsync(ctx.DbClient, widPrefix, ctx.CancellationToken);

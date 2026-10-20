@@ -261,8 +261,22 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         var sw = Stopwatch.StartNew();
         ValidateQuerySecurity(query);
         var paramDict = ExtractParameters(parameters);
-        var ast = CypherQueryParser.Parse(query);
-        var compiled = SqliteCompiler.Compile(ast, paramDict);
+
+        string sql;
+        IReadOnlyDictionary<string, object?> sqlParams;
+
+        if (query.TrimStart().StartsWith("SELECT", StringComparison.OrdinalIgnoreCase))
+        {
+            sql = query;
+            sqlParams = paramDict;
+        }
+        else
+        {
+            var ast = CypherQueryParser.Parse(query);
+            var compiled = SqliteCompiler.Compile(ast, paramDict);
+            sql = compiled.Sql;
+            sqlParams = compiled.Parameters;
+        }
 
         await _lock.WaitAsync(cancellationToken);
         try
@@ -270,9 +284,9 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             await using var cmd = _conn.CreateCommand();
 
             cmd.CommandTimeout = CommandTimeoutSeconds;
-            cmd.CommandText = compiled.Sql;
+            cmd.CommandText = sql;
 
-            foreach (var (k, v) in compiled.Parameters)
+            foreach (var (k, v) in sqlParams)
             {
                 cmd.Parameters.AddWithValue("@" + k, v ?? DBNull.Value);
             }

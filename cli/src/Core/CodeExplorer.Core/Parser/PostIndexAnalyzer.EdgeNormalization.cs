@@ -180,8 +180,8 @@ public partial class PostIndexAnalyzer
             }
         }
 
-        // 2. Query architectural/macro edges
-        var edgeQuery = "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['USES_DB', 'CONFIGURES', 'DEPENDS_ON', 'SERVICE_CALL', 'INTEGRATES_WITH', 'CALLS_ENDPOINT', 'PUBLISHES_TO', 'TRIGGERS', 'SUBSCRIBES_TO', 'LIBRARY'] RETURN src.id AS source, tgt.id AS target, r.kind AS kind, r.properties AS properties";
+        // 2. Query architectural/macro edges directly from edges table
+        var edgeQuery = "SELECT from_id AS source, to_id AS target, kind, properties FROM edges WHERE kind IN ('USES_DB', 'CONFIGURES', 'DEPENDS_ON', 'SERVICE_CALL', 'INTEGRATES_WITH', 'CALLS_ENDPOINT', 'PUBLISHES_TO', 'TRIGGERS', 'SUBSCRIBES_TO', 'LIBRARY')";
         var edgesJson = await db.ExecuteQueryAsync(edgeQuery, null, cancellationToken);
 
         using (var edgesDoc = JsonDocument.Parse(edgesJson))

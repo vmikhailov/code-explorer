@@ -210,11 +210,17 @@ public static class ConfigStore
         }
     }
 
+    private static readonly JsonDocumentOptions JsonDocOptions = new()
+    {
+        CommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true
+    };
+
     private static void ParseAppSettingsJson(string filePath, string? projectName)
     {
         var content = File.ReadAllText(filePath);
 
-        using var doc = JsonDocument.Parse(content);
+        using var doc = JsonDocument.Parse(content, JsonDocOptions);
 
         if (doc.RootElement.ValueKind != JsonValueKind.Object) return;
 

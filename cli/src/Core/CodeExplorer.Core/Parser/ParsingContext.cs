@@ -242,6 +242,18 @@ public class ParsingContext
         });
         await tcs.Task;
         FlushPersistenceProgressReport();
+
+        if (DbClient != null)
+        {
+            try
+            {
+                await DbClient.ExecuteWriteAsync("PRAGMA wal_checkpoint(PASSIVE); ANALYZE;");
+            }
+            catch
+            {
+                // In-memory or test databases might not support WAL checkpoint or ANALYZE
+            }
+        }
     }
 
     public ParsingContext(

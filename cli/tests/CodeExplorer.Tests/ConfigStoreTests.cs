@@ -198,4 +198,39 @@ public class ConfigStoreTests
 
         serviceCalls.Any(r => r.To.Contains("service_target:orderservice")).Should().BeTrue("ServiceCall for order-service target should be created generically");
     }
+
+    [Test]
+    public void Test_ConfigStore_ParsesAppSettings_WithCommentsAndTrailingCommas()
+    {
+        var appsettingsWithComments = """
+        {
+          // Logging configuration
+          "Logging": {
+            "LogLevel": {
+              "Default": "Information", // Default level
+              "Microsoft.AspNetCore": "Warning",
+            },
+          },
+          /* Commented out Kestrel
+          "Kestrel": {
+            "Endpoints": { "Http": { "Url": "http://localhost:5000" } }
+          },
+          */
+          "ConnectionStrings": {
+            //"LegacyConnection": "Server=old;...",
+            "DefaultConnection": "Server=localhost;Database=VSBS_Retail;Trusted_Connection=True;",
+          },
+        }
+        """;
+
+        var filePath = Path.Combine(_tempDir, "appsettings_comments.json");
+        File.WriteAllText(filePath, appsettingsWithComments);
+
+        ConfigStore.LoadFile(filePath, "RetailService");
+
+        ConfigStore.TryGetConfig("RetailService", "ConnectionStrings:DefaultConnection", out var connStr).Should().BeTrue();
+        connStr.Should().Contain("VSBS_Retail");
+        ConfigStore.TryGetConfig("RetailService", "Logging:LogLevel:Default", out var logVal).Should().BeTrue();
+        logVal.Should().Be("Information");
+    }
 }

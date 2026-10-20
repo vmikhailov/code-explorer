@@ -546,6 +546,12 @@ public partial class Layer5AnalysisParser
         }
     }
 
+    private static readonly JsonDocumentOptions PkgJsonOptions = new()
+    {
+        CommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true
+    };
+
     private static ImportLookups BuildImportLookups(ParsingContext ctx, Layer4Result? l4Result)
     {
         var fileImports = new Dictionary<(string FilePath, string LocalName), ImportedSymbolEntry>();
@@ -604,7 +610,7 @@ public partial class Layer5AnalysisParser
                     try
                     {
                         var content = File.ReadAllText(pkgJsonPath);
-                        using var doc = JsonDocument.Parse(content);
+                        using var doc = JsonDocument.Parse(content, PkgJsonOptions);
                         if (doc.RootElement.TryGetProperty("name", out var nameProp) &&
                             nameProp.ValueKind == JsonValueKind.String)
                         {
@@ -657,7 +663,7 @@ public partial class Layer5AnalysisParser
                     try
                     {
                         var content = File.ReadAllText(pkgJsonPath);
-                        using var doc = JsonDocument.Parse(content);
+                        using var doc = JsonDocument.Parse(content, PkgJsonOptions);
                         if (doc.RootElement.TryGetProperty("name", out var nameProp) &&
                             nameProp.ValueKind == JsonValueKind.String)
                         {
