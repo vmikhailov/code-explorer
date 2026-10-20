@@ -70,6 +70,34 @@ public static partial class AstHelper
                 return memberVal;
             }
 
+            if (argNode.Text.Contains('.'))
+            {
+                var fullText = argNode.Text;
+                var lastDot = fullText.LastIndexOf('.');
+                var objPart = fullText[..lastDot];
+                var leafProp = fullText[(lastDot + 1)..];
+
+                if (objPart.Contains("config", StringComparison.OrdinalIgnoreCase) ||
+                    objPart.Contains("settings", StringComparison.OrdinalIgnoreCase) ||
+                    objPart.Contains("options", StringComparison.OrdinalIgnoreCase) ||
+                    objPart.Contains("broker", StringComparison.OrdinalIgnoreCase) ||
+                    objPart.Contains("pubsub", StringComparison.OrdinalIgnoreCase) ||
+                    objPart.Contains("env", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (ConstantRegistry.TryResolve(contextOrProject, leafProp, out var leafVal) &&
+                        !string.IsNullOrEmpty(leafVal) && IsValidTopicOrQueueLiteral(leafVal))
+                    {
+                        if (WorkspaceConventions.TryGetTopicAlias(leafVal, out var mapped)) return mapped;
+                        return leafVal;
+                    }
+
+                    if (ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar(leafProp, out var derVal))
+                    {
+                        return derVal;
+                    }
+                }
+            }
+
             return null;
         }
 

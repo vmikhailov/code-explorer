@@ -234,6 +234,26 @@
     "entityKind": "Library",
     "isLibrary": true
   },
+  "typescript/ats-pubsub-workspace/adapter-subscriber": {
+    "projectType": "typescript",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
+  "typescript/ats-pubsub-workspace/hub-subscriber": {
+    "projectType": "typescript",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
+  "typescript/ats-pubsub-workspace/kv-subscriber": {
+    "projectType": "typescript",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
+  "typescript/ats-pubsub-workspace/publisher-service": {
+    "projectType": "typescript",
+    "entityKind": "Service",
+    "isLibrary": false
+  },
   "rust/microservices-workspace/crates/admin-cli": {
     "projectType": "rust",
     "entityKind": "CliTool",

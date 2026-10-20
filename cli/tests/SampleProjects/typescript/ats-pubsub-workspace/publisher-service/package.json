@@ -1,0 +1,7 @@
+{
+  "name": "publisher-service",
+  "version": "1.0.0",
+  "dependencies": {
+    "@google-cloud/pubsub": "^4.0.0"
+  }
+}

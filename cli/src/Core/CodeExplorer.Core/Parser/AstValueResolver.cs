@@ -403,6 +403,35 @@ public static class AstValueResolver
             }
         }
 
+        // Check if member object part is a config / options / broker / pubsub / env container
+        if (rawText.Contains('.'))
+        {
+            var lastDot = rawText.LastIndexOf('.');
+            var objPart = rawText[..lastDot];
+            var leafProp = rawText[(lastDot + 1)..];
+
+            if (objPart.Contains("config", StringComparison.OrdinalIgnoreCase) ||
+                objPart.Contains("settings", StringComparison.OrdinalIgnoreCase) ||
+                objPart.Contains("options", StringComparison.OrdinalIgnoreCase) ||
+                objPart.Contains("broker", StringComparison.OrdinalIgnoreCase) ||
+                objPart.Contains("pubsub", StringComparison.OrdinalIgnoreCase) ||
+                objPart.Contains("env", StringComparison.OrdinalIgnoreCase))
+            {
+                if (ConstantRegistry.TryResolve(contextOrProject, leafProp, out var leafVal) &&
+                    !WorkspaceConventions.IsPlaceholderName(leafVal))
+                {
+                    result = leafVal;
+                    return true;
+                }
+
+                if (ConstantRegistry.TryDeriveTopicOrQueueFromEnvVar(leafProp, out var derivedVal))
+                {
+                    result = derivedVal;
+                    return true;
+                }
+            }
+        }
+
         // Check rightmost property
         var propNode = node.GetChildForField(TreeSitterSyntax.Fields.Property) ??
                        node.GetChildForField(TreeSitterSyntax.Fields.Field) ??

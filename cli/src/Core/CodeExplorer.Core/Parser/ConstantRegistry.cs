@@ -48,6 +48,16 @@ public static class ConstantRegistry
         return projectName;
     }
 
+    private static readonly HashSet<string> GenericVariableNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "topicNameOrId", "topicName", "subscriptionName", "subName", "queueName",
+        "topic", "subscription", "queue", "url", "name", "id", "key", "value",
+        "channel", "exchange", "routingKey", "receiveTopicName", "publishTopicName",
+        "sendTopicName", "ruleTreeTopic", "ruleTreeSub", "kvTopic",
+        "PUBSUB_TOPIC_NAME", "PUBSUB_SUBSCRIPTION_NAME", "TOPIC_NAME", "SUBSCRIPTION_NAME",
+        "EVENT_SUBSCRIBER_NAME", "EVENT_RECEIVE_TOPIC_NAME", "EVENT_SEND_TOPIC_NAME"
+    };
+
     public static void Register(string? projectName, string key, string value)
     {
         if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value)) return;
@@ -74,20 +84,36 @@ public static class ConstantRegistry
                 _projectConstants[$"{normStripped}:{cleanKey}"] = cleanVal;
             }
 
-            // Only promote to global lookup if it is qualified or PascalCase / SCREAMING_SNAKE_CASE (constants)
+            // Only promote to global lookup if it is NOT a generic local/config identifier
+            // and is qualified or PascalCase / SCREAMING_SNAKE_CASE (constants)
             // or schema getter/default conventions (e.g. get_cpu_db_schema, default_schema_name)
-            if (cleanKey.Contains(':') || cleanKey.Contains('.') || cleanKey.Contains("__") ||
-                (cleanKey.Length > 0 && char.IsUpper(cleanKey[0])) ||
-                cleanKey.StartsWith("get_", StringComparison.OrdinalIgnoreCase) ||
-                cleanKey.StartsWith("default_", StringComparison.OrdinalIgnoreCase) ||
-                cleanKey.Contains("schema", StringComparison.OrdinalIgnoreCase))
+            var leafKey = cleanKey.Contains('.') ? cleanKey[(cleanKey.LastIndexOf('.') + 1)..] : cleanKey;
+            var isInstanceOrConfigPrefix =
+                cleanKey.StartsWith("this.", StringComparison.OrdinalIgnoreCase) ||
+                cleanKey.StartsWith("self.", StringComparison.OrdinalIgnoreCase) ||
+                cleanKey.StartsWith("config.", StringComparison.OrdinalIgnoreCase) ||
+                cleanKey.StartsWith("pubsubConfig.", StringComparison.OrdinalIgnoreCase) ||
+                cleanKey.StartsWith("brokerConfig.", StringComparison.OrdinalIgnoreCase);
+            var isGenericKey = GenericVariableNames.Contains(cleanKey) || GenericVariableNames.Contains(leafKey);
+            if (!isGenericKey && !isInstanceOrConfigPrefix)
             {
-                _globalConstants.TryAdd(cleanKey, cleanVal);
+                if (cleanKey.Contains(':') || cleanKey.Contains('.') || cleanKey.Contains("__") ||
+                    (cleanKey.Length > 0 && char.IsUpper(cleanKey[0])) ||
+                    cleanKey.StartsWith("get_", StringComparison.OrdinalIgnoreCase) ||
+                    cleanKey.StartsWith("default_", StringComparison.OrdinalIgnoreCase) ||
+                    cleanKey.Contains("schema", StringComparison.OrdinalIgnoreCase))
+                {
+                    _globalConstants.TryAdd(cleanKey, cleanVal);
+                }
             }
         }
         else
         {
-            _globalConstants[cleanKey] = cleanVal;
+            var isBareGeneric = !cleanKey.Contains('.') && !cleanKey.Contains(':') && GenericVariableNames.Contains(cleanKey);
+            if (!isBareGeneric)
+            {
+                _globalConstants[cleanKey] = cleanVal;
+            }
         }
     }
 
@@ -216,6 +242,24 @@ public static class ConstantRegistry
             if (TryResolve(projectName, subKey, out value)) return true;
         }
 
+        // 3b. Fallback: if key is a member expression like this.pubsubConfig.eventBusSubscriptionName or pubSubConfig.subName
+        if (cleanKey.Contains('.'))
+        {
+            var lastDot = cleanKey.LastIndexOf('.');
+            var objPart = cleanKey[..lastDot];
+            var propName = cleanKey[(lastDot + 1)..];
+
+            if (objPart.Contains("config", StringComparison.OrdinalIgnoreCase) ||
+                objPart.Contains("settings", StringComparison.OrdinalIgnoreCase) ||
+                objPart.Contains("options", StringComparison.OrdinalIgnoreCase) ||
+                objPart.Contains("broker", StringComparison.OrdinalIgnoreCase) ||
+                objPart.Contains("pubsub", StringComparison.OrdinalIgnoreCase) ||
+                objPart.Contains("env", StringComparison.OrdinalIgnoreCase))
+            {
+                if (TryResolve(projectName, propName, out value)) return true;
+            }
+        }
+
         // 4. Fallback: if key is an unqualified member (e.g. "SourcesPlacementsBlack" instead of "ModelNames.SourcesPlacementsBlack")
         if (!cleanKey.Contains('.'))
         {
@@ -236,6 +280,28 @@ public static class ConstantRegistry
             if (matchCount == 1 && !string.IsNullOrEmpty(matchedVal))
             {
                 value = matchedVal;
+                return true;
+            }
+        }
+
+        // 5. Fallback: if project is unspecified, search _projectConstants for a matching key
+        if (string.IsNullOrWhiteSpace(projectName))
+        {
+            var pSuffix = $":{cleanKey}";
+            string? matchedPVal = null;
+            var pMatchCount = 0;
+            foreach (var kvp in _projectConstants)
+            {
+                if (kvp.Key.EndsWith(pSuffix, StringComparison.OrdinalIgnoreCase))
+                {
+                    matchedPVal = kvp.Value;
+                    pMatchCount++;
+                    if (pMatchCount > 1) break;
+                }
+            }
+            if (pMatchCount == 1 && !string.IsNullOrEmpty(matchedPVal))
+            {
+                value = matchedPVal;
                 return true;
             }
         }
@@ -491,15 +557,18 @@ public static class ConstantRegistry
         // 4. ConfigService / process.env field and constant assignments:
         // this.ruleTreeTopic = configService.getString('RULE_TREE_TOPIC');
         // this.topicName = configService.getString('EVENT_BUS_TOPIC_NAME');
+        // readonly eventBusSubscriptionName: string = this.configService.getString('EVENT_BUS_SUBSCRIPTION_NAME');
         // export const TOPIC_NAME = String(process.env.EVENT_BUS_TOPIC_NAME);
         var configServiceMatches = Regex.Matches(content,
-            @"(?:(?:export\s+)?(?:const|let|var)\s+|this\.)?([A-Za-z0-9_]+)\s*=\s*(?:(?:String|Number)\s*\(\s*)?(?:(?:configService|config)\.(?:getString|get)|process\.env)\s*(?:\(\s*['""`]([A-Za-z0-9_]+)['""`]\s*\)|\.([A-Za-z0-9_]+))",
+            @"(?:(?:export\s+)?(?:const|let|var|readonly|public|private|protected)\s+|this\.)*([A-Za-z0-9_]+)\s*(?::\s*[^=]+)?\s*=\s*(?:(?:String|Number)\s*\(\s*)?(?:(?:this\.)?(?:configService|config|envService|env)\.(?:getString|get|getOrThrow)(?:<[^>]+>)?|process\.env)\s*(?:\(\s*['""`]([A-Za-z0-9_]+)['""`]\s*\)|\.([A-Za-z0-9_]+)|\[\s*['""`]([A-Za-z0-9_]+)['""`]\s*\])",
             RegexOptions.Multiline);
 
         foreach (Match csm in configServiceMatches)
         {
             var fieldName = csm.Groups[1].Value.Trim();
-            var envVar = !string.IsNullOrEmpty(csm.Groups[2].Value) ? csm.Groups[2].Value.Trim() : csm.Groups[3].Value.Trim();
+            var envVar = !string.IsNullOrEmpty(csm.Groups[2].Value) ? csm.Groups[2].Value.Trim()
+                       : !string.IsNullOrEmpty(csm.Groups[3].Value) ? csm.Groups[3].Value.Trim()
+                       : csm.Groups[4].Value.Trim();
             if (!string.IsNullOrEmpty(envVar) && envVar.Length > 2)
             {
                 string resolvedValue;
@@ -519,6 +588,12 @@ public static class ConstantRegistry
                 Register(projectName, $"this.{fieldName}", resolvedValue);
                 Register(projectName, $"config.{fieldName}", resolvedValue);
                 Register(projectName, $"this.config.{fieldName}", resolvedValue);
+                Register(projectName, $"this.pubsubConfig.{fieldName}", resolvedValue);
+                Register(projectName, $"pubsubConfig.{fieldName}", resolvedValue);
+                Register(projectName, $"this.pubSubConfig.{fieldName}", resolvedValue);
+                Register(projectName, $"pubSubConfig.{fieldName}", resolvedValue);
+                Register(projectName, $"this.brokerConfig.{fieldName}", resolvedValue);
+                Register(projectName, $"brokerConfig.{fieldName}", resolvedValue);
             }
         }
     }

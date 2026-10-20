@@ -56,7 +56,7 @@ public class ServiceGraphExplorer : IServiceGraphExplorer
             MATCH (s) WHERE (s:Project OR s:Service OR s:Worker OR s:App) AND s.name = $name
             OPTIONAL MATCH (ep:Endpoint) WHERE s.path IS NOT NULL AND ep.path STARTS WITH s.path
             OPTIONAL MATCH (s)-[:PUBLISHES_TO|PUBLISHES]->(pub:Topic)
-            OPTIONAL MATCH (s)-[:SUBSCRIBES_TO|SUBSCRIBES]->(sub:Topic)
+            OPTIONAL MATCH (s)-[:SUBSCRIBES_TO|SUBSCRIBED_BY|SUBSCRIBES]-(sub:Topic)
             RETURN collect(DISTINCT ep.name) AS endpoints,
                    collect(DISTINCT pub.name) AS publishes,
                    collect(DISTINCT sub.name) AS subscribes

@@ -2,15 +2,16 @@
 trigger: always_on
 ---
 
-# Subagent Delegation & Model Tier Policy (Argon Orchestrator -> Flash Workers)
+# Subagent Delegation & Token Efficiency Policy
 
-When operating as the primary agent (Gemini 4 Argon):
+1. **Single-Task Direct Execution (No Subagent)**:
+   - If you have **just one task**, **DO NOT spawn any subagent** (`self` or `research`). Execute the task directly in the main agent to avoid context duplication and token overhead.
+   - Only spawn subagents when there are multiple genuinely independent tasks that benefit from parallel execution.
 
-1. **Primary Role (Orchestrator & Architect)**:
-   - Act as the high-level architect, planner, and coordinator.
-   - Analyze user requirements, make architectural decisions, decompose complex work into well-defined subtasks, and review subagent outputs.
-   - Formulate clear, self-contained task specifications (target files, design constraints, verification steps) for subagents.
+2. **No Model Switching**:
+   - Do **not** switch or override the `Model` parameter when invoking subagents (use default `"inherit"`), as model switching does not take effect.
 
-2. **Subagent Execution (`Model: "flash"`)**:
-   - Whenever invoking subagents via `invoke_subagent` (whether `TypeName: "self"` for implementation/testing or `TypeName: "research"` for codebase exploration), **ALWAYS explicitly set `Model: "flash"`** (Gemini 3.8 Flash) instead of `"inherit"`, unless the user explicitly asks for `"pro"` or `"inherit"`.
-   - Delegate concrete implementation, multi-file edits, test execution, and broad research tasks to `flash` subagents to maximize speed and efficiency.
+3. **Token & Scanning Discipline**:
+   - **Avoid massive source scanning** and full-repo re-indexing unless strictly required.
+   - Read only targeted line ranges (`StartLine` / `EndLine`), run filtered tests (`dotnet test --filter ...`), and limit query outputs (`LIMIT`, concise projections) to prevent token overspending.
+

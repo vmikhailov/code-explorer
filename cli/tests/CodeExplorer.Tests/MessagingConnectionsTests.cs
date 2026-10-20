@@ -244,5 +244,135 @@ public class MessagingConnectionsTests
         var trigRel = materialized.FirstOrDefault(r => r.Kind == OntologyConstants.Relationships.Triggers);
         trigRel.Should().BeNull("Duplicate TRIGGERS edge must not be materialized on macro level");
     }
+
+    [Test]
+    public async Task AtsPubSubSampleProject_ExtractsAllSubscriptionsAndMatchesTopics_WithoutFalsePublishEdges()
+    {
+        var dir = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
+        string? sampleProjectsRoot = null;
+        while (dir != null)
+        {
+            var candidate = Path.Combine(dir.FullName, "cli", "tests", "SampleProjects");
+            if (Directory.Exists(candidate))
+            {
+                sampleProjectsRoot = candidate;
+                break;
+            }
+            var direct = Path.Combine(dir.FullName, "SampleProjects");
+            if (Directory.Exists(direct))
+            {
+                sampleProjectsRoot = direct;
+                break;
+            }
+            dir = dir.Parent;
+        }
+
+        sampleProjectsRoot.Should().NotBeNull("SampleProjects root must be found");
+        var workspacePath = Path.Combine(sampleProjectsRoot!, "typescript", "ats-pubsub-workspace");
+        Directory.Exists(workspacePath).Should().BeTrue($"Workspace path must exist: {workspacePath}");
+
+        var tempDir = Path.Combine(Path.GetTempPath(), "ats_pubsub_e2e_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var dbPath = Path.Combine(tempDir, "graph.db").Replace('\\', '/');
+            await using var client = new SqliteGraphClient(dbPath);
+            var indexer = new WorkspaceIndexer(client);
+            await indexer.IndexAsync(workspacePath, clear: false);
+
+            var engine = new ArchitectureViewEngine(client);
+            var domain = await engine.GetDomainArchitectureAsync();
+
+            // 1. Query raw graph edges for publisher and subscriber projects
+            var queryResult = await client.ExecuteQueryAsync(
+                """
+                MATCH (s)-[r:PUBLISHES_TO|SUBSCRIBES_TO|SUBSCRIBED_BY]->(t:Topic)
+                RETURN s.name AS service, type(r) AS rel, t.name AS topic
+                """
+            );
+
+            using var doc = System.Text.Json.JsonDocument.Parse(queryResult);
+            var edgeList = new List<(string Service, string Rel, string Topic)>();
+            if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+            {
+                foreach (var elem in doc.RootElement.EnumerateArray())
+                {
+                    var s = elem.GetProperty("service").GetString() ?? "";
+                    var r = elem.GetProperty("rel").GetString() ?? "";
+                    var t = elem.GetProperty("topic").GetString() ?? "";
+                    edgeList.Add((s, r, t));
+                }
+            }
+
+            // Also check undirected SUBSCRIBES edges
+            var reverseQuery = await client.ExecuteQueryAsync(
+                """
+                MATCH (t:Topic)-[r:SUBSCRIBES_TO|SUBSCRIBED_BY]->(s)
+                RETURN s.name AS service, type(r) AS rel, t.name AS topic
+                """
+            );
+            using var revDoc = System.Text.Json.JsonDocument.Parse(reverseQuery);
+            if (revDoc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+            {
+                foreach (var elem in revDoc.RootElement.EnumerateArray())
+                {
+                    var s = elem.GetProperty("service").GetString() ?? "";
+                    var r = elem.GetProperty("rel").GetString() ?? "";
+                    var t = elem.GetProperty("topic").GetString() ?? "";
+                    edgeList.Add((s, r, t));
+                }
+            }
+            TestContext.WriteLine("ALL EDGES: " + string.Join(", ", edgeList.Select(e => $"{e.Service} -{e.Rel}-> {e.Topic}")));
+
+            // Assert 1: publisher-service has PUBLISHES_TO edges to event-tb-updated-topic, event-bus-topic, journal-topic
+            var pubEdges = edgeList.Where(e => e.Service.Equals("publisher-service", StringComparison.OrdinalIgnoreCase) &&
+                                               (e.Rel == "PUBLISHES_TO" || e.Rel == "PUBLISHES")).ToList();
+            pubEdges.Select(e => e.Topic).Should().Contain("event-tb-updated-topic");
+            pubEdges.Select(e => e.Topic).Should().Contain("event-bus-topic");
+            pubEdges.Select(e => e.Topic).Should().Contain("journal-topic");
+
+            // Assert 2: hub-subscriber has SUBSCRIBES_TO edge to event-tb-updated-topic and ZERO publishes
+            var hubPublishes = edgeList.Where(e => e.Service.Equals("hub-subscriber", StringComparison.OrdinalIgnoreCase) &&
+                                                  (e.Rel == "PUBLISHES_TO" || e.Rel == "PUBLISHES")).ToList();
+            hubPublishes.Should().BeEmpty("hub-subscriber must NOT have any false PUBLISHES edges");
+
+            var hubSubscribes = edgeList.Where(e => e.Service.Equals("hub-subscriber", StringComparison.OrdinalIgnoreCase) &&
+                                                   (e.Rel == "SUBSCRIBES_TO" || e.Rel == "SUBSCRIBED_BY" || e.Rel == "SUBSCRIBES")).ToList();
+            hubSubscribes.Select(e => e.Topic).Should().Contain("event-tb-updated-topic");
+
+            // Assert 3: kv-subscriber has SUBSCRIBES_TO edge to event-bus-topic and ZERO publishes
+            var kvPublishes = edgeList.Where(e => e.Service.Equals("kv-subscriber", StringComparison.OrdinalIgnoreCase) &&
+                                                 (e.Rel == "PUBLISHES_TO" || e.Rel == "PUBLISHES")).ToList();
+            kvPublishes.Should().BeEmpty("kv-subscriber must NOT have any false PUBLISHES edges");
+
+            var kvSubscribes = edgeList.Where(e => e.Service.Equals("kv-subscriber", StringComparison.OrdinalIgnoreCase) &&
+                                                  (e.Rel == "SUBSCRIBES_TO" || e.Rel == "SUBSCRIBED_BY" || e.Rel == "SUBSCRIBES")).ToList();
+            kvSubscribes.Select(e => e.Topic).Should().Contain("event-bus-topic");
+
+            // Assert 4: adapter-subscriber has SUBSCRIBES_TO edges to event-bus-topic and journal-topic
+            var adapterSubscribes = edgeList.Where(e => e.Service.Equals("adapter-subscriber", StringComparison.OrdinalIgnoreCase) &&
+                                                        (e.Rel == "SUBSCRIBES_TO" || e.Rel == "SUBSCRIBED_BY" || e.Rel == "SUBSCRIBES")).ToList();
+            adapterSubscribes.Select(e => e.Topic).Should().Contain("event-bus-topic");
+            adapterSubscribes.Select(e => e.Topic).Should().Contain("journal-topic");
+
+            // Assert 5: In domain architecture, domain edges contain both PUBLISHES and SUBSCRIBES
+            domain.Edges.Any(e => e.Label == "PUBLISHES").Should().BeTrue("Domain architecture must contain PUBLISHES edges");
+            domain.Edges.Any(e => e.Label == "SUBSCRIBES").Should().BeTrue("Domain architecture must contain SUBSCRIBES edges");
+
+            // Verify ServiceGraphExplorer on hub-subscriber
+            var explorer = new ServiceGraphExplorer(client);
+            var hubSurface = await explorer.GetServiceSurfaceAsync("hub-subscriber");
+            hubSurface.Subscribes.Should().Contain("event-tb-updated-topic");
+            hubSurface.Publishes.Should().BeEmpty();
+
+            var kvSurface = await explorer.GetServiceSurfaceAsync("kv-subscriber");
+            kvSurface.Subscribes.Should().Contain("event-bus-topic");
+            kvSurface.Publishes.Should().BeEmpty();
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
 }
 
