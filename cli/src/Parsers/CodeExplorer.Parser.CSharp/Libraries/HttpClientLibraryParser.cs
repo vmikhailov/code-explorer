@@ -29,7 +29,8 @@ public class HttpClientLibraryParser : ISemanticExtension
         "reader", "writer", "mediat", "broker", "eventhub", "producer", "consumer",
         "repository", "repo", "store", "dao", "context", "manager", "cache",
         "session", "storage", "db", "database", "table", "entity", "factory",
-        "builder", "helper", "validator", "mapper", "converter", "hub"
+        "builder", "helper", "validator", "mapper", "converter", "hub",
+        "clients", "clientproxy", "hubcontext"
     ];
 
     public string? MapNodeType(Node node, ParsingContext ctx)
@@ -128,9 +129,25 @@ public class HttpClientLibraryParser : ISemanticExtension
     public static bool IsNonUrlArgument(Node argNode, string argText, string methodName)
     {
         if (string.IsNullOrWhiteSpace(argText)) return false;
-        if (methodName.Equals("SendAsync", StringComparison.OrdinalIgnoreCase) ||
-            methodName.Equals("AddHttpClient", StringComparison.OrdinalIgnoreCase) ||
+        if (methodName.Equals("AddHttpClient", StringComparison.OrdinalIgnoreCase) ||
             methodName.Equals("AddGrpcClient", StringComparison.OrdinalIgnoreCase)) return false;
+
+        if (methodName.Equals("SendAsync", StringComparison.OrdinalIgnoreCase))
+        {
+            // HttpClient.SendAsync takes an HttpRequestMessage (never a string literal).
+            // SignalR IClientProxy.SendAsync("EventName", ...) takes an event name string literal.
+            if (argText.StartsWith('"') || argText.StartsWith("@\"") || argText.StartsWith("$\""))
+            {
+                var unquoted = argText.TrimStart('$', '@').Trim('"');
+                if (!unquoted.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                    !unquoted.StartsWith("https://", StringComparison.OrdinalIgnoreCase) &&
+                    !unquoted.StartsWith('/'))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
 
         // 1. Literal numbers / primitives / Guid
         if (int.TryParse(argText, out _) || long.TryParse(argText, out _) || Guid.TryParse(argText, out _))

@@ -306,6 +306,10 @@ public static class ConfigurationParser
         if (!string.IsNullOrWhiteSpace(customName))
         {
             aliases.Add(customName);
+            if (!string.IsNullOrWhiteSpace(leaf) && !aliases.Contains(leaf, StringComparer.OrdinalIgnoreCase))
+            {
+                aliases.Add(leaf);
+            }
             var colIdx = customName.IndexOf(':');
             if (colIdx > 0)
             {

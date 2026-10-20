@@ -85,12 +85,12 @@ public partial class PostIndexAnalyzer
             else if (globalConsolidationRemap.TryGetValue(target, out var win))
                 target = win;
 
-            if (implicitSchemaIds.Contains(target) || isImplicitEdge)
+            if (implicitSchemaIds.Contains(target) || isImplicitEdge || multiDomainSharedLibDbIds.Contains(target))
             {
                 var targetNode = canonicalDbNodes.GetValueOrDefault(target);
                 var targetEng = targetNode?.Extensions?.GetValueOrDefault("engine") ?? (targetNode?.Name.Contains('.') == true ? targetNode.Name.Split('.', 2)[0] : targetNode?.Name ?? "");
                 var hasConcrete = ownerConcreteEngines.TryGetValue(owner.Id, out var oEngs) && oEngs.Contains(targetEng);
-                if (!hasConcrete)
+                if (!hasConcrete && !owner.IsLibrary)
                 {
                     activelyNeededImplicitDbIds.Add(target);
                 }
@@ -117,12 +117,12 @@ public partial class PostIndexAnalyzer
                 var s = n.Extensions?.GetValueOrDefault("schema") ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[1] : "");
                 var isImplicit = implicitSchemaIds.Contains(n.Id);
                 var isMultiDomainLib = multiDomainSharedLibDbIds.Contains(n.Id);
-                var isGenericOrLibrary = string.IsNullOrWhiteSpace(s) ||
-                                         s.Equals("default", StringComparison.OrdinalIgnoreCase) ||
-                                         isMultiDomainLib ||
-                                         n.Name.Equals(eng, StringComparison.OrdinalIgnoreCase);
+                var isEngineOnly = string.IsNullOrWhiteSpace(s) ||
+                                   s.Equals("default", StringComparison.OrdinalIgnoreCase) ||
+                                   n.Name.Equals(eng, StringComparison.OrdinalIgnoreCase);
 
-                if (isGenericOrLibrary && concreteEngines.Contains(eng)) return true;
+                if (isEngineOnly && concreteEngines.Contains(eng) && !activelyNeededImplicitDbIds.Contains(n.Id)) return true;
+                if (isMultiDomainLib && concreteEngines.Contains(eng) && !activelyNeededImplicitDbIds.Contains(n.Id)) return true;
                 if (isImplicit && concreteEngines.Contains(eng) && !activelyNeededImplicitDbIds.Contains(n.Id)) return true;
                 return false;
             })
@@ -272,7 +272,14 @@ public partial class PostIndexAnalyzer
             {
                 continue;
             }
-            if (IsGenericOrLibraryDbIdInMemory(target, canonicalDbNodes, multiDomainSharedLibDbIds) && !isImplicit && concreteEnginesCount.GetValueOrDefault(targetEng) > 0)
+            if (multiDomainSharedLibDbIds.Contains(target) && hasConcreteForEngine)
+            {
+                continue;
+            }
+            if (!multiDomainSharedLibDbIds.Contains(target) &&
+                IsGenericOrLibraryDbIdInMemory(target, canonicalDbNodes, multiDomainSharedLibDbIds) &&
+                !isImplicit &&
+                concreteEnginesCount.GetValueOrDefault(targetEng) > 0)
             {
                 continue;
             }

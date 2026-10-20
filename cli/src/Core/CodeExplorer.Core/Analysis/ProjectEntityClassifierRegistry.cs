@@ -360,7 +360,13 @@ public sealed class TestEvidenceClassifier : IProjectEntityClassifier
             normName.EndsWith(".test") || normName.EndsWith("-test") || normName.EndsWith("_test") ||
             normName.EndsWith(".specs") || normName.EndsWith("-specs") ||
             normName.EndsWith(".spec") || normName.EndsWith("-spec") ||
-            normName is "test" or "tests" or "spec" or "specs")
+            normName.EndsWith(".benchmarks") || normName.Contains(".benchmarks.") ||
+            normName is "test" or "tests" or "spec" or "specs" or "benchmarks")
+        {
+            return ProjectClassification.Test;
+        }
+
+        if (dependencies != null && dependencies.Any(d => d.Equals("BenchmarkDotNet", StringComparison.OrdinalIgnoreCase)))
         {
             return ProjectClassification.Test;
         }

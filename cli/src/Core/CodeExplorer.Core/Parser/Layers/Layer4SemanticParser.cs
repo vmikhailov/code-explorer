@@ -100,10 +100,14 @@ public class Layer4SemanticParser
                 }
             }
 
-            // Find project parser
+            // Find project parser(s)
             var projectAbsDir = Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, project.Path)).Replace('\\', '/');
             var filesInDir = Directory.Exists(projectAbsDir) ? Directory.GetFiles(projectAbsDir) : [];
-            var projectParser = WorkspaceIndexer._projectParsers.FirstOrDefault(p => p.IsProjectDirectory(projectAbsDir, filesInDir));
+            var matchingParsers = WorkspaceIndexer._projectParsers
+                .Where(p => p.IsProjectDirectory(projectAbsDir, filesInDir))
+                .OrderBy(p => Layer2ProjectParser.GetProjectParserPriority(p.ProjectType))
+                .ToList();
+            var projectParser = matchingParsers.FirstOrDefault();
 
             if (projectParser == null)
             {
@@ -136,7 +140,18 @@ public class Layer4SemanticParser
             foreach (var syntaxTree in projectTrees)
             {
                 ctx.CancellationToken.ThrowIfCancellationRequested();
-                var enricher = projectParser.GetSyntaxEnricher(syntaxTree);
+                var targetParser = projectParser;
+                if (syntaxTree.FileNode != null)
+                {
+                    var ext = Path.GetExtension(syntaxTree.FileNode.Name);
+                    var fileMatchedParser = matchingParsers.FirstOrDefault(p => p is IFileParser fp && fp.CanParse(ext))
+                                            ?? WorkspaceIndexer._projectParsers.FirstOrDefault(p => p is IFileParser fp && fp.CanParse(ext));
+                    if (fileMatchedParser != null)
+                    {
+                        targetParser = fileMatchedParser;
+                    }
+                }
+                var enricher = targetParser.GetSyntaxEnricher(syntaxTree);
                 await enricher.EnrichAsync(project, ctx);
             }
 

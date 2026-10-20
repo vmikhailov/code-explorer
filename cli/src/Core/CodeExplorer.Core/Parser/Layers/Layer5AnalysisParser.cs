@@ -331,6 +331,11 @@ public partial class Layer5AnalysisParser
         var prepEntryPoints = new List<PreparedEntryPoint>(entryPoints.Count);
         foreach (var entry in entryPoints)
         {
+            if (IsNonServiceEntryPoint(entry.EntryType))
+            {
+                continue;
+            }
+
             nodeToProject.TryGetValue(entry.Id, out var targetProj);
             var prep = PrepareEntryPoint(entry, targetProj);
             if (!string.IsNullOrEmpty(prep.EntryNorm) && !prep.IsApiPrefixOnly)
@@ -533,6 +538,30 @@ public partial class Layer5AnalysisParser
         }
 
         return lateBoundRels;
+    }
+
+    private static bool IsNonServiceEntryPoint(string? entryType)
+    {
+        if (string.IsNullOrWhiteSpace(entryType)) return false;
+        return entryType.Equals("React", StringComparison.OrdinalIgnoreCase) ||
+               entryType.Equals("Angular", StringComparison.OrdinalIgnoreCase) ||
+               entryType.Equals("Vue", StringComparison.OrdinalIgnoreCase) ||
+               entryType.Equals("Svelte", StringComparison.OrdinalIgnoreCase) ||
+               entryType.Equals("Vite", StringComparison.OrdinalIgnoreCase) ||
+               entryType.Equals("Next", StringComparison.OrdinalIgnoreCase) ||
+               entryType.Equals("Nuxt", StringComparison.OrdinalIgnoreCase) ||
+               entryType.Equals("Jest", StringComparison.OrdinalIgnoreCase) ||
+               entryType.Equals("Mocha", StringComparison.OrdinalIgnoreCase) ||
+               entryType.Equals("Cypress", StringComparison.OrdinalIgnoreCase) ||
+               entryType.Equals("Playwright", StringComparison.OrdinalIgnoreCase) ||
+               entryType.Equals("xUnit", StringComparison.OrdinalIgnoreCase) ||
+               entryType.Equals("NUnit", StringComparison.OrdinalIgnoreCase) ||
+               entryType.Equals("MSTest", StringComparison.OrdinalIgnoreCase) ||
+               entryType.Equals("CLI", StringComparison.OrdinalIgnoreCase) ||
+               entryType.Equals("cron", StringComparison.OrdinalIgnoreCase) ||
+               entryType.Equals("queue-listener", StringComparison.OrdinalIgnoreCase) ||
+               entryType.Equals("Consume", StringComparison.OrdinalIgnoreCase) ||
+               entryType.Equals("Consumer", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void MapProjectNodes(IOntologyNode node, ProjectNode proj, Dictionary<string, ProjectNode> map)

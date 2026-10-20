@@ -48,7 +48,17 @@ public class Layer2ProjectParser
             ctx.CancellationToken.ThrowIfCancellationRequested();
 
             var filesInDir = Directory.GetFiles(dir);
-            var projectParser = WorkspaceIndexer._projectParsers.Where(p => p is not ScriptProjectParser).FirstOrDefault(p => p.IsProjectDirectory(dir, filesInDir));
+            var matchingParsers = WorkspaceIndexer._projectParsers
+                .Where(p => p is not ScriptProjectParser && p.IsProjectDirectory(dir, filesInDir))
+                .OrderBy(p => GetProjectParserPriority(p.ProjectType))
+                .ToList();
+
+            if (matchingParsers.Count > 1 && matchingParsers.Any(p => p.ProjectType == "typescript"))
+            {
+                matchingParsers.RemoveAll(p => p.ProjectType == "javascript");
+            }
+
+            var projectParser = matchingParsers.FirstOrDefault();
             
             if (projectParser != null)
             {
@@ -63,11 +73,55 @@ public class Layer2ProjectParser
 
                 var projectNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Project}:{relativeProjectDir}:";
 
-                // Parse project dependencies to supply externalPackages for role classification
-                var depInfo = await ParseProjectDependenciesAsync(projectParser, dir, ctx);
+                // Parse project dependencies across all matching parsers in hybrid directories (e.g. .csproj + package.json)
+                ProjectDependencyInfo? depInfo = null;
+                foreach (var mp in matchingParsers)
+                {
+                    var subDep = await ParseProjectDependenciesAsync(mp, dir, ctx);
+                    if (subDep != null)
+                    {
+                        if (depInfo == null)
+                        {
+                            depInfo = subDep;
+                        }
+                        else
+                        {
+                            var mergedLocal = depInfo.LocalProjectPaths
+                                .Concat(subDep.LocalProjectPaths)
+                                .Distinct(StringComparer.OrdinalIgnoreCase)
+                                .ToList();
+                            var mergedExt = depInfo.ExternalPackages
+                                .Concat(subDep.ExternalPackages)
+                                .GroupBy(p => $"{p.Type}:{p.Name}", StringComparer.OrdinalIgnoreCase)
+                                .Select(g => g.First())
+                                .ToList();
+                            depInfo = new ProjectDependencyInfo(mergedLocal, mergedExt);
+                        }
+                    }
+                }
                 var extPkgNames = depInfo?.ExternalPackages.Select(p => p.Name).ToList();
 
                 var manifestProps = projectParser.ExtractManifestProperties(dir, filesInDir);
+                if (matchingParsers.Count > 1)
+                {
+                    foreach (var secParser in matchingParsers.Skip(1))
+                    {
+                        var secProps = secParser.ExtractManifestProperties(dir, filesInDir);
+                        if (secProps.TryGetValue("primary_role", out var secPrimary) &&
+                            string.Equals(secPrimary, "App", StringComparison.OrdinalIgnoreCase) &&
+                            string.Equals(manifestProps.GetValueOrDefault("primary_role"), "Service", StringComparison.OrdinalIgnoreCase) &&
+                            !projectName.EndsWith(".API", StringComparison.OrdinalIgnoreCase) &&
+                            !projectName.EndsWith(".Api", StringComparison.OrdinalIgnoreCase))
+                        {
+                            manifestProps["primary_role"] = "App";
+                            manifestProps["role"] = "FrontendApp";
+                            manifestProps["kind"] = "App";
+                            manifestProps["framework_type"] = "frontend";
+                            manifestProps["secondary_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { "Service" });
+                            manifestProps["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { "App", "Service" });
+                        }
+                    }
+                }
 
                 var projectNode = ProjectNodeFactory.Create(
                     projectNodeId,
@@ -465,6 +519,20 @@ public class Layer2ProjectParser
             }
         }
 
+        // Normalize any case-insensitive project IDs in dependencies to match canonical ProjectNode.Id casing
+        var canonicalProjectIds = projects.ToDictionary(p => p.Id, p => p.Id, StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < dependencies.Count; i++)
+        {
+            var dep = dependencies[i];
+            var normFrom = canonicalProjectIds.GetValueOrDefault(dep.From, dep.From);
+            var normTo = canonicalProjectIds.GetValueOrDefault(dep.To, dep.To);
+            if (!string.Equals(normFrom, dep.From, StringComparison.Ordinal) ||
+                !string.Equals(normTo, dep.To, StringComparison.Ordinal))
+            {
+                dependencies[i] = new Relationship(normFrom, normTo, dep.Kind, dep.Properties);
+            }
+        }
+
         if (dependencies.Count > 0)
         {
             await ctx.EnqueueUploadRelationshipsAsync(dependencies);
@@ -475,6 +543,16 @@ public class Layer2ProjectParser
         ctx.Log($"[Layer2] Project detection scan complete. Found {projects.Count} projects, {packages.Count} package nodes.");
         return new Layer2Result(l1Result, projectsStructureNode, projects, packages, dependencies);
     }
+
+    internal static int GetProjectParserPriority(string projectType) =>
+        projectType.ToLowerInvariant() switch
+        {
+            "csharp" or "java" or "kotlin" or "go" or "rust" or "python" or "coldfusion" => 0,
+            "typescript" => 1,
+            "javascript" => 2,
+            "sql" => 3,
+            _ => 4
+        };
 
     private static async Task<ProjectDependencyInfo?> ParseProjectDependenciesAsync(
         IProjectParser projectParser,

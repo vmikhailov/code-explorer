@@ -177,7 +177,8 @@ public static class ConfigStore
         }
 
         return (lower.StartsWith("appsettings") && lower.EndsWith(".json")) ||
-               (lower.StartsWith("application") && (lower.EndsWith(".properties") || lower.EndsWith(".yml") || lower.EndsWith(".yaml")));
+               (lower.StartsWith("application") && (lower.EndsWith(".properties") || lower.EndsWith(".yml") || lower.EndsWith(".yaml"))) ||
+               lower is "web.config" or "app.config";
     }
 
     public static void LoadFile(string filePath, string? projectName, ParsingContext? ctx = null)
@@ -204,6 +205,10 @@ public static class ConfigStore
             else if (lower.EndsWith(".yml") || lower.EndsWith(".yaml"))
             {
                 ParseApplicationYaml(filePath, projectName);
+            }
+            else if (lower.EndsWith(".config"))
+            {
+                ParseDotNetXmlConfig(filePath, projectName);
             }
         }
         catch (Exception ex)
@@ -348,6 +353,121 @@ public static class ConfigStore
         }
     }
 
+    private static void ParseDotNetXmlConfig(string filePath, string? projectName, string? logicalSourceFilePath = null, int depth = 0)
+    {
+        if (depth > 3 || !File.Exists(filePath)) return;
+
+        var effectiveFilePath = logicalSourceFilePath ?? filePath;
+        var content = File.ReadAllText(filePath);
+        var doc = System.Xml.Linq.XDocument.Parse(content);
+        if (doc.Root == null) return;
+
+        var baseDir = Path.GetDirectoryName(filePath) ?? "";
+
+        // 1. <connectionStrings>
+        foreach (var csSection in doc.Root.Descendants().Where(e => e.Name.LocalName.Equals("connectionStrings", StringComparison.OrdinalIgnoreCase)))
+        {
+            var extSource = csSection.Attribute("configSource")?.Value ?? csSection.Attribute("file")?.Value;
+            if (!string.IsNullOrWhiteSpace(extSource))
+            {
+                var linkedPath = ResolveLinkedXmlConfigPath(baseDir, extSource);
+                if (linkedPath != null)
+                {
+                    ParseDotNetXmlConfig(linkedPath, projectName, effectiveFilePath, depth + 1);
+                }
+            }
+
+            foreach (var addElem in csSection.Elements().Where(e => e.Name.LocalName.Equals("add", StringComparison.OrdinalIgnoreCase)))
+            {
+                var name = addElem.Attribute("name")?.Value?.Trim();
+                var connStr = addElem.Attribute("connectionString")?.Value?.Trim();
+                if (!string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(connStr))
+                {
+                    RegisterConfigValue($"ConnectionStrings:{name}", connStr, effectiveFilePath, projectName);
+                }
+            }
+        }
+
+        // 2. <appSettings>
+        foreach (var appSection in doc.Root.Descendants().Where(e => e.Name.LocalName.Equals("appSettings", StringComparison.OrdinalIgnoreCase)))
+        {
+            var extSource = appSection.Attribute("file")?.Value ?? appSection.Attribute("configSource")?.Value;
+            if (!string.IsNullOrWhiteSpace(extSource))
+            {
+                var linkedPath = ResolveLinkedXmlConfigPath(baseDir, extSource);
+                if (linkedPath != null)
+                {
+                    ParseDotNetXmlConfig(linkedPath, projectName, effectiveFilePath, depth + 1);
+                }
+            }
+
+            foreach (var addElem in appSection.Elements().Where(e => e.Name.LocalName.Equals("add", StringComparison.OrdinalIgnoreCase)))
+            {
+                var key = addElem.Attribute("key")?.Value?.Trim();
+                var val = addElem.Attribute("value")?.Value?.Trim();
+                if (!string.IsNullOrWhiteSpace(key) && !string.IsNullOrWhiteSpace(val))
+                {
+                    RegisterConfigValue(key, val, effectiveFilePath, projectName);
+                }
+            }
+        }
+
+        // 3. <system.serviceModel> -> <client> -> <endpoint>
+        foreach (var clientElem in doc.Root.Descendants().Where(e => e.Name.LocalName.Equals("client", StringComparison.OrdinalIgnoreCase)))
+        {
+            foreach (var epElem in clientElem.Elements().Where(e => e.Name.LocalName.Equals("endpoint", StringComparison.OrdinalIgnoreCase)))
+            {
+                var address = epElem.Attribute("address")?.Value?.Trim();
+                var contract = epElem.Attribute("contract")?.Value?.Trim() ?? epElem.Attribute("name")?.Value?.Trim() ?? "WcfEndpoint";
+                if (!string.IsNullOrWhiteSpace(address))
+                {
+                    RegisterConfigValue($"WcfClient:{contract}:Address", address, effectiveFilePath, projectName);
+                }
+            }
+        }
+    }
+
+    private static string? ResolveLinkedXmlConfigPath(string baseDir, string relativeConfigPath)
+    {
+        if (string.IsNullOrWhiteSpace(baseDir) || string.IsNullOrWhiteSpace(relativeConfigPath)) return null;
+        var normRel = relativeConfigPath.Replace('\\', '/');
+        var directCandidate = Path.GetFullPath(Path.Combine(baseDir, normRel));
+        if (File.Exists(directCandidate))
+        {
+            return directCandidate;
+        }
+
+        // If a project references "../Web.config" (deployment layout where Web.config sits in a sibling web project in source control),
+        // check only when the target filename is Web.config in the parent solution directory.
+        var targetFileName = Path.GetFileName(normRel);
+        if (targetFileName.Equals("web.config", StringComparison.OrdinalIgnoreCase) && normRel.StartsWith("../", StringComparison.Ordinal))
+        {
+            var parentDir = Path.GetDirectoryName(directCandidate);
+            if (!string.IsNullOrEmpty(parentDir) && Directory.Exists(parentDir))
+            {
+                try
+                {
+                    var siblingWebConfigs = Directory.EnumerateDirectories(parentDir)
+                        .SelectMany(d => Directory.EnumerateFiles(d, "Web.config", SearchOption.TopDirectoryOnly)
+                            .Concat(Directory.EnumerateFiles(d, "web.config", SearchOption.TopDirectoryOnly)))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                    // Prefer the primary UI / Web project's Web.config if one exists
+                    var best = siblingWebConfigs.FirstOrDefault(f => Path.GetDirectoryName(f)!.EndsWith(".UI", StringComparison.OrdinalIgnoreCase) ||
+                                                                     Path.GetDirectoryName(f)!.EndsWith(".Web", StringComparison.OrdinalIgnoreCase))
+                               ?? siblingWebConfigs.FirstOrDefault();
+                    if (best != null) return best;
+                }
+                catch
+                {
+                    // Ignore
+                }
+            }
+        }
+
+        return null;
+    }
+
     private static void RegisterConfigValue(string keyPath, string value, string filePath, string? projectName)
     {
         if (string.IsNullOrWhiteSpace(keyPath) || string.IsNullOrWhiteSpace(value)) return;
@@ -465,6 +585,7 @@ public static class ConfigStore
 
     private static void InspectAndRegisterUrl(string keyPath, string url, string filePath, string? projectName)
     {
+        if (IsInboundOrNonServiceConfigKey(keyPath)) return;
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return;
 
         var host = uri.Host;
@@ -608,5 +729,22 @@ public static class ConfigStore
         }
 
         return StripServiceOptionsSuffixes(last);
+    }
+
+    private static bool IsInboundOrNonServiceConfigKey(string keyPath)
+    {
+        if (string.IsNullOrWhiteSpace(keyPath)) return true;
+        var lower = keyPath.ToLowerInvariant();
+        return lower.Contains("cors") ||
+               lower.Contains("allowedorigins") ||
+               lower.Contains("allowedhosts") ||
+               lower.Contains("validissuers") ||
+               lower.Contains("validaudiences") ||
+               lower.Contains("$schema") ||
+               lower.Contains("xmlns") ||
+               lower.EndsWith("repository") ||
+               lower.EndsWith("repository:url") ||
+               lower.EndsWith("homepage") ||
+               lower.EndsWith("bugs:url");
     }
 }

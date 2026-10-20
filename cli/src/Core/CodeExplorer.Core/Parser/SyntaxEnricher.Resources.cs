@@ -32,7 +32,7 @@ public partial class SyntaxEnricher
             try
             {
                 var text = File.ReadAllText(syntaxTree.FilePath);
-                if (Regex.IsMatch(text, @"\b(?:DbContext|DbSet\s*<|__tablename__|@Entity|@Table|@ViewEntity|declarative_base|modelBuilder\.Entity)\b", RegexOptions.IgnoreCase))
+                if (Regex.IsMatch(text, @"(?::\s*(?:[A-Za-z0-9_.]+\.)?(?:Identity)?DbContext\b|\bI?DbSet\s*<|\b__tablename__\b|@(?:Entity|Table|ViewEntity)\b|\[\s*Table\s*\(|\bdeclarative_base\b|\bmodelBuilder\.Entity\b)", RegexOptions.IgnoreCase))
                 {
                     return true;
                 }
@@ -41,6 +41,91 @@ public partial class SyntaxEnricher
         }
 
         return false;
+    }
+
+    private static readonly Regex CSharpDbContextClassRegex = new(
+        @"class\s+([A-Za-z0-9_]+)\s*:\s*(?:[A-Za-z0-9_.]+\.)?(?:Identity)?DbContext\b",
+        RegexOptions.Compiled);
+
+    private static readonly Regex CSharpBaseConnectionNameRegex = new(
+        @":\s*base\s*\(\s*@?[""'](?:name\s*=\s*)?([A-Za-z0-9_.\-:]+)[""']\s*\)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    internal static IReadOnlyList<(string ClassName, string ContextStem, string? ConnectionKey)> DetectDeclaredDbContextInfos(
+        FileNode? fileNode,
+        SyntaxTree? syntaxTree)
+    {
+        var filePath = syntaxTree?.FilePath ?? fileNode?.FullPath;
+        if (string.IsNullOrEmpty(filePath) || !filePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) || !File.Exists(filePath))
+        {
+            return [];
+        }
+
+        try
+        {
+            var text = File.ReadAllText(filePath);
+            if (!text.Contains("DbContext", StringComparison.Ordinal))
+            {
+                return [];
+            }
+
+            var matches = CSharpDbContextClassRegex.Matches(text);
+            if (matches.Count == 0)
+            {
+                return [];
+            }
+
+            string? baseConnKey = null;
+            var baseMatch = CSharpBaseConnectionNameRegex.Match(text);
+            if (baseMatch.Success)
+            {
+                baseConnKey = baseMatch.Groups[1].Value.Trim();
+            }
+
+            var list = new List<(string ClassName, string ContextStem, string? ConnectionKey)>();
+            foreach (Match m in matches)
+            {
+                var className = m.Groups[1].Value.Trim();
+                if (string.IsNullOrEmpty(className) ||
+                    className.Equals("DbContext", StringComparison.OrdinalIgnoreCase) ||
+                    className.Equals("IdentityDbContext", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var stem = className;
+                if (stem.EndsWith("DbContext", StringComparison.OrdinalIgnoreCase) && stem.Length > "DbContext".Length)
+                {
+                    stem = stem[..^"DbContext".Length];
+                }
+                else if (stem.EndsWith("Context", StringComparison.OrdinalIgnoreCase) && stem.Length > "Context".Length)
+                {
+                    stem = stem[..^"Context".Length];
+                }
+
+                list.Add((className, stem, baseConnKey));
+            }
+
+            return list;
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    internal static bool IsGenericDbContextStem(string? stem)
+    {
+        if (string.IsNullOrWhiteSpace(stem)) return true;
+        return stem.Equals("App", StringComparison.OrdinalIgnoreCase) ||
+               stem.Equals("Application", StringComparison.OrdinalIgnoreCase) ||
+               stem.Equals("Default", StringComparison.OrdinalIgnoreCase) ||
+               stem.Equals("Base", StringComparison.OrdinalIgnoreCase) ||
+               stem.Equals("Database", StringComparison.OrdinalIgnoreCase) ||
+               stem.Equals("Data", StringComparison.OrdinalIgnoreCase) ||
+               stem.Equals("Db", StringComparison.OrdinalIgnoreCase) ||
+               stem.Equals("Ef", StringComparison.OrdinalIgnoreCase) ||
+               stem.Equals("Test", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool HasEntityOrTableNode(IOntologyNode node)
@@ -799,13 +884,16 @@ public partial class SyntaxEnricher
                 return ("SQLite", "relational");
             if (lower.Contains("oracle"))
                 return ("Oracle", "relational");
+            if (lower.Contains("include=\"entityframework\"") || lower.Contains("include='entityframework'") ||
+                lower.Contains("include=\"entityframework,") || lower.Contains("include=\"system.data.entity\""))
+                return ("SQL Server", "relational");
 
             // Follow ProjectReference
             var dir = Path.GetDirectoryName(fullPath) ?? "";
             var matches = Regex.Matches(content, @"<ProjectReference\s+Include=""([^""]+)""", RegexOptions.IgnoreCase);
             foreach (Match m in matches)
             {
-                var relRef = m.Groups[1].Value.Trim();
+                var relRef = m.Groups[1].Value.Trim().Replace('\\', '/');
                 relRef = Regex.Replace(relRef, @"\$\([A-Za-z0-9_]+\)[\\/]*", "");
                 var candidate = Path.Combine(dir, relRef);
                 var found = DetectDriverFromCsproj(candidate, workspaceRoot, visited, depth + 1);

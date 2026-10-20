@@ -374,7 +374,10 @@ public partial class ArchitectureViewEngine
                             }
                         }
                         // Case 2: Library calls another Service -> Lift direct SERVICE_CALL to Service
-                        else if (IsProjectNodeKind(targetNode.Kind) && !IsLibraryProject(targetNode) && targetNode.Id != service.Id)
+                        // Only lift if the library's edge to the target service is an actual service call (not a generic compile-time project dependency)
+                        else if (IsProjectNodeKind(targetNode.Kind) && !IsLibraryProject(targetNode) && targetNode.Id != service.Id &&
+                                 (edge.Kind is "SERVICE_CALL" or "CALLS_ENDPOINT" || edge.Category == "service_call" ||
+                                  edge.Properties?.GetValueOrDefault("dependency_type") == "service_call"))
                         {
                             if (graph.Edges.All(e => !(e.Source == service.Id && e.Target == targetNode.Id && (e.Kind == "SERVICE_CALL" || e.Kind == "CALLS_ENDPOINT"))))
                             {
@@ -446,8 +449,8 @@ public partial class ArchitectureViewEngine
                                 });
                             }
                         }
-                        // Case 5: Library depends on another Library -> continue BFS traversal up to depth 3
-                        else if (libraries.TryGetValue(edge.Target, out var nextLib) && depth < 3)
+                        // Case 5: Library depends on another Library -> continue BFS traversal up to depth 8
+                        else if (libraries.TryGetValue(edge.Target, out var nextLib) && depth < 8)
                         {
                             if (visited.Add(nextLib.Id))
                             {

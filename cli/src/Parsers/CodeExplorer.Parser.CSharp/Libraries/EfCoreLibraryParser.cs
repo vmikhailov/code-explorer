@@ -14,6 +14,9 @@ public class EfCoreLibraryParser : ISemanticExtension
     [
         "Microsoft.EntityFrameworkCore",
         "Microsoft.EntityFrameworkCore.*",
+        "System.Data.Entity",
+        "System.Data.Entity.*",
+        "EntityFramework",
         "System.ComponentModel.DataAnnotations.Schema"
     ];
 

@@ -594,8 +594,8 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                                 ));
                             }
                         }
-                        // Case 5: Library depends on another Library -> continue BFS traversal up to depth 3
-                        else if (libraries.TryGetValue(edge.To, out var nextLib) && depth < 3)
+                        // Case 5: Library depends on another Library -> continue BFS traversal up to depth 8
+                        else if (libraries.TryGetValue(edge.To, out var nextLib) && depth < 8)
                         {
                             if (visited.Add(nextLib.Id))
                             {

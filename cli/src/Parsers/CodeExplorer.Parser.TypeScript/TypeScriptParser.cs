@@ -104,7 +104,8 @@ public class TypeScriptParser : IProjectParser, IFileParser
         var packageJson = filesInDirectory.FirstOrDefault(f => Path.GetFileName(f).Equals("package.json", StringComparison.OrdinalIgnoreCase));
         if (packageJson != null)
         {
-            if (IsNgSecondaryEntryPoint(packageJson, directoryPath, filesInDirectory))
+            if (IsNgSecondaryEntryPoint(packageJson, directoryPath, filesInDirectory) ||
+                IsInsideParentWebOrHybridProject(directoryPath))
             {
                 return false;
             }
@@ -116,7 +117,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
             var fileName = Path.GetFileName(file).ToLowerInvariant();
             if (fileName == "tsconfig.json")
             {
-                if (IsInsideNgPackage(directoryPath))
+                if (IsInsideNgPackage(directoryPath) || IsInsideParentProject(directoryPath) || HasOnlyAmbientDeclarationFiles(directoryPath))
                 {
                     return false;
                 }
@@ -124,6 +125,95 @@ public class TypeScriptParser : IProjectParser, IFileParser
             }
         }
         return false;
+    }
+
+    private static bool IsInsideParentWebOrHybridProject(string directoryPath)
+    {
+        var parentDir = Path.GetDirectoryName(directoryPath);
+        int depth = 0;
+        while (parentDir != null && parentDir.Length >= 3 && depth < 3)
+        {
+            depth++;
+            try
+            {
+                var hasParentCsproj = Directory.EnumerateFiles(parentDir, "*.csproj").Any();
+                var parentPkgJson = Path.Combine(parentDir, "package.json");
+                var hasParentWebConfig = Directory.EnumerateFiles(parentDir, "*").Any(f =>
+                    Path.GetFileName(f).Equals("web.config", StringComparison.OrdinalIgnoreCase));
+
+                if (hasParentCsproj && (File.Exists(parentPkgJson) || hasParentWebConfig))
+                {
+                    return true;
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Ignore
+            }
+            parentDir = Path.GetDirectoryName(parentDir);
+        }
+        return false;
+    }
+
+    private static bool IsInsideParentProject(string directoryPath)
+    {
+        var parentDir = Path.GetDirectoryName(directoryPath);
+        int depth = 0;
+        while (parentDir != null && parentDir.Length >= 3 && depth < 4)
+        {
+            depth++;
+            try
+            {
+                if (Directory.EnumerateFiles(parentDir, "*.csproj").Any())
+                {
+                    return true;
+                }
+
+                var parentPkgJson = Path.Combine(parentDir, "package.json");
+                if (File.Exists(parentPkgJson))
+                {
+                    var content = File.ReadAllText(parentPkgJson);
+                    using var doc = System.Text.Json.JsonDocument.Parse(content);
+                    if (!doc.RootElement.TryGetProperty("workspaces", out _))
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+            {
+                // Ignore
+            }
+            parentDir = Path.GetDirectoryName(parentDir);
+        }
+        return false;
+    }
+
+    private static bool HasOnlyAmbientDeclarationFiles(string directoryPath)
+    {
+        try
+        {
+            var allFiles = WorkspaceFileFilter.EnumerateFiles(directoryPath, "*").ToList();
+            bool hasAnyDts = false;
+            foreach (var f in allFiles)
+            {
+                var lower = f.ToLowerInvariant();
+                if (lower.EndsWith(".d.ts") || lower.EndsWith(".d.mts") || lower.EndsWith(".d.cts"))
+                {
+                    hasAnyDts = true;
+                    continue;
+                }
+                if (lower.EndsWith(".ts") || lower.EndsWith(".tsx") || lower.EndsWith(".js") || lower.EndsWith(".jsx") || lower.EndsWith(".mts") || lower.EndsWith(".cts"))
+                {
+                    return false;
+                }
+            }
+            return hasAnyDts;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public static bool IsNgSecondaryEntryPoint(string? packageJsonPath, string directoryPath, string[]? filesInDirectory = null)
@@ -406,7 +496,10 @@ public class TypeScriptParser : IProjectParser, IFileParser
                 var hasMobileDeps = allDeps.Any(d => d is "react-native" or "expo" || d.StartsWith("expo-") || d.StartsWith("@expo/")) ||
                                     filesInDirectory.Any(f => Path.GetFileName(f).Equals("app.json", StringComparison.OrdinalIgnoreCase));
 
-                var hasFrontendDeps = hasMobileDeps || allDeps.Any(d =>
+                var hasDesktopDeps = allDeps.Any(d =>
+                    d is "electron" or "@electron-forge/cli" or "electron-builder" or "@tauri-apps/api");
+
+                var hasFrontendDeps = hasMobileDeps || hasDesktopDeps || allDeps.Any(d =>
                     d is "react" or "react-dom" or "@angular/core" or "vue" or "svelte" or "solid-js" or "next"
                         or "nuxt");
 
@@ -490,6 +583,13 @@ public class TypeScriptParser : IProjectParser, IFileParser
                     props["framework_type"] = "extension";
                     props["ui_type"] = "extension";
                     props["is_vscode_extension"] = "true";
+                    props.Remove("is_library");
+                }
+                else if (hasDesktopDeps)
+                {
+                    props["framework_type"] = "frontend";
+                    props["is_frontend_app"] = "true";
+                    props["manifest_type"] = "application";
                     props.Remove("is_library");
                 }
                 else if (hasWebFramework)

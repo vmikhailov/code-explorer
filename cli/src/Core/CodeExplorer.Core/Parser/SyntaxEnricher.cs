@@ -272,6 +272,51 @@ public partial class SyntaxEnricher : ISyntaxEnricher
                             }
                         }
 
+                        var isRelational = string.Equals(dbType, "relational", StringComparison.OrdinalIgnoreCase);
+
+                        // Step B.2: Check for explicit DbContext declarations (and base("name=...") connection keys) in C# files
+                        if (isRelational && declaredSchemas.Count == 0 && canonicalRes == null)
+                        {
+                            var dbContexts = DetectDeclaredDbContextInfos(fileNode, _syntaxTree);
+                            foreach (var (ctxClass, ctxStem, connKey) in dbContexts)
+                            {
+                                CanonicalResource? matchedCtxRes = null;
+                                if (ctx.ResourceRegistry != null)
+                                {
+                                    if (!string.IsNullOrWhiteSpace(connKey))
+                                    {
+                                        matchedCtxRes = ctx.ResourceRegistry.ResolveResource(connKey, expectedDbType: dbType, expectedEngine: targetEngine);
+                                    }
+                                    matchedCtxRes ??= ctx.ResourceRegistry.ResolveResource(ctxClass, expectedDbType: dbType, expectedEngine: targetEngine)
+                                                      ?? ctx.ResourceRegistry.ResolveResource(ctxStem, expectedDbType: dbType, expectedEngine: targetEngine);
+                                }
+
+                                if (matchedCtxRes != null)
+                                {
+                                    var cfgSchema = matchedCtxRes.Properties.TryGetValue("schema", out var s) ? s : matchedCtxRes.Name;
+                                    if (IsValidSchemaName(cfgSchema) && !string.IsNullOrEmpty(cfgSchema))
+                                    {
+                                        declaredSchemas.Add(cfgSchema);
+                                        declaredSchema ??= cfgSchema;
+                                        canonicalRes ??= matchedCtxRes;
+                                        if (string.IsNullOrEmpty(targetEngine) && !string.IsNullOrEmpty(matchedCtxRes.Engine))
+                                        {
+                                            targetEngine = matchedCtxRes.Engine;
+                                        }
+                                        break;
+                                    }
+                                }
+                                else if (!IsGenericDbContextStem(ctxStem) && IsValidSchemaName(ctxStem))
+                                {
+                                    if (!declaredSchemas.Contains(ctxStem, StringComparer.OrdinalIgnoreCase))
+                                    {
+                                        declaredSchemas.Add(ctxStem);
+                                        declaredSchema ??= ctxStem;
+                                    }
+                                }
+                            }
+                        }
+
                         if (!string.IsNullOrEmpty(targetEngine) && targetEngine.Equals("SQLite", StringComparison.OrdinalIgnoreCase) &&
                             (declaredSchemas.Count == 0 || declaredSchema == null || declaredSchema.Equals("dbo", StringComparison.OrdinalIgnoreCase) || declaredSchema.Equals("default", StringComparison.OrdinalIgnoreCase)))
                         {
@@ -279,8 +324,6 @@ public partial class SyntaxEnricher : ISyntaxEnricher
                             declaredSchemas.Add("main");
                             declaredSchema = "main";
                         }
-
-                        var isRelational = string.Equals(dbType, "relational", StringComparison.OrdinalIgnoreCase);
 
                         if (isRelational && declaredSchemas.Count == 0 && canonicalRes == null && !projectNode.IsLibrary && HasEntityOrTableDeclaration(fileNode, _syntaxTree))
                         {

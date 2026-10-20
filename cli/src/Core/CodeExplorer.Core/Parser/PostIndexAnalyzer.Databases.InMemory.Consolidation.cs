@@ -288,18 +288,59 @@ public partial class PostIndexAnalyzer
             p.Path.Contains("\\Infrastructure\\", StringComparison.OrdinalIgnoreCase)
         ).ToDictionary(p => p.Id, p => p, StringComparer.OrdinalIgnoreCase);
 
-        var serviceToReferencedLibs = new Dictionary<string, List<ProjectNode>>(StringComparer.OrdinalIgnoreCase);
+        var directReferencedLibs = new Dictionary<string, List<ProjectNode>>(StringComparer.OrdinalIgnoreCase);
         foreach (var rel in allRelationships.Where(r => r.Kind == OntologyConstants.Relationships.DependsOn))
         {
             if (libraryProjects.TryGetValue(rel.To, out var libProj))
             {
-                if (!serviceToReferencedLibs.TryGetValue(rel.From, out var libList))
+                if (!directReferencedLibs.TryGetValue(rel.From, out var libList))
                 {
                     libList = [];
-                    serviceToReferencedLibs[rel.From] = libList;
+                    directReferencedLibs[rel.From] = libList;
                 }
-                libList.Add(libProj);
+                if (!libList.Any(l => l.Id.Equals(libProj.Id, StringComparison.OrdinalIgnoreCase)))
+                {
+                    libList.Add(libProj);
+                }
             }
+        }
+
+        // Compute multi-hop transitive closure across library dependencies (e.g. Service -> Logic -> Core -> Models)
+        var serviceToReferencedLibs = new Dictionary<string, List<ProjectNode>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var startProjId in directReferencedLibs.Keys)
+        {
+            var visitedLibs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var resultLibs = new List<ProjectNode>();
+            var queue = new Queue<(ProjectNode Lib, int Depth)>();
+
+            foreach (var directLib in directReferencedLibs[startProjId])
+            {
+                if (visitedLibs.Add(directLib.Id))
+                {
+                    resultLibs.Add(directLib);
+                    queue.Enqueue((directLib, 1));
+                }
+            }
+
+            while (queue.Count > 0)
+            {
+                var (currLib, depth) = queue.Dequeue();
+                if (depth >= 8) continue;
+
+                if (directReferencedLibs.TryGetValue(currLib.Id, out var nextLibs))
+                {
+                    foreach (var nextLib in nextLibs)
+                    {
+                        if (visitedLibs.Add(nextLib.Id))
+                        {
+                            resultLibs.Add(nextLib);
+                            queue.Enqueue((nextLib, depth + 1));
+                        }
+                    }
+                }
+            }
+
+            serviceToReferencedLibs[startProjId] = resultLibs;
         }
 
         // Detect libraries referenced by multiple distinct service domains (e.g. IntegrationEventLogEF)
@@ -385,6 +426,61 @@ public partial class PostIndexAnalyzer
 
         var projectDbEdges = new List<(ProjectNode Owner, string CanonicalTarget, Relationship OriginalRel, bool IsImplicitEdge)>();
 
+        // Pre-pass: determine which services already have their own single-domain concrete database per engine
+        var serviceOwnDomainConcreteEngines = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        void RecordOwnConcreteEngine(string projId, string engine)
+        {
+            if (string.IsNullOrWhiteSpace(engine)) return;
+            if (!serviceOwnDomainConcreteEngines.TryGetValue(projId, out var set))
+            {
+                set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                serviceOwnDomainConcreteEngines[projId] = set;
+            }
+            set.Add(engine);
+        }
+
+        foreach (var rel in allRelationships)
+        {
+            if (rel.Kind == OntologyConstants.Relationships.Contains) continue;
+            var isDbRel = rel.Kind == OntologyConstants.Relationships.UsesDb ||
+                          rel.Kind == OntologyConstants.Relationships.Configures ||
+                          rawToCanonical.ContainsKey(rel.To);
+            if (!isDbRel) continue;
+            if (!rawToCanonical.TryGetValue(rel.To, out var canonicalTarget)) continue;
+
+            var owner = projects.FirstOrDefault(p => p.Id == rel.From || rel.From.StartsWith(p.Id, StringComparison.OrdinalIgnoreCase))
+                        ?? (fileToProject.TryGetValue(rel.From, out var fp) ? fp : null);
+            if (owner == null || owner.Id == canonicalTarget) continue;
+
+            var relFilePath = rel.Properties != null && rel.Properties.TryGetValue("file_path", out var rfp) ? rfp?.ToString() : null;
+            if (isTestSource(owner.Id, owner.Path) || isTestSource(rel.From, relFilePath)) continue;
+
+            var isRawImplicitEdge = (rawImplicitDbIds != null && rawImplicitDbIds.Contains(rel.To)) ||
+                                    (rel.Properties != null && rel.Properties.TryGetValue("is_implicit_schema", out var impObj) && impObj?.ToString() == "true") ||
+                                    rel.To.EndsWith(":db:default:dbo", StringComparison.OrdinalIgnoreCase);
+            if (isRawImplicitEdge || implicitSchemaIds.Contains(canonicalTarget) || multiDomainSharedLibs.Contains(owner.Id))
+            {
+                continue;
+            }
+
+            if (canonicalDbNodes.TryGetValue(canonicalTarget, out var cNode))
+            {
+                var eng = cNode.Extensions?.GetValueOrDefault("engine") ?? (cNode.Name.Contains('.') ? cNode.Name.Split('.', 2)[0] : cNode.Name);
+                var sch = cNode.Extensions?.GetValueOrDefault("schema") ?? (cNode.Name.Contains('.') ? cNode.Name.Split('.', 2)[1] : "");
+                if (!string.IsNullOrWhiteSpace(sch) && !sch.Equals("default", StringComparison.OrdinalIgnoreCase) && !sch.Equals(eng, StringComparison.OrdinalIgnoreCase))
+                {
+                    RecordOwnConcreteEngine(owner.Id, eng);
+                    foreach (var (svcId, libs) in serviceToReferencedLibs)
+                    {
+                        if (libs.Any(l => l.Id == owner.Id))
+                        {
+                            RecordOwnConcreteEngine(svcId, eng);
+                        }
+                    }
+                }
+            }
+        }
+
         foreach (var rel in allRelationships)
         {
             if (rel.Kind == OntologyConstants.Relationships.Contains) continue;
@@ -419,9 +515,17 @@ public partial class PostIndexAnalyzer
                     var isMultiDomainLib = multiDomainSharedLibs.Contains(owner.Id);
                     var isGenericTarget = IsGenericOrLibraryDbId(canonicalTarget) || isRawImplicitEdge;
 
-                    // A shared library referenced by >1 distinct service domains that has no database of its own
-                    // must not create a project-level USES_DB edge to a generic db or service db.
-                    if (!isMultiDomainLib || !isGenericTarget)
+                    var targetNode = canonicalDbNodes.GetValueOrDefault(canonicalTarget);
+                    var targetEng = targetNode?.Extensions?.GetValueOrDefault("engine") ?? (targetNode?.Name.Contains('.') == true ? targetNode.Name.Split('.', 2)[0] : targetNode?.Name ?? "");
+                    var targetSch = targetNode?.Extensions?.GetValueOrDefault("schema") ?? (targetNode?.Name.Contains('.') == true ? targetNode.Name.Split('.', 2)[1] : "");
+                    var isTrulyEngineOnlyTarget = string.IsNullOrWhiteSpace(targetSch) ||
+                                                  targetSch.Equals("default", StringComparison.OrdinalIgnoreCase) ||
+                                                  targetSch.Equals(targetEng, StringComparison.OrdinalIgnoreCase) ||
+                                                  (targetNode != null && targetNode.Name.Equals(targetEng, StringComparison.OrdinalIgnoreCase));
+
+                    // Preserve the edge on the owner unless it is a multi-domain shared library pointing to a generic/implicit target
+                    // where all referencing services already have their own domain databases.
+                    if (!isMultiDomainLib || !isGenericTarget || !isTrulyEngineOnlyTarget)
                     {
                         projectDbEdges.Add((owner, canonicalTarget, rel, isRawImplicitEdge));
                     }
@@ -448,17 +552,19 @@ public partial class PostIndexAnalyzer
                         }
                     }
 
-                    // Also attribute this DB target to any service that references this owner library
-                    // BUT: when owner is a multi-domain shared library with a generic target, do NOT propagate it
-                    // because each calling service domain will use its own database!
-                    if (!isMultiDomainLib || !isGenericTarget)
+                    // Propagate library DB target to referencing services (multi-hop):
+                    // If owner is a multi-domain shared library, only suppress propagation to services that ALREADY have
+                    // their own single-domain concrete database for the same engine (e.g. eShop microservices referencing IntegrationEventLogEF).
+                    foreach (var (svcId, libs) in serviceToReferencedLibs)
                     {
-                        foreach (var (svcId, libs) in serviceToReferencedLibs)
+                        if (libs.Any(l => l.Id == owner.Id))
                         {
-                            if (libs.Any(l => l.Id == owner.Id))
+                            var svcProj = projects.FirstOrDefault(p => p.Id == svcId);
+                            if (svcProj != null && !isTestSource(svcProj.Id, svcProj.Path))
                             {
-                                var svcProj = projects.FirstOrDefault(p => p.Id == svcId);
-                                if (svcProj != null && !isTestSource(svcProj.Id, svcProj.Path))
+                                var svcHasOwnDbForEngine = serviceOwnDomainConcreteEngines.TryGetValue(svcProj.Id, out var svcEngs) &&
+                                                           svcEngs.Contains(targetEng);
+                                if (!isMultiDomainLib || !isGenericTarget || !svcHasOwnDbForEngine)
                                 {
                                     projectDbEdges.Add((svcProj, canonicalTarget, rel, isRawImplicitEdge));
                                 }

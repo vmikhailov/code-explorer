@@ -42,7 +42,8 @@ public sealed class DatabaseConfigurationDescriptor : ILibraryConfigurationDescr
                       lowerVal.StartsWith("jdbc:mysql://") ||
                       lowerVal.StartsWith("mysql://") ||
                       (lowerVal.Contains("data source=") && lowerVal.Contains(".db")) ||
-                      ((lowerVal.Contains("host=") || lowerVal.Contains("server=")) && lowerVal.Contains("database="));
+                      ((lowerVal.Contains("host=") || lowerVal.Contains("server=") || lowerVal.Contains("data source=")) &&
+                       (lowerVal.Contains("database=") || lowerVal.Contains("initial catalog=")));
 
         if (!isConnStringKey && !isDbVal)
         {

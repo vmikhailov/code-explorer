@@ -18,7 +18,17 @@ public class CSharpParser : IProjectParser, IFileParser
     public bool IsConfigurationFile(string fileName)
     {
         var lower = fileName.ToLowerInvariant();
-        return lower.StartsWith("appsettings") && lower.EndsWith(".json");
+        if (lower.StartsWith("appsettings") && lower.EndsWith(".json"))
+        {
+            return true;
+        }
+
+        if (lower is "web.config" or "app.config")
+        {
+            return true;
+        }
+
+        return false;
     }
 
     public IReadOnlyList<PackageDescriptor> Packages { get; }
@@ -43,6 +53,7 @@ public class CSharpParser : IProjectParser, IFileParser
         new Libraries.AspNetCoreLibraryParser(),
         new Libraries.HotChocolateLibraryParser(),
         new Libraries.GrpcCSharpLibraryParser(),
+        new Libraries.WcfLibraryParser(),
         new Libraries.MassTransitLibraryParser(),
         new Libraries.EventBusLibraryParser(),
         new Libraries.MediatRLibraryParser(),
@@ -182,11 +193,16 @@ public class CSharpParser : IProjectParser, IFileParser
                          content.Contains("Include='Verify.NUnit", StringComparison.OrdinalIgnoreCase) ||
                          content.Contains("Include=\"bunit", StringComparison.OrdinalIgnoreCase) ||
                          content.Contains("Include=\"FluentAssertions", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("Include=\"BenchmarkDotNet", StringComparison.OrdinalIgnoreCase) ||
+                         content.Contains("Include='BenchmarkDotNet", StringComparison.OrdinalIgnoreCase) ||
                          projName.EndsWith(".UnitTests", StringComparison.OrdinalIgnoreCase) ||
                          projName.EndsWith(".FunctionalTests", StringComparison.OrdinalIgnoreCase) ||
                          projName.EndsWith(".IntegrationTests", StringComparison.OrdinalIgnoreCase) ||
                          projName.EndsWith(".Tests", StringComparison.OrdinalIgnoreCase) ||
                          projName.EndsWith(".Test", StringComparison.OrdinalIgnoreCase) ||
+                         projName.EndsWith(".Benchmarks", StringComparison.OrdinalIgnoreCase) ||
+                         projName.Contains(".Benchmarks.", StringComparison.OrdinalIgnoreCase) ||
+                         projName.EndsWith("Benchmarks", StringComparison.OrdinalIgnoreCase) ||
                          projName.EndsWith("Tests", StringComparison.OrdinalIgnoreCase) ||
                          projName.EndsWith("Test", StringComparison.OrdinalIgnoreCase);
 
@@ -224,6 +240,8 @@ public class CSharpParser : IProjectParser, IFileParser
             var hasExeOutput = outputTypeMatch.Success &&
                                (outputTypeMatch.Groups[1].Value.Equals("Exe", StringComparison.OrdinalIgnoreCase) ||
                                 outputTypeMatch.Groups[1].Value.Equals("WinExe", StringComparison.OrdinalIgnoreCase));
+            var isExplicitLibraryOutput = outputTypeMatch.Success &&
+                                          outputTypeMatch.Groups[1].Value.Equals("Library", StringComparison.OrdinalIgnoreCase);
 
             var isWebSdk = content.Contains("Sdk=\"Microsoft.NET.Sdk.Web\"", StringComparison.OrdinalIgnoreCase) ||
                            content.Contains("Sdk='Microsoft.NET.Sdk.Web'", StringComparison.OrdinalIgnoreCase);
@@ -232,12 +250,31 @@ public class CSharpParser : IProjectParser, IFileParser
             var isBlazorWasmSdk = content.Contains("Sdk=\"Microsoft.NET.Sdk.BlazorWebAssembly\"", StringComparison.OrdinalIgnoreCase) ||
                                   content.Contains("Sdk='Microsoft.NET.Sdk.BlazorWebAssembly'", StringComparison.OrdinalIgnoreCase);
 
-            var isUiClientApp = System.Text.RegularExpressions.Regex.IsMatch(content, @"<UseMaui>\s*true\s*</UseMaui>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
-                                System.Text.RegularExpressions.Regex.IsMatch(content, @"<UseWPF>\s*true\s*</UseWPF>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
-                                System.Text.RegularExpressions.Regex.IsMatch(content, @"<UseWindowsForms>\s*true\s*</UseWindowsForms>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
-                                isBlazorWasmSdk ||
-                                content.Contains("Avalonia", StringComparison.OrdinalIgnoreCase) ||
-                                content.Contains("Uno.Sdk", StringComparison.OrdinalIgnoreCase);
+            var hasServiceProcessRef = content.Contains("Include=\"System.ServiceProcess\"", StringComparison.OrdinalIgnoreCase) ||
+                                       content.Contains("Include='System.ServiceProcess'", StringComparison.OrdinalIgnoreCase);
+            var hasServiceProcessHostingIndicator = content.Contains("System.Configuration.Install", StringComparison.OrdinalIgnoreCase) ||
+                                                    content.Contains("<SubType>Component</SubType>", StringComparison.OrdinalIgnoreCase) ||
+                                                    content.Contains("ProjectInstaller.cs", StringComparison.OrdinalIgnoreCase);
+
+            var isWindowsService = System.Text.RegularExpressions.Regex.IsMatch(content, @"<UseWindowsService>\s*true\s*</UseWindowsService>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
+                                   (hasServiceProcessRef && hasServiceProcessHostingIndicator) ||
+                                   content.Contains("Microsoft.Extensions.Hosting.WindowsServices", StringComparison.OrdinalIgnoreCase) ||
+                                   content.Contains("Include=\"Topshelf", StringComparison.OrdinalIgnoreCase);
+
+            var hasLegacyDesktopUi = hasExeOutput &&
+                                     (content.Contains("Include=\"PresentationFramework\"", StringComparison.OrdinalIgnoreCase) ||
+                                      content.Contains("Include=\"System.Windows.Forms\"", StringComparison.OrdinalIgnoreCase) ||
+                                      content.Contains("<ApplicationDefinition", StringComparison.OrdinalIgnoreCase) ||
+                                      content.Contains("{60dc8134-eba5-43b8-bcc9-bb4bc16c2548}", StringComparison.OrdinalIgnoreCase));
+
+            var isUiClientApp = !isExplicitLibraryOutput && !isWindowsService &&
+                                (System.Text.RegularExpressions.Regex.IsMatch(content, @"<UseMaui>\s*true\s*</UseMaui>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
+                                 (hasExeOutput && System.Text.RegularExpressions.Regex.IsMatch(content, @"<UseWPF>\s*true\s*</UseWPF>", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) ||
+                                 (hasExeOutput && System.Text.RegularExpressions.Regex.IsMatch(content, @"<UseWindowsForms>\s*true\s*</UseWindowsForms>", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) ||
+                                 hasLegacyDesktopUi ||
+                                 isBlazorWasmSdk ||
+                                 (hasExeOutput && content.Contains("Avalonia", StringComparison.OrdinalIgnoreCase)) ||
+                                 (hasExeOutput && content.Contains("Uno.Sdk", StringComparison.OrdinalIgnoreCase)));
 
             var hasWebConfig = filesInDirectory.Any(f => Path.GetFileName(f).Equals("web.config", StringComparison.OrdinalIgnoreCase));
             var hasWebGuid = content.Contains("{349c5851-65df-11da-9384-00065b846f21}", StringComparison.OrdinalIgnoreCase) ||
@@ -298,9 +335,18 @@ public class CSharpParser : IProjectParser, IFileParser
 
             // Stage 2 (Runnable Workload Capabilities — App, CliTool, Service, Worker)
             var hasAppCapability = isUiClientApp;
-            var hasWorkerCapability = isWorkerSdk;
+            var hasWorkerCapability = isWorkerSdk || isWindowsService;
             var hasCliCapability = hasCliBin;
             var hasServiceCapability = isWebSdk || isLegacyWeb;
+
+            if (content.Contains("SuperSocket.WebSocket", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("Microsoft.Owin.Hosting", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("System.Web.Http.SelfHost", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("CoreWCF", StringComparison.OrdinalIgnoreCase) ||
+                (isWindowsService && content.Contains("WCF.Server", StringComparison.OrdinalIgnoreCase)))
+            {
+                hasServiceCapability = true;
+            }
 
             var isExplicitBackendApi = projName.EndsWith(".API", StringComparison.OrdinalIgnoreCase) ||
                                        projName.EndsWith(".Api", StringComparison.OrdinalIgnoreCase) ||
@@ -423,9 +469,14 @@ public class CSharpParser : IProjectParser, IFileParser
                             }
                             if (fileText.Contains("BackgroundService") || fileText.Contains("IHostedService") ||
                                 fileText.Contains("IIntegrationEventHandler") || fileText.Contains("IConsumer<") ||
-                                fileText.Contains("IJob"))
+                                fileText.Contains("IJob") || fileText.Contains(": ServiceBase"))
                             {
                                 hasWorkerCapability = true;
+                            }
+                            if (fileText.Contains("new ServiceHost(") || fileText.Contains("ServiceHost(") ||
+                                fileText.Contains("WebSocketServer") || fileText.Contains("WebApp.Start"))
+                            {
+                                hasServiceCapability = true;
                             }
                             if (fileText.Contains("AddGraphQLServer") || fileText.Contains("MapGraphQL") ||
                                 fileText.Contains("AddQueryType") || fileText.Contains("AddMutationType"))
@@ -623,7 +674,7 @@ public class CSharpParser : IProjectParser, IFileParser
             {
                 var pkgContent = await File.ReadAllTextAsync(packagesConfigFile);
                 var pkgDoc = System.Xml.Linq.XDocument.Parse(pkgContent);
-                foreach (var pkg in pkgDoc.Descendants("package"))
+                foreach (var pkg in pkgDoc.Descendants().Where(e => e.Name.LocalName == "package"))
                 {
                     var id = pkg.Attribute("id")?.Value;
                     var ver = pkg.Attribute("version")?.Value ?? "unknown";
@@ -647,51 +698,76 @@ public class CSharpParser : IProjectParser, IFileParser
                 var content = await File.ReadAllTextAsync(csprojFile);
                 var doc = System.Xml.Linq.XDocument.Parse(content);
 
-                // Extract local project references
-                var projectRefs = doc.Descendants("ProjectReference");
+                // Extract local project references (use LocalName to support legacy MSBuild XML namespaces)
+                var projectRefs = doc.Descendants().Where(e => e.Name.LocalName == "ProjectReference");
                 foreach (var pref in projectRefs)
                 {
                     var include = pref.Attribute("Include")?.Value;
                     if (string.IsNullOrEmpty(include)) continue;
 
-                    var resolvedInclude = include;
+                    var resolvedInclude = include.Replace('\\', '/');
+                    var csprojDir = Path.GetDirectoryName(csprojFile)!.Replace('\\', '/');
                     if (resolvedInclude.Contains("$(SolutionDir)", StringComparison.OrdinalIgnoreCase))
                     {
-                        var slnDir = FindSolutionDir(Path.GetDirectoryName(csprojFile)!);
-                        resolvedInclude = resolvedInclude.Replace("$(SolutionDir)", slnDir.TrimEnd('\\', '/') + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+                        var slnDir = FindSolutionDir(csprojDir).Replace('\\', '/');
+                        resolvedInclude = resolvedInclude.Replace("$(SolutionDir)", slnDir.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase);
                     }
                     if (resolvedInclude.Contains("$(MSBuildThisFileDirectory)", StringComparison.OrdinalIgnoreCase))
                     {
-                        var thisDir = Path.GetDirectoryName(csprojFile)!;
-                        resolvedInclude = resolvedInclude.Replace("$(MSBuildThisFileDirectory)", thisDir.TrimEnd('\\', '/') + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+                        resolvedInclude = resolvedInclude.Replace("$(MSBuildThisFileDirectory)", csprojDir.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase);
                     }
                     if (resolvedInclude.Contains("$(ProjectDir)", StringComparison.OrdinalIgnoreCase))
                     {
-                        var thisDir = Path.GetDirectoryName(csprojFile)!;
-                        resolvedInclude = resolvedInclude.Replace("$(ProjectDir)", thisDir.TrimEnd('\\', '/') + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+                        resolvedInclude = resolvedInclude.Replace("$(ProjectDir)", csprojDir.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase);
                     }
 
-                    var referencedCsprojPath = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(csprojFile)!, resolvedInclude)).Replace('\\', '/');
+                    var referencedCsprojPath = Path.GetFullPath(Path.Combine(csprojDir, resolvedInclude)).Replace('\\', '/');
                     var referencedProjectDir = Path.GetFullPath(Path.GetDirectoryName(referencedCsprojPath)!).Replace('\\', '/');
+                    referencedProjectDir = ResolveActualDirectoryPath(referencedProjectDir);
                     localProjectPaths.Add(referencedProjectDir);
                 }
 
                 // Extract NuGet package references
-                var packageRefs = doc.Descendants("PackageReference");
+                var packageRefs = doc.Descendants().Where(e => e.Name.LocalName == "PackageReference");
                 foreach (var packRef in packageRefs)
                 {
-                    var name = packRef.Attribute("Include")?.Value;
-                    var version = packRef.Attribute("Version")?.Value ?? packRef.Element("Version")?.Value ?? "unknown";
+                    var name = packRef.Attribute("Include")?.Value ?? packRef.Attribute("Update")?.Value;
+                    var version = packRef.Attribute("Version")?.Value
+                                  ?? packRef.Elements().FirstOrDefault(e => e.Name.LocalName == "Version")?.Value
+                                  ?? "unknown";
                     if (string.IsNullOrEmpty(name)) continue;
 
                     externalPackages.Add(new ProducedPackageInfo(name, version, "nuget"));
                 }
 
+                // Extract legacy assembly References (e.g. EntityFramework, System.ServiceModel, System.ServiceProcess)
+                var assemblyRefs = doc.Descendants().Where(e => e.Name.LocalName == "Reference");
+                foreach (var asmRef in assemblyRefs)
+                {
+                    var rawInclude = asmRef.Attribute("Include")?.Value;
+                    if (string.IsNullOrWhiteSpace(rawInclude)) continue;
+                    var asmName = rawInclude.Split(',')[0].Trim();
+                    if (string.IsNullOrEmpty(asmName) ||
+                        asmName.Equals("System", StringComparison.OrdinalIgnoreCase) ||
+                        asmName.Equals("System.Core", StringComparison.OrdinalIgnoreCase) ||
+                        asmName.Equals("System.Xml", StringComparison.OrdinalIgnoreCase) ||
+                        asmName.Equals("System.Xml.Linq", StringComparison.OrdinalIgnoreCase) ||
+                        asmName.Equals("Microsoft.CSharp", StringComparison.OrdinalIgnoreCase) ||
+                        asmName.Equals("mscorlib", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+                    if (!externalPackages.Any(p => p.Name.Equals(asmName, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        externalPackages.Add(new ProducedPackageInfo(asmName, "framework", "nuget"));
+                    }
+                }
+
                 // Check Web SDK or FrameworkReference
                 var sdkAttr = doc.Root?.Attribute("Sdk")?.Value ?? "";
                 var hasWebSdk = sdkAttr.Contains("Microsoft.NET.Sdk.Web", StringComparison.OrdinalIgnoreCase) ||
-                                doc.Descendants("Import").Any(i => (i.Attribute("Sdk")?.Value ?? "").Contains("Microsoft.NET.Sdk.Web", StringComparison.OrdinalIgnoreCase));
-                var hasAspNetCoreFrameworkRef = doc.Descendants("FrameworkReference")
+                                doc.Descendants().Where(e => e.Name.LocalName == "Import").Any(i => (i.Attribute("Sdk")?.Value ?? "").Contains("Microsoft.NET.Sdk.Web", StringComparison.OrdinalIgnoreCase));
+                var hasAspNetCoreFrameworkRef = doc.Descendants().Where(e => e.Name.LocalName == "FrameworkReference")
                     .Any(fr => string.Equals(fr.Attribute("Include")?.Value, "Microsoft.AspNetCore.App", StringComparison.OrdinalIgnoreCase));
 
                 if (hasWebSdk || hasAspNetCoreFrameworkRef)
@@ -706,6 +782,53 @@ public class CSharpParser : IProjectParser, IFileParser
         }
 
         return new ProjectDependencyInfo(localProjectPaths, externalPackages);
+    }
+
+    private static string ResolveActualDirectoryPath(string dirPath)
+    {
+        if (Directory.Exists(dirPath))
+        {
+            try
+            {
+                var parent = Path.GetDirectoryName(dirPath);
+                var leaf = Path.GetFileName(dirPath);
+                if (!string.IsNullOrEmpty(parent) && !string.IsNullOrEmpty(leaf) && Directory.Exists(parent))
+                {
+                    var match = Directory.EnumerateDirectories(parent)
+                        .FirstOrDefault(d => string.Equals(Path.GetFileName(d), leaf, StringComparison.OrdinalIgnoreCase));
+                    if (match != null)
+                    {
+                        return Path.GetFullPath(match).Replace('\\', '/');
+                    }
+                }
+            }
+            catch
+            {
+                // Fallback
+            }
+            return dirPath;
+        }
+
+        try
+        {
+            var parent = Path.GetDirectoryName(dirPath);
+            var leaf = Path.GetFileName(dirPath);
+            if (!string.IsNullOrEmpty(parent) && !string.IsNullOrEmpty(leaf) && Directory.Exists(parent))
+            {
+                var match = Directory.EnumerateDirectories(parent)
+                    .FirstOrDefault(d => string.Equals(Path.GetFileName(d), leaf, StringComparison.OrdinalIgnoreCase));
+                if (match != null)
+                {
+                    return Path.GetFullPath(match).Replace('\\', '/');
+                }
+            }
+        }
+        catch
+        {
+            // Fallback
+        }
+
+        return dirPath;
     }
 
     private static string FindSolutionDir(string startDir)
