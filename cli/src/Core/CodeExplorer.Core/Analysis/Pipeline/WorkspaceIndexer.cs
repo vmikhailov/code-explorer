@@ -17,7 +17,7 @@ public class WorkspaceIndexer
             Analysis.Layers.Layer4_Semantic.Analyzers.EndpointSemanticAnalyzer.Enrich(tree, null, ctx);
     }
 
-    internal static readonly List<IProjectParser> _projectParsers = [new ScriptProjectParser()];
+    internal static readonly List<IProjectParser> _projectParsers = [];
     internal static readonly List<IFileParser> _fileParsers = [];
 
     public static void Register(object parser)
@@ -26,15 +26,15 @@ public class WorkspaceIndexer
         {
             if (_projectParsers.All(p => p.GetType() != projectParser.GetType()))
             {
-                if (projectParser is ScriptProjectParser)
+                if (projectParser.IsFallback)
                 {
                     _projectParsers.Add(projectParser);
                 }
                 else
                 {
-                    var scriptIdx = _projectParsers.FindIndex(p => p is ScriptProjectParser);
-                    if (scriptIdx >= 0)
-                        _projectParsers.Insert(scriptIdx, projectParser);
+                    var fallbackIdx = _projectParsers.FindIndex(p => p.IsFallback);
+                    if (fallbackIdx >= 0)
+                        _projectParsers.Insert(fallbackIdx, projectParser);
                     else
                         _projectParsers.Add(projectParser);
                 }
@@ -95,8 +95,8 @@ public class WorkspaceIndexer
                 continue;
             }
 
-            // Ensure TypeScriptParser precedes JavaScriptParser, and ScriptProjectParser is always last
-            types = [.. types.OrderBy(t => t.Name == "ScriptProjectParser" ? 2 : (t.Name == "JavaScriptParser" ? 1 : 0))];
+            // Ensure TypeScriptParser precedes JavaScriptParser
+            types = [.. types.OrderBy(t => t.Name == "JavaScriptParser" ? 1 : 0)];
 
             foreach (var type in types)
             {

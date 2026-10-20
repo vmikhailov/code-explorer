@@ -49,7 +49,7 @@ public class Layer2ProjectParser
 
             var filesInDir = Directory.GetFiles(dir);
             var matchingParsers = WorkspaceIndexer._projectParsers
-                .Where(p => p is not ScriptProjectParser && p.IsProjectDirectory(dir, filesInDir))
+                .Where(p => !p.IsFallback && p.IsProjectDirectory(dir, filesInDir))
                 .OrderBy(p => GetProjectParserPriority(p.ProjectType))
                 .ToList();
 
@@ -171,9 +171,9 @@ public class Layer2ProjectParser
             }
         }
 
-        // Pass 2: Fallback ScriptProject detection for directories with loose scripts not enclosed in any project
-        var scriptParser = WorkspaceIndexer._projectParsers.OfType<ScriptProjectParser>().FirstOrDefault();
-        if (!ctx.IsSubtreeScan && scriptParser != null)
+        // Pass 2: Fallback project detection for directories with loose scripts or unmanaged projects not enclosed in any standard project
+        var fallbackParsers = WorkspaceIndexer._projectParsers.Where(p => p.IsFallback).ToList();
+        if (!ctx.IsSubtreeScan && fallbackParsers.Count > 0)
         {
             foreach (var dir in dirsToCheck)
             {
@@ -191,7 +191,8 @@ public class Layer2ProjectParser
                 if (isCovered) continue;
 
                 var filesInDir = Directory.GetFiles(dir);
-                if (scriptParser.IsProjectDirectory(dir, filesInDir))
+                var fallbackParser = fallbackParsers.FirstOrDefault(p => p.IsProjectDirectory(dir, filesInDir));
+                if (fallbackParser != null)
                 {
                     var folderName = Path.GetFileName(dir);
                     if (string.IsNullOrEmpty(folderName)) folderName = Path.GetFileName(ctx.AbsoluteWorkspacePath.TrimEnd('/', '\\'));
@@ -204,8 +205,8 @@ public class Layer2ProjectParser
                     var projectNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Project}:{relativeProjectDir}:";
                     if (projects.Any(p => p.Id == projectNodeId)) continue;
 
-                    var manifestProps = scriptParser.ExtractManifestProperties(dir, filesInDir);
-                    var dominantLang = manifestProps.GetValueOrDefault("language") ?? scriptParser.ProjectType;
+                    var manifestProps = fallbackParser.ExtractManifestProperties(dir, filesInDir);
+                    var dominantLang = manifestProps.GetValueOrDefault("language") ?? fallbackParser.ProjectType;
 
                     var projectNode = ProjectNodeFactory.Create(
                         projectNodeId,
@@ -257,7 +258,7 @@ public class Layer2ProjectParser
                     if (!projects.Any(p => p.Id == projectNodeId))
                     {
                         var filesInDir = Directory.GetFiles(dir);
-                        var projectParser = WorkspaceIndexer._projectParsers.Where(p => p is not ScriptProjectParser).FirstOrDefault(p => p.IsProjectDirectory(dir, filesInDir));
+                        var projectParser = WorkspaceIndexer._projectParsers.Where(p => !p.IsFallback).FirstOrDefault(p => p.IsProjectDirectory(dir, filesInDir));
                         if (projectParser != null)
                         {
                             var projectName = projectParser.GetProjectName(dir, filesInDir);

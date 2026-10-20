@@ -2,8 +2,34 @@ using CodeExplorer.Core.Common;
 
 namespace CodeExplorer.Core.Parser;
 
+public enum ProjectParserRole
+{
+    /// <summary>
+    /// Standard dialect/framework project parser (e.g. C#, TypeScript, Go, Python, Rust, Java).
+    /// Evaluated in the primary pass.
+    /// </summary>
+    Standard = 0,
+
+    /// <summary>
+    /// Fallback project parser (e.g. loose scripts) evaluated only after standard
+    /// dialect parsers have completed their matching.
+    /// </summary>
+    Fallback = 1
+}
+
 public interface IProjectParser
 {
+    /// <summary>
+    /// The parser role (Standard vs Fallback). Fallback parsers are evaluated only after
+    /// standard dialect parsers have completed their matching.
+    /// </summary>
+    ProjectParserRole ParserRole => ProjectParserRole.Standard;
+
+    /// <summary>
+    /// Whether this parser acts as a fallback parser.
+    /// </summary>
+    bool IsFallback => ParserRole == ProjectParserRole.Fallback;
+
     /// <summary>
     /// The project type/language identifier (e.g., "csharp", "go", "python", "typescript").
     /// </summary>

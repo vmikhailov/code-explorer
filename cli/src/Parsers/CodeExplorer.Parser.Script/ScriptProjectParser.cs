@@ -1,14 +1,19 @@
 using CodeExplorer.Core.Common;
+using CodeExplorer.Core.Parser;
 
-namespace CodeExplorer.Core.Parser;
+namespace CodeExplorer.Parser.Script;
 
 /// <summary>
 /// Fallback project parser that detects directories containing loose scripts
-/// (.py, .ps1, .sh, .cs, .js, .ts, etc.) when no other project parser matched.
+/// (.py, .ps1, .sh, .bash, .zsh, .rb, .pl, .bat, .cmd) when no standard dialect parser matched.
 /// </summary>
 public class ScriptProjectParser : IProjectParser
 {
     public string ProjectType => "script";
+
+    public ProjectParserRole ParserRole => ProjectParserRole.Fallback;
+
+    public bool IsFallback => true;
 
     public IReadOnlyCollection<string> ExcludedFolders => ["venv", ".venv", "__pycache__", "node_modules", "bin", "obj", ".git"];
 

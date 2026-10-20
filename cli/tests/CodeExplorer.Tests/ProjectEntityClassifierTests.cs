@@ -300,12 +300,12 @@ public class ProjectEntityClassifierTests
     [Test]
     public void ScriptProjectParser_DoesNotTreatTsOrJsAsScripts()
     {
-        CodeExplorer.Core.Parser.ScriptProjectParser.IsScriptFile("file.ts").Should().BeFalse();
-        CodeExplorer.Core.Parser.ScriptProjectParser.IsScriptFile("file.js").Should().BeFalse();
-        CodeExplorer.Core.Parser.ScriptProjectParser.IsScriptFile("file.mjs").Should().BeFalse();
-        CodeExplorer.Core.Parser.ScriptProjectParser.IsScriptFile("file.cs").Should().BeFalse();
-        CodeExplorer.Core.Parser.ScriptProjectParser.IsScriptFile("file.ps1").Should().BeTrue();
-        CodeExplorer.Core.Parser.ScriptProjectParser.IsScriptFile("file.sh").Should().BeTrue();
-        CodeExplorer.Core.Parser.ScriptProjectParser.IsScriptFile("file.py").Should().BeTrue();
+        CodeExplorer.Parser.Script.ScriptProjectParser.IsScriptFile("file.ts").Should().BeFalse();
+        CodeExplorer.Parser.Script.ScriptProjectParser.IsScriptFile("file.js").Should().BeFalse();
+        CodeExplorer.Parser.Script.ScriptProjectParser.IsScriptFile("file.mjs").Should().BeFalse();
+        CodeExplorer.Parser.Script.ScriptProjectParser.IsScriptFile("file.cs").Should().BeFalse();
+        CodeExplorer.Parser.Script.ScriptProjectParser.IsScriptFile("file.ps1").Should().BeTrue();
+        CodeExplorer.Parser.Script.ScriptProjectParser.IsScriptFile("file.sh").Should().BeTrue();
+        CodeExplorer.Parser.Script.ScriptProjectParser.IsScriptFile("file.py").Should().BeTrue();
     }
 }

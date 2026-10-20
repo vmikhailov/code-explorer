@@ -1546,4 +1546,23 @@ public interface IUsersApi
             Directory.Delete(tempDir, true);
         }
     }
+
+    [Test]
+    public void Test_ProjectParserRole_Fallback_Behavior()
+    {
+        IProjectParser scriptParser = new CodeExplorer.Parser.Script.ScriptProjectParser();
+        scriptParser.ParserRole.Should().Be(ProjectParserRole.Fallback);
+        scriptParser.IsFallback.Should().BeTrue();
+
+        IProjectParser csParser = new CSharpParser();
+        csParser.ParserRole.Should().Be(ProjectParserRole.Standard);
+        csParser.IsFallback.Should().BeFalse();
+
+        // Verify WorkspaceIndexer parser ordering puts fallback parser last
+        WorkspaceIndexer.AutoRegisterParsers();
+        var allParsers = WorkspaceIndexer.GetAllProjectParsers().ToList();
+        allParsers.Should().Contain(p => p is CodeExplorer.Parser.Script.ScriptProjectParser);
+        var lastParser = allParsers.Last();
+        lastParser.ParserRole.Should().Be(ProjectParserRole.Fallback);
+    }
 }
