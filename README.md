@@ -72,18 +72,17 @@ irm https://raw.githubusercontent.com/vmikhailov/code-explorer/main/cli/scripts/
 dotnet tool install -g CodeExplorer.Cli
 ```
 
-### Prebuilt Binaries
+### Prebuilt Binaries (Native Standalone)
 
 Standalone archives are available on [GitHub Releases](https://github.com/vmikhailov/code-explorer/releases/latest):
 
 | OS | Architecture | Asset |
 | :--- | :--- | :--- |
 | macOS | Apple Silicon (`arm64`) | `ce-osx-arm64.tar.gz` |
-| macOS | Intel (`x64`) | `ce-osx-x64.tar.gz` |
-| Linux | `x64` | `ce-linux-x64.tar.gz` |
-| Linux | `arm64` | `ce-linux-arm64.tar.gz` |
-| Windows | `x64` | `ce-win-x64.zip` |
-| Windows | `arm64` | `ce-win-arm64.zip` |
+| Windows | x64 | `ce-win-x64.zip` |
+
+*Note: For other architectures (Linux x64/ARM64, macOS Intel, Windows ARM64), install the lightweight universal .NET tool: `dotnet tool install -g CodeExplorer.Cli`.*
+
 
 ---
 
