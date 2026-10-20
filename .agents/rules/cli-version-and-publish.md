@@ -50,8 +50,3 @@ Whenever fixes or features are made to CodeExplorer (CLI or VS Code Extension):
      - Runs CLI test suites and builds standalone native binaries for 6 architectures (Win/Linux/macOS x64 & ARM64).
      - Packages and publishes `CodeExplorer.Cli` to NuGet.org.
      - Typechecks, tests, packages the VS Code Extension (`.vsix`), attaches it to the GitHub Release, and publishes to VS Code Marketplace & Open VSX Registry.
-
-5. **Post-Push GitHub Actions Verification (+10 Minutes Deferred Task — Only When Pipeline is Empty)**:
-   - During night or long-running task processing, **ONLY when there are no remaining tasks in the pipeline** (i.e., after the final task in the queue has been pushed and the agent is about to go idle), schedule a single deferred `+10 minutes` (`DurationSeconds: 600`) timer via the `schedule` tool with `TimerCondition: "any"` (so any new user message or task in the meantime automatically cancels it).
-   - Do **NOT** schedule a 10-minute timer in the middle of an active multi-step pipeline while other tasks are still pending.
-   - When the timer fires, check the GitHub Actions workflow status (`(Invoke-RestMethod -Uri "https://api.github.com/repos/vmikhailov/code-explorer/actions/runs?per_page=5").workflow_runs | Select-Object id, name, head_branch, status, conclusion`). If any job failed, automatically inspect the failure jobs/logs (`https://api.github.com/repos/vmikhailov/code-explorer/actions/runs/<run-id>/jobs`), fix the issue, increment the patch version, and re-verify until the GitHub Actions build is green.
