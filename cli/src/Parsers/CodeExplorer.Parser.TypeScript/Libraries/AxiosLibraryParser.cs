@@ -105,7 +105,7 @@ public class AxiosLibraryParser : ISemanticExtension
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {
-        if (IsHttpCallNode(node)) return OntologyConstants.NodeLabels.ExternalService;
+        if (IsHttpCallNode(node) && ExtractIdentifier(node, ctx) != null) return OntologyConstants.NodeLabels.ExternalService;
         return null;
     }
 
@@ -121,8 +121,14 @@ public class AxiosLibraryParser : ISemanticExtension
                 var targetArg = args[0];
                 var func = node.GetFunctionNode();
                 string? verb = null;
+                string? objText = null;
                 if (func.IsValid() && func.Is(TreeSitterSyntax.TypeScript.MemberExpression))
                 {
+                    var objNode = func.GetField(TreeSitterSyntax.Fields.Object);
+                    if (objNode.IsValid())
+                    {
+                        objText = objNode.Text?.ToLowerInvariant();
+                    }
                     var propNode = func.GetField(TreeSitterSyntax.Fields.Property);
                     if (propNode.IsValid())
                     {
@@ -172,6 +178,19 @@ public class AxiosLibraryParser : ISemanticExtension
                         var cleanBase = baseUrl.TrimEnd('/');
                         var cleanPath = resolved.TrimStart('/');
                         return $"{cleanBase}/{cleanPath}";
+                    }
+
+                    if (func.IsValid() && func.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+                    {
+                        var isGenericClient = (objText is "client" or "this.client" || (objText != null && !objText.Contains("axios") && !objText.Contains("http") && !objText.Contains("api") && !objText.Contains("rest"))) && !IsEnclosingClassApiClient(node);
+                        if (isGenericClient &&
+                            !resolved.Contains("://") &&
+                            !resolved.Contains('.') &&
+                            !resolved.Contains('/') &&
+                            !RouteDictionaryRegistry.TryResolve(resolved, out _, out _))
+                        {
+                            return null;
+                        }
                     }
 
                     // If resolved starts with '/', preserve it so CreateExternalServiceNode recognizes relative routes

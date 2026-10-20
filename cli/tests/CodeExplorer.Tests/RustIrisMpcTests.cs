@@ -1,4 +1,9 @@
 using System.Threading.Channels;
+using AwesomeAssertions;
+using CodeExplorer.Core.Common.Nodes;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
+using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.Rust;
@@ -121,5 +126,156 @@ public class RustIrisMpcTests
         var fileNode = syntaxTree.FileNode;
         fileNode.Should().NotBeNull();
         fileNode.Path.Should().Contain("iris-mpc-common");
+    }
+
+    [Test]
+    public async Task IrisMpc_WorkspaceDependencies_ResolvesLocalPathInheritance()
+    {
+        var parser = new RustParser();
+        var mpcDir = Path.Combine(IrisMpcWorkspacePath, "iris-mpc");
+
+        var deps = await parser.ParseDependenciesAsync(mpcDir);
+        deps.Should().NotBeNull();
+
+        // iris-mpc-cpu is defined as `iris-mpc-cpu.workspace = true` in iris-mpc/Cargo.toml
+        // and resolved via [workspace.dependencies] `iris-mpc-cpu = { path = "./iris-mpc-cpu" }`
+        deps.LocalProjectPaths.Any(p => p.EndsWith("iris-mpc-cpu", StringComparison.OrdinalIgnoreCase)).Should().BeTrue();
+    }
+
+    [Test]
+    public async Task IrisMpc_DevDependencies_ExcludedFromLocalProjectPathsForNonTestCrates()
+    {
+        var parser = new RustParser();
+        var mpcDir = Path.Combine(IrisMpcWorkspacePath, "iris-mpc");
+
+        var deps = await parser.ParseDependenciesAsync(mpcDir);
+        deps.Should().NotBeNull();
+
+        // iris-mpc has `iris-mpc-utils` in [dev-dependencies].
+        // For non-test crates, dev-dependencies MUST NOT be in LocalProjectPaths to avoid false cycles.
+        deps.LocalProjectPaths.Any(p => p.EndsWith("iris-mpc-utils", StringComparison.OrdinalIgnoreCase)).Should().BeFalse();
+
+        // But iris-mpc-utils has `iris-mpc` in [dependencies], which MUST be present.
+        var utilsDir = Path.Combine(IrisMpcWorkspacePath, "iris-mpc-utils");
+        var utilsDeps = await parser.ParseDependenciesAsync(utilsDir);
+        utilsDeps.LocalProjectPaths.Any(p => p.EndsWith("iris-mpc", StringComparison.OrdinalIgnoreCase)).Should().BeTrue();
+    }
+
+    [Test]
+    public async Task IrisMpc_StandaloneBinarySubfolders_DetectedAndClassified()
+    {
+        var parser = new RustParser();
+        var reaperDir = Path.Combine(IrisMpcWorkspacePath, "iris-mpc-bins", "bin", "retention-reaper");
+        var reaperFiles = Directory.GetFiles(reaperDir, "*", SearchOption.AllDirectories);
+
+        parser.IsProjectDirectory(reaperDir, reaperFiles).Should().BeTrue();
+        parser.GetProjectName(reaperDir, reaperFiles).Should().Be("retention-reaper");
+
+        var produced = await parser.GetProducedPackageAsync(reaperDir);
+        produced.Should().BeNull();
+
+        var reaperProps = parser.ExtractManifestProperties(reaperDir, reaperFiles);
+        reaperProps["primary_role"].Should().Be("Worker");
+        reaperProps["is_library"].Should().Be("false");
+
+        var anonDir = Path.Combine(IrisMpcWorkspacePath, "iris-mpc-bins", "bin", "iris-mpc-anon-stats-server");
+        var anonFiles = Directory.GetFiles(anonDir, "*", SearchOption.AllDirectories);
+        parser.IsProjectDirectory(anonDir, anonFiles).Should().BeTrue();
+
+        var anonProps = parser.ExtractManifestProperties(anonDir, anonFiles);
+        anonProps["primary_role"].Should().Be("Service");
+        anonProps["is_library"].Should().Be("false");
+    }
+
+    [Test]
+    public async Task IrisMpc_DatabaseSchemaDetection_DetectsConcreteSchemas()
+    {
+        var parser = new RustParser();
+        ConstantRegistry.Clear();
+
+        // 1. Load node config toml and parse common/config/mod.rs to register constants
+        var tomlPath = Path.Combine(IrisMpcWorkspacePath, "iris-mpc-utils", "assets", "node-config", "docker", "main-0-node-0.toml");
+        if (File.Exists(tomlPath))
+        {
+            ConfigStore.LoadFile(tomlPath, "iris-mpc-utils");
+        }
+        var configPath = Path.Combine(IrisMpcWorkspacePath, "iris-mpc-common", "src", "config", "mod.rs");
+        if (File.Exists(configPath))
+        {
+            using var configTree = await parser.ParseAsync(configPath, "parent", "ws", IrisMpcWorkspacePath);
+            AstConstantExtractor.ExtractAndRegister(configTree, "iris-mpc-common");
+            var schemas = SyntaxEnricher.DetectDeclaredSchemas(null, configTree.FileNode, configTree, "relational");
+            TestContext.Out.WriteLine($"iris-mpc-common schemas: {string.Join(", ", schemas)}");
+            schemas.Should().Contain(s => s.Equals("SMPC", StringComparison.OrdinalIgnoreCase));
+            schemas.Should().Contain(s => s.Equals("SMPC_hnsw", StringComparison.OrdinalIgnoreCase));
+            schemas.Should().Contain(s => s.Equals("anon_stats_mpc", StringComparison.OrdinalIgnoreCase));
+        }
+
+        // 2. Parse store/src/lib.rs (Library project should NOT invent a project-named schema or leak test schemas)
+        var storePath = Path.Combine(IrisMpcWorkspacePath, "iris-mpc-store", "src", "lib.rs");
+        if (File.Exists(storePath))
+        {
+            using var storeTree = await parser.ParseAsync(storePath, "parent", "ws", IrisMpcWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(storeTree, "ws", IrisMpcWorkspacePath, null, "iris-mpc-store", false, "Library");
+            var schemas = SyntaxEnricher.DetectDeclaredSchemas(null, storeTree.FileNode, storeTree, "relational");
+            TestContext.Out.WriteLine($"iris-mpc-store schemas: {string.Join(", ", schemas)}");
+            schemas.Should().BeEmpty();
+
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphClient();
+            var ctx = new ParsingContext(IrisMpcWorkspacePath, IrisMpcWorkspacePath, client, channel);
+            ctx.SemanticStructure = new SemanticStructureNode("ws:sem", "sem", IrisMpcWorkspacePath);
+            var enricher = parser.GetSyntaxEnricher(storeTree);
+            var projNode = new ProjectNode("proj:iris-mpc-store", "iris-mpc-store", "iris-mpc-store", "rust", "Library", true, new Dictionary<string, string> { ["role"] = "Library", ["is_library"] = "true" });
+            await enricher.EnrichAsync(projNode, ctx);
+            ctx.SemanticStructure.Children.Should().NotContain(c => c.Id.Contains("iris-mpc-store", StringComparison.OrdinalIgnoreCase) && c is DatabaseNode);
+        }
+
+        // 3. Parse reaper
+        var reaperPath = Path.Combine(IrisMpcWorkspacePath, "iris-mpc-bins", "bin", "retention-reaper", "main.rs");
+        if (File.Exists(reaperPath))
+        {
+            using var reaperTree = await parser.ParseAsync(reaperPath, "parent", "ws", IrisMpcWorkspacePath);
+            AstConstantExtractor.ExtractAndRegister(reaperTree, "retention-reaper");
+            var schemas = SyntaxEnricher.DetectDeclaredSchemas(null, reaperTree.FileNode, reaperTree, "relational");
+            TestContext.Out.WriteLine($"retention-reaper schemas: {string.Join(", ", schemas)}");
+            schemas.Should().BeEquivalentTo(["public"]);
+        }
+
+        // 4. Parse anon stats server
+        var anonPath = Path.Combine(IrisMpcWorkspacePath, "iris-mpc-bins", "bin", "iris-mpc-anon-stats-server", "main.rs");
+        if (File.Exists(anonPath))
+        {
+            using var anonTree = await parser.ParseAsync(anonPath, "parent", "ws", IrisMpcWorkspacePath);
+            AstConstantExtractor.ExtractAndRegister(anonTree, "iris-mpc-anon-stats-server");
+            var schemas = SyntaxEnricher.DetectDeclaredSchemas(null, anonTree.FileNode, anonTree, "relational");
+            TestContext.Out.WriteLine($"iris-mpc-anon-stats-server schemas: {string.Join(", ", schemas)}");
+            schemas.Should().BeEquivalentTo(["anon_stats_mpc"]);
+        }
+
+        // 5. Parse iris-mpc GPU server (iris-mpc-bins/bin/iris-mpc/server.rs)
+        var serverPath = Path.Combine(IrisMpcWorkspacePath, "iris-mpc-bins", "bin", "iris-mpc", "server.rs");
+        if (File.Exists(serverPath))
+        {
+            using var serverTree = await parser.ParseAsync(serverPath, "parent", "ws", IrisMpcWorkspacePath);
+            AstConstantExtractor.ExtractAndRegister(serverTree, "iris-mpc");
+            var schemas = SyntaxEnricher.DetectDeclaredSchemas(null, serverTree.FileNode, serverTree, "relational");
+            TestContext.Out.WriteLine($"iris-mpc-bins server.rs schemas: {string.Join(", ", schemas)}");
+            schemas.Should().Contain(s => s.Equals("SMPC", StringComparison.OrdinalIgnoreCase));
+            schemas.Should().Contain(s => s.Equals("anon_stats_mpc", StringComparison.OrdinalIgnoreCase));
+        }
+
+        // 6. Parse iris-mpc HNSW server (iris-mpc/src/server/mod.rs)
+        var hnswServerPath = Path.Combine(IrisMpcWorkspacePath, "iris-mpc", "src", "server", "mod.rs");
+        if (File.Exists(hnswServerPath))
+        {
+            using var hnswServerTree = await parser.ParseAsync(hnswServerPath, "parent", "ws", IrisMpcWorkspacePath);
+            AstConstantExtractor.ExtractAndRegister(hnswServerTree, "iris-mpc");
+            var schemas = SyntaxEnricher.DetectDeclaredSchemas(null, hnswServerTree.FileNode, hnswServerTree, "relational");
+            TestContext.Out.WriteLine($"iris-mpc HNSW server/mod.rs schemas: {string.Join(", ", schemas)}");
+            schemas.Should().Contain(s => s.Equals("SMPC_hnsw", StringComparison.OrdinalIgnoreCase));
+            schemas.Should().Contain(s => s.Equals("SMPC", StringComparison.OrdinalIgnoreCase));
+            schemas.Should().Contain(s => s.Equals("anon_stats_mpc", StringComparison.OrdinalIgnoreCase));
+        }
     }
 }

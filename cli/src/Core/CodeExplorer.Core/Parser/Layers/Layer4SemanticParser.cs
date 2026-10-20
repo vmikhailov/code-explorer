@@ -148,6 +148,7 @@ public class Layer4SemanticParser
                 {
                     CollectSemanticNodes(syntaxTree.FileNode, projectSemanticNodes);
                 }
+                syntaxTree.Dispose();
             }
 
             // If code-first GraphQL EndpointNodes exist in this project for a given (OperationType, RouteTemplate),
@@ -435,6 +436,12 @@ public class Layer4SemanticParser
         ctx.CancellationToken.ThrowIfCancellationRequested();
         ctx.Log("[Layer4] Queuing workspace ontology tree for database persistence...");
         await OntologyUploader.UploadNodeTreeAsync(l3Result.Prev.Prev.Workspace, null, ctx);
+
+        // Free any remaining native TreeSitter memory after Layer 4
+        foreach (var tree in l3Result.SyntaxTrees)
+        {
+            tree.Dispose();
+        }
 
         ctx.Log($"[Layer4] Semantic enrichment pass complete. Identified {semanticNodes.Count} semantic nodes.");
         return new Layer4Result(l3Result, semanticStructureNode, semanticNodes, semanticRelationships);

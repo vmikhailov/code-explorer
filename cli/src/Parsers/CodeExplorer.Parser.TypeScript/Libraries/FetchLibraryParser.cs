@@ -22,7 +22,7 @@ public class FetchLibraryParser : ISemanticExtension
             NodeSelector.New().HasType(TreeSitterSyntax.Common.Identifier).Text("fetch|nodeFetch|got|superagent|restRequest|apiClient"),
             NodeSelector.New()
                 .HasType(TreeSitterSyntax.TypeScript.MemberExpression)
-                .HasChild(TreeSitterSyntax.Fields.Object, NodeSelector.New().Text("got|superagent|request|http|https|api|client"))
+                .HasChild(TreeSitterSyntax.Fields.Object, NodeSelector.New().Text("got|superagent|request|http|https|api"))
                 .HasChild(TreeSitterSyntax.Fields.Property, NodeSelector.New().Text("get|post|put|delete|request|patch|head"))
         ));
 

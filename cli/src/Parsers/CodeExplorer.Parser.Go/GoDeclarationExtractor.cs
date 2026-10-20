@@ -26,7 +26,8 @@ public static class GoDeclarationExtractor
                           node.Children.FirstOrDefault(c => c.Type is TreeSitterSyntax.Go.RawStringLiteral or
                                                                     TreeSitterSyntax.Go.InterpretedStringLiteral or
                                                                     TreeSitterSyntax.Go.ExpressionList or
-                                                                    TreeSitterSyntax.Common.BinaryExpression);
+                                                                    TreeSitterSyntax.Common.BinaryExpression or
+                                                                    TreeSitterSyntax.Common.CallExpression);
 
             if (valNode.IsValid() && valNode.Type == TreeSitterSyntax.Go.ExpressionList && valNode.Children.Count > 0)
             {
@@ -36,6 +37,30 @@ public static class GoDeclarationExtractor
             if (nameNode.IsValid() && valNode.IsValid())
             {
                 register(nameNode.Text, valNode, null);
+            }
+            return;
+        }
+
+        if (type == "keyed_element" && node.Children.Count >= 3)
+        {
+            var keyChild = node.Children[0];
+            if (keyChild.IsValid() && keyChild.Type == "literal_element" && keyChild.Children.Count > 0)
+            {
+                keyChild = keyChild.Children[0];
+            }
+            var valChild = node.Children[^1];
+            if (valChild.IsValid() && valChild.Type == "literal_element" && valChild.Children.Count > 0)
+            {
+                valChild = valChild.Children[0];
+            }
+            if (keyChild.IsValid() && valChild.IsValid())
+            {
+                var keyName = keyChild.Text.Trim();
+                if (!string.IsNullOrEmpty(keyName))
+                {
+                    register(keyName, valChild, null);
+                    register($"config.{keyName}", valChild, null);
+                }
             }
             return;
         }

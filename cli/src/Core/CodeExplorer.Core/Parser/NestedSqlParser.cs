@@ -213,6 +213,9 @@ public static class NestedSqlParser
             return m.Value;
         });
 
+        // Strip format-placeholder schema prefixes before a dot and table name (e.g. FROM "%s".irises or FROM "{}".irises)
+        cleaned = Regex.Replace(cleaned, @"[""'`]?(?:%[sdv]|\{\s*\})[""'`]?\.(?=[a-zA-Z_`""\[])", "");
+
         // 2. Normalize parameterized table template patterns into wildcard table families (e.g. data_tracker_${tableSuffix} -> data_tracker_*)
         cleaned = Regex.Replace(cleaned, @"(?<=[a-zA-Z0-9_]+[_\-])(?:\$|\#)?\{[^}]+\}", "*");
         cleaned = Regex.Replace(cleaned, @"(?:\$|\#)?\{[^}]+\}(?=[_\-][a-zA-Z0-9_]+)", "*");
@@ -308,6 +311,7 @@ public static class NestedSqlParser
                 var db = ResolveSqlIdentifier(t.Db, rawText);
 
                 if (IsSqlKeyword(table)) continue;
+                if (!PostIndexAnalyzer.IsValidTableIdentifier(table)) continue;
                 if (!string.IsNullOrEmpty(schema) && !string.Equals(schema, "default", StringComparison.OrdinalIgnoreCase) && IsSqlKeyword(schema)) continue;
 
                 if (IsUnresolvedVariable(table, rawText) || IsUnresolvedVariable(schema, rawText) ||
@@ -372,6 +376,7 @@ public static class NestedSqlParser
             dbName = ResolveSqlIdentifier(dbName, rawText);
 
             if (IsSqlKeyword(tableName) || IsSqlKeyword(rawTableName)) continue;
+            if (!PostIndexAnalyzer.IsValidTableIdentifier(tableName)) continue;
             if (!string.IsNullOrEmpty(schemaName) && !string.Equals(schemaName, "default", StringComparison.OrdinalIgnoreCase) && IsSqlKeyword(schemaName)) continue;
             if (IsUnresolvedVariable(tableName, rawText) || IsUnresolvedVariable(schemaName, rawText) || IsUnresolvedVariable(dbName, rawText)) continue;
             tables.Add((string.IsNullOrEmpty(dbName) ? null : dbName, string.IsNullOrEmpty(schemaName) ? null : schemaName, tableName));
@@ -488,7 +493,9 @@ public static class NestedSqlParser
                 if (!string.IsNullOrEmpty(anyDb.Name) &&
                     !anyDb.Name.Equals("Database", StringComparison.OrdinalIgnoreCase) &&
                     !anyDb.Name.Equals(engine, StringComparison.OrdinalIgnoreCase) &&
-                    !ResourceReconciliationService.IsGenericConfigKey(anyDb.Name))
+                    !ResourceReconciliationService.IsGenericConfigKey(anyDb.Name) &&
+                    anyDb.DeclaringFilePath != null &&
+                    string.Equals(anyDb.DeclaringFilePath.Replace('\\', '/'), filePath.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase))
                 {
                     concreteDbName = anyDb.Name;
                 }
@@ -523,6 +530,7 @@ public static class NestedSqlParser
                               : targetEngine.Equals("default", StringComparison.OrdinalIgnoreCase) ? "dbo"
                               : "public";
 
+            var isImplicitSchema = string.IsNullOrEmpty(tableRef.Schema) && string.IsNullOrEmpty(concreteDbName);
             var schemaName = !string.IsNullOrEmpty(tableRef.Schema) ? tableRef.Schema : defaultSchema;
             var tableName = tableRef.Table;
             if (!PostIndexAnalyzer.IsValidTableIdentifier(tableName)) continue;
@@ -543,6 +551,10 @@ public static class NestedSqlParser
                     ["schema"] = schemaName,
                     ["db_type"] = targetDbType
                 };
+                if (isImplicitSchema)
+                {
+                    extensions["is_implicit_schema"] = "true";
+                }
                 if (WorkspaceConventions.IsTestFilePath(filePath))
                 {
                     extensions["is_test"] = "true";
@@ -551,6 +563,10 @@ public static class NestedSqlParser
                 dbNode = new DatabaseNode(dbNodeId, fullDbName, filePath, targetDbType, extensions);
                 dbNodes[dbKey] = dbNode;
                 queryNode.Children.Add(dbNode);
+            }
+            else if (!isImplicitSchema && dbNode.Extensions != null)
+            {
+                dbNode.Extensions.Remove("is_implicit_schema");
             }
 
             var schemaKey = $"{dbKey}:{schemaName.ToLowerInvariant()}";
@@ -594,6 +610,7 @@ public static class NestedSqlParser
                               : targetEngine.Equals("default", StringComparison.OrdinalIgnoreCase) ? "dbo"
                               : "public";
 
+            var isImplicitSchema = string.IsNullOrEmpty(procRef.Schema) && string.IsNullOrEmpty(concreteDbName);
             var schemaName = !string.IsNullOrEmpty(procRef.Schema) ? procRef.Schema : defaultSchema;
             var procName = procRef.Procedure;
 
@@ -613,6 +630,10 @@ public static class NestedSqlParser
                     ["schema"] = schemaName,
                     ["db_type"] = "relational"
                 };
+                if (isImplicitSchema)
+                {
+                    extensions["is_implicit_schema"] = "true";
+                }
                 if (WorkspaceConventions.IsTestFilePath(filePath))
                 {
                     extensions["is_test"] = "true";
@@ -621,6 +642,10 @@ public static class NestedSqlParser
                 dbNode = new DatabaseNode(dbNodeId, fullDbName, filePath, "relational", extensions);
                 dbNodes[dbKey] = dbNode;
                 queryNode.Children.Add(dbNode);
+            }
+            else if (!isImplicitSchema && dbNode.Extensions != null)
+            {
+                dbNode.Extensions.Remove("is_implicit_schema");
             }
 
             var schemaKey = $"{dbKey}:{schemaName.ToLowerInvariant()}";

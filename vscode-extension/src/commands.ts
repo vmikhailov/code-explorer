@@ -318,7 +318,33 @@ export function registerWorkspaceCommands(
   getWorkspaceRoot: () => string | undefined,
   showWhatsNew: () => Promise<void>
 ) {
-  const transport = ServerTransport.getInstance();
+  registerWorkspaceLifecycleCommands(
+    context,
+    processManager,
+    treeDataProvider,
+    outputChannel,
+    getWorkspaceRoot,
+    showWhatsNew
+  );
+  registerGateCommands(context, outputChannel, getWorkspaceRoot);
+  registerConfigurationCommands(
+    context,
+    processManager,
+    treeDataProvider,
+    outputChannel,
+    getWorkspaceRoot
+  );
+}
+
+export function registerWorkspaceLifecycleCommands(
+  context: vscode.ExtensionContext,
+  processManager: ProcessManager,
+  treeDataProvider: CodeExplorerTreeDataProvider,
+  outputChannel: vscode.OutputChannel,
+  getWorkspaceRoot: () => string | undefined,
+  showWhatsNew: () => Promise<void>,
+  transport: ServerTransport = ServerTransport.getInstance()
+) {
 
   const triggerScan = async (clear: boolean) => {
     const workspaceRoot = getWorkspaceRoot();
@@ -491,6 +517,23 @@ export function registerWorkspaceCommands(
     }
   );
 
+  context.subscriptions.push(
+    reindexCommand,
+    reindexFullCommand,
+    restartServerCommand,
+    showLogsCommand,
+    updateEngineCommand,
+    whatsNewCommand,
+    initAndScanCommand
+  );
+}
+
+export function registerGateCommands(
+  context: vscode.ExtensionContext,
+  outputChannel: vscode.OutputChannel,
+  getWorkspaceRoot: () => string | undefined,
+  transport: ServerTransport = ServerTransport.getInstance()
+) {
   // Command: Evaluate Semantic Invariant Gates
   const evaluateGatesCommand = vscode.commands.registerCommand(
     'codeExplorer.evaluateGates',
@@ -792,6 +835,24 @@ export function registerWorkspaceCommands(
     }
   );
 
+  context.subscriptions.push(
+    evaluateGatesCommand,
+    ratchetGatesCommand,
+    createGateCommand,
+    editGateCommand,
+    initGatesCommand,
+    openGateYamlCommand
+  );
+}
+
+export function registerConfigurationCommands(
+  context: vscode.ExtensionContext,
+  processManager: ProcessManager,
+  treeDataProvider: CodeExplorerTreeDataProvider,
+  outputChannel: vscode.OutputChannel,
+  getWorkspaceRoot: () => string | undefined,
+  transport: ServerTransport = ServerTransport.getInstance()
+) {
   let isUpdatingSettingsProgrammatically = false;
 
   const rescanAfterSettingsChange = async (reason: string) => {
@@ -962,19 +1023,6 @@ export function registerWorkspaceCommands(
   });
 
   context.subscriptions.push(
-    reindexCommand,
-    reindexFullCommand,
-    restartServerCommand,
-    showLogsCommand,
-    updateEngineCommand,
-    whatsNewCommand,
-    initAndScanCommand,
-    createGateCommand,
-    editGateCommand,
-    evaluateGatesCommand,
-    ratchetGatesCommand,
-    initGatesCommand,
-    openGateYamlCommand,
     openWorkspaceSettingsCommand,
     excludeFromScanCommand,
     settingsSaveWatcher

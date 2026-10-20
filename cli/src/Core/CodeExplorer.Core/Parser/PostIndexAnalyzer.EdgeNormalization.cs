@@ -533,7 +533,7 @@ public partial class PostIndexAnalyzer
         }
 
         var extQuery =
-            "MATCH (es:ExternalService) RETURN es.id AS id, es.name AS name, json_extract(es.properties, '$.domain_or_service') AS domain, json_extract(es.properties, '$.path') AS path, json_extract(es.properties, '$.inferred_from_path') AS inferred_from_path, json_extract(es.properties, '$.is_relative_path') AS is_relative_path, json_extract(es.properties, '$.is_external') AS is_ext";
+            "MATCH (es:ExternalService) RETURN es.id AS id, es.name AS name, json_extract(es.properties, '$.domain_or_service') AS domain, json_extract(es.properties, '$.path') AS path, json_extract(es.properties, '$.inferred_from_path') AS inferred_from_path, json_extract(es.properties, '$.is_relative_path') AS is_relative_path, json_extract(es.properties, '$.is_external') AS is_ext, json_extract(es.properties, '$.inferred_from_identifier') AS inferred_from_ident";
         var extJson = await db.ExecuteQueryAsync(extQuery, null, cancellationToken);
 
         using var extDoc = JsonDocument.Parse(extJson);
@@ -549,6 +549,7 @@ public partial class PostIndexAnalyzer
             var inferredFromPath = GetStringProp(row, "inferred_from_path");
             var isRelativePath = GetStringProp(row, "is_relative_path");
             var isExt = GetStringProp(row, "is_ext");
+            var inferredFromIdent = GetStringProp(row, "inferred_from_ident");
 
             var cand = !string.IsNullOrWhiteSpace(domain) ? domain : name;
             if (string.IsNullOrWhiteSpace(cand)) cand = ExtractDomainFromExternalServiceId(id);
@@ -584,6 +585,12 @@ public partial class PostIndexAnalyzer
             // Check if this ExternalService matches an internal project with high confidence
             var matchingProj = FindMatchingServiceProject(cand, projectList);
             if (matchingProj != null)
+            {
+                idsToDelete.Add(id);
+                continue;
+            }
+
+            if (inferredFromIdent == "true" && !servicesCallingEndpoints.Contains(id))
             {
                 idsToDelete.Add(id);
                 continue;

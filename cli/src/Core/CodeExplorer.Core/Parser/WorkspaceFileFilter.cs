@@ -17,7 +17,7 @@ public static class WorkspaceFileFilter
         "bin", "obj", "dist", "build", ".build", ".next", ".nuxt",
         ".turbo", ".cache", ".output", "out", "coverage", "scratch", "demo",
         "vendor", "bower_components", "third_party", "thirdparty", "3rdparty",
-        ".codeexplorer", ".packages"
+        ".codeexplorer", ".packages", ".agents", ".gemini", ".claude", ".cursor"
     };
 
     public static readonly HashSet<string> ManifestFileNames = new(StringComparer.OrdinalIgnoreCase)
@@ -28,6 +28,11 @@ public static class WorkspaceFileFilter
 
     public static bool IsExcludedDirectory(string dirName, string? fullPath = null)
     {
+        if (dirName.Equals("bin", StringComparison.OrdinalIgnoreCase))
+        {
+            return IsBuildOutputBinDirectory(fullPath);
+        }
+
         if (ExcludedDirectoryNames.Contains(dirName))
             return true;
 
@@ -37,6 +42,53 @@ public static class WorkspaceFileFilter
         }
 
         return false;
+    }
+
+    public static bool IsBuildOutputBinDirectory(string? fullPath)
+    {
+        if (string.IsNullOrEmpty(fullPath)) return true;
+
+        try
+        {
+            var norm = fullPath.Replace('\\', '/');
+            var binIdx = norm.IndexOf("/bin/", StringComparison.OrdinalIgnoreCase);
+            var binDir = fullPath;
+            if (binIdx >= 0)
+            {
+                binDir = fullPath[..(binIdx + 4)];
+            }
+            else if (norm.EndsWith("/bin", StringComparison.OrdinalIgnoreCase))
+            {
+                binDir = fullPath;
+            }
+
+            var parent = Path.GetDirectoryName(binDir);
+            if (parent != null)
+            {
+                var parentName = Path.GetFileName(parent);
+                if (parentName.Equals("src", StringComparison.OrdinalIgnoreCase))
+                    return false;
+
+                if (File.Exists(Path.Combine(parent, "Cargo.toml")) || File.Exists(Path.Combine(parent, "package.json")))
+                    return false;
+            }
+
+            if (Directory.Exists(binDir) && Directory.EnumerateFiles(binDir, "*.rs", SearchOption.AllDirectories).Any())
+            {
+                return false;
+            }
+
+            if (fullPath.EndsWith(".rs", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+        catch
+        {
+            return true;
+        }
+
+        return true;
     }
 
     public static bool IsNuGetPackagesDirectory(string fullPath)

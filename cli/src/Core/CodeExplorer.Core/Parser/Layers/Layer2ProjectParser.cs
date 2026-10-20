@@ -141,8 +141,11 @@ public class Layer2ProjectParser
                 {
                     var folderName = Path.GetFileName(dir);
                     if (string.IsNullOrEmpty(folderName)) folderName = Path.GetFileName(ctx.AbsoluteWorkspacePath.TrimEnd('/', '\\'));
-                    if (string.IsNullOrEmpty(folderName)) folderName = "ScriptProject";
                     var projectName = folderName;
+                    if (projects.Any(p => string.Equals(p.Name, projectName, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        projectName = string.IsNullOrEmpty(relativeProjectDir) ? folderName : relativeProjectDir.Replace('/', '-');
+                    }
 
                     var projectNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Project}:{relativeProjectDir}:";
                     if (projects.Any(p => p.Id == projectNodeId)) continue;

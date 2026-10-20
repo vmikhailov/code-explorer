@@ -160,7 +160,9 @@ public static class ConfigStore
         if (string.IsNullOrWhiteSpace(fileName)) return false;
 
         var lower = fileName.ToLowerInvariant();
-        if (lower.StartsWith(".env") || lower is "docker-compose.yml" or "docker-compose.yaml")
+        if (lower.StartsWith(".env") ||
+            (lower.StartsWith("docker-compose") && (lower.EndsWith(".yml") || lower.EndsWith(".yaml"))) ||
+            (lower.EndsWith(".toml") && lower is not ("cargo.toml" or "pyproject.toml" or "rustfmt.toml" or "clippy.toml" or "deny.toml" or "release.toml" or "cross.toml" or "taplo.toml")))
         {
             return true;
         }
@@ -195,7 +197,7 @@ public static class ConfigStore
             {
                 ParseDotEnv(filePath, projectName);
             }
-            else if (lower.EndsWith(".properties"))
+            else if (lower.EndsWith(".properties") || lower.EndsWith(".toml"))
             {
                 ParseApplicationProperties(filePath, projectName);
             }
@@ -300,6 +302,19 @@ public static class ConfigStore
             if (string.IsNullOrWhiteSpace(rawLine)) continue;
             var trimmedStart = rawLine.TrimStart();
             if (trimmedStart.StartsWith('#')) continue;
+
+            if (trimmedStart.StartsWith("- "))
+            {
+                var itemText = trimmedStart[2..].Trim().Trim('"', '\'');
+                var envMatch = KeyValEnvRegex.Match(itemText);
+                if (envMatch.Success)
+                {
+                    var eKey = envMatch.Groups[1].Value.Trim();
+                    var eVal = envMatch.Groups[2].Value.Trim().Trim('"', '\'');
+                    RegisterConfigValue(eKey, eVal, filePath, projectName);
+                    continue;
+                }
+            }
 
             int indent = rawLine.Length - trimmedStart.Length;
 

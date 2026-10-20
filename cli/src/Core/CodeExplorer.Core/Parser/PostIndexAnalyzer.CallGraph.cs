@@ -73,8 +73,8 @@ public partial class PostIndexAnalyzer
             var from = rel.From;
             var to = rel.To;
 
-            // 1. Direct Project -> Database
-            if (kind == OntologyConstants.Relationships.UsesDb)
+            // 1. Direct Project -> Database (only when dbCanonicalMap is not provided; when provided, CanonicalizeDatabasesInMemoryAsync already materialized consolidated edges)
+            if (kind == OntologyConstants.Relationships.UsesDb && dbCanonicalMap == null)
             {
                 var isTargetDb = (nodeKindsById?.GetValueOrDefault(to) == OntologyConstants.NodeLabels.Database) ||
                                  to.Contains($":{OntologyConstants.IdPrefixes.Database}:") || to.Contains(":db:") || to.Contains(":database:") || to.Contains(":res:db:");
@@ -316,7 +316,7 @@ public partial class PostIndexAnalyzer
                                     to.Contains($":{OntologyConstants.IdPrefixes.Topic}:") || to.Contains(":topic:");
 
                 var owner = ResolveOwningProject(from);
-                if (owner != null && isTargetDb)
+                if (owner != null && isTargetDb && dbCanonicalMap == null)
                 {
                     var targetDbId = dbCanonicalMap?.GetValueOrDefault(to, to) ?? to;
                     if (owner.Id != targetDbId && existingEdges.Add((owner.Id, targetDbId, OntologyConstants.Relationships.UsesDb)))

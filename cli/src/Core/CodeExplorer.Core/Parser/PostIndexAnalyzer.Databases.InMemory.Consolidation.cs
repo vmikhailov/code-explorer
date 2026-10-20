@@ -276,7 +276,8 @@ public partial class PostIndexAnalyzer
         HashSet<string> nonTestAccessedTargets,
         string? primaryRelationalEngine,
         Dictionary<string, List<ProjectNode>> projectsByDomain,
-        Func<string, string?, bool> isTestSource)
+        Func<string, string?, bool> isTestSource,
+        HashSet<string>? rawImplicitDbIds = null)
     {
         // 2. Gather project references and consolidate databases per service/project
         var libraryProjects = projects.Where(p => 
@@ -325,42 +326,68 @@ public partial class PostIndexAnalyzer
             .Select(kvp => kvp.Key)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        bool IsGenericOrLibraryDbId(string targetId)
+        var dbOwners = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var rel in allRelationships)
         {
-            if (targetId.EndsWith(":relational:postgresql", StringComparison.OrdinalIgnoreCase) ||
-                targetId.EndsWith(":document:mongodb", StringComparison.OrdinalIgnoreCase) ||
-                targetId.EndsWith(":keyvalue:redis", StringComparison.OrdinalIgnoreCase) ||
-                targetId.EndsWith(":relational:database", StringComparison.OrdinalIgnoreCase) ||
-                targetId.EndsWith(":database:relational:database", StringComparison.OrdinalIgnoreCase))
+            if (rel.Kind == OntologyConstants.Relationships.Contains) continue;
+            var isDbRel = rel.Kind == OntologyConstants.Relationships.UsesDb ||
+                          rel.Kind == OntologyConstants.Relationships.Configures ||
+                          rawToCanonical.ContainsKey(rel.To);
+            if (!isDbRel) continue;
+
+            if (rawToCanonical.TryGetValue(rel.To, out var canonicalTarget))
             {
-                return true;
+                var owner = projects.FirstOrDefault(p => p.Id == rel.From || rel.From.StartsWith(p.Id, StringComparison.OrdinalIgnoreCase))
+                            ?? (fileToProject.TryGetValue(rel.From, out var fp) ? fp : null);
+                var relFilePath = rel.Properties != null && rel.Properties.TryGetValue("file_path", out var rfp) ? rfp?.ToString() : null;
+                if (owner != null && !isTestSource(owner.Id, owner.Path) && !isTestSource(rel.From, relFilePath))
+                {
+                    if (!dbOwners.TryGetValue(canonicalTarget, out var owners))
+                    {
+                        owners = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        dbOwners[canonicalTarget] = owners;
+                    }
+                    owners.Add(owner.Id);
+                }
             }
-            var node = canonicalDbNodes.GetValueOrDefault(targetId);
-            if (node == null) return true;
-            var eng = node.Extensions?.GetValueOrDefault("engine") ?? (node.Name.Contains('.') ? node.Name.Split('.', 2)[0] : node.Name);
-            var sch = node.Extensions?.GetValueOrDefault("schema") ?? (node.Name.Contains('.') ? node.Name.Split('.', 2)[1] : "");
-            return string.IsNullOrWhiteSpace(sch) ||
-                   sch.Equals("default", StringComparison.OrdinalIgnoreCase) ||
-                   sch.Equals("integrationeventlogef", StringComparison.OrdinalIgnoreCase) ||
-                   sch.Equals(eng, StringComparison.OrdinalIgnoreCase) ||
-                   node.Name.Equals(eng, StringComparison.OrdinalIgnoreCase) ||
-                   node.Name.EndsWith(".integrationeventlogef", StringComparison.OrdinalIgnoreCase);
         }
+
+        var multiDomainSharedLibDbIds = canonicalDbNodes.Keys
+            .Where(dbId => {
+                if (dbOwners.TryGetValue(dbId, out var owners) && owners.Count > 0)
+                {
+                    return owners.All(oId => multiDomainSharedLibs.Contains(oId));
+                }
+                return false;
+            })
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var implicitSchemaIds = canonicalDbNodes.Values
+            .Where(n => n.Extensions?.GetValueOrDefault("is_implicit_schema") == "true")
+            .Select(n => n.Id)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        bool IsGenericOrLibraryDbId(string targetId) =>
+            IsGenericOrLibraryDbIdInMemory(targetId, canonicalDbNodes, multiDomainSharedLibDbIds);
 
         var concreteEnginesCount = canonicalDbNodes.Values
             .Where(n => {
                 var s = n.Extensions?.GetValueOrDefault("schema") ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[1] : "");
+                var isImplicit = n.Extensions?.GetValueOrDefault("is_implicit_schema") == "true";
+                var isMultiDomainLibDb = multiDomainSharedLibDbIds.Contains(n.Id);
                 return !string.IsNullOrWhiteSpace(s) &&
                        !s.Equals("default", StringComparison.OrdinalIgnoreCase) &&
-                       !s.Equals("integrationeventlogef", StringComparison.OrdinalIgnoreCase);
+                       !isImplicit &&
+                       !isMultiDomainLibDb;
             })
             .GroupBy(n => n.Extensions?.GetValueOrDefault("engine") ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[0] : n.Name), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
 
-        var projectDbEdges = new List<(ProjectNode Owner, string CanonicalTarget, Relationship OriginalRel)>();
+        var projectDbEdges = new List<(ProjectNode Owner, string CanonicalTarget, Relationship OriginalRel, bool IsImplicitEdge)>();
 
         foreach (var rel in allRelationships)
         {
+            if (rel.Kind == OntologyConstants.Relationships.Contains) continue;
             var isDbRel = rel.Kind == OntologyConstants.Relationships.UsesDb ||
                           rel.Kind == OntologyConstants.Relationships.Configures ||
                           rawToCanonical.ContainsKey(rel.To);
@@ -373,19 +400,52 @@ public partial class PostIndexAnalyzer
 
                 if (owner != null && owner.Id != canonicalTarget)
                 {
-                    if (isTestSource(owner.Id, owner.Path))
+                    var relFilePath = rel.Properties != null && rel.Properties.TryGetValue("file_path", out var rfp) ? rfp?.ToString() : null;
+                    if (isTestSource(owner.Id, owner.Path) || isTestSource(rel.From, relFilePath))
+                    {
+                        continue;
+                    }
+
+                    var isRawImplicitEdge = (rawImplicitDbIds != null && rawImplicitDbIds.Contains(rel.To)) ||
+                                            (rel.Properties != null && rel.Properties.TryGetValue("is_implicit_schema", out var impObj) && impObj?.ToString() == "true") ||
+                                            rel.To.EndsWith(":db:default:dbo", StringComparison.OrdinalIgnoreCase);
+
+                    var isLibraryOwner = libraryProjects.ContainsKey(owner.Id) || owner.IsLibrary;
+                    if (isRawImplicitEdge && isLibraryOwner)
                     {
                         continue;
                     }
 
                     var isMultiDomainLib = multiDomainSharedLibs.Contains(owner.Id);
-                    var isGenericTarget = IsGenericOrLibraryDbId(canonicalTarget);
+                    var isGenericTarget = IsGenericOrLibraryDbId(canonicalTarget) || isRawImplicitEdge;
 
                     // A shared library referenced by >1 distinct service domains that has no database of its own
                     // must not create a project-level USES_DB edge to a generic db or service db.
                     if (!isMultiDomainLib || !isGenericTarget)
                     {
-                        projectDbEdges.Add((owner, canonicalTarget, rel));
+                        projectDbEdges.Add((owner, canonicalTarget, rel, isRawImplicitEdge));
+                    }
+
+                    if (!isRawImplicitEdge && rel.From.Contains(":f:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var normFrom = rel.From.Replace('\\', '/');
+                        var binIdx = normFrom.IndexOf("/bin/", StringComparison.OrdinalIgnoreCase);
+                        if (binIdx >= 0)
+                        {
+                            var afterBin = normFrom[(binIdx + 5)..];
+                            var slashIdx = afterBin.IndexOf('/');
+                            if (slashIdx > 0)
+                            {
+                                var subBinName = afterBin[..slashIdx];
+                                var matchingBinProj = projects.FirstOrDefault(p =>
+                                    !p.IsLibrary && !p.IsTest && p.Id != owner.Id &&
+                                    string.Equals(p.Name, subBinName, StringComparison.OrdinalIgnoreCase));
+                                if (matchingBinProj != null && !isTestSource(matchingBinProj.Id, matchingBinProj.Path))
+                                {
+                                    projectDbEdges.Add((matchingBinProj, canonicalTarget, rel, false));
+                                }
+                            }
+                        }
                     }
 
                     // Also attribute this DB target to any service that references this owner library
@@ -400,7 +460,7 @@ public partial class PostIndexAnalyzer
                                 var svcProj = projects.FirstOrDefault(p => p.Id == svcId);
                                 if (svcProj != null && !isTestSource(svcProj.Id, svcProj.Path))
                                 {
-                                    projectDbEdges.Add((svcProj, canonicalTarget, rel));
+                                    projectDbEdges.Add((svcProj, canonicalTarget, rel, isRawImplicitEdge));
                                 }
                             }
                         }
@@ -437,7 +497,7 @@ public partial class PostIndexAnalyzer
                 .DistinctBy(t => t.Id)
                 .ToList();
 
-            var localRemap = ResolveDatabaseConsolidations(candidateNodes);
+            var localRemap = ResolveDatabaseConsolidations(candidateNodes, implicitSchemaIds);
             foreach (var (loser, winner) in localRemap)
             {
                 var loserNode = canonicalDbNodes.GetValueOrDefault(loser);
@@ -544,254 +604,39 @@ public partial class PostIndexAnalyzer
             }
         }
 
-        // Remove any generic engine-only or library-only database nodes when concrete database nodes exist
-        var concreteEngines = canonicalDbNodes.Values
-            .Where(n => {
-                var s = n.Extensions?.GetValueOrDefault("schema") ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[1] : "");
-                return !string.IsNullOrWhiteSpace(s) && !s.Equals("default", StringComparison.OrdinalIgnoreCase);
-            })
-            .Select(n => n.Extensions?.GetValueOrDefault("engine") ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[0] : n.Name))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var ownerConcreteEngines = PurgeRedundantAndTestDatabasesInMemory(
+            canonicalDbNodes,
+            rawToCanonical,
+            projectDbEdges,
+            domainScopedRemap,
+            globalConsolidationRemap,
+            implicitSchemaIds,
+            multiDomainSharedLibDbIds,
+            nonTestAccessedTargets);
 
-        var genericOrLibraryDbsToPurge = canonicalDbNodes.Values
-            .Where(n => {
-                var eng = n.Extensions?.GetValueOrDefault("engine") ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[0] : n.Name);
-                var s = n.Extensions?.GetValueOrDefault("schema") ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[1] : "");
-                var isGenericOrLibrary = string.IsNullOrWhiteSpace(s) ||
-                                         s.Equals("default", StringComparison.OrdinalIgnoreCase) ||
-                                         s.Equals("integrationeventlogef", StringComparison.OrdinalIgnoreCase) ||
-                                         n.Name.Equals(eng, StringComparison.OrdinalIgnoreCase) ||
-                                         n.Name.EndsWith(".integrationeventlogef", StringComparison.OrdinalIgnoreCase);
-                return isGenericOrLibrary && concreteEngines.Contains(eng);
-            })
-            .ToList();
+        // 3. Propagate schema, add canonical nodes to SemanticStructure and upload
+        await PropagateSchemaAndUploadNodesInMemoryAsync(ctx, l4Result, canonicalDbNodes, primaryRelationalEngine);
 
-        foreach (var purgeNode in genericOrLibraryDbsToPurge)
-        {
-            canonicalDbNodes.Remove(purgeNode.Id);
-            rawToCanonical.Remove(purgeNode.Id);
-        }
+        // 4. Link projects to canonical database nodes and upload
+        var canonicalRels = await UploadCanonicalRelationshipsInMemoryAsync(
+            ctx,
+            projectDbEdges,
+            canonicalDbNodes,
+            ownerConcreteEngines,
+            domainScopedRemap,
+            globalConsolidationRemap,
+            implicitSchemaIds,
+            multiDomainSharedLibDbIds,
+            concreteEnginesCount,
+            projectsByDomain);
 
-        // Remove any abstract engine-only database nodes
-        var abstractDbsToPurge = canonicalDbNodes.Values
-            .Where(n => IsAbstractEngineOnlyDatabase(n.Name, n.Extensions?.GetValueOrDefault("schema"), n.DbType, n.Id))
-            .ToList();
-
-        foreach (var purgeNode in abstractDbsToPurge)
-        {
-            canonicalDbNodes.Remove(purgeNode.Id);
-            rawToCanonical.Remove(purgeNode.Id);
-        }
-
-        // Remove any test database nodes (name/schema ends with -test, _test, or test config with 0 non-test callers)
-        var testDbsToPurge = canonicalDbNodes.Values
-            .Where(n => {
-                var s = n.Extensions?.GetValueOrDefault("schema") ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[1] : "");
-                var isTestName = s.EndsWith("-test", StringComparison.OrdinalIgnoreCase) ||
-                                 s.EndsWith("_test", StringComparison.OrdinalIgnoreCase) ||
-                                 n.Name.EndsWith("-test", StringComparison.OrdinalIgnoreCase) ||
-                                 n.Name.EndsWith("_test", StringComparison.OrdinalIgnoreCase);
-                var isExplicitTest = (n.Extensions != null && n.Extensions.TryGetValue("is_test", out var it) && (it == "true" || it == "1")) ||
-                                     (n.Extensions != null && n.Extensions.TryGetValue("role", out var r) && r.Equals("Test", StringComparison.OrdinalIgnoreCase)) ||
-                                     WorkspaceConventions.IsTestFilePath(n.Path);
-                return (isTestName || isExplicitTest) && !nonTestAccessedTargets.Contains(n.Id);
-            })
-            .ToList();
-
-        foreach (var purgeNode in testDbsToPurge)
-        {
-            canonicalDbNodes.Remove(purgeNode.Id);
-            rawToCanonical.Remove(purgeNode.Id);
-        }
-
-        foreach (var cNode in canonicalDbNodes.Values)
-        {
-            var eng = cNode.Extensions?.GetValueOrDefault("engine") ?? (cNode.Name.Contains('.') ? cNode.Name.Split('.', 2)[0] : cNode.Name);
-            var sch = cNode.Extensions?.GetValueOrDefault("schema") ?? (cNode.Name.Contains('.') ? cNode.Name.Split('.', 2)[1] : "");
-
-            cNode.Children.RemoveAll(c => c is TableNode tn && !IsValidTableIdentifier(tn.Name));
-            foreach (var child in cNode.Children)
-            {
-                if (child.Extensions != null)
-                {
-                    child.Extensions["engine"] = eng;
-                    if (!string.IsNullOrEmpty(sch)) child.Extensions["schema"] = sch;
-                }
-                if (child is DataSetNode ds)
-                {
-                    ds.Children.RemoveAll(c => c is TableNode tn && !IsValidTableIdentifier(tn.Name));
-                    foreach (var tc in ds.Children)
-                    {
-                        if (tc.Extensions != null)
-                        {
-                            tc.Extensions["engine"] = eng;
-                            tc.Extensions["schema"] = !string.IsNullOrEmpty(ds.Name) ? ds.Name : sch;
-                        }
-                    }
-                }
-            }
-        }
-
-        // 3. Add canonical nodes to SemanticStructure and upload
-        var semanticStructure = ctx.SemanticStructure ?? l4Result.SemanticStructure;
-        if (semanticStructure != null)
-        {
-            if (!string.IsNullOrWhiteSpace(primaryRelationalEngine))
-            {
-                semanticStructure.Children.RemoveAll(c => c is DatabaseNode dn &&
-                    (string.Equals(dn.Name, "Database", StringComparison.OrdinalIgnoreCase) ||
-                     dn.Id.EndsWith(":database:relational:database", StringComparison.OrdinalIgnoreCase) ||
-                     dn.Id.EndsWith($":{OntologyConstants.IdPrefixes.Database}:relational:database", StringComparison.OrdinalIgnoreCase)));
-            }
-
-            foreach (var node in canonicalDbNodes.Values)
-            {
-                if (!semanticStructure.Children.Any(c => c.Id == node.Id))
-                {
-                    semanticStructure.Children.Add(node);
-                }
-                ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Database, node.Name, node.Id);
-            }
-        }
-
-        if (canonicalDbNodes.Count > 0 && ctx.DbClient != null)
-        {
-            ctx.LogDebug($"[PostIndexAnalyzer] Materializing {canonicalDbNodes.Count} canonical Database nodes into graph...");
-            await ctx.DbClient.UploadNodesAsync([.. canonicalDbNodes.Values.Select(Node.FromNode)]);
-            ctx.AddNodesCount(canonicalDbNodes.Count);
-        }
-
-        // 4. Link projects to canonical database nodes
-        var canonicalRels = new List<Relationship>();
-        var seen = new HashSet<(string From, string To)>();
-
-        foreach (var (owner, rawTarget, rel) in projectDbEdges)
-        {
-            var domain = SyntaxEnricher.CleanProjectNameToDomain(owner.Name);
-            if (string.IsNullOrEmpty(domain)) domain = owner.Id;
-
-            var target = rawTarget;
-            if (domainScopedRemap.TryGetValue(domain, out var dMap) && dMap.TryGetValue(target, out var dWin))
-            {
-                target = dWin;
-            }
-            else if (globalConsolidationRemap.TryGetValue(target, out var win))
-            {
-                target = win;
-            }
-
-            var targetNode = canonicalDbNodes.GetValueOrDefault(target);
-            var targetEng = targetNode?.Extensions?.GetValueOrDefault("engine") ?? (targetNode?.Name.Contains('.') == true ? targetNode.Name.Split('.', 2)[0] : targetNode?.Name ?? "");
-            if (IsGenericOrLibraryDbId(target) && concreteEnginesCount.GetValueOrDefault(targetEng) > 0)
-            {
-                continue;
-            }
-
-            if (owner.Id != target && seen.Add((owner.Id, target)))
-            {
-                var props = new Dictionary<string, object>
-                {
-                    ["dependency_type"] = "database",
-                    ["is_semantic"] = "true",
-                    ["is_canonical"] = "true"
-                };
-                if (rel.Properties != null)
-                {
-                    foreach (var (k, v) in rel.Properties)
-                    {
-                        if (v != null && !props.ContainsKey(k))
-                        {
-                            props[k] = v;
-                        }
-                    }
-                }
-                canonicalRels.Add(new Relationship(
-                    owner.Id,
-                    target,
-                    OntologyConstants.Relationships.UsesDb,
-                    props
-                ));
-            }
-            else if (rel.Properties != null)
-            {
-                var existing = canonicalRels.FirstOrDefault(r => r.From == owner.Id && r.To == target);
-                if (existing?.Properties != null)
-                {
-                    foreach (var (k, v) in rel.Properties)
-                    {
-                        if (v != null && !existing.Properties.ContainsKey(k))
-                        {
-                            existing.Properties[k] = v;
-                        }
-                    }
-                }
-            }
-        }
-
-        if (canonicalRels.Count > 0 && ctx.DbClient != null)
-        {
-            ctx.LogDebug($"[PostIndexAnalyzer] Materializing {canonicalRels.Count} direct project->canonical database relationships...");
-            await ctx.DbClient.UploadRelationshipsAsync(canonicalRels);
-            ctx.AddRelsCount(canonicalRels.Count);
-        }
-
+        // 5. Clean up duplicate non-canonical database nodes
         if (ctx.DbClient != null)
         {
-            // Apply domain-scoped remappings to edges
-            foreach (var (domain, dMap) in domainScopedRemap)
-            {
-                var domProjs = projectsByDomain.GetValueOrDefault(domain, []);
-                var domProjIds = domProjs.Select(p => p.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
-                foreach (var (loserId, winnerId) in dMap)
-                {
-                    foreach (var pId in domProjIds)
-                    {
-                        await ctx.DbClient.ExecuteWriteAsync(
-                            "UPDATE OR IGNORE edges SET to_id = @winnerId WHERE to_id = @loserId AND from_id LIKE @pIdPrefix;",
-                            new { winnerId, loserId, pIdPrefix = $"{pId}%" });
-                    }
-                }
-            }
-
-            // Clean up duplicate non-canonical database nodes
-            foreach (var (rawId, canonicalId) in rawToCanonical)
-            {
-                if (!string.Equals(rawId, canonicalId, StringComparison.Ordinal))
-                {
-                    await ctx.DbClient.ExecuteWriteAsync("UPDATE OR IGNORE edges SET to_id = @canonicalId WHERE to_id = @rawId;", new { canonicalId, rawId });
-                    await ctx.DbClient.ExecuteWriteAsync("DELETE FROM edges WHERE to_id = @rawId;", new { rawId });
-                    await ctx.DbClient.ExecuteWriteAsync("UPDATE OR IGNORE edges SET from_id = @canonicalId WHERE from_id = @rawId;", new { canonicalId, rawId });
-                    await ctx.DbClient.ExecuteWriteAsync("DELETE FROM edges WHERE from_id = @rawId;", new { rawId });
-                    await ctx.DbClient.ExecuteWriteAsync("DELETE FROM nodes WHERE id = @rawId;", new { rawId });
-                }
-            }
-
-            // Remove any improper CONTAINS edges pointing to Database nodes (Databases are infrastructure, only contained in semantic_structure)
-            await ctx.DbClient.ExecuteWriteAsync(
-                "DELETE FROM edges WHERE kind = 'CONTAINS' AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database') AND from_id NOT LIKE '%semantic_structure%';");
-
-            // Purge any remaining phantom Database nodes that were not canonicalized
-            var validIds = canonicalDbNodes.Keys.ToList();
-            if (validIds.Count > 0)
-            {
-                var placeholders = string.Join(",", validIds.Select((_, i) => $"@p{i}"));
-                var paramDict = new Dictionary<string, object>();
-                for (int i = 0; i < validIds.Count; i++) paramDict[$"p{i}"] = validIds[i];
-
-                await ctx.DbClient.ExecuteWriteAsync(
-                    $"DELETE FROM edges WHERE (to_id NOT IN ({placeholders}) AND to_id IN (SELECT id FROM nodes WHERE kind = 'Database')) OR (from_id NOT IN ({placeholders}) AND from_id IN (SELECT id FROM nodes WHERE kind = 'Database'));",
-                    paramDict);
-                await ctx.DbClient.ExecuteWriteAsync(
-                    $"DELETE FROM nodes WHERE kind = 'Database' AND id NOT IN ({placeholders});",
-                    paramDict);
-            }
-            else
-            {
-                await ctx.DbClient.ExecuteWriteAsync("DELETE FROM edges WHERE to_id IN (SELECT id FROM nodes WHERE kind = 'Database') OR from_id IN (SELECT id FROM nodes WHERE kind = 'Database');");
-                await ctx.DbClient.ExecuteWriteAsync("DELETE FROM nodes WHERE kind = 'Database';");
-            }
+            await CleanupDatabaseEntitiesInMemoryAsync(ctx, rawToCanonical, canonicalDbNodes);
         }
 
         return canonicalRels;
     }
 }
+

@@ -59,6 +59,7 @@ public class RustFileVisitor : BaseParserVisitor
         if (text.Contains("axum") || text.Contains("Router") || (text.Contains(".route(") && (text.Contains("get(") || text.Contains("post(")))) ResolveAndInjectLibraryParser("axum");
         if (text.Contains("actix_web") || text.Contains("actix-web")) ResolveAndInjectLibraryParser("actix-web");
         if (text.Contains("rocket")) ResolveAndInjectLibraryParser("rocket");
+        if (text.Contains("aws_sdk_") || text.Contains("aws-sdk-") || text.Contains("aws_sdk") || text.Contains("receive_message") || text.Contains(".publish()")) ResolveAndInjectLibraryParser("aws-sdk-rust");
 
         // 2. Attribute-based routing
         if (node.Type == TreeSitterSyntax.Rust.AttributeItem)

@@ -27,11 +27,6 @@ public class SqlxLibraryParser : ISemanticExtension
             return OntologyConstants.NodeLabels.Query;
         }
 
-        if (IsDatabasePool(node, out _))
-        {
-            return OntologyConstants.NodeLabels.Database;
-        }
-
         return null;
     }
 
@@ -48,11 +43,6 @@ public class SqlxLibraryParser : ISemanticExtension
                 return $"{firstWord} Query: {clean}";
             }
             return $"Query: {clean}";
-        }
-
-        if (IsDatabasePool(node, out var dbEngine))
-        {
-            return dbEngine;
         }
 
         return null;
@@ -102,7 +92,8 @@ public class SqlxLibraryParser : ISemanticExtension
                          methodName.Equals("query_scalar!", StringComparison.OrdinalIgnoreCase) ||
                          methodName.Equals("query", StringComparison.OrdinalIgnoreCase) ||
                          methodName.Equals("query_as", StringComparison.OrdinalIgnoreCase) ||
-                         methodName.Equals("query_scalar", StringComparison.OrdinalIgnoreCase);
+                         methodName.Equals("query_scalar", StringComparison.OrdinalIgnoreCase) ||
+                         methodName.Equals("execute", StringComparison.OrdinalIgnoreCase);
 
         if (!isSqlxCall) return false;
 
@@ -136,17 +127,32 @@ public class SqlxLibraryParser : ISemanticExtension
         if (string.IsNullOrEmpty(methodName)) return false;
 
         var text = node.Text;
-        if (text.Contains("PgPool", StringComparison.OrdinalIgnoreCase) || text.Contains("postgres", StringComparison.OrdinalIgnoreCase))
+
+        // Check PostgreSQL pool
+        if (methodName.Contains("PgPoolOptions::new", StringComparison.OrdinalIgnoreCase) ||
+            methodName.Contains("PgPool::connect", StringComparison.OrdinalIgnoreCase) ||
+            (text.Contains("PgPoolOptions", StringComparison.OrdinalIgnoreCase) && (methodName.Equals("new", StringComparison.OrdinalIgnoreCase) || methodName.Equals("connect", StringComparison.OrdinalIgnoreCase) || methodName.Equals("connect_lazy", StringComparison.OrdinalIgnoreCase) || methodName.Equals("connect_with", StringComparison.OrdinalIgnoreCase))) ||
+            (text.Contains("PgPool::connect", StringComparison.OrdinalIgnoreCase)))
         {
             dbEngine = "postgres";
             return true;
         }
-        if (text.Contains("MySqlPool", StringComparison.OrdinalIgnoreCase) || text.Contains("mysql", StringComparison.OrdinalIgnoreCase))
+
+        // Check MySQL pool
+        if (methodName.Contains("MySqlPoolOptions::new", StringComparison.OrdinalIgnoreCase) ||
+            methodName.Contains("MySqlPool::connect", StringComparison.OrdinalIgnoreCase) ||
+            (text.Contains("MySqlPoolOptions", StringComparison.OrdinalIgnoreCase) && (methodName.Equals("new", StringComparison.OrdinalIgnoreCase) || methodName.Equals("connect", StringComparison.OrdinalIgnoreCase) || methodName.Equals("connect_lazy", StringComparison.OrdinalIgnoreCase) || methodName.Equals("connect_with", StringComparison.OrdinalIgnoreCase))) ||
+            (text.Contains("MySqlPool::connect", StringComparison.OrdinalIgnoreCase)))
         {
             dbEngine = "mysql";
             return true;
         }
-        if (text.Contains("SqlitePool", StringComparison.OrdinalIgnoreCase) || text.Contains("sqlite", StringComparison.OrdinalIgnoreCase))
+
+        // Check SQLite pool
+        if (methodName.Contains("SqlitePoolOptions::new", StringComparison.OrdinalIgnoreCase) ||
+            methodName.Contains("SqlitePool::connect", StringComparison.OrdinalIgnoreCase) ||
+            (text.Contains("SqlitePoolOptions", StringComparison.OrdinalIgnoreCase) && (methodName.Equals("new", StringComparison.OrdinalIgnoreCase) || methodName.Equals("connect", StringComparison.OrdinalIgnoreCase) || methodName.Equals("connect_lazy", StringComparison.OrdinalIgnoreCase) || methodName.Equals("connect_with", StringComparison.OrdinalIgnoreCase))) ||
+            (text.Contains("SqlitePool::connect", StringComparison.OrdinalIgnoreCase)))
         {
             dbEngine = "sqlite";
             return true;

@@ -312,10 +312,6 @@ public partial class Layer3SyntacticParser
                     {
                         ctx.LogWarning($"[Layer3] Error processing visitor for '{syntaxTree.FilePath}': {ex.Message}", ex);
                     }
-                    finally
-                    {
-                        syntaxTree.Dispose(); // Free native TreeSitter memory immediately after Pass 2
-                    }
                 }
 
                 return ValueTask.CompletedTask;

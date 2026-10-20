@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
@@ -97,6 +98,41 @@ public static class RustDeclarationExtractor
                 {
                     register($"{currentScope}::{name}", node, null);
                 }
+
+                var isPubStruct = node.Children.Any(c => c.Type == "visibility_modifier");
+                var fieldList = node.FindChildOfType(TreeSitterSyntax.Rust.FieldDeclarationList);
+                if (fieldList.IsValid())
+                {
+                    Node? lastAttr = null;
+                    foreach (var child in fieldList.Children)
+                    {
+                        if (child.Type == TreeSitterSyntax.Rust.AttributeItem)
+                        {
+                            lastAttr = child;
+                        }
+                        else if (child.Type == TreeSitterSyntax.Rust.FieldDeclaration)
+                        {
+                            var attr = child.FindChildOfType(TreeSitterSyntax.Rust.AttributeItem);
+                            var effectiveAttr = attr.IsValid() ? attr : lastAttr;
+                            if (effectiveAttr.IsValid() && Regex.IsMatch(effectiveAttr.Text, @"default\s*=\s*""([A-Za-z0-9_]+)"""))
+                            {
+                                var fieldNameNode = child.GetChildForField(TreeSitterSyntax.Fields.Name) ??
+                                                    child.FindChildOfType(TreeSitterSyntax.Rust.FieldIdentifier);
+                                if (fieldNameNode.IsValid())
+                                {
+                                    var fieldName = fieldNameNode.Text;
+                                    if (isPubStruct)
+                                    {
+                                        register(fieldName, effectiveAttr, null);
+                                        register($"self.{fieldName}", effectiveAttr, null);
+                                    }
+                                    register($"{name}::{fieldName}", effectiveAttr, null);
+                                }
+                            }
+                            lastAttr = null;
+                        }
+                    }
+                }
             }
             return;
         }
@@ -128,7 +164,13 @@ public static class RustDeclarationExtractor
                 if (!string.IsNullOrEmpty(currentScope))
                 {
                     register($"{currentScope}::{name}", node, null);
+                    register($"self.{name}", node, null);
                 }
+            }
+
+            foreach (var child in node.Children)
+            {
+                ExtractInternal(child, currentScope, register);
             }
             return;
         }

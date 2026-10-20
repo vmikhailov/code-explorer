@@ -24,10 +24,12 @@ public class GitIgnoreMatcher
         bool IsAnchored,
         string? Scope);
 
+    private readonly string _workspaceRoot;
     private readonly List<Rule> _rules = [];
 
     public GitIgnoreMatcher(string workspaceRoot)
     {
+        _workspaceRoot = workspaceRoot;
         foreach (var dir in WorkspaceFileFilter.ExcludedDirectoryNames)
         {
             AddPattern(dir + "/");
@@ -186,6 +188,15 @@ public class GitIgnoreMatcher
 
                 if (rule.Regex.IsMatch(testPath))
                 {
+                    if (rule.CleanPattern.Equals("bin", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(_workspaceRoot))
+                    {
+                        var fullPath = Path.Combine(_workspaceRoot, relativePath);
+                        if (!WorkspaceFileFilter.IsBuildOutputBinDirectory(fullPath))
+                        {
+                            continue;
+                        }
+                    }
+
                     if (rule.IsNegated)
                     {
                         ignored = false;
@@ -230,6 +241,15 @@ public class GitIgnoreMatcher
                     var m = rule.Regex.Match(testPath);
                     if (m.Success && m.Value.EndsWith('/'))
                     {
+                        if (rule.CleanPattern.Equals("bin", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(_workspaceRoot))
+                        {
+                            var fullPath = Path.Combine(_workspaceRoot, relativePath);
+                            if (!WorkspaceFileFilter.IsBuildOutputBinDirectory(fullPath))
+                            {
+                                continue;
+                            }
+                        }
+
                         if (rule.IsNegated)
                         {
                             ignoredByDir = false;

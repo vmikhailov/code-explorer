@@ -1,17 +1,21 @@
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Analysis;
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
+using CodeExplorer.Core.Common.Relationships;
+using CodeExplorer.Core.Database;
+using TsNode = TreeSitter.Node;
 
 namespace CodeExplorer.Core.Parser;
 
 public partial class SyntaxEnricher
 {
     private static readonly Regex SchemaCallRegex = new(@"HasDefaultSchema\s*\(\s*[""']?([^""'\)]+)[""']?\s*\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex SchemaConstRegex = new(@"(?:SchemaName|DefaultSchemaName|DefaultSchema)\s*=\s*[""']?([^""';]+)[""']?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex SchemaConstRegex = new(@"(?:Schema_?Name|Default_?Schema_?Name|Default_?Schema)\s*(?::\s*[^=]+)?=\s*[""']?([^""';]+)[""']?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex TypeOrmSchemaRegex = new(@"@(?:Entity|ViewEntity|Table)\s*\(\s*\{[^}]*schema\s*:\s*[""']?([A-Za-z0-9_.]+)[""']?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex ToTableSchemaRegex = new(@"ToTable\s*\(\s*[^,]+\s*,\s*(?:schema:\s*)?[""']?([A-Za-z0-9_.]+)[""']?\s*\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex DataSourceSchemaRegex = new(@"\b(?:schema|defaultSchema)\s*:\s*[""']([A-Za-z0-9_-]+)[""']", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -28,7 +32,7 @@ public partial class SyntaxEnricher
             try
             {
                 var text = File.ReadAllText(syntaxTree.FilePath);
-                if (Regex.IsMatch(text, @"\b(?:DbContext|DbSet\s*<|__tablename__|@Entity|@Table|@ViewEntity|declarative_base|modelBuilder\.Entity|FromRow|sqlx::query|sqlx::migrate|PgPoolOptions)\b", RegexOptions.IgnoreCase))
+                if (Regex.IsMatch(text, @"\b(?:DbContext|DbSet\s*<|__tablename__|@Entity|@Table|@ViewEntity|declarative_base|modelBuilder\.Entity)\b", RegexOptions.IgnoreCase))
                 {
                     return true;
                 }
@@ -41,7 +45,12 @@ public partial class SyntaxEnricher
 
     private static bool HasEntityOrTableNode(IOntologyNode node)
     {
-        if (node is TableNode or QueryNode) return true;
+        if (node is DatabaseNode dbNode && dbNode.Extensions != null &&
+            dbNode.Extensions.TryGetValue("is_implicit_schema", out var imp) && imp == "true")
+        {
+            return false;
+        }
+        if (node is TableNode) return true;
         if (node.Extensions != null && (node.Extensions.ContainsKey("table") || node.Extensions.ContainsKey("entity")))
         {
             return true;
@@ -51,6 +60,254 @@ public partial class SyntaxEnricher
             if (HasEntityOrTableNode(child)) return true;
         }
         return false;
+    }
+
+    public static IReadOnlyList<string> DetectDeclaredSchemas(ProjectNode? projectNode, FileNode? fileNode, SyntaxTree? syntaxTree, string? dbType = null)
+    {
+        var results = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void AddCandidate(string? cand)
+        {
+            if (string.IsNullOrWhiteSpace(cand)) return;
+            var clean = cand.Trim();
+            if (IsValidSchemaName(clean) && seen.Add(clean))
+            {
+                results.Add(clean);
+            }
+        }
+
+        // 1. Collect from DetectDeclaredSchema
+        var directSchema = DetectDeclaredSchema(projectNode, fileNode, syntaxTree, dbType);
+        AddCandidate(directSchema);
+
+        // 2. Walk AST if available
+        try
+        {
+            if (syntaxTree?.Tree != null)
+            {
+                var root = syntaxTree.Tree.RootNode;
+                if (root.IsValid())
+                {
+                    static bool IsSchemaVarName(string? name)
+                    {
+                        if (string.IsNullOrWhiteSpace(name)) return false;
+                        var lower = name.ToLowerInvariant();
+                        return lower == "schema" || lower.EndsWith("_schema") ||
+                               lower == "schemaname" || lower.EndsWith("_schemaname") ||
+                               lower == "schema_name" || lower.EndsWith("_schema_name");
+                    }
+
+                    var clientConstructors = new[]
+                    {
+                        "PostgresClient::new", "AnonStatsPgClient::new", "PgClient::new"
+                    };
+
+                    var isNonTestFile = (fileNode == null || !fileNode.IsTest) &&
+                                        !WorkspaceConventions.IsTestFilePath(fileNode?.Path ?? syntaxTree?.FilePath);
+
+                    void WalkAst(TsNode node)
+                    {
+                        var type = node.Type;
+
+                        if (isNonTestFile && type == TreeSitterSyntax.Rust.ModItem)
+                        {
+                            var modName = node.GetField(TreeSitterSyntax.Fields.Name) ??
+                                          node.FindChildOfType(TreeSitterSyntax.Rust.Identifier);
+                            if (modName.IsValid() &&
+                                (modName.Text.Equals("tests", StringComparison.OrdinalIgnoreCase) ||
+                                 modName.Text.Equals("test_utils", StringComparison.OrdinalIgnoreCase)))
+                            {
+                                return;
+                            }
+                        }
+
+                        // Variable declaration or assignment: let_declaration, const_item, static_item, variable_declarator, short_var_declaration, assignment_statement, keyed_element
+                        if (type is TreeSitterSyntax.Rust.LetDeclaration or
+                                    TreeSitterSyntax.Rust.ConstItem or
+                                    TreeSitterSyntax.Rust.StaticItem or
+                                    TreeSitterSyntax.CSharp.VariableDeclarator or
+                                    TreeSitterSyntax.TypeScript.VariableDeclarator or
+                                    TreeSitterSyntax.Go.ShortVarDeclaration or
+                                    "assignment_statement" or
+                                    TreeSitterSyntax.Common.AssignmentExpression or
+                                    "keyed_element")
+                        {
+                            string? varName = null;
+                            TsNode? valNode = null;
+
+                            if (type == TreeSitterSyntax.Rust.LetDeclaration)
+                            {
+                                var pat = node.GetField("pattern") ?? node.FindChildOfType(TreeSitterSyntax.Rust.Identifier);
+                                if (pat.IsValid()) varName = pat.Text;
+                                valNode = node.GetField(TreeSitterSyntax.Fields.Value);
+                            }
+                            else if (type is TreeSitterSyntax.Rust.ConstItem or TreeSitterSyntax.Rust.StaticItem)
+                            {
+                                var nameNode = node.GetField(TreeSitterSyntax.Fields.Name) ??
+                                               node.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Rust.Identifier);
+                                if (nameNode.IsValid()) varName = nameNode.Text;
+                                valNode = node.GetField(TreeSitterSyntax.Fields.Value);
+                                if (!valNode.IsValid())
+                                {
+                                    var equalsIdx = -1;
+                                    for (var i = 0; i < node.Children.Count; i++)
+                                    {
+                                        if (node.Children[i].Text == "=")
+                                        {
+                                            equalsIdx = i;
+                                            break;
+                                        }
+                                    }
+                                    if (equalsIdx >= 0 && equalsIdx + 1 < node.Children.Count)
+                                    {
+                                        valNode = node.Children[equalsIdx + 1];
+                                    }
+                                }
+                            }
+                            else if (type is TreeSitterSyntax.CSharp.VariableDeclarator or TreeSitterSyntax.TypeScript.VariableDeclarator)
+                            {
+                                var nameNode = node.GetField(TreeSitterSyntax.Fields.Name) ?? node.FindChildOfType(TreeSitterSyntax.Common.Identifier);
+                                if (nameNode.IsValid()) varName = nameNode.Text;
+                                valNode = node.GetField(TreeSitterSyntax.Fields.Value);
+                            }
+                            else if (type is TreeSitterSyntax.Go.ShortVarDeclaration or "assignment_statement" or TreeSitterSyntax.Common.AssignmentExpression)
+                            {
+                                var left = node.GetField(TreeSitterSyntax.Fields.Left);
+                                if (left.IsValid()) varName = left.Text;
+                                valNode = node.GetField(TreeSitterSyntax.Fields.Right);
+                                if (valNode.IsValid() && valNode.Type == TreeSitterSyntax.Go.ExpressionList && valNode.Children.Count > 0)
+                                {
+                                    valNode = valNode.Children[0];
+                                }
+                            }
+                            else if (type == "keyed_element")
+                            {
+                                var colonIdx = -1;
+                                for (var i = 0; i < node.Children.Count; i++)
+                                {
+                                    if (node.Children[i].Text == ":")
+                                    {
+                                        colonIdx = i;
+                                        break;
+                                    }
+                                }
+                                if (colonIdx > 0 && colonIdx + 1 < node.Children.Count)
+                                {
+                                    varName = node.Children[0].Text.Trim();
+                                    valNode = node.Children[colonIdx + 1];
+                                    if (valNode.Type == "literal_element" && valNode.Children.Count > 0)
+                                    {
+                                        valNode = valNode.Children[0];
+                                    }
+                                }
+                            }
+
+                            if (!string.IsNullOrEmpty(varName) && IsSchemaVarName(varName) && valNode.IsValid())
+                            {
+                                if (AstValueResolver.TryResolveString(valNode, projectNode?.Name, out var s))
+                                {
+                                    AddCandidate(s);
+                                }
+                            }
+                        }
+
+                        // Struct field declaration list with #[serde(default = "...")] on a schema field (in service/worker/binary files)
+                        if (type == TreeSitterSyntax.Rust.FieldDeclarationList && (projectNode == null || !projectNode.IsLibrary))
+                        {
+                            TsNode? lastAttr = null;
+                            foreach (var child in node.Children)
+                            {
+                                if (child.Type == TreeSitterSyntax.Rust.AttributeItem)
+                                {
+                                    lastAttr = child;
+                                }
+                                else if (child.Type == TreeSitterSyntax.Rust.FieldDeclaration)
+                                {
+                                    var attr = child.FindChildOfType(TreeSitterSyntax.Rust.AttributeItem);
+                                    var effectiveAttr = attr.IsValid() ? attr : lastAttr;
+                                    var fNameNode = child.GetField(TreeSitterSyntax.Fields.Name) ?? child.FindChildOfType(TreeSitterSyntax.Rust.FieldIdentifier);
+                                    if (effectiveAttr.IsValid() && fNameNode.IsValid() && IsSchemaVarName(fNameNode.Text))
+                                    {
+                                        if (AstValueResolver.TryResolveString(effectiveAttr, projectNode?.Name ?? fileNode?.Path ?? syntaxTree?.FilePath, out var s))
+                                        {
+                                            AddCandidate(s);
+                                        }
+                                    }
+                                    lastAttr = null;
+                                }
+                            }
+                        }
+
+                        // Call expression / Invocation expression
+                        if (type is TreeSitterSyntax.Common.CallExpression or TreeSitterSyntax.CSharp.InvocationExpression)
+                        {
+                            var funcNode = node.GetFunctionNode();
+                            var funcText = funcNode.IsValid() ? funcNode.Text : "";
+
+                            if (funcText.EndsWith("_schema", StringComparison.OrdinalIgnoreCase) ||
+                                funcText.EndsWith("_schema_name", StringComparison.OrdinalIgnoreCase) ||
+                                funcText.EndsWith("Schema", StringComparison.OrdinalIgnoreCase) ||
+                                funcText.EndsWith("SchemaName", StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (AstValueResolver.TryResolveString(node, projectNode?.Name, out var s))
+                                {
+                                    AddCandidate(s);
+                                }
+                            }
+
+                            // Check DB client constructor calls: PostgresClient::new, AnonStatsPgClient::new, PgClient::new
+                            if (clientConstructors.Any(c => funcText.EndsWith(c, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                var argsList = node.FindChildOfType(TreeSitterSyntax.Common.ArgumentList) ??
+                                               node.FindChildOfType(TreeSitterSyntax.Common.Arguments);
+                                if (argsList.IsValid())
+                                {
+                                    foreach (var arg in argsList.Children)
+                                    {
+                                        if (!arg.IsValid() || arg.Type is "(" or ")" or ",") continue;
+                                        if (arg.Text.Contains("schema", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            if (AstValueResolver.TryResolveString(arg, projectNode?.Name ?? fileNode?.Path ?? syntaxTree?.FilePath, out var s))
+                                            {
+                                                AddCandidate(s);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        var skipNextForTestAttr = false;
+                        foreach (var child in node.Children)
+                        {
+                            if (!child.IsValid()) continue;
+                            if (isNonTestFile && child.Type == TreeSitterSyntax.Rust.AttributeItem)
+                            {
+                                if (child.Text.Contains("test", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    skipNextForTestAttr = true;
+                                }
+                                continue;
+                            }
+                            if (skipNextForTestAttr)
+                            {
+                                skipNextForTestAttr = false;
+                                continue;
+                            }
+                            WalkAst(child);
+                        }
+                    }
+
+                    WalkAst(root);
+                }
+            }
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+
+        return results;
     }
 
     private static string? ScanFileTextForSchema(string filePath)
@@ -179,11 +436,35 @@ public partial class SyntaxEnricher
     {
         if (node.Extensions != null && node.Extensions.TryGetValue("schema", out var s) && !string.IsNullOrWhiteSpace(s))
         {
-            return s;
+            if (node.Extensions.TryGetValue("is_implicit_schema", out var isImp) && isImp == "true")
+            {
+                // Skip implicit default schema
+            }
+            else
+            {
+                return s;
+            }
         }
         foreach (var child in node.Children)
         {
             var found = FindSchemaInNode(child);
+            if (!string.IsNullOrEmpty(found)) return found;
+        }
+        return null;
+    }
+
+    private static string? FindImplicitSchemaInNode(IOntologyNode node)
+    {
+        if (node.Extensions != null && node.Extensions.TryGetValue("schema", out var s) && !string.IsNullOrWhiteSpace(s))
+        {
+            if (node.Extensions.TryGetValue("is_implicit_schema", out var isImp) && isImp == "true")
+            {
+                return s;
+            }
+        }
+        foreach (var child in node.Children)
+        {
+            var found = FindImplicitSchemaInNode(child);
             if (!string.IsNullOrEmpty(found)) return found;
         }
         return null;

@@ -25,7 +25,9 @@ public static class ConfigurationParser
 
         var fileName = Path.GetFileName(relativePath).ToLowerInvariant();
         if (fileName.Contains("docker-compose") || fileName.StartsWith("compose.") || fileName.StartsWith("compose-") ||
-            fileName.Equals("compose.yml") || fileName.Equals("compose.yaml"))
+            fileName.Equals("compose.yml") || fileName.Equals("compose.yaml") ||
+            fileName.EndsWith(".toml", StringComparison.OrdinalIgnoreCase) ||
+            WorkspaceConventions.IsTestFilePath(relativePath))
         {
             return; // docker-compose / compose describes local dev containers, not production architecture
         }

@@ -496,6 +496,10 @@ public partial class PostIndexAnalyzer(IGraphClient db)
 
                         if (isDb)
                         {
+                            if (dbCanonicalMap != null)
+                            {
+                                continue;
+                            }
                             var targetDbId = dbCanonicalMap?.GetValueOrDefault(edge.To, edge.To) ?? edge.To;
                             if (existingEdges.Add((service.Id, targetDbId, OntologyConstants.Relationships.UsesDb)))
                             {

@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
+using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
@@ -334,5 +335,86 @@ public class RustSemanticLibraryTests
         var topic = topics.FirstOrDefault(t => t.Name == "telemetry.v1");
         topic.Should().NotBeNull();
         topic!.BrokerType.Should().Be("nats");
+    }
+
+    [Test]
+    public async Task AwsSdkRust_SqsReceiveMessage_ExtractsTopicWithSubscribesTo()
+    {
+        var code = """
+            pub async fn consume_messages(sqs_client: &aws_sdk_sqs::Client, queue_url: &str) {
+                let resp = sqs_client
+                    .receive_message()
+                    .queue_url(queue_url)
+                    .max_number_of_messages(10)
+                    .send()
+                    .await
+                    .unwrap();
+            }
+            """;
+
+        var root = await ParseRustSnippetAsync(code);
+        var topics = FindNodes<TopicNode>(root.Children);
+
+        topics.Should().NotBeEmpty();
+        var topic = topics.FirstOrDefault(t => t.BrokerType == "sqs");
+        topic.Should().NotBeNull();
+
+        var allRefs = root.References.Concat(FindNodes<FunctionNode>(root.Children).SelectMany(f => f.References)).ToList();
+        allRefs.Any(r => r.Kind == "SUBSCRIBES_TO" && r.TargetName.Contains(topic!.Name)).Should().BeTrue();
+    }
+
+    [Test]
+    public async Task AwsSdkRust_SnsPublish_ExtractsTopicWithPublishesTo()
+    {
+        var code = """
+            pub async fn publish_result(sns_client: &aws_sdk_sns::Client, results_topic_arn: &str) {
+                sns_client
+                    .publish()
+                    .topic_arn(results_topic_arn)
+                    .message("result_payload")
+                    .send()
+                    .await
+                    .unwrap();
+            }
+            """;
+
+        var root = await ParseRustSnippetAsync(code);
+        var topics = FindNodes<TopicNode>(root.Children);
+
+        topics.Should().NotBeEmpty();
+        var topic = topics.FirstOrDefault(t => t.BrokerType == "sns");
+        topic.Should().NotBeNull();
+
+        var allRefs = root.References.Concat(FindNodes<FunctionNode>(root.Children).SelectMany(f => f.References)).ToList();
+        allRefs.Any(r => r.Kind == "PUBLISHES_TO" && r.TargetName.Contains(topic!.Name)).Should().BeTrue();
+    }
+
+    [Test]
+    public async Task Sqlx_PgPoolOptionsNew_DoesNotThrowUnsupportedDatabaseNodeType()
+    {
+        var code = """
+            use sqlx::postgres::PgPoolOptions;
+
+            pub async fn init_db(url: &str) {
+                let pool = PgPoolOptions::new()
+                    .max_connections(5)
+                    .connect(url)
+                    .await
+                    .unwrap();
+                
+                sqlx::query_as::<_, User>("SELECT id, name FROM users WHERE id = $1")
+                    .bind(1)
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap();
+            }
+            """;
+
+        var act = async () => await ParseRustSnippetAsync(code);
+        await act.Should().NotThrowAsync();
+        var root = await ParseRustSnippetAsync(code);
+        var queries = FindNodes<QueryNode>(root.Children);
+        queries.Should().NotBeEmpty();
+        queries.Any(q => q.QueryText.Contains("SELECT id, name FROM users")).Should().BeTrue();
     }
 }

@@ -75,8 +75,12 @@ public static class ConstantRegistry
             }
 
             // Only promote to global lookup if it is qualified or PascalCase / SCREAMING_SNAKE_CASE (constants)
+            // or schema getter/default conventions (e.g. get_cpu_db_schema, default_schema_name)
             if (cleanKey.Contains(':') || cleanKey.Contains('.') || cleanKey.Contains("__") ||
-                (cleanKey.Length > 0 && char.IsUpper(cleanKey[0])))
+                (cleanKey.Length > 0 && char.IsUpper(cleanKey[0])) ||
+                cleanKey.StartsWith("get_", StringComparison.OrdinalIgnoreCase) ||
+                cleanKey.StartsWith("default_", StringComparison.OrdinalIgnoreCase) ||
+                cleanKey.Contains("schema", StringComparison.OrdinalIgnoreCase))
             {
                 _globalConstants.TryAdd(cleanKey, cleanVal);
             }
@@ -127,6 +131,28 @@ public static class ConstantRegistry
                 {
                     value = nsVal;
                     return true;
+                }
+            }
+        }
+
+        // 1b. If resolving a generic schema key in a project context, check if any registered schema constant has a domain prefix contained in the project name
+        if (!string.IsNullOrWhiteSpace(projectName) &&
+            cleanKey is "schema" or "schema_name" or "db_schema" or "db_schema_name" or
+                        "self.schema" or "self.schema_name" or "self.db_schema" or "self.db_schema_name")
+        {
+            var normProj = projectName.Replace("-", "_");
+            foreach (var (k, v) in _globalConstants)
+            {
+                if (!k.Contains("schema", StringComparison.OrdinalIgnoreCase)) continue;
+                var schemaIdx = k.IndexOf("schema", StringComparison.OrdinalIgnoreCase);
+                if (schemaIdx > 1)
+                {
+                    var prefix = k[..(schemaIdx - 1)].Trim('_');
+                    if (prefix.Length >= 3 && normProj.Contains(prefix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        value = v;
+                        return true;
+                    }
                 }
             }
         }
@@ -229,11 +255,26 @@ public static class ConstantRegistry
         var parts = s.Split('/', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length > 0)
         {
-            // If path contains "services/xyz", extract xyz
-            var svcIdx = Array.IndexOf(parts, "services");
-            if (svcIdx >= 0 && svcIdx + 1 < parts.Length)
+            // If path contains "services/xyz", "bin/xyz", "apps/xyz", "packages/xyz", extract xyz
+            foreach (var container in new[] { "services", "service", "bin", "apps", "packages", "crates" })
             {
-                return parts[svcIdx + 1];
+                var idx = Array.LastIndexOf(parts, container);
+                if (idx >= 0 && idx + 1 < parts.Length && !parts[idx + 1].Contains('.'))
+                {
+                    return parts[idx + 1];
+                }
+            }
+            if (parts.Length >= 2)
+            {
+                var parentDir = parts[^2];
+                if (!parentDir.Equals("src", StringComparison.OrdinalIgnoreCase) && !parentDir.Contains('.'))
+                {
+                    return parentDir;
+                }
+                if (parts.Length >= 3 && !parts[^3].Contains('.'))
+                {
+                    return parts[^3];
+                }
             }
             return parts[0];
         }
@@ -302,6 +343,9 @@ public static class ConstantRegistry
             }
         }
     }
+
+    public static bool TryDeriveTopicOrQueueFromConstantName(string name, out string derived) =>
+        TryDeriveTopicOrQueueFromEnvVar(name, out derived);
 
     public static bool TryDeriveTopicOrQueueFromEnvVar(string envVar, out string derived)
     {

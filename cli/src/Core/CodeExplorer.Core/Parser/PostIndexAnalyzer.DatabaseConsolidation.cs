@@ -61,6 +61,16 @@ public partial class PostIndexAnalyzer
         return false;
     }
 
+    private static readonly HashSet<string> SystemCatalogTables = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "pg_database", "pg_class", "pg_namespace", "pg_tables", "pg_views", "pg_matviews", "pg_indexes",
+        "pg_attribute", "pg_type", "pg_proc", "pg_locks", "pg_settings", "pg_roles", "pg_user",
+        "pg_constraint", "pg_depend", "pg_description", "pg_index", "pg_am", "pg_attrdef",
+        "pg_authid", "pg_auth_members", "pg_extension", "pg_inherits", "pg_language", "pg_operator",
+        "pg_opclass", "pg_rewrite", "pg_sequence", "pg_shdepend", "pg_statistic", "pg_tablespace",
+        "pg_trigger", "dual"
+    };
+
     public static bool IsValidTableIdentifier(string? name)
     {
         if (string.IsNullOrWhiteSpace(name)) return false;
@@ -72,9 +82,25 @@ public partial class PostIndexAnalyzer
         {
             var trimmedPart = p.Trim('`', '"', '\'', '[', ']').Trim();
             if (string.IsNullOrWhiteSpace(trimmedPart)) return false;
+            if (trimmedPart.Equals("pg_catalog", StringComparison.OrdinalIgnoreCase) ||
+                trimmedPart.Equals("information_schema", StringComparison.OrdinalIgnoreCase) ||
+                trimmedPart.Equals("sys", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
             if (NestedSqlParser.IsSqlKeyword(trimmedPart)) return false;
             if (!Regex.IsMatch(trimmedPart, @"^[a-zA-Z_][a-zA-Z0-9_\*]*$")) return false;
         }
+
+        var tableName = parts[^1].Trim('`', '"', '\'', '[', ']').Trim().ToLowerInvariant();
+        if (tableName.StartsWith("pg_stat_", StringComparison.OrdinalIgnoreCase) ||
+            tableName.StartsWith("pg_toast", StringComparison.OrdinalIgnoreCase) ||
+            tableName.StartsWith("sqlite_", StringComparison.OrdinalIgnoreCase) ||
+            SystemCatalogTables.Contains(tableName))
+        {
+            return false;
+        }
+
         return true;
     }
 
@@ -420,7 +446,8 @@ public partial class PostIndexAnalyzer
     }
 
     public static Dictionary<string, string> ResolveDatabaseConsolidations(
-        IEnumerable<(string Id, string Name, string Engine, string Schema)> candidateNodes)
+        IEnumerable<(string Id, string Name, string Engine, string Schema)> candidateNodes,
+        ISet<string>? implicitSchemaIds = null)
     {
         var remap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var nodesByEngine = candidateNodes
@@ -486,7 +513,8 @@ public partial class PostIndexAnalyzer
             var concreteNodes = list.Where(n => {
                 var s = n.Schema;
                 if (string.IsNullOrEmpty(s) && n.Name.Contains('.')) s = n.Name.Split('.', 2)[1];
-                return !string.IsNullOrWhiteSpace(s) && !s.Equals("default", StringComparison.OrdinalIgnoreCase);
+                var isImplicit = implicitSchemaIds != null && implicitSchemaIds.Contains(n.Id);
+                return !string.IsNullOrWhiteSpace(s) && !s.Equals("default", StringComparison.OrdinalIgnoreCase) && !isImplicit;
             }).ToList();
 
             if (concreteNodes.Count > 0)
@@ -514,12 +542,16 @@ public partial class PostIndexAnalyzer
                 var genericNodes = list.Where(n => {
                     var s = n.Schema;
                     if (string.IsNullOrEmpty(s) && n.Name.Contains('.')) s = n.Name.Split('.', 2)[1];
-                    return string.IsNullOrWhiteSpace(s) || s.Equals("default", StringComparison.OrdinalIgnoreCase);
+                    var isImplicit = implicitSchemaIds != null && implicitSchemaIds.Contains(n.Id);
+                    return string.IsNullOrWhiteSpace(s) || s.Equals("default", StringComparison.OrdinalIgnoreCase) || isImplicit;
                 }).ToList();
 
                 foreach (var genNode in genericNodes)
                 {
-                    remap[genNode.Id] = winner.Id;
+                    if (genNode.Id != winner.Id)
+                    {
+                        remap[genNode.Id] = winner.Id;
+                    }
                 }
             }
         }

@@ -104,7 +104,7 @@ public class McpCommandHandler : BaseCommandHandler
         client.Logger = app.Services.GetRequiredService<ILogger<SqliteGraphClient>>();
         ConfigureWebPipeline(app, quiet);
 
-        app.Urls.Add($"http://0.0.0.0:{port}");
+        app.Urls.Add($"http://127.0.0.1:{port}");
         if (!quiet)
         {
             if (isStandby)

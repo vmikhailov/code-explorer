@@ -41,8 +41,12 @@ public class SyntaxTree : IDisposable
         RawTypeBindings = rawTypeBindings;
     }
 
+    private bool _disposed;
+
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
         Tree?.Dispose();
         Parser?.Dispose();
         // Language is cached in _languageCache and reused across all files

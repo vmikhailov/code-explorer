@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
 
@@ -37,7 +39,8 @@ public class RustParser : IProjectParser, IFileParser
         new Libraries.DieselLibraryParser(),
         new Libraries.RdKafkaRustLibraryParser(),
         new Libraries.LapinLibraryParser(),
-        new Libraries.AsyncNatsLibraryParser()
+        new Libraries.AsyncNatsLibraryParser(),
+        new Libraries.AwsSdkRustLibraryParser()
     ];
 
     public RustParser()
@@ -58,10 +61,104 @@ public class RustParser : IProjectParser, IFileParser
         return lower.StartsWith(".env") || lower == "cargo.lock";
     }
 
+    public static string? FindCrateCargoToml(string filePath)
+    {
+        var dir = Path.GetDirectoryName(Path.GetFullPath(filePath));
+        while (!string.IsNullOrEmpty(dir))
+        {
+            var cargoToml = Path.Combine(dir, "Cargo.toml");
+            if (File.Exists(cargoToml)) return cargoToml;
+            var parent = Directory.GetParent(dir);
+            if (parent == null || parent.FullName.Equals(dir, StringComparison.OrdinalIgnoreCase))
+                break;
+            dir = parent.FullName;
+        }
+        return null;
+    }
+
+    private bool IsStandaloneBinarySubfolder(string directoryPath, out string? matchingBinName, out string? grandparentCargoToml)
+    {
+        matchingBinName = null;
+        grandparentCargoToml = null;
+
+        var fullDir = Path.GetFullPath(directoryPath);
+        var dirName = Path.GetFileName(fullDir.TrimEnd('/', '\\'));
+        var parentDir = Path.GetDirectoryName(fullDir);
+        if (parentDir == null) return false;
+
+        var parentName = Path.GetFileName(parentDir);
+        if (!parentName.Equals("bin", StringComparison.OrdinalIgnoreCase)) return false;
+
+        var grandparentDir = Path.GetDirectoryName(parentDir);
+        if (grandparentDir == null) return false;
+
+        var gpCargo = Path.Combine(grandparentDir, "Cargo.toml");
+        if (!File.Exists(gpCargo)) return false;
+
+        var gpManifest = GetOrLoadManifest(gpCargo);
+        if (gpManifest == null) return false;
+
+        if (gpManifest.LibTarget != null || gpManifest.BinTargets.Count <= 1) return false;
+
+        var matchingBin = gpManifest.BinTargets.FirstOrDefault(b =>
+            b.Path.Replace('\\', '/').StartsWith($"bin/{dirName}/", StringComparison.OrdinalIgnoreCase));
+        if (matchingBin == null) return false;
+
+        var wsRoot = CargoManifestParser.FindWorkspaceRoot(grandparentDir);
+        var wsRootManifest = !string.IsNullOrEmpty(wsRoot) && File.Exists(wsRoot) ? GetOrLoadManifest(wsRoot) : null;
+        if (wsRootManifest?.Workspace != null)
+        {
+            var wsRootDir = Path.GetDirectoryName(wsRoot)!;
+            foreach (var member in wsRootManifest.Workspace.Members)
+            {
+                var memberToml = Path.Combine(wsRootDir, member, "Cargo.toml");
+                if (File.Exists(memberToml))
+                {
+                    var mManifest = GetOrLoadManifest(memberToml);
+                    if (mManifest?.Package?.Name != null &&
+                        (mManifest.Package.Name.Equals(dirName, StringComparison.OrdinalIgnoreCase) ||
+                         mManifest.Package.Name.Replace('-', '_').Equals(dirName.Replace('-', '_'), StringComparison.OrdinalIgnoreCase)))
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
+        else
+        {
+            var wsParent = Directory.GetParent(grandparentDir)?.FullName;
+            if (wsParent != null)
+            {
+                foreach (var sibling in Directory.EnumerateDirectories(wsParent))
+                {
+                    if (sibling.Equals(grandparentDir, StringComparison.OrdinalIgnoreCase)) continue;
+                    var sibCargo = Path.Combine(sibling, "Cargo.toml");
+                    if (File.Exists(sibCargo))
+                    {
+                        var sManifest = GetOrLoadManifest(sibCargo);
+                        if (sManifest?.Package?.Name != null &&
+                            (sManifest.Package.Name.Equals(dirName, StringComparison.OrdinalIgnoreCase) ||
+                             sManifest.Package.Name.Replace('-', '_').Equals(dirName.Replace('-', '_'), StringComparison.OrdinalIgnoreCase)))
+                        {
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
+
+        matchingBinName = matchingBin.Name;
+        grandparentCargoToml = gpCargo;
+        return true;
+    }
+
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
     {
         var cargoToml = filesInDirectory.FirstOrDefault(f => Path.GetFileName(f).Equals("Cargo.toml", StringComparison.OrdinalIgnoreCase));
-        if (cargoToml == null) return false;
+        if (cargoToml == null)
+        {
+            return IsStandaloneBinarySubfolder(directoryPath, out _, out _);
+        }
 
         try
         {
@@ -97,6 +194,11 @@ public class RustParser : IProjectParser, IFileParser
                 // Fall back to folder name
             }
         }
+        else if (IsStandaloneBinarySubfolder(directoryPath, out var matchingBinName, out _))
+        {
+            return matchingBinName ?? Path.GetFileName(directoryPath.TrimEnd('/', '\\'));
+        }
+
         return Path.GetFileName(directoryPath.TrimEnd('/', '\\'));
     }
 
@@ -104,6 +206,8 @@ public class RustParser : IProjectParser, IFileParser
     {
         RustDeclarationExtractor.Extract(rootNode, registerDeclaration);
     }
+
+    public ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree) => new SyntaxEnricher(SemanticExtensions, syntaxTree, Packages);
 
     public BaseParserVisitor CreateVisitor(
         Node rootNode,
@@ -114,11 +218,11 @@ public class RustParser : IProjectParser, IFileParser
         SemanticExtensionRegistry extensionRegistry)
     {
         var fullPath = Path.Combine(absoluteWorkspacePath, relativePath);
-        var crateRootCargo = RustModuleResolver.FindCrateRoot(fullPath);
+        var crateCargoToml = FindCrateCargoToml(fullPath);
         CargoManifest? manifest = null;
-        if (!string.IsNullOrEmpty(crateRootCargo) && File.Exists(crateRootCargo))
+        if (!string.IsNullOrEmpty(crateCargoToml) && File.Exists(crateCargoToml))
         {
-            manifest = GetOrLoadManifest(crateRootCargo);
+            manifest = GetOrLoadManifest(crateCargoToml);
         }
 
         return new RustFileVisitor(
@@ -145,6 +249,11 @@ public class RustParser : IProjectParser, IFileParser
 
     public async Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
     {
+        if (IsStandaloneBinarySubfolder(projectDirectory, out _, out _))
+        {
+            return null;
+        }
+
         var cargoTomlPath = Path.Combine(projectDirectory, "Cargo.toml");
         if (!File.Exists(cargoTomlPath)) return null;
 
@@ -171,54 +280,168 @@ public class RustParser : IProjectParser, IFileParser
         var externalPackages = new List<ProducedPackageInfo>();
 
         var cargoTomlPath = Path.Combine(projectDirectory, "Cargo.toml");
-        if (!File.Exists(cargoTomlPath))
+        if (File.Exists(cargoTomlPath))
         {
-            return new ProjectDependencyInfo(localProjectPaths, externalPackages);
-        }
-
-        try
-        {
-            var manifest = GetOrLoadManifest(cargoTomlPath);
-            if (manifest != null)
+            try
             {
-                var allDeps = manifest.Dependencies
-                    .Concat(manifest.DevDependencies)
-                    .Concat(manifest.BuildDependencies);
-
-                foreach (var dep in allDeps)
+                var manifest = GetOrLoadManifest(cargoTomlPath);
+                if (manifest != null)
                 {
-                    if (!string.IsNullOrEmpty(dep.ResolvedAbsolutePath) && Directory.Exists(dep.ResolvedAbsolutePath))
+                    var isTestOnly = manifest.BinTargets.Count == 0 && manifest.LibTarget == null && manifest.TestTargets.Count > 0;
+                    var localDeps = isTestOnly
+                        ? manifest.Dependencies.Concat(manifest.DevDependencies).Concat(manifest.BuildDependencies)
+                        : manifest.Dependencies.Concat(manifest.BuildDependencies);
+
+                    foreach (var dep in localDeps)
                     {
-                        if (!localProjectPaths.Contains(dep.ResolvedAbsolutePath))
+                        if (!string.IsNullOrEmpty(dep.ResolvedAbsolutePath) && Directory.Exists(dep.ResolvedAbsolutePath))
                         {
-                            localProjectPaths.Add(dep.ResolvedAbsolutePath);
+                            if (!localProjectPaths.Contains(dep.ResolvedAbsolutePath))
+                            {
+                                localProjectPaths.Add(dep.ResolvedAbsolutePath);
+                            }
+                        }
+                        else if (!string.IsNullOrEmpty(dep.Path))
+                        {
+                            var resolved = Path.GetFullPath(Path.Combine(projectDirectory, dep.Path));
+                            if (Directory.Exists(resolved) && !localProjectPaths.Contains(resolved))
+                            {
+                                localProjectPaths.Add(resolved);
+                            }
                         }
                     }
-                    else if (!string.IsNullOrEmpty(dep.Path))
+
+                    var allDeps = manifest.Dependencies
+                        .Concat(manifest.DevDependencies)
+                        .Concat(manifest.BuildDependencies);
+
+                    foreach (var dep in allDeps)
                     {
-                        var resolved = Path.GetFullPath(Path.Combine(projectDirectory, dep.Path));
-                        if (!localProjectPaths.Contains(resolved))
+                        if (string.IsNullOrEmpty(dep.Path) && string.IsNullOrEmpty(dep.ResolvedAbsolutePath))
                         {
-                            localProjectPaths.Add(resolved);
-                        }
-                    }
-                    else
-                    {
-                        var version = dep.Version ?? "1.0.0";
-                        if (!externalPackages.Any(p => p.Name.Equals(dep.Name, StringComparison.OrdinalIgnoreCase)))
-                        {
-                            externalPackages.Add(new ProducedPackageInfo(dep.Name, version, "rust"));
+                            var version = dep.Version ?? "1.0.0";
+                            if (!externalPackages.Any(p => p.Name.Equals(dep.Name, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                externalPackages.Add(new ProducedPackageInfo(dep.Name, version, "rust"));
+                            }
                         }
                     }
                 }
             }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Ignore
+            }
+
+            return await Task.FromResult(new ProjectDependencyInfo(localProjectPaths, externalPackages));
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+
+        if (IsStandaloneBinarySubfolder(projectDirectory, out var matchingBinName, out var gpCargo) && gpCargo != null)
         {
-            // Ignore
+            try
+            {
+                var gpManifest = GetOrLoadManifest(gpCargo);
+                if (gpManifest != null)
+                {
+                    var gpDir = Path.GetDirectoryName(gpCargo)!;
+                    var usedCrates = ScanUsedCrates(projectDirectory);
+
+                    foreach (var dep in gpManifest.Dependencies)
+                    {
+                        var normName = dep.Name.Replace('-', '_');
+                        var isUsed = usedCrates.Count == 0 || usedCrates.Contains(normName) || usedCrates.Contains(dep.Name);
+                        if (!isUsed) continue;
+
+                        if (!string.IsNullOrEmpty(dep.ResolvedAbsolutePath) && Directory.Exists(dep.ResolvedAbsolutePath))
+                        {
+                            if (!localProjectPaths.Contains(dep.ResolvedAbsolutePath))
+                            {
+                                localProjectPaths.Add(dep.ResolvedAbsolutePath);
+                            }
+                        }
+                        else if (!string.IsNullOrEmpty(dep.Path))
+                        {
+                            var resolved = Path.GetFullPath(Path.Combine(gpDir, dep.Path));
+                            if (Directory.Exists(resolved) && !localProjectPaths.Contains(resolved))
+                            {
+                                localProjectPaths.Add(resolved);
+                            }
+                        }
+                        else
+                        {
+                            var version = dep.Version ?? "1.0.0";
+                            if (!externalPackages.Any(p => p.Name.Equals(dep.Name, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                externalPackages.Add(new ProducedPackageInfo(dep.Name, version, "rust"));
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Ignore
+            }
         }
 
         return await Task.FromResult(new ProjectDependencyInfo(localProjectPaths, externalPackages));
+    }
+
+    private static HashSet<string> ScanUsedCrates(string directoryPath)
+    {
+        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!Directory.Exists(directoryPath)) return used;
+
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(directoryPath, "*.rs", SearchOption.AllDirectories))
+            {
+                var text = File.ReadAllText(file);
+                var matches = Regex.Matches(text, @"(?:use\s+|extern\s+crate\s+)([a-zA-Z0-9_]+)");
+                foreach (Match m in matches)
+                {
+                    if (m.Success && m.Groups.Count > 1)
+                    {
+                        used.Add(m.Groups[1].Value);
+                    }
+                }
+
+                var pathMatches = Regex.Matches(text, @"\b([a-zA-Z0-9_]+)::");
+                foreach (Match m in pathMatches)
+                {
+                    if (m.Success && m.Groups.Count > 1)
+                    {
+                        used.Add(m.Groups[1].Value);
+                    }
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return used;
+    }
+
+    public ProjectClassification? ClassifyProject(ProjectContext context)
+    {
+        if (context.ManifestProperties != null)
+        {
+            var manifestType = context.ManifestProperties.GetValueOrDefault("manifest_type");
+            if (manifestType == "test" || context.ManifestProperties.GetValueOrDefault("is_test_project") == "true") return ProjectClassification.Test;
+            if (context.ManifestProperties.GetValueOrDefault("is_orchestrator") == "true" ||
+                context.ManifestProperties.GetValueOrDefault("role") == "Library" ||
+                manifestType == "library") return ProjectClassification.Library;
+
+            var primaryRole = context.ManifestProperties.GetValueOrDefault("primary_role");
+            var role = context.ManifestProperties.GetValueOrDefault("role");
+            if (primaryRole == "App" || role == "FrontendApp" || role == "App") return ProjectClassification.WebApp;
+            if (primaryRole == "Worker" || role == "Worker") return ProjectClassification.Worker;
+            if (primaryRole == "CliTool" || role == "CliTool") return ProjectClassification.CliTool;
+            if (primaryRole == "Service" || role == "Service") return ProjectClassification.Service;
+        }
+
+        return IProjectParser.DefaultClassifyProject(this, context);
     }
 
     public Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory)
@@ -235,7 +458,18 @@ public class RustParser : IProjectParser, IFileParser
         {
             props["manifest_type"] = "test";
             props["is_test_project"] = "true";
+            props["primary_role"] = "Test";
+            props["role"] = "Test";
+            props["kind"] = "TestSuite";
+            props["secondary_roles"] = "[]";
+            props["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { "Test" });
             return props;
+        }
+
+        // Check standalone binary subfolder (e.g. iris-mpc-bins/bin/retention-reaper)
+        if (IsStandaloneBinarySubfolder(directoryPath, out var matchingBinName, out var gpCargo) && gpCargo != null)
+        {
+            return ExtractStandaloneManifestProperties(directoryPath, filesInDirectory, matchingBinName, gpCargo, dirName, props);
         }
 
         var cargoTomlPath = Path.Combine(directoryPath, "Cargo.toml");
@@ -264,6 +498,19 @@ public class RustParser : IProjectParser, IFileParser
             return props;
         }
 
+        // Check if pure test harness
+        if (manifest.Dependencies.Count == 0 && manifest.DevDependencies.Count > 0 && manifest.LibTarget == null && manifest.BinTargets.Count == 0)
+        {
+            props["manifest_type"] = "test";
+            props["is_test_project"] = "true";
+            props["primary_role"] = "Test";
+            props["role"] = "Test";
+            props["kind"] = "TestSuite";
+            props["secondary_roles"] = "[]";
+            props["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { "Test" });
+            return props;
+        }
+
         var allDeps = manifest.Dependencies
             .Concat(manifest.DevDependencies)
             .Concat(manifest.BuildDependencies)
@@ -271,78 +518,238 @@ public class RustParser : IProjectParser, IFileParser
 
         var allDepNames = new HashSet<string>(allDeps.Select(d => d.Name.ToLowerInvariant()), StringComparer.OrdinalIgnoreCase);
 
-        // Check if pure test harness
-        if (manifest.Dependencies.Count == 0 && manifest.DevDependencies.Count > 0 && manifest.LibTarget == null && manifest.BinTargets.Count == 0)
-        {
-            props["manifest_type"] = "test";
-            props["is_test_project"] = "true";
-            return props;
-        }
-
-        // Framework and dependency detection
         var isWeb = allDepNames.Any(d => d is "axum" or "actix-web" or "actix_web" or "rocket" or "warp" or "poem" or "salvo");
         var isGrpc = allDepNames.Any(d => d is "tonic" or "tarpc" or "grpc");
-        var isCliDep = allDepNames.Any(d => d is "clap" or "structopt" or "argh" or "ratatui" or "crossterm" or "dialoguer");
-        var isWorkerDep = allDepNames.Any(d => d is "rdkafka" or "lapin" or "async-nats" or "async_nats" or "fang" or "apalis");
+        var isCliDep = allDepNames.Any(d => d is "clap" or "clap_builder" or "structopt" or "argh" or "pico-args" or "lexopt" or "ratatui" or "crossterm" or "dialoguer");
+        var isWorkerDep = allDepNames.Any(d => d is "aws-sdk-sqs" or "rdkafka" or "lapin" or "async-nats" or "async_nats" or "fang" or "apalis" or "tokio-cron-scheduler");
         var isMigrationDep = allDepNames.Any(d => d is "refinery" or "diesel_migrations" or "diesel-migrations");
 
         var migrationsDir = Path.Combine(directoryPath, "migrations");
         var hasMigrations = isMigrationDep ||
                             (Directory.Exists(migrationsDir) && Directory.EnumerateFiles(migrationsDir, "*.sql", SearchOption.AllDirectories).Any());
 
-        var rsFiles = filesInDirectory.Where(f => f.EndsWith(".rs", StringComparison.OrdinalIgnoreCase)).ToList();
-        var hasBin = manifest.BinTargets.Count > 0 ||
-                     File.Exists(Path.Combine(directoryPath, "src", "main.rs")) ||
-                     Directory.Exists(Path.Combine(directoryPath, "src", "bin"));
-        var hasLib = manifest.LibTarget != null || File.Exists(Path.Combine(directoryPath, "src", "lib.rs"));
-
-        var isWorkerName = dirName.Contains("worker") || dirName.Contains("consumer") || dirName.Contains("scheduler") ||
-                           rsFiles.Any(f => Path.GetFileName(f).ToLowerInvariant().Contains("worker") || Path.GetFileName(f).ToLowerInvariant().Contains("consumer"));
-
-        if (hasMigrations)
+        // Multi-bin aggregator crate (e.g. iris-mpc-bins with manifest.LibTarget == null && manifest.BinTargets.Count > 5)
+        if (manifest.LibTarget == null && manifest.BinTargets.Count > 5)
         {
-            props["manifest_type"] = "migration";
-            props["framework_type"] = "migration";
-        }
-        else if (hasBin && (isWorkerDep || isWorkerName))
-        {
-            props["manifest_type"] = "worker";
-            props["framework_type"] = "worker";
-        }
-        else if (hasBin && (isWeb || isGrpc))
-        {
-            props["manifest_type"] = "application";
-            props["framework_type"] = isGrpc ? "api" : "web";
-            if (isGrpc) props["has_grpc"] = "true";
-        }
-        else if (hasBin && (isCliDep || dirName.EndsWith("-cli") || dirName.EndsWith("_cli") || dirName == "cli" || dirName.EndsWith("-tool") || dirName.EndsWith("_tool") || normPath.Contains("/src/bin/")))
-        {
+            props["primary_role"] = "CliTool";
+            props["role"] = "CliTool";
+            props["kind"] = "CliTool";
             props["manifest_type"] = "cli";
             props["framework_type"] = "cli";
-            props["has_cli_bin"] = "true";
+            props["is_library"] = "false";
+            var aggSecRoles = new[] { "Service", "Worker" };
+            props["secondary_roles"] = System.Text.Json.JsonSerializer.Serialize(aggSecRoles);
+            props["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { "CliTool", "Service", "Worker" });
+            return props;
         }
-        else if (hasBin)
+
+        var crateName = manifest.Package?.Name ?? dirName;
+        var hasDirectBin = manifest.BinTargets.Count > 0 ||
+                           File.Exists(Path.Combine(directoryPath, "src", "main.rs")) ||
+                           Directory.Exists(Path.Combine(directoryPath, "src", "bin"));
+        var hasLibCapability = manifest.LibTarget != null || File.Exists(Path.Combine(directoryPath, "src", "lib.rs"));
+
+        // Inspect companion *-bins crate in workspace
+        var companionBinFiles = new List<string>();
+        var parentDir = Directory.GetParent(directoryPath)?.FullName;
+        if (parentDir != null)
         {
-            props["manifest_type"] = "application";
-            props["framework_type"] = isWeb ? "web" : "application";
+            try
+            {
+                foreach (var sibDir in Directory.EnumerateDirectories(parentDir))
+                {
+                    var sibName = Path.GetFileName(sibDir);
+                    if (sibName.EndsWith("-bins", StringComparison.OrdinalIgnoreCase) ||
+                        sibName.EndsWith("_bins", StringComparison.OrdinalIgnoreCase) ||
+                        sibName.Equals("bins", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var companionSubDir = Path.Combine(sibDir, "bin", crateName);
+                        if (!Directory.Exists(companionSubDir))
+                        {
+                            companionSubDir = Path.Combine(sibDir, "bin", crateName.Replace('-', '_'));
+                        }
+                        if (Directory.Exists(companionSubDir))
+                        {
+                            companionBinFiles.AddRange(Directory.EnumerateFiles(companionSubDir, "*.rs", SearchOption.AllDirectories));
+                        }
+                    }
+                }
+            }
+            catch { }
         }
-        else if (hasLib)
+
+        var hasCompanionBin = companionBinFiles.Count > 0;
+        var hasCompanionServer = companionBinFiles.Any(f => {
+            var fn = Path.GetFileName(f).ToLowerInvariant();
+            return fn.Contains("server") || fn.Contains("api") || fn.Contains("gateway");
+        });
+        var hasCompanionWorker = companionBinFiles.Any(f => {
+            var fn = Path.GetFileName(f).ToLowerInvariant();
+            return fn.Contains("genesis") || fn.Contains("reaper") || fn.Contains("rerandomize") || fn.Contains("consumer");
+        });
+
+        // Pure library check:
+        // If crate has lib capability, NO direct bin targets, and NO companion server/worker binaries:
+        if (hasLibCapability && !hasDirectBin && !hasCompanionServer && !hasCompanionWorker)
         {
+            props["primary_role"] = "Library";
+            props["role"] = "Library";
+            props["kind"] = "Library";
             props["manifest_type"] = "library";
             props["framework_type"] = "library";
+            props["is_library"] = "true";
+            props["secondary_roles"] = "[]";
+            props["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { "Library" });
+            return props;
+        }
+
+        var localRsFiles = filesInDirectory.Where(f => f.EndsWith(".rs", StringComparison.OrdinalIgnoreCase)).ToList();
+        var allScanFiles = localRsFiles.Concat(companionBinFiles).ToList();
+        var combinedSourceText = string.Join(" ", allScanFiles.Select(f => {
+            try { return File.ReadAllText(f); } catch { return ""; }
+        }));
+
+        var hasServerCode = hasCompanionServer || (hasDirectBin && (isWeb || isGrpc || combinedSourceText.Contains("axum::Router") || combinedSourceText.Contains("start_coordination_server")));
+        var hasWorkerCode = hasCompanionWorker || isWorkerDep ||
+            dirName.Contains("worker") || dirName.Contains("consumer") || dirName.Contains("scheduler") || dirName.Contains("reaper") ||
+            (hasDirectBin && (combinedSourceText.Contains("CronJob") || combinedSourceText.Contains("receive_message")));
+        var hasCliCode = (hasDirectBin || hasCompanionBin) && (isCliDep ||
+            companionBinFiles.Any(f => {
+                var fn = Path.GetFileName(f).ToLowerInvariant();
+                return fn.Contains("client") || fn.Contains("cli") || fn.Contains("tool");
+            }) || combinedSourceText.Contains("clap::Parser"));
+
+        var hasServiceCapability = (hasDirectBin && (isWeb || isGrpc || hasServerCode)) || hasCompanionServer;
+        var hasWorkerCapability = hasWorkerCode;
+        var hasCliCapability = hasCliCode;
+
+        string primaryRole;
+        if (dirName.Contains("reaper") || dirName.Contains("upgrade-hawk") || (!hasServiceCapability && hasWorkerCapability))
+        {
+            primaryRole = "Worker";
+        }
+        else if (hasServiceCapability)
+        {
+            primaryRole = "Service";
+        }
+        else if (hasWorkerCapability)
+        {
+            primaryRole = "Worker";
+        }
+        else if (hasCliCapability)
+        {
+            primaryRole = "CliTool";
+        }
+        else if (hasLibCapability)
+        {
+            primaryRole = "Library";
         }
         else
         {
-            props["manifest_type"] = "library";
-            props["framework_type"] = "library";
+            primaryRole = "Library";
         }
 
+        var detectedRoles = new List<string>();
+        if (hasServiceCapability) detectedRoles.Add("Service");
+        if (hasWorkerCapability) detectedRoles.Add("Worker");
+        if (hasCliCapability) detectedRoles.Add("CliTool");
+        if (hasLibCapability) detectedRoles.Add("Library");
+
+        var secondaryRoles = detectedRoles
+            .Where(r => !string.Equals(r, primaryRole, StringComparison.OrdinalIgnoreCase))
+            .Distinct()
+            .ToList();
+
+        var isLibrary = primaryRole == "Library" && secondaryRoles.Count == 0;
+
+        props["primary_role"] = primaryRole;
+        props["role"] = primaryRole;
+        props["kind"] = primaryRole;
+        props["manifest_type"] = primaryRole == "Service" ? "application" : (primaryRole == "Worker" ? "worker" : (primaryRole == "Library" ? "library" : "cli"));
+        props["framework_type"] = primaryRole == "Service" ? (isGrpc ? "api" : "web") : (primaryRole == "Worker" ? "worker" : (primaryRole == "Library" ? "library" : "cli"));
+        props["is_library"] = isLibrary ? "true" : "false";
+        props["secondary_roles"] = System.Text.Json.JsonSerializer.Serialize(secondaryRoles);
+        props["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { primaryRole }.Concat(secondaryRoles).Distinct());
+
+        return props;
+    }
+
+    private Dictionary<string, string> ExtractStandaloneManifestProperties(
+        string directoryPath,
+        string[] filesInDirectory,
+        string? matchingBinName,
+        string gpCargo,
+        string dirName,
+        Dictionary<string, string> props)
+    {
+        var gpManifest = GetOrLoadManifest(gpCargo);
+        var binName = (matchingBinName ?? dirName).ToLowerInvariant();
+
+        var allDeps = gpManifest != null ? gpManifest.Dependencies : new List<CargoDependency>();
+        var usedCrates = ScanUsedCrates(directoryPath);
+        var activeDeps = allDeps.Where(d => usedCrates.Count == 0 || usedCrates.Contains(d.Name.Replace('-', '_')) || usedCrates.Contains(d.Name)).ToList();
+        var depNames = new HashSet<string>(activeDeps.Select(d => d.Name.ToLowerInvariant()), StringComparer.OrdinalIgnoreCase);
+
+        var isWeb = depNames.Any(d => d is "axum" or "actix-web" or "actix_web" or "rocket" or "warp" or "poem" or "salvo");
+        var isGrpc = depNames.Any(d => d is "tonic" or "tarpc" or "grpc");
+        var isCliDep = depNames.Any(d => d is "clap" or "clap_builder" or "structopt" or "argh" or "pico-args" or "lexopt");
+        var isWorkerDep = depNames.Any(d => d is "aws-sdk-sqs" or "rdkafka" or "lapin" or "async-nats" or "async_nats" or "fang" or "apalis" or "tokio-cron-scheduler");
+
+        var rsFiles = filesInDirectory.Where(f => f.EndsWith(".rs", StringComparison.OrdinalIgnoreCase)).ToList();
+        var sourceText = string.Join(" ", rsFiles.Select(f => {
+            try { return File.ReadAllText(f); } catch { return ""; }
+        }));
+
+        var hasServerCode = isWeb || isGrpc || sourceText.Contains("start_coordination_server") || sourceText.Contains("axum::Router") || binName.Contains("server");
+        var hasWorkerCode = isWorkerDep || binName.Contains("reaper") || binName.Contains("worker") || binName.Contains("consumer") || binName.Contains("cron") || sourceText.Contains("CronJob") || sourceText.Contains("receive_message");
+        var hasCliCode = isCliDep || binName.EndsWith("-cli") || binName.EndsWith("_cli") || binName == "cli" || sourceText.Contains("clap::Parser") || sourceText.Contains("Parser::parse");
+
+        var hasServiceCapability = hasServerCode;
+        var hasWorkerCapability = hasWorkerCode;
+        var hasCliCapability = hasCliCode;
+
+        string primaryRole;
+        if (binName.Contains("reaper") || binName.Contains("cron") || (!hasServiceCapability && hasWorkerCapability))
+        {
+            primaryRole = "Worker";
+        }
+        else if (hasServiceCapability)
+        {
+            primaryRole = "Service";
+        }
+        else if (hasWorkerCapability)
+        {
+            primaryRole = "Worker";
+        }
+        else
+        {
+            primaryRole = "CliTool";
+        }
+
+        var detectedRoles = new List<string>();
+        if (hasServiceCapability) detectedRoles.Add("Service");
+        if (hasWorkerCapability) detectedRoles.Add("Worker");
+        if (hasCliCapability) detectedRoles.Add("CliTool");
+
+        var secondaryRoles = detectedRoles
+            .Where(r => !string.Equals(r, primaryRole, StringComparison.OrdinalIgnoreCase))
+            .Distinct()
+            .ToList();
+
+        props["primary_role"] = primaryRole;
+        props["role"] = primaryRole;
+        props["kind"] = primaryRole;
+        props["manifest_type"] = primaryRole == "Service" ? "application" : (primaryRole == "Worker" ? "worker" : "cli");
+        props["framework_type"] = primaryRole == "Service" ? (isGrpc ? "api" : "web") : (primaryRole == "Worker" ? "worker" : "cli");
+        props["is_library"] = "false";
+        props["secondary_roles"] = System.Text.Json.JsonSerializer.Serialize(secondaryRoles);
+        props["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { primaryRole }.Concat(secondaryRoles).Distinct());
         return props;
     }
 
     public ImportType ResolveImportType(string importPath, string filePath, string? absoluteWorkspacePath)
     {
-        var crateRootCargo = RustModuleResolver.FindCrateRoot(filePath);
+        var crateRootCargo = FindCrateCargoToml(filePath) ?? RustModuleResolver.FindCrateRoot(filePath);
         CargoManifest? manifest = null;
         if (!string.IsNullOrEmpty(crateRootCargo) && File.Exists(crateRootCargo))
         {

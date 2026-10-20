@@ -45,7 +45,10 @@ public partial class PostIndexAnalyzer
         foreach (var p in l4Result.Prev.Prev.Projects) CollectDbNodes(p);
         foreach (var f in l4Result.Prev.Prev.Prev.Files) CollectDbNodes(f);
 
-        var projects = l4Result.Prev.Prev.Projects;
+        var projects = l4Result.Prev.Prev.Projects
+            .OrderByDescending(p => p.Path?.Length ?? 0)
+            .ThenByDescending(p => p.Id.Length)
+            .ToList();
         var files = l4Result.Prev.Prev.Prev.Files;
         var fileToProject = prebuiltFileToProject != null
             ? (prebuiltFileToProject as Dictionary<string, ProjectNode> ?? new Dictionary<string, ProjectNode>(prebuiltFileToProject, StringComparer.OrdinalIgnoreCase))
@@ -140,6 +143,8 @@ public partial class PostIndexAnalyzer
                                  !ResourceReconciliationService.IsGenericConfigKey(e) &&
                                  IsRelationalEngine(e));
 
+        var rawImplicitDbIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var db in allDbNodes)
         {
             var isDeclaredInProduction = !string.IsNullOrEmpty(db.Path) && !WorkspaceConventions.IsTestFilePath(db.Path);
@@ -162,12 +167,20 @@ public partial class PostIndexAnalyzer
             var (cName, cType, cKey) = CanonicalizeDatabase(db.Name, db.DbType, rawEngine, rawSchema, primaryRelationalEngine);
             var canonicalId = BuildCanonicalDatabaseId(db.Id, cType, cKey, ctx.WorkspaceId);
             rawToCanonical[db.Id] = canonicalId;
+            nonTestAccessedTargets.Add(canonicalId);
 
             var engineToUse = !string.IsNullOrWhiteSpace(rawEngine) && !rawEngine.Equals("Database", StringComparison.OrdinalIgnoreCase)
                 ? rawEngine
                 : (cName.Contains('.') ? cName.Split('.', 2)[0] : cName);
 
             var schemaToUse = cName.Contains('.') ? cName.Split('.', 2)[1] : (rawSchema ?? "");
+
+            var isRawImplicit = db.Extensions != null && db.Extensions.TryGetValue("is_implicit_schema", out var imp) && imp == "true";
+            var isRawExplicit = db.Extensions != null && ((db.Extensions.TryGetValue("is_explicit_schema", out var exp) && exp == "true") || (db.Extensions.TryGetValue("from_config", out var fc) && fc == "true"));
+            if (isRawImplicit && !isRawExplicit)
+            {
+                rawImplicitDbIds.Add(db.Id);
+            }
 
             if (!canonicalDbNodes.TryGetValue(canonicalId, out var existingNode) ||
                 (existingNode.Extensions != null && existingNode.Extensions.TryGetValue("engine", out var exEng) && exEng.Equals(existingNode.Name, StringComparison.OrdinalIgnoreCase) && !engineToUse.Equals(cName, StringComparison.OrdinalIgnoreCase)))
@@ -201,10 +214,25 @@ public partial class PostIndexAnalyzer
                         ["layerIcon"] = StandardLayers.Foundation.Icon
                     }
                 );
+                if (isRawImplicit && !isRawExplicit)
+                {
+                    canonicalNode.Extensions ??= new Dictionary<string, string>();
+                    canonicalNode.Extensions["is_implicit_schema"] = "true";
+                }
+                else
+                {
+                    canonicalNode.Extensions ??= new Dictionary<string, string>();
+                    canonicalNode.Extensions["is_explicit_schema"] = "true";
+                }
                 canonicalDbNodes[canonicalId] = canonicalNode;
             }
 
             var targetCanonical = canonicalDbNodes[canonicalId];
+            if ((!isRawImplicit || isRawExplicit) && targetCanonical.Extensions != null)
+            {
+                targetCanonical.Extensions.Remove("is_implicit_schema");
+                targetCanonical.Extensions["is_explicit_schema"] = "true";
+            }
             foreach (var child in db.Children)
             {
                 if (!targetCanonical.Children.Any(c => c.Id == child.Id))
@@ -219,6 +247,11 @@ public partial class PostIndexAnalyzer
                 var (dsCName, dsCType, dsCKey) = CanonicalizeDatabase(db.Name, db.DbType, rawEngine, ds.Name, primaryRelationalEngine);
                 var dsCanonicalId = BuildCanonicalDatabaseId(ds.Id, dsCType, dsCKey, ctx.WorkspaceId);
                 rawToCanonical[ds.Id] = dsCanonicalId;
+                if (isRawImplicit && !isRawExplicit &&
+                    (string.IsNullOrEmpty(ds.Name) || ds.Name.Equals("dbo", StringComparison.OrdinalIgnoreCase) || ds.Name.Equals("default", StringComparison.OrdinalIgnoreCase)))
+                {
+                    rawImplicitDbIds.Add(ds.Id);
+                }
 
                 var dsEngine = dsCName.Contains('.')
                     ? dsCName.Split('.', 2)[0]
@@ -388,7 +421,8 @@ public partial class PostIndexAnalyzer
             nonTestAccessedTargets,
             primaryRelationalEngine,
             projectsByDomain,
-            IsTestSource);
+            IsTestSource,
+            rawImplicitDbIds);
 
         return (canonicalRels, rawToCanonical);
     }
