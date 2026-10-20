@@ -851,10 +851,10 @@
   display: flex;
   flex-direction: column;
   gap: 3px;
-  flex: 1 1 auto;
-  min-height: 40px;
+  flex: 0 0 auto;
+  min-height: 0;
   max-height: none;
-  overflow-y: auto;
+  overflow: visible;
 }
 
 .domain-hidden-list-item {
@@ -1530,14 +1530,12 @@
   min-height: 0;
   flex: 0 0 auto;
   flex-shrink: 0;
-  overflow: hidden;
 }
 
 .inspector-section.is-expanded {
   flex: 0 0 auto;
   flex-shrink: 0;
   min-height: 0;
-  overflow: hidden;
 }
 
 .inspector-section-header {
@@ -1572,7 +1570,7 @@
   color: #94a3b8;
 }
 
-/* Connection Lists */
+/* Connection Lists — no nested scrollbars; outer .inspector-body scrolls smoothly */
 .inspector-connection-list,
 .inspector-conn-list {
   display: flex;
@@ -1580,10 +1578,9 @@
   gap: 3px;
   flex: 0 0 auto;
   min-height: 0;
-  max-height: 260px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 2px 2px 2px 0;
+  max-height: none;
+  overflow: visible;
+  padding: 2px 0;
 }
 
 .inspector-connection-item {
@@ -1652,16 +1649,15 @@
   padding: 4px 6px;
 }
 
-/* Subprojects */
+/* Subprojects — no nested scrollbar; outer .inspector-body scrolls smoothly */
 .inspector-subprojects-list {
   display: flex;
   flex-direction: column;
   gap: 3px;
   flex: 0 0 auto;
   min-height: 0;
-  max-height: 240px;
-  overflow-y: auto;
-  overflow-x: hidden;
+  max-height: none;
+  overflow: visible;
   background: rgba(0, 0, 0, 0.25);
   border-radius: 5px;
   padding: 4px 6px;

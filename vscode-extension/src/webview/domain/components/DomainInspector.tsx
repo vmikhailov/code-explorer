@@ -303,6 +303,37 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
   // Local state for expanded database evidence under service
   const [expandedDbEvidenceId, setExpandedDbEvidenceId] = useState<string | null>(null);
 
+  // Filter for large grouped entity lists
+  const [groupMemberFilter, setGroupMemberFilter] = useState('');
+
+  // Inspector navigation history stack (for returning to group list or previous inspected node)
+  const [navHistory, setNavHistory] = useState<SelectedNodeDetail[]>([]);
+
+  // Find parent group if current selectedNode belongs to a collapsed group in nodeDetailMap
+  const parentGroupNode = useMemo<SelectedNodeDetail | null>(() => {
+    if (!selectedNode || selectedNode.isGroup || !nodeDetailMap) return null;
+    for (const n of nodeDetailMap.values()) {
+      if (
+        n.isGroup &&
+        (n.memberIds?.includes(selectedNode.id) || n.memberNodes?.some((m) => m.id === selectedNode.id))
+      ) {
+        return n;
+      }
+    }
+    return null;
+  }, [selectedNode, nodeDetailMap]);
+
+  const backTargetNode = useMemo<SelectedNodeDetail | null>(() => {
+    if (!selectedNode) return null;
+    for (let i = navHistory.length - 1; i >= 0; i--) {
+      const candidate = navHistory[i];
+      if (candidate && candidate.id !== selectedNode.id) {
+        return nodeDetailMap?.get(candidate.id) || candidate;
+      }
+    }
+    return parentGroupNode;
+  }, [selectedNode, navHistory, parentGroupNode, nodeDetailMap]);
+
   // Accordion section collapse state
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
@@ -314,11 +345,16 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
   };
 
   const handleClose = () => {
+    setNavHistory([]);
     clearSelection?.();
     onClearGraphHighlight?.();
   };
 
   const handleSelectNodeById = (nodeId: string) => {
+    if (selectedNode && selectedNode.id !== nodeId) {
+      setNavHistory((prev) => [...prev.filter((n) => n.id !== selectedNode.id), selectedNode]);
+    }
+    setGroupMemberFilter('');
     if (props.onSelectNodeById) {
       props.onSelectNodeById(nodeId);
       return;
@@ -326,6 +362,22 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
     const targetNode = nodeDetailMap?.get(nodeId);
     if (targetNode && selectNode) {
       selectNode(targetNode);
+    }
+  };
+
+  const handleGoBack = () => {
+    if (!backTargetNode) return;
+    setNavHistory((prev) => {
+      const idx = prev.map((n) => n.id).lastIndexOf(backTargetNode.id);
+      return idx >= 0 ? prev.slice(0, idx) : [];
+    });
+    setGroupMemberFilter('');
+    if (props.onSelectNodeById) {
+      props.onSelectNodeById(backTargetNode.id);
+      return;
+    }
+    if (selectNode) {
+      selectNode(backTargetNode);
     }
   };
 
@@ -535,6 +587,27 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
           }
           headerActions={
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              {backTargetNode && (
+                <button
+                  type="button"
+                  className="floating-dock-btn action-btn back-btn"
+                  onClick={handleGoBack}
+                  title={`Back to ${backTargetNode.displayName || backTargetNode.name}`}
+                  style={{
+                    background: 'rgba(56, 189, 248, 0.14)',
+                    color: '#38bdf8',
+                    border: '1px solid rgba(56, 189, 248, 0.35)',
+                    padding: '2px 7px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  <span>← Back</span>
+                </button>
+              )}
               {selectedNode.isGroup && onUngroupNode && (
                 <button
                   type="button"
@@ -639,6 +712,54 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
         >
           {/* Inspector Body */}
           <div className="inspector-body">
+                {/* Back to Group / Previous Node Banner */}
+                {backTargetNode && (
+                  <button
+                    type="button"
+                    onClick={handleGoBack}
+                    title={`Return to ${backTargetNode.displayName || backTargetNode.name}`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 8,
+                      width: '100%',
+                      padding: '6px 10px',
+                      borderRadius: 6,
+                      background: 'rgba(56, 189, 248, 0.1)',
+                      border: '1px solid rgba(56, 189, 248, 0.3)',
+                      color: '#38bdf8',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                      <span style={{ fontSize: '12px', lineHeight: 1 }}>←</span>
+                      <EntityNodeBadge kind={backTargetNode.kind} size={16} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        Back to {backTargetNode.displayName || backTargetNode.name}
+                      </span>
+                    </div>
+                    {backTargetNode.isGroup && (
+                      <span
+                        style={{
+                          fontSize: '9.5px',
+                          padding: '1px 5px',
+                          borderRadius: 3,
+                          background: 'rgba(56, 189, 248, 0.18)',
+                          color: '#7dd3fc',
+                          flexShrink: 0,
+                        }}
+                      >
+                        Group List
+                      </span>
+                    )}
+                  </button>
+                )}
+
                 {/* Quick Actions Row */}
                 <div className="inspector-actions">
                   {(selectedNode.kind === 'Service' || selectedNode.kind === 'Ingress') && onFocusInFlow && (
@@ -733,11 +854,39 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                           flexDirection: 'column',
                           gap: 4,
                           marginTop: 6,
-                          maxHeight: 260,
-                          overflowY: 'auto',
                         }}
                       >
-                        {selectedNode.memberNodes.map((m: SelectedNodeDetail) => (
+                        {selectedNode.memberNodes.length > 8 && (
+                          <div style={{ marginBottom: 4 }}>
+                            <input
+                              type="text"
+                              value={groupMemberFilter}
+                              onChange={(e) => setGroupMemberFilter(e.target.value)}
+                              placeholder={`Filter ${selectedNode.memberNodes.length} grouped entities...`}
+                              style={{
+                                width: '100%',
+                                boxSizing: 'border-box',
+                                padding: '4px 8px',
+                                fontSize: '11px',
+                                borderRadius: 4,
+                                background: 'rgba(0, 0, 0, 0.25)',
+                                border: '1px solid rgba(255, 255, 255, 0.12)',
+                                color: '#e2e8f0',
+                                outline: 'none',
+                              }}
+                            />
+                          </div>
+                        )}
+                        {selectedNode.memberNodes
+                          .filter((m: SelectedNodeDetail) => {
+                            if (!groupMemberFilter.trim()) return true;
+                            const q = groupMemberFilter.toLowerCase();
+                            return (
+                              (m.displayName || '').toLowerCase().includes(q) ||
+                              (m.name || '').toLowerCase().includes(q)
+                            );
+                          })
+                          .map((m: SelectedNodeDetail) => (
                           <div
                             key={m.id}
                             className="inspector-conn-item"
@@ -832,8 +981,6 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                           flexDirection: 'column',
                           gap: 4,
                           marginTop: 6,
-                          maxHeight: 240,
-                          overflowY: 'auto',
                         }}
                       >
                         {selectedNode.internalConnections.map((item: ConnectionDetailItem) => (

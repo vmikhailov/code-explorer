@@ -489,3 +489,8 @@
   height: 100%;
 }
 
+.floating-dock-panel.is-docked.no-body-padding > .floating-dock-body {
+  overflow: hidden;
+}
+
+

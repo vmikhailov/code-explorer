@@ -753,7 +753,7 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
           </div>
         )}
 
-        <div className="domain-hidden-list" style={{ flex: '0 0 auto', maxHeight: 280, overflowY: 'auto' }}>
+        <div className="domain-hidden-list">
           {filteredHiddenItems.map((item) => (
             <div
               key={item.id}

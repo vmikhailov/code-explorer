@@ -5384,7 +5384,15 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                     selectedNode={selectedNode}
                     selectedEdge={selectedEdge}
                     nodeDetailMap={nodeDetailMap}
-                    rawEdges={effectiveRawEdges}
+                    rawEdges={
+                      selectedNode &&
+                      !selectedNode.isGroup &&
+                      Array.from(nodeDetailMap.values()).some(
+                        (g) => g.isGroup && (g.memberIds?.includes(selectedNode.id) || g.memberNodes?.some((m) => m.id === selectedNode.id))
+                      )
+                        ? rawGraph.rawEdges
+                        : effectiveRawEdges
+                    }
                     isInspectorCollapsed={isInspectorCollapsed}
                     onToggleCollapse={setIsInspectorCollapsed}
                     isEdgeInspectorCollapsed={isEdgeInspectorCollapsed}
