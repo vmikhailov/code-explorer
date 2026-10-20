@@ -92,7 +92,7 @@ public partial class PostIndexAnalyzer
                     else
                     {
                         var matched = projectList.FirstOrDefault(p =>
-                            src.StartsWith(p.Id, StringComparison.OrdinalIgnoreCase) ||
+                            src.StartWithIC(p.Id) ||
                             (!string.IsNullOrEmpty(p.Path) &&
                              src.Contains(p.Path, StringComparison.OrdinalIgnoreCase)));
                         if (matched.IsTest) continue;

@@ -144,8 +144,8 @@ public class TypeOrmLibraryParser : ISemanticExtension
     {
         if (!node.Is(TreeSitterSyntax.TypeScript.Decorator)) return false;
         var text = node.Text;
-        return text.StartsWith("@Entity", StringComparison.OrdinalIgnoreCase) ||
-               text.StartsWith("@ViewEntity", StringComparison.OrdinalIgnoreCase);
+        return text.StartWithIC("@Entity") ||
+               text.StartWithIC("@ViewEntity");
     }
 
     private static string? ExtractTableNameFromDecorator(Node decoratorNode)

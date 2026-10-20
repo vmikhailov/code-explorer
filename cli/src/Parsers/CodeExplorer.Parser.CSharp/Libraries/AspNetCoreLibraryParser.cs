@@ -152,13 +152,13 @@ public partial class AspNetCoreLibraryParser : ISemanticExtension
                                         if (arg.Is(TreeSitterSyntax.CSharp.AttributeArgument))
                                         {
                                             var argText = arg.Text;
-                                            if (argText.StartsWith("Roles", StringComparison.OrdinalIgnoreCase) && argText.Contains('='))
+                                            if (argText.StartWithIC("Roles") && argText.Contains('='))
                                             {
                                                 var val = ExtractStringFromArg(arg);
                                                 if (!string.IsNullOrEmpty(val))
                                                     symbol.RequiredRoles = string.IsNullOrEmpty(symbol.RequiredRoles) ? val : $"{symbol.RequiredRoles},{val}";
                                             }
-                                            else if (argText.StartsWith("Policy", StringComparison.OrdinalIgnoreCase) && argText.Contains('='))
+                                            else if (argText.StartWithIC("Policy") && argText.Contains('='))
                                             {
                                                 var val = ExtractStringFromArg(arg);
                                                 if (!string.IsNullOrEmpty(val))

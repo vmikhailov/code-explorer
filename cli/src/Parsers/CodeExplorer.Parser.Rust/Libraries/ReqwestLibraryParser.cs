@@ -70,7 +70,7 @@ public class ReqwestLibraryParser : ISemanticExtension
         if (string.IsNullOrEmpty(methodName)) return false;
 
         // 1. Standalone reqwest::get(url) or reqwest::post(url)
-        if (methodName.StartsWith("reqwest::", StringComparison.OrdinalIgnoreCase))
+        if (methodName.StartWithIC("reqwest::"))
         {
             var shortMethod = methodName["reqwest::".Length..];
             if (HttpMethods.Contains(shortMethod) && args.Count > 0)

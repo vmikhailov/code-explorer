@@ -379,8 +379,8 @@ public static class AstValueResolver
         }
 
         // Check this.property or self.property
-        if (rawText.StartsWith("this.", StringComparison.OrdinalIgnoreCase) ||
-            rawText.StartsWith("self.", StringComparison.OrdinalIgnoreCase))
+        if (rawText.StartWithIC("this.") ||
+            rawText.StartWithIC("self."))
         {
             var propName = rawText[5..].Trim();
             if (ConstantRegistry.TryResolve(contextOrProject, propName, out var propVal))

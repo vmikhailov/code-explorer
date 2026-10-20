@@ -155,7 +155,7 @@ public class SequelizeLibraryParser : ISemanticExtension
     {
         if (!node.Is(TreeSitterSyntax.TypeScript.Decorator)) return false;
         var text = node.Text;
-        return text.StartsWith("@Table", StringComparison.OrdinalIgnoreCase);
+        return text.StartWithIC("@Table");
     }
 
     private static string? ExtractTableNameFromDecorator(Node decoratorNode)

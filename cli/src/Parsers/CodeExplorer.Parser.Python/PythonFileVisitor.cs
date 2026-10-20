@@ -500,10 +500,10 @@ public class PythonFileVisitor : BaseParserVisitor
         if (string.IsNullOrWhiteSpace(target)) return false;
         var t = target.Trim();
         return t.StartsWith('/') ||
-               t.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-               t.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
-               t.StartsWith("ws://", StringComparison.OrdinalIgnoreCase) ||
-               t.StartsWith("wss://", StringComparison.OrdinalIgnoreCase) ||
+               t.StartWithIC("http://") ||
+               t.StartWithIC("https://") ||
+               t.StartWithIC("ws://") ||
+               t.StartWithIC("wss://") ||
                t.Contains('/') ||
                t.Contains(':') ||
                t.Contains('{') ||

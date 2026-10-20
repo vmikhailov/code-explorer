@@ -36,8 +36,8 @@ public partial class ArchitectureViewEngine
     {
         if (string.IsNullOrWhiteSpace(rawDomain)) return false;
         var clean = rawDomain.Trim();
-        if (clean.StartsWith("domain:", StringComparison.OrdinalIgnoreCase)) clean = clean["domain:".Length..].Trim();
-        if (clean.StartsWith("dom:", StringComparison.OrdinalIgnoreCase)) clean = clean["dom:".Length..].Trim();
+        if (clean.StartWithIC("domain:")) clean = clean["domain:".Length..].Trim();
+        if (clean.StartWithIC("dom:")) clean = clean["dom:".Length..].Trim();
         if (clean.Length > 40) return true;
         var words = clean.Split([' ', '_', '-'], StringSplitOptions.RemoveEmptyEntries);
         if (words.Length > 4) return true;
@@ -438,8 +438,8 @@ public partial class ArchitectureViewEngine
                     name.Equals("Topic", StringComparison.OrdinalIgnoreCase) ||
                     name.Equals("string", StringComparison.OrdinalIgnoreCase) ||
                     name.Equals("undefined", StringComparison.OrdinalIgnoreCase) ||
-                    name.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                    name.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                    name.StartWithIC("http://") ||
+                    name.StartWithIC("https://"))
                 {
                     continue;
                 }

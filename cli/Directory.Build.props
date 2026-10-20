@@ -33,4 +33,8 @@
     <NoWarn>$(NoWarn);1591</NoWarn>
     <DefaultItemExcludes>$(DefaultItemExcludes);**/SampleProjects/**</DefaultItemExcludes>
   </PropertyGroup>
+
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'CodeExplorer.Cypher' and '$(MSBuildProjectName)' != 'CodeExplorer.Cypher.Tests' and '$(MSBuildProjectName)' != 'OntologyGen' and !$(MSBuildProjectName.Contains('Sample'))">
+    <Using Include="CodeExplorer.Core.Common" />
+  </ItemGroup>
 </Project>

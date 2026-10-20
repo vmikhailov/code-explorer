@@ -76,7 +76,7 @@ public sealed class ServiceIdentityResolver
             changed = false;
             foreach (var p in _configuredPrefixes)
             {
-                if (clean.StartsWith(p, StringComparison.OrdinalIgnoreCase))
+                if (clean.StartWithIC(p))
                 {
                     clean = clean[p.Length..];
                     changed = true;
@@ -87,7 +87,7 @@ public sealed class ServiceIdentityResolver
 
             foreach (var p in DefaultGenericPrefixes)
             {
-                if (clean.StartsWith(p, StringComparison.OrdinalIgnoreCase))
+                if (clean.StartWithIC(p))
                 {
                     clean = clean[p.Length..];
                     changed = true;

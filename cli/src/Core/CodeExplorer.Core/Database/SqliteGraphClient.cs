@@ -263,7 +263,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         string sql;
         IReadOnlyDictionary<string, object?> sqlParams;
 
-        if (query.TrimStart().StartsWith("SELECT", StringComparison.OrdinalIgnoreCase))
+        if (query.TrimStart().StartWithIC("SELECT"))
         {
             sql = query;
             sqlParams = paramDict;

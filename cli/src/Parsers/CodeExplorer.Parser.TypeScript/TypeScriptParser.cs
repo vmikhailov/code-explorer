@@ -490,8 +490,8 @@ public class TypeScriptParser : IProjectParser, IFileParser
                 var hasWorkerDeps = allDeps.Any(d =>
                     d is "@nestjs/schedule" or "@nestjs/bull" or "@nestjs/bullmq" or "bullmq" or "bull" or "amqplib"
                         or "kafkajs" or "@cloudflare/workers-types" or "wrangler" or "node-cron" or "cron"
-                        or "agenda" || d.StartsWith("cloudflare-", StringComparison.OrdinalIgnoreCase)
-                        || d.StartsWith("@cloudflare/", StringComparison.OrdinalIgnoreCase)) || hasWrangler;
+                        or "agenda" || d.StartWithIC("cloudflare-")
+                        || d.StartWithIC("@cloudflare/")) || hasWrangler;
 
                 var hasMobileDeps = allDeps.Any(d => d is "react-native" or "expo" || d.StartsWith("expo-") || d.StartsWith("@expo/")) ||
                                     filesInDirectory.Any(f => Path.GetFileName(f).Equals("app.json", StringComparison.OrdinalIgnoreCase));
@@ -516,7 +516,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
                 var hasWorkerScripts = root.TryGetProperty("scripts", out var scrObj) &&
                                        scrObj.ValueKind == System.Text.Json.JsonValueKind.Object &&
                                        scrObj.EnumerateObject().Any(s =>
-                                           s.Name.StartsWith("worker:", StringComparison.OrdinalIgnoreCase) ||
+                                           s.Name.StartWithIC("worker:") ||
                                            s.Name.Contains("wrangler", StringComparison.OrdinalIgnoreCase) ||
                                            s.Value.ToString().Contains("wrangler", StringComparison.OrdinalIgnoreCase));
 
@@ -822,7 +822,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
         if (Packages.Any(p => p.SupportedPatterns.Any(pat =>
             pat.Equals(importPath, StringComparison.OrdinalIgnoreCase) ||
             pat.Equals(firstPart, StringComparison.OrdinalIgnoreCase) ||
-            pat.StartsWith(firstPart + "/", StringComparison.OrdinalIgnoreCase))))
+            pat.StartWithIC(firstPart + "/"))))
         {
             return ImportType.External;
         }

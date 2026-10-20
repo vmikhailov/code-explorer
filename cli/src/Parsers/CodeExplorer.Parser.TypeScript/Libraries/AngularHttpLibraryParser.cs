@@ -108,7 +108,7 @@ public class AngularHttpLibraryParser : ISemanticExtension
                             var argKey = urlArg.Text.Trim('\'', '"', '`', '(', ')');
                             if (RouteDictionaryRegistry.TryResolve(argKey, out _, out var knownSvc) && !string.IsNullOrEmpty(knownSvc))
                             {
-                                if (path.StartsWith(knownSvc + "/", StringComparison.OrdinalIgnoreCase))
+                                if (path.StartWithIC(knownSvc + "/"))
                                 {
                                     return $"{knownSvc}/{path[(knownSvc.Length + 1)..]}";
                                 }
@@ -124,10 +124,10 @@ public class AngularHttpLibraryParser : ISemanticExtension
                                     !firstPart.Equals("v1", StringComparison.OrdinalIgnoreCase) &&
                                     !firstPart.Equals("v2", StringComparison.OrdinalIgnoreCase) &&
                                     !firstPart.Equals("v3", StringComparison.OrdinalIgnoreCase) &&
-                                    (rest.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) ||
-                                     rest.StartsWith("/v1/", StringComparison.OrdinalIgnoreCase) ||
-                                     rest.StartsWith("/v2/", StringComparison.OrdinalIgnoreCase) ||
-                                     rest.StartsWith("/v3/", StringComparison.OrdinalIgnoreCase) ||
+                                    (rest.StartWithIC("/api/") ||
+                                     rest.StartWithIC("/v1/") ||
+                                     rest.StartWithIC("/v2/") ||
+                                     rest.StartWithIC("/v3/") ||
                                      RouteDictionaryRegistry.GetAllKnownServices().Any(s => string.Equals(s, firstPart, StringComparison.OrdinalIgnoreCase))))
                                 {
                                     return $"{firstPart}/{rest.TrimStart('/')}";

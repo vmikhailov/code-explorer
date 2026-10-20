@@ -17,7 +17,7 @@ public class AngularComponentParser : IComponentLibraryParser
     {
         return context.Dependencies.Any(d =>
             d.Equals("@angular/core", StringComparison.OrdinalIgnoreCase) ||
-            d.StartsWith("@angular/", StringComparison.OrdinalIgnoreCase));
+            d.StartWithIC("@angular/"));
     }
 
     public ComponentAnalysisResult AnalyzeManifest(ProjectContext context)

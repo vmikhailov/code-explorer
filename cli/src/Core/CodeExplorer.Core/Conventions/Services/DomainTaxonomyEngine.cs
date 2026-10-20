@@ -179,10 +179,10 @@ public sealed class DomainTaxonomyEngine
         var normPath = (filePath ?? "").Replace('\\', '/');
         if (!string.IsNullOrEmpty(normPath))
         {
-            if (normPath.StartsWith("ui/", StringComparison.OrdinalIgnoreCase) ||
-                normPath.StartsWith("frontend/", StringComparison.OrdinalIgnoreCase) ||
-                normPath.StartsWith("client/", StringComparison.OrdinalIgnoreCase) ||
-                normPath.StartsWith("web/", StringComparison.OrdinalIgnoreCase) ||
+            if (normPath.StartWithIC("ui/") ||
+                normPath.StartWithIC("frontend/") ||
+                normPath.StartWithIC("client/") ||
+                normPath.StartWithIC("web/") ||
                 normPath.Contains("/ui/") ||
                 normPath.Contains("/components/") ||
                 normPath.Contains("/packages/ui"))
@@ -190,15 +190,15 @@ public sealed class DomainTaxonomyEngine
                 return "UserInterface";
             }
 
-            if (normPath.StartsWith("tools/", StringComparison.OrdinalIgnoreCase) ||
-                normPath.StartsWith("cli/", StringComparison.OrdinalIgnoreCase) ||
+            if (normPath.StartWithIC("tools/") ||
+                normPath.StartWithIC("cli/") ||
                 normPath.Contains("/tools/") ||
                 normPath.Contains("/cli/"))
             {
                 return "DeveloperTooling";
             }
 
-            if (normPath.StartsWith("tests/", StringComparison.OrdinalIgnoreCase) ||
+            if (normPath.StartWithIC("tests/") ||
                 normPath.Contains("/tests/"))
             {
                 return "TestingInfrastructure";
@@ -207,9 +207,9 @@ public sealed class DomainTaxonomyEngine
 
         // 4. If rawDomain is already provided and not a placeholder/generic word, use it
         var cleanRaw = (rawDomain ?? "").Trim();
-        if (cleanRaw.StartsWith("domain:", StringComparison.OrdinalIgnoreCase))
+        if (cleanRaw.StartWithIC("domain:"))
             cleanRaw = cleanRaw["domain:".Length..];
-        if (cleanRaw.StartsWith("dom:", StringComparison.OrdinalIgnoreCase))
+        if (cleanRaw.StartWithIC("dom:"))
             cleanRaw = cleanRaw["dom:".Length..];
 
         var isRunaway = cleanRaw.Length > 45 ||

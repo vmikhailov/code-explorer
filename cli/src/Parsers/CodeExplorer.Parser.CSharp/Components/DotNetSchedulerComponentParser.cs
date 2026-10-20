@@ -14,8 +14,8 @@ public class DotNetSchedulerComponentParser : IComponentLibraryParser
     public bool CanHandle(ProjectContext context)
     {
         return context.Dependencies.Any(d =>
-            d.StartsWith("Hangfire", StringComparison.OrdinalIgnoreCase) ||
-            d.StartsWith("Quartz", StringComparison.OrdinalIgnoreCase));
+            d.StartWithIC("Hangfire") ||
+            d.StartWithIC("Quartz"));
     }
 
     public ComponentAnalysisResult AnalyzeManifest(ProjectContext context)

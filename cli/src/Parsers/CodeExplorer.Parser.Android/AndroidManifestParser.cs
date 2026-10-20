@@ -148,7 +148,7 @@ public static class AndroidManifestParser
     {
         if (string.IsNullOrWhiteSpace(rawLabel)) return null;
 
-        if (!rawLabel.StartsWith("@string/", StringComparison.OrdinalIgnoreCase))
+        if (!rawLabel.StartWithIC("@string/"))
         {
             return rawLabel;
         }

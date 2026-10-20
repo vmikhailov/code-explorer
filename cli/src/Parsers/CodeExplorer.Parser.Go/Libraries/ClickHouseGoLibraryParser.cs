@@ -95,7 +95,7 @@ public class ClickHouseGoLibraryParser : ISemanticExtension
 
         var funcText = func.Text;
 
-        if (funcText.StartsWith("clickhouse.", StringComparison.OrdinalIgnoreCase))
+        if (funcText.StartWithIC("clickhouse."))
         {
             methodName = funcText["clickhouse.".Length..];
             return true;
@@ -120,7 +120,7 @@ public class ClickHouseGoLibraryParser : ISemanticExtension
 
                         if (sqlText == null &&
                             !candidate.Equals("ctx", StringComparison.OrdinalIgnoreCase) &&
-                            !candidate.StartsWith("context.", StringComparison.OrdinalIgnoreCase))
+                            !candidate.StartWithIC("context."))
                         {
                             sqlText = candidate;
                         }

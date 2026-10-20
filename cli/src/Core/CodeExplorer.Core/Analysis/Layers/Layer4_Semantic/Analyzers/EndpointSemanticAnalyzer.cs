@@ -148,7 +148,7 @@ public static class EndpointSemanticAnalyzer
             {
                 if (!string.IsNullOrWhiteSpace(rName) &&
                     !rName.Contains("://") &&
-                    !rName.StartsWith("http", StringComparison.OrdinalIgnoreCase) &&
+                    !rName.StartWithIC("http") &&
                     !rName.Contains('/') &&
                     !rName.Contains(' '))
                 {
@@ -281,9 +281,9 @@ public static class EndpointSemanticAnalyzer
 
         var resolvedProj = !string.IsNullOrEmpty(projectName) ? projectName : GetProjectNameFromRelativePath(relativePath);
         if (!string.IsNullOrEmpty(resolvedProj) &&
-            (resolvedProj.StartsWith("internal-service-", StringComparison.OrdinalIgnoreCase) ||
-             resolvedProj.StartsWith("integration-service-", StringComparison.OrdinalIgnoreCase) ||
-             resolvedProj.StartsWith("external-service-", StringComparison.OrdinalIgnoreCase)))
+            (resolvedProj.StartWithIC("internal-service-") ||
+             resolvedProj.StartWithIC("integration-service-") ||
+             resolvedProj.StartWithIC("external-service-")))
         {
             var stripped = WorkspaceConventions.NormalizeServiceName(resolvedProj);
             if (!string.IsNullOrEmpty(stripped)) resolvedProj = stripped;
@@ -301,7 +301,7 @@ public static class EndpointSemanticAnalyzer
             !string.IsNullOrEmpty(globalPrefix))
         {
             var normRoute = route.Trim('/');
-            if (!normRoute.StartsWith(globalPrefix, StringComparison.OrdinalIgnoreCase) &&
+            if (!normRoute.StartWithIC(globalPrefix) &&
                 !normRoute.Equals("ping", StringComparison.OrdinalIgnoreCase))
             {
                 route = CombineRoutes(globalPrefix, route);
@@ -340,9 +340,9 @@ public static class EndpointSemanticAnalyzer
     {
         var resolvedProj = !string.IsNullOrEmpty(projectName) ? projectName : GetProjectNameFromRelativePath(relativePath);
         if (!string.IsNullOrEmpty(resolvedProj) &&
-            (resolvedProj.StartsWith("internal-service-", StringComparison.OrdinalIgnoreCase) ||
-             resolvedProj.StartsWith("integration-service-", StringComparison.OrdinalIgnoreCase) ||
-             resolvedProj.StartsWith("external-service-", StringComparison.OrdinalIgnoreCase)))
+            (resolvedProj.StartWithIC("internal-service-") ||
+             resolvedProj.StartWithIC("integration-service-") ||
+             resolvedProj.StartWithIC("external-service-")))
         {
             var stripped = WorkspaceConventions.NormalizeServiceName(resolvedProj);
             if (!string.IsNullOrEmpty(stripped)) resolvedProj = stripped;
@@ -352,12 +352,12 @@ public static class EndpointSemanticAnalyzer
         var entryType = "grpc";
         var cleanName = name;
 
-        if (name.StartsWith("ws:", StringComparison.OrdinalIgnoreCase))
+        if (name.StartWithIC("ws:"))
         {
             entryType = "queue-listener";
             cleanName = name[3..];
         }
-        else if (name.StartsWith("event:", StringComparison.OrdinalIgnoreCase))
+        else if (name.StartWithIC("event:"))
         {
             entryType = "queue-listener";
             cleanName = name[6..];
@@ -390,7 +390,7 @@ public static class EndpointSemanticAnalyzer
     {
         var cleanName = name?.Trim('"', '\'', '`', ' ', ';') ?? "";
         if (!WorkspaceConventions.IsTestFilePath(relativePath) &&
-            cleanName.StartsWith("graphql:", StringComparison.OrdinalIgnoreCase))
+            cleanName.StartWithIC("graphql:"))
         {
             var gqlRem = cleanName["graphql:".Length..].Trim();
             var gqlOpType = "Query";
@@ -463,7 +463,7 @@ public static class EndpointSemanticAnalyzer
             cleanName.Length > 256 ||
             cleanName.Contains('\n') ||
             cleanName.Contains('\r') ||
-            (!cleanName.StartsWith("http", StringComparison.OrdinalIgnoreCase) && (cleanName.Contains('{') || cleanName.Contains('}'))) ||
+            (!cleanName.StartWithIC("http") && (cleanName.Contains('{') || cleanName.Contains('}'))) ||
             cleanName.Contains('<') ||
             cleanName.Contains('>') ||
             cleanName.Contains('+') ||
@@ -482,11 +482,11 @@ public static class EndpointSemanticAnalyzer
         var protocol = "http";
         var domainOrService = cleanName;
         var hasExplicitScheme = domainOrService.Contains("://") ||
-                                domainOrService.StartsWith("http:", StringComparison.OrdinalIgnoreCase) ||
-                                domainOrService.StartsWith("https:", StringComparison.OrdinalIgnoreCase) ||
-                                domainOrService.StartsWith("ws:", StringComparison.OrdinalIgnoreCase) ||
-                                domainOrService.StartsWith("wss:", StringComparison.OrdinalIgnoreCase) ||
-                                domainOrService.StartsWith("grpc:", StringComparison.OrdinalIgnoreCase);
+                                domainOrService.StartWithIC("http:") ||
+                                domainOrService.StartWithIC("https:") ||
+                                domainOrService.StartWithIC("ws:") ||
+                                domainOrService.StartWithIC("wss:") ||
+                                domainOrService.StartWithIC("grpc:");
 
         if (domainOrService.Contains("://"))
         {
@@ -494,17 +494,17 @@ public static class EndpointSemanticAnalyzer
             protocol = domainOrService[..pIdx];
             domainOrService = domainOrService[(pIdx + 3)..];
         }
-        else if (domainOrService.StartsWith("ws:", StringComparison.OrdinalIgnoreCase))
+        else if (domainOrService.StartWithIC("ws:"))
         {
             protocol = "ws";
             domainOrService = domainOrService[3..];
         }
-        else if (domainOrService.StartsWith("http:", StringComparison.OrdinalIgnoreCase))
+        else if (domainOrService.StartWithIC("http:"))
         {
             protocol = "http";
             domainOrService = domainOrService[5..];
         }
-        else if (domainOrService.StartsWith("https:", StringComparison.OrdinalIgnoreCase))
+        else if (domainOrService.StartWithIC("https:"))
         {
             protocol = "https";
             domainOrService = domainOrService[6..];
@@ -553,7 +553,7 @@ public static class EndpointSemanticAnalyzer
             {
                 var seg = segments[i];
                 if (seg.Equals("api", StringComparison.OrdinalIgnoreCase)) continue;
-                if (seg.StartsWith("v", StringComparison.OrdinalIgnoreCase) && seg.Length <= 6 && seg.Skip(1).All(c => char.IsDigit(c) || c == '.')) continue;
+                if (seg.StartWithIC("v") && seg.Length <= 6 && seg.Skip(1).All(c => char.IsDigit(c) || c == '.')) continue;
                 if (seg.Equals("assets", StringComparison.OrdinalIgnoreCase) || seg.Equals("static", StringComparison.OrdinalIgnoreCase) || seg.Equals("public", StringComparison.OrdinalIgnoreCase))
                 {
                     candidate = null;

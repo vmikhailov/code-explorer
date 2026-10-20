@@ -22,23 +22,23 @@ public sealed class SpringFrameworkConfigurationDescriptor : ILibraryConfigurati
         List<Relationship> relationships,
         ParsingContext ctx)
     {
-        if (key.StartsWith("spring.datasource.url", StringComparison.OrdinalIgnoreCase) ||
-            key.StartsWith("spring.data.mongodb.uri", StringComparison.OrdinalIgnoreCase) ||
-            key.StartsWith("spring.redis.url", StringComparison.OrdinalIgnoreCase) ||
-            key.StartsWith("spring.rabbitmq.addresses", StringComparison.OrdinalIgnoreCase) ||
-            key.StartsWith("spring.kafka.bootstrap-servers", StringComparison.OrdinalIgnoreCase))
+        if (key.StartWithIC("spring.datasource.url") ||
+            key.StartWithIC("spring.data.mongodb.uri") ||
+            key.StartWithIC("spring.redis.url") ||
+            key.StartWithIC("spring.rabbitmq.addresses") ||
+            key.StartWithIC("spring.kafka.bootstrap-servers"))
         {
             ConfigurationParser.InferAndCreateServiceFromConnectionString(key, value, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
             return true;
         }
 
-        if (key.StartsWith("spring.data.redis.host", StringComparison.OrdinalIgnoreCase))
+        if (key.StartWithIC("spring.data.redis.host"))
         {
             ConfigurationParser.CreateDatabaseNode("Redis", "cache", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
             return true;
         }
 
-        if (key.StartsWith("spring.rabbitmq.host", StringComparison.OrdinalIgnoreCase))
+        if (key.StartWithIC("spring.rabbitmq.host"))
         {
             ConfigurationParser.CreateTopicNode("rabbitmq", "default", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
             return true;

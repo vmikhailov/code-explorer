@@ -380,11 +380,11 @@ public partial class ArchitectureViewEngine
              n.Id.Equals($"workspace:project:{targetName}:", StringComparison.OrdinalIgnoreCase) ||
              n.Id.Equals($"workspace:{OntologyConstants.IdPrefixes.Project}:{targetName}:", StringComparison.OrdinalIgnoreCase) ||
              n.Id.Equals($"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Project}:{targetName}:", StringComparison.OrdinalIgnoreCase) ||
-             (n.Id.StartsWith("workspace:project:", StringComparison.OrdinalIgnoreCase) &&
+             (n.Id.StartWithIC("workspace:project:") &&
               n.Id["workspace:project:".Length..].TrimEnd(':').Equals(targetName, StringComparison.OrdinalIgnoreCase)) ||
-             (n.Id.StartsWith($"workspace:{OntologyConstants.IdPrefixes.Project}:", StringComparison.OrdinalIgnoreCase) &&
+             (n.Id.StartWithIC($"workspace:{OntologyConstants.IdPrefixes.Project}:") &&
               n.Id[$"workspace:{OntologyConstants.IdPrefixes.Project}:".Length..].TrimEnd(':').Equals(targetName, StringComparison.OrdinalIgnoreCase)) ||
-             (n.Id.StartsWith($"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Project}:", StringComparison.OrdinalIgnoreCase) &&
+             (n.Id.StartWithIC($"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Project}:") &&
               n.Id[$"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Project}:".Length..].TrimEnd(':').Equals(targetName, StringComparison.OrdinalIgnoreCase))));
 
         if (centerNode == null)

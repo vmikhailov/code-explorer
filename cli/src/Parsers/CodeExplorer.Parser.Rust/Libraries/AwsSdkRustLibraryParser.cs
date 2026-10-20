@@ -221,7 +221,7 @@ public class AwsSdkRustLibraryParser : ISemanticExtension
         }
 
         // Handle ARN: arn:aws:sns:region:account:topic-name
-        if (clean.StartsWith("arn:aws:", StringComparison.OrdinalIgnoreCase))
+        if (clean.StartWithIC("arn:aws:"))
         {
             var lastColon = clean.LastIndexOf(':');
             if (lastColon >= 0 && lastColon + 1 < clean.Length)

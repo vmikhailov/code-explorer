@@ -16,7 +16,7 @@ public class NestJsComponentParser : IComponentLibraryParser
     public bool CanHandle(ProjectContext context)
     {
         return context.Dependencies.Any(d =>
-            d.StartsWith("@nestjs/", StringComparison.OrdinalIgnoreCase) ||
+            d.StartWithIC("@nestjs/") ||
             d.Equals("nestjs", StringComparison.OrdinalIgnoreCase));
     }
 

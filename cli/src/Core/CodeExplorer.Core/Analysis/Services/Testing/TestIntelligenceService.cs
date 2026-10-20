@@ -795,7 +795,7 @@ public class TestIntelligenceService
         {
             if (normPath.EndsWith(".go") && name.StartsWith("Test", StringComparison.Ordinal) && name.Length > 4 && char.IsUpper(name[4]))
                 return true;
-            if (normPath.EndsWith(".py") && (name.StartsWith("test_", StringComparison.OrdinalIgnoreCase) || name.EndsWith("_test", StringComparison.OrdinalIgnoreCase)))
+            if (normPath.EndsWith(".py") && (name.StartWithIC("test_") || name.EndsWith("_test", StringComparison.OrdinalIgnoreCase)))
                 return true;
         }
 
@@ -848,7 +848,7 @@ public class TestIntelligenceService
         var fileName = Path.GetFileNameWithoutExtension(norm);
         if (fileName.EndsWith("Test", StringComparison.OrdinalIgnoreCase) ||
             fileName.EndsWith("Tests", StringComparison.OrdinalIgnoreCase) ||
-            fileName.StartsWith("Test", StringComparison.OrdinalIgnoreCase))
+            fileName.StartWithIC("Test"))
         {
             return fileName;
         }

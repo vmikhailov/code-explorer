@@ -554,8 +554,8 @@ public partial class Layer5AnalysisParser
                 }
             }
 
-            if ((ep.CleanPath.StartsWith(ext.CleanPath, StringComparison.OrdinalIgnoreCase) && ext.Segments.Length >= 2 && !ep.IsApiPrefixOnly) ||
-                (ext.CleanPath.StartsWith(ep.CleanPath, StringComparison.OrdinalIgnoreCase) && ep.Segments.Length >= 2 && !ep.IsApiPrefixOnly))
+            if ((ep.CleanPath.StartWithIC(ext.CleanPath) && ext.Segments.Length >= 2 && !ep.IsApiPrefixOnly) ||
+                (ext.CleanPath.StartWithIC(ep.CleanPath) && ep.Segments.Length >= 2 && !ep.IsApiPrefixOnly))
             {
                 return true;
             }
@@ -563,7 +563,7 @@ public partial class Layer5AnalysisParser
             if (ext.Segments.Length >= 3)
             {
                 var extWithoutFirst = "/" + string.Join("/", ext.Segments.Skip(1)) + "/";
-                if (ep.CleanPath.StartsWith(extWithoutFirst, StringComparison.OrdinalIgnoreCase) && !ep.IsApiPrefixOnly)
+                if (ep.CleanPath.StartWithIC(extWithoutFirst) && !ep.IsApiPrefixOnly)
                 {
                     return true;
                 }

@@ -42,7 +42,7 @@ public class FlurlLibraryParser : ISemanticExtension
                 {
                     return uri.Host;
                 }
-                if (rootUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || rootUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                if (rootUrl.StartWithIC("http://") || rootUrl.StartWithIC("https://"))
                 {
                     return rootUrl;
                 }

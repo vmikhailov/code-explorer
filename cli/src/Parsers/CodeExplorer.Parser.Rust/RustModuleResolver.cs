@@ -88,7 +88,7 @@ public static class RustModuleResolver
     public static string GetLogicalModulePath(string sourceFilePath, string crateRootDir)
     {
         var relPath = Path.GetRelativePath(crateRootDir, sourceFilePath).Replace('\\', '/');
-        if (relPath.StartsWith("src/", StringComparison.OrdinalIgnoreCase))
+        if (relPath.StartWithIC("src/"))
         {
             relPath = relPath["src/".Length..];
         }

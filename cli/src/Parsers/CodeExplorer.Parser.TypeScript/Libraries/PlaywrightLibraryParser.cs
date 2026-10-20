@@ -103,8 +103,8 @@ public class PlaywrightLibraryParser : ISemanticExtension
         if (IsGotoCall(node, out argNode))
         {
             rawUrl = ExtractStringValue(argNode);
-            if (rawUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                rawUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            if (rawUrl.StartWithIC("http://") ||
+                rawUrl.StartWithIC("https://"))
             {
                 return true;
             }
@@ -112,8 +112,8 @@ public class PlaywrightLibraryParser : ISemanticExtension
         else if (IsPlaywrightRequestCall(node, out argNode))
         {
             rawUrl = ExtractStringValue(argNode);
-            if (rawUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                rawUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            if (rawUrl.StartWithIC("http://") ||
+                rawUrl.StartWithIC("https://"))
             {
                 return true;
             }

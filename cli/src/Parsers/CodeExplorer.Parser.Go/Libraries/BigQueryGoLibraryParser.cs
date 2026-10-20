@@ -117,7 +117,7 @@ public class BigQueryGoLibraryParser : ISemanticExtension
 
         var funcText = func.Text;
 
-        if (funcText.StartsWith("bigquery.", StringComparison.OrdinalIgnoreCase))
+        if (funcText.StartWithIC("bigquery."))
         {
             methodName = funcText["bigquery.".Length..];
             return true;
@@ -142,7 +142,7 @@ public class BigQueryGoLibraryParser : ISemanticExtension
 
                         if (sqlText == null &&
                             !candidate.Equals("ctx", StringComparison.OrdinalIgnoreCase) &&
-                            !candidate.StartsWith("context.", StringComparison.OrdinalIgnoreCase))
+                            !candidate.StartWithIC("context."))
                         {
                             sqlText = candidate;
                         }

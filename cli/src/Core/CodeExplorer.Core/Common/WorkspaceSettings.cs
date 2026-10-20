@@ -145,7 +145,7 @@ public sealed class WorkspaceSettings
         {
             var fullRoot = Path.GetFullPath(workspaceRoot).Replace('\\', '/').TrimEnd('/');
             var fullTarget = Path.GetFullPath(trimmed).Replace('\\', '/');
-            if (fullTarget.StartsWith(fullRoot + "/", StringComparison.OrdinalIgnoreCase))
+            if (fullTarget.StartWithIC(fullRoot + "/"))
             {
                 var rel = fullTarget[(fullRoot.Length + 1)..];
                 if (Directory.Exists(trimmed) && !rel.EndsWith('/'))

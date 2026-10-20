@@ -90,7 +90,7 @@ public class PubSubGoLibraryParser : ISemanticExtension
             {
                 AddSubscribe(references, scopeSymbolId, val);
             }
-            else if (!string.IsNullOrEmpty(name) && (name.EndsWith("Topic", StringComparison.OrdinalIgnoreCase) || name.StartsWith("Topic", StringComparison.OrdinalIgnoreCase)))
+            else if (!string.IsNullOrEmpty(name) && (name.EndsWith("Topic", StringComparison.OrdinalIgnoreCase) || name.StartWithIC("Topic")))
             {
                 AddSubscribe(references, scopeSymbolId, name);
             }
@@ -301,7 +301,7 @@ public class PubSubGoLibraryParser : ISemanticExtension
     {
         if (string.IsNullOrWhiteSpace(target)) return;
         var clean = target.Trim().Trim('"', '`');
-        if (clean.StartsWith("gcp:", StringComparison.OrdinalIgnoreCase))
+        if (clean.StartWithIC("gcp:"))
         {
             clean = clean["gcp:".Length..];
         }
@@ -327,7 +327,7 @@ public class PubSubGoLibraryParser : ISemanticExtension
     {
         if (string.IsNullOrWhiteSpace(target)) return;
         var clean = target.Trim().Trim('"', '`');
-        if (clean.StartsWith("gcp:", StringComparison.OrdinalIgnoreCase))
+        if (clean.StartWithIC("gcp:"))
         {
             clean = clean["gcp:".Length..];
         }

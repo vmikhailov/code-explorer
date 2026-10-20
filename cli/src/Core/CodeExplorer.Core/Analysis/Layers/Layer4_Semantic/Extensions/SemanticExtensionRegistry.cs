@@ -88,7 +88,7 @@ public class SemanticExtensionRegistry
                 else if (childKey.EndsWith("*") && childKey.Length > 1)
                 {
                     var prefix = childKey[..^1];
-                    if (segment.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    if (segment.StartWithIC(prefix))
                     {
                         if (childNode.Extensions.Count > 0)
                         {

@@ -89,18 +89,18 @@ public static class ConstantRegistry
             // or schema getter/default conventions (e.g. get_cpu_db_schema, default_schema_name)
             var leafKey = cleanKey.Contains('.') ? cleanKey[(cleanKey.LastIndexOf('.') + 1)..] : cleanKey;
             var isInstanceOrConfigPrefix =
-                cleanKey.StartsWith("this.", StringComparison.OrdinalIgnoreCase) ||
-                cleanKey.StartsWith("self.", StringComparison.OrdinalIgnoreCase) ||
-                cleanKey.StartsWith("config.", StringComparison.OrdinalIgnoreCase) ||
-                cleanKey.StartsWith("pubsubConfig.", StringComparison.OrdinalIgnoreCase) ||
-                cleanKey.StartsWith("brokerConfig.", StringComparison.OrdinalIgnoreCase);
+                cleanKey.StartWithIC("this.") ||
+                cleanKey.StartWithIC("self.") ||
+                cleanKey.StartWithIC("config.") ||
+                cleanKey.StartWithIC("pubsubConfig.") ||
+                cleanKey.StartWithIC("brokerConfig.");
             var isGenericKey = GenericVariableNames.Contains(cleanKey) || GenericVariableNames.Contains(leafKey);
             if (!isGenericKey && !isInstanceOrConfigPrefix)
             {
                 if (cleanKey.Contains(':') || cleanKey.Contains('.') || cleanKey.Contains("__") ||
                     (cleanKey.Length > 0 && char.IsUpper(cleanKey[0])) ||
-                    cleanKey.StartsWith("get_", StringComparison.OrdinalIgnoreCase) ||
-                    cleanKey.StartsWith("default_", StringComparison.OrdinalIgnoreCase) ||
+                    cleanKey.StartWithIC("get_") ||
+                    cleanKey.StartWithIC("default_") ||
                     cleanKey.Contains("schema", StringComparison.OrdinalIgnoreCase))
                 {
                     _globalConstants.TryAdd(cleanKey, cleanVal);
@@ -221,22 +221,22 @@ public static class ConstantRegistry
         }
 
         // 3. Fallback: strip leading "this.config.", "config.", "this.", or "self." if present
-        if (cleanKey.StartsWith("this.config.", StringComparison.OrdinalIgnoreCase))
+        if (cleanKey.StartWithIC("this.config."))
         {
             var subKey = cleanKey["this.config.".Length..];
             if (TryResolve(projectName, subKey, out value)) return true;
         }
-        else if (cleanKey.StartsWith("config.", StringComparison.OrdinalIgnoreCase))
+        else if (cleanKey.StartWithIC("config."))
         {
             var subKey = cleanKey["config.".Length..];
             if (TryResolve(projectName, subKey, out value)) return true;
         }
-        else if (cleanKey.StartsWith("this.", StringComparison.OrdinalIgnoreCase))
+        else if (cleanKey.StartWithIC("this."))
         {
             var subKey = cleanKey[5..];
             if (TryResolve(projectName, subKey, out value)) return true;
         }
-        else if (cleanKey.StartsWith("self.", StringComparison.OrdinalIgnoreCase))
+        else if (cleanKey.StartWithIC("self."))
         {
             var subKey = cleanKey[5..];
             if (TryResolve(projectName, subKey, out value)) return true;

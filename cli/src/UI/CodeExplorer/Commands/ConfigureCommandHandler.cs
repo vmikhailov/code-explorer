@@ -227,7 +227,7 @@ public class ConfigureCommandHandler : BaseCommandHandler
     {
         try
         {
-            if (fullPath.StartsWith(wsRoot, StringComparison.OrdinalIgnoreCase))
+            if (fullPath.StartWithIC(wsRoot))
             {
                 var rel = Path.GetRelativePath(wsRoot, fullPath);
                 return rel.StartsWith('.') ? rel : "./" + rel;

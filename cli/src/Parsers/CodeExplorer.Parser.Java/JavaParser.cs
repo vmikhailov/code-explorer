@@ -578,11 +578,11 @@ public class JavaParser : IProjectParser, IFileParser
         if (string.IsNullOrEmpty(importPath)) return ImportType.External;
 
         // Java standard library packages
-        if (importPath.StartsWith("java.", StringComparison.OrdinalIgnoreCase) ||
-            importPath.StartsWith("javax.", StringComparison.OrdinalIgnoreCase) ||
-            importPath.StartsWith("jakarta.", StringComparison.OrdinalIgnoreCase) ||
-            importPath.StartsWith("sun.", StringComparison.OrdinalIgnoreCase) ||
-            importPath.StartsWith("com.sun.", StringComparison.OrdinalIgnoreCase))
+        if (importPath.StartWithIC("java.") ||
+            importPath.StartWithIC("javax.") ||
+            importPath.StartWithIC("jakarta.") ||
+            importPath.StartWithIC("sun.") ||
+            importPath.StartWithIC("com.sun."))
         {
             return ImportType.External;
         }

@@ -14,7 +14,7 @@ public class FastApiComponentParser : IComponentLibraryParser
     public bool CanHandle(ProjectContext context)
     {
         return context.Dependencies.Any(d => d.Equals("fastapi", StringComparison.OrdinalIgnoreCase) ||
-                                              d.StartsWith("fastapi-", StringComparison.OrdinalIgnoreCase));
+                                              d.StartWithIC("fastapi-"));
     }
 
     public ComponentAnalysisResult AnalyzeManifest(ProjectContext context)

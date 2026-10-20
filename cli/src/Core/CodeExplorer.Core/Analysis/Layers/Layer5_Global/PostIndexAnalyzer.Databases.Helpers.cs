@@ -632,7 +632,7 @@ public partial class PostIndexAnalyzer
                 var srcPath = row.TryGetProperty("src_path", out var sp) && sp.ValueKind == JsonValueKind.String ? sp.GetString() : "";
                 var srcIsTest = row.TryGetProperty("src_is_test", out var sit) && sit.ValueKind == JsonValueKind.String ? sit.GetString() : "";
 
-                var matchingProj = projectList.FirstOrDefault(p => p.Id == src || src.StartsWith(p.Id, StringComparison.OrdinalIgnoreCase) || (!string.IsNullOrEmpty(p.Path) && src.Contains(p.Path, StringComparison.OrdinalIgnoreCase)));
+                var matchingProj = projectList.FirstOrDefault(p => p.Id == src || src.StartWithIC(p.Id) || (!string.IsNullOrEmpty(p.Path) && src.Contains(p.Path, StringComparison.OrdinalIgnoreCase)));
                 var isTestSrc = string.Equals(srcRole, "Test", StringComparison.OrdinalIgnoreCase) ||
                                 string.Equals(srcRole, "TestSuite", StringComparison.OrdinalIgnoreCase) ||
                                 string.Equals(srcIsTest, "true", StringComparison.OrdinalIgnoreCase) ||

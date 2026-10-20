@@ -168,14 +168,14 @@ public class WorkspaceIndexer
 
     private static bool IsFrameworkAssembly(string name)
     {
-        return name.StartsWith("System.", StringComparison.OrdinalIgnoreCase) ||
+        return name.StartWithIC("System.") ||
                name.Equals("System", StringComparison.OrdinalIgnoreCase) ||
-               name.StartsWith("Microsoft.", StringComparison.OrdinalIgnoreCase) ||
-               name.StartsWith("netstandard", StringComparison.OrdinalIgnoreCase) ||
-               name.StartsWith("mscorlib", StringComparison.OrdinalIgnoreCase) ||
-               name.StartsWith("NUnit.", StringComparison.OrdinalIgnoreCase) ||
-               name.StartsWith("AwesomeAssertions", StringComparison.OrdinalIgnoreCase) ||
-               name.StartsWith("SQLitePCLRaw", StringComparison.OrdinalIgnoreCase);
+               name.StartWithIC("Microsoft.") ||
+               name.StartWithIC("netstandard") ||
+               name.StartWithIC("mscorlib") ||
+               name.StartWithIC("NUnit.") ||
+               name.StartWithIC("AwesomeAssertions") ||
+               name.StartWithIC("SQLitePCLRaw");
     }
 
     /// <summary>

@@ -94,8 +94,8 @@ public class FiberLibraryParser : ISemanticExtension
         }
 
         if (string.IsNullOrEmpty(routeVal) ||
-            routeVal.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-            routeVal.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            routeVal.StartWithIC("http://") ||
+            routeVal.StartWithIC("https://"))
         {
             return false;
         }

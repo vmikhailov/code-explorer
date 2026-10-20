@@ -93,9 +93,9 @@ public partial class PostIndexAnalyzer
         }
 
         var tableName = parts[^1].Trim('`', '"', '\'', '[', ']').Trim().ToLowerInvariant();
-        if (tableName.StartsWith("pg_stat_", StringComparison.OrdinalIgnoreCase) ||
-            tableName.StartsWith("pg_toast", StringComparison.OrdinalIgnoreCase) ||
-            tableName.StartsWith("sqlite_", StringComparison.OrdinalIgnoreCase) ||
+        if (tableName.StartWithIC("pg_stat_") ||
+            tableName.StartWithIC("pg_toast") ||
+            tableName.StartWithIC("sqlite_") ||
             SystemCatalogTables.Contains(tableName))
         {
             return false;

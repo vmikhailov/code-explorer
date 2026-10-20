@@ -65,7 +65,7 @@ public record PackageDescriptor(
             if (bParts[i].EndsWith('*') && bParts[i].Length > 1)
             {
                 var prefix = bParts[i][..^1];
-                if (!aParts[i].StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                if (!aParts[i].StartWithIC(prefix))
                     return false;
                 continue;
             }

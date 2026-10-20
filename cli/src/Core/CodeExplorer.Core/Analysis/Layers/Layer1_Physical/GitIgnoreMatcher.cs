@@ -178,7 +178,7 @@ public class GitIgnoreMatcher
                         continue;
                     }
 
-                    if (!relativePath.StartsWith(rule.Scope + "/", StringComparison.OrdinalIgnoreCase))
+                    if (!relativePath.StartWithIC(rule.Scope + "/"))
                     {
                         continue;
                     }
@@ -228,7 +228,7 @@ public class GitIgnoreMatcher
 
                 if (rule.Scope != null)
                 {
-                    if (!relativePath.StartsWith(rule.Scope + "/", StringComparison.OrdinalIgnoreCase))
+                    if (!relativePath.StartWithIC(rule.Scope + "/"))
                     {
                         continue;
                     }
@@ -294,15 +294,15 @@ public class GitIgnoreMatcher
 
             if (rule.Scope != null)
             {
-                if (rule.Scope.StartsWith(dirPrefix, StringComparison.OrdinalIgnoreCase))
+                if (rule.Scope.StartWithIC(dirPrefix))
                 {
                     return true;
                 }
 
-                if (dirPrefix.StartsWith(rule.Scope + "/", StringComparison.OrdinalIgnoreCase))
+                if (dirPrefix.StartWithIC(rule.Scope + "/"))
                 {
                     var relToScope = dirPrefix[(rule.Scope.Length + 1)..];
-                    if (rule.CleanPattern.StartsWith(relToScope, StringComparison.OrdinalIgnoreCase))
+                    if (rule.CleanPattern.StartWithIC(relToScope))
                     {
                         return true;
                     }
@@ -310,12 +310,12 @@ public class GitIgnoreMatcher
             }
             else
             {
-                if (rule.CleanPattern.StartsWith(dirPrefix, StringComparison.OrdinalIgnoreCase))
+                if (rule.CleanPattern.StartWithIC(dirPrefix))
                 {
                     return true;
                 }
 
-                if (rule.IsAnchored && rule.CleanPattern.StartsWith(relativeDir + "/", StringComparison.OrdinalIgnoreCase))
+                if (rule.IsAnchored && rule.CleanPattern.StartWithIC(relativeDir + "/"))
                 {
                     return true;
                 }

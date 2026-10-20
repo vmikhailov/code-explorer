@@ -336,7 +336,7 @@ public class GcpLibraryParser : ISemanticExtension
         }
 
         var recvText = receiverObj.Text.Trim();
-        var cleanName = recvText.StartsWith("this.", StringComparison.OrdinalIgnoreCase) ? recvText[5..].Trim() : recvText;
+        var cleanName = recvText.StartWithIC("this.") ? recvText[5..].Trim() : recvText;
         if (cleanName.EndsWith("Service", StringComparison.OrdinalIgnoreCase) ||
             cleanName.EndsWith("Client", StringComparison.OrdinalIgnoreCase) ||
             cleanName.Equals("pubsub", StringComparison.OrdinalIgnoreCase))
@@ -508,7 +508,7 @@ public class GcpLibraryParser : ISemanticExtension
 
     private static string? ResolveTopicVariableInScope(Node node, string varName, string? scopeSymbolId = null)
     {
-        var cleanName = varName.StartsWith("this.", StringComparison.OrdinalIgnoreCase) ? varName[5..] : varName;
+        var cleanName = varName.StartWithIC("this.") ? varName[5..] : varName;
 
         if (ConstantRegistry.TryResolve(scopeSymbolId, cleanName, out var resolved) && IsValidTopicName(resolved))
         {

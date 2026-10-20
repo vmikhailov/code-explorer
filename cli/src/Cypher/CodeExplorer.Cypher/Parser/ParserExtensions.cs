@@ -19,4 +19,10 @@ public static class ParserExtensions
             return TokenListParserResult.Value<TToken, T?>(null, input, input);
         };
     }
+
+    internal static bool StartWithIC(this string? str, string prefix) =>
+        str != null && str.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+
+    internal static bool StartsWithIC(this string? str, string prefix) =>
+        str != null && str.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
 }

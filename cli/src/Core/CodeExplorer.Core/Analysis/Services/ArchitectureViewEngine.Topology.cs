@@ -149,8 +149,8 @@ public partial class ArchitectureViewEngine
         foreach (var p in projList)
         {
             var trimId = p.Id.TrimEnd(':');
-            if (sourceId.StartsWith(trimId + ":", StringComparison.OrdinalIgnoreCase) ||
-                sourceId.StartsWith(p.Id, StringComparison.OrdinalIgnoreCase))
+            if (sourceId.StartWithIC(trimId + ":") ||
+                sourceId.StartWithIC(p.Id))
             {
                 return p;
             }
@@ -228,7 +228,7 @@ public partial class ArchitectureViewEngine
                 continue;
             }
 
-            if (normFilePath.StartsWith(pPath + "/", StringComparison.OrdinalIgnoreCase) ||
+            if (normFilePath.StartWithIC(pPath + "/") ||
                 normFilePath.Equals(pPath, StringComparison.OrdinalIgnoreCase))
             {
                 if (pPath.Length > bestLen)
@@ -245,7 +245,7 @@ public partial class ArchitectureViewEngine
         {
             if (!string.IsNullOrEmpty(p.Name) && p.Name.Length > 2)
             {
-                if (normFilePath.StartsWith(p.Name + "/", StringComparison.OrdinalIgnoreCase) ||
+                if (normFilePath.StartWithIC(p.Name + "/") ||
                     normFilePath.Contains("/" + p.Name + "/"))
                 {
                     return p;

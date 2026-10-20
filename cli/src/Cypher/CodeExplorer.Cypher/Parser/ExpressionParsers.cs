@@ -68,7 +68,7 @@ public static class ExpressionParsers
         Token.EqualTo(CypherToken.Number).Select(Expression (t) =>
         {
             var str = t.ToStringValue();
-            if (str.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            if (str.StartWithIC("0x"))
             {
                 var hexVal = Convert.ToInt64(str[2..], 16);
                 return new NumberLiteralExpression(hexVal, true);

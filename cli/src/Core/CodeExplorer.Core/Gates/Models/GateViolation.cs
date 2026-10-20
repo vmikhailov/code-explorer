@@ -42,7 +42,7 @@ public record GateViolation
         if (string.IsNullOrWhiteSpace(raw)) return "-";
 
         var s = raw.Trim();
-        if (s.StartsWith("ws:sym:", StringComparison.OrdinalIgnoreCase))
+        if (s.StartWithIC("ws:sym:"))
         {
             s = s["ws:sym:".Length..];
         }
@@ -51,18 +51,18 @@ public record GateViolation
         if (colonIdx > 0)
         {
             var rest = s[colonIdx..];
-            if (rest.StartsWith(":Function:", StringComparison.OrdinalIgnoreCase) ||
-                rest.StartsWith(":Type:", StringComparison.OrdinalIgnoreCase) ||
-                rest.StartsWith(":Class:", StringComparison.OrdinalIgnoreCase) ||
-                rest.StartsWith(":Method:", StringComparison.OrdinalIgnoreCase) ||
-                rest.StartsWith(":Member:", StringComparison.OrdinalIgnoreCase) ||
-                rest.StartsWith(":Interface:", StringComparison.OrdinalIgnoreCase) ||
-                rest.StartsWith(":Enum:", StringComparison.OrdinalIgnoreCase) ||
-                rest.StartsWith(":Struct:", StringComparison.OrdinalIgnoreCase) ||
-                rest.StartsWith(":Record:", StringComparison.OrdinalIgnoreCase) ||
-                rest.StartsWith(":Property:", StringComparison.OrdinalIgnoreCase) ||
-                rest.StartsWith(":Field:", StringComparison.OrdinalIgnoreCase) ||
-                rest.StartsWith(":Constructor:", StringComparison.OrdinalIgnoreCase))
+            if (rest.StartWithIC(":Function:") ||
+                rest.StartWithIC(":Type:") ||
+                rest.StartWithIC(":Class:") ||
+                rest.StartWithIC(":Method:") ||
+                rest.StartWithIC(":Member:") ||
+                rest.StartWithIC(":Interface:") ||
+                rest.StartWithIC(":Enum:") ||
+                rest.StartWithIC(":Struct:") ||
+                rest.StartWithIC(":Record:") ||
+                rest.StartWithIC(":Property:") ||
+                rest.StartWithIC(":Field:") ||
+                rest.StartWithIC(":Constructor:"))
             {
                 s = s[..colonIdx];
             }

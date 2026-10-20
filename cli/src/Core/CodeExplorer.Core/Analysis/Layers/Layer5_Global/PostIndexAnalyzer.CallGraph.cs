@@ -442,7 +442,7 @@ public partial class PostIndexAnalyzer
                 rootProject ??= p;
                 continue;
             }
-            if (pathPart.StartsWith(pPath, StringComparison.OrdinalIgnoreCase))
+            if (pathPart.StartWithIC(pPath))
             {
                 if (pathPart.Length == pPath.Length || pathPart[pPath.Length] == '/' || pathPart[pPath.Length] == ':')
                 {

@@ -111,7 +111,7 @@ public class AioHttpPythonLibraryParser : ISemanticExtension
         foreach (var arg in args)
         {
             var resolved = PythonAstHelper.ResolveStringOrVariable(arg);
-            if (!string.IsNullOrEmpty(resolved) && (resolved.Contains('/') || resolved.StartsWith("http", StringComparison.OrdinalIgnoreCase) || resolved.StartsWith("ws", StringComparison.OrdinalIgnoreCase)))
+            if (!string.IsNullOrEmpty(resolved) && (resolved.Contains('/') || resolved.StartWithIC("http") || resolved.StartWithIC("ws")))
             {
                 return CleanUrl(resolved);
             }

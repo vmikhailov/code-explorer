@@ -138,9 +138,9 @@ public static class CallSemanticClassifier
 
         // 2. Exception constructors and guards
         if (methodName.EndsWith("Exception", StringComparison.OrdinalIgnoreCase) ||
-            methodName.StartsWith("Throw", StringComparison.OrdinalIgnoreCase) ||
-            callName.StartsWith("throw new ", StringComparison.OrdinalIgnoreCase) ||
-            callName.StartsWith("new Argument", StringComparison.OrdinalIgnoreCase))
+            methodName.StartWithIC("Throw") ||
+            callName.StartWithIC("throw new ") ||
+            callName.StartWithIC("new Argument"))
         {
             return (CallSemanticRole.Exception, false);
         }
@@ -153,7 +153,7 @@ public static class CallSemanticClassifier
 
         // 4. Configuration calls
         if (receiver.Contains("config") || receiver.Contains("env") || receiver.Contains("environment") ||
-            callName.StartsWith("process.env", StringComparison.OrdinalIgnoreCase) ||
+            callName.StartWithIC("process.env") ||
             methodName.Equals("getOrThrow", StringComparison.OrdinalIgnoreCase) ||
             methodName.Equals("getRequiredSection", StringComparison.OrdinalIgnoreCase) ||
             methodName.Equals("GetConnectionString", StringComparison.OrdinalIgnoreCase) ||
@@ -174,7 +174,7 @@ public static class CallSemanticClassifier
         // 6. Formatting & String/Path manipulation
         if (receiver.Contains("stringbuilder") || receiver == "sb" || receiver == "path" || receiver == "string" || receiver == "json" ||
             FormattingMethodNames.Contains(methodName) ||
-            callName.StartsWith("JSON.", StringComparison.OrdinalIgnoreCase))
+            callName.StartWithIC("JSON."))
         {
             return (CallSemanticRole.Formatting, false);
         }
@@ -242,8 +242,8 @@ public static class CallSemanticClassifier
 
         // 14. Test automation identifiers / QA attributes
         if (methodName.EndsWith("TestId", StringComparison.OrdinalIgnoreCase) ||
-            methodName.StartsWith("getByTestId", StringComparison.OrdinalIgnoreCase) ||
-            methodName.StartsWith("findByTestId", StringComparison.OrdinalIgnoreCase) ||
+            methodName.StartWithIC("getByTestId") ||
+            methodName.StartWithIC("findByTestId") ||
             methodName.Equals("testId", StringComparison.OrdinalIgnoreCase))
         {
             return (CallSemanticRole.TestIdentifier, false);

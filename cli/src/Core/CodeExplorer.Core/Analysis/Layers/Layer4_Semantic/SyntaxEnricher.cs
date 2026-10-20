@@ -125,7 +125,7 @@ public partial class SyntaxEnricher : ISyntaxEnricher
             }
         }
 
-        if (!matchedParsers.Any(p => p.Type.StartsWith("db", StringComparison.OrdinalIgnoreCase)))
+        if (!matchedParsers.Any(p => p.Type.StartWithIC("db")))
         {
             if (_syntaxTree.RawImports.Any(i => i.Path.Contains("postgres", StringComparison.OrdinalIgnoreCase) ||
                                                 i.Path.Contains("lib/pq", StringComparison.OrdinalIgnoreCase) ||
@@ -134,7 +134,7 @@ public partial class SyntaxEnricher : ISyntaxEnricher
                 DetectDeclaredSchemas(projectNode, fileNode, _syntaxTree, "relational").Count > 0)
             {
                 var ext = _semanticExtensions.FirstOrDefault(e => e.Id.Contains("sqlx", StringComparison.OrdinalIgnoreCase) ||
-                                                                  (e.Type.StartsWith("db:relational", StringComparison.OrdinalIgnoreCase) && e.Name.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase)))
+                                                                  (e.Type.StartWithIC("db:relational") && e.Name.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase)))
                           ?? new PackageSemanticExtensionAdapter(new PackageDescriptor("postgres-client", "PostgreSQL", LibraryRole.OrmOrDatabase, "db:relational", ["*postgres*"]));
                 matchedParsers.Add(ext);
             }
@@ -241,7 +241,7 @@ public partial class SyntaxEnricher : ISyntaxEnricher
                                                          !r.Name.Equals(targetEngine, StringComparison.OrdinalIgnoreCase) &&
                                                          !ResourceReconciliationService.IsGenericConfigKey(r.Name) &&
                                                          r.DeclaringFilePath != null &&
-                                                         r.DeclaringFilePath.Replace('\\', '/').StartsWith(projDir + "/", StringComparison.OrdinalIgnoreCase));
+                                                         r.DeclaringFilePath.Replace('\\', '/').StartWithIC(projDir + "/"));
                             }
                         }
 

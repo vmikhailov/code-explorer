@@ -73,8 +73,8 @@ public sealed class MessagingConventionService
             return false;
 
         // Disallow URLs
-        if (t.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-            t.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        if (t.StartWithIC("http://") ||
+            t.StartWithIC("https://"))
             return false;
 
         // Disallow code syntax / operators / delimiters / whitespace
@@ -85,8 +85,8 @@ public sealed class MessagingConventionService
         if (IsPlaceholderName(t)) return false;
 
         // Disallow code keywords and member prefix calls
-        if (t.StartsWith("options.", StringComparison.OrdinalIgnoreCase) ||
-            t.StartsWith("config.", StringComparison.OrdinalIgnoreCase) ||
+        if (t.StartWithIC("options.") ||
+            t.StartWithIC("config.") ||
             t.Equals("function", StringComparison.OrdinalIgnoreCase) ||
             t.Equals("return", StringComparison.OrdinalIgnoreCase) ||
             t.Equals("const", StringComparison.OrdinalIgnoreCase) ||

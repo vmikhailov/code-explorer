@@ -86,7 +86,7 @@ public class SqlxLibraryParser : ISemanticExtension
 
         if (string.IsNullOrEmpty(methodName)) return false;
 
-        var isSqlxCall = methodName.StartsWith("sqlx::query", StringComparison.OrdinalIgnoreCase) ||
+        var isSqlxCall = methodName.StartWithIC("sqlx::query") ||
                          methodName.Equals("query!", StringComparison.OrdinalIgnoreCase) ||
                          methodName.Equals("query_as!", StringComparison.OrdinalIgnoreCase) ||
                          methodName.Equals("query_scalar!", StringComparison.OrdinalIgnoreCase) ||

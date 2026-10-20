@@ -99,7 +99,7 @@ public partial class SqliteGraphClient
 
                         foreach (var p in projects)
                         {
-                            if (path.StartsWith(p.Path, StringComparison.OrdinalIgnoreCase))
+                            if (path.StartWithIC(p.Path))
                             {
                                 matchedProject = p.Name;
                                 break;

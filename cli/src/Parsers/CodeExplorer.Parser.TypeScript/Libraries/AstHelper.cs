@@ -316,7 +316,7 @@ public static partial class AstHelper
 
         try
         {
-            var cleanVar = varName.StartsWith("this.", StringComparison.OrdinalIgnoreCase) ? varName[5..].Trim() : varName;
+            var cleanVar = varName.StartWithIC("this.") ? varName[5..].Trim() : varName;
             var curr = node.Parent;
             var maxScopeSteps = 50;
             var steps = 0;
@@ -783,7 +783,7 @@ public static partial class AstHelper
         if (topicMatch.Success)
         {
             var topicArg = topicMatch.Groups[1].Value.Trim().Trim('\'', '"', '`');
-            var cleanTopicArg = topicArg.StartsWith("this.", StringComparison.OrdinalIgnoreCase) ? topicArg[5..] : topicArg;
+            var cleanTopicArg = topicArg.StartWithIC("this.") ? topicArg[5..] : topicArg;
             if (ConstantRegistry.TryResolve(null, cleanTopicArg, out var resTopic))
             {
                 return resTopic;

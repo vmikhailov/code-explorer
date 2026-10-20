@@ -325,15 +325,15 @@ public partial class PostIndexAnalyzer
             cleanKey = aliased.ToLowerInvariant();
         }
 
-        if (cleanKey.StartsWith("environment.", StringComparison.OrdinalIgnoreCase))
+        if (cleanKey.StartWithIC("environment."))
         {
             cleanKey = cleanKey[12..];
         }
-        else if (cleanKey.StartsWith("env.", StringComparison.OrdinalIgnoreCase))
+        else if (cleanKey.StartWithIC("env."))
         {
             cleanKey = cleanKey[4..];
         }
-        else if (cleanKey.StartsWith("config.", StringComparison.OrdinalIgnoreCase))
+        else if (cleanKey.StartWithIC("config."))
         {
             cleanKey = cleanKey[7..];
         }

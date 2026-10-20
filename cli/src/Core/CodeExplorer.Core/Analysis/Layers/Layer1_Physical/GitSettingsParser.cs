@@ -20,7 +20,7 @@ public static class GitSettingsParser
             try
             {
                 var content = File.ReadAllText(gitPath).Trim();
-                if (content.StartsWith("gitdir:", StringComparison.OrdinalIgnoreCase))
+                if (content.StartWithIC("gitdir:"))
                 {
                     var relGitDir = content["gitdir:".Length..].Trim();
                     actualGitDir = Path.IsPathRooted(relGitDir)
@@ -142,7 +142,7 @@ public static class GitSettingsParser
                         {
                             originUrl = val;
                         }
-                        else if (currentSection.StartsWith("remote \"", StringComparison.OrdinalIgnoreCase) &&
+                        else if (currentSection.StartWithIC("remote \"") &&
                             key.Equals("url", StringComparison.OrdinalIgnoreCase) &&
                             string.IsNullOrEmpty(fallbackRemoteUrl))
                         {

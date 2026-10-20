@@ -91,7 +91,7 @@ public sealed partial class NativeIntentPredictor : IIntentPredictor
                 .ToList();
 
             var ggmlMod = modules.FirstOrDefault(m =>
-                m.ModuleName.StartsWith("ggml-", StringComparison.OrdinalIgnoreCase) &&
+                m.ModuleName.StartWithIC("ggml-") &&
                 !m.ModuleName.Equals("ggml-base.dll", StringComparison.OrdinalIgnoreCase) &&
                 !m.ModuleName.Equals("ggml-cpu.dll", StringComparison.OrdinalIgnoreCase));
 
@@ -182,7 +182,7 @@ public sealed partial class NativeIntentPredictor : IIntentPredictor
             {
                 foreach (var line in File.ReadLines("/proc/meminfo"))
                 {
-                    if (line.StartsWith("MemTotal:", StringComparison.OrdinalIgnoreCase))
+                    if (line.StartWithIC("MemTotal:"))
                     {
                         var parts = line.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
                         if (parts.Length >= 2 && ulong.TryParse(parts[1], out var kb) && kb > 0)

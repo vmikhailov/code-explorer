@@ -101,7 +101,7 @@ public class RustParser : IProjectParser, IFileParser
         if (gpManifest.LibTarget != null || gpManifest.BinTargets.Count <= 1) return false;
 
         var matchingBin = gpManifest.BinTargets.FirstOrDefault(b =>
-            b.Path.Replace('\\', '/').StartsWith($"bin/{dirName}/", StringComparison.OrdinalIgnoreCase));
+            b.Path.Replace('\\', '/').StartWithIC($"bin/{dirName}/"));
         if (matchingBin == null) return false;
 
         var wsRoot = CargoManifestParser.FindWorkspaceRoot(grandparentDir);

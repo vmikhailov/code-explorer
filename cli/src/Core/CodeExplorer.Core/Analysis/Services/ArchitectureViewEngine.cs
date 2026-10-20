@@ -44,7 +44,7 @@ public partial class ArchitectureViewEngine(IGraphClient db)
         var prefix = dbPath + ":";
         foreach (var key in SystemContextCache.Keys)
         {
-            if (key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            if (key.StartWithIC(prefix))
             {
                 SystemContextCache.TryRemove(key, out _);
             }
@@ -157,7 +157,7 @@ public partial class ArchitectureViewEngine(IGraphClient db)
                 if (!string.IsNullOrEmpty(epId) && !string.IsNullOrEmpty(epRoute))
                 {
                     var ownerProj = !string.IsNullOrEmpty(epPath)
-                        ? projectCandidates.FirstOrDefault(p => !string.IsNullOrEmpty(p.Path) && epPath.StartsWith(p.Path, StringComparison.OrdinalIgnoreCase))
+                        ? projectCandidates.FirstOrDefault(p => !string.IsNullOrEmpty(p.Path) && epPath.StartWithIC(p.Path))
                         : null;
                     endpointCandidates.Add(new EndpointMatchCandidate(epId, epRoute, epMethod, ownerProj?.ProjectId));
                 }
@@ -259,8 +259,8 @@ public partial class ArchitectureViewEngine(IGraphClient db)
             schemaProp, primaryRelationalEngine);
 
         var isExplicitResource = id.Contains(":res:db:", StringComparison.OrdinalIgnoreCase) ||
-                                 id.StartsWith("urn:", StringComparison.OrdinalIgnoreCase);
-        var isStandaloneDb = id.StartsWith("db:", StringComparison.OrdinalIgnoreCase);
+                                 id.StartWithIC("urn:");
+        var isStandaloneDb = id.StartWithIC("db:");
 
         string canonicalId = isExplicitResource || isStandaloneDb
             ? id
@@ -807,7 +807,7 @@ public partial class ArchitectureViewEngine(IGraphClient db)
         }
         if (!props.ContainsKey("domain"))
         {
-            var cleanDomName = domKey.StartsWith("domain:", StringComparison.OrdinalIgnoreCase)
+            var cleanDomName = domKey.StartWithIC("domain:")
                 ? domKey["domain:".Length..]
                 : domKey;
             props["domain"] = ToPascalCase(cleanDomName);

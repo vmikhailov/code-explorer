@@ -62,7 +62,7 @@ public partial class Layer3SyntacticParser
                 }
 
                 var prefix = p.Path.Replace('\\', '/').TrimEnd('/') + "/";
-                if (file.Path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && prefix.Length > bestMatchLength)
+                if (file.Path.StartWithIC(prefix) && prefix.Length > bestMatchLength)
                 {
                     bestMatch = p;
                     bestMatchLength = prefix.Length;

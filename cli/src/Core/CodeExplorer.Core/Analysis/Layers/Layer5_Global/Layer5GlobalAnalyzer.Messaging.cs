@@ -373,19 +373,19 @@ public partial class Layer5AnalysisParser
         var brokerType = "event";
         (brokerType, topicName) = topicName switch
         {
-            _ when topicName.StartsWith("rabbitmq:", StringComparison.OrdinalIgnoreCase) => ("rabbitmq", topicName["rabbitmq:".Length..]),
-            _ when topicName.StartsWith("kafka:", StringComparison.OrdinalIgnoreCase) => ("kafka", topicName["kafka:".Length..]),
-            _ when topicName.StartsWith("sqs:", StringComparison.OrdinalIgnoreCase) => ("sqs", topicName["sqs:".Length..]),
-            _ when topicName.StartsWith("sns:", StringComparison.OrdinalIgnoreCase) => ("sns", topicName["sns:".Length..]),
-            _ when topicName.StartsWith("gcp:", StringComparison.OrdinalIgnoreCase) => ("gcp", topicName["gcp:".Length..]),
-            _ when topicName.StartsWith("pubsub:", StringComparison.OrdinalIgnoreCase) => ("gcp", topicName["pubsub:".Length..]),
-            _ when topicName.StartsWith("mediatr:", StringComparison.OrdinalIgnoreCase) => ("mediatr", topicName["mediatr:".Length..]),
-            _ when topicName.StartsWith("masstransit:", StringComparison.OrdinalIgnoreCase) => ("masstransit", topicName["masstransit:".Length..]),
-            _ when topicName.StartsWith("eventbus:", StringComparison.OrdinalIgnoreCase) => ("eventbus", topicName["eventbus:".Length..]),
-            _ when topicName.StartsWith("spring:", StringComparison.OrdinalIgnoreCase) => ("spring", topicName["spring:".Length..]),
-            _ when topicName.StartsWith("cqrs:", StringComparison.OrdinalIgnoreCase) => ("cqrs", topicName["cqrs:".Length..]),
-            _ when topicName.StartsWith("nats:", StringComparison.OrdinalIgnoreCase) => ("nats", topicName["nats:".Length..]),
-            _ when topicName.StartsWith("event:", StringComparison.OrdinalIgnoreCase) => ("event", topicName["event:".Length..]),
+            _ when topicName.StartWithIC("rabbitmq:") => ("rabbitmq", topicName["rabbitmq:".Length..]),
+            _ when topicName.StartWithIC("kafka:") => ("kafka", topicName["kafka:".Length..]),
+            _ when topicName.StartWithIC("sqs:") => ("sqs", topicName["sqs:".Length..]),
+            _ when topicName.StartWithIC("sns:") => ("sns", topicName["sns:".Length..]),
+            _ when topicName.StartWithIC("gcp:") => ("gcp", topicName["gcp:".Length..]),
+            _ when topicName.StartWithIC("pubsub:") => ("gcp", topicName["pubsub:".Length..]),
+            _ when topicName.StartWithIC("mediatr:") => ("mediatr", topicName["mediatr:".Length..]),
+            _ when topicName.StartWithIC("masstransit:") => ("masstransit", topicName["masstransit:".Length..]),
+            _ when topicName.StartWithIC("eventbus:") => ("eventbus", topicName["eventbus:".Length..]),
+            _ when topicName.StartWithIC("spring:") => ("spring", topicName["spring:".Length..]),
+            _ when topicName.StartWithIC("cqrs:") => ("cqrs", topicName["cqrs:".Length..]),
+            _ when topicName.StartWithIC("nats:") => ("nats", topicName["nats:".Length..]),
+            _ when topicName.StartWithIC("event:") => ("event", topicName["event:".Length..]),
             _ => (brokerType, topicName)
         };
 
@@ -426,7 +426,7 @@ public partial class Layer5AnalysisParser
             }
         }
 
-        if (topicName.StartsWith("this.config.", StringComparison.OrdinalIgnoreCase))
+        if (topicName.StartWithIC("this.config."))
         {
             var prop = topicName["this.config.".Length..];
             if (ConstantRegistry.TryResolve(null, prop, out var resolved) && !string.IsNullOrEmpty(resolved))
@@ -438,7 +438,7 @@ public partial class Layer5AnalysisParser
                 topicName = prop;
             }
         }
-        else if (topicName.StartsWith("config.", StringComparison.OrdinalIgnoreCase))
+        else if (topicName.StartWithIC("config."))
         {
             var prop = topicName["config.".Length..];
             if (ConstantRegistry.TryResolve(null, prop, out var resolved) && !string.IsNullOrEmpty(resolved))
@@ -450,7 +450,7 @@ public partial class Layer5AnalysisParser
                 topicName = prop;
             }
         }
-        else if (topicName.StartsWith("this.", StringComparison.OrdinalIgnoreCase))
+        else if (topicName.StartWithIC("this."))
         {
             var prop = topicName["this.".Length..];
             if (ConstantRegistry.TryResolve(null, prop, out var resolved) && !string.IsNullOrEmpty(resolved))

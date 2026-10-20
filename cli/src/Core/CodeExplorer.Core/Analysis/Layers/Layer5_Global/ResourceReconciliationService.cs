@@ -407,7 +407,7 @@ public class ResourceReconciliationService
                              aliasOrName.EndsWith("-client", StringComparison.OrdinalIgnoreCase) ||
                              (!string.IsNullOrWhiteSpace(expectedEngine) && 
                               (aliasOrName.Equals(expectedEngine, StringComparison.OrdinalIgnoreCase) ||
-                               aliasOrName.StartsWith($"{expectedEngine}_", StringComparison.OrdinalIgnoreCase)));
+                               aliasOrName.StartWithIC($"{expectedEngine}_")));
 
         var targetEngine = !string.IsNullOrWhiteSpace(expectedEngine)
             ? NormalizeEngineName(expectedEngine)

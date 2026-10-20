@@ -14,8 +14,8 @@ public class YarpGatewayComponentParser : IComponentLibraryParser
     public bool CanHandle(ProjectContext context)
     {
         return context.Dependencies.Any(d =>
-            d.StartsWith("Yarp.ReverseProxy", StringComparison.OrdinalIgnoreCase) ||
-            d.StartsWith("Ocelot", StringComparison.OrdinalIgnoreCase));
+            d.StartWithIC("Yarp.ReverseProxy") ||
+            d.StartWithIC("Ocelot"));
     }
 
     public ComponentAnalysisResult AnalyzeManifest(ProjectContext context)

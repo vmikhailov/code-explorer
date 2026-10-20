@@ -265,7 +265,7 @@ public class AxiosLibraryParser : ISemanticExtension
     {
         if (string.IsNullOrWhiteSpace(rawExpr)) return null;
 
-        var clean = rawExpr.StartsWith("this.", StringComparison.OrdinalIgnoreCase) ? rawExpr[5..].Trim() : rawExpr.Trim();
+        var clean = rawExpr.StartWithIC("this.") ? rawExpr[5..].Trim() : rawExpr.Trim();
 
         // If it's a relative path e.g. /gateway/spa-bff/catalogs
         if (clean.StartsWith('/'))

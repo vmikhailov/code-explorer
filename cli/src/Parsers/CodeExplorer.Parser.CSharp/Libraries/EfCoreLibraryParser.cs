@@ -277,7 +277,7 @@ public class EfCoreLibraryParser : ISemanticExtension
         if (argList == null || !argList.IsValid()) return null;
 
         var args = argList.FindChildrenOfType(TreeSitterSyntax.CSharp.Argument).ToList();
-        var named = args.FirstOrDefault(a => a.Text.StartsWith("schema:", StringComparison.OrdinalIgnoreCase));
+        var named = args.FirstOrDefault(a => a.Text.StartWithIC("schema:"));
         if (named.IsValid())
         {
             var str = named.Children.FirstOrDefault(c => c.Type.Contains("string"));
@@ -299,7 +299,7 @@ public class EfCoreLibraryParser : ISemanticExtension
         {
             foreach (var arg in argList.FindChildrenOfType(TreeSitterSyntax.CSharp.AttributeArgument))
             {
-                if (arg.Text.StartsWith("Schema", StringComparison.OrdinalIgnoreCase))
+                if (arg.Text.StartWithIC("Schema"))
                 {
                     var parts = arg.Text.Split('=');
                     if (parts.Length == 2)

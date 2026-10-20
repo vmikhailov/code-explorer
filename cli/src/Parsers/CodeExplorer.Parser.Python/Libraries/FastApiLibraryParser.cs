@@ -313,7 +313,7 @@ public class FastApiLibraryParser : ISemanticExtension
 
         while (true)
         {
-            if (t.StartsWith("typing.", StringComparison.OrdinalIgnoreCase))
+            if (t.StartWithIC("typing."))
             {
                 t = t[7..].Trim();
                 continue;
@@ -401,9 +401,9 @@ public class FastApiLibraryParser : ISemanticExtension
         if (node.Is(TreeSitterSyntax.Python.String))
         {
             var text = node.Text.Trim('\'', '"');
-            if (text.StartsWith("f'", StringComparison.OrdinalIgnoreCase) || text.StartsWith("f\"", StringComparison.OrdinalIgnoreCase) ||
-                text.StartsWith("r'", StringComparison.OrdinalIgnoreCase) || text.StartsWith("r\"", StringComparison.OrdinalIgnoreCase) ||
-                text.StartsWith("b'", StringComparison.OrdinalIgnoreCase) || text.StartsWith("b\"", StringComparison.OrdinalIgnoreCase))
+            if (text.StartWithIC("f'") || text.StartWithIC("f\"") ||
+                text.StartWithIC("r'") || text.StartWithIC("r\"") ||
+                text.StartWithIC("b'") || text.StartWithIC("b\""))
             {
                 text = text[1..].Trim('\'', '"');
             }

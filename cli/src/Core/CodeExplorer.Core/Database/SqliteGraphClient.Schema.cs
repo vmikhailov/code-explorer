@@ -375,7 +375,7 @@ public partial class SqliteGraphClient
                     break;
                 }
 
-                if (normalized.StartsWith(normPath + "/", StringComparison.OrdinalIgnoreCase))
+                if (normalized.StartWithIC(normPath + "/"))
                 {
                     matchingWs = (ws.Id, normPath);
                     break;

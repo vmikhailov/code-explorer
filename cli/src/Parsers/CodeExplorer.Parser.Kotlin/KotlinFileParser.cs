@@ -37,13 +37,13 @@ public class KotlinFileParser : IFileParser
     {
         if (string.IsNullOrEmpty(importPath)) return ImportType.External;
 
-        if (importPath.StartsWith("kotlin.", StringComparison.OrdinalIgnoreCase) ||
-            importPath.StartsWith("kotlinx.", StringComparison.OrdinalIgnoreCase) ||
-            importPath.StartsWith("java.", StringComparison.OrdinalIgnoreCase) ||
-            importPath.StartsWith("javax.", StringComparison.OrdinalIgnoreCase) ||
-            importPath.StartsWith("android.", StringComparison.OrdinalIgnoreCase) ||
-            importPath.StartsWith("androidx.", StringComparison.OrdinalIgnoreCase) ||
-            importPath.StartsWith("io.flutter.", StringComparison.OrdinalIgnoreCase))
+        if (importPath.StartWithIC("kotlin.") ||
+            importPath.StartWithIC("kotlinx.") ||
+            importPath.StartWithIC("java.") ||
+            importPath.StartWithIC("javax.") ||
+            importPath.StartWithIC("android.") ||
+            importPath.StartWithIC("androidx.") ||
+            importPath.StartWithIC("io.flutter."))
         {
             return ImportType.External;
         }

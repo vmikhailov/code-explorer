@@ -16,7 +16,7 @@ public class PythonTestComponentParser : IComponentLibraryParser
     public bool CanHandle(ProjectContext context)
     {
         return context.ProjectType.Equals("python", StringComparison.OrdinalIgnoreCase) &&
-               (context.Dependencies.Any(d => d.StartsWith("pytest", StringComparison.OrdinalIgnoreCase) || d.Equals("unittest", StringComparison.OrdinalIgnoreCase)) ||
+               (context.Dependencies.Any(d => d.StartWithIC("pytest") || d.Equals("unittest", StringComparison.OrdinalIgnoreCase)) ||
                 context.FilesInDirectory.Any(f => Path.GetFileName(f).StartsWith("test_") || Path.GetFileName(f).EndsWith("_test.py")) ||
                 context.ManifestProperties.GetValueOrDefault("manifest_type") == "test" ||
                 context.ManifestProperties.GetValueOrDefault("is_test_project") == "true");
@@ -53,7 +53,7 @@ public class PythonTestComponentParser : IComponentLibraryParser
                 var funcName = node.GetChildForField(TreeSitterSyntax.Fields.Name)?.Text
                                ?? node.FindChildOfType(TreeSitterSyntax.Common.Identifier)?.Text;
 
-                if (!string.IsNullOrEmpty(funcName) && (funcName.StartsWith("test_", StringComparison.OrdinalIgnoreCase) || hasTestsInFile))
+                if (!string.IsNullOrEmpty(funcName) && (funcName.StartWithIC("test_") || hasTestsInFile))
                 {
                     hasTestsInFile = true;
                     var startRow = node.StartPosition.Row;

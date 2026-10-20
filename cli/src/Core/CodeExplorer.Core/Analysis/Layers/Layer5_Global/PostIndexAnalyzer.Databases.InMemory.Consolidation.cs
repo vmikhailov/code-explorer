@@ -74,7 +74,7 @@ public partial class PostIndexAnalyzer
                                    (fileToProject.TryGetValue(rel.From, out var pOwner) && domainProjIds.Contains(pOwner.Id));
                 if (!isFromDomain) continue;
 
-                var targetDb = allDbNodes.FirstOrDefault(d => d.Id == rel.To || rel.To.StartsWith(d.Id, StringComparison.OrdinalIgnoreCase));
+                var targetDb = allDbNodes.FirstOrDefault(d => d.Id == rel.To || rel.To.StartWithIC(d.Id));
                 var isFromConfig = (targetDb?.Extensions != null && targetDb.Extensions.TryGetValue("from_config", out var fc) && fc == "true") ||
                                    (rel.Properties != null && rel.Properties.TryGetValue("from_config", out var rfc) && rfc?.ToString() == "true");
 
@@ -205,11 +205,11 @@ public partial class PostIndexAnalyzer
         {
             if (rel.Kind != OntologyConstants.Relationships.UsesDb) continue;
 
-            var targetDb = allDbNodes.FirstOrDefault(d => d.Id == rel.To || rel.To.StartsWith(d.Id, StringComparison.OrdinalIgnoreCase));
+            var targetDb = allDbNodes.FirstOrDefault(d => d.Id == rel.To || rel.To.StartWithIC(d.Id));
             var isConfigDb = targetDb?.Extensions != null && targetDb.Extensions.TryGetValue("from_config", out var fc) && fc == "true";
             if (!isConfigDb || targetDb == null) continue;
 
-            var owner = projects.FirstOrDefault(p => p.Id == rel.From || rel.From.StartsWith(p.Id, StringComparison.OrdinalIgnoreCase))
+            var owner = projects.FirstOrDefault(p => p.Id == rel.From || rel.From.StartWithIC(p.Id))
                         ?? (fileToProject.TryGetValue(rel.From, out var fp) ? fp : null);
             if (owner == null) continue;
 
@@ -378,7 +378,7 @@ public partial class PostIndexAnalyzer
 
             if (rawToCanonical.TryGetValue(rel.To, out var canonicalTarget))
             {
-                var owner = projects.FirstOrDefault(p => p.Id == rel.From || rel.From.StartsWith(p.Id, StringComparison.OrdinalIgnoreCase))
+                var owner = projects.FirstOrDefault(p => p.Id == rel.From || rel.From.StartWithIC(p.Id))
                             ?? (fileToProject.TryGetValue(rel.From, out var fp) ? fp : null);
                 var relFilePath = rel.Properties != null && rel.Properties.TryGetValue("file_path", out var rfp) ? rfp?.ToString() : null;
                 if (owner != null && !isTestSource(owner.Id, owner.Path) && !isTestSource(rel.From, relFilePath))
@@ -448,7 +448,7 @@ public partial class PostIndexAnalyzer
             if (!isDbRel) continue;
             if (!rawToCanonical.TryGetValue(rel.To, out var canonicalTarget)) continue;
 
-            var owner = projects.FirstOrDefault(p => p.Id == rel.From || rel.From.StartsWith(p.Id, StringComparison.OrdinalIgnoreCase))
+            var owner = projects.FirstOrDefault(p => p.Id == rel.From || rel.From.StartWithIC(p.Id))
                         ?? (fileToProject.TryGetValue(rel.From, out var fp) ? fp : null);
             if (owner == null || owner.Id == canonicalTarget) continue;
 
@@ -491,7 +491,7 @@ public partial class PostIndexAnalyzer
 
             if (rawToCanonical.TryGetValue(rel.To, out var canonicalTarget))
             {
-                var owner = projects.FirstOrDefault(p => p.Id == rel.From || rel.From.StartsWith(p.Id, StringComparison.OrdinalIgnoreCase))
+                var owner = projects.FirstOrDefault(p => p.Id == rel.From || rel.From.StartWithIC(p.Id))
                             ?? (fileToProject.TryGetValue(rel.From, out var fp) ? fp : null);
 
                 if (owner != null && owner.Id != canonicalTarget)

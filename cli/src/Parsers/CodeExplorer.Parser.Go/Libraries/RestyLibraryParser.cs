@@ -87,7 +87,7 @@ public class RestyLibraryParser : ISemanticExtension
             foreach (var arg in args)
             {
                 var resolved = GoAstHelper.ResolveStringOrVariable(arg);
-                if (!string.IsNullOrEmpty(resolved) && (resolved.Contains('/') || resolved.StartsWith("http", StringComparison.OrdinalIgnoreCase)))
+                if (!string.IsNullOrEmpty(resolved) && (resolved.Contains('/') || resolved.StartWithIC("http")))
                 {
                     targetUrl = resolved;
                     break;

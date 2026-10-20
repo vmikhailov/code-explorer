@@ -75,11 +75,11 @@ public class RustFileVisitor : BaseParserVisitor
         if (text.Contains("::", StringComparison.Ordinal))
         {
             var cleaned = text.TrimStart('#', '[', ']', '(', '{', ' ', '\t');
-            if (cleaned.StartsWith("use ", StringComparison.OrdinalIgnoreCase))
+            if (cleaned.StartWithIC("use "))
             {
                 cleaned = cleaned["use ".Length..].TrimStart();
             }
-            if (cleaned.StartsWith("pub use ", StringComparison.OrdinalIgnoreCase))
+            if (cleaned.StartWithIC("pub use "))
             {
                 cleaned = cleaned["pub use ".Length..].TrimStart();
             }

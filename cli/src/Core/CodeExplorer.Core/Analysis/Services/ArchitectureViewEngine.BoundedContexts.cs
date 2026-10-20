@@ -71,11 +71,11 @@ public partial class ArchitectureViewEngine
             candidate = (rawDomain ?? "").Trim();
         }
 
-        if (candidate.StartsWith("context:", StringComparison.OrdinalIgnoreCase))
+        if (candidate.StartWithIC("context:"))
             candidate = candidate["context:".Length..];
-        if (candidate.StartsWith("dom:", StringComparison.OrdinalIgnoreCase))
+        if (candidate.StartWithIC("dom:"))
             candidate = candidate["dom:".Length..];
-        if (candidate.StartsWith("domain:", StringComparison.OrdinalIgnoreCase))
+        if (candidate.StartWithIC("domain:"))
             candidate = candidate["domain:".Length..];
 
         if (IsRunawayDomainName(candidate))
@@ -95,10 +95,10 @@ public partial class ArchitectureViewEngine
         if (string.IsNullOrWhiteSpace(candidate) && !string.IsNullOrWhiteSpace(filePath))
         {
             var normPath = filePath.Replace('\\', '/');
-            if (normPath.StartsWith("ui/", StringComparison.OrdinalIgnoreCase) || 
-                normPath.StartsWith("frontend/", StringComparison.OrdinalIgnoreCase) ||
-                normPath.StartsWith("client/", StringComparison.OrdinalIgnoreCase) ||
-                normPath.StartsWith("web/", StringComparison.OrdinalIgnoreCase))
+            if (normPath.StartWithIC("ui/") || 
+                normPath.StartWithIC("frontend/") ||
+                normPath.StartWithIC("client/") ||
+                normPath.StartWithIC("web/"))
             {
                 candidate = "UserInterface";
             }
@@ -128,14 +128,14 @@ public partial class ArchitectureViewEngine
         var cleaned = candidate;
         foreach (var prefix in new[] { "internalservice", "internal-service-", "internal-service", "internal-", "service", "worker", "integration-service-", "integration-service", "integration-" })
         {
-            if (cleaned.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && cleaned.Length > prefix.Length + 2)
+            if (cleaned.StartWithIC(prefix) && cleaned.Length > prefix.Length + 2)
             {
                 cleaned = cleaned[prefix.Length..].TrimStart('_', '-', '.');
             }
         }
-        if (cleaned.StartsWith("app", StringComparison.OrdinalIgnoreCase) &&
-            (cleaned.StartsWith("app_", StringComparison.OrdinalIgnoreCase) ||
-             cleaned.StartsWith("app-", StringComparison.OrdinalIgnoreCase) ||
+        if (cleaned.StartWithIC("app") &&
+            (cleaned.StartWithIC("app_") ||
+             cleaned.StartWithIC("app-") ||
              (cleaned.Length > 3 && char.IsUpper(cleaned[3]))))
         {
             cleaned = cleaned[3..].TrimStart('_', '-');
@@ -288,7 +288,7 @@ public partial class ArchitectureViewEngine
             if (string.IsNullOrWhiteSpace(rec.Domain) && string.IsNullOrWhiteSpace(rec.FilePath)) continue;
             var normRel = (rec.FilePath ?? "").Replace('\\', '/');
             var matchedProj = sigByPrefix.FirstOrDefault(s =>
-                normRel.StartsWith(s.RelativePath.Replace('\\', '/') + "/", StringComparison.OrdinalIgnoreCase) ||
+                normRel.StartWithIC(s.RelativePath.Replace('\\', '/') + "/") ||
                 normRel.Equals(s.RelativePath.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase))
                 ?? rootSig;
 
@@ -378,7 +378,7 @@ public partial class ArchitectureViewEngine
                 // Deduce project name from file path if matching a recognized project boundary
                 var normPath = r.FilePath.Replace('\\', '/');
                 var matchedProj = sigByPrefix.FirstOrDefault(s =>
-                    normPath.StartsWith(s.RelativePath.Replace('\\', '/') + "/", StringComparison.OrdinalIgnoreCase) ||
+                    normPath.StartWithIC(s.RelativePath.Replace('\\', '/') + "/") ||
                     normPath.Equals(s.RelativePath.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase))
                     ?? rootSig;
 

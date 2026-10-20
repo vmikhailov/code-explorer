@@ -139,8 +139,8 @@ public class HttpClientLibraryParser : ISemanticExtension
             if (argText.StartsWith('"') || argText.StartsWith("@\"") || argText.StartsWith("$\""))
             {
                 var unquoted = argText.TrimStart('$', '@').Trim('"');
-                if (!unquoted.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
-                    !unquoted.StartsWith("https://", StringComparison.OrdinalIgnoreCase) &&
+                if (!unquoted.StartWithIC("http://") &&
+                    !unquoted.StartWithIC("https://") &&
                     !unquoted.StartsWith('/'))
                 {
                     return true;
@@ -168,7 +168,7 @@ public class HttpClientLibraryParser : ISemanticExtension
         }
 
         // 4. Dot navigation without URL characteristics
-        if (argText.Contains('.') && !argText.Contains('/') && !argText.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        if (argText.Contains('.') && !argText.Contains('/') && !argText.StartWithIC("http"))
         {
             if (!lower.Contains("url") && !lower.Contains("uri") && !lower.Contains("endpoint") &&
                 !lower.Contains("path") && !lower.Contains("route") && !lower.Contains("address"))
@@ -314,7 +314,7 @@ public class HttpClientLibraryParser : ISemanticExtension
                 return norm;
             }
 
-            if (text.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || text.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            if (text.StartWithIC("http://") || text.StartWithIC("https://"))
             {
                 return NormalizeUrl(text);
             }

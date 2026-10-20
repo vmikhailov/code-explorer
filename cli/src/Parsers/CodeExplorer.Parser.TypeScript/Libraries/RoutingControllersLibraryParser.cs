@@ -276,7 +276,7 @@ public class RoutingControllersLibraryParser : ISemanticExtension
         route = (route ?? "").Trim().Trim('/');
         if (string.IsNullOrEmpty(prefix)) return "/" + route;
         if (string.IsNullOrEmpty(route)) return "/" + prefix;
-        if (route.Equals(prefix, StringComparison.OrdinalIgnoreCase) || route.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase))
+        if (route.Equals(prefix, StringComparison.OrdinalIgnoreCase) || route.StartWithIC(prefix + "/"))
             return "/" + route;
         return $"/{prefix}/{route}";
     }

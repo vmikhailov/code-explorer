@@ -199,7 +199,7 @@ public class NestJsLibraryParser : ISemanticExtension
                     if (!string.IsNullOrEmpty(ver))
                     {
                         ver = ver.Trim().Trim('\'', '"', '`');
-                        if (!ver.StartsWith("v", StringComparison.OrdinalIgnoreCase))
+                        if (!ver.StartWithIC("v"))
                         {
                             ver = "v" + ver;
                         }

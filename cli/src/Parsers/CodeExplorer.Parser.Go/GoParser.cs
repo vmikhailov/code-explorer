@@ -378,7 +378,7 @@ public class GoParser : IProjectParser, IFileParser
             if (!string.IsNullOrEmpty(moduleName))
             {
                 if (importPath.Equals(moduleName, StringComparison.OrdinalIgnoreCase) ||
-                    importPath.StartsWith(moduleName + "/", StringComparison.OrdinalIgnoreCase))
+                    importPath.StartWithIC(moduleName + "/"))
                 {
                     return ImportType.Internal;
                 }

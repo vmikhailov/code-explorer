@@ -514,7 +514,7 @@ public static partial class CodeIntentAnalyzer
                         var norm = (rec.FilePath ?? "").Replace('\\', '/');
                         if (norm.EndsWith(".sql", StringComparison.OrdinalIgnoreCase)) return true;
                         var matched = sigByPrefix.FirstOrDefault(s =>
-                            norm.StartsWith(s.RelativePath.Replace('\\', '/') + "/", StringComparison.OrdinalIgnoreCase) ||
+                            norm.StartWithIC(s.RelativePath.Replace('\\', '/') + "/") ||
                             norm.Equals(s.RelativePath.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase))
                             ?? rootSig;
                         return matched == null;
@@ -540,7 +540,7 @@ public static partial class CodeIntentAnalyzer
                     if (norm.EndsWith(".sql", StringComparison.OrdinalIgnoreCase)) continue;
 
                     var matched = sigByPrefix.FirstOrDefault(s =>
-                        norm.StartsWith(s.RelativePath.Replace('\\', '/') + "/", StringComparison.OrdinalIgnoreCase) ||
+                        norm.StartWithIC(s.RelativePath.Replace('\\', '/') + "/") ||
                         norm.Equals(s.RelativePath.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase))
                         ?? rootSig;
 

@@ -205,7 +205,7 @@ public class QueryCommandHandler : BaseCommandHandler
 
                 static string FormatColumnHeader(string rawCol)
                 {
-                    if (rawCol.StartsWith("CASE WHEN ", StringComparison.OrdinalIgnoreCase) &&
+                    if (rawCol.StartWithIC("CASE WHEN ") &&
                         rawCol.Contains(".kind", StringComparison.OrdinalIgnoreCase))
                     {
                         return "labels";

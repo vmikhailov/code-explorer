@@ -119,8 +119,8 @@ public class RequestLibraryParser : ISemanticExtension
         if (node.IsAny(TreeSitterSyntax.TypeScript.String, TreeSitterSyntax.TypeScript.TemplateString))
         {
             var text = node.Text.Trim('\'', '"', '`');
-            return text.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                   text.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+            return text.StartWithIC("http://") ||
+                   text.StartWithIC("https://") ||
                    text.StartsWith('/') ||
                    text.Contains('/');
         }

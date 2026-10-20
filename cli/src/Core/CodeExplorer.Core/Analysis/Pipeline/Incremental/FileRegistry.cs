@@ -99,7 +99,7 @@ public class FileRegistry
         var deleted = _entries.Keys
             .Where(path =>
             {
-                if (targetPrefix != null && !path.StartsWith(targetPrefix, StringComparison.OrdinalIgnoreCase))
+                if (targetPrefix != null && !path.StartWithIC(targetPrefix))
                 {
                     return false;
                 }

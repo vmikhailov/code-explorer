@@ -267,20 +267,20 @@ ws ::= [ \t\n\r]*
         if (string.IsNullOrWhiteSpace(name)) return "Core";
 
         var clean = name.Trim();
-        if (clean.StartsWith("domain:", StringComparison.OrdinalIgnoreCase))
+        if (clean.StartWithIC("domain:"))
             clean = clean["domain:".Length..].Trim();
-        if (clean.StartsWith("dom:", StringComparison.OrdinalIgnoreCase))
+        if (clean.StartWithIC("dom:"))
             clean = clean["dom:".Length..].Trim();
 
         clean = clean.Trim('"', '\'', '`', '.', ':', ';', ',', '!', '?');
 
         // Check for sentence patterns (e.g. starts with "This ", "The ", contains verbs like "is responsible for", "handles all", etc.)
         if (clean.EndsWith('.') ||
-            clean.StartsWith("This ", StringComparison.OrdinalIgnoreCase) ||
-            clean.StartsWith("The ", StringComparison.OrdinalIgnoreCase) ||
-            clean.StartsWith("It ", StringComparison.OrdinalIgnoreCase) ||
-            clean.StartsWith("A ", StringComparison.OrdinalIgnoreCase) ||
-            clean.StartsWith("An ", StringComparison.OrdinalIgnoreCase) ||
+            clean.StartWithIC("This ") ||
+            clean.StartWithIC("The ") ||
+            clean.StartWithIC("It ") ||
+            clean.StartWithIC("A ") ||
+            clean.StartWithIC("An ") ||
             clean.Contains(" is ", StringComparison.OrdinalIgnoreCase) ||
             clean.Contains(" responsible ", StringComparison.OrdinalIgnoreCase) ||
             clean.Contains(" handles ", StringComparison.OrdinalIgnoreCase) ||

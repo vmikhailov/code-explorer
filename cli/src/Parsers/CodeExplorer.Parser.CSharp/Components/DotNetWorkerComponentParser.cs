@@ -14,9 +14,9 @@ public class DotNetWorkerComponentParser : IComponentLibraryParser
     public bool CanHandle(ProjectContext context)
     {
         return context.Dependencies.Any(d =>
-            d.StartsWith("MassTransit", StringComparison.OrdinalIgnoreCase) ||
-            d.StartsWith("RabbitMQ.Client", StringComparison.OrdinalIgnoreCase) ||
-            d.StartsWith("Confluent.Kafka", StringComparison.OrdinalIgnoreCase));
+            d.StartWithIC("MassTransit") ||
+            d.StartWithIC("RabbitMQ.Client") ||
+            d.StartWithIC("Confluent.Kafka"));
     }
 
     public ComponentAnalysisResult AnalyzeManifest(ProjectContext context)

@@ -868,8 +868,8 @@ public class CSharpParser : IProjectParser, IFileParser
             var rootNamespace = _csProjCache.GetOrAdd(csprojFile, f => Path.GetFileNameWithoutExtension(f));
             var rootPrefix = rootNamespace.Split('.')[0]; // e.g. "CodeExplorer" from "CodeExplorer.Core"
 
-            if (importPath.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase) ||
-                importPath.StartsWith(rootNamespace, StringComparison.OrdinalIgnoreCase))
+            if (importPath.StartWithIC(rootPrefix) ||
+                importPath.StartWithIC(rootNamespace))
             {
                 return ImportType.Internal;
             }
@@ -880,7 +880,7 @@ public class CSharpParser : IProjectParser, IFileParser
         foreach (var prefix in builtInPrefixes)
         {
             if (importPath.Equals(prefix, StringComparison.OrdinalIgnoreCase) ||
-                importPath.StartsWith(prefix + ".", StringComparison.OrdinalIgnoreCase))
+                importPath.StartWithIC(prefix + "."))
             {
                 return ImportType.External;
             }

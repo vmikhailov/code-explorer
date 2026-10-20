@@ -30,7 +30,7 @@ public class Layer2ProjectParser
         {
             dirsToCheck.Add(ctx.ScanPath);
             dirsToCheck.AddRange(l1Result.Folders
-                .Where(f => f.Path.StartsWith(ctx.ScanPath.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase))
+                .Where(f => f.Path.StartWithIC(ctx.ScanPath.TrimEnd('/') + "/"))
                 .Select(f => f.Path));
         }
         else
@@ -415,7 +415,7 @@ public class Layer2ProjectParser
                 foreach (var folder in searchFolderNames)
                 {
                     var fullCandidate = Path.GetFullPath(Path.Combine(parentDir, folder));
-                    if (Directory.Exists(fullCandidate) && !fullCandidate.StartsWith(ctx.AbsoluteWorkspacePath, StringComparison.OrdinalIgnoreCase))
+                    if (Directory.Exists(fullCandidate) && !fullCandidate.StartWithIC(ctx.AbsoluteWorkspacePath))
                     {
                         candidateLibraryDirs.Add(fullCandidate);
                     }
@@ -719,7 +719,7 @@ public class Layer2ProjectParser
             }
 
             var pPrefix = pPath + "/";
-            if (cleanPath.StartsWith(pPrefix, StringComparison.OrdinalIgnoreCase) || cleanPath.Equals(pPath, StringComparison.OrdinalIgnoreCase))
+            if (cleanPath.StartWithIC(pPrefix) || cleanPath.Equals(pPath, StringComparison.OrdinalIgnoreCase))
             {
                 if (pPrefix.Length > bestMatchLength)
                 {

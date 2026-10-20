@@ -404,8 +404,8 @@ public partial class ArchitectureViewEngine
                             {
                                 // Skip generic/wildcard tokens
                             }
-                            else if (tgtName.StartsWith("environment.", StringComparison.OrdinalIgnoreCase) ||
-                                     tgtName.StartsWith("env.", StringComparison.OrdinalIgnoreCase))
+                            else if (tgtName.StartWithIC("environment.") ||
+                                     tgtName.StartWithIC("env."))
                             {
                                 var cleanSvc = Regex.Replace(tgtName, @"^(environment\.|env\.)", "",
                                     RegexOptions.IgnoreCase);
@@ -628,8 +628,8 @@ public partial class ArchitectureViewEngine
                         {
                             // Skip generic/wildcard tokens
                         }
-                        else if (tgtName.StartsWith("environment.", StringComparison.OrdinalIgnoreCase) ||
-                                 tgtName.StartsWith("env.", StringComparison.OrdinalIgnoreCase))
+                        else if (tgtName.StartWithIC("environment.") ||
+                                 tgtName.StartWithIC("env."))
                         {
                             var cleanSvc = Regex.Replace(tgtName, @"^(environment\.|env\.)", "", RegexOptions.IgnoreCase);
                             if (seenServices.Add(cleanSvc))
@@ -768,8 +768,8 @@ public partial class ArchitectureViewEngine
         foreach (var (k, v) in internalProjectsByName)
         {
             if (k.Length >= 3 && (k.Equals(clean, StringComparison.OrdinalIgnoreCase) ||
-                                  clean.StartsWith(k, StringComparison.OrdinalIgnoreCase) ||
-                                  k.StartsWith(clean, StringComparison.OrdinalIgnoreCase)))
+                                  clean.StartWithIC(k) ||
+                                  k.StartWithIC(clean)))
             {
                 return v;
             }

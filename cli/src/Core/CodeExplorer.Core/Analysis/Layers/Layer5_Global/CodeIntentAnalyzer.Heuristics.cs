@@ -90,8 +90,8 @@ public static partial class CodeIntentAnalyzer
             }
 
             var isTooling = (!string.IsNullOrWhiteSpace(sig.RelativePath) &&
-                             (sig.RelativePath.StartsWith("tools/", StringComparison.OrdinalIgnoreCase) ||
-                              sig.RelativePath.StartsWith("cli/", StringComparison.OrdinalIgnoreCase) ||
+                             (sig.RelativePath.StartWithIC("tools/") ||
+                              sig.RelativePath.StartWithIC("cli/") ||
                               sig.RelativePath.Contains("/tools/") ||
                               sig.RelativePath.Contains("/cli/"))) ||
                             cleanNorm is "cli" or "tools" or "tooling" or "devtool" or "devtools" ||
@@ -105,7 +105,7 @@ public static partial class CodeIntentAnalyzer
             }
 
             var isTesting = (!string.IsNullOrWhiteSpace(sig.RelativePath) &&
-                             (sig.RelativePath.StartsWith("tests/", StringComparison.OrdinalIgnoreCase) ||
+                             (sig.RelativePath.StartWithIC("tests/") ||
                               sig.RelativePath.Contains("/tests/"))) ||
                             cleanNorm.EndsWith("-test") || cleanNorm.EndsWith("-tests") ||
                             cleanNorm.StartsWith("test-") || cleanNorm.Contains("fixture") || cleanNorm.Contains("mock");

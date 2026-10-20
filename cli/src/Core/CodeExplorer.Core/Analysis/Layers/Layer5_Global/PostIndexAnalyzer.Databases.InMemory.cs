@@ -69,7 +69,7 @@ public partial class PostIndexAnalyzer
                 }
             }
 
-            var matchingProj = projects.FirstOrDefault(pr => pr.Id == fromId || fromId.StartsWith(pr.Id, StringComparison.OrdinalIgnoreCase));
+            var matchingProj = projects.FirstOrDefault(pr => pr.Id == fromId || fromId.StartWithIC(pr.Id));
             if (matchingProj != null)
             {
                 if (matchingProj.IsTest || string.Equals(matchingProj.Role, "Test", StringComparison.OrdinalIgnoreCase) ||

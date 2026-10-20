@@ -319,7 +319,7 @@ public class ParsingContext
         foreach (var (repoDir, settings) in DiscoveredGitRepositories)
         {
             if (norm.Equals(repoDir, StringComparison.OrdinalIgnoreCase) ||
-                norm.StartsWith(repoDir + "/", StringComparison.OrdinalIgnoreCase))
+                norm.StartWithIC(repoDir + "/"))
             {
                 if (repoDir.Length > bestLen)
                 {

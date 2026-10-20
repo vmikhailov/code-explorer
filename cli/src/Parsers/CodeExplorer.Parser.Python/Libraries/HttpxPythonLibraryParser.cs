@@ -113,7 +113,7 @@ public class HttpxPythonLibraryParser : ISemanticExtension
         foreach (var arg in args)
         {
             var resolved = PythonAstHelper.ResolveStringOrVariable(arg);
-            if (!string.IsNullOrEmpty(resolved) && (resolved.Contains('/') || resolved.StartsWith("http", StringComparison.OrdinalIgnoreCase)))
+            if (!string.IsNullOrEmpty(resolved) && (resolved.Contains('/') || resolved.StartWithIC("http")))
             {
                 return CleanUrl(resolved);
             }

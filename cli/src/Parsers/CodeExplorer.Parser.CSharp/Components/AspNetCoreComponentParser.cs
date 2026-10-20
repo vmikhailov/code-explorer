@@ -13,16 +13,16 @@ public class AspNetCoreComponentParser : IComponentLibraryParser
 
     public bool CanHandle(ProjectContext context)
     {
-        return context.Dependencies.Any(d => d.StartsWith("Microsoft.AspNetCore", StringComparison.OrdinalIgnoreCase) ||
-                                             d.StartsWith("Microsoft.AspNet.WebApi", StringComparison.OrdinalIgnoreCase) ||
-                                             d.StartsWith("Microsoft.AspNet.Mvc", StringComparison.OrdinalIgnoreCase)) ||
+        return context.Dependencies.Any(d => d.StartWithIC("Microsoft.AspNetCore") ||
+                                             d.StartWithIC("Microsoft.AspNet.WebApi") ||
+                                             d.StartWithIC("Microsoft.AspNet.Mvc")) ||
                context.ManifestProperties.GetValueOrDefault("sdk")?.Equals("Microsoft.NET.Sdk.Web", StringComparison.OrdinalIgnoreCase) == true ||
                string.Equals(context.ManifestProperties.GetValueOrDefault("framework_type"), "web", StringComparison.OrdinalIgnoreCase);
     }
 
     public ComponentAnalysisResult AnalyzeManifest(ProjectContext context)
     {
-        var isCore = context.Dependencies.Any(d => d.StartsWith("Microsoft.AspNetCore", StringComparison.OrdinalIgnoreCase)) ||
+        var isCore = context.Dependencies.Any(d => d.StartWithIC("Microsoft.AspNetCore")) ||
                      context.ManifestProperties.GetValueOrDefault("sdk")?.Equals("Microsoft.NET.Sdk.Web", StringComparison.OrdinalIgnoreCase) == true;
 
         return new ComponentAnalysisResult

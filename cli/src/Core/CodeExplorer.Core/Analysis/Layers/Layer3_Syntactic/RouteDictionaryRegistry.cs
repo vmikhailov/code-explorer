@@ -283,10 +283,10 @@ public static class RouteDictionaryRegistry
             return !string.IsNullOrEmpty(rs) ? $"{rs}{cleanPath}" : cleanPath;
         }
 
-        if (clean.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-            clean.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
-            clean.StartsWith("ws://", StringComparison.OrdinalIgnoreCase) ||
-            clean.StartsWith("wss://", StringComparison.OrdinalIgnoreCase))
+        if (clean.StartWithIC("http://") ||
+            clean.StartWithIC("https://") ||
+            clean.StartWithIC("ws://") ||
+            clean.StartWithIC("wss://"))
         {
             return clean;
         }
@@ -333,7 +333,7 @@ public static class RouteDictionaryRegistry
             {
                 var sKey = dm.Groups[1].Value;
                 var sVal = dm.Groups[2].Value.Trim();
-                if (sVal.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || sVal.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                if (sVal.StartWithIC("http://") || sVal.StartWithIC("https://"))
                 {
                     try
                     {
@@ -366,7 +366,7 @@ public static class RouteDictionaryRegistry
             {
                 var sKey = dm.Groups[1].Value;
                 var sVal = dm.Groups[2].Value.Trim();
-                if (sVal.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || sVal.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                if (sVal.StartWithIC("http://") || sVal.StartWithIC("https://"))
                 {
                     try
                     {
@@ -407,7 +407,7 @@ public static class RouteDictionaryRegistry
             var cName = tcm.Groups[1].Value;
             if (_genericVariableNames.Contains(cName)) continue;
             var cVal = tcm.Groups[2].Value.Trim();
-            if (cVal.Contains('/') || cVal.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || cVal.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            if (cVal.Contains('/') || cVal.StartWithIC("http://") || cVal.StartWithIC("https://"))
             {
                 Register(cName, cVal, InferService(cName, cVal));
             }
@@ -435,12 +435,12 @@ public static class RouteDictionaryRegistry
                 var key = em.Groups[1].Value;
                 var val = em.Groups[2].Value.Trim();
 
-                if (val.Contains('/') || val.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || val.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                if (val.Contains('/') || val.StartWithIC("http://") || val.StartWithIC("https://"))
                 {
                     var inferredSvc = InferService(key, val);
                     Register(key, val, inferredSvc);
                     Register($"{varName}.{key}", val, inferredSvc);
-                    if (varName.StartsWith("env", StringComparison.OrdinalIgnoreCase))
+                    if (varName.StartWithIC("env"))
                     {
                         Register($"env.{key}", val, inferredSvc);
                         Register($"environment.{key}", val, inferredSvc);
@@ -462,7 +462,7 @@ public static class RouteDictionaryRegistry
                     var inferredSvc = baseSvc ?? InferService(key, combined);
                     Register(key, combined, inferredSvc);
                     Register($"{varName}.{key}", combined, inferredSvc);
-                    if (varName.StartsWith("env", StringComparison.OrdinalIgnoreCase))
+                    if (varName.StartWithIC("env"))
                     {
                         Register($"env.{key}", combined, inferredSvc);
                         Register($"environment.{key}", combined, inferredSvc);
@@ -528,7 +528,7 @@ public static class RouteDictionaryRegistry
                     rawUrl = rawUrl.Replace(tplMatch.Value, baseP);
                 }
 
-                if (rawUrl.Contains('/') || rawUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || rawUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                if (rawUrl.Contains('/') || rawUrl.StartWithIC("http://") || rawUrl.StartWithIC("https://"))
                 {
                     Register(fnName, rawUrl, null);
                 }
@@ -569,7 +569,7 @@ public static class RouteDictionaryRegistry
                     rawUrl = rawUrl.Replace(tplMatch.Value, baseP);
                 }
 
-                if (rawUrl.Contains('/') || rawUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || rawUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                if (rawUrl.Contains('/') || rawUrl.StartWithIC("http://") || rawUrl.StartWithIC("https://"))
                 {
                     Register(fnName, rawUrl, null);
                 }
@@ -662,7 +662,7 @@ public static class RouteDictionaryRegistry
         {
             var sKey = pm.Groups[1].Value;
             var sVal = pm.Groups[2].Value.Trim();
-            if (sVal.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || sVal.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            if (sVal.StartWithIC("http://") || sVal.StartWithIC("https://"))
             {
                 try
                 {

@@ -53,20 +53,17 @@ public partial class ArchitectureViewEngine
 
                     if (!string.IsNullOrEmpty(id))
                     {
-                        if (id.StartsWith(
-                                $"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Project}:",
-                                StringComparison.OrdinalIgnoreCase))
+                        if (id.StartWithIC($"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Project}:"))
                         {
                             path = id[
                                 $"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Project}:"
                                     .Length..];
                         }
-                        else if (id.StartsWith($"workspace:{OntologyConstants.IdPrefixes.Project}:",
-                                     StringComparison.OrdinalIgnoreCase))
+                        else if (id.StartWithIC($"workspace:{OntologyConstants.IdPrefixes.Project}:"))
                         {
                             path = id[$"workspace:{OntologyConstants.IdPrefixes.Project}:".Length..];
                         }
-                        else if (id.StartsWith("workspace:project:", StringComparison.OrdinalIgnoreCase))
+                        else if (id.StartWithIC("workspace:project:"))
                         {
                             path = id["workspace:project:".Length..];
                         }
@@ -473,13 +470,13 @@ public partial class ArchitectureViewEngine
         }
 
         var isRel = safeKind != null && (
-            safeKind.StartsWith("Layer5", StringComparison.OrdinalIgnoreCase) ||
+            safeKind.StartWithIC("Layer5") ||
             (safeKind.Length > 1 && safeKind.All(c => char.IsUpper(c) || c == '_' || char.IsDigit(c)))
         );
 
         if (isRel)
         {
-            var relType = safeKind != null && !safeKind.StartsWith("Layer5", StringComparison.OrdinalIgnoreCase)
+            var relType = safeKind != null && !safeKind.StartWithIC("Layer5")
                 ? safeKind
                 : null;
 

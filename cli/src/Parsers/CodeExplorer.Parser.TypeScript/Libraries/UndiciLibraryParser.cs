@@ -182,7 +182,7 @@ public class UndiciLibraryParser : ISemanticExtension
         if (!objNode.IsValid()) return null;
 
         var varName = objNode.Text.Trim();
-        if (varName.StartsWith("this.", StringComparison.OrdinalIgnoreCase))
+        if (varName.StartWithIC("this."))
         {
             varName = varName[5..].Trim();
         }

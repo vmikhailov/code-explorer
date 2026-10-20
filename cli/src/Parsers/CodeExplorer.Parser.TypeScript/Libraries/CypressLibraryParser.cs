@@ -103,8 +103,8 @@ public class CypressLibraryParser : ISemanticExtension
         if (IsCyCall(node, "visit", out argNode))
         {
             rawUrl = ExtractStringValue(argNode);
-            if (rawUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                rawUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            if (rawUrl.StartWithIC("http://") ||
+                rawUrl.StartWithIC("https://"))
             {
                 return true;
             }
@@ -112,8 +112,8 @@ public class CypressLibraryParser : ISemanticExtension
         else if (IsCyRequestCall(node, out argNode))
         {
             rawUrl = ExtractStringValue(argNode);
-            if (rawUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                rawUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            if (rawUrl.StartWithIC("http://") ||
+                rawUrl.StartWithIC("https://"))
             {
                 return true;
             }

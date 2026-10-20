@@ -436,7 +436,7 @@ public partial class Layer5AnalysisParser
             if (pattern.EndsWith("/*") && target.EndsWith("/*"))
             {
                 var prefix = pattern[..^2];
-                if (importPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                if (importPath.StartWithIC(prefix))
                 {
                     var remainder = importPath[prefix.Length..];
                     var mapped = target[..^2] + remainder;

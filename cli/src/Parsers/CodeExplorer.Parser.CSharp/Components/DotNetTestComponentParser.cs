@@ -16,9 +16,9 @@ public class DotNetTestComponentParser : IComponentLibraryParser
     public bool CanHandle(ProjectContext context)
     {
         return context.Dependencies.Any(d =>
-            d.StartsWith("xunit", StringComparison.OrdinalIgnoreCase) ||
-            d.StartsWith("NUnit", StringComparison.OrdinalIgnoreCase) ||
-            d.StartsWith("MSTest", StringComparison.OrdinalIgnoreCase) ||
+            d.StartWithIC("xunit") ||
+            d.StartWithIC("NUnit") ||
+            d.StartWithIC("MSTest") ||
             d.Equals("Microsoft.NET.Test.Sdk", StringComparison.OrdinalIgnoreCase)) ||
             context.ManifestProperties.GetValueOrDefault("is_test_project") == "true" ||
             context.ManifestProperties.GetValueOrDefault("manifest_type") == "test";
@@ -74,11 +74,11 @@ public class DotNetTestComponentParser : IComponentLibraryParser
                         if (nameNode.IsValid() && TestAttributeNames.Contains(nameNode.Text))
                         {
                             var attrText = nameNode.Text;
-                            detectedFramework = attrText.StartsWith("Fact", StringComparison.OrdinalIgnoreCase) || attrText.StartsWith("Theory", StringComparison.OrdinalIgnoreCase)
+                            detectedFramework = attrText.StartWithIC("Fact") || attrText.StartWithIC("Theory")
                                 ? "xunit"
-                                : attrText.StartsWith("TestMethod", StringComparison.OrdinalIgnoreCase) || attrText.StartsWith("DataTestMethod", StringComparison.OrdinalIgnoreCase)
+                                : attrText.StartWithIC("TestMethod") || attrText.StartWithIC("DataTestMethod")
                                     ? "mstest"
-                                    : attrText.StartsWith("Benchmark", StringComparison.OrdinalIgnoreCase)
+                                    : attrText.StartWithIC("Benchmark")
                                         ? "benchmarkdotnet"
                                         : "nunit";
                             break;

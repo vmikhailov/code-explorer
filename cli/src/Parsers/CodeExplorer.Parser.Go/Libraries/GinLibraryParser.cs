@@ -79,8 +79,8 @@ public class GinLibraryParser : ISemanticExtension
         var pathArg = exprArgs[0];
         var routeVal = GoAstHelper.ResolveStringOrVariable(pathArg);
         if (string.IsNullOrEmpty(routeVal) ||
-            routeVal.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-            routeVal.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            routeVal.StartWithIC("http://") ||
+            routeVal.StartWithIC("https://"))
         {
             return false;
         }

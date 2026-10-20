@@ -99,7 +99,7 @@ public readonly record struct Urn
         var text = raw.Trim();
 
         // 1. Check for urn:ce:{ws}:...
-        if (text.StartsWith("urn:ce:", StringComparison.OrdinalIgnoreCase))
+        if (text.StartWithIC("urn:ce:"))
         {
             return TryParseUrnCe(text, out urn);
         }

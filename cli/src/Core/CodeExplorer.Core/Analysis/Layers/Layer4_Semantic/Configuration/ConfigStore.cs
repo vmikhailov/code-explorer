@@ -576,8 +576,8 @@ public static class ConfigStore
         }
 
         // Generic URL & Service Target Discovery (Phase 0.3)
-        if (cleanVal.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-            cleanVal.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        if (cleanVal.StartWithIC("http://") ||
+            cleanVal.StartWithIC("https://"))
         {
             InspectAndRegisterUrl(cleanKey, cleanVal, filePath, projectName);
         }
@@ -628,7 +628,7 @@ public static class ConfigStore
             var firstSeg = uri.AbsolutePath.Trim('/').Split('/')[0];
             if (!string.IsNullOrWhiteSpace(firstSeg) &&
                 !firstSeg.Equals("api", StringComparison.OrdinalIgnoreCase) &&
-                !firstSeg.StartsWith("v", StringComparison.OrdinalIgnoreCase) &&
+                !firstSeg.StartWithIC("v") &&
                 !firstSeg.Equals(serviceName, StringComparison.OrdinalIgnoreCase))
             {
                 var pathEndpoint = new DiscoveredServiceUrl(

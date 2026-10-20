@@ -224,7 +224,7 @@ public class GrpcCSharpLibraryParser : ISemanticExtension
             return false;
 
         var rText = exprChild.Text.Trim();
-        if (rText.StartsWith("this.", StringComparison.OrdinalIgnoreCase))
+        if (rText.StartWithIC("this."))
             rText = rText[5..].Trim();
         if (rText.EndsWith("()", StringComparison.Ordinal))
             rText = rText[..^2].Trim();
@@ -253,7 +253,7 @@ public class GrpcCSharpLibraryParser : ISemanticExtension
             return false;
 
         var isClientReceiver = rText.EndsWith("Client", StringComparison.OrdinalIgnoreCase) ||
-                               (rText.StartsWith("Get", StringComparison.OrdinalIgnoreCase) && rText.EndsWith("Client", StringComparison.OrdinalIgnoreCase)) ||
+                               (rText.StartWithIC("Get") && rText.EndsWith("Client", StringComparison.OrdinalIgnoreCase)) ||
                                rText.Equals("client", StringComparison.OrdinalIgnoreCase) ||
                                rText.Equals("_client", StringComparison.OrdinalIgnoreCase);
 
@@ -332,7 +332,7 @@ public class GrpcCSharpLibraryParser : ISemanticExtension
     public static string ExtractServiceStem(Node node, string receiverText)
     {
         var clean = receiverText.Trim();
-        if (clean.StartsWith("this.", StringComparison.OrdinalIgnoreCase))
+        if (clean.StartWithIC("this."))
             clean = clean[5..].Trim();
         if (clean.EndsWith("()", StringComparison.Ordinal))
             clean = clean[..^2].Trim();
@@ -341,7 +341,7 @@ public class GrpcCSharpLibraryParser : ISemanticExtension
 
         clean = clean.TrimStart('_');
 
-        if (clean.StartsWith("Get", StringComparison.OrdinalIgnoreCase) && clean.Length > 3)
+        if (clean.StartWithIC("Get") && clean.Length > 3)
             clean = clean[3..];
 
         if (clean.EndsWith("Client", StringComparison.OrdinalIgnoreCase) && clean.Length > 6)
@@ -394,7 +394,7 @@ public class GrpcCSharpLibraryParser : ISemanticExtension
     {
         var clean = typeName.Trim();
         if (clean.Contains('.')) clean = clean[(clean.LastIndexOf('.') + 1)..];
-        if (clean.StartsWith("Grpc", StringComparison.OrdinalIgnoreCase)) clean = clean[4..];
+        if (clean.StartWithIC("Grpc")) clean = clean[4..];
         if (clean.EndsWith("Client", StringComparison.OrdinalIgnoreCase)) clean = clean[..^6];
         if (clean.EndsWith("Service", StringComparison.OrdinalIgnoreCase)) clean = clean[..^7];
         return clean;

@@ -110,7 +110,7 @@ public static partial class AstHelper
                 return directConst;
             }
 
-            if (argNode.Text.StartsWith("this.", StringComparison.OrdinalIgnoreCase))
+            if (argNode.Text.StartWithIC("this."))
             {
                 var propName = argNode.Text[5..].Trim();
                 if (ConstantRegistry.TryResolve(contextOrProject, argNode.Text, out var thisConst) && !string.IsNullOrEmpty(thisConst))
@@ -200,7 +200,7 @@ public static partial class AstHelper
             if (func.IsValid())
             {
                 var funcText = func.Text;
-                if (funcText.StartsWith("this.", StringComparison.OrdinalIgnoreCase))
+                if (funcText.StartWithIC("this."))
                 {
                     funcText = funcText[5..];
                 }
@@ -240,10 +240,10 @@ public static partial class AstHelper
                 if (firstArg.IsValid())
                 {
                     var text = firstArg.Text.Trim('\'', '"', '`');
-                    if (text.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                        text.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
-                        text.StartsWith("ws://", StringComparison.OrdinalIgnoreCase) ||
-                        text.StartsWith("wss://", StringComparison.OrdinalIgnoreCase) ||
+                    if (text.StartWithIC("http://") ||
+                        text.StartWithIC("https://") ||
+                        text.StartWithIC("ws://") ||
+                        text.StartWithIC("wss://") ||
                         text.StartsWith('/'))
                     {
                         return NormalizeResolvedUrl(text);
@@ -298,8 +298,8 @@ public static partial class AstHelper
                     return resolvedBase;
                 }
 
-                if (resolvedBase.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                    resolvedBase.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                if (resolvedBase.StartWithIC("http://") ||
+                    resolvedBase.StartWithIC("https://"))
                 {
                     return $"{resolvedBase.TrimEnd('/')}/{tail.TrimStart('/')}";
                 }
@@ -335,8 +335,8 @@ public static partial class AstHelper
                                 return null;
                             }
 
-                            if (leafVal.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                                leafVal.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                            if (leafVal.StartWithIC("http://") ||
+                                leafVal.StartWithIC("https://"))
                             {
                                 return $"{leafVal.TrimEnd('/')}/{tail.TrimStart('/')}";
                             }
@@ -413,7 +413,7 @@ public static partial class AstHelper
                             var s = strMatch.Groups[1].Value;
                             var subMatch = Regex.Match(s, @"^(https?://[a-zA-Z0-9_\-]+)\.\$\{");
                             if (subMatch.Success) return subMatch.Groups[1].Value;
-                            if (s.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || s.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                            if (s.StartWithIC("http://") || s.StartWithIC("https://"))
                                 return s;
                         }
                     }
@@ -430,8 +430,8 @@ public static partial class AstHelper
                     {
                         var resolved = resolvedParts[i];
                         if (!string.IsNullOrEmpty(resolved) &&
-                            (resolved.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                             resolved.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+                            (resolved.StartWithIC("http://") ||
+                             resolved.StartWithIC("https://")))
                         {
                             return resolved;
                         }
@@ -440,7 +440,7 @@ public static partial class AstHelper
                     for (var i = 0; i < parts.Length; i++)
                     {
                         var part = parts[i];
-                        if (part.Contains('.') && !part.StartsWith("process.env", StringComparison.OrdinalIgnoreCase) && !part.StartsWith("env.", StringComparison.OrdinalIgnoreCase) && !part.StartsWith("env?.", StringComparison.OrdinalIgnoreCase))
+                        if (part.Contains('.') && !part.StartWithIC("process.env") && !part.StartWithIC("env.") && !part.StartWithIC("env?."))
                         {
                             var resolved = resolvedParts[i];
                             if (!string.IsNullOrEmpty(resolved)) return resolved;
@@ -467,7 +467,7 @@ public static partial class AstHelper
                 return constVal;
             }
 
-            if (expr.StartsWith("this.", StringComparison.OrdinalIgnoreCase) &&
+            if (expr.StartWithIC("this.") &&
                 ConstantRegistry.TryResolve(null, expr[5..], out var strippedVal) && !string.IsNullOrEmpty(strippedVal))
             {
                 return strippedVal;
@@ -487,13 +487,13 @@ public static partial class AstHelper
             }
 
             // 2. Member / field access: this.<prop>, ClassName.<prop>
-            if (expr.StartsWith("this.", StringComparison.OrdinalIgnoreCase) ||
-                (expr.Contains('.') && !expr.Contains('(') && !expr.StartsWith("process.env", StringComparison.OrdinalIgnoreCase) && !expr.StartsWith("env.", StringComparison.OrdinalIgnoreCase) && !expr.StartsWith("env?.", StringComparison.OrdinalIgnoreCase)))
+            if (expr.StartWithIC("this.") ||
+                (expr.Contains('.') && !expr.Contains('(') && !expr.StartWithIC("process.env") && !expr.StartWithIC("env.") && !expr.StartWithIC("env?.")))
             {
                 var propName = expr.Split('.').Last().Trim();
                 var classVal = FindClassFieldInitializerInAst(node, propName, depth + 1, visitedVars);
                 if (!string.IsNullOrEmpty(classVal)) return classVal;
-                if (expr.StartsWith("this.", StringComparison.OrdinalIgnoreCase))
+                if (expr.StartWithIC("this."))
                 {
                     return CleanIdentifierSuffix(propName);
                 }
@@ -532,8 +532,8 @@ public static partial class AstHelper
             var localVal = FindVariableInitializerInAst(node, cleanIdent, depth, visitedVars);
             if (!string.IsNullOrEmpty(localVal))
             {
-                if (localVal.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                    localVal.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                if (localVal.StartWithIC("http://") ||
+                    localVal.StartWithIC("https://"))
                 {
                     return localVal;
                 }
@@ -718,8 +718,8 @@ public static partial class AstHelper
                             var text = valNode.Text.Trim();
                             var res = ResolveTemplateExpression(root, text, depth + 1, visitedVars);
                             if (!string.IsNullOrEmpty(res) &&
-                                (res.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                                 res.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+                                (res.StartWithIC("http://") ||
+                                 res.StartWithIC("https://")))
                             {
                                 return res;
                             }
@@ -747,10 +747,10 @@ public static partial class AstHelper
     private static string CombineServiceAndPath(string? service, string cleanPath)
     {
         if (string.IsNullOrEmpty(service) ||
-            cleanPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-            cleanPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
-            cleanPath.StartsWith("ws://", StringComparison.OrdinalIgnoreCase) ||
-            cleanPath.StartsWith("wss://", StringComparison.OrdinalIgnoreCase))
+            cleanPath.StartWithIC("http://") ||
+            cleanPath.StartWithIC("https://") ||
+            cleanPath.StartWithIC("ws://") ||
+            cleanPath.StartWithIC("wss://"))
         {
             return cleanPath;
         }

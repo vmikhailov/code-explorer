@@ -237,7 +237,7 @@ public partial class ArchitectureViewEngine
                 return true;
             if (!string.IsNullOrEmpty(filePath))
             {
-                if (!string.IsNullOrEmpty(servicePath) && (filePath.StartsWith(servicePath, StringComparison.OrdinalIgnoreCase) || filePath.Contains(servicePath, StringComparison.OrdinalIgnoreCase)))
+                if (!string.IsNullOrEmpty(servicePath) && (filePath.StartWithIC(servicePath) || filePath.Contains(servicePath, StringComparison.OrdinalIgnoreCase)))
                     return true;
                 if (!string.IsNullOrEmpty(serviceName) && filePath.Contains(serviceName, StringComparison.OrdinalIgnoreCase))
                     return true;
@@ -333,10 +333,10 @@ public partial class ArchitectureViewEngine
                         verb = firstWord;
                     }
                 }
-                else if (verb == "SQL" && qName.StartsWith("SELECT", StringComparison.OrdinalIgnoreCase)) verb = "SELECT";
-                else if (verb == "SQL" && qName.StartsWith("INSERT", StringComparison.OrdinalIgnoreCase)) verb = "INSERT";
-                else if (verb == "SQL" && qName.StartsWith("UPDATE", StringComparison.OrdinalIgnoreCase)) verb = "UPDATE";
-                else if (verb == "SQL" && qName.StartsWith("DELETE", StringComparison.OrdinalIgnoreCase)) verb = "DELETE";
+                else if (verb == "SQL" && qName.StartWithIC("SELECT")) verb = "SELECT";
+                else if (verb == "SQL" && qName.StartWithIC("INSERT")) verb = "INSERT";
+                else if (verb == "SQL" && qName.StartWithIC("UPDATE")) verb = "UPDATE";
+                else if (verb == "SQL" && qName.StartWithIC("DELETE")) verb = "DELETE";
 
                 var snippet = !string.IsNullOrWhiteSpace(qText) ? qText.Trim() : qName;
                 var title = $"{verb} {(!string.IsNullOrWhiteSpace(qCaller) ? $"in {qCaller}" : Path.GetFileName(qPath))}";
