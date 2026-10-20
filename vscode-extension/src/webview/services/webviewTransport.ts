@@ -154,12 +154,14 @@ export class WebviewServerTransport {
         }
         if (msg.wsUrl) {
           const urlChanged = this._wsUrl !== msg.wsUrl;
+          this._reconnectAttempt = 0;
           this.updateUrls(msg.wsUrl);
           if (
             urlChanged ||
             !this._ws ||
-            this._ws.readyState === WebSocket.CLOSED ||
-            this._ws.readyState === WebSocket.CLOSING
+            this._ws.readyState !== WebSocket.OPEN ||
+            this._connectionState === 'error' ||
+            this._connectionState === 'reconnecting'
           ) {
             this.connect(msg.wsUrl);
           }
@@ -258,6 +260,14 @@ export class WebviewServerTransport {
         this._reconnectAttempt = attempt;
         if (this._reconnectAttempt >= WebviewServerTransport.MAX_RECONNECT_ATTEMPTS) {
           this.setConnectionState('error');
+          this.requestReconnectFromHost();
+          this._reconnectTimer = setTimeout(() => {
+            this.requestReconnectFromHost();
+            if (this._wsUrl) {
+              this.connect(this._wsUrl);
+            }
+          }, 10000);
+          (this._reconnectTimer as any)?.unref?.();
           return;
         }
 

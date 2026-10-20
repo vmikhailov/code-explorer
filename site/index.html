@@ -2054,9 +2054,9 @@
           </div>
           <h3 class="card-title">CLI &amp; MCP Server for AI Agents</h3>
           <p class="card-text">
-            Provide Claude Code, Cursor, Codex, and terminal agents with deterministic call chains, impact analysis, and data lineage via direct CLI commands or MCP over stdio and HTTP SSE.
+            Provide Claude Code, Cursor, Codex, and terminal agents with deterministic call chains, impact analysis, and data lineage via direct CLI commands or local MCP over stdio.
           </p>
-          <div class="card-tag"><span>interfaces:</span> <code>CLI + stdio + SSE HTTP (/mcp)</code></div>
+          <div class="card-tag"><span>interfaces:</span> <code>CLI + MCP (stdio JSON-RPC)</code></div>
         </div>
 
         <!-- Card 5 -->
@@ -2714,7 +2714,7 @@
           </div>
           <h3>Model Context Protocol (MCP) Server</h3>
           <p>
-            For desktop IDEs and AI assistants (Cursor, Claude Desktop, Roo Code, Cline), <code>ce mcp</code> exposes 23 architectural tools over standard stdio JSON-RPC or HTTP SSE streaming.
+            For desktop IDEs and AI assistants (Claude Code, Cursor, Claude Desktop, Roo Code, Cline), <code>ce mcp</code> exposes 23 architectural tools over zero-network local <code>stdio</code> JSON-RPC pipes.
           </p>
 
           <ul class="mcp-feature-list">
@@ -2740,8 +2740,8 @@
             <a href="https://github.com/vmikhailov/code-explorer#mcp-tools" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">
               <span>Read MCP Specification</span>
             </a>
-            <button class="btn btn-ghost btn-sm" onclick="copySnippet('ce mcp --port 8085', 'MCP command copied!')">
-              <span>ce mcp --port 8085</span>
+            <button class="btn btn-ghost btn-sm" onclick="copySnippet('ce mcp configure', 'MCP configure command copied!')">
+              <span>ce mcp configure</span>
             </button>
           </div>
         </div>
@@ -2960,8 +2960,8 @@
             <div class="cli-cmd-desc">Export macro architecture or C4 container diagrams into Mermaid syntax.</div>
           </div>
           <div class="cli-cmd-card">
-            <div class="cli-cmd-name">ce mcp --port 5000</div>
-            <div class="cli-cmd-desc">Start Model Context Protocol server in HTTP/SSE streaming or stdio mode.</div>
+            <div class="cli-cmd-name">ce mcp configure</div>
+            <div class="cli-cmd-desc">Configure and start the local stdio Model Context Protocol server for AI coding agents.</div>
           </div>
           <div class="cli-cmd-card">
             <div class="cli-cmd-name">ce status</div>

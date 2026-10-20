@@ -65,6 +65,47 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.window.registerTreeDataProvider('codeExplorerView', treeDataProvider)
   );
 
+  // Register WebviewPanelSerializers so surviving/restored graph panels reconnect automatically after Extension Host restarts
+  if (typeof vscode.window.registerWebviewPanelSerializer === 'function') {
+    for (const mode of GraphPanel.VIEW_MODES) {
+      context.subscriptions.push(
+        vscode.window.registerWebviewPanelSerializer(`codeExplorerGraph.${mode}`, {
+          async deserializeWebviewPanel(webviewPanel: vscode.WebviewPanel, _state: any) {
+            const wsRoot = getWorkspaceRoot() || '';
+            const currentTransport = serverTransport!;
+            let initialWsUrl = currentTransport.getEndpoints()?.wsUrl || '';
+            if (!initialWsUrl && wsRoot) {
+              try {
+                await currentTransport.ensurePortAllocated(false, wsRoot);
+                initialWsUrl = currentTransport.getEndpoints()?.wsUrl || '';
+              } catch {}
+            }
+            outputChannel.appendLine(`[CodeExplorer] Reviving webview panel codeExplorerGraph.${mode} (${initialWsUrl})`);
+            GraphPanel.revive(
+              webviewPanel,
+              context.extensionUri,
+              currentTransport,
+              initialWsUrl,
+              wsRoot,
+              outputChannel,
+              mode
+            );
+            if (wsRoot && currentTransport.hasWorkspace(wsRoot)) {
+              currentTransport
+                .ensureConnected(wsRoot)
+                .then((info) => {
+                  GraphPanel.updateAllWsUrls(info.wsUrl);
+                })
+                .catch((err) => {
+                  outputChannel.appendLine(`[CodeExplorer] Revived panel server connect error: ${err}`);
+                });
+            }
+          },
+        })
+      );
+    }
+  }
+
   // Status Bar Item
   const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   statusBarItem.command = 'codeExplorer.showGraph';

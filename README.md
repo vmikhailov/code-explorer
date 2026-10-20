@@ -136,9 +136,9 @@ Add `ce` to your MCP client configuration (`.cursor/mcp.json`, `claude_desktop_c
 }
 ```
 
-For HTTP/SSE transport:
+Or auto-provision your workspace MCP configuration with a single command:
 ```bash
-ce mcp --port 8085
+ce mcp configure
 ```
 
 ### Recommended `AGENTS.md` / `CLAUDE.md` Snippet
@@ -289,7 +289,7 @@ The graph schema is organized into five decoupled layers (see [`docs/ontology.md
 | `ce gate ratchet --update` | Create or tighten violation baseline files in `.codeexplorer/baselines/`. |
 | `ce gate init` | Generate a starter gate template in `.codeexplorer/gates/`. |
 | `ce export` | Export architecture, C4, data lineage, or event pipeline diagrams (`--format mermaid|c4`, `--type lineage|cqrs`). |
-| `ce mcp` | Start the MCP server (`stdio` by default, or `--port <port>` for HTTP/SSE). |
+| `ce mcp` | Start the local MCP server over `stdio` JSON-RPC (or run `ce mcp configure` to set up IDE agents). |
 | `ce intent` | Classify files into business domains and bounded contexts (supports local GGUF via `llama.cpp` or OpenAI-compatible APIs). |
 | `ce model [status\|download]` | Check or download the optional local GGUF model for offline intent classification. |
 | `ce clear [path]` | Clear indexed graph data for a path or reset the workspace graph (`-y`). |

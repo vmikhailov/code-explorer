@@ -84,6 +84,23 @@ export function isPortAvailable(port: number, host = '127.0.0.1'): Promise<boole
 }
 
 /**
+ * Computes a deterministic TCP port in the range [52100, 58999] from the normalized workspace path.
+ * Ensures that across Extension Host restarts or window reloads, the same workspace binds to the same port.
+ */
+export function deriveWorkspacePort(workspaceRoot?: string): number {
+  if (!workspaceRoot || !workspaceRoot.trim()) {
+    return 0;
+  }
+  const normalized = workspaceRoot.trim().replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  let hash = 2166136261;
+  for (let i = 0; i < normalized.length; i++) {
+    hash ^= normalized.charCodeAt(i);
+    hash = Math.imul(hash, 16777619) >>> 0;
+  }
+  return 52100 + (hash % 6900);
+}
+
+/**
  * Low-level HTTP JSON request helper with timeout support.
  */
 export function executeHttpRequest<T>(
@@ -358,7 +375,7 @@ export class ServerTransport implements vscode.Disposable {
    * Subsequent calls always return the same pinned port unless an external process
    * has occupied it while the server was stopped.
    */
-  public async ensurePortAllocated(verifyAvailableForSpawn = false): Promise<number> {
+  public async ensurePortAllocated(verifyAvailableForSpawn = false, workspaceRoot?: string): Promise<number> {
     if (this._allocatedPort && this._allocatedPort > 0) {
       if (!verifyAvailableForSpawn || this.processManager.getServerInfo() !== null) {
         return this._allocatedPort;
@@ -392,6 +409,25 @@ export class ServerTransport implements vscode.Disposable {
           this.outputChannel.appendLine(
             `[Transport] Configured port ${configuredPort} is already in use; allocating a free dynamic port instead.`
           );
+        }
+
+        // Try deterministic workspace port so extension restarts keep the exact same port
+        const effectiveRoot = workspaceRoot ?? this.getWorkspaceRoot();
+        const preferredPort = deriveWorkspacePort(effectiveRoot);
+        if (preferredPort > 0) {
+          for (let attempt = 0; attempt < 3; attempt++) {
+            const free = await isPortAvailable(preferredPort);
+            if (free) {
+              this._allocatedPort = preferredPort;
+              this.outputChannel.appendLine(
+                `[Transport] Allocated deterministic workspace port: ${preferredPort} (http://127.0.0.1:${preferredPort})`
+              );
+              return preferredPort;
+            }
+            if (attempt < 2) {
+              await new Promise((r) => setTimeout(r, 150));
+            }
+          }
         }
 
         const port = await allocateFreePort('127.0.0.1');
@@ -492,7 +528,7 @@ export class ServerTransport implements vscode.Disposable {
 
     this._connectPromise = (async () => {
       try {
-        const port = await this.ensurePortAllocated(true);
+        const port = await this.ensurePortAllocated(true, root);
         // Disable self-termination idle timeout (0) because ServerTransport owns the server lifecycle
         const info = await this.processManager.ensureServerStarted(root, {
           port,

@@ -33,6 +33,18 @@ export function getViewTitle(viewMode?: string): string {
 }
 
 export class GraphPanel {
+  public static readonly VIEW_MODES = [
+    'semantic',
+    'contexts',
+    'layers',
+    'c1',
+    'flow',
+    'full',
+    'grid',
+    'mermaid',
+    'settings',
+    'gate-editor',
+  ] as const;
   public static readonly panels = new Map<string, GraphPanel>();
   public static activePanel: GraphPanel | undefined;
 
@@ -69,6 +81,39 @@ export class GraphPanel {
   private disposables: vscode.Disposable[] = [];
   private isWebviewReady = false;
   private pendingMessages: any[] = [];
+
+  public static revive(
+    panel: vscode.WebviewPanel,
+    extensionUri: vscode.Uri,
+    transport: ServerTransport,
+    wsUrl: string,
+    workspaceRoot: string,
+    outputChannel?: vscode.OutputChannel,
+    initialViewMode?: string
+  ): GraphPanel {
+    const mode = initialViewMode || 'semantic';
+    panel.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'dist')],
+    };
+    panel.title = getViewTitle(mode);
+
+    const revivedPanel = new GraphPanel(
+      panel,
+      extensionUri,
+      transport,
+      wsUrl,
+      workspaceRoot,
+      outputChannel,
+      mode
+    );
+    GraphPanel.panels.set(mode, revivedPanel);
+    if (panel.active) {
+      GraphPanel.activePanel = revivedPanel;
+    }
+    revivedPanel.postMessage({ type: 'SET_VIEW_MODE', viewMode: mode });
+    return revivedPanel;
+  }
 
   public static createOrShow(
     extensionUri: vscode.Uri,
@@ -220,9 +265,13 @@ export class GraphPanel {
     this.panel.webview.onDidReceiveMessage(
       async (message) => {
         switch (message.type) {
-          case 'WEBVIEW_READY':
+          case 'WEBVIEW_READY': {
             this.isWebviewReady = true;
-            this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] Webview ready. Sending SERVER_CONFIG.`);
+            const liveWsUrl = this.transport?.getEndpoints()?.wsUrl;
+            if (liveWsUrl) {
+              this.wsUrl = liveWsUrl;
+            }
+            this.outputChannel?.appendLine(`[GraphPanel:${this.viewMode}] Webview ready. Sending SERVER_CONFIG (${this.wsUrl}).`);
             this.panel.webview.postMessage({
               type: 'UPDATE_WS_URL',
               wsUrl: this.wsUrl,
@@ -233,6 +282,26 @@ export class GraphPanel {
               workspaceRoot: this.workspaceRoot,
               initialViewMode: this.initialViewMode,
             });
+            if (this.transport && this.workspaceRoot) {
+              this.transport
+                .verifyHealthyConnection(this.workspaceRoot)
+                .then((info) => {
+                  if (info?.wsUrl && info.wsUrl !== this.wsUrl) {
+                    this.wsUrl = info.wsUrl;
+                    this.panel.webview.postMessage({
+                      type: 'UPDATE_WS_URL',
+                      wsUrl: this.wsUrl,
+                    });
+                    this.panel.webview.postMessage({
+                      type: 'SERVER_CONFIG',
+                      wsUrl: this.wsUrl,
+                      workspaceRoot: this.workspaceRoot,
+                      initialViewMode: this.initialViewMode,
+                    });
+                  }
+                })
+                .catch(() => {});
+            }
             try {
               const gateStateManager = GateStateManager.getInstance();
               const suite = gateStateManager.getSuite();
@@ -251,6 +320,7 @@ export class GraphPanel {
               this.panel.webview.postMessage(queuedMsg);
             }
             break;
+          }
 
           case 'REQUEST_RECONNECT':
           case 'REQUEST_WS_URL':
