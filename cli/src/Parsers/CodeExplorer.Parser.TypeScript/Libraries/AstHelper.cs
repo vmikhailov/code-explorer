@@ -7,7 +7,7 @@ namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public static partial class AstHelper
 {
-    private const int MaxRecursionDepth = 8;
+    private const int MaxRecursionDepth = 12;
 
     public static bool IsValidTopicOrQueueLiteral(string? s)
     {
@@ -363,7 +363,7 @@ public static partial class AstHelper
                                                         ? funcNode.GetField(TreeSitterSyntax.Fields.Property)
                                                         : default;
                                                     var funcName = propNode.IsValid() ? propNode.Text : funcNode.Text;
-                                                    var methodRet = FindMethodReturnInAst(valNode, funcName, depth + 1, visitedVars);
+                                                    var methodRet = FindMethodReturnInAst(valNode, funcName, depth, visitedVars);
                                                     if (!string.IsNullOrEmpty(methodRet)) return methodRet;
                                                 }
 

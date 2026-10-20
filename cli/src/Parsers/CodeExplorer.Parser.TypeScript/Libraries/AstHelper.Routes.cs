@@ -30,7 +30,7 @@ public static partial class AstHelper
                 }
             }
 
-            var decomposed = TryDecomposeTemplateString(argNode, text, depth + 1, visitedVars);
+            var decomposed = TryDecomposeTemplateString(argNode, text, depth, visitedVars);
             if (!string.IsNullOrEmpty(decomposed))
             {
                 return NormalizeResolvedUrl(decomposed);
@@ -54,10 +54,10 @@ public static partial class AstHelper
             }
 
             // 1. Check local AST lexical scope first (file-local and function-local bindings)
-            var val = FindVariableInitializerInAst(argNode, varName, depth + 1, visitedVars, contextOrProject);
+            var val = FindVariableInitializerInAst(argNode, varName, depth, visitedVars, contextOrProject);
             if (val != null)
             {
-                var subDecomp = TryDecomposeTemplateString(argNode, val, depth + 1, visitedVars);
+                var subDecomp = TryDecomposeTemplateString(argNode, val, depth, visitedVars);
                 return NormalizeResolvedUrl(subDecomp ?? val);
             }
 
@@ -125,7 +125,7 @@ public static partial class AstHelper
                 var classVal = FindClassFieldInitializerInAst(argNode, propName, depth + 1, visitedVars);
                 if (!string.IsNullOrEmpty(classVal))
                 {
-                    var subDecomp = TryDecomposeTemplateString(argNode, classVal, depth + 1, visitedVars);
+                    var subDecomp = TryDecomposeTemplateString(argNode, classVal, depth, visitedVars);
                     return NormalizeResolvedUrl(subDecomp ?? classVal);
                 }
             }
@@ -158,14 +158,14 @@ public static partial class AstHelper
                 var classVal = FindClassFieldInitializerInAst(argNode, propText, depth + 1, visitedVars);
                 if (!string.IsNullOrEmpty(classVal))
                 {
-                    var subDecomp = TryDecomposeTemplateString(argNode, classVal, depth + 1, visitedVars);
+                    var subDecomp = TryDecomposeTemplateString(argNode, classVal, depth, visitedVars);
                     return NormalizeResolvedUrl(subDecomp ?? classVal);
                 }
 
-                var val = FindVariableInitializerInAst(argNode, propText, depth + 1, visitedVars);
+                var val = FindVariableInitializerInAst(argNode, propText, depth, visitedVars);
                 if (val != null)
                 {
-                    var subDecomp = TryDecomposeTemplateString(argNode, val, depth + 1, visitedVars);
+                    var subDecomp = TryDecomposeTemplateString(argNode, val, depth, visitedVars);
                     return NormalizeResolvedUrl(subDecomp ?? val);
                 }
 
@@ -225,7 +225,7 @@ public static partial class AstHelper
                     ? func.GetField(TreeSitterSyntax.Fields.Property)
                     : default;
                 var funcName = propNode.IsValid() ? propNode.Text : funcText;
-                var methodRet = FindMethodReturnInAst(argNode, funcName, depth + 1, visitedVars);
+                var methodRet = FindMethodReturnInAst(argNode, funcName, depth, visitedVars);
                 if (!string.IsNullOrEmpty(methodRet))
                 {
                     return NormalizeResolvedUrl(methodRet);
@@ -280,7 +280,7 @@ public static partial class AstHelper
             var expr = tplMatch.Groups[1].Value.Trim();
             var tail = tplMatch.Groups[2].Value.Trim();
 
-            var resolvedBase = ResolveTemplateExpression(node, expr, depth + 1, visitedVars);
+            var resolvedBase = ResolveTemplateExpression(node, expr, depth, visitedVars);
             if (!string.IsNullOrEmpty(resolvedBase))
             {
                 if (WorkspaceConventions.IsGenericUrlStemOrVariable(resolvedBase))
@@ -390,7 +390,7 @@ public static partial class AstHelper
 
     private static string? ResolveTemplateExpression(Node node, string expr, int depth = 0, HashSet<string>? visitedVars = null)
     {
-        if (depth > 4 || depth > MaxRecursionDepth || string.IsNullOrWhiteSpace(expr)) return null;
+        if (depth > 4 || string.IsNullOrWhiteSpace(expr)) return null;
 
         visitedVars ??= new HashSet<string>(StringComparer.Ordinal);
         var exprKey = $"expr:{expr.Trim()}";
@@ -529,7 +529,7 @@ public static partial class AstHelper
             }
 
             // Check if there is a variable in the local scope
-            var localVal = FindVariableInitializerInAst(node, cleanIdent, depth + 1, visitedVars);
+            var localVal = FindVariableInitializerInAst(node, cleanIdent, depth, visitedVars);
             if (!string.IsNullOrEmpty(localVal))
             {
                 if (localVal.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
@@ -585,7 +585,7 @@ public static partial class AstHelper
 
     private static string? FindMethodReturnInAst(Node node, string methodName, int depth = 0, HashSet<string>? visitedVars = null)
     {
-        if (depth > 4 || depth > MaxRecursionDepth) return null;
+        if (depth > 4) return null;
         string? targetClassName = null;
         var cleanMethod = methodName.Trim();
         if (cleanMethod.Contains('.'))
@@ -693,36 +693,46 @@ public static partial class AstHelper
     private static string? FindFileLevelFallbackUrl(Node node, string hint, int depth = 0, HashSet<string>? visitedVars = null)
     {
         if (depth > 2) return null;
-        var root = node;
-        while (root.Parent.IsValid()) root = root.Parent;
+        visitedVars ??= new HashSet<string>(StringComparer.Ordinal);
+        if (!visitedVars.Add("fallback:file")) return null;
 
-        foreach (var decl in FindAllDeclarations(root))
+        try
         {
-            var nameNode = decl.GetField(TreeSitterSyntax.Fields.Name) ?? decl.GetChildForField("name");
-            if (nameNode.IsValid())
-            {
-                var nameText = nameNode.Text;
-                if (string.Equals(nameText, hint, StringComparison.OrdinalIgnoreCase)) continue;
+            var root = node;
+            while (root.Parent.IsValid()) root = root.Parent;
 
-                if (nameText.Contains("Url", StringComparison.OrdinalIgnoreCase) ||
-                    nameText.Contains("Endpoint", StringComparison.OrdinalIgnoreCase))
+            foreach (var decl in FindAllDeclarations(root))
+            {
+                var nameNode = decl.GetField(TreeSitterSyntax.Fields.Name) ?? decl.GetChildForField("name");
+                if (nameNode.IsValid())
                 {
-                    var valNode = decl.GetField(TreeSitterSyntax.Fields.Value) ?? decl.GetChildForField("value");
-                    if (valNode.IsValid())
+                    var nameText = nameNode.Text;
+                    if (string.Equals(nameText, hint, StringComparison.OrdinalIgnoreCase)) continue;
+
+                    if (nameText.Contains("Url", StringComparison.OrdinalIgnoreCase) ||
+                        nameText.Contains("Endpoint", StringComparison.OrdinalIgnoreCase))
                     {
-                        var text = valNode.Text.Trim();
-                        var res = ResolveTemplateExpression(root, text, depth + 1, visitedVars);
-                        if (!string.IsNullOrEmpty(res) &&
-                            (res.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                             res.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+                        var valNode = decl.GetField(TreeSitterSyntax.Fields.Value) ?? decl.GetChildForField("value");
+                        if (valNode.IsValid())
                         {
-                            return res;
+                            var text = valNode.Text.Trim();
+                            var res = ResolveTemplateExpression(root, text, depth + 1, visitedVars);
+                            if (!string.IsNullOrEmpty(res) &&
+                                (res.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                                 res.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+                            {
+                                return res;
+                            }
                         }
                     }
                 }
             }
+            return null;
         }
-        return null;
+        finally
+        {
+            visitedVars.Remove("fallback:file");
+        }
 
         static IEnumerable<Node> FindAllDeclarations(Node parent)
         {

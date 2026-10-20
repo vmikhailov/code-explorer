@@ -236,3 +236,51 @@ Together, the three proposals in `docs/proposals/` form a complete, closed-loop 
 | **2. Layer 4 Projection** | **`YAML Projection Engine`** ([semantic-archetypes-and-yaml-projections-proposal.md](file:///c:/Work/Personal/code-explorer/docs/proposals/semantic-archetypes-and-yaml-projections-proposal.md)) | Projects Layer 1–3 nodes into the **5 Universal Semantic Archetypes** (`Host`, `EntryPoint`, `ExternalService`, `Topic`, `DataStore`). | **~20 lines** of YAML per new library/framework (WCF, Spring, DBOS, MassTransit). |
 | **3. Provenance & Trust** | **`Universal Evidence Engine`** ([universal-edge-and-node-evidence-proposal.md](file:///c:/Work/Personal/code-explorer/docs/proposals/universal-edge-and-node-evidence-proposal.md)) | Automatically links every Layer 4 node & arrow back to its originating Layer 1/3 symbol, file, and line (`EVIDENCED_BY`). | **0 lines** (automatic byproduct of Layer 3 $\rightarrow$ Layer 4 projection). |
 | **4. Governance & CI** | **`Semantic Invariant Gates`** ([semantic-invariant-gates-proposal.md](file:///c:/Work/Personal/code-explorer/docs/proposals/semantic-invariant-gates-proposal.md)) | Enforces architectural boundaries in CI/CD (`< 2s`) with Ratchet Baselines. | Preset packs or AI-generated Cypher queries. |
+
+---
+
+## 7. Complete Audit of Existing Language & Project Parsers (Migration Matrix)
+
+We audited all **36 core language parser files (10,275 LOC)** across the 10 `CodeExplorer.Parser.*` assemblies (excluding `Libraries/`, which are audited separately in [semantic-archetypes-and-yaml-projections-proposal.md](file:///c:/Work/Personal/code-explorer/docs/proposals/semantic-archetypes-and-yaml-projections-proposal.md)).
+
+### 7.1 Tier 1 — Direct Migration into `UniversalParser` + `LanguageSyntaxProfile` (7 Languages, 6,857 LOC $\rightarrow$ ~350 LOC of Profiles)
+
+All 7 general-purpose programming languages below follow the standard Tree-sitter AST pattern (`Namespace/Package` $\rightarrow$ `Imports` $\rightarrow$ `Type/Class/Interface` $\rightarrow$ `Function/Method` $\rightarrow$ `Member/Field` $\rightarrow$ `Call`). Their custom `*FileVisitor.cs`, `*DeclarationExtractor.cs`, and file-parsing boilerplate in `*Parser.cs` can be **100% unified into `UniversalFileParser` + `UniversalAstVisitor`**:
+
+| Language Assembly | Existing Files & Line Counts (LOC) | Total LOC | Migration Status | What Remains After Migration |
+| :--- | :--- | :---: | :--- | :--- |
+| **`CodeExplorer.Parser.CSharp`** | `CSharpParser.cs` (940)<br>`CSharpFileVisitor.cs` (615)<br>`CSharpDeclarationExtractor.cs` (135)<br>`CSharpSyntaxProfile.cs` (118) | **1,808** | ✅ **100% Migrate** | `CSharpSyntaxProfile` (~60 LOC) + `.csproj` / `.sln` manifest reader in Layer 2. |
+| **`CodeExplorer.Parser.TypeScript`** | `TypeScriptParser.cs` (863)<br>`TypeScriptFileVisitor.cs` (809)<br>`JavaScriptParser.cs` (212)<br>`TypeScriptDeclarationExtractor.cs` (124)<br>`TypeScriptSyntaxProfile.cs` (117) | **2,125** | ✅ **100% Migrate** | `TypeScriptSyntaxProfile` & `JavaScriptSyntaxProfile` (~80 LOC) + `package.json` / `tsconfig.json` resolver in Layer 2. |
+| **`CodeExplorer.Parser.Java`** | `JavaParser.cs` (607)<br>`JavaFileVisitor.cs` (411)<br>`JavaDeclarationExtractor.cs` (90)<br>`JavaSyntaxProfile.cs` (109) | **1,217** | ✅ **100% Migrate** | `JavaSyntaxProfile` (~50 LOC) + `pom.xml` / `build.gradle` manifest reader in Layer 2. |
+| **`CodeExplorer.Parser.Python`** | `PythonFileVisitor.cs` (512)<br>`PythonParser.cs` (445)<br>`PythonDeclarationExtractor.cs` (60)<br>`PythonSyntaxProfile.cs` (88) | **1,105** | ✅ **100% Migrate** | `PythonSyntaxProfile` (~45 LOC) + `pyproject.toml` / `requirements.txt` reader in Layer 2. |
+| **`CodeExplorer.Parser.Go`** | `GoFileVisitor.cs` (481)<br>`GoParser.cs` (424)<br>`GoDeclarationExtractor.cs` (73)<br>`GoSyntaxProfile.cs` (94) | **1,072** | ✅ **100% Migrate** | `GoSyntaxProfile` (~45 LOC; includes Go receiver `(s *Server) Foo()` binding) + `go.mod` reader in Layer 2. |
+| **`CodeExplorer.Parser.Rust`** | `RustParser.cs` (773)<br>`RustFileVisitor.cs` (527)<br>`RustDeclarationExtractor.cs` (223)<br>`RustModuleResolver.cs` (187)<br>`RustSyntaxProfile.cs` (99) | **1,809** | ✅ **90% Migrate** | `RustSyntaxProfile` (~55 LOC; includes `impl Trait for Struct` binding). Keep `RustModuleResolver` (~150 LOC) for `mod.rs` path resolution. |
+| **`CodeExplorer.Parser.Kotlin`** | `KotlinFileParser.cs` (262 — *currently regex-based*) | **262** | 🚀 **Upgrade to `UniversalParser`** | Replace regex parser with `KotlinSyntaxProfile` (~45 LOC) on `tree-sitter-kotlin`, immediately gaining call graphs, annotations, and constructor DI bindings. |
+
+> **Impact of Tier 1 Migration:** Eliminates **~8,500 lines of duplicated C# AST traversal code** across 7 languages while bringing every language up to the exact same feature level (annotations, generics, constructor field bindings, constant propagation).
+
+---
+
+### 7.2 Tier 2 — Project / Build Manifest Parsers (Move to Layer 2 Manifest Engine)
+
+These files do not parse source code ASTs; they parse project build scripts and manifests (`Cargo.toml`, `build.gradle`, `AndroidManifest.xml`, `.csproj`, `pom.xml`):
+
+| Existing File | LOC | Current Assembly | Target Architecture |
+| :--- | :---: | :--- | :--- |
+| `CargoManifestParser.cs` | 626 | `Parser.Rust` | **Keep in Layer 2 Project Boundary Engine** (parses `Cargo.toml` workspaces, crates, features). |
+| `GradleBuildScriptParser.cs` | 263 | `Parser.Android` | **Keep & Share in Layer 2 Project Boundary Engine** (parses `build.gradle` / `build.gradle.kts` / `settings.gradle` for Android, Java, and Kotlin multi-module repos). |
+| `KotlinProjectParser.cs` | 276 | `Parser.Kotlin` | **Merge with `JavaParser` / `GradleBuildScriptParser`** into a unified JVM Maven/Gradle Layer 2 Project Parser. |
+| `AndroidManifestParser.cs` + `AndroidManifestFileParser.cs` + `AndroidManifestInfo.cs` | 360 | `Parser.Android` | **Migrate to Layer 1 XML `ConfigEntry` + YAML Rule** (extracting Android `<activity>`, `<service>`, `<receiver>`, `<provider>` as Layer 4 `EntryPoint` nodes). |
+
+---
+
+### 7.3 Tier 3 — Domain-Specific & Schema Languages (Keep as Specialized Parsers)
+
+These 3 parsers handle non-imperative schema/query/markup languages whose semantics are fundamentally different from class/method/call programming languages. They should **remain standalone specialized `IFileParser` implementations**:
+
+| Specialized Parser | Files & LOC | Why It Stays Standalone |
+| :--- | :--- | :--- |
+| **SQL DDL / DML / Stored Procedures** (`CodeExplorer.Parser.SQL`) | `SqlParser.cs` (424)<br>`SqlSyntaxEnricher.cs` (66)<br>`NestedSqlParser.cs` (in `Core`) | Parses `CREATE TABLE`, `ALTER`, `CREATE PROCEDURE`, `SELECT ... JOIN` directly into `:Table`, `:Procedure`, and `:Query` lineage nodes. |
+| **GraphQL Schema & Operations** (`CodeExplorer.Parser.TypeScript`) | `GraphQLFileParser.cs` (678) | Parses `.graphql` / `.gql` schema definitions (`type Query`, `type Mutation`, fragments) into GraphQL contract nodes. |
+| **ColdFusion CFML / CFC** (`CodeExplorer.Parser.ColdFusion`) | `ColdFusionFileParser.cs` (498)<br>`ColdFusionProjectParser.cs` (183)<br>`ColdFusionSyntaxEnricher.cs` (56) | Tag-based `<cfcomponent>`, `<cffunction>`, `<cfquery>` hybrid HTML/CFML syntax without a standard Tree-sitter grammar. |
+
