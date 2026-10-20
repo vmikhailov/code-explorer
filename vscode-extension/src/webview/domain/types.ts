@@ -76,6 +76,7 @@ export interface SelectedNodeDetail {
   groupType?: 'category' | 'custom';
   groupKind?: EntityKind;
   customGroupId?: string;
+  memberIds?: string[];
   memberNodes?: SelectedNodeDetail[];
   internalConnections?: ConnectionDetailItem[];
 }

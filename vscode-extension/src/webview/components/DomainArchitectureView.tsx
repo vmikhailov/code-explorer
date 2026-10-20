@@ -129,6 +129,7 @@ export interface SelectedNodeDetail {
   groupType?: 'category' | 'custom';
   groupKind?: EntityKind;
   customGroupId?: string;
+  memberIds?: string[];
   memberNodes?: SelectedNodeDetail[];
   internalConnections?: ConnectionDetailItem[];
 }
@@ -1149,9 +1150,24 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       });
     }
   }, [applySearchHighlight]);
+  const getScopedStorageKey = useCallback((baseKey: string): string => {
+    try {
+      if (typeof window !== 'undefined') {
+        const root = (window as any).__CE_CONFIG__?.workspaceRoot;
+        if (root && typeof root === 'string' && root.trim().length > 0) {
+          return `${baseKey}::${root.trim().replace(/\\/g, '/').toLowerCase()}`;
+        }
+        if (window.location?.host && !window.location.protocol.startsWith('vscode-webview')) {
+          return `${baseKey}::${window.location.host.toLowerCase()}`;
+        }
+      }
+    } catch { }
+    return baseKey;
+  }, []);
+
   const [hiddenTypes, setHiddenTypes] = useState<Set<EntityKind>>(() => {
     try {
-      const saved = localStorage.getItem('ce_domain_hidden_types');
+      const saved = localStorage.getItem(getScopedStorageKey('ce_domain_hidden_types'));
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return new Set<EntityKind>(parsed);
@@ -1161,7 +1177,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   });
   const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(() => {
     try {
-      const saved = localStorage.getItem('ce_domain_hidden_node_ids');
+      const saved = localStorage.getItem(getScopedStorageKey('ce_domain_hidden_node_ids'));
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return new Set<string>(parsed);
@@ -1171,7 +1187,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   });
   const [hiddenOrbitTiers, setHiddenOrbitTiers] = useState<Set<number>>(() => {
     try {
-      const saved = localStorage.getItem('ce_domain_hidden_orbit_tiers');
+      const saved = localStorage.getItem(getScopedStorageKey('ce_domain_hidden_orbit_tiers'));
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return new Set<number>(parsed);
@@ -1181,7 +1197,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   });
   const [forcedVisibleNodeIds, setForcedVisibleNodeIds] = useState<Set<string>>(() => {
     try {
-      const saved = localStorage.getItem('ce_domain_forced_visible_nodes');
+      const saved = localStorage.getItem(getScopedStorageKey('ce_domain_forced_visible_nodes'));
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return new Set<string>(parsed);
@@ -1191,14 +1207,14 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   });
   const [hideSingleConnectionDbs, setHideSingleConnectionDbs] = useState<boolean>(() => {
     try {
-      const saved = localStorage.getItem('ce_hide_single_connection_dbs');
+      const saved = localStorage.getItem(getScopedStorageKey('ce_hide_single_connection_dbs'));
       return saved !== null ? saved === 'true' : false;
     } catch { }
     return false;
   });
   const [hideIsolatedNodes, setHideIsolatedNodes] = useState<boolean>(() => {
     try {
-      const saved = localStorage.getItem('ce_hide_isolated_nodes');
+      const saved = localStorage.getItem(getScopedStorageKey('ce_hide_isolated_nodes'));
       return saved !== null ? saved === 'true' : false;
     } catch { }
     return false;
@@ -1207,44 +1223,44 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   // Sync hidden and filter states to localStorage
   useEffect(() => {
     try {
-      localStorage.setItem('ce_domain_hidden_types', JSON.stringify([...hiddenTypes]));
+      localStorage.setItem(getScopedStorageKey('ce_domain_hidden_types'), JSON.stringify([...hiddenTypes]));
     } catch { }
-  }, [hiddenTypes]);
+  }, [hiddenTypes, getScopedStorageKey]);
 
   useEffect(() => {
     try {
-      localStorage.setItem('ce_domain_hidden_node_ids', JSON.stringify([...hiddenNodeIds]));
+      localStorage.setItem(getScopedStorageKey('ce_domain_hidden_node_ids'), JSON.stringify([...hiddenNodeIds]));
     } catch { }
-  }, [hiddenNodeIds]);
+  }, [hiddenNodeIds, getScopedStorageKey]);
 
   useEffect(() => {
     try {
-      localStorage.setItem('ce_domain_hidden_orbit_tiers', JSON.stringify([...hiddenOrbitTiers]));
+      localStorage.setItem(getScopedStorageKey('ce_domain_hidden_orbit_tiers'), JSON.stringify([...hiddenOrbitTiers]));
     } catch { }
-  }, [hiddenOrbitTiers]);
+  }, [hiddenOrbitTiers, getScopedStorageKey]);
 
   useEffect(() => {
     try {
-      localStorage.setItem('ce_domain_forced_visible_nodes', JSON.stringify([...forcedVisibleNodeIds]));
+      localStorage.setItem(getScopedStorageKey('ce_domain_forced_visible_nodes'), JSON.stringify([...forcedVisibleNodeIds]));
     } catch { }
-  }, [forcedVisibleNodeIds]);
+  }, [forcedVisibleNodeIds, getScopedStorageKey]);
 
   useEffect(() => {
     try {
-      localStorage.setItem('ce_hide_single_connection_dbs', String(hideSingleConnectionDbs));
+      localStorage.setItem(getScopedStorageKey('ce_hide_single_connection_dbs'), String(hideSingleConnectionDbs));
     } catch { }
-  }, [hideSingleConnectionDbs]);
+  }, [hideSingleConnectionDbs, getScopedStorageKey]);
 
   useEffect(() => {
     try {
-      localStorage.setItem('ce_hide_isolated_nodes', String(hideIsolatedNodes));
+      localStorage.setItem(getScopedStorageKey('ce_hide_isolated_nodes'), String(hideIsolatedNodes));
     } catch { }
-  }, [hideIsolatedNodes]);
+  }, [hideIsolatedNodes, getScopedStorageKey]);
 
-  // Grouped Types & Custom Groups (persisted in localStorage)
+  // Grouped Types & Custom Groups (persisted in localStorage per workspace)
   const [groupedTypes, setGroupedTypes] = useState<Set<EntityKind>>(() => {
     try {
-      const saved = localStorage.getItem('ce_domain_grouped_types');
+      const saved = localStorage.getItem(getScopedStorageKey('ce_domain_grouped_types'));
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return new Set<EntityKind>(parsed);
@@ -1255,7 +1271,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
   const [customGroups, setCustomGroups] = useState<CustomNodeGroup[]>(() => {
     try {
-      const saved = localStorage.getItem('ce_domain_custom_groups');
+      const saved = localStorage.getItem(getScopedStorageKey('ce_domain_custom_groups'));
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return parsed;
@@ -1273,15 +1289,15 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   // Sync grouped types and custom groups to localStorage
   useEffect(() => {
     try {
-      localStorage.setItem('ce_domain_grouped_types', JSON.stringify([...groupedTypes]));
+      localStorage.setItem(getScopedStorageKey('ce_domain_grouped_types'), JSON.stringify([...groupedTypes]));
     } catch { }
-  }, [groupedTypes]);
+  }, [groupedTypes, getScopedStorageKey]);
 
   useEffect(() => {
     try {
-      localStorage.setItem('ce_domain_custom_groups', JSON.stringify(customGroups));
+      localStorage.setItem(getScopedStorageKey('ce_domain_custom_groups'), JSON.stringify(customGroups));
     } catch { }
-  }, [customGroups]);
+  }, [customGroups, getScopedStorageKey]);
 
   // Sync multi-selected classes to Cytoscape
   useEffect(() => {
@@ -2443,6 +2459,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         groupType: 'custom',
         customGroupId: group.id,
         groupKind: allSameKind ? groupKind : undefined,
+        memberIds,
         memberNodes,
         internalConnections: [],
         displayTag: allSameKind ? badgeMeta.code : 'GRP',
@@ -2530,6 +2547,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         isGroup: true,
         groupType: 'category',
         groupKind: kind,
+        memberIds,
         memberNodes,
         internalConnections: [],
         displayTag: badgeMeta.code,
