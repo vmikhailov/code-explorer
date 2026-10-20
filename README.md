@@ -15,8 +15,9 @@ It is designed for three workflows:
 3. **VS Code Architecture Explorer**: Visualizes service topologies, project dependency flows, and bounded contexts with direct navigation to source files.
 
 <p align="center">
-  <img src="docs/all_services.png" alt="CodeExplorer Service Topology" width="100%" />
+  <img src="https://raw.githubusercontent.com/vmikhailov/code-explorer/main/docs/all_services.png" alt="CodeExplorer Service Topology" width="100%" />
 </p>
+
 <p align="center">
   <em>Service topology projected across concentric architectural tiers (Ingress, Public Services, Message Brokers, Domain Services, and Databases).</em>
 </p>
@@ -217,7 +218,7 @@ To introduce strict rules into an existing repository without fixing every legac
 The VS Code extension provides an interactive workspace for exploring the graph, inspecting dependencies, and managing architectural gates.
 
 <p align="center">
-  <img src="docs/selected_services.png" alt="Focused Sub-Graph and Inspector" width="100%" />
+  <img src="https://raw.githubusercontent.com/vmikhailov/code-explorer/main/docs/selected_services.png" alt="Focused Sub-Graph and Inspector" width="100%" />
 </p>
 <p align="center">
   <em>Focused service neighborhood with transitive broker links and the unified right-hand inspector panel.</em>
@@ -239,7 +240,7 @@ The VS Code extension provides an interactive workspace for exploring the graph,
 * **Sidebar TreeView**: Browse Architecture Diagrams, Ontology Layers (Layers 1–5), Domains & Bounded Contexts, Semantic Invariant Gates, and Server/Graph status from the VS Code activity bar.
 
 <p align="center">
-  <img src="docs/project_flow.png" alt="Project Flow View" width="100%" />
+  <img src="https://raw.githubusercontent.com/vmikhailov/code-explorer/main/docs/project_flow.png" alt="Project Flow View" width="100%" />
 </p>
 <p align="center">
   <em>Project Flow view showing service cards, inbound/outbound dependencies, database links, and source navigation.</em>
@@ -266,7 +267,7 @@ CodeExplorer combines Tree-sitter grammars, Microsoft SQL ScriptDom, and framewo
 
 ## Graph Ontology
 
-The graph schema is organized into five decoupled layers (see [`docs/ontology.md`](docs/ontology.md) for the full node and relationship specification):
+The graph schema is organized into five decoupled layers (see [`docs/ontology.md`](https://github.com/vmikhailov/code-explorer/blob/main/docs/ontology.md) for the full node and relationship specification):
 
 1. **Layer 1 — Physical**: `Workspace`, `Folder`, `File`, `ConfigurationFile`, `Document`, `Script`.
 2. **Layer 2 — Project**: `Project`, `Service`, `App`, `Worker`, `Library`, `Package`, `ExternalDependencies`.

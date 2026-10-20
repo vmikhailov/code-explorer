@@ -45,17 +45,24 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>ce</ToolCommandName>
     <PackageId>CodeExplorer.Cli</PackageId>
+    <Title>CodeExplorer CLI — Architecture Intelligence &amp; MCP Code Graph</Title>
     <Authors>Slava Mikhailov</Authors>
-    <PackageDescription>Architecture Intelligence for AI Agents &amp; Engineers — static analysis, OpenCypher over SQLite, Semantic Invariant Gates, CLI &amp; MCP server</PackageDescription>
-    <PackageTags>graph;ast;tree-sitter;cypher;mcp;codebase-intelligence;architecture;cli</PackageTags>
+    <PackageDescription>Architecture Intelligence &amp; Embedded Code Graph Engine for AI coding agents (Claude Code, Cursor, Copilot) and engineering teams. CodeExplorer (ce) parses polyglot codebases (C#, TypeScript/JavaScript, Java, Kotlin, Python, Go, Rust, SQL, ColdFusion), compiles a fast local SQLite code graph, provides an OpenCypher query engine, serves a Model Context Protocol (MCP) server, and enforces architectural guardrails with Semantic Invariant Gates (SIG).</PackageDescription>
+    <Description>Architecture Intelligence &amp; Embedded Code Graph Engine for AI coding agents (Claude Code, Cursor, Copilot) and engineering teams. CodeExplorer (ce) parses polyglot codebases (C#, TypeScript/JavaScript, Java, Kotlin, Python, Go, Rust, SQL, ColdFusion), compiles a fast local SQLite code graph, provides an OpenCypher query engine, serves a Model Context Protocol (MCP) server, and enforces architectural guardrails with Semantic Invariant Gates (SIG).</Description>
+    <PackageTags>mcp;mcp-server;ai-agents;claude-code;cursor;copilot;architecture;static-analysis;code-graph;opencypher;cypher;sqlite;ast;tree-sitter;csharp;dotnet;roslyn;typescript;dependency-graph;cli;tools;gates</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/vmikhailov/code-explorer</RepositoryUrl>
-    <PackageProjectUrl>https://github.com/vmikhailov/code-explorer</PackageProjectUrl>
+    <PackageProjectUrl>https://code-explorer.mikhailov.cc</PackageProjectUrl>
+    <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageReleaseNotes>https://github.com/vmikhailov/code-explorer/releases</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>
     <None Include="..\..\..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\..\..\vscode-extension\media\icon.png" Pack="true" PackagePath="\" />
   </ItemGroup>
+
 
 </Project>
