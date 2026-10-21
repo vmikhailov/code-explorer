@@ -130,6 +130,7 @@ export interface PingRequest {
 export interface GetArchitectureRequest {
   projectFilter?: string;
   format?: 'graph' | 'mermaid' | 'c4';
+  includeLibraries?: boolean;
 }
 
 export interface GetDependenciesRequest {

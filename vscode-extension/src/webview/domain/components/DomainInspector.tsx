@@ -304,7 +304,7 @@ export interface RawEdgeInfo {
   id: string;
   source: string;
   target: string;
-  category: 'service_call' | 'database' | 'messaging' | 'external';
+  category: 'service_call' | 'database' | 'messaging' | 'external' | 'library' | 'test';
   label: string;
   count: number;
   kind?: string;

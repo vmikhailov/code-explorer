@@ -2320,7 +2320,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       isTransitive: boolean;
       isInferred: boolean;
     }> = [];
-    const outAdj = new Map<string, Array<{ target: string; category: 'service_call' | 'database' | 'messaging' | 'external'; label: string; count: number }>>();
+    const outAdj = new Map<string, Array<{ target: string; category: 'service_call' | 'database' | 'messaging' | 'external' | 'library' | 'test'; label: string; count: number }>>();
 
     let serviceCallsCount = 0;
     let messagesCount = 0;
