@@ -73,7 +73,7 @@ public partial class ArchitectureViewEngine(IGraphClient db)
             ArchitectureViewType.SystemContext => await GetSystemContextViewAsync(request.IncludeLibraries, request.Scope, request.SharedDatabasesOnly, ct),
             ArchitectureViewType.ServiceFlow => await GetServiceFlowViewAsync(request.Scope, request.IncludeLibraries, ct),
             ArchitectureViewType.Component => await GetComponentViewAsync(request.Scope, ct),
-            ArchitectureViewType.DomainMap => await GetDomainArchitectureGraphAsync(false, request.SharedDatabasesOnly, ct),
+            ArchitectureViewType.DomainMap => await GetDomainArchitectureGraphAsync(request.IncludeLibraries, request.SharedDatabasesOnly, ct),
             ArchitectureViewType.Tiers => await GetTieredArchitectureGraphAsync(request.IncludeLibraries, ct),
             ArchitectureViewType.BoundedContexts => await GetBoundedContextGraphAsync(request.Scope, ct),
             _ => await GetSystemContextViewAsync(request.IncludeLibraries, request.Scope, request.SharedDatabasesOnly, ct)

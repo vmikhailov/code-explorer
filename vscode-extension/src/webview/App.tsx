@@ -293,7 +293,7 @@ export const App: React.FC = () => {
     const req: WebSocketMessage<GetArchitectureRequest> = {
       type: 'GET_ARCHITECTURE_REQUEST',
       requestId: `req_arch_${Date.now()}`,
-      payload: { format: 'graph' },
+      payload: { format: 'graph', includeLibraries: true },
     };
     sendWsMessage(req);
   }, [sendWsMessage]);
@@ -302,7 +302,7 @@ export const App: React.FC = () => {
     const req: WebSocketMessage = {
       type: 'GET_VIEW_REQUEST',
       requestId: `req_view_contexts_${Date.now()}`,
-      payload: { view: 'contexts' },
+      payload: { view: 'contexts', includeLibraries: true },
     };
     sendWsMessage(req);
   }, [sendWsMessage]);
@@ -311,7 +311,7 @@ export const App: React.FC = () => {
     const req: WebSocketMessage = {
       type: 'GET_VIEW_REQUEST',
       requestId: `req_view_c1_${Date.now()}`,
-      payload: { view: 'c1' },
+      payload: { view: 'c1', includeLibraries: true },
     };
     sendWsMessage(req);
   }, [sendWsMessage]);
@@ -320,7 +320,7 @@ export const App: React.FC = () => {
     const req: WebSocketMessage = {
       type: 'GET_VIEW_REQUEST',
       requestId: `req_view_layers_${Date.now()}`,
-      payload: { view: 'layers' },
+      payload: { view: 'layers', includeLibraries: true },
     };
     sendWsMessage(req);
   }, [sendWsMessage]);
@@ -329,7 +329,7 @@ export const App: React.FC = () => {
     const req: WebSocketMessage = {
       type: 'GET_VIEW_REQUEST',
       requestId: `req_view_domain_${Date.now()}`,
-      payload: { view: 'domain' },
+      payload: { view: 'domain', includeLibraries: true },
     };
     sendWsMessage(req);
   }, [sendWsMessage]);

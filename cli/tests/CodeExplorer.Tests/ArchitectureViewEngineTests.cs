@@ -371,6 +371,21 @@ public class ArchitectureViewEngineTests
     }
 
     [Test]
+    public async Task GetDomainArchitecture_IncludesLibrariesWhenExplicitlyRequested()
+    {
+        // When includeLibraries: true is passed, pure library domains must be included as Library entities
+        var domain = await _engine.GetDomainArchitectureAsync(includeLibraries: true);
+
+        domain.Nodes.Any(n => n.Name == "common-dto" || n.DisplayName == "common-dto").Should().BeTrue("Libraries must appear on Domain Service Map when includeLibraries is true");
+        domain.Nodes.Any(n => n.Kind == NodeKind.Library).Should().BeTrue("Nodes with kind 'Library' should exist on Domain Service Map when includeLibraries is true");
+        domain.Stats.Libraries.Should().BeGreaterThan(0);
+
+        // Also verify GraphDataDto representation
+        var graph = await _engine.GetDomainArchitectureGraphAsync(includeLibraries: true);
+        graph.Nodes.Any(n => n.Name == "common-dto" || n.Kind == NodeKind.Library).Should().BeTrue("Libraries must appear in DomainMap GraphDataDto when includeLibraries is true");
+    }
+
+    [Test]
     public async Task GetBoundedContextMap_ReturnsAggregatedDomainsAndCrossContextInteractions()
     {
         // 1. Add sample intent records

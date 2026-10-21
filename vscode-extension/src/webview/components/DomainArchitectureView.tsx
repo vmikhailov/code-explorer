@@ -184,7 +184,7 @@ export interface ConnectionDetailItem {
   sourceName: string;
   targetId: string;
   targetName: string;
-  category: 'service_call' | 'database' | 'messaging' | 'external';
+  category: 'service_call' | 'database' | 'messaging' | 'external' | 'library' | 'test';
   kind: string;
   label: string;
   count: number;
@@ -457,6 +457,25 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
       'line-color': '#38bdf8',
       'target-arrow-color': '#38bdf8',
       'source-arrow-color': '#38bdf8',
+    },
+  },
+  {
+    selector: 'edge[category = "library"]',
+    style: {
+      'line-style': 'solid',
+      'line-color': '#9ca3af',
+      'target-arrow-color': '#9ca3af',
+      'source-arrow-color': '#9ca3af',
+    },
+  },
+  {
+    selector: 'edge[category = "test"]',
+    style: {
+      'line-style': 'dashed',
+      'line-dash-pattern': [6, 4],
+      'line-color': '#10b981',
+      'target-arrow-color': '#10b981',
+      'source-arrow-color': '#10b981',
     },
   },
   // Bidirectional & Unidirectional Edge Arrow Shapes
@@ -2129,7 +2148,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     interface EdgeAggregator {
       source: string;
       target: string;
-      category: 'service_call' | 'database' | 'messaging' | 'external';
+      category: 'service_call' | 'database' | 'messaging' | 'external' | 'library' | 'test';
       label: string;
       count: number;
     }
@@ -2148,13 +2167,12 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     for (const edge of graph?.edges || []) {
       if (!validNodeIdSet.has(edge.source) || !validNodeIdSet.has(edge.target)) continue;
       if (edge.source === edge.target) continue;
-      if (edge.category === 'library' || edge.kind === 'LIBRARY') continue;
 
       const srcDetail = detailMap.get(edge.source);
       const tgtDetail = detailMap.get(edge.target);
       if (!srcDetail || !tgtDetail) continue;
 
-      let cat: 'service_call' | 'database' | 'messaging' | 'external' | null = null;
+      let cat: 'service_call' | 'database' | 'messaging' | 'external' | 'library' | 'test' | null = null;
       let label = 'CALLS';
 
       const isDb = tgtDetail.kind === 'Database' || srcDetail.kind === 'Database' || edge.category === 'database' || edge.kind === 'USES_DB';
@@ -2227,6 +2245,19 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           });
         }
         continue;
+      } else if (
+        edge.category === 'library' ||
+        edge.kind === 'LIBRARY' ||
+        edge.kind === 'DEPENDS_ON'
+      ) {
+        cat = 'library';
+        label = (edge as any).label || (edge as any).properties?.label || edge.kind || 'DEPENDS_ON';
+      } else if (
+        edge.category === 'test' ||
+        edge.kind === 'TESTS'
+      ) {
+        cat = 'test';
+        label = 'TESTS';
       }
 
       if (!cat) continue;
@@ -2282,7 +2313,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       id: string;
       source: string;
       target: string;
-      category: 'service_call' | 'database' | 'messaging' | 'external';
+      category: 'service_call' | 'database' | 'messaging' | 'external' | 'library' | 'test';
       kind?: string;
       label: string;
       count: number;
@@ -2665,7 +2696,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       originalSourceName?: string;
       originalTargetId?: string;
       originalTargetName?: string;
-      category: 'service_call' | 'database' | 'messaging' | 'external';
+      category: 'service_call' | 'database' | 'messaging' | 'external' | 'library' | 'test';
       kind: string;
       label: string;
       count: number;
@@ -3025,7 +3056,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       id: string;
       source: string;
       target: string;
-      category: 'service_call' | 'database' | 'messaging' | 'external';
+      category: 'service_call' | 'database' | 'messaging' | 'external' | 'library' | 'test';
       label: string;
       count: number;
       kind?: string;

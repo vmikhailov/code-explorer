@@ -201,6 +201,8 @@ export function computeEchelonTiers(
       echelonMap.set(n.id, 3);
     } else if (n.kind === 'Database' || n.kind === 'ExternalService') {
       echelonMap.set(n.id, 4);
+    } else if (n.kind === 'Library' || n.kind === 'SharedLibrary') {
+      echelonMap.set(n.id, 4);
     } else {
       echelonMap.set(n.id, 4);
     }

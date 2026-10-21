@@ -314,7 +314,7 @@ public partial class ArchitectureViewEngine
 
     public async Task<DomainArchitectureDto> GetDomainArchitectureAsync(bool includeLibraries = false, CancellationToken ct = default)
     {
-        var archGraph = await BuildBaseArchitectureTopologyAsync(includeLibraries: includeLibraries, includeTopics: true, projectFilter: null, sharedDatabasesOnly: false, ct: ct);
+        var archGraph = await BuildBaseArchitectureTopologyAsync(includeLibraries: true, includeTopics: true, projectFilter: null, sharedDatabasesOnly: false, ct: ct);
         var result = new DomainArchitectureDto();
 
         var projToDomainMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -568,6 +568,16 @@ public partial class ArchitectureViewEngine
                 // Direct pub/sub chord between services without a topic node is a phantom artifact; ignore it
                 continue;
             }
+            else if (edge.Kind is "TESTS" or "tests" || edge.Category == "test")
+            {
+                cat = "test";
+                label = "TESTS";
+            }
+            else if (edge.Kind is "DEPENDS_ON" or "DependsOn" or "LIBRARY" or "library" || edge.Category == "library")
+            {
+                cat = "library";
+                label = "DEPENDS_ON";
+            }
             else
             {
                 cat = "service_call";
@@ -618,8 +628,11 @@ public partial class ArchitectureViewEngine
 
             if (isLibDomain)
             {
-                // Pure library domains MUST NOT appear on Domain Service Map
-                continue;
+                if (!includeLibraries)
+                {
+                    // Pure library domains MUST NOT appear on Domain Service Map when libraries are excluded
+                    continue;
+                }
             }
 
             var zone = domainZoneMap.GetValueOrDefault(domainId, "service");
@@ -648,7 +661,17 @@ public partial class ArchitectureViewEngine
             string borderColor;
             int size;
 
-            if (isCli)
+            if (isLibDomain)
+            {
+                stats.Libraries++;
+                tag = ":Library";
+                nodeKind = NodeKind.Library;
+                bgColor = "#4b5563";
+                borderColor = "#374151";
+                size = 46;
+                zone = "service";
+            }
+            else if (isCli)
             {
                 stats.CliTools++;
                 tag = ":CLI";
@@ -800,7 +823,7 @@ public partial class ArchitectureViewEngine
         var validNodeIds = nodes.Select(n => n.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var filteredEdges = macroEdges.Values.Where(e => validNodeIds.Contains(e.Source) && validNodeIds.Contains(e.Target)).ToList();
 
-        stats.TotalDomains = nodes.Count(n => n.Kind is NodeKind.Service or NodeKind.Ingress or NodeKind.App or NodeKind.CliTool or NodeKind.Worker);
+        stats.TotalDomains = nodes.Count(n => n.Kind is NodeKind.Service or NodeKind.Ingress or NodeKind.App or NodeKind.CliTool or NodeKind.Worker or NodeKind.Library);
         stats.ServiceCalls = filteredEdges.Where(e => e.Category == "service_call").Sum(e => e.Count);
         stats.Messages = filteredEdges.Where(e => e.Category == "messaging").Sum(e => e.Count);
 

@@ -85,7 +85,7 @@ public static class ServerRouteBuilderExtensions
                 {
                     ViewType = viewType,
                     Scope = scope,
-                    IncludeLibraries = includeLibraries ?? false
+                    IncludeLibraries = includeLibraries ?? (viewType is ArchitectureViewType.Tiers)
                 });
                 return Results.Ok(graph);
             }

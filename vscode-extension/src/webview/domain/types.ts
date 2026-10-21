@@ -87,7 +87,7 @@ export interface ConnectionDetailItem {
   sourceName: string;
   targetId: string;
   targetName: string;
-  category: 'service_call' | 'database' | 'messaging' | 'external';
+  category: 'service_call' | 'database' | 'messaging' | 'external' | 'library' | 'test';
   kind: string;
   label: string;
   count: number;
