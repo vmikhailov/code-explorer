@@ -24,81 +24,47 @@ function escapeHtml(str: string): string {
 /**
  * High-performance regex-based OpenCypher syntax highlighter.
  */
-function highlightCypher(code: string): string {
+export function highlightCypher(code: string): string {
   if (!code) return '';
 
-  const lines = code.split('\n');
-  const highlightedLines = lines.map((line) => {
-    // 1. Line comments
-    const commentIdx = line.indexOf('//');
-    let codePart = commentIdx >= 0 ? line.substring(0, commentIdx) : line;
-    const commentPart = commentIdx >= 0 ? line.substring(commentIdx) : '';
+  // Single pass over the raw text: each token is escaped and wrapped exactly once,
+  // so later rules can never match inside already-generated span markup.
+  const tokenRegex = new RegExp(
+    [
+      '(?<comment>//[^\\n]*)',
+      '(?<string>\'(?:\\\\.|[^\'\\\\\\n])*\'|"(?:\\\\.|[^"\\\\\\n])*")',
+      '(?<rel>-\\[:[A-Za-z0-9_]+\\]->|-\\[:[A-Za-z0-9_]+\\]-|\\[:[A-Za-z0-9_]+\\])',
+      '(?<label>:[A-Za-z0-9_]+)',
+      '(?<param>\\$[A-Za-z0-9_]+)',
+      '(?<keyword>\\b(?:MATCH|OPTIONAL\\s+MATCH|WHERE|RETURN|WITH|AND|OR|NOT|IN|AS|ORDER\\s+BY|LIMIT|SKIP|UNION|DISTINCT|IS\\s+NULL|IS\\s+NOT\\s+NULL|STARTS\\s+WITH|ENDS\\s+WITH|CONTAINS|CREATE|DELETE|DETACH\\s+DELETE|SET|REMOVE|CASE|WHEN|THEN|ELSE|END|DESC|ASC)\\b)',
+      '(?<func>\\b(?:coalesce|count|labels|keys|json_extract|toString|toLower|toUpper|trim|split|length|size|exists|head|tail|last|nodes|relationships|id)\\b)',
+      '(?<number>\\b\\d+(?:\\.\\d+)?\\b)',
+    ].join('|'),
+    'gi'
+  );
 
-    // 2. Tokenize strings
-    const stringTokens: string[] = [];
-    const placeholderPrefix = `___STR_TOKEN_${Math.random().toString(36).substring(2, 6)}_`;
-    codePart = codePart.replace(/(['"])(?:(?=(\\?))\2.)*?\1/g, (match) => {
-      const idx = stringTokens.length;
-      stringTokens.push(`<span style="color:#ce9178">${escapeHtml(match)}</span>`);
-      return `${placeholderPrefix}${idx}___`;
-    });
+  const styles: Record<string, string> = {
+    comment: 'color:#6a9955;font-style:italic',
+    string: 'color:#ce9178',
+    rel: 'color:#4fc1ff;font-weight:500',
+    label: 'color:#4ec9b0;font-weight:500',
+    param: 'color:#9cdcfe',
+    keyword: 'color:#569cd6;font-weight:600',
+    func: 'color:#dcdcaa',
+    number: 'color:#b5cea8',
+  };
 
-    // 3. Escape raw code
-    let escaped = escapeHtml(codePart);
-
-    // 4. Highlight OpenCypher Keywords
-    const keywordRegex =
-      /\b(MATCH|OPTIONAL\s+MATCH|WHERE|RETURN|WITH|AND|OR|NOT|IN|AS|ORDER\s+BY|LIMIT|SKIP|UNION|DISTINCT|IS\s+NULL|IS\s+NOT\s+NULL|STARTS\s+WITH|ENDS\s+WITH|CONTAINS|CREATE|DELETE|DETACH\s+DELETE|SET|REMOVE|CASE|WHEN|THEN|ELSE|END|DESC|ASC)\b/gi;
-    escaped = escaped.replace(
-      keywordRegex,
-      (m) => `<span style="color:#569cd6;font-weight:600">${m.toUpperCase()}</span>`
-    );
-
-    // 5. Highlight Functions
-    const funcRegex =
-      /\b(coalesce|count|labels|keys|json_extract|toString|toLower|toUpper|trim|split|length|size|exists|head|tail|last|nodes|relationships|id)\b/gi;
-    escaped = escaped.replace(
-      funcRegex,
-      (m) => `<span style="color:#dcdcaa">${m}</span>`
-    );
-
-    // 6. Highlight Node Labels (e.g. :Function, :Type, :Project)
-    escaped = escaped.replace(
-      /(:[A-Za-z0-9_]+)/g,
-      `<span style="color:#4ec9b0;font-weight:500">$1</span>`
-    );
-
-    // 7. Highlight Relationship Types (e.g. -[:CALLS]->, -[:SERVICE_CALL]->)
-    escaped = escaped.replace(
-      /(-\[:[A-Za-z0-9_]+\]->|-\[:[A-Za-z0-9_]+\]-|\[:[A-Za-z0-9_]+\])/g,
-      `<span style="color:#4fc1ff;font-weight:500">$1</span>`
-    );
-
-    // 8. Highlight Numbers
-    escaped = escaped.replace(
-      /\b(\d+(?:\.\d+)?)\b/g,
-      `<span style="color:#b5cea8">$1</span>`
-    );
-
-    // 9. Highlight Parameters ($name)
-    escaped = escaped.replace(
-      /(\$[A-Za-z0-9_]+)/g,
-      `<span style="color:#9cdcfe">$1</span>`
-    );
-
-    // 10. Restore string tokens
-    for (let i = 0; i < stringTokens.length; i++) {
-      escaped = escaped.replace(`${placeholderPrefix}${i}___`, stringTokens[i]);
-    }
-
-    if (commentPart) {
-      escaped += `<span style="color:#6a9955;font-style:italic">${escapeHtml(commentPart)}</span>`;
-    }
-
-    return escaped;
-  });
-
-  return highlightedLines.join('\n');
+  let result = '';
+  let last = 0;
+  let match: RegExpExecArray | null;
+  while ((match = tokenRegex.exec(code)) !== null) {
+    result += escapeHtml(code.substring(last, match.index));
+    const type = Object.keys(match.groups ?? {}).find((k) => match!.groups![k] !== undefined)!;
+    const text = type === 'keyword' ? match[0].toUpperCase() : match[0];
+    result += `<span style="${styles[type]}">${escapeHtml(text)}</span>`;
+    last = match.index + match[0].length;
+  }
+  return result + escapeHtml(code.substring(last));
 }
 
 export const CypherEditor: React.FC<CypherEditorProps> = ({

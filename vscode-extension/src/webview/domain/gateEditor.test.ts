@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GateItemDto } from '../../../../proto/types';
+import { highlightCypher } from './components/CypherEditor';
 
 /**
  * Validates whether an OpenCypher query satisfies the Semantic Invariant Gate Zero-Match return contract.
@@ -149,4 +150,42 @@ test('validateGateForm: accepts valid gate configuration', () => {
   const validation = validateGateForm(validGate);
   assert.equal(validation.isValid, true);
   assert.deepEqual(validation.errors, {});
+});
+
+test('highlightCypher: single-pass tokenization handles comments, strings, keywords, labels and relationships without corrupting markup', () => {
+  const cypher = `// Look for direct calls
+MATCH (f:Function)-[:CALLS]->(t:Target)
+WHERE f.name = "MyFunction" AND $threshold > 10
+RETURN f.path AS file, 1 AS line, count(t) AS symbol, '' AS target, "Violates rule" AS message`;
+
+  const html = highlightCypher(cypher);
+
+  // Comments
+  assert.ok(html.includes('<span style="color:#6a9955;font-style:italic">// Look for direct calls</span>'));
+  // Keywords
+  assert.ok(html.includes('<span style="color:#569cd6;font-weight:600">MATCH</span>'));
+  assert.ok(html.includes('<span style="color:#569cd6;font-weight:600">WHERE</span>'));
+  assert.ok(html.includes('<span style="color:#569cd6;font-weight:600">AND</span>'));
+  assert.ok(html.includes('<span style="color:#569cd6;font-weight:600">RETURN</span>'));
+  // Labels
+  assert.ok(html.includes('<span style="color:#4ec9b0;font-weight:500">:Function</span>'));
+  assert.ok(html.includes('<span style="color:#4ec9b0;font-weight:500">:Target</span>'));
+  // Relationships
+  assert.ok(html.includes('<span style="color:#4fc1ff;font-weight:500">-[:CALLS]-&gt;</span>'));
+  // Strings
+  assert.ok(html.includes('<span style="color:#ce9178">&quot;MyFunction&quot;</span>'));
+  assert.ok(html.includes('<span style="color:#ce9178">&quot;Violates rule&quot;</span>'));
+  // Parameters
+  assert.ok(html.includes('<span style="color:#9cdcfe">$threshold</span>'));
+  // Numbers
+  assert.ok(html.includes('<span style="color:#b5cea8">10</span>'));
+  assert.ok(html.includes('<span style="color:#b5cea8">1</span>'));
+  // Functions
+  assert.ok(html.includes('<span style="color:#dcdcaa">count</span>'));
+
+  // Ensure no unclosed or nested span corruption
+  const openSpans = (html.match(/<span/g) || []).length;
+  const closeSpans = (html.match(/<\/span>/g) || []).length;
+  assert.equal(openSpans, closeSpans);
+  assert.ok(openSpans > 10);
 });
