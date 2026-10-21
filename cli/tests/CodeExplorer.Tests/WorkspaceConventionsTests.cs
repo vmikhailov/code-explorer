@@ -14,11 +14,13 @@ public class WorkspaceConventionsTests
     {
         _lock = await TestRegistryLock.AcquireAsync();
         WorkspaceConventions.Clear();
+        WorkspaceConventions.DomainDetectionEnabled = true;
     }
 
     [TearDown]
     public void TearDown()
     {
+        WorkspaceConventions.DomainDetectionEnabled = false;
         WorkspaceConventions.Clear();
         _lock?.Dispose();
         _lock = null;

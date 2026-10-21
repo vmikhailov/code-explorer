@@ -412,7 +412,7 @@ public static class ConfigurationParser
         List<Relationship> relationships,
         ParsingContext ctx)
     {
-        var topicId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Topic}:{brokerType}:{topicName.ToLowerInvariant()}";
+        var topicId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Topic}:{brokerType}:{topicName}";
 
         if (!containerNode.Children.Any(c => c.Id == topicId))
         {

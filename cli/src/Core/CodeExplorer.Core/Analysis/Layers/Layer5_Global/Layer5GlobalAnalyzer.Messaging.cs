@@ -426,10 +426,19 @@ public partial class Layer5AnalysisParser
             }
         }
 
+        var scopeFilePath = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId);
+        var scopeProject = ConstantRegistry.ExtractProjectName(scopeFilePath);
+
+        // Mocks and fixtures in tests are not real broker topology.
+        if (WorkspaceConventions.IsTestFilePath(scopeFilePath))
+        {
+            return;
+        }
+
         if (topicName.StartWithIC("this.config."))
         {
             var prop = topicName["this.config.".Length..];
-            if (ConstantRegistry.TryResolve(null, prop, out var resolved) && !string.IsNullOrEmpty(resolved))
+            if (ConstantRegistry.TryResolve(scopeProject, prop, out var resolved) && !string.IsNullOrEmpty(resolved))
             {
                 topicName = resolved;
             }
@@ -441,7 +450,7 @@ public partial class Layer5AnalysisParser
         else if (topicName.StartWithIC("config."))
         {
             var prop = topicName["config.".Length..];
-            if (ConstantRegistry.TryResolve(null, prop, out var resolved) && !string.IsNullOrEmpty(resolved))
+            if (ConstantRegistry.TryResolve(scopeProject, prop, out var resolved) && !string.IsNullOrEmpty(resolved))
             {
                 topicName = resolved;
             }
@@ -453,22 +462,33 @@ public partial class Layer5AnalysisParser
         else if (topicName.StartWithIC("this."))
         {
             var prop = topicName["this.".Length..];
-            if (ConstantRegistry.TryResolve(null, prop, out var resolved) && !string.IsNullOrEmpty(resolved))
+            if (ConstantRegistry.TryResolve(scopeProject, prop, out var resolved) && !string.IsNullOrEmpty(resolved))
             {
                 topicName = resolved;
             }
+            else
+            {
+                // A field set from constructor parameters is dynamic; a workspace-wide
+                // lookup of its bare name would pick an unrelated constant.
+                return;
+            }
         }
 
-        var scopeFilePath = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId);
-        var scopeProject = ConstantRegistry.ExtractProjectName(scopeFilePath);
         string? globalConst = null;
 
-        if (bindings.ConstantLookup.TryGetValue(topicName, out var resolvedConst) &&
+        // Only constant-style names (ORDERS_TOPIC) may resolve workspace-wide. A bare parameter or
+        // field such as `name` must stay within its project, or it picks up an unrelated constant.
+        var isConstantStyle = System.Text.RegularExpressions.Regex.IsMatch(topicName, @"^[A-Z][A-Z0-9_]*$");
+
+        if (isConstantStyle &&
+            bindings.ConstantLookup.TryGetValue(topicName, out var resolvedConst) &&
             WorkspaceConventions.IsValidTopicOrQueueName(resolvedConst))
         {
             topicName = resolvedConst;
         }
-        else if (ConstantRegistry.TryResolve(scopeProject ?? scopeFilePath, topicName, out var regConst) &&
+        else if ((isConstantStyle
+                     ? ConstantRegistry.TryResolve(scopeProject ?? scopeFilePath, topicName, out var regConst)
+                     : ConstantRegistry.TryResolveProjectScoped(scopeProject ?? scopeFilePath, topicName, out regConst)) &&
                  WorkspaceConventions.IsValidTopicOrQueueName(regConst))
         {
             topicName = regConst;
@@ -481,7 +501,6 @@ public partial class Layer5AnalysisParser
         }
 
         topicName = topicName.Trim('\'', '"', '`');
-
         if (brokerType is not ("mediatr" or "cqrs" or "spring" or "eventbus"))
         {
             var normalizedTopic = WorkspaceConventions.NormalizeTopicName(topicName);

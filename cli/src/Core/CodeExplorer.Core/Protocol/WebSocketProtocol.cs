@@ -584,6 +584,14 @@ public class DomainEntityDto
     [JsonPropertyName("displayName")]
     public string DisplayName { get; set; } = string.Empty;
 
+    [JsonPropertyName("domain")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Domain { get; set; }
+
+    [JsonPropertyName("domainDisplayName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DomainDisplayName { get; set; }
+
     [JsonPropertyName("kind")]
     public NodeKind Kind { get; set; } = NodeKind.Service;
 

@@ -117,6 +117,49 @@ public static class ConstantRegistry
         }
     }
 
+    /// <summary>Resolves a key against the project's own constants only, never the workspace-global ones.</summary>
+    public static bool TryResolveProjectScoped(string? projectNameOrFilePath, string key, out string value)
+    {
+        value = null!;
+        if (string.IsNullOrWhiteSpace(key)) return false;
+        return TryResolveInProject(ExtractProjectName(projectNameOrFilePath), key.Trim().Trim('\'', '"', '`'), out value);
+    }
+
+    private static bool TryResolveInProject(string? projectName, string cleanKey, out string value)
+    {
+        value = null!;
+        if (string.IsNullOrWhiteSpace(projectName)) return false;
+
+        if (_projectConstants.TryGetValue($"{projectName}:{cleanKey}", out var pVal))
+        {
+            value = pVal;
+            return true;
+        }
+        var domain = ExtractDomainNameFromProject(projectName);
+        if (!string.IsNullOrWhiteSpace(domain) && _projectConstants.TryGetValue($"{domain}:{cleanKey}", out var dVal))
+        {
+            value = dVal;
+            return true;
+        }
+        var stripped = Analysis.EndpointScoringEngine.StripCommonAffixes(projectName);
+        if (!string.IsNullOrWhiteSpace(stripped))
+        {
+            if (_projectConstants.TryGetValue($"{stripped}:{cleanKey}", out var sVal))
+            {
+                value = sVal;
+                return true;
+            }
+            var normStripped = stripped.Replace("-", "_");
+            if (_projectConstants.TryGetValue($"{normStripped}:{cleanKey}", out var nsVal))
+            {
+                value = nsVal;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static bool TryResolve(string? projectNameOrFilePath, string key, out string value)
     {
         if (string.IsNullOrWhiteSpace(key))
@@ -131,34 +174,9 @@ public static class ConstantRegistry
         var projectName = ExtractProjectName(projectNameOrFilePath);
 
         // 1. Try project-specific lookup
-        if (!string.IsNullOrWhiteSpace(projectName))
+        if (TryResolveInProject(projectName, cleanKey, out value))
         {
-            if (_projectConstants.TryGetValue($"{projectName}:{cleanKey}", out var pVal))
-            {
-                value = pVal;
-                return true;
-            }
-            var domain = ExtractDomainNameFromProject(projectName);
-            if (!string.IsNullOrWhiteSpace(domain) && _projectConstants.TryGetValue($"{domain}:{cleanKey}", out var dVal))
-            {
-                value = dVal;
-                return true;
-            }
-            var stripped = Analysis.EndpointScoringEngine.StripCommonAffixes(projectName);
-            if (!string.IsNullOrWhiteSpace(stripped))
-            {
-                if (_projectConstants.TryGetValue($"{stripped}:{cleanKey}", out var sVal))
-                {
-                    value = sVal;
-                    return true;
-                }
-                var normStripped = stripped.Replace("-", "_");
-                if (_projectConstants.TryGetValue($"{normStripped}:{cleanKey}", out var nsVal))
-                {
-                    value = nsVal;
-                    return true;
-                }
-            }
+            return true;
         }
 
         // 1b. If resolving a generic schema key in a project context, check if any registered schema constant has a domain prefix contained in the project name
@@ -234,12 +252,20 @@ public static class ConstantRegistry
         else if (cleanKey.StartWithIC("this."))
         {
             var subKey = cleanKey[5..];
-            if (TryResolve(projectName, subKey, out value)) return true;
+            if (subKey.IndexOf('.') < 0)
+            {
+                if (TryResolveInProject(projectName, subKey, out value)) return true;
+            }
+            else if (TryResolve(projectName, subKey, out value)) return true;
         }
         else if (cleanKey.StartWithIC("self."))
         {
             var subKey = cleanKey[5..];
-            if (TryResolve(projectName, subKey, out value)) return true;
+            if (subKey.IndexOf('.') < 0)
+            {
+                if (TryResolveInProject(projectName, subKey, out value)) return true;
+            }
+            else if (TryResolve(projectName, subKey, out value)) return true;
         }
 
         // 3b. Fallback: if key is a member expression like this.pubsubConfig.eventBusSubscriptionName or pubSubConfig.subName

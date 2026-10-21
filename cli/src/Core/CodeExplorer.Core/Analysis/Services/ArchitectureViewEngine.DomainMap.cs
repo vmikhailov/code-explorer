@@ -153,7 +153,7 @@ public partial class ArchitectureViewEngine
         }
 
         // 0. Explicit domain / intent_domain from node properties
-        if (node.Properties != null)
+        if (WorkspaceConventions.DomainDetectionEnabled && node.Properties != null)
         {
             if (node.Properties.TryGetValue("domain", out var expDomain) && !string.IsNullOrWhiteSpace(expDomain) && !IsRunawayDomainName(expDomain))
             {
@@ -199,7 +199,7 @@ public partial class ArchitectureViewEngine
         }
 
         // 1. Suffix match
-        var suffixMatch = SubProjectSuffixRegex.Match(name);
+        var suffixMatch = WorkspaceConventions.DomainDetectionEnabled ? SubProjectSuffixRegex.Match(name) : Match.Empty;
         if (suffixMatch.Success)
         {
             var matchedSuffix = suffixMatch.Groups[1].Value;
@@ -215,7 +215,7 @@ public partial class ArchitectureViewEngine
         }
 
         // 2. Directory structure (safe against Windows drive letters C:/ and container roots)
-        if (!string.IsNullOrEmpty(path))
+        if (WorkspaceConventions.DomainDetectionEnabled && !string.IsNullOrEmpty(path))
         {
             var cleanPath = Regex.Replace(path, @"^[a-zA-Z]:[/]", "").TrimStart('/');
             var parts = cleanPath.Split('/', StringSplitOptions.RemoveEmptyEntries)
@@ -303,6 +303,15 @@ public partial class ArchitectureViewEngine
         return result;
     }
 
+    private static string ServiceEntityDisplayName(GraphNodeDto node, string normalizedName)
+    {
+        var role = node.Properties?.GetValueOrDefault("role");
+        var isApp = node.Kind == NodeKind.App || role is "FrontendApp" or "App";
+        return isApp && !string.IsNullOrWhiteSpace(node.Name)
+            ? node.Name
+            : WorkspaceConventions.FormatDomainDisplayName(WorkspaceConventions.ToPascalCase(normalizedName));
+    }
+
     public async Task<DomainArchitectureDto> GetDomainArchitectureAsync(bool includeLibraries = false, CancellationToken ct = default)
     {
         var archGraph = await BuildBaseArchitectureTopologyAsync(includeLibraries: includeLibraries, includeTopics: true, projectFilter: null, sharedDatabasesOnly: false, ct: ct);
@@ -313,6 +322,8 @@ public partial class ArchitectureViewEngine
         var domainPrimaryMap = new Dictionary<string, GraphNodeDto>(StringComparer.OrdinalIgnoreCase);
         var domainZoneMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var domainNameMap = new Dictionary<string, (string Name, string DisplayName, string? Framework, string? Language)>(StringComparer.OrdinalIgnoreCase);
+        var entityDomainMap = new Dictionary<string, (string Key, string DisplayName)>(StringComparer.OrdinalIgnoreCase);
+        var runnablesByDomain = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
 
         // 1. Categorize Project-like nodes into domains
         foreach (var node in archGraph.Nodes)
@@ -332,20 +343,30 @@ public partial class ArchitectureViewEngine
                 continue;
             }
 
-            var (domainKey, domainDisplayName, isIngressHint) = ExtractDomainKey(node);
-            if (IsTestOrDocsProjectOrDomain(node, domainKey, domainDisplayName))
+            var (groupKey, groupDisplayName, isIngressHint) = ExtractDomainKey(node);
+            if (IsTestOrDocsProjectOrDomain(node, groupKey, groupDisplayName))
             {
                 continue;
             }
 
             var isLib = IsLibraryProject(node);
+            var domainKey = groupKey;
+            var domainDisplayName = groupDisplayName;
 
-            // Never merge two separate runnable Layer 4 workloads (!IsLibraryProject(node)) into one node on the Domain Map
-            if (!isLib && domainProjectsMap.TryGetValue(domainKey, out var existingWorkloads) && existingWorkloads.Any(p => !p.IsLibrary))
+            // A runnable workload is always its own node, named after the service. The domain is only an attribute
+            // of that node (rendered as a shaded region), so a service never takes the name of its domain.
+            if (!isLib)
             {
                 var norm = WorkspaceConventions.NormalizeServiceName(node.Name).ToLowerInvariant();
-                domainKey = $"domain:{norm}";
-                domainDisplayName = WorkspaceConventions.FormatDomainDisplayName(WorkspaceConventions.ToPascalCase(norm));
+                domainKey = $"service:{norm}";
+                domainDisplayName = ServiceEntityDisplayName(node, norm);
+                if (WorkspaceConventions.DomainDetectionEnabled) entityDomainMap[domainKey] = (groupKey, groupDisplayName);
+                if (!runnablesByDomain.TryGetValue(groupKey, out var members))
+                {
+                    members = [];
+                    runnablesByDomain[groupKey] = members;
+                }
+                if (!members.Contains(domainKey, StringComparer.OrdinalIgnoreCase)) members.Add(domainKey);
             }
 
             projToDomainMap[node.Id] = domainKey;
@@ -412,6 +433,23 @@ public partial class ArchitectureViewEngine
                     domainZoneMap[domainKey] = isIngress ? "ingress" : "service";
                 }
             }
+        }
+
+        // Libraries have no node of their own: fold their calls into the first runnable service of the same domain.
+        foreach (var (groupKey, entityKeys) in runnablesByDomain)
+        {
+            if (!domainProjectsMap.TryGetValue(groupKey, out var libraryProjects)) continue;
+
+            var host = entityKeys[0];
+            domainProjectsMap[host].AddRange(libraryProjects);
+            foreach (var key in projToDomainMap.Where(kv => kv.Value.Equals(groupKey, StringComparison.OrdinalIgnoreCase)).Select(kv => kv.Key).ToList())
+            {
+                projToDomainMap[key] = host;
+            }
+            domainProjectsMap.Remove(groupKey);
+            domainPrimaryMap.Remove(groupKey);
+            domainZoneMap.Remove(groupKey);
+            domainNameMap.Remove(groupKey);
         }
 
         // 2. Identify Infrastructure Nodes (Databases, Topics, ExternalServices)
@@ -661,11 +699,14 @@ public partial class ArchitectureViewEngine
             if (!string.IsNullOrEmpty(effectivePrimaryRole)) entityProps["primary_role"] = effectivePrimaryRole;
             if (effectiveSecRoles.Count > 0) entityProps["secondary_roles"] = JsonSerializer.Serialize(effectiveSecRoles);
 
+            entityDomainMap.TryGetValue(domainId, out var memberOf);
             nodes.Add(new DomainEntityDto
             {
                 Id = domainId,
                 Name = meta.Name,
                 DisplayName = meta.DisplayName,
+                Domain = memberOf.Key,
+                DomainDisplayName = memberOf.DisplayName,
                 Kind = nodeKind,
                 PrimaryRole = effectivePrimaryRole,
                 SecondaryRoles = effectiveSecRoles.Count > 0 ? effectiveSecRoles : null,
@@ -824,8 +865,8 @@ public partial class ArchitectureViewEngine
                         _ => d.Kind.ToString()
                     },
                     ["is_library"] = d.Kind == NodeKind.Library ? "true" : "false",
-                    ["domain"] = d.Name,
-                    ["domainDisplayName"] = d.DisplayName
+                    ["domain"] = d.Domain ?? d.Name,
+                    ["domainDisplayName"] = d.DomainDisplayName ?? d.DisplayName
                 }
             });
         }

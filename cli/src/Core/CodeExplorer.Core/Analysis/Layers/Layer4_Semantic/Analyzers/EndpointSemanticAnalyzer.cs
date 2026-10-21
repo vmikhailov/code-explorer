@@ -161,7 +161,7 @@ public static class EndpointSemanticAnalyzer
         else if (kind == OntologyConstants.NodeLabels.Topic)
         {
             var broker = syntactic.Properties.GetValueOrDefault("broker_type") ?? "event";
-            var topicId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Topic}:{broker}:{name.ToLowerInvariant()}";
+            var topicId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Topic}:{broker}:{name}";
             typedNode = new TopicNode(topicId, name, relativePath, broker);
             var parentScopeId = syntactic.ParentScopeId;
             if (!string.IsNullOrEmpty(parentScopeId))

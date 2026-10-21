@@ -49,8 +49,22 @@ public static class WorkspaceConventions
 
     public static bool TryGetDomainIcon(string domainName, out string icon) => _current.Domains.TryGetDomainIcon(domainName, out icon);
 
-    public static bool TryGetConfiguredDomain(string? projectName, string? filePath, out string domain) =>
-        _current.Domains.TryGetConfiguredDomain(projectName, filePath, out domain);
+    /// <summary>
+    /// Domain detection (configured domains.json patterns and the path/name/intent heuristics) is switched off for now:
+    /// it grouped unrelated services into one domain. While off, every service is its own unit and carries no domain.
+    /// </summary>
+    public static bool DomainDetectionEnabled { get; set; }
+
+    public static bool TryGetConfiguredDomain(string? projectName, string? filePath, out string domain)
+    {
+        if (!DomainDetectionEnabled)
+        {
+            domain = string.Empty;
+            return false;
+        }
+
+        return _current.Domains.TryGetConfiguredDomain(projectName, filePath, out domain);
+    }
 
     public static bool IsPlaceholderName(string? name) => _current.Messaging.IsPlaceholderName(name);
 
@@ -70,8 +84,17 @@ public static class WorkspaceConventions
         string? rawDomain,
         string? serviceOrProjectName = null,
         string? filePath = null,
-        string? role = null) =>
-        _current.Domains.CanonicalizeDomain(rawDomain, serviceOrProjectName, filePath, role);
+        string? role = null)
+    {
+        if (DomainDetectionEnabled)
+        {
+            return _current.Domains.CanonicalizeDomain(rawDomain, serviceOrProjectName, filePath, role);
+        }
+
+        // Detection off: the "domain" is just the service itself.
+        var identity = _current.ServiceResolver.NormalizeServiceName(serviceOrProjectName ?? rawDomain);
+        return string.IsNullOrWhiteSpace(identity) ? "CoreDomain" : ToPascalCase(identity);
+    }
 
     public static string FormatDomainDisplayName(string canonicalDomain) => DomainTaxonomyEngine.FormatDomainDisplayName(canonicalDomain);
 

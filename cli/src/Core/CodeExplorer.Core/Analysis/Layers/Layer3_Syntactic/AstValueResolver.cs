@@ -383,7 +383,11 @@ public static class AstValueResolver
             rawText.StartWithIC("self."))
         {
             var propName = rawText[5..].Trim();
-            if (ConstantRegistry.TryResolve(contextOrProject, propName, out var propVal))
+            // A plain field (no further member access) must not leak workspace-global constants of the same name.
+            var isPlainField = propName.IndexOf('.') < 0;
+            if (isPlainField
+                    ? ConstantRegistry.TryResolveProjectScoped(contextOrProject, propName, out var propVal)
+                    : ConstantRegistry.TryResolve(contextOrProject, propName, out propVal))
             {
                 result = propVal;
                 return true;
