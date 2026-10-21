@@ -314,6 +314,27 @@ public static class ServerRouteBuilderExtensions
             }
         });
 
+        endpoints.MapGet("/api/architecture/edge-evidence", async (IArchitectureQueryService archQueryService, string? sourceId, string? targetId, string? kind, string[]? sourceIds, string[]? targetIds, CancellationToken ct) =>
+        {
+            try
+            {
+                var sources = (sourceIds ?? []).Append(sourceId).Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!).Distinct().ToList();
+                var targets = (targetIds ?? []).Append(targetId).Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!).Distinct().ToList();
+                if (sources.Count == 0 || targets.Count == 0)
+                {
+                    return Results.BadRequest(new { error = "'sourceId'/'sourceIds' and 'targetId'/'targetIds' are required." });
+                }
+                logger.LogInformation("[REST] GET /api/architecture/edge-evidence ({Sources} -> {Targets}, kind: {Kind})", sources.Count, targets.Count, kind);
+                var evidence = await archQueryService.GetEdgeEvidenceAsync(sources, targets, kind, ct);
+                return Results.Ok(evidence);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/architecture/edge-evidence");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
         endpoints.MapGet("/api/diagram", async (IGraphClient graphClient, string? type, string? format, string? project, bool? includeLibraries, CancellationToken ct) =>
         {
             try

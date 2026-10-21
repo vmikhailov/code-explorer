@@ -7,7 +7,7 @@ import {
   GateItemDto,
   GateViolationDto,
   DatabaseEvidenceResponseDto,
-  DatabaseEvidenceItemDto,
+  ArchitectureEvidenceItemDto,
 } from '../../proto/types';
 
 export interface MetadataDto {
@@ -674,11 +674,11 @@ export function buildServiceGroupItems(
 }
 
 export function buildDatabaseEvidenceItems(res: DatabaseEvidenceResponseDto | null): CodeExplorerTreeItem[] {
-  if (!res || !res.evidence || res.evidence.length === 0) {
+  if (!res || !res.items || res.items.length === 0) {
     return [new CodeExplorerTreeItem('empty-notice', 'No query or model evidence recorded', vscode.TreeItemCollapsibleState.None)];
   }
 
-  return res.evidence.map((ev: DatabaseEvidenceItemDto) => {
+  return res.items.map((ev: ArchitectureEvidenceItemDto) => {
     const opTag = ev.operation ? `[${ev.operation.toUpperCase()}] ` : '';
     const item = new CodeExplorerTreeItem(
       'database-evidence-item',
@@ -697,8 +697,8 @@ export function buildDatabaseEvidenceItems(res: DatabaseEvidenceResponseDto | nu
     tooltipParts.push(`${ev.kind} (${ev.operation}) - ${ev.title}`);
     if (ev.callerSymbol) tooltipParts.push(`Caller: ${ev.callerSymbol}`);
     if (ev.filePath) tooltipParts.push(`File: ${ev.filePath}${lineStr}`);
-    if (ev.confidence) tooltipParts.push(`Confidence: ${ev.confidence}`);
-    if (ev.snippet) tooltipParts.push(`\n-- Snippet:\n${ev.snippet}`);
+    if (ev.reason) tooltipParts.push(`Reason: ${ev.reason}`);
+    if (ev.codeSnippet) tooltipParts.push(`\n-- Snippet:\n${ev.codeSnippet}`);
     item.tooltip = tooltipParts.join('\n');
 
     const opUpper = (ev.operation || '').toUpperCase();
@@ -706,9 +706,9 @@ export function buildDatabaseEvidenceItems(res: DatabaseEvidenceResponseDto | nu
       : opUpper === 'INSERT' ? 'diff-added'
       : opUpper === 'UPDATE' ? 'edit'
       : opUpper === 'DELETE' ? 'trash'
-      : ev.kind === 'Migration' ? 'history'
-      : ev.kind === 'Configuration' ? 'gear'
-      : ev.kind === 'Entity' || ev.kind === 'Table' ? 'table'
+      : ev.kind === 'migration' ? 'history'
+      : ev.kind === 'config' ? 'gear'
+      : ev.kind === 'orm' || ev.kind === 'table' ? 'table'
       : 'database';
 
     item.iconPath = new vscode.ThemeIcon(iconName);

@@ -65,7 +65,7 @@ public partial class WebSocketServerHandler
     public int ActiveSessionsCount => _sessions.Count;
 
     private readonly IGraphClient _graphClient;
-    private readonly Core.Analysis.IArchitectureQueryService _archQueryService;
+    private readonly IArchitectureQueryService _archQueryService;
     private readonly CodeExplorerRepository _repository;
     private readonly WorkspaceIndexer _indexer;
     private readonly IHostApplicationLifetime? _appLifetime;
@@ -90,10 +90,10 @@ public partial class WebSocketServerHandler
         int idleTimeoutSeconds = 30,
         string? workspaceRoot = null,
         string? serverVersion = null,
-        Core.Analysis.IArchitectureQueryService? archQueryService = null)
+        IArchitectureQueryService? archQueryService = null)
     {
         _graphClient = graphClient;
-        _archQueryService = archQueryService ?? new Core.Analysis.ArchitectureQueryService(graphClient);
+        _archQueryService = archQueryService ?? new ArchitectureQueryService(graphClient);
         _repository = repository;
         _indexer = indexer;
         _logger = logger;
@@ -238,18 +238,18 @@ public partial class WebSocketServerHandler
                         : null;
                     var viewType = (viewReq?.View?.ToLowerInvariant()) switch
                     {
-                        "serviceflow" or "flow" or "c2" => Core.Analysis.ArchitectureViewType.ServiceFlow,
-                        "component" or "c3" => Core.Analysis.ArchitectureViewType.Component,
-                        "domain" or "domainmap" or "domain-map" or "semantic" => Core.Analysis.ArchitectureViewType.DomainMap,
-                        "contexts" or "boundedcontexts" or "contextmap" or "context-map" or "boundedcontext" or "bounded-context" => Core.Analysis.ArchitectureViewType.BoundedContexts,
-                        "tiers" or "tiered" or "layers" or "layered" => Core.Analysis.ArchitectureViewType.Tiers,
-                        _ => Core.Analysis.ArchitectureViewType.SystemContext
+                        "serviceflow" or "flow" or "c2" => ArchitectureViewType.ServiceFlow,
+                        "component" or "c3" => ArchitectureViewType.Component,
+                        "domain" or "domainmap" or "domain-map" or "semantic" => ArchitectureViewType.DomainMap,
+                        "contexts" or "boundedcontexts" or "contextmap" or "context-map" or "boundedcontext" or "bounded-context" => ArchitectureViewType.BoundedContexts,
+                        "tiers" or "tiered" or "layers" or "layered" => ArchitectureViewType.Tiers,
+                        _ => ArchitectureViewType.SystemContext
                     };
-                    var viewGraph = await _archQueryService.GetViewAsync(new Core.Analysis.ArchitectureViewRequest
+                    var viewGraph = await _archQueryService.GetViewAsync(new ArchitectureViewRequest
                     {
                         ViewType = viewType,
                         Scope = viewReq?.Scope,
-                        IncludeLibraries = viewReq?.IncludeLibraries ?? (viewType == Core.Analysis.ArchitectureViewType.Tiers)
+                        IncludeLibraries = viewReq?.IncludeLibraries ?? (viewType == ArchitectureViewType.Tiers)
                     }, cancellationToken);
                     await SendResponseAsync(session, WsMessageTypes.GetViewResponse, reqId, new QueryResponseDto
                     {

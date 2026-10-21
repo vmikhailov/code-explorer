@@ -5,20 +5,24 @@ scope: Module
 dimension: Boundaries
 name: Pipeline Layer Strict Hierarchy
 severity: Error
-description: 'Enforces unidirectional pipeline flow: parser stage N must not depend on or call higher-order parser stages.'
-remediation: Remove references to higher pipeline layers. Use decoupled events, abstractions, or move shared data structures into Core/Common.
+description: 'Enforces unidirectional pipeline flow: code in analysis layer N must not call into higher layers. Layers are identified by their folder (Layer1_Physical .. Layer5_Global).'
+remediation: Move the shared helper into a layer-neutral location (Core/Common or Core/Parser/Shared), or invert the dependency with an abstraction or pipeline-context data.
 query: >-
-  MATCH (src)-[:CALLS|USES_TYPE]->(tgt)
+  MATCH (src:Function)-[:CALLS]->(tgt:Function)
   WHERE NOT coalesce(src.is_test, false)
-    AND src.stage_order IS NOT NULL
-    AND tgt.stage_order IS NOT NULL
-    AND src.stage_order < tgt.stage_order
-  RETURN 
-    coalesce(src.symbol, src.file_path) AS file,
+    AND NOT tgt.name IN ['Push', 'Pop', 'Match', 'Select', 'Stop', 'Start', 'Clear', 'Add', 'Remove', 'Contains', 'Dispose', 'Close', 'Flush', 'Reset']
+    AND (
+      (src.path CONTAINS 'Layer1_Physical' AND (tgt.path CONTAINS 'Layer2_Boundaries' OR tgt.path CONTAINS 'Layer3_Syntactic' OR tgt.path CONTAINS 'Layer4_Semantic' OR tgt.path CONTAINS 'Layer5_Global'))
+      OR (src.path CONTAINS 'Layer2_Boundaries' AND (tgt.path CONTAINS 'Layer3_Syntactic' OR tgt.path CONTAINS 'Layer4_Semantic' OR tgt.path CONTAINS 'Layer5_Global'))
+      OR (src.path CONTAINS 'Layer3_Syntactic' AND (tgt.path CONTAINS 'Layer4_Semantic' OR tgt.path CONTAINS 'Layer5_Global'))
+      OR (src.path CONTAINS 'Layer4_Semantic' AND tgt.path CONTAINS 'Layer5_Global')
+    )
+  RETURN
+    coalesce(src.path, src.file_path) AS file,
     coalesce(src.start_line, 0) AS line,
     src.name AS symbol,
     tgt.name AS target,
-    'Pipeline stage violation: component depends on higher-order pipeline layer' AS message
+    'Pipeline stage violation: ' + src.name + ' calls ' + tgt.name + ' declared in a higher-order layer (' + coalesce(tgt.path, tgt.file_path) + ')' AS message
 ratchet:
   enabled: true
   baseline: baselines/SIG-P-B-001.json

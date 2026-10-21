@@ -200,58 +200,21 @@ public partial class ArchitectureViewEngine
         response.Schema = dbSchema ?? "";
 
         // 2. Resolve Service/Project scope if specified
-        string? servicePath = null;
-        string? serviceName = null;
-        if (!string.IsNullOrWhiteSpace(serviceId))
-        {
-            try
-            {
-                var sQuery = """
-                    MATCH (s)
-                    WHERE (s:Project OR s:Service OR s:Worker OR s:App)
-                      AND (s.id = $sId OR s.name = $sId OR s.id ENDS WITH (':' + $sId))
-                    RETURN s.id AS id, s.name AS name, coalesce(s.file_path, s.path) AS path
-                    LIMIT 1
-                    """;
-                var sJson = await db.ExecuteQueryAsync(sQuery, new Dictionary<string, object> { ["sId"] = serviceId }, ct);
-                using var sDoc = JsonDocument.Parse(sJson);
-                var firstS = sDoc.RootElement.EnumerateArray().FirstOrDefault();
-                if (firstS.ValueKind == JsonValueKind.Object)
-                {
-                    serviceName = firstS.GetStringProp("name", serviceId);
-                    servicePath = firstS.GetStringProp("path");
-                }
-            }
-            catch { }
-            if (string.IsNullOrEmpty(serviceName)) serviceName = serviceId;
-        }
+        var scope = string.IsNullOrWhiteSpace(serviceId) ? null : await ResolveServiceScopeAsync(serviceId, ct);
+        string? serviceName = scope?.Name;
 
-        var items = new List<DatabaseEvidenceItemDto>();
+        var items = new List<ArchitectureEvidenceItemDto>();
         var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // Helper to check if file/evidence belongs to requested service
-        bool MatchesService(string? filePath, string? itemService)
-        {
-            if (string.IsNullOrWhiteSpace(serviceId)) return true;
-            if (!string.IsNullOrEmpty(itemService) && (itemService.Equals(serviceName, StringComparison.OrdinalIgnoreCase) || itemService.Equals(serviceId, StringComparison.OrdinalIgnoreCase)))
-                return true;
-            if (!string.IsNullOrEmpty(filePath))
-            {
-                if (!string.IsNullOrEmpty(servicePath) && (filePath.StartWithIC(servicePath) || filePath.Contains(servicePath, StringComparison.OrdinalIgnoreCase)))
-                    return true;
-                if (!string.IsNullOrEmpty(serviceName) && filePath.Contains(serviceName, StringComparison.OrdinalIgnoreCase))
-                    return true;
-            }
-            return false;
-        }
-
+        bool MatchesService(string? filePath, string? itemService) =>
+            scope is null || scope.Matches(filePath, itemService);
         // 3. Query Nodes (:Query)
         try
         {
             var qQuery = """
                 MATCH (q:Query)
                 RETURN q.id AS id, q.name AS name, coalesce(q.file_path, q.path) AS path,
-                       q.line AS line, q.line_end AS line_end,
+                       coalesce(q.start_line, q.line) AS line, coalesce(q.end_line, q.line_end) AS line_end,
                        json_extract(q.properties, '$.query_text') AS query_text,
                        json_extract(q.properties, '$.verb') AS verb,
                        json_extract(q.properties, '$.schema') AS schema,
@@ -344,7 +307,7 @@ public partial class ArchitectureViewEngine
                 var key = $"query:{qPath}:{lineStart}:{snippet}";
                 if (seenKeys.Add(key))
                 {
-                    items.Add(new DatabaseEvidenceItemDto
+                    items.Add(new ArchitectureEvidenceItemDto
                     {
                         Id = qId ?? "",
                         Kind = "query",
@@ -372,7 +335,7 @@ public partial class ArchitectureViewEngine
                   AND r.kind IN ['USES_DB', 'CONFIGURES', 'READS_FROM', 'WRITES_TO']
                   AND NOT (src:Project OR src:Service OR src:Workspace OR src:SemanticStructure)
                 RETURN src.id AS id, src.name AS name, labels(src)[0] AS kind,
-                       coalesce(src.file_path, src.path) AS path, src.line AS line,
+                       coalesce(src.file_path, src.path) AS path, coalesce(src.start_line, src.line) AS line,
                        r.kind AS rel_kind,
                        json_extract(src.properties, '$.service') AS service
                 """;
@@ -425,7 +388,7 @@ public partial class ArchitectureViewEngine
                 var key = $"{itemKind}:{srcPath}:{line}";
                 if (seenKeys.Add(key))
                 {
-                    items.Add(new DatabaseEvidenceItemDto
+                    items.Add(new ArchitectureEvidenceItemDto
                     {
                         Id = srcId,
                         Kind = itemKind,
@@ -442,13 +405,70 @@ public partial class ArchitectureViewEngine
         }
         catch { }
 
+        // 4b. Two-hop traversal: code -> Table/Procedure -> Database
+        try
+        {
+            var objects = await FindDatabaseObjectsAsync(resolvedDbId ?? databaseId, dbName ?? databaseId, databaseId, ct);
+            foreach (var obj in objects)
+            {
+                var usersQuery = """
+                    MATCH (src)-[r]->(obj)
+                    WHERE obj.id = $objId
+                      AND r.kind IN ['PERSISTED_IN', 'READS_FROM', 'WRITES_TO', 'CALLS']
+                      AND NOT (src:Project OR src:Service OR src:Workspace OR src:SemanticStructure)
+                    RETURN src.id AS id, src.name AS name, coalesce(src.file_path, src.path) AS path,
+                           coalesce(src.start_line, src.line) AS line, coalesce(src.end_line, src.line_end) AS line_end,
+                           r.kind AS rel_kind, json_extract(src.properties, '$.service') AS service
+                    """;
+                var usersJson = await db.ExecuteQueryAsync(usersQuery, new Dictionary<string, object> { ["objId"] = obj.Id }, ct);
+                using var usersDoc = JsonDocument.Parse(usersJson);
+                foreach (var row in usersDoc.RootElement.EnumerateArray())
+                {
+                    var path = row.GetStringProp("path");
+                    if (string.IsNullOrEmpty(path) || !MatchesService(path, row.GetStringProp("service"))) continue;
+
+                    var relKind = row.GetStringProp("rel_kind");
+                    var line = row.GetNullableIntProp("line") ?? 1;
+                    var lineEnd = row.GetNullableIntProp("line_end") ?? line;
+                    var isProcedure = obj.Label == OntologyConstants.NodeLabels.Procedure;
+
+                    var (kind, operation) = relKind switch
+                    {
+                        "PERSISTED_IN" => ("orm", "ORM"),
+                        "WRITES_TO" => ("query", "INSERT"),
+                        "READS_FROM" => ("query", "SELECT"),
+                        _ => (isProcedure ? "procedure" : "query", isProcedure ? "EXEC" : "SELECT")
+                    };
+
+                    var key = $"{kind}:{path}:{line}:{obj.Id}";
+                    if (!seenKeys.Add(key)) continue;
+
+                    items.Add(new ArchitectureEvidenceItemDto
+                    {
+                        Id = row.GetStringProp("id"),
+                        Kind = kind,
+                        Operation = operation,
+                        Title = $"{row.GetStringProp("name")} → {obj.Name}",
+                        FilePath = path,
+                        LineStart = line,
+                        LineEnd = lineEnd,
+                        CallerSymbol = row.GetStringProp("name"),
+                        TargetSymbol = obj.Name,
+                        ServiceName = row.GetStringProp("service") is { Length: > 0 } s ? s : serviceName,
+                        Reason = $"{relKind} {obj.Label.ToLowerInvariant()} '{obj.Name}' belonging to database '{dbName}'"
+                    });
+                }
+            }
+        }
+        catch { }
+
         // Also if target node has a declaration file and not yet added, add it
         if (!string.IsNullOrEmpty(dbDeclPath) && MatchesService(dbDeclPath, serviceName))
         {
             var key = $"config:{dbDeclPath}:1";
             if (seenKeys.Add(key))
             {
-                items.Add(new DatabaseEvidenceItemDto
+                items.Add(new ArchitectureEvidenceItemDto
                 {
                     Id = resolvedDbId ?? databaseId,
                     Kind = "config",

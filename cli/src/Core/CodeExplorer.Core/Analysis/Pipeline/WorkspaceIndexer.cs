@@ -52,6 +52,11 @@ public class WorkspaceIndexer
                 _fileParsers.Add(fileParser);
         }
 
+        if (parser is ISharedFileParser sharedParser)
+        {
+            SharedFileParserRegistry.Register(sharedParser);
+        }
+
         if (parser is ILibraryConfigurationDescriptor configDesc)
         {
             LibraryConfigurationRegistry.Register(configDesc);
@@ -106,7 +111,8 @@ public class WorkspaceIndexer
                 var isProject = typeof(IProjectParser).IsAssignableFrom(type);
                 var isFile = typeof(IFileParser).IsAssignableFrom(type);
                 var isComponent = typeof(Components.IComponentLibraryParser).IsAssignableFrom(type);
-                if (!isProject && !isFile && !isComponent)
+                var isShared = typeof(ISharedFileParser).IsAssignableFrom(type);
+                if (!isProject && !isFile && !isComponent && !isShared)
                     continue;
 
                 if (type.GetConstructor(Type.EmptyTypes) != null)
@@ -142,6 +148,7 @@ public class WorkspaceIndexer
                !type.IsInterface &&
                (typeof(IProjectParser).IsAssignableFrom(type) ||
                 typeof(IFileParser).IsAssignableFrom(type) ||
+                typeof(ISharedFileParser).IsAssignableFrom(type) ||
                 typeof(Components.IComponentLibraryParser).IsAssignableFrom(type));
     }
 
@@ -403,7 +410,7 @@ public class WorkspaceIndexer
 
     private async Task RunParsingPipelineAsync(ParsingContext ctx)
     {
-        ConfigStore.Clear();
+        ConfigurationIndex.Clear();
         ConstantRegistry.Clear();
         RouteDictionaryRegistry.Clear();
 

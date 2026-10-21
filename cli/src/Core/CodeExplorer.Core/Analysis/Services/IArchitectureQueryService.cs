@@ -86,5 +86,8 @@ public interface IArchitectureQueryService
     /// Retrieves database decision and query evidence (SQL queries, ORM entities, tables, configs, migrations) for a given database, optionally scoped to a service.
     /// </summary>
     Task<DatabaseEvidenceResponseDto> GetDatabaseEvidenceAsync(string databaseId, string? serviceId = null, CancellationToken ct = default);
+
+    /// <summary>Source-code evidence for a rendered edge; group edges pass all member ids per side.</summary>
+    Task<EdgeEvidenceResponseDto> GetEdgeEvidenceAsync(IReadOnlyList<string> sourceIds, IReadOnlyList<string> targetIds, string? edgeKind, CancellationToken ct = default);
 }
 

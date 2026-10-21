@@ -76,7 +76,7 @@ public static class ConstantRegistry
                 _projectConstants[$"{domain}:{cleanKey}"] = cleanVal;
             }
 
-            var stripped = CodeExplorer.Core.Analysis.EndpointScoringEngine.StripCommonAffixes(projectName);
+            var stripped = Analysis.EndpointScoringEngine.StripCommonAffixes(projectName);
             if (!string.IsNullOrWhiteSpace(stripped) && !stripped.Equals(projectName.Trim(), StringComparison.OrdinalIgnoreCase))
             {
                 _projectConstants[$"{stripped}:{cleanKey}"] = cleanVal;
@@ -144,7 +144,7 @@ public static class ConstantRegistry
                 value = dVal;
                 return true;
             }
-            var stripped = CodeExplorer.Core.Analysis.EndpointScoringEngine.StripCommonAffixes(projectName);
+            var stripped = Analysis.EndpointScoringEngine.StripCommonAffixes(projectName);
             if (!string.IsNullOrWhiteSpace(stripped))
             {
                 if (_projectConstants.TryGetValue($"{stripped}:{cleanKey}", out var sVal))
@@ -352,15 +352,7 @@ public static class ConstantRegistry
     {
         if (string.IsNullOrWhiteSpace(content)) return;
 
-        var fileName = Path.GetFileName(filePath).ToLowerInvariant();
         var ext = Path.GetExtension(filePath).ToLowerInvariant();
-
-        if (fileName.StartsWith(".env") || fileName.EndsWith(".env") || fileName.Contains(".env.") ||
-            (fileName.Contains("env") && ext is not (".ts" or ".tsx" or ".js" or ".jsx" or ".cs" or ".go" or ".json" or ".yaml" or ".yml")))
-        {
-            ScanAndRegisterEnv(content, projectName);
-            return;
-        }
 
         // 1. Run universal TreeSitter AST extraction with topological resolution
         AstConstantExtractor.ExtractAndRegister(filePath, content, projectName);
@@ -385,34 +377,23 @@ public static class ConstantRegistry
         }
     }
 
-    public static void ScanAndRegisterEnv(string content, string? projectName = null)
-    {
-        if (string.IsNullOrWhiteSpace(content)) return;
-        var lines = content.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
-        // Supports: [export ]KEY="value", KEY='value', KEY=unquoted_value # comment
-        var envRegex = new Regex(@"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:([""'])(.*?)\2|([^#\r\n]*))", RegexOptions.Compiled);
-
-        foreach (var line in lines)
-        {
-            var trimmed = line.Trim();
-            if (trimmed.StartsWith('#') || trimmed.StartsWith("//")) continue;
-
-            var match = envRegex.Match(trimmed);
-            if (!match.Success) continue;
-
-            var key = match.Groups[1].Value.Trim();
-            var val = match.Groups[3].Success ? match.Groups[3].Value.Trim() : match.Groups[4].Value.Trim();
-
-            if (!string.IsNullOrWhiteSpace(key) && !string.IsNullOrWhiteSpace(val))
-            {
-                Register(projectName, key, val);
-            }
-        }
-    }
-
     public static bool TryDeriveTopicOrQueueFromConstantName(string name, out string derived) =>
         TryDeriveTopicOrQueueFromEnvVar(name, out derived);
 
+    /// <summary>
+    /// A subscription key (e.g. EVENT_BUS_SUBSCRIPTION_NAME) only holds the subscription's own name,
+    /// so the topic is taken from the parent-topic convention rather than from the key's literal value.
+    /// </summary>
+    public static bool TryDeriveParentTopicFromSubscriptionKey(string key, out string topic)
+    {
+        topic = string.Empty;
+        if (string.IsNullOrWhiteSpace(key)) return false;
+        var upper = key.ToUpperInvariant();
+        var isSubscriptionKey = upper.EndsWith("_SUBSCRIPTION_NAME") || upper.EndsWith("_SUBSCRIBER_NAME") ||
+                                upper.EndsWith("_SUBSCRIPTION") || upper.EndsWith("_SUBSCRIBER") ||
+                                upper.EndsWith("_SUB_NAME") || upper.EndsWith("_SUB");
+        return isSubscriptionKey && TryDeriveTopicOrQueueFromEnvVar(key, out topic);
+    }
     public static bool TryDeriveTopicOrQueueFromEnvVar(string envVar, out string derived)
     {
         derived = string.Empty;
@@ -444,7 +425,7 @@ public static class ConstantRegistry
             if (asTopic.EndsWith("_SUB")) asTopic = asTopic[..^4] + "_TOPIC";
             if (asTopic != upper && !asTopic.Equals("TOPIC", StringComparison.OrdinalIgnoreCase))
             {
-                var norm = WorkspaceConventions.NormalizeTopicName(asTopic);
+                var norm = WorkspaceConventions.NormalizeTopicName(Conventions.Services.MessagingConventionService.AlgorithmicTopicKebabCase(asTopic));
                 if (!string.IsNullOrEmpty(norm) && !WorkspaceConventions.IsPlaceholderName(norm))
                 {
                     derived = norm;
@@ -466,7 +447,7 @@ public static class ConstantRegistry
             else if (raw.EndsWith("_ID")) raw = raw[..^3];
 
             if (raw is "TOPIC" or "QUEUE" or "EXCHANGE" or "DEFAULT_TOPIC" or "DEFAULT_QUEUE") return false;
-            var norm = WorkspaceConventions.NormalizeTopicName(raw);
+            var norm = WorkspaceConventions.NormalizeTopicName(Conventions.Services.MessagingConventionService.AlgorithmicTopicKebabCase(raw));
             if (!string.IsNullOrEmpty(norm) && !WorkspaceConventions.IsPlaceholderName(norm))
             {
                 derived = norm;
@@ -578,7 +559,11 @@ public static class ConstantRegistry
                 if (!string.IsNullOrEmpty(envVar) && envVar.Length > 2)
                 {
                     string resolvedValue;
-                    if (TryResolve(projectName, envVar, out var knownVal) && !string.Equals(knownVal, envVar, StringComparison.OrdinalIgnoreCase))
+                    if (TryDeriveParentTopicFromSubscriptionKey(envVar, out var parentTopic))
+                    {
+                        resolvedValue = parentTopic;
+                    }
+                    else if (TryResolve(projectName, envVar, out var knownVal) && !string.Equals(knownVal, envVar, StringComparison.OrdinalIgnoreCase))
                     {
                         resolvedValue = knownVal;
                     }

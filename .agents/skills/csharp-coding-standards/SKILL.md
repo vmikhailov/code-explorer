@@ -25,13 +25,14 @@ Use this skill when:
 ## Core Principles
 
 1. **Immutability by Default** - Use `record` types and `init`-only properties
-2. **Type Safety** - Leverage nullable reference types and value objects
+2. **Type Safety & Nullability** - Leverage nullable reference types (respect non-nullable contracts without redundant defensive null checks) and value objects
 3. **Modern Pattern Matching** - Use `switch` expressions and patterns extensively
 4. **Async Everywhere** - Prefer async APIs with proper cancellation support
 5. **Zero-Allocation Patterns** - Use `Span<T>` and `Memory<T>` for performance-critical code
 6. **API Design** - Accept abstractions, return appropriately specific types
 7. **Composition Over Inheritance** - Avoid abstract base classes, prefer composition
 8. **Value Objects as Structs** - Use `readonly record struct` for value objects
+9. **Namespace Hygiene** - Shorten namespaces, avoid redundant type qualification, and leverage global/implicit usings
 
 ---
 
@@ -285,7 +286,9 @@ public readonly record struct OrderError(string Code, string Message);
 - Use `record` for DTOs, messages, and domain entities
 - Use `readonly record struct` for value objects
 - Leverage pattern matching with `switch` expressions
-- Enable and respect nullable reference types
+- Enable and respect nullable reference types (treat non-nullable types as guaranteed non-null)
+- Shorten namespaces and omit redundant type qualifications
+- Rely on global/implicit usings and omit unnecessary file-level imports
 - Use async/await for all I/O operations
 - Accept `CancellationToken` in all async methods
 - Use `Span<T>` and `Memory<T>` for high-performance scenarios
@@ -299,6 +302,9 @@ public readonly record struct OrderError(string Code, string Message);
 - Don't use classes for value objects (use `readonly record struct`)
 - Don't create deep inheritance hierarchies
 - Don't ignore nullable reference type warnings
+- Don't add unnecessary null checks on non-nullable symbols
+- Don't specify fully qualified namespace paths when types can be imported cleanly
+- Don't re-declare imports already provided by global or implicit usings
 - Don't block on async code (`.Result`, `.Wait()`)
 - Don't use `byte[]` when `Span<byte>` suffices
 - Don't forget `CancellationToken` parameters

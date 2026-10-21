@@ -101,7 +101,7 @@ public sealed class MessagingConventionService
     }
 
     /// <summary>
-    /// Normalizes raw topic names or constants using configured aliases or algorithmic kebab-casing.
+    /// Validates raw topic names and applies configured aliases; the literal name is otherwise preserved.
     /// </summary>
     public string NormalizeTopicName(string raw)
     {
@@ -118,30 +118,23 @@ public sealed class MessagingConventionService
             return mapped;
         }
 
-        // Algorithmic fallback: convert SCREAMING_SNAKE_CASE or camelCase to kebab-case
-        var normalized = AlgorithmicTopicKebabCase(t);
-        return IsValidTopicOrQueueName(normalized) ? normalized : string.Empty;
+        return t;
     }
 
     /// <summary>
-    /// Algorithmically converts SCREAMING_SNAKE_CASE or camelCase into kebab-case.
+    /// Guesses a topic name from an environment variable / config key (SCREAMING_SNAKE_CASE or camelCase to kebab-case).
+    /// Only for names derived from keys, never for literal topic or queue names.
     /// </summary>
     public static string AlgorithmicTopicKebabCase(string name)
     {
         if (string.IsNullOrEmpty(name)) return name;
 
-        // If it already contains hyphens and lowercase letters, assume it's already a normalized topic
         if (name.Contains('-') && name.Any(char.IsLower)) return name;
 
-        // Replace underscores with hyphens
         var clean = name.Replace('_', '-');
-
-        // Split camelCase into words
         clean = Regex.Replace(clean, @"([a-z0-9])([A-Z])", "$1-$2");
-
         var lower = clean.ToLowerInvariant();
 
-        // Strip trailing "-name" if it ends in "-topic-name" or "-sub-name"
         if (lower.EndsWith("-topic-name")) lower = lower[..^5];
         else if (lower.EndsWith("-sub-name")) lower = lower[..^5];
 

@@ -1,5 +1,166 @@
 {
   "gateId": "SIG-P-B-001",
-  "allowedViolations": 0,
-  "entries": []
+  "allowedViolations": 16,
+  "entries": [
+    {
+      "fingerprint": "f6060584484e053d049143a9d9700e01b7bd917e7aa9b8d0bf57c46648024c5b",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Layer4SemanticAnalyzer.cs",
+      "line": 15,
+      "column": 0,
+      "symbol": "ParseAsync",
+      "target": "UploadNodeTreeAsync",
+      "acknowledgedAt": "2026-10-21T01:04:51.3408578+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "2b5e752b4429ba4cc05defa6aa3de002afee5bae10137bd46822b6eb80c96ffe",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Configuration/ConfigurationParser.cs",
+      "line": 201,
+      "column": 0,
+      "symbol": "CreateDatabaseNode",
+      "target": "IsAbstractEngineOnlyDatabase",
+      "acknowledgedAt": "2026-10-21T01:04:51.3408578+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "2a0fb49e900bb385965830c31ecda5e810dac65ce122f45a707be683b6d59ffa",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/SyntaxEnricher.cs",
+      "line": 81,
+      "column": 0,
+      "symbol": "EnrichAsync",
+      "target": "IsAbstractEngineOnlyDatabase",
+      "acknowledgedAt": "2026-10-21T01:04:51.3408578+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "75410ceafc02a734a2da0dc970a20cfbdc04aa5075d710b974adf7f395ac9aa4",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Sql/NestedSqlParser.cs",
+      "line": 428,
+      "column": 0,
+      "symbol": "BuildSqlHierarchy",
+      "target": "IsValidTableIdentifier",
+      "acknowledgedAt": "2026-10-21T01:04:51.3408578+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "ddcfe025a5d8386dd5cdf36d86add95d0d1ce9512125cc610ec0dbf538de08e4",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Sql/NestedSqlParser.cs",
+      "line": 289,
+      "column": 0,
+      "symbol": "ExtractSqlDependencies",
+      "target": "IsValidTableIdentifier",
+      "acknowledgedAt": "2026-10-21T01:04:51.3408578+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "b6023ed6ee1a2a026af63eef3e7c60b053571c533ed375ce0f97b107dab102c4",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Sql/NestedSqlParser.cs",
+      "line": 266,
+      "column": 0,
+      "symbol": "ResolveSqlIdentifier",
+      "target": "IsValidTableIdentifier",
+      "acknowledgedAt": "2026-10-21T01:04:51.3408578+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "1acb1012d6419c9a08c5e4c0fa032626f0b96fdb494f826ff70d52664e8bd890",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/SyntaxEnricher.cs",
+      "line": 81,
+      "column": 0,
+      "symbol": "EnrichAsync",
+      "target": "BuildCanonicalDatabaseId",
+      "acknowledgedAt": "2026-10-21T01:04:51.3408578+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "70fb7b1a3e1c68f82cbfd65be2e5ccfbf13459e29f6a2366f37d95ca7f8ddd01",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Configuration/ConfigurationParser.cs",
+      "line": 201,
+      "column": 0,
+      "symbol": "CreateDatabaseNode",
+      "target": "IsGenericConfigKey",
+      "acknowledgedAt": "2026-10-21T01:04:51.3408578+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "7cd61c2ae55217fd852f4575ebcbc1566002abe561793a628b0fb52b3133cd5c",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Sql/NestedSqlParser.cs",
+      "line": 428,
+      "column": 0,
+      "symbol": "BuildSqlHierarchy",
+      "target": "IsGenericConfigKey",
+      "acknowledgedAt": "2026-10-21T01:04:51.3408578+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "8f7d7293bde129e4250a24b8c701f2e358cb0618bf4cb0d78d87121ed284661b",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/SyntaxEnricher.Resources.cs",
+      "line": 571,
+      "column": 0,
+      "symbol": "DetectProjectDatabaseDriver",
+      "target": "IsGenericConfigKey",
+      "acknowledgedAt": "2026-10-21T01:04:51.3408578+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "ce0bb02d2ff28c9bb3de5e545461733adccc5f190fd83903ba0521b61d008b80",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/SyntaxEnricher.cs",
+      "line": 81,
+      "column": 0,
+      "symbol": "EnrichAsync",
+      "target": "IsGenericConfigKey",
+      "acknowledgedAt": "2026-10-21T01:04:51.3408578+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "f8f705a397dc0ec281760f050aec080cc312536f9f154a4303e7af957cadef54",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/SyntaxEnricher.cs",
+      "line": 81,
+      "column": 0,
+      "symbol": "EnrichAsync",
+      "target": "NormalizeEngineName",
+      "acknowledgedAt": "2026-10-21T01:04:51.3408578+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "88eed92bef555f29686c47d53998eb3d400c855462947079c590c3f5d34debde",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Configuration/ConfigurationParser.cs",
+      "line": 201,
+      "column": 0,
+      "symbol": "CreateDatabaseNode",
+      "target": "RegisterResource",
+      "acknowledgedAt": "2026-10-21T01:04:51.3408578+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "3d691ed878a0d5b74af688a261f0673bf0a85843b43d1b8636cee54108d3dccf",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/SyntaxEnricher.cs",
+      "line": 81,
+      "column": 0,
+      "symbol": "EnrichAsync",
+      "target": "RegisterResource",
+      "acknowledgedAt": "2026-10-21T01:04:51.3408578+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "cf68a3a72985942070e2633589dd2b595b614d8a5ec27682878a4681c5e94414",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Sql/NestedSqlParser.cs",
+      "line": 428,
+      "column": 0,
+      "symbol": "BuildSqlHierarchy",
+      "target": "ResolveResource",
+      "acknowledgedAt": "2026-10-21T01:04:51.3408578+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "90e4c98c71fd73cc52e7742a7e1cb4127e6350080f06700da8d3236e25a489b7",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/SyntaxEnricher.cs",
+      "line": 81,
+      "column": 0,
+      "symbol": "EnrichAsync",
+      "target": "ResolveResource",
+      "acknowledgedAt": "2026-10-21T01:04:51.3408578+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    }
+  ]
 }

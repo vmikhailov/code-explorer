@@ -214,7 +214,7 @@ public static partial class EndpointScoringEngine
 
         var pName = project.ProjectName.Trim().ToLowerInvariant();
         var pFolder = !string.IsNullOrEmpty(project.Path)
-            ? System.IO.Path.GetFileName(project.Path.TrimEnd('/', '\\')).ToLowerInvariant()
+            ? Path.GetFileName(project.Path.TrimEnd('/', '\\')).ToLowerInvariant()
             : "";
         var gitRepo = !string.IsNullOrEmpty(project.GitRepo) ? project.GitRepo.Trim().ToLowerInvariant() : "";
 

@@ -318,23 +318,39 @@ export interface TestGateResponseDto {
   error?: string;
 }
 
-export interface DatabaseEvidenceItemDto {
+export interface ArchitectureEvidenceItemDto {
+  id: string;
+  /** endpoint | http_call | grpc_call | wcf_call | publish | subscribe | query | orm | table | procedure | config | migration | type_reference */
   kind: string;
+  /** Badge text: POST, GET, PUBLISH, SUBSCRIBE, SELECT, INSERT, ORM, CONFIG, ... */
   operation: string;
   title: string;
-  snippet?: string;
-  filePath?: string;
+  filePath: string;
   lineStart: number;
   lineEnd: number;
+  codeSnippet?: string;
   callerSymbol?: string;
-  confidence?: string;
+  targetSymbol?: string;
+  serviceName?: string;
+  reason: string;
 }
 
 export interface DatabaseEvidenceResponseDto {
   databaseId: string;
   databaseName: string;
+  engine: string;
+  schema: string;
   serviceId?: string;
-  evidence: DatabaseEvidenceItemDto[];
+  totalCount: number;
+  items: ArchitectureEvidenceItemDto[];
+}
+
+export interface EdgeEvidenceResponseDto {
+  sourceId: string;
+  targetId: string;
+  edgeKind: string;
+  totalCount: number;
+  items: ArchitectureEvidenceItemDto[];
 }
 
 // ============================================================================

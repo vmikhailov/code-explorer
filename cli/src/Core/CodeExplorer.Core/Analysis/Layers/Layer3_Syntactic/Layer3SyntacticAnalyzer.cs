@@ -98,41 +98,32 @@ public partial class Layer3SyntacticParser
             ctx.AddRelsCount(projectRels.Count);
         }
 
-        // Phase 0: Unified ConfigStore early initialization
-        ConfigStore.Clear();
+        // Phase 0: register configuration already parsed once by shared file parsers in Layer 2
+        ConfigurationIndex.Clear();
         ConstantRegistry.Clear();
         RouteDictionaryRegistry.Clear();
 
         var allProjectFileNodeIds = new HashSet<string>(filesByProjectId.Values.SelectMany(v => v).Select(f => f.Id));
         var workspaceRootFiles = l2Result.Prev.Files.Where(f => !allProjectFileNodeIds.Contains(f.Id)).ToList();
-        foreach (var wfile in workspaceRootFiles)
+        foreach (var enrichment in ctx.WorkspaceEnrichments.OfType<ConfigurationFileInformation>())
         {
-            if (ConfigStore.IsConfigurationFile(wfile.Name))
-            {
-                ConfigStore.LoadFile(wfile.FullPath, null, ctx);
-            }
+            ConfigurationIndex.Register(enrichment, null);
         }
 
         foreach (var project in l2Result.Projects)
         {
-            if (filesByProjectId.TryGetValue(project.Id, out var pFiles))
+            foreach (var enrichment in project.Enrichments.OfType<ConfigurationFileInformation>())
             {
-                foreach (var pfile in pFiles)
-                {
-                    if (ConfigStore.IsConfigurationFile(pfile.Name))
-                    {
-                        ConfigStore.LoadFile(pfile.FullPath, project.Name, ctx);
-                    }
-                }
+                ConfigurationIndex.Register(enrichment, project.Name);
             }
         }
-        ctx.LogDebug($"[ConfigStore] Pre-loaded {ConfigStore.GetDiscoveredUrls().Count} service endpoints and configuration keys into ConstantRegistry.");
+        ctx.LogDebug($"[ConfigurationIndex] Registered {ConfigurationIndex.GetDiscoveredUrls().Count} service endpoints and configuration keys into ConstantRegistry.");
 
         // Phase 0b: RouteDictionaryRegistry and early constants pre-scanning across all candidate files
         var allCandidateFiles = new List<(string FullPath, string? ProjectName)>();
         foreach (var wfile in workspaceRootFiles)
         {
-            if (IsRouteOrConfigCandidate(wfile.Path)) allCandidateFiles.Add((wfile.FullPath, null));
+            if (IsRouteOrConfigCandidate(wfile.Path) && !SharedFileParserRegistry.CanParse(wfile.Name)) allCandidateFiles.Add((wfile.FullPath, null));
         }
         foreach (var project in l2Result.Projects)
         {
@@ -140,7 +131,7 @@ public partial class Layer3SyntacticParser
             {
                 foreach (var pfile in pFiles)
                 {
-                    if (IsRouteOrConfigCandidate(pfile.Path)) allCandidateFiles.Add((pfile.FullPath, project.Name));
+                    if (IsRouteOrConfigCandidate(pfile.Path) && !SharedFileParserRegistry.CanParse(pfile.Name)) allCandidateFiles.Add((pfile.FullPath, project.Name));
                 }
             }
         }

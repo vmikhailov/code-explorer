@@ -1,0 +1,24 @@
+id: SIG-P-B-008
+category: Architectural
+platform: dotnet
+scope: Module
+dimension: Boundaries
+name: Query-Side / Indexing-Pipeline Separation
+severity: Warning
+description: Read-model services (Analysis/Services) answer questions from the persisted graph and must not call into the indexing pipeline (Analysis/Layers, Analysis/Pipeline). Anything both sides need belongs in a neutral module.
+remediation: Extract the shared helper (naming, canonicalisation, classification) into Core/Common and call it from both sides, or persist the derived value in the graph during indexing.
+query: >-
+  MATCH (src:Function)-[:CALLS]->(tgt:Function)
+  WHERE src.path CONTAINS 'CodeExplorer.Core/Analysis/Services/'
+    AND (tgt.path CONTAINS 'CodeExplorer.Core/Analysis/Layers/' OR tgt.path CONTAINS 'CodeExplorer.Core/Analysis/Pipeline/')
+    AND NOT tgt.name IN ['Push', 'Pop', 'Match', 'Select', 'Stop', 'Start', 'Clear', 'Add', 'Remove', 'Contains', 'Dispose', 'Close', 'Flush', 'Reset']
+    AND NOT coalesce(src.is_test, false)
+  RETURN
+    coalesce(src.path, src.file_path) AS file,
+    coalesce(src.start_line, 0) AS line,
+    src.name AS symbol,
+    tgt.name AS target,
+    'Query-side service ' + src.name + ' depends on indexing-pipeline code ' + tgt.name + ' (' + coalesce(tgt.path, tgt.file_path) + ')' AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-P-B-008.json

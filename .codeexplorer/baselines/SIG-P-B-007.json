@@ -1,0 +1,26 @@
+{
+  "gateId": "SIG-P-B-007",
+  "allowedViolations": 2,
+  "entries": [
+    {
+      "fingerprint": "c153163ed50e3f91afbfb47dc4a02f4255950c51dacf6f4fd1386551ca46a1fb",
+      "file": "cli/src/Parsers/CodeExplorer.Parser.Java",
+      "line": 1,
+      "column": 0,
+      "symbol": "CodeExplorer.Parser.Java",
+      "target": "CodeExplorer.Parser.Android",
+      "acknowledgedAt": "2026-10-21T01:04:51.3447586+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "985552500838dccf63c523c89765afbd6d3223cc90a740b2f31b3f84a323bdca",
+      "file": "cli/src/Parsers/CodeExplorer.Parser.Kotlin",
+      "line": 1,
+      "column": 0,
+      "symbol": "CodeExplorer.Parser.Kotlin",
+      "target": "CodeExplorer.Parser.Android",
+      "acknowledgedAt": "2026-10-21T01:04:51.3447586+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    }
+  ]
+}

@@ -363,7 +363,7 @@ public class CSharpParser : IProjectParser, IFileParser
                 props["kind"] = "TestSuite";
                 props["primary_role"] = "Test";
                 props["secondary_roles"] = "[]";
-                props["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { "Test" });
+                props["all_roles"] = JsonSerializer.Serialize(new[] { "Test" });
                 return props;
             }
 
@@ -380,7 +380,7 @@ public class CSharpParser : IProjectParser, IFileParser
                 props["kind"] = "Library";
                 props["primary_role"] = "Library";
                 props["secondary_roles"] = "[]";
-                props["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { "Library" });
+                props["all_roles"] = JsonSerializer.Serialize(new[] { "Library" });
                 return props;
             }
 
@@ -439,7 +439,7 @@ public class CSharpParser : IProjectParser, IFileParser
                 props["kind"] = "Library";
                 props["primary_role"] = "Library";
                 props["secondary_roles"] = "[]";
-                props["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { "Library" });
+                props["all_roles"] = JsonSerializer.Serialize(new[] { "Library" });
                 return props;
             }
 
@@ -727,8 +727,8 @@ public class CSharpParser : IProjectParser, IFileParser
             props["kind"] = kind;
             props["manifest_type"] = manifestType;
             props["is_library"] = "false";
-            props["secondary_roles"] = System.Text.Json.JsonSerializer.Serialize(secondaryRoles);
-            props["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { primaryRole }.Concat(secondaryRoles).Distinct());
+            props["secondary_roles"] = JsonSerializer.Serialize(secondaryRoles);
+            props["all_roles"] = JsonSerializer.Serialize(new[] { primaryRole }.Concat(secondaryRoles).Distinct());
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

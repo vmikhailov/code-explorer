@@ -29,6 +29,9 @@ public class ParsingContext
     public ResourceReconciliationService ResourceRegistry { get; } = new();
     public WorkspaceFileFilter FileFilter { get; set; } = WorkspaceFileFilter.Default;
 
+    /// <summary>Shared-parser results for files that belong to no project (workspace root files).</summary>
+    public List<IProjectEnrichment> WorkspaceEnrichments { get; } = [];
+
     private readonly IProgress<IndexingProgress>? _progress;
     private readonly object _progressLock = new();
     private readonly ILogger _logger;

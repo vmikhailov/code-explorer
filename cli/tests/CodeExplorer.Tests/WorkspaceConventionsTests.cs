@@ -25,11 +25,10 @@ public class WorkspaceConventionsTests
     }
 
     [Test]
-    public void NormalizeTopicName_AlgorithmicKebabCase_WorksGenericly()
+    public void NormalizeTopicName_PreservesLiteralNames()
     {
-        WorkspaceConventions.NormalizeTopicName("USER_CREATED_TOPIC").Should().Be("user-created-topic");
-        WorkspaceConventions.NormalizeTopicName("orderStatusChangedTopicName").Should().Be("order-status-changed-topic");
-        WorkspaceConventions.NormalizeTopicName("paymentReceiptSubName").Should().Be("payment-receipt-sub");
+        WorkspaceConventions.NormalizeTopicName("REQUEST_RECORDER_EVENTS_OUTPUT").Should().Be("REQUEST_RECORDER_EVENTS_OUTPUT");
+        WorkspaceConventions.NormalizeTopicName("orderStatusChangedTopicName").Should().Be("orderStatusChangedTopicName");
         WorkspaceConventions.NormalizeTopicName("orders-v1-stream").Should().Be("orders-v1-stream");
     }
 
@@ -56,8 +55,8 @@ public class WorkspaceConventionsTests
 
             WorkspaceConventions.NormalizeTopicName("MY_CUSTOM_TOPIC").Should().Be("orders-feed-v2");
             WorkspaceConventions.NormalizeTopicName("RAW_STREAM").Should().Be("raw-events-topic");
-            // Fallback still works for unknown
-            WorkspaceConventions.NormalizeTopicName("OTHER_EVENT_TOPIC").Should().Be("other-event-topic");
+            // Unknown names are preserved as-is
+            WorkspaceConventions.NormalizeTopicName("OTHER_EVENT_TOPIC").Should().Be("OTHER_EVENT_TOPIC");
         }
         finally
         {

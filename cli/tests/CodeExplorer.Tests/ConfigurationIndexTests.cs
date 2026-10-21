@@ -8,7 +8,7 @@ namespace CodeExplorer.Tests;
 
 [TestFixture]
 [NonParallelizable]
-public class ConfigStoreTests
+public class ConfigurationIndexTests
 {
     private string _tempDir = null!;
     private IDisposable? _lock;
@@ -19,14 +19,14 @@ public class ConfigStoreTests
         _lock = await TestRegistryLock.AcquireAsync();
         _tempDir = Path.Combine(Path.GetTempPath(), "ce_configstore_test_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_tempDir);
-        ConfigStore.Clear();
+        ConfigurationIndex.Clear();
         ConstantRegistry.Clear();
     }
 
     [TearDown]
     public void TearDown()
     {
-        ConfigStore.Clear();
+        ConfigurationIndex.Clear();
         ConstantRegistry.Clear();
         _lock?.Dispose();
         _lock = null;
@@ -37,7 +37,7 @@ public class ConfigStoreTests
     }
 
     [Test]
-    public void Test_ConfigStore_ParsesAppSettings_HierarchicalAndFlatKeys()
+    public void Test_ConfigurationIndex_ParsesAppSettings_HierarchicalAndFlatKeys()
     {
         var appsettings = """
         {
@@ -65,13 +65,13 @@ public class ConfigStoreTests
         var filePath = Path.Combine(_tempDir, "appsettings.json");
         File.WriteAllText(filePath, appsettings);
 
-        ConfigStore.LoadFile(filePath, "Shop.Host");
+        ConfigTestHelper.Load(filePath, "Shop.Host");
 
         // 1. Hierarchical colon lookup
-        ConfigStore.TryGetConfig("Shop.Host", "ConnectionStrings:DefaultConnection", out var connStr).Should().BeTrue();
+        ConfigurationIndex.TryGetConfig("Shop.Host", "ConnectionStrings:DefaultConnection", out var connStr).Should().BeTrue();
         connStr.Should().Contain("ShopDb");
 
-        ConfigStore.TryGetConfig("Shop.Host", "Kafka:Topics:OrderCreated", out var topic).Should().BeTrue();
+        ConfigurationIndex.TryGetConfig("Shop.Host", "Kafka:Topics:OrderCreated", out var topic).Should().BeTrue();
         topic.Should().Be("shop.orders.v1.created");
 
         // 2. Integration with ConstantRegistry
@@ -91,7 +91,7 @@ public class ConfigStoreTests
         envTopic.Should().Be("shop.orders.v1.created");
 
         // 3. Generic Discovered URLs
-        var urls = ConfigStore.GetDiscoveredUrls("Shop.Host");
+        var urls = ConfigurationIndex.GetDiscoveredUrls("Shop.Host");
         urls.Count.Should().Be(3, "Should discover PaymentService, NotificationApi, and CloudPayments URLs");
 
         var paymentEp = urls.FirstOrDefault(u => u.ServiceName == "PaymentService");
@@ -106,7 +106,7 @@ public class ConfigStoreTests
     }
 
     [Test]
-    public void Test_ConfigStore_ParsesDotEnv_WithExportsAndDunderKeys()
+    public void Test_ConfigurationIndex_ParsesDotEnv_WithExportsAndDunderKeys()
     {
         var dotEnv = """
         # Database & Cache
@@ -124,10 +124,10 @@ public class ConfigStoreTests
         var filePath = Path.Combine(_tempDir, ".env");
         File.WriteAllText(filePath, dotEnv);
 
-        ConfigStore.LoadFile(filePath, "OrdersApp");
+        ConfigTestHelper.Load(filePath, "OrdersApp");
 
         // 1. Direct key
-        ConfigStore.TryGetConfig("OrdersApp", "DATABASE_URL", out var dbUrl).Should().BeTrue();
+        ConfigurationIndex.TryGetConfig("OrdersApp", "DATABASE_URL", out var dbUrl).Should().BeTrue();
         dbUrl.Should().Contain("postgres://");
 
         // 2. Dunder to colon conversion
@@ -135,7 +135,7 @@ public class ConfigStoreTests
         topic.Should().Be("orders.submitted.v2");
 
         // 3. Discovered URLs
-        var urls = ConfigStore.GetDiscoveredUrls("OrdersApp");
+        var urls = ConfigurationIndex.GetDiscoveredUrls("OrdersApp");
         (urls.Any(u => u.Url == "http://billing-service:9000" && !u.IsExternal)).Should().BeTrue();
         (urls.Any(u => u.Url == "https://api.stripe.com" && u.IsExternal)).Should().BeTrue();
     }
@@ -199,7 +199,7 @@ public class ConfigStoreTests
     }
 
     [Test]
-    public void Test_ConfigStore_ParsesAppSettings_WithCommentsAndTrailingCommas()
+    public void Test_ConfigurationIndex_ParsesAppSettings_WithCommentsAndTrailingCommas()
     {
         var appsettingsWithComments = """
         {
@@ -225,11 +225,11 @@ public class ConfigStoreTests
         var filePath = Path.Combine(_tempDir, "appsettings_comments.json");
         File.WriteAllText(filePath, appsettingsWithComments);
 
-        ConfigStore.LoadFile(filePath, "RetailService");
+        ConfigTestHelper.Load(filePath, "RetailService");
 
-        ConfigStore.TryGetConfig("RetailService", "ConnectionStrings:DefaultConnection", out var connStr).Should().BeTrue();
+        ConfigurationIndex.TryGetConfig("RetailService", "ConnectionStrings:DefaultConnection", out var connStr).Should().BeTrue();
         connStr.Should().Contain("VSBS_Retail");
-        ConfigStore.TryGetConfig("RetailService", "Logging:LogLevel:Default", out var logVal).Should().BeTrue();
+        ConfigurationIndex.TryGetConfig("RetailService", "Logging:LogLevel:Default", out var logVal).Should().BeTrue();
         logVal.Should().Be("Information");
     }
 }

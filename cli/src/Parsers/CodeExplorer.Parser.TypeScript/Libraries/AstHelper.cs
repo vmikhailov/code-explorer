@@ -38,6 +38,11 @@ public static partial class AstHelper
             {
                 var envKey = envMatch.Groups[1].Value;
 
+                if (ConstantRegistry.TryDeriveParentTopicFromSubscriptionKey(envKey, out var parentTopic))
+                {
+                    return parentTopic;
+                }
+
                 // Look up in ConstantRegistry (including .env)
                 if (ConstantRegistry.TryResolve(contextOrProject, envKey, out var envVal) && !string.IsNullOrEmpty(envVal))
                 {
@@ -84,6 +89,11 @@ public static partial class AstHelper
                     objPart.Contains("pubsub", StringComparison.OrdinalIgnoreCase) ||
                     objPart.Contains("env", StringComparison.OrdinalIgnoreCase))
                 {
+                    if (ConstantRegistry.TryDeriveParentTopicFromSubscriptionKey(leafProp, out var leafParent))
+                    {
+                        return leafParent;
+                    }
+
                     if (ConstantRegistry.TryResolve(contextOrProject, leafProp, out var leafVal) &&
                         !string.IsNullOrEmpty(leafVal) && IsValidTopicOrQueueLiteral(leafVal))
                     {

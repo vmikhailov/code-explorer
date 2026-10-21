@@ -1,5 +1,26 @@
 {
   "gateId": "SIG-C-R-001",
-  "allowedViolations": 0,
-  "entries": []
+  "allowedViolations": 2,
+  "entries": [
+    {
+      "fingerprint": "5636071f15ef6aa8843491ff5853c055f1950d76c86abc20478fcf4d928c467f",
+      "file": "cli/src/Parsers/CodeExplorer.Parser.CSharp/CSharpParser.cs",
+      "line": 11,
+      "column": 1,
+      "symbol": "CSharpParser",
+      "target": "GodClass",
+      "acknowledgedAt": "2026-10-21T01:04:51.3008986+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "869f695a905a0f648cf949552904f05ce726e722f6183afba63b75fe72a156ba",
+      "file": "cli/src/Parsers/CodeExplorer.Parser.CSharp/Libraries/HttpClientLibraryParser.cs",
+      "line": 9,
+      "column": 1,
+      "symbol": "HttpClientLibraryParser",
+      "target": "GodClass",
+      "acknowledgedAt": "2026-10-21T01:04:51.3008986+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    }
+  ]
 }

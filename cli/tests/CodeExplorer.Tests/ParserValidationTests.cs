@@ -1550,7 +1550,7 @@ public interface IUsersApi
     [Test]
     public void Test_ProjectParserRole_Fallback_Behavior()
     {
-        IProjectParser scriptParser = new CodeExplorer.Parser.Script.ScriptProjectParser();
+        IProjectParser scriptParser = new Parser.Script.ScriptProjectParser();
         scriptParser.ParserRole.Should().Be(ProjectParserRole.Fallback);
         scriptParser.IsFallback.Should().BeTrue();
 
@@ -1561,7 +1561,7 @@ public interface IUsersApi
         // Verify WorkspaceIndexer parser ordering puts fallback parser last
         WorkspaceIndexer.AutoRegisterParsers();
         var allParsers = WorkspaceIndexer.GetAllProjectParsers().ToList();
-        allParsers.Should().Contain(p => p is CodeExplorer.Parser.Script.ScriptProjectParser);
+        allParsers.Should().Contain(p => p is Parser.Script.ScriptProjectParser);
         var lastParser = allParsers.Last();
         lastParser.ParserRole.Should().Be(ProjectParserRole.Fallback);
     }

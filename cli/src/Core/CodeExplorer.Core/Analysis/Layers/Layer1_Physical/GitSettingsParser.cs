@@ -228,8 +228,8 @@ public static class GitSettingsParser
         }
 
         var id = string.IsNullOrEmpty(relPath)
-            ? $"{workspaceId}:{Common.OntologyConstants.IdPrefixes.Git}"
-            : $"{workspaceId}:{Common.OntologyConstants.IdPrefixes.Git}:{relPath}";
+            ? $"{workspaceId}:{OntologyConstants.IdPrefixes.Git}"
+            : $"{workspaceId}:{OntologyConstants.IdPrefixes.Git}:{relPath}";
 
         var repoName = !string.IsNullOrEmpty(relPath)
             ? Path.GetFileName(repoDir.TrimEnd('/', '\\'))

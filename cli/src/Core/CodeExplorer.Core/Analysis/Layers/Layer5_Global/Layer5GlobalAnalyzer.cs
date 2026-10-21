@@ -204,7 +204,7 @@ public partial class Layer5AnalysisParser
 
         foreach (var ep in endpoints)
         {
-            foreach (var childFn in ep.Children.OfType<CodeExplorer.Core.Common.Nodes.Layer3_Syntactic.FunctionNode>())
+            foreach (var childFn in ep.Children.OfType<Common.Nodes.Layer3_Syntactic.FunctionNode>())
             {
                 RegisterEndpointHandler(ep.Id, childFn.Id);
             }

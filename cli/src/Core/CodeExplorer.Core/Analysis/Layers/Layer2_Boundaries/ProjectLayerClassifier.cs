@@ -126,7 +126,7 @@ public static class ProjectLayerClassifier
                 p.Role = detectedRole.ToString();
                 p.IsLibrary = isLib;
                 extDict["entity_kind"] = detectedClassification.Kind.ToString();
-                if (detectedClassification.SubKind != Common.ProjectEntitySubKind.None)
+                if (detectedClassification.SubKind != ProjectEntitySubKind.None)
                 {
                     extDict["sub_kind"] = detectedClassification.SubKind.ToString();
                 }

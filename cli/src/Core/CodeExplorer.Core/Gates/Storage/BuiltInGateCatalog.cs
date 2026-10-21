@@ -24,7 +24,11 @@ public static partial class BuiltInGateCatalog
         RustCleanArchitectureCrateBoundaryGate,
         RustAsyncTokioAntiBlockingGate,
         RustUnparameterizedSqlQueryGate,
-        GodClassProhibitionGate
+        GodClassProhibitionGate,
+        PipelineLayerOrderGate,
+        ParserProjectIsolationGate,
+        QuerySideIndexingSeparationGate,
+        SharedFileSingleReadGate
     ];
 
     public static IReadOnlyList<SemanticGate> GetExampleGates() =>
@@ -45,37 +49,10 @@ public static partial class BuiltInGateCatalog
         RustAsyncTokioAntiBlockingGate,
         RustUnparameterizedSqlQueryGate,
         GodClassProhibitionGate,
-        new SemanticGate
-        {
-            Id = "SIG-P-B-001",
-            Category = GateCategory.Architectural,
-            Platform = "agnostic",
-            Scope = InvariantScope.Module,
-            Dimension = InvariantDimension.Boundaries,
-            Name = "Pipeline Layer Strict Hierarchy",
-            Severity = GateSeverity.Error,
-            Description = "Enforces unidirectional pipeline flow: parser stage N must not depend on or call higher-order parser stages.",
-            Remediation = "Remove references to higher pipeline layers. Use decoupled events, abstractions, or move shared data structures into Core/Common.",
-            Query = """
-                MATCH (src)-[:CALLS|USES_TYPE]->(tgt)
-                WHERE NOT coalesce(src.is_test, false)
-                  AND src.stage_order IS NOT NULL
-                  AND tgt.stage_order IS NOT NULL
-                  AND src.stage_order < tgt.stage_order
-                RETURN 
-                  coalesce(src.symbol, src.file_path) AS file,
-                  coalesce(src.start_line, 0) AS line,
-                  src.name AS symbol,
-                  tgt.name AS target,
-                  'Pipeline stage violation: component depends on higher-order pipeline layer' AS message
-                """,
-            Ratchet = new GateRatchetSettings
-            {
-                Enabled = true,
-                Baseline = "baselines/SIG-P-B-001.json"
-            },
-            Source = "BuiltIn"
-        },
+        PipelineLayerOrderGate,
+        ParserProjectIsolationGate,
+        QuerySideIndexingSeparationGate,
+        SharedFileSingleReadGate,
 
         new SemanticGate
         {

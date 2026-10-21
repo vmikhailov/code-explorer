@@ -11,7 +11,7 @@ namespace CodeExplorer.Core.Parser;
 
 public static class ConfigurationParser
 {
-    public static bool IsConfigurationFile(string fileName) => ConfigStore.IsConfigurationFile(fileName);
+    public static bool IsConfigurationFile(string fileName) => ConfigurationIndex.IsConfigurationFile(fileName);
 
     public static void ParseAndEnrich(
         string filePath,
@@ -42,13 +42,8 @@ public static class ConfigurationParser
                 projName = pn.Name;
             }
 
-            // Retrieve preloaded configuration entries from ConfigStore (single-pass I/O in Layer 3)
-            var entries = ConfigStore.GetFileEntries(filePath);
-            if (entries.Count == 0)
-            {
-                ConfigStore.LoadFile(filePath, projName, ctx);
-                entries = ConfigStore.GetFileEntries(filePath);
-            }
+            // Entries were parsed once by shared file parsers (Layer 2) and registered in Layer 3
+            var entries = ConfigurationIndex.GetFileEntries(filePath);
 
             // Process all configuration entries through the pluggable descriptor pipeline
             foreach (var entry in entries)
@@ -518,7 +513,7 @@ public static class ConfigurationParser
             projName = parts.Length > 0 ? Path.GetFileName(parts[^1].TrimEnd('/')) : null;
         }
 
-        var discovered = ConfigStore.GetDiscoveredUrls(projName);
+        var discovered = ConfigurationIndex.GetDiscoveredUrls(projName);
         var normRelPath = relativePath.Replace('\\', '/');
 
         foreach (var ep in discovered)

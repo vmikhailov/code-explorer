@@ -413,7 +413,7 @@ public class SemanticInvariantGateTests
         var dbPath = Path.Combine(_tempWorkspace, "graph.db");
         await using var client = new SqliteGraphClient(dbPath);
 
-        CodeExplorer.Core.Parser.WorkspaceIndexer.AutoRegisterParsers();
+        Core.Parser.WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new CodeExplorer.Core.Parser.WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
 
@@ -472,7 +472,7 @@ public class SemanticInvariantGateTests
         var dbPath = Path.Combine(_tempWorkspace, "graph.db");
         await using var client = new SqliteGraphClient(dbPath);
 
-        CodeExplorer.Core.Parser.WorkspaceIndexer.AutoRegisterParsers();
+        Core.Parser.WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new CodeExplorer.Core.Parser.WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
 
@@ -525,7 +525,7 @@ public class SemanticInvariantGateTests
         var dbPath = Path.Combine(_tempWorkspace, "graph_r.db");
         await using var client = new SqliteGraphClient(dbPath);
 
-        CodeExplorer.Core.Parser.WorkspaceIndexer.AutoRegisterParsers();
+        Core.Parser.WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new CodeExplorer.Core.Parser.WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
 
@@ -601,7 +601,7 @@ public class SemanticInvariantGateTests
         var dbPath = Path.Combine(_tempWorkspace, "graph.db");
         await using var client = new SqliteGraphClient(dbPath);
 
-        CodeExplorer.Core.Parser.WorkspaceIndexer.AutoRegisterParsers();
+        Core.Parser.WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new CodeExplorer.Core.Parser.WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
 
@@ -671,7 +671,7 @@ public class SemanticInvariantGateTests
         var dbPath = Path.Combine(_tempWorkspace, "graph.db");
         await using var client = new SqliteGraphClient(dbPath);
 
-        CodeExplorer.Core.Parser.WorkspaceIndexer.AutoRegisterParsers();
+        Core.Parser.WorkspaceIndexer.AutoRegisterParsers();
         var indexer = new CodeExplorer.Core.Parser.WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
 

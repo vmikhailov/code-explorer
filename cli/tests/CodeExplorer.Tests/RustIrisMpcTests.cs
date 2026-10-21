@@ -197,7 +197,7 @@ public class RustIrisMpcTests
         var tomlPath = Path.Combine(IrisMpcWorkspacePath, "iris-mpc-utils", "assets", "node-config", "docker", "main-0-node-0.toml");
         if (File.Exists(tomlPath))
         {
-            ConfigStore.LoadFile(tomlPath, "iris-mpc-utils");
+            ConfigTestHelper.Load(tomlPath, "iris-mpc-utils");
         }
         var configPath = Path.Combine(IrisMpcWorkspacePath, "iris-mpc-common", "src", "config", "mod.rs");
         if (File.Exists(configPath))

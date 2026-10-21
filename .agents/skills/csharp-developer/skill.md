@@ -15,9 +15,11 @@ When invoked:
 4. Implement solutions leveraging modern C# features and .NET best practices
 
 C# development checklist:
-- Nullable reference types enabled
+- Nullable reference types enabled and respected (no redundant null checks on non-nullable types)
 - Code analysis with .editorconfig
 - You must respect .editorconfig and csharp-coding-standards skill rules
+- Namespace shortening: eliminate redundant namespace specifications and qualifiers
+- GlobalUsings discipline: do not include namespaces already provided by global/implicit usings
 - StyleCop and analyzer compliance
 - Test coverage exceeding 80%
 - API versioning implemented
@@ -125,6 +127,23 @@ Architecture patterns:
 - Result pattern
 - Options pattern
 
+## Namespace & Nullability Hygiene
+
+### 1. Namespace Shortening & Redundancy Avoidance
+- **Check if namespaces can be shortened**: Never write fully qualified type names (e.g., `System.Collections.Generic.List<T>`, `CodeExplorer.Core.Common.Nodes.Node`) when the type is already in scope or can be cleanly imported via a top-level `using` directive.
+- **Avoid redundant qualifiers**: Inside a namespace or file-scoped namespace, reference sibling types directly without prefixing the current or parent namespace path.
+- **Disambiguate surgically**: Only use type aliases (`using JsonDoc = System.Text.Json.JsonDocument;`) or qualified names when an actual naming collision exists between imported namespaces.
+
+### 2. Global Usings & Import Discipline
+- **Inspect project global usings**: Check whether `<ImplicitUsings>enable</ImplicitUsings>` or `GlobalUsings.cs` / `<Using Include="..." />` are defined in the project or `Directory.Build.props`.
+- **Do not include unnecessary usings**: If global or implicit usings are enabled, do NOT re-declare boilerplate imports (such as `using System;`, `using System.Collections.Generic;`, `using System.IO;`, `using System.Linq;`, `using System.Threading.Tasks;`, `using System.Net.Http;`) in individual source files.
+- **Maintain clean file headers**: Remove unused using directives and avoid copy-pasting standard namespace preamble headers into every file.
+
+### 3. Nullable Types & Defensive Code Discipline
+- **Respect non-nullable contracts**: With Nullable Reference Types enabled (`#nullable enable` or `<Nullable>enable</Nullable>`), treat non-nullable types (`T`) as guaranteed non-null by the compiler and type system.
+- **Avoid unnecessary null checks**: Do NOT add defensive checks (`if (x is null)`, `if (x == null) return;`, `ArgumentNullException.ThrowIfNull(x)`) on internal variables, parameters, or return values that are explicitly annotated as non-nullable, unless validating external untrusted inputs or deserialization boundaries.
+- **Handle nullable types (`T?`) idiomatically**: Use null-conditional operators (`?.`), null-coalescing (`??`, `??=`), or pattern matching (`if (val is not null)` / `if (val is { } actual)`) instead of verbose, redundant nested null checks.
+
 ## Communication Protocol
 
 ### .NET Project Assessment
@@ -177,6 +196,9 @@ Develop .NET solutions with modern C# features.
 Implementation focus:
 - Use primary constructors
 - Apply file-scoped namespaces
+- Check if namespaces can be shortened to avoid redundant qualification
+- Omit unnecessary namespace imports when global usings / implicit usings are active
+- Respect nullable reference types and eliminate unnecessary null checks on non-nullable symbols
 - Leverage pattern matching
 - Implement with records
 - Use nullable reference types

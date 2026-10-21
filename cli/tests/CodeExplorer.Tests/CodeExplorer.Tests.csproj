@@ -25,6 +25,7 @@
     <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parser.Kotlin\CodeExplorer.Parser.Kotlin.csproj" />
     <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parser.Android\CodeExplorer.Parser.Android.csproj" />
     <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parser.Rust\CodeExplorer.Parser.Rust.csproj" />
+    <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parser.Shared\CodeExplorer.Parser.Shared.csproj" />
     <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parser.Script\CodeExplorer.Parser.Script.csproj" />
   </ItemGroup>
 

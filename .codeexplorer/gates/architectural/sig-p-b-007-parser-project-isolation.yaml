@@ -1,0 +1,28 @@
+id: SIG-P-B-007
+category: Architectural
+platform: dotnet
+scope: Module
+dimension: Boundaries
+name: Parser Plug-in Project Isolation
+severity: Error
+description: 'Language parsers are independent plug-ins: they may depend on Core and Parser.Shared only. Core, Cypher and Parser.Shared must not depend on any parser or on the host application.'
+remediation: Move the shared code into CodeExplorer.Parser.Shared (or Core) and reference it from both parsers; never reference a sibling parser or the host.
+query: >-
+  MATCH (p:Project)-[:DEPENDS_ON]->(d:Project)
+  WHERE d.name <> p.name
+    AND (
+      (p.name STARTS WITH 'CodeExplorer.Parser.' AND p.name <> 'CodeExplorer.Parser.Shared'
+        AND d.name STARTS WITH 'CodeExplorer.Parser.' AND d.name <> 'CodeExplorer.Parser.Shared')
+      OR (p.name IN ['CodeExplorer.Core', 'CodeExplorer.Cypher', 'CodeExplorer.Parser.Shared']
+        AND (d.name STARTS WITH 'CodeExplorer.Parser.' OR d.name = 'CodeExplorer'))
+      OR (p.name = 'CodeExplorer.Cypher' AND d.name STARTS WITH 'CodeExplorer')
+    )
+  RETURN
+    coalesce(p.path, p.file_path, p.name) AS file,
+    1 AS line,
+    p.name AS symbol,
+    d.name AS target,
+    'Project dependency ' + p.name + ' -> ' + d.name + ' breaks the parser plug-in / Core-isolation contract' AS message
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-P-B-007.json

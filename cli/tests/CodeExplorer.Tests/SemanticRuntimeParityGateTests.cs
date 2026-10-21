@@ -441,7 +441,7 @@ public class SemanticRuntimeParityGateTests
 
             var csharpParser = new CSharpParser();
             using var syntaxTree = await csharpParser.ParseAsync(file, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            CodeExplorer.Core.Parser.Layers.Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Core.Parser.Layers.Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 
             var projectNode = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode("workspace:project:MyApp", "MyApp", appDir, "csharp", new Dictionary<string, string>());
 

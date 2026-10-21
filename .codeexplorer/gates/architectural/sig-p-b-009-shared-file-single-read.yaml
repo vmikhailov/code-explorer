@@ -1,0 +1,22 @@
+id: SIG-P-B-009
+category: Architectural
+platform: dotnet
+scope: Module
+dimension: Rules
+name: 'Shared File Parsers: Read Once'
+severity: Error
+description: Non-source files (.env, appsettings, yaml, properties, ...) are read and parsed exactly once, by SharedFileEnricher in Layer 2, and attached to the project as enrichments. Later layers consume the enrichments and must not invoke shared file parsers again.
+remediation: Read the data from ProjectNode.Enrichments / ConfigurationIndex instead of calling SharedFileParserRegistry.Parse or ParseFile.
+query: >-
+  MATCH (caller:Function)-[:CALLS]->(parse:Function)
+  WHERE parse.name IN ['Parse', 'ParseFile']
+    AND parse.path CONTAINS 'Parser/Shared/SharedFileParserRegistry'
+    AND NOT caller.path CONTAINS 'SharedFileEnricher'
+    AND NOT caller.path CONTAINS 'Parser/Shared/'
+    AND NOT coalesce(caller.is_test, false)
+  RETURN
+    coalesce(caller.path, caller.file_path) AS file,
+    coalesce(caller.start_line, 0) AS line,
+    caller.name AS symbol,
+    parse.name AS target,
+    caller.name + ' re-parses a file through the shared parser registry instead of consuming project enrichments' AS message

@@ -12,24 +12,27 @@ import {
 } from '../../components/Icons';
 import { EntityNodeBadge, EntityCodeBadge, getEntityBadgeMeta } from '../entityBadges';
 import { webviewTransport } from '../../services/webviewTransport';
-import { DatabaseEvidenceItemDto, DatabaseEvidenceResponseDto } from '../../../../../proto/types';
+import { ArchitectureEvidenceItemDto } from '../../../../../proto/types';
 
-export interface DatabaseEvidenceSectionProps {
-  databaseId: string;
-  databaseName?: string;
-  serviceId?: string;
+interface EvidenceSectionProps {
+  title: string;
+  url: string;
+  emptyHint: string;
+  loadingHint: string;
   onOpenFile?: (path: string, line?: number) => void;
   defaultExpanded?: boolean;
 }
 
-export const DatabaseEvidenceSection: React.FC<DatabaseEvidenceSectionProps> = ({
-  databaseId,
-  serviceId,
+const EvidenceSection: React.FC<EvidenceSectionProps> = ({
+  title,
+  url,
+  emptyHint,
+  loadingHint,
   onOpenFile,
   defaultExpanded = true,
 }) => {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-  const [evidence, setEvidence] = useState<DatabaseEvidenceItemDto[]>([]);
+  const [evidence, setEvidence] = useState<ArchitectureEvidenceItemDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,17 +42,13 @@ export const DatabaseEvidenceSection: React.FC<DatabaseEvidenceSectionProps> = (
       setLoading(true);
       setError(null);
       try {
-        const queryParams = new URLSearchParams({ id: databaseId });
-        if (serviceId) queryParams.set('service', serviceId);
-        const data = await webviewTransport.fetchJson<DatabaseEvidenceResponseDto>(
-          `/api/database/evidence?${queryParams.toString()}`
-        );
+        const data = await webviewTransport.fetchJson<{ items?: ArchitectureEvidenceItemDto[] }>(url);
         if (!cancelled) {
-          setEvidence(data?.evidence || []);
+          setEvidence(data?.items || []);
         }
       } catch (err: any) {
         if (!cancelled) {
-          setError(err?.message || 'Failed to load database evidence');
+          setError(err?.message || 'Failed to load evidence');
         }
       } finally {
         if (!cancelled) {
@@ -61,8 +60,7 @@ export const DatabaseEvidenceSection: React.FC<DatabaseEvidenceSectionProps> = (
     return () => {
       cancelled = true;
     };
-  }, [databaseId, serviceId]);
-
+  }, [url]);
   const getOpBadgeStyle = (op: string) => {
     const upper = (op || '').toUpperCase();
     switch (upper) {
@@ -74,6 +72,15 @@ export const DatabaseEvidenceSection: React.FC<DatabaseEvidenceSectionProps> = (
         return { bg: 'rgba(251, 191, 36, 0.2)', border: 'rgba(251, 191, 36, 0.4)', text: '#fbbf24' };
       case 'DELETE':
         return { bg: 'rgba(248, 113, 113, 0.2)', border: 'rgba(248, 113, 113, 0.4)', text: '#f87171' };
+      case 'POST':
+      case 'PUT':
+      case 'PATCH':
+      case 'PUBLISH':
+        return { bg: 'rgba(251, 146, 60, 0.2)', border: 'rgba(251, 146, 60, 0.4)', text: '#fb923c' };
+      case 'GET':
+      case 'SUBSCRIBE':
+      case 'CALL':
+        return { bg: 'rgba(45, 212, 191, 0.2)', border: 'rgba(45, 212, 191, 0.4)', text: '#2dd4bf' };
       case 'ORM':
         return { bg: 'rgba(192, 132, 252, 0.2)', border: 'rgba(192, 132, 252, 0.4)', text: '#c084fc' };
       case 'MIGRATION':
@@ -89,10 +96,10 @@ export const DatabaseEvidenceSection: React.FC<DatabaseEvidenceSectionProps> = (
       <div
         className="inspector-section-header"
         onClick={() => setIsExpanded((prev) => !prev)}
-        title={isExpanded ? 'Collapse database evidence' : 'Expand database evidence'}
+        title={isExpanded ? `Collapse ${title.toLowerCase()}` : `Expand ${title.toLowerCase()}`}
       >
         <span className="inspector-section-title">
-          Database Evidence {serviceId ? `(${serviceId})` : ''} {loading ? '(loading...)' : `(${evidence.length})`}
+          {title} {loading ? '(loading...)' : `(${evidence.length})`}
         </span>
         <span className="inspector-section-toggle">
           {isExpanded ? <ChevronDownIcon size={12} /> : <ChevronRightIcon size={12} />}
@@ -103,7 +110,7 @@ export const DatabaseEvidenceSection: React.FC<DatabaseEvidenceSectionProps> = (
         <div className="inspector-evidence-list" style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '6px 8px' }}>
           {loading && (
             <div className="inspector-empty-hint" style={{ color: '#94a3b8' }}>
-              Fetching query & schema evidence...
+              {loadingHint}
             </div>
           )}
           {error && (
@@ -112,9 +119,7 @@ export const DatabaseEvidenceSection: React.FC<DatabaseEvidenceSectionProps> = (
             </div>
           )}
           {!loading && !error && evidence.length === 0 && (
-            <div className="inspector-empty-hint">
-              No direct SQL queries, ORM entities, or migrations found for this database.
-            </div>
+            <div className="inspector-empty-hint">{emptyHint}</div>
           )}
           {!loading && evidence.map((item, idx) => {
             const badgeStyle = getOpBadgeStyle(item.operation || item.kind);
@@ -153,23 +158,13 @@ export const DatabaseEvidenceSection: React.FC<DatabaseEvidenceSectionProps> = (
                       {item.title}
                     </span>
                   </div>
-                  {item.confidence && (
-                    <span
-                      style={{
-                        fontSize: '9px',
-                        fontWeight: 600,
-                        padding: '1px 4px',
-                        borderRadius: 2,
-                        background: 'rgba(255, 255, 255, 0.08)',
-                        color: '#94a3b8',
-                      }}
-                    >
-                      {item.confidence}
-                    </span>
-                  )}
                 </div>
 
-                {item.snippet && (
+                {item.reason && (
+                  <div style={{ fontSize: '10px', color: '#94a3b8' }}>{item.reason}</div>
+                )}
+
+                {item.codeSnippet && (
                   <pre
                     style={{
                       margin: '2px 0 0 0',
@@ -186,7 +181,7 @@ export const DatabaseEvidenceSection: React.FC<DatabaseEvidenceSectionProps> = (
                       overflowY: 'auto',
                     }}
                   >
-                    <code>{item.snippet}</code>
+                    <code>{item.codeSnippet}</code>
                   </pre>
                 )}
 
@@ -194,6 +189,12 @@ export const DatabaseEvidenceSection: React.FC<DatabaseEvidenceSectionProps> = (
                   <div style={{ fontSize: '10px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 4 }}>
                     <span style={{ color: '#64748b' }}>caller:</span>
                     <code style={{ color: '#cbd5e1', fontSize: '10px' }}>{item.callerSymbol}</code>
+                    {item.targetSymbol && (
+                      <>
+                        <span style={{ color: '#64748b' }}>→</span>
+                        <code style={{ color: '#cbd5e1', fontSize: '10px' }}>{item.targetSymbol}</code>
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -225,6 +226,77 @@ export const DatabaseEvidenceSection: React.FC<DatabaseEvidenceSectionProps> = (
         </div>
       )}
     </div>
+  );
+};
+
+export interface DatabaseEvidenceSectionProps {
+  databaseId: string;
+  databaseName?: string;
+  serviceId?: string;
+  onOpenFile?: (path: string, line?: number) => void;
+  defaultExpanded?: boolean;
+}
+
+export const DatabaseEvidenceSection: React.FC<DatabaseEvidenceSectionProps> = ({
+  databaseId,
+  serviceId,
+  onOpenFile,
+  defaultExpanded,
+}) => {
+  const url = useMemo(() => {
+    const params = new URLSearchParams({ id: databaseId });
+    if (serviceId) params.set('service', serviceId);
+    return `/api/database/evidence?${params.toString()}`;
+  }, [databaseId, serviceId]);
+
+  return (
+    <EvidenceSection
+      title={`Database Evidence${serviceId ? ` (${serviceId})` : ''}`}
+      url={url}
+      loadingHint="Fetching query & schema evidence..."
+      emptyHint="No direct SQL queries, ORM entities, or migrations found for this database."
+      onOpenFile={onOpenFile}
+      defaultExpanded={defaultExpanded}
+    />
+  );
+};
+
+export interface EdgeEvidenceSectionProps {
+  sourceIds: string[];
+  targetIds: string[];
+  edgeKind?: string;
+  onOpenFile?: (path: string, line?: number) => void;
+  defaultExpanded?: boolean;
+}
+
+/** Source-code evidence for any selected edge; group edges pass every member id per side. */
+export const EdgeEvidenceSection: React.FC<EdgeEvidenceSectionProps> = ({
+  sourceIds,
+  targetIds,
+  edgeKind,
+  onOpenFile,
+  defaultExpanded,
+}) => {
+  const sourceKey = sourceIds.join('\u0000');
+  const targetKey = targetIds.join('\u0000');
+  const url = useMemo(() => {
+    const params = new URLSearchParams();
+    sourceIds.forEach((id) => params.append('sourceIds', id));
+    targetIds.forEach((id) => params.append('targetIds', id));
+    if (edgeKind) params.set('kind', edgeKind);
+    return `/api/architecture/edge-evidence?${params.toString()}`;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceKey, targetKey, edgeKind]);
+
+  return (
+    <EvidenceSection
+      title="Evidence"
+      url={url}
+      loadingHint="Tracing the edge back to source code..."
+      emptyHint="No source-level evidence was recorded for this connection."
+      onOpenFile={onOpenFile}
+      defaultExpanded={defaultExpanded}
+    />
   );
 };
 
@@ -1420,39 +1492,24 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                 </div>
               </div>
 
-              {/* Database Evidence Inspector for Database Edge */}
-              {(selectedEdge.targetKind === 'Database' ||
-                selectedEdge.sourceKind === 'Database' ||
-                selectedEdge.items.some((it: ConnectionDetailItem) => it.category === 'database')) && (
-                <div style={{ padding: '4px 12px' }}>
-                  <DatabaseEvidenceSection
-                    databaseId={
-                      selectedEdge.targetKind === 'Database'
-                        ? selectedEdge.targetId
-                        : selectedEdge.sourceKind === 'Database'
-                        ? selectedEdge.sourceId
-                        : selectedEdge.targetId
-                    }
-                    databaseName={
-                      selectedEdge.targetKind === 'Database'
-                        ? selectedEdge.targetName
-                        : selectedEdge.sourceKind === 'Database'
-                        ? selectedEdge.sourceName
-                        : selectedEdge.targetName
-                    }
-                    serviceId={
-                      selectedEdge.targetKind === 'Database'
-                        ? selectedEdge.sourceName
-                        : selectedEdge.sourceKind === 'Database'
-                        ? selectedEdge.targetName
-                        : selectedEdge.sourceName
-                    }
-                    onOpenFile={onOpenFile}
-                    defaultExpanded={true}
-                  />
-                </div>
-              )}
-
+              {/* Source-level evidence for every edge type; group edges expand to member ids */}
+              <div style={{ padding: '4px 12px' }}>
+                <EdgeEvidenceSection
+                  sourceIds={
+                    selectedEdge.items.length > 0
+                      ? Array.from(new Set(selectedEdge.items.map((it: ConnectionDetailItem) => it.sourceId)))
+                      : [selectedEdge.sourceId]
+                  }
+                  targetIds={
+                    selectedEdge.items.length > 0
+                      ? Array.from(new Set(selectedEdge.items.map((it: ConnectionDetailItem) => it.targetId)))
+                      : [selectedEdge.targetId]
+                  }
+                  edgeKind={selectedEdge.primaryCategory}
+                  onOpenFile={onOpenFile}
+                  defaultExpanded={true}
+                />
+              </div>
               {/* Edge Breakdown List */}
               <div
                 className="inspector-body"

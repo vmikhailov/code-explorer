@@ -81,4 +81,11 @@ public record ProjectNode(
 
     [JsonIgnore]
     public override string Kind => OntologyConstants.NodeLabels.Project;
+
+    /// <summary>
+    /// Information extracted by shared file parsers (environment files, application settings, ...).
+    /// In-memory only; produced once during project creation and consumed by later layers.
+    /// </summary>
+    [JsonIgnore]
+    public List<CodeExplorer.Core.Parser.IProjectEnrichment> Enrichments { get; } = [];
 }

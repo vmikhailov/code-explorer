@@ -541,6 +541,8 @@ public class Layer2ProjectParser
             ctx.Log($"[Layer2] Resolved and enqueued {dependencies.Count} project dependencies.");
         }
 
+        SharedFileEnricher.Enrich(l1Result.Files, projects, ctx);
+
         ctx.Log($"[Layer2] Project detection scan complete. Found {projects.Count} projects, {packages.Count} package nodes.");
         return new Layer2Result(l1Result, projectsStructureNode, projects, packages, dependencies);
     }

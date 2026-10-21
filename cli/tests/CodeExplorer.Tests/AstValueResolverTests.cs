@@ -20,14 +20,14 @@ public class AstValueResolverTests
     {
         _lock = await TestRegistryLock.AcquireAsync();
         ConstantRegistry.Clear();
-        ConfigStore.Clear();
+        ConfigurationIndex.Clear();
     }
 
     [TearDown]
     public void TearDown()
     {
         ConstantRegistry.Clear();
-        ConfigStore.Clear();
+        ConfigurationIndex.Clear();
         _lock?.Dispose();
         _lock = null;
     }

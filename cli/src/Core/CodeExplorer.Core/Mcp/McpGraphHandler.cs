@@ -42,7 +42,7 @@ public partial class McpGraphHandler(
             }
             if (string.IsNullOrEmpty(ws))
             {
-                ws = repository.DefaultWorkspacePath ?? Common.WorkspaceLocator.FindWithFallbacks()?.RootDirectory;
+                ws = repository.DefaultWorkspacePath ?? WorkspaceLocator.FindWithFallbacks()?.RootDirectory;
             }
         }
 

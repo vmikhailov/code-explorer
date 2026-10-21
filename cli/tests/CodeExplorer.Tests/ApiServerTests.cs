@@ -231,7 +231,7 @@ public class ApiServerTests
     public async Task RestApi_GatesSaveAndTest_Succeeds()
     {
         // 1. Test Cypher query via POST /api/gates/test
-        var testReq = new Core.Protocol.TestGateRequestDto
+        var testReq = new TestGateRequestDto
         {
             Query = "MATCH (p:Project) RETURN p.name AS symbol, '' AS target, 'test project' AS message, 'Sample.csproj' AS file, 1 AS line"
         };
@@ -240,7 +240,7 @@ public class ApiServerTests
         testRes.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var testJson = await testRes.Content.ReadAsStringAsync();
-        var testResult = JsonSerializer.Deserialize<Core.Protocol.TestGateResponseDto>(testJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        var testResult = JsonSerializer.Deserialize<TestGateResponseDto>(testJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         testResult.Should().NotBeNull();
         testResult!.Success.Should().BeTrue();
         testResult.ProjectedColumns.Should().Contain("symbol");
@@ -248,9 +248,9 @@ public class ApiServerTests
         testResult.MissingColumns.Should().BeEmpty();
 
         // 2. Save gate via POST /api/gates/save
-        var saveReq = new Core.Protocol.SaveGateRequestDto
+        var saveReq = new SaveGateRequestDto
         {
-            Gate = new Core.Protocol.GateItemDto
+            Gate = new GateItemDto
             {
                 Id = "SIG-TEST-API-001",
                 Name = "API Test Gate",
@@ -270,7 +270,7 @@ public class ApiServerTests
         saveRes.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var saveJson = await saveRes.Content.ReadAsStringAsync();
-        var saveResult = JsonSerializer.Deserialize<Core.Protocol.SaveGateResponseDto>(saveJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        var saveResult = JsonSerializer.Deserialize<SaveGateResponseDto>(saveJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         saveResult.Should().NotBeNull();
         saveResult!.Success.Should().BeTrue();
         saveResult.FilePath.Should().NotBeNullOrEmpty();

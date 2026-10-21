@@ -78,7 +78,7 @@ public class MessagingConnectionsTests
         {
             new() { Id = "ws:project:root:", Name = "RootApp", FilePath = "" }
         };
-        var graphOwner = Core.Analysis.ArchitectureViewEngine.FindOwningProject(packageId, graphProjects);
+        var graphOwner = ArchitectureViewEngine.FindOwningProject(packageId, graphProjects);
         graphOwner.Should().BeNull("ArchitectureViewEngine must never map a package node to an internal project");
     }
 
@@ -96,7 +96,7 @@ public class MessagingConnectionsTests
         {
             new() { Id = "ws:project:root:", Name = "RootApp", FilePath = "" }
         };
-        var graphOwner = Core.Analysis.ArchitectureViewEngine.FindOwningProject(extId, graphProjects);
+        var graphOwner = ArchitectureViewEngine.FindOwningProject(extId, graphProjects);
         graphOwner.Should().BeNull();
     }
 

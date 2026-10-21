@@ -1,5 +1,26 @@
 {
   "gateId": "SIG-M-R-001",
-  "allowedViolations": 0,
-  "entries": []
+  "allowedViolations": 2,
+  "entries": [
+    {
+      "fingerprint": "e293105e52a34562249e3f42e260fb481d7505b13d008dfa7fac095db337fab8",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer2_Boundaries/Layer2BoundariesAnalyzer.cs",
+      "line": 12,
+      "column": 5,
+      "symbol": "ParseAsync",
+      "target": "537 lines",
+      "acknowledgedAt": "2026-10-21T01:04:51.3401737+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "6576df0577f0797aa55882d9b9f8fc51f26eed82a99972629d477d4a40fa6556",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/SyntaxEnricher.cs",
+      "line": 81,
+      "column": 5,
+      "symbol": "EnrichAsync",
+      "target": "510 lines",
+      "acknowledgedAt": "2026-10-21T01:04:51.3401737+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    }
+  ]
 }

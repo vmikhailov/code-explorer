@@ -211,7 +211,7 @@ public class WorkspaceFileFilter
     {
         var ext = Path.GetExtension(fileName).ToLowerInvariant();
         var hasParser = _fileParsers.Any(p => p.CanParse(ext) || p.CanParseFile(fileName));
-        var isConfigFile = ConfigurationParser.IsConfigurationFile(fileName) ||
+        var isConfigFile = ConfigurationIndex.IsConfigurationFile(fileName) ||
                            _projectParsers.Any(p => p.IsConfigurationFile(fileName));
 
         return hasParser || isConfigFile;

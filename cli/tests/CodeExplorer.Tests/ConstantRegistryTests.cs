@@ -177,7 +177,7 @@ public class ConstantRegistryTests
     }
 
     [Test]
-    public void DotEnv_File_IsScannedAndRegistered()
+    public void DotEnv_File_IsParsedAndRegistered()
     {
         var envContent = """
         # Comments
@@ -188,7 +188,9 @@ public class ConstantRegistryTests
         IGNORED_LINE_WITHOUT_EQUALS
         """;
 
-        ConstantRegistry.ScanAndRegister("path/to/.env", envContent, "billing");
+        var env = new CodeExplorer.Parser.Shared.EnvFileParser()
+            .Parse(new SharedFileContext("path/to/.env", ".env", envContent)).Should().BeOfType<EnvironmentInformation>().Subject;
+        ConfigurationIndex.Register(env, "billing");
 
         ConstantRegistry.TryResolve("billing", "EVENT_BUS_TOPIC_NAME", out var topicVal).Should().BeTrue();
         topicVal.Should().Be("custom-event-bus-topic");
@@ -233,27 +235,27 @@ public class ConstantRegistryTests
     [Test]
     public void WorkspaceConventions_NormalizeTopicName_FiltersPlaceholdersAndSubscriptions()
     {
-        Core.Common.WorkspaceConventions.NormalizeTopicName("TOPIC_NAME").Should().BeEmpty();
-        Core.Common.WorkspaceConventions.NormalizeTopicName("QUEUE_NAME").Should().BeEmpty();
-        Core.Common.WorkspaceConventions.NormalizeTopicName("EVENT_SUBSCRIBER_NAME").Should().BeEmpty();
-        Core.Common.WorkspaceConventions.NormalizeTopicName("default-sub-id").Should().BeEmpty();
-        Core.Common.WorkspaceConventions.NormalizeTopicName("default-subscription-name").Should().BeEmpty();
-        Core.Common.WorkspaceConventions.NormalizeTopicName("NETWORK_TOPIC").Should().BeEmpty();
+        WorkspaceConventions.NormalizeTopicName("TOPIC_NAME").Should().BeEmpty();
+        WorkspaceConventions.NormalizeTopicName("QUEUE_NAME").Should().BeEmpty();
+        WorkspaceConventions.NormalizeTopicName("EVENT_SUBSCRIBER_NAME").Should().BeEmpty();
+        WorkspaceConventions.NormalizeTopicName("default-sub-id").Should().BeEmpty();
+        WorkspaceConventions.NormalizeTopicName("default-subscription-name").Should().BeEmpty();
+        WorkspaceConventions.NormalizeTopicName("NETWORK_TOPIC").Should().BeEmpty();
 
-        Core.Common.WorkspaceConventions.NormalizeTopicName("ORDER_EVENTS_TOPIC").Should().Be("order-events-topic");
+        WorkspaceConventions.NormalizeTopicName("ORDER_EVENTS_TOPIC").Should().Be("ORDER_EVENTS_TOPIC");
     }
 
     [Test]
     public void WorkspaceConventions_IsPlaceholderName_DetectsPlaceholdersAccurately()
     {
-        Core.Common.WorkspaceConventions.IsPlaceholderName("TOPIC_NAME").Should().BeTrue();
-        Core.Common.WorkspaceConventions.IsPlaceholderName("QUEUE_NAME").Should().BeTrue();
-        Core.Common.WorkspaceConventions.IsPlaceholderName("default-topic").Should().BeTrue();
-        Core.Common.WorkspaceConventions.IsPlaceholderName("default-sub-id").Should().BeTrue();
-        Core.Common.WorkspaceConventions.IsPlaceholderName("network-topic").Should().BeTrue();
+        WorkspaceConventions.IsPlaceholderName("TOPIC_NAME").Should().BeTrue();
+        WorkspaceConventions.IsPlaceholderName("QUEUE_NAME").Should().BeTrue();
+        WorkspaceConventions.IsPlaceholderName("default-topic").Should().BeTrue();
+        WorkspaceConventions.IsPlaceholderName("default-sub-id").Should().BeTrue();
+        WorkspaceConventions.IsPlaceholderName("network-topic").Should().BeTrue();
 
-        Core.Common.WorkspaceConventions.IsPlaceholderName("order-events-topic").Should().BeFalse();
-        Core.Common.WorkspaceConventions.IsPlaceholderName("payment-queue").Should().BeFalse();
+        WorkspaceConventions.IsPlaceholderName("order-events-topic").Should().BeFalse();
+        WorkspaceConventions.IsPlaceholderName("payment-queue").Should().BeFalse();
     }
 
     [Test]
@@ -261,20 +263,20 @@ public class ConstantRegistryTests
     {
         try
         {
-            Core.Common.WorkspaceConventions.Current = new Core.Conventions.WorkspaceConventionProfile(
+            WorkspaceConventions.Current = new Core.Conventions.WorkspaceConventionProfile(
                 new Core.Conventions.Services.ServiceIdentityResolver(),
                 new Core.Conventions.Services.MessagingConventionService(customPlaceholders: ["custom-placeholder-token", "google-pub-sub-network-topic"]),
                 new Core.Conventions.Services.DomainTaxonomyEngine(),
                 new Core.Conventions.Services.NetworkEntityValidator()
             );
 
-            Core.Common.WorkspaceConventions.IsPlaceholderName("custom-placeholder-token").Should().BeTrue();
-            Core.Common.WorkspaceConventions.IsPlaceholderName("google-pub-sub-network-topic").Should().BeTrue();
-            Core.Common.WorkspaceConventions.NormalizeTopicName("GOOGLE_PUB_SUB_NETWORK_TOPIC").Should().BeEmpty();
+            WorkspaceConventions.IsPlaceholderName("custom-placeholder-token").Should().BeTrue();
+            WorkspaceConventions.IsPlaceholderName("google-pub-sub-network-topic").Should().BeTrue();
+            WorkspaceConventions.NormalizeTopicName("GOOGLE_PUB_SUB_NETWORK_TOPIC").Should().BeEmpty();
         }
         finally
         {
-            Core.Common.WorkspaceConventions.Clear();
+            WorkspaceConventions.Clear();
         }
     }
 }

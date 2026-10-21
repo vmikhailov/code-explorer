@@ -318,7 +318,7 @@ public partial class PostIndexAnalyzer
             return null;
         }
 
-        cleanKey = ConfigStore.StripServiceOptionsSuffixes(cleanKey);
+        cleanKey = ConfigurationIndex.StripServiceOptionsSuffixes(cleanKey);
 
         if (WorkspaceConventions.TryGetServiceAlias(cleanKey, out var aliased))
         {

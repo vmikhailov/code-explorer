@@ -1390,7 +1390,7 @@ public class TestGateResponseDto
     public string? Error { get; set; }
 }
 
-public class DatabaseEvidenceItemDto
+public class ArchitectureEvidenceItemDto
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
@@ -1421,12 +1421,34 @@ public class DatabaseEvidenceItemDto
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? CallerSymbol { get; set; }
 
+    [JsonPropertyName("targetSymbol")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TargetSymbol { get; set; }
+
     [JsonPropertyName("serviceName")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ServiceName { get; set; }
 
     [JsonPropertyName("reason")]
     public string Reason { get; set; } = string.Empty;
+}
+
+public class EdgeEvidenceResponseDto
+{
+    [JsonPropertyName("sourceId")]
+    public string SourceId { get; set; } = string.Empty;
+
+    [JsonPropertyName("targetId")]
+    public string TargetId { get; set; } = string.Empty;
+
+    [JsonPropertyName("edgeKind")]
+    public string EdgeKind { get; set; } = string.Empty;
+
+    [JsonPropertyName("totalCount")]
+    public int TotalCount { get; set; }
+
+    [JsonPropertyName("items")]
+    public List<ArchitectureEvidenceItemDto> Items { get; set; } = [];
 }
 
 public class DatabaseEvidenceResponseDto
@@ -1451,7 +1473,7 @@ public class DatabaseEvidenceResponseDto
     public int TotalCount { get; set; }
 
     [JsonPropertyName("items")]
-    public List<DatabaseEvidenceItemDto> Items { get; set; } = [];
+    public List<ArchitectureEvidenceItemDto> Items { get; set; } = [];
 }
 
 

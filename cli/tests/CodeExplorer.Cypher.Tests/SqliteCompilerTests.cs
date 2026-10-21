@@ -605,7 +605,7 @@ public class SqliteCompilerTests
     public void Test_DirectLabels_GeneratesCleanSqlWithoutSubqueries()
     {
         var cypher = "MATCH (s1:Service)-[:CALLS]->(s2:Service)-[:USES_DB]->(d:Database) RETURN s1.name, s2.name, d.name LIMIT 50";
-        var ast = CodeExplorer.Cypher.Parser.CypherQueryParser.Parse(cypher);
+        var ast = CypherQueryParser.Parse(cypher);
 
         var compiled = SqliteCompiler.Compile(ast);
         compiled.Sql.Should().NotContain("NOT EXISTS");
@@ -665,7 +665,7 @@ public class SqliteCompilerTests
         InsertEdge("fn:b", "fn:c", "CALLS");
 
         var cypher = "MATCH (a:Function)-[:CALLS*1..2]->(b:Function) WHERE a.name = 'StartFn' RETURN b.name AS name ORDER BY b.name";
-        var ast = CodeExplorer.Cypher.Parser.CypherQueryParser.Parse(cypher);
+        var ast = CypherQueryParser.Parse(cypher);
         var compiled = SqliteCompiler.Compile(ast);
 
         compiled.Sql.Should().Contain("FROM nodes _src_anc CROSS JOIN edges e ON e.from_id = _src_anc.id");
@@ -686,7 +686,7 @@ public class SqliteCompilerTests
         InsertEdge("fn:r2", "fn:r3", "CALLS");
 
         var cypher = "MATCH (caller)-[:CALLS*1..2]->(target:Function) WHERE target.name = 'LeafTarget' RETURN caller.name AS name ORDER BY caller.name";
-        var ast = CodeExplorer.Cypher.Parser.CypherQueryParser.Parse(cypher);
+        var ast = CypherQueryParser.Parse(cypher);
         var compiled = SqliteCompiler.Compile(ast);
 
         compiled.Sql.Should().Contain("FROM nodes _src_anc CROSS JOIN edges e ON e.to_id = _src_anc.id");

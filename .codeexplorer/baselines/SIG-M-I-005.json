@@ -1,0 +1,1516 @@
+{
+  "gateId": "SIG-M-I-005",
+  "allowedViolations": 151,
+  "entries": [
+    {
+      "fingerprint": "ef3666ef19d2fa76f6d64cc8f8dc8c3a455a2932ee290f2da623bc626883e8ff",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer2_Boundaries/ProjectEntityClassifierRegistry.cs",
+      "line": 530,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "5561e889c7a3132dfbcbb05952d71ef1fff13ca6e689d34823aed29e35525abf",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer2_Boundaries/ProjectEntityClassifierRegistry.cs",
+      "line": 650,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "ebebf0c24b4b1dbd311c01956aca56f069a08fb25a6d5ca57a9c05cf892b98a0",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer2_Boundaries/ProjectEntityClassifierRegistry.cs",
+      "line": 714,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "b686eb2a71ad3d92a773f9cf9e8f8920bbff935a022d6a1e1d0cd9d681cee09b",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer3_Syntactic/RouteDictionaryRegistry.cs",
+      "line": 683,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "4d653e0e8f897373fc65efd70fca26021e8e5955d76496d458d1d2d50819fc60",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/SyntaxEnricher.Resources.cs",
+      "line": 38,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "c8de328f969d83ac5f8f063886511956a3bf7e7c2bf92f08a350e7c14a1888c4",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/SyntaxEnricher.Resources.cs",
+      "line": 389,
+      "column": 0,
+      "symbol": "ObjectDisposedException",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "1fdbc4ec6fb3797f3d2843d3420c6d2a9bc54dff1a65dc1856301f3d94c17911",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/SyntaxEnricher.Resources.cs",
+      "line": 463,
+      "column": 0,
+      "symbol": "Exception",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "e67abc8e53b59dbe543bf0437b3e2e5f8b5da9d5efbe744356ac6fe6017a38d0",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/SyntaxEnricher.Resources.cs",
+      "line": 512,
+      "column": 0,
+      "symbol": "Exception",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "cf49f62f45c32ee49961310ece2e4259df242cf01b770d0ec8b5e2115d847080",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/SyntaxEnricher.Resources.cs",
+      "line": 706,
+      "column": 0,
+      "symbol": "Exception",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "921b246d43dedaa3e175f82b1363c86ee205aca5523bd5c98ad4b4df1bbe1856",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/SyntaxEnricher.Resources.cs",
+      "line": 917,
+      "column": 0,
+      "symbol": "Exception",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "5a094ccbc6fbfabe248da28163a132660579afadbd698aa6d3d01307e8d98f84",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/SyntaxEnricher.Resources.cs",
+      "line": 951,
+      "column": 0,
+      "symbol": "Exception",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "c1dea97d112049df154255f8bff797e2e98a0b5b3720bfc8f16a2028e60773d1",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer5_Global/Intent/NativeIntentPredictor.cs",
+      "line": 156,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "c5368cc0fca1acaf4a3db6ae6b5806c33e45c048f05a52f91c90e7cb6f277cee",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer5_Global/Intent/NativeIntentPredictor.cs",
+      "line": 177,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "6f9b32a000d03ee7b00e33118bb4a7226da4f0b30ef831eaaa1af3699454ac1d",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer5_Global/Intent/NativeIntentPredictor.cs",
+      "line": 195,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "ec9a94f4e4a52da576ffaddf24b6e3835455e0df01885511f158cf9fa9e1022e",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
+      "line": 176,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "6138ad131a7136a1caa7c0b0689e8d74c682edd5053503a0d4f26fa25d3e1b75",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.InMemory.Consolidation.cs",
+      "line": 197,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "b7e7d37190e01c3ece375ba444da5a66ba3a450d25c1bee9d053b658df505744",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.EdgeNormalization.cs",
+      "line": 247,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "6bb7b52fceb734dad7552dfbe0dac8d4599b1b55bee3dbd9567c254abff339f7",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Pipeline/Incremental/FileRegistry.cs",
+      "line": 150,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "21adfc1752003b0244c17b43b857133b7ec444b2f058e9b4e0f542bcadfee1ff",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.BoundedContexts.cs",
+      "line": 823,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "5a3da710cfd8fc6d1566f053801241987e0702adc7720a6f7e8af057ffafd94b",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.cs",
+      "line": 166,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "cc22d20f02b6894e05f0fd4ecdef3288ca2de69c13e12103ddc5bd2c5e61ec8d",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.DatabaseEvidence.cs",
+      "line": 44,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "40c795be3dcb340283c3857c7103635fcfed59a6556c061289f00e3e0071e3ad",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.DatabaseEvidence.cs",
+      "line": 119,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "79691a7e550c7b8819900cd76c07c05fcecb9a55a96e9549c4e27666b55525aa",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.DatabaseEvidence.cs",
+      "line": 182,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "3eba46529e3f1200750e58033c8058a28e51ba592e55ab150f8715449fccb98c",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.DatabaseEvidence.cs",
+      "line": 247,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "8b97d6117e4ef1cb1a679bb39a4eb4f87757237be48548273c33487a96c9ba02",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.DatabaseEvidence.cs",
+      "line": 327,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "3067450044fb009060319c5561e47a2217a2067952310687bfd41a09062964c1",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.DatabaseEvidence.cs",
+      "line": 406,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "62f2f5fa491522e0faa58a7ba7a82b9a5709a3dbaed10813be29807c8026b98a",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.DatabaseEvidence.cs",
+      "line": 463,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "26ac865df1d77e835a2a8f58cbca58b9c34e9ee02551cbdc90b047b61d533c0d",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.DomainMap.cs",
+      "line": 294,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "b0a311594400ff8987f96a21d5abde4cc24c52dc354ba9a7a672a3745da61a1d",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.OntologyQueries.cs",
+      "line": 79,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "85bb399812b175712d99e4e163eb96e4582340868454726843052f0704cb67f3",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.OntologyQueries.cs",
+      "line": 208,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "48d71fb33da2aafb4a685f97b8132f5d6b879b9815e07608b762c91fb3119d00",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.OntologyQueries.cs",
+      "line": 354,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "628f9c5f38ddaf6ba9bd7312ae0ba99dd59112973403bcd33c84a779d519da08",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.OntologyQueries.cs",
+      "line": 359,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "f1bcfbfbe674d8da0ac97c84fbc33a4bf51d8499f2507a38d3770b1e90506b90",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.OntologyQueries.cs",
+      "line": 388,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "5f6f9700cc26a6809de3f677969b5f3b3ef73bcdc93da3b04a63673a09fc0364",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.OntologyQueries.cs",
+      "line": 467,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "fdff643c3e96333e18452df529aff708c3907eff020c3cbf4c8dde61638b3ccd",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.OntologyQueries.cs",
+      "line": 512,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "6ef22dc7da8e04bca856f0f6919f1374252d0b26a56fe3ab99cb8af148990642",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.OntologyQueries.cs",
+      "line": 557,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "d9e1282574588d24b0c266114413cdc66239da16f5699f6d2b1c77441344f0dd",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.OntologyQueries.cs",
+      "line": 709,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "3a995b43454560df5ee5c70beaa4cf411fa8b6806d9ab7c245b3f7655ce4fbda",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.OntologyQueries.cs",
+      "line": 791,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "87b3518ac3c0dac6dc60a867d92f05c65214d26b6874906f1216477f6f4954f0",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.OntologyServices.cs",
+      "line": 228,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "4ff8d9dca00b5031aa95efa40c2f8f9fee8e24ed365dd0c25003109714e5dd15",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.OntologyServices.cs",
+      "line": 327,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "62b101e85a361342e343ab60203be5e6e9d398ffe849b1e00ac0b8d8909e2108",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.OntologyServices.cs",
+      "line": 452,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "9711399fc69c3b8beb96722466bd7f7d6ee08b5e08b069dba5febbc452a59a03",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.OntologyServices.cs",
+      "line": 516,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "913b10b153354650321001caa805fac4a124d54afdc59ea14921fac64ea8092d",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.Subgraphs.cs",
+      "line": 95,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "483ae623dc22cfef647d88e021ba7d49909a8ff8c18a64af8d7a9f0fea4c547c",
+      "file": "cli/src/Core/CodeExplorer.Core/Common/JsonElementExtensions.cs",
+      "line": 50,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "0ffece84e74e7b8526d3646a183977fb897b354056fd31dcb314512bfe9e138f",
+      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteCypherFunctions.cs",
+      "line": 75,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "9af57ed1911a9fdc99bdb973739535ee310b9cf774774ed9e3010219ca51bd24",
+      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteCypherFunctions.cs",
+      "line": 102,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "e5eefcfa4dfe0cc689c199ff03245f0f61b4888ca2055447f4f67c8d5ec8f22f",
+      "file": "cli/src/Core/CodeExplorer.Core/Database/SqliteCypherFunctions.cs",
+      "line": 119,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "d3a1d98bd059199c364e8486e4c59d87b77d3bae95c971744dbef5d76b87c0fe",
+      "file": "cli/src/Core/CodeExplorer.Core/Mcp/CodeExplorerRepository.cs",
+      "line": 79,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "f6b80ea7e05d8400896bc131055a7f0a9c23cbef5578a028cad9978f7f0fb03e",
+      "file": "cli/src/Core/CodeExplorer.Core/Mcp/CodeExplorerRepository.cs",
+      "line": 158,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "ddf086f58dee5e830e14877c601aa50fc51702494c8b3cd2160c85c238a8dd24",
+      "file": "cli/src/Core/CodeExplorer.Core/Mcp/CodeExplorerRepository.cs",
+      "line": 169,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "8a650d273f9f629e8ec7ed7f8440371763ec0cac9ccca21db58961911a58c57e",
+      "file": "cli/src/Core/CodeExplorer.Core/Mcp/CodeExplorerRepository.cs",
+      "line": 180,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "e54fb6b54202bbe9063542cfce3f34b6b6b5a66bbb1c74ee0a4719b63a39f77b",
+      "file": "cli/src/Cypher/CodeExplorer.Cypher/Linq/CypherQueryable.cs",
+      "line": 217,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "c51e3207bee7f2c2d969545efaadaf791116e5e722b71da53651ba0896d3d21b",
+      "file": "cli/src/Parsers/CodeExplorer.Parser.Android/GradleBuildScriptParser.cs",
+      "line": 61,
+      "column": 0,
+      "symbol": "Exception",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "480e0afea4c2d488a54b20f786682562453bf989b546342d596cde1f831b090b",
+      "file": "cli/src/Parsers/CodeExplorer.Parser.Android/GradleBuildScriptParser.cs",
+      "line": 197,
+      "column": 0,
+      "symbol": "Exception",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "1d47a249d5600fc408d1b2d808b63c8d96973bd70325034ab03958973de30127",
+      "file": "cli/src/Parsers/CodeExplorer.Parser.CSharp/CSharpParser.cs",
+      "line": 660,
+      "column": 0,
+      "symbol": "Exception",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "2dafce0092ce9b0d8ec1e7291b5f807a757bf8b81787ead89a5514738c7533c4",
+      "file": "cli/src/Parsers/CodeExplorer.Parser.CSharp/CSharpParser.cs",
+      "line": 733,
+      "column": 0,
+      "symbol": "Exception",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "c21c6d92567319b6ebe6a00b69d639c50ee9627225011075d0264a950d2aff7a",
+      "file": "cli/src/Parsers/CodeExplorer.Parser.Go/GoParser.cs",
+      "line": 210,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "29057c41940ff6c9abe5bb3e6d4a7b51cd89b59b106b4486c0cd1e6569e37073",
+      "file": "cli/src/Parsers/CodeExplorer.Parser.Java/JavaParser.cs",
+      "line": 306,
+      "column": 0,
+      "symbol": "Exception",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "3ed40135ea905ffd0ef8fb0c87094d08da9b665b8307e8d691b8c9c09b4cac7d",
+      "file": "cli/src/Parsers/CodeExplorer.Parser.Java/JavaParser.cs",
+      "line": 327,
+      "column": 0,
+      "symbol": "Exception",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "3571373f11f37e2407320e60b74a4ae34f234a3b7b6af3fc2b9eb2d2aabd036f",
+      "file": "cli/src/Parsers/CodeExplorer.Parser.Java/JavaParser.cs",
+      "line": 355,
+      "column": 0,
+      "symbol": "Exception",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "6b3618585ca8c74b0e7d601f09a2191ff8fd1c0e764839bdd3af00c21000d6fc",
+      "file": "cli/src/Parsers/CodeExplorer.Parser.Java/JavaParser.cs",
+      "line": 504,
+      "column": 0,
+      "symbol": "Exception",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "38d9747f0259772c0c889a832bb80401ca0872c2680f1720e247b2e5d4dd708a",
+      "file": "cli/src/Parsers/CodeExplorer.Parser.Java/JavaParser.cs",
+      "line": 538,
+      "column": 0,
+      "symbol": "Exception",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "6f4d041a301abd6c2b075e6c2f9febad880c998b04d8bf86bf9915303db584bd",
+      "file": "cli/src/Parsers/CodeExplorer.Parser.Kotlin/KotlinProjectParser.cs",
+      "line": 73,
+      "column": 0,
+      "symbol": "Exception",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "a039e1081579dab8ca64535f86393fa5e7b2b4b235a8b7853a429b2c3b87d6da",
+      "file": "cli/src/Parsers/CodeExplorer.Parser.Kotlin/KotlinProjectParser.cs",
+      "line": 194,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "aafce4a72d75b6312422a215e9f7aae3135fb765548bb51fa1cefbd671fd2f65",
+      "file": "cli/src/Parsers/CodeExplorer.Parser.Kotlin/KotlinProjectParser.cs",
+      "line": 259,
+      "column": 0,
+      "symbol": "Exception",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "12e91a61cd37d8094d230388942ddc2ddcd21ae35dd32548f2d04297a1ed835a",
+      "file": "cli/src/Parsers/CodeExplorer.Parser.Rust/RustParser.cs",
+      "line": 438,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "17f8f68446fb5e870c0270c076cbb34f45d9a91fa44e336da6bf42ff16c37c82",
+      "file": "cli/src/Parsers/CodeExplorer.Parser.Rust/RustParser.cs",
+      "line": 597,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "3ebcd94156cbec13a170d85307f52dd64baff222773125c13212b7d1650fc658",
+      "file": "cli/src/Parsers/CodeExplorer.Parser.TypeScript/Libraries/ExpressLibraryParser.cs",
+      "line": 467,
+      "column": 0,
+      "symbol": "Exception",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "542d57e57f76c3195f453edfa54f8825339ee3929e3df48c649a26179bb26015",
+      "file": "cli/src/UI/CodeExplorer/Commands/ConfigureCommandHandler.cs",
+      "line": 236,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "e12f9763936a88900d4c039564c0fb3e72c82bcd0b657aba7cd40a46072a0baf",
+      "file": "cli/src/UI/CodeExplorer/Program.cs",
+      "line": 22,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "a482e8b930edaff53e0edfaf60b8cdc8abd640507cc6f6d01b94a86d417e20f3",
+      "file": "vscode-extension/src/webview/components/C1SystemContextView.tsx",
+      "line": 43,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "eb250694a32593c35a14aa1fa2337666f49872c85866e6d1951f3655e6334479",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 66,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "fec88bac70103ec0a499b2e47d63d2ae7f0cdd92fda43034408a98d836865cdc",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 79,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "14b4d595adaad8265cc4aa04e5a42f665d1e4c5962d35ef772aa7be15fefa0a1",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 939,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "d71c5e7f69aeb87310176befec0525323d8dff6758e62fe215db98bd8e55f55f",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 950,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "30f515af3358b3d9c198c9876858a6c0692c75ec8242d6c6e00d02e9c44edada",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 958,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "662872525c30f55a588d0a8142dee9c448a63d7f74e1d1cb5982a1f52a3fd672",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 978,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "084f0a85a4e4bf1504a050c0570e43d46057016049e85998555ed39e10e5ce76",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 987,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "529d26bf2f9707c8491302dde0daca08249d87a90142b958929895c30ad0f4a0",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 1002,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "56df04d36586895e5bfd3037301acbe1c2a6d11bc06e84669aa14b4e3b38d1b9",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 1013,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "0d3e8e0403fa5c36384d035f13f8c336d09c432b47ef615495a86725af7e4709",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 1023,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "cf8fbb467eed4d226ae61cbb649fd688960b01b10622f3e30ea432f70ac93c63",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 1033,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "9c8182188cfbffe5846e93adfd7236bf4bc3c317ab7f5984f4ca2b30dbabd924",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 1044,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "a194d2c0e5f480693bf023c7abccb27f80ab4f8db14731d0059d2fb96a721a49",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 1190,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "8ddcb7475a58ff0b7b84cc5331a6fef29dfdf8555735a83ecb72775c66114999",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 1200,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "99268c30387d8ec20322085cc1b3ea3f6f089ee91e7db0358293e00fe90833ca",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 1210,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "f506264c450efb73cfdf8d883ea1827fe0f9a6f6713408933d4b8772d5b63a29",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 1220,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "49b27195aa9f76308fcf0ebc0e7ce7773c1bf5faef046d78592de74578dfa78f",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 1227,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "1e5e63f959fca7fb551667e6160a95a2bfb04265586beb60d008331309213bc9",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 1234,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "402b198ee0da7e2a900d4ab519416a8de7eef268fb611f8bcd83c7a169c60836",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 1271,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "dd49c0803a0250fe3766bde97e8d51b27e8b0989734ec3723a57794edd814730",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 1282,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "e3c8e703ad6e59eea982affb0b4fc01ac9a45f075c230a04f79d7e2ed4df15be",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 1379,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "815821cceb49927f419e7387ff3f28c9cddc7b1db0b9f7d371cb7093b78b35a8",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 1389,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "62f6070d1cca8e8703930ae6ee2bafe153b22c50a8d683be0d1d2aea8939c936",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 1402,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "c5338eb0f7c7a953632274f48fd09ab1be57a9cadc29e2c8bb717ab1cf015e8e",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 1413,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "106c39cb9ea3e28bba44e4bc1bf43dd193c1416b55b20398655a1a7561e785a1",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 1447,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "52f192808930d2f79c66f5d71fd9039dfa0c9fc5c9496355cc791378d5e94629",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 1457,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "86516612f398936ce2aec1f9498a5e3726ddb95b97d2e46fb2b14fb298e60b78",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 1467,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "13e4b067d3e83590fd0256dfd695d89eec3067f1b70c3df83d8ca639d4823f2b",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 1477,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "86efe3f2d0df6451f0bda1d643618b809236aaee56d854e831ecb84bba18e12d",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 1495,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "10a65fc81feb821b15d2941857917a24f6ddcb7ef83cebfd4db21e4ccfc7d1b9",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 1539,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "373be63b2f920f051f16c1f3933c438f966ab352c8cb855f9ff2f06b4502ba76",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 1549,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "042a62792608cd6cc214de660c57d7520b0dc6c2cecb4d475a525d1efbff49d6",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 1576,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "ba04f60c83954a096de456c1bbec600355fb678c243ac8719af565faf114a236",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 3423,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "4e5f0eb7bf08ffba3ee51272db7d412f9a3418c7476bbef42f63ff1ce8c1943a",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 3712,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "978f9446f2a5c70c6c58ee4f871c4d85ad26227285c29b738898bce930006f2f",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 4063,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "f350c2d05724c1ecf63c10195c181b476781d72e739ca6b5da14c64e95aa3352",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 4111,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "50ebef3236710f438deaf4367b02f738935ee492a1ddec307a90a3b8abf1681b",
+      "file": "vscode-extension/src/webview/components/FloatingPanel.tsx",
+      "line": 216,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "9c160176dba444b0d144938e63d31b430cf24f35d3685a26c23a782998d02bd4",
+      "file": "vscode-extension/src/webview/components/FloatingPanel.tsx",
+      "line": 229,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "c79418c58e2462ef110f68a6ce87a82f7b93605572f09020e67a799522adff0d",
+      "file": "vscode-extension/src/webview/components/FloatingPanel.tsx",
+      "line": 319,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "bf7075ad961abb4467ad1812c3fc4957803cc978ab97d9bde136e45625d1156f",
+      "file": "vscode-extension/src/webview/components/FloatingPanel.tsx",
+      "line": 343,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "be3e457350bda5bd257bc0041b9452dad1a234c4f92c07390c79f7c0cb96d476",
+      "file": "vscode-extension/src/webview/domain/components/DomainGridView.tsx",
+      "line": 27,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "88de9553c8e7714b6ad715e6a03bd23d2607ba251b58c5d676df32bee8ef4ee0",
+      "file": "vscode-extension/src/webview/domain/components/DomainInspector.tsx",
+      "line": 351,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "39808d87c8f41be3a28c0550b3cec5c3f051a68b1933a3e89f1398ccf534903a",
+      "file": "vscode-extension/src/webview/domain/components/DomainVisibilityPanel.tsx",
+      "line": 73,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "63245af3b1fa9faa0feca4ce13cee006c319db9a9ee3a14394854b60e3740052",
+      "file": "vscode-extension/src/webview/domain/context/DomainArchitectureContext.tsx",
+      "line": 118,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "4f383411a1dd06ee227b32c19a3b715b928a7bbf3ff61b38c96298a561f214ba",
+      "file": "vscode-extension/src/webview/domain/context/DomainArchitectureContext.tsx",
+      "line": 128,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "0f7be44d9a40ee20326a2b2fc35fa32c094562a91a108d85d4a8a2079373fe16",
+      "file": "vscode-extension/src/webview/domain/context/DomainArchitectureContext.tsx",
+      "line": 138,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "19de1b41717223761e120fb50a3cb38641c73681d623251da134bfb2e01645c7",
+      "file": "vscode-extension/src/webview/domain/context/DomainArchitectureContext.tsx",
+      "line": 145,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "2b01a56ce7c2666fb27fdb944fc3f31b46df275ede31471ea42b936731667697",
+      "file": "vscode-extension/src/webview/domain/context/DomainArchitectureContext.tsx",
+      "line": 152,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "a8584b51fbcd2852998211f4d36920d1ab825d904727907ac26a87e27cc274be",
+      "file": "vscode-extension/src/webview/domain/context/DomainArchitectureContext.tsx",
+      "line": 165,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "917da9752ddc5b9759c81f99f5ba6dfb1c93dd649e09866f2e8511d2eef61cbb",
+      "file": "vscode-extension/src/webview/domain/context/DomainArchitectureContext.tsx",
+      "line": 176,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "4bcc39e97ff8c716564147f7ceec92f969bf15070b43b35e67286cd9d25c09c7",
+      "file": "vscode-extension/src/webview/domain/context/DomainArchitectureContext.tsx",
+      "line": 186,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "a043e1727078c5ddaa8db62663ef8998e56e8eeed60316b9b609f96269f713e0",
+      "file": "vscode-extension/src/webview/domain/context/DomainArchitectureContext.tsx",
+      "line": 192,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "a5a59ebf8bd8a25a9cd52f4372a6cdbd15ebba5f0625c277738a355d77546eca",
+      "file": "vscode-extension/src/webview/domain/context/DomainArchitectureContext.tsx",
+      "line": 197,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "e05bce47de50a42313280c26977b416ba7a6e9bcbb575c9143a982d09693560b",
+      "file": "vscode-extension/src/webview/domain/context/DomainArchitectureContext.tsx",
+      "line": 203,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "ea9bca096f36a085b428417d729d1cf8f73783b13ff0cce6a6a241f814d26fd8",
+      "file": "vscode-extension/src/webview/domain/context/DomainArchitectureContext.tsx",
+      "line": 209,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "52b35a68a0871475ae088cd10f986314cc8d4fc18aff30b57e9fe425fcffe25c",
+      "file": "vscode-extension/src/webview/domain/context/DomainArchitectureContext.tsx",
+      "line": 215,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "28143511bcc34e4c44ed0e2ee4a6332f55dfe19b87a7bdf3e844b519651468ae",
+      "file": "vscode-extension/src/webview/domain/context/DomainArchitectureContext.tsx",
+      "line": 221,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "cf810a0b2360044d45cd2480fb6777ecf242c5a26557ce2b8a404fa8e1c71adf",
+      "file": "vscode-extension/src/webview/services/webviewTransport.ts",
+      "line": 183,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "2b474812a6d971718a7c51132b3f532753ff404d45ce91b087902f62668f5471",
+      "file": "vscode-extension/src/webview/services/webviewTransport.ts",
+      "line": 244,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "a255a74ed5a4c5f32b89f8373fd37274065a2f77bdcb4bf54220cb41ae5e8e26",
+      "file": "vscode-extension/src/webview/services/webviewTransport.ts",
+      "line": 298,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "e6c7692b9bec9eda2c58b6990bc2a528e90bb00159cb3e3cc30861f656489899",
+      "file": "vscode-extension/src/webview/services/webviewTransport.ts",
+      "line": 372,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "d1ab6c5de3c053b17ddf01111e4360472ab67370d55405a6c0614d86eb05f666",
+      "file": "vscode-extension/src/webview/services/webviewTransport.ts",
+      "line": 405,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "728c479349da9692244c4bcf7bcd0ca59a88bc3837ff46f082368ecdc6210be6",
+      "file": "vscode-extension/src/webview/services/webviewTransport.ts",
+      "line": 424,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "9b9aca359d6ec87b5e60fbd452b02e4b622bd70d8ab740265828d87c2d1d5b29",
+      "file": "vscode-extension/src/webview/App.tsx",
+      "line": 76,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "2690effadc9c7f57ed852e7205626bf6572699763e39f38dcefc5b577e704517",
+      "file": "vscode-extension/src/webview/App.tsx",
+      "line": 420,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "76a8c9a3906e47a3ef6a85d98d747b4798374ebfe21a75741d6c15b9c13cc4c7",
+      "file": "vscode-extension/src/webview/App.tsx",
+      "line": 468,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "241d3f6319f697ecb0a5d1f980b7bca03d266e168d957319f65d04e6c80dcf0c",
+      "file": "vscode-extension/src/webview/App.tsx",
+      "line": 1009,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "e8d6b16bfed44120210794d7153063c8c4f298644af2fc2f882daaa6691fdcad",
+      "file": "vscode-extension/src/webview/App.tsx",
+      "line": 1015,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "cbd5e74a57312141576685aa21bc35857d853beb922f35f57efa72ab57e7f04c",
+      "file": "vscode-extension/src/webview/App.tsx",
+      "line": 1024,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "d00b8a444e70c56e9e5e9ef0077d8574415884b21def339ce189521cdfbee2e6",
+      "file": "vscode-extension/src/webview/layers.ts",
+      "line": 60,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "dc08ef006160e2beb72ecb6ebb5b07a3b549ed2fc6d6809f3eedafa3faaec445",
+      "file": "vscode-extension/src/codeExplorerTreeHelpers.ts",
+      "line": 789,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "d10e02700bc21d5d20d8ffe3df48215fea2290a7385dfdfb525a7bb8a3ced8d2",
+      "file": "vscode-extension/src/codeExplorerTreeHelpers.ts",
+      "line": 794,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "70d6ea986b1571f6f9634acd74dff8ce4de193f7d0c9a610f893423c9b67202b",
+      "file": "vscode-extension/src/codeExplorerTreeHelpers.ts",
+      "line": 820,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "cc1a8dceacb592fc627d7db6d81db360a6418c60851c73cc0361762bcd12bf15",
+      "file": "vscode-extension/src/codeExplorerTreeHelpers.ts",
+      "line": 850,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "59c9848b92e6c3deebb703d01cb76e5eb11040d673d2a11146a94cf52d60e2f3",
+      "file": "vscode-extension/src/codeExplorerTreeProvider.ts",
+      "line": 167,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "b5d6d0c72acb56ac218d4e54df6aa7fe346801ba1fe8160196a277dc9b57699f",
+      "file": "vscode-extension/src/commands.ts",
+      "line": 939,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "f61d84dc8060d967af86da40e1a1542504551971ae48ae5f439fbdb1586b68fc",
+      "file": "vscode-extension/src/commands.ts",
+      "line": 968,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "ffa45f59c97d31e65a58f162b11806e19aa5ff636679c652a80602610cd8feab",
+      "file": "vscode-extension/src/graphPanel.ts",
+      "line": 316,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "5e32b398d22353d3bd3ef21c43b6b2ea47a3a729045e024fe0431065c0a8fdbd",
+      "file": "vscode-extension/src/graphPanel.ts",
+      "line": 681,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "db00e5a3bd38df3277851a40f07eebd33eab02a14791920c9c96b57597f389df",
+      "file": "vscode-extension/src/graphPanel.ts",
+      "line": 702,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    }
+  ]
+}

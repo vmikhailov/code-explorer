@@ -335,7 +335,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
             }
             if (!p.Extensions.ContainsKey("all_roles") || p.Extensions["all_roles"] == "[]")
             {
-                p.Extensions["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { p.Extensions["primary_role"] });
+                p.Extensions["all_roles"] = JsonSerializer.Serialize(new[] { p.Extensions["primary_role"] });
             }
 
             updatedProjectNodes.Add(Node.FromNode(p));

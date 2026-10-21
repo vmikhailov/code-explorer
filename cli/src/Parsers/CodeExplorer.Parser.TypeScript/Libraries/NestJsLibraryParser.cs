@@ -663,7 +663,7 @@ public class NestJsLibraryParser : ISemanticExtension
             if (localVars.TryGetValue(varName, out var lv)) return lv;
             if (!string.IsNullOrEmpty(projectName) && ConstantRegistry.TryResolve(projectName, varName, out var cv)) return cv;
             if (ConstantRegistry.TryResolve(null, varName, out var gv)) return gv;
-            if (ConfigStore.TryGetConfig(projectName, varName, out var cfgVal)) return cfgVal;
+            if (ConfigurationIndex.TryGetConfig(projectName, varName, out var cfgVal)) return cfgVal;
             return varName;
         }
 

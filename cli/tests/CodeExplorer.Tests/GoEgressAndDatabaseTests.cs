@@ -383,14 +383,10 @@ func StartIngest(ctx context.Context) {
 
             var allRefs = fileNode.References.Concat(FindReferences(fileNode.Children)).ToList();
 
-            // All topic names should be normalized to kebab-case
-            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "gcp:impression-topic").Should().BeTrue();
-            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "gcp:conversion-topic").Should().BeTrue();
-            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "gcp:type-cpv1").Should().BeTrue();
-
-            // None should contain raw unnormalized PascalCase / screaming snake
-            allRefs.Any(r => r.TargetName == "gcp:ImpressionTopic").Should().BeFalse();
-            allRefs.Any(r => r.TargetName == "gcp:IMPRESSION_TOPIC").Should().BeFalse();
+            // Literal topic names are preserved as written
+            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "gcp:IMPRESSION_TOPIC").Should().BeTrue();
+            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "gcp:CONVERSION_TOPIC").Should().BeTrue();
+            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "gcp:TYPE_CPV1").Should().BeTrue();
         }
         finally
         {

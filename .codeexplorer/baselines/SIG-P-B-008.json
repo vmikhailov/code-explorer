@@ -1,0 +1,126 @@
+{
+  "gateId": "SIG-P-B-008",
+  "allowedViolations": 12,
+  "entries": [
+    {
+      "fingerprint": "9e3b4629aaac9ba718106ca4a7c23f564758e6837e85756d489e6b9578abbdbb",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.Topology.cs",
+      "line": 101,
+      "column": 0,
+      "symbol": "IsLibraryProject",
+      "target": "DetectRole",
+      "acknowledgedAt": "2026-10-21T01:04:51.3453351+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "2ce17e8abe59018170ce34c98f8f42fdcecf6c1d78f401eee54b420ec0045ea5",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.BoundedContexts.cs",
+      "line": 52,
+      "column": 0,
+      "symbol": "CategorizeBoundedContext",
+      "target": "CleanProjectNameToDomain",
+      "acknowledgedAt": "2026-10-21T01:04:51.3453351+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "86c2f2f7600a18cb0827cdb40a57fb72fb53742c52619a34ccffa6dd45965ec4",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.cs",
+      "line": 89,
+      "column": 0,
+      "symbol": "DiscoverSystemContextCandidatesAsync",
+      "target": "CleanProjectNameToDomain",
+      "acknowledgedAt": "2026-10-21T01:04:51.3453351+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "bcdc7916f002e44dff9b00bcf486056086d345b670195ef7ab7f6c425f64e282",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.cs",
+      "line": 461,
+      "column": 0,
+      "symbol": "ProcessExternalServiceNode",
+      "target": "CleanProjectNameToDomain",
+      "acknowledgedAt": "2026-10-21T01:04:51.3453351+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "6a719103a2f23dcd03bbfedb452eee10a0a13e8f00a0ae4e5aa460288a1f132d",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.BoundedContexts.cs",
+      "line": 521,
+      "column": 0,
+      "symbol": "BuildAstBoundedContextMapAsync",
+      "target": "SynthesizeDomainsTopologically",
+      "acknowledgedAt": "2026-10-21T01:04:51.3453351+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "5f84446fddeebfe593b8495c85751ac79beeb816d73c87148a3a61656c3ea6ba",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.cs",
+      "line": 244,
+      "column": 0,
+      "symbol": "ProcessDatabaseNode",
+      "target": "CanonicalizeDatabase",
+      "acknowledgedAt": "2026-10-21T01:04:51.3453351+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "2d1a96b87119bbf948069b8a3208fa2aab94d2c91bf3185cf0b566bc1e4b0ff7",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.cs",
+      "line": 89,
+      "column": 0,
+      "symbol": "DiscoverSystemContextCandidatesAsync",
+      "target": "IsRelationalEngine",
+      "acknowledgedAt": "2026-10-21T01:04:51.3453351+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "50ac0dc8ccdc714dbc920f3bbe6850ac86796f96795c6da051912c843c9ab808",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.cs",
+      "line": 461,
+      "column": 0,
+      "symbol": "ProcessExternalServiceNode",
+      "target": "ExtractDomainFromExternalServiceId",
+      "acknowledgedAt": "2026-10-21T01:04:51.3453351+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "f62f2a242f7803dbdcb2451e37e05185b97058bcf1a0b790358963193bab179c",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.cs",
+      "line": 461,
+      "column": 0,
+      "symbol": "ProcessExternalServiceNode",
+      "target": "IsGarbageExternalService",
+      "acknowledgedAt": "2026-10-21T01:04:51.3453351+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "2603d7edb2d4e4e4d56570674e318b544d270a93845048ac345e2e541358e7d1",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.Subgraphs.cs",
+      "line": 557,
+      "column": 0,
+      "symbol": "GetComponentViewAsync",
+      "target": "NormalizeEdgeCategory",
+      "acknowledgedAt": "2026-10-21T01:04:51.3453351+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "df7306dcd92bc0b11da159da47ff20a1b0126f1d7ee3651bde87c1ddb7244ceb",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.Subgraphs.cs",
+      "line": 101,
+      "column": 0,
+      "symbol": "PopulateSystemContextEdgesAsync",
+      "target": "NormalizeEdgeCategory",
+      "acknowledgedAt": "2026-10-21T01:04:51.3453351+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "c20b0650586931e3e3ddf3221215f570b93ec92866bdc9798587cf78e65e3d52",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.cs",
+      "line": 89,
+      "column": 0,
+      "symbol": "DiscoverSystemContextCandidatesAsync",
+      "target": "IsGenericConfigKey",
+      "acknowledgedAt": "2026-10-21T01:04:51.3453351+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    }
+  ]
+}
