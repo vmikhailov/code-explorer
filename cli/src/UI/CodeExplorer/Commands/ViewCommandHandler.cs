@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CodeExplorer.Core.Analysis;
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Mcp;
 using CodeExplorer.Options;
@@ -15,6 +16,7 @@ public class ViewCommandHandler : BaseCommandHandler
             var ws = EnsureInitialized(opts.Dir, requireIndexed: true);
             if (ws == null) return 1;
 
+            WorkspaceConventions.LoadFromWorkspace(ws.RootDirectory);
             await using var client = new SqliteGraphClient(ws.DbPath);
 
             if (HasTarget(opts.Target, "layers", "ontology"))

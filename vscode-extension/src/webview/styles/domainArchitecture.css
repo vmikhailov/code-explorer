@@ -1957,6 +1957,78 @@
 }
 
 /* Dimmed / Hidden Orbit Legend Item */
+.domain-orbit-legend-row {
+  position: relative;
+  margin-right: 10px;
+}
+
+.domain-orbit-legend-row.is-merged::after {
+  content: '';
+  position: absolute;
+  right: -8px;
+  width: 6px;
+  border-right: 2px solid #38bdf8;
+  top: 0;
+  bottom: 0;
+}
+
+.domain-orbit-legend-row.brace-first::after {
+  top: 50%;
+  border-top: 2px solid #38bdf8;
+  border-top-right-radius: 6px;
+}
+
+.domain-orbit-legend-row.brace-last::after {
+  bottom: 50%;
+  border-bottom: 2px solid #38bdf8;
+  border-bottom-right-radius: 6px;
+}
+
+.domain-orbit-legend-item.is-selected {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: #38bdf8;
+}
+
+.orbit-kind-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 6px 4px 30px;
+}
+
+.orbit-kind-chip {
+  font-size: 9.5px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  cursor: grab;
+  white-space: nowrap;
+}
+
+.orbit-kind-chip.is-overridden {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.45);
+}
+
+.orbit-kind-chip-clear,
+.orbit-split-btn {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 9.5px;
+  padding: 0 0 0 4px;
+}
+
+.orbit-split-btn {
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  border-radius: 4px;
+  padding: 0 5px;
+}
+
 .domain-orbit-legend-item.is-orbit-hidden {
   opacity: 0.45;
   background: rgba(239, 68, 68, 0.08);

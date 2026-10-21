@@ -47,6 +47,40 @@ public sealed class DomainTaxonomyEngine
     }
 
     /// <summary>
+    /// Resolves a domain only from an explicit, name-based entry (service override or listed project/service);
+    /// never from glob patterns or file paths.
+    /// </summary>
+    public bool TryGetExplicitDomain(string? projectName, string? filePath, out string domain)
+    {
+        domain = string.Empty;
+
+        if (!string.IsNullOrWhiteSpace(projectName))
+        {
+            var p = projectName.Trim();
+            var clean = _serviceResolver.NormalizeServiceName(p);
+            foreach (var key in new[] { p, clean })
+            {
+                if (_serviceOverrides.TryGetValue(key, out var ovr) || _projectToDomain.TryGetValue(key, out ovr))
+                {
+                    domain = ovr;
+                    return true;
+                }
+            }
+        }
+
+        // A project inside a listed service folder (e.g. adhub/adhub-cli) belongs to that service's domain.
+        var firstSegment = filePath?.Replace('\\', '/').TrimStart('/').Split('/', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+        if (!string.IsNullOrEmpty(firstSegment) && firstSegment != ".." && firstSegment != "." &&
+            (_serviceOverrides.TryGetValue(firstSegment, out var byFolder) || _projectToDomain.TryGetValue(firstSegment, out byFolder)))
+        {
+            domain = byFolder;
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Attempts to resolve a user-configured domain for a project name or path.
     /// </summary>
     public bool TryGetConfiguredDomain(string? projectName, string? filePath, out string domain)

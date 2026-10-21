@@ -51,7 +51,8 @@ public static class WorkspaceConventions
 
     /// <summary>
     /// Domain detection (configured domains.json patterns and the path/name/intent heuristics) is switched off for now:
-    /// it grouped unrelated services into one domain. While off, every service is its own unit and carries no domain.
+    /// it grouped unrelated services into one domain. While off, a service carries a domain only when the user listed it
+    /// explicitly (by name) in domains.json; path and pattern guessing never applies.
     /// </summary>
     public static bool DomainDetectionEnabled { get; set; }
 
@@ -59,8 +60,7 @@ public static class WorkspaceConventions
     {
         if (!DomainDetectionEnabled)
         {
-            domain = string.Empty;
-            return false;
+            return _current.Domains.TryGetExplicitDomain(projectName, filePath, out domain);
         }
 
         return _current.Domains.TryGetConfiguredDomain(projectName, filePath, out domain);
@@ -89,6 +89,11 @@ public static class WorkspaceConventions
         if (DomainDetectionEnabled)
         {
             return _current.Domains.CanonicalizeDomain(rawDomain, serviceOrProjectName, filePath, role);
+        }
+
+        if (_current.Domains.TryGetExplicitDomain(serviceOrProjectName ?? rawDomain, filePath, out var explicitDomain))
+        {
+            return ToPascalCase(explicitDomain);
         }
 
         // Detection off: the "domain" is just the service itself.

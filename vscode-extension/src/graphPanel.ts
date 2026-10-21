@@ -575,11 +575,44 @@ export class GraphPanel {
             }
             break;
           }
+
+          case 'GET_ORBIT_CONFIG': {
+            let config: unknown = null;
+            try {
+              const file = this.orbitConfigPath();
+              if (fs.existsSync(file)) {
+                config = JSON.parse(fs.readFileSync(file, 'utf8'));
+              }
+            } catch (err: any) {
+              this.outputChannel?.appendLine(`[GraphPanel] GET_ORBIT_CONFIG error: ${err.message}`);
+            }
+            this.panel.webview.postMessage({ type: 'ORBIT_CONFIG', config });
+            break;
+          }
+
+          case 'SAVE_ORBIT_CONFIG': {
+            try {
+              const file = this.orbitConfigPath();
+              if (message.config === null) {
+                if (fs.existsSync(file)) fs.unlinkSync(file);
+              } else {
+                fs.mkdirSync(path.dirname(file), { recursive: true });
+                fs.writeFileSync(file, JSON.stringify(message.config, null, 2) + '\n', 'utf8');
+              }
+            } catch (err: any) {
+              this.outputChannel?.appendLine(`[GraphPanel] SAVE_ORBIT_CONFIG error: ${err.message}`);
+            }
+            break;
+          }
         }
       },
       null,
       this.disposables
     );
+  }
+
+  private orbitConfigPath(): string {
+    return path.join(this.workspaceRoot, '.codeexplorer', 'orbits.json');
   }
 
   private async handleOpenFile(filePath: string, lineStart?: number, lineEnd?: number) {

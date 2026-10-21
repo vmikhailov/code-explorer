@@ -147,7 +147,7 @@ public partial class ArchitectureViewEngine
         var isAppNode = node.Kind == NodeKind.App ||
                         string.Equals(node.Properties?.GetValueOrDefault("role"), "FrontendApp", StringComparison.OrdinalIgnoreCase) ||
                         string.Equals(node.Properties?.GetValueOrDefault("role"), "App", StringComparison.OrdinalIgnoreCase);
-        if (isAppNode && !string.IsNullOrWhiteSpace(name))
+        if (isAppNode && !string.IsNullOrWhiteSpace(name) && !WorkspaceConventions.TryGetConfiguredDomain(name, node.FilePath, out _))
         {
             return ($"domain:{name.ToLowerInvariant()}", name, true);
         }
@@ -360,7 +360,11 @@ public partial class ArchitectureViewEngine
                 var norm = WorkspaceConventions.NormalizeServiceName(node.Name).ToLowerInvariant();
                 domainKey = $"service:{norm}";
                 domainDisplayName = ServiceEntityDisplayName(node, norm);
-                if (WorkspaceConventions.DomainDetectionEnabled) entityDomainMap[domainKey] = (groupKey, groupDisplayName);
+                if (WorkspaceConventions.DomainDetectionEnabled ||
+                    WorkspaceConventions.TryGetConfiguredDomain(node.Name, node.FilePath, out _))
+                {
+                    entityDomainMap[domainKey] = (groupKey, groupDisplayName);
+                }
                 if (!runnablesByDomain.TryGetValue(groupKey, out var members))
                 {
                     members = [];

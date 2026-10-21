@@ -52,6 +52,52 @@ public class DomainMapServiceIdentityTests
         arch.Nodes.Select(n => n.Domain).Distinct().Should().ContainSingle();
     }
 
+    [Test]
+    public async Task DetectionOff_ExplicitDomainsJson_AssignsListedServicesOnly()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "ce_domain_cfg_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, ".codeexplorer"));
+        try
+        {
+            File.WriteAllText(Path.Combine(root, ".codeexplorer", "domains.json"),
+                """{"domains":[{"name":"RatesAndPricing","services":["rates","payouts"]}]}""");
+            WorkspaceConventions.LoadFromWorkspace(root);
+
+            var arch = await BuildAsync();
+
+            arch.Nodes.Select(n => n.Name).Should().BeEquivalentTo("domain-settler", "rates", "payouts");
+            arch.Nodes.Where(n => n.Domain != null).Select(n => n.Name).Should().BeEquivalentTo("rates", "payouts");
+            arch.Nodes.Where(n => n.Domain != null).Should().OnlyContain(n => n.DomainDisplayName == "Rates & Pricing");
+            arch.Nodes.Single(n => n.Name == "domain-settler").Domain.Should().BeNull();
+        }
+        finally
+        {
+            try { Directory.Delete(root, true); } catch (IOException) { /* best effort */ }
+        }
+    }
+
+    [Test]
+    public void DetectionOff_ProjectInsideListedServiceFolder_InheritsItsDomain()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "ce_domain_cfg2_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, ".codeexplorer"));
+        try
+        {
+            File.WriteAllText(Path.Combine(root, ".codeexplorer", "domains.json"),
+                """{"domains":[{"name":"PartnersAndSources","services":["adhub","fe"]}]}""");
+            WorkspaceConventions.LoadFromWorkspace(root);
+
+            WorkspaceConventions.TryGetConfiguredDomain("adhub-cli", "adhub/adhub-cli", out var d1).Should().BeTrue();
+            d1.Should().Be("PartnersAndSources");
+            WorkspaceConventions.TryGetConfiguredDomain("ui", "fe/projects/ui", out _).Should().BeTrue();
+            WorkspaceConventions.TryGetConfiguredDomain("library", "../libs/library", out _).Should().BeFalse();
+        }
+        finally
+        {
+            try { Directory.Delete(root, true); } catch (IOException) { /* best effort */ }
+        }
+    }
+
     private static async Task<DomainArchitectureDto> BuildAsync()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_domain_identity_" + Guid.NewGuid().ToString("N"));

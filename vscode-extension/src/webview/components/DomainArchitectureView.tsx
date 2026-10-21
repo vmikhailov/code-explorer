@@ -12,6 +12,20 @@ import {
   DomainSectorGuide,
   ORBIT_TITLES,
 } from '../layout/concentricLayout';
+import {
+  OrbitConfig,
+  DEFAULT_ORBIT_CONFIG,
+  sanitizeOrbitConfig,
+  isDefaultOrbitConfig,
+  effectiveOrbitTier,
+  orbitOrder,
+  orbitRepresentative,
+  orbitTitle,
+  mergeOrbits,
+  splitOrbit,
+  moveOrbit,
+  moveKindToOrbit,
+} from '../layout/orbitConfig';
 import { computeConcentricEquispacedLayout } from '../layout/concentricEquispacedLayout';
 import { computeConcentricPolarForceLayout } from '../layout/concentricPolarForceLayout';
 import { computeConcentricSectorsLayout, describeAnnularSector } from '../layout/concentricSectorsLayout';
@@ -698,47 +712,41 @@ export function applyEdgeLabelVisibility(cy: cytoscape.Core | null, onHoverOnly:
 }
 
 export interface OrbitLegendItem {
+  /** Orbit identifier (first tier of the orbit); this is what hiding is keyed on. */
   levelIndex: number;
+  /** Tier this row represents; several rows share an orbit when orbits are merged. */
+  slotTier: number;
+  orbitIndex: number;
   shortLabel: string;
   title: string;
   count: number;
   radius: number;
   nodeIds: string[];
+  isFirstInOrbit: boolean;
+  isLastInOrbit: boolean;
+  /** Number of legend rows that belong to the same (merged) orbit. */
+  orbitRowCount: number;
+  kinds: Array<{ kind: string; count: number; overridden: boolean }>;
 }
 
 /**
- * Builds legend items for all populated architectural orbits, guaranteeing that
- * outer infrastructure (Databases and External Services, tier 4/5) is permanently
- * pinned to the outermost orbit, and all populated orbits remain listed even when hidden.
+ * Builds one legend row per populated tier, following the configured orbit order. Rows of a
+ * merged orbit are adjacent and share one radius; all populated tiers stay listed even when hidden.
  */
 export function buildAllOrbitLegendItems(
   allNodes: cytoscape.NodeDefinition[],
   echelonMap: Map<string, number>,
   layoutPopulatedOrbits: Array<{ levelIndex: number; radius: number; shortLabel?: string; title?: string; nodeIds: string[] }>,
-  customOrbitOrder: number[] | null
+  config: OrbitConfig
 ): OrbitLegendItem[] {
-  const allBuckets = new Map<number, string[]>();
+  const slotBuckets = new Map<number, Array<{ id: string; kind: string }>>();
   for (const n of allNodes) {
     const nid = n.data.id as string;
-    const ech = (n.data as any).echelonTier ?? echelonMap.get(nid) ?? 2;
-    if (!allBuckets.has(ech)) allBuckets.set(ech, []);
-    allBuckets.get(ech)!.push(nid);
-  }
-
-  const allTiers = Array.from(allBuckets.keys()).sort((a, b) => a - b);
-  const outerTiers = allTiers.filter((t) => t === 4 || t === 5);
-  const innerTiers = allTiers.filter((t) => t !== 4 && t !== 5);
-
-  let orderedTiers: number[];
-  if (customOrbitOrder && customOrbitOrder.length > 0) {
-    const validCustom = customOrbitOrder.filter((t) => allTiers.includes(t));
-    const missingInner = innerTiers.filter((t) => !validCustom.includes(t));
-    const missingOuter = outerTiers.filter((t) => !validCustom.includes(t));
-    orderedTiers = [...validCustom, ...missingInner, ...missingOuter];
-  } else {
-    const layoutTiers = layoutPopulatedOrbits.map((o) => o.levelIndex);
-    const missing = allTiers.filter((t) => !layoutTiers.includes(t));
-    orderedTiers = [...layoutTiers, ...missing];
+    const kind = ((n.data as any).kind as string) ?? '';
+    const base = (n.data as any).echelonTier ?? echelonMap.get(nid) ?? 2;
+    const slot = config.kindTiers[kind] ?? base;
+    if (!slotBuckets.has(slot)) slotBuckets.set(slot, []);
+    slotBuckets.get(slot)!.push({ id: nid, kind });
   }
 
   const radiusMap = new Map<number, number>();
@@ -746,21 +754,57 @@ export function buildAllOrbitLegendItems(
     radiusMap.set(o.levelIndex, o.radius);
   }
 
-  let displayIdx = 0;
-  return orderedTiers.map((tier) => {
-    const nodeIds = allBuckets.get(tier) || [];
-    const title = ORBIT_TITLES[tier] || `Tier ${tier}`;
-    const shortLabel = `Orbit ${displayIdx++}`;
-    const radius = radiusMap.get(tier) || 0;
-    return {
-      levelIndex: tier,
-      shortLabel,
-      title,
-      count: nodeIds.length,
-      radius,
-      nodeIds,
-    };
+  const items: OrbitLegendItem[] = [];
+  let orbitNumber = 0;
+  config.orbits.forEach((tiers, orbitIndex) => {
+    const populated = tiers.filter((t) => (slotBuckets.get(t)?.length ?? 0) > 0);
+    if (populated.length === 0) return;
+    const shortLabel = `Orbit ${orbitNumber++}`;
+    populated.forEach((tier, i) => {
+      const members = slotBuckets.get(tier)!;
+      const kindCounts = new Map<string, number>();
+      for (const m of members) kindCounts.set(m.kind, (kindCounts.get(m.kind) ?? 0) + 1);
+      items.push({
+        levelIndex: tiers[0],
+        slotTier: tier,
+        orbitIndex,
+        shortLabel,
+        title: ORBIT_TITLES[tier] || `Tier ${tier}`,
+        count: members.length,
+        radius: radiusMap.get(tiers[0]) || 0,
+        nodeIds: members.map((m) => m.id),
+        isFirstInOrbit: i === 0,
+        isLastInOrbit: i === populated.length - 1,
+        orbitRowCount: populated.length,
+        kinds: Array.from(kindCounts.entries())
+          .sort((a, b) => b[1] - a[1])
+          .map(([kind, count]) => ({ kind, count, overridden: kind in config.kindTiers })),
+      });
+    });
   });
+  return items;
+}
+
+/** Gives merged orbits a combined title on the canvas guides and in the layout result. */
+function relabelMergedOrbits(result: ConcentricLayoutResult, config: OrbitConfig): void {
+  const titleFor = (levelIndex: number) => {
+    const entry = config.orbits.find((o) => o[0] === levelIndex);
+    return entry && entry.length > 1 ? orbitTitle(entry) : undefined;
+  };
+  for (const orbit of result.populatedOrbits) {
+    const title = titleFor(orbit.levelIndex);
+    if (title) {
+      orbit.title = title;
+      orbit.label = `${orbit.shortLabel}: ${title}`;
+    }
+  }
+  for (const guide of result.guides) {
+    const title = titleFor(guide.levelIndex);
+    if (title) {
+      guide.title = title;
+      guide.label = `${guide.shortLabel}: ${title}`;
+    }
+  }
 }
 
 /**
@@ -1048,20 +1092,31 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   }, []);
 
   const [concentricGuides, setConcentricGuides] = useState<ConcentricOrbitGuide[]>([]);
-  const [orbitLegendItems, setOrbitLegendItems] = useState<Array<{
-    levelIndex: number;
-    shortLabel: string;
-    title: string;
-    count: number;
-    radius: number;
-    nodeIds: string[];
-  }>>([]);
+  const [orbitLegendItems, setOrbitLegendItems] = useState<OrbitLegendItem[]>([]);
   const [isOrbitLegendOpen, setIsOrbitLegendOpen] = useState(true);
-  const [customOrbitOrder, setCustomOrbitOrder] = useState<number[] | null>(null);
-  const customOrbitOrderRef = useRef<number[] | null>(null);
-  customOrbitOrderRef.current = customOrbitOrder;
+  const [orbitConfig, setOrbitConfigState] = useState<OrbitConfig>(DEFAULT_ORBIT_CONFIG);
+  const orbitConfigRef = useRef<OrbitConfig>(orbitConfig);
+  orbitConfigRef.current = orbitConfig;
+  const [selectedOrbitRows, setSelectedOrbitRows] = useState<number[]>([]);
+  const lastSelectedOrbitRowRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const msg = event.data;
+      if (msg?.type === 'ORBIT_CONFIG') {
+        const loaded = sanitizeOrbitConfig(msg.config);
+        orbitConfigRef.current = loaded;
+        setOrbitConfigState(loaded);
+        forceRelayoutRef.current = true;
+      }
+    };
+    window.addEventListener('message', onMessage);
+    getVsCodeApi()?.postMessage({ type: 'GET_ORBIT_CONFIG' });
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
 
   const [draggedOrbitIndex, setDraggedOrbitIndex] = useState<number | null>(null);
+  const draggedKindRef = useRef<string | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [swimlaneGuides, setSwimlaneGuides] = useState<SwimlaneGuide[]>([]);
   const [islandGuides, setIslandGuides] = useState<IslandGuide[]>([]);
@@ -1638,8 +1693,11 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     setForcedVisibleNodeIds((prev) => {
       const next = new Set(prev);
       for (const id of prev) {
-        const ech = rawGraphRef.current?.echelonMap.get(id);
-        if (ech === levelIndex) {
+        const raw = rawGraphRef.current;
+        const node = raw?.detailMap.get(id);
+        const base = raw?.echelonMap.get(id);
+        if (base === undefined) continue;
+        if (effectiveOrbitTier(orbitConfigRef.current, node?.kind, base) === levelIndex) {
           next.delete(id);
         }
       }
@@ -2406,7 +2464,11 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         continue;
       }
       const kind = (node.data as any).kind as EntityKind;
-      const ech = (node.data as any).echelonTier ?? rawGraph.echelonMap.get(id) ?? 2;
+      const ech = effectiveOrbitTier(
+        orbitConfigRef.current,
+        kind,
+        (node.data as any).echelonTier ?? rawGraph.echelonMap.get(id) ?? 2
+      );
       let isHidden = hiddenNodeIds.has(id) || hiddenTypes.has(kind) || hiddenOrbitTiers.has(ech);
       if (!isHidden && hideSingleConnectionDbs && kind === 'Database') {
         const inboundCount = rawGraph.dbSourceServicesMap.get(id)?.size || 0;
@@ -3053,7 +3115,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         transitiveCalls,
       },
     };
-  }, [rawGraph, hiddenTypes, hiddenNodeIds, hiddenOrbitTiers, forcedVisibleNodeIds, hideSingleConnectionDbs, hideIsolatedNodes, showTransitiveEdges, groupedTypes, customGroups]);
+  }, [rawGraph, hiddenTypes, hiddenNodeIds, hiddenOrbitTiers, orbitConfig, forcedVisibleNodeIds, hideSingleConnectionDbs, hideIsolatedNodes, showTransitiveEdges, groupedTypes, customGroups]);
 
   const nodeDetailMap = effectiveDetailMap;
 
@@ -3361,10 +3423,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
       const layoutChanged = prevLayoutRef.current !== layoutName;
       prevLayoutRef.current = layoutName;
-      if (layoutChanged) {
-        setCustomOrbitOrder(null);
-        customOrbitOrderRef.current = null;
-      }
 
       // Capture existing positions of visible nodes
       const savedPositions = new Map<string, cytoscape.Position>();
@@ -3441,14 +3499,20 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       let layoutConfig: any;
       const spacing = spacingFactorRef.current || 1.0;
 
+      const orbitCfg = orbitConfigRef.current;
       const visibleNodesInput = cy.nodes().map((n) => {
         const id = n.id();
-        const ech = (n.data('echelonTier') as number) ?? rawGraph.echelonMap.get(id) ?? 2;
+        const kind = n.data('kind') as string;
+        const ech = effectiveOrbitTier(
+          orbitCfg,
+          kind,
+          (n.data('echelonTier') as number) ?? rawGraph.echelonMap.get(id) ?? 2
+        );
         const detail = rawGraph.detailMap.get(id);
         return {
           id,
           echelonTier: ech,
-          kind: n.data('kind') as string,
+          kind,
           name: detail?.name || id,
           displayName: detail?.displayName || id,
         };
@@ -3474,7 +3538,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         baseIslandGuidesRef.current = [];
         baseHiveGuidesRef.current = [];
 
-        const effectiveOrder = customOrbitOrderRef.current || undefined;
+        const effectiveOrder = orbitOrder(orbitCfg);
         let layoutResult: ConcentricLayoutResult;
         if (layoutName === 'concentric-sectors') {
           const nodeDomainMap = new Map<string, string>();
@@ -3542,13 +3606,14 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           ...g,
           radius: g.radius / effSpacing,
         }));
+        relabelMergedOrbits(layoutResult, orbitCfg);
         setConcentricGuides(layoutResult.guides);
         setOrbitLegendItems(
           buildAllOrbitLegendItems(
             rawGraph.allNodes,
             rawGraph.echelonMap,
             layoutResult.populatedOrbits,
-            customOrbitOrderRef.current
+            orbitCfg
           )
         );
       } else if (layoutName === 'swimlanes') {
@@ -3879,135 +3944,47 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     [recordBasePositions, layoutName, concentricGuides, swimlaneGuides, islandGuides, hiveGuides, sectorGuides]
   );
 
-  // Concentric Orbit Reordering Handlers (drag-and-drop or ▲/▼)
-  const applyConcentricOrder = useCallback(
-    (newOrder: number[] | null) => {
-      const cy = cyRef.current;
-      if (!cy) return;
-      if (!layoutName.startsWith('concentric')) return;
 
-      setCustomOrbitOrder(newOrder);
-      customOrbitOrderRef.current = newOrder;
-
-      const spacing = spacingFactorRef.current || 1.0;
-      const visibleNodesInput = cy.nodes().map((n) => {
-        const id = n.id();
-        const ech = (n.data('echelonTier') as number) ?? rawGraph.echelonMap.get(id) ?? 2;
-        const detail = rawGraph.detailMap.get(id);
-        return {
-          id,
-          echelonTier: ech,
-          kind: n.data('kind') as string,
-          name: detail?.name || id,
-          displayName: detail?.displayName || id,
-        };
-      });
-
-      const visibleEdgesInput = cy.edges().map((e) => ({
-        source: e.data('source') as string,
-        target: e.data('target') as string,
-        category: e.data('category') as string,
-        count: (e.data('count') as number) || 1,
-      }));
-
-      const effectiveOrder = newOrder || undefined;
-      let layoutResult: ConcentricLayoutResult;
-      if (layoutName === 'concentric-equispaced') {
-        layoutResult = computeConcentricEquispacedLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder);
-        setSectorGuides([]);
-        baseSectorGuidesRef.current = [];
-      } else if (layoutName === 'concentric-polar-force') {
-        layoutResult = computeConcentricPolarForceLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder);
-        setSectorGuides([]);
-        baseSectorGuidesRef.current = [];
-      } else if (layoutName === 'concentric-sectors') {
-        const nodeDomainMap = new Map<string, string>();
-        const domainDetailsMap = new Map<string, { displayName?: string; color?: string }>();
-        for (const [nid, node] of rawGraph.detailMap.entries()) {
-          if (node.domain) {
-            nodeDomainMap.set(nid, node.domain);
-          }
-        }
-        for (const [did, d] of rawGraph.domainMap.entries()) {
-          domainDetailsMap.set(did, {
-            displayName: d.displayName || d.name || did,
-            color: d.color,
-          });
-        }
-        layoutResult = computeConcentricSectorsLayout(
-          visibleNodesInput,
-          visibleEdgesInput,
-          spacing,
-          effectiveOrder,
-          nodeDomainMap,
-          domainDetailsMap
-        );
-        const effSpacing = spacing || 1.0;
-        setSectorGuides(layoutResult.sectors || []);
-        baseSectorGuidesRef.current = (layoutResult.sectors || []).map((s) => ({
-          ...s,
-          innerRadius: s.innerRadius / effSpacing,
-          outerRadius: s.outerRadius / effSpacing,
-        }));
-      } else {
-        layoutResult = computeConcentricLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder);
-        setSectorGuides([]);
-        baseSectorGuidesRef.current = [];
-      }
-
-      const effSpacing = spacing || 1.0;
-      baseConcentricGuidesRef.current = layoutResult.guides.map((g) => ({
-        ...g,
-        radius: g.radius / effSpacing,
-      }));
-      setConcentricGuides(layoutResult.guides);
-      setOrbitLegendItems(
-        buildAllOrbitLegendItems(
-          rawGraph.allNodes,
-          rawGraph.echelonMap,
-          layoutResult.populatedOrbits,
-          newOrder
-        )
-      );
-
-      // Smoothly animate nodes to new positions in Cytoscape
-      cy.batch(() => {
-        layoutResult.positions.forEach((pos, id) => {
-          const node = cy.getElementById(id);
-          if (node && !node.empty()) {
-            node.animate(
-              { position: pos },
-              { duration: 350, easing: 'ease-in-out-cubic' }
-            );
-          }
+  // Orbit configuration: persisted per workspace, applied through the layout effect.
+  const applyOrbitConfig = useCallback(
+    (next: OrbitConfig, clearHiddenFor: number[] = []) => {
+      orbitConfigRef.current = next;
+      setOrbitConfigState(next);
+      setSelectedOrbitRows([]);
+      lastSelectedOrbitRowRef.current = null;
+      if (clearHiddenFor.length > 0) {
+        setHiddenOrbitTiers((prev) => {
+          const copy = new Set(prev);
+          for (const t of clearHiddenFor) copy.delete(t);
+          return copy;
         });
+        setForcedVisibleNodeIds(new Set());
+      }
+      getVsCodeApi()?.postMessage({
+        type: 'SAVE_ORBIT_CONFIG',
+        config: isDefaultOrbitConfig(next) ? null : next,
       });
-
-      setTimeout(() => {
-        if (cyRef.current) {
-          recordBasePositions(cyRef.current);
-          applyEdgeCurveMode(cyRef.current, edgeCurveModeRef.current, { x: 0, y: 0 }, curveFactorRef.current);
-          if (searchQueryRef.current.trim()) {
-            applySearchHighlight(cyRef.current, searchQueryRef.current);
-          }
-        }
-      }, 370);
+      forceRelayoutRef.current = true;
+      setRelayoutTrigger((n) => n + 1);
     },
-    [layoutName, rawGraph, recordBasePositions]
+    []
+  );
+
+  const orbitEntryTiers = useCallback(
+    (orbitIndex: number) => orbitConfigRef.current.orbits[orbitIndex] ?? [],
+    []
   );
 
   const handleMoveOrbit = useCallback(
-    (fromIndex: number, direction: -1 | 1) => {
-      const maxMovableIndex = orbitLegendItems.length - 1;
-      const toIndex = fromIndex + direction;
-      if (fromIndex > maxMovableIndex || toIndex < 0 || toIndex > maxMovableIndex) return;
-      const newItems = [...orbitLegendItems];
-      const [moved] = newItems.splice(fromIndex, 1);
-      newItems.splice(toIndex, 0, moved);
-      const newOrder = newItems.map((it) => it.levelIndex);
-      applyConcentricOrder(newOrder);
+    (item: OrbitLegendItem, direction: -1 | 1) => {
+      const cfg = orbitConfigRef.current;
+      const populated = Array.from(new Set(orbitLegendItems.map((it) => it.orbitIndex)));
+      const pos = populated.indexOf(item.orbitIndex);
+      const target = populated[pos + direction];
+      if (pos < 0 || target === undefined) return;
+      applyOrbitConfig(moveOrbit(cfg, item.orbitIndex, target));
     },
-    [orbitLegendItems, applyConcentricOrder]
+    [orbitLegendItems, applyOrbitConfig]
   );
 
   const handleDragStart = useCallback((e: React.DragEvent, idx: number) => {
@@ -4025,34 +4002,81 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const handleDrop = useCallback(
     (e: React.DragEvent, targetIdx: number) => {
       e.preventDefault();
-      if (draggedOrbitIndex === null || draggedOrbitIndex === targetIdx) {
-        setDraggedOrbitIndex(null);
-        setDragOverIndex(null);
-        return;
-      }
-      const newItems = [...orbitLegendItems];
-      const [moved] = newItems.splice(draggedOrbitIndex, 1);
-      newItems.splice(targetIdx, 0, moved);
-      const newOrder = newItems.map((it) => it.levelIndex);
+      const dragged = draggedOrbitIndex;
+      const kind = draggedKindRef.current;
       setDraggedOrbitIndex(null);
       setDragOverIndex(null);
-      applyConcentricOrder(newOrder);
+      draggedKindRef.current = null;
+      const target = orbitLegendItems[targetIdx];
+      if (!target) return;
+      if (kind) {
+        applyOrbitConfig(moveKindToOrbit(orbitConfigRef.current, kind, target.levelIndex), [target.levelIndex]);
+        return;
+      }
+      const source = dragged === null ? undefined : orbitLegendItems[dragged];
+      if (!source || source.orbitIndex === target.orbitIndex) return;
+      applyOrbitConfig(moveOrbit(orbitConfigRef.current, source.orbitIndex, target.orbitIndex));
     },
-    [draggedOrbitIndex, orbitLegendItems, applyConcentricOrder]
+    [draggedOrbitIndex, orbitLegendItems, applyOrbitConfig]
   );
 
   const handleDragEnd = useCallback(() => {
     setDraggedOrbitIndex(null);
     setDragOverIndex(null);
+    draggedKindRef.current = null;
   }, []);
 
+  const handleOrbitRowClick = useCallback(
+    (e: React.MouseEvent, idx: number) => {
+      if (!e.shiftKey && !e.ctrlKey && !e.metaKey) return false;
+      e.preventDefault();
+      const anchor = lastSelectedOrbitRowRef.current;
+      if (e.shiftKey && anchor !== null) {
+        const [a, b] = anchor < idx ? [anchor, idx] : [idx, anchor];
+        setSelectedOrbitRows(Array.from({ length: b - a + 1 }, (_, i) => a + i));
+      } else {
+        setSelectedOrbitRows((prev) => (prev.includes(idx) ? prev.filter((i) => i !== idx) : [...prev, idx]));
+        lastSelectedOrbitRowRef.current = idx;
+      }
+      return true;
+    },
+    []
+  );
+
+  // Selected rows must belong to adjacent orbit entries to be merged.
+  const mergeSelection = useMemo(() => {
+    const entries = Array.from(new Set(selectedOrbitRows.map((i) => orbitLegendItems[i]?.orbitIndex))).filter(
+      (v): v is number => v !== undefined
+    );
+    if (entries.length < 2) return null;
+    entries.sort((a, b) => a - b);
+    const populated = Array.from(new Set(orbitLegendItems.map((it) => it.orbitIndex)));
+    const adjacent = entries.every((e, i) => i === 0 || populated.indexOf(e) === populated.indexOf(entries[i - 1]) + 1);
+    return adjacent ? entries : null;
+  }, [selectedOrbitRows, orbitLegendItems]);
+
+  const handleMergeSelected = useCallback(() => {
+    if (!mergeSelection) return;
+    const cfg = orbitConfigRef.current;
+    const first = mergeSelection[0];
+    const last = mergeSelection[mergeSelection.length - 1];
+    const affected = cfg.orbits.slice(first, last + 1).flat();
+    applyOrbitConfig(mergeOrbits(cfg, first, last), affected);
+  }, [mergeSelection, applyOrbitConfig]);
+
+  const handleSplitOrbit = useCallback(
+    (orbitIndex: number) => {
+      const cfg = orbitConfigRef.current;
+      applyOrbitConfig(splitOrbit(cfg, orbitIndex), cfg.orbits[orbitIndex] ?? []);
+    },
+    [applyOrbitConfig]
+  );
+
   const handleResetOrbitOrder = useCallback(() => {
-    setCustomOrbitOrder(null);
-    customOrbitOrderRef.current = null;
     setHiddenOrbitTiers(new Set());
     setForcedVisibleNodeIds(new Set());
-    applyConcentricOrder(null);
-  }, [applyConcentricOrder]);
+    applyOrbitConfig(DEFAULT_ORBIT_CONFIG);
+  }, [applyOrbitConfig]);
 
   // Wheel sensitivity change handler
   const handleWheelSensitivityChange = useCallback((val: number) => {
@@ -4158,20 +4182,36 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         </span>
       }
       headerActions={
-        customOrbitOrder !== null || hiddenOrbitTiers.size > 0 ? (
-          <button
-            type="button"
-            className="floating-dock-btn action-btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleResetOrbitOrder();
-            }}
-            title="Reset to auto-calculated layout and show all orbits"
-          >
-            <RotateCcwIcon size={11} />
-            <span>Reset</span>
-          </button>
-        ) : undefined
+        <>
+          {mergeSelection ? (
+            <button
+              type="button"
+              className="floating-dock-btn action-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleMergeSelected();
+              }}
+              title="Merge the selected adjacent orbits into one ring"
+            >
+              <LayersIcon size={11} />
+              <span>Merge {mergeSelection.length}</span>
+            </button>
+          ) : null}
+          {!isDefaultOrbitConfig(orbitConfig) || hiddenOrbitTiers.size > 0 ? (
+            <button
+              type="button"
+              className="floating-dock-btn action-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleResetOrbitOrder();
+              }}
+              title="Reset to the default orbit order and show all orbits"
+            >
+              <RotateCcwIcon size={11} />
+              <span>Reset</span>
+            </button>
+          ) : null}
+        </>
       }
       collapsedTitle={`Orbits (${orbitLegendItems.length})`}
       collapsedIcon={<LayersIcon size={13} />}
@@ -4185,7 +4225,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     >
       <div
         className="orbit-legend-hint"
-        title="Orbits are ordered from Center (top) to Outer Periphery (bottom). Drag or use ▲/▼ to change orbit radii."
+        title="Orbits run from Center (top) to Periphery (bottom). Drag rows or use ▲/▼ to reorder; shift-click adjacent rows, then Merge, to share one ring; drag a kind chip onto another orbit to move it."
       >
         <span>Inner (Center)</span>
         <span>↕</span>
@@ -4194,60 +4234,119 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       <div className="domain-orbit-legend-body" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         {orbitLegendItems.map((item, idx) => {
           const isOrbitHidden = hiddenOrbitTiers.has(item.levelIndex);
+          const isMerged = item.orbitRowCount > 1;
+          const isSelected = selectedOrbitRows.includes(idx);
+          const braceClass = !isMerged
+            ? ''
+            : item.isFirstInOrbit
+              ? 'brace-first'
+              : item.isLastInOrbit
+                ? 'brace-last'
+                : 'brace-mid';
 
           return (
             <div
-              key={item.levelIndex}
-              className={`domain-orbit-legend-item ${isOrbitHidden ? 'is-orbit-hidden' : ''} ${draggedOrbitIndex === idx ? 'is-dragging' : ''} ${dragOverIndex === idx ? 'is-drag-over' : ''}`}
-              draggable
-              onDragStart={(e) => handleDragStart(e, idx)}
-              onDragOver={(e) => handleDragOver(e, idx)}
-              onDrop={(e) => handleDrop(e, idx)}
-              onDragEnd={handleDragEnd}
-              onMouseEnter={() => !isOrbitHidden && highlightOrbitNodes(item.nodeIds)}
-              onMouseLeave={clearOrbitHighlight}
-              title={`${item.shortLabel}: ${item.title} (${item.count} nodes). Drag or use ▲/▼ to change orbit order.`}
+              key={`${item.levelIndex}-${item.slotTier}`}
+              className={`domain-orbit-legend-row ${isMerged ? 'is-merged' : ''} ${braceClass}`}
             >
-              <button
-                type="button"
-                className={`orbit-visibility-btn ${isOrbitHidden ? 'is-hidden' : ''}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleOrbitVisibility(item.levelIndex);
-                }}
-                title={isOrbitHidden ? `Show entire ${item.title}` : `Hide entire ${item.title}`}
+              <div
+                className={`domain-orbit-legend-item ${isOrbitHidden ? 'is-orbit-hidden' : ''} ${isSelected ? 'is-selected' : ''} ${draggedOrbitIndex === idx ? 'is-dragging' : ''} ${dragOverIndex === idx ? 'is-drag-over' : ''}`}
+                draggable
+                onClick={(e) => handleOrbitRowClick(e, idx)}
+                onDragStart={(e) => handleDragStart(e, idx)}
+                onDragOver={(e) => handleDragOver(e, idx)}
+                onDrop={(e) => handleDrop(e, idx)}
+                onDragEnd={handleDragEnd}
+                onMouseEnter={() => !isOrbitHidden && highlightOrbitNodes(item.nodeIds)}
+                onMouseLeave={clearOrbitHighlight}
+                title={`${item.shortLabel}: ${item.title} (${item.count} nodes). Drag or use ▲/▼ to reorder; shift-click to select for merging.`}
               >
-                {isOrbitHidden ? <EyeOffIcon size={13} /> : <EyeIcon size={13} />}
-              </button>
-              <span className="orbit-drag-handle" title="Drag to reorder orbit">⠿</span>
-              <span className="orbit-legend-pill">{item.shortLabel}</span>
-              <span className="orbit-legend-title">{item.title}</span>
-              <span className="orbit-legend-count">{item.count}</span>
-              <div className="orbit-move-actions">
                 <button
                   type="button"
-                  className="orbit-move-btn"
-                  disabled={idx === 0}
+                  className={`orbit-visibility-btn ${isOrbitHidden ? 'is-hidden' : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleMoveOrbit(idx, -1);
+                    toggleOrbitVisibility(item.levelIndex);
                   }}
-                  title="Move toward center (Inner orbit)"
+                  title={isOrbitHidden ? `Show entire ${item.title}` : `Hide entire ${item.title}`}
                 >
-                  <ChevronUpIcon size={10} />
+                  {isOrbitHidden ? <EyeOffIcon size={13} /> : <EyeIcon size={13} />}
                 </button>
-                <button
-                  type="button"
-                  className="orbit-move-btn"
-                  disabled={idx === orbitLegendItems.length - 1}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleMoveOrbit(idx, 1);
-                  }}
-                  title="Move toward periphery (Outer orbit)"
-                >
-                  <ChevronDownIcon size={10} />
-                </button>
+                <span className="orbit-drag-handle" title="Drag to reorder orbit">⠿</span>
+                <span className="orbit-legend-pill">{item.isFirstInOrbit ? item.shortLabel : '↳'}</span>
+                <span className="orbit-legend-title">{item.title}</span>
+                <span className="orbit-legend-count">{item.count}</span>
+                <div className="orbit-move-actions">
+                  <button
+                    type="button"
+                    className="orbit-move-btn"
+                    disabled={item.orbitIndex === orbitLegendItems[0]?.orbitIndex}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMoveOrbit(item, -1);
+                    }}
+                    title="Move toward center (Inner orbit)"
+                  >
+                    <ChevronUpIcon size={10} />
+                  </button>
+                  <button
+                    type="button"
+                    className="orbit-move-btn"
+                    disabled={item.orbitIndex === orbitLegendItems[orbitLegendItems.length - 1]?.orbitIndex}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMoveOrbit(item, 1);
+                    }}
+                    title="Move toward periphery (Outer orbit)"
+                  >
+                    <ChevronDownIcon size={10} />
+                  </button>
+                </div>
+                {isMerged && item.isFirstInOrbit ? (
+                  <button
+                    type="button"
+                    className="orbit-split-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSplitOrbit(item.orbitIndex);
+                    }}
+                    title="Split this merged orbit back into separate orbits"
+                  >
+                    Split
+                  </button>
+                ) : null}
+              </div>
+              <div className="orbit-kind-chips">
+                {item.kinds.map((k) => (
+                  <span
+                    key={k.kind}
+                    className={`orbit-kind-chip ${k.overridden ? 'is-overridden' : ''}`}
+                    draggable
+                    onDragStart={(e) => {
+                      e.stopPropagation();
+                      draggedKindRef.current = k.kind;
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData('text/plain', k.kind);
+                    }}
+                    onDragEnd={handleDragEnd}
+                    title={`Drag ${k.kind} onto another orbit to move all ${k.kind} entities there`}
+                  >
+                    {k.kind} {k.count}
+                    {k.overridden ? (
+                      <button
+                        type="button"
+                        className="orbit-kind-chip-clear"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          applyOrbitConfig(moveKindToOrbit(orbitConfigRef.current, k.kind, null), [item.levelIndex]);
+                        }}
+                        title="Restore the default orbit for this kind"
+                      >
+                        ✕
+                      </button>
+                    ) : null}
+                  </span>
+                ))}
               </div>
             </div>
           );

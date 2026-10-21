@@ -567,6 +567,15 @@ public partial class ArchitectureViewEngine
             }
 
             var cat = CategorizeBoundedContext(effectiveDomain, sig.RelativePath, sig.Name);
+
+            // The map lists services only; a library outside every configured domain is not a domain of its own.
+            if (!WorkspaceConventions.DomainDetectionEnabled &&
+                sig.Role is "SharedLibrary" or "Library" &&
+                !WorkspaceConventions.TryGetConfiguredDomain(sig.Name, sig.RelativePath, out _))
+            {
+                continue;
+            }
+
             if (IsTestOrDocsDomain(cat.DomainId, cat.DomainName) || IsTestOrDocsDomain(cat.CanonicalKey, cat.DisplayName))
             {
                 continue;
