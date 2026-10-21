@@ -411,25 +411,68 @@ public class Layer4SemanticParser
             }
         }
 
-        // Materialize TESTS relationships from TestSuites to target workloads
+        // Materialize relationships between semantic workloads (TESTS, DEPENDS_ON to library/project/package)
         foreach (var dep in l3Result.Prev.ProjectDependencies)
         {
             if (dep.Kind == OntologyConstants.Relationships.DependsOn &&
-                workloadByProjectId.TryGetValue(dep.From, out var sourceWorkloadId) &&
-                workloadByProjectId.TryGetValue(dep.To, out var targetWorkloadId) &&
-                sourceWorkloadId != targetWorkloadId)
+                workloadByProjectId.TryGetValue(dep.From, out var sourceWorkloadId))
             {
-                var sourceWorkload = semanticStructureNode.Children.FirstOrDefault(c => c.Id == sourceWorkloadId);
-                if (sourceWorkload is TestSuiteNode && existingRelKeys.Add((sourceWorkloadId, targetWorkloadId, OntologyConstants.Relationships.Tests)))
+                if (workloadByProjectId.TryGetValue(dep.To, out var targetWorkloadId) &&
+                    sourceWorkloadId != targetWorkloadId)
                 {
-                    semanticRelationships.Add(new Relationship(
-                        sourceWorkloadId,
-                        targetWorkloadId,
-                        OntologyConstants.Relationships.Tests,
-                        new Dictionary<string, object>
+                    var sourceWorkload = semanticStructureNode.Children.FirstOrDefault(c => c.Id == sourceWorkloadId);
+                    var targetWorkload = semanticStructureNode.Children.FirstOrDefault(c => c.Id == targetWorkloadId);
+
+                    if (sourceWorkload is TestSuiteNode)
+                    {
+                        if (existingRelKeys.Add((sourceWorkloadId, targetWorkloadId, OntologyConstants.Relationships.Tests)))
                         {
-                            ["dependency_type"] = "tests"
-                        }));
+                            semanticRelationships.Add(new Relationship(
+                                sourceWorkloadId,
+                                targetWorkloadId,
+                                OntologyConstants.Relationships.Tests,
+                                new Dictionary<string, object>
+                                {
+                                    ["dependency_type"] = "tests",
+                                    ["category"] = "test",
+                                    ["is_semantic"] = "true"
+                                }));
+                        }
+                    }
+                    else
+                    {
+                        if (existingRelKeys.Add((sourceWorkloadId, targetWorkloadId, OntologyConstants.Relationships.DependsOn)))
+                        {
+                            var depType = targetWorkload is LibraryNode ? "library" : "project";
+                            semanticRelationships.Add(new Relationship(
+                                sourceWorkloadId,
+                                targetWorkloadId,
+                                OntologyConstants.Relationships.DependsOn,
+                                new Dictionary<string, object>
+                                {
+                                    ["dependency_type"] = depType,
+                                    ["category"] = depType,
+                                    ["is_semantic"] = "true"
+                                }));
+                        }
+                    }
+                }
+                else if (dep.To.Contains($":{OntologyConstants.IdPrefixes.Package}:") ||
+                         l3Result.Prev.Packages.Any(p => p.Id == dep.To))
+                {
+                    if (existingRelKeys.Add((sourceWorkloadId, dep.To, OntologyConstants.Relationships.DependsOn)))
+                    {
+                        semanticRelationships.Add(new Relationship(
+                            sourceWorkloadId,
+                            dep.To,
+                            OntologyConstants.Relationships.DependsOn,
+                            new Dictionary<string, object>
+                            {
+                                ["dependency_type"] = "package",
+                                ["category"] = "library",
+                                ["is_semantic"] = "true"
+                            }));
+                    }
                 }
             }
         }

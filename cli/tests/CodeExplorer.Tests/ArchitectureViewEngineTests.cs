@@ -738,5 +738,106 @@ public class ArchitectureViewEngineTests
             try { Directory.Delete(tempDir, true); } catch { }
         }
     }
+
+    [Test]
+    public async Task GetSystemContextView_LiftsDatabaseThroughLibrary_WhenIncludeLibrariesIsFalse()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_view_lift_test_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var dbPath = Path.Combine(tempDir, "graph.db").Replace('\\', '/');
+            using var db = new SqliteGraphClient(dbPath);
+            var engine = new ArchitectureViewEngine(db);
+
+            await db.UploadNodesAsync([
+                new("ws:project:catalog-service:", "Project", new()
+                {
+                    ["name"] = "catalog-service",
+                    ["path"] = "src/catalog-service",
+                    ["role"] = "Service",
+                    ["is_library"] = "false"
+                }),
+                new("ws:project:catalog-data:", "Project", new()
+                {
+                    ["name"] = "catalog-data",
+                    ["path"] = "src/catalog-data",
+                    ["role"] = "SharedLibrary",
+                    ["is_library"] = "true"
+                }),
+                new("ws:res:db:relational:catalog_db", "Database", new()
+                {
+                    ["name"] = "catalog_db",
+                    ["db_type"] = "relational"
+                })
+            ]);
+
+            await db.UploadRelationshipsAsync([
+                new("ws:project:catalog-service:", "ws:project:catalog-data:", OntologyConstants.Relationships.DependsOn, new() { ["dependency_type"] = "library" }),
+                new("ws:project:catalog-data:", "ws:res:db:relational:catalog_db", OntologyConstants.Relationships.UsesDb, new() { ["dependency_type"] = "database" })
+            ]);
+
+            var view = await engine.GetSystemContextViewAsync(includeLibraries: false);
+
+            var nodeIds = view.Nodes.Select(n => n.Id).ToList();
+            nodeIds.Should().Contain("ws:project:catalog-service:");
+            nodeIds.Should().Contain("ws:res:db:relational:catalog_db");
+            nodeIds.Should().NotContain("ws:project:catalog-data:", "Libraries must be pruned when includeLibraries is false");
+
+            var edge = view.Edges.FirstOrDefault(e => e.Source == "ws:project:catalog-service:" && e.Target == "ws:res:db:relational:catalog_db");
+            edge.Should().NotBeNull("Transitive database relation must be lifted to catalog-service even when includeLibraries is false");
+            edge!.Kind.Should().Be("USES_DB");
+            edge.IsInferred.Should().BeTrue();
+            edge.Properties?.GetValueOrDefault("semantic_lifted").Should().Be("true");
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Test]
+    public async Task GetSystemContextView_PreservesTestsEdges_EvenWhenTargetIsLibrary()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_view_tests_edge_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var dbPath = Path.Combine(tempDir, "graph.db").Replace('\\', '/');
+            using var db = new SqliteGraphClient(dbPath);
+            var engine = new ArchitectureViewEngine(db);
+
+            await db.UploadNodesAsync([
+                new("ws:suite:core.tests", "TestSuite", new()
+                {
+                    ["name"] = "core.tests",
+                    ["path"] = "tests/core.tests",
+                    ["role"] = "Test"
+                }),
+                new("ws:lib:core.library", "Library", new()
+                {
+                    ["name"] = "core.library",
+                    ["path"] = "src/core.library",
+                    ["role"] = "SharedLibrary",
+                    ["is_library"] = "true"
+                })
+            ]);
+
+            await db.UploadRelationshipsAsync([
+                new("ws:suite:core.tests", "ws:lib:core.library", OntologyConstants.Relationships.Tests, new() { ["dependency_type"] = "tests" })
+            ]);
+
+            var view = await engine.GetSystemContextViewAsync(includeLibraries: true);
+
+            var edge = view.Edges.FirstOrDefault(e => e.Source == "ws:suite:core.tests" && e.Target == "ws:lib:core.library");
+            edge.Should().NotBeNull();
+            edge!.Kind.Should().Be("TESTS", "TESTS relationship must not be converted to LIBRARY");
+            edge.Properties?.GetValueOrDefault("category").Should().Be("test");
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
 }
 

@@ -719,6 +719,17 @@ public partial class PostIndexAnalyzer
         // 3. Propagate schema, add canonical nodes to SemanticStructure and upload
         await PropagateSchemaAndUploadNodesInMemoryAsync(ctx, l4Result, canonicalDbNodes, primaryRelationalEngine);
 
+        var projectToWorkloadMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (l4Result.SemanticRelationships != null)
+        {
+            foreach (var r in l4Result.SemanticRelationships.Where(rel => rel.Kind == OntologyConstants.Relationships.Deploys))
+            {
+                projectToWorkloadMap[r.From] = r.To;
+                projectToWorkloadMap[r.From.TrimEnd(':')] = r.To;
+                projectToWorkloadMap[r.From.TrimEnd(':') + ":"] = r.To;
+            }
+        }
+
         // 4. Link projects to canonical database nodes and upload
         var canonicalRels = await UploadCanonicalRelationshipsInMemoryAsync(
             ctx,
@@ -730,7 +741,8 @@ public partial class PostIndexAnalyzer
             implicitSchemaIds,
             multiDomainSharedLibDbIds,
             concreteEnginesCount,
-            projectsByDomain);
+            projectsByDomain,
+            projectToWorkloadMap);
 
         // 5. Clean up duplicate non-canonical database nodes
         if (ctx.DbClient != null)

@@ -61,6 +61,8 @@ graph TD
     App -->|LOCATED_IN| Folder
     App -->|LOCATED_IN| Workspace
     App -->|DEPLOYED_BY| Project
+    App -->|DEPENDS_ON| Library
+    App -->|DEPENDS_ON| Package
     App -->|SERVICE_CALL| Service
     App -->|SERVICE_CALL| ExternalService
     App -->|CONTAINS| EntryPoint
@@ -71,6 +73,8 @@ graph TD
     CliTool -->|LOCATED_IN| Folder
     CliTool -->|LOCATED_IN| Workspace
     CliTool -->|DEPLOYED_BY| Project
+    CliTool -->|DEPENDS_ON| Library
+    CliTool -->|DEPENDS_ON| Package
     CliTool -->|SERVICE_CALL| Service
     CliTool -->|SERVICE_CALL| ExternalService
     CliTool -->|USES_DB| Database
@@ -96,6 +100,13 @@ graph TD
     Library -->|LOCATED_IN| Folder
     Library -->|LOCATED_IN| Workspace
     Library -->|DEPLOYED_BY| Project
+    Library -->|DEPENDS_ON| Library
+    Library -->|DEPENDS_ON| Package
+    Library -->|SERVICE_CALL| Service
+    Library -->|SERVICE_CALL| ExternalService
+    Library -->|USES_DB| Database
+    Library -->|PUBLISHES_TO| Topic
+    Library -->|SUBSCRIBES_TO| Topic
     Library -->|CONTAINS| Type
     Library -->|CONTAINS| Function
     Member -->|DECLARED_IN| File
@@ -126,6 +137,8 @@ graph TD
     Service -->|LOCATED_IN| Folder
     Service -->|LOCATED_IN| Workspace
     Service -->|DEPLOYED_BY| Project
+    Service -->|DEPENDS_ON| Library
+    Service -->|DEPENDS_ON| Package
     Service -->|SERVICE_CALL| Service
     Service -->|SERVICE_CALL| ExternalService
     Service -->|USES_DB| Database
@@ -142,6 +155,7 @@ graph TD
     TestSuite -->|LOCATED_IN| Folder
     TestSuite -->|LOCATED_IN| Workspace
     TestSuite -->|DEPLOYED_BY| Project
+    TestSuite -->|DEPENDS_ON| Package
     TestSuite -->|TESTS| Service
     TestSuite -->|TESTS| Library
     TestSuite -->|TESTS| App
@@ -164,6 +178,8 @@ graph TD
     Worker -->|LOCATED_IN| Folder
     Worker -->|LOCATED_IN| Workspace
     Worker -->|DEPLOYED_BY| Project
+    Worker -->|DEPENDS_ON| Library
+    Worker -->|DEPENDS_ON| Package
     Worker -->|SERVICE_CALL| Service
     Worker -->|SERVICE_CALL| ExternalService
     Worker -->|USES_DB| Database
@@ -397,8 +413,14 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
+| `App` | `DEPENDS_ON` |
+| `CliTool` | `DEPENDS_ON` |
+| `Library` | `DEPENDS_ON` |
 | `Project` | `DEPENDS_ON` |
 | `Project` | `PRODUCES` |
+| `Service` | `DEPENDS_ON` |
+| `TestSuite` | `DEPENDS_ON` |
+| `Worker` | `DEPENDS_ON` |
 
 **Properties:**
 
@@ -772,6 +794,8 @@ graph TD
 | `LOCATED_IN` | `Folder` |
 | `LOCATED_IN` | `Workspace` |
 | `DEPLOYED_BY` | `Project` |
+| `DEPENDS_ON` | `Library` |
+| `DEPENDS_ON` | `Package` |
 | `SERVICE_CALL` | `Service` |
 | `SERVICE_CALL` | `ExternalService` |
 | `CONTAINS` | `EntryPoint` |
@@ -806,6 +830,8 @@ graph TD
 | `LOCATED_IN` | `Folder` |
 | `LOCATED_IN` | `Workspace` |
 | `DEPLOYED_BY` | `Project` |
+| `DEPENDS_ON` | `Library` |
+| `DEPENDS_ON` | `Package` |
 | `SERVICE_CALL` | `Service` |
 | `SERVICE_CALL` | `ExternalService` |
 | `USES_DB` | `Database` |
@@ -865,6 +891,7 @@ graph TD
 | From | Relationship |
 | :--- | :--- |
 | `CliTool` | `USES_DB` |
+| `Library` | `USES_DB` |
 | `SemanticStructure` | `CONTAINS` |
 | `Service` | `USES_DB` |
 | `Worker` | `USES_DB` |
@@ -976,6 +1003,7 @@ graph TD
 | :--- | :--- |
 | `App` | `SERVICE_CALL` |
 | `CliTool` | `SERVICE_CALL` |
+| `Library` | `SERVICE_CALL` |
 | `SemanticStructure` | `CONTAINS` |
 | `Service` | `SERVICE_CALL` |
 | `Worker` | `SERVICE_CALL` |
@@ -993,6 +1021,13 @@ graph TD
 | `LOCATED_IN` | `Folder` |
 | `LOCATED_IN` | `Workspace` |
 | `DEPLOYED_BY` | `Project` |
+| `DEPENDS_ON` | `Library` |
+| `DEPENDS_ON` | `Package` |
+| `SERVICE_CALL` | `Service` |
+| `SERVICE_CALL` | `ExternalService` |
+| `USES_DB` | `Database` |
+| `PUBLISHES_TO` | `Topic` |
+| `SUBSCRIBES_TO` | `Topic` |
 | `CONTAINS` | `Type` |
 | `CONTAINS` | `Function` |
 
@@ -1000,8 +1035,13 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
+| `App` | `DEPENDS_ON` |
+| `CliTool` | `DEPENDS_ON` |
+| `Library` | `DEPENDS_ON` |
 | `SemanticStructure` | `CONTAINS` |
+| `Service` | `DEPENDS_ON` |
 | `TestSuite` | `TESTS` |
+| `Worker` | `DEPENDS_ON` |
 
 **Properties:**
 
@@ -1056,6 +1096,8 @@ graph TD
 | `LOCATED_IN` | `Folder` |
 | `LOCATED_IN` | `Workspace` |
 | `DEPLOYED_BY` | `Project` |
+| `DEPENDS_ON` | `Library` |
+| `DEPENDS_ON` | `Package` |
 | `SERVICE_CALL` | `Service` |
 | `SERVICE_CALL` | `ExternalService` |
 | `USES_DB` | `Database` |
@@ -1072,6 +1114,7 @@ graph TD
 | :--- | :--- |
 | `App` | `SERVICE_CALL` |
 | `CliTool` | `SERVICE_CALL` |
+| `Library` | `SERVICE_CALL` |
 | `SemanticStructure` | `CONTAINS` |
 | `Service` | `SERVICE_CALL` |
 | `TestSuite` | `TESTS` |
@@ -1121,6 +1164,7 @@ graph TD
 | `LOCATED_IN` | `Folder` |
 | `LOCATED_IN` | `Workspace` |
 | `DEPLOYED_BY` | `Project` |
+| `DEPENDS_ON` | `Package` |
 | `TESTS` | `Service` |
 | `TESTS` | `Library` |
 | `TESTS` | `App` |
@@ -1157,6 +1201,8 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
+| `Library` | `PUBLISHES_TO` |
+| `Library` | `SUBSCRIBES_TO` |
 | `SemanticStructure` | `CONTAINS` |
 | `Service` | `PUBLISHES_TO` |
 | `Service` | `SUBSCRIBES_TO` |
@@ -1184,6 +1230,8 @@ graph TD
 | `LOCATED_IN` | `Folder` |
 | `LOCATED_IN` | `Workspace` |
 | `DEPLOYED_BY` | `Project` |
+| `DEPENDS_ON` | `Library` |
+| `DEPENDS_ON` | `Package` |
 | `SERVICE_CALL` | `Service` |
 | `SERVICE_CALL` | `ExternalService` |
 | `USES_DB` | `Database` |

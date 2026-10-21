@@ -107,7 +107,7 @@ public partial class ArchitectureViewEngine
         CancellationToken ct)
     {
         var edgesQuery =
-            "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['SERVICE_CALL', 'DEPENDS_ON', 'USES_DB', 'PUBLISHES_TO', 'TRIGGERS', 'SUBSCRIBES_TO', 'INTEGRATES_WITH', 'CALLS_ENDPOINT', 'LIBRARY', 'SUBSCRIBED_BY', 'PUBLISHED_BY'] RETURN src.id AS from_id, tgt.id AS to_id, r.kind AS kind, r.properties AS properties";
+            "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['SERVICE_CALL', 'DEPENDS_ON', 'USES_DB', 'PUBLISHES_TO', 'TRIGGERS', 'SUBSCRIBES_TO', 'INTEGRATES_WITH', 'CALLS_ENDPOINT', 'LIBRARY', 'SUBSCRIBED_BY', 'PUBLISHED_BY', 'TESTS'] RETURN src.id AS from_id, tgt.id AS to_id, r.kind AS kind, r.properties AS properties";
         var edgesJson = await db.ExecuteQueryAsync(edgesQuery, null, ct);
 
         using var edgesDoc = JsonDocument.Parse(edgesJson);
@@ -151,14 +151,20 @@ public partial class ArchitectureViewEngine
                 srcNode.Kind, tgtNode.Kind, edgeProps.GetValueOrDefault("category"),
                 edgeProps.GetValueOrDefault("dependency_type"), isTargetLib);
 
-            if (isTargetLib)
+            if (rKind is "TESTS" or "tests")
+            {
+                category = DependencyCategory.UnidentifiedDependency;
+                depType = "tests";
+                normalizedKind = OntologyConstants.Relationships.Tests;
+            }
+            else if (isTargetLib)
             {
                 category = DependencyCategory.Library;
                 depType = DependencyCategoryExtensions.Library;
                 normalizedKind = (rKind is "DEPENDS_ON" or "DependsOn") ? "DEPENDS_ON" : "LIBRARY";
             }
 
-            var categoryStr = category.ToCategoryString();
+            var categoryStr = (rKind is "TESTS" or "tests") ? "test" : category.ToCategoryString();
             edgeProps["category"] = categoryStr;
             edgeProps["dependency_type"] = depType;
 
@@ -182,7 +188,9 @@ public partial class ArchitectureViewEngine
                 }
             }
 
-            var outKind = category switch
+            var outKind = (rKind is "TESTS" or "tests")
+                ? OntologyConstants.Relationships.Tests
+                : category switch
             {
                 DependencyCategory.Library => "LIBRARY",
                 DependencyCategory.ServiceCall => (rKind == "CALLS_ENDPOINT" ? "CALLS_ENDPOINT" : "SERVICE_CALL"),

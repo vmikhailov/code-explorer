@@ -17,6 +17,13 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<FolderNode>(OntologyConstants.Relationships.LocatedIn)]
 [OntologyEdge<WorkspaceNode>(OntologyConstants.Relationships.LocatedIn)]
 [OntologyEdge<ProjectNode>(OntologyConstants.Relationships.DeployedBy)]
+[OntologyEdge<LibraryNode>(OntologyConstants.Relationships.DependsOn)]
+[OntologyEdge<PackageNode>(OntologyConstants.Relationships.DependsOn)]
+[OntologyEdge<ServiceNode>(OntologyConstants.Relationships.ServiceCall)]
+[OntologyEdge<ExternalServiceNode>(OntologyConstants.Relationships.ServiceCall)]
+[OntologyEdge<DatabaseNode>(OntologyConstants.Relationships.UsesDb)]
+[OntologyEdge<TopicNode>(OntologyConstants.Relationships.PublishesTo)]
+[OntologyEdge<TopicNode>(OntologyConstants.Relationships.SubscribesTo)]
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.Contains)]
 public record LibraryNode(

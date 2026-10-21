@@ -1,9 +1,15 @@
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
+using CodeExplorer.Core.Common.Nodes;
+using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
+using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Gates.Engine;
 using CodeExplorer.Core.Gates.Storage;
 using CodeExplorer.Core.Parser;
+using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Cypher.Common;
 using CodeExplorer.Parser.CSharp;
 using NUnit.Framework;
@@ -456,5 +462,107 @@ public class SemanticRuntimeParityGateTests
         {
             try { Directory.Delete(tempWorkspace, true); } catch { }
         }
+    }
+
+    [Test]
+    public async Task Layer4SemanticParser_MaterializesDependsOnBetweenWorkloadsAndPackages()
+    {
+        const string wsId = "workspace";
+        var tempWorkspace = Path.Combine(Path.GetTempPath(), "ce_l4_sem_test_" + Guid.NewGuid().ToString("N")).Replace('\\', '/');
+        Directory.CreateDirectory(tempWorkspace);
+        try
+        {
+            await using var client = new InMemoryGraphClient();
+            var channel = System.Threading.Channels.Channel.CreateUnbounded<Func<Task>>();
+            var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
+
+            var wsNode = new WorkspaceNode(wsId, "TestWs", tempWorkspace);
+            var filesStructure = new FilesStructureNode($"{wsId}:files", "Files", tempWorkspace);
+            var file1 = new FileNode($"{wsId}:file:OrderService.cs", "OrderService.cs", "src/OrderService/OrderService.cs", "csharp");
+            var file2 = new FileNode($"{wsId}:file:OrderLib.cs", "OrderLib.cs", "src/OrderLib/OrderLib.cs", "csharp");
+            var file3 = new FileNode($"{wsId}:file:OrderTests.cs", "OrderTests.cs", "tests/OrderTests/OrderTests.cs", "csharp");
+            var l1 = new Layer1Result(wsNode, filesStructure, [file1, file2, file3], []);
+
+            var projStructure = new ProjectsStructureNode($"{wsId}:projects", "Projects", tempWorkspace);
+            var svcProj = new ProjectNode($"{wsId}:p:src/OrderService:", "OrderService", "src/OrderService", "csharp", "Service", false, new());
+            var libProj = new ProjectNode($"{wsId}:p:src/OrderLib:", "OrderLib", "src/OrderLib", "csharp", "SharedLibrary", true, new());
+            var testProj = new ProjectNode($"{wsId}:p:tests/OrderTests:", "OrderTests", "tests/OrderTests", "csharp", "Test", false, new());
+            var pkgNode = new PackageNode($"{wsId}:pkg:nuget:dapper", "Dapper", "2.0.0", false, "nuget");
+
+            var depSvcToLib = new Relationship(svcProj.Id, libProj.Id, OntologyConstants.Relationships.DependsOn, new() { ["dependency_type"] = "library" });
+            var depLibToPkg = new Relationship(libProj.Id, pkgNode.Id, OntologyConstants.Relationships.DependsOn, new() { ["dependency_type"] = "package" });
+            var depTestToSvc = new Relationship(testProj.Id, svcProj.Id, OntologyConstants.Relationships.DependsOn, new() { ["dependency_type"] = "tests" });
+
+            var l2 = new Layer2Result(l1, projStructure, [svcProj, libProj, testProj], [pkgNode], [depSvcToLib, depLibToPkg, depTestToSvc]);
+            var syntaxStructure = new SyntaxStructureNode($"{wsId}:syntax", "Syntax", tempWorkspace);
+            var l3 = new Layer3Result(l2, syntaxStructure, [], [], [], [], [], new());
+
+            var analyzer = new Layer4SemanticParser();
+            var l4 = await analyzer.ParseAsync(l3, ctx);
+
+            var semRels = l4.SemanticRelationships;
+
+            // 1. Service -> Library DEPENDS_ON
+            var svcToLibRel = semRels.FirstOrDefault(r => r.From.Contains(":s:") && r.To.Contains(":lib:") && r.Kind == OntologyConstants.Relationships.DependsOn);
+            svcToLibRel.Should().NotBeNull("Semantic ServiceNode must have DEPENDS_ON edge to semantic LibraryNode");
+            svcToLibRel!.Properties?.GetValueOrDefault("is_semantic")?.ToString().Should().Be("true");
+
+            // 2. Library -> Package DEPENDS_ON
+            var libToPkgRel = semRels.FirstOrDefault(r => r.From.Contains(":lib:") && r.To.Contains(":pkg:") && r.Kind == OntologyConstants.Relationships.DependsOn);
+            libToPkgRel.Should().NotBeNull("Semantic LibraryNode must have DEPENDS_ON edge to PackageNode");
+
+            // 3. TestSuite -> Service TESTS
+            var testToSvcRel = semRels.FirstOrDefault(r => r.From.Contains(":suite:") && r.To.Contains(":s:") && r.Kind == OntologyConstants.Relationships.Tests);
+            testToSvcRel.Should().NotBeNull("Semantic TestSuiteNode must have TESTS edge to target ServiceNode");
+        }
+        finally
+        {
+            try { Directory.Delete(tempWorkspace, true); } catch { }
+        }
+    }
+
+    [Test]
+    public void PostIndexAnalyzer_MirrorsMacroRelationshipsToSemanticWorkloads()
+    {
+        const string wsId = "workspace";
+        var svcProj = new ProjectNode($"{wsId}:p:src/OrderService:", "OrderService", "src/OrderService", "csharp", "Service", false, new());
+        var libProj = new ProjectNode($"{wsId}:p:src/OrderLib:", "OrderLib", "src/OrderLib", "csharp", "SharedLibrary", true, new());
+        var targetDbId = $"{wsId}:db:relational:orders";
+
+        var projectToWorkloadMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [svcProj.Id] = $"{wsId}:s:orderservice",
+            [libProj.Id] = $"{wsId}:lib:orderlib"
+        };
+
+        var allRels = new List<Relationship>
+        {
+            new(svcProj.Id, libProj.Id, OntologyConstants.Relationships.DependsOn, new() { ["dependency_type"] = "library" }),
+            new(libProj.Id, targetDbId, OntologyConstants.Relationships.UsesDb, new() { ["dependency_type"] = "database" })
+        };
+
+        // 1. Direct relationships: MaterializeDirectProjectRelationships
+        var directRels = PostIndexAnalyzer.MaterializeDirectProjectRelationships(
+            [svcProj, libProj],
+            [],
+            allRels,
+            projectToWorkloadMap: projectToWorkloadMap
+        );
+
+        directRels.Should().Contain(r => r.From == $"{wsId}:lib:orderlib" && r.To == targetDbId && r.Kind == OntologyConstants.Relationships.UsesDb,
+            "Direct USES_DB on ProjectNode must be mirrored to semantic Library workload");
+
+        // 2. Transitive lifting through library: LiftTransitiveSemanticRelations
+        allRels.AddRange(directRels);
+        var lifted = PostIndexAnalyzer.LiftTransitiveSemanticRelations(
+            [svcProj, libProj],
+            allRels,
+            projectToWorkloadMap: projectToWorkloadMap
+        );
+
+        lifted.Should().Contain(r => r.From == svcProj.Id && r.To == targetDbId && r.Kind == OntologyConstants.Relationships.UsesDb,
+            "Transitive USES_DB must be lifted to ProjectNode");
+        lifted.Should().Contain(r => r.From == $"{wsId}:s:orderservice" && r.To == targetDbId && r.Kind == OntologyConstants.Relationships.UsesDb,
+            "Transitive USES_DB must be lifted and mirrored to semantic Service workload");
     }
 }

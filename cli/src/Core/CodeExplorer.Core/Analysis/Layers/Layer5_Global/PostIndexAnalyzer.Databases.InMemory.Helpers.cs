@@ -243,7 +243,8 @@ public partial class PostIndexAnalyzer
         HashSet<string> implicitSchemaIds,
         HashSet<string> multiDomainSharedLibDbIds,
         Dictionary<string, int> concreteEnginesCount,
-        Dictionary<string, List<ProjectNode>> projectsByDomain)
+        Dictionary<string, List<ProjectNode>> projectsByDomain,
+        Dictionary<string, string>? projectToWorkloadMap = null)
     {
         var canonicalRels = new List<Relationship>();
         var seen = new HashSet<(string From, string To)>();
@@ -308,6 +309,24 @@ public partial class PostIndexAnalyzer
                     OntologyConstants.Relationships.UsesDb,
                     props
                 ));
+
+                if (projectToWorkloadMap != null)
+                {
+                    var semFrom = projectToWorkloadMap.GetValueOrDefault(owner.Id);
+                    if (semFrom != null && semFrom != target && seen.Add((semFrom, target)))
+                    {
+                        var semProps = new Dictionary<string, object>(props)
+                        {
+                            ["is_semantic"] = "true"
+                        };
+                        canonicalRels.Add(new Relationship(
+                            semFrom,
+                            target,
+                            OntologyConstants.Relationships.UsesDb,
+                            semProps
+                        ));
+                    }
+                }
             }
             else if (rel.Properties != null)
             {

@@ -14,12 +14,39 @@ public partial class PostIndexAnalyzer
         IReadOnlyList<Relationship> allRelationships,
         IReadOnlyDictionary<string, string>? nodeKindsById = null,
         IReadOnlyDictionary<string, string>? dbCanonicalMap = null,
-        IReadOnlyDictionary<string, ProjectNode>? prebuiltFileToProject = null)
+        IReadOnlyDictionary<string, ProjectNode>? prebuiltFileToProject = null,
+        IReadOnlyDictionary<string, string>? projectToWorkloadMap = null)
     {
         var materializedRels = new List<Relationship>();
         var existingEdges = new HashSet<(string From, string To, string Kind)>(
             allRelationships.Select(r => (r.From, r.To, r.Kind))
         );
+
+        void AddMaterialized(string fromId, string toId, string relKind, Dictionary<string, object> properties)
+        {
+            if (existingEdges.Add((fromId, toId, relKind)))
+            {
+                materializedRels.Add(new Relationship(fromId, toId, relKind, properties));
+            }
+
+            if (projectToWorkloadMap != null)
+            {
+                var semFrom = projectToWorkloadMap.GetValueOrDefault(fromId);
+                var semTo = projectToWorkloadMap.GetValueOrDefault(toId, toId);
+
+                if (semFrom != null && semFrom != semTo)
+                {
+                    if (existingEdges.Add((semFrom, semTo, relKind)))
+                    {
+                        var semProps = new Dictionary<string, object>(properties)
+                        {
+                            ["is_semantic"] = "true"
+                        };
+                        materializedRels.Add(new Relationship(semFrom, semTo, relKind, semProps));
+                    }
+                }
+            }
+        }
 
         var projList = projects.ToList();
         var fileToProject = prebuiltFileToProject != null
@@ -84,20 +111,17 @@ public partial class PostIndexAnalyzer
                     var owner = ResolveOwningProject(from);
                     if (owner != null && owner.Id != targetDbId)
                     {
-                        if (existingEdges.Add((owner.Id, targetDbId, OntologyConstants.Relationships.UsesDb)))
-                        {
-                            materializedRels.Add(new Relationship(
-                                owner.Id,
-                                targetDbId,
-                                OntologyConstants.Relationships.UsesDb,
-                                new Dictionary<string, object>
-                                {
-                                    ["dependency_type"] = "database",
-                                    ["is_semantic"] = "true",
-                                    ["is_canonical"] = "true"
-                                }
-                            ));
-                        }
+                        AddMaterialized(
+                            owner.Id,
+                            targetDbId,
+                            OntologyConstants.Relationships.UsesDb,
+                            new Dictionary<string, object>
+                            {
+                                ["dependency_type"] = "database",
+                                ["is_semantic"] = "true",
+                                ["is_canonical"] = "true"
+                            }
+                        );
                     }
                 }
             }
@@ -127,20 +151,17 @@ public partial class PostIndexAnalyzer
                         var owner = ResolveOwningProject(symbolId);
                         if (owner != null && owner.Id != topicId)
                         {
-                            if (existingEdges.Add((owner.Id, topicId, OntologyConstants.Relationships.PublishesTo)))
-                            {
-                                materializedRels.Add(new Relationship(
-                                    owner.Id,
-                                    topicId,
-                                    OntologyConstants.Relationships.PublishesTo,
-                                    new Dictionary<string, object>
-                                    {
-                                        ["dependency_type"] = "messaging",
-                                        ["is_semantic"] = "true",
-                                        ["category"] = "messaging"
-                                    }
-                                ));
-                            }
+                            AddMaterialized(
+                                owner.Id,
+                                topicId,
+                                OntologyConstants.Relationships.PublishesTo,
+                                new Dictionary<string, object>
+                                {
+                                    ["dependency_type"] = "messaging",
+                                    ["is_semantic"] = "true",
+                                    ["category"] = "messaging"
+                                }
+                            );
                         }
                     }
                 }
@@ -172,20 +193,17 @@ public partial class PostIndexAnalyzer
                         var owner = ResolveOwningProject(symbolId);
                         if (owner != null && owner.Id != topicId)
                         {
-                            if (existingEdges.Add((owner.Id, topicId, OntologyConstants.Relationships.SubscribesTo)))
-                            {
-                                materializedRels.Add(new Relationship(
-                                    owner.Id,
-                                    topicId,
-                                    OntologyConstants.Relationships.SubscribesTo,
-                                    new Dictionary<string, object>
-                                    {
-                                        ["dependency_type"] = "messaging",
-                                        ["is_semantic"] = "true",
-                                        ["category"] = "messaging"
-                                    }
-                                ));
-                            }
+                            AddMaterialized(
+                                owner.Id,
+                                topicId,
+                                OntologyConstants.Relationships.SubscribesTo,
+                                new Dictionary<string, object>
+                                {
+                                    ["dependency_type"] = "messaging",
+                                    ["is_semantic"] = "true",
+                                    ["category"] = "messaging"
+                                }
+                            );
                         }
                     }
                 }
@@ -197,19 +215,16 @@ public partial class PostIndexAnalyzer
                 var targetOwner = ResolveOwningProject(to);
                 if (callerOwner != null && targetOwner != null && callerOwner.Id != targetOwner.Id)
                 {
-                    if (existingEdges.Add((callerOwner.Id, targetOwner.Id, OntologyConstants.Relationships.ServiceCall)))
-                    {
-                        materializedRels.Add(new Relationship(
-                            callerOwner.Id,
-                            targetOwner.Id,
-                            OntologyConstants.Relationships.ServiceCall,
-                            new Dictionary<string, object>
-                            {
-                                ["dependency_type"] = "service_call",
-                                ["is_semantic"] = "true"
-                            }
-                        ));
-                    }
+                    AddMaterialized(
+                        callerOwner.Id,
+                        targetOwner.Id,
+                        OntologyConstants.Relationships.ServiceCall,
+                        new Dictionary<string, object>
+                        {
+                            ["dependency_type"] = "service_call",
+                            ["is_semantic"] = "true"
+                        }
+                    );
                 }
             }
             // 5b. Service Target from configuration -> Project -> Project SERVICE_CALL
@@ -220,20 +235,17 @@ public partial class PostIndexAnalyzer
                 var callerOwner = ResolveOwningProject(from);
                 if (callerOwner != null && targetProj != null && callerOwner.Id != targetProj.Id)
                 {
-                    if (existingEdges.Add((callerOwner.Id, targetProj.Id, OntologyConstants.Relationships.ServiceCall)))
-                    {
-                        materializedRels.Add(new Relationship(
-                            callerOwner.Id,
-                            targetProj.Id,
-                            OntologyConstants.Relationships.ServiceCall,
-                            new Dictionary<string, object>
-                            {
-                                ["dependency_type"] = "service_call",
-                                ["is_semantic"] = "true",
-                                ["service_name"] = serviceKey
-                            }
-                        ));
-                    }
+                    AddMaterialized(
+                        callerOwner.Id,
+                        targetProj.Id,
+                        OntologyConstants.Relationships.ServiceCall,
+                        new Dictionary<string, object>
+                        {
+                            ["dependency_type"] = "service_call",
+                            ["is_semantic"] = "true",
+                            ["service_name"] = serviceKey
+                        }
+                    );
                 }
             }
             // 6. External Service invocation -> Project -> ExternalService SERVICE_CALL
@@ -274,35 +286,29 @@ public partial class PostIndexAnalyzer
 
                         if (internalTargetProj != null && callerOwner.Id != internalTargetProj.Id)
                         {
-                            if (existingEdges.Add((callerOwner.Id, internalTargetProj.Id, OntologyConstants.Relationships.ServiceCall)))
-                            {
-                                materializedRels.Add(new Relationship(
-                                    callerOwner.Id,
-                                    internalTargetProj.Id,
-                                    OntologyConstants.Relationships.ServiceCall,
-                                    new Dictionary<string, object>
-                                    {
-                                        ["dependency_type"] = "service_call",
-                                        ["is_semantic"] = "true"
-                                    }
-                                ));
-                            }
+                            AddMaterialized(
+                                callerOwner.Id,
+                                internalTargetProj.Id,
+                                OntologyConstants.Relationships.ServiceCall,
+                                new Dictionary<string, object>
+                                {
+                                    ["dependency_type"] = "service_call",
+                                    ["is_semantic"] = "true"
+                                }
+                            );
                         }
                         else if (internalTargetProj == null && !IsGarbageExternalService(extDomain))
                         {
-                            if (existingEdges.Add((callerOwner.Id, extId, OntologyConstants.Relationships.ServiceCall)))
-                            {
-                                materializedRels.Add(new Relationship(
-                                    callerOwner.Id,
-                                    extId,
-                                    OntologyConstants.Relationships.ServiceCall,
-                                    new Dictionary<string, object>
-                                    {
-                                        ["dependency_type"] = "service_call",
-                                        ["is_semantic"] = "true"
-                                    }
-                                ));
-                            }
+                            AddMaterialized(
+                                callerOwner.Id,
+                                extId,
+                                OntologyConstants.Relationships.ServiceCall,
+                                new Dictionary<string, object>
+                                {
+                                    ["dependency_type"] = "service_call",
+                                    ["is_semantic"] = "true"
+                                }
+                            );
                         }
                     }
                 }
@@ -319,9 +325,9 @@ public partial class PostIndexAnalyzer
                 if (owner != null && isTargetDb && dbCanonicalMap == null)
                 {
                     var targetDbId = dbCanonicalMap?.GetValueOrDefault(to, to) ?? to;
-                    if (owner.Id != targetDbId && existingEdges.Add((owner.Id, targetDbId, OntologyConstants.Relationships.UsesDb)))
+                    if (owner.Id != targetDbId)
                     {
-                        materializedRels.Add(new Relationship(
+                        AddMaterialized(
                             owner.Id,
                             targetDbId,
                             OntologyConstants.Relationships.UsesDb,
@@ -331,24 +337,21 @@ public partial class PostIndexAnalyzer
                                 ["is_semantic"] = "true",
                                 ["is_canonical"] = "true"
                             }
-                        ));
+                        );
                     }
                 }
                 else if (owner != null && isTargetTopic && owner.Id != to)
                 {
-                    if (existingEdges.Add((owner.Id, to, OntologyConstants.Relationships.PublishesTo)))
-                    {
-                        materializedRels.Add(new Relationship(
-                            owner.Id,
-                            to,
-                            OntologyConstants.Relationships.PublishesTo,
-                            new Dictionary<string, object>
-                            {
-                                ["dependency_type"] = "messaging",
-                                ["is_semantic"] = "true"
-                            }
-                        ));
-                    }
+                    AddMaterialized(
+                        owner.Id,
+                        to,
+                        OntologyConstants.Relationships.PublishesTo,
+                        new Dictionary<string, object>
+                        {
+                            ["dependency_type"] = "messaging",
+                            ["is_semantic"] = "true"
+                        }
+                    );
                 }
             }
         }

@@ -228,13 +228,25 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         );
         allCombinedRels.AddRange(canonicalDbRels);
 
+        var projectToWorkloadMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (l4Result.SemanticRelationships != null)
+        {
+            foreach (var rel in l4Result.SemanticRelationships.Where(r => r.Kind == OntologyConstants.Relationships.Deploys))
+            {
+                projectToWorkloadMap[rel.From] = rel.To;
+                projectToWorkloadMap[rel.From.TrimEnd(':')] = rel.To;
+                projectToWorkloadMap[rel.From.TrimEnd(':') + ":"] = rel.To;
+            }
+        }
+
         ctx.Log("[PostIndexAnalyzer] Materializing direct project relationships...");
         var directProjectRels = MaterializeDirectProjectRelationships(
             l4Result.Prev.Prev.Projects,
             l4Result.Prev.Prev.Prev.Files,
             allCombinedRels,
             dbCanonicalMap: rawToCanonicalDbMap,
-            prebuiltFileToProject: fileToProject
+            prebuiltFileToProject: fileToProject,
+            projectToWorkloadMap: projectToWorkloadMap
         );
 
         if (directProjectRels.Count > 0)
@@ -249,7 +261,8 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         var liftedSemanticRels = LiftTransitiveSemanticRelations(
             l4Result.Prev.Prev.Projects,
             allCombinedRels,
-            dbCanonicalMap: rawToCanonicalDbMap
+            dbCanonicalMap: rawToCanonicalDbMap,
+            projectToWorkloadMap: projectToWorkloadMap
         );
         if (liftedSemanticRels.Count > 0)
         {
@@ -391,7 +404,8 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         IReadOnlyList<ProjectNode> projects,
         IReadOnlyList<Relationship> allRelationships,
         IReadOnlyDictionary<string, string>? nodeKindsById = null,
-        IReadOnlyDictionary<string, string>? dbCanonicalMap = null)
+        IReadOnlyDictionary<string, string>? dbCanonicalMap = null,
+        IReadOnlyDictionary<string, string>? projectToWorkloadMap = null)
     {
         var liftedRels = new List<Relationship>();
         var services = projects.Where(p => !p.IsLibrary).ToList();
@@ -421,6 +435,32 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         var existingEdges = new HashSet<(string From, string To, string Kind)>(
             allRelationships.Select(r => (r.From, r.To, r.Kind))
         );
+
+        void AddLifted(string fromId, string toId, string relKind, Dictionary<string, object> properties)
+        {
+            if (existingEdges.Add((fromId, toId, relKind)))
+            {
+                liftedRels.Add(new Relationship(fromId, toId, relKind, properties));
+            }
+
+            if (projectToWorkloadMap != null)
+            {
+                var semFrom = projectToWorkloadMap.GetValueOrDefault(fromId);
+                var semTo = projectToWorkloadMap.GetValueOrDefault(toId, toId);
+
+                if (semFrom != null && semFrom != semTo)
+                {
+                    if (existingEdges.Add((semFrom, semTo, relKind)))
+                    {
+                        var semProps = new Dictionary<string, object>(properties)
+                        {
+                            ["is_semantic"] = "true"
+                        };
+                        liftedRels.Add(new Relationship(semFrom, semTo, relKind, semProps));
+                    }
+                }
+            }
+        }
 
         foreach (var service in services)
         {
@@ -461,22 +501,19 @@ public partial class PostIndexAnalyzer(IGraphClient db)
 
                         if (isTopic)
                         {
-                            if (existingEdges.Add((service.Id, inEdge.From, OntologyConstants.Relationships.SubscribesTo)))
-                            {
-                                liftedRels.Add(new Relationship(
-                                    service.Id,
-                                    inEdge.From,
-                                    OntologyConstants.Relationships.SubscribesTo,
-                                    new Dictionary<string, object>
-                                    {
-                                        ["dependency_type"] = "messaging",
-                                        ["is_semantic"] = "true",
-                                        ["semantic_lifted"] = "true",
-                                        ["via_library"] = viaLib,
-                                        ["call_chain"] = chainStr
-                                    }
-                                ));
-                            }
+                            AddLifted(
+                                service.Id,
+                                inEdge.From,
+                                OntologyConstants.Relationships.SubscribesTo,
+                                new Dictionary<string, object>
+                                {
+                                    ["dependency_type"] = "messaging",
+                                    ["is_semantic"] = "true",
+                                    ["semantic_lifted"] = "true",
+                                    ["via_library"] = viaLib,
+                                    ["call_chain"] = chainStr
+                                }
+                            );
                         }
                     }
                 }
@@ -501,23 +538,20 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                                 continue;
                             }
                             var targetDbId = dbCanonicalMap?.GetValueOrDefault(edge.To, edge.To) ?? edge.To;
-                            if (existingEdges.Add((service.Id, targetDbId, OntologyConstants.Relationships.UsesDb)))
-                            {
-                                liftedRels.Add(new Relationship(
-                                    service.Id,
-                                    targetDbId,
-                                    OntologyConstants.Relationships.UsesDb,
-                                    new Dictionary<string, object>
-                                    {
-                                        ["dependency_type"] = "database",
-                                        ["is_semantic"] = "true",
-                                        ["semantic_lifted"] = "true",
-                                        ["is_canonical"] = "true",
-                                        ["via_library"] = viaLib,
-                                        ["call_chain"] = chainStr
-                                    }
-                                ));
-                            }
+                            AddLifted(
+                                service.Id,
+                                targetDbId,
+                                OntologyConstants.Relationships.UsesDb,
+                                new Dictionary<string, object>
+                                {
+                                    ["dependency_type"] = "database",
+                                    ["is_semantic"] = "true",
+                                    ["semantic_lifted"] = "true",
+                                    ["is_canonical"] = "true",
+                                    ["via_library"] = viaLib,
+                                    ["call_chain"] = chainStr
+                                }
+                            );
                         }
                         // Case 2: Library calls another Service -> Lift direct SERVICE_CALL to Service
                         // Only lift if the library's edge to the target service is an actual service call (not a generic compile-time project dependency)
@@ -525,22 +559,19 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                                  (edge.Kind is OntologyConstants.Relationships.ServiceCall or "CALLS_ENDPOINT" or "CALLS" ||
                                   (edge.Properties?.TryGetValue("dependency_type", out var dt) == true && dt?.ToString() == "service_call")))
                         {
-                            if (existingEdges.Add((service.Id, edge.To, OntologyConstants.Relationships.ServiceCall)))
-                            {
-                                liftedRels.Add(new Relationship(
-                                    service.Id,
-                                    edge.To,
-                                    OntologyConstants.Relationships.ServiceCall,
-                                    new Dictionary<string, object>
-                                    {
-                                        ["dependency_type"] = "service_call",
-                                        ["is_semantic"] = "true",
-                                        ["semantic_lifted"] = "true",
-                                        ["via_library"] = viaLib,
-                                        ["call_chain"] = chainStr
-                                    }
-                                ));
-                            }
+                            AddLifted(
+                                service.Id,
+                                edge.To,
+                                OntologyConstants.Relationships.ServiceCall,
+                                new Dictionary<string, object>
+                                {
+                                    ["dependency_type"] = "service_call",
+                                    ["is_semantic"] = "true",
+                                    ["semantic_lifted"] = "true",
+                                    ["via_library"] = viaLib,
+                                    ["call_chain"] = chainStr
+                                }
+                            );
                         }
                         // Case 3: Library connects to External Service
                         else if ((tgtKind != null && tgtKind.Equals(OntologyConstants.NodeLabels.ExternalService, StringComparison.OrdinalIgnoreCase))
@@ -548,22 +579,19 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                                  || edge.To.Contains(":externalservice:")
                                  || edge.To.Contains(":res:service:external:"))
                         {
-                            if (existingEdges.Add((service.Id, edge.To, OntologyConstants.Relationships.ServiceCall)))
-                            {
-                                liftedRels.Add(new Relationship(
-                                    service.Id,
-                                    edge.To,
-                                    OntologyConstants.Relationships.ServiceCall,
-                                    new Dictionary<string, object>
-                                    {
-                                        ["dependency_type"] = "service_call",
-                                        ["is_semantic"] = "true",
-                                        ["semantic_lifted"] = "true",
-                                        ["via_library"] = viaLib,
-                                        ["call_chain"] = chainStr
-                                    }
-                                ));
-                            }
+                            AddLifted(
+                                service.Id,
+                                edge.To,
+                                OntologyConstants.Relationships.ServiceCall,
+                                new Dictionary<string, object>
+                                {
+                                    ["dependency_type"] = "service_call",
+                                    ["is_semantic"] = "true",
+                                    ["semantic_lifted"] = "true",
+                                    ["via_library"] = viaLib,
+                                    ["call_chain"] = chainStr
+                                }
+                            );
                         }
                         // Case 4: Library publishes or subscribes to Topic
                         else if ((tgtKind != null && tgtKind.Equals(OntologyConstants.NodeLabels.Topic, StringComparison.OrdinalIgnoreCase))
@@ -577,22 +605,19 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                             var outKind = (edge.Kind == OntologyConstants.Relationships.SubscribesTo || edge.Kind == OntologyConstants.Relationships.Triggers)
                                 ? OntologyConstants.Relationships.SubscribesTo
                                 : OntologyConstants.Relationships.PublishesTo;
-                            if (existingEdges.Add((service.Id, edge.To, outKind)))
-                            {
-                                liftedRels.Add(new Relationship(
-                                    service.Id,
-                                    edge.To,
-                                    outKind,
-                                    new Dictionary<string, object>
-                                    {
-                                        ["dependency_type"] = "messaging",
-                                        ["is_semantic"] = "true",
-                                        ["semantic_lifted"] = "true",
-                                        ["via_library"] = viaLib,
-                                        ["call_chain"] = chainStr
-                                    }
-                                ));
-                            }
+                            AddLifted(
+                                service.Id,
+                                edge.To,
+                                outKind,
+                                new Dictionary<string, object>
+                                {
+                                    ["dependency_type"] = "messaging",
+                                    ["is_semantic"] = "true",
+                                    ["semantic_lifted"] = "true",
+                                    ["via_library"] = viaLib,
+                                    ["call_chain"] = chainStr
+                                }
+                            );
                         }
                         // Case 5: Library depends on another Library -> continue BFS traversal up to depth 8
                         else if (libraries.TryGetValue(edge.To, out var nextLib) && depth < 8)

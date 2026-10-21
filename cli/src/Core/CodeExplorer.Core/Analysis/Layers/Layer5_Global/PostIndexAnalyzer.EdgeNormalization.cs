@@ -42,6 +42,11 @@ public partial class PostIndexAnalyzer
     {
         var kind = (rawKind ?? "").ToUpperInvariant();
 
+        if (kind is OntologyConstants.Relationships.Tests or "TESTS")
+        {
+            return (DependencyCategory.UnidentifiedDependency, "tests", OntologyConstants.Relationships.Tests);
+        }
+
         DependencyCategory category;
         if (isTargetLibrary ||
             targetKind == OntologyConstants.NodeLabels.Package ||
