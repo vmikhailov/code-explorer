@@ -5,6 +5,7 @@ using CodeExplorer.Core.Parser;
 
 namespace CodeExplorer.Parser.ColdFusion;
 
+[ProjectParser(Tier = ParserTier.Primary)]
 public class ColdFusionProjectParser : IProjectParser
 {
     public string LanguageName => "coldfusion";

@@ -12,6 +12,7 @@ namespace CodeExplorer.Parser.Rust;
 /// Project and file parser for Rust language support in CodeExplorer.
 /// Supports single-crate and virtual workspaces, Cargo.toml manifests, and Tree-sitter Rust AST parsing.
 /// </summary>
+[ProjectParser(Tier = ParserTier.Primary)]
 public class RustParser : IProjectParser, IFileParser
 {
     public string LanguageName => "rust";
@@ -219,6 +220,80 @@ public class RustParser : IProjectParser, IFileParser
         }
 
         return Path.GetFileName(directoryPath.TrimEnd('/', '\\'));
+    }
+
+    public IReadOnlyList<AdditionalProjectDescriptor> GetAdditionalProjects(string directoryPath, string[] filesInDirectory)
+    {
+        var cargoTomlPath = Path.Combine(directoryPath, "Cargo.toml");
+        var manifest = File.Exists(cargoTomlPath) ? GetOrLoadManifest(cargoTomlPath) : null;
+        if (manifest is null || manifest.BinTargets.Count <= 1)
+        {
+            return [];
+        }
+
+        var dockerfiles = Directory.GetParent(directoryPath) is { } workspaceParent
+            ? Directory.EnumerateFiles(workspaceParent.FullName, "Dockerfile*", SearchOption.TopDirectoryOnly)
+                .Select(path => (Path: path, Text: File.ReadAllText(path)))
+                .ToArray()
+            : [];
+        var projects = new List<AdditionalProjectDescriptor>(manifest.BinTargets.Count);
+
+        foreach (var target in manifest.BinTargets)
+        {
+            var entryPointPath = Path.GetFullPath(Path.Combine(directoryPath, target.Path));
+            if (!File.Exists(entryPointPath))
+            {
+                continue;
+            }
+
+            var source = File.ReadAllText(entryPointPath);
+            var normalizedName = target.Name.Replace('_', '-');
+            var dockerService = dockerfiles.Any(d =>
+                d.Text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+                    .Any(line =>
+                        (line.Contains("ENTRYPOINT", StringComparison.OrdinalIgnoreCase) ||
+                         line.Contains("CMD", StringComparison.OrdinalIgnoreCase)) &&
+                        (line.Contains(target.Name, StringComparison.OrdinalIgnoreCase) ||
+                         line.Contains(normalizedName, StringComparison.OrdinalIgnoreCase))));
+            var name = target.Name.ToLowerInvariant();
+            var isWorker = name.Contains("sidecar") || name.Contains("reaper") ||
+                           name.Contains("daemon") || name.Contains("worker");
+            var isCliTaskByName = name.Contains("client") || name.Contains("cli") ||
+                                  name.Contains("migrat") || name.Contains("init") ||
+                                  name.Contains("genesis") || name.Contains("seed") ||
+                                  name.Contains("rerandom") || name.Contains("encoding") ||
+                                  name.Contains("bench") || name.Contains("metric") ||
+                                  name.Contains("analysis");
+            var hasServerPath = target.Path.Replace('\\', '/').Split('/')
+                .Any(segment => segment.Equals("server", StringComparison.OrdinalIgnoreCase) ||
+                                Path.GetFileNameWithoutExtension(segment).Equals("server", StringComparison.OrdinalIgnoreCase));
+            var isService = !isWorker && !isCliTaskByName &&
+                            (dockerService || name.EndsWith("-server", StringComparison.Ordinal) ||
+                             hasServerPath ||
+                             source.Contains("run_server", StringComparison.Ordinal) ||
+                             source.Contains("axum::serve", StringComparison.Ordinal) ||
+                             source.Contains("Server::builder", StringComparison.Ordinal) ||
+                             source.Contains("start_coordination_server", StringComparison.Ordinal));
+            var role = isWorker ? "Worker" : isService ? "Service" : "CliTool";
+            var kind = role == "Service" ? "application" : role == "Worker" ? "worker" : "cli";
+            var properties = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["primary_role"] = role,
+                ["role"] = role,
+                ["kind"] = role,
+                ["manifest_type"] = kind,
+                ["framework_type"] = role == "Service" ? "api" : kind,
+                ["is_library"] = "false",
+                ["cargo_bin_target"] = target.Name,
+                ["cargo_entrypoint"] = entryPointPath,
+                ["cargo_manifest_dir"] = Path.GetFullPath(directoryPath),
+                ["secondary_roles"] = "[]",
+                ["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { role })
+            };
+            projects.Add(new AdditionalProjectDescriptor(target.Name, entryPointPath, properties));
+        }
+
+        return projects;
     }
 
     public void ExtractDeclarations(Node rootNode, Action<string, Node?, string?> registerDeclaration)
@@ -536,33 +611,36 @@ public class RustParser : IProjectParser, IFileParser
             .ToList();
 
         var allDepNames = new HashSet<string>(allDeps.Select(d => d.Name.ToLowerInvariant()), StringComparer.OrdinalIgnoreCase);
+        var runtimeDepNames = new HashSet<string>(manifest.Dependencies.Select(d => d.Name.ToLowerInvariant()), StringComparer.OrdinalIgnoreCase);
 
         var isWeb = allDepNames.Any(d => d is "axum" or "actix-web" or "actix_web" or "rocket" or "warp" or "poem" or "salvo");
         var isGrpc = allDepNames.Any(d => d is "tonic" or "tarpc" or "grpc");
         var isCliDep = allDepNames.Any(d => d is "clap" or "clap_builder" or "structopt" or "argh" or "pico-args" or "lexopt" or "ratatui" or "crossterm" or "dialoguer");
         var isWorkerDep = allDepNames.Any(d => d is "aws-sdk-sqs" or "rdkafka" or "lapin" or "async-nats" or "async_nats" or "fang" or "apalis" or "tokio-cron-scheduler");
         var isMigrationDep = allDepNames.Any(d => d is "refinery" or "diesel_migrations" or "diesel-migrations");
+        var crateName = manifest.Package?.Name ?? dirName;
+        var hasSubsystemCapability = HasArchitecturalSubsystemCapability(directoryPath, runtimeDepNames, crateName);
 
         var migrationsDir = Path.Combine(directoryPath, "migrations");
         var hasMigrations = isMigrationDep ||
                             (Directory.Exists(migrationsDir) && Directory.EnumerateFiles(migrationsDir, "*.sql", SearchOption.AllDirectories).Any());
 
-        // Multi-bin aggregator crate (e.g. iris-mpc-bins with manifest.LibTarget == null && manifest.BinTargets.Count > 5)
-        if (manifest.LibTarget == null && manifest.BinTargets.Count > 5)
+        // Model a package with multiple executable targets as a container for those targets,
+        // not as a single service inferred from the union of all binary dependencies.
+        if (manifest.BinTargets.Count > 1)
         {
-            props["primary_role"] = "CliTool";
-            props["role"] = "CliTool";
-            props["kind"] = "CliTool";
-            props["manifest_type"] = "cli";
-            props["framework_type"] = "cli";
-            props["is_library"] = "false";
-            var aggSecRoles = new[] { "Service", "Worker" };
-            props["secondary_roles"] = System.Text.Json.JsonSerializer.Serialize(aggSecRoles);
-            props["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { "CliTool", "Service", "Worker" });
+            var role = manifest.LibTarget is null ? "CliTool" : "Library";
+            props["primary_role"] = role;
+            props["role"] = role;
+            props["kind"] = role;
+            props["manifest_type"] = manifest.LibTarget is null ? "cli" : "library";
+            props["framework_type"] = manifest.LibTarget is null ? "cli" : "library";
+            props["is_library"] = manifest.LibTarget is null ? "false" : "true";
+            props["secondary_roles"] = "[]";
+            props["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { role });
             return props;
         }
 
-        var crateName = manifest.Package?.Name ?? dirName;
         var hasDirectBin = manifest.BinTargets.Count > 0 ||
                            File.Exists(Path.Combine(directoryPath, "src", "main.rs")) ||
                            Directory.Exists(Path.Combine(directoryPath, "src", "bin"));
@@ -606,6 +684,22 @@ public class RustParser : IProjectParser, IFileParser
             var fn = Path.GetFileName(f).ToLowerInvariant();
             return fn.Contains("genesis") || fn.Contains("reaper") || fn.Contains("rerandomize") || fn.Contains("consumer");
         });
+
+        // Library crates with their own architectural capability remain subsystems even when
+        // sibling binaries consume them; those binaries are modeled as separate projects.
+        if (hasLibCapability && !hasDirectBin && hasSubsystemCapability)
+        {
+            props["primary_role"] = "Library";
+            props["role"] = "Library";
+            props["kind"] = "Library";
+            props["manifest_type"] = "library";
+            props["framework_type"] = "library";
+            props["is_library"] = "true";
+            props["architectural_subsystem"] = "true";
+            props["secondary_roles"] = "[]";
+            props["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { "Library" });
+            return props;
+        }
 
         // Pure library check:
         // If crate has lib capability, NO direct bin targets, and NO companion server/worker binaries:
@@ -691,6 +785,68 @@ public class RustParser : IProjectParser, IFileParser
         props["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { primaryRole }.Concat(secondaryRoles).Distinct());
 
         return props;
+    }
+
+    private static bool HasArchitecturalSubsystemCapability(
+        string directoryPath,
+        HashSet<string> dependencyNames,
+        string crateName)
+    {
+        var nameTokens = crateName.Split(['-', '_', '.'], StringSplitOptions.RemoveEmptyEntries);
+        var hasDomainName = nameTokens.Any(token => token is "cpu" or "gpu" or "store" or
+            "engine" or "runtime" or "upgrade" or "protocol" or "network" or "database" or "persistence");
+        var hasUtilityName = nameTokens.Any(token => token is "common" or "utils" or "utilities");
+        if (hasUtilityName && !hasDomainName)
+        {
+            return false;
+        }
+
+        var hasSubsystemName = hasDomainName || nameTokens.Contains("mpc", StringComparer.OrdinalIgnoreCase);
+        var hasStrongSubsystemDependency = dependencyNames.Contains("cudarc") ||
+                                           dependencyNames.Contains("sqlx") ||
+                                           dependencyNames.Contains("tonic");
+        var hasQueueDependency = dependencyNames.Contains("aws-sdk-sqs");
+        var hasInfrastructureDependency = hasStrongSubsystemDependency || (hasQueueDependency && !hasUtilityName);
+        var shouldMeasureSize = hasSubsystemName;
+
+        if (!hasInfrastructureDependency && !shouldMeasureSize)
+        {
+            return false;
+        }
+
+        var sourceFiles = Directory.EnumerateFiles(directoryPath, "*.rs", SearchOption.AllDirectories)
+            .Where(path => !path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                .Any(segment => segment.Equals("tests", StringComparison.OrdinalIgnoreCase) ||
+                                segment.Equals("benches", StringComparison.OrdinalIgnoreCase) ||
+                                segment.Equals("target", StringComparison.OrdinalIgnoreCase) ||
+                                segment.Equals(".git", StringComparison.OrdinalIgnoreCase)))
+            .ToArray();
+        var source = string.Join('\n', sourceFiles.Select(File.ReadAllText));
+        var nonEmptyLines = source.Split('\n').Count(line => !string.IsNullOrWhiteSpace(line));
+
+        if (shouldMeasureSize && nonEmptyLines >= 1500)
+        {
+            return true;
+        }
+
+        if (!hasInfrastructureDependency)
+        {
+            return false;
+        }
+
+        return dependencyNames.Contains("cudarc") ||
+               (dependencyNames.Contains("sqlx") &&
+                (source.Contains("PgPoolOptions", StringComparison.Ordinal) ||
+                 source.Contains("PoolOptions", StringComparison.Ordinal) ||
+                 source.Contains("PgConnection", StringComparison.Ordinal) ||
+                 source.Contains("sqlx::migrate!", StringComparison.Ordinal))) ||
+               (dependencyNames.Contains("tonic") &&
+                (source.Contains("Server::builder", StringComparison.Ordinal) ||
+                 source.Contains("TcpListener::bind", StringComparison.Ordinal) ||
+                 source.Contains("Endpoint::connect", StringComparison.Ordinal))) ||
+               (hasQueueDependency && !hasUtilityName &&
+                (source.Contains("receive_message", StringComparison.Ordinal) ||
+                 source.Contains("send_message", StringComparison.Ordinal)));
     }
 
     private Dictionary<string, string> ExtractStandaloneManifestProperties(

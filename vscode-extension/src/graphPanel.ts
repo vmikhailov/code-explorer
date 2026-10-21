@@ -8,7 +8,7 @@ import { ServerTransport } from './serverTransport';
 export function getViewTitle(viewMode?: string): string {
   switch (viewMode) {
     case 'semantic':
-      return 'CodeExplorer: Domain Microservices';
+      return 'CodeExplorer: Architecture Map';
     case 'contexts':
       return 'CodeExplorer: Bounded Contexts';
     case 'layers':

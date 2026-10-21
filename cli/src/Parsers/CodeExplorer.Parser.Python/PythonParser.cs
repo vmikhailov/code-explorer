@@ -7,6 +7,7 @@ using TreeSitter;
 
 namespace CodeExplorer.Parser.Python;
 
+[ProjectParser(Tier = ParserTier.Primary)]
 public class PythonParser : IProjectParser, IFileParser
 {
     public string LanguageName => "python";

@@ -759,11 +759,22 @@ public partial class Layer5AnalysisParser
 
         if (found && targetTableId != null)
         {
+            var filePath = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId);
+            var ext = new Dictionary<string, string>
+            {
+                [OntologyConstants.PropertyNames.Operation] = "SELECT",
+                [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Query
+            };
+            if (!string.IsNullOrEmpty(filePath))
+            {
+                ext[OntologyConstants.PropertyNames.FilePath] = filePath;
+            }
+
             referenceRelationships.Add(
-                Relationship.FromRelationship(new QueriedByRelationship(targetTableId, refItem.ScopeSymbolId)));
+                Relationship.FromRelationship(new QueriedByRelationship(targetTableId, refItem.ScopeSymbolId, ext)));
             if (refItem.ScopeSymbolId.Contains($":{OntologyConstants.IdPrefixes.Query}:") || refItem.ScopeSymbolId.Contains(":query:"))
             {
-                referenceRelationships.Add(Relationship.FromRelationship(new DependsOnRelationship(refItem.ScopeSymbolId, targetTableId)));
+                referenceRelationships.Add(Relationship.FromRelationship(new DependsOnRelationship(refItem.ScopeSymbolId, targetTableId, ext)));
             }
         }
     }
@@ -781,7 +792,17 @@ public partial class Layer5AnalysisParser
                 : $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Table}:{refItem.TargetName.ToLowerInvariant()}";
             if (tid != targetTableId && !referenceRelationships.Any(r => r.From == tid && r.To == targetTableId && r.Kind == OntologyConstants.Relationships.PersistedIn))
             {
-                referenceRelationships.Add(Relationship.FromRelationship(new PersistedInRelationship(tid, targetTableId)));
+                var filePath = ExtractFilePathFromSymbolId(tid);
+                var ext = new Dictionary<string, string>
+                {
+                    [OntologyConstants.PropertyNames.Operation] = "ORM",
+                    [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Orm
+                };
+                if (!string.IsNullOrEmpty(filePath))
+                {
+                    ext[OntologyConstants.PropertyNames.FilePath] = filePath;
+                }
+                referenceRelationships.Add(Relationship.FromRelationship(new PersistedInRelationship(tid, targetTableId, ext)));
             }
         }
     }

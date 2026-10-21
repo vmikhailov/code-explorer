@@ -32,6 +32,7 @@ public static class OntologyConstants
         public const string EntryPoint = "EntryPoint";
         public const string Endpoint = "Endpoint";
         public const string CloudService = "CloudService";
+        public const string PeerMesh = "PeerMesh";
         public const string ExternalService = "ExternalService";
         public const string GitSettings = "GitSettings";
         public const string ApiInUse = "ApiInUse";
@@ -70,6 +71,7 @@ public static class OntologyConstants
         public const string Query = "q";
         public const string EntryPoint = "entry";
         public const string CloudService = "cloud";
+        public const string PeerMesh = "mesh";
         public const string ApiInUse = "api";
         public const string Domain = "dom";
         public const string TestSuite = "suite";
@@ -106,6 +108,7 @@ public static class OntologyConstants
         public const string UsesGit = "USES_GIT";
         public const string UsesApi = "USES_API";
         public const string UsesCloud = "USES_CLOUD";
+        public const string CoordinatesWith = "COORDINATES_WITH";
         public const string TransitivelyCalls = "TRANSITIVELY_CALLS";
         public const string AttributedTo = "ATTRIBUTED_TO";
         public const string Defines = "DEFINES";
@@ -144,6 +147,33 @@ public static class OntologyConstants
         public const string BelongsToDomain = "BELONGS_TO_DOMAIN";
         public const string ExposesDomain = "EXPOSES_DOMAIN";
         public const string SubdomainOf = "SUBDOMAIN_OF";
+        public const string Handles = "HANDLES";
+    }
+
+    public static class EvidenceKinds
+    {
+        public const string Endpoint = "endpoint";
+        public const string EntryPoint = "entrypoint";
+        public const string HttpCall = "http_call";
+        public const string GrpcCall = "grpc_call";
+        public const string WcfCall = "wcf_call";
+        public const string Publish = "publish";
+        public const string Subscribe = "subscribe";
+        public const string Query = "query";
+        public const string Procedure = "procedure";
+        public const string Orm = "orm";
+        public const string Table = "table";
+        public const string Config = "config";
+        public const string Migration = "migration";
+        public const string LibraryCall = "library_call";
+        public const string TestCall = "test_call";
+        public const string TypeReference = "type_reference";
+    }
+
+    public static class EvidenceConfidence
+    {
+        public const string Recorded = "recorded";
+        public const string Inferred = "inferred";
     }
 
     public static class LibraryTypes
@@ -178,6 +208,13 @@ public static class OntologyConstants
         public const string ProjectKind = "project_kind";
         public const string ProjectName = "project_name";
         public const string StageOrder = "stage_order";
+        public const string FilePath = "file_path";
+        public const string Line = "line";
+        public const string LineEnd = "line_end";
+        public const string Operation = "operation";
+        public const string EvidenceKind = "evidence_kind";
+        public const string EvidenceIds = "evidence_ids";
+        public const string EvidenceCount = "evidence_count";
+        public const string EvidenceTruncated = "evidence_truncated";
     }
 }
-

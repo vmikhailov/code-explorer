@@ -1416,10 +1416,15 @@ public class ArchitectureEvidenceItemDto
     public string FilePath { get; set; } = string.Empty;
 
     [JsonPropertyName("lineStart")]
-    public int LineStart { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? LineStart { get; set; }
 
     [JsonPropertyName("lineEnd")]
-    public int LineEnd { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? LineEnd { get; set; }
+
+    [JsonPropertyName("confidence")]
+    public string Confidence { get; set; } = OntologyConstants.EvidenceConfidence.Recorded;
 
     [JsonPropertyName("codeSnippet")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1457,6 +1462,10 @@ public class EdgeEvidenceResponseDto
 
     [JsonPropertyName("items")]
     public List<ArchitectureEvidenceItemDto> Items { get; set; } = [];
+
+    [JsonPropertyName("warnings")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? Warnings { get; set; }
 }
 
 public class NodeEvidenceResponseDto
@@ -1475,6 +1484,10 @@ public class NodeEvidenceResponseDto
 
     [JsonPropertyName("items")]
     public List<ArchitectureEvidenceItemDto> Items { get; set; } = [];
+
+    [JsonPropertyName("warnings")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? Warnings { get; set; }
 }
 
 public class DatabaseEvidenceResponseDto
@@ -1500,6 +1513,10 @@ public class DatabaseEvidenceResponseDto
 
     [JsonPropertyName("items")]
     public List<ArchitectureEvidenceItemDto> Items { get; set; } = [];
+
+    [JsonPropertyName("warnings")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? Warnings { get; set; }
 }
 
 

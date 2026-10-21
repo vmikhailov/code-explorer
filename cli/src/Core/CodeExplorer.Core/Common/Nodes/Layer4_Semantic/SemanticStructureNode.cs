@@ -18,6 +18,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<TopicNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<ExternalServiceNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<CloudServiceNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<PeerMeshNode>(OntologyConstants.Relationships.Contains)]
 public record SemanticStructureNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,

@@ -33,6 +33,7 @@ export function getNodePresentation(
 
   const isDb = kindLower === 'database' || kindLower === 'table' || kindLower === 'query';
   const isTopic = kindLower === 'topic' || kindLower === 'queue' || kindLower === 'broker' || roleLower === 'topic';
+  const isPeerMesh = kindLower === 'peermesh';
   const isPkg = kindLower === 'package';
   const isExt = kindLower === 'externalservice' || kindLower === 'cloudservice' || roleLower === 'externalservice';
   const isTest = kindLower === 'testsuite' || kindLower === 'test' || roleLower === 'test';
@@ -52,7 +53,11 @@ export function getNodePresentation(
   } else if (isTopic) {
     badgeLabel = (props.broker_type || 'QUEUE').toUpperCase();
   } else if (isExt) {
-    badgeLabel = (props.service_type || 'EXTERNAL').toUpperCase();
+    badgeLabel = props.resource_type
+      ? `${props.provider ? `${props.provider} ` : ''}${props.resource_type}`.toUpperCase()
+      : (props.service_type || 'EXTERNAL').toUpperCase();
+  } else if (isPeerMesh) {
+    badgeLabel = 'PEER MESH';
   } else if (isPkg) {
     badgeLabel = (props.package_type || (props as any).pkg_type || 'PACKAGE').toUpperCase();
   } else if (isEp) {
@@ -88,6 +93,7 @@ export function getNodePresentation(
   else if (isEp) badgeClass = 'badge-endpoint';
   else if (isDb) badgeClass = 'badge-db';
   else if (isTopic) badgeClass = 'badge-topic';
+  else if (isPeerMesh) badgeClass = 'badge-peer-mesh';
   else if (kindLower.includes('worker') || roleLower === 'worker') badgeClass = 'badge-worker';
   else if (isExt) badgeClass = 'badge-external';
   else if (isLib || isPkg) badgeClass = 'badge-library';
@@ -151,6 +157,9 @@ export function getNodePresentation(
       break;
     case 'CloudService':
       icon = '⚡';
+      break;
+    case 'PeerMesh':
+      icon = '🔗';
       break;
     case 'ApiInUse':
       icon = '🔌';
@@ -245,7 +254,7 @@ export function getNodePresentation(
     badgeClass,
     icon,
     isExecutable,
-    isResource: isDb || isTopic,
+    isResource: isDb || isTopic || isPeerMesh || kindLower === 'cloudservice',
     isLibrary: isLib || isPkg,
     isExternal: isExt,
     c1Category,

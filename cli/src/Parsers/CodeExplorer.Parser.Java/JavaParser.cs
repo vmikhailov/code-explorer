@@ -9,6 +9,7 @@ using TreeSitter;
 
 namespace CodeExplorer.Parser.Java;
 
+[ProjectParser(Tier = ParserTier.Primary)]
 public class JavaParser : IProjectParser, IFileParser
 {
     static JavaParser()

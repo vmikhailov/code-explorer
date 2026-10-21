@@ -102,11 +102,14 @@ public class Layer4SemanticParser
             }
 
             // Find project parser(s)
-            var projectAbsDir = Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, project.Path)).Replace('\\', '/');
+            var projectDirectory = project.Extensions?.GetValueOrDefault("cargo_manifest_dir");
+            var projectAbsDir = !string.IsNullOrWhiteSpace(projectDirectory)
+                ? Path.GetFullPath(projectDirectory)
+                : Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, project.Path));
+            projectAbsDir = projectAbsDir.Replace('\\', '/');
             var filesInDir = Directory.Exists(projectAbsDir) ? Directory.GetFiles(projectAbsDir) : [];
             var matchingParsers = WorkspaceIndexer._projectParsers
                 .Where(p => p.IsProjectDirectory(projectAbsDir, filesInDir))
-                .OrderBy(p => Layer2ProjectParser.GetProjectParserPriority(p.ProjectType))
                 .ToList();
             var projectParser = matchingParsers.FirstOrDefault();
 
@@ -411,6 +414,18 @@ public class Layer4SemanticParser
             }
         }
 
+        SemanticTopologySynthesizer.Synthesize(
+            allProjects,
+            filesByProjectId,
+            l3Result.Prev.ProjectDependencies,
+            l3Result.Prev.Packages,
+            workloadByProjectId,
+            allFiles,
+            semanticStructureNode,
+            semanticRelationships,
+            existingRelKeys,
+            ctx);
+
         // Materialize relationships between semantic workloads (TESTS, DEPENDS_ON to library/project/package)
         foreach (var dep in l3Result.Prev.ProjectDependencies)
         {
@@ -514,7 +529,7 @@ public class Layer4SemanticParser
     {
         foreach (var child in node.Children)
         {
-            if (child is DatabaseNode || child is EndpointNode || child is QueryNode || child is ExternalServiceNode || child is TopicNode || child is CloudServiceNode || child is ApiInUseNode || child is TableNode || child is DataSetNode || child is ServiceNode || child is AppNode || child is WorkerNode || child is LibraryNode || child is CliToolNode || child is EntryPointNode)
+            if (child is DatabaseNode || child is EndpointNode || child is QueryNode || child is ExternalServiceNode || child is TopicNode || child is CloudServiceNode || child is PeerMeshNode || child is ApiInUseNode || child is TableNode || child is DataSetNode || child is ServiceNode || child is AppNode || child is WorkerNode || child is LibraryNode || child is CliToolNode || child is EntryPointNode)
             {
                 semanticNodes.Add(child);
             }

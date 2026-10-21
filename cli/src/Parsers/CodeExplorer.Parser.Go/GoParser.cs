@@ -6,6 +6,7 @@ using TreeSitter;
 
 namespace CodeExplorer.Parser.Go;
 
+[ProjectParser(Tier = ParserTier.Primary)]
 public class GoParser : IProjectParser, IFileParser
 {
     public string LanguageName => "go";

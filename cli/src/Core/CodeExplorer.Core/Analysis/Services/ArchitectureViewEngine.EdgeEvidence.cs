@@ -10,7 +10,7 @@ public partial class ArchitectureViewEngine
 
     private static readonly string[] PublishOutgoingKinds = [OntologyConstants.Relationships.PublishesTo];
     private static readonly string[] PublishIncomingKinds = [OntologyConstants.Relationships.PublishedBy];
-    private static readonly string[] SubscribeOutgoingKinds = [OntologyConstants.Relationships.SubscribesTo, "HANDLES"];
+    private static readonly string[] SubscribeOutgoingKinds = [OntologyConstants.Relationships.SubscribesTo, OntologyConstants.Relationships.Handles];
     private static readonly string[] SubscribeIncomingKinds = [OntologyConstants.Relationships.Triggers, OntologyConstants.Relationships.SubscribedBy];
     private static readonly string[] ExternalCallKinds =
     [
@@ -22,7 +22,7 @@ public partial class ArchitectureViewEngine
 
     /// <summary>
     /// Resolves the source-code evidence behind a rendered edge. Group edges pass every member id on
-    /// each side; evidence is aggregated and de-duplicated across all member pairs.
+    /// each side; evidence is aggregated and de-duplicated across all member pairs in a bounded number of queries.
     /// </summary>
     public async Task<EdgeEvidenceResponseDto> GetEdgeEvidenceAsync(
         IReadOnlyList<string> sourceIds,
@@ -37,29 +37,138 @@ public partial class ArchitectureViewEngine
             EdgeKind = edgeKind ?? string.Empty
         };
 
-        var sources = await ResolveEvidenceNodesAsync(sourceIds, ct);
-        var targets = await ResolveEvidenceNodesAsync(targetIds, ct);
+        var warnings = new List<string>();
+        var scopeCache = new Dictionary<string, EvidenceScope?>(StringComparer.OrdinalIgnoreCase);
+
+        var sources = await ResolveEvidenceNodesAsync(sourceIds, ct, warnings);
+        var targets = await ResolveEvidenceNodesAsync(targetIds, ct, warnings);
+        await PreloadServiceScopesAsync(sources.Concat(targets), scopeCache, warnings, ct);
+
         var items = new List<ArchitectureEvidenceItemDto>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void AddItem(ArchitectureEvidenceItemDto item)
+        {
+            if (seen.Add($"{item.Kind}:{item.FilePath}:{item.LineStart}:{item.TargetSymbol}:{item.Operation}"))
+            {
+                items.Add(item);
+            }
+        }
+
+        // 1. Batched lookup of recorded evidence_ids on rolled-up edges in the rendered direction (sources -> targets)
+        var pairsWithRecordedEvidence = await CollectRecordedRolledUpEdgeEvidenceAsync(sources, targets, scopeCache, warnings, ct);
+        foreach (var item in pairsWithRecordedEvidence.Items)
+        {
+            AddItem(item);
+        }
+
+        // 2. Batched resolution for pairs that did not have recorded evidence_ids on a rolled-up edge
+        var unrecordedSources = new List<EvidenceNodeRef>();
+        var unrecordedTargets = new List<EvidenceNodeRef>();
+        var hasUnrecordedServiceToService = false;
+        var hasUnrecordedServiceToTopic = false;
+        var hasUnrecordedTopicToService = false;
+        var hasUnrecordedServiceToExternal = false;
 
         foreach (var s in sources)
         {
             foreach (var t in targets)
             {
-                if (s.Id == t.Id) continue;
-                var pair = await CollectPairEvidenceAsync(s, t, ct);
-                if (pair.Count == 0)
-                {
-                    // Bidirectional edges are rendered with an arbitrary orientation.
-                    pair = await CollectPairEvidenceAsync(t, s, ct);
-                }
+                if (s.Id.Equals(t.Id, StringComparison.OrdinalIgnoreCase)) continue;
+                if (pairsWithRecordedEvidence.CoveredPairs.Contains((s.Id, t.Id))) continue;
 
-                foreach (var item in pair)
+                if (!unrecordedSources.Any(n => n.Id.Equals(s.Id, StringComparison.OrdinalIgnoreCase)))
+                    unrecordedSources.Add(s);
+                if (!unrecordedTargets.Any(n => n.Id.Equals(t.Id, StringComparison.OrdinalIgnoreCase)))
+                    unrecordedTargets.Add(t);
+
+                if (t.Label == OntologyConstants.NodeLabels.Database)
                 {
-                    if (seen.Add($"{item.Kind}:{item.FilePath}:{item.LineStart}:{item.TargetSymbol}:{item.Operation}"))
-                    {
-                        items.Add(item);
-                    }
+                    var dbRes = await GetDatabaseEvidenceCoreAsync(t.Id, s.Id, ct, scopeCache);
+                    if (dbRes.Warnings != null) warnings.AddRange(dbRes.Warnings.Where(w => !warnings.Contains(w)));
+                    foreach (var item in dbRes.Items) AddItem(item);
+                }
+                else if (s.Label == OntologyConstants.NodeLabels.Database)
+                {
+                    var dbRes = await GetDatabaseEvidenceCoreAsync(s.Id, t.Id, ct, scopeCache);
+                    if (dbRes.Warnings != null) warnings.AddRange(dbRes.Warnings.Where(w => !warnings.Contains(w)));
+                    foreach (var item in dbRes.Items) AddItem(item);
+                }
+                else if (t.Label == OntologyConstants.NodeLabels.Topic)
+                {
+                    hasUnrecordedServiceToTopic = true;
+                }
+                else if (s.Label == OntologyConstants.NodeLabels.Topic)
+                {
+                    hasUnrecordedTopicToService = true;
+                }
+                else if (t.Label is OntologyConstants.NodeLabels.ExternalService or OntologyConstants.NodeLabels.CloudService ||
+                         s.Label is OntologyConstants.NodeLabels.ExternalService or OntologyConstants.NodeLabels.CloudService)
+                {
+                    hasUnrecordedServiceToExternal = true;
+                }
+                else
+                {
+                    hasUnrecordedServiceToService = true;
+                }
+            }
+        }
+
+        if (hasUnrecordedServiceToTopic)
+        {
+            var svcNodes = unrecordedSources.Where(n => n.Label != OntologyConstants.NodeLabels.Topic).ToList();
+            var topNodes = unrecordedTargets.Where(n => n.Label == OntologyConstants.NodeLabels.Topic).ToList();
+            var isSubEdge = string.Equals(edgeKind, OntologyConstants.Relationships.SubscribesTo, StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(edgeKind, OntologyConstants.Relationships.SubscribedBy, StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(edgeKind, OntologyConstants.Relationships.Triggers, StringComparison.OrdinalIgnoreCase);
+            foreach (var item in await CollectBatchTopicEvidenceAsync(topNodes, svcNodes, publish: !isSubEdge, scopeCache, warnings, ct))
+            {
+                AddItem(item);
+            }
+        }
+
+        if (hasUnrecordedTopicToService)
+        {
+            var topNodes = unrecordedSources.Where(n => n.Label == OntologyConstants.NodeLabels.Topic).ToList();
+            var svcNodes = unrecordedTargets.Where(n => n.Label != OntologyConstants.NodeLabels.Topic).ToList();
+            var isPubEdge = string.Equals(edgeKind, OntologyConstants.Relationships.PublishesTo, StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(edgeKind, OntologyConstants.Relationships.PublishedBy, StringComparison.OrdinalIgnoreCase);
+            foreach (var item in await CollectBatchTopicEvidenceAsync(topNodes, svcNodes, publish: isPubEdge, scopeCache, warnings, ct))
+            {
+                AddItem(item);
+            }
+        }
+
+        if (hasUnrecordedServiceToExternal)
+        {
+            var svcNodes = unrecordedSources
+                .Where(n => n.Label is not (OntologyConstants.NodeLabels.ExternalService or OntologyConstants.NodeLabels.CloudService))
+                .ToList();
+            var extNodes = unrecordedTargets
+                .Where(n => n.Label is OntologyConstants.NodeLabels.ExternalService or OntologyConstants.NodeLabels.CloudService)
+                .ToList();
+            if (svcNodes.Count > 0 && extNodes.Count > 0)
+            {
+                foreach (var item in await CollectBatchExternalCallEvidenceAsync(svcNodes, extNodes, scopeCache, warnings, ct))
+                {
+                    AddItem(item);
+                }
+            }
+        }
+
+        if (hasUnrecordedServiceToService)
+        {
+            var callerNodes = unrecordedSources
+                .Where(n => n.Label is not (OntologyConstants.NodeLabels.Database or OntologyConstants.NodeLabels.Topic or OntologyConstants.NodeLabels.ExternalService or OntologyConstants.NodeLabels.CloudService))
+                .ToList();
+            var calleeNodes = unrecordedTargets
+                .Where(n => n.Label is not (OntologyConstants.NodeLabels.Database or OntologyConstants.NodeLabels.Topic or OntologyConstants.NodeLabels.ExternalService or OntologyConstants.NodeLabels.CloudService))
+                .ToList();
+            if (callerNodes.Count > 0 && calleeNodes.Count > 0)
+            {
+                foreach (var item in await CollectBatchEndpointCallEvidenceAsync(callerNodes, calleeNodes, scopeCache, warnings, ct))
+                {
+                    AddItem(item);
                 }
             }
         }
@@ -67,10 +176,223 @@ public partial class ArchitectureViewEngine
         response.Items = items
             .OrderBy(i => EvidenceKindOrder(i.Kind))
             .ThenBy(i => i.FilePath, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(i => i.LineStart)
+            .ThenBy(i => i.LineStart ?? int.MaxValue)
             .ToList();
         response.TotalCount = response.Items.Count;
+        if (warnings.Count > 0)
+        {
+            response.Warnings = warnings;
+        }
         return response;
+    }
+
+    private async Task<(List<ArchitectureEvidenceItemDto> Items, HashSet<(string SourceId, string TargetId)> CoveredPairs)> CollectRecordedRolledUpEdgeEvidenceAsync(
+        IReadOnlyList<EvidenceNodeRef> sources,
+        IReadOnlyList<EvidenceNodeRef> targets,
+        Dictionary<string, EvidenceScope?> scopeCache,
+        List<string> warnings,
+        CancellationToken ct)
+    {
+        var items = new List<ArchitectureEvidenceItemDto>();
+        var coveredPairs = new HashSet<(string SourceId, string TargetId)>();
+        if (sources.Count == 0 || targets.Count == 0)
+        {
+            return (items, coveredPairs);
+        }
+
+        var srcLiterals = string.Join(", ", sources.Select(s => EscapeCypherStringLiteral(s.Id)).Distinct());
+        var tgtLiterals = string.Join(", ", targets.Select(t => EscapeCypherStringLiteral(t.Id)).Distinct());
+        var parsedIdentities = new List<(string PairSourceId, string PairTargetId, string FromId, string Kind, string ToId)>();
+
+        try
+        {
+            var rolledQuery = $"""
+                MATCH (s)-[r]->(t)
+                WHERE s.id IN [{srcLiterals}] AND t.id IN [{tgtLiterals}]
+                RETURN s.id AS s_id, t.id AS t_id, r.properties AS properties
+                """;
+            var json = await db.ExecuteQueryAsync(rolledQuery, null, ct);
+            using var doc = JsonDocument.Parse(json);
+            foreach (var row in doc.RootElement.EnumerateArray())
+            {
+                var sId = row.GetStringProp("s_id");
+                var tId = row.GetStringProp("t_id");
+                var edgeProps = row.ExtractProperties();
+                var rawEv = edgeProps.GetValueOrDefault(OntologyConstants.PropertyNames.EvidenceIds);
+                if (string.IsNullOrEmpty(sId) || string.IsNullOrEmpty(tId) || string.IsNullOrEmpty(rawEv)) continue;
+
+                List<string>? idList = null;
+                try
+                {
+                    idList = JsonSerializer.Deserialize<List<string>>(rawEv);
+                }
+                catch
+                {
+                    // Ignore malformed JSON array
+                }
+                if (idList is null || idList.Count == 0) continue;
+
+                foreach (var entry in idList)
+                {
+                    if (EvidenceProvenanceHelper.TryParseEdgeIdentity(entry, out var edge))
+                    {
+                        parsedIdentities.Add((sId, tId, edge.From, edge.Kind, edge.To));
+                        coveredPairs.Add((sId, tId));
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            RecordEvidenceWarning(warnings, "Rolled-up edge provenance lookup", ex);
+        }
+
+        if (parsedIdentities.Count == 0)
+        {
+            return (items, coveredPairs);
+        }
+
+        var fromLiterals = string.Join(", ", parsedIdentities.Select(p => EscapeCypherStringLiteral(p.FromId)).Distinct());
+        var toLiterals = string.Join(", ", parsedIdentities.Select(p => EscapeCypherStringLiteral(p.ToId)).Distinct());
+        var wantedTriples = parsedIdentities
+            .Select(p => (p.FromId, p.Kind, p.ToId))
+            .ToHashSet();
+        var sourceNameByFromId = parsedIdentities
+            .GroupBy(p => p.FromId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                g => g.Key,
+                g => sources.FirstOrDefault(s => s.Id.Equals(g.First().PairSourceId, StringComparison.OrdinalIgnoreCase))?.Name,
+                StringComparer.OrdinalIgnoreCase);
+
+        try
+        {
+            var contribQuery = $"""
+                MATCH (src)-[rel]->(tgt)
+                WHERE src.id IN [{fromLiterals}] AND tgt.id IN [{toLiterals}]
+                RETURN src.id AS src_id, src.name AS src_name, labels(src)[0] AS src_kind,
+                       coalesce(src.file_path, src.path) AS file_path,
+                       coalesce(src.start_line, src.line) AS line,
+                       coalesce(src.end_line, src.line_end) AS line_end,
+                       tgt.id AS tgt_id, tgt.name AS tgt_name, labels(tgt)[0] AS tgt_kind,
+                       tgt.http_method AS http_method, tgt.route_template AS route, tgt.protocol AS protocol,
+                       rel.kind AS rel_kind,
+                       rel.properties AS properties,
+                       json_extract(src.properties, '$.query_text') AS query_text,
+                       json_extract(src.properties, '$.verb') AS src_verb
+                """;
+            var cJson = await db.ExecuteQueryAsync(contribQuery, null, ct);
+            using var cDoc = JsonDocument.Parse(cJson);
+            foreach (var row in cDoc.RootElement.EnumerateArray())
+            {
+                var srcId = row.GetStringProp("src_id");
+                var tgtId = row.GetStringProp("tgt_id");
+                var relKind = row.GetStringProp("rel_kind");
+                if (!wantedTriples.Any(w =>
+                        w.FromId.Equals(srcId, StringComparison.OrdinalIgnoreCase) &&
+                        w.ToId.Equals(tgtId, StringComparison.OrdinalIgnoreCase) &&
+                        w.Kind.Equals(relKind, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                var relProps = row.ExtractProperties();
+                var filePath = relProps.GetValueOrDefault(OntologyConstants.PropertyNames.FilePath) is { Length: > 0 } rfp
+                    ? rfp
+                    : row.GetStringProp("file_path");
+                if (string.IsNullOrEmpty(filePath)) continue;
+
+                var srcName = row.GetStringProp("src_name", srcId);
+                var tgtName = row.GetStringProp("tgt_name", tgtId);
+                var tgtKind = row.GetStringProp("tgt_kind");
+                var relOp = relProps.GetValueOrDefault(OntologyConstants.PropertyNames.Operation) ?? "";
+                var relEvKind = relProps.GetValueOrDefault(OntologyConstants.PropertyNames.EvidenceKind) ?? "";
+                var queryText = row.GetStringProp("query_text");
+                var srcVerb = row.GetStringProp("src_verb");
+                var httpMethod = row.GetStringProp("http_method");
+                var route = row.GetStringProp("route");
+                var protocol = row.GetStringProp("protocol");
+
+                int? line = ParseLineProp(relProps, OntologyConstants.PropertyNames.Line, row, "line");
+                int? lineEnd = ParseLineProp(relProps, OntologyConstants.PropertyNames.LineEnd, row, "line_end") ?? line;
+
+                var kind = !string.IsNullOrEmpty(relEvKind)
+                    ? relEvKind
+                    : relKind switch
+                    {
+                        OntologyConstants.Relationships.CallsEndpoint =>
+                            protocol.Equals("grpc", StringComparison.OrdinalIgnoreCase) ? OntologyConstants.EvidenceKinds.GrpcCall
+                            : protocol.Equals("wcf", StringComparison.OrdinalIgnoreCase) ? OntologyConstants.EvidenceKinds.WcfCall
+                            : OntologyConstants.EvidenceKinds.HttpCall,
+                        OntologyConstants.Relationships.PublishesTo or OntologyConstants.Relationships.PublishedBy =>
+                            OntologyConstants.EvidenceKinds.Publish,
+                        OntologyConstants.Relationships.SubscribesTo or OntologyConstants.Relationships.SubscribedBy or OntologyConstants.Relationships.Triggers =>
+                            OntologyConstants.EvidenceKinds.Subscribe,
+                        OntologyConstants.Relationships.PersistedIn =>
+                            OntologyConstants.EvidenceKinds.Orm,
+                        OntologyConstants.Relationships.Configures =>
+                            OntologyConstants.EvidenceKinds.Config,
+                        _ when tgtKind == OntologyConstants.NodeLabels.Procedure =>
+                            OntologyConstants.EvidenceKinds.Procedure,
+                        _ when tgtKind is OntologyConstants.NodeLabels.Database or OntologyConstants.NodeLabels.Table =>
+                            OntologyConstants.EvidenceKinds.Query,
+                        _ => OntologyConstants.EvidenceKinds.HttpCall
+                    };
+
+                var operation = !string.IsNullOrEmpty(relOp)
+                    ? relOp
+                    : kind switch
+                    {
+                        OntologyConstants.EvidenceKinds.Publish => "PUBLISH",
+                        OntologyConstants.EvidenceKinds.Subscribe => "SUBSCRIBE",
+                        OntologyConstants.EvidenceKinds.Orm => "ORM",
+                        OntologyConstants.EvidenceKinds.Config => "CONFIG",
+                        OntologyConstants.EvidenceKinds.Procedure => "EXEC",
+                        OntologyConstants.EvidenceKinds.Query => InferSqlVerb(srcVerb, queryText, srcName) ?? "SELECT",
+                        _ => !string.IsNullOrEmpty(httpMethod) && !httpMethod.Equals("ALL", StringComparison.OrdinalIgnoreCase)
+                            ? httpMethod.ToUpperInvariant()
+                            : "CALL"
+                    };
+
+                var isTopic = tgtKind == OntologyConstants.NodeLabels.Topic || srcId.Contains(":top:") || tgtId.Contains(":top:");
+                var topicTargetName = tgtKind == OntologyConstants.NodeLabels.Topic ? tgtName : srcName;
+                var callerSym = tgtKind == OntologyConstants.NodeLabels.Topic ? srcName : (row.GetStringProp("src_kind") == OntologyConstants.NodeLabels.Topic ? tgtName : srcName);
+                var targetSym = tgtKind == OntologyConstants.NodeLabels.Topic ? tgtName : (row.GetStringProp("src_kind") == OntologyConstants.NodeLabels.Topic ? srcName : tgtName);
+
+                var title = !string.IsNullOrEmpty(route)
+                    ? $"{operation} {route}"
+                    : isTopic
+                        ? $"{(kind == OntologyConstants.EvidenceKinds.Publish ? "Publishes" : "Subscribes")} {topicTargetName}"
+                        : $"{callerSym} → {targetSym}";
+
+                items.Add(new ArchitectureEvidenceItemDto
+                {
+                    Id = srcId,
+                    Kind = kind,
+                    Operation = operation,
+                    Title = title,
+                    FilePath = filePath,
+                    LineStart = line,
+                    LineEnd = lineEnd,
+                    Confidence = OntologyConstants.EvidenceConfidence.Recorded,
+                    CodeSnippet = !string.IsNullOrWhiteSpace(queryText) ? queryText : null,
+                    CallerSymbol = callerSym,
+                    TargetSymbol = targetSym,
+                    ServiceName = sourceNameByFromId.GetValueOrDefault(srcId),
+                    Reason = $"Recorded {relKind} evidence from '{callerSym}' to '{targetSym}'"
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            RecordEvidenceWarning(warnings, "Contributing symbol edge lookup", ex);
+        }
+
+        if (items.Count == 0)
+        {
+            coveredPairs.Clear();
+        }
+
+        return (items, coveredPairs);
     }
 
     private static int EvidenceKindOrder(string kind) => kind switch
@@ -93,14 +415,14 @@ public partial class ArchitectureViewEngine
             {
                 "Service" or "App" or "Worker" or "CliTool" or "Library" or "TestSuite" => 100,
                 "Project" => 90,
-                "Database" or "Topic" or "ExternalService" => 20,
+                "Database" or "Topic" or "ExternalService" or "CloudService" => 20,
                 _ => 0
             };
         }
 
         return kind switch
         {
-            "Database" or "Topic" or "ExternalService" => 100,
+            "Database" or "Topic" or "ExternalService" or "CloudService" => 100,
             "Service" or "App" or "Worker" or "CliTool" or "Library" or "TestSuite" => 95,
             "Project" => 90,
             "Endpoint" or "EntryPoint" or "Table" or "Procedure" => 50,
@@ -108,115 +430,130 @@ public partial class ArchitectureViewEngine
         };
     }
 
-    private async Task<List<EvidenceNodeRef>> ResolveEvidenceNodesAsync(IReadOnlyList<string> ids, CancellationToken ct)
+    private async Task<List<EvidenceNodeRef>> ResolveEvidenceNodesAsync(
+        IReadOnlyList<string> ids,
+        CancellationToken ct,
+        List<string>? warnings = null)
     {
         var result = new List<EvidenceNodeRef>();
-        foreach (var rawId in ids.Where(i => !string.IsNullOrWhiteSpace(i)).Distinct(StringComparer.OrdinalIgnoreCase))
+        var distinctRawIds = ids
+            .Where(i => !string.IsNullOrWhiteSpace(i))
+            .Select(i => i.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (distinctRawIds.Count == 0) return result;
+
+        var candidateTerms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var cleanSuffixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var id in distinctRawIds)
         {
-            var id = rawId.Trim();
+            var cleanId = StripEntityIdPrefix(id);
+            if (string.IsNullOrWhiteSpace(cleanId)) cleanId = id;
+            candidateTerms.Add(id);
+            candidateTerms.Add(cleanId);
+            cleanSuffixes.Add($":{cleanId}");
+            cleanSuffixes.Add($":{cleanId}:");
+        }
+
+        var termLiterals = string.Join(", ", candidateTerms.Select(EscapeCypherStringLiteral));
+        var suffixChecks = string.Join(" OR ", cleanSuffixes.Select(s => $"n.id ENDS WITH {EscapeCypherStringLiteral(s)}"));
+        var whereClause = string.IsNullOrEmpty(suffixChecks)
+            ? $"n.id IN [{termLiterals}] OR n.name IN [{termLiterals}]"
+            : $"n.id IN [{termLiterals}] OR n.name IN [{termLiterals}] OR {suffixChecks}";
+
+        var candidates = new List<(string Id, string Name, string Kind, string? Path)>();
+        try
+        {
+            var query = $"""
+                MATCH (n)
+                WHERE {whereClause}
+                RETURN n.id AS id, n.name AS name, labels(n)[0] AS kind, coalesce(n.file_path, n.path) AS path
+                """;
+            var json = await db.ExecuteQueryAsync(query, null, ct);
+            using var doc = JsonDocument.Parse(json);
+            foreach (var row in doc.RootElement.EnumerateArray())
+            {
+                var rId = row.GetStringProp("id");
+                if (string.IsNullOrEmpty(rId)) continue;
+                candidates.Add((
+                    rId,
+                    row.GetStringProp("name", rId),
+                    row.GetStringProp("kind"),
+                    row.GetStringProp("path")));
+            }
+        }
+        catch (Exception ex)
+        {
+            RecordEvidenceWarning(warnings, "Batch evidence node resolution", ex);
+            return result;
+        }
+
+        foreach (var id in distinctRawIds)
+        {
             var cleanId = StripEntityIdPrefix(id);
             if (string.IsNullOrWhiteSpace(cleanId)) cleanId = id;
             var rawHadServicePrefix = !id.Equals(cleanId, StringComparison.OrdinalIgnoreCase) &&
                                       !id.StartsWith("ws:db:", StringComparison.OrdinalIgnoreCase) &&
                                       !id.StartsWith("ws:top:", StringComparison.OrdinalIgnoreCase) &&
                                       !id.StartsWith("ws:es:", StringComparison.OrdinalIgnoreCase) &&
+                                      !id.StartsWith("ws:cloud:", StringComparison.OrdinalIgnoreCase) &&
                                       !id.StartsWith("ws:res:", StringComparison.OrdinalIgnoreCase);
 
-            try
+            EvidenceNodeRef? best = null;
+            var bestScore = -1;
+            foreach (var (rId, rName, rKind, rPath) in candidates)
             {
-                const string query = """
-                    MATCH (n)
-                    WHERE n.id = $id OR n.name = $id OR n.id = $cleanId OR n.name = $cleanId
-                       OR n.id ENDS WITH (':' + $cleanId) OR n.id ENDS WITH (':' + $cleanId + ':')
-                    RETURN n.id AS id, n.name AS name, labels(n)[0] AS kind, coalesce(n.file_path, n.path) AS path
-                    """;
-                var json = await db.ExecuteQueryAsync(query, new Dictionary<string, object>
-                {
-                    ["id"] = id,
-                    ["cleanId"] = cleanId
-                }, ct);
-                using var doc = JsonDocument.Parse(json);
-                EvidenceNodeRef? best = null;
-                var bestScore = -1;
-                foreach (var row in doc.RootElement.EnumerateArray())
-                {
-                    var rId = row.GetStringProp("id", id);
-                    var rName = row.GetStringProp("name", cleanId);
-                    var rKind = row.GetStringProp("kind");
-                    var rPath = row.GetStringProp("path");
-                    var rank = NodeKindResolutionRank(rKind, rawHadServicePrefix);
-                    if (rank == 0 && !rId.Equals(id, StringComparison.OrdinalIgnoreCase)) continue;
+                var matchesThisId = rId.Equals(id, StringComparison.OrdinalIgnoreCase) ||
+                                    rName.Equals(id, StringComparison.OrdinalIgnoreCase) ||
+                                    rId.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
+                                    rName.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
+                                    rId.EndsWith(":" + cleanId, StringComparison.OrdinalIgnoreCase) ||
+                                    rId.EndsWith(":" + cleanId + ":", StringComparison.OrdinalIgnoreCase);
+                if (!matchesThisId) continue;
 
-                    var exactBonus = rId.Equals(id, StringComparison.OrdinalIgnoreCase) ? 1000
-                                   : rName.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ? 200
-                                   : 0;
-                    var score = exactBonus + rank;
-                    if (score > bestScore)
-                    {
-                        bestScore = score;
-                        best = new EvidenceNodeRef(rId, rName, rKind, rPath);
-                    }
-                }
-                if (best is not null)
+                var rank = NodeKindResolutionRank(rKind, rawHadServicePrefix);
+                if (rank == 0 && !rId.Equals(id, StringComparison.OrdinalIgnoreCase)) continue;
+
+                var exactBonus = rId.Equals(id, StringComparison.OrdinalIgnoreCase) ? 1000
+                               : rName.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ? 200
+                               : 0;
+                var score = exactBonus + rank;
+                if (score > bestScore)
                 {
-                    result.Add(best);
+                    bestScore = score;
+                    best = new EvidenceNodeRef(rId, rName, rKind, rPath);
                 }
             }
-            catch
+            if (best is not null && !result.Any(r => r.Id.Equals(best.Id, StringComparison.OrdinalIgnoreCase)))
             {
-                // An unresolvable member simply contributes no evidence.
+                result.Add(best);
             }
         }
 
         return result;
     }
 
-    private async Task<List<ArchitectureEvidenceItemDto>> CollectPairEvidenceAsync(EvidenceNodeRef source, EvidenceNodeRef target, CancellationToken ct)
-    {
-        if (target.Label == OntologyConstants.NodeLabels.Database)
-        {
-            return (await GetDatabaseEvidenceAsync(target.Id, source.Id, ct)).Items;
-        }
-
-        if (source.Label == OntologyConstants.NodeLabels.Database)
-        {
-            return (await GetDatabaseEvidenceAsync(source.Id, target.Id, ct)).Items;
-        }
-
-        if (target.Label == OntologyConstants.NodeLabels.Topic)
-        {
-            var pub = await CollectTopicEvidenceAsync(target, source, publish: true, ct);
-            if (pub.Count > 0) return pub;
-            return await CollectTopicEvidenceAsync(target, source, publish: false, ct);
-        }
-
-        if (source.Label == OntologyConstants.NodeLabels.Topic)
-        {
-            var sub = await CollectTopicEvidenceAsync(source, target, publish: false, ct);
-            if (sub.Count > 0) return sub;
-            return await CollectTopicEvidenceAsync(source, target, publish: true, ct);
-        }
-
-        if (target.Label == OntologyConstants.NodeLabels.ExternalService)
-        {
-            return await CollectExternalCallEvidenceAsync(source, target, ct);
-        }
-
-        if (source.Label == OntologyConstants.NodeLabels.ExternalService)
-        {
-            return await CollectExternalCallEvidenceAsync(target, source, ct);
-        }
-
-        return await CollectEndpointCallEvidenceAsync(source, target, ct);
-    }
-
-    private async Task<List<ArchitectureEvidenceItemDto>> CollectTopicEvidenceAsync(
-        EvidenceNodeRef topic, EvidenceNodeRef service, bool publish, CancellationToken ct)
+    private async Task<List<ArchitectureEvidenceItemDto>> CollectBatchTopicEvidenceAsync(
+        IReadOnlyList<EvidenceNodeRef> topics,
+        IReadOnlyList<EvidenceNodeRef> services,
+        bool publish,
+        Dictionary<string, EvidenceScope?> scopeCache,
+        List<string> warnings,
+        CancellationToken ct)
     {
         var items = new List<ArchitectureEvidenceItemDto>();
-        var scope = await ResolveServiceScopeAsync(service.Id, ct);
-        if (scope is null) return items;
+        if (topics.Count == 0 || services.Count == 0) return items;
 
+        var scopes = new List<EvidenceScope>();
+        foreach (var svc in services)
+        {
+            var scope = await ResolveServiceScopeAsync(svc.Id, ct, scopeCache, warnings);
+            if (scope != null) scopes.Add(scope);
+        }
+        if (scopes.Count == 0) return items;
+
+        var topicById = topics.ToDictionary(t => t.Id, StringComparer.OrdinalIgnoreCase);
+        var topicLiterals = string.Join(", ", topics.Select(t => EscapeCypherStringLiteral(t.Id)).Distinct());
         var outgoing = publish ? PublishOutgoingKinds : SubscribeOutgoingKinds;
         var incoming = publish ? PublishIncomingKinds : SubscribeIncomingKinds;
 
@@ -224,56 +561,86 @@ public partial class ArchitectureViewEngine
         {
             var query = $"""
                 MATCH {pattern}
-                WHERE t.id = $topicId AND r.kind IN [{string.Join(", ", kinds.Select(k => $"'{k}'"))}]
+                WHERE t.id IN [{topicLiterals}] AND r.kind IN [{string.Join(", ", kinds.Select(k => $"'{k}'"))}]
                   AND {string.Format(NotAContainer, "sym")}
-                RETURN sym.id AS id, sym.name AS name, labels(sym)[0] AS kind, coalesce(sym.file_path, sym.path) AS path,
-                       coalesce(sym.start_line, sym.line) AS line, coalesce(sym.end_line, sym.line_end) AS line_end,
+                RETURN t.id AS t_id, sym.id AS id, sym.name AS name, labels(sym)[0] AS kind,
+                       coalesce(sym.file_path, sym.path) AS path,
+                       coalesce(sym.start_line, sym.line) AS line,
+                       coalesce(sym.end_line, sym.line_end) AS line_end,
+                       r.properties AS properties,
                        json_extract(sym.properties, '$.service') AS service
                 """;
 
             try
             {
-                var json = await db.ExecuteQueryAsync(query, new Dictionary<string, object> { ["topicId"] = topic.Id }, ct);
+                var json = await db.ExecuteQueryAsync(query, null, ct);
                 using var doc = JsonDocument.Parse(json);
                 foreach (var row in doc.RootElement.EnumerateArray())
                 {
-                    var path = row.GetStringProp("path");
-                    if (string.IsNullOrEmpty(path) || !scope.Matches(path, row.GetStringProp("service"))) continue;
+                    var tId = row.GetStringProp("t_id");
+                    if (!topicById.TryGetValue(tId, out var topic)) continue;
 
-                    var line = row.GetNullableIntProp("line") ?? 1;
+                    var rProps = row.ExtractProperties();
+                    var symId = row.GetStringProp("id");
+                    var path = rProps.GetValueOrDefault(OntologyConstants.PropertyNames.FilePath) is { Length: > 0 } rfp
+                        ? rfp
+                        : row.GetStringProp("path");
+                    var symService = row.GetStringProp("service");
+                    if (string.IsNullOrEmpty(path)) continue;
+
+                    var matchedScope = scopes.FirstOrDefault(s => s.Matches(path, symService, symId));
+                    if (matchedScope is null) continue;
+
+                    int? line = ParseLineProp(rProps, OntologyConstants.PropertyNames.Line, row, "line");
+                    int? lineEnd = ParseLineProp(rProps, OntologyConstants.PropertyNames.LineEnd, row, "line_end") ?? line;
+
                     var symName = row.GetStringProp("name");
                     items.Add(new ArchitectureEvidenceItemDto
                     {
-                        Id = row.GetStringProp("id"),
-                        Kind = publish ? "publish" : "subscribe",
+                        Id = symId,
+                        Kind = publish ? OntologyConstants.EvidenceKinds.Publish : OntologyConstants.EvidenceKinds.Subscribe,
                         Operation = publish ? "PUBLISH" : "SUBSCRIBE",
                         Title = $"{(publish ? "Publishes" : "Subscribes")} {topic.Name}",
                         FilePath = path,
                         LineStart = line,
-                        LineEnd = row.GetNullableIntProp("line_end") ?? line,
+                        LineEnd = lineEnd,
+                        Confidence = OntologyConstants.EvidenceConfidence.Recorded,
                         CallerSymbol = symName,
                         TargetSymbol = topic.Name,
-                        ServiceName = scope.Name,
+                        ServiceName = matchedScope.Name,
                         Reason = $"{row.GetStringProp("kind")} '{symName}' {(publish ? "publishes to" : "consumes from")} topic '{topic.Name}'"
                     });
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // A failing direction must not hide evidence found in the other one.
+                RecordEvidenceWarning(warnings, "Batch topic evidence query", ex);
             }
         }
 
         return items;
     }
 
-    private async Task<List<ArchitectureEvidenceItemDto>> CollectExternalCallEvidenceAsync(
-        EvidenceNodeRef service, EvidenceNodeRef external, CancellationToken ct)
+    private async Task<List<ArchitectureEvidenceItemDto>> CollectBatchExternalCallEvidenceAsync(
+        IReadOnlyList<EvidenceNodeRef> services,
+        IReadOnlyList<EvidenceNodeRef> externals,
+        Dictionary<string, EvidenceScope?> scopeCache,
+        List<string> warnings,
+        CancellationToken ct)
     {
         var items = new List<ArchitectureEvidenceItemDto>();
-        var scope = await ResolveServiceScopeAsync(service.Id, ct);
-        if (scope is null) return items;
+        if (services.Count == 0 || externals.Count == 0) return items;
 
+        var scopes = new List<EvidenceScope>();
+        foreach (var svc in services)
+        {
+            var scope = await ResolveServiceScopeAsync(svc.Id, ct, scopeCache, warnings);
+            if (scope != null) scopes.Add(scope);
+        }
+        if (scopes.Count == 0) return items;
+
+        var extById = externals.ToDictionary(e => e.Id, StringComparer.OrdinalIgnoreCase);
+        var extLiterals = string.Join(", ", externals.Select(e => EscapeCypherStringLiteral(e.Id)).Distinct());
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var outgoingKinds = string.Join(", ", ExternalCallKinds.Append("TRANSITIVELY_CALLS").Distinct().Select(k => $"'{k}'"));
         var incomingKinds = "'CALLED_BY'";
@@ -282,61 +649,93 @@ public partial class ArchitectureViewEngine
         {
             var query = $"""
                 MATCH {pattern}
-                WHERE ext.id = $extId AND r.kind IN [{kinds}]
+                WHERE ext.id IN [{extLiterals}] AND r.kind IN [{kinds}]
                   AND {string.Format(NotAContainer, "sym")}
-                RETURN sym.id AS id, sym.name AS name, labels(sym)[0] AS kind, coalesce(sym.file_path, sym.path) AS path,
-                       coalesce(sym.start_line, sym.line) AS line, coalesce(sym.end_line, sym.line_end) AS line_end,
-                       r.kind AS rel_kind, json_extract(sym.properties, '$.service') AS service
+                RETURN ext.id AS ext_id, sym.id AS id, sym.name AS name, labels(sym)[0] AS kind,
+                       coalesce(sym.file_path, sym.path) AS path,
+                       coalesce(sym.start_line, sym.line) AS line,
+                       coalesce(sym.end_line, sym.line_end) AS line_end,
+                       r.kind AS rel_kind, r.properties AS properties,
+                       json_extract(sym.properties, '$.service') AS service
                 """;
 
             try
             {
-                var json = await db.ExecuteQueryAsync(query, new Dictionary<string, object> { ["extId"] = external.Id }, ct);
+                var json = await db.ExecuteQueryAsync(query, null, ct);
                 using var doc = JsonDocument.Parse(json);
                 foreach (var row in doc.RootElement.EnumerateArray())
                 {
-                    var path = row.GetStringProp("path");
-                    if (string.IsNullOrEmpty(path) || !scope.Matches(path, row.GetStringProp("service"))) continue;
+                    var extId = row.GetStringProp("ext_id");
+                    if (!extById.TryGetValue(extId, out var external)) continue;
+
+                    var rProps = row.ExtractProperties();
+                    var symId = row.GetStringProp("id");
+                    var path = rProps.GetValueOrDefault(OntologyConstants.PropertyNames.FilePath) is { Length: > 0 } rfp
+                        ? rfp
+                        : row.GetStringProp("path");
+                    var symService = row.GetStringProp("service");
+                    if (string.IsNullOrEmpty(path)) continue;
+
+                    var matchedScope = scopes.FirstOrDefault(s => s.Matches(path, symService, symId));
+                    if (matchedScope is null) continue;
 
                     var symKind = row.GetStringProp("kind");
                     if (symKind is "Endpoint" or "EntryPoint" && row.GetStringProp("rel_kind") == "ATTRIBUTED_TO") continue;
 
-                    var line = row.GetNullableIntProp("line") ?? 1;
+                    int? line = ParseLineProp(rProps, OntologyConstants.PropertyNames.Line, row, "line");
+                    int? lineEnd = ParseLineProp(rProps, OntologyConstants.PropertyNames.LineEnd, row, "line_end") ?? line;
+
                     var symName = row.GetStringProp("name");
-                    if (!seen.Add($"{path}:{line}:{symName}")) continue;
+                    if (!seen.Add($"{path}:{line}:{symName}:{extId}")) continue;
 
                     items.Add(new ArchitectureEvidenceItemDto
                     {
-                        Id = row.GetStringProp("id"),
-                        Kind = "http_call",
+                        Id = symId,
+                        Kind = OntologyConstants.EvidenceKinds.HttpCall,
                         Operation = "CALL",
                         Title = $"Calls {external.Name}",
                         FilePath = path,
                         LineStart = line,
-                        LineEnd = row.GetNullableIntProp("line_end") ?? line,
+                        LineEnd = lineEnd,
+                        Confidence = OntologyConstants.EvidenceConfidence.Recorded,
                         CallerSymbol = symName,
                         TargetSymbol = external.Name,
-                        ServiceName = scope.Name,
+                        ServiceName = matchedScope.Name,
                         Reason = $"Invokes external service '{external.Name}'"
                     });
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Continue to next pattern.
+                RecordEvidenceWarning(warnings, "Batch external call evidence query", ex);
             }
         }
 
         return items;
     }
 
-    private async Task<List<ArchitectureEvidenceItemDto>> CollectEndpointCallEvidenceAsync(
-        EvidenceNodeRef caller, EvidenceNodeRef callee, CancellationToken ct)
+    private async Task<List<ArchitectureEvidenceItemDto>> CollectBatchEndpointCallEvidenceAsync(
+        IReadOnlyList<EvidenceNodeRef> callers,
+        IReadOnlyList<EvidenceNodeRef> callees,
+        Dictionary<string, EvidenceScope?> scopeCache,
+        List<string> warnings,
+        CancellationToken ct)
     {
         var items = new List<ArchitectureEvidenceItemDto>();
-        var callerScope = await ResolveServiceScopeAsync(caller.Id, ct);
-        var calleeScope = await ResolveServiceScopeAsync(callee.Id, ct);
-        if (callerScope is null || calleeScope is null) return items;
+        var callerScopes = new List<(EvidenceNodeRef Node, EvidenceScope Scope)>();
+        var calleeScopes = new List<(EvidenceNodeRef Node, EvidenceScope Scope)>();
+
+        foreach (var c in callers)
+        {
+            var s = await ResolveServiceScopeAsync(c.Id, ct, scopeCache, warnings);
+            if (s != null) callerScopes.Add((c, s));
+        }
+        foreach (var c in callees)
+        {
+            var s = await ResolveServiceScopeAsync(c.Id, ct, scopeCache, warnings);
+            if (s != null) calleeScopes.Add((c, s));
+        }
+        if (callerScopes.Count == 0 || calleeScopes.Count == 0) return items;
 
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -344,9 +743,12 @@ public partial class ArchitectureViewEngine
         var epQuery = $"""
             MATCH (sym)-[r]->(ep:Endpoint)
             WHERE r.kind = 'CALLS_ENDPOINT' AND {string.Format(NotAContainer, "sym")}
-            RETURN sym.id AS id, sym.name AS name, labels(sym)[0] AS kind, coalesce(sym.file_path, sym.path) AS path,
-                   coalesce(sym.start_line, sym.line) AS line, coalesce(sym.end_line, sym.line_end) AS line_end,
-                   ep.name AS ep_name, coalesce(ep.file_path, ep.path) AS ep_path,
+            RETURN sym.id AS id, sym.name AS name, labels(sym)[0] AS kind,
+                   coalesce(sym.file_path, sym.path) AS path,
+                   coalesce(sym.start_line, sym.line) AS line,
+                   coalesce(sym.end_line, sym.line_end) AS line_end,
+                   r.properties AS properties,
+                   ep.id AS ep_id, ep.name AS ep_name, coalesce(ep.file_path, ep.path) AS ep_path,
                    ep.http_method AS http_method, ep.route_template AS route, ep.protocol AS protocol,
                    json_extract(sym.properties, '$.service') AS caller_service,
                    json_extract(ep.properties, '$.service') AS ep_service
@@ -358,46 +760,66 @@ public partial class ArchitectureViewEngine
             using var doc = JsonDocument.Parse(json);
             foreach (var row in doc.RootElement.EnumerateArray())
             {
-                var path = row.GetStringProp("path");
-                if (string.IsNullOrEmpty(path) || !callerScope.Matches(path, row.GetStringProp("caller_service"))) continue;
-                if (!calleeScope.Matches(row.GetStringProp("ep_path"), row.GetStringProp("ep_service"))) continue;
+                var rProps = row.ExtractProperties();
+                var symId = row.GetStringProp("id");
+                var epId = row.GetStringProp("ep_id");
+                var path = rProps.GetValueOrDefault(OntologyConstants.PropertyNames.FilePath) is { Length: > 0 } rfp
+                    ? rfp
+                    : row.GetStringProp("path");
+                var epPath = row.GetStringProp("ep_path");
+                var callerSvc = row.GetStringProp("caller_service");
+                var epSvc = row.GetStringProp("ep_service");
+                if (string.IsNullOrEmpty(path)) continue;
+
+                var matchedCaller = callerScopes.FirstOrDefault(cs => cs.Scope.Matches(path, callerSvc, symId));
+                if (matchedCaller.Scope is null) continue;
+                var matchedCallee = calleeScopes.FirstOrDefault(cs =>
+                    !cs.Node.Id.Equals(matchedCaller.Node.Id, StringComparison.OrdinalIgnoreCase) &&
+                    cs.Scope.Matches(epPath, epSvc, epId));
+                if (matchedCallee.Scope is null) continue;
 
                 var protocol = row.GetStringProp("protocol");
                 var method = row.GetStringProp("http_method");
                 var route = row.GetStringProp("route");
                 var epName = row.GetStringProp("ep_name");
-                var line = row.GetNullableIntProp("line") ?? 1;
+                int? line = ParseLineProp(rProps, OntologyConstants.PropertyNames.Line, row, "line");
+                int? lineEnd = ParseLineProp(rProps, OntologyConstants.PropertyNames.LineEnd, row, "line_end") ?? line;
+
                 var callerName = row.GetStringProp("name");
 
-                var kind = protocol.Equals("grpc", StringComparison.OrdinalIgnoreCase) ? "grpc_call"
-                         : protocol.Equals("wcf", StringComparison.OrdinalIgnoreCase) ? "wcf_call"
-                         : "http_call";
+                var kind = protocol.Equals("grpc", StringComparison.OrdinalIgnoreCase) ? OntologyConstants.EvidenceKinds.GrpcCall
+                         : protocol.Equals("wcf", StringComparison.OrdinalIgnoreCase) ? OntologyConstants.EvidenceKinds.WcfCall
+                         : OntologyConstants.EvidenceKinds.HttpCall;
                 var operation = string.IsNullOrEmpty(method) || method.Equals("ALL", StringComparison.OrdinalIgnoreCase)
-                    ? (kind == "http_call" ? "CALL" : kind[..4].ToUpperInvariant())
+                    ? (kind == OntologyConstants.EvidenceKinds.HttpCall ? "CALL" : kind[..4].ToUpperInvariant())
                     : method.ToUpperInvariant();
 
                 if (!seen.Add($"{path}:{line}:{epName}")) continue;
 
                 items.Add(new ArchitectureEvidenceItemDto
                 {
-                    Id = row.GetStringProp("id"),
+                    Id = symId,
                     Kind = kind,
                     Operation = operation,
                     Title = string.IsNullOrEmpty(route) ? epName : $"{operation} {route}",
                     FilePath = path,
                     LineStart = line,
-                    LineEnd = row.GetNullableIntProp("line_end") ?? line,
+                    LineEnd = lineEnd,
+                    Confidence = OntologyConstants.EvidenceConfidence.Recorded,
                     CallerSymbol = callerName,
                     TargetSymbol = epName,
-                    ServiceName = callerScope.Name,
-                    Reason = $"Calls endpoint '{epName}' exposed by '{calleeScope.Name}'"
+                    ServiceName = matchedCaller.Scope.Name,
+                    Reason = $"Calls endpoint '{epName}' exposed by '{matchedCallee.Scope.Name}'"
                 });
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            RecordEvidenceWarning(warnings, "Endpoint call evidence query", ex);
+        }
 
         // 2. Cross-project symbol calls / inheritance / type usages: (sym1)-[:CALLS|INHERITS_FROM|IMPLEMENTS|USES_API]->(sym2)
-        if (items.Count == 0 && callerScope.Directory is not null && calleeScope.Directory is not null)
+        if (items.Count == 0 && callerScopes.Any(cs => cs.Scope.Directory is not null) && calleeScopes.Any(cs => cs.Scope.Directory is not null))
         {
             var symQuery = """
                 MATCH (sym1)-[r]->(sym2)
@@ -407,7 +829,7 @@ public partial class ArchitectureViewEngine
                 RETURN sym1.id AS id, sym1.name AS caller_name, labels(sym1)[0] AS caller_kind,
                        coalesce(sym1.file_path, sym1.path) AS caller_path,
                        coalesce(sym1.start_line, sym1.line) AS line, coalesce(sym1.end_line, sym1.line_end) AS line_end,
-                       sym2.name AS target_name, labels(sym2)[0] AS target_kind,
+                       sym2.id AS target_id, sym2.name AS target_name, labels(sym2)[0] AS target_kind,
                        coalesce(sym2.file_path, sym2.path) AS target_path,
                        r.kind AS rel_kind
                 """;
@@ -417,12 +839,24 @@ public partial class ArchitectureViewEngine
                 using var doc = JsonDocument.Parse(json);
                 foreach (var row in doc.RootElement.EnumerateArray())
                 {
+                    var sym1Id = row.GetStringProp("id");
+                    var sym2Id = row.GetStringProp("target_id");
                     var cPath = row.GetStringProp("caller_path");
                     var tPath = row.GetStringProp("target_path");
                     if (string.IsNullOrEmpty(cPath) || string.IsNullOrEmpty(tPath)) continue;
-                    if (!callerScope.Matches(cPath) || !calleeScope.Matches(tPath)) continue;
 
-                    var line = row.GetNullableIntProp("line") ?? 1;
+                    var matchedCaller = callerScopes.FirstOrDefault(cs => cs.Scope.Matches(cPath, null, sym1Id));
+                    if (matchedCaller.Scope is null) continue;
+                    var matchedCallee = calleeScopes.FirstOrDefault(cs =>
+                        !cs.Node.Id.Equals(matchedCaller.Node.Id, StringComparison.OrdinalIgnoreCase) &&
+                        cs.Scope.Matches(tPath, null, sym2Id));
+                    if (matchedCallee.Scope is null) continue;
+
+                    int? line = row.GetNullableIntProp("line");
+                    int? lineEnd = row.GetNullableIntProp("line_end");
+                    if (line <= 0) line = null;
+                    if (lineEnd <= 0) lineEnd = line;
+
                     var callerName = row.GetStringProp("caller_name");
                     var targetName = row.GetStringProp("target_name");
                     var relKind = row.GetStringProp("rel_kind", "CALLS");
@@ -430,26 +864,29 @@ public partial class ArchitectureViewEngine
 
                     items.Add(new ArchitectureEvidenceItemDto
                     {
-                        Id = row.GetStringProp("id"),
-                        Kind = "http_call",
+                        Id = sym1Id,
+                        Kind = OntologyConstants.EvidenceKinds.HttpCall,
                         Operation = relKind == "CALLS" ? "CALL" : relKind,
                         Title = $"{callerName} → {targetName}",
                         FilePath = cPath,
                         LineStart = line,
-                        LineEnd = row.GetNullableIntProp("line_end") ?? line,
+                        LineEnd = lineEnd,
+                        Confidence = OntologyConstants.EvidenceConfidence.Inferred,
                         CallerSymbol = callerName,
                         TargetSymbol = targetName,
-                        ServiceName = callerScope.Name,
-                        Reason = $"Cross-service reference from '{callerScope.Name}' to '{targetName}' in '{calleeScope.Name}'"
+                        ServiceName = matchedCaller.Scope.Name,
+                        Reason = $"Cross-service reference from '{matchedCaller.Scope.Name}' to '{targetName}' in '{matchedCallee.Scope.Name}'"
                     });
                     if (items.Count >= 100) break;
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RecordEvidenceWarning(warnings, "Cross-project symbol call evidence query", ex);
+            }
         }
 
         // 3. Package / Library / Manifest dependency fallback: (p1:Project)-[:DEPENDS_ON]->(pkg:Package)-[:IMPLEMENTED_BY]->(p2:Project)
-        // or direct project-to-project (s1)-[:SERVICE_CALL|DEPENDS_ON|TESTS]->(s2)
         if (items.Count == 0)
         {
             var pkgQuery = """
@@ -464,82 +901,103 @@ public partial class ArchitectureViewEngine
                 using var doc = JsonDocument.Parse(json);
                 foreach (var row in doc.RootElement.EnumerateArray())
                 {
+                    var p1Id = row.GetStringProp("p1_id");
+                    var p2Id = row.GetStringProp("p2_id");
                     var p1Path = row.GetStringProp("p1_path");
                     var p2Path = row.GetStringProp("p2_path");
                     var p1Name = row.GetStringProp("p1_name");
                     var p2Name = row.GetStringProp("p2_name");
-                    if (!callerScope.Matches(p1Path, p1Name) || !calleeScope.Matches(p2Path, p2Name)) continue;
+
+                    var matchedCaller = callerScopes.FirstOrDefault(cs => cs.Scope.Matches(p1Path, p1Name, p1Id));
+                    if (matchedCaller.Scope is null) continue;
+                    var matchedCallee = calleeScopes.FirstOrDefault(cs =>
+                        !cs.Node.Id.Equals(matchedCaller.Node.Id, StringComparison.OrdinalIgnoreCase) &&
+                        cs.Scope.Matches(p2Path, p2Name, p2Id));
+                    if (matchedCallee.Scope is null) continue;
 
                     var pkgName = row.GetStringProp("pkg_name");
-                    var manifestPath = string.IsNullOrEmpty(p1Path) ? $"{callerScope.Directory}/package.json" : p1Path;
+                    var manifestPath = string.IsNullOrEmpty(p1Path) ? $"{matchedCaller.Scope.Directory}/package.json" : p1Path;
                     if (!manifestPath.Contains('.')) manifestPath = $"{manifestPath.TrimEnd('/')}/package.json";
 
                     if (seen.Add($"pkg:{manifestPath}:{pkgName}"))
                     {
                         items.Add(new ArchitectureEvidenceItemDto
                         {
-                            Id = row.GetStringProp("p1_id"),
-                            Kind = "library_call",
+                            Id = p1Id,
+                            Kind = OntologyConstants.EvidenceKinds.LibraryCall,
                             Operation = "DEPENDS_ON",
                             Title = $"Depends on package {pkgName}",
                             FilePath = manifestPath,
-                            LineStart = 1,
-                            LineEnd = 1,
-                            CallerSymbol = callerScope.Name,
+                            LineStart = null,
+                            LineEnd = null,
+                            Confidence = OntologyConstants.EvidenceConfidence.Inferred,
+                            CallerSymbol = matchedCaller.Scope.Name,
                             TargetSymbol = pkgName,
-                            ServiceName = callerScope.Name,
-                            Reason = $"Project '{callerScope.Name}' declares dependency on workspace library '{pkgName}' ('{calleeScope.Name}')"
+                            ServiceName = matchedCaller.Scope.Name,
+                            Reason = $"Project '{matchedCaller.Scope.Name}' declares dependency on workspace library '{pkgName}' ('{matchedCallee.Scope.Name}')"
                         });
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RecordEvidenceWarning(warnings, "Package dependency evidence query", ex);
+            }
         }
 
         // 4. Direct project/service macro-relationship fallback if still empty and an actual graph edge exists between caller and callee
-        if (items.Count == 0 && !string.IsNullOrEmpty(callerScope.Directory))
+        if (items.Count == 0 && callerScopes.Any(cs => !string.IsNullOrEmpty(cs.Scope.Directory)))
         {
-            var directEdgeQuery = """
+            var callerTerms = callerScopes.SelectMany(cs => new[] { cs.Node.Id, cs.Node.Name }).Distinct().Select(EscapeCypherStringLiteral);
+            var calleeTerms = calleeScopes.SelectMany(cs => new[] { cs.Node.Id, cs.Node.Name }).Distinct().Select(EscapeCypherStringLiteral);
+            var directEdgeQuery = $"""
                 MATCH (s1)-[r]->(s2)
-                WHERE (s1.id = $cId OR s1.name = $cName)
-                  AND (s2.id = $tId OR s2.name = $tName)
+                WHERE (s1.id IN [{string.Join(", ", callerTerms)}] OR s1.name IN [{string.Join(", ", callerTerms)}])
+                  AND (s2.id IN [{string.Join(", ", calleeTerms)}] OR s2.name IN [{string.Join(", ", calleeTerms)}])
                   AND r.kind IN ['SERVICE_CALL', 'DEPENDS_ON', 'TESTS', 'USES_API']
-                RETURN r.kind AS rel_kind
-                LIMIT 1
+                RETURN s1.id AS s1_id, s2.id AS s2_id, r.kind AS rel_kind
+                LIMIT 10
                 """;
             try
             {
-                var json = await db.ExecuteQueryAsync(directEdgeQuery, new Dictionary<string, object>
-                {
-                    ["cId"] = caller.Id,
-                    ["cName"] = caller.Name,
-                    ["tId"] = callee.Id,
-                    ["tName"] = callee.Name
-                }, ct);
+                var json = await db.ExecuteQueryAsync(directEdgeQuery, null, ct);
                 using var doc = JsonDocument.Parse(json);
-                var row = doc.RootElement.EnumerateArray().FirstOrDefault();
-                if (row.ValueKind == JsonValueKind.Object)
+                foreach (var row in doc.RootElement.EnumerateArray())
                 {
+                    var s1Id = row.GetStringProp("s1_id");
+                    var s2Id = row.GetStringProp("s2_id");
+                    var matchedCaller = callerScopes.FirstOrDefault(cs => cs.Node.Id.Equals(s1Id, StringComparison.OrdinalIgnoreCase));
+                    var matchedCallee = calleeScopes.FirstOrDefault(cs => cs.Node.Id.Equals(s2Id, StringComparison.OrdinalIgnoreCase));
+                    if (matchedCaller.Scope is null || matchedCallee.Scope is null || string.IsNullOrEmpty(matchedCaller.Scope.Directory))
+                        continue;
+
                     var relKind = row.GetStringProp("rel_kind", "CONFIG");
-                    var manifestPath = caller.Path ?? callerScope.Directory;
+                    var manifestPath = matchedCaller.Node.Path ?? matchedCaller.Scope.Directory;
                     if (!manifestPath.Contains('.')) manifestPath = $"{manifestPath.TrimEnd('/')}/package.json";
-                    items.Add(new ArchitectureEvidenceItemDto
+                    if (seen.Add($"macro:{matchedCaller.Node.Id}:{matchedCallee.Node.Id}:{relKind}"))
                     {
-                        Id = caller.Id,
-                        Kind = "config",
-                        Operation = relKind,
-                        Title = $"{callerScope.Name} → {calleeScope.Name}",
-                        FilePath = manifestPath,
-                        LineStart = 1,
-                        LineEnd = 1,
-                        CallerSymbol = callerScope.Name,
-                        TargetSymbol = calleeScope.Name,
-                        ServiceName = callerScope.Name,
-                        Reason = $"Project/service dependency ({relKind}) from '{callerScope.Name}' to '{calleeScope.Name}'"
-                    });
+                        items.Add(new ArchitectureEvidenceItemDto
+                        {
+                            Id = matchedCaller.Node.Id,
+                            Kind = OntologyConstants.EvidenceKinds.Config,
+                            Operation = relKind,
+                            Title = $"{matchedCaller.Scope.Name} → {matchedCallee.Scope.Name}",
+                            FilePath = manifestPath,
+                            LineStart = null,
+                            LineEnd = null,
+                            Confidence = OntologyConstants.EvidenceConfidence.Inferred,
+                            CallerSymbol = matchedCaller.Scope.Name,
+                            TargetSymbol = matchedCallee.Scope.Name,
+                            ServiceName = matchedCaller.Scope.Name,
+                            Reason = $"Project/service dependency ({relKind}) from '{matchedCaller.Scope.Name}' to '{matchedCallee.Scope.Name}'"
+                        });
+                    }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RecordEvidenceWarning(warnings, "Direct macro edge fallback query", ex);
+            }
         }
 
         return items;
@@ -591,7 +1049,10 @@ public partial class ArchitectureViewEngine
             NodeKind = nodeKind ?? string.Empty
         };
 
-        var resolvedNodes = await ResolveEvidenceNodesAsync(nodeIds, ct);
+        var warnings = new List<string>();
+        var scopeCache = new Dictionary<string, EvidenceScope?>(StringComparer.OrdinalIgnoreCase);
+        var resolvedNodes = await ResolveEvidenceNodesAsync(nodeIds, ct, warnings);
+        await PreloadServiceScopesAsync(resolvedNodes, scopeCache, warnings, ct);
         if (resolvedNodes.Count > 0)
         {
             response.NodeName = resolvedNodes[0].Name;
@@ -606,7 +1067,7 @@ public partial class ArchitectureViewEngine
 
         foreach (var node in resolvedNodes)
         {
-            var nodeItems = await CollectSingleNodeEvidenceAsync(node, ct);
+            var nodeItems = await CollectSingleNodeEvidenceAsync(node, scopeCache, warnings, ct);
             foreach (var item in nodeItems)
             {
                 if (seen.Add($"{item.Kind}:{item.FilePath}:{item.LineStart}:{item.Title}:{item.Operation}"))
@@ -619,34 +1080,47 @@ public partial class ArchitectureViewEngine
         response.Items = items
             .OrderBy(i => EvidenceKindOrder(i.Kind))
             .ThenBy(i => i.FilePath, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(i => i.LineStart)
+            .ThenBy(i => i.LineStart ?? int.MaxValue)
             .Take(150)
             .ToList();
         response.TotalCount = response.Items.Count;
+        if (warnings.Count > 0)
+        {
+            response.Warnings = warnings;
+        }
         return response;
     }
 
-    private async Task<List<ArchitectureEvidenceItemDto>> CollectSingleNodeEvidenceAsync(EvidenceNodeRef node, CancellationToken ct)
+    private async Task<List<ArchitectureEvidenceItemDto>> CollectSingleNodeEvidenceAsync(
+        EvidenceNodeRef node,
+        Dictionary<string, EvidenceScope?> scopeCache,
+        List<string> warnings,
+        CancellationToken ct)
     {
         if (node.Label == OntologyConstants.NodeLabels.Database)
         {
-            return (await GetDatabaseEvidenceAsync(node.Id, null, ct)).Items;
+            var dbRes = await GetDatabaseEvidenceCoreAsync(node.Id, null, ct, scopeCache);
+            if (dbRes.Warnings != null) warnings.AddRange(dbRes.Warnings.Where(w => !warnings.Contains(w)));
+            return dbRes.Items;
         }
 
         if (node.Label == OntologyConstants.NodeLabels.Topic)
         {
-            return await CollectAllTopicNodeEvidenceAsync(node, ct);
+            return await CollectAllTopicNodeEvidenceAsync(node, warnings, ct);
         }
 
-        if (node.Label == OntologyConstants.NodeLabels.ExternalService)
+        if (node.Label is OntologyConstants.NodeLabels.ExternalService or OntologyConstants.NodeLabels.CloudService)
         {
-            return await CollectAllExternalNodeEvidenceAsync(node, ct);
+            return await CollectAllExternalNodeEvidenceAsync(node, warnings, ct);
         }
 
-        return await CollectServiceOrProjectNodeEvidenceAsync(node, ct);
+        return await CollectServiceOrProjectNodeEvidenceAsync(node, scopeCache, warnings, ct);
     }
 
-    private async Task<List<ArchitectureEvidenceItemDto>> CollectAllTopicNodeEvidenceAsync(EvidenceNodeRef topic, CancellationToken ct)
+    private async Task<List<ArchitectureEvidenceItemDto>> CollectAllTopicNodeEvidenceAsync(
+        EvidenceNodeRef topic,
+        List<string> warnings,
+        CancellationToken ct)
     {
         var items = new List<ArchitectureEvidenceItemDto>();
         foreach (var (publish, kinds, dir) in new[]
@@ -662,8 +1136,11 @@ public partial class ArchitectureViewEngine
                 WHERE (t.id = $topicId OR t.name = $topicName)
                   AND r.kind IN [{string.Join(", ", kinds.Select(k => $"'{k}'"))}]
                   AND {string.Format(NotAContainer, "sym")}
-                RETURN sym.id AS id, sym.name AS name, labels(sym)[0] AS kind, coalesce(sym.file_path, sym.path) AS path,
-                       coalesce(sym.start_line, sym.line) AS line, coalesce(sym.end_line, sym.line_end) AS line_end,
+                RETURN sym.id AS id, sym.name AS name, labels(sym)[0] AS kind,
+                       coalesce(sym.file_path, sym.path) AS path,
+                       coalesce(sym.start_line, sym.line) AS line,
+                       coalesce(sym.end_line, sym.line_end) AS line_end,
+                       r.properties AS properties,
                        json_extract(sym.properties, '$.service') AS service
                 """;
             try
@@ -676,20 +1153,26 @@ public partial class ArchitectureViewEngine
                 using var doc = JsonDocument.Parse(json);
                 foreach (var row in doc.RootElement.EnumerateArray())
                 {
-                    var path = row.GetStringProp("path");
+                    var rProps = row.ExtractProperties();
+                    var path = rProps.GetValueOrDefault(OntologyConstants.PropertyNames.FilePath) is { Length: > 0 } rfp
+                        ? rfp
+                        : row.GetStringProp("path");
                     if (string.IsNullOrEmpty(path)) continue;
-                    var line = row.GetNullableIntProp("line") ?? 1;
+                    int? line = ParseLineProp(rProps, OntologyConstants.PropertyNames.Line, row, "line");
+                    int? lineEnd = ParseLineProp(rProps, OntologyConstants.PropertyNames.LineEnd, row, "line_end") ?? line;
+
                     var symName = row.GetStringProp("name");
                     var svc = row.GetStringProp("service");
                     items.Add(new ArchitectureEvidenceItemDto
                     {
                         Id = row.GetStringProp("id"),
-                        Kind = publish ? "publish" : "subscribe",
+                        Kind = publish ? OntologyConstants.EvidenceKinds.Publish : OntologyConstants.EvidenceKinds.Subscribe,
                         Operation = publish ? "PUBLISH" : "SUBSCRIBE",
                         Title = $"{(publish ? "Publishes" : "Subscribes")} {topic.Name}",
                         FilePath = path,
                         LineStart = line,
-                        LineEnd = row.GetNullableIntProp("line_end") ?? line,
+                        LineEnd = lineEnd,
+                        Confidence = OntologyConstants.EvidenceConfidence.Recorded,
                         CallerSymbol = symName,
                         TargetSymbol = topic.Name,
                         ServiceName = string.IsNullOrEmpty(svc) ? null : svc,
@@ -697,12 +1180,18 @@ public partial class ArchitectureViewEngine
                     });
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RecordEvidenceWarning(warnings, $"Topic node evidence query for '{topic.Name}'", ex);
+            }
         }
         return items;
     }
 
-    private async Task<List<ArchitectureEvidenceItemDto>> CollectAllExternalNodeEvidenceAsync(EvidenceNodeRef external, CancellationToken ct)
+    private async Task<List<ArchitectureEvidenceItemDto>> CollectAllExternalNodeEvidenceAsync(
+        EvidenceNodeRef external,
+        List<string> warnings,
+        CancellationToken ct)
     {
         var items = new List<ArchitectureEvidenceItemDto>();
         var outgoingKinds = string.Join(", ", ExternalCallKinds.Append("TRANSITIVELY_CALLS").Distinct().Select(k => $"'{k}'"));
@@ -713,9 +1202,12 @@ public partial class ArchitectureViewEngine
                 WHERE (ext.id = $extId OR ext.name = $extName)
                   AND r.kind IN [{kinds}]
                   AND {string.Format(NotAContainer, "sym")}
-                RETURN sym.id AS id, sym.name AS name, labels(sym)[0] AS kind, coalesce(sym.file_path, sym.path) AS path,
-                       coalesce(sym.start_line, sym.line) AS line, coalesce(sym.end_line, sym.line_end) AS line_end,
-                       r.kind AS rel_kind, json_extract(sym.properties, '$.service') AS service
+                RETURN sym.id AS id, sym.name AS name, labels(sym)[0] AS kind,
+                       coalesce(sym.file_path, sym.path) AS path,
+                       coalesce(sym.start_line, sym.line) AS line,
+                       coalesce(sym.end_line, sym.line_end) AS line_end,
+                       r.kind AS rel_kind, r.properties AS properties,
+                       json_extract(sym.properties, '$.service') AS service
                 """;
             try
             {
@@ -727,23 +1219,29 @@ public partial class ArchitectureViewEngine
                 using var doc = JsonDocument.Parse(json);
                 foreach (var row in doc.RootElement.EnumerateArray())
                 {
-                    var path = row.GetStringProp("path");
+                    var rProps = row.ExtractProperties();
+                    var path = rProps.GetValueOrDefault(OntologyConstants.PropertyNames.FilePath) is { Length: > 0 } rfp
+                        ? rfp
+                        : row.GetStringProp("path");
                     if (string.IsNullOrEmpty(path)) continue;
                     var symKind = row.GetStringProp("kind");
                     if (symKind is "Endpoint" or "EntryPoint" && row.GetStringProp("rel_kind") == "ATTRIBUTED_TO") continue;
 
-                    var line = row.GetNullableIntProp("line") ?? 1;
+                    int? line = ParseLineProp(rProps, OntologyConstants.PropertyNames.Line, row, "line");
+                    int? lineEnd = ParseLineProp(rProps, OntologyConstants.PropertyNames.LineEnd, row, "line_end") ?? line;
+
                     var symName = row.GetStringProp("name");
                     var svc = row.GetStringProp("service");
                     items.Add(new ArchitectureEvidenceItemDto
                     {
                         Id = row.GetStringProp("id"),
-                        Kind = "http_call",
+                        Kind = OntologyConstants.EvidenceKinds.HttpCall,
                         Operation = "CALL",
                         Title = $"Calls {external.Name}",
                         FilePath = path,
                         LineStart = line,
-                        LineEnd = row.GetNullableIntProp("line_end") ?? line,
+                        LineEnd = lineEnd,
+                        Confidence = OntologyConstants.EvidenceConfidence.Recorded,
                         CallerSymbol = symName,
                         TargetSymbol = external.Name,
                         ServiceName = string.IsNullOrEmpty(svc) ? null : svc,
@@ -751,15 +1249,22 @@ public partial class ArchitectureViewEngine
                     });
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RecordEvidenceWarning(warnings, $"External node evidence query for '{external.Name}'", ex);
+            }
         }
         return items;
     }
 
-    private async Task<List<ArchitectureEvidenceItemDto>> CollectServiceOrProjectNodeEvidenceAsync(EvidenceNodeRef serviceNode, CancellationToken ct)
+    private async Task<List<ArchitectureEvidenceItemDto>> CollectServiceOrProjectNodeEvidenceAsync(
+        EvidenceNodeRef serviceNode,
+        Dictionary<string, EvidenceScope?> scopeCache,
+        List<string> warnings,
+        CancellationToken ct)
     {
         var items = new List<ArchitectureEvidenceItemDto>();
-        var scope = await ResolveServiceScopeAsync(serviceNode.Id, ct);
+        var scope = await ResolveServiceScopeAsync(serviceNode.Id, ct, scopeCache, warnings);
         if (scope is null) return items;
 
         // 1. Endpoints exposed by this service
@@ -776,31 +1281,40 @@ public partial class ArchitectureViewEngine
             using var doc = JsonDocument.Parse(json);
             foreach (var row in doc.RootElement.EnumerateArray())
             {
+                var epId = row.GetStringProp("id");
                 var path = row.GetStringProp("path");
-                if (string.IsNullOrEmpty(path) || !scope.Matches(path, row.GetStringProp("service"))) continue;
+                if (string.IsNullOrEmpty(path) || !scope.Matches(path, row.GetStringProp("service"), epId)) continue;
 
                 var method = row.GetStringProp("http_method");
                 var route = row.GetStringProp("route");
                 var epName = row.GetStringProp("name");
-                var line = row.GetNullableIntProp("line") ?? 1;
+                int? line = row.GetNullableIntProp("line");
+                int? lineEnd = row.GetNullableIntProp("line_end");
+                if (line <= 0) line = null;
+                if (lineEnd <= 0) lineEnd = line;
+
                 var op = string.IsNullOrEmpty(method) || method.Equals("ALL", StringComparison.OrdinalIgnoreCase) ? "ENDPOINT" : method.ToUpperInvariant();
 
                 items.Add(new ArchitectureEvidenceItemDto
                 {
-                    Id = row.GetStringProp("id"),
-                    Kind = "endpoint",
+                    Id = epId,
+                    Kind = OntologyConstants.EvidenceKinds.Endpoint,
                     Operation = op,
                     Title = string.IsNullOrEmpty(route) ? epName : $"{op} {route}",
                     FilePath = path,
                     LineStart = line,
-                    LineEnd = row.GetNullableIntProp("line_end") ?? line,
+                    LineEnd = lineEnd,
+                    Confidence = OntologyConstants.EvidenceConfidence.Recorded,
                     TargetSymbol = epName,
                     ServiceName = scope.Name,
                     Reason = $"HTTP/RPC endpoint exposed by '{scope.Name}'"
                 });
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            RecordEvidenceWarning(warnings, $"Service endpoint evidence query for '{scope.Name}'", ex);
+        }
 
         // 2. EntryPoints (bootstrap / workers / CLI / UI components) in this service
         var entryQuery = """
@@ -817,20 +1331,26 @@ public partial class ArchitectureViewEngine
             var entryCount = 0;
             foreach (var row in doc.RootElement.EnumerateArray())
             {
+                var entryId = row.GetStringProp("id");
                 var path = row.GetStringProp("path");
-                if (string.IsNullOrEmpty(path) || !scope.Matches(path, row.GetStringProp("service"))) continue;
+                if (string.IsNullOrEmpty(path) || !scope.Matches(path, row.GetStringProp("service"), entryId)) continue;
 
                 var name = row.GetStringProp("name");
-                var line = row.GetNullableIntProp("line") ?? 1;
+                int? line = row.GetNullableIntProp("line");
+                int? lineEnd = row.GetNullableIntProp("line_end");
+                if (line <= 0) line = null;
+                if (lineEnd <= 0) lineEnd = line;
+
                 items.Add(new ArchitectureEvidenceItemDto
                 {
-                    Id = row.GetStringProp("id"),
-                    Kind = "entrypoint",
+                    Id = entryId,
+                    Kind = OntologyConstants.EvidenceKinds.EntryPoint,
                     Operation = "ENTRY",
                     Title = name,
                     FilePath = path,
                     LineStart = line,
-                    LineEnd = row.GetNullableIntProp("line_end") ?? line,
+                    LineEnd = lineEnd,
+                    Confidence = OntologyConstants.EvidenceConfidence.Recorded,
                     CallerSymbol = name,
                     ServiceName = scope.Name,
                     Reason = $"Application/worker entry point in '{scope.Name}'"
@@ -838,7 +1358,10 @@ public partial class ArchitectureViewEngine
                 if (++entryCount >= 25) break;
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            RecordEvidenceWarning(warnings, $"Service entrypoint evidence query for '{scope.Name}'", ex);
+        }
 
         // 3. ORM Entities (PERSISTED_IN) in this service
         var ormQuery = """
@@ -853,21 +1376,27 @@ public partial class ArchitectureViewEngine
             using var doc = JsonDocument.Parse(json);
             foreach (var row in doc.RootElement.EnumerateArray())
             {
+                var typeId = row.GetStringProp("id");
                 var path = row.GetStringProp("path");
-                if (string.IsNullOrEmpty(path) || !scope.Matches(path, row.GetStringProp("service"))) continue;
+                if (string.IsNullOrEmpty(path) || !scope.Matches(path, row.GetStringProp("service"), typeId)) continue;
 
                 var name = row.GetStringProp("name");
                 var tblName = row.GetStringProp("tbl_name");
-                var line = row.GetNullableIntProp("line") ?? 1;
+                int? line = row.GetNullableIntProp("line");
+                int? lineEnd = row.GetNullableIntProp("line_end");
+                if (line <= 0) line = null;
+                if (lineEnd <= 0) lineEnd = line;
+
                 items.Add(new ArchitectureEvidenceItemDto
                 {
-                    Id = row.GetStringProp("id"),
-                    Kind = "orm",
+                    Id = typeId,
+                    Kind = OntologyConstants.EvidenceKinds.Orm,
                     Operation = "ORM",
                     Title = $"{name} → {tblName}",
                     FilePath = path,
                     LineStart = line,
-                    LineEnd = row.GetNullableIntProp("line_end") ?? line,
+                    LineEnd = lineEnd,
+                    Confidence = OntologyConstants.EvidenceConfidence.Recorded,
                     CallerSymbol = name,
                     TargetSymbol = tblName,
                     ServiceName = scope.Name,
@@ -875,7 +1404,10 @@ public partial class ArchitectureViewEngine
                 });
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            RecordEvidenceWarning(warnings, $"Service ORM entity evidence query for '{scope.Name}'", ex);
+        }
 
         // 4. Primary project manifest / declaration fallback
         if (!string.IsNullOrEmpty(scope.Directory))
@@ -885,12 +1417,13 @@ public partial class ArchitectureViewEngine
             items.Add(new ArchitectureEvidenceItemDto
             {
                 Id = serviceNode.Id,
-                Kind = "config",
+                Kind = OntologyConstants.EvidenceKinds.Config,
                 Operation = "MANIFEST",
                 Title = $"{scope.Name} ({serviceNode.Label})",
                 FilePath = manifestPath,
-                LineStart = 1,
-                LineEnd = 1,
+                LineStart = null,
+                LineEnd = null,
+                Confidence = OntologyConstants.EvidenceConfidence.Recorded,
                 ServiceName = scope.Name,
                 Reason = $"Project / service manifest for '{scope.Name}'"
             });

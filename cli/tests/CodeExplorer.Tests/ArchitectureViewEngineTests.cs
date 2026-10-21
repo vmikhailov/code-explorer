@@ -124,6 +124,114 @@ public class ArchitectureViewEngineTests
     }
 
     [Test]
+    public async Task GetSystemContextView_IncludesArchitecturalSubsystemsButExcludesSharedLibraries()
+    {
+        await _db.UploadNodesAsync(
+        [
+            new Node("ws:project:cpu-engine:", "Project", new Dictionary<string, object>
+            {
+                ["name"] = "cpu-engine",
+                ["path"] = "libs/cpu-engine",
+                ["role"] = "SharedLibrary",
+                ["is_library"] = "true",
+                ["architectural_subsystem"] = "true"
+            })
+        ]);
+        await _db.UploadRelationshipsAsync(
+        [
+            new Relationship("ws:project:order-service:", "ws:project:cpu-engine:", "DEPENDS_ON",
+                new Dictionary<string, object> { ["dependency_type"] = "library" })
+        ]);
+
+        var view = await _engine.GetSystemContextViewAsync(includeLibraries: false);
+        var subsystem = view.Nodes.Single(node => node.Id == "ws:project:cpu-engine:");
+
+        ArchitectureViewEngine.IsLibraryProject(subsystem).Should().BeFalse();
+        subsystem.Properties!["is_semantic_entity"].Should().Be("true");
+        view.Nodes.Should().NotContain(node => node.Id == "ws:project:common-dto:");
+    }
+
+    [Test]
+    public async Task GetSystemContextView_IncludesCloudServicesAndTheirUseEdges()
+    {
+        await _db.UploadNodesAsync(
+        [
+            new Node("ws:cloud:aws-sdk-s3", "CloudService", new Dictionary<string, object>
+            {
+                ["name"] = "AWS SDK S3"
+            })
+        ]);
+        await _db.UploadRelationshipsAsync(
+        [
+            new Relationship("ws:project:order-service:", "ws:cloud:aws-sdk-s3", "USES_CLOUD",
+                new Dictionary<string, object> { ["is_semantic"] = "true" })
+        ]);
+
+        var view = await _engine.GetSystemContextViewAsync(includeLibraries: false);
+
+        view.Nodes.Should().Contain(node => node.Id == "ws:cloud:aws-sdk-s3" && node.Kind == NodeKind.CloudService);
+        view.Edges.Should().Contain(edge =>
+            edge.Source == "ws:project:order-service:" &&
+            edge.Target == "ws:cloud:aws-sdk-s3" &&
+            edge.Kind == "USES_CLOUD");
+    }
+
+    [Test]
+    public async Task GetSystemContextView_IncludesPeerMeshesAndTypedCloudResourceEdges()
+    {
+        const string meshId = "ws:mesh:mpc-peer-mesh";
+        const string bucketId = "ws:cloud:aws:s3:encrypted-shares";
+        await _db.UploadNodesAsync(
+        [
+            new Node(meshId, "PeerMesh", new Dictionary<string, object>
+            {
+                ["name"] = "3-Party MPC Peer Mesh",
+                ["path"] = ".",
+                ["member_count"] = 3,
+                ["protocols"] = "TCP/mTLS, NCCL",
+                ["topology"] = "symmetric",
+                ["is_semantic_entity"] = "true"
+            }),
+            new Node(bucketId, "CloudService", new Dictionary<string, object>
+            {
+                ["name"] = "AWS S3: Encrypted Shares Bucket",
+                ["provider"] = "AWS",
+                ["resource_type"] = "S3Bucket",
+                ["resource_role"] = "encrypted_shares",
+                ["is_semantic_entity"] = "true"
+            })
+        ]);
+        await _db.UploadRelationshipsAsync(
+        [
+            new Relationship("ws:project:order-service:", meshId, "COORDINATES_WITH",
+                new Dictionary<string, object> { ["protocols"] = "TCP/mTLS, NCCL" }),
+            new Relationship("ws:project:order-service:", bucketId, "READS_FROM",
+                new Dictionary<string, object> { ["category"] = "external_resource" }),
+            new Relationship("ws:project:order-service:", bucketId, "WRITES_TO",
+                new Dictionary<string, object> { ["category"] = "external_resource" })
+        ]);
+
+        var view = await _engine.GetSystemContextViewAsync(includeLibraries: false);
+
+        var mesh = view.Nodes.Single(node => node.Id == meshId);
+        mesh.Kind.Should().Be(NodeKind.PeerMesh);
+        mesh.Properties!["member_count"].Should().Be("3");
+        view.Nodes.Should().Contain(node => node.Id == bucketId && node.Kind == NodeKind.CloudService);
+        view.Edges.Should().Contain(edge =>
+            edge.Source == "ws:project:order-service:" &&
+            edge.Target == meshId &&
+            edge.Kind == "COORDINATES_WITH");
+        view.Edges.Should().Contain(edge =>
+            edge.Source == "ws:project:order-service:" &&
+            edge.Target == bucketId &&
+            edge.Kind == "READS_FROM");
+        view.Edges.Should().Contain(edge =>
+            edge.Source == "ws:project:order-service:" &&
+            edge.Target == bucketId &&
+            edge.Kind == "WRITES_TO");
+    }
+
+    [Test]
     public async Task GetServiceFlowView_ReturnsC2NeighborhoodForScopedService()
     {
         var view = await _engine.GetServiceFlowViewAsync("order-service");
@@ -855,4 +963,3 @@ public class ArchitectureViewEngineTests
         }
     }
 }
-

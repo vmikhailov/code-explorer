@@ -392,13 +392,21 @@ public static class ConfigurationParser
             ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Database, dbName, dbId);
         }
 
-        relationships.Add(Relationship.FromRelationship(new ConfiguresRelationship(fileNodeId, dbId)));
+        var cfgExt = new Dictionary<string, string>
+        {
+            [OntologyConstants.PropertyNames.FilePath] = relativePath,
+            [OntologyConstants.PropertyNames.Operation] = "CONFIG",
+            [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Config
+        };
+        var cfgRel = Relationship.FromRelationship(new ConfiguresRelationship(fileNodeId, dbId, cfgExt));
+        relationships.Add(cfgRel);
 
         if (!string.IsNullOrEmpty(projId))
         {
-            var usesDbRel = new UsesDbRelationship(projId, dbId);
-            relationships.Add(Relationship.FromRelationship(usesDbRel));
-            ctx.AddGlobalProjectDependency(Relationship.FromRelationship(usesDbRel));
+            var usesDbRel = Relationship.FromRelationship(new UsesDbRelationship(projId, dbId, cfgExt));
+            EvidenceProvenanceHelper.RecordContributingEdge(usesDbRel.Properties, cfgRel);
+            relationships.Add(usesDbRel);
+            ctx.AddGlobalProjectDependency(usesDbRel);
         }
     }
 
@@ -421,7 +429,14 @@ public static class ConfigurationParser
             ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Topic, topicName, topicId);
         }
 
-        relationships.Add(Relationship.FromRelationship(new ConfiguresRelationship(fileNodeId, topicId)));
+        var cfgExt = new Dictionary<string, string>
+        {
+            [OntologyConstants.PropertyNames.FilePath] = relativePath,
+            [OntologyConstants.PropertyNames.Operation] = "CONFIG",
+            [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Config
+        };
+        var cfgRel = Relationship.FromRelationship(new ConfiguresRelationship(fileNodeId, topicId, cfgExt));
+        relationships.Add(cfgRel);
 
         string? projId = null;
         if (containerNode is ProjectNode pn)
@@ -438,13 +453,15 @@ public static class ConfigurationParser
 
         if (!string.IsNullOrEmpty(projId))
         {
-            var pubRel = new PublishesToRelationship(projId, topicId);
-            relationships.Add(Relationship.FromRelationship(pubRel));
-            ctx.AddGlobalProjectDependency(Relationship.FromRelationship(pubRel));
+            var pubRel = Relationship.FromRelationship(new PublishesToRelationship(projId, topicId, cfgExt));
+            EvidenceProvenanceHelper.RecordContributingEdge(pubRel.Properties, cfgRel);
+            relationships.Add(pubRel);
+            ctx.AddGlobalProjectDependency(pubRel);
 
-            var triggersRel = new TriggersRelationship(topicId, projId);
-            relationships.Add(Relationship.FromRelationship(triggersRel));
-            ctx.AddGlobalProjectDependency(Relationship.FromRelationship(triggersRel));
+            var triggersRel = Relationship.FromRelationship(new TriggersRelationship(topicId, projId, cfgExt));
+            EvidenceProvenanceHelper.RecordContributingEdge(triggersRel.Properties, cfgRel);
+            relationships.Add(triggersRel);
+            ctx.AddGlobalProjectDependency(triggersRel);
         }
     }
 
@@ -466,7 +483,14 @@ public static class ConfigurationParser
             ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.CloudService, cloudName, cloudId);
         }
 
-        relationships.Add(Relationship.FromRelationship(new ConfiguresRelationship(fileNodeId, cloudId)));
+        var cfgExt = new Dictionary<string, string>
+        {
+            [OntologyConstants.PropertyNames.FilePath] = relativePath,
+            [OntologyConstants.PropertyNames.Operation] = "CONFIG",
+            [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Config
+        };
+        var cfgRel = Relationship.FromRelationship(new ConfiguresRelationship(fileNodeId, cloudId, cfgExt));
+        relationships.Add(cfgRel);
 
         string? projId = null;
         if (containerNode is ProjectNode pn)
@@ -483,9 +507,10 @@ public static class ConfigurationParser
 
         if (!string.IsNullOrEmpty(projId))
         {
-            var usesCloudRel = new UsesCloudRelationship(projId, cloudId);
-            relationships.Add(Relationship.FromRelationship(usesCloudRel));
-            ctx.AddGlobalProjectDependency(Relationship.FromRelationship(usesCloudRel));
+            var usesCloudRel = Relationship.FromRelationship(new UsesCloudRelationship(projId, cloudId, cfgExt));
+            EvidenceProvenanceHelper.RecordContributingEdge(usesCloudRel.Properties, cfgRel);
+            relationships.Add(usesCloudRel);
+            ctx.AddGlobalProjectDependency(usesCloudRel);
         }
     }
 
@@ -556,22 +581,36 @@ public static class ConfigurationParser
                     ctx.SemanticStructure.Children.Add(extNode);
                 }
 
-                relationships.Add(Relationship.FromRelationship(new ConfiguresRelationship(fileNodeId, extId)));
+                var cfgRel = Relationship.FromRelationship(new ConfiguresRelationship(
+                    fileNodeId,
+                    extId,
+                    new Dictionary<string, string>
+                    {
+                        [OntologyConstants.PropertyNames.FilePath] = relativePath,
+                        [OntologyConstants.PropertyNames.Operation] = "CONFIG",
+                        [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Config
+                    }));
+                relationships.Add(cfgRel);
 
                 if (!string.IsNullOrEmpty(projId))
                 {
+                    var callProps = new Dictionary<string, object>
+                    {
+                        ["dependency_type"] = "service_call",
+                        ["is_semantic"] = "true",
+                        ["is_external"] = "true",
+                        ["config_key"] = ep.ConfigKey,
+                        ["url"] = ep.Url,
+                        [OntologyConstants.PropertyNames.FilePath] = relativePath,
+                        [OntologyConstants.PropertyNames.Operation] = "CONFIG",
+                        [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Config
+                    };
+                    EvidenceProvenanceHelper.RecordContributingEdge(callProps, cfgRel);
                     var callRel = new Relationship(
                         projId,
                         extId,
                         OntologyConstants.Relationships.ServiceCall,
-                        new Dictionary<string, object>
-                        {
-                            ["dependency_type"] = "service_call",
-                            ["is_semantic"] = "true",
-                            ["is_external"] = "true",
-                            ["config_key"] = ep.ConfigKey,
-                            ["url"] = ep.Url
-                        });
+                        callProps);
                     relationships.Add(callRel);
                     ctx.AddGlobalProjectDependency(callRel);
                 }
@@ -591,7 +630,10 @@ public static class ConfigurationParser
                         ["url"] = ep.Url,
                         ["dependency_type"] = "service_call",
                         ["is_semantic"] = "true",
-                        ["config_key"] = ep.ConfigKey
+                        ["config_key"] = ep.ConfigKey,
+                        [OntologyConstants.PropertyNames.FilePath] = relativePath,
+                        [OntologyConstants.PropertyNames.Operation] = "CONFIG",
+                        [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Config
                     });
                 relationships.Add(rel);
                 ctx.AddGlobalProjectDependency(rel);

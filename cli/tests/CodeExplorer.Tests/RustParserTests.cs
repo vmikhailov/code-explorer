@@ -5,6 +5,7 @@ using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.Rust;
+using CodeExplorer.Parser.Rust.Libraries;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -93,6 +94,187 @@ public class RustParserTests
         var externalDeps = authDeps.ExternalPackages.Select(p => p.Name).ToList();
         externalDeps.Should().Contain("axum");
         externalDeps.Should().Contain("sqlx");
+    }
+
+    [Test]
+    public void RustParser_EnumeratesMultiBinaryTargetsWithIndividualRoles()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "rust_bin_targets_" + Guid.NewGuid().ToString("N"));
+        var projectDir = Path.Combine(tempDir, "multi-bins");
+        var binDir = Path.Combine(projectDir, "bin");
+        Directory.CreateDirectory(binDir);
+        var manifestPath = Path.Combine(projectDir, "Cargo.toml");
+        File.WriteAllText(manifestPath, """
+            [package]
+            name = "multi-bins"
+            version = "0.1.0"
+            edition = "2021"
+
+            [[bin]]
+            name = "iris-mpc-hawk"
+            path = "bin/hawk.rs"
+
+            [[bin]]
+            name = "wal-sidecar"
+            path = "bin/sidecar.rs"
+
+            [[bin]]
+            name = "migrator"
+            path = "bin/migrator.rs"
+            """);
+        File.WriteAllText(Path.Combine(binDir, "hawk.rs"), "fn main() {}");
+        File.WriteAllText(Path.Combine(binDir, "sidecar.rs"), "fn main() { loop {} }");
+        File.WriteAllText(Path.Combine(binDir, "migrator.rs"), "fn main() {}");
+        File.WriteAllText(Path.Combine(tempDir, "Dockerfile.hawk"), "RUN cargo build --bin iris-mpc-hawk\nENTRYPOINT [\"./iris-mpc-hawk\"]");
+        File.WriteAllText(Path.Combine(tempDir, "Dockerfile.migrator"), "RUN cargo build --bin migrator");
+
+        try
+        {
+            var parser = new RustParser();
+            var projects = parser.GetAdditionalProjects(projectDir, Directory.GetFiles(projectDir));
+
+            projects.Select(project => project.Name).Should().BeEquivalentTo(["iris-mpc-hawk", "wal-sidecar", "migrator"]);
+            projects.Single(project => project.Name == "iris-mpc-hawk").Properties["primary_role"].Should().Be("Service");
+            projects.Single(project => project.Name == "wal-sidecar").Properties["primary_role"].Should().Be("Worker");
+            projects.Single(project => project.Name == "migrator").Properties["primary_role"].Should().Be("CliTool");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public void RustParser_PromotesLibraryWithArchitecturalCapability()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "rust_subsystem_" + Guid.NewGuid().ToString("N"));
+        var sourceDir = Path.Combine(tempDir, "src");
+        Directory.CreateDirectory(sourceDir);
+        File.WriteAllText(Path.Combine(tempDir, "Cargo.toml"), """
+            [package]
+            name = "gpu-engine"
+            version = "0.1.0"
+            edition = "2021"
+
+            [lib]
+
+            [dependencies]
+            cudarc = "0.12"
+            """);
+        File.WriteAllText(Path.Combine(sourceDir, "lib.rs"), "pub fn execute_gpu_kernel() {}");
+
+        try
+        {
+            var parser = new RustParser();
+            var properties = parser.ExtractManifestProperties(tempDir, Directory.GetFiles(tempDir));
+
+            properties["manifest_type"].Should().Be("library");
+            properties["architectural_subsystem"].Should().Be("true");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public void RustParser_PromotesLargeDomainLibraryToArchitecturalSubsystem()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "rust_large_subsystem_" + Guid.NewGuid().ToString("N"));
+        var sourceDir = Path.Combine(tempDir, "src");
+        Directory.CreateDirectory(sourceDir);
+        File.WriteAllText(Path.Combine(tempDir, "Cargo.toml"), """
+            [package]
+            name = "protocol-engine"
+            version = "0.1.0"
+            edition = "2021"
+
+            [lib]
+            """);
+        File.WriteAllLines(Path.Combine(sourceDir, "lib.rs"), Enumerable.Repeat("pub fn operation() {}", 1500));
+
+        try
+        {
+            var parser = new RustParser();
+            var properties = parser.ExtractManifestProperties(tempDir, Directory.GetFiles(tempDir));
+
+            properties["architectural_subsystem"].Should().Be("true");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public void RustParser_DoesNotPromoteLibraryFromDevOnlyInfrastructureDependencies()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "rust_dev_dependency_" + Guid.NewGuid().ToString("N"));
+        var sourceDir = Path.Combine(tempDir, "src");
+        Directory.CreateDirectory(sourceDir);
+        File.WriteAllText(Path.Combine(tempDir, "Cargo.toml"), """
+            [package]
+            name = "helper-common"
+            version = "0.1.0"
+            edition = "2021"
+
+            [lib]
+
+            [dev-dependencies]
+            sqlx = "0.8"
+            """);
+        File.WriteAllText(Path.Combine(sourceDir, "lib.rs"), "pub fn helper() {}");
+
+        try
+        {
+            var parser = new RustParser();
+            var properties = parser.ExtractManifestProperties(tempDir, Directory.GetFiles(tempDir));
+
+            properties.GetValueOrDefault("architectural_subsystem").Should().NotBe("true");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public void RustParser_DoesNotPromoteGenericUtilityLibraryFromInfrastructureDependency()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "rust_utility_dependency_" + Guid.NewGuid().ToString("N"));
+        var sourceDir = Path.Combine(tempDir, "src");
+        Directory.CreateDirectory(sourceDir);
+        File.WriteAllText(Path.Combine(tempDir, "Cargo.toml"), """
+            [package]
+            name = "helper-common"
+            version = "0.1.0"
+            edition = "2021"
+
+            [lib]
+
+            [dependencies]
+            cudarc = "0.12"
+            """);
+        File.WriteAllText(Path.Combine(sourceDir, "lib.rs"), "pub fn helper() {}");
+
+        try
+        {
+            var parser = new RustParser();
+            var properties = parser.ExtractManifestProperties(tempDir, Directory.GetFiles(tempDir));
+
+            properties.GetValueOrDefault("architectural_subsystem").Should().NotBe("true");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public void AwsTopicParser_DoesNotTreatSelfReceiverAsTopicName()
+    {
+        AwsSdkRustLibraryParser.CleanTopicOrQueueName("self", "sns").Should().Be("results-topic");
+        AwsSdkRustLibraryParser.CleanTopicOrQueueName("self", "sqs").Should().Be("sqs-queue");
     }
 
     [Test]

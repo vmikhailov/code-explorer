@@ -28,7 +28,7 @@ public partial class ArchitectureViewEngine
             : "";
 
         var nodesQuery =
-            $"MATCH (n) WHERE labels(n)[0] IN ['Project', 'Service', 'App', 'Library', 'Worker', 'CliTool', 'TestSuite', 'Database', 'ExternalService']{topicClause} OR (labels(n)[0] = 'Package' AND (n.is_external = 'true' OR n.is_external = true OR (n.is_external IS NULL AND NOT (n)-[:IMPLEMENTED_BY]->(:Project)))) RETURN n.id AS id, labels(n)[0] AS kind, n.name AS name, n.display_name AS display_name, n.path AS path, n.framework AS framework, n.role AS role, n.is_library AS is_library, n.db_type AS db_type, n.project_type AS project_type, n.package_type AS package_type, n.type AS pkg_type, n.version AS version, n.properties AS properties, n.layer AS layer, n.layerId AS layerId, n.layerName AS layerName, n.layerOrder AS layerOrder, n.layerColor AS layerColor, n.layerIcon AS layerIcon, n.package_count AS package_count";
+            $"MATCH (n) WHERE labels(n)[0] IN ['Project', 'Service', 'App', 'Library', 'Worker', 'CliTool', 'TestSuite', 'Database', 'ExternalService', 'CloudService', 'PeerMesh']{topicClause} OR (labels(n)[0] = 'Package' AND (n.is_external = 'true' OR n.is_external = true OR (n.is_external IS NULL AND NOT (n)-[:IMPLEMENTED_BY]->(:Project)))) RETURN n.id AS id, labels(n)[0] AS kind, n.name AS name, n.display_name AS display_name, n.path AS path, n.framework AS framework, n.role AS role, n.is_library AS is_library, n.db_type AS db_type, n.project_type AS project_type, n.package_type AS package_type, n.type AS pkg_type, n.version AS version, n.member_count AS member_count, n.protocols AS protocols, n.properties AS properties, n.layer AS layer, n.layerId AS layerId, n.layerName AS layerName, n.layerOrder AS layerOrder, n.layerColor AS layerColor, n.layerIcon AS layerIcon, n.package_count AS package_count";
 
         var nodesJson = await db.ExecuteQueryAsync(nodesQuery, null, ct);
         using var nodesDoc = JsonDocument.Parse(nodesJson);
@@ -48,7 +48,8 @@ public partial class ArchitectureViewEngine
         if (!includeLibraries)
         {
             var libOrPkgIds = graph.Nodes
-                .Where(n => IsLibraryProject(n) || n.Kind is NodeKind.Package or NodeKind.Library or NodeKind.SharedLibrary)
+                .Where(n => (IsLibraryProject(n) && !IsArchitecturalSubsystem(n)) ||
+                            ((n.Kind is NodeKind.Package or NodeKind.Library or NodeKind.SharedLibrary) && !IsArchitecturalSubsystem(n)))
                 .Select(n => n.Id)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -115,6 +116,7 @@ public partial class ArchitectureViewEngine
     {
         if (node == null) return false;
         if (node.Kind is NodeKind.TestSuite) return false;
+        if (IsArchitecturalSubsystem(node)) return false;
         if (node.Kind is NodeKind.Library or NodeKind.SharedLibrary)
         {
             return true;
@@ -142,6 +144,9 @@ public partial class ArchitectureViewEngine
         );
         return isLib;
     }
+
+    public static bool IsArchitecturalSubsystem(GraphNodeDto? node) =>
+        string.Equals(node?.Properties?.GetValueOrDefault("architectural_subsystem"), "true", StringComparison.OrdinalIgnoreCase);
 
     public static GraphNodeDto? FindOwningProject(string sourceId, IEnumerable<GraphNodeDto> projects)
     {

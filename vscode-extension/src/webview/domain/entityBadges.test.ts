@@ -13,6 +13,8 @@ test('entityBadges: getEntityBadgeMeta maps all standard and alias kinds correct
     { kind: 'Database', expectedCode: 'DB', expectedBgColor: '#7b1fa2' },
     { kind: 'Topic', expectedCode: 'MSG', expectedBgColor: '#f59e0b' },
     { kind: 'ExternalService', expectedCode: 'EXT', expectedBgColor: '#26a69a' },
+    { kind: 'CloudService', expectedCode: 'AWS', expectedBgColor: '#0284c7' },
+    { kind: 'PeerMesh', expectedCode: 'MESH', expectedBgColor: '#0f766e' },
     { kind: 'Library', expectedCode: 'LIB', expectedBgColor: '#4b5563' },
     { kind: 'TestSuite', expectedCode: 'TST', expectedBgColor: '#059669' },
     { kind: 'Group', expectedCode: 'GRP', expectedBgColor: '#4f46e5' },

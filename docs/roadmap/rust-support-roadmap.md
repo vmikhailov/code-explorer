@@ -39,7 +39,7 @@ This roadmap specifies the design, architecture, and step-by-step implementation
 
 ### Strategic Objectives & Quality Attributes
 1. **Full 5-Layer Parity**: Deliver the exact same depth of modeling for Rust as existing mature parsers (`CSharpParser`, `GoParser`, `TypeScriptParser`).
-2. **Zero-Hack Evidence-Based Classification**: Accurately classify Rust crates into `Service`, `CliTool`, `Worker`, `Library`, `TestSuite`, or `DatabaseMigration` without fragile repository name heuristics.
+2. **Evidence-Based Classification**: Classify Rust crates into `Service`, `CliTool`, `Worker`, `Library`, `TestSuite`, or `DatabaseMigration` using manifest, entrypoint, source, and capability evidence rather than repository-specific names.
 3. **Pure In-Memory AST Safety**: Execute purely in-memory Tree-sitter traversal, respecting `SIG-C-I-001` (In-Memory AST Visitor IO Purity) and guaranteeing zero native memory leaks across the 6 supported RIDs.
 4. **Rich Ecosystem Understanding**: Deep semantic support for standard Rust frameworks (`axum`, `actix-web`, `rocket`, `tonic`, `reqwest`, `sqlx`, `sea-orm`, `diesel`, `rdkafka`, `lapin`, `async-nats`).
 5. **Architectural Guardrails (SIG)**: Deliver first-class Semantic Invariant Gates for Rust, enforcing Unsafe Code Isolation, Clean Architecture Crate Boundaries, and Async Runtime Purity.
@@ -161,6 +161,14 @@ Each package crate defines its metadata and entry points:
 - `[[test]]`: Integration tests (`tests/integration_tests.rs`).
 - `[[bench]]`: Performance benchmarks (`benches/perf.rs`).
 - `[[example]]`: Executable examples (`examples/demo.rs`).
+
+#### 1.2.4 Multi-Binary Processes & Architectural Subsystems
+
+When one package declares multiple `[[bin]]` targets, each existing target entrypoint is projected as its own process candidate instead of classifying the package from the union of all target code. Runtime `ENTRYPOINT`/`CMD` references, server-path and server-binding evidence, explicit worker names, and finite-task/CLI names determine each candidate's role; a Docker build command alone does not imply a service.
+
+Library crates with infrastructure capability or a domain-oriented name and at least 1,500 non-empty Rust source lines are retained as semantic architectural subsystems. Generic `common` and `utils` crates are not promoted by size alone. Default architecture views keep these marked subsystems visible while continuing to hide ordinary libraries.
+
+Layer 4 also models AWS buckets and KMS key sets when both the runtime SDK dependency and resource-specific configuration usage are present; SQS/SNS remain message `Topic` entities. A `PeerMesh` is synthesized only when at least two independent signals agree (peer configuration, bidirectional transport, repeated Compose participants, or distributed collective compute). Participant count and protocols are derived from the workspace evidence, and C1 preserves the typed resource and `COORDINATES_WITH` edges.
 
 #### 1.2.3 Dependency Classifications: Local vs External Crates
 Cargo dependencies appear in multiple sections:

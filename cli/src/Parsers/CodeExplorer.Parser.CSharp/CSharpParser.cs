@@ -8,6 +8,7 @@ using TreeSitter;
 
 namespace CodeExplorer.Parser.CSharp;
 
+[ProjectParser(Tier = ParserTier.Primary)]
 public class CSharpParser : IProjectParser, IFileParser
 {
     public string LanguageName => "c-sharp";

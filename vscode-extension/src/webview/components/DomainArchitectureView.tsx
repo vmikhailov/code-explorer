@@ -142,6 +142,8 @@ export type EntityKind =
   | 'TestSuite'
   | 'Database'
   | 'Topic'
+  | 'CloudService'
+  | 'PeerMesh'
   | 'ExternalService'
   | 'Group';
 
@@ -1256,13 +1258,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   }, [applySearchHighlight]);
   const [hiddenTypes, setHiddenTypes] = useState<Set<EntityKind>>(() => {
     try {
-      const saved = readDomainSessionValue('ce_domain_hidden_types');
+      const saved = readDomainSessionValue('ce_domain_hidden_types_v2');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return new Set<EntityKind>(parsed);
       }
     } catch { }
-    return new Set<EntityKind>(['ExternalService']);
+    return new Set<EntityKind>(['ExternalService', 'Library']);
   });
   const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(() => {
     try {
@@ -1311,7 +1313,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
   // Sync hidden and filter states to in-memory webview session state
   useEffect(() => {
-    writeDomainSessionValue('ce_domain_hidden_types', JSON.stringify([...hiddenTypes]));
+    writeDomainSessionValue('ce_domain_hidden_types_v2', JSON.stringify([...hiddenTypes]));
   }, [hiddenTypes]);
 
   useEffect(() => {
@@ -4140,6 +4142,25 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     return adjacent ? entries : null;
   }, [selectedOrbitRows, orbitLegendItems]);
 
+  // Legend rows grouped per rendered orbit; merged orbits hold several tier rows.
+  const orbitLegendGroups = useMemo(() => {
+    const groups: Array<{
+      orbitIndex: number;
+      levelIndex: number;
+      shortLabel: string;
+      rows: Array<{ item: OrbitLegendItem; idx: number }>;
+    }> = [];
+    orbitLegendItems.forEach((item, idx) => {
+      const last = groups[groups.length - 1];
+      if (last && last.orbitIndex === item.orbitIndex) {
+        last.rows.push({ item, idx });
+      } else {
+        groups.push({ orbitIndex: item.orbitIndex, levelIndex: item.levelIndex, shortLabel: item.shortLabel, rows: [{ item, idx }] });
+      }
+    });
+    return groups;
+  }, [orbitLegendItems]);
+
   const handleMergeSelected = useCallback(() => {
     if (!mergeSelection) return;
     const cfg = orbitConfigRef.current;
@@ -4308,134 +4329,149 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       persistKey="ce_orbit_legend"
       className="domain-orbit-legend-floating no-body-padding"
     >
-      <div
-        className="orbit-legend-hint"
-        title="Orbits run from Center (top) to Periphery (bottom). Drag rows or use ▲/▼ to reorder; shift-click adjacent rows, then Merge, to share one ring; drag a kind chip onto another orbit to move it."
-      >
-        <span>Inner (Center)</span>
-        <span>↕</span>
-        <span>Outer (Periphery)</span>
-      </div>
       <div className="domain-orbit-legend-body" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-        {orbitLegendItems.map((item, idx) => {
-          const isOrbitHidden = hiddenOrbitTiers.has(item.levelIndex);
-          const isMerged = item.orbitRowCount > 1;
-          const isSelected = selectedOrbitRows.includes(idx);
-          const braceClass = !isMerged
-            ? ''
-            : item.isFirstInOrbit
-              ? 'brace-first'
-              : item.isLastInOrbit
-                ? 'brace-last'
-                : 'brace-mid';
+        <div
+          className="orbit-axis-label"
+          title="Orbits run from the center of the map (top) to its periphery (bottom). Drag cards or use ▲/▼ to reorder; shift-click adjacent cards, then Merge, to share one ring; drag a kind chip onto another orbit to move it."
+        >
+          <span className="orbit-axis-dot" />
+          <span>Center</span>
+        </div>
+        {orbitLegendGroups.map((group, gIdx) => {
+          const anchorIdx = group.rows[0].idx;
+          const anchorItem = group.rows[0].item;
+          const isOrbitHidden = hiddenOrbitTiers.has(group.levelIndex);
+          const isMerged = group.rows.length > 1;
+          const isSelected = group.rows.some((r) => selectedOrbitRows.includes(r.idx));
+          const total = group.rows.reduce((sum, r) => sum + r.item.count, 0);
+          const allNodeIds = group.rows.flatMap((r) => r.item.nodeIds);
+          const depth = orbitLegendGroups.length > 1 ? gIdx / (orbitLegendGroups.length - 1) : 0;
+          const groupTitle = group.rows.map((r) => r.item.title).join(' + ');
 
           return (
-            <div
-              key={`${item.levelIndex}-${item.slotTier}`}
-              className={`domain-orbit-legend-row ${isMerged ? 'is-merged' : ''} ${braceClass}`}
+            <section
+              key={`${group.orbitIndex}-${group.levelIndex}`}
+              className={`orbit-card ${isOrbitHidden ? 'is-orbit-hidden' : ''} ${isSelected ? 'is-selected' : ''} ${isMerged ? 'is-merged' : ''} ${draggedOrbitIndex === anchorIdx ? 'is-dragging' : ''} ${dragOverIndex === anchorIdx ? 'is-drag-over' : ''}`}
+              style={{ '--orbit-depth': depth } as React.CSSProperties}
+              draggable
+              onClick={(e) => handleOrbitRowClick(e, anchorIdx)}
+              onDragStart={(e) => handleDragStart(e, anchorIdx)}
+              onDragOver={(e) => handleDragOver(e, anchorIdx)}
+              onDrop={(e) => handleDrop(e, anchorIdx)}
+              onDragEnd={handleDragEnd}
+              onMouseEnter={() => !isOrbitHidden && highlightOrbitNodes(allNodeIds)}
+              onMouseLeave={clearOrbitHighlight}
+              title={`${group.shortLabel}: ${groupTitle} (${total} nodes). Drag or use ▲/▼ to reorder; shift-click to select for merging.`}
             >
-              <div
-                className={`domain-orbit-legend-item ${isOrbitHidden ? 'is-orbit-hidden' : ''} ${isSelected ? 'is-selected' : ''} ${draggedOrbitIndex === idx ? 'is-dragging' : ''} ${dragOverIndex === idx ? 'is-drag-over' : ''}`}
-                draggable
-                onClick={(e) => handleOrbitRowClick(e, idx)}
-                onDragStart={(e) => handleDragStart(e, idx)}
-                onDragOver={(e) => handleDragOver(e, idx)}
-                onDrop={(e) => handleDrop(e, idx)}
-                onDragEnd={handleDragEnd}
-                onMouseEnter={() => !isOrbitHidden && highlightOrbitNodes(item.nodeIds)}
-                onMouseLeave={clearOrbitHighlight}
-                title={`${item.shortLabel}: ${item.title} (${item.count} nodes). Drag or use ▲/▼ to reorder; shift-click to select for merging.`}
-              >
-                <button
-                  type="button"
-                  className={`orbit-visibility-btn ${isOrbitHidden ? 'is-hidden' : ''}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleOrbitVisibility(item.levelIndex);
-                  }}
-                  title={isOrbitHidden ? `Show entire ${item.title}` : `Hide entire ${item.title}`}
-                >
-                  {isOrbitHidden ? <EyeOffIcon size={13} /> : <EyeIcon size={13} />}
-                </button>
+              <header className="orbit-card-header">
                 <span className="orbit-drag-handle" title="Drag to reorder orbit">⠿</span>
-                <span className="orbit-legend-pill">{item.isFirstInOrbit ? item.shortLabel : '↳'}</span>
-                <span className="orbit-legend-title">{item.title}</span>
-                <span className="orbit-legend-count">{item.count}</span>
-                <div className="orbit-move-actions">
+                <span className="orbit-legend-pill">{group.shortLabel}</span>
+                {isMerged ? <span className="orbit-merged-tag">Merged</span> : null}
+                <span className="orbit-card-spacer" />
+                <span className="orbit-legend-count" title={`${total} nodes on this orbit`}>{total}</span>
+                <div className="orbit-card-actions">
+                  {isMerged ? (
+                    <button
+                      type="button"
+                      className="orbit-split-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSplitOrbit(group.orbitIndex);
+                      }}
+                      title="Split this merged orbit back into separate orbits"
+                    >
+                      Split
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className="orbit-move-btn"
-                    disabled={item.orbitIndex === orbitLegendItems[0]?.orbitIndex}
+                    disabled={gIdx === 0}
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleMoveOrbit(item, -1);
+                      handleMoveOrbit(anchorItem, -1);
                     }}
-                    title="Move toward center (Inner orbit)"
+                    title="Move toward center (inner orbit)"
                   >
                     <ChevronUpIcon size={10} />
                   </button>
                   <button
                     type="button"
                     className="orbit-move-btn"
-                    disabled={item.orbitIndex === orbitLegendItems[orbitLegendItems.length - 1]?.orbitIndex}
+                    disabled={gIdx === orbitLegendGroups.length - 1}
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleMoveOrbit(item, 1);
+                      handleMoveOrbit(anchorItem, 1);
                     }}
-                    title="Move toward periphery (Outer orbit)"
+                    title="Move toward periphery (outer orbit)"
                   >
                     <ChevronDownIcon size={10} />
                   </button>
-                </div>
-                {isMerged && item.isFirstInOrbit ? (
                   <button
                     type="button"
-                    className="orbit-split-btn"
+                    className={`orbit-visibility-btn ${isOrbitHidden ? 'is-hidden' : ''}`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleSplitOrbit(item.orbitIndex);
+                      toggleOrbitVisibility(group.levelIndex);
                     }}
-                    title="Split this merged orbit back into separate orbits"
+                    title={isOrbitHidden ? `Show ${group.shortLabel}` : `Hide ${group.shortLabel}`}
                   >
-                    Split
+                    {isOrbitHidden ? <EyeOffIcon size={13} /> : <EyeIcon size={13} />}
                   </button>
-                ) : null}
-              </div>
-              <div className="orbit-kind-chips">
-                {item.kinds.map((k) => (
-                  <span
-                    key={k.kind}
-                    className={`orbit-kind-chip ${k.overridden ? 'is-overridden' : ''}`}
-                    draggable
-                    onDragStart={(e) => {
-                      e.stopPropagation();
-                      draggedKindRef.current = k.kind;
-                      e.dataTransfer.effectAllowed = 'move';
-                      e.dataTransfer.setData('text/plain', k.kind);
-                    }}
-                    onDragEnd={handleDragEnd}
-                    title={`Drag ${k.kind} onto another orbit to move all ${k.kind} entities there`}
-                  >
-                    {k.kind} {k.count}
-                    {k.overridden ? (
-                      <button
-                        type="button"
-                        className="orbit-kind-chip-clear"
-                        onClick={(e) => {
+                </div>
+              </header>
+              {group.rows.map(({ item }) => (
+                <div
+                  key={item.slotTier}
+                  className="orbit-tier"
+                  onMouseEnter={() => isMerged && !isOrbitHidden && highlightOrbitNodes(item.nodeIds)}
+                  onMouseLeave={() => isMerged && !isOrbitHidden && highlightOrbitNodes(allNodeIds)}
+                >
+                  <div className="orbit-tier-title">
+                    <span>{item.title}</span>
+                    {isMerged ? <span className="orbit-tier-count">{item.count}</span> : null}
+                  </div>
+                  <div className="orbit-kind-chips">
+                    {item.kinds.map((k) => (
+                      <span
+                        key={k.kind}
+                        className={`orbit-kind-chip ${k.overridden ? 'is-overridden' : ''}`}
+                        draggable
+                        onDragStart={(e) => {
                           e.stopPropagation();
-                          applyOrbitConfig(moveKindToOrbit(orbitConfigRef.current, k.kind, null), [item.levelIndex]);
+                          draggedKindRef.current = k.kind;
+                          e.dataTransfer.effectAllowed = 'move';
+                          e.dataTransfer.setData('text/plain', k.kind);
                         }}
-                        title="Restore the default orbit for this kind"
+                        onDragEnd={handleDragEnd}
+                        title={`Drag ${k.kind} onto another orbit to move all ${k.kind} entities there`}
                       >
-                        ✕
-                      </button>
-                    ) : null}
-                  </span>
-                ))}
-              </div>
-            </div>
+                        <span className="orbit-kind-chip-name">{k.kind}</span>
+                        <span className="orbit-kind-chip-count">{k.count}</span>
+                        {k.overridden ? (
+                          <button
+                            type="button"
+                            className="orbit-kind-chip-clear"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              applyOrbitConfig(moveKindToOrbit(orbitConfigRef.current, k.kind, null), [item.levelIndex]);
+                            }}
+                            title="Restore the default orbit for this kind"
+                          >
+                            ✕
+                          </button>
+                        ) : null}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </section>
           );
         })}
+        <div className="orbit-axis-label is-outer">
+          <span>Periphery</span>
+        </div>
       </div>
     </FloatingPanel>
   );
@@ -4448,7 +4484,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           <div className="view-loading-card">
             <div className="view-loading-spinner" />
             <div className="view-loading-content">
-              <span className="view-loading-title">Domain Microservice Map</span>
+              <span className="view-loading-title">Architecture Map</span>
               <span className="view-loading-subtitle">{preparingStatus}</span>
             </div>
           </div>
@@ -4460,7 +4496,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         {/* Left Brand Column (Rowspan 2) */}
         <div className="domain-hud-brand">
           <span className="domain-hud-label">Macro Architecture</span>
-          <span className="domain-hud-title">Domain Microservice Map</span>
+          <span className="domain-hud-title">Architecture Map</span>
         </div>
 
         {/* Right Content Column: Two Stacked Rows of Controls */}
@@ -4969,7 +5005,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                   type="button"
                   className="domain-hud-btn refresh-btn"
                   onClick={onRefresh}
-                  title="Reload Domain Microservice Map"
+                  title="Reload Architecture Map"
                 >
                   🔄 Refresh
                 </button>

@@ -25,6 +25,8 @@ export type EntityKind =
   | 'TestSuite'
   | 'Database'
   | 'Topic'
+  | 'CloudService'
+  | 'PeerMesh'
   | 'ExternalService'
   | 'Group';
 

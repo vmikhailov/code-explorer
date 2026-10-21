@@ -319,16 +319,37 @@ export interface TestGateResponseDto {
   error?: string;
 }
 
+export type EvidenceKind =
+  | 'endpoint'
+  | 'entrypoint'
+  | 'http_call'
+  | 'grpc_call'
+  | 'wcf_call'
+  | 'publish'
+  | 'subscribe'
+  | 'query'
+  | 'procedure'
+  | 'orm'
+  | 'table'
+  | 'config'
+  | 'migration'
+  | 'library_call'
+  | 'test_call'
+  | 'type_reference';
+
+export type EvidenceConfidence = 'recorded' | 'inferred';
+
 export interface ArchitectureEvidenceItemDto {
   id: string;
   /** endpoint | http_call | grpc_call | wcf_call | publish | subscribe | query | orm | table | procedure | config | migration | type_reference */
-  kind: string;
+  kind: EvidenceKind | string;
   /** Badge text: POST, GET, PUBLISH, SUBSCRIBE, SELECT, INSERT, ORM, CONFIG, ... */
   operation: string;
   title: string;
   filePath: string;
-  lineStart: number;
-  lineEnd: number;
+  lineStart?: number | null;
+  lineEnd?: number | null;
+  confidence?: EvidenceConfidence;
   codeSnippet?: string;
   callerSymbol?: string;
   targetSymbol?: string;
@@ -344,6 +365,7 @@ export interface DatabaseEvidenceResponseDto {
   serviceId?: string;
   totalCount: number;
   items: ArchitectureEvidenceItemDto[];
+  warnings?: string[];
 }
 
 export interface EdgeEvidenceResponseDto {
@@ -352,6 +374,7 @@ export interface EdgeEvidenceResponseDto {
   edgeKind: string;
   totalCount: number;
   items: ArchitectureEvidenceItemDto[];
+  warnings?: string[];
 }
 
 export interface NodeEvidenceResponseDto {
@@ -360,6 +383,7 @@ export interface NodeEvidenceResponseDto {
   nodeKind: string;
   totalCount: number;
   items: ArchitectureEvidenceItemDto[];
+  warnings?: string[];
 }
 
 // ============================================================================

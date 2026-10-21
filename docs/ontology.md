@@ -49,6 +49,7 @@ graph TD
         EntryPoint["EntryPoint"]
         ExternalService["ExternalService"]
         Library["Library"]
+        PeerMesh["PeerMesh"]
         Procedure["Procedure"]
         Query["Query"]
         Service["Service"]
@@ -65,6 +66,10 @@ graph TD
     App -->|DEPENDS_ON| Package
     App -->|SERVICE_CALL| Service
     App -->|SERVICE_CALL| ExternalService
+    App -->|USES_CLOUD| CloudService
+    App -->|READS_FROM| CloudService
+    App -->|WRITES_TO| CloudService
+    App -->|COORDINATES_WITH| PeerMesh
     App -->|CONTAINS| EntryPoint
     App -->|CONTAINS| Endpoint
     App -->|CONTAINS| ApiInUse
@@ -77,6 +82,10 @@ graph TD
     CliTool -->|DEPENDS_ON| Package
     CliTool -->|SERVICE_CALL| Service
     CliTool -->|SERVICE_CALL| ExternalService
+    CliTool -->|USES_CLOUD| CloudService
+    CliTool -->|READS_FROM| CloudService
+    CliTool -->|WRITES_TO| CloudService
+    CliTool -->|COORDINATES_WITH| PeerMesh
     CliTool -->|USES_DB| Database
     CliTool -->|CONTAINS| EntryPoint
     Database -->|QUERIED_BY| Function
@@ -107,6 +116,10 @@ graph TD
     Library -->|USES_DB| Database
     Library -->|PUBLISHES_TO| Topic
     Library -->|SUBSCRIBES_TO| Topic
+    Library -->|USES_CLOUD| CloudService
+    Library -->|READS_FROM| CloudService
+    Library -->|WRITES_TO| CloudService
+    Library -->|COORDINATES_WITH| PeerMesh
     Library -->|CONTAINS| Type
     Library -->|CONTAINS| Function
     Member -->|DECLARED_IN| File
@@ -134,6 +147,7 @@ graph TD
     SemanticStructure -->|CONTAINS| Topic
     SemanticStructure -->|CONTAINS| ExternalService
     SemanticStructure -->|CONTAINS| CloudService
+    SemanticStructure -->|CONTAINS| PeerMesh
     Service -->|LOCATED_IN| Folder
     Service -->|LOCATED_IN| Workspace
     Service -->|DEPLOYED_BY| Project
@@ -147,6 +161,10 @@ graph TD
     Service -->|CONTAINS| EntryPoint
     Service -->|CONTAINS| Endpoint
     Service -->|CONTAINS| CloudService
+    Service -->|USES_CLOUD| CloudService
+    Service -->|READS_FROM| CloudService
+    Service -->|WRITES_TO| CloudService
+    Service -->|COORDINATES_WITH| PeerMesh
     Service -->|CONTAINS| ApiInUse
     SyntaxStructure -->|CONTAINS| ProjectSyntax
     Table -->|QUERIED_BY| Function
@@ -185,6 +203,10 @@ graph TD
     Worker -->|USES_DB| Database
     Worker -->|PUBLISHES_TO| Topic
     Worker -->|SUBSCRIBES_TO| Topic
+    Worker -->|USES_CLOUD| CloudService
+    Worker -->|READS_FROM| CloudService
+    Worker -->|WRITES_TO| CloudService
+    Worker -->|COORDINATES_WITH| PeerMesh
     Worker -->|CONTAINS| EntryPoint
     Workspace -->|CONTAINS| FilesStructure
     Workspace -->|CONTAINS| ProjectsStructure
@@ -215,6 +237,7 @@ graph TD
 | `CONTAINS` | `Topic` |
 | `CONTAINS` | `ExternalService` |
 | `CONTAINS` | `CloudService` |
+| `CONTAINS` | `PeerMesh` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -798,6 +821,10 @@ graph TD
 | `DEPENDS_ON` | `Package` |
 | `SERVICE_CALL` | `Service` |
 | `SERVICE_CALL` | `ExternalService` |
+| `USES_CLOUD` | `CloudService` |
+| `READS_FROM` | `CloudService` |
+| `WRITES_TO` | `CloudService` |
+| `COORDINATES_WITH` | `PeerMesh` |
 | `CONTAINS` | `EntryPoint` |
 | `CONTAINS` | `Endpoint` |
 | `CONTAINS` | `ApiInUse` |
@@ -834,6 +861,10 @@ graph TD
 | `DEPENDS_ON` | `Package` |
 | `SERVICE_CALL` | `Service` |
 | `SERVICE_CALL` | `ExternalService` |
+| `USES_CLOUD` | `CloudService` |
+| `READS_FROM` | `CloudService` |
+| `WRITES_TO` | `CloudService` |
+| `COORDINATES_WITH` | `PeerMesh` |
 | `USES_DB` | `Database` |
 | `CONTAINS` | `EntryPoint` |
 
@@ -862,8 +893,23 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
+| `App` | `USES_CLOUD` |
+| `App` | `READS_FROM` |
+| `App` | `WRITES_TO` |
+| `CliTool` | `USES_CLOUD` |
+| `CliTool` | `READS_FROM` |
+| `CliTool` | `WRITES_TO` |
+| `Library` | `USES_CLOUD` |
+| `Library` | `READS_FROM` |
+| `Library` | `WRITES_TO` |
 | `SemanticStructure` | `CONTAINS` |
 | `Service` | `CONTAINS` |
+| `Service` | `USES_CLOUD` |
+| `Service` | `READS_FROM` |
+| `Service` | `WRITES_TO` |
+| `Worker` | `USES_CLOUD` |
+| `Worker` | `READS_FROM` |
+| `Worker` | `WRITES_TO` |
 
 **Properties:**
 
@@ -1028,6 +1074,10 @@ graph TD
 | `USES_DB` | `Database` |
 | `PUBLISHES_TO` | `Topic` |
 | `SUBSCRIBES_TO` | `Topic` |
+| `USES_CLOUD` | `CloudService` |
+| `READS_FROM` | `CloudService` |
+| `WRITES_TO` | `CloudService` |
+| `COORDINATES_WITH` | `PeerMesh` |
 | `CONTAINS` | `Type` |
 | `CONTAINS` | `Function` |
 
@@ -1050,6 +1100,32 @@ graph TD
 | `Name` | `string` | The library name. |
 | `Path` | `string` | The path of the library directory relative to the workspace. |
 | `ProjectType` | `string` | The project type or language. |
+
+---
+
+#### `PeerMesh`
+
+> Represents a symmetric peer-to-peer cluster or collective topology.
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `App` | `COORDINATES_WITH` |
+| `CliTool` | `COORDINATES_WITH` |
+| `Library` | `COORDINATES_WITH` |
+| `SemanticStructure` | `CONTAINS` |
+| `Service` | `COORDINATES_WITH` |
+| `Worker` | `COORDINATES_WITH` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the peer mesh. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
+| `MemberCount` | `int?` | The number of configured peer members, when known. |
+| `Protocols` | `string` | The detected communication protocols. |
 
 ---
 
@@ -1106,6 +1182,10 @@ graph TD
 | `CONTAINS` | `EntryPoint` |
 | `CONTAINS` | `Endpoint` |
 | `CONTAINS` | `CloudService` |
+| `USES_CLOUD` | `CloudService` |
+| `READS_FROM` | `CloudService` |
+| `WRITES_TO` | `CloudService` |
+| `COORDINATES_WITH` | `PeerMesh` |
 | `CONTAINS` | `ApiInUse` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
@@ -1237,6 +1317,10 @@ graph TD
 | `USES_DB` | `Database` |
 | `PUBLISHES_TO` | `Topic` |
 | `SUBSCRIBES_TO` | `Topic` |
+| `USES_CLOUD` | `CloudService` |
+| `READS_FROM` | `CloudService` |
+| `WRITES_TO` | `CloudService` |
+| `COORDINATES_WITH` | `PeerMesh` |
 | `CONTAINS` | `EntryPoint` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
@@ -1269,6 +1353,7 @@ graph TD
 | `CALLS_ENDPOINT` | Links an external API call to the target HTTP endpoint it invokes. |
 | `CONFIGURES` | Links a configuration or infrastructure file to the semantic node (database, message broker, cloud or external service) it configures. |
 | `CONTAINS` | Represents directory structure containment or syntactic scoping of elements. |
+| `COORDINATES_WITH` | Links a workload to the symmetric peer mesh it coordinates with. |
 | `DECLARED_IN` | Links a syntactic type, function, or member declaration to its physical declaring source file. |
 | `DECLARES` | Indicates that a container entity declares a sub-entity. |
 | `DECLARES_TYPE` | Indicates that a project declares a specific type. |
@@ -1336,6 +1421,7 @@ graph TD
 | Layer 4: Semantic Structure | `EntryPoint` | `{workspaceId}:entry:{type}:{name}` |
 | Layer 4: Semantic Structure | `ExternalService` | `{workspaceId}:es:{protocol}:{host}` |
 | Layer 4: Semantic Structure | `Library` | `{workspaceId}:lib:{libraryName}` |
+| Layer 4: Semantic Structure | `PeerMesh` | `{workspaceId}:mesh:peer-network` |
 | Layer 4: Semantic Structure | `Procedure` | `{workspaceId}:proc:{procedureName}` |
 | Layer 4: Semantic Structure | `Query` | `{workspaceId}:q:{queryHash}` |
 | Layer 4: Semantic Structure | `Service` | `{workspaceId}:s:{serviceName}` |

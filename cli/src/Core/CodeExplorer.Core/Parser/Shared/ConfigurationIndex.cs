@@ -310,9 +310,19 @@ public static class ConfigurationIndex
         // Determine if external:
         // Internal if localhost, loopback, or single-segment hostname without dot (typical Docker/K8s service name)
         var isLocal = host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+                      host.EndsWith(".localhost", StringComparison.OrdinalIgnoreCase) ||
+                      host.EndsWith(".localhost.localstack.cloud", StringComparison.OrdinalIgnoreCase) ||
                       host.Equals("127.0.0.1", StringComparison.Ordinal) ||
                       host.Equals("0.0.0.0", StringComparison.Ordinal) ||
                       host.Equals("[::1]", StringComparison.Ordinal);
+
+        if (host.StartsWith("sqs.", StringComparison.OrdinalIgnoreCase) ||
+            keyPath.Contains("QUEUE_URL", StringComparison.OrdinalIgnoreCase) ||
+            keyPath.EndsWith(":QueueUrl", StringComparison.OrdinalIgnoreCase) ||
+            keyPath.EndsWith(".QueueUrl", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
 
         var hasDomainDot = host.Contains('.') && !isLocal;
         var isExternal = hasDomainDot;
@@ -336,6 +346,7 @@ public static class ConfigurationIndex
         {
             var firstSeg = uri.AbsolutePath.Trim('/').Split('/')[0];
             if (!string.IsNullOrWhiteSpace(firstSeg) &&
+                !firstSeg.All(char.IsDigit) &&
                 !firstSeg.Equals("api", StringComparison.OrdinalIgnoreCase) &&
                 !firstSeg.StartWithIC("v") &&
                 !firstSeg.Equals(serviceName, StringComparison.OrdinalIgnoreCase))

@@ -42,6 +42,16 @@ public partial class PostIndexAnalyzer
     {
         var kind = (rawKind ?? "").ToUpperInvariant();
 
+        if (kind == OntologyConstants.Relationships.CoordinatesWith)
+        {
+            return (DependencyCategory.ServiceCall, "peer_mesh", OntologyConstants.Relationships.CoordinatesWith);
+        }
+        if (targetKind == OntologyConstants.NodeLabels.CloudService &&
+            kind is OntologyConstants.Relationships.UsesCloud or OntologyConstants.Relationships.ReadsFrom or OntologyConstants.Relationships.WritesTo)
+        {
+            return (DependencyCategory.ServiceCall, "external_resource", kind);
+        }
+
         if (kind is OntologyConstants.Relationships.Tests or "TESTS")
         {
             return (DependencyCategory.UnidentifiedDependency, "tests", OntologyConstants.Relationships.Tests);
@@ -150,7 +160,7 @@ public partial class PostIndexAnalyzer
         // 1. Query architectural/macro nodes to determine kind and whether project is library
         var nodeMap = new Dictionary<string, (string Kind, bool IsLibrary)>(StringComparer.OrdinalIgnoreCase);
         var nodesJson = await db.ExecuteQueryAsync(
-            "MATCH (n) WHERE n.kind IN ['Project', 'Service', 'App', 'Worker', 'Library', 'Package', 'Database', 'Topic', 'Endpoint', 'EntryPoint', 'ExternalService', 'CloudService'] RETURN n.id AS id, labels(n) AS lbl, n.is_library AS is_lib, n.role AS role",
+            "MATCH (n) WHERE n.kind IN ['Project', 'Service', 'App', 'Worker', 'Library', 'Package', 'Database', 'Topic', 'Endpoint', 'EntryPoint', 'ExternalService', 'CloudService', 'PeerMesh'] RETURN n.id AS id, labels(n) AS lbl, n.is_library AS is_lib, n.role AS role",
             null, cancellationToken);
         using (var nodesDoc = JsonDocument.Parse(nodesJson))
         {

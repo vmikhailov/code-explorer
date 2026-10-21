@@ -1,286 +1,258 @@
-# UniversalParser Architecture Proposal 🌐
-## Unifying Polyglot AST Extraction Under a Single Profile-Driven Tree-Sitter Engine
+# UniversalParser Proposal 🌐
+## Profile-Driven Tree-Sitter Visitor — Proof of Concept
 
-- **Document Version:** 1.0.0
-- **Status:** Architecture Proposal
-- **Target Audience:** Core Maintainers, Compiler Engineers, Systems Architects
-- **Target Subsystems:** `CodeExplorer.Core.Parser`, `LanguageSyntaxProfile`, `BaseParserVisitor`, `CodeExplorer.Parser.*`
-
----
-
-## 1. Problem Statement: Why Do We Still Have 10 Separate Parser Assemblies?
-
-Today, CodeExplorer maintains 10 separate `CodeExplorer.Parser.<Language>` projects (`CSharp`, `Java`, `Kotlin`, `TypeScript`, `Python`, `Go`, `Rust`, `SQL`, `ColdFusion`, `Android`), each containing its own `IFileParser`, `BaseParserVisitor` subclass (`JavaFileVisitor`, `CSharpVisitor`, `RustVisitor`, etc.), and custom declaration/variable extractors.
-
-### 1.1 The Hidden Duplication Across Language Visitors
-An inspection of [`BaseParserVisitor.cs`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Parser/BaseParserVisitor.cs) and its language-specific subclasses (such as [`JavaFileVisitor.cs`](file:///c:/Work/Personal/code-explorer/cli/src/Parsers/CodeExplorer.Parser.Java/JavaFileVisitor.cs)) reveals that **90% of every language visitor does the exact same 6 structural operations on a Tree-sitter CST/AST**:
-
-1. **Package / Namespace Detection:** Find the file-level `package_declaration` or `namespace_declaration` and record the scope prefix.
-2. **Import Extraction:** Find `import_declaration` / `using_directive` / `use_declaration`, extract the imported path, and classify it as `Internal` vs. `External`.
-3. **Symbol Declaration (`Type` & `Function`):** Match node types in [`LanguageSyntaxProfile`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Parser/LanguageSyntaxProfile.cs) (`ClassDeclarations`, `InterfaceDeclarations`, `MethodDeclarations`, `FunctionDeclarations`) and extract the symbol name from the `name` field or identifier child.
-4. **Inheritance & Interfaces (`INHERITS_FROM` / `IMPLEMENTS`):** Walk `superclass` / `super_interfaces` / `base_list` / `type_inheritance_clause` and emit type references.
-5. **Annotations / Attributes / Decorators (`ANNOTATED_WITH`):** Walk `modifiers` / `attribute_list` / `decorator` nodes and attach annotation names and key-value arguments to the symbol.
-6. **Variables, Type Bindings & Call Graph (`CALLS` + `RawTypeBindings`):** Extract field/variable `(name, type, initializer)` bindings and extract `receiver.method` names from `call_expression` / `method_invocation` / `object_creation_expression`.
-
-### 1.2 Consequences of Fragmented Language Visitors
-* **Feature Drift Between Languages:** Improvements made to `CSharpParser` or `JavaParser` (such as annotation extraction, constant propagation, or constructor field binding) are missing in `KotlinFileParser` (which still uses regexes) or `PythonParser`.
-* **Slow Onboarding of New Languages (e.g., Swift for iOS, Scala, C++, PHP, Dart):** Adding Swift support today requires creating a new C# project, writing a custom `SwiftFileVisitor`, and wiring custom AST traversal logic, even though Swift's Tree-sitter grammar has the exact same conceptual nodes (`class_declaration`, `protocol_declaration`, `function_declaration`, `call_expression`, `import_declaration`).
+- **Document Version:** 2.0.0
+- **Status:** Proposal — PoC scoped
+- **Target Audience:** Core Maintainers, Parser Engineers
+- **Target Subsystems:** `CodeExplorer.Core/Parser` (`TreeSitter/BaseParserVisitor`, `Profiles/LanguageSyntaxProfile`), `CodeExplorer.Parser.Java`, new `CodeExplorer.Parser.Swift`
 
 ---
 
-## 2. Target Architecture: The Single `UniversalParser` Engine
+## 1. Goal
 
-Combined with the [Semantic Archetypes & YAML Projections Proposal](file:///c:/Work/Personal/code-explorer/docs/proposals/semantic-archetypes-and-yaml-projections-proposal.md), we can collapse **all Layer 3 syntactic extraction** across all programming languages into a **single `UniversalFileParser` and `UniversalAstVisitor`** driven entirely by an enriched **`LanguageSyntaxProfile`**.
+Prove, with measurable results, that a **single profile-driven `UniversalAstVisitor` plus small per-language hooks** can produce the same Layer 3 output (`SyntacticSymbol` tree, `RawImports`, `RawVariables`, `RawTypeBindings`, calls, call literals) as a hand-written language visitor, and can onboard a new language cheaply.
 
-```mermaid
-flowchart TD
-    subgraph Input["Source Code File (.cs, .java, .kt, .swift, .ts, .py, .go, .rs)"]
-        SRC["Source File Text"]
-    end
+The PoC has two tracks:
 
-    subgraph Grammar["1. Tree-Sitter Native Grammar + Declarative Syntax Profile"]
-        TS["Tree-Sitter Grammar (.dll / .so / .dylib)"]
-        PROF["LanguageSyntaxProfile\n(Node Types + Field Selectors + Annotation Rules)"]
-    end
-
-    subgraph Universal["2. Single UniversalParser Engine (C#)"]
-        UV["UniversalAstVisitor\n• Unified Scope & Namespace Tracker\n• Unified Import & Package Resolver\n• Unified Type/Function/Member Extractor\n• Unified Annotation & Generic Extractor\n• Unified Call & Constant Propagator"]
-    end
-
-    subgraph Output["3. Canonical Layer 3 Output (100% Identical Across All Languages)"]
-        L3["SyntaxTree (Layer 3)\n• Types + Generics + Base Types\n• Functions + Params + Return Types\n• Members + Constructor Properties\n• Structured Annotations (Name + Args)\n• Calls + CallLiterals + RawTypeBindings"]
-    end
-
-    SRC --> TS
-    TS --> UV
-    PROF --> UV
-    UV --> L3
-```
-
----
-
-## 3. Enriching `LanguageSyntaxProfile` to Eliminate Subclasses
-
-Currently, [`LanguageSyntaxProfile.cs`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Parser/LanguageSyntaxProfile.cs) only lists node type sets (`ClassDeclarations`, `Calls`, etc.), forcing subclasses to override `ExtractIdentifier`, `FindCallName`, `VisitImportStatement`, and `VisitVariableDeclaration`.
-
-By adding **Field & Structural Descriptors** to `LanguageSyntaxProfile`, `UniversalAstVisitor` can execute all 6 extraction phases without a single language-specific C# subclass:
-
-### 3.1 Proposed `LanguageSyntaxProfile` v2 Specification
-
-```csharp
-public class LanguageSyntaxProfile
-{
-    public required string LanguageId { get; init; } // "java", "kotlin", "swift", "csharp", ...
-    public required FrozenSet<string> FileExtensions { get; init; } // [".kt", ".kts"]
-
-    // 1. Top-Level Scope & Imports
-    public FrozenSet<string> NamespaceDeclarations { get; init; } = FrozenSet<string>.Empty;
-    public FrozenSet<string> Imports { get; init; } = FrozenSet<string>.Empty;
-    public FrozenSet<string> StdLibImportPrefixes { get; init; } = FrozenSet<string>.Empty;
-    public FrozenSet<string> SourceRootConventions { get; init; } = FrozenSet<string>.Empty; // e.g. ["src/main/kotlin", "src/main/java"]
-
-    // 2. Symbol Declarations (Layer 3 Types & Functions)
-    public FrozenSet<string> ClassDeclarations { get; init; } = FrozenSet<string>.Empty;
-    public FrozenSet<string> InterfaceDeclarations { get; init; } = FrozenSet<string>.Empty;
-    public FrozenSet<string> StructDeclarations { get; init; } = FrozenSet<string>.Empty;
-    public FrozenSet<string> EnumDeclarations { get; init; } = FrozenSet<string>.Empty;
-    public FrozenSet<string> MethodDeclarations { get; init; } = FrozenSet<string>.Empty;
-    public FrozenSet<string> FunctionDeclarations { get; init; } = FrozenSet<string>.Empty;
-    public FrozenSet<string> ConstructorDeclarations { get; init; } = FrozenSet<string>.Empty;
-
-    // 3. Variables, Fields & Primary Constructor Properties (e.g. Kotlin/TypeScript/Scala)
-    public FrozenSet<string> VariableDeclarations { get; init; } = FrozenSet<string>.Empty;
-    public FrozenSet<string> VariableDeclarators { get; init; } = FrozenSet<string>.Empty;
-    public FrozenSet<string> Parameters { get; init; } = FrozenSet<string>.Empty;
-    public FrozenSet<string> PropertyParameters { get; init; } = FrozenSet<string>.Empty; // Kotlin class Foo(val bar: Bar)
-
-    // 4. Annotations / Attributes / Decorators
-    public FrozenSet<string> AnnotationNodes { get; init; } = FrozenSet<string>.Empty; // "annotation", "marker_annotation", "attribute", "decorator"
-    public FrozenSet<string> ModifierContainers { get; init; } = FrozenSet<string>.Empty; // "modifiers", "attribute_list"
-
-    // 5. Inheritance & Implementation
-    public FrozenSet<string> SuperclassNodes { get; init; } = FrozenSet<string>.Empty;
-    public FrozenSet<string> SuperInterfaceNodes { get; init; } = FrozenSet<string>.Empty;
-    public FrozenSet<string> InheritanceClauses { get; init; } = FrozenSet<string>.Empty;
-
-    // 6. Call Graph & Expressions
-    public FrozenSet<string> Calls { get; init; } = FrozenSet<string>.Empty;
-    public FrozenSet<string> ObjectCreations { get; init; } = FrozenSet<string>.Empty;
-    public FrozenSet<string> StringLiterals { get; init; } = FrozenSet<string>.Empty;
-
-    // 7. Universal Field Name Selectors (with automatic fallback chain)
-    public FieldSelectorConfig Fields { get; init; } = FieldSelectorConfig.Default;
-}
-
-public class FieldSelectorConfig
-{
-    public static readonly FieldSelectorConfig Default = new();
-
-    public string[] NameFields { get; init; } = ["name", "declarator", "identifier"];
-    public string[] TypeFields { get; init; } = ["type", "return_type"];
-    public string[] ValueFields { get; init; } = ["value", "initializer", "right"];
-    public string[] CallObjectFields { get; init; } = ["object", "function", "receiver", "expression"];
-    public string[] CallNameFields { get; init; } = ["name", "member", "field"];
-    public string[] CallArgumentsFields { get; init; } = ["arguments", "argument_list", "value_arguments"];
-}
-```
-
----
-
-## 4. How `UniversalAstVisitor` Handles All Languages Uniformly
-
-With `LanguageSyntaxProfile` v2, the 5 previously abstract/overridden methods in `BaseParserVisitor` become concrete, deterministic algorithms in `UniversalAstVisitor`:
-
-### 4.1 Universal Identifier Extraction
-```csharp
-protected override string? ExtractIdentifier(Node node)
-{
-    // 1. Try named grammar fields ("name", "identifier")
-    foreach (var field in Profile.Fields.NameFields)
-    {
-        var fNode = node.GetField(field);
-        if (fNode.IsValid())
-        {
-            var id = UnwrapIdentifier(fNode);
-            if (!string.IsNullOrEmpty(id)) return id;
-        }
-    }
-
-    // 2. Fallback: first direct Identifier or TypeIdentifier child
-    foreach (var child in node.Children)
-    {
-        if (child.IsAny(TreeSitterSyntax.Common.Identifier,
-                        TreeSitterSyntax.Common.TypeIdentifier,
-                        "simple_identifier"))
-        {
-            return child.Text;
-        }
-    }
-    return null;
-}
-```
-
-### 4.2 Universal Call Name Extraction (`FindCallName`)
-Across Java (`method_invocation`), C# (`invocation_expression`), Kotlin (`call_expression`), Swift (`call_expression`), Python (`call`), Go (`call_expression`), and TypeScript (`call_expression`), every call is either:
-* **Direct Call:** `foo(a, b)`
-* **Member Call:** `receiver.foo(a, b)` (`member_expression` / `navigation_expression` / `field_access`)
-* **Constructor Call:** `new Foo(a, b)` or `Foo(a, b)`
-
-`UniversalAstVisitor.FindCallName` handles all three patterns uniformly by inspecting `Profile.ObjectCreations`, `Profile.Fields.CallObjectFields`, and `Profile.MemberAccessExpressions`.
-
-### 4.3 Universal Annotation & Attribute Extraction
-Whether it is Java/Kotlin `@Entity(name = "users")`, C# `[ServiceContract(Namespace = "...")]`, Python `@app.route("/pay")`, TypeScript `@Controller("/api")`, or Swift `@MainActor`, `UniversalAstVisitor` extracts a structured `SyntacticAnnotation`:
-* **`Name`**: `"Entity"`, `"ServiceContract"`, `"Controller"`
-* **`PositionalArgs`**: `["/api"]`
-* **`NamedArgs`**: `{ "name": "users" }`
-* Emits `(symbol)-[:ANNOTATED_WITH]->(annotation)` and stores structured arguments on the symbol for downstream YAML Layer 4 projection rules!
-
-### 4.4 Universal Constructor Property & Field Binding (Solving Kotlin, TypeScript & Lombok)
-* **Kotlin / TypeScript Primary Constructors:** In Kotlin (`class OrderService(private val repo: OrderRepository)`) and TypeScript (`constructor(private readonly repo: OrderRepository)`), constructor parameters with `val`/`var`/`private`/`public`/`readonly` modifiers are simultaneously **class fields** and **constructor dependencies**.
-* `UniversalAstVisitor` automatically registers any parameter in `ConstructorDeclarations` or `PrimaryConstructor` as a `RawTypeBinding` on the enclosing `Class`, enabling 100% accurate DI call graph resolution (`repo.save()` $\rightarrow$ `OrderRepository.save()`) across Kotlin, Java, C#, and TypeScript!
-* **Lombok Support in Java (`@RequiredArgsConstructor`, `@Data`, `@Getter`):** When a Java class has fields of type `OrderRepository`, `RawTypeBindings` already maps `repo -> OrderRepository` at class scope, and `UniversalAstVisitor` synthesizes virtual getter/setter resolution for `@Data`/`@Getter` classes.
-
----
-
-## 5. Concrete Proof: Adding Kotlin & iOS Swift in ~35 Lines Each
-
-With `UniversalParser`, upgrading Kotlin from regexes to full AST analysis and adding brand-new iOS Swift support requires **zero new Visitor logic**—only profile definitions:
-
-### 5.1 Kotlin Profile (`KotlinSyntaxProfile.cs` or `kotlin.grammar.yaml`)
-```yaml
-language_id: kotlin
-extensions: [".kt", ".kts"]
-namespace_declarations: ["package_header"]
-imports: ["import_header"]
-class_declarations: ["class_declaration", "object_declaration"]
-interface_declarations: [] # Differentiated via 'interface' keyword token in class_declaration
-method_declarations: ["function_declaration"]
-constructor_declarations: ["primary_constructor", "secondary_constructor"]
-variable_declarations: ["property_declaration"]
-parameters: ["parameter", "class_parameter"]
-annotation_nodes: ["annotation", "single_annotation", "unescaped_annotation"]
-modifier_containers: ["modifiers"]
-inheritance_clauses: ["delegation_specifiers", "delegation_specifier"]
-calls: ["call_expression"]
-member_access_expressions: ["navigation_expression"]
-string_literals: ["string_literal", "line_string_literal", "multi_line_string_literal"]
-```
-
-### 5.2 iOS Swift Profile (`SwiftSyntaxProfile.cs` or `swift.grammar.yaml`)
-```yaml
-language_id: swift
-extensions: [".swift"]
-imports: ["import_declaration"]
-class_declarations: ["class_declaration"] # Covers class, struct, enum, actor, extension in tree-sitter-swift
-interface_declarations: ["protocol_declaration"]
-method_declarations: ["function_declaration", "init_declaration"]
-variable_declarations: ["property_declaration"]
-parameters: ["parameter"]
-annotation_nodes: ["attribute"]
-modifier_containers: ["modifiers"]
-inheritance_clauses: ["inheritance_specifier", "type_inheritance_clause"]
-calls: ["call_expression"]
-member_access_expressions: ["navigation_expression"]
-string_literals: ["line_string_literal", "multi_line_string_literal"]
-```
-
----
-
-## 6. Architectural Synergy: How All 3 Proposals Fit Together
-
-Together, the three proposals in `docs/proposals/` form a complete, closed-loop architecture for CodeExplorer:
-
-| Layer / Stage | Engine | Responsibility | Extensibility Cost |
-| :--- | :--- | :--- | :--- |
-| **1. Layer 1–3 Extraction** | **`UniversalParser`** ([universal-parser-proposal.md](file:///c:/Work/Personal/code-explorer/docs/proposals/universal-parser-proposal.md)) | Parses any language into a uniform AST graph (`Type`, `Function`, `Member`, `Annotation`, `CALLS`, `ConfigEntry`). | **~35 lines** of `LanguageSyntaxProfile` per new language. |
-| **2. Layer 4 Projection** | **`YAML Projection Engine`** ([semantic-archetypes-and-yaml-projections-proposal.md](file:///c:/Work/Personal/code-explorer/docs/proposals/semantic-archetypes-and-yaml-projections-proposal.md)) | Projects Layer 1–3 nodes into the **5 Universal Semantic Archetypes** (`Host`, `EntryPoint`, `ExternalService`, `Topic`, `DataStore`). | **~20 lines** of YAML per new library/framework (WCF, Spring, DBOS, MassTransit). |
-| **3. Provenance & Trust** | **`Universal Evidence Engine`** ([universal-edge-and-node-evidence-proposal.md](file:///c:/Work/Personal/code-explorer/docs/proposals/universal-edge-and-node-evidence-proposal.md)) | Automatically links every Layer 4 node & arrow back to its originating Layer 1/3 symbol, file, and line (`EVIDENCED_BY`). | **0 lines** (automatic byproduct of Layer 3 $\rightarrow$ Layer 4 projection). |
-| **4. Governance & CI** | **`Semantic Invariant Gates`** ([semantic-invariant-gates-proposal.md](file:///c:/Work/Personal/code-explorer/docs/proposals/semantic-invariant-gates-proposal.md)) | Enforces architectural boundaries in CI/CD (`< 2s`) with Ratchet Baselines. | Preset packs or AI-generated Cypher queries. |
-
----
-
-## 7. Complete Audit of Existing Language & Project Parsers (Migration Matrix)
-
-We audited all **36 core language parser files (10,275 LOC)** across the 10 `CodeExplorer.Parser.*` assemblies (excluding `Libraries/`, which are audited separately in [semantic-archetypes-and-yaml-projections-proposal.md](file:///c:/Work/Personal/code-explorer/docs/proposals/semantic-archetypes-and-yaml-projections-proposal.md)).
-
-### 7.1 Tier 1 — Direct Migration into `UniversalParser` + `LanguageSyntaxProfile` (7 Languages, 6,857 LOC $\rightarrow$ ~350 LOC of Profiles)
-
-All 7 general-purpose programming languages below follow the standard Tree-sitter AST pattern (`Namespace/Package` $\rightarrow$ `Imports` $\rightarrow$ `Type/Class/Interface` $\rightarrow$ `Function/Method` $\rightarrow$ `Member/Field` $\rightarrow$ `Call`). Their custom `*FileVisitor.cs`, `*DeclarationExtractor.cs`, and file-parsing boilerplate in `*Parser.cs` can be **100% unified into `UniversalFileParser` + `UniversalAstVisitor`**:
-
-| Language Assembly | Existing Files & Line Counts (LOC) | Total LOC | Migration Status | What Remains After Migration |
-| :--- | :--- | :---: | :--- | :--- |
-| **`CodeExplorer.Parser.CSharp`** | `CSharpParser.cs` (940)<br>`CSharpFileVisitor.cs` (615)<br>`CSharpDeclarationExtractor.cs` (135)<br>`CSharpSyntaxProfile.cs` (118) | **1,808** | ✅ **100% Migrate** | `CSharpSyntaxProfile` (~60 LOC) + `.csproj` / `.sln` manifest reader in Layer 2. |
-| **`CodeExplorer.Parser.TypeScript`** | `TypeScriptParser.cs` (863)<br>`TypeScriptFileVisitor.cs` (809)<br>`JavaScriptParser.cs` (212)<br>`TypeScriptDeclarationExtractor.cs` (124)<br>`TypeScriptSyntaxProfile.cs` (117) | **2,125** | ✅ **100% Migrate** | `TypeScriptSyntaxProfile` & `JavaScriptSyntaxProfile` (~80 LOC) + `package.json` / `tsconfig.json` resolver in Layer 2. |
-| **`CodeExplorer.Parser.Java`** | `JavaParser.cs` (607)<br>`JavaFileVisitor.cs` (411)<br>`JavaDeclarationExtractor.cs` (90)<br>`JavaSyntaxProfile.cs` (109) | **1,217** | ✅ **100% Migrate** | `JavaSyntaxProfile` (~50 LOC) + `pom.xml` / `build.gradle` manifest reader in Layer 2. |
-| **`CodeExplorer.Parser.Python`** | `PythonFileVisitor.cs` (512)<br>`PythonParser.cs` (445)<br>`PythonDeclarationExtractor.cs` (60)<br>`PythonSyntaxProfile.cs` (88) | **1,105** | ✅ **100% Migrate** | `PythonSyntaxProfile` (~45 LOC) + `pyproject.toml` / `requirements.txt` reader in Layer 2. |
-| **`CodeExplorer.Parser.Go`** | `GoFileVisitor.cs` (481)<br>`GoParser.cs` (424)<br>`GoDeclarationExtractor.cs` (73)<br>`GoSyntaxProfile.cs` (94) | **1,072** | ✅ **100% Migrate** | `GoSyntaxProfile` (~45 LOC; includes Go receiver `(s *Server) Foo()` binding) + `go.mod` reader in Layer 2. |
-| **`CodeExplorer.Parser.Rust`** | `RustParser.cs` (773)<br>`RustFileVisitor.cs` (527)<br>`RustDeclarationExtractor.cs` (223)<br>`RustModuleResolver.cs` (187)<br>`RustSyntaxProfile.cs` (99) | **1,809** | ✅ **90% Migrate** | `RustSyntaxProfile` (~55 LOC; includes `impl Trait for Struct` binding). Keep `RustModuleResolver` (~150 LOC) for `mod.rs` path resolution. |
-| **`CodeExplorer.Parser.Kotlin`** | `KotlinFileParser.cs` (262 — *currently regex-based*) | **262** | 🚀 **Upgrade to `UniversalParser`** | Replace regex parser with `KotlinSyntaxProfile` (~45 LOC) on `tree-sitter-kotlin`, immediately gaining call graphs, annotations, and constructor DI bindings. |
-
-> **Impact of Tier 1 Migration:** Eliminates **~8,500 lines of duplicated C# AST traversal code** across 7 languages while bringing every language up to the exact same feature level (annotations, generics, constructor field bindings, constant propagation).
-
----
-
-### 7.2 Tier 2 — Project / Build Manifest Parsers (Move to Layer 2 Manifest Engine)
-
-These files do not parse source code ASTs; they parse project build scripts and manifests (`Cargo.toml`, `build.gradle`, `AndroidManifest.xml`, `.csproj`, `pom.xml`):
-
-| Existing File | LOC | Current Assembly | Target Architecture |
-| :--- | :---: | :--- | :--- |
-| `CargoManifestParser.cs` | 626 | `Parser.Rust` | **Keep in Layer 2 Project Boundary Engine** (parses `Cargo.toml` workspaces, crates, features). |
-| `GradleBuildScriptParser.cs` | 263 | `Parser.Android` | **Keep & Share in Layer 2 Project Boundary Engine** (parses `build.gradle` / `build.gradle.kts` / `settings.gradle` for Android, Java, and Kotlin multi-module repos). |
-| `KotlinProjectParser.cs` | 276 | `Parser.Kotlin` | **Merge with `JavaParser` / `GradleBuildScriptParser`** into a unified JVM Maven/Gradle Layer 2 Project Parser. |
-| `AndroidManifestParser.cs` + `AndroidManifestFileParser.cs` + `AndroidManifestInfo.cs` | 360 | `Parser.Android` | **Migrate to Layer 1 XML `ConfigEntry` + YAML Rule** (extracting Android `<activity>`, `<service>`, `<receiver>`, `<provider>` as Layer 4 `EntryPoint` nodes). |
-
----
-
-### 7.3 Tier 3 — Domain-Specific & Schema Languages (Keep as Specialized Parsers)
-
-These 3 parsers handle non-imperative schema/query/markup languages whose semantics are fundamentally different from class/method/call programming languages. They should **remain standalone specialized `IFileParser` implementations**:
-
-| Specialized Parser | Files & LOC | Why It Stays Standalone |
+| Track | Language | Question it answers |
 | :--- | :--- | :--- |
-| **SQL DDL / DML / Stored Procedures** (`CodeExplorer.Parser.SQL`) | `SqlParser.cs` (424)<br>`SqlSyntaxEnricher.cs` (66)<br>`NestedSqlParser.cs` (in `Core`) | Parses `CREATE TABLE`, `ALTER`, `CREATE PROCEDURE`, `SELECT ... JOIN` directly into `:Table`, `:Procedure`, and `:Query` lineage nodes. |
-| **GraphQL Schema & Operations** (`CodeExplorer.Parser.TypeScript`) | `GraphQLFileParser.cs` (678) | Parses `.graphql` / `.gql` schema definitions (`type Query`, `type Mutation`, fragments) into GraphQL contract nodes. |
-| **ColdFusion CFML / CFC** (`CodeExplorer.Parser.ColdFusion`) | `ColdFusionFileParser.cs` (498)<br>`ColdFusionProjectParser.cs` (183)<br>`ColdFusionSyntaxEnricher.cs` (56) | Tag-based `<cfcomponent>`, `<cffunction>`, `<cfquery>` hybrid HTML/CFML syntax without a standard Tree-sitter grammar. |
+| **A — Alternative engine** | Java (existing) | Can the universal visitor reach **parity** with a mature hand-written visitor, verified against real output? |
+| **B — New language** | Swift (net-new) | How much code does a **new language** really cost on the universal visitor? |
 
+### Non-goals
+
+- Deleting or replacing any existing visitor. That is decided **after** the PoC, per language, based on §6.
+- Changing Layer 2 (project and manifest detection). `*Parser.cs` files are mostly Layer 2 logic and stay as they are.
+- Kotlin. `TreeSitter.DotNet` 1.3.0 ships no Kotlin grammar (see §2.3).
+- Layer 4 semantic detection (HTTP clients, messaging, ORM, routes). Library parsers (`ISemanticExtension`) keep working unchanged through the existing hooks.
+
+---
+
+## 2. Current State
+
+### 2.1 Parser layout
+
+12 assemblies live under `cli/src/Parsers`: `CSharp`, `TypeScript`, `Java`, `Python`, `Go`, `Rust`, `Kotlin`, `SQL`, `ColdFusion`, `Android`, `Script`, `Shared`. Each Tree-sitter language has:
+
+- `*Parser.cs`, which implements both `IProjectParser` (Layer 2) and `IFileParser` (Layer 3). Most of its code is Layer 2. For example, around 1,000 of the 1,211 lines in `CSharpParser.cs` handle directory exclusion, project detection, manifest properties, and dependency/package resolution.
+- `*FileVisitor.cs`, which derives from [BaseParserVisitor](../../cli/src/Core/CodeExplorer.Core/Parser/TreeSitter/BaseParserVisitor.cs). This is the **only part this proposal targets**.
+- `*DeclarationExtractor.cs`, which handles early constant/declaration discovery.
+- `*SyntaxProfile.cs`, which provides node-type sets for [LanguageSyntaxProfile](../../cli/src/Core/CodeExplorer.Core/Parser/Profiles/LanguageSyntaxProfile.cs).
+
+Code that is realistically in scope for unification (visitor + declaration extractor):
+
+| Language | Visitor LOC | Declaration extractor LOC |
+| :--- | :---: | :---: |
+| Java | 411 | 90 |
+| Go | 481 | 73 |
+| Python | 512 | 60 |
+| Rust | 527 | 223 |
+| C# | 615 | 135 |
+| TypeScript | 809 | 124 |
+| **Total** | **3,355** | **705** |
+
+Kotlin (`KotlinFileParser.cs`, 262 LOC) is regex-based (`UsesTreeSitter => false`) and has no visitor.
+
+### 2.2 What is duplicated vs. genuinely language-specific
+
+`BaseParserVisitor` already owns traversal, dispatch (`Visit*` methods), reference collection, call-literal collection, and symbol stacking. Subclasses override `MapNodeType`, `ExtractIdentifier`, `FindCallName` (abstract), `CollectCustomReferencesForSymbol`, `VisitImportStatement`, `VisitInheritanceClause`, and `VisitVariableDeclaration`.
+
+**Duplicated across visitors (candidates for the universal visitor):**
+- The library-parser dispatch loop at the top of `MapNodeType` / `ExtractIdentifier` (copied verbatim in Java, Go and others).
+- Name extraction via the `name` field or the first identifier child.
+- Direct, member, and constructor call-name extraction.
+- Superclass / interface reference emission.
+- Annotation, attribute, and decorator name + argument collection.
+- Field/variable `(name, type, initializer)` collection into `RawVariables` / `RawTypeBindings`.
+
+**Language-specific (must stay as hooks, not profile data):**
+- Import shapes: Rust `use a::{b, c}` trees, Python relative imports, TypeScript `import {a as b}` and re-exports, C# `global using` / `using static` / aliases, Go import aliases.
+- Kind discrimination by structure rather than node type:
+  - Go: an interface is a `type_spec` containing an `interface_type`.
+  - Swift: `class_declaration` covers class, struct, enum, actor and extension.
+  - Kotlin: an interface is a `class_declaration` with an `interface` keyword.
+- Binding semantics: Go method receivers, Rust `impl Trait for X`, TypeScript/Kotlin constructor-parameter properties, Lombok-generated members.
+- Visitor-embedded Layer 4 detection (e.g. Go HTTP client calls, entry-point routes, SQL in string literals). The PoC keeps this behind hooks. Moving it to declarative projections belongs to the [Semantic Archetypes & YAML Projections proposal](./semantic-archetypes-and-yaml-projections-proposal.md).
+
+### 2.3 Grammar availability (`TreeSitter.DotNet` 1.3.0)
+
+| Available | Not available |
+| :--- | :--- |
+| c, c-sharp, cpp, go, java, javascript, typescript, tsx, python, rust, **swift**, scala, php, ruby, bash, css, html, json, toml, haskell, julia, ocaml, … | **kotlin**, dart, sql |
+
+Swift needs no native build work. Kotlin would require building and shipping `tree-sitter-kotlin` binaries for every supported runtime identifier (RID), which is a separate decision.
+
+### 2.4 Parser selection constraint
+
+`WorkspaceIndexer.GetParserForFile` returns the **first** registered `IFileParser` whose `CanParseFile` matches. Registering a second parser for `.java` would be order-dependent. The alternative engine is therefore selected **inside** `JavaParser.CreateVisitor`, not by registering a competing parser.
+
+---
+
+## 3. Design
+
+### 3.1 `UniversalAstVisitor`
+
+```
+BaseParserVisitor (unchanged)
+└── UniversalAstVisitor          (new, in CodeExplorer.Core/Parser/TreeSitter)
+      uses LanguageSyntaxProfile  (data: node-type sets + field selectors)
+      uses ILanguageHooks?        (code: residual language-specific logic)
+```
+
+`UniversalAstVisitor` implements every override listed in §2.2 generically:
+
+1. **Library-parser dispatch first.** Run the shared loop over `LibraryParsers` for `MapNodeType` / `ExtractIdentifier` before any generic logic. This removes the per-visitor copies.
+2. **Generic logic driven by the profile.** Use node-type sets and ordered field selectors.
+3. **Hook overrides.** Each step first asks `ILanguageHooks`. A non-null answer wins.
+
+```csharp
+public interface ILanguageHooks
+{
+    string? MapNodeType(Node node, LanguageSyntaxProfile profile) => null;
+    string? ExtractIdentifier(Node node, LanguageSyntaxProfile profile) => null;
+    string? FindCallName(Node callNode, LanguageSyntaxProfile profile) => null;
+    IEnumerable<RawImport>? ExtractImports(Node importNode, string filePath) => null;
+    void CollectCustomReferences(Node node, SyntacticSymbol symbol, SyntacticSymbol parent) { }
+}
+```
+
+The visitor stays isolated from ontology and I/O, as required by the architecture guidelines: it builds `SyntacticSymbol` trees only, and uses `NodeExtensions` (`IsValid()`, `GetChildFieldText()`, …) for node access.
+
+### 3.2 `LanguageSyntaxProfile` additions (additive only)
+
+All existing members stay: `ConstantDeclarations`, `CatchClauses`, `StringInterpolations`, `BinaryExpressions`, `MemberAccessExpressions`, `ElementAccessExpressions`, `ExcludedStringInterpolations`, `Inheritance`, etc. The PoC adds:
+
+```csharp
+// Declarations
+public FrozenSet<string> NamespaceDeclarations { get; init; } = FrozenSet<string>.Empty;
+public FrozenSet<string> StructDeclarations { get; init; } = FrozenSet<string>.Empty;
+public FrozenSet<string> ConstructorDeclarations { get; init; } = FrozenSet<string>.Empty;
+public FrozenSet<string> PropertyParameters { get; init; } = FrozenSet<string>.Empty;
+
+// Annotations
+public FrozenSet<string> AnnotationNodes { get; init; } = FrozenSet<string>.Empty;
+public FrozenSet<string> ModifierContainers { get; init; } = FrozenSet<string>.Empty;
+
+// Inheritance
+public FrozenSet<string> SuperclassNodes { get; init; } = FrozenSet<string>.Empty;
+public FrozenSet<string> SuperInterfaceNodes { get; init; } = FrozenSet<string>.Empty;
+
+// Calls
+public FrozenSet<string> ObjectCreations { get; init; } = FrozenSet<string>.Empty;
+
+// Field selectors (ordered; first valid wins)
+public FieldSelectorConfig Fields { get; init; } = FieldSelectorConfig.Default;
+```
+
+`FieldSelectorConfig` holds ordered field-name lists (`NameFields`, `TypeFields`, `ValueFields`, `CallObjectFields`, `CallNameFields`, `CallArgumentsFields`). When no selector matches, the visitor **records a diagnostic** (node type + file + line) instead of silently returning `null`. The parity harness (§4.1) reports these diagnostics.
+
+Profiles remain **C# classes** for the PoC. A YAML profile format is deferred until the PoC shows the profile is sufficient.
+
+---
+
+## 4. PoC Track A — Alternative Engine for Java
+
+### 4.1 Mechanism
+
+- `JavaParser.CreateVisitor` returns `UniversalAstVisitor(JavaSyntaxProfile.Instance, JavaHooks?)` when the language is listed in the environment variable `UNIVERSAL_PARSER_LANGUAGES` (comma-separated, e.g. `java`). Otherwise it returns `JavaFileVisitor`. The default is unchanged.
+- `JavaHooks` starts **empty**. Logic is moved into it only when the parity harness shows a gap the profile cannot express. Its final size is a primary PoC metric.
+
+### 4.2 Parity harness (`UniversalParserParityTests`)
+
+For every Java fixture already used by the test suite (`JavaParserTests`, `JavaMessagingTests`, `OrmDataLineageTests`, `MultiLanguageHttpResolutionTests`, `ParserValidationTests`, …):
+
+1. Parse once, then run **both** visitors on the same root node.
+2. Normalise and diff:
+   - The `SyntacticSymbol` tree: kind, name, line span, and references (sorted).
+   - `RawImports`, `RawVariables`, `RawTypeBindings`.
+   - Call names and call literals.
+3. Fail with a structured diff that lists missing, extra, and changed items per category.
+
+In addition, index one real Java sample workspace with both engines and compare graph node/edge counts per label/kind.
+
+### 4.3 Tests under both engines
+
+Run the existing Java-related test classes twice, once per engine (parameterised via the environment variable or an injected option), so behaviour coverage is reused rather than re-written.
+
+---
+
+## 5. PoC Track B — Swift as a New Language
+
+### 5.1 Scope
+
+New assembly `CodeExplorer.Parser.Swift` (`[assembly: ParserAssembly]`):
+
+| Component | Responsibility |
+| :--- | :--- |
+| `SwiftParser : IFileParser` | `LanguageName => "swift"`, `.swift` files, `CreateVisitor` → `UniversalAstVisitor`. |
+| `SwiftSyntaxProfile` | Node-type sets and field selectors for `tree-sitter-swift`. |
+| `SwiftHooks` | Only what the profile cannot express. Expected: class/struct/enum/actor/extension discrimination, and attaching extension members to the extended type. |
+| `SwiftPackageProjectParser : IProjectParser` | Minimal Layer 2: detect `Package.swift`, project name = package directory. Xcode projects (`.xcodeproj`) are out of scope. |
+
+No `ISemanticExtension` library parsers in the PoC. URLSession, Alamofire and similar come later via the projection proposal.
+
+### 5.2 Step 0 — Validate the grammar
+
+Before writing the profile, add a test utility that dumps node types and field names from `tree-sitter-swift` for a fixture covering classes, structs, enums, protocols, extensions, actors, initialisers, properties, attributes, imports, calls and string literals. The profile is written from this dump, not from assumed node names.
+
+### 5.3 Expected output
+
+On a small SwiftPM fixture under `cli/tests`:
+- `Type` symbols for class/struct/enum/actor/protocol, with correct kind.
+- `Function` symbols for methods, free functions, and initialisers.
+- Imports as `RawImports` (module names; `Foundation`, `UIKit`, `SwiftUI` classified as external).
+- Inheritance and protocol conformance references.
+- Attributes (`@MainActor`, `@objc`, property wrappers) collected on the symbol.
+- Calls (`receiver.method()`, `Type()` initialisers) and string call literals.
+- Properties with declared types as `RawVariables` / `RawTypeBindings`.
+
+---
+
+## 6. Success Criteria & Decision Gate
+
+| Metric | Target |
+| :--- | :--- |
+| Java symbol-tree parity (normalised diff) | ≥ 98% of items identical; every remaining diff explained and accepted, or fixed |
+| Java existing tests under universal engine | 100% pass |
+| Java graph node/edge counts on sample workspace | within ±1% per label/kind |
+| `JavaHooks` size | ≤ 150 LOC (vs. 411 LOC `JavaFileVisitor`) |
+| Swift language-specific code (`SwiftSyntaxProfile` + `SwiftHooks`, excluding Layer 2) | ≤ 250 LOC |
+| Unmatched field-selector diagnostics on fixtures | 0 unexplained |
+| Parse throughput (files/s) vs. current Java visitor | within −10% |
+
+**Go:** migrate the next language (Python or Go) behind the same switch, then make `universal` the default per language once parity holds.
+**No-go:** keep `UniversalAstVisitor` only for new languages, and pull the shared library-dispatch loop up into `BaseParserVisitor` as a standalone cleanup.
+
+---
+
+## 7. Plan
+
+| Step | Work | Estimate |
+| :--- | :--- | :---: |
+| 1 | `UniversalAstVisitor`, `ILanguageHooks`, additive profile fields, selector diagnostics | 2 days |
+| 2 | Parity harness + `UNIVERSAL_PARSER_LANGUAGES` switch in `JavaParser.CreateVisitor` | 1 day |
+| 3 | Iterate on `JavaSyntaxProfile` / `JavaHooks` until §6 Java criteria pass | 2–3 days |
+| 4 | Swift grammar dump (Step 0), `SwiftSyntaxProfile`, `SwiftHooks`, `SwiftParser`, `SwiftPackageProjectParser` | 2 days |
+| 5 | Swift fixture tests, throughput measurement, PoC report against §6 | 1 day |
+
+Steps 1–3 (Track A) come first, so Track B builds on an engine already validated against known-good output.
+
+---
+
+## 8. Risks
+
+| Risk | Mitigation |
+| :--- | :--- |
+| Generic field-selector fallbacks pick the wrong child | Ordered selectors per profile, plus diagnostics on no-match; parity diff surfaces wrong picks. |
+| Hooks grow until they are the old visitor again | `JavaHooks` LOC is a gating metric (§6). |
+| Library parsers depend on visitor-specific behaviour | Track A runs every Java library-parser test under both engines. |
+| `tree-sitter-swift` node shapes differ from assumptions | Step 0 grammar dump before writing the profile. |
+| Kotlin remains regex-based | Explicitly out of scope; requires a separate decision on shipping a native grammar. |
+
+---
+
+## 9. Relationship to Other Proposals
+
+- **[Semantic Archetypes & YAML Projections](./semantic-archetypes-and-yaml-projections-proposal.md):** consumes the uniform Layer 3 output (annotations with arguments, calls, type bindings). It is the intended home for the Layer 4 detection currently embedded in visitors.
+- **[Universal Edge & Node Evidence](./universal-edge-and-node-evidence-proposal.md):** needs exact line spans on Layer 3 symbols. `UniversalAstVisitor` must preserve `start_line` / `end_line` for every symbol it emits. Provenance itself is recorded by Layer 4/5 analyzers, not by this visitor.
+- **[Semantic Invariant Gates](./semantic-invariant-gates-proposal.md):** unaffected; gates operate on the graph regardless of which visitor produced it.

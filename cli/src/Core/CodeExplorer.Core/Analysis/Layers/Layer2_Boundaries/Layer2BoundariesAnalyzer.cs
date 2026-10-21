@@ -50,13 +50,8 @@ public class Layer2ProjectParser
             var filesInDir = Directory.GetFiles(dir);
             var matchingParsers = WorkspaceIndexer._projectParsers
                 .Where(p => !p.IsFallback && p.IsProjectDirectory(dir, filesInDir))
-                .OrderBy(p => GetProjectParserPriority(p.ProjectType))
                 .ToList();
-
-            if (matchingParsers.Count > 1 && matchingParsers.Any(p => p.ProjectType == "typescript"))
-            {
-                matchingParsers.RemoveAll(p => p.ProjectType == "javascript");
-            }
+            ProjectParserPrecedence.RemoveSuperseded(matchingParsers);
 
             var projectParser = matchingParsers.FirstOrDefault();
             
@@ -487,6 +482,71 @@ public class Layer2ProjectParser
             }
         }
 
+        foreach (var dir in dirsToCheck)
+        {
+            ctx.CancellationToken.ThrowIfCancellationRequested();
+            var filesInDir = Directory.GetFiles(dir);
+            foreach (var parser in WorkspaceIndexer._projectParsers.Where(p => !p.IsFallback))
+            {
+                foreach (var descriptor in parser.GetAdditionalProjects(dir, filesInDir))
+                {
+                    if (!File.Exists(descriptor.EntryPointPath))
+                    {
+                        continue;
+                    }
+
+                    var entryPoint = Path.GetFullPath(descriptor.EntryPointPath);
+                    var relativeEntryPoint = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, entryPoint).Replace('\\', '/');
+                    var relativeTargetDir = Path.GetDirectoryName(relativeEntryPoint)?.Replace('\\', '/') ?? "";
+                    if (projects.Any(p => p.Name.Equals(descriptor.Name, StringComparison.OrdinalIgnoreCase) &&
+                                          (p.Path.TrimEnd('/') == relativeTargetDir ||
+                                           p.Path.TrimEnd('/') == relativeEntryPoint.TrimEnd('/'))))
+                    {
+                        continue;
+                    }
+
+                    var projectNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Project}:{relativeEntryPoint}:";
+                    if (projects.Any(p => p.Id.Equals(projectNodeId, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        continue;
+                    }
+
+                    var manifestDirectory = descriptor.Properties.GetValueOrDefault("cargo_manifest_dir") ?? dir;
+                    var projectNode = ProjectNodeFactory.Create(
+                        projectNodeId,
+                        descriptor.Name,
+                        relativeEntryPoint,
+                        parser.ProjectType,
+                        manifestDirectory,
+                        [entryPoint],
+                        extensions: descriptor.Properties.ToDictionary(
+                            property => property.Key,
+                            property => property.Value,
+                            StringComparer.OrdinalIgnoreCase));
+
+                    projectsStructureNode.Children.Add(projectNode);
+                    projects.Add(projectNode);
+                    packageToProjectMap[descriptor.Name] = projectNode;
+
+                    var dependencyInfo = await ParseProjectDependenciesAsync(parser, manifestDirectory, ctx);
+                    if (dependencyInfo != null)
+                    {
+                        var localDependenciesOnly = new ProjectDependencyInfo(dependencyInfo.LocalProjectPaths, []);
+                        AttachDependencies(
+                            projectNode,
+                            projectNodeId,
+                            localDependenciesOnly,
+                            manifestDirectory,
+                            dependencies,
+                            packages,
+                            parser,
+                            ctx);
+                        projectDepList.Add((projectNode, localDependenciesOnly));
+                    }
+                }
+            }
+        }
+
         // Resolve cross-project dependencies via workspace packages/modules
         var crossProjectRels = new List<Relationship>();
         foreach (var (proj, depInfo) in projectDepList)
@@ -546,16 +606,6 @@ public class Layer2ProjectParser
         ctx.Log($"[Layer2] Project detection scan complete. Found {projects.Count} projects, {packages.Count} package nodes.");
         return new Layer2Result(l1Result, projectsStructureNode, projects, packages, dependencies);
     }
-
-    internal static int GetProjectParserPriority(string projectType) =>
-        projectType.ToLowerInvariant() switch
-        {
-            "csharp" or "java" or "kotlin" or "go" or "rust" or "python" or "coldfusion" => 0,
-            "typescript" => 1,
-            "javascript" => 2,
-            "sql" => 3,
-            _ => 4
-        };
 
     private static async Task<ProjectDependencyInfo?> ParseProjectDependenciesAsync(
         IProjectParser projectParser,

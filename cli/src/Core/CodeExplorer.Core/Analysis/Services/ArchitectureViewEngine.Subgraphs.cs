@@ -48,6 +48,12 @@ public partial class ArchitectureViewEngine
                 case "Topic":
                     ProcessTopicNode(elem, id, name, props, nodeMap, graph);
                     break;
+                case "CloudService":
+                    ProcessCloudServiceNode(elem, id, name, props, nodeMap, graph);
+                    break;
+                case "PeerMesh":
+                    ProcessPeerMeshNode(id, name, props, nodeMap, graph);
+                    break;
                 case "ExternalService":
                     ProcessExternalServiceNode(elem, id, name, props, discovery, projectToWorkloadMap, nodeMap, graph);
                     break;
@@ -107,7 +113,7 @@ public partial class ArchitectureViewEngine
         CancellationToken ct)
     {
         var edgesQuery =
-            "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['SERVICE_CALL', 'DEPENDS_ON', 'USES_DB', 'PUBLISHES_TO', 'TRIGGERS', 'SUBSCRIBES_TO', 'INTEGRATES_WITH', 'CALLS_ENDPOINT', 'LIBRARY', 'SUBSCRIBED_BY', 'PUBLISHED_BY', 'TESTS'] RETURN src.id AS from_id, tgt.id AS to_id, r.kind AS kind, r.properties AS properties";
+            "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['SERVICE_CALL', 'DEPENDS_ON', 'USES_DB', 'USES_CLOUD', 'READS_FROM', 'WRITES_TO', 'COORDINATES_WITH', 'PUBLISHES_TO', 'TRIGGERS', 'SUBSCRIBES_TO', 'INTEGRATES_WITH', 'CALLS_ENDPOINT', 'LIBRARY', 'SUBSCRIBED_BY', 'PUBLISHED_BY', 'TESTS'] RETURN src.id AS from_id, tgt.id AS to_id, r.kind AS kind, r.properties AS properties";
         var edgesJson = await db.ExecuteQueryAsync(edgesQuery, null, ct);
 
         using var edgesDoc = JsonDocument.Parse(edgesJson);
@@ -163,6 +169,24 @@ public partial class ArchitectureViewEngine
                 depType = DependencyCategoryExtensions.Library;
                 normalizedKind = (rKind is "DEPENDS_ON" or "DependsOn") ? "DEPENDS_ON" : "LIBRARY";
             }
+            else if (rKind == "USES_CLOUD" && tgtNode.Kind == NodeKind.CloudService)
+            {
+                category = DependencyCategory.ServiceCall;
+                depType = "external_resource";
+                normalizedKind = "USES_CLOUD";
+            }
+            else if (tgtNode.Kind == NodeKind.CloudService && rKind is "READS_FROM" or "WRITES_TO")
+            {
+                category = DependencyCategory.ServiceCall;
+                depType = "external_resource";
+                normalizedKind = rKind;
+            }
+            else if (tgtNode.Kind == NodeKind.PeerMesh && rKind == "COORDINATES_WITH")
+            {
+                category = DependencyCategory.ServiceCall;
+                depType = "peer_mesh";
+                normalizedKind = rKind;
+            }
 
             var categoryStr = (rKind is "TESTS" or "tests") ? "test" : category.ToCategoryString();
             edgeProps["category"] = categoryStr;
@@ -190,6 +214,12 @@ public partial class ArchitectureViewEngine
 
             var outKind = (rKind is "TESTS" or "tests")
                 ? OntologyConstants.Relationships.Tests
+                : rKind == "USES_CLOUD" && tgtNode.Kind == NodeKind.CloudService
+                    ? "USES_CLOUD"
+                : tgtNode.Kind == NodeKind.CloudService && rKind is "READS_FROM" or "WRITES_TO"
+                    ? rKind
+                : tgtNode.Kind == NodeKind.PeerMesh && rKind == "COORDINATES_WITH"
+                    ? rKind
                 : category switch
             {
                 DependencyCategory.Library => "LIBRARY",

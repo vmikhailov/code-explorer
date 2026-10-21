@@ -2,6 +2,7 @@ using CodeExplorer.Core.Parser;
 
 namespace CodeExplorer.Parser.TypeScript;
 
+[ProjectParser(Tier = ParserTier.Secondary)]
 public class JavaScriptParser : IProjectParser, IFileParser
 {
     public string LanguageName => "javascript";

@@ -17,13 +17,21 @@ public enum ProjectParserRole
     Fallback = 1
 }
 
+public sealed record AdditionalProjectDescriptor(
+    string Name,
+    string EntryPointPath,
+    IReadOnlyDictionary<string, string> Properties);
+
 public interface IProjectParser
 {
     /// <summary>
     /// The parser role (Standard vs Fallback). Fallback parsers are evaluated only after
     /// standard dialect parsers have completed their matching.
+    /// Derived from <see cref="ProjectParserAttribute.Tier"/>.
     /// </summary>
-    ProjectParserRole ParserRole => ProjectParserRole.Standard;
+    ProjectParserRole ParserRole => ProjectParserPrecedence.GetTier(this) == ParserTier.Fallback
+        ? ProjectParserRole.Fallback
+        : ProjectParserRole.Standard;
 
     /// <summary>
     /// Whether this parser acts as a fallback parser.
@@ -133,6 +141,11 @@ public interface IProjectParser
     /// Extracts project-level manifest metadata and properties (e.g., manifest_type, has_cli_bin, framework_type, sdk, output_type, is_packable).
     /// </summary>
     Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory) => [];
+
+    /// <summary>
+    /// Returns independently deployable targets declared inside a project manifest.
+    /// </summary>
+    IReadOnlyList<AdditionalProjectDescriptor> GetAdditionalProjects(string directoryPath, string[] filesInDirectory) => [];
 
     /// <summary>
     /// Declarative package descriptors (frameworks, test runners, drivers) registered for this language dialect.

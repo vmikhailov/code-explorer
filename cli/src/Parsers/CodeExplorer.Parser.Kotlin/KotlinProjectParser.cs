@@ -6,6 +6,7 @@ using CodeExplorer.Parser.Android;
 
 namespace CodeExplorer.Parser.Kotlin;
 
+[ProjectParser(Tier = ParserTier.Primary)]
 public class KotlinProjectParser : IProjectParser
 {
     public string LanguageName => "kotlin";

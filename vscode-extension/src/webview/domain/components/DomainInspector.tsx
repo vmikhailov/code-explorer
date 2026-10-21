@@ -33,6 +33,7 @@ const EvidenceSection: React.FC<EvidenceSectionProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [evidence, setEvidence] = useState<ArchitectureEvidenceItemDto[]>([]);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,9 +43,10 @@ const EvidenceSection: React.FC<EvidenceSectionProps> = ({
       setLoading(true);
       setError(null);
       try {
-        const data = await webviewTransport.fetchJson<{ items?: ArchitectureEvidenceItemDto[] }>(url);
+        const data = await webviewTransport.fetchJson<{ items?: ArchitectureEvidenceItemDto[]; warnings?: string[] }>(url);
         if (!cancelled) {
           setEvidence(data?.items || []);
+          setWarnings(data?.warnings || []);
         }
       } catch (err: any) {
         if (!cancelled) {
@@ -118,6 +120,11 @@ const EvidenceSection: React.FC<EvidenceSectionProps> = ({
               Error: {error}
             </div>
           )}
+          {!loading && warnings.length > 0 && (
+            <div className="inspector-empty-hint" style={{ color: '#fbbf24' }}>
+              {warnings.join(' · ')}
+            </div>
+          )}
           {!loading && !error && evidence.length === 0 && (
             <div className="inspector-empty-hint">{emptyHint}</div>
           )}
@@ -157,6 +164,22 @@ const EvidenceSection: React.FC<EvidenceSectionProps> = ({
                     <span style={{ fontSize: '11px', fontWeight: 600, color: '#f1f5f9' }}>
                       {item.title}
                     </span>
+                    {item.confidence === 'inferred' && (
+                      <span
+                        title="Inferred via fallback heuristics"
+                        style={{
+                          fontSize: '9px',
+                          fontWeight: 600,
+                          padding: '1px 5px',
+                          borderRadius: 3,
+                          background: 'rgba(148, 163, 184, 0.14)',
+                          color: '#94a3b8',
+                          border: '1px solid rgba(148, 163, 184, 0.3)',
+                        }}
+                      >
+                        Inferred
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -210,13 +233,13 @@ const EvidenceSection: React.FC<EvidenceSectionProps> = ({
                       textDecoration: 'underline',
                       marginTop: 2,
                     }}
-                    onClick={() => onOpenFile?.(item.filePath!, item.lineStart || 1)}
-                    title={`Open ${item.filePath}:${item.lineStart || 1}`}
+                    onClick={() => onOpenFile?.(item.filePath!, item.lineStart && item.lineStart > 0 ? item.lineStart : undefined)}
+                    title={`Open ${item.filePath}${item.lineStart && item.lineStart > 0 ? `:${item.lineStart}` : ''}`}
                   >
                     <ExternalLinkIcon size={10} />
                     <span>
                       {item.filePath.split(/[/\\]/).slice(-2).join('/')}
-                      {item.lineStart > 0 ? `:${item.lineStart}` : ''}
+                      {item.lineStart && item.lineStart > 0 ? `:${item.lineStart}` : ''}
                     </span>
                   </div>
                 )}

@@ -303,6 +303,11 @@ public partial class PostIndexAnalyzer
                         }
                     }
                 }
+                if (!string.Equals(rel.From, owner.Id, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(rel.To, target, StringComparison.OrdinalIgnoreCase))
+                {
+                    EvidenceProvenanceHelper.RecordContributingEdge(props, rel);
+                }
                 canonicalRels.Add(new Relationship(
                     owner.Id,
                     target,
@@ -333,12 +338,26 @@ public partial class PostIndexAnalyzer
                 var existing = canonicalRels.FirstOrDefault(r => r.From == owner.Id && r.To == target);
                 if (existing?.Properties != null)
                 {
+                    EvidenceProvenanceHelper.MergeProvenance(existing.Properties, rel.Properties);
+                    if (!string.Equals(rel.From, owner.Id, StringComparison.OrdinalIgnoreCase) ||
+                        !string.Equals(rel.To, target, StringComparison.OrdinalIgnoreCase))
+                    {
+                        EvidenceProvenanceHelper.RecordContributingEdge(existing.Properties, rel);
+                    }
                     foreach (var (k, v) in rel.Properties)
                     {
                         if (v != null && !existing.Properties.ContainsKey(k))
                         {
                             existing.Properties[k] = v;
                         }
+                    }
+                }
+                if (projectToWorkloadMap != null && projectToWorkloadMap.TryGetValue(owner.Id, out var semFrom) && semFrom != null)
+                {
+                    var existingSem = canonicalRels.FirstOrDefault(r => r.From == semFrom && r.To == target);
+                    if (existingSem?.Properties != null && existing?.Properties != null)
+                    {
+                        EvidenceProvenanceHelper.MergeProvenance(existingSem.Properties, existing.Properties);
                     }
                 }
             }

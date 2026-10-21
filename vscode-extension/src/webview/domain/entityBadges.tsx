@@ -135,6 +135,40 @@ export const ENTITY_BADGES: Record<string, EntityBadgeMeta> = {
     `,
     iconPaths: <path d="M23 29.5 h18 a5.5 5.5 0 0 0 2 -10.5 a7 7 0 0 0 -13 -3 a5.5 5.5 0 0 0 -7 13.5 z" />,
   },
+  CloudService: {
+    kind: 'CloudService',
+    code: 'AWS',
+    label: 'Cloud Resource',
+    bgColor: '#0284c7',
+    borderColor: '#075985',
+    rawIconSvg: `
+      <path d="M23 29.5 h18 a5.5 5.5 0 0 0 2 -10.5 a7 7 0 0 0 -13 -3 a5.5 5.5 0 0 0 -7 13.5 z" />
+    `,
+    iconPaths: <path d="M23 29.5 h18 a5.5 5.5 0 0 0 2 -10.5 a7 7 0 0 0 -13 -3 a5.5 5.5 0 0 0 -7 13.5 z" />,
+  },
+  PeerMesh: {
+    kind: 'PeerMesh',
+    code: 'MESH',
+    label: 'Peer Mesh',
+    bgColor: '#0f766e',
+    borderColor: '#134e4a',
+    rawIconSvg: `
+      <circle cx="32" cy="16" r="4" />
+      <circle cx="21" cy="31" r="4" />
+      <circle cx="43" cy="31" r="4" />
+      <circle cx="32" cy="40" r="4" />
+      <path d="M29.7 19.3 L23.3 27.7 M34.3 19.3 L40.7 27.7 M25 31 L39 31 M23.5 34 L29.5 38" />
+    `,
+    iconPaths: (
+      <>
+        <circle cx="32" cy="16" r="4" />
+        <circle cx="21" cy="31" r="4" />
+        <circle cx="43" cy="31" r="4" />
+        <circle cx="32" cy="40" r="4" />
+        <path d="M29.7 19.3 L23.3 27.7 M34.3 19.3 L40.7 27.7 M25 31 L39 31 M23.5 34 L29.5 38" />
+      </>
+    ),
+  },
   Library: {
     kind: 'Library',
     code: 'LIB',
@@ -222,6 +256,12 @@ export function getEntityBadgeMeta(kind: EntityKind | string): EntityBadgeMeta {
     case 'Topics':
     case 'MSG':
       return ENTITY_BADGES.Topic;
+    case 'CloudService':
+    case 'cloudservice':
+      return ENTITY_BADGES.CloudService;
+    case 'PeerMesh':
+    case 'peermesh':
+      return ENTITY_BADGES.PeerMesh;
     case 'ExternalService':
     case 'external':
     case 'External':

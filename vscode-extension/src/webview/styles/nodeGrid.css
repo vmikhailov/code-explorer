@@ -269,6 +269,12 @@
   border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
+.badge-peer-mesh {
+  background: rgba(20, 184, 166, 0.2);
+  color: #5eead4;
+  border: 1px solid rgba(20, 184, 166, 0.45);
+}
+
 .badge-worker {
   background: rgba(192, 38, 211, 0.2);
   color: #e879f9;

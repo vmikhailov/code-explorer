@@ -7,6 +7,7 @@ using TreeSitter;
 
 namespace CodeExplorer.Parser.TypeScript;
 
+[ProjectParser(Tier = ParserTier.Secondary, Supersedes = ["javascript"])]
 public class TypeScriptParser : IProjectParser, IFileParser
 {
 

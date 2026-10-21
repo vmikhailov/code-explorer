@@ -24,6 +24,10 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<DatabaseNode>(OntologyConstants.Relationships.UsesDb)]
 [OntologyEdge<TopicNode>(OntologyConstants.Relationships.PublishesTo)]
 [OntologyEdge<TopicNode>(OntologyConstants.Relationships.SubscribesTo)]
+[OntologyEdge<CloudServiceNode>(OntologyConstants.Relationships.UsesCloud)]
+[OntologyEdge<CloudServiceNode>(OntologyConstants.Relationships.ReadsFrom)]
+[OntologyEdge<CloudServiceNode>(OntologyConstants.Relationships.WritesTo)]
+[OntologyEdge<PeerMeshNode>(OntologyConstants.Relationships.CoordinatesWith)]
 [OntologyEdge<TypeNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<FunctionNode>(OntologyConstants.Relationships.Contains)]
 public record LibraryNode(

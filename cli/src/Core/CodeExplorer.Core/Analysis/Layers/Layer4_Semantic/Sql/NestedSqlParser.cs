@@ -249,16 +249,28 @@ public static class NestedSqlParser
         }
 
         var queryName = !string.IsNullOrEmpty(customQueryName) ? customQueryName : $"{firstWord} Query";
+        var verb = (firstWord ?? "SELECT").ToUpperInvariant();
+        var queryExt = new Dictionary<string, string>
+        {
+            ["verb"] = verb,
+            [OntologyConstants.PropertyNames.Operation] = verb,
+            [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Query,
+            [OntologyConstants.PropertyNames.FilePath] = filePath
+        };
+        if (startLine > 0) queryExt[OntologyConstants.PropertyNames.Line] = startLine.ToString();
+        if (endLine > 0) queryExt[OntologyConstants.PropertyNames.LineEnd] = endLine.ToString();
+
         var queryNode = new QueryNode(
             id,
             queryName,
             cleanedSql,
             filePath,
             startLine,
-            endLine
+            endLine,
+            queryExt
         );
 
-        BuildSqlHierarchy(cleanedSql, rawText, queryNode, filePath, ctx);
+        BuildSqlHierarchy(cleanedSql, rawText, queryNode, filePath, ctx, verb, startLine, endLine);
 
         return queryNode;
     }
@@ -425,7 +437,15 @@ public static class NestedSqlParser
         }
     }
 
-    private static void BuildSqlHierarchy(string cleanedSql, string rawText, QueryNode queryNode, string filePath, ParsingContext? ctx = null)
+    private static void BuildSqlHierarchy(
+        string cleanedSql,
+        string rawText,
+        QueryNode queryNode,
+        string filePath,
+        ParsingContext? ctx = null,
+        string verb = "SELECT",
+        int startLine = 0,
+        int endLine = 0)
     {
         var tables = new HashSet<(string? Db, string? Schema, string Table)>();
         var procedures = new HashSet<(string? Db, string? Schema, string Procedure)>();
@@ -584,6 +604,22 @@ public static class NestedSqlParser
             {
                 schemaNode.Children.Add(tableNode);
             }
+
+            if (ctx != null)
+            {
+                var relKind = verb is "INSERT" or "UPDATE" or "DELETE" or "MERGE"
+                    ? OntologyConstants.Relationships.WritesTo
+                    : OntologyConstants.Relationships.ReadsFrom;
+                var relProps = new Dictionary<string, object>
+                {
+                    [OntologyConstants.PropertyNames.FilePath] = filePath,
+                    [OntologyConstants.PropertyNames.Operation] = verb,
+                    [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Query
+                };
+                if (startLine > 0) relProps[OntologyConstants.PropertyNames.Line] = startLine;
+                if (endLine > 0) relProps[OntologyConstants.PropertyNames.LineEnd] = endLine;
+                ctx.AddGlobalProjectDependency(new Database.Relationship(queryNode.Id, tableNodeId, relKind, relProps));
+            }
         }
 
         // Process Procedures
@@ -662,6 +698,19 @@ public static class NestedSqlParser
             if (!schemaNode.Children.Any(c => c.Id.Equals(procNodeId, StringComparison.OrdinalIgnoreCase)))
             {
                 schemaNode.Children.Add(procNode);
+            }
+
+            if (ctx != null)
+            {
+                var relProps = new Dictionary<string, object>
+                {
+                    [OntologyConstants.PropertyNames.FilePath] = filePath,
+                    [OntologyConstants.PropertyNames.Operation] = "EXEC",
+                    [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Procedure
+                };
+                if (startLine > 0) relProps[OntologyConstants.PropertyNames.Line] = startLine;
+                if (endLine > 0) relProps[OntologyConstants.PropertyNames.LineEnd] = endLine;
+                ctx.AddGlobalProjectDependency(new Database.Relationship(queryNode.Id, procNodeId, OntologyConstants.Relationships.Calls, relProps));
             }
         }
     }

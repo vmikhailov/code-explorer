@@ -13,7 +13,7 @@ function getViewModeLabel(mode: ViewMode): string {
     case 'flow':
       return 'Project Flow';
     case 'semantic':
-      return 'Domain Microservice Map';
+      return 'Architecture Map';
     case 'contexts':
       return 'Bounded Context Map';
     case 'full':

@@ -268,6 +268,13 @@ public class AwsSdkRustLibraryParser : ISemanticExtension
             return "sqs-queue";
         }
 
+        if (clean.Equals("self", StringComparison.OrdinalIgnoreCase) ||
+            clean.Equals("Self", StringComparison.OrdinalIgnoreCase) ||
+            clean.Equals("_", StringComparison.OrdinalIgnoreCase))
+        {
+            return defaultKind == "sns" ? "results-topic" : "sqs-queue";
+        }
+
         if (clean.Equals("topic", StringComparison.OrdinalIgnoreCase))
         {
             return "results-topic";

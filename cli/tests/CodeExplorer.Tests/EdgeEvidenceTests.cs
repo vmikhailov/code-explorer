@@ -179,11 +179,165 @@ public class EdgeEvidenceTests
     }
 
     [Test]
-    public async Task EdgeEvidence_ReversedOrientation_StillResolves()
+    public async Task EdgeEvidence_Directional_DoesNotReturnReverseEvidence()
     {
         var result = await _engine.GetEdgeEvidenceAsync([Payment], [Order], "SERVICE_CALL");
 
-        Assert.That(result.Items, Has.Count.EqualTo(1));
+        Assert.That(result.Items, Is.Empty, "A -> B must never show B -> A evidence");
+    }
+
+    [Test]
+    public async Task EdgeEvidence_NestedProjects_ParentDoesNotClaimChildEvidence()
+    {
+        const string childProj = "ws:project:order-child:";
+        await _db.UploadNodesAsync(
+        [
+            new Node(childProj, "Project", new Dictionary<string, object>
+            {
+                ["name"] = "order-child",
+                ["path"] = "services/order-service/child-worker"
+            }),
+            new Node("ws:fn:child-pay", "Function", new Dictionary<string, object>
+            {
+                ["name"] = "ChildChargeAsync",
+                ["path"] = "services/order-service/child-worker/WorkerClient.cs",
+                ["start_line"] = 18,
+                ["end_line"] = 24
+            })
+        ]);
+        await _db.UploadRelationshipsAsync(
+        [
+            new Relationship("ws:fn:child-pay", "ws:ep:charge", OntologyConstants.Relationships.CallsEndpoint, new())
+        ]);
+
+        var parentEvidence = await _engine.GetEdgeEvidenceAsync([Order], [Payment], "SERVICE_CALL");
+        var childEvidence = await _engine.GetEdgeEvidenceAsync([childProj], [Payment], "SERVICE_CALL");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(parentEvidence.Items.Select(i => i.CallerSymbol), Does.Contain("ChargeAsync"));
+            Assert.That(parentEvidence.Items.Select(i => i.CallerSymbol), Does.Not.Contain("ChildChargeAsync"));
+            Assert.That(childEvidence.Items.Select(i => i.CallerSymbol), Does.Contain("ChildChargeAsync"));
+            Assert.That(childEvidence.Items.Select(i => i.CallerSymbol), Does.Not.Contain("ChargeAsync"));
+        });
+    }
+
+    [Test]
+    public async Task DatabaseEvidence_UpdateAndDeleteQueries_ReportRealOperation()
+    {
+        await _db.UploadNodesAsync(
+        [
+            new Node("ws:q:update-order", "Query", new Dictionary<string, object>
+            {
+                ["name"] = "UpdateOrderStatus",
+                ["path"] = "services/order-service/OrderRepo.cs",
+                ["start_line"] = 70,
+                ["end_line"] = 72,
+                ["query_text"] = "UPDATE orders SET status = 'closed' WHERE id = 1",
+                ["verb"] = "UPDATE"
+            }),
+            new Node("ws:q:delete-order", "Query", new Dictionary<string, object>
+            {
+                ["name"] = "DeleteOrder",
+                ["path"] = "services/order-service/OrderRepo.cs",
+                ["start_line"] = 80,
+                ["end_line"] = 82,
+                ["query_text"] = "DELETE FROM orders WHERE id = 1",
+                ["verb"] = "DELETE"
+            })
+        ]);
+        await _db.UploadRelationshipsAsync(
+        [
+            new Relationship("ws:q:update-order", "ws:table:orders", OntologyConstants.Relationships.WritesTo, new Dictionary<string, object>
+            {
+                [OntologyConstants.PropertyNames.FilePath] = "services/order-service/OrderRepo.cs",
+                [OntologyConstants.PropertyNames.Line] = 70,
+                [OntologyConstants.PropertyNames.Operation] = "UPDATE",
+                [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Query
+            }),
+            new Relationship("ws:q:delete-order", "ws:table:orders", OntologyConstants.Relationships.WritesTo, new Dictionary<string, object>
+            {
+                [OntologyConstants.PropertyNames.FilePath] = "services/order-service/OrderRepo.cs",
+                [OntologyConstants.PropertyNames.Line] = 80,
+                [OntologyConstants.PropertyNames.Operation] = "DELETE",
+                [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Query
+            })
+        ]);
+
+        var result = await _engine.GetDatabaseEvidenceAsync(OrdersDb, Order);
+        var operations = result.Items.Where(i => i.FilePath == "services/order-service/OrderRepo.cs").Select(i => i.Operation).ToList();
+
+        Assert.That(operations, Does.Contain("UPDATE").And.Contain("DELETE"));
+        Assert.That(operations, Does.Not.Contain("INSERT"));
+    }
+
+    [Test]
+    public async Task DatabaseEvidence_SchemaSubstringCollision_DoesNotFalseMatch()
+    {
+        const string orderDb = "ws:res:db:relational:postgres.order";
+        await _db.UploadNodesAsync(
+        [
+            new Node(orderDb, "Database", new Dictionary<string, object>
+            {
+                ["name"] = "postgres.order",
+                ["engine"] = "postgres",
+                ["schema"] = "order"
+            }),
+            new Node("ws:q:plural-orders", "Query", new Dictionary<string, object>
+            {
+                ["name"] = "SelectPluralOrders",
+                ["path"] = "services/order-service/PluralRepo.cs",
+                ["start_line"] = 10,
+                ["query_text"] = "SELECT * FROM orders.line_items WHERE id = 1"
+            })
+        ]);
+
+        var result = await _engine.GetDatabaseEvidenceAsync(orderDb, Order);
+        Assert.That(result.Items.Select(i => i.FilePath), Does.Not.Contain("services/order-service/PluralRepo.cs"));
+    }
+
+    [Test]
+    public async Task RolledUpEdge_CarriesEvidenceIdsAndFlagsTruncation()
+    {
+        var props = new Dictionary<string, object>();
+        for (var i = 0; i < 5; i++)
+        {
+            EvidenceProvenanceHelper.RecordContributingEdge(
+                props,
+                $"ws:fn:caller-{i}",
+                OntologyConstants.Relationships.CallsEndpoint,
+                "ws:ep:charge",
+                cap: 3);
+        }
+
+        var ids = EvidenceProvenanceHelper.ParseEvidenceIds(props);
+        Assert.Multiple(() =>
+        {
+            Assert.That(ids, Has.Count.EqualTo(3));
+            Assert.That(props[OntologyConstants.PropertyNames.EvidenceCount], Is.EqualTo(5));
+            Assert.That(props[OntologyConstants.PropertyNames.EvidenceTruncated], Is.EqualTo("true"));
+        });
+
+        await _db.UploadRelationshipsAsync(
+        [
+            new Relationship(Legacy, Payment, OntologyConstants.Relationships.ServiceCall, new Dictionary<string, object>
+            {
+                [OntologyConstants.PropertyNames.EvidenceIds] = System.Text.Json.JsonSerializer.Serialize(new[]
+                {
+                    EvidenceProvenanceHelper.FormatEdgeIdentity("ws:fn:call-pay", OntologyConstants.Relationships.CallsEndpoint, "ws:ep:charge")
+                }),
+                [OntologyConstants.PropertyNames.EvidenceCount] = 1
+            })
+        ]);
+
+        var result = await _engine.GetEdgeEvidenceAsync([Legacy], [Payment], "SERVICE_CALL");
+        var item = result.Items.Single();
+        Assert.Multiple(() =>
+        {
+            Assert.That(item.CallerSymbol, Is.EqualTo("ChargeAsync"));
+            Assert.That(item.TargetSymbol, Is.EqualTo("POST /charge"));
+            Assert.That(item.Confidence, Is.EqualTo(OntologyConstants.EvidenceConfidence.Recorded));
+        });
     }
 
     [Test]

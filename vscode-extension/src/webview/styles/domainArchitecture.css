@@ -1766,64 +1766,13 @@
 }
 
 .domain-orbit-legend-body {
-  padding: 6px 6px 6px 4px;
+  padding: 10px 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
   overflow-y: auto;
   flex: 1;
   min-height: 0;
-}
-
-.domain-orbit-legend-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 6px 5px 4px;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
-  border: 1px solid transparent;
-}
-
-.domain-orbit-legend-item:hover {
-  background: rgba(56, 189, 248, 0.14);
-  border-color: rgba(56, 189, 248, 0.35);
-}
-
-.orbit-legend-pill {
-  font-size: 10.5px;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: rgba(56, 189, 248, 0.16);
-  color: #38bdf8;
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  white-space: nowrap;
-}
-
-.orbit-legend-title {
-  font-size: 11px;
-  font-weight: 500;
-  color: #cbd5e1;
-  flex: 1;
-  min-width: 80px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.domain-orbit-legend-item:hover .orbit-legend-title {
-  color: #f8fafc;
-}
-
-.orbit-legend-count {
-  font-size: 10px;
-  font-weight: 600;
-  padding: 1px 5px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #94a3b8;
 }
 
 .domain-orbit-legend-header-actions {
@@ -1851,68 +1800,160 @@
   border-color: #38bdf8;
 }
 
-.orbit-legend-hint {
+/* Center / periphery axis markers framing the orbit list */
+.orbit-axis-label {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 5px 8px;
+  gap: 6px;
+  padding: 0 2px;
   font-size: 9.5px;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   font-weight: 600;
-  border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
-  background: rgba(0, 0, 0, 0.15);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #64748b;
+  cursor: help;
+}
+
+.orbit-axis-label.is-outer {
+  justify-content: flex-end;
+  cursor: default;
+}
+
+.orbit-axis-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
+}
+
+/* One bordered card per rendered orbit; the left accent fades from center (0) to periphery (1). */
+.orbit-card {
+  --orbit-accent: rgb(56 189 248 / calc(0.95 - var(--orbit-depth, 0) * 0.65));
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-left: 3px solid var(--orbit-accent);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.025);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+.orbit-card:hover {
+  border-color: rgba(56, 189, 248, 0.45);
+  border-left-color: var(--orbit-accent);
+  background: rgba(56, 189, 248, 0.06);
+}
+
+.orbit-card.is-selected {
+  border-color: #38bdf8;
+  border-left-color: #38bdf8;
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.45);
+  background: rgba(56, 189, 248, 0.1);
+}
+
+.orbit-card.is-dragging {
+  opacity: 0.4;
+  border-style: dashed;
+}
+
+.orbit-card.is-drag-over {
+  border-color: #38bdf8;
+  box-shadow: 0 -3px 0 0 #38bdf8;
+}
+
+.orbit-card.is-orbit-hidden {
+  opacity: 0.5;
+  border-style: dashed;
+  border-left-style: solid;
+  border-left-color: rgba(239, 68, 68, 0.6);
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.orbit-card.is-orbit-hidden:hover {
+  opacity: 0.8;
+}
+
+.orbit-card.is-orbit-hidden .orbit-tier-title > span:first-child {
+  text-decoration: line-through;
+  color: #94a3b8;
+}
+
+.orbit-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px 5px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+  border-top-right-radius: 6px;
+}
+
+.orbit-card-spacer {
+  flex: 1;
+}
+
+.orbit-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.orbit-legend-pill {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: rgba(56, 189, 248, 0.16);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  white-space: nowrap;
+}
+
+.orbit-merged-tag {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  border: 1px dashed rgba(148, 163, 184, 0.4);
+  border-radius: 4px;
+  padding: 0 5px;
+}
+
+.orbit-legend-count {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
 }
 
 .orbit-drag-handle {
   cursor: grab;
-  color: #64748b;
+  color: #475569;
   font-size: 13px;
   padding: 0 1px;
   transition: color 0.15s ease;
   user-select: none;
 }
 
-.domain-orbit-legend-item:hover .orbit-drag-handle {
+.orbit-card:hover .orbit-drag-handle {
   color: #38bdf8;
 }
 
-.domain-orbit-legend-item.is-dragging {
-  opacity: 0.4;
-  background: rgba(56, 189, 248, 0.2);
-  border: 1px dashed #38bdf8;
-}
-
-.domain-orbit-legend-item.is-drag-over {
-  border-top: 2px solid #38bdf8;
-  background: rgba(56, 189, 248, 0.18);
-}
-
-.orbit-move-actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  opacity: 0.6;
-  transition: opacity 0.15s ease;
-  margin-left: 2px;
-}
-
-.domain-orbit-legend-item:hover .orbit-move-actions {
-  opacity: 1;
-}
-
 .orbit-move-btn {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: #cbd5e1;
-  border-radius: 3px;
-  width: 17px;
-  height: 17px;
+  border-radius: 4px;
+  width: 20px;
+  height: 20px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 8.5px;
   cursor: pointer;
   padding: 0;
   transition: all 0.15s ease;
@@ -1930,81 +1971,88 @@
   cursor: not-allowed;
 }
 
-/* Orbit visibility button in legend */
 .orbit-visibility-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 22px;
+  height: 20px;
   background: transparent;
   border: none;
+  border-radius: 4px;
   cursor: pointer;
-  padding: 1px 2px;
+  padding: 0;
   color: #94a3b8;
-  opacity: 0.75;
-  transition: opacity 0.15s ease, transform 0.15s ease, color 0.15s ease;
+  transition: color 0.15s ease, background 0.15s ease;
   user-select: none;
 }
 
 .orbit-visibility-btn:hover {
-  opacity: 1;
   color: #f1f5f9;
-  transform: scale(1.15);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .orbit-visibility-btn.is-hidden {
-  opacity: 0.9;
   color: #ef4444;
 }
 
-/* Dimmed / Hidden Orbit Legend Item */
-.domain-orbit-legend-row {
-  position: relative;
-  margin-right: 10px;
+.orbit-tier {
+  padding: 7px 10px 8px;
 }
 
-.domain-orbit-legend-row.is-merged::after {
-  content: '';
-  position: absolute;
-  right: -8px;
-  width: 6px;
-  border-right: 2px solid #38bdf8;
-  top: 0;
-  bottom: 0;
+.orbit-tier + .orbit-tier {
+  border-top: 1px dashed rgba(148, 163, 184, 0.2);
 }
 
-.domain-orbit-legend-row.brace-first::after {
-  top: 50%;
-  border-top: 2px solid #38bdf8;
-  border-top-right-radius: 6px;
+.orbit-tier-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: #e2e8f0;
 }
 
-.domain-orbit-legend-row.brace-last::after {
-  bottom: 50%;
-  border-bottom: 2px solid #38bdf8;
-  border-bottom-right-radius: 6px;
-}
-
-.domain-orbit-legend-item.is-selected {
-  background: rgba(56, 189, 248, 0.22);
-  border-color: #38bdf8;
+.orbit-tier-count {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: #94a3b8;
 }
 
 .orbit-kind-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  padding: 0 6px 4px 30px;
+  margin-top: 6px;
 }
 
 .orbit-kind-chip {
-  font-size: 9.5px;
-  padding: 1px 5px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #94a3b8;
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  padding: 1px 3px 1px 7px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #cbd5e1;
+  border: 1px solid rgba(148, 163, 184, 0.22);
   cursor: grab;
   white-space: nowrap;
+}
+
+.orbit-kind-chip:hover {
+  border-color: rgba(56, 189, 248, 0.5);
+}
+
+.orbit-kind-chip-count {
+  min-width: 14px;
+  padding: 0 4px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
+  text-align: center;
 }
 
 .orbit-kind-chip.is-overridden {
@@ -2019,32 +2067,16 @@
   color: inherit;
   cursor: pointer;
   font-size: 9.5px;
-  padding: 0 0 0 4px;
+  padding: 0 2px;
 }
 
 .orbit-split-btn {
+  height: 20px;
   color: #38bdf8;
   border: 1px solid rgba(56, 189, 248, 0.4);
   border-radius: 4px;
-  padding: 0 5px;
+  padding: 0 6px;
 }
-
-.domain-orbit-legend-item.is-orbit-hidden {
-  opacity: 0.45;
-  background: rgba(239, 68, 68, 0.08);
-  border-color: rgba(239, 68, 68, 0.2);
-}
-
-.domain-orbit-legend-item.is-orbit-hidden .orbit-legend-title {
-  text-decoration: line-through;
-  color: #94a3b8;
-}
-
-.domain-orbit-legend-item.is-orbit-hidden:hover {
-  opacity: 0.8;
-  background: rgba(239, 68, 68, 0.15);
-}
-
 /* Fixed outer rim badge for databases and external services */
 .orbit-fixed-badge {
   font-size: 9px;

@@ -36,7 +36,8 @@ public enum NodeKind
     Workspace = 27,
     Domain = 28,
     BoundedContext = 29,
-    Ingress = 30
+    Ingress = 30,
+    PeerMesh = 31
 }
 
 public enum RelationshipKind
@@ -55,7 +56,8 @@ public enum RelationshipKind
     ReadsFrom = 11,
     Exposes = 12,
     AttributedTo = 13,
-    Configures = 14
+    Configures = 14,
+    CoordinatesWith = 15
 }
 
 public enum ProjectRole

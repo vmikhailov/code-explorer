@@ -232,4 +232,23 @@ public class ConfigurationIndexTests
         ConfigurationIndex.TryGetConfig("RetailService", "Logging:LogLevel:Default", out var logVal).Should().BeTrue();
         logVal.Should().Be("Information");
     }
+
+    [Test]
+    public void Test_ConfigurationIndex_DoesNotExtractNumericAccountIdsOrQueueUrlsAsServices()
+    {
+        var dotEnv = """
+        AWS_QUEUE_URL=http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/requests-queue
+        PARTNER_API_URL=https://api.partner.io/000000000000/orders
+        """;
+
+        var filePath = Path.Combine(_tempDir, ".env");
+        File.WriteAllText(filePath, dotEnv);
+
+        ConfigTestHelper.Load(filePath, "MpcService");
+
+        var urls = ConfigurationIndex.GetDiscoveredUrls("MpcService");
+        urls.Should().NotContain(u => u.ServiceName == "000000000000");
+        urls.Should().NotContain(u => u.Host.StartsWith("sqs.", StringComparison.OrdinalIgnoreCase));
+        urls.Should().ContainSingle(u => u.Host == "api.partner.io" && u.ServiceName == "PARTNER");
+    }
 }

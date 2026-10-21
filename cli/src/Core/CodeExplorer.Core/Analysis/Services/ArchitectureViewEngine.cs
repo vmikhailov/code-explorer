@@ -4,6 +4,7 @@ using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Protocol;
 using CodeExplorer.Cypher.Common;
+using Microsoft.Extensions.Logging;
 
 namespace CodeExplorer.Core.Analysis;
 
@@ -29,9 +30,19 @@ public class ArchitectureViewRequest
 /// Executes single-query architectural projections directly against the graph database,
 /// bypassing runtime BFS lifting and heuristics.
 /// </summary>
-public partial class ArchitectureViewEngine(IGraphClient db)
+public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extensions.Logging.ILogger? logger = null)
 {
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, GraphDataDto> SystemContextCache = new();
+
+    private void RecordEvidenceWarning(List<string>? warnings, string context, Exception ex)
+    {
+        logger?.LogWarning(ex, "[Evidence] {Context}: {Message}", context, ex.Message);
+        var msg = $"{context}: {ex.Message}";
+        if (warnings != null && !warnings.Contains(msg, StringComparer.Ordinal))
+        {
+            warnings.Add(msg);
+        }
+    }
 
     public static void InvalidateCache(string? dbPath = null)
     {
@@ -237,6 +248,11 @@ public partial class ArchitectureViewEngine(IGraphClient db)
         if (!string.IsNullOrEmpty(secondaryRoles)) props["secondary_roles"] = secondaryRoles;
         var allRoles = elem.GetStringProp("all_roles", props.GetValueOrDefault("all_roles", ""));
         if (!string.IsNullOrEmpty(allRoles)) props["all_roles"] = allRoles;
+
+        var memberCount = elem.GetStringProp("member_count", props.GetValueOrDefault("member_count", ""));
+        if (!string.IsNullOrEmpty(memberCount)) props["member_count"] = memberCount;
+        var protocols = elem.GetStringProp("protocols", props.GetValueOrDefault("protocols", ""));
+        if (!string.IsNullOrEmpty(protocols)) props["protocols"] = protocols;
 
         return props;
     }
@@ -456,6 +472,82 @@ public partial class ArchitectureViewEngine(IGraphClient db)
         };
         nodeMap[id] = topicNode;
         graph.Nodes.Add(topicNode);
+    }
+
+    private static void ProcessCloudServiceNode(
+        JsonElement elem,
+        string id,
+        string name,
+        Dictionary<string, string> props,
+        Dictionary<string, GraphNodeDto> nodeMap,
+        GraphDataDto graph)
+    {
+        if (nodeMap.ContainsKey(id)) return;
+
+        props["is_semantic_entity"] = "true";
+        props["is_library"] = "false";
+        props["entity_type"] = "resource";
+        props["service_type"] = "CloudService";
+
+        if (!props.ContainsKey("layer"))
+        {
+            props["layer"] = StandardLayers.Egress.LayerId;
+            props["layerId"] = StandardLayers.Egress.LayerId;
+            props["layerName"] = StandardLayers.Egress.LayerName;
+            props["layerOrder"] = StandardLayers.Egress.Order.ToString();
+            props["layerColor"] = StandardLayers.Egress.Color;
+            props["layerIcon"] = StandardLayers.Egress.Icon;
+        }
+
+        var path = props.GetValueOrDefault("path");
+        var cloudNode = new GraphNodeDto
+        {
+            Id = id,
+            Kind = NodeKind.CloudService,
+            Name = name,
+            DisplayName = elem.GetStringProp("display_name", name),
+            FilePath = string.IsNullOrEmpty(path) ? null : path,
+            Properties = props
+        };
+        nodeMap[id] = cloudNode;
+        graph.Nodes.Add(cloudNode);
+    }
+
+    private static void ProcessPeerMeshNode(
+        string id,
+        string name,
+        Dictionary<string, string> props,
+        Dictionary<string, GraphNodeDto> nodeMap,
+        GraphDataDto graph)
+    {
+        if (nodeMap.ContainsKey(id)) return;
+
+        props["is_semantic_entity"] = "true";
+        props["is_library"] = "false";
+        props["entity_type"] = "peer_mesh";
+        props["topology"] = props.GetValueOrDefault("topology", "symmetric");
+
+        if (!props.ContainsKey("layer"))
+        {
+            props["layer"] = StandardLayers.Egress.LayerId;
+            props["layerId"] = StandardLayers.Egress.LayerId;
+            props["layerName"] = StandardLayers.Egress.LayerName;
+            props["layerOrder"] = StandardLayers.Egress.Order.ToString();
+            props["layerColor"] = StandardLayers.Egress.Color;
+            props["layerIcon"] = StandardLayers.Egress.Icon;
+        }
+
+        var meshNode = new GraphNodeDto
+        {
+            Id = id,
+            Kind = NodeKind.PeerMesh,
+            Name = name,
+            DisplayName = name,
+            FilePath = props.GetValueOrDefault("path"),
+            Properties = props
+        };
+        nodeMap[id] = meshNode;
+        graph.Nodes.Add(meshNode);
     }
 
     private static void ProcessExternalServiceNode(
@@ -772,13 +864,14 @@ public partial class ArchitectureViewEngine(IGraphClient db)
             projNode.Kind = NodeKind.TestSuite;
         }
 
+        var isArchitecturalSubsystem = IsArchitecturalSubsystem(projNode);
         props["is_library"] = isLibProject ? "true" : "false";
-        props["entity_type"] = isLibProject ? "library"
+        props["entity_type"] = isLibProject && !isArchitecturalSubsystem ? "library"
             : (isApp ? "app"
             : (isCliTool ? "clitool"
             : (isWorker ? "worker"
             : (isTestSuite ? "testsuite" : "service"))));
-        props["is_semantic_entity"] = isLibProject ? "false" : "true";
+        props["is_semantic_entity"] = isLibProject && !isArchitecturalSubsystem ? "false" : "true";
 
         if (!props.ContainsKey("layer"))
         {
@@ -790,7 +883,7 @@ public partial class ArchitectureViewEngine(IGraphClient db)
                                       StringComparison.OrdinalIgnoreCase) ||
                                   (name?.ToLowerInvariant().Contains("gateway") == true);
 
-            var defaultLayer = isLibProject ? StandardLayers.Foundation :
+            var defaultLayer = isLibProject && !isArchitecturalSubsystem ? StandardLayers.Foundation :
                 (isAppOrFrontend || isCliTool) ? StandardLayers.Ingress : StandardLayers.Components;
             props["layer"] = defaultLayer.LayerId;
             props["layerId"] = defaultLayer.LayerId;

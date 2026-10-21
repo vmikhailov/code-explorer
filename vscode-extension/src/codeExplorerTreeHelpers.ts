@@ -464,10 +464,10 @@ export function buildDiagramItems(): CodeExplorerTreeItem[] {
     },
     {
       mode: 'semantic',
-      label: 'Domain Microservice Map',
-      desc: 'Bounded contexts & clusters',
+      label: 'Architecture Map',
+      desc: 'Services, resources & topology',
       icon: 'symbol-namespace',
-      tooltip: 'Domain Architecture — Microservice domains and bounded contexts',
+      tooltip: 'Architecture Map — System services, resources, and topology',
     },
     {
       mode: 'contexts',
@@ -688,7 +688,7 @@ export function buildDatabaseEvidenceItems(res: DatabaseEvidenceResponseDto | nu
     );
 
     const filename = ev.filePath ? path.basename(ev.filePath) : '';
-    const lineStr = ev.lineStart > 0 ? `:${ev.lineStart}` : '';
+    const lineStr = ev.lineStart && ev.lineStart > 0 ? `:${ev.lineStart}` : '';
     item.description = ev.callerSymbol
       ? `${ev.callerSymbol} (${filename}${lineStr})`
       : filename ? `${filename}${lineStr}` : '';
@@ -717,7 +717,7 @@ export function buildDatabaseEvidenceItems(res: DatabaseEvidenceResponseDto | nu
       item.command = {
         command: 'codeExplorer.openSource',
         title: `Go to ${ev.title}`,
-        arguments: [ev.filePath, ev.lineStart || 1],
+        arguments: [ev.filePath, ev.lineStart && ev.lineStart > 0 ? ev.lineStart : undefined],
       };
     }
 

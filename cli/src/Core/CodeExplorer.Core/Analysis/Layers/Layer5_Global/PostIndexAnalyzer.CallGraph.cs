@@ -1,3 +1,4 @@
+using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
@@ -21,12 +22,33 @@ public partial class PostIndexAnalyzer
         var existingEdges = new HashSet<(string From, string To, string Kind)>(
             allRelationships.Select(r => (r.From, r.To, r.Kind))
         );
-
-        void AddMaterialized(string fromId, string toId, string relKind, Dictionary<string, object> properties)
+        var edgeLookup = new Dictionary<(string From, string To, string Kind), Relationship>();
+        foreach (var existing in allRelationships)
         {
+            edgeLookup.TryAdd((existing.From, existing.To, existing.Kind), existing);
+        }
+
+        void AddMaterialized(string fromId, string toId, string relKind, Dictionary<string, object> properties, Relationship? contributingRel = null)
+        {
+            if (contributingRel != null)
+            {
+                EvidenceProvenanceHelper.MergeProvenance(properties, contributingRel.Properties);
+                if (!string.Equals(contributingRel.From, fromId, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(contributingRel.To, toId, StringComparison.OrdinalIgnoreCase))
+                {
+                    EvidenceProvenanceHelper.RecordContributingEdge(properties, contributingRel);
+                }
+            }
+
             if (existingEdges.Add((fromId, toId, relKind)))
             {
-                materializedRels.Add(new Relationship(fromId, toId, relKind, properties));
+                var created = new Relationship(fromId, toId, relKind, properties);
+                materializedRels.Add(created);
+                edgeLookup[(fromId, toId, relKind)] = created;
+            }
+            else if (edgeLookup.TryGetValue((fromId, toId, relKind), out var existingRel))
+            {
+                EvidenceProvenanceHelper.MergeProvenance(existingRel.Properties, properties);
             }
 
             if (projectToWorkloadMap != null)
@@ -36,13 +58,19 @@ public partial class PostIndexAnalyzer
 
                 if (semFrom != null && semFrom != semTo)
                 {
+                    var semProps = new Dictionary<string, object>(properties)
+                    {
+                        ["is_semantic"] = "true"
+                    };
                     if (existingEdges.Add((semFrom, semTo, relKind)))
                     {
-                        var semProps = new Dictionary<string, object>(properties)
-                        {
-                            ["is_semantic"] = "true"
-                        };
-                        materializedRels.Add(new Relationship(semFrom, semTo, relKind, semProps));
+                        var createdSem = new Relationship(semFrom, semTo, relKind, semProps);
+                        materializedRels.Add(createdSem);
+                        edgeLookup[(semFrom, semTo, relKind)] = createdSem;
+                    }
+                    else if (edgeLookup.TryGetValue((semFrom, semTo, relKind), out var existingSemRel))
+                    {
+                        EvidenceProvenanceHelper.MergeProvenance(existingSemRel.Properties, semProps);
                     }
                 }
             }
@@ -120,7 +148,8 @@ public partial class PostIndexAnalyzer
                                 ["dependency_type"] = "database",
                                 ["is_semantic"] = "true",
                                 ["is_canonical"] = "true"
-                            }
+                            },
+                            rel
                         );
                     }
                 }
@@ -160,7 +189,8 @@ public partial class PostIndexAnalyzer
                                     ["dependency_type"] = "messaging",
                                     ["is_semantic"] = "true",
                                     ["category"] = "messaging"
-                                }
+                                },
+                                rel
                             );
                         }
                     }
@@ -202,7 +232,8 @@ public partial class PostIndexAnalyzer
                                     ["dependency_type"] = "messaging",
                                     ["is_semantic"] = "true",
                                     ["category"] = "messaging"
-                                }
+                                },
+                                rel
                             );
                         }
                     }
@@ -223,7 +254,8 @@ public partial class PostIndexAnalyzer
                         {
                             ["dependency_type"] = "service_call",
                             ["is_semantic"] = "true"
-                        }
+                        },
+                        rel
                     );
                 }
             }
@@ -244,7 +276,8 @@ public partial class PostIndexAnalyzer
                             ["dependency_type"] = "service_call",
                             ["is_semantic"] = "true",
                             ["service_name"] = serviceKey
-                        }
+                        },
+                        rel
                     );
                 }
             }
@@ -294,7 +327,8 @@ public partial class PostIndexAnalyzer
                                 {
                                     ["dependency_type"] = "service_call",
                                     ["is_semantic"] = "true"
-                                }
+                                },
+                                rel
                             );
                         }
                         else if (internalTargetProj == null && !IsGarbageExternalService(extDomain))
@@ -307,7 +341,8 @@ public partial class PostIndexAnalyzer
                                 {
                                     ["dependency_type"] = "service_call",
                                     ["is_semantic"] = "true"
-                                }
+                                },
+                                rel
                             );
                         }
                     }
@@ -336,7 +371,8 @@ public partial class PostIndexAnalyzer
                                 ["dependency_type"] = "database",
                                 ["is_semantic"] = "true",
                                 ["is_canonical"] = "true"
-                            }
+                            },
+                            rel
                         );
                     }
                 }
@@ -350,7 +386,8 @@ public partial class PostIndexAnalyzer
                         {
                             ["dependency_type"] = "messaging",
                             ["is_semantic"] = "true"
-                        }
+                        },
+                        rel
                     );
                 }
             }

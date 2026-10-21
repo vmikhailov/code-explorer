@@ -157,7 +157,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       {/* View Title Badge */}
       <div className="view-mode-title-badge">
         <span className="view-mode-badge-text">
-          {viewMode === 'semantic' && '🌐 Domain Microservices'}
+          {viewMode === 'semantic' && '🌐 Architecture Map'}
           {viewMode === 'contexts' && '🧩 Bounded Context Map'}
           {viewMode === 'layers' && '🏛️ Architecture Tiers'}
           {viewMode === 'flow' && '🔀 Project Flow'}

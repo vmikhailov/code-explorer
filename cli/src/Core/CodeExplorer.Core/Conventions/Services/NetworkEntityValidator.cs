@@ -90,8 +90,8 @@ public sealed class NetworkEntityValidator
             return true;
         }
 
-        // 5. Version-only segments (e.g. "v1", "v2.0")
-        if (VersionSegmentRegex.IsMatch(lower))
+        // 5. Version-only segments (e.g. "v1", "v2.0") or purely numeric IDs (e.g. AWS account ID "000000000000")
+        if (VersionSegmentRegex.IsMatch(lower) || lower.All(char.IsDigit))
         {
             return true;
         }

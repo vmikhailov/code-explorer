@@ -1,6 +1,8 @@
 using System.Reflection;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
+using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser.Layers;
@@ -26,18 +28,9 @@ public class WorkspaceIndexer
         {
             if (_projectParsers.All(p => p.GetType() != projectParser.GetType()))
             {
-                if (projectParser.IsFallback)
-                {
-                    _projectParsers.Add(projectParser);
-                }
-                else
-                {
-                    var fallbackIdx = _projectParsers.FindIndex(p => p.IsFallback);
-                    if (fallbackIdx >= 0)
-                        _projectParsers.Insert(fallbackIdx, projectParser);
-                    else
-                        _projectParsers.Add(projectParser);
-                }
+                var ordered = ProjectParserPrecedence.Order([.. _projectParsers, projectParser]);
+                _projectParsers.Clear();
+                _projectParsers.AddRange(ordered);
             }
 
             foreach (var desc in projectParser.ConfigurationDescriptors)
@@ -71,217 +64,34 @@ public class WorkspaceIndexer
     }
 
     /// <summary>
-    /// Automatically discovers and registers all project and file parsers from assemblies.
-    /// If specific assemblies are provided, scans them; otherwise dynamically discovers parser assemblies.
+    /// Discovers parser assemblies (or scans the given ones) and registers every parser type they export.
     /// </summary>
     public static IReadOnlyList<Type> AutoRegisterParsers(IEnumerable<Assembly>? assemblies = null)
     {
-        assemblies ??= DiscoverParserAssemblies();
-        var registeredTypes = new List<Type>();
+        var parserTypes = (assemblies ?? ParserAssemblyDiscovery.Discover())
+            .SelectMany(ParserAssemblyDiscovery.GetParserTypes)
+            .ToList();
 
-        foreach (var assembly in assemblies)
+        foreach (var type in parserTypes)
         {
-            Type[] types;
-            try
-            {
-                types = assembly.GetExportedTypes();
-            }
-            catch (ReflectionTypeLoadException ex)
-            {
-                types = [.. ex.Types.OfType<Type>()];
-                foreach (var loaderEx in ex.LoaderExceptions.OfType<Exception>())
-                {
-                    Console.Error.WriteLine($"[AutoRegisterParsers] Warning: Loader error in '{assembly.GetName().Name}': {loaderEx.Message}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine($"[AutoRegisterParsers] Warning: Failed to load exported types from '{assembly.GetName().Name}': {ex.Message}");
-                continue;
-            }
-
-            // Ensure TypeScriptParser precedes JavaScriptParser
-            types = [.. types.OrderBy(t => t.Name == "JavaScriptParser" ? 1 : 0)];
-
-            foreach (var type in types)
-            {
-                if (type == null || type.IsAbstract || type.IsInterface)
-                    continue;
-
-                var isProject = typeof(IProjectParser).IsAssignableFrom(type);
-                var isFile = typeof(IFileParser).IsAssignableFrom(type);
-                var isComponent = typeof(Components.IComponentLibraryParser).IsAssignableFrom(type);
-                var isShared = typeof(ISharedFileParser).IsAssignableFrom(type);
-                if (!isProject && !isFile && !isComponent && !isShared)
-                    continue;
-
-                if (type.GetConstructor(Type.EmptyTypes) != null)
-                {
-                    try
-                    {
-                        var instance = Activator.CreateInstance(type);
-                        if (instance != null)
-                        {
-                            Register(instance);
-                            registeredTypes.Add(type);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        throw new InvalidOperationException(
-                            $"[AutoRegisterParsers] Failed to instantiate parser '{type.FullName}' from assembly '{type.Assembly.GetName().Name}': {ex.Message}",
-                            ex);
-                    }
-                }
-            }
+            Register(CreateParser(type));
         }
 
-        return registeredTypes;
+        return parserTypes;
     }
 
-    /// <summary>
-    /// Returns true if the type is a non-abstract, non-interface class implementing IProjectParser, IFileParser, or IComponentLibraryParser.
-    /// </summary>
-    public static bool IsParserType(Type type)
+    private static object CreateParser(Type type)
     {
-        return !type.IsAbstract &&
-               !type.IsInterface &&
-               (typeof(IProjectParser).IsAssignableFrom(type) ||
-                typeof(IFileParser).IsAssignableFrom(type) ||
-                typeof(ISharedFileParser).IsAssignableFrom(type) ||
-                typeof(Components.IComponentLibraryParser).IsAssignableFrom(type));
-    }
-
-    /// <summary>
-    /// Returns true if the assembly contains at least one non-abstract implementation of IProjectParser or IFileParser.
-    /// </summary>
-    public static bool IsParserAssembly(Assembly assembly)
-    {
-        if (assembly.IsDynamic)
-            return false;
-
         try
         {
-            return assembly.GetExportedTypes().Any(IsParserType);
-        }
-        catch (ReflectionTypeLoadException ex)
-        {
-            return ex.Types.Any(t => t != null && IsParserType(t));
+            return Activator.CreateInstance(type)!;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[IsParserAssembly] Warning: Could not inspect assembly '{assembly.GetName().Name}': {ex.Message}");
-            return false;
+            throw new InvalidOperationException(
+                $"[AutoRegisterParsers] Failed to instantiate parser '{type.FullName}' from assembly '{type.Assembly.GetName().Name}': {ex.Message}",
+                ex);
         }
-    }
-
-    private static bool IsFrameworkAssembly(string name)
-    {
-        return name.StartWithIC("System.") ||
-               name.Equals("System", StringComparison.OrdinalIgnoreCase) ||
-               name.StartWithIC("Microsoft.") ||
-               name.StartWithIC("netstandard") ||
-               name.StartWithIC("mscorlib") ||
-               name.StartWithIC("NUnit.") ||
-               name.StartWithIC("AwesomeAssertions") ||
-               name.StartWithIC("SQLitePCLRaw");
-    }
-
-    /// <summary>
-    /// Discovers all assemblies that contain concrete implementations of IProjectParser or IFileParser.
-    /// </summary>
-    public static IReadOnlyList<Assembly> DiscoverParserAssemblies()
-    {
-        var loadedAssemblies = AppDomain.CurrentDomain.GetAssemblies().ToList();
-        var loadedNames = new HashSet<string>(
-            loadedAssemblies.Select(a => a.GetName().Name ?? string.Empty),
-            StringComparer.OrdinalIgnoreCase);
-
-        var candidateAssemblies = new HashSet<Assembly>(loadedAssemblies);
-
-        // Load referenced assemblies (excluding standard System/Microsoft frameworks)
-        foreach (var loaded in loadedAssemblies)
-        {
-            if (loaded.IsDynamic)
-                continue;
-
-            AssemblyName[] referencedAssemblies;
-            try
-            {
-                referencedAssemblies = loaded.GetReferencedAssemblies();
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine($"[DiscoverParserAssemblies] Warning: Failed to get referenced assemblies from '{loaded.GetName().Name}': {ex.Message}");
-                continue;
-            }
-
-            foreach (var refName in referencedAssemblies)
-            {
-                if (refName.Name != null &&
-                    !IsFrameworkAssembly(refName.Name) &&
-                    !loadedNames.Contains(refName.Name))
-                {
-                    try
-                    {
-                        var asm = Assembly.Load(refName);
-                        loadedNames.Add(refName.Name);
-                        if (IsParserAssembly(asm))
-                        {
-                            candidateAssemblies.Add(asm);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.Error.WriteLine($"[DiscoverParserAssemblies] Warning: Could not load referenced assembly '{refName.Name}': {ex.Message}");
-                    }
-                }
-            }
-        }
-
-        // Also probe AppContext.BaseDirectory for any unreferenced parser DLLs
-        var baseDir = AppContext.BaseDirectory;
-        if (Directory.Exists(baseDir))
-        {
-            string[] dllFiles;
-            try
-            {
-                dllFiles = Directory.GetFiles(baseDir, "*.dll");
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine($"[DiscoverParserAssemblies] Warning: Failed to enumerate directory '{baseDir}': {ex.Message}");
-                dllFiles = [];
-            }
-
-            foreach (var dllPath in dllFiles)
-            {
-                var asmName = Path.GetFileNameWithoutExtension(dllPath);
-                if (!IsFrameworkAssembly(asmName) && !loadedNames.Contains(asmName))
-                {
-                    try
-                    {
-                        var asm = Assembly.LoadFrom(dllPath);
-                        loadedNames.Add(asmName);
-                        if (IsParserAssembly(asm))
-                        {
-                            candidateAssemblies.Add(asm);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.Error.WriteLine($"[DiscoverParserAssemblies] Warning: Could not load DLL from '{dllPath}': {ex.Message}");
-                    }
-                }
-            }
-        }
-
-        return
-        [
-            .. candidateAssemblies
-                .Where(IsParserAssembly)
-                .Distinct()
-        ];
     }
 
     public static IReadOnlyList<IProjectParser> GetAllProjectParsers() => _projectParsers;
@@ -402,9 +212,10 @@ public class WorkspaceIndexer
             cancellationToken: cancellationToken,
             progress: progress,
             logger: _logger,
-            enableIntentAnalysis: enableIntentAnalysis);
-
-        ctx.FileFilter = new WorkspaceFileFilter(_projectParsers, _fileParsers);
+            enableIntentAnalysis: enableIntentAnalysis)
+        {
+            FileFilter = new WorkspaceFileFilter(_projectParsers, _fileParsers)
+        };
         return ctx;
     }
 
@@ -414,9 +225,9 @@ public class WorkspaceIndexer
         ConstantRegistry.Clear();
         RouteDictionaryRegistry.Clear();
 
-        List<Common.Nodes.Layer1_Physical.FileNode> indexedFiles;
-        IReadOnlyList<Common.Nodes.Layer2_Boundaries.ProjectNode> projects = [];
-        IReadOnlyList<SyntaxTree> syntaxTrees = [];
+        List<FileNode> indexedFiles;
+        IReadOnlyList<ProjectNode> projects;
+        IReadOnlyList<SyntaxTree> syntaxTrees;
         await using (new DatabasePersistenceWriter(ctx))
         {
             await PrepareDatabaseAsync(ctx);
@@ -444,8 +255,8 @@ public class WorkspaceIndexer
 
 
     private async Task SyncFileRegistryAsync(
-        List<Common.Nodes.Layer1_Physical.FileNode> files,
-        IReadOnlyList<Common.Nodes.Layer2_Boundaries.ProjectNode> projects,
+        List<FileNode> files,
+        IReadOnlyList<ProjectNode> projects,
         IReadOnlyList<SyntaxTree> syntaxTrees,
         ParsingContext ctx)
     {

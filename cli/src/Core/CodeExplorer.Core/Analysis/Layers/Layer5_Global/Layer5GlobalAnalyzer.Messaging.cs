@@ -531,6 +531,7 @@ public partial class Layer5AnalysisParser
         var relKind = refItem.Kind == OntologyConstants.Relationships.PublishesTo
             ? OntologyConstants.Relationships.PublishedBy
             : OntologyConstants.Relationships.SubscribedBy;
+        var isPublish = refItem.Kind == OntologyConstants.Relationships.PublishesTo;
 
         var relProps = new Dictionary<string, object>
         {
@@ -538,14 +539,22 @@ public partial class Layer5AnalysisParser
             ["scope"] = isInternal ? "internal" : "external",
             ["category"] = "messaging",
             ["dependency_type"] = "messaging",
-            ["broker_type"] = brokerType
+            ["broker_type"] = brokerType,
+            [OntologyConstants.PropertyNames.Operation] = isPublish ? "PUBLISH" : "SUBSCRIBE",
+            [OntologyConstants.PropertyNames.EvidenceKind] = isPublish
+                ? OntologyConstants.EvidenceKinds.Publish
+                : OntologyConstants.EvidenceKinds.Subscribe
         };
+        if (!string.IsNullOrEmpty(scopeFilePath))
+        {
+            relProps[OntologyConstants.PropertyNames.FilePath] = scopeFilePath;
+        }
         if (isInternal)
         {
             relProps["is_semantic"] = "false";
         }
 
-        referenceRelationships.Add(new Relationship(topicId, refItem.ScopeSymbolId, relKind, relProps));
+        referenceRelationships.Add(new Relationship(topicId, refItem.ScopeSymbolId, relKind, new Dictionary<string, object>(relProps)));
         referenceRelationships.Add(new Relationship(refItem.ScopeSymbolId, topicId, refItem.Kind, relProps));
     }
 

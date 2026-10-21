@@ -1,194 +1,150 @@
 # Universal Edge & Node Evidence Architecture Proposal 🔍
-## First-Class Provenance (`EVIDENCED_BY`) Across All Semantic Nodes, Edges & Orbital Groups
+## Creation-Time Provenance for Layer 4 Nodes and Rolled-Up Edges
 
-- **Document Version:** 1.0.0
-- **Status:** Architecture Proposal & Bug Root-Cause Analysis
+- **Document Version:** 2.0.0
+- **Status:** Proposal (remaining work only)
 - **Target Audience:** Core Maintainers, Systems Architects, Frontend/Extension Engineers
-- **Target Subsystems:** `CodeExplorer.Core.Analysis`, `CodeExplorer.Core.Protocol`, `CodeExplorer.Core.Parser.SyntaxEnricher`, `vscode-extension`
+- **Target Subsystems:** `Analysis/Layers/Layer4_Semantic`, `Analysis/Layers/Layer5_Global`, `Analysis/Services/ArchitectureViewEngine.*Evidence*`, `Protocol`, `vscode-extension`
+
+> **Already shipped (v1.52.0 – v1.53.5), not covered here:** the database evidence fixes (`items` JSON contract, manifest-path → directory scoping via `EvidenceScope`, two-hop `Table`/`Procedure` traversal), `GET /api/architecture/edge-evidence` (incl. grouped edges), `GET /api/architecture/node-evidence`, the unified `ArchitectureEvidenceItemDto`, and the `EdgeEvidenceSection` / `NodeEvidenceSection` inspector UI.
 
 ---
 
-## 1. Executive Summary & The Trust Problem
+## 1. Problem
 
-When an architect, tech lead, or security auditor inspects the CodeExplorer orbital graph and sees an arrow between two components—such as:
-* `Ordering Api --[MSGS]--> OrderStatusChangedEvent`
-* `WebApp --[HTTP]--> Catalog Api`
-* `Payment Service --[USES_DB]--> Oracle (ASBT)`
+Evidence is currently **reconstructed at query time** by heuristics in
+[ArchitectureViewEngine.EdgeEvidence.cs](../../cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.EdgeEvidence.cs) and
+[ArchitectureViewEngine.DatabaseEvidence.cs](../../cli/src/Core/CodeExplorer.Core/Analysis/Services/ArchitectureViewEngine.DatabaseEvidence.cs).
+The analyzers that decide an edge exists know exactly *which* symbol caused it, but discard that knowledge. The view engine then guesses it back, which produces both false positives and false negatives:
 
-their immediate first question is: **"Why did CodeExplorer draw this line? Show me the exact file and line of code that proves this dependency exists."**
-
-Without clickable, 100% deterministic code evidence on every arrow and node:
-1. Skeptical leads cannot distinguish true dependencies from parser hallucinations.
-2. Architects cannot jump from a high-level architectural smell directly to the offending line of code.
-3. Our previous attempt at Database Evidence (`GetDatabaseEvidenceAsync`) currently renders empty in the UI due to three specific pipeline bugs detailed below.
-
----
-
-## 2. Post-Mortem: Why Current Database Evidence Always Shows Empty
-
-An audit of the current Database Evidence pipeline revealed **three concrete bugs** that cause the UI to display `"No query or model evidence recorded"` even when queries and entities exist in `graph.db`:
-
-### Bug 1: Fatal JSON Property Name Mismatch (`"items"` vs `"evidence"`)
-* **Backend (C#):** In [`WebSocketProtocol.cs`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Protocol/WebSocketProtocol.cs#L1453-L1454), `DatabaseEvidenceResponseDto` serializes the evidence list under the JSON key `"items"`:
-  ```csharp
-  [JsonPropertyName("items")]
-  public List<DatabaseEvidenceItemDto> Items { get; set; } = [];
-  ```
-* **Frontend (TypeScript):** Both [`DomainInspector.tsx`](file:///c:/Work/Personal/code-explorer/vscode-extension/src/webview/domain/components/DomainInspector.tsx#L48) and [`codeExplorerTreeHelpers.ts`](file:///c:/Work/Personal/code-explorer/vscode-extension/src/codeExplorerTreeHelpers.ts#L677) read `data.evidence`:
-  ```ts
-  setEvidence(data?.evidence || []); // Always undefined -> []
-  ```
-* **Impact:** 100% of responses returned by `/api/database/evidence` are discarded by the frontend and rendered as an empty array.
-
-### Bug 2: Project File Path vs. Directory Path in `MatchesService()`
-* In [`ArchitectureViewEngine.DatabaseEvidence.cs`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Analysis/ArchitectureViewEngine.DatabaseEvidence.cs#L209-L244), `servicePath` is fetched from `coalesce(s.file_path, s.path)` on the `Project`/`Service` node, which points to the project manifest file (e.g., `src/Ordering.API/Ordering.API.csproj` or `pom.xml`).
-* `MatchesService()` then checks:
-  ```csharp
-  filePath.StartsWith(servicePath, StringComparison.OrdinalIgnoreCase)
-  ```
-* Because no `.cs` or `.java` source file path starts with `.../Ordering.API.csproj`, **every source file is filtered out** whenever `serviceId` is passed (which happens every time a user clicks a `Service -> Database` edge). `Path.GetDirectoryName(servicePath)` must be used instead.
-
-### Bug 3: Missing Traversal Through `:Table` and `:Procedure` Nodes
-* In [`ArchitectureViewEngine.DatabaseEvidence.cs`](file:///C:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Analysis/ArchitectureViewEngine.DatabaseEvidence.cs#L370-L372), the relationship query only checks direct edges targeting the `:Database` node (`(src)-[r]->(tgt:Database)`).
-* However, ORM entities (`@Entity`, `DbSet<T>`) and SQL queries typically link to `:Table` or `:Procedure` nodes via `PERSISTED_IN`, `READS_FROM`, or `WRITES_TO`, while only the `:Project` or config file links directly to `:Database` via `USES_DB`.
-
----
-
-## 3. Target Architecture: The Law of Universal Provenance (`EVIDENCED_BY`)
-
-Instead of writing ad-hoc heuristic queries in `ArchitectureViewEngine` to "guess" why a Layer 4 node or edge exists after the fact, **provenance must be recorded at creation time**.
-
-### 3.1 The Fundamental Law of Layer 4
-> **Law of Semantic Provenance:**
-> Every node and every relationship in `Layer 4: Semantic Structure` (`Service`, `App`, `Worker`, `EntryPoint`, `Endpoint`, `ExternalService`, `Topic`, `Database`, `Table`, `Procedure`, `Query`) is a semantic projection of one or more concrete constructs in `Layer 1` (`File`, `ConfigEntry`) or `Layer 3` (`Type`, `Function`, `Member`, `CallLiteral`).
-> Therefore, every Layer 4 creation operation **must** attach provenance linking back to the originating Layer 1/3 node(s).
-
-```mermaid
-flowchart BT
-    subgraph L1_L3["Layer 1 & Layer 3 (Concrete Source Code & Configs)"]
-        C1["ConfigEntry: appsettings.json:14\nConnectionStrings:OrderingDb"]
-        F1["Function: OrderRepository.AddOrder()\nOrderRepository.cs:42"]
-        T1["Type: OrderEntity (@Table 'orders')\nOrderEntity.cs:12"]
-        M1["Function: OrderingIntegrationEventService.PublishThroughEventBusAsync()\nOrderingIntegrationEventService.cs:58"]
-    end
-
-    subgraph L4["Layer 4 (Semantic Architecture Map)"]
-        SVC["Service: Ordering Api"]
-        DB["Database: Postgres.ordering"]
-        TBL["Table: orders"]
-        TOP["Topic: OrderStatusChangedIntegrationEvent"]
-
-        SVC -- "USES_DB" --> DB
-        SVC -- "WRITES_TO" --> TBL
-        SVC -- "PUBLISHES_TO" --> TOP
-    end
-
-    C1 -. "EVIDENCED_BY (config)" .-> DB
-    F1 -. "EVIDENCED_BY (query/call)" .-> TBL
-    T1 -. "EVIDENCED_BY (orm)" .-> TBL
-    M1 -. "EVIDENCED_BY (publish)" .-> TOP
-```
-
----
-
-## 4. Universal Evidence Data Model
-
-### 4.1 Graph Storage Representation
-To keep `graph.db` fast and compact while supporting instant evidence lookup on any node or macro-edge:
-
-1. **Direct Symbol Provenance on Layer 4 Nodes:**
-   Every Layer 4 node (`Endpoint`, `Topic`, `Query`, `Table`, `Database`, `ExternalService`) stores:
-   * `file_path`, `line`, `line_end` (primary declaration/discovery location).
-   * Incoming semantic edges directly from the Layer 3 symbols that interact with it:
-     * `(fn:Function)-[:PUBLISHES_TO]->(t:Topic)`
-     * `(fn:Function)-[:SUBSCRIBES_TO]->(t:Topic)`
-     * `(fn:Function)-[:CALLS_ENDPOINT]->(es:ExternalService)`
-     * `(cls:Type)-[:PERSISTED_IN]->(tbl:Table)`
-     * `(fn:Function)-[:DECLARES]->(q:Query)-[:READS_FROM|WRITES_TO]->(tbl:Table)`
-     * `(cfg:File)-[:CONFIGURES]->(db:Database)`
-
-2. **Edge Evidence Aggregation (`EvidenceJson` on Macro-Edges):**
-   When `SyntaxEnricher` or `ArchitectureViewEngine` rolls up symbol-level edges into a service-level macro-edge (e.g., `(s:Service)-[:PUBLISHES_TO]->(t:Topic)` or `(s1:Service)-[:SERVICE_CALL]->(s2:Service)`), it attaches a lightweight `evidence_count` and resolves the exact underlying symbol-level edges on demand.
-
-### 4.2 Unified DTO Contract (`ArchitectureEvidenceDto`)
-
-We unify node, edge, and database evidence under a single consistent contract (fixing the `"items"` vs `"evidence"` mismatch by supporting both or standardizing on `"items"` with a backward-compatible alias):
-
-```csharp
-public class ArchitectureEvidenceItemDto
-{
-    [JsonPropertyName("id")]
-    public string Id { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Category: "endpoint", "http_call", "grpc_call", "wcf_call", "publish", "subscribe",
-    /// "query", "orm", "procedure", "config", "migration", "type_reference"
-    /// </summary>
-    [JsonPropertyName("kind")]
-    public string Kind { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Short badge label: "POST", "GET", "PUBLISH", "SUBSCRIBE", "SELECT", "INSERT", "ORM", "CONFIG"
-    /// </summary>
-    [JsonPropertyName("operation")]
-    public string Operation { get; set; } = string.Empty;
-
-    [JsonPropertyName("title")]
-    public string Title { get; set; } = string.Empty;
-
-    [JsonPropertyName("filePath")]
-    public string FilePath { get; set; } = string.Empty;
-
-    [JsonPropertyName("lineStart")]
-    public int LineStart { get; set; }
-
-    [JsonPropertyName("lineEnd")]
-    public int LineEnd { get; set; }
-
-    [JsonPropertyName("codeSnippet")]
-    public string? CodeSnippet { get; set; }
-
-    [JsonPropertyName("callerSymbol")]
-    public string? CallerSymbol { get; set; }
-
-    [JsonPropertyName("targetSymbol")]
-    public string? TargetSymbol { get; set; }
-
-    [JsonPropertyName("serviceName")]
-    public string? ServiceName { get; set; }
-
-    [JsonPropertyName("reason")]
-    public string Reason { get; set; } = string.Empty;
-}
-```
-
----
-
-## 5. Evidence Resolution Matrix by Edge Type
-
-When a user clicks **any** edge `(Source) --[EdgeKind]--> (Target)` in the orbital diagram (including edges between **Grouped Nodes** like `Services (6) -> Topics (14)`), the Universal Evidence Resolver executes the corresponding deterministic graph traversal:
-
-| Edge Selected in UI | Underlying Graph Traversal for Evidence | What User Sees in Sidebar |
+| Heuristic | Location | Failure mode |
 | :--- | :--- | :--- |
-| **`Service` $\rightarrow$ `Topic` (`PUBLISHES_TO` / `MSGS`)** | `MATCH (s)-[:CONTAINS*1..3]->(sym)-[r:PUBLISHES_TO\|CALLS]->(t:Topic)` | Exact method calling `.Publish()` / `KafkaTemplate.send()`, file, line, and event type. |
-| **`Topic` $\rightarrow$ `Service` (`SUBSCRIBES_TO` / `MSGS`)** | `MATCH (s)-[:CONTAINS*1..3]->(sym)-[r:SUBSCRIBES_TO\|HANDLES]->(t:Topic)` | Exact `@KafkaListener` / `IConsumer<T>` / `IntegrationEventHandler` class & method. |
-| **`App/Service` $\rightarrow$ `Service` (`HTTP` / `gRPC` / `WCF`)** | `MATCH (s1)-[:CONTAINS*1..3]->(caller)-[:CALLS_ENDPOINT\|CALLS]->(ep)<-[:EXPOSES_ENDPOINT]-(s2)` | Outbound client call site (`HttpClient`, `FeignClient`, `gRPC` stub) + matched target Controller endpoint. |
-| **`Service` $\rightarrow$ `Database` (`USES_DB`)** | 1. Queries (`:Query`) in `Service` matching DB schema/tables<br>2. ORM Entities (`:Type`) `PERSISTED_IN` `:Table`<br>3. Stored `:Procedure` calls<br>4. Config files (`appsettings.json`, `application.yml`) & Migrations | Grouped tabs/badges: `SQL Queries`, `ORM Entities`, `Stored Procs`, `Config`, `Migrations`. |
-| **`Group A` $\rightarrow$ `Group B` (Clustered Edge)** | Expands `sourceIds[]` in Group A and `targetIds[]` in Group B, aggregating all evidence items grouped by `ServiceName`. | Complete breakdown of every inter-group connection with 1-click jump to source code. |
+| Query ↔ database matched by schema substring in SQL text, or engine name in query id/name | `GetDatabaseEvidenceAsync` (step 3) | Schema `order` matches `orders.`; engine `Postgres` matches every query whose id contains it. |
+| ORM classification by path substring (`Context`, `Model`, `Entity`, any `.cs`/`.ts`) | `GetDatabaseEvidenceAsync` (step 4) | Every non-config source file is labelled `ORM`. |
+| Fixed operation per relationship (`WRITES_TO` → `INSERT`, `READS_FROM` → `SELECT`) | Step 4b | `UPDATE`/`DELETE`/`MERGE` shown as `INSERT`. |
+| Service ownership by directory prefix plus `Contains("/" + dir + "/")` fallback | `EvidenceScope.Matches` | Nested projects: the parent project claims the child's evidence; same-named folders collide. |
+| Node resolution by `name` / `ENDS WITH` | `ResolveEvidenceNodesAsync`, `ResolveServiceScopeAsync` | Similarly named nodes resolve to the wrong entity. |
+| Reverse-direction retry when a pair has no evidence | `GetEdgeEvidenceAsync` | Evidence for `B → A` displayed on an `A → B` arrow. |
+| `LineStart = 1` when no line is known | All collectors | Claims an exact location that does not exist. |
+| Empty `catch { }` blocks (~10) | All collectors | Query failures render as "no evidence", the original trust problem. |
+
+Performance is also unbounded: `GetDatabaseEvidenceAsync` scans **all** `:Query` nodes and all `Function-[:DECLARES]->Query` edges per call, and a grouped edge such as `Services (6) → Topics (14)` fans out into 84 pair resolutions, each re-running `ResolveServiceScopeAsync` (uncached) plus 2–4 queries, doubled when the reverse retry fires.
 
 ---
 
-## 6. Implementation Plan
+## 2. Target Architecture: Law of Semantic Provenance
 
-### Step 1: Immediate Bugfix for Database Evidence (1 Hour)
-1. **Fix JSON Serialization Contract:**
-   In [`DatabaseEvidenceResponseDto`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Protocol/WebSocketProtocol.cs#L1453-L1454) and [`DomainInspector.tsx`](file:///c:/Work/Personal/code-explorer/vscode-extension/src/webview/domain/components/DomainInspector.tsx#L48) / [`codeExplorerTreeHelpers.ts`](file:///c:/Work/Personal/code-explorer/vscode-extension/src/codeExplorerTreeHelpers.ts#L677), align on `data?.items || data?.evidence || []`.
-2. **Fix `MatchesService` Path Resolution:**
-   In [`ArchitectureViewEngine.DatabaseEvidence.cs`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Analysis/ArchitectureViewEngine.DatabaseEvidence.cs#L222), normalize `servicePath` to its project directory (`Path.GetDirectoryName(servicePath)` when `servicePath` points to a file) before comparing against source file paths.
-3. **Include `:Table` and `:Procedure` Lineage in `GetDatabaseEvidenceAsync`:**
-   Expand Step 4 in `ArchitectureViewEngine.DatabaseEvidence.cs` to traverse `(src)-[:PERSISTED_IN|READS_FROM|WRITES_TO|CALLS]->(t:Table|Procedure)` in addition to direct `:Database` edges.
+> Every Layer 4 node and every rolled-up Layer 4/5 relationship is a projection of one or more concrete Layer 1 (`File`, `ConfigEntry`) or Layer 3 (`Type`, `Function`, `Member`, `CallLiteral`) constructs. The analyzer that creates it **must record that provenance at creation time**. Evidence lookup becomes a deterministic read, never an inference.
 
-### Step 2: Generalize `/api/architecture/edge-evidence` for All Edges (1–2 Days)
-1. Add `GetEdgeEvidenceAsync(string sourceId, string targetId, string? edgeKind, CancellationToken ct)` to `IArchitectureQueryService`.
-2. Wire `EdgeEvidenceSection` into `DomainInspector.tsx` whenever **any** edge (`MSGS`, `HTTP`, `gRPC`, `SERVICE_CALL`, `USES_DB`, or grouped cluster edge) is selected in the VS Code Webview.
-3. Support 1-click navigation (`vscode.workspace.openTextDocument` at `lineStart`) from every evidence card.
+This fits the pipeline split in the architecture guidelines: Layer 4 records **symbol-level** provenance as it discovers semantic constructs; Layer 5 **aggregates** it when rolling symbol edges up to service-level edges.
+
+### 2.1 Decision: reuse semantic edges, no new `EVIDENCED_BY` relationship
+
+The v1 draft proposed both a new `EVIDENCED_BY` edge type and reusing existing semantic edges. We standardise on **reusing existing semantic edges** because:
+
+1. Symbol-level edges (`PUBLISHES_TO`, `SUBSCRIBES_TO`, `CALLS_ENDPOINT`, `PERSISTED_IN`, `DECLARES`, `READS_FROM`, `WRITES_TO`, `CONFIGURES`) already *are* the evidence; an `EVIDENCED_BY` edge would duplicate each one.
+2. The property graph cannot attach a node to an **edge**, so `EVIDENCED_BY` cannot express provenance of rolled-up edges such as `SERVICE_CALL` or `USES_DB` anyway.
+
+### 2.2 Storage model
+
+**(a) Symbol-level edges (Layer 4)** — every semantic edge emitted from a code construct carries, in its relationship `Extensions`:
+
+| Key | Meaning |
+| :--- | :--- |
+| `file_path` | File of the originating construct (call site, annotation, config entry). |
+| `line`, `line_end` | Exact span of the construct; **omitted** when unknown (never defaulted to `1`). |
+| `operation` | Real operation detected by the analyzer: `SELECT`/`INSERT`/`UPDATE`/`DELETE`/`EXEC`, `PUBLISH`/`SUBSCRIBE`, HTTP verb, `ORM`, `CONFIG`, `MIGRATION`. |
+| `evidence_kind` | One of the shared kind constants (§2.3). |
+
+The source node of the edge is always the concrete Layer 1/3 node, so `CallerSymbol` comes from the graph, not from path guessing.
+
+**(b) Rolled-up edges (Layer 5)** — when `Layer5GlobalAnalyzer` / `PostIndexAnalyzer` collapse symbol-level edges into `SERVICE_CALL`, `USES_DB`, `PUBLISHES_TO` (service → topic), etc., they store in `Extensions`:
+
+| Key | Meaning |
+| :--- | :--- |
+| `evidence_ids` | JSON array of the contributing symbol-level edge identities (`fromId|kind|toId`), capped at a configurable limit (default 200). |
+| `evidence_count` | Total number of contributing edges (may exceed the cap). |
+| `evidence_truncated` | `true` when the cap was hit. |
+
+Relationship records already expose `Extensions` (see [ServiceCallRelationship.cs](../../cli/src/Core/CodeExplorer.Core/Common/Relationships/ServiceCallRelationship.cs)), so no schema migration is needed.
+
+**(c) Layer 4 nodes** — `Endpoint`, `Topic`, `Query`, `Table`, `Procedure`, `Database`, `ExternalService` keep `file_path`/`line`/`line_end` of their primary discovery site. Nodes discovered only from config are linked `(cfg:File|ConfigEntry)-[:CONFIGURES]->(n)`.
+
+### 2.3 Evidence kind vocabulary
+
+Replace free-form `kind` strings with constants in `OntologyConstants.EvidenceKinds`, mirrored in `proto/types`:
+
+`endpoint`, `entrypoint`, `http_call`, `grpc_call`, `wcf_call`, `publish`, `subscribe`, `query`, `procedure`, `orm`, `table`, `config`, `migration`, `library_call`, `test_call`, `type_reference`.
+
+Also promote the `HANDLES` literal used in the edge-evidence code to `OntologyConstants.Relationships`.
+
+### 2.4 Service ownership by structure, not by path
+
+Replace directory-prefix scoping in `EvidenceScope` with structural containment, which is exact for nested projects:
+
+```cypher
+MATCH (s)-[:CONTAINS*1..3]->(sym) WHERE s.id IN $serviceIds RETURN s.id, sym.id
+```
+
+Path matching remains only as a fallback for nodes without a `CONTAINS` chain, and such items are flagged (see §3.2).
+
+---
+
+## 3. Resolver Changes
+
+### 3.1 Evidence resolution becomes a lookup
+
+| Selected element | New resolution |
+| :--- | :--- |
+| Rolled-up edge `A → B` | Read `evidence_ids` from the edge(s) between the resolved ids **in the rendered direction only**; load those symbol edges and their source nodes in one batched query. |
+| Grouped edge `Group A → Group B` | Same, with `IN $sourceIds` / `IN $targetIds` in a single query instead of N×M pair calls. |
+| Layer 4 node | Incoming symbol-level semantic edges + `CONFIGURES` + the node's own discovery span. |
+| `Service → Database` | Union of symbol edges to the `Database` and to its `Table`/`Procedure` children, filtered by §2.4 containment; operation read from the edge, not inferred. |
+
+### 3.2 Legacy fallback with explicit confidence
+
+Until every analyzer records provenance, the existing heuristic collectors remain as a fallback, but:
+
+- Each `ArchitectureEvidenceItemDto` gains `confidence: "recorded" | "inferred"`; heuristic results are always `inferred` and the UI renders an *Inferred* badge.
+- The reverse-direction retry is removed; bidirectional edges are resolved by querying both directions explicitly and labelling each item with its direction.
+- `lineStart`/`lineEnd` become nullable; the UI opens the file without a cursor position when absent.
+- Empty `catch { }` blocks log through `ILogger` and add a `warnings` array to the response so the inspector can distinguish "no evidence" from "lookup failed".
+
+### 3.3 Performance
+
+- Resolve service scopes and node ids **once per request** (batched `IN` queries, request-local cache).
+- Filter `:Query` scans by the resolved database/table ids instead of scanning all queries.
+- Target: any single edge or group-edge evidence request completes in < 200 ms on a 200k-node graph.
+
+---
+
+## 4. Implementation Plan
+
+### Step 1: Shared vocabulary & DTO hardening (½ day)
+1. Add `OntologyConstants.EvidenceKinds` and the `HANDLES` relationship constant; mirror in `proto/types`.
+2. Add `confidence` and `warnings`; make `lineStart`/`lineEnd` nullable in `ArchitectureEvidenceItemDto` and the TS types.
+3. Replace empty `catch { }` blocks in the evidence collectors with logged warnings.
+
+### Step 2: Record symbol-level provenance in Layer 4 (2–3 days)
+1. Endpoint, messaging, HTTP/gRPC/WCF client, ORM, query, and configuration analyzers under `Layer4_Semantic` write `file_path`, `line`, `line_end`, `operation`, `evidence_kind` into the `Extensions` of every semantic edge they emit.
+2. Query analyzers record the real SQL verb per statement.
+
+### Step 3: Aggregate provenance on rolled-up edges in Layer 5 (1–2 days)
+1. `Layer5GlobalAnalyzer` (messaging, databases) and `PostIndexAnalyzer` (call graph, edge normalisation) write `evidence_ids` / `evidence_count` / `evidence_truncated` when creating or merging service-level edges.
+
+### Step 4: Switch resolvers to lookups (1–2 days)
+1. Implement the §3.1 lookup paths with batched queries; keep heuristics only behind the §3.2 `inferred` fallback.
+2. Replace `EvidenceScope` path matching with §2.4 containment.
+3. Remove the reverse-direction retry.
+
+### Step 5: Tests (alongside each step)
+Extend [EdgeEvidenceTests.cs](../../cli/tests/CodeExplorer.Tests/EdgeEvidenceTests.cs) with:
+- Nested projects: a parent project does not claim the child project's evidence.
+- Directional edges: `A → B` never shows `B → A` evidence.
+- `UPDATE`/`DELETE` queries report their real operation.
+- Schema-substring collision (`order` vs `orders`) yields no false match.
+- Grouped edge resolution issues a bounded number of queries independent of group size.
+- Rolled-up edges carry `evidence_ids` matching their contributing symbol edges, and truncation is flagged.
+
+### Step 6: Retire heuristics
+Once analyzers in every supported language record provenance, delete the heuristic collectors and the `inferred` fallback path.

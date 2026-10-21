@@ -487,13 +487,25 @@ public partial class SyntaxEnricher : ISyntaxEnricher
                         {
                             relExt["is_orm"] = "true";
                         }
+                        relExt[OntologyConstants.PropertyNames.Operation] = isOrm ? "ORM" : "SQL";
+                        relExt[OntologyConstants.PropertyNames.EvidenceKind] = isOrm
+                            ? OntologyConstants.EvidenceKinds.Orm
+                            : OntologyConstants.EvidenceKinds.Query;
 
-                        var usesDbRel = new UsesDbRelationship(fileNode.Id, dbId, relExt);
-                        ctx.AddGlobalProjectDependency(Relationship.FromRelationship(usesDbRel));
+                        var usageLine = FindDatabaseUsageLine(fileNode, _syntaxTree, currentSchema, parser.Id);
+                        if (usageLine > 0)
+                        {
+                            relExt[OntologyConstants.PropertyNames.Line] = usageLine.ToString();
+                            relExt[OntologyConstants.PropertyNames.LineEnd] = usageLine.ToString();
+                        }
+
+                        var usesDbRel = Relationship.FromRelationship(new UsesDbRelationship(fileNode.Id, dbId, relExt));
+                        ctx.AddGlobalProjectDependency(usesDbRel);
                         if (projectNode.IsTest || !WorkspaceConventions.IsTestFilePath(fileNode.Path))
                         {
-                            var projUsesDbRel = new UsesDbRelationship(projectNode.Id, dbId, relExt);
-                            ctx.AddGlobalProjectDependency(Relationship.FromRelationship(projUsesDbRel));
+                            var projUsesDbRel = Relationship.FromRelationship(new UsesDbRelationship(projectNode.Id, dbId, relExt));
+                            EvidenceProvenanceHelper.RecordContributingEdge(projUsesDbRel.Properties, usesDbRel);
+                            ctx.AddGlobalProjectDependency(projUsesDbRel);
                         }
                     }
                     break;
@@ -508,10 +520,17 @@ public partial class SyntaxEnricher : ISyntaxEnricher
                         semanticNodeForApi.Children.Add(apiNode);
                     }
 
-                    var usesApiRel = new UsesApiRelationship(fileNode.Id, apiId);
-                    ctx.AddGlobalProjectDependency(Relationship.FromRelationship(usesApiRel));
-                    var projUsesApiRel = new UsesApiRelationship(projectNode.Id, apiId);
-                    ctx.AddGlobalProjectDependency(Relationship.FromRelationship(projUsesApiRel));
+                    var apiExt = new Dictionary<string, string>
+                    {
+                        [OntologyConstants.PropertyNames.FilePath] = fileNode.Path,
+                        [OntologyConstants.PropertyNames.Operation] = "CALL",
+                        [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.LibraryCall
+                    };
+                    var usesApiRel = Relationship.FromRelationship(new UsesApiRelationship(fileNode.Id, apiId, apiExt));
+                    ctx.AddGlobalProjectDependency(usesApiRel);
+                    var projUsesApiRel = Relationship.FromRelationship(new UsesApiRelationship(projectNode.Id, apiId, apiExt));
+                    EvidenceProvenanceHelper.RecordContributingEdge(projUsesApiRel.Properties, usesApiRel);
+                    ctx.AddGlobalProjectDependency(projUsesApiRel);
                     break;
 
                 case "cloud":
@@ -524,10 +543,17 @@ public partial class SyntaxEnricher : ISyntaxEnricher
                         semanticNodeForCloud.Children.Add(cloudNode);
                     }
 
-                    var usesCloudRel = new UsesCloudRelationship(fileNode.Id, cloudId);
-                    ctx.AddGlobalProjectDependency(Relationship.FromRelationship(usesCloudRel));
-                    var projUsesCloudRel = new UsesCloudRelationship(projectNode.Id, cloudId);
-                    ctx.AddGlobalProjectDependency(Relationship.FromRelationship(projUsesCloudRel));
+                    var cloudExt = new Dictionary<string, string>
+                    {
+                        [OntologyConstants.PropertyNames.FilePath] = fileNode.Path,
+                        [OntologyConstants.PropertyNames.Operation] = "CALL",
+                        [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.HttpCall
+                    };
+                    var usesCloudRel = Relationship.FromRelationship(new UsesCloudRelationship(fileNode.Id, cloudId, cloudExt));
+                    ctx.AddGlobalProjectDependency(usesCloudRel);
+                    var projUsesCloudRel = Relationship.FromRelationship(new UsesCloudRelationship(projectNode.Id, cloudId, cloudExt));
+                    EvidenceProvenanceHelper.RecordContributingEdge(projUsesCloudRel.Properties, usesCloudRel);
+                    ctx.AddGlobalProjectDependency(projUsesCloudRel);
                     break;
             }
         }
@@ -606,6 +632,59 @@ public partial class SyntaxEnricher : ISyntaxEnricher
 
         parentNode.Children.Add(varNode);
         return true;
+    }
+
+    private static int FindDatabaseUsageLine(FileNode fileNode, SyntaxTree syntaxTree, string? schema, string parserId)
+    {
+        if (string.IsNullOrEmpty(fileNode.FullPath) || !File.Exists(fileNode.FullPath))
+        {
+            return 0;
+        }
+
+        try
+        {
+            var lines = File.ReadAllLines(fileNode.FullPath);
+            var hasSpecificSchema = !string.IsNullOrWhiteSpace(schema) &&
+                                    !schema.Equals("public", StringComparison.OrdinalIgnoreCase) &&
+                                    !schema.Equals("dbo", StringComparison.OrdinalIgnoreCase) &&
+                                    !schema.Equals("default", StringComparison.OrdinalIgnoreCase);
+
+            var clientCallLine = 0;
+            var importLine = 0;
+
+            for (var i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i];
+                if (hasSpecificSchema && line.Contains(schema!, StringComparison.OrdinalIgnoreCase))
+                {
+                    return i + 1;
+                }
+
+                if (clientCallLine == 0 &&
+                    (line.Contains("PostgresClient::new", StringComparison.Ordinal) ||
+                     line.Contains("AnonStatsPgClient::new", StringComparison.Ordinal) ||
+                     line.Contains("PgPool", StringComparison.Ordinal) ||
+                     line.Contains("DbContext", StringComparison.Ordinal) ||
+                     line.Contains("get_cpu_db_schema", StringComparison.Ordinal) ||
+                     line.Contains("get_gpu_db_schema", StringComparison.Ordinal) ||
+                     line.Contains("get_anon_stats_db_schema", StringComparison.Ordinal)))
+                {
+                    clientCallLine = i + 1;
+                }
+
+                if (importLine == 0 && !string.IsNullOrWhiteSpace(parserId) &&
+                    line.Contains(parserId, StringComparison.OrdinalIgnoreCase))
+                {
+                    importLine = i + 1;
+                }
+            }
+
+            return clientCallLine > 0 ? clientCallLine : importLine;
+        }
+        catch
+        {
+            return 0;
+        }
     }
 
     public static bool IsOrmLibrary(string parserId)

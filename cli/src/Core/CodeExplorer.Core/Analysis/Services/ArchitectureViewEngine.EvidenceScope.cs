@@ -5,9 +5,15 @@ namespace CodeExplorer.Core.Analysis;
 
 /// <summary>
 /// Defines which files and symbols belong to a service so evidence can be attributed to it.
-/// Membership is decided on directory boundaries, never by substring.
+/// Prefers structural CONTAINS ownership in the graph and falls back to directory boundaries
+/// while excluding any nested child project directories.
 /// </summary>
-internal sealed class EvidenceScope(string id, string name, string? directory)
+internal sealed class EvidenceScope(
+    string id,
+    string name,
+    string? directory,
+    IReadOnlySet<string>? containedNodeIds = null,
+    IReadOnlyList<string>? excludedSubdirectories = null)
 {
     private static readonly HashSet<string> ManifestExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -18,6 +24,15 @@ internal sealed class EvidenceScope(string id, string name, string? directory)
     public string Id { get; } = id;
     public string Name { get; } = name;
     public string? Directory { get; } = NormalizeDirectory(directory);
+    public IReadOnlySet<string> ContainedNodeIds { get; } = containedNodeIds ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    public IReadOnlyList<string> ExcludedSubdirectories { get; } =
+        excludedSubdirectories?
+            .Select(NormalizeDirectory)
+            .Where(d => !string.IsNullOrEmpty(d))
+            .Select(d => d!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray()
+        ?? [];
 
     /// <summary>Project nodes may point at a manifest (e.g. Foo.csproj); the scope is its folder.</summary>
     public static string? NormalizeDirectory(string? path)
@@ -37,8 +52,16 @@ internal sealed class EvidenceScope(string id, string name, string? directory)
         return p is "" or "." ? null : p;
     }
 
-    public bool Matches(string? filePath, string? itemService = null)
+    public bool IsStructuralMember(string? nodeId) =>
+        !string.IsNullOrEmpty(nodeId) && ContainedNodeIds.Contains(nodeId);
+
+    public bool Matches(string? filePath, string? itemService = null, string? nodeId = null)
     {
+        if (!string.IsNullOrEmpty(nodeId) && ContainedNodeIds.Count > 0)
+        {
+            if (ContainedNodeIds.Contains(nodeId)) return true;
+        }
+
         if (!string.IsNullOrEmpty(itemService) &&
             (itemService.Equals(Name, StringComparison.OrdinalIgnoreCase) || itemService.Equals(Id, StringComparison.OrdinalIgnoreCase)))
         {
@@ -48,6 +71,16 @@ internal sealed class EvidenceScope(string id, string name, string? directory)
         if (string.IsNullOrEmpty(filePath) || Directory is null) return false;
 
         var f = filePath.Replace('\\', '/');
+        foreach (var childDir in ExcludedSubdirectories)
+        {
+            if (f.Equals(childDir, StringComparison.OrdinalIgnoreCase) ||
+                f.StartsWith(childDir + "/", StringComparison.OrdinalIgnoreCase) ||
+                f.Contains("/" + childDir + "/", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
         if (f.Equals(Directory, StringComparison.OrdinalIgnoreCase) ||
             f.StartsWith(Directory + "/", StringComparison.OrdinalIgnoreCase))
         {
@@ -82,9 +115,17 @@ public partial class ArchitectureViewEngine
         return clean.TrimEnd(':');
     }
 
-    internal async Task<EvidenceScope?> ResolveServiceScopeAsync(string serviceId, CancellationToken ct)
+    internal async Task<EvidenceScope?> ResolveServiceScopeAsync(
+        string serviceId,
+        CancellationToken ct,
+        Dictionary<string, EvidenceScope?>? scopeCache = null,
+        List<string>? warnings = null)
     {
         if (string.IsNullOrWhiteSpace(serviceId)) return null;
+        if (scopeCache != null && scopeCache.TryGetValue(serviceId, out var cachedScope))
+        {
+            return cachedScope;
+        }
 
         var cleanId = StripEntityIdPrefix(serviceId);
         if (string.IsNullOrWhiteSpace(cleanId)) cleanId = serviceId;
@@ -107,6 +148,7 @@ public partial class ArchitectureViewEngine
             string? bestId = null;
             string? bestName = null;
             string? bestPath = null;
+            var candidateServiceIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var row in doc.RootElement.EnumerateArray())
             {
@@ -114,6 +156,7 @@ public partial class ArchitectureViewEngine
                 var rName = row.GetStringProp("name", cleanId);
                 var rPath = row.GetStringProp("path");
                 var rKind = row.GetStringProp("kind");
+                if (!string.IsNullOrEmpty(rId)) candidateServiceIds.Add(rId);
 
                 if (bestId is null || !string.IsNullOrEmpty(rPath) && (string.IsNullOrEmpty(bestPath) || rKind == "Project"))
                 {
@@ -125,14 +168,177 @@ public partial class ArchitectureViewEngine
 
             if (bestId is not null)
             {
-                return new EvidenceScope(bestId, bestName ?? cleanId, bestPath ?? cleanId);
+                var normBestDir = EvidenceScope.NormalizeDirectory(bestPath ?? cleanId);
+                var containedIds = new HashSet<string>(candidateServiceIds, StringComparer.OrdinalIgnoreCase);
+                var excludedSubdirs = new List<string>();
+
+                // 1. Structural containment: (s)-[:CONTAINS|DECLARES|DECLARES_TYPE|HAS_METHOD|HAS_MEMBER*1..3]->(sym)
+                // and (sym)-[:DECLARED_IN]->(f) where (s)-[:CONTAINS]->(f)
+                try
+                {
+                    var svcIdLiterals = string.Join(", ", candidateServiceIds.Select(EscapeCypherStringLiteral));
+                    var containsQuery = $"""
+                        MATCH (s)-[:CONTAINS|DECLARES|DECLARES_TYPE|HAS_METHOD|HAS_MEMBER*1..3]->(sym)
+                        WHERE s.id IN [{svcIdLiterals}]
+                        RETURN sym.id AS sym_id
+                        """;
+                    var cJson = await db.ExecuteQueryAsync(containsQuery, null, ct);
+                    using var cDoc = JsonDocument.Parse(cJson);
+                    foreach (var row in cDoc.RootElement.EnumerateArray())
+                    {
+                        var symId = row.GetStringProp("sym_id");
+                        if (!string.IsNullOrEmpty(symId)) containedIds.Add(symId);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    RecordEvidenceWarning(warnings, $"Structural containment query for '{bestId}'", ex);
+                }
+
+                // 2. Discover nested child projects so parent project never claims a child project's files/evidence
+                if (!string.IsNullOrEmpty(normBestDir))
+                {
+                    try
+                    {
+                        const string allProjectsQuery = """
+                            MATCH (p:Project)
+                            RETURN p.id AS id, coalesce(p.file_path, p.path) AS path
+                            """;
+                        var pJson = await db.ExecuteQueryAsync(allProjectsQuery, null, ct);
+                        using var pDoc = JsonDocument.Parse(pJson);
+                        foreach (var row in pDoc.RootElement.EnumerateArray())
+                        {
+                            var pId = row.GetStringProp("id");
+                            if (string.IsNullOrEmpty(pId) || candidateServiceIds.Contains(pId)) continue;
+                            var otherDir = EvidenceScope.NormalizeDirectory(row.GetStringProp("path"));
+                            if (!string.IsNullOrEmpty(otherDir) &&
+                                !otherDir.Equals(normBestDir, StringComparison.OrdinalIgnoreCase) &&
+                                otherDir.StartsWith(normBestDir + "/", StringComparison.OrdinalIgnoreCase))
+                            {
+                                excludedSubdirs.Add(otherDir);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        RecordEvidenceWarning(warnings, $"Nested project discovery for '{bestId}'", ex);
+                    }
+                }
+
+                var resolvedScope = new EvidenceScope(bestId, bestName ?? cleanId, bestPath ?? cleanId, containedIds, excludedSubdirs);
+                if (scopeCache != null)
+                {
+                    scopeCache[serviceId] = resolvedScope;
+                    scopeCache[bestId] = resolvedScope;
+                }
+                return resolvedScope;
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Fall through to an unresolved scope that matches by cleanId directory/name.
+            RecordEvidenceWarning(warnings, $"Failed to resolve service scope '{serviceId}'", ex);
         }
 
-        return new EvidenceScope(serviceId, cleanId, cleanId);
+        var fallbackScope = new EvidenceScope(serviceId, cleanId, cleanId);
+        if (scopeCache != null)
+        {
+            scopeCache[serviceId] = fallbackScope;
+        }
+        return fallbackScope;
+    }
+
+    private async Task PreloadServiceScopesAsync(
+        IEnumerable<EvidenceNodeRef> serviceNodes,
+        Dictionary<string, EvidenceScope?> scopeCache,
+        List<string>? warnings,
+        CancellationToken ct)
+    {
+        var pending = serviceNodes
+            .Where(n => !string.IsNullOrEmpty(n.Id) && !scopeCache.ContainsKey(n.Id) &&
+                        n.Label is not (OntologyConstants.NodeLabels.Database or OntologyConstants.NodeLabels.Topic or OntologyConstants.NodeLabels.ExternalService))
+            .ToList();
+        if (pending.Count == 0) return;
+
+        var containedByService = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var s in pending)
+        {
+            containedByService[s.Id] = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { s.Id };
+        }
+
+        try
+        {
+            var svcLiterals = string.Join(", ", pending.Select(s => EscapeCypherStringLiteral(s.Id)).Distinct());
+            var containsQuery = $"""
+                MATCH (s)-[:CONTAINS|DECLARES|DECLARES_TYPE|HAS_METHOD|HAS_MEMBER*1..3]->(sym)
+                WHERE s.id IN [{svcLiterals}]
+                RETURN s.id AS svc_id, sym.id AS sym_id
+                """;
+            var cJson = await db.ExecuteQueryAsync(containsQuery, null, ct);
+            using var cDoc = JsonDocument.Parse(cJson);
+            foreach (var row in cDoc.RootElement.EnumerateArray())
+            {
+                var svcId = row.GetStringProp("svc_id");
+                var symId = row.GetStringProp("sym_id");
+                if (!string.IsNullOrEmpty(svcId) && !string.IsNullOrEmpty(symId) &&
+                    containedByService.TryGetValue(svcId, out var set))
+                {
+                    set.Add(symId);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            RecordEvidenceWarning(warnings, "Batch structural containment query", ex);
+        }
+
+        var allProjectDirs = new List<(string Id, string Dir)>();
+        try
+        {
+            const string allProjectsQuery = """
+                MATCH (p:Project)
+                RETURN p.id AS id, coalesce(p.file_path, p.path) AS path
+                """;
+            var pJson = await db.ExecuteQueryAsync(allProjectsQuery, null, ct);
+            using var pDoc = JsonDocument.Parse(pJson);
+            foreach (var row in pDoc.RootElement.EnumerateArray())
+            {
+                var pId = row.GetStringProp("id");
+                var dir = EvidenceScope.NormalizeDirectory(row.GetStringProp("path"));
+                if (!string.IsNullOrEmpty(pId) && !string.IsNullOrEmpty(dir))
+                {
+                    allProjectDirs.Add((pId, dir));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            RecordEvidenceWarning(warnings, "Batch nested project discovery", ex);
+        }
+
+        foreach (var s in pending)
+        {
+            var normDir = EvidenceScope.NormalizeDirectory(s.Path ?? s.Name);
+            var excluded = new List<string>();
+            if (!string.IsNullOrEmpty(normDir))
+            {
+                foreach (var (otherId, otherDir) in allProjectDirs)
+                {
+                    if (otherId.Equals(s.Id, StringComparison.OrdinalIgnoreCase)) continue;
+                    if (!otherDir.Equals(normDir, StringComparison.OrdinalIgnoreCase) &&
+                        otherDir.StartsWith(normDir + "/", StringComparison.OrdinalIgnoreCase))
+                    {
+                        excluded.Add(otherDir);
+                    }
+                }
+            }
+
+            var scope = new EvidenceScope(
+                s.Id,
+                s.Name,
+                s.Path ?? s.Name,
+                containedByService.GetValueOrDefault(s.Id),
+                excluded);
+            scopeCache[s.Id] = scope;
+        }
     }
 }

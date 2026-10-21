@@ -110,13 +110,13 @@ export const DomainArchitectureProvider: React.FC<DomainArchitectureProviderProp
   const [searchQuery, setSearchQuery] = useState('');
   const [hiddenTypes, setHiddenTypes] = useState<Set<EntityKind>>(() => {
     try {
-      const saved = localStorage.getItem('ce_domain_hidden_types');
+      const saved = localStorage.getItem('ce_domain_hidden_types_v2');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return new Set<EntityKind>(parsed);
       }
     } catch { }
-    return new Set<EntityKind>(['ExternalService']);
+    return new Set<EntityKind>(['ExternalService', 'Library']);
   });
   const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(() => {
     try {
@@ -193,7 +193,7 @@ export const DomainArchitectureProvider: React.FC<DomainArchitectureProviderProp
   }, [customGroups]);
   useEffect(() => {
     try {
-      localStorage.setItem('ce_domain_hidden_types', JSON.stringify([...hiddenTypes]));
+      localStorage.setItem('ce_domain_hidden_types_v2', JSON.stringify([...hiddenTypes]));
     } catch { }
   }, [hiddenTypes]);
 

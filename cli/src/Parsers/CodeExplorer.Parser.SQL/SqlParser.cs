@@ -10,6 +10,7 @@ using CodeExplorer.Core.Parser;
 
 namespace CodeExplorer.Parser.SQL;
 
+[ProjectParser(Tier = ParserTier.Data)]
 public class SqlParser : IProjectParser, IFileParser
 {
     private record ProcedureScope(

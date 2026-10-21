@@ -123,7 +123,17 @@ public static class EndpointSemanticAnalyzer
             typedNode = CreateExternalServiceNode(name, node, relativePath, workspaceId, parentScopeId);
             if (!string.IsNullOrEmpty(parentScopeId))
             {
-                var calledByRel = Relationship.FromRelationship(new CalledByRelationship(typedNode.Id, parentScopeId));
+                var startLine = (int)node.StartPosition.Row + 1;
+                var endLine = (int)node.EndPosition.Row + 1;
+                var calledByExt = new Dictionary<string, string>
+                {
+                    [OntologyConstants.PropertyNames.FilePath] = relativePath,
+                    [OntologyConstants.PropertyNames.Line] = startLine.ToString(),
+                    [OntologyConstants.PropertyNames.LineEnd] = endLine.ToString(),
+                    [OntologyConstants.PropertyNames.Operation] = "CALL",
+                    [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.HttpCall
+                };
+                var calledByRel = Relationship.FromRelationship(new CalledByRelationship(typedNode.Id, parentScopeId, calledByExt));
                 ctx?.AddGlobalProjectDependency(calledByRel);
                 relationships?.Add(calledByRel);
 
@@ -134,7 +144,12 @@ public static class EndpointSemanticAnalyzer
                     new Dictionary<string, object>
                     {
                         ["dependency_type"] = "service_call",
-                        ["is_external"] = "true"
+                        ["is_external"] = "true",
+                        [OntologyConstants.PropertyNames.FilePath] = relativePath,
+                        [OntologyConstants.PropertyNames.Line] = startLine,
+                        [OntologyConstants.PropertyNames.LineEnd] = endLine,
+                        [OntologyConstants.PropertyNames.Operation] = "CALL",
+                        [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.HttpCall
                     }
                 );
                 ctx?.AddGlobalProjectDependency(rel);
@@ -162,11 +177,24 @@ public static class EndpointSemanticAnalyzer
         {
             var broker = syntactic.Properties.GetValueOrDefault("broker_type") ?? "event";
             var topicId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Topic}:{broker}:{name}";
-            typedNode = new TopicNode(topicId, name, relativePath, broker);
+            var startLine = (int)node.StartPosition.Row + 1;
+            var endLine = (int)node.EndPosition.Row + 1;
+            var topicExt = new Dictionary<string, string>
+            {
+                [OntologyConstants.PropertyNames.FilePath] = relativePath,
+                [OntologyConstants.PropertyNames.Line] = startLine.ToString(),
+                [OntologyConstants.PropertyNames.LineEnd] = endLine.ToString()
+            };
+            typedNode = new TopicNode(topicId, name, relativePath, broker, topicExt);
             var parentScopeId = syntactic.ParentScopeId;
             if (!string.IsNullOrEmpty(parentScopeId))
             {
-                var pubRel = Relationship.FromRelationship(new PublishedByRelationship(typedNode.Id, parentScopeId));
+                var pubExt = new Dictionary<string, string>(topicExt)
+                {
+                    [OntologyConstants.PropertyNames.Operation] = "PUBLISH",
+                    [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Publish
+                };
+                var pubRel = Relationship.FromRelationship(new PublishedByRelationship(typedNode.Id, parentScopeId, pubExt));
                 ctx?.AddGlobalProjectDependency(pubRel);
                 relationships?.Add(pubRel);
             }
@@ -316,6 +344,16 @@ public static class EndpointSemanticAnalyzer
             ? $"{gqlSchema}:"
             : "";
         var endpointId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Endpoint}:{projPart}{schemaPart}{method}:{route}";
+        var epExt = new Dictionary<string, string>
+        {
+            [OntologyConstants.PropertyNames.FilePath] = relativePath,
+            ["start_line"] = (node.StartPosition.Row + 1).ToString(),
+            ["end_line"] = (node.EndPosition.Row + 1).ToString(),
+            [OntologyConstants.PropertyNames.Line] = (node.StartPosition.Row + 1).ToString(),
+            [OntologyConstants.PropertyNames.LineEnd] = (node.EndPosition.Row + 1).ToString(),
+            [OntologyConstants.PropertyNames.Operation] = method,
+            [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Endpoint
+        };
         return new EndpointNode(
             endpointId,
             name,
@@ -328,7 +366,8 @@ public static class EndpointSemanticAnalyzer
             syntactic?.Policies,
             syntactic?.RequestType,
             syntactic?.ResponseType,
-            operationType);
+            operationType,
+            epExt);
     }
 
     private static EntryPointNode CreateEntryPointNode(

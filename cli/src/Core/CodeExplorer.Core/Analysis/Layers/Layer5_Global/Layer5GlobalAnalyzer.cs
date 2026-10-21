@@ -434,18 +434,41 @@ public partial class Layer5AnalysisParser
             foreach (var endpoint in candidateEndpoints)
             {
                 ctx.LogDebug($"[Layer5] [LateBinding] Binding ExternalService '{extService.Service.Id}' to Endpoint '{endpoint.Endpoint.Id}'");
-                var rel = Relationship.FromRelationship(new CallsEndpointRelationship(extService.Service.Id, endpoint.Endpoint.Id));
+                var epProtocol = endpoint.Endpoint.Protocol ?? "REST";
+                var evKind = epProtocol.Equals("gRPC", StringComparison.OrdinalIgnoreCase) ? OntologyConstants.EvidenceKinds.GrpcCall
+                           : epProtocol.Equals("WCF", StringComparison.OrdinalIgnoreCase) ? OntologyConstants.EvidenceKinds.WcfCall
+                           : OntologyConstants.EvidenceKinds.HttpCall;
+                var opVerb = !string.IsNullOrEmpty(endpoint.Endpoint.HttpMethod) &&
+                             !endpoint.Endpoint.HttpMethod.Equals("ALL", StringComparison.OrdinalIgnoreCase)
+                    ? endpoint.Endpoint.HttpMethod.ToUpperInvariant()
+                    : "CALL";
+                var callEpExt = new Dictionary<string, string>
+                {
+                    [OntologyConstants.PropertyNames.Operation] = opVerb,
+                    [OntologyConstants.PropertyNames.EvidenceKind] = evKind
+                };
+                if (extService.Service.Extensions != null)
+                {
+                    if (extService.Service.Extensions.TryGetValue("file_path", out var fp) && !string.IsNullOrEmpty(fp))
+                        callEpExt[OntologyConstants.PropertyNames.FilePath] = fp;
+                    if (extService.Service.Extensions.TryGetValue("start_line", out var sl) && !string.IsNullOrEmpty(sl))
+                        callEpExt[OntologyConstants.PropertyNames.Line] = sl;
+                }
+
+                var rel = Relationship.FromRelationship(new CallsEndpointRelationship(extService.Service.Id, endpoint.Endpoint.Id, callEpExt));
                 lateBoundRels.Add(rel);
                 matchedEndpoint = true;
                 boundServicesCount++;
 
+                Relationship? callerEndpointRel = null;
                 // Also bind directly from caller function if known, and bridge CALLS to endpoint handler/resolver FunctionNodes
                 if (extService.Service.Extensions != null &&
                     extService.Service.Extensions.TryGetValue("caller_symbol_id", out var callerId) &&
                     !string.IsNullOrEmpty(callerId))
                 {
                     ctx.LogDebug($"[Layer5] [LateBinding] Direct Binding Function '{callerId}' to Endpoint '{endpoint.Endpoint.Id}'");
-                    lateBoundRels.Add(Relationship.FromRelationship(new CallsEndpointRelationship(callerId, endpoint.Endpoint.Id)));
+                    callerEndpointRel = Relationship.FromRelationship(new CallsEndpointRelationship(callerId, endpoint.Endpoint.Id, callEpExt));
+                    lateBoundRels.Add(callerEndpointRel);
 
                     if (handlersByEndpointId.TryGetValue(endpoint.Endpoint.Id, out var handlerFnIds))
                     {
@@ -453,7 +476,7 @@ public partial class Layer5AnalysisParser
                         {
                             if (callerId != handlerFnId && addedFunctionCalls.Add((callerId, handlerFnId)))
                             {
-                                lateBoundRels.Add(Relationship.FromRelationship(new CallsRelationship(callerId, handlerFnId)));
+                                lateBoundRels.Add(Relationship.FromRelationship(new CallsRelationship(callerId, handlerFnId, callEpExt)));
                             }
                         }
                     }
@@ -465,10 +488,22 @@ public partial class Layer5AnalysisParser
 
                 if (callerProj != null && targetProj != null && callerProj.Id != targetProj.Id)
                 {
+                    var contribRel = callerEndpointRel ?? rel;
                     if (addedProjectDeps.Add((callerProj.Id, targetProj.Id)))
                     {
                         ctx.LogDebug($"[Layer5] [LateBinding] Synthesized dependency: Project '{callerProj.Name}' -> Project '{targetProj.Name}' via endpoint '{endpoint.Endpoint.RouteTemplate}'");
-                        lateBoundRels.Add(Relationship.FromRelationship(new DependsOnRelationship(callerProj.Id, targetProj.Id, new() { ["dependency_type"] = "service_call" })));
+                        var projDep = Relationship.FromRelationship(new DependsOnRelationship(callerProj.Id, targetProj.Id, new() { ["dependency_type"] = "service_call" }));
+                        EvidenceProvenanceHelper.RecordContributingEdge(projDep.Properties, contribRel);
+                        lateBoundRels.Add(projDep);
+                    }
+                    else
+                    {
+                        var existingProjDep = lateBoundRels.FirstOrDefault(r =>
+                            r.From == callerProj.Id && r.To == targetProj.Id && r.Kind == OntologyConstants.Relationships.DependsOn);
+                        if (existingProjDep != null)
+                        {
+                            EvidenceProvenanceHelper.RecordContributingEdge(existingProjDep.Properties, contribRel);
+                        }
                     }
                 }
             }
