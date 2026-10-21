@@ -70,7 +70,8 @@ export function computeConcentricSectorsLayout(
   customOrbitOrder?: number[],
   explicitDomainMap?: Map<string, string>,
   explicitDomainDetails?: Map<string, { name?: string; displayName?: string; color?: string }>,
-  orbitDistance?: number
+  orbitDistance?: number,
+  minNodeDistance?: number
 ): ConcentricLayoutResult {
   const positions = new Map<string, { x: number; y: number }>();
   const nodeAngles = new Map<string, number>();
@@ -284,7 +285,7 @@ export function computeConcentricSectorsLayout(
 
   // 4. Calculate required angular span for each domain to GUARANTEE zero overlaps
   // Arc parameters
-  const MIN_ARC_GAP = Math.round(160 * spacing); // clearance between adjacent node centers on the same tier
+  const MIN_ARC_GAP = Math.round((minNodeDistance ?? 160) * spacing); // clearance between adjacent node centers on the same tier
   const MARGIN_ARC = Math.round(95 * spacing);   // padding from sector boundary
   const RADIAL_STEP = Math.round((orbitDistance ?? 280) * spacing); // distance between concentric echelon orbits
 

@@ -326,137 +326,184 @@ public partial class ArchitectureViewEngine
         }
         catch { }
 
-        // 4. Query connected Files, Entities, Configs, Migrations via relationships targeting Database
+        // 4. Query connected Files, Entities, Configs, Migrations, Queries via relationships targeting or originating from Database
         try
         {
-            var relsQuery = """
-                MATCH (src)-[r]->(tgt)
-                WHERE (tgt.id = $id OR tgt.name = $name OR tgt.id = $rawId)
-                  AND r.kind IN ['USES_DB', 'CONFIGURES', 'READS_FROM', 'WRITES_TO']
-                  AND NOT (src:Project OR src:Service OR src:Workspace OR src:SemanticStructure)
-                RETURN src.id AS id, src.name AS name, labels(src)[0] AS kind,
-                       coalesce(src.file_path, src.path) AS path, coalesce(src.start_line, src.line) AS line,
-                       r.kind AS rel_kind,
-                       json_extract(src.properties, '$.service') AS service
-                """;
-            var paramsDict = new Dictionary<string, object>
+            foreach (var (pattern, kinds) in new[]
             {
-                ["id"] = resolvedDbId ?? databaseId,
-                ["name"] = dbName ?? databaseId,
-                ["rawId"] = databaseId
-            };
-            var relsJson = await db.ExecuteQueryAsync(relsQuery, paramsDict, ct);
-            using var relsDoc = JsonDocument.Parse(relsJson);
-
-            foreach (var row in relsDoc.RootElement.EnumerateArray())
+                ("(src)-[r]->(tgt)", "'USES_DB', 'CONFIGURES', 'READS_FROM', 'WRITES_TO', 'TRANSITIVELY_CALLS'"),
+                ("(tgt)-[r]->(src)", "'QUERIED_BY', 'CALLED_BY'")
+            })
             {
-                var srcId = row.GetStringProp("id");
-                var srcName = row.GetStringProp("name");
-                var srcKind = row.GetStringProp("kind");
-                var srcPath = row.GetStringProp("path");
-                var relKind = row.GetStringProp("rel_kind");
-                var srcService = row.GetStringProp("service");
-
-                int line = 0;
-                if (row.TryGetProperty("line", out var lp) && lp.ValueKind == JsonValueKind.Number)
-                    line = lp.GetInt32();
-
-                if (!MatchesService(srcPath, srcService)) continue;
-                if (string.IsNullOrEmpty(srcPath)) continue;
-
-                var isMigration = srcPath.Contains("/Migrations/", StringComparison.OrdinalIgnoreCase) ||
-                                  srcPath.Contains("\\Migrations\\", StringComparison.OrdinalIgnoreCase) ||
-                                  srcPath.EndsWith(".Designer.cs", StringComparison.OrdinalIgnoreCase);
-                var isConfig = srcPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ||
-                               srcPath.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase) ||
-                               srcPath.EndsWith(".yml", StringComparison.OrdinalIgnoreCase) ||
-                               srcPath.EndsWith(".config", StringComparison.OrdinalIgnoreCase);
-                var isOrm = !isMigration && !isConfig && (
-                    srcPath.Contains("Context", StringComparison.OrdinalIgnoreCase) ||
-                    srcPath.Contains("Entity", StringComparison.OrdinalIgnoreCase) ||
-                    srcPath.Contains("Model", StringComparison.OrdinalIgnoreCase) ||
-                    srcPath.Contains("Repository", StringComparison.OrdinalIgnoreCase) ||
-                    srcPath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) ||
-                    srcPath.EndsWith(".ts", StringComparison.OrdinalIgnoreCase));
-
-                string itemKind = isMigration ? "migration" : (isConfig ? "config" : (isOrm ? "orm" : "table"));
-                string operation = isMigration ? "MIGRATION" : (isConfig ? "CONFIG" : (isOrm ? "ORM" : "TABLE"));
-                string reason = isMigration ? "Database migration script / snapshot defining tables"
-                              : (isConfig ? "Configuration / connection string declaring database"
-                              : (isOrm ? "ORM entity / DbContext mapping accessing database" : "Table reference"));
-
-                var key = $"{itemKind}:{srcPath}:{line}";
-                if (seenKeys.Add(key))
+                var relsQuery = $"""
+                    MATCH {pattern}
+                    WHERE (tgt.id = $id OR tgt.name = $name OR tgt.id = $rawId)
+                      AND r.kind IN [{kinds}]
+                      AND NOT (src:Project OR src:Service OR src:Workspace OR src:SemanticStructure)
+                    RETURN src.id AS id, src.name AS name, labels(src)[0] AS kind,
+                           coalesce(src.file_path, src.path) AS path, coalesce(src.start_line, src.line) AS line,
+                           r.kind AS rel_kind,
+                           json_extract(src.properties, '$.service') AS service,
+                           json_extract(src.properties, '$.query_text') AS query_text,
+                           json_extract(src.properties, '$.verb') AS verb
+                    """;
+                var paramsDict = new Dictionary<string, object>
                 {
-                    items.Add(new ArchitectureEvidenceItemDto
+                    ["id"] = resolvedDbId ?? databaseId,
+                    ["name"] = dbName ?? databaseId,
+                    ["rawId"] = databaseId
+                };
+                var relsJson = await db.ExecuteQueryAsync(relsQuery, paramsDict, ct);
+                using var relsDoc = JsonDocument.Parse(relsJson);
+
+                foreach (var row in relsDoc.RootElement.EnumerateArray())
+                {
+                    var srcId = row.GetStringProp("id");
+                    var srcName = row.GetStringProp("name");
+                    var srcKind = row.GetStringProp("kind");
+                    var srcPath = row.GetStringProp("path");
+                    var relKind = row.GetStringProp("rel_kind");
+                    var srcService = row.GetStringProp("service");
+
+                    int line = row.GetNullableIntProp("line") ?? 0;
+
+                    if (!MatchesService(srcPath, srcService)) continue;
+                    if (string.IsNullOrEmpty(srcPath)) continue;
+
+                    if (srcKind == "Query" || relKind == "QUERIED_BY")
                     {
-                        Id = srcId,
-                        Kind = itemKind,
-                        Title = $"{srcName} ({operation})",
-                        Operation = operation,
-                        FilePath = srcPath,
-                        LineStart = line > 0 ? line : 1,
-                        LineEnd = line > 0 ? line : 1,
-                        ServiceName = srcService ?? serviceName,
-                        Reason = reason
-                    });
+                        var qText = row.GetStringProp("query_text");
+                        var qVerb = row.GetStringProp("verb");
+                        var verb = !string.IsNullOrWhiteSpace(qVerb) ? qVerb.ToUpperInvariant() : "SQL";
+                        if (verb == "SQL" && !string.IsNullOrWhiteSpace(qText))
+                        {
+                            var firstWord = qText.TrimStart().Split([' ', '\r', '\n', '\t'], 2)[0].ToUpperInvariant();
+                            if (firstWord is "SELECT" or "INSERT" or "UPDATE" or "DELETE" or "CREATE" or "DROP" or "ALTER" or "EXEC" or "EXECUTE")
+                                verb = firstWord;
+                        }
+                        var snippet = !string.IsNullOrWhiteSpace(qText) ? qText.Trim() : srcName;
+                        var qKey = $"query:{srcPath}:{line}:{snippet}";
+                        if (seenKeys.Add(qKey))
+                        {
+                            items.Add(new ArchitectureEvidenceItemDto
+                            {
+                                Id = srcId,
+                                Kind = "query",
+                                Title = $"{verb} in {Path.GetFileName(srcPath)}",
+                                Operation = verb,
+                                FilePath = srcPath,
+                                LineStart = line > 0 ? line : 1,
+                                LineEnd = line > 0 ? line : 1,
+                                CodeSnippet = snippet,
+                                CallerSymbol = srcName,
+                                ServiceName = srcService ?? serviceName,
+                                Reason = $"SQL {verb} query accessing database '{dbName}'"
+                            });
+                        }
+                        continue;
+                    }
+
+                    var isMigration = srcPath.Contains("/Migrations/", StringComparison.OrdinalIgnoreCase) ||
+                                      srcPath.Contains("\\Migrations\\", StringComparison.OrdinalIgnoreCase) ||
+                                      srcPath.EndsWith(".Designer.cs", StringComparison.OrdinalIgnoreCase);
+                    var isConfig = srcPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ||
+                                   srcPath.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase) ||
+                                   srcPath.EndsWith(".yml", StringComparison.OrdinalIgnoreCase) ||
+                                   srcPath.EndsWith(".config", StringComparison.OrdinalIgnoreCase);
+                    var isOrm = !isMigration && !isConfig && (
+                        srcPath.Contains("Context", StringComparison.OrdinalIgnoreCase) ||
+                        srcPath.Contains("Entity", StringComparison.OrdinalIgnoreCase) ||
+                        srcPath.Contains("Model", StringComparison.OrdinalIgnoreCase) ||
+                        srcPath.Contains("Repository", StringComparison.OrdinalIgnoreCase) ||
+                        srcPath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) ||
+                        srcPath.EndsWith(".ts", StringComparison.OrdinalIgnoreCase));
+
+                    string itemKind = isMigration ? "migration" : (isConfig ? "config" : (isOrm ? "orm" : "table"));
+                    string operation = isMigration ? "MIGRATION" : (isConfig ? "CONFIG" : (isOrm ? "ORM" : "TABLE"));
+                    string reason = isMigration ? "Database migration script / snapshot defining tables"
+                                  : (isConfig ? "Configuration / connection string declaring database"
+                                  : (isOrm ? "ORM entity / repository accessing database" : "Table reference"));
+
+                    var key = $"{itemKind}:{srcPath}:{line}";
+                    if (seenKeys.Add(key))
+                    {
+                        items.Add(new ArchitectureEvidenceItemDto
+                        {
+                            Id = srcId,
+                            Kind = itemKind,
+                            Title = $"{srcName} ({operation})",
+                            Operation = operation,
+                            FilePath = srcPath,
+                            LineStart = line > 0 ? line : 1,
+                            LineEnd = line > 0 ? line : 1,
+                            ServiceName = srcService ?? serviceName,
+                            Reason = reason
+                        });
+                    }
                 }
             }
         }
         catch { }
 
-        // 4b. Two-hop traversal: code -> Table/Procedure -> Database
+        // 4b. Two-hop traversal: code <-> Table/Procedure <-> Database
         try
         {
             var objects = await FindDatabaseObjectsAsync(resolvedDbId ?? databaseId, dbName ?? databaseId, databaseId, ct);
             foreach (var obj in objects)
             {
-                var usersQuery = """
-                    MATCH (src)-[r]->(obj)
-                    WHERE obj.id = $objId
-                      AND r.kind IN ['PERSISTED_IN', 'READS_FROM', 'WRITES_TO', 'CALLS']
-                      AND NOT (src:Project OR src:Service OR src:Workspace OR src:SemanticStructure)
-                    RETURN src.id AS id, src.name AS name, coalesce(src.file_path, src.path) AS path,
-                           coalesce(src.start_line, src.line) AS line, coalesce(src.end_line, src.line_end) AS line_end,
-                           r.kind AS rel_kind, json_extract(src.properties, '$.service') AS service
-                    """;
-                var usersJson = await db.ExecuteQueryAsync(usersQuery, new Dictionary<string, object> { ["objId"] = obj.Id }, ct);
-                using var usersDoc = JsonDocument.Parse(usersJson);
-                foreach (var row in usersDoc.RootElement.EnumerateArray())
+                foreach (var (pattern, kinds) in new[]
                 {
-                    var path = row.GetStringProp("path");
-                    if (string.IsNullOrEmpty(path) || !MatchesService(path, row.GetStringProp("service"))) continue;
-
-                    var relKind = row.GetStringProp("rel_kind");
-                    var line = row.GetNullableIntProp("line") ?? 1;
-                    var lineEnd = row.GetNullableIntProp("line_end") ?? line;
-                    var isProcedure = obj.Label == OntologyConstants.NodeLabels.Procedure;
-
-                    var (kind, operation) = relKind switch
+                    ("(src)-[r]->(obj)", "'PERSISTED_IN', 'READS_FROM', 'WRITES_TO', 'CALLS'"),
+                    ("(obj)-[r]->(src)", "'QUERIED_BY', 'CALLED_BY', 'DECLARED_IN'")
+                })
+                {
+                    var usersQuery = $"""
+                        MATCH {pattern}
+                        WHERE obj.id = $objId
+                          AND r.kind IN [{kinds}]
+                          AND NOT (src:Project OR src:Service OR src:Workspace OR src:SemanticStructure)
+                        RETURN src.id AS id, src.name AS name, coalesce(src.file_path, src.path) AS path,
+                               coalesce(src.start_line, src.line) AS line, coalesce(src.end_line, src.line_end) AS line_end,
+                               r.kind AS rel_kind, json_extract(src.properties, '$.service') AS service
+                        """;
+                    var usersJson = await db.ExecuteQueryAsync(usersQuery, new Dictionary<string, object> { ["objId"] = obj.Id }, ct);
+                    using var usersDoc = JsonDocument.Parse(usersJson);
+                    foreach (var row in usersDoc.RootElement.EnumerateArray())
                     {
-                        "PERSISTED_IN" => ("orm", "ORM"),
-                        "WRITES_TO" => ("query", "INSERT"),
-                        "READS_FROM" => ("query", "SELECT"),
-                        _ => (isProcedure ? "procedure" : "query", isProcedure ? "EXEC" : "SELECT")
-                    };
+                        var path = row.GetStringProp("path");
+                        if (string.IsNullOrEmpty(path) || !MatchesService(path, row.GetStringProp("service"))) continue;
 
-                    var key = $"{kind}:{path}:{line}:{obj.Id}";
-                    if (!seenKeys.Add(key)) continue;
+                        var relKind = row.GetStringProp("rel_kind");
+                        var line = row.GetNullableIntProp("line") ?? 1;
+                        var lineEnd = row.GetNullableIntProp("line_end") ?? line;
+                        var isProcedure = obj.Label == OntologyConstants.NodeLabels.Procedure;
 
-                    items.Add(new ArchitectureEvidenceItemDto
-                    {
-                        Id = row.GetStringProp("id"),
-                        Kind = kind,
-                        Operation = operation,
-                        Title = $"{row.GetStringProp("name")} → {obj.Name}",
-                        FilePath = path,
-                        LineStart = line,
-                        LineEnd = lineEnd,
-                        CallerSymbol = row.GetStringProp("name"),
-                        TargetSymbol = obj.Name,
-                        ServiceName = row.GetStringProp("service") is { Length: > 0 } s ? s : serviceName,
-                        Reason = $"{relKind} {obj.Label.ToLowerInvariant()} '{obj.Name}' belonging to database '{dbName}'"
-                    });
+                        var (kind, operation) = relKind switch
+                        {
+                            "PERSISTED_IN" or "DECLARED_IN" => ("orm", "ORM"),
+                            "WRITES_TO" => ("query", "INSERT"),
+                            "READS_FROM" or "QUERIED_BY" => ("query", "SELECT"),
+                            _ => (isProcedure ? "procedure" : "query", isProcedure ? "EXEC" : "SELECT")
+                        };
+
+                        var key = $"{kind}:{path}:{line}:{obj.Id}";
+                        if (!seenKeys.Add(key)) continue;
+
+                        items.Add(new ArchitectureEvidenceItemDto
+                        {
+                            Id = row.GetStringProp("id"),
+                            Kind = kind,
+                            Operation = operation,
+                            Title = $"{row.GetStringProp("name")} → {obj.Name}",
+                            FilePath = path,
+                            LineStart = line,
+                            LineEnd = lineEnd,
+                            CallerSymbol = row.GetStringProp("name"),
+                            TargetSymbol = obj.Name,
+                            ServiceName = row.GetStringProp("service") is { Length: > 0 } s ? s : serviceName,
+                            Reason = $"{relKind} {obj.Label.ToLowerInvariant()} '{obj.Name}' belonging to database '{dbName}'"
+                        });
+                    }
                 }
             }
         }

@@ -335,6 +335,26 @@ public static class ServerRouteBuilderExtensions
             }
         });
 
+        endpoints.MapGet("/api/architecture/node-evidence", async (IArchitectureQueryService archQueryService, string? id, string? kind, string[]? ids, CancellationToken ct) =>
+        {
+            try
+            {
+                var nodeIds = (ids ?? []).Append(id).Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!).Distinct().ToList();
+                if (nodeIds.Count == 0)
+                {
+                    return Results.BadRequest(new { error = "'id' or 'ids' is required." });
+                }
+                logger.LogInformation("[REST] GET /api/architecture/node-evidence ({Count} nodes, kind: {Kind})", nodeIds.Count, kind);
+                var evidence = await archQueryService.GetNodeEvidenceAsync(nodeIds, kind, ct);
+                return Results.Ok(evidence);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/architecture/node-evidence");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
         endpoints.MapGet("/api/diagram", async (IGraphClient graphClient, string? type, string? format, string? project, bool? includeLibraries, CancellationToken ct) =>
         {
             try

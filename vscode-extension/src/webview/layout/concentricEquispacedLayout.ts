@@ -25,7 +25,8 @@ export function computeConcentricEquispacedLayout(
   visibleEdges: ConcentricEdgeInput[],
   spacing = 1.0,
   customOrbitOrder?: number[],
-  orbitDistance?: number
+  orbitDistance?: number,
+  minNodeDistance?: number
 ): ConcentricLayoutResult {
   const orbitBuckets: Record<number, string[]> = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [] };
 
@@ -69,7 +70,7 @@ export function computeConcentricEquispacedLayout(
     displayIdx++;
   }
 
-  const minArcSpacing = Math.round(125 * spacing);
+  const minArcSpacing = Math.round((minNodeDistance ?? 125) * spacing);
   const radialStep = Math.round((orbitDistance ?? 320) * spacing);
 
   let prevRadius = 0;

@@ -354,6 +354,14 @@ export interface EdgeEvidenceResponseDto {
   items: ArchitectureEvidenceItemDto[];
 }
 
+export interface NodeEvidenceResponseDto {
+  nodeId: string;
+  nodeName: string;
+  nodeKind: string;
+  totalCount: number;
+  items: ArchitectureEvidenceItemDto[];
+}
+
 // ============================================================================
 // Envelope Message
 // ============================================================================

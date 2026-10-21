@@ -417,6 +417,11 @@ export function relaxOrbitWithBadgeExclusion(
   const ideals = sortedNodes.map((nid) => toUnrolled(idealAngles.get(nid) ?? 0.0));
   const angles = [...ideals];
 
+  // Enforce strict circular wrap-around separation between the last node and the first node!
+  // Without this, angles[N - 1] and angles[0] + 2*PI can sit right on top of each other when the badge gap is small.
+  const wrapDelta = Math.max(0, delta - 2 * badgeHalfAngle);
+  const maxSpan = availableSpan - wrapDelta;
+
   // Monotonic forward separation
   for (let i = 1; i < N; i++) {
     if (angles[i] < angles[i - 1] + delta) {
@@ -425,11 +430,25 @@ export function relaxOrbitWithBadgeExclusion(
   }
 
   const span = angles[N - 1] - angles[0];
-  if (span > availableSpan || angles[N - 1] > availableSpan) {
-    const step = availableSpan / N;
-    const start = (availableSpan - (N - 1) * step) / 2;
-    for (let i = 0; i < N; i++) {
-      angles[i] = start + i * step;
+  if (span > maxSpan || angles[N - 1] > availableSpan) {
+    // If we have enough room in maxSpan, compress backward from the end while keeping >= delta between all adjacent pairs
+    if ((N - 1) * delta <= maxSpan) {
+      angles[N - 1] = Math.min(angles[N - 1], angles[0] + maxSpan, availableSpan);
+      for (let i = N - 2; i >= 0; i--) {
+        if (angles[i] > angles[i + 1] - delta) {
+          angles[i] = angles[i + 1] - delta;
+        }
+      }
+      if (angles[0] < 0) {
+        const shiftRight = -angles[0];
+        for (let i = 0; i < N; i++) angles[i] += shiftRight;
+      }
+    } else {
+      const step = availableSpan / N;
+      const start = (availableSpan - (N - 1) * step) / 2;
+      for (let i = 0; i < N; i++) {
+        angles[i] = start + i * step;
+      }
     }
   } else {
     const idealAvg = ideals.reduce((s, v) => s + v, 0) / N;
@@ -459,7 +478,8 @@ export function optimizeOrbitPermutation(
   orbitBuckets: Record<number, string[]>,
   weightedEdges: Array<{ sourceTier: number; targetTier: number; weight: number }>,
   spacing = 1.0,
-  orbitDistance?: number
+  orbitDistance?: number,
+  minNodeDistance?: number
 ): number[] {
   if (populatedTiers.length <= 2) {
     return populatedTiers;
@@ -491,7 +511,7 @@ export function optimizeOrbitPermutation(
 
   const allPerms = getPermutations(permutableTiers);
 
-  const minArcSpacing = Math.round(125 * spacing);
+  const minArcSpacing = Math.round((minNodeDistance ?? 125) * spacing);
   const radialStep = Math.round((orbitDistance ?? 320) * spacing);
 
   let bestPerm = [...fixedPrefix, ...permutableTiers, ...fixedSuffix];
@@ -544,7 +564,8 @@ export function computeConcentricLayout(
   visibleEdges: ConcentricEdgeInput[],
   spacing = 1.0,
   customOrbitOrder?: number[],
-  orbitDistance?: number
+  orbitDistance?: number,
+  minNodeDistance?: number
 ): ConcentricLayoutResult {
   const orbitBuckets: Record<number, string[]> = {
     0: [],
@@ -589,7 +610,8 @@ export function computeConcentricLayout(
       orbitBuckets,
       weightedEdges,
       spacing,
-      orbitDistance
+      orbitDistance,
+      minNodeDistance
     );
   }
 
@@ -617,7 +639,7 @@ export function computeConcentricLayout(
     displayIdx++;
   }
 
-  const minArcSpacing = Math.round(125 * spacing);
+  const minArcSpacing = Math.round((minNodeDistance ?? 125) * spacing);
   const radialStep = Math.round((orbitDistance ?? 320) * spacing);
 
   let prevRadius = 0;

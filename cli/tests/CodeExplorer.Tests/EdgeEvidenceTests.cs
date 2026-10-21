@@ -192,4 +192,28 @@ public class EdgeEvidenceTests
         var json = System.Text.Json.JsonSerializer.Serialize(new CodeExplorer.Core.Protocol.EdgeEvidenceResponseDto());
         Assert.That(json, Does.Contain("\"items\""));
     }
+
+    [Test]
+    public async Task EdgeEvidence_SynthesizedDomainServiceIds_ResolveToProjectScope()
+    {
+        var result = await _engine.GetEdgeEvidenceAsync(["service:order-service"], ["service:payment-service"], "service_call");
+
+        var item = result.Items.Single();
+        Assert.Multiple(() =>
+        {
+            Assert.That(item.Kind, Is.EqualTo("http_call"));
+            Assert.That(item.CallerSymbol, Is.EqualTo("ChargeAsync"));
+            Assert.That(item.TargetSymbol, Is.EqualTo("POST /charge"));
+        });
+    }
+
+    [Test]
+    public async Task NodeEvidence_ReturnsEndpointsAndOrmEntitiesForService()
+    {
+        var payEvidence = await _engine.GetNodeEvidenceAsync(["service:payment-service"], "Service");
+        Assert.That(payEvidence.Items.Select(i => i.Kind), Does.Contain("endpoint").And.Contain("config"));
+
+        var orderEvidence = await _engine.GetNodeEvidenceAsync(["service:order-service"], "Service");
+        Assert.That(orderEvidence.Items.Select(i => i.Kind), Does.Contain("orm").And.Contain("config"));
+    }
 }

@@ -95,4 +95,9 @@ public class ArchitectureQueryService(IGraphClient db) : IArchitectureQueryServi
     {
         return _viewEngine.GetEdgeEvidenceAsync(sourceIds, targetIds, edgeKind, ct);
     }
+
+    public Task<NodeEvidenceResponseDto> GetNodeEvidenceAsync(IReadOnlyList<string> nodeIds, string? nodeKind = null, CancellationToken ct = default)
+    {
+        return _viewEngine.GetNodeEvidenceAsync(nodeIds, nodeKind, ct);
+    }
 }

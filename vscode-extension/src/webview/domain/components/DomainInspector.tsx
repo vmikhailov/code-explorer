@@ -300,6 +300,41 @@ export const EdgeEvidenceSection: React.FC<EdgeEvidenceSectionProps> = ({
   );
 };
 
+export interface NodeEvidenceSectionProps {
+  nodeIds: string[];
+  nodeKind?: string;
+  onOpenFile?: (path: string, line?: number) => void;
+  defaultExpanded?: boolean;
+}
+
+/** Source-code evidence proving any selected node (or grouped nodes). */
+export const NodeEvidenceSection: React.FC<NodeEvidenceSectionProps> = ({
+  nodeIds,
+  nodeKind,
+  onOpenFile,
+  defaultExpanded = false,
+}) => {
+  const idsKey = nodeIds.join('\u0000');
+  const url = useMemo(() => {
+    const params = new URLSearchParams();
+    nodeIds.forEach((id) => params.append('ids', id));
+    if (nodeKind) params.set('kind', nodeKind);
+    return `/api/architecture/node-evidence?${params.toString()}`;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsKey, nodeKind]);
+
+  return (
+    <EvidenceSection
+      title="Code Evidence"
+      url={url}
+      loadingHint="Tracing node capabilities in source code..."
+      emptyHint="No direct source-level evidence found for this node."
+      onOpenFile={onOpenFile}
+      defaultExpanded={defaultExpanded}
+    />
+  );
+};
+
 export interface RawEdgeInfo {
   id: string;
   source: string;
@@ -372,8 +407,9 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
   const isEdgeInspectorCollapsed = props.isEdgeInspectorCollapsed !== undefined ? props.isEdgeInspectorCollapsed : localEdgeCollapsed;
   const setIsEdgeInspectorCollapsed = props.onToggleEdgeCollapse || setLocalEdgeCollapsed;
 
-  // Local state for expanded database evidence under service
+  // Local state for expanded database / connection evidence under service or node
   const [expandedDbEvidenceId, setExpandedDbEvidenceId] = useState<string | null>(null);
+  const [expandedConnEvidenceKey, setExpandedConnEvidenceKey] = useState<string | null>(null);
 
   // Filter for large grouped entity lists
   const [groupMemberFilter, setGroupMemberFilter] = useState('');
@@ -1055,7 +1091,10 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                           marginTop: 6,
                         }}
                       >
-                        {selectedNode.internalConnections.map((item: ConnectionDetailItem) => (
+                        {selectedNode.internalConnections.map((item: ConnectionDetailItem) => {
+                          const evKey = `internal:${item.id}`;
+                          const isEvOpen = expandedConnEvidenceKey === evKey;
+                          return (
                           <div
                             key={item.id}
                             className="inspector-conn-item"
@@ -1076,17 +1115,51 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                                 <span style={{ color: '#64748b' }}>➔</span>
                                 <span style={{ fontWeight: 600, color: '#a78bfa' }}>{item.targetName}</span>
                               </div>
-                              {item.count > 1 && (
-                                <span style={{ fontSize: '9.5px', fontWeight: 700, background: 'rgba(255, 255, 255, 0.08)', color: '#cbd5e1', padding: '1px 5px', borderRadius: 3 }}>
-                                  {item.count}×
-                                </span>
-                              )}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <button
+                                  type="button"
+                                  style={{
+                                    fontSize: '9px',
+                                    fontWeight: 600,
+                                    padding: '1px 5px',
+                                    borderRadius: 3,
+                                    background: isEvOpen ? 'rgba(56, 189, 248, 0.3)' : 'rgba(255, 255, 255, 0.08)',
+                                    color: isEvOpen ? '#38bdf8' : '#cbd5e1',
+                                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                                    cursor: 'pointer',
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setExpandedConnEvidenceKey((prev) => (prev === evKey ? null : evKey));
+                                  }}
+                                  title="Inspect code evidence for this connection"
+                                >
+                                  {isEvOpen ? 'Hide Evidence' : 'Evidence'}
+                                </button>
+                                {item.count > 1 && (
+                                  <span style={{ fontSize: '9.5px', fontWeight: 700, background: 'rgba(255, 255, 255, 0.08)', color: '#cbd5e1', padding: '1px 5px', borderRadius: 3 }}>
+                                    {item.count}×
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             {item.label && (
                               <div style={{ fontSize: '10px', color: '#94a3b8' }}>{item.label}</div>
                             )}
+                            {isEvOpen && (
+                              <div style={{ marginTop: 4 }}>
+                                <EdgeEvidenceSection
+                                  sourceIds={[item.sourceId]}
+                                  targetIds={[item.targetId]}
+                                  edgeKind={item.category}
+                                  onOpenFile={onOpenFile}
+                                  defaultExpanded={true}
+                                />
+                              </div>
+                            )}
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -1109,25 +1182,61 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                     </div>
                     {!collapsedSections['inbound'] && (
                       <div className="inspector-connection-list">
-                        {inboundConnections.map((item) => (
-                          <div
-                            key={item.id}
-                            className="inspector-connection-item"
-                            onClick={() => handleSelectNodeById(item.id)}
-                            title={`Jump to caller ${item.name}`}
-                          >
-                            <div className="connection-item-main" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <EntityNodeBadge kind={item.kind || 'Service'} size={18} />
-                              <span className="connection-item-name">{item.name}</span>
+                        {inboundConnections.map((item) => {
+                          const evKey = `in:${item.id}`;
+                          const isEvOpen = expandedConnEvidenceKey === evKey;
+                          return (
+                            <div key={item.id} style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+                              <div
+                                className="inspector-connection-item"
+                                onClick={() => handleSelectNodeById(item.id)}
+                                title={`Jump to caller ${item.name}`}
+                              >
+                                <div className="connection-item-main" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <EntityNodeBadge kind={item.kind || 'Service'} size={18} />
+                                  <span className="connection-item-name">{item.name}</span>
+                                </div>
+                                <div className="connection-item-meta" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <button
+                                    type="button"
+                                    style={{
+                                      fontSize: '9px',
+                                      fontWeight: 600,
+                                      padding: '1px 5px',
+                                      borderRadius: 3,
+                                      background: isEvOpen ? 'rgba(56, 189, 248, 0.3)' : 'rgba(255, 255, 255, 0.08)',
+                                      color: isEvOpen ? '#38bdf8' : '#cbd5e1',
+                                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                                      cursor: 'pointer',
+                                    }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setExpandedConnEvidenceKey((prev) => (prev === evKey ? null : evKey));
+                                    }}
+                                    title="Inspect code evidence for this inbound call"
+                                  >
+                                    {isEvOpen ? 'Hide Evidence' : 'Evidence'}
+                                  </button>
+                                  <span className="connection-count-badge">
+                                    {item.count} {item.count === 1 ? 'call' : 'calls'}
+                                  </span>
+                                  <span className="connection-jump-arrow">➔</span>
+                                </div>
+                              </div>
+                              {isEvOpen && (
+                                <div style={{ marginLeft: 6, marginTop: 4, marginBottom: 6 }}>
+                                  <EdgeEvidenceSection
+                                    sourceIds={[item.id]}
+                                    targetIds={selectedNode.isGroup && selectedNode.memberIds?.length ? selectedNode.memberIds : [selectedNode.id]}
+                                    edgeKind="service_call"
+                                    onOpenFile={onOpenFile}
+                                    defaultExpanded={true}
+                                  />
+                                </div>
+                              )}
                             </div>
-                            <div className="connection-item-meta">
-                              <span className="connection-count-badge">
-                                {item.count} {item.count === 1 ? 'call' : 'calls'}
-                              </span>
-                              <span className="connection-jump-arrow">➔</span>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                         {inboundConnections.length === 0 && (
                           <div className="inspector-empty-hint">No inbound calls</div>
                         )}
@@ -1153,25 +1262,61 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                     </div>
                     {!collapsedSections['outbound'] && (
                       <div className="inspector-connection-list">
-                        {outboundConnections.map((item) => (
-                          <div
-                            key={item.id}
-                            className="inspector-connection-item"
-                            onClick={() => handleSelectNodeById(item.id)}
-                            title={`Jump to downstream service ${item.name}`}
-                          >
-                            <div className="connection-item-main" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <EntityNodeBadge kind={item.kind || 'Service'} size={18} />
-                              <span className="connection-item-name">{item.name}</span>
+                        {outboundConnections.map((item) => {
+                          const evKey = `out:${item.id}`;
+                          const isEvOpen = expandedConnEvidenceKey === evKey;
+                          return (
+                            <div key={item.id} style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+                              <div
+                                className="inspector-connection-item"
+                                onClick={() => handleSelectNodeById(item.id)}
+                                title={`Jump to downstream service ${item.name}`}
+                              >
+                                <div className="connection-item-main" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <EntityNodeBadge kind={item.kind || 'Service'} size={18} />
+                                  <span className="connection-item-name">{item.name}</span>
+                                </div>
+                                <div className="connection-item-meta" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <button
+                                    type="button"
+                                    style={{
+                                      fontSize: '9px',
+                                      fontWeight: 600,
+                                      padding: '1px 5px',
+                                      borderRadius: 3,
+                                      background: isEvOpen ? 'rgba(56, 189, 248, 0.3)' : 'rgba(255, 255, 255, 0.08)',
+                                      color: isEvOpen ? '#38bdf8' : '#cbd5e1',
+                                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                                      cursor: 'pointer',
+                                    }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setExpandedConnEvidenceKey((prev) => (prev === evKey ? null : evKey));
+                                    }}
+                                    title="Inspect code evidence for this outbound call"
+                                  >
+                                    {isEvOpen ? 'Hide Evidence' : 'Evidence'}
+                                  </button>
+                                  <span className="connection-count-badge">
+                                    {item.count} {item.count === 1 ? 'call' : 'calls'}
+                                  </span>
+                                  <span className="connection-jump-arrow">➔</span>
+                                </div>
+                              </div>
+                              {isEvOpen && (
+                                <div style={{ marginLeft: 6, marginTop: 4, marginBottom: 6 }}>
+                                  <EdgeEvidenceSection
+                                    sourceIds={selectedNode.isGroup && selectedNode.memberIds?.length ? selectedNode.memberIds : [selectedNode.id]}
+                                    targetIds={[item.id]}
+                                    edgeKind={item.kind === 'ExternalService' ? 'external' : 'service_call'}
+                                    onOpenFile={onOpenFile}
+                                    defaultExpanded={true}
+                                  />
+                                </div>
+                              )}
                             </div>
-                            <div className="connection-item-meta">
-                              <span className="connection-count-badge">
-                                {item.count} {item.count === 1 ? 'call' : 'calls'}
-                              </span>
-                              <span className="connection-jump-arrow">➔</span>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                         {outboundConnections.length === 0 && (
                           <div className="inspector-empty-hint">No outbound calls</div>
                         )}
@@ -1219,28 +1364,26 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                                 <span className="connection-item-name">{item.name}</span>
                               </div>
                               <div className="connection-item-meta" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                {selectedNode.kind !== 'Database' && (
-                                  <button
-                                    type="button"
-                                    style={{
-                                      fontSize: '9px',
-                                      fontWeight: 600,
-                                      padding: '1px 5px',
-                                      borderRadius: 3,
-                                      background: expandedDbEvidenceId === item.id ? 'rgba(56, 189, 248, 0.3)' : 'rgba(255, 255, 255, 0.08)',
-                                      color: expandedDbEvidenceId === item.id ? '#38bdf8' : '#cbd5e1',
-                                      border: '1px solid rgba(255, 255, 255, 0.12)',
-                                      cursor: 'pointer',
-                                    }}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setExpandedDbEvidenceId((prev) => (prev === item.id ? null : item.id));
-                                    }}
-                                    title="Inspect queries and evidence for this database"
-                                  >
-                                    {expandedDbEvidenceId === item.id ? 'Hide Evidence' : 'Evidence'}
-                                  </button>
-                                )}
+                                <button
+                                  type="button"
+                                  style={{
+                                    fontSize: '9px',
+                                    fontWeight: 600,
+                                    padding: '1px 5px',
+                                    borderRadius: 3,
+                                    background: expandedDbEvidenceId === item.id ? 'rgba(56, 189, 248, 0.3)' : 'rgba(255, 255, 255, 0.08)',
+                                    color: expandedDbEvidenceId === item.id ? '#38bdf8' : '#cbd5e1',
+                                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                                    cursor: 'pointer',
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setExpandedDbEvidenceId((prev) => (prev === item.id ? null : item.id));
+                                  }}
+                                  title="Inspect queries and evidence for this database"
+                                >
+                                  {expandedDbEvidenceId === item.id ? 'Hide Evidence' : 'Evidence'}
+                                </button>
                                 <span className="connection-count-badge">{item.count} links</span>
                                 <span className="connection-jump-arrow">➔</span>
                               </div>
@@ -1248,9 +1391,9 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                             {expandedDbEvidenceId === item.id && (
                               <div style={{ marginLeft: 6, marginTop: 4, marginBottom: 6 }}>
                                 <DatabaseEvidenceSection
-                                  databaseId={item.id}
-                                  databaseName={item.name}
-                                  serviceId={selectedNode.name}
+                                  databaseId={selectedNode.kind === 'Database' ? selectedNode.id : item.id}
+                                  databaseName={selectedNode.kind === 'Database' ? selectedNode.name : item.name}
+                                  serviceId={selectedNode.kind === 'Database' ? item.id : selectedNode.id}
                                   onOpenFile={onOpenFile}
                                   defaultExpanded={true}
                                 />
@@ -1283,23 +1426,59 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                     </div>
                     {!collapsedSections['topics'] && (
                       <div className="inspector-connection-list">
-                        {topicConnections.map((item) => (
-                          <div
-                            key={item.id}
-                            className="inspector-connection-item"
-                            onClick={() => handleSelectNodeById(item.id)}
-                            title={`Jump to ${item.name}`}
-                          >
-                            <div className="connection-item-main" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <EntityNodeBadge kind={item.kind || 'Topic'} size={18} />
-                              <span className="connection-item-name">{item.name}</span>
+                        {topicConnections.map((item) => {
+                          const evKey = `topic:${item.id}`;
+                          const isEvOpen = expandedConnEvidenceKey === evKey;
+                          return (
+                            <div key={item.id} style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+                              <div
+                                className="inspector-connection-item"
+                                onClick={() => handleSelectNodeById(item.id)}
+                                title={`Jump to ${item.name}`}
+                              >
+                                <div className="connection-item-main" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <EntityNodeBadge kind={item.kind || 'Topic'} size={18} />
+                                  <span className="connection-item-name">{item.name}</span>
+                                </div>
+                                <div className="connection-item-meta" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <button
+                                    type="button"
+                                    style={{
+                                      fontSize: '9px',
+                                      fontWeight: 600,
+                                      padding: '1px 5px',
+                                      borderRadius: 3,
+                                      background: isEvOpen ? 'rgba(56, 189, 248, 0.3)' : 'rgba(255, 255, 255, 0.08)',
+                                      color: isEvOpen ? '#38bdf8' : '#cbd5e1',
+                                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                                      cursor: 'pointer',
+                                    }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setExpandedConnEvidenceKey((prev) => (prev === evKey ? null : evKey));
+                                    }}
+                                    title="Inspect publisher/subscriber evidence for this topic"
+                                  >
+                                    {isEvOpen ? 'Hide Evidence' : 'Evidence'}
+                                  </button>
+                                  {item.label && <span className="connection-count-badge">{item.label}</span>}
+                                  <span className="connection-jump-arrow">➔</span>
+                                </div>
+                              </div>
+                              {isEvOpen && (
+                                <div style={{ marginLeft: 6, marginTop: 4, marginBottom: 6 }}>
+                                  <EdgeEvidenceSection
+                                    sourceIds={selectedNode.kind === 'Topic' ? [item.id] : [selectedNode.id]}
+                                    targetIds={selectedNode.kind === 'Topic' ? [selectedNode.id] : [item.id]}
+                                    edgeKind="messaging"
+                                    onOpenFile={onOpenFile}
+                                    defaultExpanded={true}
+                                  />
+                                </div>
+                              )}
                             </div>
-                            <div className="connection-item-meta">
-                              {item.label && <span className="connection-count-badge">{item.label}</span>}
-                              <span className="connection-jump-arrow">➔</span>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                         {topicConnections.length === 0 && (
                           <div className="inspector-empty-hint">
                             {selectedNode.kind === 'Topic' ? 'No connected services' : 'No message topics'}
@@ -1390,6 +1569,20 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                     )}
                   </div>
                 )}
+
+                {/* Accordion: Universal Code Evidence for Node */}
+                <NodeEvidenceSection
+                  nodeIds={
+                    selectedNode.isGroup && selectedNode.memberIds && selectedNode.memberIds.length > 0
+                      ? selectedNode.memberIds
+                      : selectedNode.projects && selectedNode.projects.length > 0
+                      ? Array.from(new Set([selectedNode.id, ...selectedNode.projects.map((p: DomainProjectInfo) => p.id)]))
+                      : [selectedNode.id]
+                  }
+                  nodeKind={selectedNode.kind}
+                  onOpenFile={onOpenFile}
+                  defaultExpanded={true}
+                />
               </div>
         </FloatingPanel>
       )}

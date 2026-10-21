@@ -89,5 +89,8 @@ public interface IArchitectureQueryService
 
     /// <summary>Source-code evidence for a rendered edge; group edges pass all member ids per side.</summary>
     Task<EdgeEvidenceResponseDto> GetEdgeEvidenceAsync(IReadOnlyList<string> sourceIds, IReadOnlyList<string> targetIds, string? edgeKind, CancellationToken ct = default);
+
+    /// <summary>Source-code evidence proving a rendered node's role and capabilities; grouped nodes pass all member ids.</summary>
+    Task<NodeEvidenceResponseDto> GetNodeEvidenceAsync(IReadOnlyList<string> nodeIds, string? nodeKind = null, CancellationToken ct = default);
 }
 

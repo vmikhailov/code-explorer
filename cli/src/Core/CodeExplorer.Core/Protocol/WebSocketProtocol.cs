@@ -1459,6 +1459,24 @@ public class EdgeEvidenceResponseDto
     public List<ArchitectureEvidenceItemDto> Items { get; set; } = [];
 }
 
+public class NodeEvidenceResponseDto
+{
+    [JsonPropertyName("nodeId")]
+    public string NodeId { get; set; } = string.Empty;
+
+    [JsonPropertyName("nodeName")]
+    public string NodeName { get; set; } = string.Empty;
+
+    [JsonPropertyName("nodeKind")]
+    public string NodeKind { get; set; } = string.Empty;
+
+    [JsonPropertyName("totalCount")]
+    public int TotalCount { get; set; }
+
+    [JsonPropertyName("items")]
+    public List<ArchitectureEvidenceItemDto> Items { get; set; } = [];
+}
+
 public class DatabaseEvidenceResponseDto
 {
     [JsonPropertyName("databaseId")]

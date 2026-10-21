@@ -61,35 +61,78 @@ internal sealed class EvidenceScope(string id, string name, string? directory)
 
 public partial class ArchitectureViewEngine
 {
+    private static readonly string[] KnownEntityIdPrefixes =
+    [
+        "service:", "domain:", "dom:", "ws:s:", "ws:app:", "ws:w:", "ws:cli:", "ws:lib:",
+        "ws:p:", "ws:project:", "project:", "app:", "worker:", "cli:", "lib:"
+    ];
+
+    internal static string StripEntityIdPrefix(string rawId)
+    {
+        if (string.IsNullOrWhiteSpace(rawId)) return string.Empty;
+        var clean = rawId.Trim();
+        foreach (var p in KnownEntityIdPrefixes)
+        {
+            if (clean.StartsWith(p, StringComparison.OrdinalIgnoreCase))
+            {
+                clean = clean[p.Length..];
+                break;
+            }
+        }
+        return clean.TrimEnd(':');
+    }
+
     internal async Task<EvidenceScope?> ResolveServiceScopeAsync(string serviceId, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(serviceId)) return null;
+
+        var cleanId = StripEntityIdPrefix(serviceId);
+        if (string.IsNullOrWhiteSpace(cleanId)) cleanId = serviceId;
 
         try
         {
             const string query = """
                 MATCH (s)
-                WHERE (s:Project OR s:Service OR s:Worker OR s:App)
-                  AND (s.id = $sId OR s.name = $sId OR s.id ENDS WITH (':' + $sId))
-                RETURN s.id AS id, s.name AS name, coalesce(s.file_path, s.path) AS path
-                LIMIT 1
+                WHERE (s:Project OR s:Service OR s:Worker OR s:App OR s:CliTool OR s:Library OR s:TestSuite)
+                  AND (s.id = $sId OR s.name = $sId OR s.id = $cleanId OR s.name = $cleanId
+                       OR s.id ENDS WITH (':' + $cleanId) OR s.id ENDS WITH (':' + $cleanId + ':'))
+                RETURN s.id AS id, s.name AS name, coalesce(s.file_path, s.path) AS path, labels(s)[0] AS kind
                 """;
-            var json = await db.ExecuteQueryAsync(query, new Dictionary<string, object> { ["sId"] = serviceId }, ct);
-            using var doc = JsonDocument.Parse(json);
-            var row = doc.RootElement.EnumerateArray().FirstOrDefault();
-            if (row.ValueKind == JsonValueKind.Object)
+            var json = await db.ExecuteQueryAsync(query, new Dictionary<string, object>
             {
-                return new EvidenceScope(
-                    row.GetStringProp("id", serviceId),
-                    row.GetStringProp("name", serviceId),
-                    row.GetStringProp("path"));
+                ["sId"] = serviceId,
+                ["cleanId"] = cleanId
+            }, ct);
+            using var doc = JsonDocument.Parse(json);
+            string? bestId = null;
+            string? bestName = null;
+            string? bestPath = null;
+
+            foreach (var row in doc.RootElement.EnumerateArray())
+            {
+                var rId = row.GetStringProp("id", serviceId);
+                var rName = row.GetStringProp("name", cleanId);
+                var rPath = row.GetStringProp("path");
+                var rKind = row.GetStringProp("kind");
+
+                if (bestId is null || !string.IsNullOrEmpty(rPath) && (string.IsNullOrEmpty(bestPath) || rKind == "Project"))
+                {
+                    bestId = rId;
+                    bestName = rName;
+                    if (!string.IsNullOrEmpty(rPath)) bestPath = rPath;
+                }
+            }
+
+            if (bestId is not null)
+            {
+                return new EvidenceScope(bestId, bestName ?? cleanId, bestPath ?? cleanId);
             }
         }
         catch
         {
-            // Fall through to an unresolved scope that only matches by service name.
+            // Fall through to an unresolved scope that matches by cleanId directory/name.
         }
 
-        return new EvidenceScope(serviceId, serviceId, null);
+        return new EvidenceScope(serviceId, cleanId, cleanId);
     }
 }

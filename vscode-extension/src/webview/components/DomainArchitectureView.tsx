@@ -1664,6 +1664,31 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     setRelayoutTrigger((prev) => prev + 1);
   }, []);
 
+  // Minimum distance between nodes on the same orbit (px)
+  const [minOrbitNodeDistance, setMinOrbitNodeDistance] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('ce_min_orbit_node_distance');
+      if (saved) {
+        const val = parseInt(saved, 10);
+        if (!isNaN(val) && val >= 50 && val <= 400) return val;
+      }
+    } catch { }
+    return 125;
+  });
+  const minOrbitNodeDistanceRef = useRef<number>(minOrbitNodeDistance);
+  minOrbitNodeDistanceRef.current = minOrbitNodeDistance;
+
+  const handleMinOrbitNodeDistanceChange = useCallback((newDist: number) => {
+    const clamped = Math.max(50, Math.min(400, Math.round(newDist / 5) * 5));
+    setMinOrbitNodeDistance(clamped);
+    minOrbitNodeDistanceRef.current = clamped;
+    try {
+      localStorage.setItem('ce_min_orbit_node_distance', String(clamped));
+    } catch { }
+    forceRelayoutRef.current = true;
+    setRelayoutTrigger((prev) => prev + 1);
+  }, []);
+
   // Mouse wheel zoom sensitivity (default 1.0x with universal normalized wheel)
   const [wheelSensitivity, setWheelSensitivity] = useState<number>(() => {
     try {
@@ -3631,7 +3656,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             effectiveOrder,
             nodeDomainMap,
             domainDetailsMap,
-            orbitDistanceRef.current
+            orbitDistanceRef.current,
+            minOrbitNodeDistanceRef.current
           );
           const effSpacing = spacing || 1.0;
           setSectorGuides(layoutResult.sectors || []);
@@ -3644,11 +3670,11 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           setSectorGuides([]);
           baseSectorGuidesRef.current = [];
           if (layoutName === 'concentric-equispaced') {
-            layoutResult = computeConcentricEquispacedLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder, orbitDistanceRef.current);
+            layoutResult = computeConcentricEquispacedLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder, orbitDistanceRef.current, minOrbitNodeDistanceRef.current);
           } else if (layoutName === 'concentric-polar-force') {
-            layoutResult = computeConcentricPolarForceLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder, orbitDistanceRef.current);
+            layoutResult = computeConcentricPolarForceLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder, orbitDistanceRef.current, minOrbitNodeDistanceRef.current);
           } else {
-            layoutResult = computeConcentricLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder, orbitDistanceRef.current);
+            layoutResult = computeConcentricLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder, orbitDistanceRef.current, minOrbitNodeDistanceRef.current);
           }
         }
 
@@ -4726,6 +4752,50 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                             className="domain-hud-step-btn"
                             onClick={() => handleOrbitDistanceChange(orbitDistance + 20)}
                             title="Increase orbit distance (+20px)"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 3c. Min Distance on Orbit Control */}
+                    {layoutName.startsWith('concentric') && (
+                      <div className="display-setting-row" title="Adjust minimum distance between nodes on the same orbit (50px - 400px)">
+                        <div className="setting-label-row">
+                          <span className="setting-icon">↔️</span>
+                          <span className="setting-name">Min Distance on Orbit</span>
+                          <span
+                            className="domain-hud-value-badge"
+                            onClick={() => handleMinOrbitNodeDistanceChange(125)}
+                            title="Click to reset min orbit node distance to 125px"
+                          >
+                            {minOrbitNodeDistance}px
+                          </span>
+                        </div>
+                        <div className="setting-slider-row">
+                          <button
+                            type="button"
+                            className="domain-hud-step-btn"
+                            onClick={() => handleMinOrbitNodeDistanceChange(minOrbitNodeDistance - 15)}
+                            title="Decrease min distance on orbit (-15px)"
+                          >
+                            −
+                          </button>
+                          <input
+                            type="range"
+                            min="50"
+                            max="400"
+                            step="5"
+                            value={minOrbitNodeDistance}
+                            onChange={(e) => handleMinOrbitNodeDistanceChange(parseInt(e.target.value, 10))}
+                            className="domain-hud-slider"
+                          />
+                          <button
+                            type="button"
+                            className="domain-hud-step-btn"
+                            onClick={() => handleMinOrbitNodeDistanceChange(minOrbitNodeDistance + 15)}
+                            title="Increase min distance on orbit (+15px)"
                           >
                             +
                           </button>
