@@ -75,7 +75,8 @@ public static partial class CodeIntentAnalyzer
                 // If projects still lack domain assignments, synthesize them topologically from AST
                 var signatures = await ctx.DbClient.LoadProjectSignaturesAsync(ctx.WorkspaceId, cancellationToken);
                 var unassigned = signatures.Where(s => string.IsNullOrWhiteSpace(s.ExistingDomain)).ToList();
-                if (unassigned.Count > 0)
+                // Synthesized domains are a heuristic; with detection off, domains come only from domains.json.
+                if (unassigned.Count > 0 && WorkspaceConventions.DomainDetectionEnabled)
                 {
                     var wsPath = !string.IsNullOrEmpty(ctx.HostWorkspacePath)
                         ? ctx.HostWorkspacePath

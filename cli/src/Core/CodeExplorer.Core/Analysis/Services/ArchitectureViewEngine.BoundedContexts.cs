@@ -528,7 +528,8 @@ public partial class ArchitectureViewEngine
         };
 
         // If projects lack domain assignments, synthesize cohesive macro-domains topologically from AST
-        var needsSynthesis = signatures.Any(s => string.IsNullOrWhiteSpace(s.ExistingDomain));
+        var needsSynthesis = WorkspaceConventions.DomainDetectionEnabled &&
+                             signatures.Any(s => string.IsNullOrWhiteSpace(s.ExistingDomain));
         var topoAssignments = needsSynthesis
             ? CodeIntentAnalyzer.SynthesizeDomainsTopologically(signatures)
             : null;

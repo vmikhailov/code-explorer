@@ -869,8 +869,8 @@ public partial class ArchitectureViewEngine
                         _ => d.Kind.ToString()
                     },
                     ["is_library"] = d.Kind == NodeKind.Library ? "true" : "false",
-                    ["domain"] = d.Domain ?? d.Name,
-                    ["domainDisplayName"] = d.DomainDisplayName ?? d.DisplayName
+                    ["domain"] = d.Domain ?? "",
+                    ["domainDisplayName"] = d.DomainDisplayName ?? ""
                 }
             });
         }
