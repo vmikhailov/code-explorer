@@ -24,7 +24,8 @@ export function computeConcentricPolarForceLayout(
   visibleNodes: ConcentricNodeInput[],
   visibleEdges: ConcentricEdgeInput[],
   spacing = 1.0,
-  customOrbitOrder?: number[]
+  customOrbitOrder?: number[],
+  orbitDistance?: number
 ): ConcentricLayoutResult {
   const orbitBuckets: Record<number, string[]> = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [] };
 
@@ -69,7 +70,7 @@ export function computeConcentricPolarForceLayout(
   }
 
   const minArcSpacing = Math.round(125 * spacing);
-  const radialStep = Math.round(320 * spacing);
+  const radialStep = Math.round((orbitDistance ?? 320) * spacing);
 
   let prevRadius = 0;
   populatedOrbits.forEach((orbit, idx) => {

@@ -20,6 +20,7 @@ import {
   ORBIT_TITLES,
   cleanEntityToken,
   normalizeAngle,
+  optimizeSlotAssignment,
 } from './concentricLayout';
 
 export const SECTOR_PALETTE = [
@@ -68,7 +69,8 @@ export function computeConcentricSectorsLayout(
   spacing = 1.0,
   customOrbitOrder?: number[],
   explicitDomainMap?: Map<string, string>,
-  explicitDomainDetails?: Map<string, { name?: string; displayName?: string; color?: string }>
+  explicitDomainDetails?: Map<string, { name?: string; displayName?: string; color?: string }>,
+  orbitDistance?: number
 ): ConcentricLayoutResult {
   const positions = new Map<string, { x: number; y: number }>();
   const nodeAngles = new Map<string, number>();
@@ -117,13 +119,25 @@ export function computeConcentricSectorsLayout(
       domain = explicitDomainMap.get(n.id);
     } else if (n.domain) {
       domain = n.domain;
-    } else if (n.echelonTier <= 3 || n.kind === 'Service' || n.kind === 'Ingress' || n.kind === 'App' || n.kind === 'FrontendApp' || n.kind === 'Worker' || n.kind === 'TestSuite' || n.kind === 'CliTool') {
+    } else if (
+      n.kind !== 'Database' &&
+      n.kind !== 'Topic' &&
+      n.kind !== 'ExternalService' &&
+      (n.echelonTier <= 3 ||
+        n.kind === 'Service' ||
+        n.kind === 'Ingress' ||
+        n.kind === 'App' ||
+        n.kind === 'FrontendApp' ||
+        n.kind === 'Worker' ||
+        n.kind === 'TestSuite' ||
+        n.kind === 'CliTool')
+    ) {
       domain = extractDomainToken(n.displayName || n.name || n.id);
     }
     if (domain) {
       nodeDomain.set(n.id, domain);
       if (!domainDisplayNames.has(domain)) {
-        const explicitName = explicitDomainDetails?.get(domain)?.displayName;
+        const explicitName = explicitDomainDetails?.get(domain)?.displayName || (n as any).domainDisplayName;
         domainDisplayNames.set(domain, explicitName || formatDomainTitle(domain));
       }
     }
@@ -163,7 +177,9 @@ export function computeConcentricSectorsLayout(
       nodeDomain.set(n.id, '__shared__');
     } else {
       // Isolated or unmapped infrastructure
-      const fallbackDomain = extractDomainToken(n.displayName || n.name || n.id);
+      const fallbackDomain = explicitDomainMap && explicitDomainMap.size > 0
+        ? '__shared__'
+        : extractDomainToken(n.displayName || n.name || n.id);
       nodeDomain.set(n.id, fallbackDomain || '__shared__');
     }
   }
@@ -181,30 +197,146 @@ export function computeConcentricSectorsLayout(
     domainNodeMap.get(d)!.push(n.id);
   }
 
-  // Separate shared domain to place at the end or bottom
-  const regularDomains = Array.from(domainNodeMap.entries())
-    .filter(([d]) => d !== '__shared__')
+  // Identify primary UI / Entry Point domain to take the center (if it has Tier 0 / App / Ingress / UI nodes)
+  let centerDomain: string | null = null;
+  let bestCenterScore = 0;
+
+  for (const [d, ids] of domainNodeMap.entries()) {
+    if (d === '__shared__') continue;
+    let uiEntryCount = 0;
+    let uiEntryDegree = 0;
+    for (const id of ids) {
+      const n = nodeMap.get(id);
+      if (!n) continue;
+      const isUiOrEntry =
+        n.echelonTier === 0 ||
+        n.kind === 'App' ||
+        n.kind === 'FrontendApp' ||
+        n.kind === 'Ingress';
+      if (isUiOrEntry) {
+        uiEntryCount++;
+        const deg = (adj.get(id) || []).reduce((sum, edge) => sum + edge.weight, 0);
+        uiEntryDegree += deg;
+      }
+    }
+    const isPlatformUiName =
+      d.includes('platform') ||
+      d.includes('ui') ||
+      d.includes('frontend') ||
+      d.includes('ingress') ||
+      d.includes('gateway');
+    if (uiEntryCount > 0) {
+      const score = uiEntryCount * 100 + uiEntryDegree * 10 + (isPlatformUiName ? 500 : 0);
+      if (score > bestCenterScore) {
+        bestCenterScore = score;
+        centerDomain = d;
+      }
+    }
+  }
+
+  // Separate center domain and shared domain; order remaining domains by topological affinity (TSP / greedy chain)
+  const regularEntries = Array.from(domainNodeMap.entries())
+    .filter(([d]) => d !== '__shared__' && d !== centerDomain)
     .sort((a, b) => b[1].length - a[1].length);
 
-  const sortedDomainEntries: Array<[string, string[]]> = [...regularDomains];
+  // Build inter-domain affinity matrix to place strongly connected sectors adjacent to each other
+  const domainAffinity = new Map<string, Map<string, number>>();
+  for (const e of visibleEdges) {
+    const dS = nodeDomain.get(e.source);
+    const dT = nodeDomain.get(e.target);
+    if (dS && dT && dS !== dT && dS !== centerDomain && dT !== centerDomain && dS !== '__shared__' && dT !== '__shared__') {
+      const w = e.count || 1;
+      if (!domainAffinity.has(dS)) domainAffinity.set(dS, new Map());
+      if (!domainAffinity.has(dT)) domainAffinity.set(dT, new Map());
+      domainAffinity.get(dS)!.set(dT, (domainAffinity.get(dS)!.get(dT) || 0) + w);
+      domainAffinity.get(dT)!.set(dS, (domainAffinity.get(dT)!.get(dS) || 0) + w);
+    }
+  }
+
+  const orderedRegular: Array<[string, string[]]> = [];
+  if (regularEntries.length > 0) {
+    const remaining = new Map(regularEntries);
+    let curr = regularEntries[0][0];
+    orderedRegular.push([curr, remaining.get(curr)!]);
+    remaining.delete(curr);
+    while (remaining.size > 0) {
+      let bestNext = '';
+      let bestScore = -1;
+      const aff = domainAffinity.get(curr);
+      for (const cand of remaining.keys()) {
+        const s = aff?.get(cand) || 0;
+        if (s > bestScore) {
+          bestScore = s;
+          bestNext = cand;
+        }
+      }
+      const nextDom = bestNext || remaining.keys().next().value!;
+      orderedRegular.push([nextDom, remaining.get(nextDom)!]);
+      remaining.delete(nextDom);
+      curr = nextDom;
+    }
+  }
+
+  const sortedDomainEntries: Array<[string, string[]]> = [...orderedRegular];
   if (domainNodeMap.has('__shared__')) {
     sortedDomainEntries.push(['__shared__', domainNodeMap.get('__shared__')!]);
   }
 
   // 4. Calculate required angular span for each domain to GUARANTEE zero overlaps
   // Arc parameters
-  const MIN_ARC_GAP = Math.round(155 * spacing); // clearance between adjacent node centers on the same tier
-  const MARGIN_ARC = Math.round(60 * spacing);   // padding from sector boundary
-  const RADIAL_STEP = Math.round(280 * spacing);  // distance between concentric echelon orbits
-  const BASE_INNER_R = Math.round(200 * spacing);
+  const MIN_ARC_GAP = Math.round(160 * spacing); // clearance between adjacent node centers on the same tier
+  const MARGIN_ARC = Math.round(95 * spacing);   // padding from sector boundary
+  const RADIAL_STEP = Math.round((orbitDistance ?? 280) * spacing); // distance between concentric echelon orbits
 
-  // Initial radii for populated orbits
+  // Size center hub with generous sub-ring spacing so center nodes never overlap
+  const centerNodeIds = centerDomain ? (domainNodeMap.get(centerDomain) || []) : [];
+  const centerByTier = new Map<number, string[]>();
+  for (const id of centerNodeIds) {
+    const ech = nodeMap.get(id)?.echelonTier ?? 1;
+    if (!centerByTier.has(ech)) centerByTier.set(ech, []);
+    centerByTier.get(ech)!.push(id);
+  }
+  const centerTiers = Array.from(centerByTier.keys()).sort((a, b) => a - b);
+  const centerSubStep = Math.max(Math.round(125 * spacing), Math.round(RADIAL_STEP * 0.45));
+  const centerSubRings: Array<{ tier: number; ids: string[]; radius: number }> = [];
+  let prevCenterR = 0;
+
+  if (centerTiers.length > 0) {
+    centerTiers.forEach((tier, tIdx) => {
+      const ids = centerByTier.get(tier)!;
+      if (tIdx === 0 && ids.length === 1) {
+        centerSubRings.push({ tier, ids, radius: 0 });
+        prevCenterR = 0;
+      } else {
+        const minCircumR = Math.ceil((ids.length * Math.round(145 * spacing)) / (2 * Math.PI));
+        const rRing = Math.max(prevCenterR + centerSubStep, minCircumR, Math.round(125 * spacing));
+        centerSubRings.push({ tier, ids, radius: rRing });
+        prevCenterR = rRing;
+      }
+    });
+  }
+
+  const centerOuterR = centerNodeIds.length > 0
+    ? prevCenterR + Math.round(90 * spacing)
+    : 0;
+  const BASE_INNER_R = centerNodeIds.length > 0
+    ? centerOuterR + Math.max(Math.round(140 * spacing), Math.round(RADIAL_STEP * 0.7))
+    : Math.round(240 * spacing);
+
+  // Initial radii for populated outer orbits: only include tiers that actually have nodes in outer sectors!
+  const outerPopulatedOrder = effectiveOrder.filter((tierIdx) =>
+    sortedDomainEntries.some(([, ids]) => ids.some((id) => (nodeMap.get(id)?.echelonTier ?? 2) === tierIdx))
+  );
+  const activeOrbitOrder = outerPopulatedOrder.length > 0 ? outerPopulatedOrder : effectiveOrder;
+
   const orbitRadii = new Map<number, number>();
-  effectiveOrder.forEach((tierIdx, rank) => {
+  activeOrbitOrder.forEach((tierIdx, rank) => {
     orbitRadii.set(tierIdx, BASE_INNER_R + rank * RADIAL_STEP);
   });
 
   // Calculate minimum angle required by each domain based on its most crowded tier
+  // With even (count + 1) slot distribution across the sector (border -> node -> ... -> node -> border),
+  // each of the (count + 1) gaps needs at least MIN_ARC_GAP clearance (or 2 * MARGIN_ARC for 1 node).
   const domainWeights = new Map<string, number>();
   const domainMinAngles = new Map<string, number>();
 
@@ -221,8 +353,8 @@ export function computeConcentricSectorsLayout(
 
     for (const [ech, count] of tierCounts.entries()) {
       if (count > maxTierCount) maxTierCount = count;
-      const r = orbitRadii.get(ech) || (BASE_INNER_R + RADIAL_STEP);
-      const neededArc = count > 1 ? (count - 1) * MIN_ARC_GAP + 2 * MARGIN_ARC : 2 * MARGIN_ARC;
+      const r = orbitRadii.get(ech) || BASE_INNER_R;
+      const neededArc = count > 1 ? (count + 1) * MIN_ARC_GAP : 2 * MARGIN_ARC;
       const neededAngle = neededArc / r;
       if (neededAngle > maxRequiredAngleForDomain) {
         maxRequiredAngleForDomain = neededAngle;
@@ -243,16 +375,19 @@ export function computeConcentricSectorsLayout(
     totalMinAngle += minAng;
   }
 
-  // If min required angles exceed available budget, expand the concentric radii proportionally!
-  let radiusMultiplier = 1.0;
-  if (totalMinAngle > availableBudget) {
-    radiusMultiplier = (totalMinAngle / availableBudget) * 1.06;
-    for (const tierIdx of effectiveOrder) {
+  // Iteratively expand BASE_INNER_R while keeping RADIAL_STEP (Orbit Distance) exact
+  // until totalMinAngle <= availableBudget so outer sectors NEVER wrap past 360°!
+  let safetyIter = 0;
+  while (totalMinAngle > availableBudget && availableBudget > 0 && safetyIter < 8) {
+    safetyIter++;
+    const ratio = (totalMinAngle / availableBudget) * 1.05;
+    const minCurrR = Math.min(...Array.from(orbitRadii.values()));
+    const extraR = Math.max(Math.round(60 * spacing), Math.round(minCurrR * (ratio - 1)));
+    for (const tierIdx of activeOrbitOrder) {
       const currentR = orbitRadii.get(tierIdx) || BASE_INNER_R;
-      orbitRadii.set(tierIdx, Math.round(currentR * radiusMultiplier));
+      orbitRadii.set(tierIdx, currentR + extraR);
     }
 
-    // Recalculate min angles with expanded radii
     totalMinAngle = 0;
     for (const [domain, nodeIds] of sortedDomainEntries) {
       const tierCounts = new Map<number, number>();
@@ -263,13 +398,22 @@ export function computeConcentricSectorsLayout(
       let maxAng = Math.PI / 20;
       for (const [ech, count] of tierCounts.entries()) {
         const r = orbitRadii.get(ech)!;
-        const neededArc = count > 1 ? (count - 1) * MIN_ARC_GAP + 2 * MARGIN_ARC : 2 * MARGIN_ARC;
+        const neededArc = count > 1 ? (count + 1) * MIN_ARC_GAP : 2 * MARGIN_ARC;
         const ang = neededArc / r;
         if (ang > maxAng) maxAng = ang;
       }
       domainMinAngles.set(domain, maxAng);
       totalMinAngle += maxAng;
     }
+  }
+
+  // Final strict normalization guard so total span + gaps never exceeds 2*PI
+  if (totalMinAngle > availableBudget && totalMinAngle > 0 && availableBudget > 0) {
+    const scale = availableBudget / totalMinAngle;
+    for (const [d, ang] of domainMinAngles.entries()) {
+      domainMinAngles.set(d, ang * scale);
+    }
+    totalMinAngle = availableBudget;
   }
 
   // Distribute any extra angular budget proportionally according to domain weights
@@ -294,7 +438,26 @@ export function computeConcentricSectorsLayout(
     currentStartAngle = end + SECTOR_GAP;
   }
 
-  // 6. Place nodes inside each domain sector on their respective echelon tiers
+  // 5b. Place Center Domain nodes (UI / Entry Points domain) in the center hub
+  if (centerDomain && centerSubRings.length > 0) {
+    centerSubRings.forEach(({ ids, radius }, rIdx) => {
+      if (radius === 0 && ids.length === 1) {
+        nodeAngles.set(ids[0], 0);
+        nodeRadii.set(ids[0], 0);
+      } else {
+        const step = (2 * Math.PI) / ids.length;
+        const angleOffset = -Math.PI / 2 + (rIdx % 2 === 1 ? step / 2 : 0);
+        const slots = ids.map((_, idx) => normalizeAngle(angleOffset + idx * step));
+        optimizeSlotAssignment(ids, slots, radius, nodeAngles, nodeRadii, adj, false);
+      }
+    });
+  }
+
+  // 6. Place nodes inside each domain sector strictly lined up on their respective echelon orbits
+  // and evenly distributed across all nodes and both sector borders: step = span / (count + 1),
+  // optimizing slot assignment across tiers so links are as short as possible!
+  const sectorTierSlots: Array<{ ids: string[]; slots: number[]; r: number }> = [];
+
   for (const [domain, nodeIds] of sortedDomainEntries) {
     const slice = domainAngles.get(domain)!;
 
@@ -306,42 +469,56 @@ export function computeConcentricSectorsLayout(
       nodesByTier.get(ech)!.push(id);
     }
 
-    for (const [ech, ids] of nodesByTier.entries()) {
+    for (const ech of activeOrbitOrder) {
+      const ids = nodesByTier.get(ech);
+      if (!ids || ids.length === 0) continue;
       const r = orbitRadii.get(ech) || BASE_INNER_R;
       const count = ids.length;
+      const step = slice.span / (count + 1);
+      const slots = Array.from({ length: count }, (_, idx) => slice.start + (idx + 1) * step);
 
-      if (count === 1) {
-        const ang = slice.center;
-        nodeAngles.set(ids[0], ang);
-        nodeRadii.set(ids[0], r);
-        positions.set(ids[0], {
-          x: Math.round(r * Math.cos(ang)),
-          y: Math.round(r * Math.sin(ang)),
-        });
-      } else {
-        const marginAngle = Math.min(slice.span * 0.2, MARGIN_ARC / r);
-        const usableSpan = Math.max(slice.span - 2 * marginAngle, 0.04);
-        const step = usableSpan / (count - 1);
+      // Seed initial positions
+      ids.forEach((id, idx) => {
+        nodeAngles.set(id, slots[idx]);
+        nodeRadii.set(id, r);
+      });
+      sectorTierSlots.push({ ids, slots, r });
+    }
+  }
 
-        ids.forEach((id, idx) => {
-          const ang = slice.start + marginAngle + idx * step;
-          // Apply slight radius stagger for dense tiers (3+ nodes) to enhance visual clarity
-          const stagger = count >= 3 ? (idx % 2 === 1 ? 26 * spacing : -26 * spacing) : 0;
-          const nodeR = r + stagger;
+  // Multi-pass slot optimization across all sectors and center sub-rings to minimize total link lengths
+  for (let pass = 0; pass < 3; pass++) {
+    for (const item of sectorTierSlots) {
+      optimizeSlotAssignment(item.ids, item.slots, item.r, nodeAngles, nodeRadii, adj, pass > 0);
+    }
+    if (centerDomain && centerSubRings.length > 0) {
+      centerSubRings.forEach(({ ids, radius }, rIdx) => {
+        if (radius > 0 && ids.length > 1) {
+          const step = (2 * Math.PI) / ids.length;
+          const angleOffset = -Math.PI / 2 + (rIdx % 2 === 1 ? step / 2 : 0);
+          const slots = ids.map((_, idx) => normalizeAngle(angleOffset + idx * step));
+          optimizeSlotAssignment(ids, slots, radius, nodeAngles, nodeRadii, adj, true);
+        }
+      });
+    }
+  }
 
-          nodeAngles.set(id, ang);
-          nodeRadii.set(id, nodeR);
-          positions.set(id, {
-            x: Math.round(nodeR * Math.cos(ang)),
-            y: Math.round(nodeR * Math.sin(ang)),
-          });
-        });
-      }
+  // Compute Cartesian coordinates from optimized (angle, radius) pairs
+  for (const n of visibleNodes) {
+    const r = nodeRadii.get(n.id) ?? 0;
+    const ang = nodeAngles.get(n.id) ?? 0;
+    if (r === 0) {
+      positions.set(n.id, { x: 0, y: 0 });
+    } else {
+      positions.set(n.id, {
+        x: Math.round(r * Math.cos(ang)),
+        y: Math.round(r * Math.sin(ang)),
+      });
     }
   }
 
   // 7. Generate concentric orbit guides (rings)
-  const populatedOrbits = effectiveOrder.map((tierIdx, rank) => {
+  const populatedOrbits = activeOrbitOrder.map((tierIdx, rank) => {
     const r = orbitRadii.get(tierIdx) || BASE_INNER_R;
     const title = ORBIT_TITLES[tierIdx] || `Tier ${tierIdx}`;
     const shortLabel = `Orbit ${rank}`;
@@ -367,16 +544,42 @@ export function computeConcentricSectorsLayout(
     }));
 
   // 8. Generate Domain Sector Guides (Annular Wedges, Divider Lines, and Badges)
-  const maxRadius = Math.max(...Array.from(orbitRadii.values())) + Math.round(75 * spacing);
-  const minRadius = Math.max(50, Math.min(...Array.from(orbitRadii.values())) - Math.round(55 * spacing));
+  const orbitValues = Array.from(orbitRadii.values());
+  const maxRadius = (orbitValues.length > 0 ? Math.max(...orbitValues) : BASE_INNER_R) + Math.round(75 * spacing);
+  const minRadius = Math.max(
+    centerOuterR > 0 ? centerOuterR + Math.round(28 * spacing) : 50,
+    (orbitValues.length > 0 ? Math.min(...orbitValues) : BASE_INNER_R) - Math.round(55 * spacing)
+  );
 
-  const sectors: DomainSectorGuide[] = sortedDomainEntries.map(([domain, nodeIds], idx) => {
+  const sectors: DomainSectorGuide[] = [];
+
+  if (centerDomain && centerNodeIds.length > 0) {
+    const dispName = domainDisplayNames.get(centerDomain) || formatDomainTitle(centerDomain);
+    const color = explicitDomainDetails?.get(centerDomain)?.color || SECTOR_PALETTE[0];
+    sectors.push({
+      id: centerDomain,
+      domainName: centerDomain,
+      displayName: dispName,
+      startAngle: 0,
+      endAngle: 2 * Math.PI,
+      centerAngle: -Math.PI / 2,
+      innerRadius: 0,
+      outerRadius: centerOuterR,
+      color,
+      count: centerNodeIds.length,
+      nodeIds: centerNodeIds,
+      isShared: false,
+    });
+  }
+
+  sortedDomainEntries.forEach(([domain, nodeIds], idx) => {
     const slice = domainAngles.get(domain)!;
     const isShared = domain === '__shared__';
-    const color = isShared ? '#c084fc' : SECTOR_PALETTE[idx % SECTOR_PALETTE.length];
+    const paletteIdx = centerDomain ? idx + 1 : idx;
+    const color = isShared ? '#c084fc' : SECTOR_PALETTE[paletteIdx % SECTOR_PALETTE.length];
     const dispName = domainDisplayNames.get(domain) || formatDomainTitle(domain);
 
-    return {
+    sectors.push({
       id: domain,
       domainName: domain,
       displayName: dispName,
@@ -389,7 +592,7 @@ export function computeConcentricSectorsLayout(
       count: nodeIds.length,
       nodeIds,
       isShared,
-    };
+    });
   });
 
   return {

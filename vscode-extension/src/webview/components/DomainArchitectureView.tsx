@@ -1639,6 +1639,31 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const spacingFactorRef = useRef<number>(1.0);
   spacingFactorRef.current = spacingFactor;
 
+  // Distance between concentric orbits (px)
+  const [orbitDistance, setOrbitDistance] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('ce_orbit_distance');
+      if (saved) {
+        const val = parseInt(saved, 10);
+        if (!isNaN(val) && val >= 100 && val <= 900) return val;
+      }
+    } catch { }
+    return 280;
+  });
+  const orbitDistanceRef = useRef<number>(orbitDistance);
+  orbitDistanceRef.current = orbitDistance;
+
+  const handleOrbitDistanceChange = useCallback((newDist: number) => {
+    const clamped = Math.max(100, Math.min(900, Math.round(newDist / 10) * 10));
+    setOrbitDistance(clamped);
+    orbitDistanceRef.current = clamped;
+    try {
+      localStorage.setItem('ce_orbit_distance', String(clamped));
+    } catch { }
+    forceRelayoutRef.current = true;
+    setRelayoutTrigger((prev) => prev + 1);
+  }, []);
+
   // Mouse wheel zoom sensitivity (default 1.0x with universal normalized wheel)
   const [wheelSensitivity, setWheelSensitivity] = useState<number>(() => {
     try {
@@ -3540,12 +3565,17 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           (n.data('echelonTier') as number) ?? rawGraph.echelonMap.get(id) ?? 2
         );
         const detail = rawGraph.detailMap.get(id);
+        const isInfra = detail?.kind === 'Database' || detail?.kind === 'Topic' || detail?.kind === 'ExternalService';
+        const rawDomain = isInfra ? undefined : (detail?.properties?.domainId || detail?.domain || detail?.properties?.intent_domain)?.replace(/^domain:/i, '').toLowerCase();
+        const domainDisplayName = rawDomain ? (detail?.properties?.domainDisplayName || rawGraph.domainMap?.get(detail?.domain || '')?.displayName) : undefined;
         return {
           id,
           echelonTier: ech,
           kind,
           name: detail?.name || id,
           displayName: detail?.displayName || id,
+          domain: rawDomain,
+          domainDisplayName,
         };
       });
 
@@ -3576,25 +3606,21 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           const domainDetailsMap = new Map<string, { name: string; displayName: string }>();
 
           for (const [id, detail] of rawGraph.detailMap.entries()) {
-            if (detail.kind === 'Service' || detail.kind === 'Ingress' || detail.kind === 'Worker') {
-              nodeDomainMap.set(id, id);
-              domainDetailsMap.set(id, { name: detail.name, displayName: detail.displayName });
-            } else if (detail.kind === 'Database') {
-              const callers = Array.from(rawGraph.dbSourceServicesMap.get(id) || []);
-              if (callers.length === 1) {
-                nodeDomainMap.set(id, callers[0]);
-              } else if (callers.length > 1) {
-                nodeDomainMap.set(id, '__shared__');
-              }
-            } else if (detail.kind === 'Topic') {
-              const pubs = Array.from(rawGraph.topicPublishers.get(id) || []);
-              const subs = Array.from(rawGraph.topicSubscribers.get(id) || []);
-              const allParties = new Set([...pubs, ...subs]);
-              if (allParties.size === 1) {
-                nodeDomainMap.set(id, allParties.values().next().value!);
-              } else if (allParties.size > 1) {
-                nodeDomainMap.set(id, '__shared__');
-              }
+            if (detail.kind === 'Database' || detail.kind === 'Topic' || detail.kind === 'ExternalService') {
+              continue;
+            }
+            const raw = detail.properties?.domainId || detail.domain || detail.properties?.intent_domain;
+            if (!raw || raw === 'Databases' || raw === 'Messaging' || raw === 'External Services') {
+              continue;
+            }
+            const domainKey = raw.replace(/^domain:/i, '').toLowerCase();
+            const displayName =
+              detail.properties?.domainDisplayName ||
+              rawGraph.domainMap.get(detail.domain || '')?.displayName ||
+              raw.replace(/([a-z])([A-Z])/g, '$1 $2');
+            nodeDomainMap.set(id, domainKey);
+            if (!domainDetailsMap.has(domainKey)) {
+              domainDetailsMap.set(domainKey, { name: domainKey, displayName });
             }
           }
 
@@ -3604,7 +3630,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             spacing,
             effectiveOrder,
             nodeDomainMap,
-            domainDetailsMap
+            domainDetailsMap,
+            orbitDistanceRef.current
           );
           const effSpacing = spacing || 1.0;
           setSectorGuides(layoutResult.sectors || []);
@@ -3617,18 +3644,19 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           setSectorGuides([]);
           baseSectorGuidesRef.current = [];
           if (layoutName === 'concentric-equispaced') {
-            layoutResult = computeConcentricEquispacedLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder);
+            layoutResult = computeConcentricEquispacedLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder, orbitDistanceRef.current);
           } else if (layoutName === 'concentric-polar-force') {
-            layoutResult = computeConcentricPolarForceLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder);
+            layoutResult = computeConcentricPolarForceLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder, orbitDistanceRef.current);
           } else {
-            layoutResult = computeConcentricLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder);
+            layoutResult = computeConcentricLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder, orbitDistanceRef.current);
           }
         }
 
+        const shouldFit = isInitial || layoutChanged;
         layoutConfig = {
           name: 'preset',
           positions: (node: any) => layoutResult.positions.get(node.id()) || { x: 0, y: 0 },
-          fit: true,
+          fit: shouldFit,
           padding: 60,
           animate: false,
         };
@@ -4661,6 +4689,50 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                       </div>
                     </div>
 
+                    {/* 3b. Orbit Distance Control */}
+                    {layoutName.startsWith('concentric') && (
+                      <div className="display-setting-row" title="Adjust distance between concentric orbits (100px - 900px)">
+                        <div className="setting-label-row">
+                          <span className="setting-icon">🪐</span>
+                          <span className="setting-name">Orbit Distance</span>
+                          <span
+                            className="domain-hud-value-badge"
+                            onClick={() => handleOrbitDistanceChange(280)}
+                            title="Click to reset orbit distance to 280px"
+                          >
+                            {orbitDistance}px
+                          </span>
+                        </div>
+                        <div className="setting-slider-row">
+                          <button
+                            type="button"
+                            className="domain-hud-step-btn"
+                            onClick={() => handleOrbitDistanceChange(orbitDistance - 20)}
+                            title="Decrease orbit distance (-20px)"
+                          >
+                            −
+                          </button>
+                          <input
+                            type="range"
+                            min="100"
+                            max="900"
+                            step="10"
+                            value={orbitDistance}
+                            onChange={(e) => handleOrbitDistanceChange(parseInt(e.target.value, 10))}
+                            className="domain-hud-slider"
+                          />
+                          <button
+                            type="button"
+                            className="domain-hud-step-btn"
+                            onClick={() => handleOrbitDistanceChange(orbitDistance + 20)}
+                            title="Increase orbit distance (+20px)"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {/* 4. Mouse Wheel Zoom Sensitivity */}
                     <div className="display-setting-row" title="Adjust mouse wheel zoom sensitivity">
                       <div className="setting-label-row">
@@ -5087,30 +5159,46 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                       const badgeWidth = Math.max(textWidth + hPad, 85 / cyTransform.zoom);
                       const badgeHeight = Math.max(20, 24 / cyTransform.zoom);
 
-                      const wedgePath = describeAnnularSector(
-                        0,
-                        0,
-                        g.innerRadius,
-                        g.outerRadius,
-                        g.startAngle,
-                        g.endAngle
-                      );
+                      const isFullCircle = g.innerRadius <= 0 && g.endAngle - g.startAngle >= 2 * Math.PI - 0.01;
+                      const wedgePath = isFullCircle
+                        ? ''
+                        : describeAnnularSector(
+                            0,
+                            0,
+                            g.innerRadius,
+                            g.outerRadius,
+                            g.startAngle,
+                            g.endAngle
+                          );
 
-                      // Place badge just outside outer radius along centerAngle
-                      const badgeDist = g.outerRadius + Math.max(22, 28 / cyTransform.zoom);
+                      // Place badge just outside outer radius along centerAngle (or above center hub)
+                      const badgeDist = isFullCircle
+                        ? g.outerRadius + Math.max(20, 24 / cyTransform.zoom)
+                        : g.outerRadius + Math.max(22, 28 / cyTransform.zoom);
                       const badgeX = Math.round(badgeDist * Math.cos(g.centerAngle));
                       const badgeY = Math.round(badgeDist * Math.sin(g.centerAngle));
 
                       return (
                         <g key={g.id}>
-                          {/* Annular sector filled wedge */}
-                          <path
-                            d={wedgePath}
-                            fill={g.color.startsWith('#') ? `${g.color}18` : 'rgba(56, 189, 248, 0.08)'}
-                            stroke={g.color.startsWith('#') ? `${g.color}50` : 'rgba(56, 189, 248, 0.35)'}
-                            strokeWidth={strokeW}
-                            strokeDasharray={g.isShared ? dashPattern : undefined}
-                          />
+                          {/* Annular sector filled wedge or center hub circle */}
+                          {isFullCircle ? (
+                            <circle
+                              cx={0}
+                              cy={0}
+                              r={g.outerRadius}
+                              fill={g.color.startsWith('#') ? `${g.color}18` : 'rgba(56, 189, 248, 0.08)'}
+                              stroke={g.color.startsWith('#') ? `${g.color}50` : 'rgba(56, 189, 248, 0.35)'}
+                              strokeWidth={strokeW}
+                            />
+                          ) : (
+                            <path
+                              d={wedgePath}
+                              fill={g.color.startsWith('#') ? `${g.color}18` : 'rgba(56, 189, 248, 0.08)'}
+                              stroke={g.color.startsWith('#') ? `${g.color}50` : 'rgba(56, 189, 248, 0.35)'}
+                              strokeWidth={strokeW}
+                              strokeDasharray={g.isShared ? dashPattern : undefined}
+                            />
+                          )}
 
                           {/* Sector Label Pill Badge */}
                           <rect

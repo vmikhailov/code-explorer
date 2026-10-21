@@ -212,6 +212,160 @@ export function computeEchelonTiers(
 }
 
 /**
+ * Optimizes the assignment of `nodeIds` onto a fixed set of `slotAngles` on an orbit of radius `orbitRadius`
+ * to strictly minimize total weighted Euclidean link length (both inter-orbit links to already-placed nodes
+ * and intra-orbit links between nodes on the same ring), while preserving the exact slot angles (equispacing).
+ */
+export function optimizeSlotAssignment(
+  nodeIds: string[],
+  slotAngles: number[],
+  orbitRadius: number,
+  nodeAngles: Map<string, number>,
+  nodeRadii: Map<string, number>,
+  graphAdj: Map<string, Array<{ neighborId: string; weight: number }>>,
+  preserveInitialOrder = false
+): void {
+  const N = nodeIds.length;
+  if (N === 0 || slotAngles.length === 0) return;
+  if (N === 1) {
+    nodeAngles.set(nodeIds[0], slotAngles[0]);
+    nodeRadii.set(nodeIds[0], orbitRadius);
+    return;
+  }
+
+  const slotSet = new Set(nodeIds);
+  const posOfSlot = slotAngles.map((ang) => ({
+    x: orbitRadius * Math.cos(ang),
+    y: orbitRadius * Math.sin(ang),
+  }));
+
+  const extNeighbors = new Map<string, Array<{ x: number; y: number; weight: number }>>();
+  const intEdges: Array<{ u: string; v: string; weight: number }> = [];
+
+  for (let i = 0; i < N; i++) {
+    const u = nodeIds[i];
+    const ext: Array<{ x: number; y: number; weight: number }> = [];
+    for (const { neighborId: v, weight } of graphAdj.get(u) || []) {
+      if (slotSet.has(v)) {
+        if (u < v) intEdges.push({ u, v, weight });
+      } else if (nodeAngles.has(v)) {
+        const rV = nodeRadii.get(v) ?? orbitRadius;
+        const aV = nodeAngles.get(v)!;
+        if (rV > 0) {
+          ext.push({ x: rV * Math.cos(aV), y: rV * Math.sin(aV), weight });
+        }
+      }
+    }
+    extNeighbors.set(u, ext);
+  }
+
+  const extCost = (u: string, s: number): number => {
+    const p = posOfSlot[s];
+    let cost = 0;
+    for (const nbr of extNeighbors.get(u) || []) {
+      cost += nbr.weight * Math.hypot(p.x - nbr.x, p.y - nbr.y);
+    }
+    return cost;
+  };
+
+  let assignment: string[];
+  if (preserveInitialOrder) {
+    assignment = [...nodeIds];
+  } else {
+    const connected: string[] = [];
+    const disconnected: string[] = [];
+    const ideal = new Map<string, number>();
+
+    for (const u of nodeIds) {
+      const nbrs = (graphAdj.get(u) || []).filter(
+        (n) => !slotSet.has(n.neighborId) && nodeAngles.has(n.neighborId) && (nodeRadii.get(n.neighborId) ?? 1) > 0
+      );
+      if (nbrs.length > 0) {
+        ideal.set(
+          u,
+          circularMean(nbrs.map((n) => ({ angle: nodeAngles.get(n.neighborId)!, weight: n.weight })))
+        );
+        connected.push(u);
+      } else {
+        disconnected.push(u);
+      }
+    }
+
+    if (connected.length > 0 && disconnected.length > 0) {
+      const meanConn = circularMean(connected.map((u) => ({ angle: ideal.get(u)!, weight: 1 })));
+      const opp = normalizeAngle(meanConn + Math.PI);
+      disconnected.forEach((u, i) => {
+        ideal.set(u, normalizeAngle(opp + (i - (disconnected.length - 1) / 2) * 0.08));
+      });
+    } else {
+      disconnected.forEach((u, i) => {
+        ideal.set(u, slotAngles[i % slotAngles.length]);
+      });
+    }
+
+    const startAng = slotAngles[0];
+    const toUnrolled = (ang: number): number => {
+      let rel = (ang - startAng) % (2 * Math.PI);
+      if (rel < 0) rel += 2 * Math.PI;
+      return rel;
+    };
+
+    assignment = [...nodeIds].sort((a, b) => toUnrolled(ideal.get(a) ?? 0) - toUnrolled(ideal.get(b) ?? 0));
+  }
+
+  const slotOfNode = new Map<string, number>();
+  assignment.forEach((u, s) => slotOfNode.set(u, s));
+
+  const totalCost = (): number => {
+    let c = 0;
+    for (let s = 0; s < N; s++) {
+      c += extCost(assignment[s], s);
+    }
+    for (const e of intEdges) {
+      const pU = posOfSlot[slotOfNode.get(e.u)!];
+      const pV = posOfSlot[slotOfNode.get(e.v)!];
+      c += e.weight * Math.hypot(pU.x - pV.x, pU.y - pV.y);
+    }
+    return c;
+  };
+
+  // Iterative 2-opt pairwise slot swap until local minimum of total link length is reached
+  let improved = true;
+  let curCost = totalCost();
+  let iter = 0;
+  while (improved && iter < 40) {
+    improved = false;
+    iter++;
+    for (let i = 0; i < N; i++) {
+      for (let j = i + 1; j < N; j++) {
+        const u = assignment[i];
+        const v = assignment[j];
+        assignment[i] = v;
+        assignment[j] = u;
+        slotOfNode.set(v, i);
+        slotOfNode.set(u, j);
+
+        const newCost = totalCost();
+        if (newCost < curCost - 1e-4) {
+          curCost = newCost;
+          improved = true;
+        } else {
+          assignment[i] = u;
+          assignment[j] = v;
+          slotOfNode.set(u, i);
+          slotOfNode.set(v, j);
+        }
+      }
+    }
+  }
+
+  for (let s = 0; s < N; s++) {
+    nodeAngles.set(assignment[s], slotAngles[s]);
+    nodeRadii.set(assignment[s], orbitRadius);
+  }
+}
+
+/**
  * 1D Circular relaxation with strict monotonic separation delta and
  * 12 o'clock (-90°) badge exclusion zone avoidance.
  */
@@ -304,7 +458,8 @@ export function optimizeOrbitPermutation(
   populatedTiers: number[],
   orbitBuckets: Record<number, string[]>,
   weightedEdges: Array<{ sourceTier: number; targetTier: number; weight: number }>,
-  spacing = 1.0
+  spacing = 1.0,
+  orbitDistance?: number
 ): number[] {
   if (populatedTiers.length <= 2) {
     return populatedTiers;
@@ -337,7 +492,7 @@ export function optimizeOrbitPermutation(
   const allPerms = getPermutations(permutableTiers);
 
   const minArcSpacing = Math.round(125 * spacing);
-  const radialStep = Math.round(320 * spacing);
+  const radialStep = Math.round((orbitDistance ?? 320) * spacing);
 
   let bestPerm = [...fixedPrefix, ...permutableTiers, ...fixedSuffix];
   let bestCost = Infinity;
@@ -388,7 +543,8 @@ export function computeConcentricLayout(
   visibleNodes: ConcentricNodeInput[],
   visibleEdges: ConcentricEdgeInput[],
   spacing = 1.0,
-  customOrbitOrder?: number[]
+  customOrbitOrder?: number[],
+  orbitDistance?: number
 ): ConcentricLayoutResult {
   const orbitBuckets: Record<number, string[]> = {
     0: [],
@@ -432,7 +588,8 @@ export function computeConcentricLayout(
       populatedTiers,
       orbitBuckets,
       weightedEdges,
-      spacing
+      spacing,
+      orbitDistance
     );
   }
 
@@ -461,7 +618,7 @@ export function computeConcentricLayout(
   }
 
   const minArcSpacing = Math.round(125 * spacing);
-  const radialStep = Math.round(320 * spacing);
+  const radialStep = Math.round((orbitDistance ?? 320) * spacing);
 
   let prevRadius = 0;
   populatedOrbits.forEach((orbit, idx) => {
@@ -501,6 +658,10 @@ export function computeConcentricLayout(
   }
 
   const nodeAngles = new Map<string, number>();
+  const nodeRadii = new Map<string, number>();
+  populatedOrbits.forEach((orbit) => {
+    orbit.nodeIds.forEach((id) => nodeRadii.set(id, orbit.radius));
+  });
 
   // Find first ring with R > 0
   let firstNonZeroRingIdx = -1;
@@ -550,10 +711,9 @@ export function computeConcentricLayout(
     const available = 2 * Math.PI - 2 * badgeHalf;
     const step = available / N;
     const startAngle = -Math.PI / 2 + badgeHalf + step / 2;
+    const slots = orderedFirst.map((_, i) => normalizeAngle(startAngle + i * step));
 
-    orderedFirst.forEach((id, i) => {
-      nodeAngles.set(id, normalizeAngle(startAngle + i * step));
-    });
+    optimizeSlotAssignment(orderedFirst, slots, firstOrbit.radius, nodeAngles, nodeRadii, graphAdj, true);
   }
 
   // Center ring (R = 0)
@@ -572,7 +732,9 @@ export function computeConcentricLayout(
       const ideal = new Map<string, number>();
 
       orbit.nodeIds.forEach((id) => {
-        const nbrs = (graphAdj.get(id) || []).filter((n) => nodeAngles.has(n.neighborId));
+        const nbrs = (graphAdj.get(id) || []).filter(
+          (n) => nodeAngles.has(n.neighborId) && (nodeRadii.get(n.neighborId) ?? 1) > 0
+        );
         if (nbrs.length > 0) {
           ideal.set(
             id,
@@ -608,17 +770,29 @@ export function computeConcentricLayout(
       }
 
       const relaxed = relaxOrbitWithBadgeExclusion(orbit.nodeIds, ideal, orbit.radius, minArcSpacing);
-      relaxed.forEach((angle, id) => nodeAngles.set(id, angle));
+      const badgeMax = -Math.PI / 2 + badgeHalf;
+      const toUnrolled = (ang: number): number => {
+        let rel = (ang - badgeMax) % (2 * Math.PI);
+        if (rel < 0) rel += 2 * Math.PI;
+        return rel;
+      };
+      const sortedIds = [...orbit.nodeIds].sort(
+        (a, b) => toUnrolled(relaxed.get(a) ?? 0) - toUnrolled(relaxed.get(b) ?? 0)
+      );
+      const slotAngles = sortedIds.map((id) => relaxed.get(id) ?? 0);
+      optimizeSlotAssignment(sortedIds, slotAngles, orbit.radius, nodeAngles, nodeRadii, graphAdj, true);
     }
 
-    // Multi-pass iterative barycentric relaxation to globally minimize chord lengths
+    // Multi-pass iterative barycentric + 2-opt relaxation to globally minimize chord lengths
     for (let pass = 0; pass < 3; pass++) {
       // Inward sweep
       for (let idx = populatedOrbits.length - 2; idx >= firstNonZeroRingIdx; idx--) {
         const orbit = populatedOrbits[idx];
         const ideal = new Map<string, number>();
         orbit.nodeIds.forEach((id) => {
-          const nbrs = (graphAdj.get(id) || []).filter((n) => nodeAngles.has(n.neighborId));
+          const nbrs = (graphAdj.get(id) || []).filter(
+            (n) => nodeAngles.has(n.neighborId) && (nodeRadii.get(n.neighborId) ?? 1) > 0
+          );
           if (nbrs.length > 0) {
             ideal.set(
               id,
@@ -629,7 +803,18 @@ export function computeConcentricLayout(
           }
         });
         const relaxed = relaxOrbitWithBadgeExclusion(orbit.nodeIds, ideal, orbit.radius, minArcSpacing);
-        relaxed.forEach((angle, id) => nodeAngles.set(id, angle));
+        const badgeHalf = Math.max(Math.PI / 15, 70 / Math.max(1, orbit.radius));
+        const badgeMax = -Math.PI / 2 + badgeHalf;
+        const toUnrolled = (ang: number): number => {
+          let rel = (ang - badgeMax) % (2 * Math.PI);
+          if (rel < 0) rel += 2 * Math.PI;
+          return rel;
+        };
+        const sortedIds = [...orbit.nodeIds].sort(
+          (a, b) => toUnrolled(relaxed.get(a) ?? 0) - toUnrolled(relaxed.get(b) ?? 0)
+        );
+        const slotAngles = sortedIds.map((id) => relaxed.get(id) ?? 0);
+        optimizeSlotAssignment(sortedIds, slotAngles, orbit.radius, nodeAngles, nodeRadii, graphAdj, true);
       }
 
       // Outward sweep
@@ -637,7 +822,9 @@ export function computeConcentricLayout(
         const orbit = populatedOrbits[idx];
         const ideal = new Map<string, number>();
         orbit.nodeIds.forEach((id) => {
-          const nbrs = (graphAdj.get(id) || []).filter((n) => nodeAngles.has(n.neighborId));
+          const nbrs = (graphAdj.get(id) || []).filter(
+            (n) => nodeAngles.has(n.neighborId) && (nodeRadii.get(n.neighborId) ?? 1) > 0
+          );
           if (nbrs.length > 0) {
             ideal.set(
               id,
@@ -648,13 +835,23 @@ export function computeConcentricLayout(
           }
         });
         const relaxed = relaxOrbitWithBadgeExclusion(orbit.nodeIds, ideal, orbit.radius, minArcSpacing);
-        relaxed.forEach((angle, id) => nodeAngles.set(id, angle));
+        const badgeHalf = Math.max(Math.PI / 15, 70 / Math.max(1, orbit.radius));
+        const badgeMax = -Math.PI / 2 + badgeHalf;
+        const toUnrolled = (ang: number): number => {
+          let rel = (ang - badgeMax) % (2 * Math.PI);
+          if (rel < 0) rel += 2 * Math.PI;
+          return rel;
+        };
+        const sortedIds = [...orbit.nodeIds].sort(
+          (a, b) => toUnrolled(relaxed.get(a) ?? 0) - toUnrolled(relaxed.get(b) ?? 0)
+        );
+        const slotAngles = sortedIds.map((id) => relaxed.get(id) ?? 0);
+        optimizeSlotAssignment(sortedIds, slotAngles, orbit.radius, nodeAngles, nodeRadii, graphAdj, true);
       }
     }
   }
 
   const positions = new Map<string, { x: number; y: number }>();
-  const nodeRadii = new Map<string, number>();
 
   for (const orbit of populatedOrbits) {
     const R = orbit.radius;

@@ -15,6 +15,8 @@ export interface IslandNodeInput {
   kind: string; // 'Ingress' | 'Service' | 'Worker' | 'Topic' | 'Database' | etc.
   name: string;
   displayName?: string;
+  domain?: string;
+  domainDisplayName?: string;
 }
 
 export interface IslandEdgeInput {
@@ -92,13 +94,26 @@ export function computeDomainIslandsLayout(
 
   // 2. Classify services, databases, topics, workers
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
-  const serviceNodes = nodes.filter((n) => n.echelonTier <= 2 || n.kind === 'Service' || n.kind === 'Ingress' || n.kind === 'App' || n.kind === 'FrontendApp');
-  const infraNodes = nodes.filter((n) => n.echelonTier > 2 && n.kind !== 'Service' && n.kind !== 'Ingress' && n.kind !== 'App' && n.kind !== 'FrontendApp');
+  const serviceNodes = nodes.filter(
+    (n) =>
+      n.kind !== 'Database' &&
+      n.kind !== 'Topic' &&
+      n.kind !== 'ExternalService' &&
+      (n.echelonTier <= 3 ||
+        n.kind === 'Service' ||
+        n.kind === 'Ingress' ||
+        n.kind === 'App' ||
+        n.kind === 'FrontendApp' ||
+        n.kind === 'Worker' ||
+        n.kind === 'CliTool' ||
+        n.kind === 'TestSuite')
+  );
+  const infraNodes = nodes.filter((n) => !serviceNodes.includes(n));
 
   // Assign domains to services
   const nodeDomainMap = new Map<string, string>();
   for (const s of serviceNodes) {
-    const domain = extractDomainToken(s.displayName || s.name || s.id);
+    const domain = s.domainDisplayName || s.domain || extractDomainToken(s.displayName || s.name || s.id);
     nodeDomainMap.set(s.id, domain);
   }
 
@@ -250,6 +265,8 @@ export function computeDomainIslandsLayout(
 
     const title = isShared
       ? 'Shared Infrastructure & Core'
+      : d.includes(' ') || (/[a-z]/.test(d) && /[A-Z]/.test(d))
+      ? d
       : `${d.toUpperCase()} Context`;
 
     guides.push({

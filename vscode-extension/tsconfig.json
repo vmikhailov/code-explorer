@@ -5,6 +5,7 @@
     "lib": ["ES2022", "DOM"],
     "jsx": "react-jsx",
     "sourceMap": true,
+    "noEmit": true,
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,

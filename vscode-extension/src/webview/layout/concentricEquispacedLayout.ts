@@ -17,13 +17,15 @@ import {
   cleanEntityToken,
   circularMean,
   normalizeAngle,
+  optimizeSlotAssignment,
 } from './concentricLayout';
 
 export function computeConcentricEquispacedLayout(
   visibleNodes: ConcentricNodeInput[],
   visibleEdges: ConcentricEdgeInput[],
   spacing = 1.0,
-  customOrbitOrder?: number[]
+  customOrbitOrder?: number[],
+  orbitDistance?: number
 ): ConcentricLayoutResult {
   const orbitBuckets: Record<number, string[]> = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [] };
 
@@ -68,7 +70,7 @@ export function computeConcentricEquispacedLayout(
   }
 
   const minArcSpacing = Math.round(125 * spacing);
-  const radialStep = Math.round(320 * spacing);
+  const radialStep = Math.round((orbitDistance ?? 320) * spacing);
 
   let prevRadius = 0;
   populatedOrbits.forEach((orbit, idx) => {
@@ -108,6 +110,10 @@ export function computeConcentricEquispacedLayout(
   }
 
   const nodeAngles = new Map<string, number>();
+  const nodeRadii = new Map<string, number>();
+  populatedOrbits.forEach((orbit) => {
+    orbit.nodeIds.forEach((id) => nodeRadii.set(id, orbit.radius));
+  });
 
   let firstNonZeroRingIdx = -1;
   for (let idx = 0; idx < populatedOrbits.length; idx++) {
@@ -117,23 +123,15 @@ export function computeConcentricEquispacedLayout(
     }
   }
 
-  // Helper to place N nodes with strictly equal spacing avoiding 12 o'clock badge
-  const placeEquispaced = (nodeIdsSorted: string[], radius: number) => {
-    const N = nodeIdsSorted.length;
-    if (N === 0) return;
-    if (N === 1) {
-      nodeAngles.set(nodeIdsSorted[0], Math.PI / 2); // 6 o'clock
-      return;
-    }
-
+  // Helper to compute N strictly equispaced slot angles avoiding 12 o'clock badge
+  const getEquispacedSlots = (N: number, radius: number): number[] => {
+    if (N === 0) return [];
+    if (N === 1) return [Math.PI / 2]; // 6 o'clock
     const badgeHalf = Math.max(Math.PI / 15, 70 / Math.max(1, radius));
     const available = 2 * Math.PI - 2 * badgeHalf;
     const step = available / N;
     const startAngle = -Math.PI / 2 + badgeHalf + step / 2;
-
-    nodeIdsSorted.forEach((id, i) => {
-      nodeAngles.set(id, normalizeAngle(startAngle + i * step));
-    });
+    return Array.from({ length: N }, (_, i) => normalizeAngle(startAngle + i * step));
   };
 
   // 1. Seed innermost non-zero ring
@@ -170,7 +168,8 @@ export function computeConcentricEquispacedLayout(
       unvisited.delete(nextNode);
     }
 
-    placeEquispaced(orderedFirst, firstOrbit.radius);
+    const slots = getEquispacedSlots(orderedFirst.length, firstOrbit.radius);
+    optimizeSlotAssignment(orderedFirst, slots, firstOrbit.radius, nodeAngles, nodeRadii, graphAdj, true);
   }
 
   // Center ring (R = 0)
@@ -180,46 +179,41 @@ export function computeConcentricEquispacedLayout(
     }
   }
 
-  // 2. Outward sweep: Compute target barycenter angles, sort, and apply strict equispacing
+  // 2. Outward & inward sweeps: assign nodes to equispaced slots minimizing total inter-orbit + intra-orbit link length
   if (firstNonZeroRingIdx !== -1) {
     for (let idx = firstNonZeroRingIdx + 1; idx < populatedOrbits.length; idx++) {
       const orbit = populatedOrbits[idx];
-      const ideal = new Map<string, number>();
+      const slots = getEquispacedSlots(orbit.nodeIds.length, orbit.radius);
+      optimizeSlotAssignment(orbit.nodeIds, slots, orbit.radius, nodeAngles, nodeRadii, graphAdj, false);
+    }
 
-      orbit.nodeIds.forEach((id) => {
-        const nbrs = (graphAdj.get(id) || []).filter((n) => nodeAngles.has(n.neighborId));
-        if (nbrs.length > 0) {
-          ideal.set(
-            id,
-            circularMean(nbrs.map((n) => ({ angle: nodeAngles.get(n.neighborId)!, weight: n.weight })))
-          );
-        } else {
-          // Disconnected node: place at neutral angle
-          ideal.set(id, 0.0);
-        }
-      });
-
-      const badgeHalf = Math.max(Math.PI / 15, 70 / Math.max(1, orbit.radius));
-      const badgeMax = -Math.PI / 2 + badgeHalf;
-
-      // Unroll angles clockwise starting right after the badge
-      const toUnrolled = (ang: number): number => {
-        let rel = (ang - badgeMax) % (2 * Math.PI);
-        if (rel < 0) rel += 2 * Math.PI;
-        return rel;
-      };
-
-      const sorted = [...orbit.nodeIds].sort((a, b) => {
-        return toUnrolled(ideal.get(a) ?? 0) - toUnrolled(ideal.get(b) ?? 0);
-      });
-
-      placeEquispaced(sorted, orbit.radius);
+    // Refine with inward + outward passes so inner rings also align with outer ring clusters while preserving seed anchor
+    for (let pass = 0; pass < 2; pass++) {
+      for (let idx = populatedOrbits.length - 2; idx > firstNonZeroRingIdx; idx--) {
+        const orbit = populatedOrbits[idx];
+        const slots = getEquispacedSlots(orbit.nodeIds.length, orbit.radius);
+        const currentOrdered = [...orbit.nodeIds].sort((a, b) => {
+          const idxA = slots.findIndex((s) => Math.abs(normalizeAngle(s - (nodeAngles.get(a) ?? 0))) < 1e-3);
+          const idxB = slots.findIndex((s) => Math.abs(normalizeAngle(s - (nodeAngles.get(b) ?? 0))) < 1e-3);
+          return idxA - idxB;
+        });
+        optimizeSlotAssignment(currentOrdered, slots, orbit.radius, nodeAngles, nodeRadii, graphAdj, true);
+      }
+      for (let idx = firstNonZeroRingIdx + 1; idx < populatedOrbits.length; idx++) {
+        const orbit = populatedOrbits[idx];
+        const slots = getEquispacedSlots(orbit.nodeIds.length, orbit.radius);
+        const currentOrdered = [...orbit.nodeIds].sort((a, b) => {
+          const idxA = slots.findIndex((s) => Math.abs(normalizeAngle(s - (nodeAngles.get(a) ?? 0))) < 1e-3);
+          const idxB = slots.findIndex((s) => Math.abs(normalizeAngle(s - (nodeAngles.get(b) ?? 0))) < 1e-3);
+          return idxA - idxB;
+        });
+        optimizeSlotAssignment(currentOrdered, slots, orbit.radius, nodeAngles, nodeRadii, graphAdj, true);
+      }
     }
   }
 
   // Calculate final Cartesian positions
   const positions = new Map<string, { x: number; y: number }>();
-  const nodeRadii = new Map<string, number>();
 
   populatedOrbits.forEach((orbit) => {
     orbit.nodeIds.forEach((id) => {
