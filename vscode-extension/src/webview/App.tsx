@@ -25,6 +25,7 @@ import { NodeGridView, NodeCategorySelection } from './components/NodeGridView';
 import { MermaidDiagramView } from './components/MermaidDiagramView';
 import { SettingsView, AiSettings, ModelDescriptor, ModelStatus } from './components/SettingsView';
 import { GateEditorView } from './components/GateEditorView';
+import { ProjectMapView } from './components/ProjectMapView';
 import {
   CommandManager,
   CommandProvider,
@@ -155,6 +156,19 @@ export const App: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<string>(() => {
     return initialConfig?.project || savedState?.selectedProject || '';
   });
+  const [projectMapProject, setProjectMapProject] = useState<string>(() => {
+    if (initialConfig?.viewMode === 'project' && initialConfig.project) return initialConfig.project;
+    return savedState?.projectMapProject || '';
+  });
+  const handleProjectMapProjectChange = useCallback((projectName: string) => {
+    setProjectMapProject(projectName);
+    if (vscodeApi) {
+      try {
+        const current = vscodeApi.getState() || {};
+        vscodeApi.setState({ ...current, projectMapProject: projectName });
+      } catch {}
+    }
+  }, []);
   const [flowGraph, setFlowGraph] = useState<GraphData | null>(null);
   const [fullGraph, setFullGraph] = useState<GraphData | null>(null);
   const [c1Graph, setC1Graph] = useState<GraphData | null>(null);
@@ -438,6 +452,8 @@ export const App: React.FC = () => {
         if (!c1GraphRef.current || c1GraphRef.current.nodes?.length === 0) {
           requestC1();
         }
+      } else if (targetMode === 'project') {
+        // Project Map loads its own data over HTTP (/api/view?view=project-map).
       } else if (targetMode === 'settings') {
         if (vscodeApi) {
           vscodeApi.postMessage({ type: 'GET_AI_SETTINGS' });
@@ -493,6 +509,27 @@ export const App: React.FC = () => {
     },
     [handleSelectProject]
   );
+
+  const handleOpenProjectMap = useCallback(
+    (targetProject: string) => {
+      if (vscodeApi) {
+        vscodeApi.postMessage({ type: 'OPEN_VIEW', viewMode: 'project', project: targetProject });
+      } else {
+        handleProjectMapProjectChange(targetProject);
+        handleViewModeChange('project');
+      }
+    },
+    [handleProjectMapProjectChange, handleViewModeChange]
+  );
+
+  const singleCodeProject = useMemo(() => {
+    const names = new Set(
+      (domainGraph?.nodes ?? [])
+        .filter((n) => isProjectKind(n.kind) && n.kind !== 'TestSuite' && n.properties?.role !== 'Test' && n.properties?.is_test !== 'true')
+        .map((n) => n.name)
+    );
+    return names.size === 1 ? [...names][0] : null;
+  }, [domainGraph]);
 
   const handleToggleShowTests = useCallback(() => {
     const cmd = new ToggleShowTestsCommand(showTests, !showTests, setShowTests);
@@ -1157,6 +1194,9 @@ export const App: React.FC = () => {
   const handleSelectProjectRef = useRef(handleSelectProject);
   handleSelectProjectRef.current = handleSelectProject;
 
+  const handleProjectMapProjectChangeRef = useRef(handleProjectMapProjectChange);
+  handleProjectMapProjectChangeRef.current = handleProjectMapProjectChange;
+
   const handleTriggerScanRef = useRef(handleTriggerScan);
   handleTriggerScanRef.current = handleTriggerScan;
 
@@ -1223,7 +1263,9 @@ export const App: React.FC = () => {
 
         case 'SELECT_PROJECT':
           logToExtension('INFO', `Received SELECT_PROJECT from extension: ${msg.project}`);
-          if (msg.project) {
+          if (msg.project && viewModeRef.current === 'project') {
+            handleProjectMapProjectChangeRef.current(msg.project);
+          } else if (msg.project) {
             handleSelectProjectRef.current(msg.project, 'flow');
           }
           break;
@@ -1317,7 +1359,7 @@ export const App: React.FC = () => {
   return (
     <CommandProvider manager={commandManager}>
       <div id="app">
-        {viewMode !== 'grid' && viewMode !== 'semantic' && viewMode !== 'settings' && viewMode !== 'gate-editor' && (
+        {viewMode !== 'grid' && viewMode !== 'semantic' && viewMode !== 'project' && viewMode !== 'settings' && viewMode !== 'gate-editor' && (
           <Toolbar
             viewMode={viewMode}
             onSwitchViewMode={(m) => handleViewModeChange(m)}
@@ -1476,7 +1518,7 @@ export const App: React.FC = () => {
             (viewMode === 'layers' && !layersGraph && !fullGraph) ||
             (viewMode === 'semantic' && !domainGraph && !fullGraph) ||
             (viewMode === 'c1' && !c1Graph && !fullGraph) ||
-            (viewMode !== 'flow' && viewMode !== 'contexts' && viewMode !== 'layers' && viewMode !== 'semantic' && viewMode !== 'c1' && viewMode !== 'settings' && viewMode !== 'gate-editor' && !fullGraph)) &&
+            (viewMode !== 'flow' && viewMode !== 'contexts' && viewMode !== 'layers' && viewMode !== 'semantic' && viewMode !== 'project' && viewMode !== 'c1' && viewMode !== 'settings' && viewMode !== 'gate-editor' && !fullGraph)) &&
             connectionStatus !== 'error' &&
             connectionStatus !== 'disconnected' && (
               <div className="view-loading-overlay">
@@ -1515,12 +1557,25 @@ export const App: React.FC = () => {
               />
             )}
 
+            {viewMode === 'semantic' && singleCodeProject && (
+              <div className="pm-single-project-banner">
+                <span>
+                  This workspace has a single project (<strong>{singleCodeProject}</strong>). Project Map shows its internal modules,
+                  dependencies and cycles.
+                </span>
+                <button className="pm-icon-btn" onClick={() => handleOpenProjectMap(singleCodeProject)}>
+                  Open Project Map
+                </button>
+              </div>
+            )}
+
             {viewMode === 'semantic' && (
               <DomainArchitectureView
                 graph={domainGraph}
                 serverHttpUrl={serverHttpUrl}
                 onOpenFile={handleOpenFile}
                 onFocusInFlow={handleDrillDownToFlow}
+                onOpenProjectMap={handleOpenProjectMap}
                 onSwitchToContexts={() => handleViewModeChange('contexts')}
                 onSetDomainOverride={handleSetDomainOverride}
                 availableDomains={availableDomains}
@@ -1528,6 +1583,15 @@ export const App: React.FC = () => {
                   requestDomain();
                 }}
                 gateEditorRequest={gateEditorRequest}
+              />
+            )}
+
+            {viewMode === 'project' && (
+              <ProjectMapView
+                serverHttpUrl={serverHttpUrl}
+                project={projectMapProject}
+                onProjectChange={handleProjectMapProjectChange}
+                onOpenFile={handleOpenFile}
               />
             )}
 

@@ -131,10 +131,10 @@ public partial class McpGraphHandler(
 
     [UsedImplicitly]
     [McpServerTool]
-    [Description("Architecture view of workspace structure ('c1', 'c2', 'c3', 'domain', 'tiers'). Formats: markdown, toon, mermaid, json.")]
+    [Description("Architecture view of workspace structure ('c1', 'c2', 'c3', 'project-map', 'domain', 'tiers'). Formats: markdown, toon, mermaid, json.")]
     public async Task<CallToolResult> GetArchitectureViewAsync(
-        [Description("View level: 'c1', 'c2', 'c3', 'domain', or 'tiers'. Default: 'c1'.")] string level = "c1",
-        [Description("Optional project/service name filter.")] string? scope = null,
+        [Description("View level: 'c1', 'c2', 'c3', 'project-map' (internal modules, lifted calls & cycles of one project), 'domain', or 'tiers'. Default: 'c1'.")] string level = "c1",
+        [Description("Optional project/service name filter. For 'project-map': project name, id, or path (defaults to the largest project).")] string? scope = null,
         [Description("Include shared libraries. Default: false.")] bool includeLibraries = false,
         [Description("Format: 'markdown', 'toon', 'mermaid', 'json'. Default: 'markdown'.")] string format = "markdown",
         [Description("Optional workspace root path.")] string? workspacePath = null,

@@ -8,7 +8,7 @@ public class ViewOptions : ITargetOption
     [Value(0, MetaName = "target", Required = false, Default = "architecture", HelpText = "Target view to display ('architecture', 'layers', 'domain', 'context').")]
     public string Target { get; set; } = "architecture";
 
-    [Option('l', "level", Required = false, Default = "c1", HelpText = "Architecture level ('c1'/'system', 'c2'/'service', 'c3'/'component', 'domain'/'context', 'tiers').")]
+    [Option('l', "level", Required = false, Default = "c1", HelpText = "Architecture level ('c1'/'system', 'c2'/'service', 'c3'/'component', 'project-map', 'domain'/'context', 'tiers').")]
     public string Level { get; set; } = "c1";
 
     [Option('s', "scope", Required = false, HelpText = "Optional scope filter (e.g. project name).")]

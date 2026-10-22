@@ -463,6 +463,13 @@ export function buildDiagramItems(): CodeExplorerTreeItem[] {
       tooltip: 'Architecture Map — System services, resources, and topology',
     },
     {
+      mode: 'project',
+      label: 'Project Map',
+      desc: 'Modules, calls & cycles inside a project',
+      icon: 'type-hierarchy',
+      tooltip: 'Project Map — Internal modules of one project, lifted call dependencies, resources, and dependency cycles',
+    },
+    {
       mode: 'layers',
       label: 'Architecture Tiers',
       desc: 'Tiered projects & databases',

@@ -1,0 +1,124 @@
+namespace CodeExplorer.Core.Analysis.ProjectMap;
+
+/// <summary>
+/// A source file belonging to the selected project (workspace-relative path, forward slashes).
+/// </summary>
+public sealed record ProjectMapFile(string Path, bool IsTest, int? LineCount = null);
+
+/// <summary>
+/// A symbol-level relationship between two files in the project (e.g. CALLS, IMPLEMENTS).
+/// </summary>
+public sealed record ProjectMapSymbolEdge(
+    string FromFile,
+    string ToFile,
+    string Kind,
+    string? FromSymbol = null,
+    string? ToSymbol = null,
+    int? FromLine = null);
+
+/// <summary>
+/// A link between a symbol declared in a project file and a Layer 4 resource node (Table, Topic, ExternalService, ...).
+/// </summary>
+public sealed record ProjectMapResourceLink(
+    string File,
+    string ResourceId,
+    string ResourceKind,
+    string ResourceName,
+    string Kind,
+    string? Symbol = null,
+    int? Line = null);
+
+/// <summary>
+/// Raw, already-scoped inputs for a single project. Produced by the view engine from existing graph nodes/edges.
+/// </summary>
+public sealed class ProjectMapInput
+{
+    public string ProjectId { get; init; } = "";
+    public string ProjectName { get; init; } = "";
+    public string ProjectPath { get; init; } = "";
+    public IReadOnlyList<ProjectMapFile> Files { get; init; } = [];
+    public IReadOnlyList<ProjectMapSymbolEdge> SymbolEdges { get; init; } = [];
+    public IReadOnlyList<ProjectMapResourceLink> ResourceLinks { get; init; } = [];
+
+    /// <summary>Number of Endpoint/EntryPoint nodes that trigger or are exposed by symbols in each file.</summary>
+    public IReadOnlyDictionary<string, int> EntryPointsByFile { get; init; } = new Dictionary<string, int>();
+}
+
+public enum ProjectMapGranularity
+{
+    Module,
+    SubModule,
+    File
+}
+
+/// <summary>
+/// Ring classification. Values double as the orbit index (0 = center).
+/// </summary>
+public enum ProjectMapTier
+{
+    Ingress = 0,
+    Application = 1,
+    Core = 2,
+    Data = 3,
+    Foundation = 4,
+    Resource = 5
+}
+
+public sealed record ProjectMapEvidenceSample(string? FromSymbol, string? ToSymbol, string File, int? Line, string Kind);
+
+public sealed class ProjectMapModule
+{
+    public required string Id { get; init; }
+    public required string Name { get; init; }
+
+    /// <summary>Workspace-relative folder (or file) path backing this module.</summary>
+    public required string Path { get; init; }
+
+    public bool IsRootFiles { get; init; }
+    public bool IsMerged { get; init; }
+    public List<string> Files { get; } = [];
+    public int LineCount { get; set; }
+    public int EntryPointCount { get; set; }
+    public int FanIn { get; set; }
+    public int FanOut { get; set; }
+    public double Instability { get; set; }
+    public bool TouchesData { get; set; }
+    public int DataFileCount { get; set; }
+    public ProjectMapTier Tier { get; set; } = ProjectMapTier.Core;
+    public string TierReason { get; set; } = "";
+    public int? CycleGroup { get; set; }
+}
+
+public sealed class ProjectMapResource
+{
+    public required string Id { get; init; }
+    public required string Kind { get; init; }
+    public required string Name { get; init; }
+}
+
+public sealed class ProjectMapEdge
+{
+    public required string SourceId { get; init; }
+    public required string TargetId { get; init; }
+    public int Count { get; set; }
+    public HashSet<string> Files { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, int> Kinds { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public List<ProjectMapEvidenceSample> Samples { get; } = [];
+    public bool IsResourceLink { get; init; }
+    public bool IsCircular { get; set; }
+}
+
+public sealed class ProjectMapResult
+{
+    public required ProjectMapInput Input { get; init; }
+    public string SourceRoot { get; set; } = "";
+    public ProjectMapGranularity Granularity { get; set; } = ProjectMapGranularity.Module;
+    public List<ProjectMapModule> Modules { get; } = [];
+    public List<ProjectMapResource> Resources { get; } = [];
+    public List<ProjectMapEdge> Edges { get; } = [];
+
+    /// <summary>Strongly connected components with two or more modules.</summary>
+    public List<List<string>> Cycles { get; } = [];
+
+    public int TestFilesExcluded { get; set; }
+}

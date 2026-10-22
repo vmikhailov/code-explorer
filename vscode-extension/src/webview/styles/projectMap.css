@@ -1,0 +1,360 @@
+/* Project Map (C3 internal module view) */
+.pm-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--vscode-editor-background);
+  color: var(--vscode-foreground);
+}
+
+.pm-hud {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.25));
+}
+
+.pm-hud-left,
+.pm-hud-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pm-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.pm-select {
+  background: var(--vscode-dropdown-background);
+  color: var(--vscode-dropdown-foreground);
+  border: 1px solid var(--vscode-dropdown-border, transparent);
+  padding: 2px 6px;
+  font-size: 12px;
+  max-width: 320px;
+}
+
+.pm-chip {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  border: 1px solid transparent;
+}
+
+button.pm-chip {
+  cursor: pointer;
+}
+
+.pm-chip-warning {
+  background: rgba(255, 167, 38, 0.15);
+  color: #ffa726;
+  border-color: rgba(255, 167, 38, 0.5);
+}
+
+.pm-chip-warning.is-active {
+  background: #ffa726;
+  color: #1e1e1e;
+}
+
+.pm-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pm-icon-btn {
+  background: transparent;
+  border: 1px solid var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.4));
+  color: var(--vscode-foreground);
+  border-radius: 4px;
+  padding: 1px 7px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.pm-icon-btn:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
+}
+
+.pm-subhud {
+  padding: 4px 12px;
+  font-size: 11px;
+}
+
+.pm-muted {
+  opacity: 0.7;
+  font-size: 12px;
+}
+
+.pm-warning {
+  color: #ffa726;
+  font-size: 12px;
+}
+
+.pm-canvas {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  cursor: grab;
+  user-select: none;
+}
+
+.pm-canvas:active {
+  cursor: grabbing;
+}
+
+.pm-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 12px 18px;
+  border-radius: 6px;
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-editorWidget-border, rgba(128, 128, 128, 0.3));
+  z-index: 3;
+  pointer-events: none;
+}
+
+.pm-error {
+  color: var(--vscode-errorForeground, #f48771);
+}
+
+.pm-ring-label {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.75;
+}
+
+.pm-node {
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.pm-node.is-dimmed,
+.pm-edge.is-dimmed {
+  opacity: 0.15;
+}
+
+.pm-node-badge {
+  font-size: 10px;
+  font-weight: 700;
+  fill: var(--vscode-foreground);
+  pointer-events: none;
+}
+
+.pm-node-label {
+  font-size: 11px;
+  fill: var(--vscode-foreground);
+  pointer-events: none;
+}
+
+.pm-node.is-selected .pm-node-label {
+  font-weight: 700;
+}
+
+.pm-edge {
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.pm-edge-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 12;
+}
+
+.pm-edge-line {
+  fill: none;
+  stroke: var(--vscode-foreground, #ccc);
+  stroke-opacity: 0.45;
+}
+
+.pm-edge.is-resource .pm-edge-line {
+  stroke-dasharray: 2 4;
+  stroke-opacity: 0.35;
+}
+
+.pm-edge.is-circular .pm-edge-line {
+  stroke: #ffa726;
+  stroke-opacity: 0.9;
+  stroke-dasharray: 6 4;
+  filter: drop-shadow(0 0 2px rgba(255, 167, 38, 0.6));
+}
+
+.pm-edge:hover .pm-edge-line,
+.pm-edge.is-selected .pm-edge-line {
+  stroke-opacity: 1;
+}
+
+.pm-legend {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--vscode-editorWidget-background);
+  opacity: 0.9;
+}
+
+.pm-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pm-legend-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.pm-inspector {
+  position: absolute;
+  top: 46px;
+  right: 10px;
+  bottom: 10px;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-editorWidget-border, rgba(128, 128, 128, 0.3));
+  border-radius: 6px;
+  z-index: 4;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.pm-inspector-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.25));
+}
+
+.pm-inspector-title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pm-inspector-body {
+  overflow-y: auto;
+  padding: 8px 10px 12px;
+  font-size: 12px;
+}
+
+.pm-tier-chip {
+  display: inline-block;
+  border: 1px solid;
+  border-radius: 10px;
+  padding: 1px 8px;
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+
+.pm-metrics {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  margin: 8px 0;
+}
+
+.pm-metrics dt {
+  opacity: 0.7;
+}
+
+.pm-metrics dd {
+  margin: 0;
+}
+
+.pm-path {
+  font-family: var(--vscode-editor-font-family);
+  font-size: 11px;
+  opacity: 0.7;
+  word-break: break-all;
+}
+
+.pm-section h4 {
+  margin: 10px 0 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.pm-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pm-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.pm-list li.is-circular .pm-link {
+  color: #ffa726;
+}
+
+.pm-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--vscode-textLink-foreground);
+  cursor: pointer;
+  text-align: left;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pm-link:hover {
+  text-decoration: underline;
+}
+
+.pm-count {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.pm-evidence code {
+  font-size: 11px;
+}
+
+.pm-edge-title {
+  font-size: 13px;
+}
+
+.pm-single-project-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 12px;
+  font-size: 12px;
+  background: var(--vscode-editorInfo-background, rgba(79, 195, 247, 0.12));
+  border-bottom: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.25));
+}

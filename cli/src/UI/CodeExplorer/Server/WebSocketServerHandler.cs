@@ -240,6 +240,7 @@ public partial class WebSocketServerHandler
                     {
                         "serviceflow" or "flow" or "c2" => ArchitectureViewType.ServiceFlow,
                         "component" or "c3" => ArchitectureViewType.Component,
+                        "projectmap" or "project-map" or "project" or "modules" => ArchitectureViewType.ProjectMap,
                         "domain" or "domainmap" or "domain-map" or "semantic" => ArchitectureViewType.DomainMap,
                         "contexts" or "boundedcontexts" or "contextmap" or "context-map" or "boundedcontext" or "bounded-context" => ArchitectureViewType.BoundedContexts,
                         "tiers" or "tiered" or "layers" or "layered" => ArchitectureViewType.Tiers,

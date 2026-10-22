@@ -15,7 +15,8 @@ public enum ArchitectureViewType
     Component,      // C3: Component Drill-down for a selected container/project
     DomainMap,      // Bounded Contexts / Domain Microservices Map
     Tiers,          // Layered Architecture Tiers (Ingress, Domain, Infra, Foundation, Tests)
-    BoundedContexts // AI-Distilled Bounded Contexts Map (Logical DDD domains, entities, capabilities, CQRS, and cross-context links)
+    BoundedContexts, // AI-Distilled Bounded Contexts Map (Logical DDD domains, entities, capabilities, CQRS, and cross-context links)
+    ProjectMap      // C3: Internal module map of a single project (view-only projection: folder modules, lifted calls, cycles)
 }
 
 public class ArchitectureViewRequest
@@ -87,6 +88,7 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
             ArchitectureViewType.DomainMap => await GetDomainArchitectureGraphAsync(request.IncludeLibraries, request.SharedDatabasesOnly, ct),
             ArchitectureViewType.Tiers => await GetTieredArchitectureGraphAsync(request.IncludeLibraries, ct),
             ArchitectureViewType.BoundedContexts => await GetBoundedContextGraphAsync(request.Scope, ct),
+            ArchitectureViewType.ProjectMap => await GetProjectMapViewAsync(request.Scope, ct),
             _ => await GetSystemContextViewAsync(request.IncludeLibraries, request.Scope, request.SharedDatabasesOnly, ct)
         };
     }

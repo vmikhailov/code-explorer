@@ -5,6 +5,26 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.56.0] - 2026-10-22
+
+### Added
+- **Project Map (C3 internal module view)**:
+  - New `project-map` architecture view (`ArchitectureViewType.ProjectMap`) for a single project. It groups non-test files into folder modules: it detects the source root (e.g. `src/main/java/com/acme/billing`), drops to sub-folder or file granularity for flat projects, and merges anything beyond 30 modules into `(other)`.
+  - Lifts `CALLS` / `USES_TYPE` / `IMPLEMENTS` / `INHERITS_FROM` symbol edges into module→module dependencies with reference counts, distinct files and up to 8 caller→callee evidence samples (`file:line`).
+  - Links modules to the tables, topics, external services and databases their files access, including `Query`→`Table` hops.
+  - Rings are classified from topology first: endpoint/entry-point evidence, fan-in/fan-out, instability `I = Ce / (Ca + Ce)` and data-access share. Folder names are only used to break ties.
+  - Detects dependency cycles of any length with strongly connected components (Tarjan), not just A↔B pairs.
+  - Available as `ce view -l project-map -s <project>`, MCP `get_architecture_view(level: "project-map")`, `GET /api/view?view=project-map&scope=<project>` and WebSocket `GET_VIEW`.
+  - View-only projection: no new node labels, relationship types or persisted properties. Module nodes reuse the existing `Folder` / `File` kinds.
+- **VS Code: Project Map panel**:
+  - New **Project Map** entry right below **Architecture Map** in the sidebar.
+  - Concentric rings (Ingress → Application → Core → Data → Foundation → Resources) with neighbour-aware ordering, pan/zoom, project selector, and **Utilities** / **Resources** toggles.
+  - A **⚠️ N module cycles** filter isolates cyclic modules; cyclic edges are drawn as amber dashed arcs.
+  - Inspector shows module metrics, the reason for its ring, dependencies in both directions, its files, and click-to-code evidence for every dependency.
+  - **Open in Project Map** action in the Architecture Map inspector, and a suggestion banner on single-project workspaces.
+
+---
+
 ## [1.55.1] - 2026-10-22
 
 ### Fixed

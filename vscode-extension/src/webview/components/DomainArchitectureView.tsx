@@ -110,6 +110,8 @@ export interface DomainArchitectureViewProps {
   graph: GraphData | null;
   serverHttpUrl?: string;
   onFocusInFlow?: (projectName: string) => void;
+  /** Drill down into the Project Map (C3 internal modules) of the given project. */
+  onOpenProjectMap?: (projectName: string) => void;
   onOpenFile?: (filePath: string, lineStart?: number) => void;
   onSelectNode?: (node: GraphNode | null) => void;
   onSwitchToContexts?: () => void;
@@ -981,6 +983,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   graph,
   serverHttpUrl,
   onFocusInFlow,
+  onOpenProjectMap,
   onOpenFile,
   onSelectNode,
   onSwitchToContexts,
@@ -5769,6 +5772,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                       removeNodeFromCustomGroup(cId, memberId);
                     }}
                     onFocusInFlow={onFocusInFlow}
+                    onOpenProjectMap={onOpenProjectMap}
                     onOpenFile={onOpenFile}
                     onOpenOverrideModal={(name) => {
                       setOverrideTargetService(name);

@@ -396,6 +396,7 @@ export interface DomainInspectorProps {
   onUngroupNode?: (node: SelectedNodeDetail) => void;
   onRemoveFromGroup?: (groupId: string, nodeId: string) => void;
   onFocusInFlow?: (name: string) => void;
+  onOpenProjectMap?: (name: string) => void;
   onOpenFile?: (path: string, line?: number) => void;
   onOpenOverrideModal?: (name: string) => void;
   docked?: boolean;
@@ -419,6 +420,7 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
   const onUngroupNode = props.onUngroupNode;
   const onRemoveFromGroup = props.onRemoveFromGroup;
   const onFocusInFlow = props.onFocusInFlow || ctx?.onFocusInFlow;
+  const onOpenProjectMap = props.onOpenProjectMap;
   const onOpenFile = props.onOpenFile || ctx?.onOpenFile;
   const openOverrideModal = props.onOpenOverrideModal || ctx?.openOverrideModal;
   const nodeDetailMap = props.nodeDetailMap;
@@ -901,6 +903,16 @@ export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
                       title="Drill down to Project Flow view"
                     >
                       Explore in Flow ➔
+                    </button>
+                  )}
+                  {['Service', 'Ingress', 'App', 'Worker', 'CliTool', 'Library'].includes(selectedNode.kind) && onOpenProjectMap && (
+                    <button
+                      type="button"
+                      className="inspector-action-btn secondary"
+                      onClick={() => onOpenProjectMap(selectedNode.name)}
+                      title="Open the internal module map (C3) of this project"
+                    >
+                      Open in Project Map
                     </button>
                   )}
                   {(selectedNode.kind === 'Service' || selectedNode.kind === 'Ingress') && openOverrideModal && (

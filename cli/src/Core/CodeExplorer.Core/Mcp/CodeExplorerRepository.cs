@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Diagrams;
@@ -364,6 +364,7 @@ public partial class CodeExplorerRepository
         {
             "c2" or "service" or "flow" or "service-flow" => Analysis.ArchitectureViewType.ServiceFlow,
             "c3" or "component" => Analysis.ArchitectureViewType.Component,
+            "project-map" or "projectmap" or "project" or "modules" => Analysis.ArchitectureViewType.ProjectMap,
             "domain" or "domain-map" or "domains" => Analysis.ArchitectureViewType.DomainMap,
             "contexts" or "context" or "bounded-context" or "bounded-contexts" or "context-map" => Analysis.ArchitectureViewType.BoundedContexts,
             "tiers" or "tiered" => Analysis.ArchitectureViewType.Tiers,

@@ -13,6 +13,7 @@ This directory tracks the engineering roadmap, active epic specifications, and a
 | [**`../proposals/universal-parser-proposal.md`**](../proposals/universal-parser-proposal.md) | Universal AST Visitor & `ILanguageHooks` (v2.0.0 PoC) | 💡 Active Proposal (Next Priority) |
 | [**`../proposals/semantic-archetypes-and-yaml-projections-proposal.md`**](../proposals/semantic-archetypes-and-yaml-projections-proposal.md) | Declarative YAML Semantic Projection Engine & 5 Archetypes | 💡 Active Proposal |
 | [**`../proposals/universal-edge-and-node-evidence-proposal.md`**](../proposals/universal-edge-and-node-evidence-proposal.md) | Creation-Time Provenance (`evidence_ids`) for Layer 4/5 Edges | 💡 Active Proposal (Remaining v2.0.0 Work) |
+| [**`../proposals/project-map-proposal.md`**](../proposals/project-map-proposal.md) | Project Map: C3 internal module view, call lifting, cycle detection | ✅ v1.56.0 (remaining: DDL table linking patch, module-cycle gate) |
 
 ---
 
