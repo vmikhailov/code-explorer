@@ -12,6 +12,8 @@ public record GateViolation
     public string? Symbol { get; init; }
     public string? Target { get; init; }
     public string? Message { get; init; }
+    public string? NodeId { get; init; }
+    public string? TargetNodeId { get; init; }
 
     /// <summary>
     /// Line-shift immune fingerprint: SHA256(GateId + NormalizedFilePath + SymbolName + Target).

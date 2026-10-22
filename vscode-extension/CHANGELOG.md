@@ -5,6 +5,16 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.55.1] - 2026-10-22
+
+### Fixed
+- **C# & TypeScript Library Parser Recursion & Cycle Guards (`StackOverflowException`)**:
+  - Fixed unbounded mutual recursion (`TryResolveVariableUri` $\leftrightarrow$ `FindUriInScope` $\leftrightarrow$ `ExtractUriFromExpression`) in `HttpClientLibraryParser`, `RestSharpLibraryParser`, and `AspNetCoreLibraryParser.MinimalApis` when resolving self-referential or circular variable assignments (`url = $"{url}/..."`, `url = string.Format(url, ...)`).
+  - Threaded hop depth limits (`depth <= 8`) and visited variable cycle tracking (`HashSet<string>`) across all variable/scope URI and route group resolvers.
+  - Guarded expression unwrapping loops in `GcpLibraryParser` against self-referential fallback nodes.
+
+---
+
 ## [1.55.0] - 2026-10-22
 
 ### Added
@@ -325,6 +335,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Enforced canonical data flow direction (`Topic -> Service` for subscriptions, `Service -> Topic` for publications) across `ArchitectureViewEngine` and `ProjectFlowView`.
   - Subscriber services now strictly attach subscription edges to their incoming socket (`receives`), preventing inverted outbound dashed arrows from their `sends` socket into topics.
   - Added broker-aware topic name normalization in `Layer5AnalysisParser`, canonicalizing broker topics to kebab-case while preserving in-memory event class names (`mediatr`, `cqrs`, `spring`).
+
+---
+
+## [1.40.0] - 2026-10-14
+
+### Added
+- **BigQuery and ClickHouse Go Semantic Parsers**:
+  - Added `BigQueryGoLibraryParser` to extract BigQuery datasets, tables, query strings, and `USES_DB` relationships to `bigquery` from Go services using `cloud.google.com/go/bigquery`.
+  - Added `ClickHouseGoLibraryParser` to extract ClickHouse tables, batch operations, DDL/DML queries, and `USES_DB` relationships to `clickhouse` from Go services using `github.com/ClickHouse/clickhouse-go/v2`.
+- **GCP Pub/Sub Go Messaging Parser & Normalized Ingest Pipelines**:
+  - Enhanced `PubSubGoLibraryParser` to extract topics and subscriptions across composite literals (`WorkerDef` streaming pipelines), struct event tags (`event_type`), topic constants, and client publishing/receiving.
+  - Normalized GCP Pub/Sub topics to kebab-case while preserving snake_case raw identifiers for backwards compatibility.
+- **Workload Semantic Edge Lifting & Architecture Views**:
+  - Fixed symbol-level and project-level edge lifting in `ArchitectureViewEngine` when projects are upgraded to `Service`, `Worker`, or `App` workload nodes, ensuring edges to topics, databases, and external services are properly re-anchored to the upgraded workload node.
+  - Preserved project directory paths and metadata during workload node promotion.
 
 ---
 

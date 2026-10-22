@@ -363,11 +363,13 @@ public partial class AspNetCoreLibraryParser
         return null;
     }
 
-    private static string? ExtractGroupRouteFromChain(Node invocation)
+    private static string? ExtractGroupRouteFromChain(Node invocation, int depth = 0, HashSet<string>? visited = null)
     {
+        if (depth > 8) return null;
         var routes = new List<string>();
         var current = invocation;
-        while (current.IsValid() && current.Is(TreeSitterSyntax.CSharp.InvocationExpression))
+        var steps = 0;
+        while (current.IsValid() && current.Is(TreeSitterSyntax.CSharp.InvocationExpression) && ++steps <= 32)
         {
             var func = current.GetFunctionNode();
             if (func.IsValid() && func.Is(TreeSitterSyntax.CSharp.MemberAccessExpression))
@@ -395,7 +397,7 @@ public partial class AspNetCoreLibraryParser
 
         if (current.IsValid() && current.Is(TreeSitterSyntax.Common.Identifier))
         {
-            var parentVarRoute = TryResolveVariableGroupRoute(current, current.Text);
+            var parentVarRoute = TryResolveVariableGroupRoute(current, current.Text, depth + 1, visited);
             if (!string.IsNullOrEmpty(parentVarRoute))
             {
                 routes.Insert(0, parentVarRoute);
@@ -411,14 +413,18 @@ public partial class AspNetCoreLibraryParser
         return combined;
     }
 
-    private static string? TryResolveVariableGroupRoute(Node node, string varName)
+    private static string? TryResolveVariableGroupRoute(Node node, string varName, int depth = 0, HashSet<string>? visited = null)
     {
+        if (depth > 8 || string.IsNullOrWhiteSpace(varName)) return null;
+        visited ??= new HashSet<string>(StringComparer.Ordinal);
+        if (!visited.Add(varName)) return null;
+
         var current = node.Parent;
         while (current.IsValid())
         {
             if (current.IsAny(TreeSitterSyntax.CSharp.Block, TreeSitterSyntax.CSharp.MethodDeclaration, TreeSitterSyntax.CSharp.LocalFunctionStatement, TreeSitterSyntax.CSharp.CompilationUnit))
             {
-                var route = FindGroupRouteInScope(current, varName, 0);
+                var route = FindGroupRouteInScope(current, varName, depth + 1, visited);
                 if (!string.IsNullOrEmpty(route)) return route;
             }
             current = current.Parent;
@@ -426,9 +432,9 @@ public partial class AspNetCoreLibraryParser
         return null;
     }
 
-    private static string? FindGroupRouteInScope(Node scopeNode, string targetVar, int depth)
+    private static string? FindGroupRouteInScope(Node scopeNode, string targetVar, int depth, HashSet<string>? visited = null)
     {
-        if (depth > 5) return null;
+        if (depth > 8) return null;
 
         foreach (var child in scopeNode.Children)
         {
@@ -456,7 +462,7 @@ public partial class AspNetCoreLibraryParser
 
                         if (valueNode.IsValid() && valueNode.Is(TreeSitterSyntax.CSharp.InvocationExpression))
                         {
-                            var directRoute = ExtractGroupRouteFromChain(valueNode);
+                            var directRoute = ExtractGroupRouteFromChain(valueNode, depth + 1, visited);
                             if (!string.IsNullOrEmpty(directRoute))
                             {
                                 return directRoute;
@@ -473,8 +479,9 @@ public partial class AspNetCoreLibraryParser
     private static List<Node> FindNodesOfType(Node root, string targetType)
     {
         var result = new List<Node>();
-        void Recurse(Node current)
+        void Recurse(Node current, int depth)
         {
+            if (depth > 64) return;
             if (current.Is(targetType))
             {
                 result.Add(current);
@@ -482,10 +489,10 @@ public partial class AspNetCoreLibraryParser
             }
             foreach (var child in current.Children)
             {
-                Recurse(child);
+                Recurse(child, depth + 1);
             }
         }
-        Recurse(root);
+        Recurse(root, 0);
         return result;
     }
 }

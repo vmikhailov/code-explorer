@@ -44,6 +44,16 @@ public static class GateSerializer
         var scope = Enum.TryParse<InvariantScope>(raw.Scope, true, out var sc) ? sc : InvariantScope.Module;
         var dim = Enum.TryParse<InvariantDimension>(raw.Dimension, true, out var dm) ? dm : InvariantDimension.Boundaries;
         var sev = Enum.TryParse<GateSeverity>(raw.Severity, true, out var sv) ? sv : GateSeverity.Error;
+        var message = raw.Message?.Trim() ?? raw.MessageTemplate?.Trim();
+        GateThresholdSettings? thresholds = null;
+        if (raw.Thresholds != null && (raw.Thresholds.Warning.HasValue || raw.Thresholds.Error.HasValue))
+        {
+            thresholds = new GateThresholdSettings
+            {
+                Warning = raw.Thresholds.Warning,
+                Error = raw.Thresholds.Error
+            };
+        }
 
         return new SemanticGate
         {
@@ -56,6 +66,8 @@ public static class GateSerializer
             Severity = sev,
             Description = raw.Description?.Trim(),
             Remediation = raw.Remediation?.Trim(),
+            Message = message,
+            Thresholds = thresholds,
             Query = raw.Query.Trim(),
             Ratchet = new GateRatchetSettings
             {
@@ -80,6 +92,10 @@ public static class GateSerializer
             Severity = gate.Severity.ToString(),
             Description = gate.Description,
             Remediation = gate.Remediation,
+            Message = gate.Message,
+            Thresholds = gate.Thresholds != null
+                ? new RawThresholdDefinition { Warning = gate.Thresholds.Warning, Error = gate.Thresholds.Error }
+                : null,
             Query = gate.Query,
             Ratchet = new RawRatchetDefinition
             {
@@ -114,6 +130,9 @@ public static class GateSerializer
         public string? Severity { get; set; }
         public string? Description { get; set; }
         public string? Remediation { get; set; }
+        public string? Message { get; set; }
+        public string? MessageTemplate { get; set; }
+        public RawThresholdDefinition? Thresholds { get; set; }
         public string? Query { get; set; }
         public RawRatchetDefinition? Ratchet { get; set; }
         public Dictionary<string, string>? Parameters { get; set; }
@@ -123,5 +142,11 @@ public static class GateSerializer
     {
         public bool Enabled { get; set; } = true;
         public string? Baseline { get; set; }
+    }
+
+    private class RawThresholdDefinition
+    {
+        public int? Warning { get; set; }
+        public int? Error { get; set; }
     }
 }

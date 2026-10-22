@@ -139,9 +139,9 @@ public class RestSharpLibraryParser : ISemanticExtension
         return "http:restsharp-service";
     }
 
-    private static string? ExtractText(Node? node)
+    private static string? ExtractText(Node? node, int depth = 0, HashSet<string>? visited = null)
     {
-        if (!node.IsValid()) return null;
+        if (!node.IsValid() || depth > 8) return null;
 
         if (node.Type.Contains("string"))
         {
@@ -164,24 +164,28 @@ public class RestSharpLibraryParser : ISemanticExtension
             var argList = node.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
             var firstArg = argList?.FindChildOfType(TreeSitterSyntax.CSharp.Argument);
             var val = firstArg?.Children.FirstOrDefault();
-            if (val.IsValid()) return ExtractText(val);
+            if (val.IsValid()) return ExtractText(val, depth + 1, visited);
         }
         if (node.Is(TreeSitterSyntax.Common.Identifier))
         {
-            var resolved = TryResolveVariableUri(node, node.Text);
+            var resolved = TryResolveVariableUri(node, node.Text, depth + 1, visited);
             if (!string.IsNullOrEmpty(resolved)) return resolved;
         }
         return null;
     }
 
-    private static string? TryResolveVariableUri(Node node, string varName)
+    private static string? TryResolveVariableUri(Node node, string varName, int depth = 0, HashSet<string>? visited = null)
     {
+        if (depth > 8 || string.IsNullOrWhiteSpace(varName)) return null;
+        visited ??= new HashSet<string>(StringComparer.Ordinal);
+        if (!visited.Add(varName)) return null;
+
         var current = node.Parent;
         while (current.IsValid())
         {
             if (current.IsAny(TreeSitterSyntax.CSharp.Block, TreeSitterSyntax.CSharp.MethodDeclaration, TreeSitterSyntax.CSharp.LocalFunctionStatement, TreeSitterSyntax.CSharp.CompilationUnit, TreeSitterSyntax.CSharp.ClassDeclaration))
             {
-                var uri = FindUriInScope(current, varName, 0);
+                var uri = FindUriInScope(current, varName, depth + 1, visited);
                 if (!string.IsNullOrEmpty(uri)) return uri;
             }
             current = current.Parent;
@@ -189,9 +193,9 @@ public class RestSharpLibraryParser : ISemanticExtension
         return null;
     }
 
-    private static string? FindUriInScope(Node scopeNode, string targetVar, int depth)
+    private static string? FindUriInScope(Node scopeNode, string targetVar, int depth, HashSet<string>? visited = null)
     {
-        if (depth > 5) return null;
+        if (depth > 8) return null;
 
         foreach (var child in scopeNode.Children)
         {
@@ -219,7 +223,7 @@ public class RestSharpLibraryParser : ISemanticExtension
 
                         if (valueNode.IsValid())
                         {
-                            var extracted = ExtractText(valueNode);
+                            var extracted = ExtractText(valueNode, depth + 1, visited);
                             if (!string.IsNullOrEmpty(extracted)) return extracted;
                         }
                     }
@@ -233,8 +237,9 @@ public class RestSharpLibraryParser : ISemanticExtension
     private static List<Node> FindNodesOfType(Node root, string targetType)
     {
         var result = new List<Node>();
-        void Recurse(Node current)
+        void Recurse(Node current, int depth)
         {
+            if (depth > 64) return;
             if (current.Is(targetType))
             {
                 result.Add(current);
@@ -242,10 +247,10 @@ public class RestSharpLibraryParser : ISemanticExtension
             }
             foreach (var child in current.Children)
             {
-                Recurse(child);
+                Recurse(child, depth + 1);
             }
         }
-        Recurse(root);
+        Recurse(root, 0);
         return result;
     }
 

@@ -418,8 +418,9 @@ public class HttpClientLibraryParser : ISemanticExtension
         return h.Trim();
     }
 
-    private static string ExtractInterpolatedStringUri(Node node, Node scopeNode, int depth)
+    private static string ExtractInterpolatedStringUri(Node node, Node scopeNode, int depth, HashSet<string>? visited = null)
     {
+        if (depth > 8) return "*";
         var sb = new System.Text.StringBuilder();
         foreach (var child in node.Children)
         {
@@ -449,7 +450,7 @@ public class HttpClientLibraryParser : ISemanticExtension
                                         sb.Append(val.Text.Trim('"'));
                                         continue;
                                     }
-                                    var resolved = TryResolveVariableUri(val, val.Text);
+                                    var resolved = TryResolveVariableUri(val, val.Text, depth + 1, visited);
                                     if (!string.IsNullOrEmpty(resolved))
                                     {
                                         sb.Append(resolved);
@@ -461,7 +462,7 @@ public class HttpClientLibraryParser : ISemanticExtension
                     }
                     else if (expr.Is(TreeSitterSyntax.Common.Identifier))
                     {
-                        var resolved = TryResolveVariableUri(expr, expr.Text);
+                        var resolved = TryResolveVariableUri(expr, expr.Text, depth + 1, visited);
                         if (!string.IsNullOrEmpty(resolved))
                         {
                             sb.Append(resolved);
@@ -496,7 +497,7 @@ public class HttpClientLibraryParser : ISemanticExtension
                 {
                     if (curr.IsAny(TreeSitterSyntax.CSharp.Block, TreeSitterSyntax.CSharp.MethodDeclaration, TreeSitterSyntax.CSharp.ClassDeclaration))
                     {
-                        var createClientMatch = Regex.Match(curr.Text, receiverName + @"\s*=\s*.*?CreateClient\s*\(\s*[""']([^""']+)[""']");
+                        var createClientMatch = Regex.Match(curr.Text, Regex.Escape(receiverName) + @"\s*=\s*.*?CreateClient\s*\(\s*[""']([^""']+)[""']");
                         if (createClientMatch.Success)
                         {
                             return createClientMatch.Groups[1].Value;
@@ -522,8 +523,12 @@ public class HttpClientLibraryParser : ISemanticExtension
         return null;
     }
 
-    private static string? TryResolveVariableUri(Node node, string varName)
+    private static string? TryResolveVariableUri(Node node, string varName, int depth = 0, HashSet<string>? visited = null)
     {
+        if (depth > 8 || string.IsNullOrWhiteSpace(varName)) return null;
+        visited ??= new HashSet<string>(StringComparer.Ordinal);
+        if (!visited.Add(varName)) return null;
+
         var current = node.Parent;
         while (current.IsValid())
         {
@@ -538,7 +543,7 @@ public class HttpClientLibraryParser : ISemanticExtension
                 TreeSitterSyntax.CSharp.RecordStructDeclaration,
                 TreeSitterSyntax.CSharp.CompilationUnit))
             {
-                var uri = FindUriInScope(current, varName, 0);
+                var uri = FindUriInScope(current, varName, depth + 1, visited);
                 if (!string.IsNullOrEmpty(uri)) return uri;
             }
             current = current.Parent;
@@ -546,9 +551,9 @@ public class HttpClientLibraryParser : ISemanticExtension
         return null;
     }
 
-    private static string? FindUriInScope(Node scopeNode, string targetVar, int depth)
+    private static string? FindUriInScope(Node scopeNode, string targetVar, int depth, HashSet<string>? visited = null)
     {
-        if (depth > 10) return null;
+        if (depth > 8) return null;
 
         if (scopeNode.IsAny(
             TreeSitterSyntax.CSharp.ClassDeclaration,
@@ -559,7 +564,7 @@ public class HttpClientLibraryParser : ISemanticExtension
             var body = scopeNode.FindChildOfType(TreeSitterSyntax.CSharp.DeclarationList);
             if (body.IsValid())
             {
-                var uri = FindUriInScope(body, targetVar, depth + 1);
+                var uri = FindUriInScope(body, targetVar, depth + 1, visited);
                 if (!string.IsNullOrEmpty(uri)) return uri;
             }
         }
@@ -568,7 +573,7 @@ public class HttpClientLibraryParser : ISemanticExtension
         {
             if (child.Is(TreeSitterSyntax.CSharp.DeclarationList))
             {
-                var uri = FindUriInScope(child, targetVar, depth + 1);
+                var uri = FindUriInScope(child, targetVar, depth + 1, visited);
                 if (!string.IsNullOrEmpty(uri)) return uri;
             }
 
@@ -609,7 +614,7 @@ public class HttpClientLibraryParser : ISemanticExtension
 
                         if (valueNode.IsValid())
                         {
-                            var uri = ExtractUriFromExpression(valueNode, scopeNode, depth);
+                            var uri = ExtractUriFromExpression(valueNode, scopeNode, depth + 1, visited);
                             if (!string.IsNullOrEmpty(uri)) return uri;
                         }
                     }
@@ -624,13 +629,13 @@ public class HttpClientLibraryParser : ISemanticExtension
                     var arrow = child.FindChildOfType(TreeSitterSyntax.CSharp.ArrowExpressionClause);
                     if (arrow.IsValid() && arrow.Children.Count > 1)
                     {
-                        var uri = ExtractUriFromExpression(arrow.Children[1], scopeNode, depth);
+                        var uri = ExtractUriFromExpression(arrow.Children[1], scopeNode, depth + 1, visited);
                         if (!string.IsNullOrEmpty(uri)) return uri;
                     }
                     var eq = child.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause);
                     if (eq.IsValid() && eq.Children.Count > 1)
                     {
-                        var uri = ExtractUriFromExpression(eq.Children[1], scopeNode, depth);
+                        var uri = ExtractUriFromExpression(eq.Children[1], scopeNode, depth + 1, visited);
                         if (!string.IsNullOrEmpty(uri)) return uri;
                     }
                 }
@@ -648,7 +653,7 @@ public class HttpClientLibraryParser : ISemanticExtension
                                     ?? (assign.Children.Count >= 3 ? assign.Children[2] : null);
                         if (right.IsValid())
                         {
-                            var uri = ExtractUriFromExpression(right, scopeNode, depth);
+                            var uri = ExtractUriFromExpression(right, scopeNode, depth + 1, visited);
                             if (!string.IsNullOrEmpty(uri)) return uri;
                         }
                     }
@@ -659,16 +664,16 @@ public class HttpClientLibraryParser : ISemanticExtension
         return null;
     }
 
-    private static string? ExtractUriFromExpression(Node? expr, Node scopeNode, int depth)
+    private static string? ExtractUriFromExpression(Node? expr, Node scopeNode, int depth, HashSet<string>? visited = null)
     {
-        if (!expr.IsValid() || depth > 10) return null;
+        if (!expr.IsValid() || depth > 8) return null;
 
         if (expr.IsAny(
             TreeSitterSyntax.CSharp.InterpolatedStringExpression,
             TreeSitterSyntax.CSharp.InterpolatedVerbatimStringExpression,
             TreeSitterSyntax.CSharp.InterpolatedRawStringExpression))
         {
-            return ExtractInterpolatedStringUri(expr, scopeNode, depth);
+            return ExtractInterpolatedStringUri(expr, scopeNode, depth + 1, visited);
         }
 
         if (expr.Type.Contains("string"))
@@ -676,7 +681,7 @@ public class HttpClientLibraryParser : ISemanticExtension
             var raw = expr.Text.Trim('"');
             if (raw.StartsWith('$') || raw.StartsWith("@$") || raw.StartsWith("$@"))
             {
-                return ExtractInterpolatedStringUri(expr, scopeNode, depth);
+                return ExtractInterpolatedStringUri(expr, scopeNode, depth + 1, visited);
             }
             return raw;
         }
@@ -693,7 +698,7 @@ public class HttpClientLibraryParser : ISemanticExtension
                     if (val.IsValid())
                     {
                         if (val.Type.Contains("string")) return val.Text.Trim('"');
-                        var resolved = TryResolveVariableUri(val, val.Text);
+                        var resolved = TryResolveVariableUri(val, val.Text, depth + 1, visited);
                         if (!string.IsNullOrEmpty(resolved)) return resolved;
                         if (ConstantRegistry.TryResolve(null, val.Text, out var cVal)) return cVal;
                     }
@@ -722,7 +727,7 @@ public class HttpClientLibraryParser : ISemanticExtension
                         if (val.IsValid())
                         {
                             if (val.Type.Contains("string")) return val.Text.Trim('"');
-                            return ExtractUriFromExpression(val, scopeNode, depth + 1);
+                            return ExtractUriFromExpression(val, scopeNode, depth + 1, visited);
                         }
                     }
                 }
@@ -737,10 +742,10 @@ public class HttpClientLibraryParser : ISemanticExtension
                             if (uriArg.Type.Contains("string")) return uriArg.Text.Trim('"');
                             if (uriArg.Is(TreeSitterSyntax.CSharp.ObjectCreationExpression) || uriArg.Type == "implicit_object_creation_expression")
                             {
-                                var inner = ExtractUriFromExpression(uriArg, scopeNode, depth + 1);
+                                var inner = ExtractUriFromExpression(uriArg, scopeNode, depth + 1, visited);
                                 if (!string.IsNullOrEmpty(inner)) return inner;
                             }
-                            var resolved = TryResolveVariableUri(uriArg, uriArg.Text);
+                            var resolved = TryResolveVariableUri(uriArg, uriArg.Text, depth + 1, visited);
                             if (!string.IsNullOrEmpty(resolved)) return resolved;
                         }
                     }
@@ -756,12 +761,12 @@ public class HttpClientLibraryParser : ISemanticExtension
                         }
                         if (val.Is(TreeSitterSyntax.CSharp.ObjectCreationExpression) || val.Type == "implicit_object_creation_expression")
                         {
-                            var innerUri = ExtractUriFromExpression(val, scopeNode, depth + 1);
+                            var innerUri = ExtractUriFromExpression(val, scopeNode, depth + 1, visited);
                             if (!string.IsNullOrEmpty(innerUri)) return innerUri;
                         }
                         if (val.Is(TreeSitterSyntax.Common.Identifier) && val.Text != "HttpMethod")
                         {
-                            var resolved = TryResolveVariableUri(val, val.Text);
+                            var resolved = TryResolveVariableUri(val, val.Text, depth + 1, visited);
                             if (!string.IsNullOrEmpty(resolved)) return resolved;
                         }
                     }
@@ -775,26 +780,29 @@ public class HttpClientLibraryParser : ISemanticExtension
     private static List<Node> FindNodesOfType(Node root, string nodeType)
     {
         var list = new List<Node>();
-        CollectNodes(root, nodeType, list);
+        CollectNodes(root, nodeType, list, 0);
         return list;
     }
 
-    private static void CollectNodes(Node node, string nodeType, List<Node> result)
+    private static void CollectNodes(Node node, string nodeType, List<Node> result, int depth)
     {
+        if (depth > 64) return;
         if (node.Is(nodeType))
         {
             result.Add(node);
         }
         foreach (var child in node.Children)
         {
-            CollectNodes(child, nodeType, result);
+            CollectNodes(child, nodeType, result, depth + 1);
         }
     }
 
-    private static bool HasFluentHttpRequestInReceiver(Node? expr)
+    private static bool HasFluentHttpRequestInReceiver(Node? expr, int depth = 0, HashSet<string>? visited = null)
     {
+        if (depth > 8) return false;
         var curr = expr;
-        while (curr.IsValid())
+        var steps = 0;
+        while (curr.IsValid() && ++steps <= 32)
         {
             if (curr.Is(TreeSitterSyntax.CSharp.InvocationExpression))
             {
@@ -820,10 +828,12 @@ public class HttpClientLibraryParser : ISemanticExtension
             }
             else if (curr.Is(TreeSitterSyntax.Common.Identifier))
             {
+                visited ??= new HashSet<string>(StringComparer.Ordinal);
+                if (!visited.Add(curr.Text)) break;
                 var initNode = FindVariableInitializer(curr, curr.Text);
                 if (initNode.IsValid())
                 {
-                    return HasFluentHttpRequestInReceiver(initNode);
+                    return HasFluentHttpRequestInReceiver(initNode, depth + 1, visited);
                 }
                 break;
             }
@@ -843,7 +853,7 @@ public class HttpClientLibraryParser : ISemanticExtension
         if (curr.Is(TreeSitterSyntax.Common.Identifier))
         {
             var initNode = FindVariableInitializer(curr, curr.Text);
-            if (initNode.IsValid())
+            if (initNode.IsValid() && initNode.Id != curr.Id)
             {
                 curr = initNode;
             }

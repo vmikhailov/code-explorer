@@ -250,16 +250,20 @@ public class GateCommandHandler : BaseCommandHandler
             return RenderViolations([r], opts);
         }
 
+        var isSingleFail = r.Status is GateCheckStatus.FailedNew or GateCheckStatus.Error
+            || ((opts.FailOnWarning || opts.Strict) && r.Status == GateCheckStatus.Warning);
+
         if (opts.Format.Equals("json", StringComparison.OrdinalIgnoreCase))
         {
             Console.WriteLine(JsonSerializer.Serialize(r, new JsonSerializerOptions { WriteIndented = true }));
-            return r.Status is GateCheckStatus.FailedNew or GateCheckStatus.Error ? 1 : 0;
+            return isSingleFail ? 1 : 0;
         }
 
         var (color, label) = r.Status switch
         {
             GateCheckStatus.Passed => (ConsoleColor.Green, "[PASS]"),
             GateCheckStatus.PassedTolerated => (ConsoleColor.Yellow, "[TOLERATED]"),
+            GateCheckStatus.Warning => (ConsoleColor.Yellow, "[WARN]"),
             GateCheckStatus.FailedNew => (ConsoleColor.Red, "[FAIL]"),
             _ => (ConsoleColor.DarkRed, "[ERROR]")
         };
@@ -313,7 +317,7 @@ public class GateCommandHandler : BaseCommandHandler
             Console.ResetColor();
         }
 
-        return r.Status is GateCheckStatus.FailedNew or GateCheckStatus.Error ? 1 : 0;
+        return isSingleFail ? 1 : 0;
     }
 
     private static int RenderSuite(GateSuiteResult suite, GateOptions opts)
@@ -321,7 +325,10 @@ public class GateCommandHandler : BaseCommandHandler
         if (opts.Format.Equals("json", StringComparison.OrdinalIgnoreCase))
         {
             Console.WriteLine(JsonSerializer.Serialize(suite, new JsonSerializerOptions { WriteIndented = true }));
-            return suite.IsSuccess ? 0 : 1;
+            var failOnWarnings = opts.FailOnWarning || opts.Strict;
+            var maxWarningsExceeded = opts.MaxWarnings >= 0 && suite.WarningCount > opts.MaxWarnings;
+            var isFailure = suite.FailedCount > 0 || (failOnWarnings && suite.WarningCount > 0) || maxWarningsExceeded;
+            return isFailure ? 1 : 0;
         }
 
         if (suite.TotalGates == 0)
@@ -342,6 +349,7 @@ public class GateCommandHandler : BaseCommandHandler
                 {
                     GateCheckStatus.Passed => "PASS",
                     GateCheckStatus.PassedTolerated => "TOLERATED",
+                    GateCheckStatus.Warning => "WARN",
                     GateCheckStatus.FailedNew => "FAIL",
                     _ => "ERROR"
                 };
@@ -349,7 +357,7 @@ public class GateCommandHandler : BaseCommandHandler
                 if (r.Violations.Count == 0) vText = "0";
                 Console.WriteLine($"| {st} | `{r.Gate.Id}` | {r.Gate.Category} | `{r.Gate.Platform}` | {r.Gate.Scope} | {vText} | {r.Gate.Name} |");
             }
-            Console.WriteLine($"\n**Total**: {suite.TotalGates} gates | Passed: {suite.PassedCount} | Failed: {suite.FailedCount} | Duration: {suite.TotalDuration.TotalMilliseconds:F0}ms\n");
+            Console.WriteLine($"\n**Total**: {suite.TotalGates} gates | Passed: {suite.PassedCount} | Warnings: {suite.WarningCount} | Failed: {suite.FailedCount} | Duration: {suite.TotalDuration.TotalMilliseconds:F0}ms\n");
 
             var failedGates = suite.Results.Where(r => r.Status is GateCheckStatus.FailedNew or GateCheckStatus.Error).ToList();
             if (failedGates.Count > 0)
@@ -384,6 +392,7 @@ public class GateCommandHandler : BaseCommandHandler
             {
                 GateCheckStatus.Passed => (ConsoleColor.Green, "[PASS]"),
                 GateCheckStatus.PassedTolerated => (ConsoleColor.Yellow, "[TOLERATED]"),
+                GateCheckStatus.Warning => (ConsoleColor.Yellow, "[WARN]"),
                 GateCheckStatus.FailedNew => (ConsoleColor.Red, "[FAIL]"),
                 _ => (ConsoleColor.DarkRed, "[ERROR]")
             };
@@ -399,7 +408,7 @@ public class GateCommandHandler : BaseCommandHandler
         }
 
         Console.WriteLine(new string('-', 105));
-        Console.WriteLine($"Total: {suite.TotalGates} gates | Passed: {suite.PassedCount} | Failed: {suite.FailedCount} | Duration: {suite.TotalDuration.TotalMilliseconds:F0}ms\n");
+        Console.WriteLine($"Total: {suite.TotalGates} gates | Passed: {suite.PassedCount} | Warnings: {suite.WarningCount} | Failed: {suite.FailedCount} | Duration: {suite.TotalDuration.TotalMilliseconds:F0}ms\n");
 
         var failed = suite.Results.Where(r => r.Status is GateCheckStatus.FailedNew or GateCheckStatus.Error).ToList();
         if (failed.Count > 0)
@@ -462,6 +471,62 @@ public class GateCommandHandler : BaseCommandHandler
         if (suite.ToleratedViolationsCount > 0)
         {
             Console.WriteLine($"Tip: Inspect tolerated debt with 'ce gate violations -g <id>' (e.g. '--group-by file').");
+        }
+
+        var warnings = suite.Results.Where(r => r.Status == GateCheckStatus.Warning).ToList();
+        if (warnings.Count > 0)
+        {
+            var totalWarn = warnings.Sum(w => w.NewViolations.Count);
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"Warning Gates ({warnings.Count} gate(s) with warnings, {totalWarn} new violation(s)):\n");
+            Console.ResetColor();
+
+            foreach (var wg in warnings)
+            {
+                var countText = wg.NewViolations.Count > 0 ? $" ({wg.NewViolations.Count} new violation(s))" : "";
+                Console.WriteLine($"Gate [{wg.Gate.Id}] {wg.Gate.Name}{countText}:");
+                if (!string.IsNullOrEmpty(wg.Gate.Description))
+                {
+                    Console.WriteLine($"  Rule: {wg.Gate.Description}");
+                }
+
+                if (wg.NewViolations.Count > 0)
+                {
+                    var sampleCount = opts.All ? wg.NewViolations.Count : Math.Min(3, wg.NewViolations.Count);
+                    for (var i = 0; i < sampleCount; i++)
+                    {
+                        var v = wg.NewViolations[i];
+                        var loc = v.Location != "-" ? v.Location : "";
+                        var target = !string.IsNullOrEmpty(v.Target) ? $" -> {v.Target}" : "";
+                        Console.WriteLine($"  - {loc} {v.Symbol}{target}: {v.Message}");
+                    }
+
+                    if (!opts.All && wg.NewViolations.Count > sampleCount)
+                    {
+                        Console.WriteLine($"  ... and {wg.NewViolations.Count - sampleCount} more new violation(s).");
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(wg.Gate.Remediation))
+                {
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine($"  Remediation: {wg.Gate.Remediation}");
+                    Console.ResetColor();
+                }
+
+                if (wg.NewViolations.Count > 0)
+                {
+                    Console.WriteLine($"  Inspect: ce gate violations -g {wg.Gate.Id} (e.g. '--group-by file')");
+                }
+                Console.WriteLine();
+            }
+        }
+
+        var failOnWarnSuite = opts.FailOnWarning || opts.Strict;
+        var maxWarnSuiteExceeded = opts.MaxWarnings >= 0 && suite.WarningCount > opts.MaxWarnings;
+        if (suite.FailedCount > 0 || (failOnWarnSuite && suite.WarningCount > 0) || maxWarnSuiteExceeded)
+        {
+            return 1;
         }
 
         PrintSuccess("All architectural semantic gates passed successfully.");

@@ -1053,6 +1053,133 @@ public class SemanticInvariantGateTests
         afterDelete.Should().BeNull();
     }
 
+    [Test]
+    public void ParseViolations_ExtractsGraphNodesAndInterpolatesMessage()
+    {
+        var json = """
+        [
+          {
+            "fn": {
+              "id": "ws:sym:src/handler.rs:Function:eval_distance",
+              "kind": "Function",
+              "properties": {
+                "name": "eval_distance",
+                "file_path": "src/handler.rs",
+                "start_line": 42,
+                "start_col": 5
+              }
+            },
+            "target": {
+              "id": "ws:sym:src/io.rs:Function:blocking_read",
+              "kind": "Function",
+              "properties": {
+                "name": "blocking_read",
+                "file_path": "src/io.rs",
+                "start_line": 100
+              }
+            }
+          }
+        ]
+        """;
+
+        var violations = GateExecutionEngine.ParseViolations(
+            "SIG-TEST-001",
+            json,
+            "Async function '{fn.name}' at {line}:{column} invokes blocking call '{target.name}'");
+
+        violations.Should().HaveCount(1);
+        var v = violations[0];
+        v.File.Should().Be("src/handler.rs");
+        v.Line.Should().Be(42);
+        v.Column.Should().Be(5);
+        v.Symbol.Should().Be("eval_distance");
+        v.Target.Should().Be("blocking_read");
+        v.NodeId.Should().Be("ws:sym:src/handler.rs:Function:eval_distance");
+        v.TargetNodeId.Should().Be("ws:sym:src/io.rs:Function:blocking_read");
+        v.Location.Should().Be("src/handler.rs:42:5");
+        v.Message.Should().Be("Async function 'eval_distance' at 42:5 invokes blocking call 'blocking_read'");
+    }
+
+    [Test]
+    public void RatchetService_EvaluatesWarningAndErrorThresholds()
+    {
+        var gate = new SemanticGate
+        {
+            Id = "SIG-THRESH-001",
+            Name = "Threshold Invariant Gate",
+            Query = "RETURN 1",
+            Thresholds = new GateThresholdSettings
+            {
+                Warning = 2,
+                Error = 5
+            }
+        };
+
+        // 1 violation < warning threshold (2) -> Passed
+        var violations1 = new List<GateViolation>
+        {
+            new() { GateId = gate.Id, File = "A.cs", Symbol = "A", Fingerprint = "fp1" }
+        };
+        var res1 = RatchetService.Evaluate(gate, violations1, null);
+        res1.Status.Should().Be(GateCheckStatus.Passed);
+
+        // 3 violations >= warning (2) and < error (5) -> Warning
+        var violations3 = new List<GateViolation>
+        {
+            new() { GateId = gate.Id, File = "A.cs", Symbol = "A", Fingerprint = "fp1" },
+            new() { GateId = gate.Id, File = "B.cs", Symbol = "B", Fingerprint = "fp2" },
+            new() { GateId = gate.Id, File = "C.cs", Symbol = "C", Fingerprint = "fp3" }
+        };
+        var res3 = RatchetService.Evaluate(gate, violations3, null);
+        res3.Status.Should().Be(GateCheckStatus.Warning);
+
+        // 6 violations >= error (5) -> FailedNew
+        var violations6 = new List<GateViolation>
+        {
+            new() { GateId = gate.Id, File = "A.cs", Symbol = "A", Fingerprint = "fp1" },
+            new() { GateId = gate.Id, File = "B.cs", Symbol = "B", Fingerprint = "fp2" },
+            new() { GateId = gate.Id, File = "C.cs", Symbol = "C", Fingerprint = "fp3" },
+            new() { GateId = gate.Id, File = "D.cs", Symbol = "D", Fingerprint = "fp4" },
+            new() { GateId = gate.Id, File = "E.cs", Symbol = "E", Fingerprint = "fp5" },
+            new() { GateId = gate.Id, File = "F.cs", Symbol = "F", Fingerprint = "fp6" }
+        };
+        var res6 = RatchetService.Evaluate(gate, violations6, null);
+        res6.Status.Should().Be(GateCheckStatus.FailedNew);
+    }
+
+    [Test]
+    public void GateSerializer_RoundTripsThresholdsAndMessageTemplate()
+    {
+        var yaml = """
+        id: "SIG-YAML-001"
+        name: "YAML Threshold Gate"
+        category: "Rules"
+        platform: "rust"
+        scope: "Method"
+        dimension: "Rules"
+        severity: "Warning"
+        message: "Async function '{fn.name}' invokes blocking call: '{target.name}'"
+        thresholds:
+          warning: 1
+          error: 10
+        query: |
+          MATCH (fn:Function)-[:CALLS]->(target)
+          RETURN fn, target
+        """;
+
+        var gate = GateSerializer.DeserializeGate(yaml);
+        gate.Id.Should().Be("SIG-YAML-001");
+        gate.Message.Should().Be("Async function '{fn.name}' invokes blocking call: '{target.name}'");
+        gate.Thresholds.Should().NotBeNull();
+        gate.Thresholds!.Warning.Should().Be(1);
+        gate.Thresholds.Error.Should().Be(10);
+
+        var serialized = GateSerializer.SerializeGate(gate);
+        serialized.Should().Contain("warning: 1");
+        serialized.Should().Contain("error: 10");
+        serialized.Should().Contain("message:");
+    }
+
     private class MockGateDbClient : IGraphClient
     {
         public string QueryResponse { get; set; } = "[]";

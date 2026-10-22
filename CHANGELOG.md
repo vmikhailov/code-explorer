@@ -5,6 +5,16 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.55.1] - 2026-10-22
+
+### Fixed
+- **C# & TypeScript Library Parser Recursion & Cycle Guards (`StackOverflowException`)**:
+  - Fixed unbounded mutual recursion (`TryResolveVariableUri` $\leftrightarrow$ `FindUriInScope` $\leftrightarrow$ `ExtractUriFromExpression`) in `HttpClientLibraryParser`, `RestSharpLibraryParser`, and `AspNetCoreLibraryParser.MinimalApis` when resolving self-referential or circular variable assignments (`url = $"{url}/..."`, `url = string.Format(url, ...)`).
+  - Threaded hop depth limits (`depth <= 8`) and visited variable cycle tracking (`HashSet<string>`) across all variable/scope URI and route group resolvers.
+  - Guarded expression unwrapping loops in `GcpLibraryParser` against self-referential fallback nodes.
+
+---
+
 ## [1.55.0] - 2026-10-22
 
 ### Added

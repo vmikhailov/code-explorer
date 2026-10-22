@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Gates.Models;
 using CodeExplorer.Core.Gates.Storage;
@@ -35,7 +36,7 @@ public class GateExecutionEngine
             }
 
             var rawJson = await _dbClient.ExecuteQueryAsync(query, paramDict, cancellationToken);
-            violations = ParseViolations(gate.Id, rawJson);
+            violations = ParseViolations(gate.Id, rawJson, gate.Message);
 
             var baseline = await _gateRepository.LoadBaselineAsync(gate, cancellationToken);
             var (status, newViolations, tolerated, baselineCount) = RatchetService.Evaluate(gate, violations, baseline);
@@ -111,6 +112,9 @@ public class GateExecutionEngine
     }
 
     public static List<GateViolation> ParseViolations(string gateId, string rawJson)
+        => ParseViolations(gateId, rawJson, messageTemplate: null);
+
+    public static List<GateViolation> ParseViolations(string gateId, string rawJson, string? messageTemplate)
     {
         var violations = new List<GateViolation>();
         if (string.IsNullOrWhiteSpace(rawJson)) return violations;
@@ -130,8 +134,71 @@ public class GateExecutionEngine
                 var line = ExtractIntProperty(row, "line", "startLine", "row", "startRow");
                 var column = ExtractIntProperty(row, "column", "col", "startCol", "startColumn", "char");
                 var symbol = ExtractStringProperty(row, "symbol", "name", "source");
-                var target = ExtractStringProperty(row, "target", "destination");
+                var target = ExtractStringProperty(row, "target", "destination", "illegal_dependency", "dependency", "blocking_target", "callee");
                 var message = ExtractStringProperty(row, "message", "description", "details");
+                string? nodeId = null;
+                string? targetNodeId = null;
+
+                // Discover graph nodes returned by query (e.g. 'RETURN fn, target' or 'RETURN src, tgt')
+                var graphNodes = new List<(string PropName, string? Id, string? Kind, JsonElement Properties)>();
+                foreach (var prop in row.EnumerateObject())
+                {
+                    if (TryGetGraphNode(prop.Value, out var nId, out var nKind, out var nProps))
+                    {
+                        graphNodes.Add((prop.Name, nId, nKind, nProps));
+                    }
+                }
+
+                if (graphNodes.Count > 0)
+                {
+                    // Identify source node
+                    var srcNode = graphNodes.FirstOrDefault(n => IsSourceNodeName(n.PropName));
+                    if (srcNode.Properties.ValueKind == JsonValueKind.Undefined)
+                    {
+                        srcNode = graphNodes.FirstOrDefault(n =>
+                            ExtractStringProperty(n.Properties, "file_path", "path", "filePath") != null ||
+                            ExtractIntProperty(n.Properties, "start_line", "startLine", "line") > 0);
+                        if (srcNode.Properties.ValueKind == JsonValueKind.Undefined)
+                        {
+                            srcNode = graphNodes[0];
+                        }
+                    }
+
+                    if (srcNode.Properties.ValueKind == JsonValueKind.Object)
+                    {
+                        file ??= ExtractStringProperty(srcNode.Properties, "file_path", "path", "filePath");
+                        if (line == 0) line = ExtractIntProperty(srcNode.Properties, "start_line", "startLine", "line", "row");
+                        if (column == 0) column = ExtractIntProperty(srcNode.Properties, "start_col", "startCol", "column", "col", "char");
+                        symbol ??= ExtractStringProperty(srcNode.Properties, "name", "symbol", "id");
+                        nodeId = srcNode.Id;
+                    }
+
+                    // Identify target node (distinct from source node)
+                    var targetCandidates = graphNodes.Where(n => n.PropName != srcNode.PropName).ToList();
+                    var tgtNode = targetCandidates.FirstOrDefault(n => IsTargetNodeName(n.PropName));
+                    if (tgtNode.Properties.ValueKind == JsonValueKind.Undefined && targetCandidates.Count > 0)
+                    {
+                        tgtNode = targetCandidates[0];
+                    }
+
+                    if (tgtNode.Properties.ValueKind == JsonValueKind.Object)
+                    {
+                        target ??= ExtractStringProperty(tgtNode.Properties, "name", "full_name", "symbol", "id");
+                        targetNodeId = tgtNode.Id;
+                    }
+                }
+
+                // If parameterized message template is supplied, format it
+                if (!string.IsNullOrWhiteSpace(messageTemplate))
+                {
+                    message = InterpolateMessage(messageTemplate, row, graphNodes, file, line, column, symbol, target);
+                }
+                else if (string.IsNullOrWhiteSpace(message))
+                {
+                    message = !string.IsNullOrEmpty(target)
+                        ? $"Invariant violation: {symbol ?? "element"} references {target}"
+                        : $"Invariant violation in {symbol ?? file ?? "element"}";
+                }
 
                 var tupleKey = $"{GateFingerprintGenerator.NormalizeFilePath(file)}|{(symbol ?? "").Trim()}|{(target ?? "").Trim()}";
                 var occurrence = occurrenceCounts.GetValueOrDefault(tupleKey, 0) + 1;
@@ -148,6 +215,8 @@ public class GateExecutionEngine
                     Symbol = symbol,
                     Target = target,
                     Message = message,
+                    NodeId = nodeId,
+                    TargetNodeId = targetNodeId,
                     Fingerprint = fp
                 });
             }
@@ -158,6 +227,112 @@ public class GateExecutionEngine
         }
 
         return violations;
+    }
+
+    private static bool IsSourceNodeName(string name)
+        => name.Equals("fn", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("func", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("function", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("src", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("source", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("caller", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("cls", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("class", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("type", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("node", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("from", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("p", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("project", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsTargetNodeName(string name)
+        => name.Equals("target", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("tgt", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("callee", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("destination", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("to", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("pkg", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("package", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("dep", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("dependency", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("contract", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("tbl", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("table", StringComparison.OrdinalIgnoreCase);
+
+    private static bool TryGetGraphNode(JsonElement element, out string? id, out string? kind, out JsonElement properties)
+    {
+        if (element.ValueKind == JsonValueKind.Object &&
+            element.TryGetProperty("properties", out properties) &&
+            properties.ValueKind == JsonValueKind.Object)
+        {
+            id = element.TryGetProperty("id", out var idElem) ? idElem.GetString() : null;
+            kind = element.TryGetProperty("kind", out var kindElem) ? kindElem.GetString() : null;
+            return true;
+        }
+
+        id = null;
+        kind = null;
+        properties = default;
+        return false;
+    }
+
+    private static readonly Regex TokenRegex = new(@"\{([a-zA-Z0-9_\.]+)\}", RegexOptions.Compiled);
+
+    public static string InterpolateMessage(
+        string template,
+        JsonElement row,
+        List<(string PropName, string? Id, string? Kind, JsonElement Properties)> graphNodes,
+        string? file,
+        int line,
+        int column,
+        string? symbol,
+        string? target)
+    {
+        if (string.IsNullOrWhiteSpace(template)) return "";
+
+        return TokenRegex.Replace(template, match =>
+        {
+            var token = match.Groups[1].Value;
+
+            // Direct standard aliases
+            if (string.Equals(token, "file", StringComparison.OrdinalIgnoreCase)) return file ?? "";
+            if (string.Equals(token, "line", StringComparison.OrdinalIgnoreCase)) return line > 0 ? line.ToString() : "";
+            if (string.Equals(token, "column", StringComparison.OrdinalIgnoreCase) || string.Equals(token, "col", StringComparison.OrdinalIgnoreCase)) return column > 0 ? column.ToString() : "";
+            if (string.Equals(token, "symbol", StringComparison.OrdinalIgnoreCase)) return symbol ?? "";
+            if (string.Equals(token, "target", StringComparison.OrdinalIgnoreCase)) return target ?? "";
+            if (string.Equals(token, "location", StringComparison.OrdinalIgnoreCase)) return line > 0 ? $"{file}:{line}" : (file ?? "");
+
+            // Property access on node: e.g. {fn.name}, {target.name}, {pkg.name}, {fn.start_line}
+            if (token.Contains('.'))
+            {
+                var dotIdx = token.IndexOf('.');
+                var nodeKey = token[..dotIdx];
+                var propKey = token[(dotIdx + 1)..];
+
+                var matchedNode = graphNodes.FirstOrDefault(n => string.Equals(n.PropName, nodeKey, StringComparison.OrdinalIgnoreCase));
+                if (matchedNode.Properties.ValueKind == JsonValueKind.Object)
+                {
+                    if (matchedNode.Properties.TryGetProperty(propKey, out var pVal))
+                    {
+                        return pVal.ToString();
+                    }
+                }
+            }
+
+            // Flat column lookup in row: e.g. {illegal_dependency}, {blocking_target}
+            if (row.TryGetProperty(token, out var colVal))
+            {
+                if (colVal.ValueKind == JsonValueKind.String) return colVal.GetString() ?? "";
+                return colVal.ToString();
+            }
+
+            // Check if token matches a node property directly on the source node (e.g. {name})
+            if (graphNodes.Count > 0 && graphNodes[0].Properties.TryGetProperty(token, out var defaultPropVal))
+            {
+                return defaultPropVal.ToString();
+            }
+
+            return match.Value;
+        });
     }
 
     private static string? ExtractStringProperty(JsonElement element, params string[] propertyNames)

@@ -573,6 +573,7 @@ public partial class CodeExplorerRepository
         {
             GateCheckStatus.Passed => "✅",
             GateCheckStatus.PassedTolerated => "⚠️",
+            GateCheckStatus.Warning => "🟡",
             GateCheckStatus.FailedNew => "❌",
             _ => "💥"
         };
@@ -675,6 +676,7 @@ public partial class CodeExplorerRepository
             {
                 GateCheckStatus.Passed => "✅ PASS",
                 GateCheckStatus.PassedTolerated => "⚠️ TOLERATED",
+                GateCheckStatus.Warning => "🟡 WARN",
                 GateCheckStatus.FailedNew => "❌ FAIL",
                 _ => "💥 ERR"
             };

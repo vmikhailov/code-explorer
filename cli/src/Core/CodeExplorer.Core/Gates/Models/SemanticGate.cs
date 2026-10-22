@@ -14,6 +14,15 @@ public record GateRatchetSettings
 }
 
 /// <summary>
+/// Threshold configuration for warning and error classification.
+/// </summary>
+public record GateThresholdSettings
+{
+    public int? Warning { get; init; }
+    public int? Error { get; init; }
+}
+
+/// <summary>
 /// Represents a Semantic Invariant Gate (SIG) specification.
 /// </summary>
 public record SemanticGate
@@ -32,6 +41,22 @@ public record SemanticGate
     public GateSeverity Severity { get; init; } = GateSeverity.Error;
     public string? Description { get; init; }
     public string? Remediation { get; init; }
+
+    /// <summary>
+    /// Parameterized violation message template (e.g. "Async function '{fn.name}' invokes blocking call: '{target.name}'").
+    /// Supports standard fields ({file}, {line}, {symbol}, {target}) and node properties ({node.prop}).
+    /// </summary>
+    public string? Message { get; init; }
+
+    /// <summary>
+    /// Alias for Message for template clarity.
+    /// </summary>
+    public string? MessageTemplate => Message;
+
+    /// <summary>
+    /// Optional thresholds for classifying infractions into warnings vs blocking errors.
+    /// </summary>
+    public GateThresholdSettings? Thresholds { get; init; }
 
     /// <summary>
     /// OpenCypher query following the Zero-Match Contract.

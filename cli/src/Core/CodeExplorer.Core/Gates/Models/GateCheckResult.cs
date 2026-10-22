@@ -23,7 +23,12 @@ public enum GateCheckStatus
     /// <summary>
     /// Gate failed execution due to query syntax or engine error.
     /// </summary>
-    Error = 3
+    Error = 3,
+
+    /// <summary>
+    /// New violations detected within configured warning threshold (non-blocking).
+    /// </summary>
+    Warning = 4
 }
 
 /// <summary>
@@ -50,6 +55,7 @@ public record GateSuiteResult
     public required IReadOnlyList<GateCheckResult> Results { get; init; }
     public int TotalGates => Results.Count;
     public int PassedCount => Results.Count(r => r.Status is GateCheckStatus.Passed or GateCheckStatus.PassedTolerated);
+    public int WarningCount => Results.Count(r => r.Status == GateCheckStatus.Warning);
     public int FailedCount => Results.Count(r => r.Status is GateCheckStatus.FailedNew or GateCheckStatus.Error);
     public int NewViolationsCount => Results.Sum(r => r.NewViolations.Count);
     public int ToleratedViolationsCount => Results.Sum(r => r.ToleratedViolations.Count);

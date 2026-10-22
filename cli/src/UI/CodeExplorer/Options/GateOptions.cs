@@ -53,6 +53,15 @@ public class GateOptions : ITargetOption
     [Option("tolerated", Required = false, Default = false, HelpText = "Show only tolerated baseline violations.")]
     public bool OnlyTolerated { get; set; } = false;
 
+    [Option("fail-on-warning", Required = false, Default = false, HelpText = "Treat warnings as blocking errors (exit code 1).")]
+    public bool FailOnWarning { get; set; } = false;
+
+    [Option("strict", Required = false, Default = false, HelpText = "Treat warnings as blocking errors (alias for --fail-on-warning).")]
+    public bool Strict { get; set; } = false;
+
+    [Option("max-warnings", Required = false, Default = -1, HelpText = "Maximum allowed warnings before failing the suite with exit code 1 (-1 for unlimited).")]
+    public int MaxWarnings { get; set; } = -1;
+
     [Option("group-by", Required = false, HelpText = "Group and aggregate violations summary by: 'file', 'symbol', or 'callee' ('target').")]
     public string? GroupBy { get; set; }
 

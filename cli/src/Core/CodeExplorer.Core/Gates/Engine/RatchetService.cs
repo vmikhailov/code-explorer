@@ -18,7 +18,8 @@ public static class RatchetService
                 return (GateCheckStatus.Passed, [], [], 0);
             }
 
-            return (GateCheckStatus.FailedNew, [.. violations], [], 0);
+            var unbaselinedStatus = ResolveViolationStatus(gate, violations.Count);
+            return (unbaselinedStatus, [.. violations], [], 0);
         }
 
         var baselineFps = baseline.Entries
@@ -42,7 +43,8 @@ public static class RatchetService
 
         if (newViolations.Count > 0)
         {
-            return (GateCheckStatus.FailedNew, newViolations, tolerated, baseline.AllowedViolations);
+            var status = ResolveViolationStatus(gate, newViolations.Count);
+            return (status, newViolations, tolerated, baseline.AllowedViolations);
         }
 
         if (violations.Count == 0)
@@ -51,6 +53,31 @@ public static class RatchetService
         }
 
         return (GateCheckStatus.PassedTolerated, [], tolerated, baseline.AllowedViolations);
+    }
+
+    public static GateCheckStatus ResolveViolationStatus(SemanticGate gate, int violationCount)
+    {
+        if (violationCount == 0) return GateCheckStatus.Passed;
+
+        if (gate.Thresholds != null)
+        {
+            var errThreshold = gate.Thresholds.Error ?? int.MaxValue;
+            var warnThreshold = gate.Thresholds.Warning ?? 1;
+
+            if (violationCount >= errThreshold)
+            {
+                return GateCheckStatus.FailedNew;
+            }
+
+            if (violationCount >= warnThreshold)
+            {
+                return GateCheckStatus.Warning;
+            }
+
+            return GateCheckStatus.Passed;
+        }
+
+        return GateCheckStatus.FailedNew;
     }
 
     public static GateBaseline CreateUpdatedBaseline(

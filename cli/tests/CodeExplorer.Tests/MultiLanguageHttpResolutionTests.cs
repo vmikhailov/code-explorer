@@ -680,6 +680,39 @@ public class MultiLanguageHttpResolutionTests
         var isMatch = (bool)isMatchWithProjMethod.Invoke(layer5, [extSvc, endpoint, analyticsProj])!;
         isMatch.Should().BeFalse("unknown-service with root path / must NOT match foreign project root endpoint");
     }
+
+    [Test]
+    public async Task CSharp_CircularVariableAssignments_DoesNotStackOverflow()
+    {
+        var code = """
+        using System;
+        using System.Net.Http;
+        using System.Threading.Tasks;
+        using RestSharp;
+
+        public class CircularUriClient
+        {
+            private readonly HttpClient _httpClient = new HttpClient();
+
+            public async Task ExecuteAsync(string input)
+            {
+                var url = $"{url}/v1/items";
+                url = string.Format(url, input);
+                var req = new HttpRequestMessage(HttpMethod.Get, req);
+                await _httpClient.SendAsync(req);
+                await _httpClient.GetAsync(url);
+
+                var restUrl = restUrl;
+                var restReq = new RestRequest(restUrl);
+                var group = group.MapGroup("/api");
+                group.MapGet("/health", () => "ok");
+            }
+        }
+        """;
+
+        var act = async () => await ParseAndGetExternalServicesAsync(new CSharpParser(), code, "CircularUriClient.cs");
+        await act.Should().NotThrowAsync();
+    }
 }
 
 

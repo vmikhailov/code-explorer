@@ -19,7 +19,7 @@
     <PublishDir Condition="'$(PublishDir)' == '' and '$(RuntimeIdentifier)' == ''">$(SolutionDir).Build\publish_$(Configuration)\$(MSBuildProjectName)\</PublishDir>
 
     <!-- Versioning -->
-    <Version Condition="'$(Version)' == ''">1.55.0</Version>
+    <Version Condition="'$(Version)' == ''">1.55.1</Version>
     <PackageVersion Condition="'$(PackageVersion)' == ''">$(Version)</PackageVersion>
     <AssemblyVersion Condition="'$(AssemblyVersion)' == ''">$(Version)</AssemblyVersion>
     <FileVersion Condition="'$(FileVersion)' == ''">$(Version)</FileVersion>
@@ -31,7 +31,7 @@
     <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <NoWarn>$(NoWarn);1591</NoWarn>
-    <DefaultItemExcludes>$(DefaultItemExcludes);**/SampleProjects/**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);**/SampleProjects/**;**/obj/**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(MSBuildProjectName)' != 'CodeExplorer.Cypher' and '$(MSBuildProjectName)' != 'CodeExplorer.Cypher.Tests' and '$(MSBuildProjectName)' != 'OntologyGen' and !$(MSBuildProjectName.Contains('Sample'))">

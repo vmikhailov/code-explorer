@@ -314,7 +314,9 @@ public class GcpLibraryParser : ISemanticExtension
         var unwrappedObj = receiverObj;
         while (unwrappedObj.IsValid() && (unwrappedObj.Is("parenthesized_expression") || unwrappedObj.Is("await_expression")))
         {
-            unwrappedObj = unwrappedObj.Children.FirstOrDefault(c => c.IsValid() && c.Type is not "await" and not "(" and not ")") ?? unwrappedObj;
+            var next = unwrappedObj.Children.FirstOrDefault(c => c.IsValid() && c.Type is not "await" and not "(" and not ")");
+            if (!next.IsValid() || next.Id == unwrappedObj.Id) break;
+            unwrappedObj = next;
         }
 
         if (unwrappedObj.IsValid() && unwrappedObj.Is(TreeSitterSyntax.TypeScript.CallExpression))
@@ -399,7 +401,9 @@ public class GcpLibraryParser : ISemanticExtension
         var unwrapped = expr;
         while (unwrapped.IsValid() && (unwrapped.Is("parenthesized_expression") || unwrapped.Is("await_expression")))
         {
-            unwrapped = unwrapped.Children.FirstOrDefault(c => c.IsValid() && c.Type is not "await" and not "(" and not ")") ?? unwrapped;
+            var next = unwrapped.Children.FirstOrDefault(c => c.IsValid() && c.Type is not "await" and not "(" and not ")");
+            if (!next.IsValid() || next.Id == unwrapped.Id) break;
+            unwrapped = next;
         }
 
         if (unwrapped.Is(TreeSitterSyntax.TypeScript.CallExpression))
