@@ -9,33 +9,26 @@ This directory tracks the engineering roadmap, active epic specifications, and a
 | Document | Purpose | Status |
 | :--- | :--- | :--- |
 | [**`todo.md`**](./todo.md) | Granular Master Task Checklist across all Epics | 📋 Single Source of Truth |
-| [**`semantic-invariant-gates-plan.md`**](./semantic-invariant-gates-plan.md) | Active Epic Specification: Semantic Invariant Gates & Ratchets | 🚀 In Progress (v1.32.0) |
-| [**`rust-support-roadmap.md`**](./rust-support-roadmap.md) | Epic Specification: Rust Language Support (`CodeExplorer.Parser.Rust`) | 📋 Approved / Roadmap |
 | [**`../architecture/fractal-orthogonal-invariant-matrix.md`**](../architecture/fractal-orthogonal-invariant-matrix.md) | Formal FOIM $5 \times 4$ Architecture Specification | 🏛️ Reference Specification |
-| [**`../proposals/semantic-invariant-gates-proposal.md`**](../proposals/semantic-invariant-gates-proposal.md) | Polyglot Gates Proposal & 34-Gate Catalog ("Gates on Growth") | 💡 Active Proposal |
+| [**`../proposals/universal-parser-proposal.md`**](../proposals/universal-parser-proposal.md) | Universal AST Visitor & `ILanguageHooks` (v2.0.0 PoC) | 💡 Active Proposal (Next Priority) |
+| [**`../proposals/semantic-archetypes-and-yaml-projections-proposal.md`**](../proposals/semantic-archetypes-and-yaml-projections-proposal.md) | Declarative YAML Semantic Projection Engine & 5 Archetypes | 💡 Active Proposal |
+| [**`../proposals/universal-edge-and-node-evidence-proposal.md`**](../proposals/universal-edge-and-node-evidence-proposal.md) | Creation-Time Provenance (`evidence_ids`) for Layer 4/5 Edges | 💡 Active Proposal (Remaining v2.0.0 Work) |
 
 ---
 
-## 🚨 Current Active Milestone: v1.32.0 (Structural Graph Invariants)
+## 🚨 Current Active Milestone: Universal Parser & Declarative Projections (v1.56.0 / v2.0.0 PoC)
 
-Following the delivery of **Semantic Invariant Gates (v1.31.0)**, the active focus is hardening graph topology and simplifying gate queries:
+Following the delivery of **Full 5-Layer Rust Support (`v1.47.0`–`v1.49.0`)**, **31 Polyglot & Evolution Semantic Invariant Gates (`v1.52.0`)**, **Universal Code Evidence Inspector (`v1.53.0`)**, and **Strict 5-Layer Ontology Hierarchy (`v1.55.0`)**, the active focus is:
 
-1. **Structural Project $\leftrightarrow$ File Edges**:
-   * Emit bidirectional relationships during Layer 3 parsing: `(p:Project)-[:CONTAINS]->(f:File)` and `(f:File)-[:BELONGS_TO]->(p:Project)`.
-   * Emit `(lit:CallLiteral)-[:DECLARED_IN]->(f:File)` linking call literals to their declaring files.
-2. **First-Class Test and Project Metadata Flags**:
-   * Propagate `is_test: bool`, `project_kind: string`, and `project_name: string` onto `FileNode`, `CallLiteralNode`, `TypeNode`, and `FunctionNode`.
-   * Eliminate brittle string heuristics (`WHERE NOT file_path CONTAINS 'Test'`) across all gate Cypher queries.
-3. **Pipeline Stage & Layer Ordering Invariants (`stage_order`)**:
-   * Introduce a scalar `stage_order: int` property on pipeline stage types and files.
-   * Replace combinatorial $O(N^2)$ `OR` clauses in `SIG-P-B-001` with clean scalar comparison:
-     ```cypher
-     MATCH (src:Type)-[:CALLS|USES_TYPE]->(tgt:Type)
-     WHERE src.stage_order IS NOT NULL 
-       AND tgt.stage_order IS NOT NULL 
-       AND src.stage_order < tgt.stage_order
-     RETURN ...
-     ```
+1. **Universal AST Visitor & `ILanguageHooks` ([`universal-parser-proposal.md`](../proposals/universal-parser-proposal.md))**:
+   * Introduce `UniversalAstVisitor` in `CodeExplorer.Parser.TreeSitter` driving ~80% of Layer 3 syntax extraction (`Types`, `Functions`, `Members`, `CallSites`, `ControlFlow`, `Variables`).
+   * Keep a thin `ILanguageHooks` interface (~150–250 LOC per language) for language-specific edges (`Imports`, `Visibility`, `Annotations`, `TypeReferences`).
+   * **Track A (Parity)**: Migrate Java (`JavaLanguageHooks`) and verify 100% node/edge parity against `JavaSyntaxExtractor`.
+   * **Track B (Velocity)**: Deliver full 5-layer **Swift** support (`SwiftLanguageHooks` + `SwiftPackageParser`) in ~300 LOC.
+2. **Declarative YAML Semantic Projections ([`semantic-archetypes-and-yaml-projections-proposal.md`](../proposals/semantic-archetypes-and-yaml-projections-proposal.md))**:
+   * Introduce `YamlSemanticProjectionEngine` in Layer 4 mapping the 5 Universal Semantic Archetypes (`EntryPoint`, `OutboundCall`, `MessageFlow`, `DataAccess`, `DependencyBinding`) via declarative `.yaml` rule packs.
+3. **Creation-Time Provenance ([`universal-edge-and-node-evidence-proposal.md`](../proposals/universal-edge-and-node-evidence-proposal.md))**:
+   * Persist `evidence_ids` at edge creation time in Layer 4 and aggregate during Layer 5 rollup, replacing query-time evidence heuristics with deterministic $O(k)$ primary-key lookups.
 
 ---
 
@@ -55,11 +48,13 @@ Following the delivery of **Semantic Invariant Gates (v1.31.0)**, the active foc
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  EPIC 5: CI/CD Synthetic Benchmark Fixtures (100k nodes)           ✅ v1.30 │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  EPIC 6: Semantic Invariant Gates (SIG) & Ratchets        🔄 In Progress │
-│          • Phase 1–5: Engine, Models, CLI, MCP, Built-ins          ✅ v1.31 │
-│          • Phase 6: Structural Graph Links & Order Invariants       ⏳ v1.32 │
+│  EPIC 6: Semantic Invariant Gates (SIG) & 31-Gate Catalog          ✅ v1.52 │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  EPIC 7: Polyglot Gate Library & Static Analysis Expansion       ⏳ Planned │
+│  EPIC 7: Full 5-Layer Rust Support (`CodeExplorer.Parser.Rust`)    ✅ v1.49 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  EPIC 8: Strict 5-Layer Ontology & Level 5 Logical Structure       ✅ v1.55 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  EPIC 9: Universal AST Visitor & Declarative YAML Projections      🚀 Next  │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -91,26 +86,21 @@ Following the delivery of **Semantic Invariant Gates (v1.31.0)**, the active foc
 * Cartesian product elimination: decomposed independent `OPTIONAL MATCH` branches into isolated CTEs.
 * Path predicates (`WHERE EXISTS((a)->(b))`) and list quantifiers (`any()`, `all()`, `none()`, `single()`).
 
-### Epic 4: Concurrency & Incremental Watcher 🔄 Mostly Complete (v1.25.0)
-* **4.1 Completed:** Fine-grained semantic AST diffing (`SemanticGraphDiffer`, `SymbolFootprint`, `FileGraphSnapshot`), debounced `ce index --watch`, two-tier changeset detection (timestamps + SHA-256), and SQLite auto-vacuum.
-* **4.2 Pending:** Read-only connection pooling (`Mode=ReadOnly;Cache=Shared;`) for MCP tools and thread-safe in-memory cache for `SystemContext`.
+### Epic 4: Concurrency & Incremental Watcher ✅ Completed (v1.25.0)
+* Fine-grained semantic AST diffing (`SemanticGraphDiffer`, `SymbolFootprint`, `FileGraphSnapshot`), debounced `ce index --watch`, two-tier changeset detection (timestamps + SHA-256), and SQLite auto-vacuum.
 
 ### Epic 5: CI/CD Benchmark Fixtures ✅ Completed (v1.30.0)
 * Synthetic deterministic 100k-node graph fixture for CI (10k files, 25k classes, 70k methods, 300k relationships).
 * Automated SLA performance assertions: `find_symbol` < 25ms, `get_call_chain` < 100ms, `inspect_data_lineage` < 50ms.
 
-### Epic 6: Semantic Invariant Gates (SIG) & Architectural Ratchets 🔄 Active Priority (v1.31.0 - v1.32.0)
-* **6.1–6.6 Completed (v1.31.0):**
-  - Gate models, YAML definitions, JSON baselines, line-shift immune fingerprinting (`SHA256(gate_id + path + symbol + target)`).
-  - `GateExecutionEngine` (Zero-Match contract) and `RatchetService` (monotonic baseline enforcement).
-  - CLI `ce gate check/list/ratchet/init` commands with ANSI reporting and SARIF export.
-  - MCP tool `check_semantic_gates` with actionable remediation guidance.
-  - Gate taxonomy: `Category` (`Architectural` vs `Platform`) and `Platform` filtering.
-* **6.7–6.8 In Progress (v1.32.0):**
-  - Structural links `Project` $\leftrightarrow$ `File` and `CallLiteral` $\to$ `File`.
-  - Propagation of `is_test`, `project_kind`, and `project_name` to eliminate string heuristics.
-  - Pipeline stage ordering (`stage_order`) to simplify hierarchical pipeline gate queries.
+### Epic 6: Semantic Invariant Gates (SIG) & 31-Gate Polyglot Catalog ✅ Completed (v1.31.0 – v1.52.0)
+* Gate models, YAML definitions, JSON baselines, line-shift immune fingerprinting (`SHA256(gate_id + path + symbol + target)`).
+* `GateExecutionEngine` (Zero-Match contract), `RatchetService` (monotonic baseline enforcement), and interactive `GateEditorView` in the VS Code extension (`v1.46.0`).
+* 31 built-in gates across Architectural, Evolution (`SIG-P-B-007`..`009`), Ontology (`SIG-O-B-001`..`003`), Code Complexity (`SIG-C-R-001`), and Platform-specific suites (.NET, TypeScript, Go, Python, Java, Kotlin, Rust, SQL, ColdFusion).
 
-### Epic 7: Polyglot Gate Library & Static Analysis Expansion ⏳ Planned (v1.33.0+)
-* Implementation of the 24 platform-specific gates specified in [`semantic-invariant-gates-proposal.md`](../proposals/semantic-invariant-gates-proposal.md) across .NET, TypeScript, Go, Python, Java, Kotlin/Android, SQL, and ColdFusion.
-* Pre-commit and GitHub Actions workflow integrations.
+### Epic 7: Full 5-Layer Rust Language Support ✅ Completed (v1.47.0 – v1.49.0)
+* `CodeExplorer.Parser.Rust` with `RustSyntaxExtractor` (`tree-sitter-rust`), `CargoProjectParser` (including Cargo workspace resolution), `RustTypeResolver`, 12 ecosystem library parsers (`axum`, `actix-web`, `rocket`, `tonic`, `reqwest`, `sqlx`, `sea-orm`, `diesel`, `rdkafka`, `lapin`, `async-nats`, `aws-sdk-rust`), and 4 Rust SIG gates (`SIG-R-S-001`, `SIG-R-A-001`, `SIG-R-C-001`, `SIG-R-D-001`).
+
+### Epic 8: Strict 5-Layer Ontology & Level 5 Logical Structure ✅ Completed (v1.53.0 – v1.55.0)
+* Universal Edge & Node Code Evidence Inspector (`GET /api/architecture/edge-evidence`, `GET /api/architecture/node-evidence`, `v1.53.0`).
+* Standardized 5-Layer Ontology Hierarchy (`File Structure`, `Project Structure`, `Syntax Structure`, `Semantic Structure`, `Logical Structure`), Zero Upward Edges invariant (`SIG-O-B-003`), removal of `ISyntaxEnricher`, and persisted `DomainNode` / `BoundedContextNode` entities (`v1.55.0`).

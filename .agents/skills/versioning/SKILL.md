@@ -50,9 +50,9 @@ Versions strictly follow the format: `MAJOR.MINOR.PATCH` (e.g. `1.44.0`).
 
 ---
 
-## 2. Synchronized Version Files
+## 2. Synchronized Version & Changelog Files
 
-When updating the version, all three of the following files **must** be updated simultaneously to the exact same version string:
+When updating the version, all of the following files **must** be updated simultaneously:
 
 1. **`cli/Directory.Build.props`**:
    ```xml
@@ -69,6 +69,11 @@ When updating the version, all three of the following files **must** be updated 
 3. **`vscode-extension/package-lock.json`**:
    - Update `"version"` at the top level.
    - Update `"version"` inside `packages[""]`.
+
+4. **`CHANGELOG.md` AND `vscode-extension/CHANGELOG.md` (Mandatory Dual-Changelog Rule)**:
+   - Every release **must** document its changes under `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD` in **both** root [`CHANGELOG.md`](file:///c:/Work/Personal/code-explorer/CHANGELOG.md) and [`vscode-extension/CHANGELOG.md`](file:///c:/Work/Personal/code-explorer/vscode-extension/CHANGELOG.md).
+   - Because `vsce package` bundles `vscode-extension/CHANGELOG.md` into the VS Code Marketplace & Open VSX extension page, `vscode-extension/CHANGELOG.md` must never lag behind root `CHANGELOG.md`.
+   - When proposals in `docs/proposals/` or plans in `docs/roadmap/` are 100% completed as part of a release, fold their delivered summary into the changelog and remove the completed proposal file.
 
 ---
 

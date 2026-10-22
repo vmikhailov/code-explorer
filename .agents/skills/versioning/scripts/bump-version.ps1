@@ -90,12 +90,26 @@ if (Test-Path $pkgLockPath) {
     Write-Host "  [OK] Updated $pkgLockPath" -ForegroundColor Gray
 }
 
+# 6. Check & synchronize CHANGELOG.md -> vscode-extension/CHANGELOG.md
+$rootChangelog = Join-Path $repoRoot "CHANGELOG.md"
+$extChangelog = Join-Path $repoRoot "vscode-extension\CHANGELOG.md"
+if (Test-Path $rootChangelog) {
+    $changelogContent = Get-Content $rootChangelog -Raw
+    if ($changelogContent -match [regex]::Escape("## [$newVersion]")) {
+        Copy-Item -Path $rootChangelog -Destination $extChangelog -Force
+        Write-Host "  [OK] Synchronized CHANGELOG.md -> vscode-extension/CHANGELOG.md (includes [$newVersion])" -ForegroundColor Gray
+    } else {
+        Write-Host "  [WARN] Root CHANGELOG.md does not yet contain '## [$newVersion]'. Update CHANGELOG.md and copy to vscode-extension/CHANGELOG.md before tagging!" -ForegroundColor Yellow
+    }
+}
+
 Write-Host "`nVersion bumped successfully to $newVersion!" -ForegroundColor Green
 Write-Host "Next steps:"
-Write-Host "  1. dotnet build cli/CodeExplorer.slnx -c Release"
-Write-Host "  2. dotnet test cli/tests/CodeExplorer.Tests/CodeExplorer.Tests.csproj"
-Write-Host "  3. dotnet test cli/tests/CodeExplorer.Cypher.Tests/CodeExplorer.Cypher.Tests.csproj"
-Write-Host "  4. cd vscode-extension; npm run typecheck; npm run test"
-Write-Host "  5. git commit -am `"chore(release): v$newVersion`""
-Write-Host "  6. git tag v$newVersion"
-Write-Host "  7. git push origin main --tags"
+Write-Host "  1. Ensure ## [$newVersion] is documented in BOTH CHANGELOG.md and vscode-extension/CHANGELOG.md"
+Write-Host "  2. dotnet build cli/CodeExplorer.slnx -c Release"
+Write-Host "  3. dotnet test cli/tests/CodeExplorer.Tests/CodeExplorer.Tests.csproj"
+Write-Host "  4. dotnet test cli/tests/CodeExplorer.Cypher.Tests/CodeExplorer.Cypher.Tests.csproj"
+Write-Host "  5. cd vscode-extension; npm run typecheck; npm run test"
+Write-Host "  6. git commit -am `"chore(release): v$newVersion`""
+Write-Host "  7. git tag v$newVersion"
+Write-Host "  8. git push origin main --tags"

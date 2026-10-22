@@ -11,11 +11,12 @@ Whenever fixes or features are made to CodeExplorer (CLI or VS Code Extension):
      - **Bug Fixes (PATCH)**: Increment only the last digit (`MAJOR.MINOR.(PATCH + 1)`). Example: `1.44.0` -> `1.44.1`.
      - **New Features / Functionality (MINOR)**: Increment the second digit (`MAJOR.(MINOR + 1).0`), resetting PATCH to `0`. Example: `1.44.0` -> `1.45.0`.
      - **Fundamental Paradigm Shift (MAJOR)**: Increment the first digit (`(MAJOR + 1).0.0`), resetting MINOR and PATCH to `0`. **STRICT REQUIREMENT**: Bumping MAJOR is forbidden without explicit prior user consent/approval.
-   - Synchronize across all three version-bearing files:
+   - Synchronize across all version-bearing and changelog files:
      - `<Version>` in [cli/Directory.Build.props](file:///c:/Work/Personal/code-explorer/cli/Directory.Build.props).
      - `"version"` in [vscode-extension/package.json](file:///c:/Work/Personal/code-explorer/vscode-extension/package.json).
      - `"version"` in [vscode-extension/package-lock.json](file:///c:/Work/Personal/code-explorer/vscode-extension/package-lock.json).
-   - Alternatively, execute the helper script:
+     - **Both Changelogs (Mandatory)**: Always add the new `[X.Y.Z] - YYYY-MM-DD` release section to **both** [CHANGELOG.md](file:///c:/Work/Personal/code-explorer/CHANGELOG.md) and [vscode-extension/CHANGELOG.md](file:///c:/Work/Personal/code-explorer/vscode-extension/CHANGELOG.md) (keep them identical so the VS Code Marketplace extension changelog never lags behind).
+   - Alternatively, execute the helper script (which bumps versions and syncs `CHANGELOG.md` $\to$ `vscode-extension/CHANGELOG.md`):
      ```bash
      pwsh .agents/skills/versioning/scripts/bump-version.ps1 -Type patch # or -Type minor
      ```

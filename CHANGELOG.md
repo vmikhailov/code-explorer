@@ -9,15 +9,166 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Strict 5-Layer Ontology Hierarchy & Zero Upward Edges**:
-  - Standardized ontology layer taxonomy: Layer 1: File Structure, Layer 2: Project Structure, Layer 3: Syntax Structure, Layer 4: Semantic Structure, Layer 5: Logical Structure.
+  - Standardized ontology layer taxonomy: `Layer 1: File Structure`, `Layer 2: Project Structure`, `Layer 3: Syntax Structure`, `Layer 4: Semantic Structure`, `Layer 5: Logical Structure`.
   - Enforced strict unidirectional ontology layer invariant (Zero Upward Edges): edges originate at their source node layer and may only point horizontally (intra-layer) or downward (grounding to lower layers).
-  - Persisted Level 5 Logical Structure nodes (`LogicalStructureNode`, `DomainNode`, `BoundedContextNode`) directly in the graph database.
+  - Persisted Level 5 Logical Structure nodes (`LogicalStructureNode`, `DomainNode`, `BoundedContextNode`) directly in the graph database (`SIG-O-B-003`).
 - **Decoupled Syntactic & Semantic Analyzers**:
   - Eliminated `ISyntaxEnricher` and parser-specific enrichers; AST member and variable extraction is handled cleanly in `Layer3SyntacticAnalyzer`, and semantic resource extraction in `ResourceSemanticAnalyzer`.
 - **UI & Diagram Enhancements**:
-  - Updated `/api/ontology/layers` and tree view to report standardized 5 layers with Layer 5 logical domain entities.
-  - Reordered Architecture Diagrams in the VS Code sidebar from High Level to Low Level: Bounded Context Map › Architecture Map › Architecture Tiers › Project Flow.
+  - Updated `/api/ontology/layers` and VS Code TreeView to report the standardized 5 ontology layers with Layer 5 logical domain entities (`Domain`, `BoundedContext`).
+  - Reordered Architecture Diagrams in the VS Code sidebar from High Level to Low Level: `Bounded Context Map` › `Architecture Map` › `Architecture Tiers` › `Project Flow`.
   - Added node presentation badges and icons for `Domain` (`🌐`) and `BoundedContext` (`🧩`).
+
+---
+
+## [1.54.1] - 2026-10-22
+
+### Fixed
+- **Domain Topology & Semantic Runtime Refinements**:
+  - Refined semantic runtime correlation and domain topology resolution across bounded contexts.
+
+---
+
+## [1.54.0] - 2026-10-22
+
+### Improved
+- **Architecture Graph Group Sizing**:
+  - Increased group node card dimensions on the architecture canvas for improved label readability and badge layout.
+
+---
+
+## [1.53.5] - 2026-10-21
+
+### Fixed & Improved
+- **Domain Map & Inspector Refinements**:
+  - Materialized library macro-edges in `Layer5GlobalAnalyzer` (`1.53.5`).
+  - Enabled `Library` and `Test` workload categories in the Domain Architecture Map (`1.53.4`).
+  - Added configurable orbit layout reordering, merging, and splitting with domain filtering (`1.53.3`).
+  - Added business domain sectors, center UI hub, minimum orbit node distance, wrap-around separation, and 2-opt link crossing optimization (`1.53.2`).
+  - Fixed inspector header overlap, converted evidence sections to collapsible cards, and fixed evidence layout scrollbars (`1.53.1`).
+
+---
+
+## [1.53.0] - 2026-10-21
+
+### Added
+- **Universal Edge & Node Code Evidence Inspector**:
+  - Added `GET /api/architecture/edge-evidence` (including grouped macro-edges) and `GET /api/architecture/node-evidence` endpoints returning unified `ArchitectureEvidenceItemDto` items.
+  - Added `EdgeEvidenceSection` and `NodeEvidenceSection` in the VS Code architecture inspector UI to trace any architectural node or arrow directly to the exact source files, lines, symbols, and configuration entries that produced it.
+
+---
+
+## [1.52.1] - 2026-10-21
+
+### Fixed
+- **Shared File Parser Registry & Topic Case Preservation**:
+  - Centralized shared file parser registry across language analyzers, preserved canonical broker topic ID casing, and improved scoped constant resolution.
+
+---
+
+## [1.52.0] - 2026-10-21
+
+### Added
+- **Architectural Evolution & Topology Gates**:
+  - Added built-in Semantic Invariant Gates `SIG-P-B-007` (Orphaned Project Modules), `SIG-P-B-008` (Unbounded Fan-Out), and `SIG-P-B-009` (Cross-Domain Data Coupling), expanding the `BuiltInGateCatalog` to 31 polyglot and architectural gates.
+  - Enhanced database evidence scoping (`EvidenceScope`) and two-hop `Table` / `Procedure` traversal.
+
+---
+
+## [1.51.4] - 2026-10-21
+
+### Performance & Fixed
+- **Cypher Syntax Highlighting & Indexer Optimization**:
+  - Replaced regex-based Cypher highlighting in the VS Code extension with a single-pass tokenizer to prevent markup corruption (`1.51.4`).
+  - Eliminated Phase 0b regex backtracking and optimized post-index symbol queries (`1.51.3`).
+  - Introduced `ProjectParserRole.Fallback` for `ScriptProjectParser` and deduplicated `WorkspaceFileFilter` extensions (`1.51.1` – `1.51.2`).
+
+---
+
+## [1.51.0] - 2026-10-20
+
+### Added
+- **Dynamic Platform-Driven Workspace File Filter**:
+  - Replaced hardcoded file extension lists with a dynamic `WorkspaceFileFilter` that queries connected platform and file parsers at runtime.
+
+---
+
+## [1.50.0] - 2026-10-20
+
+### Added
+- **Enterprise .NET Legacy Support (WCF, EF6, XML Config)**:
+  - Added `WcfLibraryParser` for `[ServiceContract]`, `[OperationContract]`, and WCF client channel resolution.
+  - Added `.NET` XML configuration parsing (`web.config` / `app.config` connection strings, WCF bindings/endpoints, appSettings) and Entity Framework 6 (`DbContext` / `ObjectContext` / EDMX) support.
+  - Added desktop application workload classification (`WinForms`, `WPF`).
+- **Unified Hybrid Release Distribution**:
+  - Streamlined GitHub Actions release pipeline to build native standalone binaries (`win-x64`, `osx-arm64`) alongside the universal `codeexplorer.cli` NuGet tool package fallback.
+
+---
+
+## [1.49.4] - 2026-10-20
+
+### Fixed
+- **TypeScript AST Guards & Pub/Sub Resolution**:
+  - Added recursion depth guards across TypeScript `AstHelper` functions (`1.49.4`).
+  - Preserved hop depth through TypeScript template expressions (`1.49.3`).
+  - Resolved GCP Pub/Sub topic names from subscription config paths and prevented path concatenation on URL prefixes (`1.49.2`).
+  - Formatted server logs cleanly in the VS Code Output channel (`1.49.1`).
+
+---
+
+## [1.49.0] - 2026-10-20
+
+### Added
+- **Rust Workspace Resolution & AWS SDK for Rust**:
+  - Added Cargo workspace member resolution, `AwsSdkRustLibraryParser` (S3, SQS, SNS, DynamoDB, Lambda, Kinesis), and gate invariance decomposition.
+
+---
+
+## [1.48.7] - 2026-10-20
+
+### Fixed & Improved
+- **Webview Group Persistence, Smooth Transitions & God Class Decomposition**:
+  - Eliminated loading flash and node flicker when toggling custom groups (`1.48.7`).
+  - Preserved webview UI state in-memory across tab switches (`1.48.6`) and revived webview panels across VS Code restarts (`1.48.4`).
+  - Added deterministic workspace port derivation (`1.48.5`).
+  - Added `SIG-C-R-001` (God Class Prohibition gate) and decomposed large classes across Core, Cypher, Parsers, and Extension into focused partial/modular files (`1.48.1` – `1.48.3`).
+
+---
+
+## [1.48.0] - 2026-10-19
+
+### Added
+- **Visual Node Grouping & Edge Bundling in Architecture Map**:
+  - Added collapsible visual node groups, custom user-defined groups, automatic edge bundling across group boundaries, and internal connection extraction in the Domain Architecture View.
+
+---
+
+## [1.47.2] - 2026-10-19
+
+### Added & Fixed
+- **Database Decision Evidence & Strict Evidence-Based DB Creation**:
+  - Enforced strict evidence-based database node creation (`SIG-O-B-002`), singular/plural DB consolidation, and `Redis.<domain>` naming (`1.47.2`).
+  - Added Database Decision & Query Evidence inspector in the Architecture Map (`1.47.1`).
+
+---
+
+## [1.47.0] - 2026-10-19
+
+### Added
+- **Full 5-Layer Rust Language Support (`CodeExplorer.Parser.Rust`)**:
+  - Delivered `RustSyntaxExtractor` (`tree-sitter-rust`), `CargoProjectParser`, `RustTypeResolver`, and 12 Rust ecosystem library parsers (`axum`, `actix-web`, `rocket`, `tonic`, `reqwest`, `sqlx`, `sea-orm`, `diesel`, `rdkafka`, `lapin`, `async-nats`, `tokio`).
+  - Added 4 Rust Semantic Invariant Gates: `SIG-R-S-001` (Unsafe Block Audit), `SIG-R-A-001` (Async Lock Across Await), `SIG-R-C-001` (Unwrap/Expect in Production), and `SIG-R-D-001` (Raw SQL Injection Guard).
+
+---
+
+## [1.46.22] - 2026-10-19
+
+### Added & Fixed
+- **Workload Roles (`PrimaryRole` + `SecondaryRoles`), Circular Badges & Parity Gates**:
+  - Introduced `PrimaryRole` + `SecondaryRoles` workload classification so hybrid services (e.g., API + Background Worker) preserve all runtime personas (`1.46.15`).
+  - Added `SIG-O-B-001` enforcing 1-to-1 parity between Layer 4 runtime entities and the Domain Architecture Map (`1.46.16`).
+  - Redesigned graph nodes with circular SVG role badges (`SVC`, `DB`, `MSG`, `EXT`, `APP`, `WRK`, `CLI`, `LIB`), dynamic text wrapping, and radial group clustering (`1.46.17` – `1.46.22`).
+  - Unified `ServerTransport` injection across `GraphPanel` and Webviews, eliminating race conditions during startup (`1.46.7` – `1.46.14`).
 
 ---
 
@@ -30,6 +181,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Unrefed all reconnect and keep-alive timers (`unref()`) to prevent holding the Node.js event loop open during unit testing or teardown.
   - Restricted native WebSocket instantiation in `connect()` strictly to browser webview environments (`window !== undefined`) or explicit test mock factories (`wsFactory`).
   - Added explicit `disconnect()` / `dispose()` teardown in unit tests and enforced a 15-minute timeout on CI and Release workflows.
+
+---
+
+## [1.46.0] - 2026-10-17
+
+### Added
+- **Visual Semantic Invariant Gate Editor (`GateEditorView`)**:
+  - Added a full-view interactive Semantic Invariant Gate editor in the VS Code webview with live OpenCypher syntax highlighting, dry-run evaluation preview, and YAML schema validation.
+
+---
+
+## [1.45.0] - 2026-10-16
+
+### Added & Improved
+- **First-Class TestSuite Workloads & Decoupled View Generators**:
+  - Added first-class `TestSuite` workload detection with beaker icons (`🧪`) and dedicated visibility toggles (`1.45.0` – `1.45.2`).
+  - Fixed $O(N \times M)$ scan bottleneck in `IdentifierSearchEngine` (`1.45.3`).
+
+---
+
+## [1.44.0] - 2026-10-15
+
+### Added
+- **Webview Visibility Panel & Compact/TOON Outputs**:
+  - Added interactive Visibility filter panel in the Architecture Webview to toggle node categories, workload roles, and edge kinds.
+  - Defaulted CLI and MCP query outputs to token-efficient compact/TOON formats.
+
+---
+
+## [1.43.0] - 2026-10-15
+
+### Added
+- **CLI `ce callers` & `ce impact` Commands**:
+  - Added first-class `ce callers` and `ce impact` CLI commands with cross-service route resolution.
+
+---
+
+## [1.42.0] - 2026-10-15
+
+### Added
+- **In-Process Identifier Vector Search**:
+  - Added fast in-process identifier and semantic token search across indexed graph symbols.
+
+---
+
+## [1.41.8] - 2026-10-15
+
+### Added
+- **Workspace Scan Exclusions (`.codeexplorer/settings.json`)**:
+  - Added support for gitignore/glob-style workspace exclusion patterns in `.codeexplorer/settings.json` (`{ "exclude": [...] }`), automatically created by `ce init`.
+  - `GitIgnoreMatcher` and `WorkspaceIndexer` now load `.codeexplorer/settings.json` exclusions and automatically prune stale `Project` and symbol nodes when manifests are excluded during incremental rescans.
+  - Added **Settings** item under `Management` in the CodeExplorer sidebar (`codeExplorer.openWorkspaceSettings`) and **Exclude from Scan** (`codeExplorer.excludeFromScan`) in the VS Code Explorer context menu, with automatic incremental rescan on save.
+
+---
+
+## [1.41.7] - 2026-10-15
+
+### Added
+- **Unified Server Transport Layer (`ServerTransport`)**:
+  - Centralized all extension-to-server HTTP communication (`get`, `post`), lifecycle management, and event subscriptions into `ServerTransport`.
+  - **Lifetime Sticky Port Allocation**: Allocates a dedicated free TCP port once per VS Code window lifetime and retains it across server restarts, ensuring WebSocket and HTTP endpoints never drift when multiple VS Code windows are open.
+  - **Pub/Sub Event Bus**: Added typed state events (`onDidChangeState`, `onDidServerStart`, `onDidServerStop`) and topic-based subscriptions (`subscribe`/`publish`).
+  - **Liveness Watchdog & Auto-Restart with Circuit Breaker**: Periodic HTTP health checks, automatic exponential-backoff restart on unexpected server exit, sliding-window crash circuit breaker, and transparent retry on transient socket errors.
+
+### Fixed
+- **Multi-Window Connection Loss & Concurrent Starter Gate Race**:
+  - Disabled premature 60s server self-termination (`--idle-timeout 0`) when a second VS Code window is in the background without an active WebSocket tab.
+  - Fixed concurrent `IOException` race in `FileGateRepository.InitStarterGatesAsync` when multiple processes initialize starter gate files simultaneously.
 
 ---
 
