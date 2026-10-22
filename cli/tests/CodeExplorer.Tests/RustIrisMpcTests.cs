@@ -14,7 +14,7 @@ namespace CodeExplorer.Tests;
 [TestFixture]
 public class RustIrisMpcTests
 {
-    private const string IrisMpcWorkspacePath = @"C:\Work\Personal\iris-mpc";
+    private static readonly string IrisMpcWorkspacePath = Environment.GetEnvironmentVariable("IRIS_MPC_PATH") ?? @"../iris-mpc";
 
     [SetUp]
     public void SetUp()

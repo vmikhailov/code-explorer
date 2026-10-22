@@ -71,7 +71,7 @@ When updating the version, all of the following files **must** be updated simult
    - Update `"version"` inside `packages[""]`.
 
 4. **`CHANGELOG.md` AND `vscode-extension/CHANGELOG.md` (Mandatory Dual-Changelog Rule)**:
-   - Every release **must** document its changes under `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD` in **both** root [`CHANGELOG.md`](file:///c:/Work/Personal/code-explorer/CHANGELOG.md) and [`vscode-extension/CHANGELOG.md`](file:///c:/Work/Personal/code-explorer/vscode-extension/CHANGELOG.md).
+   - Every release **must** document its changes under `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD` in **both** root [`CHANGELOG.md`](../../../CHANGELOG.md) and [`vscode-extension/CHANGELOG.md`](../../../vscode-extension/CHANGELOG.md).
    - Because `vsce package` bundles `vscode-extension/CHANGELOG.md` into the VS Code Marketplace & Open VSX extension page, `vscode-extension/CHANGELOG.md` must never lag behind root `CHANGELOG.md`.
    - When proposals in `docs/proposals/` or plans in `docs/roadmap/` are 100% completed as part of a release, fold their delivered summary into the changelog and remove the completed proposal file.
 
@@ -151,7 +151,7 @@ Once verified:
    ```
 
 4. **CI/CD Automation (Unified Tag Release)**:
-   The unified GitHub Actions workflow ([`.github/workflows/release.yml`](file:///c:/Work/Personal/code-explorer/.github/workflows/release.yml)) is triggered strictly by the tag:
+   The unified GitHub Actions workflow ([`.github/workflows/release.yml`](../../../.github/workflows/release.yml)) is triggered strictly by the tag:
    - Builds native single-file binaries for **win-x64** and **osx-arm64** (reduced native matrix).
    - Packs and publishes universal `codeexplorer.cli` NuGet tool package to NuGet.org and GitHub Releases (serving non-native architectures: `linux-*`, `osx-x64`, `win-arm64`).
    - Packages lightweight universal `.vsix` extension and publishes to VS Code Marketplace & Open VSX Registry.

@@ -396,7 +396,7 @@ These 11 parsers are large (400–1,000 LOC) **not** because their library signa
 
 ### 8.1 Why Compiled YAML Dispatch Is Faster Than 146 C# Classes (`O(1)` vs `O(N * M)`)
 
-A natural concern with declarative YAML rules is runtime performance. However, inspecting [`BaseParserVisitor.cs`](file:///c:/Work/Personal/code-explorer/cli/src/Core/CodeExplorer.Core/Parser/BaseParserVisitor.cs#L131-L145) shows why the current C# approach actually has a hidden `O(Nodes × ActiveLibraries)` bottleneck:
+A natural concern with declarative YAML rules is runtime performance. However, inspecting [`BaseParserVisitor.cs`](../../cli/src/Core/CodeExplorer.Core/Parser/BaseParserVisitor.cs#L131-L145) shows why the current C# approach actually has a hidden `O(Nodes × ActiveLibraries)` bottleneck:
 
 * **Current C# Bottleneck (`O(N × M)` Virtual Dispatch):**
   For **every single AST node** in a file, `BaseParserVisitor` loops over `foreach (var libParser in LibraryParsers)` and invokes `MapNodeType(node)` and `CollectReferences(node)`, executing dozens of linear string checks and subtree walks per node.

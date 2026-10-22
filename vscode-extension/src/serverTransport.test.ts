@@ -63,9 +63,9 @@ async function runTests() {
 
   // 0. Test deriveWorkspacePort deterministic hashing across extension restarts
   {
-    const p1 = deriveWorkspacePort('C:\\Work\\Personal\\code-explorer');
-    const p2 = deriveWorkspacePort('c:/work/personal/code-explorer');
-    const p3 = deriveWorkspacePort('C:\\Work\\Github\\eShop');
+    const p1 = deriveWorkspacePort('C:\\Projects\\SampleApp\\backend');
+    const p2 = deriveWorkspacePort('c:/projects/sampleapp/backend');
+    const p3 = deriveWorkspacePort('C:\\Projects\\AnotherRepo\\frontend');
     assert.strictEqual(p1, p2, 'Normalized workspace paths must map to the exact same deterministic port');
     assert.ok(p1 >= 52100 && p1 < 59000, `Derived port must be in range [52100, 58999]: ${p1}`);
     assert.notStrictEqual(p1, p3, 'Different workspaces should map to distinct deterministic ports');
