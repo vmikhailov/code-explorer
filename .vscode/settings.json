@@ -1,0 +1,38 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "dotnet sln": true
+    },
+    "dotnet.defaultSolution": "cli/CodeExplorer.slnx",
+    "files.exclude": {
+        "**/.csdevkit": true,
+        "**/obj/.csdevkit": true,
+        "**/.vs/.csdevkit": true,
+        "**/.Build": true,
+        "**/.Packages": true,
+        "**/.vs": true,
+        "**/.codeexplorer/*.db*": true
+    },
+    "files.watcherExclude": {
+        "**/cli/tests/SampleProjects/**": true
+    },
+    "python.analysis.exclude": [
+        "**/cli/tests/SampleProjects/**"
+    ],
+    "typescript.tsserver.watchOptions": {
+        "excludeDirectories": [
+            "**/cli/tests/SampleProjects/**"
+        ],
+        "excludeFiles": [
+            "**/cli/tests/SampleProjects/**"
+        ]
+    },
+    "typescript.preferences.autoImportFileExcludePatterns": [
+        "**/cli/tests/SampleProjects/**"
+    ],
+    "vitest.exclude": [
+        "**/cli/tests/SampleProjects/**"
+    ],
+    "playwright.testIgnore": [
+        "**/cli/tests/SampleProjects/**"
+    ]
+}

@@ -6,7 +6,7 @@
     <!-- Vars are not defined when building projects explicitly -->
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
-    <SolutionDir Condition=" '$(SolutionDir)' == '' ">$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildProjectDirectory), Directory.Build.props))\</SolutionDir>
+    <SolutionDir>$(MSBuildThisFileDirectory)</SolutionDir>
 
     <!-- Output paths -->
     <BaseIntermediateOutputPath>$(SolutionDir).Build\obj_$(Configuration)_$(Platform)\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
