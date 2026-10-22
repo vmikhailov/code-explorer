@@ -50,7 +50,7 @@ public partial class PostIndexAnalyzer
         var ownerConcreteEngines = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         foreach (var (owner, rawTarget, rel, isImplicitEdge) in projectDbEdges)
         {
-            var domain = SyntaxEnricher.CleanProjectNameToDomain(owner.Name);
+            var domain = ResourceSemanticAnalyzer.CleanProjectNameToDomain(owner.Name);
             if (string.IsNullOrEmpty(domain)) domain = owner.Id;
             var target = rawTarget;
             if (domainScopedRemap.TryGetValue(domain, out var dMap) && dMap.TryGetValue(target, out var dWin))
@@ -77,7 +77,7 @@ public partial class PostIndexAnalyzer
         var activelyNeededImplicitDbIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (owner, rawTarget, rel, isImplicitEdge) in projectDbEdges)
         {
-            var domain = SyntaxEnricher.CleanProjectNameToDomain(owner.Name);
+            var domain = ResourceSemanticAnalyzer.CleanProjectNameToDomain(owner.Name);
             if (string.IsNullOrEmpty(domain)) domain = owner.Id;
             var target = rawTarget;
             if (domainScopedRemap.TryGetValue(domain, out var dMap) && dMap.TryGetValue(target, out var dWin))
@@ -251,7 +251,7 @@ public partial class PostIndexAnalyzer
 
         foreach (var (owner, rawTarget, rel, isImplicitEdge) in projectDbEdges)
         {
-            var domain = SyntaxEnricher.CleanProjectNameToDomain(owner.Name);
+            var domain = ResourceSemanticAnalyzer.CleanProjectNameToDomain(owner.Name);
             if (string.IsNullOrEmpty(domain)) domain = owner.Id;
 
             var target = rawTarget;
@@ -285,7 +285,11 @@ public partial class PostIndexAnalyzer
                 continue;
             }
 
-            if (owner.Id != target && seen.Add((owner.Id, target)))
+            var effectiveFrom = (projectToWorkloadMap != null && projectToWorkloadMap.TryGetValue(owner.Id, out var semFrom) && !string.IsNullOrEmpty(semFrom))
+                ? semFrom
+                : owner.Id;
+
+            if (effectiveFrom != target && seen.Add((effectiveFrom, target)))
             {
                 var props = new Dictionary<string, object>
                 {
@@ -303,43 +307,25 @@ public partial class PostIndexAnalyzer
                         }
                     }
                 }
-                if (!string.Equals(rel.From, owner.Id, StringComparison.OrdinalIgnoreCase) ||
+                if (!string.Equals(rel.From, effectiveFrom, StringComparison.OrdinalIgnoreCase) ||
                     !string.Equals(rel.To, target, StringComparison.OrdinalIgnoreCase))
                 {
                     EvidenceProvenanceHelper.RecordContributingEdge(props, rel);
                 }
                 canonicalRels.Add(new Relationship(
-                    owner.Id,
+                    effectiveFrom,
                     target,
                     OntologyConstants.Relationships.UsesDb,
                     props
                 ));
-
-                if (projectToWorkloadMap != null)
-                {
-                    var semFrom = projectToWorkloadMap.GetValueOrDefault(owner.Id);
-                    if (semFrom != null && semFrom != target && seen.Add((semFrom, target)))
-                    {
-                        var semProps = new Dictionary<string, object>(props)
-                        {
-                            ["is_semantic"] = "true"
-                        };
-                        canonicalRels.Add(new Relationship(
-                            semFrom,
-                            target,
-                            OntologyConstants.Relationships.UsesDb,
-                            semProps
-                        ));
-                    }
-                }
             }
             else if (rel.Properties != null)
             {
-                var existing = canonicalRels.FirstOrDefault(r => r.From == owner.Id && r.To == target);
+                var existing = canonicalRels.FirstOrDefault(r => r.From == effectiveFrom && r.To == target);
                 if (existing?.Properties != null)
                 {
                     EvidenceProvenanceHelper.MergeProvenance(existing.Properties, rel.Properties);
-                    if (!string.Equals(rel.From, owner.Id, StringComparison.OrdinalIgnoreCase) ||
+                    if (!string.Equals(rel.From, effectiveFrom, StringComparison.OrdinalIgnoreCase) ||
                         !string.Equals(rel.To, target, StringComparison.OrdinalIgnoreCase))
                     {
                         EvidenceProvenanceHelper.RecordContributingEdge(existing.Properties, rel);
@@ -352,26 +338,18 @@ public partial class PostIndexAnalyzer
                         }
                     }
                 }
-                if (projectToWorkloadMap != null && projectToWorkloadMap.TryGetValue(owner.Id, out var semFrom) && semFrom != null)
-                {
-                    var existingSem = canonicalRels.FirstOrDefault(r => r.From == semFrom && r.To == target);
-                    if (existingSem?.Properties != null && existing?.Properties != null)
-                    {
-                        EvidenceProvenanceHelper.MergeProvenance(existingSem.Properties, existing.Properties);
-                    }
-                }
             }
         }
 
         if (ctx.DbClient != null)
         {
             await ctx.DbClient.ExecuteWriteAsync(
-                "DELETE FROM edges WHERE kind = 'USES_DB' AND (from_id LIKE '%:p:%' OR from_id LIKE '%:project:%');");
+                "DELETE FROM edges WHERE kind = 'USES_DB' AND (from_id LIKE '%:p:%' OR from_id LIKE '%:project:%' OR from_id LIKE '%:svc:%' OR from_id LIKE '%:app:%' OR from_id LIKE '%:wrk:%' OR from_id LIKE '%:lib:%');");
         }
 
         if (canonicalRels.Count > 0 && ctx.DbClient != null)
         {
-            ctx.LogDebug($"[PostIndexAnalyzer] Materializing {canonicalRels.Count} direct project->canonical database relationships...");
+            ctx.LogDebug($"[PostIndexAnalyzer] Materializing {canonicalRels.Count} direct workload->canonical database relationships...");
             await ctx.DbClient.UploadRelationshipsAsync(canonicalRels);
             ctx.AddRelsCount(canonicalRels.Count);
         }
@@ -390,6 +368,12 @@ public partial class PostIndexAnalyzer
                         await ctx.DbClient.ExecuteWriteAsync(
                             "UPDATE OR IGNORE edges SET to_id = @winnerId WHERE to_id = @loserId AND from_id LIKE @pIdPrefix;",
                             new { winnerId, loserId, pIdPrefix = $"{pId}%" });
+                        if (projectToWorkloadMap != null && projectToWorkloadMap.TryGetValue(pId, out var wlId) && !string.IsNullOrEmpty(wlId))
+                        {
+                            await ctx.DbClient.ExecuteWriteAsync(
+                                "UPDATE OR IGNORE edges SET to_id = @winnerId WHERE to_id = @loserId AND from_id LIKE @wlIdPrefix;",
+                                new { winnerId, loserId, wlIdPrefix = $"{wlId}%" });
+                        }
                     }
                 }
             }

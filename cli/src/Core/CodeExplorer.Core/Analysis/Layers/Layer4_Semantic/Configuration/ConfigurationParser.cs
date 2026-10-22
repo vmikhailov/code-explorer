@@ -255,9 +255,19 @@ public static class ConfigurationParser
 
         if (string.IsNullOrWhiteSpace(dbName))
         {
+            var rawProjName = containerNode.Extensions?.GetValueOrDefault("raw_name") ?? containerNode.GetName();
+            var isLibContainer = (containerNode is ProjectNode pLib && pLib.IsLibrary) ||
+                                 containerNode is LibraryNode ||
+                                 (containerNode.Extensions != null && containerNode.Extensions.TryGetValue("is_library", out var il) && il == "true");
+            var isTstContainer = (containerNode is ProjectNode pTst && (pTst.IsTest || pTst.EntityKind == ProjectEntityKind.Test || pTst.Role == "Test")) ||
+                                 containerNode is TestSuiteNode ||
+                                 (containerNode.Extensions != null && containerNode.Extensions.TryGetValue("role", out var rl) && rl == "Test");
+
             if (isCache)
             {
-                var domain = containerNode is ProjectNode proj ? SyntaxEnricher.CleanProjectNameToDomain(proj.Name) : "";
+                var domain = (containerNode is ProjectNode or ServiceNode or AppNode or WorkerNode or CliToolNode or LibraryNode or TestSuiteNode)
+                    ? ResourceSemanticAnalyzer.CleanProjectNameToDomain(rawProjName)
+                    : "";
                 if (!string.IsNullOrEmpty(domain))
                 {
                     dbName = $"Redis.{domain}";
@@ -270,9 +280,9 @@ public static class ConfigurationParser
             }
             else
             {
-                if (containerNode is ProjectNode projNode && !projNode.IsLibrary && !projNode.IsTest && projNode.EntityKind != ProjectEntityKind.Test)
+                if ((containerNode is ProjectNode or ServiceNode or AppNode or WorkerNode or CliToolNode) && !isLibContainer && !isTstContainer)
                 {
-                    var domain = SyntaxEnricher.CleanProjectNameToDomain(projNode.Name);
+                    var domain = ResourceSemanticAnalyzer.CleanProjectNameToDomain(rawProjName);
                     if (!string.IsNullOrWhiteSpace(domain))
                     {
                         dbName = WorkspaceConventions.NormalizeServiceName(domain);
@@ -327,20 +337,11 @@ public static class ConfigurationParser
         if (!string.IsNullOrWhiteSpace(catalog)) aliases.Add(catalog);
         if (!string.IsNullOrWhiteSpace(engine)) aliases.Add(engine);
 
-        string? projId = null;
-        if (containerNode is ProjectNode pn)
-        {
-            projId = pn.Id;
-        }
-        else if (containerNode.Id.Contains($":{OntologyConstants.IdPrefixes.Project}:") || containerNode.Id.Contains(":project:"))
-        {
-            var id = containerNode.Id;
-            if (id.EndsWith("project_semantic")) id = id[..^"project_semantic".Length];
-            if (!id.EndsWith(':')) id += ":";
-            projId = id;
-        }
+        var (projId, workloadId, _) = ResolveContainerIds(containerNode, workspaceId, ctx);
 
         var isTestContainer = (containerNode is ProjectNode pNode && (pNode.IsTest || pNode.EntityKind == ProjectEntityKind.Test || pNode.Role == "Test")) ||
+                              containerNode is TestSuiteNode ||
+                              (containerNode.Extensions != null && containerNode.Extensions.TryGetValue("role", out var rRole) && rRole == "Test") ||
                               WorkspaceConventions.IsTestFilePath(relativePath);
 
         var regProps = new Dictionary<string, string>
@@ -370,7 +371,8 @@ public static class ConfigurationParser
             regProps
         );
 
-        if (!containerNode.Children.Any(c => c.Id == dbId))
+        var targetTreeContainer = ctx.SemanticStructure ?? containerNode;
+        if (!targetTreeContainer.Children.Any(c => c.Id == dbId))
         {
             var ext = new Dictionary<string, string>
             {
@@ -388,7 +390,7 @@ public static class ConfigurationParser
                 ext["role"] = "Test";
             }
             var dbNode = new DatabaseNode(dbId, dbName, relativePath, dbType, ext);
-            containerNode.Children.Add(dbNode);
+            targetTreeContainer.Children.Add(dbNode);
             ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Database, dbName, dbId);
         }
 
@@ -398,12 +400,12 @@ public static class ConfigurationParser
             [OntologyConstants.PropertyNames.Operation] = "CONFIG",
             [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Config
         };
-        var cfgRel = Relationship.FromRelationship(new ConfiguresRelationship(fileNodeId, dbId, cfgExt));
+        var cfgRel = Relationship.FromRelationship(new DeclaredInRelationship(dbId, fileNodeId, cfgExt));
         relationships.Add(cfgRel);
 
-        if (!string.IsNullOrEmpty(projId))
+        if (!string.IsNullOrEmpty(workloadId))
         {
-            var usesDbRel = Relationship.FromRelationship(new UsesDbRelationship(projId, dbId, cfgExt));
+            var usesDbRel = Relationship.FromRelationship(new UsesDbRelationship(workloadId, dbId, cfgExt));
             EvidenceProvenanceHelper.RecordContributingEdge(usesDbRel.Properties, cfgRel);
             relationships.Add(usesDbRel);
             ctx.AddGlobalProjectDependency(usesDbRel);
@@ -422,10 +424,11 @@ public static class ConfigurationParser
     {
         var topicId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Topic}:{brokerType}:{topicName}";
 
-        if (!containerNode.Children.Any(c => c.Id == topicId))
+        var targetTreeContainer = ctx.SemanticStructure ?? containerNode;
+        if (!targetTreeContainer.Children.Any(c => c.Id == topicId))
         {
             var topicNode = new TopicNode(topicId, topicName, relativePath, brokerType);
-            containerNode.Children.Add(topicNode);
+            targetTreeContainer.Children.Add(topicNode);
             ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Topic, topicName, topicId);
         }
 
@@ -435,30 +438,19 @@ public static class ConfigurationParser
             [OntologyConstants.PropertyNames.Operation] = "CONFIG",
             [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Config
         };
-        var cfgRel = Relationship.FromRelationship(new ConfiguresRelationship(fileNodeId, topicId, cfgExt));
+        var cfgRel = Relationship.FromRelationship(new DeclaredInRelationship(topicId, fileNodeId, cfgExt));
         relationships.Add(cfgRel);
 
-        string? projId = null;
-        if (containerNode is ProjectNode pn)
-        {
-            projId = pn.Id;
-        }
-        else if (containerNode.Id.Contains($":{OntologyConstants.IdPrefixes.Project}:") || containerNode.Id.Contains(":project:"))
-        {
-            var id = containerNode.Id;
-            if (id.EndsWith("project_semantic")) id = id[..^"project_semantic".Length];
-            if (!id.EndsWith(':')) id += ":";
-            projId = id;
-        }
+        var (_, workloadId, _) = ResolveContainerIds(containerNode, workspaceId, ctx);
 
-        if (!string.IsNullOrEmpty(projId))
+        if (!string.IsNullOrEmpty(workloadId))
         {
-            var pubRel = Relationship.FromRelationship(new PublishesToRelationship(projId, topicId, cfgExt));
+            var pubRel = Relationship.FromRelationship(new PublishesToRelationship(workloadId, topicId, cfgExt));
             EvidenceProvenanceHelper.RecordContributingEdge(pubRel.Properties, cfgRel);
             relationships.Add(pubRel);
             ctx.AddGlobalProjectDependency(pubRel);
 
-            var triggersRel = Relationship.FromRelationship(new TriggersRelationship(topicId, projId, cfgExt));
+            var triggersRel = Relationship.FromRelationship(new TriggersRelationship(topicId, workloadId, cfgExt));
             EvidenceProvenanceHelper.RecordContributingEdge(triggersRel.Properties, cfgRel);
             relationships.Add(triggersRel);
             ctx.AddGlobalProjectDependency(triggersRel);
@@ -476,10 +468,11 @@ public static class ConfigurationParser
     {
         var cloudId = $"{workspaceId}:cloud:{cloudName.ToLowerInvariant().Replace(' ', '_')}";
 
-        if (!containerNode.Children.Any(c => c.Id == cloudId))
+        var targetTreeContainer = ctx.SemanticStructure ?? containerNode;
+        if (!targetTreeContainer.Children.Any(c => c.Id == cloudId))
         {
             var cloudNode = new CloudServiceNode(cloudId, cloudName, "CloudService", relativePath);
-            containerNode.Children.Add(cloudNode);
+            targetTreeContainer.Children.Add(cloudNode);
             ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.CloudService, cloudName, cloudId);
         }
 
@@ -489,29 +482,63 @@ public static class ConfigurationParser
             [OntologyConstants.PropertyNames.Operation] = "CONFIG",
             [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.Config
         };
-        var cfgRel = Relationship.FromRelationship(new ConfiguresRelationship(fileNodeId, cloudId, cfgExt));
+        var cfgRel = Relationship.FromRelationship(new DeclaredInRelationship(cloudId, fileNodeId, cfgExt));
         relationships.Add(cfgRel);
 
-        string? projId = null;
-        if (containerNode is ProjectNode pn)
-        {
-            projId = pn.Id;
-        }
-        else if (containerNode.Id.Contains($":{OntologyConstants.IdPrefixes.Project}:") || containerNode.Id.Contains(":project:"))
-        {
-            var id = containerNode.Id;
-            if (id.EndsWith("project_semantic")) id = id[..^"project_semantic".Length];
-            if (!id.EndsWith(':')) id += ":";
-            projId = id;
-        }
+        var (_, workloadId, _) = ResolveContainerIds(containerNode, workspaceId, ctx);
 
-        if (!string.IsNullOrEmpty(projId))
+        if (!string.IsNullOrEmpty(workloadId))
         {
-            var usesCloudRel = Relationship.FromRelationship(new UsesCloudRelationship(projId, cloudId, cfgExt));
+            var usesCloudRel = Relationship.FromRelationship(new UsesCloudRelationship(workloadId, cloudId, cfgExt));
             EvidenceProvenanceHelper.RecordContributingEdge(usesCloudRel.Properties, cfgRel);
             relationships.Add(usesCloudRel);
             ctx.AddGlobalProjectDependency(usesCloudRel);
         }
+    }
+
+    private static (string? ProjectId, string? WorkloadId, string? ProjectName) ResolveContainerIds(
+        IOntologyNode containerNode,
+        string workspaceId,
+        ParsingContext ctx)
+    {
+        if (containerNode is SemanticStructureNode)
+        {
+            return (null, null, null);
+        }
+
+        if (containerNode is ServiceNode or AppNode or WorkerNode or CliToolNode or LibraryNode or TestSuiteNode)
+        {
+            var pid = containerNode.Extensions?.GetValueOrDefault("project_id");
+            var pname = containerNode.Extensions?.GetValueOrDefault("raw_name") ?? containerNode.GetName();
+            return (pid, containerNode.Id, pname);
+        }
+
+        if (containerNode is ProjectNode pn)
+        {
+            string? wlId = null;
+            if (ctx.SemanticStructure != null)
+            {
+                wlId = ctx.SemanticStructure.Children
+                    .FirstOrDefault(c => c.Extensions != null &&
+                                         c.Extensions.TryGetValue("project_id", out var p) &&
+                                         string.Equals(p, pn.Id, StringComparison.OrdinalIgnoreCase))?.Id;
+            }
+            wlId ??= $"{workspaceId}:{(pn.IsTest ? OntologyConstants.IdPrefixes.TestSuite : pn.IsLibrary ? OntologyConstants.IdPrefixes.Library : OntologyConstants.IdPrefixes.Service)}:{pn.Name}";
+            return (pn.Id, wlId, pn.Name);
+        }
+
+        if (containerNode.Id.Contains($":{OntologyConstants.IdPrefixes.Project}:") || containerNode.Id.Contains(":project:"))
+        {
+            var id = containerNode.Id;
+            if (id.EndsWith("project_semantic")) id = id[..^"project_semantic".Length];
+            if (!id.EndsWith(':')) id += ":";
+            var parts = id.Split(':', StringSplitOptions.RemoveEmptyEntries);
+            var projName = parts.Length > 0 ? Path.GetFileName(parts[^1].TrimEnd('/')) : null;
+            var wlId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Service}:{projName ?? containerNode.GetName()}";
+            return (id, wlId, projName);
+        }
+
+        return (null, null, null);
     }
 
     private static void ParseDiscoveredConfigEndpoints(
@@ -522,21 +549,7 @@ public static class ConfigurationParser
         List<Relationship> relationships,
         ParsingContext ctx)
     {
-        string? projId = null;
-        string? projName = null;
-        if (containerNode is ProjectNode pn)
-        {
-            projId = pn.Id;
-            projName = pn.Name;
-        }
-        else if (containerNode.Id.Contains($":{OntologyConstants.IdPrefixes.Project}:") || containerNode.Id.Contains(":project:"))
-        {
-            var id = containerNode.Id;
-            if (id.EndsWith("project_semantic")) id = id[..^"project_semantic".Length];
-            if (!id.EndsWith(':')) id += ":";
-            var parts = id.Split(':', StringSplitOptions.RemoveEmptyEntries);
-            projName = parts.Length > 0 ? Path.GetFileName(parts[^1].TrimEnd('/')) : null;
-        }
+        var (_, workloadId, projName) = ResolveContainerIds(containerNode, workspaceId, ctx);
 
         var discovered = ConfigurationIndex.GetDiscoveredUrls(projName);
         var normRelPath = relativePath.Replace('\\', '/');
@@ -570,7 +583,7 @@ public static class ConfigurationParser
                     }
                 );
 
-                if (!containerNode.Children.Any(c => c.Id == extId))
+                if (containerNode is not ProjectNode && !containerNode.Children.Any(c => c.Id == extId))
                 {
                     containerNode.Children.Add(extNode);
                     ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.ExternalService, ep.ServiceName, extId);
@@ -579,11 +592,12 @@ public static class ConfigurationParser
                 if (ctx.SemanticStructure != null && !ctx.SemanticStructure.Children.Any(c => c.Id == extId))
                 {
                     ctx.SemanticStructure.Children.Add(extNode);
+                    ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.ExternalService, ep.ServiceName, extId);
                 }
 
-                var cfgRel = Relationship.FromRelationship(new ConfiguresRelationship(
-                    fileNodeId,
+                var cfgRel = Relationship.FromRelationship(new DeclaredInRelationship(
                     extId,
+                    fileNodeId,
                     new Dictionary<string, string>
                     {
                         [OntologyConstants.PropertyNames.FilePath] = relativePath,
@@ -592,7 +606,7 @@ public static class ConfigurationParser
                     }));
                 relationships.Add(cfgRel);
 
-                if (!string.IsNullOrEmpty(projId))
+                if (!string.IsNullOrEmpty(workloadId))
                 {
                     var callProps = new Dictionary<string, object>
                     {
@@ -607,7 +621,7 @@ public static class ConfigurationParser
                     };
                     EvidenceProvenanceHelper.RecordContributingEdge(callProps, cfgRel);
                     var callRel = new Relationship(
-                        projId,
+                        workloadId,
                         extId,
                         OntologyConstants.Relationships.ServiceCall,
                         callProps);
@@ -617,11 +631,11 @@ public static class ConfigurationParser
             }
             else
             {
-                if (string.IsNullOrEmpty(projId)) continue;
+                if (string.IsNullOrEmpty(workloadId)) continue;
 
                 var targetId = $"{workspaceId}:service_target:{ep.ServiceName.ToLowerInvariant()}";
                 var rel = new Relationship(
-                    projId,
+                    workloadId,
                     targetId,
                     OntologyConstants.Relationships.ServiceCall,
                     new Dictionary<string, object>

@@ -46,7 +46,11 @@ export function getNodePresentation(
 
   // Badge label
   let badgeLabel = 'Project';
-  if (isCli) {
+  if (kindLower === 'domain') {
+    badgeLabel = 'Domain';
+  } else if (kindLower === 'boundedcontext') {
+    badgeLabel = 'Context';
+  } else if (isCli) {
     badgeLabel = 'CLI';
   } else if (isDb) {
     badgeLabel = (props.engine || props.db_type || 'DB').toUpperCase();
@@ -88,7 +92,9 @@ export function getNodePresentation(
 
   // Badge CSS class
   let badgeClass = 'badge-default';
-  if (isTest) badgeClass = 'badge-test';
+  if (kindLower === 'domain') badgeClass = 'badge-domain';
+  else if (kindLower === 'boundedcontext') badgeClass = 'badge-context';
+  else if (isTest) badgeClass = 'badge-test';
   else if (isCli) badgeClass = 'badge-cli';
   else if (isEp) badgeClass = 'badge-endpoint';
   else if (isDb) badgeClass = 'badge-db';
@@ -104,6 +110,12 @@ export function getNodePresentation(
   // Icon
   let icon = '🔹';
   switch (kind) {
+    case 'Domain':
+      icon = '🌐';
+      break;
+    case 'BoundedContext':
+      icon = '🧩';
+      break;
     case 'TestSuite':
     case 'Test':
       icon = '🧪';

@@ -13,6 +13,7 @@ echo "🚀 Deploying CodeExplorer site to ${TARGET_USER}@${TARGET_HOST}:${TARGET
 
 tar -czf - \
   index.html \
+  presentation.html \
   favicon.svg \
   logo.svg \
   all_services.png \
@@ -26,4 +27,4 @@ tar -czf - \
   ssh -i "$SSH_KEY" -o BatchMode=yes -o StrictHostKeyChecking=accept-new "${TARGET_USER}@${TARGET_HOST}" \
     "tar -xzf - -C '${TARGET_DIR}' && chown -R root:root '${TARGET_DIR}' && chmod 755 '${TARGET_DIR}' && chmod 644 '${TARGET_DIR}'/*"
 
-echo "✅ Live deployment successful: https://code-explorer.mikhailov.cc"
+echo "✅ Live deployment successful: https://code-explorer.app"

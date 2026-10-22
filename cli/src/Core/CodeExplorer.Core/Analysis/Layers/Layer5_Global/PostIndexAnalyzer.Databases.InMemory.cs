@@ -54,12 +54,42 @@ public partial class PostIndexAnalyzer
             ? (prebuiltFileToProject as Dictionary<string, ProjectNode> ?? new Dictionary<string, ProjectNode>(prebuiltFileToProject, StringComparer.OrdinalIgnoreCase))
             : Layer2ProjectParser.BuildFileToProjectMap(files, projects);
 
+        var workloadToProject = new Dictionary<string, ProjectNode>(StringComparer.OrdinalIgnoreCase);
+        if (l4Result.SemanticStructure != null)
+        {
+            foreach (var wl in l4Result.SemanticStructure.Children)
+            {
+                var projId = wl.Extensions?.GetValueOrDefault("project_id");
+                var proj = !string.IsNullOrEmpty(projId) ? projects.FirstOrDefault(p => p.Id == projId) : null;
+                if (proj != null)
+                {
+                    workloadToProject[wl.Id] = proj;
+                }
+            }
+        }
+        if (l4Result.SemanticRelationships != null)
+        {
+            foreach (var rel in l4Result.SemanticRelationships)
+            {
+                if (rel.Kind == OntologyConstants.Relationships.ImplementedBy)
+                {
+                    var proj = projects.FirstOrDefault(p => p.Id == rel.To || p.Id.TrimEnd(':') == rel.To.TrimEnd(':'));
+                    if (proj != null) workloadToProject[rel.From] = proj;
+                }
+                else if (rel.Kind == OntologyConstants.Relationships.Deploys)
+                {
+                    var proj = projects.FirstOrDefault(p => p.Id == rel.From || p.Id.TrimEnd(':') == rel.From.TrimEnd(':'));
+                    if (proj != null) workloadToProject[rel.To] = proj;
+                }
+            }
+        }
+
         bool IsTestSource(string fromId, string? fromPath)
         {
             if (!string.IsNullOrEmpty(fromPath) && WorkspaceConventions.IsTestFilePath(fromPath))
                 return true;
 
-            if (fileToProject.TryGetValue(fromId, out var p))
+            if (fileToProject.TryGetValue(fromId, out var p) || workloadToProject.TryGetValue(fromId, out p))
             {
                 if (p.IsTest || string.Equals(p.Role, "Test", StringComparison.OrdinalIgnoreCase) ||
                     (p.Extensions != null && p.Extensions.TryGetValue("is_test", out var it) && (it == "true" || it == "1")) ||
@@ -95,21 +125,27 @@ public partial class PostIndexAnalyzer
             if (rel.Kind == OntologyConstants.Relationships.Contains)
                 continue;
 
-            var isDbOrTableRel = rel.Kind == OntologyConstants.Relationships.UsesDb ||
+            var isForwardDbRel = rel.Kind == OntologyConstants.Relationships.UsesDb ||
                                  rel.Kind == OntologyConstants.Relationships.Configures ||
                                  rel.Kind == OntologyConstants.Relationships.ReadsFrom ||
                                  rel.Kind == OntologyConstants.Relationships.WritesTo ||
                                  rel.Kind == OntologyConstants.Relationships.DependsOn;
-            if (!isDbOrTableRel) continue;
+            var isReverseDbRel = rel.Kind == OntologyConstants.Relationships.AccessedBy ||
+                                 rel.Kind == OntologyConstants.Relationships.QueriedBy ||
+                                 rel.Kind == OntologyConstants.Relationships.DeclaredIn;
+            if (!isForwardDbRel && !isReverseDbRel) continue;
 
-            if (!rel.To.Contains(":db:") && !rel.To.Contains(":database:") && !rel.To.Contains(":res:db:"))
+            var dbTarget = isReverseDbRel ? rel.From : rel.To;
+            var callerSource = isReverseDbRel ? rel.To : rel.From;
+
+            if (!dbTarget.Contains(":db:") && !dbTarget.Contains(":database:") && !dbTarget.Contains(":res:db:"))
                 continue;
 
             var filePath = rel.Properties != null && rel.Properties.TryGetValue("file_path", out var fp) ? fp?.ToString() : null;
-            if (!IsTestSource(rel.From, filePath))
+            if (!IsTestSource(callerSource, filePath))
             {
-                nonTestAccessedTargets.Add(rel.To);
-                var parts = rel.To.Split(':');
+                nonTestAccessedTargets.Add(dbTarget);
+                var parts = dbTarget.Split(':');
                 var accum = "";
                 for (int i = 0; i < parts.Length; i++)
                 {
@@ -293,21 +329,27 @@ public partial class PostIndexAnalyzer
             if (rel.Kind == OntologyConstants.Relationships.Contains)
                 continue;
 
-            var isDbRel = rel.Kind == OntologyConstants.Relationships.UsesDb ||
-                          rel.Kind == OntologyConstants.Relationships.Configures ||
-                          rel.Kind == OntologyConstants.Relationships.ReadsFrom ||
-                          rel.Kind == OntologyConstants.Relationships.WritesTo ||
-                          rel.Kind == OntologyConstants.Relationships.DependsOn;
-            if (!isDbRel && !rel.To.Contains(":db:") && !rel.To.Contains(":database:") && !rel.To.Contains(":res:db:"))
+            var isForwardDbRel = rel.Kind == OntologyConstants.Relationships.UsesDb ||
+                                 rel.Kind == OntologyConstants.Relationships.Configures ||
+                                 rel.Kind == OntologyConstants.Relationships.ReadsFrom ||
+                                 rel.Kind == OntologyConstants.Relationships.WritesTo ||
+                                 rel.Kind == OntologyConstants.Relationships.DependsOn;
+            var isReverseDbRel = rel.Kind == OntologyConstants.Relationships.AccessedBy ||
+                                 rel.Kind == OntologyConstants.Relationships.QueriedBy ||
+                                 rel.Kind == OntologyConstants.Relationships.DeclaredIn;
+            var dbTarget = isReverseDbRel ? rel.From : rel.To;
+            var callerSource = isReverseDbRel ? rel.To : rel.From;
+
+            if (!isForwardDbRel && !isReverseDbRel && !dbTarget.Contains(":db:") && !dbTarget.Contains(":database:") && !dbTarget.Contains(":res:db:"))
                 continue;
 
-            if (!rawToCanonical.ContainsKey(rel.To))
+            if (!rawToCanonical.ContainsKey(dbTarget))
             {
                 var filePath = rel.Properties != null && rel.Properties.TryGetValue("file_path", out var fp) ? fp?.ToString() : null;
-                if (IsTestSource(rel.From, filePath)) continue;
-                if (!nonTestAccessedTargets.Contains(rel.To)) continue;
+                if (IsTestSource(callerSource, filePath)) continue;
+                if (!nonTestAccessedTargets.Contains(dbTarget)) continue;
 
-                var parts = rel.To.Split(':');
+                var parts = dbTarget.Split(':');
                 var rawName = parts.Length > 0 ? parts[^1] : "";
                 if (string.IsNullOrWhiteSpace(rawName)) continue;
 
@@ -330,8 +372,8 @@ public partial class PostIndexAnalyzer
                 }
 
                 var (cName, cType, cKey) = CanonicalizeDatabase(rawName, rawType, rawEngine, rawSchema, primaryRelationalEngine);
-                var canonicalId = BuildCanonicalDatabaseId(rel.To, cType, cKey, ctx.WorkspaceId);
-                rawToCanonical[rel.To] = canonicalId;
+                var canonicalId = BuildCanonicalDatabaseId(dbTarget, cType, cKey, ctx.WorkspaceId);
+                rawToCanonical[dbTarget] = canonicalId;
 
                 var engineToUse = !string.IsNullOrWhiteSpace(rawEngine) && !rawEngine.Equals("Database", StringComparison.OrdinalIgnoreCase)
                     ? rawEngine
@@ -393,7 +435,7 @@ public partial class PostIndexAnalyzer
 
         var projectsByDomain = projects
             .GroupBy(p => {
-                var d = SyntaxEnricher.CleanProjectNameToDomain(p.Name);
+                var d = ResourceSemanticAnalyzer.CleanProjectNameToDomain(p.Name);
                 return !string.IsNullOrEmpty(d) ? d : p.Id;
             }, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);

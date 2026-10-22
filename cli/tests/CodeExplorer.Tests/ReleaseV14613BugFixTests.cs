@@ -15,16 +15,16 @@ public class ReleaseV14613BugFixTests
     public void SyntaxEnricher_DetectDeclaredSchema_DoesNotGuessFromFileNameOrType()
     {
         var file1 = new FileNode("workspace:file:ICustomersDbContext.cs", "ICustomersDbContext.cs", "ICustomersDbContext.cs", "csharp");
-        SyntaxEnricher.DetectDeclaredSchema(null, file1, null).Should().BeNull();
+        ResourceSemanticAnalyzer.DetectDeclaredSchema(null, file1, null).Should().BeNull();
 
         var file2 = new FileNode("workspace:file:CustomersReadDbContext.cs", "CustomersReadDbContext.cs", "CustomersReadDbContext.cs", "csharp");
-        SyntaxEnricher.DetectDeclaredSchema(null, file2, null).Should().BeNull();
+        ResourceSemanticAnalyzer.DetectDeclaredSchema(null, file2, null).Should().BeNull();
 
         var file3 = new FileNode("workspace:file:ICustomerDbContext.cs", "ICustomerDbContext.cs", "ICustomerDbContext.cs", "csharp");
-        SyntaxEnricher.DetectDeclaredSchema(null, file3, null).Should().BeNull();
+        ResourceSemanticAnalyzer.DetectDeclaredSchema(null, file3, null).Should().BeNull();
 
         var file4 = new FileNode("workspace:file:CustomersWriteDbContext.cs", "CustomersWriteDbContext.cs", "CustomersWriteDbContext.cs", "csharp");
-        SyntaxEnricher.DetectDeclaredSchema(null, file4, null).Should().BeNull();
+        ResourceSemanticAnalyzer.DetectDeclaredSchema(null, file4, null).Should().BeNull();
     }
 
     [Test]

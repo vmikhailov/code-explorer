@@ -12,6 +12,7 @@ public static class TreeSitterSyntax
         public const string Function = "function";
         public const string Type = "type";
         public const string Value = "value";
+        public const string Pattern = "pattern";
         public const string Left = "left";
         public const string Right = "right";
         public const string Body = "body";
@@ -339,6 +340,7 @@ public static class TreeSitterSyntax
         public const string ClosureExpression = "closure_expression";
         public const string MatchExpression = "match_expression";
         public const string LetDeclaration = "let_declaration";
+        public const string FieldInitializer = "field_initializer";
         public const string AssignmentExpression = "assignment_expression";
         public const string BinaryExpression = "binary_expression";
         public const string UnaryExpression = "unary_expression";

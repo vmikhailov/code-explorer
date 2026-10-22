@@ -11,13 +11,13 @@ using CodeExplorer.Core.Database;
 
 namespace CodeExplorer.Core.Parser;
 
-public partial class SyntaxEnricher : ISyntaxEnricher
+public partial class ResourceSemanticAnalyzer
 {
     private readonly IReadOnlyList<ISemanticExtension> _semanticExtensions;
     private readonly SemanticExtensionRegistry _trieRegistry;
     private readonly SyntaxTree _syntaxTree;
 
-    public SyntaxEnricher(
+    public ResourceSemanticAnalyzer(
         IReadOnlyList<ISemanticExtension> semanticExtensions,
         SyntaxTree syntaxTree,
         IReadOnlyList<PackageDescriptor>? packages = null)
@@ -40,6 +40,17 @@ public partial class SyntaxEnricher : ISyntaxEnricher
         _syntaxTree = syntaxTree;
     }
 
+    public static Task EnrichAsync(
+        SyntaxTree syntaxTree,
+        ProjectNode projectNode,
+        IProjectParser parser,
+        ParsingContext ctx,
+        IOntologyNode? workloadNode = null)
+    {
+        var analyzer = new ResourceSemanticAnalyzer(parser.SemanticExtensions, syntaxTree, parser.Packages);
+        return analyzer.EnrichAsync(projectNode, ctx, workloadNode);
+    }
+
     private sealed record PackageSemanticExtensionAdapter(PackageDescriptor Package) : ISemanticExtension
     {
         public string Id => Package.Id;
@@ -58,29 +69,82 @@ public partial class SyntaxEnricher : ISyntaxEnricher
         public bool IsImplemented => false;
     }
 
-    private static readonly Regex ConfigRegex = new(
-        @"(?i)(config|settings?|cfg|\benv\b|db_?conn|\burl\b|\buri\b|\bport\b|\bhost\b|user(name)?|pass(word)?|token|secret|\bkey\b|auth|api_?key|connection_?string)",
-        RegexOptions.Compiled
-    );
+    private static string ResolveWorkloadId(ProjectNode projectNode, ParsingContext ctx, IOntologyNode? workloadNode)
+    {
+        if (workloadNode != null) return workloadNode.Id;
 
-    private static readonly Regex ConfigInitializerRegex = new(
-        @"(?i)(process\.env|Configuration\[|Environment\.GetEnvironmentVariable|System\.Environment|import\.meta\.env|dotenv|require\(['""]dotenv['""]\))",
-        RegexOptions.Compiled
-    );
+        if (ctx.SemanticStructure != null)
+        {
+            var match = ctx.SemanticStructure.Children.FirstOrDefault(c =>
+                c.Extensions != null &&
+                c.Extensions.TryGetValue("project_id", out var pid) &&
+                string.Equals(pid, projectNode.Id, StringComparison.OrdinalIgnoreCase));
+            if (match != null) return match.Id;
+        }
 
-    private static readonly Regex EtlRegex = new(
-        @"(?i)(\betl\b|\bsql\b|\bquery\b|\bselect\b|\binsert\b|\bupsert\b|\bschema\b|\btable\b|\bcolumn\b|\bdatabase\b|\bmigration\b|\bextract\b|\btransform\b|\bload\b)",
-        RegexOptions.Compiled
-    );
+        var prefix = projectNode.IsTest
+            ? OntologyConstants.IdPrefixes.TestSuite
+            : projectNode.IsLibrary
+                ? OntologyConstants.IdPrefixes.Library
+                : OntologyConstants.IdPrefixes.Service;
+        return $"{ctx.WorkspaceId}:{prefix}:{projectNode.Name}";
+    }
 
-    private static readonly Regex SqlQueryRegex = new(
-        @"(?i)^[\s@$""'\`]*\s*(select|insert|update|delete|create\s+table|drop\s+table|merge|alter\s+table)\b",
-        RegexOptions.Compiled
-    );
+    private static Relationship EmitGroundingEdges(
+        string resourceId,
+        FileNode fileNode,
+        int usageLine,
+        Dictionary<string, string>? ext,
+        ParsingContext ctx)
+    {
+        var declaredRel = Relationship.FromRelationship(new DeclaredInRelationship(resourceId, fileNode.Id, ext));
+        ctx.AddGlobalProjectDependency(declaredRel);
 
-    public virtual async Task EnrichAsync(ProjectNode projectNode, ParsingContext ctx)
+        Relationship primaryGroundingRel = declaredRel;
+        var targetSymbols = new List<IOntologyNode>();
+        if (usageLine > 0)
+        {
+            foreach (var child in fileNode.Children)
+            {
+                if (child is TypeNode tn && usageLine >= tn.StartLine && usageLine <= tn.EndLine)
+                {
+                    var matchingFn = tn.Children.OfType<FunctionNode>()
+                        .FirstOrDefault(fn => usageLine >= fn.StartLine && usageLine <= fn.EndLine);
+                    targetSymbols.Add(matchingFn != null ? matchingFn : tn);
+                }
+                else if (child is FunctionNode fn && usageLine >= fn.StartLine && usageLine <= fn.EndLine)
+                {
+                    targetSymbols.Add(fn);
+                }
+            }
+        }
+
+        if (targetSymbols.Count == 0)
+        {
+            foreach (var child in fileNode.Children)
+            {
+                if (child is TypeNode or FunctionNode)
+                {
+                    targetSymbols.Add(child);
+                }
+            }
+        }
+
+        foreach (var sym in targetSymbols)
+        {
+            var accessedRel = Relationship.FromRelationship(new AccessedByRelationship(resourceId, sym.Id, ext));
+            ctx.AddGlobalProjectDependency(accessedRel);
+            primaryGroundingRel = accessedRel;
+        }
+
+        return primaryGroundingRel;
+    }
+
+    public virtual async Task EnrichAsync(ProjectNode projectNode, ParsingContext ctx, IOntologyNode? workloadNode = null)
     {
         ArgumentNullException.ThrowIfNull(projectNode);
+        var workloadId = ResolveWorkloadId(projectNode, ctx, workloadNode);
+
         var packageNames = projectNode.Children
             .OfType<PackageNode>()
             .Select(p => p.Name)
@@ -102,9 +166,8 @@ public partial class SyntaxEnricher : ISyntaxEnricher
         }
 
         var fileNode = _syntaxTree.FileNode;
-
         var relativePath = fileNode.Path;
-        // Extract libraries used as list of string
+
         var fileImports = _syntaxTree.RawImports
             .Where(i => i.Type == ImportType.External || _trieRegistry.Match(i.Path) != null)
             .Select(i => i.Path)
@@ -162,7 +225,7 @@ public partial class SyntaxEnricher : ISyntaxEnricher
 
                     var isOrm = IsOrmLibrary(parser.Id);
 
-                    // Always record USES_API for the ORM / DB driver library
+                    // Record USES_API (L4 -> L4) and downward grounding (L4 -> L3/L1) for the ORM / DB driver library
                     var apiPrefix = isOrm ? "orm" : "api";
                     var ormApiId = $"{projectNode.Id}{apiPrefix}:{parser.Id}";
                     var semanticNode = ctx.SemanticStructure;
@@ -171,7 +234,8 @@ public partial class SyntaxEnricher : ISyntaxEnricher
                         var apiNode = new ApiInUseNode(ormApiId, parser.Name, fileNode.Path);
                         semanticNode.Children.Add(apiNode);
                     }
-                    var ormUsesApiRel = new UsesApiRelationship(fileNode.Id, ormApiId);
+                    EmitGroundingEdges(ormApiId, fileNode, 0, null, ctx);
+                    var ormUsesApiRel = new UsesApiRelationship(workloadId, ormApiId);
                     ctx.AddGlobalProjectDependency(Relationship.FromRelationship(ormUsesApiRel));
 
                     var (detectedEngine, detectedType) = isOrm
@@ -220,7 +284,7 @@ public partial class SyntaxEnricher : ISyntaxEnricher
                     var declaredSchema = declaredSchemas.FirstOrDefault();
                     CanonicalResource? canonicalRes = null;
 
-                    // Step B: If declaredSchemas.Count == 0, check if THIS exact project (r.ProjectId == projectNode.Id) ALREADY has a concrete configured :Database resource
+                    // Step B: If declaredSchemas.Count == 0, check if THIS exact project ALREADY has a concrete configured :Database resource
                     if (declaredSchemas.Count == 0 && ctx.ResourceRegistry != null)
                     {
                         var projRes = ctx.ResourceRegistry.AllResources
@@ -232,7 +296,6 @@ public partial class SyntaxEnricher : ISyntaxEnricher
 
                         if (projRes == null && !string.IsNullOrEmpty(projectNode.Path))
                         {
-                            // ProjectNode.Path is already the project directory; only strip a trailing project file name.
                             var projPath = projectNode.Path.Replace('\\', '/').TrimEnd('/');
                             var projDir = Path.HasExtension(projPath) && projPath.EndsWith("proj", StringComparison.OrdinalIgnoreCase)
                                 ? Path.GetDirectoryName(projPath)?.Replace('\\', '/').TrimEnd('/')
@@ -352,10 +415,7 @@ public partial class SyntaxEnricher : ISyntaxEnricher
                         }
                     }
 
-                    // Step C: Strict Evidence Gate in SyntaxEnricher.cs:
-                    // If after Step A and Step B we STILL have no concrete declaredSchema AND no resolved concrete canonicalRes from ResourceRegistry
-                    // for relational databases (i.e. mere imports without entity/table definitions or schema):
-                    // DO NOT create a DatabaseNode, DO NOT register an engine-only resource in ResourceRegistry, and DO NOT emit UsesDbRelationship! Simply break; out of case "db":!
+                    // Step C: Strict Evidence Gate
                     if (string.IsNullOrEmpty(targetEngine) || (isRelational && declaredSchemas.Count == 0 && canonicalRes == null))
                     {
                         break;
@@ -458,7 +518,6 @@ public partial class SyntaxEnricher : ISyntaxEnricher
                         var semanticNodeForDb = ctx.SemanticStructure;
                         if (semanticNodeForDb != null)
                         {
-                            // Remove any previous generic placeholder Database node that might have been registered before a driver was detected
                             semanticNodeForDb.Children.RemoveAll(c => c is DatabaseNode dn && (string.Equals(dn.Name, "Database", StringComparison.OrdinalIgnoreCase) || dn.Id.EndsWith(":database:relational:database", StringComparison.OrdinalIgnoreCase) || dn.Id.EndsWith($":{OntologyConstants.IdPrefixes.Database}:relational:database", StringComparison.OrdinalIgnoreCase)));
 
                             if (!semanticNodeForDb.Children.Any(c => c.Id == dbId))
@@ -499,19 +558,19 @@ public partial class SyntaxEnricher : ISyntaxEnricher
                             relExt[OntologyConstants.PropertyNames.LineEnd] = usageLine.ToString();
                         }
 
-                        var usesDbRel = Relationship.FromRelationship(new UsesDbRelationship(fileNode.Id, dbId, relExt));
-                        ctx.AddGlobalProjectDependency(usesDbRel);
+                        var groundingRel = EmitGroundingEdges(dbId, fileNode, usageLine, relExt, ctx);
                         if (projectNode.IsTest || !WorkspaceConventions.IsTestFilePath(fileNode.Path))
                         {
-                            var projUsesDbRel = Relationship.FromRelationship(new UsesDbRelationship(projectNode.Id, dbId, relExt));
-                            EvidenceProvenanceHelper.RecordContributingEdge(projUsesDbRel.Properties, usesDbRel);
-                            ctx.AddGlobalProjectDependency(projUsesDbRel);
+                            var workloadUsesDbRel = Relationship.FromRelationship(new UsesDbRelationship(workloadId, dbId, relExt));
+                            EvidenceProvenanceHelper.RecordContributingEdge(workloadUsesDbRel.Properties, groundingRel);
+                            ctx.AddGlobalProjectDependency(workloadUsesDbRel);
                         }
                     }
                     break;
                 }
 
                 case "api":
+                {
                     var apiId = $"{projectNode.Id}api:{parser.Id}";
                     var semanticNodeForApi = ctx.SemanticStructure;
                     if (semanticNodeForApi != null && !semanticNodeForApi.Children.Any(c => c.Id == apiId))
@@ -526,14 +585,15 @@ public partial class SyntaxEnricher : ISyntaxEnricher
                         [OntologyConstants.PropertyNames.Operation] = "CALL",
                         [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.LibraryCall
                     };
-                    var usesApiRel = Relationship.FromRelationship(new UsesApiRelationship(fileNode.Id, apiId, apiExt));
-                    ctx.AddGlobalProjectDependency(usesApiRel);
-                    var projUsesApiRel = Relationship.FromRelationship(new UsesApiRelationship(projectNode.Id, apiId, apiExt));
-                    EvidenceProvenanceHelper.RecordContributingEdge(projUsesApiRel.Properties, usesApiRel);
-                    ctx.AddGlobalProjectDependency(projUsesApiRel);
+                    var apiGroundingRel = EmitGroundingEdges(apiId, fileNode, 0, apiExt, ctx);
+                    var workloadUsesApiRel = Relationship.FromRelationship(new UsesApiRelationship(workloadId, apiId, apiExt));
+                    EvidenceProvenanceHelper.RecordContributingEdge(workloadUsesApiRel.Properties, apiGroundingRel);
+                    ctx.AddGlobalProjectDependency(workloadUsesApiRel);
                     break;
+                }
 
                 case "cloud":
+                {
                     var cloudService = parser.Name;
                     var cloudId = $"{projectNode.Id}cloud:{parser.Id}";
                     var semanticNodeForCloud = ctx.SemanticStructure;
@@ -549,89 +609,16 @@ public partial class SyntaxEnricher : ISyntaxEnricher
                         [OntologyConstants.PropertyNames.Operation] = "CALL",
                         [OntologyConstants.PropertyNames.EvidenceKind] = OntologyConstants.EvidenceKinds.HttpCall
                     };
-                    var usesCloudRel = Relationship.FromRelationship(new UsesCloudRelationship(fileNode.Id, cloudId, cloudExt));
-                    ctx.AddGlobalProjectDependency(usesCloudRel);
-                    var projUsesCloudRel = Relationship.FromRelationship(new UsesCloudRelationship(projectNode.Id, cloudId, cloudExt));
-                    EvidenceProvenanceHelper.RecordContributingEdge(projUsesCloudRel.Properties, usesCloudRel);
-                    ctx.AddGlobalProjectDependency(projUsesCloudRel);
+                    var cloudGroundingRel = EmitGroundingEdges(cloudId, fileNode, 0, cloudExt, ctx);
+                    var workloadUsesCloudRel = Relationship.FromRelationship(new UsesCloudRelationship(workloadId, cloudId, cloudExt));
+                    EvidenceProvenanceHelper.RecordContributingEdge(workloadUsesCloudRel.Properties, cloudGroundingRel);
+                    ctx.AddGlobalProjectDependency(workloadUsesCloudRel);
                     break;
-            }
-        }
-
-        var fileVariables = _syntaxTree.RawVariables;
-        foreach (var rawVar in fileVariables)
-        {
-            var isConfig = ConfigRegex.IsMatch(rawVar.Name) ||
-                           ConfigInitializerRegex.IsMatch(rawVar.InitializerText);
-            var isEtl = EtlRegex.IsMatch(rawVar.Name) || SqlQueryRegex.IsMatch(rawVar.InitializerText);
-            var isConstant = rawVar.IsConstant;
-            var isGlobal = rawVar.Scope == "global";
-            var isProperty = rawVar.MemberKind == "property";
-            var isField = rawVar.MemberKind == "field";
-
-            if (isConfig || isEtl || isConstant || isGlobal || isProperty || isField)
-            {
-                var varTypeStr = new List<string>();
-                if (isConfig) varTypeStr.Add("config");
-                if (isEtl) varTypeStr.Add("etl");
-                if (isConstant) varTypeStr.Add("constant");
-                if (isGlobal) varTypeStr.Add("global");
-                if (isProperty) varTypeStr.Add("property");
-                if (isField) varTypeStr.Add("field");
-
-                var varType = string.Join(",", varTypeStr);
-                var varId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Member:{rawVar.Name}:{rawVar.StartLine}";
-
-                var ext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["variable_type"] = varType,
-                    ["initializer_expression"] = rawVar.InitializerText,
-                    ["is_constant"] = isConstant ? "true" : "false"
-                };
-                if (!string.IsNullOrEmpty(rawVar.TypeName))
-                {
-                    ext["data_type"] = rawVar.TypeName;
                 }
-
-                var varNode = new MemberNode(
-                    varId,
-                    rawVar.Name,
-                    varId,
-                    fileNode.FullPath,
-                    varId,
-                    rawVar.StartLine,
-                    rawVar.EndLine,
-                    rawVar.StartCol,
-                    rawVar.EndCol,
-                    rawVar.MemberKind ?? "variable",
-                    rawVar.TypeName,
-                    ext
-                );
-
-                TryInsertVariable(fileNode, varNode, rawVar.StartLine);
             }
         }
 
         await Task.CompletedTask;
-    }
-
-    private static bool TryInsertVariable(IOntologyNode parentNode, MemberNode varNode, int line)
-    {
-        foreach (var child in parentNode.Children)
-        {
-            if (child is TypeNode cn && line >= cn.StartLine && line <= cn.EndLine)
-            {
-                if (TryInsertVariable(cn, varNode, line)) return true;
-            }
-
-            if (child is FunctionNode fn && line >= fn.StartLine && line <= fn.EndLine)
-            {
-                if (TryInsertVariable(fn, varNode, line)) return true;
-            }
-        }
-
-        parentNode.Children.Add(varNode);
-        return true;
     }
 
     private static int FindDatabaseUsageLine(FileNode fileNode, SyntaxTree syntaxTree, string? schema, string parserId)
@@ -748,7 +735,6 @@ public partial class SyntaxEnricher : ISyntaxEnricher
 
     public static string? DetectDeclaredSchema(ProjectNode? projectNode, FileNode? fileNode, SyntaxTree? syntaxTree, string? dbType = null)
     {
-        // 1. Check if any symbol in fileNode has explicit schema extension
         if (fileNode != null)
         {
             var found = FindSchemaInNode(fileNode);
@@ -765,7 +751,6 @@ public partial class SyntaxEnricher : ISyntaxEnricher
             }
         }
 
-        // 2. Scan source file text if available for explicit schema declarations
         if (syntaxTree != null && !string.IsNullOrEmpty(syntaxTree.FilePath) && File.Exists(syntaxTree.FilePath))
         {
             var fileSchema = ScanFileTextForSchema(syntaxTree.FilePath);
@@ -808,7 +793,7 @@ public partial class SyntaxEnricher : ISyntaxEnricher
             return true;
         }
         if (NestedSqlParser.IsSqlKeyword(clean)) return false;
-        if (clean.EndsWith("Schema", StringComparison.OrdinalIgnoreCase) && 
+        if (clean.EndsWith("Schema", StringComparison.OrdinalIgnoreCase) &&
             !clean.Equals("schema", StringComparison.OrdinalIgnoreCase) &&
             !clean.Equals("public", StringComparison.OrdinalIgnoreCase))
         {

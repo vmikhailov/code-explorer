@@ -3,6 +3,7 @@ using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser.Layers;
@@ -74,7 +75,8 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                 AddCall(rel.From, rel.To);
             }
             else if (rel.Kind == OntologyConstants.Relationships.CalledBy ||
-                     rel.Kind == OntologyConstants.Relationships.QueriedBy)
+                     rel.Kind == OntologyConstants.Relationships.QueriedBy ||
+                     rel.Kind == OntologyConstants.Relationships.AccessedBy)
             {
                 AddCall(rel.To, rel.From);
             }
@@ -88,6 +90,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         var sinks = new Dictionary<string, string>();
         var sinkDomains = new Dictionary<string, string?>();
         var entryPointIds = new HashSet<string>();
+        var functionIds = new HashSet<string>();
 
         void CollectNodes(IOntologyNode node)
         {
@@ -118,6 +121,10 @@ public partial class PostIndexAnalyzer(IGraphClient db)
             {
                 entryPointIds.Add(endp.Id);
             }
+            else if (node is FunctionNode fn)
+            {
+                functionIds.Add(fn.Id);
+            }
 
             foreach (var child in node.Children)
             {
@@ -127,6 +134,10 @@ public partial class PostIndexAnalyzer(IGraphClient db)
 
         var root = l4Result.Prev.Prev.Prev.Workspace;
         CollectNodes(root);
+        if (l4Result.SemanticStructure != null)
+        {
+            CollectNodes(l4Result.SemanticStructure);
+        }
 
         foreach (var (key, id) in ctx.GlobalSymbols)
         {
@@ -156,11 +167,17 @@ public partial class PostIndexAnalyzer(IGraphClient db)
             if (rel.Kind == OntologyConstants.Relationships.ImplementedBy ||
                 rel.Kind == OntologyConstants.Relationships.ExposedBy)
             {
-                AddImplements(rel.From, rel.To);
+                if (entryPointIds.Contains(rel.From))
+                {
+                    AddImplements(rel.From, rel.To);
+                }
             }
             else if (rel.Kind == OntologyConstants.Relationships.Implements)
             {
-                AddImplements(rel.To, rel.From);
+                if (entryPointIds.Contains(rel.To))
+                {
+                    AddImplements(rel.To, rel.From);
+                }
             }
         }
 
@@ -179,11 +196,26 @@ public partial class PostIndexAnalyzer(IGraphClient db)
             }
             projectToEntryPoints[project.Id] = epList;
         }
+        if (l4Result.SemanticStructure != null)
+        {
+            foreach (var workloadNode in l4Result.SemanticStructure.Children)
+            {
+                var projId = workloadNode.Extensions?.GetValueOrDefault("project_id");
+                if (!string.IsNullOrEmpty(projId) && projectToEntryPoints.TryGetValue(projId, out var epList))
+                {
+                    foreach (var child in workloadNode.Children)
+                    {
+                        if (child is EntryPointNode ep && !epList.Contains(ep.Id)) epList.Add(ep.Id);
+                        else if (child is EndpointNode endp && !epList.Contains(endp.Id)) epList.Add(endp.Id);
+                    }
+                }
+            }
+        }
 
-        var callersSet = new HashSet<string>(callsAdjacency.Keys);
+        var callersSet = new HashSet<string>(callsAdjacency.Keys.Where(functionIds.Contains));
         foreach (var fnList in implements.Values)
         {
-            foreach (var fnId in fnList)
+            foreach (var fnId in fnList.Where(functionIds.Contains))
             {
                 callersSet.Add(fnId);
             }
@@ -191,7 +223,11 @@ public partial class PostIndexAnalyzer(IGraphClient db)
 
         var widPrefix = string.IsNullOrEmpty(ctx.WorkspaceId) ? "" : (ctx.WorkspaceId.EndsWith(':') ? ctx.WorkspaceId : ctx.WorkspaceId + ":");
         var graphData = new PostIndexGraphData(callsAdjacency, sinks, sinkDomains, [.. callersSet], implements, [.. entryPointIds], projectToEntryPoints);
-        var result = Analyze(graphData, widPrefix);
+        var rawResult = Analyze(graphData, widPrefix);
+        var result = rawResult with
+        {
+            TransitivelyCalls = [.. rawResult.TransitivelyCalls.Select(tc => (From: tc.To, To: tc.From, Hops: tc.Hops))]
+        };
 
         // Update project nodes in memory
         foreach (var (projId, domains) in result.ProjectExternalApis)
@@ -229,13 +265,26 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         allCombinedRels.AddRange(canonicalDbRels);
 
         var projectToWorkloadMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var workloadToProjectMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (l4Result.SemanticRelationships != null)
         {
-            foreach (var rel in l4Result.SemanticRelationships.Where(r => r.Kind == OntologyConstants.Relationships.Deploys))
+            foreach (var rel in l4Result.SemanticRelationships)
             {
-                projectToWorkloadMap[rel.From] = rel.To;
-                projectToWorkloadMap[rel.From.TrimEnd(':')] = rel.To;
-                projectToWorkloadMap[rel.From.TrimEnd(':') + ":"] = rel.To;
+                if (rel.Kind == OntologyConstants.Relationships.Deploys)
+                {
+                    projectToWorkloadMap[rel.From] = rel.To;
+                    projectToWorkloadMap[rel.From.TrimEnd(':')] = rel.To;
+                    projectToWorkloadMap[rel.From.TrimEnd(':') + ":"] = rel.To;
+                    workloadToProjectMap[rel.To] = rel.From.TrimEnd(':');
+                }
+                else if (rel.Kind == OntologyConstants.Relationships.ImplementedBy &&
+                         (rel.To.Contains(":p:") || rel.To.Contains(":project:")))
+                {
+                    projectToWorkloadMap[rel.To] = rel.From;
+                    projectToWorkloadMap[rel.To.TrimEnd(':')] = rel.From;
+                    projectToWorkloadMap[rel.To.TrimEnd(':') + ":"] = rel.From;
+                    workloadToProjectMap[rel.From] = rel.To.TrimEnd(':');
+                }
             }
         }
 
@@ -285,11 +334,22 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                 }
             }
             Collect(p);
+            var wlId = projectToWorkloadMap.GetValueOrDefault(p.Id);
+            if (l4Result.SemanticStructure != null)
+            {
+                foreach (var wl in l4Result.SemanticStructure.Children)
+                {
+                    if ((wlId != null && wl.Id == wlId) || wl.Extensions?.GetValueOrDefault("project_id") == p.Id)
+                    {
+                        Collect(wl);
+                    }
+                }
+            }
 
             var endpointsCount = allChildren.OfType<EndpointNode>().Count();
             var entryPoints = allChildren.OfType<EntryPointNode>().ToList();
             var externalServicesCount = allChildren.OfType<ExternalServiceNode>().Count();
-            var usesDbCount = allCombinedRels.Count(r => r.From == p.Id && r.Kind == OntologyConstants.Relationships.UsesDb);
+            var usesDbCount = allCombinedRels.Count(r => (r.From == p.Id || (wlId != null && r.From == wlId)) && r.Kind == OntologyConstants.Relationships.UsesDb);
 
             return new ProjectClassifierItem
             {
@@ -311,7 +371,11 @@ public partial class PostIndexAnalyzer(IGraphClient db)
             .Where(r => r.Kind == OntologyConstants.Relationships.DependsOn ||
                         r.Kind == OntologyConstants.Relationships.ServiceCall ||
                         r.Kind == OntologyConstants.Relationships.UsesDb)
-            .Select(r => new DependencyItem { SourceId = r.From, TargetId = r.To });
+            .Select(r => new DependencyItem
+            {
+                SourceId = workloadToProjectMap.GetValueOrDefault(r.From, r.From),
+                TargetId = workloadToProjectMap.GetValueOrDefault(r.To, r.To)
+            });
 
         var layerMap = ProjectLayerClassifier.Classify(classifierItems, dependencyItems);
 
@@ -436,29 +500,36 @@ public partial class PostIndexAnalyzer(IGraphClient db)
             allRelationships.Select(r => (r.From, r.To, r.Kind))
         );
 
+        var topicEvidenceFiles = BuildTopicEvidenceFileIndex(allRelationships);
+
+        var workloadToProject = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (projectToWorkloadMap != null)
+        {
+            foreach (var (k, v) in projectToWorkloadMap)
+            {
+                if (!k.EndsWith(':')) workloadToProject[v] = k;
+            }
+        }
+
         void AddLifted(string fromId, string toId, string relKind, Dictionary<string, object> properties)
         {
+            if (projectToWorkloadMap != null && projectToWorkloadMap.TryGetValue(fromId, out var semFrom) && semFrom != null)
+            {
+                var semTo = projectToWorkloadMap.GetValueOrDefault(toId, toId);
+                if (semFrom != semTo && existingEdges.Add((semFrom, semTo, relKind)))
+                {
+                    var semProps = new Dictionary<string, object>(properties)
+                    {
+                        ["is_semantic"] = "true"
+                    };
+                    liftedRels.Add(new Relationship(semFrom, semTo, relKind, semProps));
+                }
+                return;
+            }
+
             if (existingEdges.Add((fromId, toId, relKind)))
             {
                 liftedRels.Add(new Relationship(fromId, toId, relKind, properties));
-            }
-
-            if (projectToWorkloadMap != null)
-            {
-                var semFrom = projectToWorkloadMap.GetValueOrDefault(fromId);
-                var semTo = projectToWorkloadMap.GetValueOrDefault(toId, toId);
-
-                if (semFrom != null && semFrom != semTo)
-                {
-                    if (existingEdges.Add((semFrom, semTo, relKind)))
-                    {
-                        var semProps = new Dictionary<string, object>(properties)
-                        {
-                            ["is_semantic"] = "true"
-                        };
-                        liftedRels.Add(new Relationship(semFrom, semTo, relKind, semProps));
-                    }
-                }
             }
         }
 
@@ -466,17 +537,24 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         {
             var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { service.Id };
             var queue = new Queue<(string CurrentId, int Depth, List<string> Chain)>();
+            var sourceReachability = ParseSourceReachability(service);
 
-            if (outEdges.TryGetValue(service.Id, out var initialEdges))
+            bool IsTopicReachable(string libraryId, string topicId, bool isSubscription) =>
+                IsTopicEvidenceReachable(sourceReachability, libraries.GetValueOrDefault(libraryId), topicEvidenceFiles, topicId, isSubscription);
+
+            var initialEdgeList = new List<Relationship>();
+            if (outEdges.TryGetValue(service.Id, out var initialProjEdges)) initialEdgeList.AddRange(initialProjEdges);
+            var serviceWlId = projectToWorkloadMap?.GetValueOrDefault(service.Id);
+            if (serviceWlId != null && outEdges.TryGetValue(serviceWlId, out var initialWlEdges)) initialEdgeList.AddRange(initialWlEdges);
+
+            foreach (var edge in initialEdgeList)
             {
-                foreach (var edge in initialEdges)
+                var targetProjId = workloadToProject.GetValueOrDefault(edge.To, edge.To);
+                if (libraries.TryGetValue(targetProjId, out var libNode))
                 {
-                    if (libraries.TryGetValue(edge.To, out var libNode))
+                    if (visited.Add(libNode.Id))
                     {
-                        if (visited.Add(libNode.Id))
-                        {
-                            queue.Enqueue((libNode.Id, 1, [libNode.Name]));
-                        }
+                        queue.Enqueue((libNode.Id, 1, [libNode.Name]));
                     }
                 }
             }
@@ -486,9 +564,14 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                 var (currId, depth, chain) = queue.Dequeue();
                 var viaLib = chain[0];
                 var chainStr = string.Join(" -> ", chain);
+                var currWlId = projectToWorkloadMap?.GetValueOrDefault(currId);
+
+                var incomingToLib = new List<Relationship>();
+                if (inEdges.TryGetValue(currId, out var inProj)) incomingToLib.AddRange(inProj);
+                if (currWlId != null && inEdges.TryGetValue(currWlId, out var inWl)) incomingToLib.AddRange(inWl);
 
                 // Inbound Case: Message Broker / Topic subscribes into Library -> Lift to Service
-                if (inEdges.TryGetValue(currId, out var incomingToLib))
+                if (incomingToLib.Count > 0)
                 {
                     foreach (var inEdge in incomingToLib)
                     {
@@ -499,7 +582,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                                       || inEdge.Kind == OntologyConstants.Relationships.Triggers
                                       || inEdge.Kind == OntologyConstants.Relationships.SubscribesTo;
 
-                        if (isTopic)
+                        if (isTopic && IsTopicReachable(currId, inEdge.From, isSubscription: true))
                         {
                             AddLifted(
                                 service.Id,
@@ -518,11 +601,16 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                     }
                 }
 
-                if (outEdges.TryGetValue(currId, out var edges))
+                var edges = new List<Relationship>();
+                if (outEdges.TryGetValue(currId, out var outProj)) edges.AddRange(outProj);
+                if (currWlId != null && outEdges.TryGetValue(currWlId, out var outWl)) edges.AddRange(outWl);
+
+                if (edges.Count > 0)
                 {
                     foreach (var edge in edges)
                     {
                         var tgtKind = nodeKindsById?.GetValueOrDefault(edge.To);
+                        var targetProjId = workloadToProject.GetValueOrDefault(edge.To, edge.To);
 
                         // Case 1: Library connects to Database -> Lift direct USES_DB to Service
                         var isDb = (tgtKind != null && tgtKind.Equals(OntologyConstants.NodeLabels.Database, StringComparison.OrdinalIgnoreCase))
@@ -555,13 +643,13 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                         }
                         // Case 2: Library calls another Service -> Lift direct SERVICE_CALL to Service
                         // Only lift if the library's edge to the target service is an actual service call (not a generic compile-time project dependency)
-                        else if (projects.Any(p => p.Id == edge.To && !p.IsLibrary && p.Id != service.Id) &&
+                        else if (projects.Any(p => p.Id == targetProjId && !p.IsLibrary && p.Id != service.Id) &&
                                  (edge.Kind is OntologyConstants.Relationships.ServiceCall or "CALLS_ENDPOINT" or "CALLS" ||
                                   (edge.Properties?.TryGetValue("dependency_type", out var dt) == true && dt?.ToString() == "service_call")))
                         {
                             AddLifted(
                                 service.Id,
-                                edge.To,
+                                targetProjId,
                                 OntologyConstants.Relationships.ServiceCall,
                                 new Dictionary<string, object>
                                 {
@@ -605,6 +693,10 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                             var outKind = (edge.Kind == OntologyConstants.Relationships.SubscribesTo || edge.Kind == OntologyConstants.Relationships.Triggers)
                                 ? OntologyConstants.Relationships.SubscribesTo
                                 : OntologyConstants.Relationships.PublishesTo;
+                            if (!IsTopicReachable(currId, edge.To, outKind == OntologyConstants.Relationships.SubscribesTo))
+                            {
+                                continue;
+                            }
                             AddLifted(
                                 service.Id,
                                 edge.To,
@@ -620,7 +712,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                             );
                         }
                         // Case 5: Library depends on another Library -> continue BFS traversal up to depth 8
-                        else if (libraries.TryGetValue(edge.To, out var nextLib) && depth < 8)
+                        else if (libraries.TryGetValue(targetProjId, out var nextLib) && depth < 8)
                         {
                             if (visited.Add(nextLib.Id))
                             {
@@ -634,5 +726,121 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         }
 
         return liftedRels;
+    }
+
+    /// <summary>
+    /// Indexes, per (topic, direction), the workspace-relative source files whose symbols publish to or subscribe to it.
+    /// </summary>
+    private static Dictionary<(string TopicId, bool IsSubscription), HashSet<string>> BuildTopicEvidenceFileIndex(
+        IReadOnlyList<Relationship> relationships)
+    {
+        var index = new Dictionary<(string, bool), HashSet<string>>();
+        var topicMarker = $":{OntologyConstants.IdPrefixes.Topic}:";
+
+        foreach (var rel in relationships)
+        {
+            bool isSubscription;
+            switch (rel.Kind)
+            {
+                case OntologyConstants.Relationships.PublishedBy or OntologyConstants.Relationships.PublishesTo:
+                    isSubscription = false;
+                    break;
+                case OntologyConstants.Relationships.SubscribedBy or OntologyConstants.Relationships.SubscribesTo or OntologyConstants.Relationships.Triggers:
+                    isSubscription = true;
+                    break;
+                default:
+                    continue;
+            }
+
+            var (topicId, otherId) = rel.From.Contains(topicMarker, StringComparison.Ordinal) ? (rel.From, rel.To)
+                : rel.To.Contains(topicMarker, StringComparison.Ordinal) ? (rel.To, rel.From)
+                : (null, null);
+            if (topicId is null || otherId is null || !TryGetSourceFilePath(otherId, out var filePath))
+            {
+                continue;
+            }
+
+            if (!index.TryGetValue((topicId, isSubscription), out var files))
+            {
+                files = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                index[(topicId, isSubscription)] = files;
+            }
+            files.Add(filePath);
+        }
+
+        return index;
+    }
+
+    private static bool TryGetSourceFilePath(string nodeId, out string filePath)
+    {
+        filePath = string.Empty;
+        var symbolMarker = $":{OntologyConstants.IdPrefixes.Symbol}:";
+        var fileMarker = $":{OntologyConstants.IdPrefixes.File}:";
+
+        var symbolIndex = nodeId.IndexOf(symbolMarker, StringComparison.Ordinal);
+        if (symbolIndex >= 0)
+        {
+            var rest = nodeId[(symbolIndex + symbolMarker.Length)..];
+            var end = rest.IndexOf(':');
+            filePath = end >= 0 ? rest[..end] : rest;
+            return filePath.Length > 0;
+        }
+
+        var fileIndex = nodeId.IndexOf(fileMarker, StringComparison.Ordinal);
+        if (fileIndex >= 0)
+        {
+            filePath = nodeId[(fileIndex + fileMarker.Length)..];
+            return filePath.Length > 0;
+        }
+
+        return false;
+    }
+
+    private static Dictionary<string, HashSet<string>>? ParseSourceReachability(ProjectNode project)
+    {
+        var json = project.Extensions?.GetValueOrDefault(OntologyConstants.PropertyNames.SourceReachability);
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return null;
+        }
+
+        try
+        {
+            var parsed = JsonSerializer.Deserialize<Dictionary<string, string[]>>(json);
+            return parsed?.ToDictionary(
+                entry => entry.Key.TrimEnd('/'),
+                entry => entry.Value.ToHashSet(StringComparer.OrdinalIgnoreCase),
+                StringComparer.OrdinalIgnoreCase);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// A library topic edge is lifted to a workload only if at least one of the library's source files that
+    /// produce/consume the topic is reachable from the workload. Unknown reachability or evidence keeps the edge.
+    /// </summary>
+    private static bool IsTopicEvidenceReachable(
+        Dictionary<string, HashSet<string>>? sourceReachability,
+        ProjectNode? library,
+        Dictionary<(string TopicId, bool IsSubscription), HashSet<string>> topicEvidenceFiles,
+        string topicId,
+        bool isSubscription)
+    {
+        if (sourceReachability is null || library is null ||
+            !sourceReachability.TryGetValue(library.Path.TrimEnd('/'), out var reachableFiles) ||
+            !topicEvidenceFiles.TryGetValue((topicId, isSubscription), out var evidenceFiles))
+        {
+            return true;
+        }
+
+        var libraryPrefix = library.Path.TrimEnd('/') + "/";
+        var libraryEvidence = evidenceFiles
+            .Where(file => file.StartsWith(libraryPrefix, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        return libraryEvidence.Count == 0 || libraryEvidence.Any(reachableFiles.Contains);
     }
 }

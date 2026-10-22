@@ -6,7 +6,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     label: OntologyConstants.NodeLabels.SemanticStructure,
     idScheme: "{workspaceId}:sem",
     purpose: "Represents an intermediate node grouping all runtime workloads, databases, endpoints, cloud services, and APIs used in the entire workspace.",
-    layer: OntologyConstants.Layers.Workspace,
+    layer: OntologyConstants.Layers.Semantic,
     isSystemNode: true
 )]
 [OntologyEdge<AppNode>(OntologyConstants.Relationships.Contains)]
@@ -14,10 +14,17 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<WorkerNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<LibraryNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<CliToolNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<TestSuiteNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<DatabaseNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<TableNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<ProcedureNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<QueryNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<TopicNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<ExternalServiceNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<CloudServiceNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<ApiInUseNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<EndpointNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<EntryPointNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<PeerMeshNode>(OntologyConstants.Relationships.Contains)]
 public record SemanticStructureNode(
     string Id,

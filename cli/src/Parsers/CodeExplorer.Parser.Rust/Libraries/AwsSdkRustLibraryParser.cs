@@ -66,12 +66,21 @@ public class AwsSdkRustLibraryParser : ISemanticExtension
 
     public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
-        if (IsAwsSdkCall(node, out _, out var brokerType, out _))
+        if (IsAwsSdkCall(node, out _, out var brokerType, out var isPublish))
         {
             symbol.Properties["broker_type"] = brokerType;
+            symbol.Properties[OntologyConstants.PropertyNames.MessagingDirection] = isPublish
+                ? OntologyConstants.EvidenceKinds.Publish
+                : OntologyConstants.EvidenceKinds.Subscribe;
         }
     }
 
+    /// <summary>
+    /// Detects an AWS SDK fluent operation chain such as <c>client.receive_message().queue_url(url).send()</c>.
+    /// SDK operations are zero-argument builder methods invoked on a client receiver, which distinguishes them from
+    /// free helper functions (<c>send_message(arn, msg)</c>) and domain methods (<c>self.publish(event)</c>).
+    /// Returns false when the queue/topic name cannot be resolved statically, so no phantom topic is created.
+    /// </summary>
     public static bool IsAwsSdkCall(Node node, out string topic, out string brokerType, out bool isPublish)
     {
         topic = string.Empty;
@@ -92,7 +101,7 @@ public class AwsSdkRustLibraryParser : ISemanticExtension
         bool hasReceiveMessage = false;
         bool hasSendMessage = false;
         bool hasPublish = false;
-        string? extractedQueueOrTopic = null;
+        Node? queueOrTopicArg = null;
 
         var current = node;
         while (current.IsValid())
@@ -108,34 +117,25 @@ public class AwsSdkRustLibraryParser : ISemanticExtension
                 break;
             }
 
-            if (!string.IsNullOrEmpty(methodName))
+            var isSdkOperation = receiver.IsValid() && args.Count == 0;
+            switch (methodName)
             {
-                if (methodName.Equals("receive_message", StringComparison.OrdinalIgnoreCase))
-                {
+                case "receive_message" when isSdkOperation:
                     hasReceiveMessage = true;
-                }
-                else if (methodName.Equals("send_message", StringComparison.OrdinalIgnoreCase) ||
-                         methodName.Equals("send_message_batch", StringComparison.OrdinalIgnoreCase))
-                {
+                    break;
+                case "send_message" or "send_message_batch" when isSdkOperation:
                     hasSendMessage = true;
-                }
-                else if (methodName.Equals("publish", StringComparison.OrdinalIgnoreCase) ||
-                         methodName.Equals("publish_batch", StringComparison.OrdinalIgnoreCase))
-                {
+                    break;
+                case "publish" or "publish_batch" when isSdkOperation:
                     hasPublish = true;
-                }
-                else if (methodName.Equals("queue_url", StringComparison.OrdinalIgnoreCase) && args.Count > 0)
-                {
-                    extractedQueueOrTopic ??= RustAstHelper.ExtractStringLiteral(args[0]) ?? args[0].Text;
-                }
-                else if ((methodName.Equals("topic_arn", StringComparison.OrdinalIgnoreCase) ||
-                          methodName.Equals("target_arn", StringComparison.OrdinalIgnoreCase)) && args.Count > 0)
-                {
-                    extractedQueueOrTopic ??= RustAstHelper.ExtractStringLiteral(args[0]) ?? args[0].Text;
-                }
+                    break;
+                case "queue_url" or "topic_arn" or "target_arn" when args.Count > 0:
+                    // Walking outer → inner, so the innermost (first in source order) setter wins.
+                    queueOrTopicArg = args[0];
+                    break;
             }
 
-            if (receiver != null && receiver.IsValid() && receiver.Id != current.Id)
+            if (receiver.IsValid() && receiver!.Id != current.Id)
             {
                 current = receiver;
             }
@@ -145,31 +145,20 @@ public class AwsSdkRustLibraryParser : ISemanticExtension
             }
         }
 
-        if (hasReceiveMessage)
+        if (!hasReceiveMessage && !hasSendMessage && !hasPublish)
         {
-            brokerType = "sqs";
-            isPublish = false;
-            topic = CleanTopicOrQueueName(extractedQueueOrTopic, "sqs");
-            return true;
+            return false;
         }
 
-        if (hasSendMessage)
+        topic = queueOrTopicArg.IsValid() ? ResolveQueueOrTopicName(queueOrTopicArg!, 0) : string.Empty;
+        if (topic.Length == 0)
         {
-            brokerType = "sqs";
-            isPublish = true;
-            topic = CleanTopicOrQueueName(extractedQueueOrTopic, "sqs");
-            return true;
+            return false;
         }
 
-        if (hasPublish)
-        {
-            brokerType = "sns";
-            isPublish = true;
-            topic = CleanTopicOrQueueName(extractedQueueOrTopic, "sns");
-            return true;
-        }
-
-        return false;
+        brokerType = hasPublish ? "sns" : "sqs";
+        isPublish = !hasReceiveMessage;
+        return true;
     }
 
     private static bool IsReceiverOfParentCall(Node node)
@@ -195,19 +184,162 @@ public class AwsSdkRustLibraryParser : ISemanticExtension
         return false;
     }
 
-    public static string CleanTopicOrQueueName(string? raw, string defaultKind)
+    private const int MaxResolutionDepth = 3;
+
+    private static readonly Regex ConversionCallRegex = new(
+        @"\.(clone|to_string|to_owned|as_str|as_ref|as_deref|into|unwrap|borrow|deref)\(\s*\)",
+        RegexOptions.Compiled);
+
+    private static readonly Regex EmptyCallParensRegex = new(@"\(\s*\)", RegexOptions.Compiled);
+    private static readonly Regex RustIdentifierRegex = new(@"^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.Compiled);
+    private static readonly Regex ValidTopicNameRegex = new(@"^[a-z0-9][a-z0-9.\-]*$", RegexOptions.Compiled);
+
+    private static readonly HashSet<string> GenericTopicNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "queue", "topic", "url", "arn", "self", "q", "t", "name", "target", "sqs", "sns"
+    };
+
+    /// <summary>
+    /// Resolves a queue/topic argument to a stable name. Bare local identifiers are followed through preceding
+    /// <c>let</c> bindings; field paths ending in a generic field (e.g. <c>self.publish.topic_arn</c>) are resolved
+    /// through struct field initializers in the same file when they agree on a single value.
+    /// </summary>
+    private static string ResolveQueueOrTopicName(Node arg, int depth)
+    {
+        var literal = RustAstHelper.ExtractStringLiteral(arg);
+        var direct = CleanTopicOrQueueName(literal != null ? $"\"{literal}\"" : arg.Text);
+        if (direct.Length > 0 || depth >= MaxResolutionDepth)
+        {
+            return direct;
+        }
+
+        var path = NormalizeExpressionPath(arg.Text);
+        if (path.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var segments = path.Split('.');
+        if (segments.Length == 1)
+        {
+            if (!RustIdentifierRegex.IsMatch(segments[0]))
+            {
+                return string.Empty;
+            }
+
+            var bound = FindLetBindingValue(arg, segments[0]);
+            return bound.IsValid() ? ResolveQueueOrTopicName(bound!, depth + 1) : string.Empty;
+        }
+
+        var fieldName = segments[^1];
+        if (!RustIdentifierRegex.IsMatch(fieldName))
+        {
+            return string.Empty;
+        }
+
+        var candidates = FindFieldInitializerValues(arg, fieldName)
+            .Select(v => ResolveQueueOrTopicName(v, depth + 1))
+            .Where(n => n.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        return candidates.Count == 1 ? candidates[0] : string.Empty;
+    }
+
+    private static string NormalizeExpressionPath(string text)
+    {
+        var clean = text.Trim().TrimStart('&', '*').Trim();
+        if (clean.StartsWith("mut ", StringComparison.Ordinal))
+        {
+            clean = clean[4..].Trim();
+        }
+
+        clean = ConversionCallRegex.Replace(clean, string.Empty);
+        clean = EmptyCallParensRegex.Replace(clean, string.Empty);
+        return clean;
+    }
+
+    private static Node? FindLetBindingValue(Node usage, string identifier)
+    {
+        var ancestor = usage.Parent;
+        while (ancestor.IsValid())
+        {
+            if (ancestor.Type == TreeSitterSyntax.Rust.Block)
+            {
+                Node? match = null;
+                foreach (var letDecl in ancestor.FindChildrenOfType(TreeSitterSyntax.Rust.LetDeclaration))
+                {
+                    if (!EndsBefore(letDecl, usage))
+                    {
+                        continue;
+                    }
+
+                    var pattern = letDecl.GetField(TreeSitterSyntax.Fields.Pattern);
+                    var value = letDecl.GetField(TreeSitterSyntax.Fields.Value);
+                    if (pattern.IsValid() && value.IsValid() && pattern!.Text == identifier)
+                    {
+                        match = value;
+                    }
+                }
+
+                if (match != null)
+                {
+                    return match;
+                }
+            }
+
+            if (ancestor.Type is TreeSitterSyntax.Rust.FunctionItem or TreeSitterSyntax.Rust.ClosureExpression)
+            {
+                break;
+            }
+
+            ancestor = ancestor.Parent;
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<Node> FindFieldInitializerValues(Node usage, string fieldName)
+    {
+        var root = usage;
+        while (root.Parent.IsValid())
+        {
+            root = root.Parent;
+        }
+
+        foreach (var initializer in root.FindDescendantsOfType(TreeSitterSyntax.Rust.FieldInitializer))
+        {
+            var field = initializer.GetField(TreeSitterSyntax.Fields.Field);
+            var value = initializer.GetField(TreeSitterSyntax.Fields.Value);
+            if (field.IsValid() && value.IsValid() && field!.Text == fieldName)
+            {
+                yield return value!;
+            }
+        }
+    }
+
+    private static bool EndsBefore(Node candidate, Node usage) =>
+        candidate.EndPosition.Row < usage.StartPosition.Row ||
+        (candidate.EndPosition.Row == usage.StartPosition.Row && candidate.EndPosition.Column <= usage.StartPosition.Column);
+
+    /// <summary>
+    /// Normalizes a queue URL / topic ARN expression into a kebab-case resource name.
+    /// Returns an empty string when the expression carries no specific name (e.g. <c>queue_url</c>, <c>self</c>).
+    /// </summary>
+    public static string CleanTopicOrQueueName(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw))
         {
-            return defaultKind == "sns" ? "results-topic" : "sqs-queue";
+            return string.Empty;
         }
 
         var clean = raw.Trim().TrimStart('&', '*').Trim();
+        var isLiteral = false;
 
-        // Handle string literals
         if (clean.StartsWith('"') && clean.EndsWith('"') && clean.Length >= 2)
         {
             clean = clean[1..^1];
+            isLiteral = true;
         }
 
         // Handle URL: https://sqs.../queue_name
@@ -217,6 +349,7 @@ public class AwsSdkRustLibraryParser : ISemanticExtension
             if (lastSlash >= 0 && lastSlash + 1 < clean.Length)
             {
                 clean = clean[(lastSlash + 1)..];
+                isLiteral = true;
             }
         }
 
@@ -227,57 +360,46 @@ public class AwsSdkRustLibraryParser : ISemanticExtension
             if (lastColon >= 0 && lastColon + 1 < clean.Length)
             {
                 clean = clean[(lastColon + 1)..];
+                isLiteral = true;
             }
         }
 
-        // Strip method calls (e.g. .clone(), .to_string(), .as_str()) before splitting on field access dots
-        if (clean.Contains('('))
+        if (!isLiteral)
         {
-            clean = Regex.Replace(clean, @"\.[a-zA-Z0-9_]+\([^)]*\)", "");
+            // Strip value conversions and getter call parens: self.config().topic_arn().clone() -> self.config.topic_arn
+            clean = NormalizeExpressionPath(clean);
+
+            // Strip field access prefixes: config.requests_queue_url -> requests_queue_url
+            if (clean.Contains('.'))
+            {
+                clean = clean.Split('.').Last();
+            }
+
+            // Broker-qualified field names describe the same resource: sns_request_topic_arn == request_topic_arn
+            foreach (var brokerPrefix in (string[])["sns_", "sqs_"])
+            {
+                if (clean.StartsWith(brokerPrefix, StringComparison.OrdinalIgnoreCase) && clean.Length > brokerPrefix.Length)
+                {
+                    clean = clean[brokerPrefix.Length..];
+                    break;
+                }
+            }
         }
 
-        // Strip field access prefixes: config.requests_queue_url -> requests_queue_url, self.publish.topic_arn -> topic_arn
-        if (clean.Contains('.'))
+        foreach (var suffix in (string[])["_url", "_arn", "-url", "-arn"])
         {
-            clean = clean.Split('.').Last();
+            if (clean.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+            {
+                clean = clean[..^suffix.Length];
+                break;
+            }
         }
 
-        // Strip suffixes
-        if (clean.EndsWith("_url", StringComparison.OrdinalIgnoreCase))
-        {
-            clean = clean[..^"_url".Length];
-        }
-        else if (clean.EndsWith("_arn", StringComparison.OrdinalIgnoreCase))
-        {
-            clean = clean[..^"_arn".Length];
-        }
-        else if (clean.EndsWith("-url", StringComparison.OrdinalIgnoreCase))
-        {
-            clean = clean[..^"-url".Length];
-        }
-        else if (clean.EndsWith("-arn", StringComparison.OrdinalIgnoreCase))
-        {
-            clean = clean[..^"-arn".Length];
-        }
-
-        clean = clean.Replace("(", "").Replace(")", "");
         clean = clean.Replace('_', '-').ToLowerInvariant().Trim('-');
 
-        if (string.IsNullOrWhiteSpace(clean) || clean.Equals("queue", StringComparison.OrdinalIgnoreCase))
+        if (GenericTopicNames.Contains(clean) || !ValidTopicNameRegex.IsMatch(clean))
         {
-            return "sqs-queue";
-        }
-
-        if (clean.Equals("self", StringComparison.OrdinalIgnoreCase) ||
-            clean.Equals("Self", StringComparison.OrdinalIgnoreCase) ||
-            clean.Equals("_", StringComparison.OrdinalIgnoreCase))
-        {
-            return defaultKind == "sns" ? "results-topic" : "sqs-queue";
-        }
-
-        if (clean.Equals("topic", StringComparison.OrdinalIgnoreCase))
-        {
-            return "results-topic";
+            return string.Empty;
         }
 
         return clean;

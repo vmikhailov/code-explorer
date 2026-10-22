@@ -166,21 +166,21 @@ public class ResourceReconciliationTests
     [Test]
     public void CleanProjectNameToDomain_CleansMicroservicePrefixesAndSuffixes()
     {
-        SyntaxEnricher.CleanProjectNameToDomain("internal-service-networks").Should().Be("networks");
-        SyntaxEnricher.CleanProjectNameToDomain("internal-service-landers").Should().Be("landers");
-        SyntaxEnricher.CleanProjectNameToDomain("internal-service-sources").Should().Be("sources");
-        SyntaxEnricher.CleanProjectNameToDomain("internal-service-splits").Should().Be("splits");
-        SyntaxEnricher.CleanProjectNameToDomain("internal-service-action-scheduler").Should().Be("action-scheduler");
-        SyntaxEnricher.CleanProjectNameToDomain("integration-service-postback-partner").Should().Be("postback-partner");
-        SyntaxEnricher.CleanProjectNameToDomain("integration-service-smart-cpa").Should().Be("smart-cpa");
-        SyntaxEnricher.CleanProjectNameToDomain("internal-bundle-scheduler").Should().Be("bundle-scheduler");
-        SyntaxEnricher.CleanProjectNameToDomain("tournament-service").Should().Be("tournament");
-        SyntaxEnricher.CleanProjectNameToDomain("orders-api").Should().Be("orders");
-        SyntaxEnricher.CleanProjectNameToDomain("Lidoma.Tournament").Should().Be("tournament");
-        SyntaxEnricher.CleanProjectNameToDomain("service-billing").Should().Be("billing");
-        SyntaxEnricher.CleanProjectNameToDomain("srv-users").Should().Be("users");
-        SyntaxEnricher.CleanProjectNameToDomain("internal--service-networks").Should().Be("networks");
-        SyntaxEnricher.CleanProjectNameToDomain("integration--smart-cpa").Should().Be("smart-cpa");
+        ResourceSemanticAnalyzer.CleanProjectNameToDomain("internal-service-networks").Should().Be("networks");
+        ResourceSemanticAnalyzer.CleanProjectNameToDomain("internal-service-landers").Should().Be("landers");
+        ResourceSemanticAnalyzer.CleanProjectNameToDomain("internal-service-sources").Should().Be("sources");
+        ResourceSemanticAnalyzer.CleanProjectNameToDomain("internal-service-splits").Should().Be("splits");
+        ResourceSemanticAnalyzer.CleanProjectNameToDomain("internal-service-action-scheduler").Should().Be("action-scheduler");
+        ResourceSemanticAnalyzer.CleanProjectNameToDomain("integration-service-postback-partner").Should().Be("postback-partner");
+        ResourceSemanticAnalyzer.CleanProjectNameToDomain("integration-service-smart-cpa").Should().Be("smart-cpa");
+        ResourceSemanticAnalyzer.CleanProjectNameToDomain("internal-bundle-scheduler").Should().Be("bundle-scheduler");
+        ResourceSemanticAnalyzer.CleanProjectNameToDomain("tournament-service").Should().Be("tournament");
+        ResourceSemanticAnalyzer.CleanProjectNameToDomain("orders-api").Should().Be("orders");
+        ResourceSemanticAnalyzer.CleanProjectNameToDomain("Lidoma.Tournament").Should().Be("tournament");
+        ResourceSemanticAnalyzer.CleanProjectNameToDomain("service-billing").Should().Be("billing");
+        ResourceSemanticAnalyzer.CleanProjectNameToDomain("srv-users").Should().Be("users");
+        ResourceSemanticAnalyzer.CleanProjectNameToDomain("internal--service-networks").Should().Be("networks");
+        ResourceSemanticAnalyzer.CleanProjectNameToDomain("integration--smart-cpa").Should().Be("smart-cpa");
     }
 
     [Test]

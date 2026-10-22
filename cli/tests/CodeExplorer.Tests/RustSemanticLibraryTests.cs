@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -341,7 +342,8 @@ public class RustSemanticLibraryTests
     public async Task AwsSdkRust_SqsReceiveMessage_ExtractsTopicWithSubscribesTo()
     {
         var code = """
-            pub async fn consume_messages(sqs_client: &aws_sdk_sqs::Client, queue_url: &str) {
+            pub async fn consume_messages(sqs_client: &aws_sdk_sqs::Client, config: &Config) {
+                let queue_url = &config.requests_queue_url;
                 let resp = sqs_client
                     .receive_message()
                     .queue_url(queue_url)
@@ -358,9 +360,94 @@ public class RustSemanticLibraryTests
         topics.Should().NotBeEmpty();
         var topic = topics.FirstOrDefault(t => t.BrokerType == "sqs");
         topic.Should().NotBeNull();
+        topic!.Name.Should().Be("requests-queue");
+        topic.Extensions![OntologyConstants.PropertyNames.MessagingDirection].Should().Be(OntologyConstants.EvidenceKinds.Subscribe);
 
         var allRefs = root.References.Concat(FindNodes<FunctionNode>(root.Children).SelectMany(f => f.References)).ToList();
-        allRefs.Any(r => r.Kind == "SUBSCRIBES_TO" && r.TargetName.Contains(topic!.Name)).Should().BeTrue();
+        allRefs.Any(r => r.Kind == "SUBSCRIBES_TO" && r.TargetName.Contains(topic.Name)).Should().BeTrue();
+        allRefs.Any(r => r.Kind == "PUBLISHES_TO" && r.TargetName.Contains(topic.Name)).Should().BeFalse();
+    }
+
+    [Test]
+    public async Task AwsSdkRust_UnresolvableQueueParameter_DoesNotCreatePlaceholderTopic()
+    {
+        var code = """
+            pub async fn consume_messages(sqs_client: &aws_sdk_sqs::Client, queue_url: &str) {
+                let resp = sqs_client.receive_message().queue_url(queue_url).send().await.unwrap();
+            }
+            """;
+
+        var root = await ParseRustSnippetAsync(code);
+
+        FindNodes<TopicNode>(root.Children).Should().BeEmpty();
+    }
+
+    [Test]
+    public async Task AwsSdkRust_LocalSendMessageHelper_IsNotTreatedAsSqsSend()
+    {
+        var code = """
+            async fn send_message(results_topic_arn: String, message: String, sns_client: &SNSClient) -> Result<()> {
+                sns_client.publish().topic_arn(results_topic_arn).message(message).send().await?;
+                Ok(())
+            }
+
+            pub async fn send_results_to_sns(config: &Config, sns_client: &SNSClient, event: String) -> Result<()> {
+                send_message(config.results_topic_arn.clone(), event, sns_client).await?;
+                Ok(())
+            }
+
+            pub async fn notify(&self, event: Event) {
+                self.publish(event).await;
+            }
+            """;
+
+        var root = await ParseRustSnippetAsync(code);
+        var topics = FindNodes<TopicNode>(root.Children);
+
+        topics.Should().ContainSingle();
+        topics[0].BrokerType.Should().Be("sns");
+        topics[0].Name.Should().Be("results-topic");
+        topics[0].Extensions![OntologyConstants.PropertyNames.MessagingDirection].Should().Be(OntologyConstants.EvidenceKinds.Publish);
+    }
+
+    [Test]
+    public async Task AwsSdkRust_GenericFieldPath_ResolvesThroughStructFieldInitializer()
+    {
+        var code = """
+            struct PublishTargets { topic_arn: String }
+            struct Publisher { sns: SNSClient, publish: PublishTargets }
+
+            fn build(config: &Config, sns: SNSClient) -> Publisher {
+                let publish = PublishTargets { topic_arn: config.results_topic_arn.clone() };
+                Publisher { sns, publish }
+            }
+
+            impl Publisher {
+                async fn publish_message(&self, payload: String) -> Result<()> {
+                    self.sns.publish().topic_arn(&self.publish.topic_arn).message(payload).send().await?;
+                    Ok(())
+                }
+            }
+            """;
+
+        var root = await ParseRustSnippetAsync(code);
+        var topics = FindNodes<TopicNode>(root.Children);
+
+        topics.Should().ContainSingle();
+        topics[0].Name.Should().Be("results-topic");
+    }
+
+    [Test]
+    public void RustModuleReachability_ExpandsNestedUseTrees()
+    {
+        var paths = RustModuleReachability.ExpandUseTree("iris_mpc::{server::server_main, services::{aws::clients::AwsClients as Clients, processors::*}}")
+            .Select(p => string.Join("::", p))
+            .ToList();
+
+        paths.Should().BeEquivalentTo(
+            "iris_mpc::server::server_main",
+            "iris_mpc::services::aws::clients::AwsClients",
+            "iris_mpc::services::processors");
     }
 
     [Test]

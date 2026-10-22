@@ -290,10 +290,162 @@ public class RustParser : IProjectParser, IFileParser
                 ["secondary_roles"] = "[]",
                 ["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { role })
             };
-            projects.Add(new AdditionalProjectDescriptor(target.Name, entryPointPath, properties));
+
+            var binaryFiles = RustModuleReachability.CollectBinaryModuleFiles(entryPointPath);
+            var usedCrates = ScanUsedCratesInFiles(binaryFiles);
+            IReadOnlyCollection<string>? localDependencyPaths = null;
+            if (usedCrates.Count > 0)
+            {
+                var usedLocalDependencies = manifest.Dependencies
+                    .Concat(manifest.BuildDependencies)
+                    .Where(dep => usedCrates.Contains(dep.Name.Replace('-', '_')))
+                    .Select(dep => (Dependency: dep, Directory: ResolveLocalDependencyDirectory(dep, directoryPath)))
+                    .Where(d => d.Directory != null)
+                    .Select(d => (d.Dependency, Directory: d.Directory!))
+                    .DistinctBy(d => d.Directory, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                localDependencyPaths = usedLocalDependencies.Select(d => d.Directory).ToList();
+                var reachability = ComputeSourceReachability(binaryFiles, usedLocalDependencies);
+                if (reachability.Count > 0)
+                {
+                    properties[OntologyConstants.PropertyNames.SourceReachability] =
+                        System.Text.Json.JsonSerializer.Serialize(reachability);
+                }
+            }
+
+            projects.Add(new AdditionalProjectDescriptor(target.Name, entryPointPath, properties, localDependencyPaths));
         }
 
         return projects;
+    }
+
+    private static string? ResolveLocalDependencyDirectory(CargoDependency dep, string manifestDirectory)
+    {
+        if (!string.IsNullOrEmpty(dep.ResolvedAbsolutePath) && Directory.Exists(dep.ResolvedAbsolutePath))
+        {
+            return Path.GetFullPath(dep.ResolvedAbsolutePath);
+        }
+
+        if (!string.IsNullOrEmpty(dep.Path))
+        {
+            var resolved = Path.GetFullPath(Path.Combine(manifestDirectory, dep.Path));
+            return Directory.Exists(resolved) ? resolved : null;
+        }
+
+        return null;
+    }
+
+    private const int MaxReachabilityCrateDepth = 6;
+
+    /// <summary>
+    /// Walks the local crate graph from a binary's source files and records, per dependency crate directory,
+    /// which of its source files the binary can reach. Crates that are declared but never referenced from
+    /// reachable code get an empty set; crates whose usage cannot be resolved are omitted (treated as fully reachable).
+    /// </summary>
+    private Dictionary<string, string[]> ComputeSourceReachability(
+        IReadOnlyList<string> binaryFiles,
+        IEnumerable<(CargoDependency Dependency, string Directory)> localDependencies)
+    {
+        var reachable = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var unknown = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var queue = new Queue<(IReadOnlyCollection<string> ConsumerFiles, CargoDependency Dependency, string Directory, int Depth)>();
+        foreach (var (dependency, directory) in localDependencies)
+        {
+            queue.Enqueue((binaryFiles, dependency, directory, 0));
+        }
+
+        while (queue.Count > 0)
+        {
+            var (consumerFiles, dependency, dependencyDirectory, depth) = queue.Dequeue();
+            if (unknown.Contains(dependencyDirectory))
+            {
+                continue;
+            }
+
+            var dependencyManifest = LoadCrateManifest(dependencyDirectory);
+            var libraryPath = Path.Combine(dependencyDirectory, dependencyManifest?.LibTarget?.Path ?? "src/lib.rs");
+            var crateIdentifiers = new[]
+                {
+                    dependency.Name,
+                    dependencyManifest?.LibTarget?.Name,
+                    dependencyManifest?.Package?.Name
+                }
+                .Where(name => !string.IsNullOrEmpty(name))
+                .Select(name => name!.Replace('-', '_'))
+                .ToHashSet(StringComparer.Ordinal);
+
+            var reachableFiles = RustModuleReachability.ComputeReachableFiles(consumerFiles, crateIdentifiers, libraryPath);
+            if (reachableFiles == null)
+            {
+                if (depth == 0)
+                {
+                    MarkUnknown(dependencyDirectory, unknown, 0);
+                }
+                else
+                {
+                    reachable.TryAdd(dependencyDirectory, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+                }
+                continue;
+            }
+
+            if (!reachable.TryGetValue(dependencyDirectory, out var files))
+            {
+                files = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                reachable[dependencyDirectory] = files;
+            }
+
+            var added = reachableFiles.Where(files.Add).ToList();
+            if (added.Count == 0 || depth >= MaxReachabilityCrateDepth || dependencyManifest == null)
+            {
+                continue;
+            }
+
+            foreach (var nested in dependencyManifest.Dependencies.Concat(dependencyManifest.BuildDependencies))
+            {
+                var nestedDirectory = ResolveLocalDependencyDirectory(nested, dependencyDirectory);
+                if (nestedDirectory != null)
+                {
+                    queue.Enqueue((added, nested, nestedDirectory, depth + 1));
+                }
+            }
+        }
+
+        return reachable
+            .Where(entry => !unknown.Contains(entry.Key))
+            .ToDictionary(
+                entry => entry.Key,
+                entry => entry.Value.Order(StringComparer.OrdinalIgnoreCase).ToArray(),
+                StringComparer.OrdinalIgnoreCase);
+    }
+
+    private void MarkUnknown(string crateDirectory, HashSet<string> unknown, int depth)
+    {
+        if (!unknown.Add(crateDirectory) || depth >= MaxReachabilityCrateDepth)
+        {
+            return;
+        }
+
+        var manifest = LoadCrateManifest(crateDirectory);
+        if (manifest == null)
+        {
+            return;
+        }
+
+        foreach (var nested in manifest.Dependencies.Concat(manifest.BuildDependencies))
+        {
+            var nestedDirectory = ResolveLocalDependencyDirectory(nested, crateDirectory);
+            if (nestedDirectory != null)
+            {
+                MarkUnknown(nestedDirectory, unknown, depth + 1);
+            }
+        }
+    }
+
+    private CargoManifest? LoadCrateManifest(string crateDirectory)
+    {
+        var cargoToml = Path.Combine(crateDirectory, "Cargo.toml");
+        return File.Exists(cargoToml) ? GetOrLoadManifest(cargoToml) : null;
     }
 
     public void ExtractDeclarations(Node rootNode, Action<string, Node?, string?> registerDeclaration)
@@ -301,7 +453,7 @@ public class RustParser : IProjectParser, IFileParser
         RustDeclarationExtractor.Extract(rootNode, registerDeclaration);
     }
 
-    public ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree) => new SyntaxEnricher(SemanticExtensions, syntaxTree, Packages);
+
 
     public BaseParserVisitor CreateVisitor(
         Node rootNode,
@@ -483,12 +635,25 @@ public class RustParser : IProjectParser, IFileParser
 
     private static HashSet<string> ScanUsedCrates(string directoryPath)
     {
-        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (!Directory.Exists(directoryPath)) return used;
+        if (!Directory.Exists(directoryPath)) return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         try
         {
-            foreach (var file in Directory.EnumerateFiles(directoryPath, "*.rs", SearchOption.AllDirectories))
+            return ScanUsedCratesInFiles(Directory.EnumerateFiles(directoryPath, "*.rs", SearchOption.AllDirectories));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    private static HashSet<string> ScanUsedCratesInFiles(IEnumerable<string> files)
+    {
+        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        try
+        {
+            foreach (var file in files)
             {
                 var text = File.ReadAllText(file);
                 var matches = Regex.Matches(text, @"(?:use\s+|extern\s+crate\s+)([a-zA-Z0-9_]+)");

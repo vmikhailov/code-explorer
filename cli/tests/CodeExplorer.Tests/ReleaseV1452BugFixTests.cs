@@ -20,7 +20,7 @@ public class ReleaseV1452BugFixTests
     [TestCase("DefaultSchemaName", false)]
     public void SyntaxEnricher_IsValidSchemaName_ValidatesCorrectly(string schema, bool expected)
     {
-        var isValid = SyntaxEnricher.IsValidSchemaName(schema);
+        var isValid = ResourceSemanticAnalyzer.IsValidSchemaName(schema);
         isValid.Should().Be(expected);
     }
 

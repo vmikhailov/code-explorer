@@ -449,6 +449,20 @@ export function buildContextSectionLeafItems(items?: Array<{ label: string; kind
 export function buildDiagramItems(): CodeExplorerTreeItem[] {
   const diagrams = [
     {
+      mode: 'contexts',
+      label: 'Bounded Context Map',
+      desc: 'AI domain contexts & DDD map',
+      icon: 'circuit-board',
+      tooltip: 'Bounded Context Map — AI-distilled business domains, capabilities, CQRS roles, and ubiquitous entities',
+    },
+    {
+      mode: 'semantic',
+      label: 'Architecture Map',
+      desc: 'Services, resources & topology',
+      icon: 'symbol-namespace',
+      tooltip: 'Architecture Map — System services, resources, and topology',
+    },
+    {
       mode: 'layers',
       label: 'Architecture Tiers',
       desc: 'Tiered projects & databases',
@@ -461,20 +475,6 @@ export function buildDiagramItems(): CodeExplorerTreeItem[] {
       desc: 'Focused dependency & call flow',
       icon: 'git-compare',
       tooltip: 'Project Flow — Topological dependency columns, call chains, and message flows',
-    },
-    {
-      mode: 'semantic',
-      label: 'Architecture Map',
-      desc: 'Services, resources & topology',
-      icon: 'symbol-namespace',
-      tooltip: 'Architecture Map — System services, resources, and topology',
-    },
-    {
-      mode: 'contexts',
-      label: 'Bounded Context Map',
-      desc: 'AI domain contexts & DDD map',
-      icon: 'circuit-board',
-      tooltip: 'Bounded Context Map — AI-distilled business domains, capabilities, CQRS roles, and ubiquitous entities',
     },
   ];
 
@@ -509,8 +509,8 @@ export function buildGraphLayerGroups(ontology: OntologyLayersResponseDto | null
       vscode.TreeItemCollapsibleState.Collapsed,
       { layerId: l.layerId, title: l.title || l.name }
     );
-    item.description = `${l.totalCount.toLocaleString()} ${l.layerId === 5 ? 'edges' : 'nodes'}`;
-    item.iconPath = new vscode.ThemeIcon(l.icon || (l.layerId === 5 ? 'references' : 'folder'));
+    item.description = `${l.totalCount.toLocaleString()} nodes`;
+    item.iconPath = new vscode.ThemeIcon(l.icon || 'folder');
     item.tooltip = l.description;
     return item;
   });
@@ -528,10 +528,9 @@ export function buildLayerCategoryItems(
     return layer.categories
       .filter((cat) => !cat.isSystemNode && cat.kind !== 'DataSet')
       .map((cat) => {
-      const isRel = cat.layerId === 5;
       const isServiceWorkload = cat.kind === 'Service' || cat.kind === 'App' || cat.kind === 'Worker' || cat.kind === 'CliTool' || cat.kind === 'TestSuite';
       const isDatabase = cat.kind === 'Database';
-      const itemType = isRel ? 'rel-category' : isServiceWorkload ? 'services-category' : isDatabase ? 'database-category' : 'node-category';
+      const itemType = isServiceWorkload ? 'services-category' : isDatabase ? 'database-category' : 'node-category';
       const collapsibleState = (isServiceWorkload || isDatabase) && cat.count > 0
         ? vscode.TreeItemCollapsibleState.Collapsed
         : vscode.TreeItemCollapsibleState.None;
@@ -542,22 +541,19 @@ export function buildLayerCategoryItems(
         collapsibleState,
         {
           kind: cat.kind,
-          rel: isRel ? cat.kind : undefined,
           layerTitle: layerTitle || layer.title,
         }
       );
       item.description = `${cat.count.toLocaleString()}`;
       const resolvedCatIcon = cat.icon === 'flask' ? 'beaker' : cat.icon;
-      item.iconPath = new vscode.ThemeIcon(resolvedCatIcon || (isRel ? 'arrow-right' : 'symbol-misc'));
+      item.iconPath = new vscode.ThemeIcon(resolvedCatIcon || 'symbol-misc');
       if (!isServiceWorkload && !isDatabase) {
         item.command = {
           command: 'codeExplorer.openNodeGrid',
           title: `Open ${cat.label} Grid`,
           arguments: [cat.kind, layerTitle || layer.title],
         };
-        item.tooltip = isRel
-          ? `${cat.count.toLocaleString()} ${cat.kind} relationships`
-          : `${cat.count.toLocaleString()} ${cat.label}`;
+        item.tooltip = `${cat.count.toLocaleString()} ${cat.label}`;
       } else {
         item.tooltip = `${cat.count.toLocaleString()} ${cat.label}`;
       }

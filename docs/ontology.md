@@ -11,10 +11,9 @@
 
 ```mermaid
 graph TD
-    SemanticStructure["SemanticStructure"]
     Workspace["Workspace"]
 
-    subgraph Layer1 ["Layer 1: Physical Topology"]
+    subgraph Layer1 ["Layer 1: File Structure"]
         Counter["Counter"]
         File["File"]
         FilesStructure["FilesStructure"]
@@ -22,13 +21,13 @@ graph TD
         GitSettings["GitSettings"]
     end
 
-    subgraph Layer2 ["Layer 2: Project Boundary"]
+    subgraph Layer2 ["Layer 2: Project Structure"]
         Package["Package"]
         Project["Project"]
         ProjectsStructure["ProjectsStructure"]
     end
 
-    subgraph Layer3 ["Layer 3: Syntactic Structure"]
+    subgraph Layer3 ["Layer 3: Syntax Structure"]
         CallLiteral["CallLiteral"]
         CatchClause["CatchClause"]
         Function["Function"]
@@ -52,6 +51,7 @@ graph TD
         PeerMesh["PeerMesh"]
         Procedure["Procedure"]
         Query["Query"]
+        SemanticStructure["SemanticStructure"]
         Service["Service"]
         Table["Table"]
         TestSuite["TestSuite"]
@@ -59,13 +59,24 @@ graph TD
         Worker["Worker"]
     end
 
+    subgraph Layer5 ["Layer 5: Logical Structure"]
+        BoundedContext["BoundedContext"]
+        Domain["Domain"]
+        LogicalStructure["LogicalStructure"]
+    end
+
+    ApiInUse -->|ACCESSED_BY| Function
+    ApiInUse -->|ACCESSED_BY| Type
     App -->|LOCATED_IN| Folder
     App -->|LOCATED_IN| Workspace
-    App -->|DEPLOYED_BY| Project
+    App -->|IMPLEMENTED_BY| Project
     App -->|DEPENDS_ON| Library
     App -->|DEPENDS_ON| Package
     App -->|SERVICE_CALL| Service
     App -->|SERVICE_CALL| ExternalService
+    App -->|USES_DB| Database
+    App -->|PUBLISHES_TO| Topic
+    App -->|SUBSCRIBES_TO| Topic
     App -->|USES_CLOUD| CloudService
     App -->|READS_FROM| CloudService
     App -->|WRITES_TO| CloudService
@@ -73,24 +84,43 @@ graph TD
     App -->|CONTAINS| EntryPoint
     App -->|CONTAINS| Endpoint
     App -->|CONTAINS| ApiInUse
+    App -->|USES_API| ApiInUse
+    BoundedContext -->|DEPENDS_ON| BoundedContext
+    BoundedContext -->|CONTAINS| Service
+    BoundedContext -->|CONTAINS| App
+    BoundedContext -->|CONTAINS| Worker
+    BoundedContext -->|CONTAINS| Library
+    BoundedContext -->|CONTAINS| CliTool
+    BoundedContext -->|CONTAINS| Database
+    BoundedContext -->|CONTAINS| Topic
+    BoundedContext -->|DEFINES| Type
     CallLiteral -->|DECLARED_IN| File
     CatchClause -->|DECLARED_IN| File
     CliTool -->|LOCATED_IN| Folder
     CliTool -->|LOCATED_IN| Workspace
-    CliTool -->|DEPLOYED_BY| Project
+    CliTool -->|IMPLEMENTED_BY| Project
     CliTool -->|DEPENDS_ON| Library
     CliTool -->|DEPENDS_ON| Package
     CliTool -->|SERVICE_CALL| Service
     CliTool -->|SERVICE_CALL| ExternalService
+    CliTool -->|PUBLISHES_TO| Topic
+    CliTool -->|SUBSCRIBES_TO| Topic
     CliTool -->|USES_CLOUD| CloudService
     CliTool -->|READS_FROM| CloudService
     CliTool -->|WRITES_TO| CloudService
     CliTool -->|COORDINATES_WITH| PeerMesh
     CliTool -->|USES_DB| Database
     CliTool -->|CONTAINS| EntryPoint
-    Database -->|QUERIED_BY| Function
-    Database -->|QUERIED_BY| Query
+    CliTool -->|USES_API| ApiInUse
+    CloudService -->|ACCESSED_BY| Function
+    CloudService -->|ACCESSED_BY| Type
+    Database -->|ACCESSED_BY| Function
+    Database -->|ACCESSED_BY| Type
+    Database -->|CONTAINS| Table
+    Database -->|CONTAINS| Procedure
+    Database -->|CONTAINS| Query
     DataSet -->|CONTAINS| Table
+    Domain -->|CONTAINS| BoundedContext
     Endpoint -->|TRIGGERS| Function
     Endpoint -->|EXPOSED_BY| Type
     Endpoint -->|EXPOSED_BY| Function
@@ -108,7 +138,7 @@ graph TD
     Function -->|USES_TYPE| Type
     Library -->|LOCATED_IN| Folder
     Library -->|LOCATED_IN| Workspace
-    Library -->|DEPLOYED_BY| Project
+    Library -->|IMPLEMENTED_BY| Project
     Library -->|DEPENDS_ON| Library
     Library -->|DEPENDS_ON| Package
     Library -->|SERVICE_CALL| Service
@@ -120,8 +150,10 @@ graph TD
     Library -->|READS_FROM| CloudService
     Library -->|WRITES_TO| CloudService
     Library -->|COORDINATES_WITH| PeerMesh
+    Library -->|USES_API| ApiInUse
     Library -->|CONTAINS| Type
     Library -->|CONTAINS| Function
+    LogicalStructure -->|CONTAINS| Domain
     Member -->|DECLARED_IN| File
     Member -->|OF_TYPE| Type
     Package -->|PRODUCES| Project
@@ -137,20 +169,31 @@ graph TD
     ProjectSyntax -->|CONTAINS| Type
     ProjectSyntax -->|CONTAINS| Function
     ProjectSyntax -->|BELONGS_TO| Project
+    Query -->|READS_FROM| Table
+    Query -->|WRITES_TO| Table
     Query -->|DEPENDS_ON| Table
+    Query -->|ACCESSED_BY| Function
+    Query -->|ACCESSED_BY| Type
     SemanticStructure -->|CONTAINS| App
     SemanticStructure -->|CONTAINS| Service
     SemanticStructure -->|CONTAINS| Worker
     SemanticStructure -->|CONTAINS| Library
     SemanticStructure -->|CONTAINS| CliTool
+    SemanticStructure -->|CONTAINS| TestSuite
     SemanticStructure -->|CONTAINS| Database
+    SemanticStructure -->|CONTAINS| Table
+    SemanticStructure -->|CONTAINS| Procedure
+    SemanticStructure -->|CONTAINS| Query
     SemanticStructure -->|CONTAINS| Topic
     SemanticStructure -->|CONTAINS| ExternalService
     SemanticStructure -->|CONTAINS| CloudService
+    SemanticStructure -->|CONTAINS| ApiInUse
+    SemanticStructure -->|CONTAINS| Endpoint
+    SemanticStructure -->|CONTAINS| EntryPoint
     SemanticStructure -->|CONTAINS| PeerMesh
     Service -->|LOCATED_IN| Folder
     Service -->|LOCATED_IN| Workspace
-    Service -->|DEPLOYED_BY| Project
+    Service -->|IMPLEMENTED_BY| Project
     Service -->|DEPENDS_ON| Library
     Service -->|DEPENDS_ON| Package
     Service -->|SERVICE_CALL| Service
@@ -166,13 +209,13 @@ graph TD
     Service -->|WRITES_TO| CloudService
     Service -->|COORDINATES_WITH| PeerMesh
     Service -->|CONTAINS| ApiInUse
+    Service -->|USES_API| ApiInUse
     SyntaxStructure -->|CONTAINS| ProjectSyntax
-    Table -->|QUERIED_BY| Function
-    Table -->|QUERIED_BY| Query
-    Table -->|PERSISTED_IN| Type
+    Table -->|ACCESSED_BY| Function
+    Table -->|ACCESSED_BY| Type
     TestSuite -->|LOCATED_IN| Folder
     TestSuite -->|LOCATED_IN| Workspace
-    TestSuite -->|DEPLOYED_BY| Project
+    TestSuite -->|IMPLEMENTED_BY| Project
     TestSuite -->|DEPENDS_ON| Package
     TestSuite -->|TESTS| Service
     TestSuite -->|TESTS| Library
@@ -181,11 +224,6 @@ graph TD
     TestSuite -->|TESTS| CliTool
     Topic -->|PUBLISHED_BY| Function
     Topic -->|SUBSCRIBED_BY| Function
-    Topic -->|PUBLISHED_BY| Service
-    Topic -->|SUBSCRIBED_BY| Service
-    Topic -->|SUBSCRIBED_BY| Worker
-    Topic -->|TRIGGERS| Project
-    Topic -->|SUBSCRIBED_BY| Project
     Type -->|DECLARED_IN| File
     Type -->|USES_TYPE| Type
     Type -->|IMPLEMENTS| Type
@@ -195,7 +233,7 @@ graph TD
     Type -->|HAS_MEMBER| Member
     Worker -->|LOCATED_IN| Folder
     Worker -->|LOCATED_IN| Workspace
-    Worker -->|DEPLOYED_BY| Project
+    Worker -->|IMPLEMENTED_BY| Project
     Worker -->|DEPENDS_ON| Library
     Worker -->|DEPENDS_ON| Package
     Worker -->|SERVICE_CALL| Service
@@ -208,10 +246,12 @@ graph TD
     Worker -->|WRITES_TO| CloudService
     Worker -->|COORDINATES_WITH| PeerMesh
     Worker -->|CONTAINS| EntryPoint
+    Worker -->|USES_API| ApiInUse
     Workspace -->|CONTAINS| FilesStructure
     Workspace -->|CONTAINS| ProjectsStructure
     Workspace -->|CONTAINS| SyntaxStructure
     Workspace -->|CONTAINS| SemanticStructure
+    Workspace -->|CONTAINS| LogicalStructure
 ```
 
 ---
@@ -219,40 +259,6 @@ graph TD
 ## 📂 Layered Definitions
 
 ### 🌐 Root System Umbrella
-
-#### `SemanticStructure`
-
-> Represents an intermediate node grouping all runtime workloads, databases, endpoints, cloud services, and APIs used in the entire workspace.
-
-**Outbound edges:**
-
-| Relationship | To |
-| :--- | :--- |
-| `CONTAINS` | `App` |
-| `CONTAINS` | `Service` |
-| `CONTAINS` | `Worker` |
-| `CONTAINS` | `Library` |
-| `CONTAINS` | `CliTool` |
-| `CONTAINS` | `Database` |
-| `CONTAINS` | `Topic` |
-| `CONTAINS` | `ExternalService` |
-| `CONTAINS` | `CloudService` |
-| `CONTAINS` | `PeerMesh` |
-
-**Incoming edges** *(derived from other nodes' declarations)*:
-
-| From | Relationship |
-| :--- | :--- |
-| `Workspace` | `CONTAINS` |
-
-**Properties:**
-
-| Property | Type | Description |
-| :--- | :--- | :--- |
-| `Name` | `string` | The name of the entity. |
-| `Path` | `string` | The path of the folder or file relative to its parent container. |
-
----
 
 #### `Workspace`
 
@@ -266,6 +272,7 @@ graph TD
 | `CONTAINS` | `ProjectsStructure` |
 | `CONTAINS` | `SyntaxStructure` |
 | `CONTAINS` | `SemanticStructure` |
+| `CONTAINS` | `LogicalStructure` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -288,7 +295,7 @@ graph TD
 
 ---
 
-### 📂 Layer 1: Physical Topology
+### 📂 Layer 1: File Structure
 
 #### `Counter`
 
@@ -419,7 +426,7 @@ graph TD
 
 ---
 
-### 📂 Layer 2: Project Boundary
+### 📂 Layer 2: Project Structure
 
 #### `Package`
 
@@ -477,19 +484,17 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
-| `App` | `DEPLOYED_BY` |
-| `CliTool` | `DEPLOYED_BY` |
-| `Library` | `DEPLOYED_BY` |
+| `App` | `IMPLEMENTED_BY` |
+| `CliTool` | `IMPLEMENTED_BY` |
+| `Library` | `IMPLEMENTED_BY` |
 | `Package` | `PRODUCES` |
 | `Package` | `IMPLEMENTED_BY` |
 | `Project` | `DEPENDS_ON` |
 | `ProjectsStructure` | `CONTAINS` |
 | `ProjectSyntax` | `BELONGS_TO` |
-| `Service` | `DEPLOYED_BY` |
-| `TestSuite` | `DEPLOYED_BY` |
-| `Topic` | `TRIGGERS` |
-| `Topic` | `SUBSCRIBED_BY` |
-| `Worker` | `DEPLOYED_BY` |
+| `Service` | `IMPLEMENTED_BY` |
+| `TestSuite` | `IMPLEMENTED_BY` |
+| `Worker` | `IMPLEMENTED_BY` |
 
 **Properties:**
 
@@ -537,7 +542,7 @@ graph TD
 
 ---
 
-### 📂 Layer 3: Syntactic Structure
+### 📂 Layer 3: Syntax Structure
 
 #### `CallLiteral`
 
@@ -612,7 +617,9 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
-| `Database` | `QUERIED_BY` |
+| `ApiInUse` | `ACCESSED_BY` |
+| `CloudService` | `ACCESSED_BY` |
+| `Database` | `ACCESSED_BY` |
 | `Endpoint` | `TRIGGERS` |
 | `Endpoint` | `EXPOSED_BY` |
 | `EntryPoint` | `TRIGGERS` |
@@ -620,7 +627,8 @@ graph TD
 | `Function` | `CALLS` |
 | `Library` | `CONTAINS` |
 | `ProjectSyntax` | `CONTAINS` |
-| `Table` | `QUERIED_BY` |
+| `Query` | `ACCESSED_BY` |
+| `Table` | `ACCESSED_BY` |
 | `Topic` | `PUBLISHED_BY` |
 | `Topic` | `SUBSCRIBED_BY` |
 | `Type` | `HAS_METHOD` |
@@ -751,13 +759,18 @@ graph TD
 
 | From | Relationship |
 | :--- | :--- |
+| `ApiInUse` | `ACCESSED_BY` |
+| `BoundedContext` | `DEFINES` |
+| `CloudService` | `ACCESSED_BY` |
+| `Database` | `ACCESSED_BY` |
 | `Endpoint` | `EXPOSED_BY` |
 | `EntryPoint` | `EXPOSED_BY` |
 | `Function` | `USES_TYPE` |
 | `Library` | `CONTAINS` |
 | `Member` | `OF_TYPE` |
 | `ProjectSyntax` | `CONTAINS` |
-| `Table` | `PERSISTED_IN` |
+| `Query` | `ACCESSED_BY` |
+| `Table` | `ACCESSED_BY` |
 | `Type` | `USES_TYPE` |
 | `Type` | `IMPLEMENTS` |
 | `Type` | `INHERITS_FROM` |
@@ -790,12 +803,25 @@ graph TD
 
 > Represents an external API library or client service used by the project (e.g. NestJS, Axios, HttpClient).
 
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `ACCESSED_BY` | `Function` |
+| `ACCESSED_BY` | `Type` |
+
 **Incoming edges** *(derived from other nodes' declarations)*:
 
 | From | Relationship |
 | :--- | :--- |
 | `App` | `CONTAINS` |
+| `App` | `USES_API` |
+| `CliTool` | `USES_API` |
+| `Library` | `USES_API` |
+| `SemanticStructure` | `CONTAINS` |
 | `Service` | `CONTAINS` |
+| `Service` | `USES_API` |
+| `Worker` | `USES_API` |
 
 **Properties:**
 
@@ -816,11 +842,14 @@ graph TD
 | :--- | :--- |
 | `LOCATED_IN` | `Folder` |
 | `LOCATED_IN` | `Workspace` |
-| `DEPLOYED_BY` | `Project` |
+| `IMPLEMENTED_BY` | `Project` |
 | `DEPENDS_ON` | `Library` |
 | `DEPENDS_ON` | `Package` |
 | `SERVICE_CALL` | `Service` |
 | `SERVICE_CALL` | `ExternalService` |
+| `USES_DB` | `Database` |
+| `PUBLISHES_TO` | `Topic` |
+| `SUBSCRIBES_TO` | `Topic` |
 | `USES_CLOUD` | `CloudService` |
 | `READS_FROM` | `CloudService` |
 | `WRITES_TO` | `CloudService` |
@@ -828,11 +857,13 @@ graph TD
 | `CONTAINS` | `EntryPoint` |
 | `CONTAINS` | `Endpoint` |
 | `CONTAINS` | `ApiInUse` |
+| `USES_API` | `ApiInUse` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
 | From | Relationship |
 | :--- | :--- |
+| `BoundedContext` | `CONTAINS` |
 | `SemanticStructure` | `CONTAINS` |
 | `TestSuite` | `TESTS` |
 
@@ -856,22 +887,26 @@ graph TD
 | :--- | :--- |
 | `LOCATED_IN` | `Folder` |
 | `LOCATED_IN` | `Workspace` |
-| `DEPLOYED_BY` | `Project` |
+| `IMPLEMENTED_BY` | `Project` |
 | `DEPENDS_ON` | `Library` |
 | `DEPENDS_ON` | `Package` |
 | `SERVICE_CALL` | `Service` |
 | `SERVICE_CALL` | `ExternalService` |
+| `PUBLISHES_TO` | `Topic` |
+| `SUBSCRIBES_TO` | `Topic` |
 | `USES_CLOUD` | `CloudService` |
 | `READS_FROM` | `CloudService` |
 | `WRITES_TO` | `CloudService` |
 | `COORDINATES_WITH` | `PeerMesh` |
 | `USES_DB` | `Database` |
 | `CONTAINS` | `EntryPoint` |
+| `USES_API` | `ApiInUse` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
 | From | Relationship |
 | :--- | :--- |
+| `BoundedContext` | `CONTAINS` |
 | `SemanticStructure` | `CONTAINS` |
 | `TestSuite` | `TESTS` |
 
@@ -888,6 +923,13 @@ graph TD
 #### `CloudService`
 
 > Represents a cloud provider service used by the project (e.g. AWS S3, Stripe, Firebase).
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `ACCESSED_BY` | `Function` |
+| `ACCESSED_BY` | `Type` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -929,13 +971,18 @@ graph TD
 
 | Relationship | To |
 | :--- | :--- |
-| `QUERIED_BY` | `Function` |
-| `QUERIED_BY` | `Query` |
+| `ACCESSED_BY` | `Function` |
+| `ACCESSED_BY` | `Type` |
+| `CONTAINS` | `Table` |
+| `CONTAINS` | `Procedure` |
+| `CONTAINS` | `Query` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
 | From | Relationship |
 | :--- | :--- |
+| `App` | `USES_DB` |
+| `BoundedContext` | `CONTAINS` |
 | `CliTool` | `USES_DB` |
 | `Library` | `USES_DB` |
 | `SemanticStructure` | `CONTAINS` |
@@ -982,6 +1029,7 @@ graph TD
 | :--- | :--- |
 | `App` | `CONTAINS` |
 | `ExternalService` | `CALLS_ENDPOINT` |
+| `SemanticStructure` | `CONTAINS` |
 | `Service` | `CONTAINS` |
 
 **Properties:**
@@ -1019,6 +1067,7 @@ graph TD
 | :--- | :--- |
 | `App` | `CONTAINS` |
 | `CliTool` | `CONTAINS` |
+| `SemanticStructure` | `CONTAINS` |
 | `Service` | `CONTAINS` |
 | `Worker` | `CONTAINS` |
 
@@ -1066,7 +1115,7 @@ graph TD
 | :--- | :--- |
 | `LOCATED_IN` | `Folder` |
 | `LOCATED_IN` | `Workspace` |
-| `DEPLOYED_BY` | `Project` |
+| `IMPLEMENTED_BY` | `Project` |
 | `DEPENDS_ON` | `Library` |
 | `DEPENDS_ON` | `Package` |
 | `SERVICE_CALL` | `Service` |
@@ -1078,6 +1127,7 @@ graph TD
 | `READS_FROM` | `CloudService` |
 | `WRITES_TO` | `CloudService` |
 | `COORDINATES_WITH` | `PeerMesh` |
+| `USES_API` | `ApiInUse` |
 | `CONTAINS` | `Type` |
 | `CONTAINS` | `Function` |
 
@@ -1086,6 +1136,7 @@ graph TD
 | From | Relationship |
 | :--- | :--- |
 | `App` | `DEPENDS_ON` |
+| `BoundedContext` | `CONTAINS` |
 | `CliTool` | `DEPENDS_ON` |
 | `Library` | `DEPENDS_ON` |
 | `SemanticStructure` | `CONTAINS` |
@@ -1139,6 +1190,13 @@ graph TD
 | :--- | :--- |
 | `CONTAINS` | `Query` |
 
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Database` | `CONTAINS` |
+| `SemanticStructure` | `CONTAINS` |
+
 ---
 
 #### `Query`
@@ -1149,15 +1207,60 @@ graph TD
 
 | Relationship | To |
 | :--- | :--- |
+| `READS_FROM` | `Table` |
+| `WRITES_TO` | `Table` |
 | `DEPENDS_ON` | `Table` |
+| `ACCESSED_BY` | `Function` |
+| `ACCESSED_BY` | `Type` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
 | From | Relationship |
 | :--- | :--- |
-| `Database` | `QUERIED_BY` |
+| `Database` | `CONTAINS` |
 | `Procedure` | `CONTAINS` |
-| `Table` | `QUERIED_BY` |
+| `SemanticStructure` | `CONTAINS` |
+
+---
+
+#### `SemanticStructure`
+
+> Represents an intermediate node grouping all runtime workloads, databases, endpoints, cloud services, and APIs used in the entire workspace.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `CONTAINS` | `App` |
+| `CONTAINS` | `Service` |
+| `CONTAINS` | `Worker` |
+| `CONTAINS` | `Library` |
+| `CONTAINS` | `CliTool` |
+| `CONTAINS` | `TestSuite` |
+| `CONTAINS` | `Database` |
+| `CONTAINS` | `Table` |
+| `CONTAINS` | `Procedure` |
+| `CONTAINS` | `Query` |
+| `CONTAINS` | `Topic` |
+| `CONTAINS` | `ExternalService` |
+| `CONTAINS` | `CloudService` |
+| `CONTAINS` | `ApiInUse` |
+| `CONTAINS` | `Endpoint` |
+| `CONTAINS` | `EntryPoint` |
+| `CONTAINS` | `PeerMesh` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Workspace` | `CONTAINS` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the entity. |
+| `Path` | `string` | The path of the folder or file relative to its parent container. |
 
 ---
 
@@ -1171,7 +1274,7 @@ graph TD
 | :--- | :--- |
 | `LOCATED_IN` | `Folder` |
 | `LOCATED_IN` | `Workspace` |
-| `DEPLOYED_BY` | `Project` |
+| `IMPLEMENTED_BY` | `Project` |
 | `DEPENDS_ON` | `Library` |
 | `DEPENDS_ON` | `Package` |
 | `SERVICE_CALL` | `Service` |
@@ -1187,19 +1290,19 @@ graph TD
 | `WRITES_TO` | `CloudService` |
 | `COORDINATES_WITH` | `PeerMesh` |
 | `CONTAINS` | `ApiInUse` |
+| `USES_API` | `ApiInUse` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
 | From | Relationship |
 | :--- | :--- |
 | `App` | `SERVICE_CALL` |
+| `BoundedContext` | `CONTAINS` |
 | `CliTool` | `SERVICE_CALL` |
 | `Library` | `SERVICE_CALL` |
 | `SemanticStructure` | `CONTAINS` |
 | `Service` | `SERVICE_CALL` |
 | `TestSuite` | `TESTS` |
-| `Topic` | `PUBLISHED_BY` |
-| `Topic` | `SUBSCRIBED_BY` |
 | `Worker` | `SERVICE_CALL` |
 
 **Properties:**
@@ -1220,16 +1323,19 @@ graph TD
 
 | Relationship | To |
 | :--- | :--- |
-| `QUERIED_BY` | `Function` |
-| `QUERIED_BY` | `Query` |
-| `PERSISTED_IN` | `Type` |
+| `ACCESSED_BY` | `Function` |
+| `ACCESSED_BY` | `Type` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
 | From | Relationship |
 | :--- | :--- |
+| `Database` | `CONTAINS` |
 | `DataSet` | `CONTAINS` |
+| `Query` | `READS_FROM` |
+| `Query` | `WRITES_TO` |
 | `Query` | `DEPENDS_ON` |
+| `SemanticStructure` | `CONTAINS` |
 
 ---
 
@@ -1243,13 +1349,19 @@ graph TD
 | :--- | :--- |
 | `LOCATED_IN` | `Folder` |
 | `LOCATED_IN` | `Workspace` |
-| `DEPLOYED_BY` | `Project` |
+| `IMPLEMENTED_BY` | `Project` |
 | `DEPENDS_ON` | `Package` |
 | `TESTS` | `Service` |
 | `TESTS` | `Library` |
 | `TESTS` | `App` |
 | `TESTS` | `Worker` |
 | `TESTS` | `CliTool` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `SemanticStructure` | `CONTAINS` |
 
 **Properties:**
 
@@ -1271,16 +1383,16 @@ graph TD
 | :--- | :--- |
 | `PUBLISHED_BY` | `Function` |
 | `SUBSCRIBED_BY` | `Function` |
-| `PUBLISHED_BY` | `Service` |
-| `SUBSCRIBED_BY` | `Service` |
-| `SUBSCRIBED_BY` | `Worker` |
-| `TRIGGERS` | `Project` |
-| `SUBSCRIBED_BY` | `Project` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
 | From | Relationship |
 | :--- | :--- |
+| `App` | `PUBLISHES_TO` |
+| `App` | `SUBSCRIBES_TO` |
+| `BoundedContext` | `CONTAINS` |
+| `CliTool` | `PUBLISHES_TO` |
+| `CliTool` | `SUBSCRIBES_TO` |
 | `Library` | `PUBLISHES_TO` |
 | `Library` | `SUBSCRIBES_TO` |
 | `SemanticStructure` | `CONTAINS` |
@@ -1309,7 +1421,7 @@ graph TD
 | :--- | :--- |
 | `LOCATED_IN` | `Folder` |
 | `LOCATED_IN` | `Workspace` |
-| `DEPLOYED_BY` | `Project` |
+| `IMPLEMENTED_BY` | `Project` |
 | `DEPENDS_ON` | `Library` |
 | `DEPENDS_ON` | `Package` |
 | `SERVICE_CALL` | `Service` |
@@ -1322,14 +1434,15 @@ graph TD
 | `WRITES_TO` | `CloudService` |
 | `COORDINATES_WITH` | `PeerMesh` |
 | `CONTAINS` | `EntryPoint` |
+| `USES_API` | `ApiInUse` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
 | From | Relationship |
 | :--- | :--- |
+| `BoundedContext` | `CONTAINS` |
 | `SemanticStructure` | `CONTAINS` |
 | `TestSuite` | `TESTS` |
-| `Topic` | `SUBSCRIBED_BY` |
 
 **Properties:**
 
@@ -1341,12 +1454,109 @@ graph TD
 
 ---
 
+### 📂 Layer 5: Logical Structure
+
+#### `BoundedContext`
+
+> Represents a DDD Bounded Context in Level 5 (Logical Structure) that encapsulates semantic workloads, data stores, topics, and domain types.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `DEPENDS_ON` | `BoundedContext` |
+| `CONTAINS` | `Service` |
+| `CONTAINS` | `App` |
+| `CONTAINS` | `Worker` |
+| `CONTAINS` | `Library` |
+| `CONTAINS` | `CliTool` |
+| `CONTAINS` | `Database` |
+| `CONTAINS` | `Topic` |
+| `DEFINES` | `Type` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `BoundedContext` | `DEPENDS_ON` |
+| `Domain` | `CONTAINS` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The canonical bounded context name. |
+| `DisplayName` | `string` | The human-readable display name of the bounded context. |
+| `DomainId` | `string` | The parent domain ID that owns this bounded context. |
+| `Summary` | `string?` | A concise summary of the bounded context's business responsibility. |
+| `BgColor` | `string?` | Background color for visual rendering. |
+| `BorderColor` | `string?` | Border color for visual rendering. |
+| `PurityPercentage` | `double` | Domain purity percentage (0-100). |
+| `Path` | `string` | Primary path associated with the bounded context. |
+
+---
+
+#### `Domain`
+
+> Represents a high-level business domain (e.g. Core, Supporting, Generic, Shared) containing one or more bounded contexts in Level 5 (Logical Structure).
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `CONTAINS` | `BoundedContext` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `LogicalStructure` | `CONTAINS` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The canonical domain name. |
+| `DisplayName` | `string` | The human-readable display name of the domain. |
+| `DomainType` | `string` | The DDD classification of the domain (Core, Supporting, Generic, Shared). |
+| `Summary` | `string?` | A concise summary of the domain's business responsibility. |
+| `Icon` | `string?` | Representative icon for the domain. |
+| `Path` | `string` | Primary path associated with the domain. |
+
+---
+
+#### `LogicalStructure`
+
+> Represents an intermediate root node grouping all high-level business domains, bounded contexts, and logical architectures in the workspace.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `CONTAINS` | `Domain` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Workspace` | `CONTAINS` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the entity. |
+| `Path` | `string` | The path of the workspace root. |
+
+---
+
 ## 📂 Layer 5: SystemBindings (Integration Links)
 
 > This layer contains the relationship edges that connect nodes across layers into a unified semantic map.
 
 | Relationship Label | Description |
 | :--- | :--- |
+| `ACCESSED_BY` | Links a Layer 4 resource (Database, Table, Query, CloudService, ApiInUse) downward to the Layer 3 function or type that accesses it. |
 | `BELONGS_TO` | Links an entity to its parent project or container. |
 | `CALLED_BY` | Links an external service or database to the function that invokes or queries it. |
 | `CALLS` | Links a calling function to the function it directly invokes. |
@@ -1360,6 +1570,7 @@ graph TD
 | `DEFINES` | Indicates that an entity defines a particular property or configuration. |
 | `DEPENDS_ON` | Represents a dependency relationship between projects, packages, or other entities. |
 | `EXPOSED_BY` | Links an entrypoint or endpoint to the type or function that exposes it. |
+| `EXPOSES` | Links a semantic workload (Service, App, Worker) to an endpoint or entrypoint it exposes. |
 | `HAS_MEMBER` | Links a type declaration to its declared member variables or fields. |
 | `HAS_METHOD` | Links a type declaration to its declared methods or functions. |
 | `HAS_VARIABLE` | Links a function scope to its declared local variables or parameters. |
@@ -1375,6 +1586,7 @@ graph TD
 | `PUBLISHED_BY` | Links a topic to the function that publishes to it. |
 | `PUBLISHES_TO` | Links a service or function to a message queue or topic it publishes messages or events to. |
 | `QUERIED_BY` | Links a database or table to the function or query that accesses it. |
+| `READS_FROM` | Links a query or workload to the table or cloud resource it reads from. |
 | `SERVICE_CALL` | Represents an HTTP, RPC, or message-based remote service invocation between services or to an external API. |
 | `SUBSCRIBED_BY` | Links a topic to the function that subscribes to it. |
 | `SUBSCRIBES_TO` | Links a service or handler function to a message queue or topic it listens to or consumes events from. |
@@ -1385,6 +1597,7 @@ graph TD
 | `USES_DB` | Links a project to a database catalog or instance it utilizes. |
 | `USES_GIT` | Links the workspace to its repository configuration. |
 | `USES_TYPE` | Links a calling function or type reference to the type it instantiates or references. |
+| `WRITES_TO` | Links a query or workload to the table or cloud resource it writes to. |
 
 ---
 
@@ -1394,23 +1607,22 @@ graph TD
 
 | Layer | Node Label | ID / URN Scheme |
 | :--- | :--- | :--- |
-| Root / Umbrella | `SemanticStructure` | `{workspaceId}:sem` |
 | Root / Umbrella | `Workspace` | `{workspaceId}` |
-| Layer 1: Physical Topology | `Counter` | `workspace_id` |
-| Layer 1: Physical Topology | `File` | `{workspaceId}:f:{relativeFilePath}` |
-| Layer 1: Physical Topology | `FilesStructure` | `{workspaceId}:fs` |
-| Layer 1: Physical Topology | `Folder` | `{workspaceId}:dir:{relativeDirectoryPath}` |
-| Layer 1: Physical Topology | `GitSettings` | `{workspaceId}:git` |
-| Layer 2: Project Boundary | `Package` | `{workspaceId}:pkg:{ecosystem}:{packageName}` |
-| Layer 2: Project Boundary | `Project` | `{workspaceId}:p:{relativeProjectDir}:` |
-| Layer 2: Project Boundary | `ProjectsStructure` | `{workspaceId}:ps` |
-| Layer 3: Syntactic Structure | `CallLiteral` | `{workspaceId}:lit:{filePath}:{line}:{col}` |
-| Layer 3: Syntactic Structure | `CatchClause` | `{workspaceId}:catch:{filePath}:{line}:{col}` |
-| Layer 3: Syntactic Structure | `Function` | `{workspaceId}:sym:{filePath}:Function:{name}:{line}` |
-| Layer 3: Syntactic Structure | `Member` | `{workspaceId}:sym:{filePath}:Member:{name}:{line}` |
-| Layer 3: Syntactic Structure | `ProjectSyntax` | `{workspaceId}:p:{relativeProjectDir}:syntax` |
-| Layer 3: Syntactic Structure | `SyntaxStructure` | `{workspaceId}:ss` |
-| Layer 3: Syntactic Structure | `Type` | `{workspaceId}:sym:{filePath}:Type:{name}:{line}` |
+| Layer 1: File Structure | `Counter` | `workspace_id` |
+| Layer 1: File Structure | `File` | `{workspaceId}:f:{relativeFilePath}` |
+| Layer 1: File Structure | `FilesStructure` | `{workspaceId}:fs` |
+| Layer 1: File Structure | `Folder` | `{workspaceId}:dir:{relativeDirectoryPath}` |
+| Layer 1: File Structure | `GitSettings` | `{workspaceId}:git` |
+| Layer 2: Project Structure | `Package` | `{workspaceId}:pkg:{ecosystem}:{packageName}` |
+| Layer 2: Project Structure | `Project` | `{workspaceId}:p:{relativeProjectDir}:` |
+| Layer 2: Project Structure | `ProjectsStructure` | `{workspaceId}:ps` |
+| Layer 3: Syntax Structure | `CallLiteral` | `{workspaceId}:lit:{filePath}:{line}:{col}` |
+| Layer 3: Syntax Structure | `CatchClause` | `{workspaceId}:catch:{filePath}:{line}:{col}` |
+| Layer 3: Syntax Structure | `Function` | `{workspaceId}:sym:{filePath}:Function:{name}:{line}` |
+| Layer 3: Syntax Structure | `Member` | `{workspaceId}:sym:{filePath}:Member:{name}:{line}` |
+| Layer 3: Syntax Structure | `ProjectSyntax` | `{workspaceId}:p:{relativeProjectDir}:syntax` |
+| Layer 3: Syntax Structure | `SyntaxStructure` | `{workspaceId}:ss` |
+| Layer 3: Syntax Structure | `Type` | `{workspaceId}:sym:{filePath}:Type:{name}:{line}` |
 | Layer 4: Semantic Structure | `ApiInUse` | `{workspaceId}:p:{relativeProjectDir}:api:{apiName}` |
 | Layer 4: Semantic Structure | `App` | `{workspaceId}:app:{appName}` |
 | Layer 4: Semantic Structure | `CliTool` | `{workspaceId}:cli:{toolName}` |
@@ -1424,9 +1636,13 @@ graph TD
 | Layer 4: Semantic Structure | `PeerMesh` | `{workspaceId}:mesh:peer-network` |
 | Layer 4: Semantic Structure | `Procedure` | `{workspaceId}:proc:{procedureName}` |
 | Layer 4: Semantic Structure | `Query` | `{workspaceId}:q:{queryHash}` |
+| Layer 4: Semantic Structure | `SemanticStructure` | `{workspaceId}:sem` |
 | Layer 4: Semantic Structure | `Service` | `{workspaceId}:s:{serviceName}` |
 | Layer 4: Semantic Structure | `Table` | `{workspaceId}:tbl:{tableName}` |
 | Layer 4: Semantic Structure | `TestSuite` | `{workspaceId}:suite:{suiteName}` |
 | Layer 4: Semantic Structure | `Topic` | `{workspaceId}:top:{brokerType}:{topicName}` |
 | Layer 4: Semantic Structure | `Worker` | `{workspaceId}:w:{workerName}` |
+| Layer 5: Logical Structure | `BoundedContext` | `{workspaceId}:bc:{contextKey}` |
+| Layer 5: Logical Structure | `Domain` | `{workspaceId}:dom:{domainKey}` |
+| Layer 5: Logical Structure | `LogicalStructure` | `{workspaceId}:ls` |
 

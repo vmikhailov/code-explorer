@@ -17,10 +17,18 @@ public enum ProjectParserRole
     Fallback = 1
 }
 
+/// <param name="Name">Target name (e.g. the Cargo <c>[[bin]]</c> name).</param>
+/// <param name="EntryPointPath">Absolute path of the target's entry point source file.</param>
+/// <param name="Properties">Manifest properties attached to the synthesized project node.</param>
+/// <param name="LocalDependencyPaths">
+/// When set, restricts the target's local project dependencies to these absolute paths instead of inheriting
+/// every local dependency of the shared manifest (e.g. one Cargo binary out of many in a crate).
+/// </param>
 public sealed record AdditionalProjectDescriptor(
     string Name,
     string EntryPointPath,
-    IReadOnlyDictionary<string, string> Properties);
+    IReadOnlyDictionary<string, string> Properties,
+    IReadOnlyCollection<string>? LocalDependencyPaths = null);
 
 public interface IProjectParser
 {
@@ -131,11 +139,6 @@ public interface IProjectParser
     /// Parses the project dependencies (local project directory paths and external packages) in the given directory.
     /// </summary>
     Task<ProjectDependencyInfo> ParseDependenciesAsync(string projectDirectory);
-
-    /// <summary>
-    /// Gets the syntax enricher for this project type.
-    /// </summary>
-    ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree) => new SyntaxEnricher(SemanticExtensions, syntaxTree, Packages);
 
     /// <summary>
     /// Extracts project-level manifest metadata and properties (e.g., manifest_type, has_cli_bin, framework_type, sdk, output_type, is_packable).

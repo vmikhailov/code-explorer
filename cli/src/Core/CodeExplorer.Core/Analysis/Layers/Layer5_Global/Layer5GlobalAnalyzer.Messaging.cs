@@ -555,7 +555,6 @@ public partial class Layer5AnalysisParser
         }
 
         referenceRelationships.Add(new Relationship(topicId, refItem.ScopeSymbolId, relKind, new Dictionary<string, object>(relProps)));
-        referenceRelationships.Add(new Relationship(refItem.ScopeSymbolId, topicId, refItem.Kind, relProps));
     }
 
     private bool IsMatch(ExternalServiceNode extService, EntryPointNode entryPoint) => IsMatch(extService, entryPoint, null);

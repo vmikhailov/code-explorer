@@ -166,7 +166,7 @@ public class ConstantRegistryTests
             var fileNode = new CodeExplorer.Core.Common.Nodes.Layer1_Physical.FileNode("f1", "my_table.entity.ts", "my_table.entity.ts", dummyFilePath);
             var tsParser = new Parser.TypeScript.TypeScriptParser();
             var syntaxTree = new SyntaxTree(dummyFilePath, "test", null, null, null, fileNode, tsParser, [], [], []);
-            var detected = SyntaxEnricher.DetectDeclaredSchema(null, null, syntaxTree);
+            var detected = ResourceSemanticAnalyzer.DetectDeclaredSchema(null, null, syntaxTree);
 
             detected.Should().Be("sources");
         }

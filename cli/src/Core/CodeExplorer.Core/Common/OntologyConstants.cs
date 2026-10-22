@@ -38,6 +38,8 @@ public static class OntologyConstants
         public const string ApiInUse = "ApiInUse";
         public const string Counter = "Counter";
         public const string Domain = "Domain";
+        public const string BoundedContext = "BoundedContext";
+        public const string LogicalStructure = "LogicalStructure";
         public const string TestSuite = "TestSuite";
         public const string CallLiteral = "CallLiteral";
         public const string CatchClause = "CatchClause";
@@ -50,6 +52,7 @@ public static class OntologyConstants
         public const string ProjectsStructure = "ps";
         public const string SyntaxStructure = "ss";
         public const string SemanticStructure = "sem";
+        public const string LogicalStructure = "ls";
         public const string File = "f";
         public const string Folder = "dir";
         public const string Git = "git";
@@ -74,6 +77,7 @@ public static class OntologyConstants
         public const string PeerMesh = "mesh";
         public const string ApiInUse = "api";
         public const string Domain = "dom";
+        public const string BoundedContext = "bc";
         public const string TestSuite = "suite";
         public const string CallLiteral = "lit";
         public const string CatchClause = "catch";
@@ -82,10 +86,11 @@ public static class OntologyConstants
     public static class Layers
     {
         public const string Workspace = "";
-        public const string Physical = "Layer 1: Physical Topology";
-        public const string ProjectBoundary = "Layer 2: Project Boundary";
-        public const string Syntactic = "Layer 3: Syntactic Structure";
+        public const string Physical = "Layer 1: File Structure";
+        public const string ProjectBoundary = "Layer 2: Project Structure";
+        public const string Syntactic = "Layer 3: Syntax Structure";
         public const string Semantic = "Layer 4: Semantic Structure";
+        public const string Logical = "Layer 5: Logical Structure";
     }
 
     public static class Relationships
@@ -133,6 +138,7 @@ public static class OntologyConstants
         public const string SubscribesTo = "SUBSCRIBES_TO";
         public const string OfType = "OF_TYPE";
 
+        public const string AccessedBy = "ACCESSED_BY";
         public const string CalledBy = "CALLED_BY";
         public const string QueriedBy = "QUERIED_BY";
         public const string PublishedBy = "PUBLISHED_BY";
@@ -216,5 +222,13 @@ public static class OntologyConstants
         public const string EvidenceIds = "evidence_ids";
         public const string EvidenceCount = "evidence_count";
         public const string EvidenceTruncated = "evidence_truncated";
+        public const string MessagingDirection = "messaging_direction";
+
+        /// <summary>
+        /// JSON object on a workload project mapping a dependency project directory (workspace-relative) to the
+        /// workspace-relative source files of that dependency reachable from the workload's entry point.
+        /// Dependencies absent from the map are treated as fully reachable.
+        /// </summary>
+        public const string SourceReachability = "source_reachability";
     }
 }

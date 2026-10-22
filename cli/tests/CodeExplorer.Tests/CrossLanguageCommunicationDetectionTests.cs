@@ -93,8 +93,7 @@ public class CrossLanguageCommunicationDetectionTests
         try
         {
             var proj = new ProjectNode("proj:order-svc", "order-svc", "/order-svc", "typescript");
-            var enricher = parser.GetSyntaxEnricher(ormTree);
-            await enricher.EnrichAsync(proj, ormCtx);
+            await ResourceSemanticAnalyzer.EnrichAsync(ormTree, proj, parser, ormCtx);
 
             (ormCtx.GlobalProjectDependencies.Any(d => d.Kind == "USES_DB")).Should().BeTrue("TypeScript TypeORM should produce USES_DB relationship");
         }
@@ -158,8 +157,7 @@ public class CrossLanguageCommunicationDetectionTests
         try
         {
             var proj = new ProjectNode("proj:user-svc", "user-svc", "/user-svc", "csharp");
-            var enricher = parser.GetSyntaxEnricher(ormTree);
-            await enricher.EnrichAsync(proj, ormCtx);
+            await ResourceSemanticAnalyzer.EnrichAsync(ormTree, proj, parser, ormCtx);
 
             (ormCtx.GlobalProjectDependencies.Any(d => d.Kind == "USES_DB")).Should().BeTrue("C# EF Core should produce USES_DB relationship");
         }
@@ -272,8 +270,7 @@ public class CrossLanguageCommunicationDetectionTests
         try
         {
             var proj = new ProjectNode("proj:catalog-svc", "catalog-svc", "/catalog-svc", "python");
-            var enricher = parser.GetSyntaxEnricher(ormTree);
-            await enricher.EnrichAsync(proj, ormCtx);
+            await ResourceSemanticAnalyzer.EnrichAsync(ormTree, proj, parser, ormCtx);
 
             (ormCtx.GlobalProjectDependencies.Any(d => d.Kind == "USES_DB")).Should().BeTrue("Python SQLAlchemy should produce USES_DB relationship");
         }
@@ -338,8 +335,7 @@ public class CrossLanguageCommunicationDetectionTests
         try
         {
             var proj = new ProjectNode("proj:customer-svc", "customer-svc", "/customer-svc", "java");
-            var enricher = parser.GetSyntaxEnricher(ormTree);
-            await enricher.EnrichAsync(proj, ormCtx);
+            await ResourceSemanticAnalyzer.EnrichAsync(ormTree, proj, parser, ormCtx);
 
             (ormCtx.GlobalProjectDependencies.Any(d => d.Kind == "USES_DB")).Should().BeTrue("Java JPA should produce USES_DB relationship");
         }

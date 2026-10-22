@@ -80,160 +80,11 @@ public class Layer4SemanticParser
             existingRelKeys.Add((r.From, r.To, r.Kind));
         }
 
-        var lastLogTicks = Environment.TickCount64;
-        var projectsProcessed = 0;
-
-        foreach (var project in allProjects)
-        {
-            ctx.CancellationToken.ThrowIfCancellationRequested();
-            projectsProcessed++;
-
-            void ReportProgressIfNeeded(bool force = false)
-            {
-                var now = Environment.TickCount64;
-                if (force || projectsProcessed == 1 || projectsProcessed == totalProjects ||
-                    projectsProcessed % 10 == 0 || (now - lastLogTicks) >= 3000)
-                {
-                    var pct = totalProjects > 0 ? (double)projectsProcessed / totalProjects * 100.0 : 100.0;
-                    ctx.Log($"[Layer4] Enriched {projectsProcessed}/{totalProjects} projects ({pct:F0}%) - {project.Name}...");
-                    lastLogTicks = now;
-                    ctx.TriggerProgressReport();
-                }
-            }
-
-            // Find project parser(s)
-            var projectDirectory = project.Extensions?.GetValueOrDefault("cargo_manifest_dir");
-            var projectAbsDir = !string.IsNullOrWhiteSpace(projectDirectory)
-                ? Path.GetFullPath(projectDirectory)
-                : Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, project.Path));
-            projectAbsDir = projectAbsDir.Replace('\\', '/');
-            var filesInDir = Directory.Exists(projectAbsDir) ? Directory.GetFiles(projectAbsDir) : [];
-            var matchingParsers = WorkspaceIndexer._projectParsers
-                .Where(p => p.IsProjectDirectory(projectAbsDir, filesInDir))
-                .ToList();
-            var projectParser = matchingParsers.FirstOrDefault();
-
-            if (projectParser == null)
-            {
-                ReportProgressIfNeeded();
-                continue;
-            }
-
-            // 2. Parse project-level configuration files before syntax enrichment so resources are available in registry
-            var projectFiles = filesByProjectId.GetValueOrDefault(project.Id) ?? [];
-            var initialRelCount = semanticRelationships.Count;
-            foreach (var pfile in projectFiles)
-            {
-                if (ConfigurationParser.IsConfigurationFile(pfile.Name))
-                {
-                    ConfigurationParser.ParseAndEnrich(pfile.FullPath, pfile.Path, ctx.WorkspaceId, project, semanticRelationships, ctx);
-                }
-            }
-            if (semanticRelationships.Count > initialRelCount)
-            {
-                for (var i = initialRelCount; i < semanticRelationships.Count; i++)
-                {
-                    var r = semanticRelationships[i];
-                    existingRelKeys.Add((r.From, r.To, r.Kind));
-                }
-            }
-
-            // 3. Get syntax trees belonging to this project and run semantic enrichers
-            var projectTrees = treesByProjectId.GetValueOrDefault(project.Id) ?? [];
-
-            foreach (var syntaxTree in projectTrees)
-            {
-                ctx.CancellationToken.ThrowIfCancellationRequested();
-                EndpointSemanticAnalyzer.Enrich(syntaxTree, project, ctx, semanticRelationships);
-                var targetParser = projectParser;
-                if (syntaxTree.FileNode != null)
-                {
-                    var ext = Path.GetExtension(syntaxTree.FileNode.Name);
-                    var fileMatchedParser = matchingParsers.FirstOrDefault(p => p is IFileParser fp && fp.CanParse(ext))
-                                            ?? WorkspaceIndexer._projectParsers.FirstOrDefault(p => p is IFileParser fp && fp.CanParse(ext));
-                    if (fileMatchedParser != null)
-                    {
-                        targetParser = fileMatchedParser;
-                    }
-                }
-                var enricher = targetParser.GetSyntaxEnricher(syntaxTree);
-                await enricher.EnrichAsync(project, ctx);
-            }
-
-            // Collect semantic nodes parsed from files
-            var projectSemanticNodes = new List<IOntologyNode>();
-            foreach (var syntaxTree in projectTrees)
-            {
-                if (syntaxTree.FileNode != null)
-                {
-                    CollectSemanticNodes(syntaxTree.FileNode, projectSemanticNodes);
-                }
-                syntaxTree.Dispose();
-            }
-
-            // If code-first GraphQL EndpointNodes exist in this project for a given (OperationType, RouteTemplate),
-            // suppress duplicate SDL-derived EndpointNodes (e.g. from schema.graphql dumps) for the same field.
-            var codeFirstGqlFields = projectSemanticNodes
-                .OfType<EndpointNode>()
-                .Where(ep => string.Equals(ep.Protocol, "GraphQL", StringComparison.OrdinalIgnoreCase) &&
-                             (ep.Extensions == null || !ep.Extensions.TryGetValue("graphql_sdl", out var isSdl) || isSdl != "true"))
-                .Select(ep => ($"{ep.OperationType ?? "Query"}:{ep.RouteTemplate.Trim('/')}"))
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-            if (codeFirstGqlFields.Count > 0)
-            {
-                var duplicateSdlIds = projectSemanticNodes
-                    .OfType<EndpointNode>()
-                    .Where(ep => ep.Extensions != null &&
-                                 ep.Extensions.TryGetValue("graphql_sdl", out var isSdl) &&
-                                 isSdl == "true" &&
-                                 codeFirstGqlFields.Contains($"{ep.OperationType ?? "Query"}:{ep.RouteTemplate.Trim('/')}"))
-                    .Select(ep => ep.Id)
-                    .ToHashSet(StringComparer.Ordinal);
-
-                if (duplicateSdlIds.Count > 0)
-                {
-                    projectSemanticNodes.RemoveAll(n => duplicateSdlIds.Contains(n.Id));
-                    foreach (var syntaxTree in projectTrees)
-                    {
-                        syntaxTree.FileNode?.Children.RemoveAll(c => duplicateSdlIds.Contains(c.Id));
-                    }
-                }
-            }
-
-            foreach (var semNode in projectSemanticNodes)
-            {
-                if (project.Children.All(c => c.Id != semNode.Id))
-                {
-                    project.Children.Add(semNode);
-                    semanticNodes.Add(semNode);
-                }
-                if (semNode is ExternalServiceNode es)
-                {
-                    if (existingRelKeys.Add((project.Id, es.Id, OntologyConstants.Relationships.ServiceCall)))
-                    {
-                        semanticRelationships.Add(new Relationship(
-                            project.Id,
-                            es.Id,
-                            OntologyConstants.Relationships.ServiceCall,
-                            new Dictionary<string, object>
-                            {
-                                ["dependency_type"] = "service_call",
-                                ["is_semantic"] = "true"
-                            }));
-                    }
-                }
-            }
-
-            // Group EntryPoints
-            GroupEntryPoints(project, projectTrees, ctx);
-
-            ReportProgressIfNeeded();
-        }
-
-        // 4. Materialize first-class semantic workload nodes under SemanticStructure
+        // Materialize first-class semantic workload nodes under SemanticStructure before per-project enrichment
         ctx.Log($"[Layer4] Materializing semantic workload hierarchy ({allProjects.Count} projects)...");
-        var workloadByProjectId = new Dictionary<string, string>();
+        var workloadByProjectId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var workloadNodeByProjectId = new Dictionary<string, IOntologyNode>(StringComparer.OrdinalIgnoreCase);
+        var rawProjectNames = allProjects.Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var project in allProjects)
         {
             var extensions = new Dictionary<string, string>(project.Extensions ?? new())
@@ -245,6 +96,10 @@ public class Layer4SemanticParser
 
             var cleanName = WorkspaceConventions.NormalizeServiceName(project.Name);
             if (string.IsNullOrEmpty(cleanName)) cleanName = project.Name;
+            if (!cleanName.Equals(project.Name, StringComparison.OrdinalIgnoreCase) && rawProjectNames.Contains(cleanName))
+            {
+                cleanName = project.Name.Trim().ToLowerInvariant();
+            }
             extensions["raw_name"] = project.Name;
             extensions["clean_name"] = cleanName;
 
@@ -286,14 +141,6 @@ public class Layer4SemanticParser
 
             if (!project.IsLibrary && !isTestProject && canonicalPrimaryRole is "Service" or "App" or "Worker" or "CliTool")
             {
-                if (project.Children.OfType<EndpointNode>().Any() && canonicalPrimaryRole != "Service")
-                {
-                    if (!secRolesList.Contains("Service"))
-                    {
-                        secRolesList.Add("Service");
-                    }
-                }
-
                 var hasWorkerSignals = string.Equals(extensions.GetValueOrDefault("is_queue_worker"), "true", StringComparison.OrdinalIgnoreCase) ||
                                       string.Equals(extensions.GetValueOrDefault("is_scheduler"), "true", StringComparison.OrdinalIgnoreCase) ||
                                       l3Result.Prev.ProjectDependencies.Any(d => d.From == project.Id && (d.Kind == "SUBSCRIBES" || d.Kind == "SUBSCRIBES_TO" || d.Kind == "CONSUMES" || d.Kind == "TRIGGERS"));
@@ -382,36 +229,224 @@ public class Layer4SemanticParser
                 semanticNodes.Add(workloadNode);
             }
 
-            if (existingRelKeys.Add((project.Id, workloadNode.Id, OntologyConstants.Relationships.Deploys)))
+            if (existingRelKeys.Add((workloadNode.Id, project.Id, OntologyConstants.Relationships.ImplementedBy)))
             {
-                semanticRelationships.Add(new Relationship(project.Id, workloadNode.Id, OntologyConstants.Relationships.Deploys, new Dictionary<string, object>()));
+                semanticRelationships.Add(new Relationship(workloadNode.Id, project.Id, OntologyConstants.Relationships.ImplementedBy, new Dictionary<string, object>()));
             }
 
             workloadByProjectId[project.Id] = workloadNode.Id;
+            workloadNodeByProjectId[project.Id] = workloadNode;
+        }
 
-            // Attach project endpoints, entry points, and external services to the workload node
-            foreach (var child in project.Children.Where(c => c is EndpointNode or EntryPointNode or ExternalServiceNode).ToList())
+        var lastLogTicks = Environment.TickCount64;
+        var projectsProcessed = 0;
+
+        foreach (var project in allProjects)
+        {
+            ctx.CancellationToken.ThrowIfCancellationRequested();
+            projectsProcessed++;
+            var workloadNode = workloadNodeByProjectId[project.Id];
+
+            void ReportProgressIfNeeded(bool force = false)
             {
-                if (!workloadNode.Children.Any(c => c.Id == child.Id))
+                var now = Environment.TickCount64;
+                if (force || projectsProcessed == 1 || projectsProcessed == totalProjects ||
+                    projectsProcessed % 10 == 0 || (now - lastLogTicks) >= 3000)
                 {
-                    workloadNode.Children.Add(child);
+                    var pct = totalProjects > 0 ? (double)projectsProcessed / totalProjects * 100.0 : 100.0;
+                    ctx.Log($"[Layer4] Enriched {projectsProcessed}/{totalProjects} projects ({pct:F0}%) - {project.Name}...");
+                    lastLogTicks = now;
+                    ctx.TriggerProgressReport();
                 }
-                if (child is ExternalServiceNode es)
+            }
+
+            // Find project parser(s)
+            var projectDirectory = project.Extensions?.GetValueOrDefault("cargo_manifest_dir");
+            var projectAbsDir = !string.IsNullOrWhiteSpace(projectDirectory)
+                ? Path.GetFullPath(projectDirectory)
+                : Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, project.Path));
+            projectAbsDir = projectAbsDir.Replace('\\', '/');
+            var filesInDir = Directory.Exists(projectAbsDir) ? Directory.GetFiles(projectAbsDir) : [];
+            var matchingParsers = WorkspaceIndexer._projectParsers
+                .Where(p => p.IsProjectDirectory(projectAbsDir, filesInDir))
+                .ToList();
+            var projectParser = matchingParsers.FirstOrDefault();
+
+            if (projectParser == null)
+            {
+                ReportProgressIfNeeded();
+                continue;
+            }
+
+            // 2. Parse project-level configuration files before syntax enrichment so resources are available in registry
+            var projectFiles = filesByProjectId.GetValueOrDefault(project.Id) ?? [];
+            var initialRelCount = semanticRelationships.Count;
+            foreach (var pfile in projectFiles)
+            {
+                if (ConfigurationParser.IsConfigurationFile(pfile.Name))
                 {
-                    if (existingRelKeys.Add((workloadNode.Id, es.Id, OntologyConstants.Relationships.ServiceCall)))
+                    ConfigurationParser.ParseAndEnrich(pfile.FullPath, pfile.Path, ctx.WorkspaceId, workloadNode, semanticRelationships, ctx);
+                }
+            }
+            if (semanticRelationships.Count > initialRelCount)
+            {
+                for (var i = initialRelCount; i < semanticRelationships.Count; i++)
+                {
+                    var r = semanticRelationships[i];
+                    existingRelKeys.Add((r.From, r.To, r.Kind));
+                }
+            }
+
+            // 3. Get syntax trees belonging to this project and run semantic enrichers
+            var projectTrees = treesByProjectId.GetValueOrDefault(project.Id) ?? [];
+
+            foreach (var syntaxTree in projectTrees)
+            {
+                ctx.CancellationToken.ThrowIfCancellationRequested();
+                EndpointSemanticAnalyzer.Enrich(syntaxTree, project, ctx, semanticRelationships);
+                var targetParser = projectParser;
+                if (syntaxTree.FileNode != null)
+                {
+                    var ext = Path.GetExtension(syntaxTree.FileNode.Name);
+                    var fileMatchedParser = matchingParsers.FirstOrDefault(p => p is IFileParser fp && fp.CanParse(ext))
+                                            ?? WorkspaceIndexer._projectParsers.FirstOrDefault(p => p is IFileParser fp && fp.CanParse(ext));
+                    if (fileMatchedParser != null)
                     {
-                        semanticRelationships.Add(new Relationship(
-                            workloadNode.Id,
-                            es.Id,
-                            OntologyConstants.Relationships.ServiceCall,
-                            new Dictionary<string, object>
-                            {
-                                ["dependency_type"] = "service_call",
-                                ["is_semantic"] = "true"
-                            }));
+                        targetParser = fileMatchedParser;
+                    }
+                }
+                await ResourceSemanticAnalyzer.EnrichAsync(syntaxTree, project, targetParser, ctx, workloadNode);
+            }
+
+            // Collect semantic nodes parsed from files
+            var projectSemanticNodes = new List<IOntologyNode>();
+            foreach (var syntaxTree in projectTrees)
+            {
+                if (syntaxTree.FileNode != null)
+                {
+                    CollectSemanticNodes(syntaxTree.FileNode, projectSemanticNodes);
+                }
+                syntaxTree.Dispose();
+            }
+
+            // If code-first GraphQL EndpointNodes exist in this project for a given (OperationType, RouteTemplate),
+            // suppress duplicate SDL-derived EndpointNodes (e.g. from schema.graphql dumps) for the same field.
+            var codeFirstGqlFields = projectSemanticNodes
+                .OfType<EndpointNode>()
+                .Where(ep => string.Equals(ep.Protocol, "GraphQL", StringComparison.OrdinalIgnoreCase) &&
+                             (ep.Extensions == null || !ep.Extensions.TryGetValue("graphql_sdl", out var isSdl) || isSdl != "true"))
+                .Select(ep => ($"{ep.OperationType ?? "Query"}:{ep.RouteTemplate.Trim('/')}"))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            if (codeFirstGqlFields.Count > 0)
+            {
+                var duplicateSdlIds = projectSemanticNodes
+                    .OfType<EndpointNode>()
+                    .Where(ep => ep.Extensions != null &&
+                                 ep.Extensions.TryGetValue("graphql_sdl", out var isSdl) &&
+                                 isSdl == "true" &&
+                                 codeFirstGqlFields.Contains($"{ep.OperationType ?? "Query"}:{ep.RouteTemplate.Trim('/')}"))
+                    .Select(ep => ep.Id)
+                    .ToHashSet(StringComparer.Ordinal);
+
+                if (duplicateSdlIds.Count > 0)
+                {
+                    projectSemanticNodes.RemoveAll(n => duplicateSdlIds.Contains(n.Id));
+                    foreach (var syntaxTree in projectTrees)
+                    {
+                        syntaxTree.FileNode?.Children.RemoveAll(c => duplicateSdlIds.Contains(c.Id));
                     }
                 }
             }
+
+            if (!project.IsLibrary && projectSemanticNodes.OfType<EndpointNode>().Any() &&
+                workloadNode.Extensions != null &&
+                workloadNode.Extensions.TryGetValue("primary_role", out var primRole) &&
+                primRole is "App" or "Worker" or "CliTool")
+            {
+                var secRolesList = new List<string>();
+                if (workloadNode.Extensions.TryGetValue("secondary_roles", out var secJson) && !string.IsNullOrWhiteSpace(secJson))
+                {
+                    try
+                    {
+                        secRolesList = System.Text.Json.JsonSerializer.Deserialize<List<string>>(secJson) ?? [];
+                    }
+                    catch { }
+                }
+                if (!secRolesList.Contains("Service"))
+                {
+                    secRolesList.Add("Service");
+                    var newSecJson = System.Text.Json.JsonSerializer.Serialize(secRolesList);
+                    var newAllJson = System.Text.Json.JsonSerializer.Serialize(new[] { primRole }.Concat(secRolesList).Distinct().ToList());
+                    workloadNode.Extensions["secondary_roles"] = newSecJson;
+                    workloadNode.Extensions["all_roles"] = newAllJson;
+                    if (project.Extensions != null)
+                    {
+                        project.Extensions["secondary_roles"] = newSecJson;
+                        project.Extensions["all_roles"] = newAllJson;
+                    }
+                }
+            }
+
+            var nestedSemanticIds = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var semNode in projectSemanticNodes)
+            {
+                foreach (var child in semNode.Children)
+                {
+                    nestedSemanticIds.Add(child.Id);
+                    foreach (var grandChild in child.Children)
+                    {
+                        nestedSemanticIds.Add(grandChild.Id);
+                    }
+                }
+            }
+
+            foreach (var semNode in projectSemanticNodes)
+            {
+                semanticNodes.Add(semNode);
+                if (semNode is EndpointNode or EntryPointNode or ExternalServiceNode)
+                {
+                    if (workloadNode.Children.All(c => c.Id != semNode.Id))
+                    {
+                        workloadNode.Children.Add(semNode);
+                    }
+                    if (existingRelKeys.Add((semNode.Id, project.Id, OntologyConstants.Relationships.DeclaredIn)))
+                    {
+                        semanticRelationships.Add(new Relationship(
+                            semNode.Id,
+                            project.Id,
+                            OntologyConstants.Relationships.DeclaredIn,
+                            new Dictionary<string, object>()));
+                    }
+                    if (semNode is ExternalServiceNode es)
+                    {
+                        if (existingRelKeys.Add((workloadNode.Id, es.Id, OntologyConstants.Relationships.ServiceCall)))
+                        {
+                            semanticRelationships.Add(new Relationship(
+                                workloadNode.Id,
+                                es.Id,
+                                OntologyConstants.Relationships.ServiceCall,
+                                new Dictionary<string, object>
+                                {
+                                    ["dependency_type"] = "service_call",
+                                    ["is_semantic"] = "true"
+                                }));
+                        }
+                    }
+                }
+                else if (!nestedSemanticIds.Contains(semNode.Id))
+                {
+                    if (semanticStructureNode.Children.All(c => c.Id != semNode.Id))
+                    {
+                        semanticStructureNode.Children.Add(semNode);
+                    }
+                }
+            }
+
+            // Group EntryPoints under the Layer 4 workload node
+            GroupEntryPoints(workloadNode, project, projectTrees, semanticRelationships, existingRelKeys, ctx);
+
+            ReportProgressIfNeeded();
         }
 
         SemanticTopologySynthesizer.Synthesize(
@@ -537,7 +572,13 @@ public class Layer4SemanticParser
         }
     }
 
-    private void GroupEntryPoints(ProjectNode? project, List<SyntaxTree> projectTrees, ParsingContext ctx)
+    private void GroupEntryPoints(
+        IOntologyNode? workloadNode,
+        ProjectNode project,
+        List<SyntaxTree> projectTrees,
+        List<Relationship> semanticRelationships,
+        HashSet<(string From, string To, string Kind)> existingRelKeys,
+        ParsingContext ctx)
     {
         var entryPoints = new List<EntryPointNode>();
         var parentMap = new Dictionary<string, string>();
@@ -550,11 +591,23 @@ public class Layer4SemanticParser
             }
         }
 
-        if (entryPoints.Count > 0 && project != null)
+        if (entryPoints.Count > 0 && workloadNode != null)
         {
             foreach (var ep in entryPoints)
             {
-                project.Children.Add(ep);
+                if (workloadNode.Children.All(c => c.Id != ep.Id))
+                {
+                    workloadNode.Children.Add(ep);
+                }
+
+                if (existingRelKeys.Add((ep.Id, project.Id, OntologyConstants.Relationships.DeclaredIn)))
+                {
+                    semanticRelationships.Add(new Relationship(
+                        ep.Id,
+                        project.Id,
+                        OntologyConstants.Relationships.DeclaredIn,
+                        new Dictionary<string, object>()));
+                }
 
                 if (parentMap.TryGetValue(ep.Id, out var parentId))
                 {

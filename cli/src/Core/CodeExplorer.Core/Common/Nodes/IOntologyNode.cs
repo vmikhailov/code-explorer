@@ -19,4 +19,20 @@ public static class OntologyNodeExtensions
         node.Extensions ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         node.Extensions[key] = value;
     }
+
+    public static string GetName(this IOntologyNode node) => node switch
+    {
+        Layer4_Semantic.ServiceNode s => s.Name,
+        Layer4_Semantic.AppNode a => a.Name,
+        Layer4_Semantic.WorkerNode w => w.Name,
+        Layer4_Semantic.CliToolNode c => c.Name,
+        Layer4_Semantic.LibraryNode l => l.Name,
+        Layer4_Semantic.TestSuiteNode t => t.Name,
+        Layer2_Boundaries.ProjectNode p => p.Name,
+        Layer1_Physical.FileNode f => f.Name,
+        Layer3_Syntactic.TypeNode ty => ty.Name,
+        Layer3_Syntactic.FunctionNode fn => fn.Name,
+        Layer3_Syntactic.MemberNode m => m.Name,
+        _ => node.Id.Contains(':') ? node.Id[(node.Id.LastIndexOf(':') + 1)..] : node.Id
+    };
 }

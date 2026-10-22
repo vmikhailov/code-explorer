@@ -771,7 +771,7 @@ public partial class Layer5AnalysisParser
             }
 
             referenceRelationships.Add(
-                Relationship.FromRelationship(new QueriedByRelationship(targetTableId, refItem.ScopeSymbolId, ext)));
+                Relationship.FromRelationship(new AccessedByRelationship(targetTableId, refItem.ScopeSymbolId, ext)));
             if (refItem.ScopeSymbolId.Contains($":{OntologyConstants.IdPrefixes.Query}:") || refItem.ScopeSymbolId.Contains(":query:"))
             {
                 referenceRelationships.Add(Relationship.FromRelationship(new DependsOnRelationship(refItem.ScopeSymbolId, targetTableId, ext)));
@@ -785,12 +785,18 @@ public partial class Layer5AnalysisParser
         SymbolLookups symbols,
         List<Relationship> referenceRelationships)
     {
-        if (symbols.TypeSymbols.TryGetValue(refItem.ScopeSymbolId, out var tid))
+        if (!symbols.TypeSymbols.TryGetValue(refItem.ScopeSymbolId, out var tid) &&
+            refItem.ScopeSymbolId.Contains(":Type:", StringComparison.Ordinal))
+        {
+            tid = refItem.ScopeSymbolId;
+        }
+
+        if (!string.IsNullOrEmpty(tid))
         {
             var targetTableId = symbols.TableSymbols.TryGetValue(refItem.TargetName, out var tblId)
                 ? tblId
                 : $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Table}:{refItem.TargetName.ToLowerInvariant()}";
-            if (tid != targetTableId && !referenceRelationships.Any(r => r.From == tid && r.To == targetTableId && r.Kind == OntologyConstants.Relationships.PersistedIn))
+            if (tid != targetTableId)
             {
                 var filePath = ExtractFilePathFromSymbolId(tid);
                 var ext = new Dictionary<string, string>
@@ -802,7 +808,14 @@ public partial class Layer5AnalysisParser
                 {
                     ext[OntologyConstants.PropertyNames.FilePath] = filePath;
                 }
-                referenceRelationships.Add(Relationship.FromRelationship(new PersistedInRelationship(tid, targetTableId, ext)));
+                if (!referenceRelationships.Any(r => r.From == targetTableId && r.To == tid && r.Kind == OntologyConstants.Relationships.ImplementedBy))
+                {
+                    referenceRelationships.Add(Relationship.FromRelationship(new ImplementedByRelationship(targetTableId, tid, ext)));
+                }
+                if (!referenceRelationships.Any(r => r.From == targetTableId && r.To == tid && r.Kind == OntologyConstants.Relationships.AccessedBy))
+                {
+                    referenceRelationships.Add(Relationship.FromRelationship(new AccessedByRelationship(targetTableId, tid, ext)));
+                }
             }
         }
     }

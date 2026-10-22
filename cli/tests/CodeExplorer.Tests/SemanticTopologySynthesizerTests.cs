@@ -24,6 +24,37 @@ public class SemanticTopologySynthesizerTests
     }
 
     [Test]
+    public void DetectAwsResourceRoles_DetectsGraphCheckpointBucket()
+    {
+        var source = "download_graph_checkpoint(&aws_clients.checkpoint_s3_client, &config.graph_checkpoint_bucket_name)";
+        var packages = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "aws-sdk-s3" };
+
+        SemanticTopologySynthesizer.DetectAwsResourceRoles(source, packages)
+            .Should().BeEquivalentTo("graph_checkpoints");
+    }
+
+    [Test]
+    public void FindSharedNetworkingPeers_LinksSiblingServersButIgnoresSharedConfigModules()
+    {
+        var files = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["hawk"] = ["common/config.rs", "core/server/mod.rs"],
+            ["linear-scan"] = ["common/config.rs", "core/server/mod.rs"],
+            ["sidecar"] = ["common/config.rs"],
+            ["reshare"] = ["common/config.rs"],
+            ["anon-stats"] = ["bins/anon_stats/main.rs"],
+            ["nccl"] = []
+        };
+
+        var peers = SemanticTopologySynthesizer.FindSharedNetworkingPeers(
+            new HashSet<string>(["hawk", "nccl"]),
+            new HashSet<string>(["linear-scan", "sidecar", "reshare", "anon-stats"]),
+            files);
+
+        peers.Should().BeEquivalentTo(["linear-scan"]);
+    }
+
+    [Test]
     public void EvaluatePeerMeshEvidence_RequiresTwoIndependentSignals()
     {
         var singleSignal = SemanticTopologySynthesizer.EvaluatePeerMeshEvidence(

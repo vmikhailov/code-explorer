@@ -126,7 +126,13 @@ public partial class SqliteCompiler : ICypherVisitor<string>
             {
                 groupByColumns.Add($"{EscapeVar(relId.Name)}.rowid");
             }
-            else if (!string.IsNullOrEmpty(item.Alias))
+            else if (!string.IsNullOrEmpty(item.Alias) &&
+                     !item.Alias.Equals("id", StringComparison.OrdinalIgnoreCase) &&
+                     !item.Alias.Equals("kind", StringComparison.OrdinalIgnoreCase) &&
+                     !item.Alias.Equals("properties", StringComparison.OrdinalIgnoreCase) &&
+                     !item.Alias.Equals("from_id", StringComparison.OrdinalIgnoreCase) &&
+                     !item.Alias.Equals("to_id", StringComparison.OrdinalIgnoreCase) &&
+                     !item.Alias.Equals("rowid", StringComparison.OrdinalIgnoreCase))
             {
                 groupByColumns.Add(QuoteIdentifier(item.Alias));
             }

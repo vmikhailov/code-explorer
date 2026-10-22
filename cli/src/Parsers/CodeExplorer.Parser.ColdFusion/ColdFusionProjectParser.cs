@@ -161,11 +161,6 @@ public class ColdFusionProjectParser : IProjectParser
         return Task.FromResult(new ProjectDependencyInfo(new List<string>(), new List<ProducedPackageInfo>()));
     }
 
-    public ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree)
-    {
-        return new ColdFusionSyntaxEnricher(syntaxTree);
-    }
-
     public Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory)
     {
         var props = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

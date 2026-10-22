@@ -40,23 +40,10 @@ public partial class PostIndexAnalyzer
                 }
             }
 
-            if (existingEdges.Add((fromId, toId, relKind)))
+            if (projectToWorkloadMap != null && projectToWorkloadMap.TryGetValue(fromId, out var semFrom) && semFrom != null)
             {
-                var created = new Relationship(fromId, toId, relKind, properties);
-                materializedRels.Add(created);
-                edgeLookup[(fromId, toId, relKind)] = created;
-            }
-            else if (edgeLookup.TryGetValue((fromId, toId, relKind), out var existingRel))
-            {
-                EvidenceProvenanceHelper.MergeProvenance(existingRel.Properties, properties);
-            }
-
-            if (projectToWorkloadMap != null)
-            {
-                var semFrom = projectToWorkloadMap.GetValueOrDefault(fromId);
                 var semTo = projectToWorkloadMap.GetValueOrDefault(toId, toId);
-
-                if (semFrom != null && semFrom != semTo)
+                if (semFrom != semTo)
                 {
                     var semProps = new Dictionary<string, object>(properties)
                     {
@@ -73,6 +60,18 @@ public partial class PostIndexAnalyzer
                         EvidenceProvenanceHelper.MergeProvenance(existingSemRel.Properties, semProps);
                     }
                 }
+                return;
+            }
+
+            if (existingEdges.Add((fromId, toId, relKind)))
+            {
+                var created = new Relationship(fromId, toId, relKind, properties);
+                materializedRels.Add(created);
+                edgeLookup[(fromId, toId, relKind)] = created;
+            }
+            else if (edgeLookup.TryGetValue((fromId, toId, relKind), out var existingRel))
+            {
+                EvidenceProvenanceHelper.MergeProvenance(existingRel.Properties, properties);
             }
         }
 
@@ -91,18 +90,47 @@ public partial class PostIndexAnalyzer
             }
             nodeToProject[$"{p.Id}project_semantic"] = p;
             nodeToProject[$"{p.Id}:project_semantic"] = p;
+            if (projectToWorkloadMap != null && projectToWorkloadMap.TryGetValue(p.Id, out var wlId) && !string.IsNullOrEmpty(wlId))
+            {
+                nodeToProject[wlId] = p;
+            }
         }
 
-        foreach (var rel in allRelationships)
+        var callersByExtService = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        for (int pass = 0; pass < 2; pass++)
         {
-            if (rel.Kind == OntologyConstants.Relationships.Contains ||
-                rel.Kind == OntologyConstants.Relationships.Declares ||
-                rel.Kind == OntologyConstants.Relationships.HasMethod ||
-                rel.Kind == OntologyConstants.Relationships.HasMember)
+            foreach (var rel in allRelationships)
             {
-                if (fileToProject.TryGetValue(rel.From, out var proj) || nodeToProject.TryGetValue(rel.From, out proj))
+                if (rel.Kind == OntologyConstants.Relationships.Contains ||
+                    rel.Kind == OntologyConstants.Relationships.Exposes ||
+                    rel.Kind == OntologyConstants.Relationships.Declares ||
+                    rel.Kind == OntologyConstants.Relationships.HasMethod ||
+                    rel.Kind == OntologyConstants.Relationships.HasMember ||
+                    rel.Kind == OntologyConstants.Relationships.Deploys)
                 {
-                    nodeToProject.TryAdd(rel.To, proj);
+                    if (fileToProject.TryGetValue(rel.From, out var proj) || nodeToProject.TryGetValue(rel.From, out proj))
+                    {
+                        nodeToProject.TryAdd(rel.To, proj);
+                    }
+                }
+                else if (rel.Kind == OntologyConstants.Relationships.ImplementedBy ||
+                         rel.Kind == OntologyConstants.Relationships.ExposedBy ||
+                         rel.Kind == OntologyConstants.Relationships.DeclaredIn)
+                {
+                    if (fileToProject.TryGetValue(rel.To, out var proj) || nodeToProject.TryGetValue(rel.To, out proj))
+                    {
+                        nodeToProject.TryAdd(rel.From, proj);
+                    }
+                }
+
+                if (pass == 0 && (rel.Kind == OntologyConstants.Relationships.CalledBy || rel.Kind == "CALLED_BY"))
+                {
+                    if (!callersByExtService.TryGetValue(rel.From, out var list))
+                    {
+                        list = [];
+                        callersByExtService[rel.From] = list;
+                    }
+                    list.Add(rel.To);
                 }
             }
         }
@@ -129,14 +157,19 @@ public partial class PostIndexAnalyzer
             var to = rel.To;
 
             // 1. Direct Project -> Database (only when dbCanonicalMap is not provided; when provided, CanonicalizeDatabasesInMemoryAsync already materialized consolidated edges)
-            if (kind == OntologyConstants.Relationships.UsesDb && dbCanonicalMap == null)
+            if ((kind == OntologyConstants.Relationships.UsesDb ||
+                 kind == OntologyConstants.Relationships.AccessedBy ||
+                 kind == OntologyConstants.Relationships.QueriedBy) && dbCanonicalMap == null)
             {
-                var isTargetDb = (nodeKindsById?.GetValueOrDefault(to) == OntologyConstants.NodeLabels.Database) ||
-                                 to.Contains($":{OntologyConstants.IdPrefixes.Database}:") || to.Contains(":db:") || to.Contains(":database:") || to.Contains(":res:db:");
-                if (isTargetDb)
+                var isForward = kind == OntologyConstants.Relationships.UsesDb;
+                var candidateDb = isForward ? to : from;
+                var candidateCaller = isForward ? from : to;
+                var isDb = (nodeKindsById?.GetValueOrDefault(candidateDb) == OntologyConstants.NodeLabels.Database) ||
+                           candidateDb.Contains($":{OntologyConstants.IdPrefixes.Database}:") || candidateDb.Contains(":db:") || candidateDb.Contains(":database:") || candidateDb.Contains(":res:db:");
+                if (isDb)
                 {
-                    var targetDbId = dbCanonicalMap?.GetValueOrDefault(to, to) ?? to;
-                    var owner = ResolveOwningProject(from);
+                    var targetDbId = dbCanonicalMap?.GetValueOrDefault(candidateDb, candidateDb) ?? candidateDb;
+                    var owner = ResolveOwningProject(candidateCaller);
                     if (owner != null && owner.Id != targetDbId)
                     {
                         AddMaterialized(
@@ -242,21 +275,38 @@ public partial class PostIndexAnalyzer
             // 5. Calls Endpoint -> Project -> Project SERVICE_CALL
             else if (kind == OntologyConstants.Relationships.CallsEndpoint)
             {
-                var callerOwner = ResolveOwningProject(from);
                 var targetOwner = ResolveOwningProject(to);
-                if (callerOwner != null && targetOwner != null && callerOwner.Id != targetOwner.Id)
+                if (targetOwner != null)
                 {
-                    AddMaterialized(
-                        callerOwner.Id,
-                        targetOwner.Id,
-                        OntologyConstants.Relationships.ServiceCall,
-                        new Dictionary<string, object>
+                    var callerOwners = new HashSet<ProjectNode>();
+                    var directCallerOwner = ResolveOwningProject(from);
+                    if (directCallerOwner != null) callerOwners.Add(directCallerOwner);
+                    if (callersByExtService.TryGetValue(from, out var callerSyms))
+                    {
+                        foreach (var callerSym in callerSyms)
                         {
-                            ["dependency_type"] = "service_call",
-                            ["is_semantic"] = "true"
-                        },
-                        rel
-                    );
+                            var symOwner = ResolveOwningProject(callerSym);
+                            if (symOwner != null) callerOwners.Add(symOwner);
+                        }
+                    }
+
+                    foreach (var callerOwner in callerOwners)
+                    {
+                        if (callerOwner.Id != targetOwner.Id)
+                        {
+                            AddMaterialized(
+                                callerOwner.Id,
+                                targetOwner.Id,
+                                OntologyConstants.Relationships.ServiceCall,
+                                new Dictionary<string, object>
+                                {
+                                    ["dependency_type"] = "service_call",
+                                    ["is_semantic"] = "true"
+                                },
+                                rel
+                            );
+                        }
+                    }
                 }
             }
             // 5b. Service Target from configuration -> Project -> Project SERVICE_CALL

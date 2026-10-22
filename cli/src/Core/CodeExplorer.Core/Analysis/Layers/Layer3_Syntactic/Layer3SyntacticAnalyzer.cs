@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
@@ -77,7 +78,6 @@ public partial class Layer3SyntacticParser
                 file.ProjectName = bestMatch.Name;
 
                 projectRels.Add(new Relationship(bestMatch.Id, file.Id, OntologyConstants.Relationships.Contains));
-                projectRels.Add(new Relationship(file.Id, bestMatch.Id, OntologyConstants.Relationships.BelongsTo));
 
                 if (!filesByProjectId.TryGetValue(bestMatch.Id, out var list))
                 {
@@ -429,7 +429,114 @@ public partial class Layer3SyntacticParser
         syntaxTree.RawVariables.AddRange(rawVariables);
         syntaxTree.RawTypeBindings.AddRange(rawTypeBindings);
 
+        if (syntaxTree.FileNode != null && rawVariables.Count > 0)
+        {
+            PopulateMemberNodesFromRawVariables(syntaxTree.FileNode, rawVariables, workspaceId, relativePath);
+        }
+
         SemanticPostProcessor?.Invoke(syntaxTree, ctx);
+    }
+
+    private static readonly Regex ConfigRegex = new(
+        @"(?i)(config|settings?|cfg|\benv\b|db_?conn|\burl\b|\buri\b|\bport\b|\bhost\b|user(name)?|pass(word)?|token|secret|\bkey\b|auth|api_?key|connection_?string)",
+        RegexOptions.Compiled
+    );
+
+    private static readonly Regex ConfigInitializerRegex = new(
+        @"(?i)(process\.env|Configuration\[|Environment\.GetEnvironmentVariable|System\.Environment|import\.meta\.env|dotenv|require\(['""]dotenv['""]\))",
+        RegexOptions.Compiled
+    );
+
+    private static readonly Regex EtlRegex = new(
+        @"(?i)(\betl\b|\bsql\b|\bquery\b|\bselect\b|\binsert\b|\bupsert\b|\bschema\b|\btable\b|\bcolumn\b|\bdatabase\b|\bmigration\b|\bextract\b|\btransform\b|\bload\b)",
+        RegexOptions.Compiled
+    );
+
+    private static readonly Regex SqlQueryRegex = new(
+        @"(?i)^[\s@$""'\`]*\s*(select|insert|update|delete|create\s+table|drop\s+table|merge|alter\s+table)\b",
+        RegexOptions.Compiled
+    );
+
+    private static void PopulateMemberNodesFromRawVariables(
+        FileNode fileNode,
+        IReadOnlyList<RawVariable> fileVariables,
+        string workspaceId,
+        string relativePath)
+    {
+        foreach (var rawVar in fileVariables)
+        {
+            var isConfig = ConfigRegex.IsMatch(rawVar.Name) ||
+                           ConfigInitializerRegex.IsMatch(rawVar.InitializerText);
+            var isEtl = EtlRegex.IsMatch(rawVar.Name) || SqlQueryRegex.IsMatch(rawVar.InitializerText);
+            var isConstant = rawVar.IsConstant;
+            var isGlobal = rawVar.Scope == "global";
+            var isProperty = rawVar.MemberKind == "property";
+            var isField = rawVar.MemberKind == "field";
+
+            if (isConfig || isEtl || isConstant || isGlobal || isProperty || isField)
+            {
+                var varTypeStr = new List<string>();
+                if (isConfig) varTypeStr.Add("config");
+                if (isEtl) varTypeStr.Add("etl");
+                if (isConstant) varTypeStr.Add("constant");
+                if (isGlobal) varTypeStr.Add("global");
+                if (isProperty) varTypeStr.Add("property");
+                if (isField) varTypeStr.Add("field");
+
+                var varType = string.Join(",", varTypeStr);
+                var varId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Member:{rawVar.Name}";
+
+                var ext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["variable_type"] = varType,
+                    ["initializer_expression"] = rawVar.InitializerText,
+                    ["is_constant"] = isConstant ? "true" : "false"
+                };
+                if (!string.IsNullOrEmpty(rawVar.TypeName))
+                {
+                    ext["data_type"] = rawVar.TypeName;
+                }
+
+                var varNode = new MemberNode(
+                    varId,
+                    rawVar.Name,
+                    varId,
+                    fileNode.FullPath,
+                    varId,
+                    rawVar.StartLine,
+                    rawVar.EndLine,
+                    rawVar.StartCol,
+                    rawVar.EndCol,
+                    rawVar.MemberKind ?? "variable",
+                    rawVar.TypeName,
+                    ext
+                );
+
+                TryInsertVariable(fileNode, varNode, rawVar.StartLine);
+            }
+        }
+    }
+
+    private static bool TryInsertVariable(IOntologyNode parentNode, MemberNode varNode, int line)
+    {
+        foreach (var child in parentNode.Children)
+        {
+            if (child is TypeNode cn && line >= cn.StartLine && line <= cn.EndLine)
+            {
+                if (TryInsertVariable(cn, varNode, line)) return true;
+            }
+
+            if (child is FunctionNode fn && line >= fn.StartLine && line <= fn.EndLine)
+            {
+                if (TryInsertVariable(fn, varNode, line)) return true;
+            }
+        }
+
+        if (parentNode.Children.All(c => c.Id != varNode.Id && !(c is MemberNode existingMember && existingMember.Name == varNode.Name)))
+        {
+            parentNode.Children.Add(varNode);
+        }
+        return true;
     }
 
     private static IOntologyNode? MapSyntacticSymbolToOntology(

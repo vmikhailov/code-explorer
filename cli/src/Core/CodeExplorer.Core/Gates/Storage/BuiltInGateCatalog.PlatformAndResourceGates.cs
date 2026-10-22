@@ -77,15 +77,16 @@ public static partial class BuiltInGateCatalog
         Dimension = InvariantDimension.Boundaries,
         Name = "Ontology Layer Strict Hierarchy",
         Severity = GateSeverity.Error,
-        Description = "Enforces strict unidirectional layering across the ontology tiers: Layer 1 (Physical) -> Layer 2 (Boundaries) -> Layer 3 (Syntactic) -> Layer 4 (Semantic). Lower-layer models must never reference or depend on higher-order ontology layers (prohibits reverse/backward coupling).",
+        Description = "Enforces strict unidirectional layering across the ontology tiers: Layer 1 (File Structure) -> Layer 2 (Project Structure) -> Layer 3 (Syntax Structure) -> Layer 4 (Semantic Structure) -> Layer 5 (Logical Structure). Lower-layer models must never reference or depend on higher-order ontology layers (prohibits reverse/backward coupling).",
         Remediation = "Remove higher-layer references from lower-layer ontology models. Use downward relationships (e.g. higher-order models referencing lower-order models via DECLARED_IN, LOCATED_IN, EXPOSED_BY) or abstract contracts.",
         Query = """
             MATCH (src:Type)-[:CALLS|USES_TYPE]->(tgt:Type)
             WHERE NOT coalesce(src.is_test, false)
               AND (
-                (src.path CONTAINS 'Common/Nodes/Layer1_' AND (tgt.path CONTAINS 'Common/Nodes/Layer2_' OR tgt.path CONTAINS 'Common/Nodes/Layer3_' OR tgt.path CONTAINS 'Common/Nodes/Layer4_'))
-                OR (src.path CONTAINS 'Common/Nodes/Layer2_' AND (tgt.path CONTAINS 'Common/Nodes/Layer3_' OR tgt.path CONTAINS 'Common/Nodes/Layer4_'))
-                OR (src.path CONTAINS 'Common/Nodes/Layer3_' AND tgt.path CONTAINS 'Common/Nodes/Layer4_')
+                (src.path CONTAINS 'Common/Nodes/Layer1_' AND (tgt.path CONTAINS 'Common/Nodes/Layer2_' OR tgt.path CONTAINS 'Common/Nodes/Layer3_' OR tgt.path CONTAINS 'Common/Nodes/Layer4_' OR tgt.path CONTAINS 'Common/Nodes/Layer5_'))
+                OR (src.path CONTAINS 'Common/Nodes/Layer2_' AND (tgt.path CONTAINS 'Common/Nodes/Layer3_' OR tgt.path CONTAINS 'Common/Nodes/Layer4_' OR tgt.path CONTAINS 'Common/Nodes/Layer5_'))
+                OR (src.path CONTAINS 'Common/Nodes/Layer3_' AND (tgt.path CONTAINS 'Common/Nodes/Layer4_' OR tgt.path CONTAINS 'Common/Nodes/Layer5_'))
+                OR (src.path CONTAINS 'Common/Nodes/Layer4_' AND tgt.path CONTAINS 'Common/Nodes/Layer5_')
               )
             RETURN 
               coalesce(src.path, src.file_path) AS file,

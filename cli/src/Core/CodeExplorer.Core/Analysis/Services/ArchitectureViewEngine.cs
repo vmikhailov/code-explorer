@@ -132,7 +132,7 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
                     }
                 }
 
-                var domain = SyntaxEnricher.CleanProjectNameToDomain(nname);
+                var domain = ResourceSemanticAnalyzer.CleanProjectNameToDomain(nname);
                 if (!string.IsNullOrEmpty(domain))
                 {
                     internalProjectsLookup.TryAdd(domain, nid);
@@ -569,7 +569,7 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
 
         if (!isExplicitExternal || (!name.Contains('.') && discovery.InternalProjectsLookup.Count > 0))
         {
-            var domain = SyntaxEnricher.CleanProjectNameToDomain(name);
+            var domain = ResourceSemanticAnalyzer.CleanProjectNameToDomain(name);
             var extIdDomain = PostIndexAnalyzer.ExtractDomainFromExternalServiceId(id);
             var normName = EndpointScoringEngine.NormalizeAlphanumeric(name);
             var normDomain = EndpointScoringEngine.NormalizeAlphanumeric(domain);

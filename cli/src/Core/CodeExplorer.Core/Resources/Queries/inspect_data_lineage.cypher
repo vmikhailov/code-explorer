@@ -1,9 +1,9 @@
 MATCH (t:Table)
 WHERE $tableName IS NULL OR $tableName = '' OR $tableName = '*' OR t.name = $tableName OR toLower(t.name) CONTAINS toLower($tableName)
 OPTIONAL MATCH (q:Query)-[:DEPENDS_ON]->(t)
-OPTIONAL MATCH (t)-[:QUERIED_BY]->(func:Function)
+OPTIONAL MATCH (t)-[:ACCESSED_BY|QUERIED_BY]->(func:Function)
 OPTIONAL MATCH (caller)-[:CALLS]->(func)
-OPTIONAL MATCH (entity:Type)-[:PERSISTED_IN]->(t)
+OPTIONAL MATCH (t)-[:IMPLEMENTED_BY]->(entity:Type)
 RETURN t.name AS tableName,
        coalesce(q.name, '') AS queryName,
        coalesce(q.query_text, '') AS queryText,

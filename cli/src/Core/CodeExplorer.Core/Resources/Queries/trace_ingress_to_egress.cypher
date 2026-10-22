@@ -1,7 +1,7 @@
-MATCH (p:Project)-[:CONTAINS]->(ep:Endpoint)
+MATCH (ep:Endpoint)-[:DECLARED_IN]->(p:Project)
 OPTIONAL MATCH (ep)-[:TRIGGERS]->(fn:Function)
-OPTIONAL MATCH (fn)-[:CALLS*1..4]->(downstream)
-WHERE downstream:ExternalService OR downstream:Endpoint OR downstream:Topic
+OPTIONAL MATCH (fn)-[:CALLS*0..3]->(caller:Function)
+OPTIONAL MATCH (downstream)-[:CALLED_BY|PUBLISHED_BY]->(caller)
 RETURN p.name AS sourceProject,
        ep.name AS ingressEndpoint,
        coalesce(ep.protocol, 'REST') AS ingressProtocol,

@@ -5,6 +5,21 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.55.0] - 2026-10-22
+
+### Added
+- **Standardized 5-Layer Ontology in Tree View**:
+  - Updated `/api/ontology/layers` and TreeView to reflect the 5 standardized layers with Level 5 Logical Structure entities (`Domain`, `BoundedContext`).
+  - Added node presentation badges and icons for `Domain` (`🌐`) and `BoundedContext` (`🧩`).
+- **Reordered Architecture Diagrams**:
+  - Reordered diagrams in the CodeExplorer sidebar from High Level to Low Level:
+    1. Bounded Context Map (`mode: 'contexts'`)
+    2. Architecture Map (`mode: 'semantic'`)
+    3. Architecture Tiers (`mode: 'layers'`)
+    4. Project Flow (`mode: 'flow'`)
+
+---
+
 ## [1.41.8] - 2026-10-15
 
 ### Added

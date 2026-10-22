@@ -86,7 +86,7 @@ public partial class ArchitectureViewEngine
         // Clean project name to domain if it contains dots or resembles a project name
         if (candidate.Contains('.') || candidate.Contains('/') || candidate.Contains('\\'))
         {
-            var cleanedProj = SyntaxEnricher.CleanProjectNameToDomain(candidate);
+            var cleanedProj = ResourceSemanticAnalyzer.CleanProjectNameToDomain(candidate);
             if (!string.IsNullOrWhiteSpace(cleanedProj))
                 candidate = cleanedProj;
         }

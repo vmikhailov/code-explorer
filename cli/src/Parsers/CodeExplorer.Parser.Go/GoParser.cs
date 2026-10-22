@@ -356,8 +356,6 @@ public class GoParser : IProjectParser, IFileParser
         return await SyntaxTree.ParseAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath);
     }
 
-    public ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree) => new SyntaxEnricher(SemanticExtensions, syntaxTree, Packages);
-
     private readonly ConcurrentDictionary<string, string> _goModCache = new(StringComparer.OrdinalIgnoreCase);
 
     public ImportType ResolveImportType(string importPath, string filePath, string? absoluteWorkspacePath)

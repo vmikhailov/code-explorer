@@ -12,9 +12,8 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     order: 22,
     pluralLabel: "Tables & Views"
 )]
-[OntologyEdge<FunctionNode>(OntologyConstants.Relationships.QueriedBy)]
-[OntologyEdge<QueryNode>(OntologyConstants.Relationships.QueriedBy)]
-[OntologyEdge<TypeNode>(OntologyConstants.Relationships.PersistedIn)]
+[OntologyEdge<FunctionNode>(OntologyConstants.Relationships.AccessedBy)]
+[OntologyEdge<TypeNode>(OntologyConstants.Relationships.AccessedBy)]
 public record TableNode(
     string Id,
     string Name,

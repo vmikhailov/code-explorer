@@ -644,16 +644,20 @@ public class ParserValidationTests
         cloudNode.Should().NotBeNull();
         cloudNode.Name.Should().Be("Stripe");
 
-        // Check that file-to-library relationships are created in the context
+        // Check that downward grounding (L4 -> L3/L1) and horizontal semantic (L4 -> L4) relationships are created
+        var declDb =
+            ctx.GlobalProjectDependencies.FirstOrDefault(r => r.From == dbNode.Id && (r.Kind == "ACCESSED_BY" || r.Kind == "DECLARED_IN"));
+        declDb.Should().NotBeNull();
         var usesDb =
-            ctx.GlobalProjectDependencies.FirstOrDefault(r => r.From == fileNode.Id && r.Kind == "USES_DB");
+            ctx.GlobalProjectDependencies.FirstOrDefault(r => r.To == dbNode.Id && r.Kind == "USES_DB");
         usesDb.Should().NotBeNull();
-        usesDb.To.Should().Be(dbNode.Id);
 
+        var declCloud =
+            ctx.GlobalProjectDependencies.FirstOrDefault(r => r.From == cloudNode.Id && (r.Kind == "ACCESSED_BY" || r.Kind == "DECLARED_IN"));
+        declCloud.Should().NotBeNull();
         var usesCloud =
-            ctx.GlobalProjectDependencies.FirstOrDefault(r => r.From == fileNode.Id && r.Kind == "USES_CLOUD");
+            ctx.GlobalProjectDependencies.FirstOrDefault(r => r.To == cloudNode.Id && r.Kind == "USES_CLOUD");
         usesCloud.Should().NotBeNull();
-        usesCloud.To.Should().Be(cloudNode.Id);
 
         // Check member nodes under TypeNode (Repository)
         var classNode = fileNode.Children.OfType<TypeNode>().FirstOrDefault();
@@ -797,8 +801,7 @@ public class ParserValidationTests
             var csSyntaxTree = new SyntaxTree(csFile.FullPath, csFile.Path, null, null, null, csFile, csParser,
                 [new RawImport("Microsoft.EntityFrameworkCore", "Repository.cs") { Type = ImportType.External }],
                 [], []);
-            var csModel = csParser.GetSyntaxEnricher(csSyntaxTree);
-            await csModel.EnrichAsync(csProj, ctx);
+            await ResourceSemanticAnalyzer.EnrichAsync(csSyntaxTree, csProj, csParser, ctx);
 
             var csDbGroup = ctx.SemanticStructure;
             csDbGroup.Should().NotBeNull();
@@ -808,7 +811,9 @@ public class ParserValidationTests
             csDbNode.DbType.Should().Be("relational");
 
             (ctx.GlobalProjectDependencies.Any(r =>
-                    r.From == csFile.Id && r.To == csDbNode.Id && r.Kind == "USES_DB")).Should().BeTrue();
+                    r.From == csDbNode.Id && r.To == csFile.Id && r.Kind == "DECLARED_IN")).Should().BeTrue();
+            (ctx.GlobalProjectDependencies.Any(r =>
+                    r.To == csDbNode.Id && r.Kind == "USES_DB")).Should().BeTrue();
 
             // Test C# Semantic Model with graph (Neo4j.Driver)
             var csGraphProj = new ProjectNode("cs_graph_project", "cs_graph_project", "cs_graph_project", "csharp");
@@ -820,8 +825,7 @@ public class ParserValidationTests
             var csGraphSyntaxTree = new SyntaxTree(csGraphFile.FullPath, csGraphFile.Path, null, null, null,
                 csGraphFile, csParser,
                 [new RawImport("Neo4j.Driver", "MemgraphClient.cs") { Type = ImportType.External }], [], []);
-            var csGraphModel = csParser.GetSyntaxEnricher(csGraphSyntaxTree);
-            await csGraphModel.EnrichAsync(csGraphProj, ctx);
+            await ResourceSemanticAnalyzer.EnrichAsync(csGraphSyntaxTree, csGraphProj, csParser, ctx);
 
             var csGraphDbGroup = ctx.SemanticStructure;
             csGraphDbGroup.Should().NotBeNull();
@@ -833,7 +837,9 @@ public class ParserValidationTests
             csGraphDbNode.DbType.Should().Be("graph");
 
             (ctx.GlobalProjectDependencies.Any(r =>
-                    r.From == csGraphFile.Id && r.To == csGraphDbNode.Id && r.Kind == "USES_DB")).Should().BeTrue();
+                    r.From == csGraphDbNode.Id && r.To == csGraphFile.Id && r.Kind == "DECLARED_IN")).Should().BeTrue();
+            (ctx.GlobalProjectDependencies.Any(r =>
+                    r.To == csGraphDbNode.Id && r.Kind == "USES_DB")).Should().BeTrue();
 
             // Test TypeScript Semantic Model with document (mongoose)
             var tsProj = new ProjectNode("ts_project", "ts_project", "ts_project", "typescript");
@@ -843,8 +849,7 @@ public class ParserValidationTests
 
             var tsSyntaxTree = new SyntaxTree(tsFile.FullPath, tsFile.Path, null, null, null, tsFile, tsParser,
                 [new RawImport("mongoose", "index.ts") { Type = ImportType.External }], [], []);
-            var tsModel = tsParser.GetSyntaxEnricher(tsSyntaxTree);
-            await tsModel.EnrichAsync(tsProj, ctx);
+            await ResourceSemanticAnalyzer.EnrichAsync(tsSyntaxTree, tsProj, tsParser, ctx);
 
             var tsDbGroup = ctx.SemanticStructure;
             tsDbGroup.Should().NotBeNull();
@@ -854,7 +859,9 @@ public class ParserValidationTests
             tsDbNode.DbType.Should().Be("document");
 
             (ctx.GlobalProjectDependencies.Any(r =>
-                    r.From == tsFile.Id && r.To == tsDbNode.Id && r.Kind == "USES_DB")).Should().BeTrue();
+                    r.From == tsDbNode.Id && r.To == tsFile.Id && r.Kind == "DECLARED_IN")).Should().BeTrue();
+            (ctx.GlobalProjectDependencies.Any(r =>
+                    r.To == tsDbNode.Id && r.Kind == "USES_DB")).Should().BeTrue();
 
             // Test Python Semantic Model with keyvalue (redis)
             var pyProj = new ProjectNode("py_project", "py_project", "py_project", "python");
@@ -864,8 +871,7 @@ public class ParserValidationTests
 
             var pySyntaxTree = new SyntaxTree(pyFile.FullPath, pyFile.Path, null, null, null, pyFile, pyParser,
                 [new RawImport("redis", "main.py") { Type = ImportType.External }], [], []);
-            var pyModel = pyParser.GetSyntaxEnricher(pySyntaxTree);
-            await pyModel.EnrichAsync(pyProj, ctx);
+            await ResourceSemanticAnalyzer.EnrichAsync(pySyntaxTree, pyProj, pyParser, ctx);
 
             var pyDbGroup = ctx.SemanticStructure;
             pyDbGroup.Should().NotBeNull();
@@ -875,7 +881,9 @@ public class ParserValidationTests
             pyDbNode.DbType.Should().Be("keyvalue");
 
             (ctx.GlobalProjectDependencies.Any(r =>
-                    r.From == pyFile.Id && r.To == pyDbNode.Id && r.Kind == "USES_DB")).Should().BeTrue();
+                    r.From == pyDbNode.Id && r.To == pyFile.Id && r.Kind == "DECLARED_IN")).Should().BeTrue();
+            (ctx.GlobalProjectDependencies.Any(r =>
+                    r.To == pyDbNode.Id && r.Kind == "USES_DB")).Should().BeTrue();
         }
         finally
         {

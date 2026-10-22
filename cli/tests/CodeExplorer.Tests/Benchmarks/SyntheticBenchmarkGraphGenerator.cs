@@ -245,7 +245,7 @@ public static class SyntheticBenchmarkGraphGenerator
         var orderEntityId = $"{workspaceId}:type:entities:OrderEntity";
         nodeBatcher.Add(orderEntityId, "Type",
             "{\"name\":\"OrderEntity\",\"symbol\":\"Benchmark.Entities.OrderEntity\",\"kind\":\"class\",\"file_path\":\"src/Entities/OrderEntity.cs\"}");
-        edgeBatcher.Add(orderEntityId, ordersTableId, "PERSISTED_IN");
+        edgeBatcher.Add(ordersTableId, orderEntityId, "IMPLEMENTED_BY");
 
         // 5. Function Nodes (70,000)
         var methodIds = new string[methodCount];

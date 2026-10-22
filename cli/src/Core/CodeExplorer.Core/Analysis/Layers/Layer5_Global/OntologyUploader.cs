@@ -2,6 +2,7 @@ using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
+using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
 using CodeExplorer.Core.Database;
 
@@ -110,7 +111,8 @@ public static class OntologyUploader
             node.Kind == OntologyConstants.NodeLabels.Procedure ||
             node.Kind == OntologyConstants.NodeLabels.Table ||
             node.Kind == OntologyConstants.NodeLabels.EntryPoint ||
-            node.Kind == OntologyConstants.NodeLabels.Endpoint)
+            node.Kind == OntologyConstants.NodeLabels.Endpoint ||
+            node.Kind == OntologyConstants.NodeLabels.ExternalService)
         {
             if (dbNode.Properties.TryGetValue("name", out var nameVal) && nameVal is string nameStr)
             {
@@ -119,6 +121,19 @@ public static class OntologyUploader
                 if (!string.IsNullOrEmpty(filePath))
                 {
                     ctx.AddFileScopedSymbol(filePath.Replace('\\', '/'), node.Kind, nameStr, node.Id);
+                }
+                if (node.Kind is OntologyConstants.NodeLabels.Table or OntologyConstants.NodeLabels.Procedure)
+                {
+                    var parts = node.Id.Split(':');
+                    var datasetIdx = Array.IndexOf(parts, "dataset");
+                    if (datasetIdx != -1 && datasetIdx + 1 < parts.Length)
+                    {
+                        var schemaName = parts[datasetIdx + 1];
+                        if (!string.Equals(schemaName, "dbo", StringComparison.OrdinalIgnoreCase))
+                        {
+                            ctx.AddGlobalSymbol(node.Kind, $"{schemaName}.{nameStr}", node.Id);
+                        }
+                    }
                 }
                 if (node.Kind == OntologyConstants.NodeLabels.Function &&
                     node.Extensions != null &&
@@ -232,18 +247,17 @@ public static class OntologyUploader
             collectedRelationships.Add(locatedInRel);
             ctx.AddRelsCount(1);
         }
-    }
+            // 4. Collect unresolved references/dependencies
+            if (node.References.Count > 0)
+            {
+                ctx.AddGlobalReferences(node.References);
+            }
 
-    // 4. Collect unresolved references/dependencies
-    if (node.References.Count > 0)
-    {
-        ctx.AddGlobalReferences(node.References);
-    }
-
-        // 5. Recursively collect all children
-        foreach (var child in node.Children)
-        {
-            CollectTreeElements(child, node, ctx, collectedNodes, collectedRelationships, visitedNodeIds, visitedRelKeys);
+            // 5. Recursively collect all children
+            foreach (var child in node.Children)
+            {
+                CollectTreeElements(child, node, ctx, collectedNodes, collectedRelationships, visitedNodeIds, visitedRelKeys);
+            }
         }
     }
 
@@ -253,9 +267,11 @@ public static class OntologyUploader
             parentId.EndsWith($":{OntologyConstants.IdPrefixes.SyntaxStructure}") ||
             parentId.EndsWith($":{OntologyConstants.IdPrefixes.SemanticStructure}") ||
             parentId.EndsWith($":{OntologyConstants.IdPrefixes.ProjectsStructure}") ||
+            parentId.EndsWith($":{OntologyConstants.IdPrefixes.LogicalStructure}") ||
             parentId.Contains("files_structure") ||
             parentId.Contains("syntax_structure") ||
             parentId.Contains("semantic_structure") ||
+            parentId.Contains("logical_structure") ||
             parentId.EndsWith(":syntax"))
         {
             return new ContainsRelationship(parentId, child.Id);
@@ -277,70 +293,129 @@ public static class OntologyUploader
             }
             return new LocatedInRelationship(child.Id, parentId);
         }
+
+        // Layer 4 semantic nodes: enforce downward grounding when parent is Layer 1 (File), Layer 2 (Project), or Layer 3 (Symbol),
+        // and horizontal edges when parent is Layer 4 (Workload or Database/DataSet).
         if (child.Kind == OntologyConstants.NodeLabels.Database)
         {
-            if (IsSymbolOrCallableId(parentId))
+            if (IsFileNodeId(parentId)) return new DeclaredInRelationship(child.Id, parentId);
+            if (IsProjectNodeId(parentId)) return new DeclaredInRelationship(child.Id, parentId);
+            if (IsSymbolOrCallableId(parentId) || IsCodeEntityId(parentId))
             {
-                return new QueriedByRelationship(child.Id, parentId);
+                return new AccessedByRelationship(child.Id, parentId);
             }
             return new UsesDbRelationship(parentId, child.Id);
         }
+        if (child.Kind is OntologyConstants.NodeLabels.Table or OntologyConstants.NodeLabels.Procedure or OntologyConstants.NodeLabels.DataSet or OntologyConstants.NodeLabels.Query)
+        {
+            if (IsFileNodeId(parentId)) return new DeclaredInRelationship(child.Id, parentId);
+            if (IsProjectNodeId(parentId)) return new DeclaredInRelationship(child.Id, parentId);
+            if (IsSymbolOrCallableId(parentId) || IsCodeEntityId(parentId))
+            {
+                return new AccessedByRelationship(child.Id, parentId);
+            }
+            return new ContainsRelationship(parentId, child.Id);
+        }
         if (child.Kind == OntologyConstants.NodeLabels.Topic)
         {
-            if (IsProjectNodeId(parentId))
+            var isSubscriber = child is TopicNode { Extensions: { } topicExt } &&
+                               string.Equals(topicExt.GetValueOrDefault(OntologyConstants.PropertyNames.MessagingDirection),
+                                   OntologyConstants.EvidenceKinds.Subscribe, StringComparison.OrdinalIgnoreCase);
+            if (IsFileNodeId(parentId) || IsProjectNodeId(parentId))
             {
-                return new PublishesToRelationship(parentId, child.Id);
+                return new DeclaredInRelationship(child.Id, parentId);
             }
-            return new PublishedByRelationship(child.Id, parentId);
+            if (IsWorkloadNodeId(parentId))
+            {
+                return isSubscriber
+                    ? new SubscribesToRelationship(parentId, child.Id)
+                    : new PublishesToRelationship(parentId, child.Id);
+            }
+            return isSubscriber
+                ? new SubscribedByRelationship(child.Id, parentId)
+                : new PublishedByRelationship(child.Id, parentId);
         }
         if (child.Kind == OntologyConstants.NodeLabels.Endpoint)
         {
-            if (IsProjectNodeId(parentId))
+            if (IsFileNodeId(parentId) || IsProjectNodeId(parentId))
             {
-                return new ContainsRelationship(parentId, child.Id);
+                return new DeclaredInRelationship(child.Id, parentId);
+            }
+            if (IsWorkloadNodeId(parentId))
+            {
+                return new ExposesRelationship(parentId, child.Id);
             }
             return new ExposedByRelationship(child.Id, parentId);
         }
         if (child.Kind == OntologyConstants.NodeLabels.ApiInUse)
         {
-            if (IsProjectNodeId(parentId))
+            if (IsFileNodeId(parentId) || IsProjectNodeId(parentId))
             {
-                return new ContainsRelationship(parentId, child.Id);
+                return new DeclaredInRelationship(child.Id, parentId);
+            }
+            if (IsSymbolOrCallableId(parentId) || IsCodeEntityId(parentId))
+            {
+                return new AccessedByRelationship(child.Id, parentId);
             }
             return new UsesApiRelationship(parentId, child.Id);
         }
         if (child.Kind == OntologyConstants.NodeLabels.CloudService)
         {
-            if (IsProjectNodeId(parentId))
+            if (IsFileNodeId(parentId) || IsProjectNodeId(parentId))
             {
-                return new ContainsRelationship(parentId, child.Id);
+                return new DeclaredInRelationship(child.Id, parentId);
+            }
+            if (IsSymbolOrCallableId(parentId) || IsCodeEntityId(parentId))
+            {
+                return new AccessedByRelationship(child.Id, parentId);
             }
             return new UsesCloudRelationship(parentId, child.Id);
         }
         if (child.Kind == OntologyConstants.NodeLabels.EntryPoint)
         {
-            if (IsProjectNodeId(parentId))
+            if (IsFileNodeId(parentId) || IsProjectNodeId(parentId))
+            {
+                return new DeclaredInRelationship(child.Id, parentId);
+            }
+            if (IsWorkloadNodeId(parentId))
             {
                 return new ContainsRelationship(parentId, child.Id);
             }
             if (parentId.Contains(":entrypoints") || parentId.Contains(":entry"))
             {
-                return new ExposedByRelationship(child.Id, parentId); // EntryPoint -> EXPOSED_BY -> EntryPoints
+                return new ExposedByRelationship(child.Id, parentId);
             }
-            return new ImplementedByRelationship(child.Id, parentId); // EntryPoint -> IMPLEMENTED_BY -> Function
+            return new ImplementedByRelationship(child.Id, parentId);
         }
         if (child.Kind == OntologyConstants.NodeLabels.ExternalService)
         {
-            if (IsProjectNodeId(parentId))
+            if (IsFileNodeId(parentId) || IsProjectNodeId(parentId))
+            {
+                return new DeclaredInRelationship(child.Id, parentId);
+            }
+            if (IsWorkloadNodeId(parentId))
             {
                 return new ContainsRelationship(parentId, child.Id);
             }
-            return new CalledByRelationship(child.Id, parentId); // ExternalService -> CALLED_BY -> Function
+            return new CalledByRelationship(child.Id, parentId);
         }
 
         if (child.Kind == OntologyConstants.NodeLabels.CallLiteral)
         {
+            if (IsFileNodeId(parentId))
+            {
+                return new DeclaredInRelationship(child.Id, parentId);
+            }
             return new PassesLiteralRelationship(parentId, child.Id);
+        }
+
+        if (child.Kind == OntologyConstants.NodeLabels.CatchClause)
+        {
+            if (IsFileNodeId(parentId))
+            {
+                return new DeclaredInRelationship(child.Id, parentId);
+            }
+            return new DeclaresRelationship(parentId, child.Id);
         }
 
         if (IsCodeEntityKind(child.Kind))
@@ -348,13 +423,6 @@ public static class OntologyUploader
             if (IsFileNodeId(parentId))
             {
                 return new DeclaredInRelationship(child.Id, parentId);
-            }
-            if (IsProjectNodeId(parentId))
-            {
-                if (child.Kind == OntologyConstants.NodeLabels.Type)
-                {
-                    return new DeclaresTypeRelationship(parentId, child.Id);
-                }
             }
             if (IsCodeEntityId(parentId))
             {
@@ -385,6 +453,18 @@ public static class OntologyUploader
         return new ContainsRelationship(parentId, child.Id);
     }
 
+    private static bool IsWorkloadNodeId(string id)
+    {
+        if (!Urn.TryParse(id, out var urn)) return false;
+        var d = urn.Domain.ToLowerInvariant();
+        return d is OntologyConstants.IdPrefixes.Service or "service"
+                 or OntologyConstants.IdPrefixes.App or "app"
+                 or OntologyConstants.IdPrefixes.Worker or "worker"
+                 or OntologyConstants.IdPrefixes.CliTool or "cli"
+                 or OntologyConstants.IdPrefixes.Library or "library"
+                 or OntologyConstants.IdPrefixes.TestSuite or "testsuite";
+    }
+
     private static bool IsCodeEntityId(string id)
     {
         var lower = id.ToLowerInvariant();
@@ -396,16 +476,10 @@ public static class OntologyUploader
                lower.Contains(":function:") ||
                lower.Contains(":variable:") ||
                lower.Contains(":member:") ||
-               lower.Contains($":{OntologyConstants.IdPrefixes.Procedure}:") ||
-               lower.Contains(":procedure:") ||
-               lower.Contains($":{OntologyConstants.IdPrefixes.Query}:") ||
-               lower.Contains(":query:") ||
-               lower.Contains($":{OntologyConstants.IdPrefixes.Table}:") ||
-               lower.Contains(":table:") ||
-                lower.Contains($":{OntologyConstants.IdPrefixes.CallLiteral}:") ||
-                lower.Contains(":lit:") ||
-                lower.Contains($":{OntologyConstants.IdPrefixes.CatchClause}:") ||
-                lower.Contains(":catch:");
+               lower.Contains($":{OntologyConstants.IdPrefixes.CallLiteral}:") ||
+               lower.Contains(":lit:") ||
+               lower.Contains($":{OntologyConstants.IdPrefixes.CatchClause}:") ||
+               lower.Contains(":catch:");
     }
 
     private static bool IsCodeEntityKind(string kind)
@@ -413,16 +487,15 @@ public static class OntologyUploader
         return kind == OntologyConstants.NodeLabels.Type ||
                kind == OntologyConstants.NodeLabels.Function ||
                kind == OntologyConstants.NodeLabels.Member ||
-               kind == OntologyConstants.NodeLabels.Query ||
-               kind == OntologyConstants.NodeLabels.Procedure ||
-               kind == OntologyConstants.NodeLabels.Table ||
                kind == OntologyConstants.NodeLabels.CallLiteral ||
                kind == OntologyConstants.NodeLabels.CatchClause;
     }
 
     private static bool IsProjectNodeId(string id)
     {
-        return Urn.TryParse(id, out var urn) && (urn.Domain.Equals(OntologyConstants.IdPrefixes.Project, StringComparison.OrdinalIgnoreCase) || urn.Domain.Equals("project", StringComparison.OrdinalIgnoreCase));
+        return !id.EndsWith(":syntax", StringComparison.OrdinalIgnoreCase) &&
+               Urn.TryParse(id, out var urn) &&
+               (urn.Domain.Equals(OntologyConstants.IdPrefixes.Project, StringComparison.OrdinalIgnoreCase) || urn.Domain.Equals("project", StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool IsPackageNodeId(string id)
@@ -441,8 +514,6 @@ public static class OntologyUploader
         {
             var d = urn.Domain.ToLowerInvariant();
             return d is OntologyConstants.IdPrefixes.Symbol or "symbol"
-                     or OntologyConstants.IdPrefixes.Query or "query"
-                     or OntologyConstants.IdPrefixes.Procedure or "procedure"
                      or OntologyConstants.IdPrefixes.CallLiteral or "lit"
                      or OntologyConstants.IdPrefixes.CatchClause or "catch"
                      || id.Contains(":function:") || id.Contains(":Function:");

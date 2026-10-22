@@ -327,6 +327,18 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
             libParser.EnrichSymbol(node, syntacticNode, null!);
         }
 
+        if (kind == OntologyConstants.NodeLabels.Topic &&
+            !syntacticNode.Properties.ContainsKey(OntologyConstants.PropertyNames.MessagingDirection))
+        {
+            var subscribes = syntacticNode.References.Any(r =>
+                r.Kind is OntologyConstants.Relationships.SubscribesTo or OntologyConstants.Relationships.Triggers);
+            var publishes = syntacticNode.References.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo);
+            if (subscribes && !publishes)
+            {
+                syntacticNode.Properties[OntologyConstants.PropertyNames.MessagingDirection] = OntologyConstants.EvidenceKinds.Subscribe;
+            }
+        }
+
         if (kind == OntologyConstants.NodeLabels.Query)
         {
             NestedSqlParser.TryDetectSqlDependencies(node.Text, "", syntacticNode.References);

@@ -209,9 +209,4 @@ public class JavaScriptParser : IProjectParser, IFileParser
     {
         return _tsParser.ResolveImportType(importPath, filePath, absoluteWorkspacePath);
     }
-
-    public ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree)
-    {
-        return _tsParser.GetSyntaxEnricher(syntaxTree);
-    }
 }

@@ -5,6 +5,22 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.55.0] - 2026-10-22
+
+### Added
+- **Strict 5-Layer Ontology Hierarchy & Zero Upward Edges**:
+  - Standardized ontology layer taxonomy: Layer 1: File Structure, Layer 2: Project Structure, Layer 3: Syntax Structure, Layer 4: Semantic Structure, Layer 5: Logical Structure.
+  - Enforced strict unidirectional ontology layer invariant (Zero Upward Edges): edges originate at their source node layer and may only point horizontally (intra-layer) or downward (grounding to lower layers).
+  - Persisted Level 5 Logical Structure nodes (`LogicalStructureNode`, `DomainNode`, `BoundedContextNode`) directly in the graph database.
+- **Decoupled Syntactic & Semantic Analyzers**:
+  - Eliminated `ISyntaxEnricher` and parser-specific enrichers; AST member and variable extraction is handled cleanly in `Layer3SyntacticAnalyzer`, and semantic resource extraction in `ResourceSemanticAnalyzer`.
+- **UI & Diagram Enhancements**:
+  - Updated `/api/ontology/layers` and tree view to report standardized 5 layers with Layer 5 logical domain entities.
+  - Reordered Architecture Diagrams in the VS Code sidebar from High Level to Low Level: Bounded Context Map › Architecture Map › Architecture Tiers › Project Flow.
+  - Added node presentation badges and icons for `Domain` (`🌐`) and `BoundedContext` (`🧩`).
+
+---
+
 ## [1.46.6] - 2026-10-17
 
 ### Fixed

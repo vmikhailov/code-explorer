@@ -439,8 +439,8 @@ public static partial class BuiltInGateCatalog
         Description = "Disallows duplicate API endpoints within the same service/project with identical HTTP method and route template.",
         Remediation = "Ensure each route template in a microservice is registered only once. Check for overlapping router mounts or duplicate route declarations.",
         Query = """
-            MATCH (p:Project)-[:CONTAINS]->(e1:Endpoint)
-            MATCH (p)-[:CONTAINS]->(e2:Endpoint)
+            MATCH (e1:Endpoint)-[:DECLARED_IN]->(p:Project)
+            MATCH (e2:Endpoint)-[:DECLARED_IN]->(p)
             WHERE e1.id < e2.id
               AND e1.http_method = e2.http_method
               AND e1.route_template = e2.route_template

@@ -420,6 +420,4 @@ public class SqlParser : IProjectParser, IFileParser
     public void CollectSemanticData(TreeSitter.Node node, string filePath, List<RawImport> rawImports, List<RawVariable> rawVariables, List<RawTypeBinding> rawTypeBindings)
     {
     }
-
-    public ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree) => new SqlSyntaxEnricher(syntaxTree);
 }

@@ -64,17 +64,24 @@ public partial class PostIndexAnalyzer
             foreach (var rel in allRelationships)
             {
                 if (rel.Kind == OntologyConstants.Relationships.Contains) continue;
+                var isReverseDbRel = rel.Kind == OntologyConstants.Relationships.QueriedBy ||
+                                     rel.Kind == OntologyConstants.Relationships.AccessedBy ||
+                                     rel.Kind == OntologyConstants.Relationships.DeclaredIn;
                 var isDbUsageRel = rel.Kind == OntologyConstants.Relationships.UsesDb ||
                                    rel.Kind == OntologyConstants.Relationships.ReadsFrom ||
                                    rel.Kind == OntologyConstants.Relationships.WritesTo ||
-                                   rel.Kind == OntologyConstants.Relationships.QueriedBy;
+                                   isReverseDbRel;
                 if (!isDbUsageRel) continue;
 
-                var isFromDomain = domainProjIds.Contains(rel.From) ||
-                                   (fileToProject.TryGetValue(rel.From, out var pOwner) && domainProjIds.Contains(pOwner.Id));
+                var relDbId = isReverseDbRel ? rel.From : rel.To;
+                var relCallerId = isReverseDbRel ? rel.To : rel.From;
+                var callerOwner = FindOwningProjectForId(relCallerId, projects, fileToProject);
+
+                var isFromDomain = domainProjIds.Contains(relCallerId) ||
+                                   (callerOwner != null && domainProjIds.Contains(callerOwner.Id));
                 if (!isFromDomain) continue;
 
-                var targetDb = allDbNodes.FirstOrDefault(d => d.Id == rel.To || rel.To.StartWithIC(d.Id));
+                var targetDb = allDbNodes.FirstOrDefault(d => d.Id == relDbId || relDbId.StartWithIC(d.Id));
                 var isFromConfig = (targetDb?.Extensions != null && targetDb.Extensions.TryGetValue("from_config", out var fc) && fc == "true") ||
                                    (rel.Properties != null && rel.Properties.TryGetValue("from_config", out var rfc) && rfc?.ToString() == "true");
 
@@ -210,10 +217,11 @@ public partial class PostIndexAnalyzer
             if (!isConfigDb || targetDb == null) continue;
 
             var owner = projects.FirstOrDefault(p => p.Id == rel.From || rel.From.StartWithIC(p.Id))
-                        ?? (fileToProject.TryGetValue(rel.From, out var fp) ? fp : null);
+                        ?? (fileToProject.TryGetValue(rel.From, out var fp) ? fp : null)
+                        ?? FindOwningProjectForId(rel.From, projects, fileToProject);
             if (owner == null) continue;
 
-            var domain = SyntaxEnricher.CleanProjectNameToDomain(owner.Name);
+            var domain = ResourceSemanticAnalyzer.CleanProjectNameToDomain(owner.Name);
             if (string.IsNullOrEmpty(domain)) domain = owner.Id;
 
             if (domainHasCodeFiles.TryGetValue(domain, out var hasFiles) && !hasFiles)
@@ -279,6 +287,46 @@ public partial class PostIndexAnalyzer
         Func<string, string?, bool> isTestSource,
         HashSet<string>? rawImplicitDbIds = null)
     {
+        var workloadToProject = new Dictionary<string, ProjectNode>(StringComparer.OrdinalIgnoreCase);
+        if (l4Result.SemanticStructure != null)
+        {
+            foreach (var wl in l4Result.SemanticStructure.Children)
+            {
+                var projId = wl.Extensions?.GetValueOrDefault("project_id");
+                var proj = !string.IsNullOrEmpty(projId) ? projects.FirstOrDefault(p => p.Id == projId) : null;
+                if (proj != null)
+                {
+                    workloadToProject[wl.Id] = proj;
+                }
+            }
+        }
+        if (l4Result.SemanticRelationships != null)
+        {
+            foreach (var rel in l4Result.SemanticRelationships)
+            {
+                if (rel.Kind == OntologyConstants.Relationships.ImplementedBy)
+                {
+                    var proj = projects.FirstOrDefault(p => p.Id == rel.To || p.Id.TrimEnd(':') == rel.To.TrimEnd(':'));
+                    if (proj != null) workloadToProject[rel.From] = proj;
+                }
+                else if (rel.Kind == OntologyConstants.Relationships.Deploys)
+                {
+                    var proj = projects.FirstOrDefault(p => p.Id == rel.From || p.Id.TrimEnd(':') == rel.From.TrimEnd(':'));
+                    if (proj != null) workloadToProject[rel.To] = proj;
+                }
+            }
+        }
+
+        ProjectNode? ResolveOwner(string id)
+        {
+            if (string.IsNullOrEmpty(id)) return null;
+            if (workloadToProject.TryGetValue(id, out var wp)) return wp;
+            if (fileToProject.TryGetValue(id, out var fp)) return fp;
+            var p = projects.FirstOrDefault(pr => pr.Id == id || id.StartWithIC(pr.Id));
+            if (p != null) return p;
+            return FindOwningProjectForId(id, projects, fileToProject);
+        }
+
         // 2. Gather project references and consolidate databases per service/project
         var libraryProjects = projects.Where(p => 
             p.Role is "Library" or "SharedLibrary" ||
@@ -347,9 +395,9 @@ public partial class PostIndexAnalyzer
         var libReferencingDomains = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         foreach (var (svcId, libs) in serviceToReferencedLibs)
         {
-            var svcProj = projects.FirstOrDefault(p => p.Id == svcId) ?? (fileToProject.TryGetValue(svcId, out var fp) ? fp : null);
+            var svcProj = ResolveOwner(svcId);
             if (svcProj == null || isTestSource(svcProj.Id, svcProj.Path)) continue;
-            var dom = SyntaxEnricher.CleanProjectNameToDomain(svcProj.Name);
+            var dom = ResourceSemanticAnalyzer.CleanProjectNameToDomain(svcProj.Name);
             if (string.IsNullOrEmpty(dom)) dom = svcProj.Id;
             foreach (var l in libs)
             {
@@ -371,17 +419,22 @@ public partial class PostIndexAnalyzer
         foreach (var rel in allRelationships)
         {
             if (rel.Kind == OntologyConstants.Relationships.Contains) continue;
+            var isReverseDbRel = rel.Kind == OntologyConstants.Relationships.AccessedBy ||
+                                 rel.Kind == OntologyConstants.Relationships.QueriedBy ||
+                                 rel.Kind == OntologyConstants.Relationships.DeclaredIn;
+            var relDbId = isReverseDbRel ? rel.From : rel.To;
+            var relCallerId = isReverseDbRel ? rel.To : rel.From;
             var isDbRel = rel.Kind == OntologyConstants.Relationships.UsesDb ||
                           rel.Kind == OntologyConstants.Relationships.Configures ||
-                          rawToCanonical.ContainsKey(rel.To);
+                          isReverseDbRel ||
+                          rawToCanonical.ContainsKey(relDbId);
             if (!isDbRel) continue;
 
-            if (rawToCanonical.TryGetValue(rel.To, out var canonicalTarget))
+            if (rawToCanonical.TryGetValue(relDbId, out var canonicalTarget))
             {
-                var owner = projects.FirstOrDefault(p => p.Id == rel.From || rel.From.StartWithIC(p.Id))
-                            ?? (fileToProject.TryGetValue(rel.From, out var fp) ? fp : null);
+                var owner = ResolveOwner(relCallerId);
                 var relFilePath = rel.Properties != null && rel.Properties.TryGetValue("file_path", out var rfp) ? rfp?.ToString() : null;
-                if (owner != null && !isTestSource(owner.Id, owner.Path) && !isTestSource(rel.From, relFilePath))
+                if (owner != null && !isTestSource(owner.Id, owner.Path) && !isTestSource(relCallerId, relFilePath))
                 {
                     if (!dbOwners.TryGetValue(canonicalTarget, out var owners))
                     {
@@ -442,22 +495,27 @@ public partial class PostIndexAnalyzer
         foreach (var rel in allRelationships)
         {
             if (rel.Kind == OntologyConstants.Relationships.Contains) continue;
+            var isReverseDbRel = rel.Kind == OntologyConstants.Relationships.AccessedBy ||
+                                 rel.Kind == OntologyConstants.Relationships.QueriedBy ||
+                                 rel.Kind == OntologyConstants.Relationships.DeclaredIn;
+            var relDbId = isReverseDbRel ? rel.From : rel.To;
+            var relCallerId = isReverseDbRel ? rel.To : rel.From;
             var isDbRel = rel.Kind == OntologyConstants.Relationships.UsesDb ||
                           rel.Kind == OntologyConstants.Relationships.Configures ||
-                          rawToCanonical.ContainsKey(rel.To);
+                          isReverseDbRel ||
+                          rawToCanonical.ContainsKey(relDbId);
             if (!isDbRel) continue;
-            if (!rawToCanonical.TryGetValue(rel.To, out var canonicalTarget)) continue;
+            if (!rawToCanonical.TryGetValue(relDbId, out var canonicalTarget)) continue;
 
-            var owner = projects.FirstOrDefault(p => p.Id == rel.From || rel.From.StartWithIC(p.Id))
-                        ?? (fileToProject.TryGetValue(rel.From, out var fp) ? fp : null);
+            var owner = ResolveOwner(relCallerId);
             if (owner == null || owner.Id == canonicalTarget) continue;
 
             var relFilePath = rel.Properties != null && rel.Properties.TryGetValue("file_path", out var rfp) ? rfp?.ToString() : null;
-            if (isTestSource(owner.Id, owner.Path) || isTestSource(rel.From, relFilePath)) continue;
+            if (isTestSource(owner.Id, owner.Path) || isTestSource(relCallerId, relFilePath)) continue;
 
-            var isRawImplicitEdge = (rawImplicitDbIds != null && rawImplicitDbIds.Contains(rel.To)) ||
+            var isRawImplicitEdge = (rawImplicitDbIds != null && rawImplicitDbIds.Contains(relDbId)) ||
                                     (rel.Properties != null && rel.Properties.TryGetValue("is_implicit_schema", out var impObj) && impObj?.ToString() == "true") ||
-                                    rel.To.EndsWith(":db:default:dbo", StringComparison.OrdinalIgnoreCase);
+                                    relDbId.EndsWith(":db:default:dbo", StringComparison.OrdinalIgnoreCase);
             if (isRawImplicitEdge || implicitSchemaIds.Contains(canonicalTarget) || multiDomainSharedLibs.Contains(owner.Id))
             {
                 continue;
@@ -478,27 +536,32 @@ public partial class PostIndexAnalyzer
         foreach (var rel in allRelationships)
         {
             if (rel.Kind == OntologyConstants.Relationships.Contains) continue;
+            var isReverseDbRel = rel.Kind == OntologyConstants.Relationships.AccessedBy ||
+                                 rel.Kind == OntologyConstants.Relationships.QueriedBy ||
+                                 rel.Kind == OntologyConstants.Relationships.DeclaredIn;
+            var relDbId = isReverseDbRel ? rel.From : rel.To;
+            var relCallerId = isReverseDbRel ? rel.To : rel.From;
             var isDbRel = rel.Kind == OntologyConstants.Relationships.UsesDb ||
                           rel.Kind == OntologyConstants.Relationships.Configures ||
-                          rawToCanonical.ContainsKey(rel.To);
+                          isReverseDbRel ||
+                          rawToCanonical.ContainsKey(relDbId);
             if (!isDbRel) continue;
 
-            if (rawToCanonical.TryGetValue(rel.To, out var canonicalTarget))
+            if (rawToCanonical.TryGetValue(relDbId, out var canonicalTarget))
             {
-                var owner = projects.FirstOrDefault(p => p.Id == rel.From || rel.From.StartWithIC(p.Id))
-                            ?? (fileToProject.TryGetValue(rel.From, out var fp) ? fp : null);
+                var owner = ResolveOwner(relCallerId);
 
                 if (owner != null && owner.Id != canonicalTarget)
                 {
                     var relFilePath = rel.Properties != null && rel.Properties.TryGetValue("file_path", out var rfp) ? rfp?.ToString() : null;
-                    if (isTestSource(owner.Id, owner.Path) || isTestSource(rel.From, relFilePath))
+                    if (isTestSource(owner.Id, owner.Path) || isTestSource(relCallerId, relFilePath))
                     {
                         continue;
                     }
 
-                    var isRawImplicitEdge = (rawImplicitDbIds != null && rawImplicitDbIds.Contains(rel.To)) ||
+                    var isRawImplicitEdge = (rawImplicitDbIds != null && rawImplicitDbIds.Contains(relDbId)) ||
                                             (rel.Properties != null && rel.Properties.TryGetValue("is_implicit_schema", out var impObj) && impObj?.ToString() == "true") ||
-                                            rel.To.EndsWith(":db:default:dbo", StringComparison.OrdinalIgnoreCase);
+                                            relDbId.EndsWith(":db:default:dbo", StringComparison.OrdinalIgnoreCase);
 
                     var isLibraryOwner = libraryProjects.ContainsKey(owner.Id) || owner.IsLibrary;
                     if (isRawImplicitEdge && isLibraryOwner)
@@ -524,9 +587,9 @@ public partial class PostIndexAnalyzer
                         projectDbEdges.Add((owner, canonicalTarget, rel, isRawImplicitEdge));
                     }
 
-                    if (!isRawImplicitEdge && rel.From.Contains(":f:", StringComparison.OrdinalIgnoreCase))
+                    if (!isRawImplicitEdge && relCallerId.Contains(":f:", StringComparison.OrdinalIgnoreCase))
                     {
-                        var normFrom = rel.From.Replace('\\', '/');
+                        var normFrom = relCallerId.Replace('\\', '/');
                         var binIdx = normFrom.IndexOf("/bin/", StringComparison.OrdinalIgnoreCase);
                         if (binIdx >= 0)
                         {
@@ -573,7 +636,7 @@ public partial class PostIndexAnalyzer
 
         var edgesByService = projectDbEdges
             .GroupBy(e => {
-                var domain = SyntaxEnricher.CleanProjectNameToDomain(e.Owner.Name);
+                var domain = ResourceSemanticAnalyzer.CleanProjectNameToDomain(e.Owner.Name);
                 return !string.IsNullOrEmpty(domain) ? domain : e.Owner.Id;
             }, StringComparer.OrdinalIgnoreCase);
 
@@ -720,13 +783,36 @@ public partial class PostIndexAnalyzer
         await PropagateSchemaAndUploadNodesInMemoryAsync(ctx, l4Result, canonicalDbNodes, primaryRelationalEngine);
 
         var projectToWorkloadMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (l4Result.SemanticStructure != null)
+        {
+            foreach (var wl in l4Result.SemanticStructure.Children)
+            {
+                var projId = wl.Extensions?.GetValueOrDefault("project_id");
+                if (!string.IsNullOrEmpty(projId))
+                {
+                    projectToWorkloadMap[projId] = wl.Id;
+                    projectToWorkloadMap[projId.TrimEnd(':')] = wl.Id;
+                    projectToWorkloadMap[projId.TrimEnd(':') + ":"] = wl.Id;
+                }
+            }
+        }
         if (l4Result.SemanticRelationships != null)
         {
-            foreach (var r in l4Result.SemanticRelationships.Where(rel => rel.Kind == OntologyConstants.Relationships.Deploys))
+            foreach (var r in l4Result.SemanticRelationships)
             {
-                projectToWorkloadMap[r.From] = r.To;
-                projectToWorkloadMap[r.From.TrimEnd(':')] = r.To;
-                projectToWorkloadMap[r.From.TrimEnd(':') + ":"] = r.To;
+                if (r.Kind == OntologyConstants.Relationships.Deploys)
+                {
+                    projectToWorkloadMap[r.From] = r.To;
+                    projectToWorkloadMap[r.From.TrimEnd(':')] = r.To;
+                    projectToWorkloadMap[r.From.TrimEnd(':') + ":"] = r.To;
+                }
+                else if (r.Kind == OntologyConstants.Relationships.ImplementedBy &&
+                         (r.To.Contains(":p:") || r.To.Contains(":project:")))
+                {
+                    projectToWorkloadMap[r.To] = r.From;
+                    projectToWorkloadMap[r.To.TrimEnd(':')] = r.From;
+                    projectToWorkloadMap[r.To.TrimEnd(':') + ":"] = r.From;
+                }
             }
         }
 

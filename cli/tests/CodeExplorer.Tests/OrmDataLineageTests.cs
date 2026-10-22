@@ -145,27 +145,27 @@ export class Product {
         tables.Any(t => t is "customers" or "Orders" or "orders").Should().BeTrue("EF Core tables not extracted!");
         tables.Should().Contain("invoices", "EF Core IEntityTypeConfiguration ToTable not extracted!");
 
-        // Check PERSISTED_IN relationship between Customer Type and Table
+        // Check downward IMPLEMENTED_BY relationship from Table (Layer 4) to Customer Type (Layer 3)
         var qRel =
-            "MATCH (c:Type)-[:PERSISTED_IN]->(t:Table) WHERE c.name = 'Customer' OR c.name = 'OrderEntity' OR c.name = 'Invoice' RETURN c.name AS className, t.name AS tableName";
+            "MATCH (t:Table)-[:IMPLEMENTED_BY]->(c:Type) WHERE c.name = 'Customer' OR c.name = 'OrderEntity' OR c.name = 'Invoice' RETURN c.name AS className, t.name AS tableName";
         var resRel = await _client.ExecuteQueryAsync(qRel);
 
         using var docRel = JsonDocument.Parse(resRel);
 
-        docRel.RootElement.GetArrayLength().Should().BeGreaterThan(0, "No PERSISTED_IN relationship found for EF Core entity!");
+        docRel.RootElement.GetArrayLength().Should().BeGreaterThan(0, "No IMPLEMENTED_BY relationship found from Table to EF Core entity!");
     }
 
     [Test]
     public async Task Test_JpaHibernate_ExtractsTablesAndPersistedInRelationships()
     {
-        var qRel = "MATCH (a:Type)-[:PERSISTED_IN]->(t:Table) WHERE a.name = 'Account' RETURN a.name AS className, t.name AS tableName";
+        var qRel = "MATCH (t:Table)-[:IMPLEMENTED_BY]->(a:Type) WHERE a.name = 'Account' RETURN a.name AS className, t.name AS tableName";
         var resRel = await _client.ExecuteQueryAsync(qRel);
 
         using var docRel = JsonDocument.Parse(resRel);
 
         var array = docRel.RootElement.EnumerateArray().ToList();
 
-        array.Count.Should().BeGreaterThan(0, "JPA Account entity not linked to Table via PERSISTED_IN!");
+        array.Count.Should().BeGreaterThan(0, "JPA Account entity not linked from Table via IMPLEMENTED_BY!");
         var tableName = array[0].GetProperty("tableName").GetString();
         tableName.Should().BeEquivalentTo("jpa_accounts");
     }
@@ -173,14 +173,14 @@ export class Product {
     [Test]
     public async Task Test_TypeOrm_ExtractsTablesAndPersistedInRelationships()
     {
-        var qRel = "MATCH (p:Type)-[:PERSISTED_IN]->(t:Table) WHERE p.name = 'Product' RETURN p.name AS className, t.name AS tableName";
+        var qRel = "MATCH (t:Table)-[:IMPLEMENTED_BY]->(p:Type) WHERE p.name = 'Product' RETURN p.name AS className, t.name AS tableName";
         var resRel = await _client.ExecuteQueryAsync(qRel);
 
         using var docRel = JsonDocument.Parse(resRel);
 
         var array = docRel.RootElement.EnumerateArray().ToList();
 
-        array.Count.Should().BeGreaterThan(0, "TypeORM Product entity not linked to Table via PERSISTED_IN!");
+        array.Count.Should().BeGreaterThan(0, "TypeORM Product entity not linked from Table via IMPLEMENTED_BY!");
         var tableName = array[0].GetProperty("tableName").GetString();
         tableName.Should().BeEquivalentTo("typeorm_products");
     }
@@ -364,13 +364,13 @@ export class Product {
         dbList.Should().NotBeEmpty("Canonical relational Database node should exist in graph");
 
         var qRel =
-            "MATCH (p:Project)-[r:USES_DB]->(d:Database) WHERE d.name = 'Database' OR d.name STARTS WITH 'PostgreSQL' RETURN p.name AS projName, d.name AS dbName, r.properties AS props";
+            "MATCH (w)-[r:USES_DB]->(d:Database) WHERE d.name = 'Database' OR d.name STARTS WITH 'PostgreSQL' RETURN w.name AS projName, d.name AS dbName, r.properties AS props";
         var resRel = await _client.ExecuteQueryAsync(qRel);
 
         using var docRel = JsonDocument.Parse(resRel);
 
         var relList = docRel.RootElement.EnumerateArray().ToList();
-        relList.Should().NotBeEmpty("USES_DB relationship from project to Database should exist");
+        relList.Should().NotBeEmpty("USES_DB relationship from workload to Database should exist");
         var tsRel = relList.FirstOrDefault(r => r.GetProperty("props").GetRawText().Contains("TypeORM"));
 
         tsRel.ValueKind.Should().NotBe(JsonValueKind.Undefined, "USES_DB edge for TsOrmApp must retain via: TypeORM attribute");
@@ -590,8 +590,7 @@ public class MyEntity { public int Id { get; set; } }
 
             var projectNode = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
                 "workspace:project:MyApp", "MyApp", appDir, "csharp", new Dictionary<string, string>());
-            var enricher = csharpParser.GetSyntaxEnricher(syntaxTree);
-            await enricher.EnrichAsync(projectNode, ctx);
+            await ResourceSemanticAnalyzer.EnrichAsync(syntaxTree, projectNode, csharpParser, ctx);
 
             var resources = ctx.ResourceRegistry.AllResources.ToList();
             resources.Should().HaveCount(1);

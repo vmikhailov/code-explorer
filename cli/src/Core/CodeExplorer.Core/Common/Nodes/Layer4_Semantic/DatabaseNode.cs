@@ -12,8 +12,11 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     order: 20,
     pluralLabel: "Databases & Storage"
 )]
-[OntologyEdge<FunctionNode>(OntologyConstants.Relationships.QueriedBy)]
-[OntologyEdge<QueryNode>(OntologyConstants.Relationships.QueriedBy)]
+[OntologyEdge<FunctionNode>(OntologyConstants.Relationships.AccessedBy)]
+[OntologyEdge<TypeNode>(OntologyConstants.Relationships.AccessedBy)]
+[OntologyEdge<TableNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<ProcedureNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<QueryNode>(OntologyConstants.Relationships.Contains)]
 public record DatabaseNode(
     string Id,
     [property: OntologyProperty("The database engine or catalog name.")] string Name,

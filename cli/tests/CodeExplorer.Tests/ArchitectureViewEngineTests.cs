@@ -273,11 +273,19 @@ public class ArchitectureViewEngineTests
             new("ws:files_structure", "FilesStructure", new Dictionary<string, object> { ["name"] = "FilesStructure" }),
             new("ws:projects_structure", "ProjectsStructure", new Dictionary<string, object> { ["name"] = "ProjectsStructure" }),
             new("ws:syntax_structure", "SyntaxStructure", new Dictionary<string, object> { ["name"] = "SyntaxStructure" }),
-            new("ws:semantic_structure", "SemanticStructure", new Dictionary<string, object> { ["name"] = "SemanticStructure" })
+            new("ws:semantic_structure", "SemanticStructure", new Dictionary<string, object> { ["name"] = "SemanticStructure" }),
+            new("ws:logical_structure", "LogicalStructure", new Dictionary<string, object> { ["name"] = "LogicalStructure" })
         };
         await _db.UploadNodesAsync(systemNodes);
 
         var layersResponse = await _engine.GetOntologyLayersAsync();
+
+        layersResponse.Layers.Should().HaveCount(5);
+        layersResponse.Layers[0].Title.Should().Be("Layer 1: File Structure");
+        layersResponse.Layers[1].Title.Should().Be("Layer 2: Project Structure");
+        layersResponse.Layers[2].Title.Should().Be("Layer 3: Syntax Structure");
+        layersResponse.Layers[3].Title.Should().Be("Layer 4: Semantic Structure");
+        layersResponse.Layers[4].Title.Should().Be("Layer 5: Logical Structure");
 
         foreach (var layer in layersResponse.Layers)
         {
@@ -288,6 +296,7 @@ public class ArchitectureViewEngineTests
                 category.Kind.Should().NotBe("ProjectsStructure", "ProjectsStructure should be filtered out from layers");
                 category.Kind.Should().NotBe("SyntaxStructure", "SyntaxStructure should be filtered out from layers");
                 category.Kind.Should().NotBe("SemanticStructure", "SemanticStructure should be filtered out from layers");
+                category.Kind.Should().NotBe("LogicalStructure", "LogicalStructure should be filtered out from layers");
                 category.Kind.Should().NotBe("DataSet", "DataSet should be filtered out from layers (Databases & Storage is used instead)");
                 category.Kind.EndsWith("Structure", StringComparison.OrdinalIgnoreCase).Should().BeFalse($"No structure nodes should be in category list: {category.Kind}");
             }

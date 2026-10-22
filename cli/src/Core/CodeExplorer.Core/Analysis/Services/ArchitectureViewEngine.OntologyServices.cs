@@ -23,6 +23,7 @@ public partial class ArchitectureViewEngine
         var l2Categories = new List<OntologyCategoryDto>();
         var l3Categories = new List<OntologyCategoryDto>();
         var l4Categories = new List<OntologyCategoryDto>();
+        var l5Categories = new List<OntologyCategoryDto>();
 
         foreach (var node in Mcp.OntologyRegistry.AllNodes.OrderBy(n => n.Attribute.Order))
         {
@@ -54,24 +55,17 @@ public partial class ArchitectureViewEngine
                 }
                 l4Categories.Add(new() { Kind = kind, Label = attr.PluralLabel, Icon = attr.Icon, Count = count, LayerId = 4 });
             }
-        }
-
-        var topRels = new[] { "CALLS", "DEPENDS_ON", "DEPLOYS", "EXPOSED_BY", "TRIGGERS", "QUERIED_BY", "PUBLISHED_BY", "SUBSCRIBED_BY", "INTEGRATES_WITH", "USES_DB", "IMPLEMENTS", "INHERITS_FROM", "USES_TYPE" };
-        var l5Categories = new List<OntologyCategoryDto>();
-        foreach (var rel in topRels)
-        {
-            var cnt = relCounts.GetValueOrDefault(rel, 0);
-            if (cnt > 0 || rel is "CALLS" or "DEPENDS_ON" or "INTEGRATES_WITH" or "USES_DB" or "DEPLOYS")
+            else if (attr.Layer == OntologyConstants.Layers.Logical)
             {
-                l5Categories.Add(new() { Kind = rel, Label = rel, Icon = "arrow-right", Count = cnt, LayerId = 5 });
+                l5Categories.Add(new() { Kind = kind, Label = attr.PluralLabel, Icon = attr.Icon, Count = count, LayerId = 5 });
             }
         }
 
         var l1 = new OntologyLayerDto
         {
             LayerId = 1,
-            Name = "Physical Topology",
-            Title = "Layer 1: Physical Topology",
+            Name = "File Structure",
+            Title = "Layer 1: File Structure",
             Description = "Files, Folders, and Git configuration",
             Icon = "folder-library",
             TotalCount = l1Categories.Sum(c => c.Count),
@@ -81,8 +75,8 @@ public partial class ArchitectureViewEngine
         var l2 = new OntologyLayerDto
         {
             LayerId = 2,
-            Name = "Project Boundary",
-            Title = "Layer 2: Project Boundary",
+            Name = "Project Structure",
+            Title = "Layer 2: Project Structure",
             Description = "Logical compilation scopes, projects, and external packages",
             Icon = "project",
             TotalCount = l2Categories.Sum(c => c.Count),
@@ -92,9 +86,9 @@ public partial class ArchitectureViewEngine
         var l3 = new OntologyLayerDto
         {
             LayerId = 3,
-            Name = "Syntactic AST",
-            Title = "Layer 3: Syntactic AST",
-            Description = "Abstract Syntax Tree declarations (Types, Methods, Fields)",
+            Name = "Syntax Structure",
+            Title = "Layer 3: Syntax Structure",
+            Description = "Abstract Syntax Tree declarations (Types, Methods, Fields, Variables)",
             Icon = "symbol-structure",
             TotalCount = l3Categories.Sum(c => c.Count),
             Categories = l3Categories
@@ -103,8 +97,8 @@ public partial class ArchitectureViewEngine
         var l4 = new OntologyLayerDto
         {
             LayerId = 4,
-            Name = "Semantic Runtime",
-            Title = "Layer 4: Semantic Runtime",
+            Name = "Semantic Structure",
+            Title = "Layer 4: Semantic Structure",
             Description = "Runtime architecture (Services, Endpoints, Databases, Topics, External APIs)",
             Icon = "radio-tower",
             TotalCount = l4Categories.Sum(c => c.Count),
@@ -114,18 +108,18 @@ public partial class ArchitectureViewEngine
         var l5 = new OntologyLayerDto
         {
             LayerId = 5,
-            Name = "System Bindings",
-            Title = "Layer 5: System Bindings",
-            Description = "Cross-project late-bound relationships (CALLS, IMPLEMENTS, USES_DB, INTEGRATES_WITH)",
-            Icon = "references",
-            TotalCount = meta.TotalEdges > 0 ? meta.TotalEdges : relCounts.Values.Sum(),
+            Name = "Logical Structure",
+            Title = "Layer 5: Logical Structure",
+            Description = "Domain-Driven Design architecture (Domains, Bounded Contexts)",
+            Icon = "globe",
+            TotalCount = l5Categories.Sum(c => c.Count),
             Categories = l5Categories
         };
 
         return new OntologyLayersResponseDto
         {
             Layers = [l1, l2, l3, l4, l5],
-            TotalNodes = l1Categories.Sum(c => c.Count) + l2Categories.Sum(c => c.Count) + l3Categories.Sum(c => c.Count) + l4Categories.Sum(c => c.Count),
+            TotalNodes = l1Categories.Sum(c => c.Count) + l2Categories.Sum(c => c.Count) + l3Categories.Sum(c => c.Count) + l4Categories.Sum(c => c.Count) + l5Categories.Sum(c => c.Count),
             TotalEdges = meta.TotalEdges > 0 ? meta.TotalEdges : relCounts.Values.Sum()
         };
     }

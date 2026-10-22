@@ -385,14 +385,14 @@ public partial class PostIndexAnalyzer
         // 1. Exact domain match on non-library project
         var exactNonLib = projList.FirstOrDefault(p =>
             !p.IsLibrary &&
-            (SyntaxEnricher.CleanProjectNameToDomain(p.Name).Equals(normKey, StringComparison.OrdinalIgnoreCase) ||
+            (ResourceSemanticAnalyzer.CleanProjectNameToDomain(p.Name).Equals(normKey, StringComparison.OrdinalIgnoreCase) ||
              EndpointScoringEngine.NormalizeAlphanumeric(Path.GetFileName(p.Path.TrimEnd('/', '\\'))).Equals(normKey, StringComparison.OrdinalIgnoreCase) ||
              EndpointScoringEngine.NormalizeAlphanumeric(p.Name).Equals(normKey, StringComparison.OrdinalIgnoreCase)));
         if (exactNonLib != null) return exactNonLib;
 
         // 2. Exact domain match on any project
         var exactAny = projList.FirstOrDefault(p =>
-            SyntaxEnricher.CleanProjectNameToDomain(p.Name).Equals(normKey, StringComparison.OrdinalIgnoreCase) ||
+            ResourceSemanticAnalyzer.CleanProjectNameToDomain(p.Name).Equals(normKey, StringComparison.OrdinalIgnoreCase) ||
             EndpointScoringEngine.NormalizeAlphanumeric(Path.GetFileName(p.Path.TrimEnd('/', '\\'))).Equals(normKey, StringComparison.OrdinalIgnoreCase) ||
             EndpointScoringEngine.NormalizeAlphanumeric(p.Name).Equals(normKey, StringComparison.OrdinalIgnoreCase));
         if (exactAny != null) return exactAny;
@@ -433,7 +433,7 @@ public partial class PostIndexAnalyzer
                                p.Extensions?.GetValueOrDefault("primary_role") is "WorkerService" or "Scheduler" or "Worker";
                 if (isWorker) continue;
 
-                var candDomain = SyntaxEnricher.CleanProjectNameToDomain(p.Name).ToLowerInvariant();
+                var candDomain = ResourceSemanticAnalyzer.CleanProjectNameToDomain(p.Name).ToLowerInvariant();
                 var candFolder = EndpointScoringEngine.NormalizeAlphanumeric(Path.GetFileName(p.Path.TrimEnd('/', '\\'))).ToLowerInvariant();
                 if ((candDomain.Length >= 6 && Math.Abs(candDomain.Length - normKey.Length) <= 1 && ComputeLevenshteinDistance(normKey, candDomain) <= 1) ||
                     (candFolder.Length >= 6 && Math.Abs(candFolder.Length - normKey.Length) <= 1 && ComputeLevenshteinDistance(normKey, candFolder) <= 1))

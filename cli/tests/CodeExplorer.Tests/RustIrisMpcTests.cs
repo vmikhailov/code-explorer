@@ -204,7 +204,7 @@ public class RustIrisMpcTests
         {
             using var configTree = await parser.ParseAsync(configPath, "parent", "ws", IrisMpcWorkspacePath);
             AstConstantExtractor.ExtractAndRegister(configTree, "iris-mpc-common");
-            var schemas = SyntaxEnricher.DetectDeclaredSchemas(null, configTree.FileNode, configTree, "relational");
+            var schemas = ResourceSemanticAnalyzer.DetectDeclaredSchemas(null, configTree.FileNode, configTree, "relational");
             TestContext.Out.WriteLine($"iris-mpc-common schemas: {string.Join(", ", schemas)}");
             schemas.Should().Contain(s => s.Equals("SMPC", StringComparison.OrdinalIgnoreCase));
             schemas.Should().Contain(s => s.Equals("SMPC_hnsw", StringComparison.OrdinalIgnoreCase));
@@ -217,7 +217,7 @@ public class RustIrisMpcTests
         {
             using var storeTree = await parser.ParseAsync(storePath, "parent", "ws", IrisMpcWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(storeTree, "ws", IrisMpcWorkspacePath, null, "iris-mpc-store", false, "Library");
-            var schemas = SyntaxEnricher.DetectDeclaredSchemas(null, storeTree.FileNode, storeTree, "relational");
+            var schemas = ResourceSemanticAnalyzer.DetectDeclaredSchemas(null, storeTree.FileNode, storeTree, "relational");
             TestContext.Out.WriteLine($"iris-mpc-store schemas: {string.Join(", ", schemas)}");
             schemas.Should().BeEmpty();
 
@@ -225,9 +225,8 @@ public class RustIrisMpcTests
             await using var client = new InMemoryGraphClient();
             var ctx = new ParsingContext(IrisMpcWorkspacePath, IrisMpcWorkspacePath, client, channel);
             ctx.SemanticStructure = new SemanticStructureNode("ws:sem", "sem", IrisMpcWorkspacePath);
-            var enricher = parser.GetSyntaxEnricher(storeTree);
             var projNode = new ProjectNode("proj:iris-mpc-store", "iris-mpc-store", "iris-mpc-store", "rust", "Library", true, new Dictionary<string, string> { ["role"] = "Library", ["is_library"] = "true" });
-            await enricher.EnrichAsync(projNode, ctx);
+            await ResourceSemanticAnalyzer.EnrichAsync(storeTree, projNode, parser, ctx);
             ctx.SemanticStructure.Children.Should().NotContain(c => c.Id.Contains("iris-mpc-store", StringComparison.OrdinalIgnoreCase) && c is DatabaseNode);
         }
 
@@ -237,7 +236,7 @@ public class RustIrisMpcTests
         {
             using var reaperTree = await parser.ParseAsync(reaperPath, "parent", "ws", IrisMpcWorkspacePath);
             AstConstantExtractor.ExtractAndRegister(reaperTree, "retention-reaper");
-            var schemas = SyntaxEnricher.DetectDeclaredSchemas(null, reaperTree.FileNode, reaperTree, "relational");
+            var schemas = ResourceSemanticAnalyzer.DetectDeclaredSchemas(null, reaperTree.FileNode, reaperTree, "relational");
             TestContext.Out.WriteLine($"retention-reaper schemas: {string.Join(", ", schemas)}");
             schemas.Should().BeEquivalentTo(["public"]);
         }
@@ -248,7 +247,7 @@ public class RustIrisMpcTests
         {
             using var anonTree = await parser.ParseAsync(anonPath, "parent", "ws", IrisMpcWorkspacePath);
             AstConstantExtractor.ExtractAndRegister(anonTree, "iris-mpc-anon-stats-server");
-            var schemas = SyntaxEnricher.DetectDeclaredSchemas(null, anonTree.FileNode, anonTree, "relational");
+            var schemas = ResourceSemanticAnalyzer.DetectDeclaredSchemas(null, anonTree.FileNode, anonTree, "relational");
             TestContext.Out.WriteLine($"iris-mpc-anon-stats-server schemas: {string.Join(", ", schemas)}");
             schemas.Should().BeEquivalentTo(["anon_stats_mpc"]);
         }
@@ -259,7 +258,7 @@ public class RustIrisMpcTests
         {
             using var serverTree = await parser.ParseAsync(serverPath, "parent", "ws", IrisMpcWorkspacePath);
             AstConstantExtractor.ExtractAndRegister(serverTree, "iris-mpc");
-            var schemas = SyntaxEnricher.DetectDeclaredSchemas(null, serverTree.FileNode, serverTree, "relational");
+            var schemas = ResourceSemanticAnalyzer.DetectDeclaredSchemas(null, serverTree.FileNode, serverTree, "relational");
             TestContext.Out.WriteLine($"iris-mpc-bins server.rs schemas: {string.Join(", ", schemas)}");
             schemas.Should().Contain(s => s.Equals("SMPC", StringComparison.OrdinalIgnoreCase));
             schemas.Should().Contain(s => s.Equals("anon_stats_mpc", StringComparison.OrdinalIgnoreCase));
@@ -271,7 +270,7 @@ public class RustIrisMpcTests
         {
             using var hnswServerTree = await parser.ParseAsync(hnswServerPath, "parent", "ws", IrisMpcWorkspacePath);
             AstConstantExtractor.ExtractAndRegister(hnswServerTree, "iris-mpc");
-            var schemas = SyntaxEnricher.DetectDeclaredSchemas(null, hnswServerTree.FileNode, hnswServerTree, "relational");
+            var schemas = ResourceSemanticAnalyzer.DetectDeclaredSchemas(null, hnswServerTree.FileNode, hnswServerTree, "relational");
             TestContext.Out.WriteLine($"iris-mpc HNSW server/mod.rs schemas: {string.Join(", ", schemas)}");
             schemas.Should().Contain(s => s.Equals("SMPC_hnsw", StringComparison.OrdinalIgnoreCase));
             schemas.Should().Contain(s => s.Equals("SMPC", StringComparison.OrdinalIgnoreCase));

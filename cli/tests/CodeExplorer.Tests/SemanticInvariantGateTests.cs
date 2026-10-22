@@ -793,8 +793,8 @@ public class SemanticInvariantGateTests
 
         await client.UploadNodesAsync([proj, ep1, ep2]);
         await client.UploadRelationshipsAsync([
-            new Relationship("ws:p:order-service", "ws:ep:order-service:GET:/ping", OntologyConstants.Relationships.Contains),
-            new Relationship("ws:p:order-service", "ws:ep:order-service-legacy:GET:/ping", OntologyConstants.Relationships.Contains)
+            new Relationship("ws:ep:order-service:GET:/ping", "ws:p:order-service", OntologyConstants.Relationships.DeclaredIn),
+            new Relationship("ws:ep:order-service-legacy:GET:/ping", "ws:p:order-service", OntologyConstants.Relationships.DeclaredIn)
         ]);
 
         var repo = new FileGateRepository(_tempWorkspace);

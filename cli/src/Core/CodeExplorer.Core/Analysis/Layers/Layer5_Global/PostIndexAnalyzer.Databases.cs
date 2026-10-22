@@ -38,11 +38,14 @@ public partial class PostIndexAnalyzer
 
         // 4. Query relationships targeting any database and consolidate per service/project
         var relEdgesQuery =
-            "SELECT from_id AS source, to_id AS target, kind, properties FROM edges WHERE kind IN ('USES_DB', 'CONFIGURES', 'DEPENDS_ON')";
+            "SELECT from_id AS source, to_id AS target, kind, properties FROM edges WHERE kind IN ('USES_DB', 'CONFIGURES', 'DEPENDS_ON', 'IMPLEMENTED_BY', 'DEPLOYS', 'ACCESSED_BY', 'QUERIED_BY', 'DECLARED_IN')";
         var relEdgesJson = await db.ExecuteQueryAsync(relEdgesQuery, null, cancellationToken);
 
         var libraryProjects = projectList.Where(p => p.IsLibrary).ToDictionary(p => p.Id, p => p, StringComparer.OrdinalIgnoreCase);
+        var projById = projectList.ToDictionary(p => p.Id, p => p, StringComparer.OrdinalIgnoreCase);
         var serviceToReferencedLibs = new Dictionary<string, List<(string Id, string Name)>>(StringComparer.OrdinalIgnoreCase);
+        var workloadToProject = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var projectToWorkload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         var projectDbEdges = new List<((string Id, string Name) Owner, string CanonicalTarget, JsonElement Properties, bool IsImplicitEdge)>();
 
@@ -55,33 +58,66 @@ public partial class PostIndexAnalyzer
                 var kind = GetStringProp(row, "kind");
                 if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
 
+                if (string.Equals(kind, "IMPLEMENTED_BY", StringComparison.OrdinalIgnoreCase) && projById.ContainsKey(tgt))
+                {
+                    workloadToProject[src] = tgt;
+                    projectToWorkload[tgt] = src;
+                }
+                else if (string.Equals(kind, "DEPLOYS", StringComparison.OrdinalIgnoreCase) && projById.ContainsKey(src))
+                {
+                    workloadToProject[tgt] = src;
+                    projectToWorkload[src] = tgt;
+                }
+            }
+
+            foreach (var row in edgesDoc.RootElement.EnumerateArray())
+            {
+                var src = GetStringProp(row, "source");
+                var tgt = GetStringProp(row, "target");
+                var kind = GetStringProp(row, "kind");
+                if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
+                if (string.Equals(kind, "IMPLEMENTED_BY", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(kind, "DEPLOYS", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 if (string.Equals(kind, "DEPENDS_ON", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (libraryProjects.TryGetValue(tgt, out var lib))
+                    var resolvedSrc = workloadToProject.GetValueOrDefault(src, src);
+                    var resolvedTgt = workloadToProject.GetValueOrDefault(tgt, tgt);
+                    if (libraryProjects.TryGetValue(resolvedTgt, out var lib))
                     {
-                        if (!serviceToReferencedLibs.TryGetValue(src, out var lList))
+                        if (!serviceToReferencedLibs.TryGetValue(resolvedSrc, out var lList))
                         {
                             lList = [];
-                            serviceToReferencedLibs[src] = lList;
+                            serviceToReferencedLibs[resolvedSrc] = lList;
                         }
                         lList.Add((lib.Id, lib.Name));
                     }
                     continue;
                 }
 
-                if (rawToCanonical.TryGetValue(tgt, out var canonicalId))
+                var isReverseDbRel = string.Equals(kind, "ACCESSED_BY", StringComparison.OrdinalIgnoreCase) ||
+                                     string.Equals(kind, "QUERIED_BY", StringComparison.OrdinalIgnoreCase) ||
+                                     string.Equals(kind, "DECLARED_IN", StringComparison.OrdinalIgnoreCase);
+                var dbTarget = isReverseDbRel ? src : tgt;
+                var callerSrc = isReverseDbRel ? tgt : src;
+
+                if (rawToCanonical.TryGetValue(dbTarget, out var canonicalId))
                 {
-                    if (WorkspaceConventions.IsTestFilePath(src) ||
-                        src.Contains("/tests/", StringComparison.OrdinalIgnoreCase) ||
-                        src.Contains("\\tests\\", StringComparison.OrdinalIgnoreCase) ||
-                        src.Contains(".Tests", StringComparison.OrdinalIgnoreCase))
+                    if (WorkspaceConventions.IsTestFilePath(callerSrc) ||
+                        callerSrc.Contains("/tests/", StringComparison.OrdinalIgnoreCase) ||
+                        callerSrc.Contains("\\tests\\", StringComparison.OrdinalIgnoreCase) ||
+                        callerSrc.Contains(".Tests", StringComparison.OrdinalIgnoreCase))
                     {
                         continue;
                     }
+                    var resolvedCaller = workloadToProject.GetValueOrDefault(callerSrc, callerSrc);
                     // Resolve owning project
                     string? projId = null;
                     string projName = "";
-                    var exactProj = projectList.FirstOrDefault(p => p.Id == src);
+                    var exactProj = projectList.FirstOrDefault(p => p.Id == resolvedCaller);
 
                     if (!string.IsNullOrEmpty(exactProj.Id))
                     {
@@ -92,9 +128,9 @@ public partial class PostIndexAnalyzer
                     else
                     {
                         var matched = projectList.FirstOrDefault(p =>
-                            src.StartWithIC(p.Id) ||
+                            resolvedCaller.StartWithIC(p.Id) ||
                             (!string.IsNullOrEmpty(p.Path) &&
-                             src.Contains(p.Path, StringComparison.OrdinalIgnoreCase)));
+                             resolvedCaller.Contains(p.Path, StringComparison.OrdinalIgnoreCase)));
                         if (matched.IsTest) continue;
                         projId = matched.Id;
                         projName = matched.Name;
@@ -103,8 +139,8 @@ public partial class PostIndexAnalyzer
                     if (!string.IsNullOrEmpty(projId) && projId != canonicalId)
                     {
                         row.TryGetProperty("properties", out var pElem);
-                        var isRawImplicitEdge = rawImplicitDbIds.Contains(tgt) ||
-                                                tgt.EndsWith(":db:default:dbo", StringComparison.OrdinalIgnoreCase) ||
+                        var isRawImplicitEdge = rawImplicitDbIds.Contains(dbTarget) ||
+                                                dbTarget.EndsWith(":db:default:dbo", StringComparison.OrdinalIgnoreCase) ||
                                                 (pElem.ValueKind == JsonValueKind.Object && pElem.TryGetProperty("is_implicit_schema", out var impProp) && impProp.ValueKind == JsonValueKind.String && impProp.GetString() == "true");
 
                         if (isRawImplicitEdge && libraryProjects.ContainsKey(projId))
@@ -115,9 +151,9 @@ public partial class PostIndexAnalyzer
                         var clonedProps = pElem.Clone();
                         projectDbEdges.Add(((projId, projName), canonicalId, clonedProps, isRawImplicitEdge));
 
-                        if (!isRawImplicitEdge && src.Contains(":f:", StringComparison.OrdinalIgnoreCase))
+                        if (!isRawImplicitEdge && callerSrc.Contains(":f:", StringComparison.OrdinalIgnoreCase))
                         {
-                            var normSrc = src.Replace('\\', '/');
+                            var normSrc = callerSrc.Replace('\\', '/');
                             var binIdx = normSrc.IndexOf("/bin/", StringComparison.OrdinalIgnoreCase);
                             if (binIdx >= 0)
                             {
@@ -147,7 +183,7 @@ public partial class PostIndexAnalyzer
         {
             var svcProj = projectList.FirstOrDefault(p => p.Id == svcId);
             if (svcProj.IsTest || string.IsNullOrEmpty(svcProj.Id)) continue;
-            var dom = SyntaxEnricher.CleanProjectNameToDomain(svcProj.Name);
+            var dom = ResourceSemanticAnalyzer.CleanProjectNameToDomain(svcProj.Name);
             if (string.IsNullOrEmpty(dom)) dom = svcProj.Id;
             foreach (var l in libs)
             {
@@ -234,7 +270,7 @@ public partial class PostIndexAnalyzer
 
         var edgesByService = projectDbEdges
             .GroupBy(e => {
-                var domain = SyntaxEnricher.CleanProjectNameToDomain(e.Owner.Name);
+                var domain = ResourceSemanticAnalyzer.CleanProjectNameToDomain(e.Owner.Name);
                 return !string.IsNullOrEmpty(domain) ? domain : e.Owner.Id;
             }, StringComparer.OrdinalIgnoreCase);
 
@@ -382,7 +418,8 @@ public partial class PostIndexAnalyzer
             implicitSchemaIds,
             concreteEnginesCount,
             projectList,
-            cancellationToken);
+            cancellationToken,
+            projectToWorkload);
 
         // 4. Clean up duplicate / project-scoped database nodes and propagate properties
         await CleanupAndPropagateDatabaseEntitiesAsync(db, rawToCanonical, canonicalNodes, cancellationToken);

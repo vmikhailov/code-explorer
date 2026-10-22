@@ -451,8 +451,7 @@ public class SemanticRuntimeParityGateTests
 
             var projectNode = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode("workspace:project:MyApp", "MyApp", appDir, "csharp", new Dictionary<string, string>());
 
-            var enricher = csharpParser.GetSyntaxEnricher(syntaxTree);
-            await enricher.EnrichAsync(projectNode, ctx);
+            await ResourceSemanticAnalyzer.EnrichAsync(syntaxTree, projectNode, csharpParser, ctx);
 
             // Assert NO DatabaseNode created under SemanticStructure
             var dbs = ctx.SemanticStructure.Children.OfType<CodeExplorer.Core.Common.Nodes.Layer4_Semantic.DatabaseNode>().ToList();
@@ -560,9 +559,77 @@ public class SemanticRuntimeParityGateTests
             projectToWorkloadMap: projectToWorkloadMap
         );
 
-        lifted.Should().Contain(r => r.From == svcProj.Id && r.To == targetDbId && r.Kind == OntologyConstants.Relationships.UsesDb,
-            "Transitive USES_DB must be lifted to ProjectNode");
+        lifted.Should().NotContain(r => r.From == svcProj.Id && r.To == targetDbId && r.Kind == OntologyConstants.Relationships.UsesDb,
+            "Upward L2 -> L4 USES_DB edge on ProjectNode is forbidden");
         lifted.Should().Contain(r => r.From == $"{wsId}:s:orderservice" && r.To == targetDbId && r.Kind == OntologyConstants.Relationships.UsesDb,
-            "Transitive USES_DB must be lifted and mirrored to semantic Service workload");
+            "Transitive USES_DB must be lifted onto semantic Service workload (L4 -> L4)");
+    }
+
+    [Test]
+    public async Task OntologyLayerDirection_And_Level5LogicalStructure_EnforcesZeroUpwardEdges()
+    {
+        var projDir = Path.Combine(_tempDir, "OrderService").Replace('\\', '/');
+        Directory.CreateDirectory(projDir);
+        await File.WriteAllTextAsync(Path.Combine(projDir, "OrderService.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk.Web\"></Project>");
+        await File.WriteAllTextAsync(Path.Combine(projDir, "OrderController.cs"), """
+            using System.ComponentModel.DataAnnotations.Schema;
+            using Microsoft.AspNetCore.Mvc;
+
+            namespace OrderService;
+
+            [Table("orders")]
+            public class OrderEntity
+            {
+                public int Id { get; set; }
+            }
+
+            [ApiController]
+            [Route("api/orders")]
+            public class OrderController : ControllerBase
+            {
+                [HttpGet]
+                public string GetOrders() => "ok";
+            }
+            """);
+
+        var dbPath = Path.Combine(_tempDir, "layer5_test.db").Replace('\\', '/');
+        await using var client = new SqliteGraphClient(dbPath);
+        WorkspaceIndexer.AutoRegisterParsers();
+        var indexer = new WorkspaceIndexer(client);
+        await indexer.IndexAsync(_tempDir, _tempDir, clear: true);
+
+        // 1. Verify Level 5 LogicalStructure, Domain, and BoundedContext nodes are persisted
+        var l5Json = await client.ExecuteQueryAsync("MATCH (ls:LogicalStructure)-[:CONTAINS]->(d:Domain)-[:CONTAINS]->(bc:BoundedContext) RETURN ls.id AS lsId, d.id AS domId, bc.id AS bcId");
+        using var l5Doc = System.Text.Json.JsonDocument.Parse(l5Json);
+        l5Doc.RootElement.GetArrayLength().Should().BeGreaterThan(0, "Level 5 LogicalStructure -> Domain -> BoundedContext hierarchy must be persisted");
+
+        // 2. Verify zero upward cross-layer edges across the entire indexed workspace
+        static int GetLayerRank(string label) => label switch
+        {
+            "Workspace" or "FilesStructure" or "Folder" or "File" => 1,
+            "ProjectsStructure" or "Project" or "Package" => 2,
+            "SyntaxStructure" or "Namespace" or "Type" or "Function" or "Member" or "Parameter" or "CallLiteral" or "CatchClause" => 3,
+            "SemanticStructure" or "Service" or "App" or "Worker" or "Library" or "CliTool" or "TestSuite" or "EntryPoint" or "Endpoint" or "Database" or "Table" or "Query" or "StoredProcedure" or "DataSet" or "ExternalService" or "Topic" or "CloudService" or "PeerMesh" or "ApiInUse" => 4,
+            "LogicalStructure" or "Domain" or "BoundedContext" => 5,
+            _ => 0
+        };
+
+        var edgesJson = await client.ExecuteQueryAsync("MATCH (a)-[r]->(b) RETURN labels(a)[0] AS fromKind, type(r) AS rel, labels(b)[0] AS toKind, a.id AS fromId, b.id AS toId");
+        using var edgesDoc = System.Text.Json.JsonDocument.Parse(edgesJson);
+        var upwardEdges = new List<string>();
+        foreach (var row in edgesDoc.RootElement.EnumerateArray())
+        {
+            var fromKind = row.GetProperty("fromKind").GetString() ?? "";
+            var toKind = row.GetProperty("toKind").GetString() ?? "";
+            var rel = row.GetProperty("rel").GetString() ?? "";
+            var fromRank = GetLayerRank(fromKind);
+            var toRank = GetLayerRank(toKind);
+            if (fromRank > 0 && toRank > 0 && !(fromKind == "Workspace" && rel == "CONTAINS") && toRank > fromRank)
+            {
+                upwardEdges.Add($"{fromKind} (L{fromRank}) -[{rel}]-> {toKind} (L{toRank})");
+            }
+        }
+
+        upwardEdges.Should().BeEmpty("Ontology edges must never point upward from Layer K to Layer M > K");
     }
 }

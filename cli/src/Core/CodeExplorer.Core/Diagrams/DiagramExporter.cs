@@ -428,7 +428,7 @@ public static class DiagramExporter
         sb.AppendLine("  subgraph Entities [ORM Entities & Models]");
 
         var lineageQuery = """
-        MATCH (entity:Type)-[:PERSISTED_IN]->(t:Table)
+        MATCH (t:Table)-[:IMPLEMENTED_BY]->(entity:Type)
         RETURN entity.id AS entity_id, entity.name AS entity_name, t.id AS table_id, t.name AS table_name
         """;
         var lineageJson = await client.ExecuteQueryAsync(lineageQuery, null, cancellationToken);

@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
 namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
@@ -11,7 +12,11 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     order: 30,
     pluralLabel: "SQL Queries"
 )]
+[OntologyEdge<TableNode>(OntologyConstants.Relationships.ReadsFrom)]
+[OntologyEdge<TableNode>(OntologyConstants.Relationships.WritesTo)]
 [OntologyEdge<TableNode>(OntologyConstants.Relationships.DependsOn)]
+[OntologyEdge<FunctionNode>(OntologyConstants.Relationships.AccessedBy)]
+[OntologyEdge<TypeNode>(OntologyConstants.Relationships.AccessedBy)]
 public record QueryNode(
     string Id,
     string Name,

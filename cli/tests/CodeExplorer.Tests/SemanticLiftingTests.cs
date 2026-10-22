@@ -87,4 +87,45 @@ public class SemanticLiftingTests
         rel.Kind.Should().Be(OntologyConstants.Relationships.SubscribesTo);
         rel.Properties!["via_library"]?.ToString().Should().Be("LibConsumer");
     }
+
+    [Test]
+    public void LiftTransitiveSemanticRelations_SkipsLibraryTopicsFromModulesUnreachableByWorkload()
+    {
+        var server = new ProjectNode("ws:p:bins/server.rs:", "server", "bins/server.rs", "rust", "Service", false)
+        {
+            Extensions = new()
+            {
+                [OntologyConstants.PropertyNames.SourceReachability] =
+                    """{"core":["core/src/server.rs","core/src/services/batch.rs"]}"""
+            }
+        };
+        var client = new ProjectNode("ws:p:bins/client.rs:", "client", "bins/client.rs", "rust", "CliTool", false)
+        {
+            Extensions = new()
+            {
+                [OntologyConstants.PropertyNames.SourceReachability] = """{"core":["core/src/client/e2e.rs"]}"""
+            }
+        };
+        var core = new ProjectNode("ws:p:core:", "core", "core", "rust", "SharedLibrary", true);
+        const string requests = "ws:top:sqs:requests-queue";
+        const string requestTopic = "ws:top:sns:request-topic";
+
+        var relationships = new List<Relationship>
+        {
+            new(server.Id, core.Id, OntologyConstants.Relationships.DependsOn, new()),
+            new(client.Id, core.Id, OntologyConstants.Relationships.DependsOn, new()),
+            new(core.Id, requests, OntologyConstants.Relationships.SubscribesTo, new()),
+            new(core.Id, requestTopic, OntologyConstants.Relationships.PublishesTo, new()),
+            new(requests, "ws:sym:core/src/services/batch.rs:Function:receive_batch", OntologyConstants.Relationships.SubscribedBy, new()),
+            new(requestTopic, "ws:sym:core/src/client/e2e.rs:Function:send_request", OntologyConstants.Relationships.PublishedBy, new())
+        };
+
+        var lifted = PostIndexAnalyzer.LiftTransitiveSemanticRelations([server, client, core], relationships);
+
+        lifted.Select(r => (r.From, r.Kind, r.To)).Should().BeEquivalentTo(new[]
+        {
+            (server.Id, OntologyConstants.Relationships.SubscribesTo, requests),
+            (client.Id, OntologyConstants.Relationships.PublishesTo, requestTopic)
+        });
+    }
 }

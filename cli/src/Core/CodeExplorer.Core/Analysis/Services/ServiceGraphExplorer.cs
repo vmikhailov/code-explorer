@@ -53,11 +53,12 @@ public class ServiceGraphExplorer : IServiceGraphExplorer
     public async Task<ServiceSurfaceDto> GetServiceSurfaceAsync(string serviceName, CancellationToken ct = default)
     {
         var query = """
-            MATCH (s) WHERE (s:Project OR s:Service OR s:Worker OR s:App) AND s.name = $name
+            MATCH (s) WHERE (s:Project OR s:Service OR s:Worker OR s:App OR s:Library OR s:CliTool) AND s.name = $name
             OPTIONAL MATCH (ep:Endpoint) WHERE s.path IS NOT NULL AND ep.path STARTS WITH s.path
             OPTIONAL MATCH (s)-[:PUBLISHES_TO|PUBLISHES]->(pub:Topic)
-            OPTIONAL MATCH (s)-[:SUBSCRIBES_TO|SUBSCRIBED_BY|SUBSCRIBES]-(sub:Topic)
-            RETURN collect(DISTINCT ep.name) AS endpoints,
+            OPTIONAL MATCH (s)-[:SUBSCRIBES_TO|SUBSCRIBES]->(sub:Topic)
+            RETURN s.id AS service_id,
+                   collect(DISTINCT ep.name) AS endpoints,
                    collect(DISTINCT pub.name) AS publishes,
                    collect(DISTINCT sub.name) AS subscribes
             """;
@@ -93,12 +94,13 @@ public class ServiceGraphExplorer : IServiceGraphExplorer
     public async Task<ServiceDataLineageDto> GetDataLineageAsync(string serviceName, CancellationToken ct = default)
     {
         var query = """
-            MATCH (s) WHERE (s:Project OR s:Service OR s:Worker OR s:App) AND s.name = $name
+            MATCH (s) WHERE (s:Project OR s:Service OR s:Worker OR s:App OR s:Library OR s:CliTool) AND s.name = $name
             OPTIONAL MATCH (s)-[:USES_DB|TRANSITIVELY_CALLS]->(db:Database)
-            OPTIONAL MATCH (s)-[:CONTAINS|USES_DB|ACCESSES_TABLE]->(tb:Table)
-            OPTIONAL MATCH (tb2:Table)-[:QUERIED_BY]->(s)
+            OPTIONAL MATCH (s)-[:CONTAINS|USES_DB|ACCESSES_TABLE|READS_FROM|WRITES_TO]->(tb:Table)
+            OPTIONAL MATCH (tb2:Table)-[:ACCESSED_BY|QUERIED_BY]->(s)
             OPTIONAL MATCH (tb3:Table) WHERE s.path IS NOT NULL AND tb3.path STARTS WITH s.path
-            RETURN collect(DISTINCT db.name) AS databases,
+            RETURN s.id AS service_id,
+                   collect(DISTINCT db.name) AS databases,
                    collect(DISTINCT coalesce(tb.name, tb2.name, tb3.name)) AS tables
             """;
 
@@ -131,11 +133,12 @@ public class ServiceGraphExplorer : IServiceGraphExplorer
     public async Task<ServiceDependenciesDto> GetServiceDependenciesAsync(string serviceName, CancellationToken ct = default)
     {
         var query = """
-            MATCH (s) WHERE (s:Project OR s:Service OR s:Worker OR s:App) AND s.name = $name
+            MATCH (s) WHERE (s:Project OR s:Service OR s:Worker OR s:App OR s:Library OR s:CliTool) AND s.name = $name
             OPTIONAL MATCH (s)-[r1:DEPENDS_ON]->(lib) WHERE NOT lib:Package AND coalesce(r1.dependency_type, '') != 'service_call' AND (lib:Library OR lib.is_library = true OR lib.role = 'SharedLibrary' OR lib.role = 'Library')
             OPTIONAL MATCH (s)-[r2:SERVICE_CALL|DEPENDS_ON]->(target) WHERE (target:Project OR target:Service OR target:Worker) AND (r2.kind = 'SERVICE_CALL' OR r2.dependency_type = 'service_call')
             OPTIONAL MATCH (caller)-[r3:SERVICE_CALL|DEPENDS_ON]->(s) WHERE (caller:Project OR caller:Service OR caller:Worker) AND (r3.kind = 'SERVICE_CALL' OR r3.dependency_type = 'service_call')
-            RETURN collect(DISTINCT lib.name) AS referenced_libraries,
+            RETURN s.id AS service_id,
+                   collect(DISTINCT lib.name) AS referenced_libraries,
                    collect(DISTINCT target.name) AS calls_services,
                    collect(DISTINCT caller.name) AS called_by
             """;

@@ -1,6 +1,6 @@
-# CodeExplorer Website (`code-explorer.mikhailov.cc`)
+# CodeExplorer Website (`code-explorer.app`)
 
-Source code and assets for the official CodeExplorer landing page, interactive playground, and documentation portal: [https://code-explorer.mikhailov.cc](https://code-explorer.mikhailov.cc).
+Source code and assets for the official CodeExplorer landing page, interactive playground, and documentation portal: [https://code-explorer.app](https://code-explorer.app).
 
 ## Directory Structure
 
@@ -12,7 +12,7 @@ site/
 ├── all_services.png        # Retina showcase: Macro architecture & orbits
 ├── selected_services.png   # Retina showcase: Sub-graph neighborhood & custom orbits
 ├── project_flow.png        # Retina showcase: Project flow, service cards & C1 context
-├── CNAME                   # Custom domain record (code-explorer.mikhailov.cc)
+├── CNAME                   # Custom domain record (code-explorer.app)
 ├── robots.txt              # Public crawler policy and sitemap location
 ├── sitemap.xml             # Sitemap for search crawlers
 ├── deploy.sh               # One-click deployment script to production VPS

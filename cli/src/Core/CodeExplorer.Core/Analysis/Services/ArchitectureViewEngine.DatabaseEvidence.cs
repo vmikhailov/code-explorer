@@ -286,9 +286,10 @@ public partial class ArchitectureViewEngine
             var qJson = await db.ExecuteQueryAsync(qQuery, null, ct);
             using var qDoc = JsonDocument.Parse(qJson);
 
-            // Also find callers from (fn:Function)-[:DECLARES]->(q:Query)
+            // Also find callers from (q:Query)-[:DECLARED_IN|ACCESSED_BY]->(fn:Function) or legacy (fn:Function)-[:DECLARES]->(q:Query)
             var fnCallersQuery = """
-                MATCH (fn:Function)-[:DECLARES]->(q:Query)
+                MATCH (fn:Function)-[r]-(q:Query)
+                WHERE r.kind IN ['DECLARES', 'DECLARED_IN', 'ACCESSED_BY', 'QUERIED_BY']
                 RETURN q.id AS q_id, fn.name AS fn_name
                 """;
             var fnCallers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -396,7 +397,7 @@ public partial class ArchitectureViewEngine
             foreach (var (pattern, kinds) in new[]
             {
                 ("(src)-[r]->(tgt)", "'USES_DB', 'CONFIGURES', 'READS_FROM', 'WRITES_TO', 'TRANSITIVELY_CALLS'"),
-                ("(tgt)-[r]->(src)", "'QUERIED_BY', 'CALLED_BY'")
+                ("(tgt)-[r]->(src)", "'QUERIED_BY', 'ACCESSED_BY', 'CALLED_BY', 'DECLARED_IN'")
             })
             {
                 var relsQuery = $"""
@@ -448,7 +449,7 @@ public partial class ArchitectureViewEngine
                         ? OntologyConstants.EvidenceConfidence.Recorded
                         : OntologyConstants.EvidenceConfidence.Inferred;
 
-                    if (srcKind == "Query" || relKind == "QUERIED_BY")
+                    if (srcKind == "Query" || relKind == "QUERIED_BY" || (relKind == "ACCESSED_BY" && srcKind == "Function" && string.IsNullOrEmpty(relEvKind)))
                     {
                         var qText = row.GetStringProp("query_text");
                         var qVerb = row.GetStringProp("verb");
@@ -543,7 +544,7 @@ public partial class ArchitectureViewEngine
                 foreach (var (pattern, kinds) in new[]
                 {
                     ("(src)-[r]->(obj)", "'PERSISTED_IN', 'READS_FROM', 'WRITES_TO', 'CALLS', 'DEPENDS_ON'"),
-                    ("(obj)-[r]->(src)", "'QUERIED_BY', 'CALLED_BY', 'DECLARED_IN'")
+                    ("(obj)-[r]->(src)", "'QUERIED_BY', 'ACCESSED_BY', 'CALLED_BY', 'DECLARED_IN'")
                 })
                 {
                     var usersQuery = $"""
@@ -588,10 +589,12 @@ public partial class ArchitectureViewEngine
                         var (kind, operation) = relKind switch
                         {
                             "PERSISTED_IN" or "DECLARED_IN" => (OntologyConstants.EvidenceKinds.Orm, !string.IsNullOrEmpty(relOp) ? relOp : "ORM"),
+                            "ACCESSED_BY" when string.Equals(relEvKind, OntologyConstants.EvidenceKinds.Orm, StringComparison.OrdinalIgnoreCase) || row.GetStringProp("src_kind") == "Type" =>
+                                (OntologyConstants.EvidenceKinds.Orm, !string.IsNullOrEmpty(relOp) ? relOp : "ORM"),
                             "WRITES_TO" => (
                                 !string.IsNullOrEmpty(relEvKind) ? relEvKind : OntologyConstants.EvidenceKinds.Query,
                                 explicitSqlVerb ?? "INSERT"),
-                            "READS_FROM" or "QUERIED_BY" or "DEPENDS_ON" => (
+                            "READS_FROM" or "QUERIED_BY" or "ACCESSED_BY" or "DEPENDS_ON" => (
                                 !string.IsNullOrEmpty(relEvKind) ? relEvKind : OntologyConstants.EvidenceKinds.Query,
                                 explicitSqlVerb ?? "SELECT"),
                             _ => (

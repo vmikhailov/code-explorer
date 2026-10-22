@@ -10,7 +10,7 @@ using TsNode = TreeSitter.Node;
 
 namespace CodeExplorer.Core.Parser;
 
-public partial class SyntaxEnricher
+public partial class ResourceSemanticAnalyzer
 {
     private static readonly Regex SchemaCallRegex = new(@"HasDefaultSchema\s*\(\s*[""']?([^""'\)]+)[""']?\s*\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex SchemaConstRegex = new(@"(?:Schema_?Name|Default_?Schema_?Name|Default_?Schema)\s*(?::\s*[^=]+)?=\s*[""']?([^""';]+)[""']?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -205,7 +205,6 @@ public partial class SyntaxEnricher
                             }
                         }
 
-                        // Variable declaration or assignment: let_declaration, const_item, static_item, variable_declarator, short_var_declaration, assignment_statement, keyed_element
                         if (type is TreeSitterSyntax.Rust.LetDeclaration or
                                     TreeSitterSyntax.Rust.ConstItem or
                                     TreeSitterSyntax.Rust.StaticItem or
@@ -295,7 +294,6 @@ public partial class SyntaxEnricher
                             }
                         }
 
-                        // Struct field declaration list with #[serde(default = "...")] on a schema field (in service/worker/binary files)
                         if (type == TreeSitterSyntax.Rust.FieldDeclarationList && (projectNode == null || !projectNode.IsLibrary))
                         {
                             TsNode? lastAttr = null;
@@ -322,7 +320,6 @@ public partial class SyntaxEnricher
                             }
                         }
 
-                        // Call expression / Invocation expression
                         if (type is TreeSitterSyntax.Common.CallExpression or TreeSitterSyntax.CSharp.InvocationExpression)
                         {
                             var funcNode = node.GetFunctionNode();
@@ -339,7 +336,6 @@ public partial class SyntaxEnricher
                                 }
                             }
 
-                            // Check DB client constructor calls: PostgresClient::new, AnonStatsPgClient::new, PgClient::new
                             if (clientConstructors.Any(c => funcText.EndsWith(c, StringComparison.OrdinalIgnoreCase)))
                             {
                                 var argsList = node.FindChildOfType(TreeSitterSyntax.Common.ArgumentList) ??
@@ -474,14 +470,12 @@ public partial class SyntaxEnricher
             var dir = Path.GetDirectoryName(filePath);
             if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return null;
 
-            // 1. Check current directory files
             foreach (var f in Directory.EnumerateFiles(dir, "*.cs"))
             {
                 var match = rx.Match(File.ReadAllText(f));
                 if (match.Success) return match.Groups[1].Value.Trim().Trim('\'', '"');
             }
 
-            // 2. Find project root directory and search files (e.g. typeName.cs or all .cs files)
             var projDir = dir;
             while (projDir != null && !Directory.EnumerateFiles(projDir, "*.csproj").Any())
             {
@@ -521,7 +515,6 @@ public partial class SyntaxEnricher
         {
             if (node.Extensions.TryGetValue("is_implicit_schema", out var isImp) && isImp == "true")
             {
-                // Skip implicit default schema
             }
             else
             {
@@ -571,7 +564,8 @@ public partial class SyntaxEnricher
     private static (string? Engine, string? DbType) DetectProjectDatabaseDriver(ProjectNode projectNode, ParsingContext ctx)
     {
         if (projectNode == null) return (null, null);
-        if (_projectDriverCache.TryGetValue(projectNode.Id, out var cached)) return cached;
+        var cacheKey = $"{ctx.AbsoluteWorkspacePath}|{projectNode.Id}";
+        if (_projectDriverCache.TryGetValue(cacheKey, out var cached)) return cached;
 
         try
         {
@@ -581,7 +575,7 @@ public partial class SyntaxEnricher
 
             if (!Directory.Exists(projectAbsDir))
             {
-                _projectDriverCache[projectNode.Id] = (null, null);
+                _projectDriverCache[cacheKey] = (null, null);
                 return (null, null);
             }
 
@@ -594,43 +588,43 @@ public partial class SyntaxEnricher
                 if (lower.Contains("\"pg\"") || lower.Contains("\"pg-promise\"") || lower.Contains("\"@types/pg\"") || lower.Contains("\"postgres\""))
                 {
                     var res = ("PostgreSQL", "relational");
-                    _projectDriverCache[projectNode.Id] = res;
+                    _projectDriverCache[cacheKey] = res;
                     return res;
                 }
                 if (lower.Contains("\"mysql\"") || lower.Contains("\"mysql2\""))
                 {
                     var res = ("MySQL", "relational");
-                    _projectDriverCache[projectNode.Id] = res;
+                    _projectDriverCache[cacheKey] = res;
                     return res;
                 }
                 if (lower.Contains("\"sqlite3\"") || lower.Contains("\"better-sqlite3\""))
                 {
                     var res = ("SQLite", "relational");
-                    _projectDriverCache[projectNode.Id] = res;
+                    _projectDriverCache[cacheKey] = res;
                     return res;
                 }
                 if (lower.Contains("\"mssql\"") || lower.Contains("\"tedious\""))
                 {
                     var res = ("SQL Server", "relational");
-                    _projectDriverCache[projectNode.Id] = res;
+                    _projectDriverCache[cacheKey] = res;
                     return res;
                 }
                 if (lower.Contains("\"oracledb\""))
                 {
                     var res = ("Oracle", "relational");
-                    _projectDriverCache[projectNode.Id] = res;
+                    _projectDriverCache[cacheKey] = res;
                     return res;
                 }
                 if (lower.Contains("\"mongodb\""))
                 {
                     var res = ("MongoDB", "document");
-                    _projectDriverCache[projectNode.Id] = res;
+                    _projectDriverCache[cacheKey] = res;
                     return res;
                 }
                 if (lower.Contains("\"redis\"") || lower.Contains("\"ioredis\""))
                 {
                     var res = ("Redis", "cache");
-                    _projectDriverCache[projectNode.Id] = res;
+                    _projectDriverCache[cacheKey] = res;
                     return res;
                 }
             }
@@ -643,7 +637,7 @@ public partial class SyntaxEnricher
                 if (rootContent.Contains("\"pg\"") || rootContent.Contains("\"pg-promise\"") || rootContent.Contains("\"postgres\""))
                 {
                     var res = ("PostgreSQL", "relational");
-                    _projectDriverCache[projectNode.Id] = res;
+                    _projectDriverCache[cacheKey] = res;
                     return res;
                 }
             }
@@ -658,7 +652,7 @@ public partial class SyntaxEnricher
                     var res = DetectDriverFromCsproj(csproj, ctx.AbsoluteWorkspacePath, visited);
                     if (res.Engine != null)
                     {
-                        _projectDriverCache[projectNode.Id] = res;
+                        _projectDriverCache[cacheKey] = res;
                         return res;
                     }
                 }
@@ -666,7 +660,7 @@ public partial class SyntaxEnricher
                 var propsRes = DetectDriverFromDirectoryBuildProps(projectAbsDir, ctx.AbsoluteWorkspacePath);
                 if (propsRes.Engine != null)
                 {
-                    _projectDriverCache[projectNode.Id] = propsRes;
+                    _projectDriverCache[cacheKey] = propsRes;
                     return propsRes;
                 }
             }
@@ -681,25 +675,25 @@ public partial class SyntaxEnricher
                     if (content.Contains("port=5432") || content.Contains("username=postgres") || content.Contains("npgsql") || content.Contains("database=postgres"))
                     {
                         var res = ("PostgreSQL", "relational");
-                        _projectDriverCache[projectNode.Id] = res;
+                        _projectDriverCache[cacheKey] = res;
                         return res;
                     }
                     if (content.Contains("initial catalog=") || content.Contains("trusted_connection=") || content.Contains("server=localhost;database="))
                     {
                         var res = ("SQL Server", "relational");
-                        _projectDriverCache[projectNode.Id] = res;
+                        _projectDriverCache[cacheKey] = res;
                         return res;
                     }
                     if (content.Contains("port=3306") || content.Contains("uid=root") || content.Contains("user id=root"))
                     {
                         var res = ("MySQL", "relational");
-                        _projectDriverCache[projectNode.Id] = res;
+                        _projectDriverCache[cacheKey] = res;
                         return res;
                     }
                     if (content.Contains("data source=") && (content.Contains(".db") || content.Contains(".sqlite")))
                     {
                         var res = ("SQLite", "relational");
-                        _projectDriverCache[projectNode.Id] = res;
+                        _projectDriverCache[cacheKey] = res;
                         return res;
                     }
                 }
@@ -716,19 +710,19 @@ public partial class SyntaxEnricher
                 if (lower.Contains("psycopg") || lower.Contains("asyncpg"))
                 {
                     var res = ("PostgreSQL", "relational");
-                    _projectDriverCache[projectNode.Id] = res;
+                    _projectDriverCache[cacheKey] = res;
                     return res;
                 }
                 if (lower.Contains("pymysql") || lower.Contains("mysql"))
                 {
                     var res = ("MySQL", "relational");
-                    _projectDriverCache[projectNode.Id] = res;
+                    _projectDriverCache[cacheKey] = res;
                     return res;
                 }
                 if (lower.Contains("sqlite"))
                 {
                     var res = ("SQLite", "relational");
-                    _projectDriverCache[projectNode.Id] = res;
+                    _projectDriverCache[cacheKey] = res;
                     return res;
                 }
             }
@@ -744,21 +738,21 @@ public partial class SyntaxEnricher
                     text.Contains("dialect: 'postgres'") || text.Contains("dialect: \"postgres\""))
                 {
                     var res = ("PostgreSQL", "relational");
-                    _projectDriverCache[projectNode.Id] = res;
+                    _projectDriverCache[cacheKey] = res;
                     return res;
                 }
                 if (text.Contains("type: 'mysql'") || text.Contains("type: \"mysql\"") ||
                     text.Contains("dialect: 'mysql'") || text.Contains("dialect: \"mysql\""))
                 {
                     var res = ("MySQL", "relational");
-                    _projectDriverCache[projectNode.Id] = res;
+                    _projectDriverCache[cacheKey] = res;
                     return res;
                 }
                 if (text.Contains("type: 'sqlite'") || text.Contains("type: \"sqlite\"") ||
                     text.Contains("dialect: 'sqlite'") || text.Contains("dialect: \"sqlite\""))
                 {
                     var res = ("SQLite", "relational");
-                    _projectDriverCache[projectNode.Id] = res;
+                    _projectDriverCache[cacheKey] = res;
                     return res;
                 }
             }
@@ -773,23 +767,23 @@ public partial class SyntaxEnricher
                     if (lower.Contains("postgres") || lower.Contains("pgpool") || lower.Contains("pq"))
                     {
                         var res = ("PostgreSQL", "relational");
-                        _projectDriverCache[projectNode.Id] = res;
+                        _projectDriverCache[cacheKey] = res;
                         return res;
                     }
                     if (lower.Contains("mysql"))
                     {
                         var res = ("MySQL", "relational");
-                        _projectDriverCache[projectNode.Id] = res;
+                        _projectDriverCache[cacheKey] = res;
                         return res;
                     }
                     if (lower.Contains("sqlite"))
                     {
                         var res = ("SQLite", "relational");
-                        _projectDriverCache[projectNode.Id] = res;
+                        _projectDriverCache[cacheKey] = res;
                         return res;
                     }
                     var defRes = ("PostgreSQL", "relational");
-                    _projectDriverCache[projectNode.Id] = defRes;
+                    _projectDriverCache[cacheKey] = defRes;
                     return defRes;
                 }
             }
@@ -804,19 +798,19 @@ public partial class SyntaxEnricher
                     if (rootLower.Contains("postgres") || rootLower.Contains("pgpool") || rootLower.Contains("pq"))
                     {
                         var res = ("PostgreSQL", "relational");
-                        _projectDriverCache[projectNode.Id] = res;
+                        _projectDriverCache[cacheKey] = res;
                         return res;
                     }
                     if (rootLower.Contains("mysql"))
                     {
                         var res = ("MySQL", "relational");
-                        _projectDriverCache[projectNode.Id] = res;
+                        _projectDriverCache[cacheKey] = res;
                         return res;
                     }
                     if (rootLower.Contains("sqlite"))
                     {
                         var res = ("SQLite", "relational");
-                        _projectDriverCache[projectNode.Id] = res;
+                        _projectDriverCache[cacheKey] = res;
                         return res;
                     }
                 }
@@ -833,17 +827,17 @@ public partial class SyntaxEnricher
                 if (thisProjRelational != null && !string.IsNullOrEmpty(thisProjRelational.Engine))
                 {
                     var res = (thisProjRelational.Engine, "relational");
-                    _projectDriverCache[projectNode.Id] = res;
+                    _projectDriverCache[cacheKey] = res;
                     return res;
                 }
             }
         }
         catch (Exception ex)
         {
-            ctx.LogWarning($"[SyntaxEnricher] Driver detection failed for {projectNode.Id}: {ex.Message}");
+            ctx.LogWarning($"[ResourceSemanticAnalyzer] Driver detection failed for {projectNode.Id}: {ex.Message}");
         }
 
-        _projectDriverCache[projectNode.Id] = (null, null);
+        _projectDriverCache[cacheKey] = (null, null);
         return (null, null);
     }
 
@@ -903,7 +897,6 @@ public partial class SyntaxEnricher
                     found = DetectDriverFromCsproj(wsCandidate, workspaceRoot, visited, depth + 1);
                     if (found.Engine != null) return found;
 
-                    // Fallback: look up by filename in workspace
                     var csprojMap = GetWorkspaceCsprojMap(workspaceRoot);
                     var projFileName = Path.GetFileName(relRef);
                     if (csprojMap.TryGetValue(projFileName, out var mappedPath))

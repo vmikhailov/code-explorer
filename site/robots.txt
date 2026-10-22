@@ -4,4 +4,4 @@ Allow: /
 # Permit search indexing and AI-powered retrieval; do not permit model training.
 Content-Signal: search=yes, ai-input=yes, ai-train=no
 
-Sitemap: https://code-explorer.mikhailov.cc/sitemap.xml
+Sitemap: https://code-explorer.app/sitemap.xml

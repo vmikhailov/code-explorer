@@ -4,6 +4,7 @@ using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
+using CodeExplorer.Core.Common.Nodes.Layer5_Logical;
 using CodeExplorer.Core.Common.Relationships;
 using CodeExplorer.Core.Database;
 
@@ -72,7 +73,10 @@ public partial class Layer5AnalysisParser
             await postAnalyzer.RunInMemoryAsync(ctx, l4Result, referenceRelationships, lateBoundRels);
         }
 
-        // 6. Run CodeIntentAnalyzer (if model / code-intent-distill is available)
+        // 6. Materialize Layer 5 Logical Structure (LogicalStructure, Domain, BoundedContext)
+        await MaterializeLogicalStructureAsync(l4Result, ctx);
+
+        // 7. Run CodeIntentAnalyzer (if model / code-intent-distill is available)
         await CodeIntentAnalyzer.EnrichAsync(ctx);
 
         ctx.Log("[Layer5] Late binding and post-indexing analysis pass complete.");
@@ -460,16 +464,11 @@ public partial class Layer5AnalysisParser
                 matchedEndpoint = true;
                 boundServicesCount++;
 
-                Relationship? callerEndpointRel = null;
-                // Also bind directly from caller function if known, and bridge CALLS to endpoint handler/resolver FunctionNodes
+                // Bridge CALLS from caller function to endpoint handler/resolver FunctionNodes (L3 -> L3)
                 if (extService.Service.Extensions != null &&
                     extService.Service.Extensions.TryGetValue("caller_symbol_id", out var callerId) &&
                     !string.IsNullOrEmpty(callerId))
                 {
-                    ctx.LogDebug($"[Layer5] [LateBinding] Direct Binding Function '{callerId}' to Endpoint '{endpoint.Endpoint.Id}'");
-                    callerEndpointRel = Relationship.FromRelationship(new CallsEndpointRelationship(callerId, endpoint.Endpoint.Id, callEpExt));
-                    lateBoundRels.Add(callerEndpointRel);
-
                     if (handlersByEndpointId.TryGetValue(endpoint.Endpoint.Id, out var handlerFnIds))
                     {
                         foreach (var handlerFnId in handlerFnIds)
@@ -488,7 +487,7 @@ public partial class Layer5AnalysisParser
 
                 if (callerProj != null && targetProj != null && callerProj.Id != targetProj.Id)
                 {
-                    var contribRel = callerEndpointRel ?? rel;
+                    var contribRel = rel;
                     if (addedProjectDeps.Add((callerProj.Id, targetProj.Id)))
                     {
                         ctx.LogDebug($"[Layer5] [LateBinding] Synthesized dependency: Project '{callerProj.Name}' -> Project '{targetProj.Name}' via endpoint '{endpoint.Endpoint.RouteTemplate}'");
@@ -754,5 +753,122 @@ public partial class Layer5AnalysisParser
         var prepExt = PrepareExternalService(extService, null);
         var prepEp = PrepareEndpoint(endpoint, targetProj);
         return IsMatch(prepExt, prepEp, (p, d) => DoesProjectMatchServiceDomain(p, d));
+    }
+
+    private async Task MaterializeLogicalStructureAsync(Layer4Result l4Result, ParsingContext ctx)
+    {
+        if (l4Result.SemanticStructure == null) return;
+
+        var workspace = l4Result.Prev.Prev.Prev.Workspace;
+        var logicalNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.LogicalStructure}";
+        var logicalStructureNode = new LogicalStructureNode(logicalNodeId, "LogicalStructure", workspace.Path);
+
+        var nodesToUpload = new List<Node> { Node.FromNode(logicalStructureNode) };
+        var relsToUpload = new List<Relationship>
+        {
+            Relationship.FromRelationship(new ContainsRelationship(workspace.Id, logicalStructureNode.Id))
+        };
+
+        var workloads = l4Result.SemanticStructure.Children
+            .Where(c => c is ServiceNode or AppNode or WorkerNode or CliToolNode or LibraryNode)
+            .ToList();
+
+        var domainGroups = new Dictionary<string, List<IOntologyNode>>(StringComparer.OrdinalIgnoreCase);
+        var workloadToDomainKey = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var wl in workloads)
+        {
+            var rawName = wl.Extensions?.GetValueOrDefault("raw_name") ?? wl.GetName();
+            var domainKey = ResourceSemanticAnalyzer.CleanProjectNameToDomain(rawName);
+            if (string.IsNullOrWhiteSpace(domainKey))
+            {
+                domainKey = "Core";
+            }
+            else
+            {
+                domainKey = char.ToUpperInvariant(domainKey[0]) + domainKey[1..];
+            }
+
+            if (!domainGroups.TryGetValue(domainKey, out var list))
+            {
+                list = [];
+                domainGroups[domainKey] = list;
+            }
+            list.Add(wl);
+            workloadToDomainKey[wl.Id] = domainKey;
+        }
+
+        var domainIdByKey = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var bcIdByKey = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (domainKey, memberWorkloads) in domainGroups)
+        {
+            var slug = domainKey.ToLowerInvariant();
+            var domainId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Domain}:{slug}";
+            var bcId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.BoundedContext}:{slug}";
+
+            domainIdByKey[domainKey] = domainId;
+            bcIdByKey[domainKey] = bcId;
+
+            var domainNode = new DomainNode(domainId, domainKey, domainKey, "Core", Path: ".", Extensions: new Dictionary<string, string>
+            {
+                ["workload_count"] = memberWorkloads.Count.ToString()
+            });
+            var bcNode = new BoundedContextNode(bcId, $"{domainKey} Context", $"{domainKey} Context", domainId, Path: ".", Extensions: new Dictionary<string, string>
+            {
+                ["domain"] = domainKey,
+                ["workload_count"] = memberWorkloads.Count.ToString()
+            });
+
+            nodesToUpload.Add(Node.FromNode(domainNode));
+            nodesToUpload.Add(Node.FromNode(bcNode));
+
+            relsToUpload.Add(Relationship.FromRelationship(new ContainsRelationship(logicalStructureNode.Id, domainId)));
+            relsToUpload.Add(Relationship.FromRelationship(new ContainsRelationship(domainId, bcId)));
+
+            foreach (var wl in memberWorkloads)
+            {
+                relsToUpload.Add(Relationship.FromRelationship(new ContainsRelationship(bcId, wl.Id)));
+                relsToUpload.Add(Relationship.FromRelationship(new ContainsRelationship(domainId, wl.Id)));
+            }
+        }
+
+        var seenLogicalDeps = new HashSet<(string From, string To)>();
+        if (l4Result.SemanticRelationships != null)
+        {
+            foreach (var rel in l4Result.SemanticRelationships)
+            {
+                if (rel.Kind is OntologyConstants.Relationships.DependsOn or OntologyConstants.Relationships.ServiceCall &&
+                    workloadToDomainKey.TryGetValue(rel.From, out var fromDomain) &&
+                    workloadToDomainKey.TryGetValue(rel.To, out var toDomain) &&
+                    !string.Equals(fromDomain, toDomain, StringComparison.OrdinalIgnoreCase))
+                {
+                    var fromBc = bcIdByKey[fromDomain];
+                    var toBc = bcIdByKey[toDomain];
+                    if (seenLogicalDeps.Add((fromBc, toBc)))
+                    {
+                        relsToUpload.Add(Relationship.FromRelationship(new DependsOnRelationship(fromBc, toBc, new Dictionary<string, string>
+                        {
+                            ["dependency_type"] = "bounded_context"
+                        })));
+                    }
+
+                    var fromDom = domainIdByKey[fromDomain];
+                    var toDom = domainIdByKey[toDomain];
+                    if (seenLogicalDeps.Add((fromDom, toDom)))
+                    {
+                        relsToUpload.Add(Relationship.FromRelationship(new DependsOnRelationship(fromDom, toDom, new Dictionary<string, string>
+                        {
+                            ["dependency_type"] = "domain"
+                        })));
+                    }
+                }
+            }
+        }
+
+        await ctx.DbClient.UploadNodesAsync(nodesToUpload);
+        await ctx.DbClient.UploadRelationshipsAsync(relsToUpload);
+        ctx.AddNodesCount(nodesToUpload.Count);
+        ctx.AddRelsCount(relsToUpload.Count);
     }
 }

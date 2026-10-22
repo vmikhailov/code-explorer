@@ -274,11 +274,16 @@ public partial class ArchitectureViewEngine
                        coalesce(src.start_line, src.line) AS line,
                        coalesce(src.end_line, src.line_end) AS line_end,
                        tgt.id AS tgt_id, tgt.name AS tgt_name, labels(tgt)[0] AS tgt_kind,
-                       tgt.http_method AS http_method, tgt.route_template AS route, tgt.protocol AS protocol,
+                       coalesce(tgt.file_path, tgt.path) AS tgt_file_path,
+                       coalesce(tgt.start_line, tgt.line) AS tgt_line,
+                       coalesce(tgt.end_line, tgt.line_end) AS tgt_line_end,
+                       coalesce(tgt.http_method, src.http_method) AS http_method,
+                       coalesce(tgt.route_template, src.route_template) AS route,
+                       coalesce(tgt.protocol, src.protocol) AS protocol,
                        rel.kind AS rel_kind,
                        rel.properties AS properties,
-                       json_extract(src.properties, '$.query_text') AS query_text,
-                       json_extract(src.properties, '$.verb') AS src_verb
+                       coalesce(json_extract(src.properties, '$.query_text'), json_extract(tgt.properties, '$.query_text')) AS query_text,
+                       coalesce(json_extract(src.properties, '$.verb'), json_extract(tgt.properties, '$.verb')) AS src_verb
                 """;
             var cJson = await db.ExecuteQueryAsync(contribQuery, null, ct);
             using var cDoc = JsonDocument.Parse(cJson);
@@ -296,14 +301,26 @@ public partial class ArchitectureViewEngine
                 }
 
                 var relProps = row.ExtractProperties();
+                var srcKind = row.GetStringProp("src_kind");
+                var tgtKind = row.GetStringProp("tgt_kind");
+                var isDownwardResourceEdge = relKind is
+                    OntologyConstants.Relationships.AccessedBy or
+                    OntologyConstants.Relationships.CalledBy or
+                    OntologyConstants.Relationships.PublishedBy or
+                    OntologyConstants.Relationships.SubscribedBy or
+                    OntologyConstants.Relationships.ExposedBy or
+                    OntologyConstants.Relationships.DeclaredIn or
+                    OntologyConstants.Relationships.QueriedBy;
+
                 var filePath = relProps.GetValueOrDefault(OntologyConstants.PropertyNames.FilePath) is { Length: > 0 } rfp
                     ? rfp
-                    : row.GetStringProp("file_path");
+                    : isDownwardResourceEdge
+                        ? (row.GetStringProp("tgt_file_path") is { Length: > 0 } tfp ? tfp : row.GetStringProp("file_path"))
+                        : (row.GetStringProp("file_path") is { Length: > 0 } sfp ? sfp : row.GetStringProp("tgt_file_path"));
                 if (string.IsNullOrEmpty(filePath)) continue;
 
                 var srcName = row.GetStringProp("src_name", srcId);
                 var tgtName = row.GetStringProp("tgt_name", tgtId);
-                var tgtKind = row.GetStringProp("tgt_kind");
                 var relOp = relProps.GetValueOrDefault(OntologyConstants.PropertyNames.Operation) ?? "";
                 var relEvKind = relProps.GetValueOrDefault(OntologyConstants.PropertyNames.EvidenceKind) ?? "";
                 var queryText = row.GetStringProp("query_text");
@@ -312,14 +329,17 @@ public partial class ArchitectureViewEngine
                 var route = row.GetStringProp("route");
                 var protocol = row.GetStringProp("protocol");
 
-                int? line = ParseLineProp(relProps, OntologyConstants.PropertyNames.Line, row, "line");
-                int? lineEnd = ParseLineProp(relProps, OntologyConstants.PropertyNames.LineEnd, row, "line_end") ?? line;
+                int? line = ParseLineProp(relProps, OntologyConstants.PropertyNames.Line, row, isDownwardResourceEdge ? "tgt_line" : "line")
+                            ?? ParseLineProp(relProps, OntologyConstants.PropertyNames.Line, row, "line");
+                int? lineEnd = ParseLineProp(relProps, OntologyConstants.PropertyNames.LineEnd, row, isDownwardResourceEdge ? "tgt_line_end" : "line_end")
+                               ?? line;
 
+                var effectiveResourceKind = isDownwardResourceEdge ? srcKind : tgtKind;
                 var kind = !string.IsNullOrEmpty(relEvKind)
                     ? relEvKind
                     : relKind switch
                     {
-                        OntologyConstants.Relationships.CallsEndpoint =>
+                        OntologyConstants.Relationships.CallsEndpoint or OntologyConstants.Relationships.CalledBy when effectiveResourceKind == OntologyConstants.NodeLabels.Endpoint =>
                             protocol.Equals("grpc", StringComparison.OrdinalIgnoreCase) ? OntologyConstants.EvidenceKinds.GrpcCall
                             : protocol.Equals("wcf", StringComparison.OrdinalIgnoreCase) ? OntologyConstants.EvidenceKinds.WcfCall
                             : OntologyConstants.EvidenceKinds.HttpCall,
@@ -329,11 +349,13 @@ public partial class ArchitectureViewEngine
                             OntologyConstants.EvidenceKinds.Subscribe,
                         OntologyConstants.Relationships.PersistedIn =>
                             OntologyConstants.EvidenceKinds.Orm,
-                        OntologyConstants.Relationships.Configures =>
+                        OntologyConstants.Relationships.AccessedBy when tgtKind == OntologyConstants.NodeLabels.Type =>
+                            OntologyConstants.EvidenceKinds.Orm,
+                        OntologyConstants.Relationships.Configures or OntologyConstants.Relationships.DeclaredIn when tgtKind == OntologyConstants.NodeLabels.File =>
                             OntologyConstants.EvidenceKinds.Config,
-                        _ when tgtKind == OntologyConstants.NodeLabels.Procedure =>
+                        _ when effectiveResourceKind == OntologyConstants.NodeLabels.Procedure =>
                             OntologyConstants.EvidenceKinds.Procedure,
-                        _ when tgtKind is OntologyConstants.NodeLabels.Database or OntologyConstants.NodeLabels.Table =>
+                        _ when effectiveResourceKind is OntologyConstants.NodeLabels.Database or OntologyConstants.NodeLabels.Table =>
                             OntologyConstants.EvidenceKinds.Query,
                         _ => OntologyConstants.EvidenceKinds.HttpCall
                     };
@@ -347,16 +369,16 @@ public partial class ArchitectureViewEngine
                         OntologyConstants.EvidenceKinds.Orm => "ORM",
                         OntologyConstants.EvidenceKinds.Config => "CONFIG",
                         OntologyConstants.EvidenceKinds.Procedure => "EXEC",
-                        OntologyConstants.EvidenceKinds.Query => InferSqlVerb(srcVerb, queryText, srcName) ?? "SELECT",
+                        OntologyConstants.EvidenceKinds.Query => InferSqlVerb(srcVerb, queryText, isDownwardResourceEdge ? tgtName : srcName) ?? "SELECT",
                         _ => !string.IsNullOrEmpty(httpMethod) && !httpMethod.Equals("ALL", StringComparison.OrdinalIgnoreCase)
                             ? httpMethod.ToUpperInvariant()
                             : "CALL"
                     };
 
-                var isTopic = tgtKind == OntologyConstants.NodeLabels.Topic || srcId.Contains(":top:") || tgtId.Contains(":top:");
+                var isTopic = effectiveResourceKind == OntologyConstants.NodeLabels.Topic || srcId.Contains(":top:") || tgtId.Contains(":top:");
                 var topicTargetName = tgtKind == OntologyConstants.NodeLabels.Topic ? tgtName : srcName;
-                var callerSym = tgtKind == OntologyConstants.NodeLabels.Topic ? srcName : (row.GetStringProp("src_kind") == OntologyConstants.NodeLabels.Topic ? tgtName : srcName);
-                var targetSym = tgtKind == OntologyConstants.NodeLabels.Topic ? tgtName : (row.GetStringProp("src_kind") == OntologyConstants.NodeLabels.Topic ? srcName : tgtName);
+                var callerSym = isDownwardResourceEdge ? tgtName : (tgtKind == OntologyConstants.NodeLabels.Topic ? srcName : (srcKind == OntologyConstants.NodeLabels.Topic ? tgtName : srcName));
+                var targetSym = isDownwardResourceEdge ? srcName : (tgtKind == OntologyConstants.NodeLabels.Topic ? tgtName : (srcKind == OntologyConstants.NodeLabels.Topic ? srcName : tgtName));
 
                 var title = !string.IsNullOrEmpty(route)
                     ? $"{operation} {route}"
@@ -366,7 +388,7 @@ public partial class ArchitectureViewEngine
 
                 items.Add(new ArchitectureEvidenceItemDto
                 {
-                    Id = srcId,
+                    Id = isDownwardResourceEdge ? tgtId : srcId,
                     Kind = kind,
                     Operation = operation,
                     Title = title,
@@ -643,7 +665,7 @@ public partial class ArchitectureViewEngine
         var extLiterals = string.Join(", ", externals.Select(e => EscapeCypherStringLiteral(e.Id)).Distinct());
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var outgoingKinds = string.Join(", ", ExternalCallKinds.Append("TRANSITIVELY_CALLS").Distinct().Select(k => $"'{k}'"));
-        var incomingKinds = "'CALLED_BY'";
+        var incomingKinds = "'CALLED_BY', 'ACCESSED_BY', 'DECLARED_IN'";
 
         foreach (var (pattern, kinds) in new[] { ("(sym)-[r]->(ext)", outgoingKinds), ("(ext)-[r]->(sym)", incomingKinds) })
         {
@@ -739,10 +761,10 @@ public partial class ArchitectureViewEngine
 
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // 1. Direct Endpoint calls: (sym)-[:CALLS_ENDPOINT]->(ep:Endpoint)
+        // 1. Direct Endpoint calls: (ep:Endpoint)-[:CALLED_BY]->(sym) or legacy (sym)-[:CALLS_ENDPOINT]->(ep:Endpoint)
         var epQuery = $"""
-            MATCH (sym)-[r]->(ep:Endpoint)
-            WHERE r.kind = 'CALLS_ENDPOINT' AND {string.Format(NotAContainer, "sym")}
+            MATCH (sym)-[r]-(ep:Endpoint)
+            WHERE r.kind IN ['CALLS_ENDPOINT', 'CALLED_BY'] AND {string.Format(NotAContainer, "sym")}
             RETURN sym.id AS id, sym.name AS name, labels(sym)[0] AS kind,
                    coalesce(sym.file_path, sym.path) AS path,
                    coalesce(sym.start_line, sym.line) AS line,
@@ -1195,7 +1217,7 @@ public partial class ArchitectureViewEngine
     {
         var items = new List<ArchitectureEvidenceItemDto>();
         var outgoingKinds = string.Join(", ", ExternalCallKinds.Append("TRANSITIVELY_CALLS").Distinct().Select(k => $"'{k}'"));
-        foreach (var (pattern, kinds) in new[] { ("(sym)-[r]->(ext)", outgoingKinds), ("(ext)-[r]->(sym)", "'CALLED_BY'") })
+        foreach (var (pattern, kinds) in new[] { ("(sym)-[r]->(ext)", outgoingKinds), ("(ext)-[r]->(sym)", "'CALLED_BY', 'ACCESSED_BY', 'DECLARED_IN'") })
         {
             var query = $"""
                 MATCH {pattern}
@@ -1363,9 +1385,10 @@ public partial class ArchitectureViewEngine
             RecordEvidenceWarning(warnings, $"Service entrypoint evidence query for '{scope.Name}'", ex);
         }
 
-        // 3. ORM Entities (PERSISTED_IN) in this service
+        // 3. ORM Entities (Table -[:ACCESSED_BY|DECLARED_IN]-> Type or legacy Type -[:PERSISTED_IN]-> Table) in this service
         var ormQuery = """
-            MATCH (t:Type)-[:PERSISTED_IN]->(tbl)
+            MATCH (t:Type)-[r]-(tbl:Table)
+            WHERE r.kind IN ['PERSISTED_IN', 'ACCESSED_BY', 'DECLARED_IN']
             RETURN t.id AS id, t.name AS name, coalesce(t.file_path, t.path) AS path,
                    coalesce(t.start_line, t.line) AS line, coalesce(t.end_line, t.line_end) AS line_end,
                    tbl.name AS tbl_name, json_extract(t.properties, '$.service') AS service

@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
 namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
@@ -11,6 +12,8 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
     order: 31,
     pluralLabel: "APIs in Use"
 )]
+[OntologyEdge<FunctionNode>(OntologyConstants.Relationships.AccessedBy)]
+[OntologyEdge<TypeNode>(OntologyConstants.Relationships.AccessedBy)]
 public record ApiInUseNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,

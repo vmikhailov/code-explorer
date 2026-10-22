@@ -15,7 +15,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 )]
 [OntologyEdge<FolderNode>(OntologyConstants.Relationships.LocatedIn)]
 [OntologyEdge<WorkspaceNode>(OntologyConstants.Relationships.LocatedIn)]
-[OntologyEdge<ProjectNode>(OntologyConstants.Relationships.DeployedBy)]
+[OntologyEdge<ProjectNode>(OntologyConstants.Relationships.ImplementedBy)]
 [OntologyEdge<PackageNode>(OntologyConstants.Relationships.DependsOn)]
 [OntologyEdge<ServiceNode>(OntologyConstants.Relationships.Tests)]
 [OntologyEdge<LibraryNode>(OntologyConstants.Relationships.Tests)]

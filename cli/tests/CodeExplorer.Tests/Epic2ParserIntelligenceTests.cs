@@ -245,7 +245,7 @@ public class InventoryRepository
         // InventoryRepository.CheckStockAsync() runs Dapper query referencing OrderQueries.SelectInventory ("warehouse_inventory")
         var lineage = await QueryAsync(@"
             MATCH (t:Table {name: 'warehouse_inventory'})
-            OPTIONAL MATCH (t)-[:QUERIED_BY]->(func:Function)
+            OPTIONAL MATCH (t)-[:ACCESSED_BY|QUERIED_BY]->(func:Function)
             RETURN t.name AS tableName, func.name AS functionName");
 
         lineage.Should().HaveCountGreaterThanOrEqualTo(1, "Expected Table 'warehouse_inventory' to be in the graph");

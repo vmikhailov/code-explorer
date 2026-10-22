@@ -1,4 +1,6 @@
+using System.Text.Json;
 using System.Threading.Channels;
+using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -145,6 +147,84 @@ public class RustParserTests
     }
 
     [Test]
+    public void RustParser_MultiBinaryTargets_DependOnlyOnReferencedCratesAndReachableModules()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "rust_bin_reach_" + Guid.NewGuid().ToString("N"));
+        var binsDir = Path.Combine(tempDir, "bins");
+        var coreSrc = Path.Combine(tempDir, "core-lib", "src");
+        var utilsSrc = Path.Combine(tempDir, "utils-lib", "src");
+        Directory.CreateDirectory(Path.Combine(binsDir, "bin"));
+        Directory.CreateDirectory(Path.Combine(coreSrc, "client"));
+        Directory.CreateDirectory(Path.Combine(coreSrc, "services"));
+        Directory.CreateDirectory(utilsSrc);
+
+        File.WriteAllText(Path.Combine(binsDir, "Cargo.toml"), """
+            [package]
+            name = "bins"
+            version = "0.1.0"
+            edition = "2021"
+
+            [dependencies]
+            core-lib = { path = "../core-lib" }
+            utils-lib = { path = "../utils-lib" }
+
+            [[bin]]
+            name = "server"
+            path = "bin/server.rs"
+
+            [[bin]]
+            name = "client"
+            path = "bin/client.rs"
+            """);
+        File.WriteAllText(Path.Combine(binsDir, "bin", "server.rs"), "use core_lib::server::server_main;\nfn main() { server_main(); }");
+        File.WriteAllText(Path.Combine(binsDir, "bin", "client.rs"), "use core_lib::client::e2e::{run_client, Opt};\nuse utils_lib::helpers;\nfn main() { run_client(); }");
+
+        File.WriteAllText(Path.Combine(tempDir, "core-lib", "Cargo.toml"), "[package]\nname = \"core-lib\"\nversion = \"0.1.0\"\n\n[lib]\n\n[dependencies]\nutils-lib = { path = \"../utils-lib\" }\ndeep-lib = { path = \"../deep-lib\" }\n");
+        File.WriteAllText(Path.Combine(coreSrc, "lib.rs"), "pub mod client;\npub mod server;\npub mod services;");
+        File.WriteAllText(Path.Combine(coreSrc, "server.rs"), "use crate::services::{batch::receive_batch};\npub fn server_main() { receive_batch(); }");
+        File.WriteAllText(Path.Combine(coreSrc, "services", "mod.rs"), "pub mod batch;");
+        File.WriteAllText(Path.Combine(coreSrc, "services", "batch.rs"), "pub fn receive_batch() { utils_lib::helpers::help(); }");
+        File.WriteAllText(Path.Combine(coreSrc, "client", "mod.rs"), "pub mod e2e;\npub mod iris_data;");
+        File.WriteAllText(Path.Combine(coreSrc, "client", "e2e.rs"), "use super::iris_data::Shares;\nuse deep_lib::probe;\npub fn run_client() {}");
+        File.WriteAllText(Path.Combine(coreSrc, "client", "iris_data.rs"), "pub struct Shares;");
+        File.WriteAllText(Path.Combine(tempDir, "utils-lib", "Cargo.toml"), "[package]\nname = \"utils-lib\"\nversion = \"0.1.0\"\n\n[lib]\n");
+        File.WriteAllText(Path.Combine(utilsSrc, "lib.rs"), "pub mod helpers;");
+        File.WriteAllText(Path.Combine(utilsSrc, "helpers.rs"), "pub fn help() {}");
+        Directory.CreateDirectory(Path.Combine(tempDir, "deep-lib", "src"));
+        File.WriteAllText(Path.Combine(tempDir, "deep-lib", "Cargo.toml"), "[package]\nname = \"deep-lib\"\nversion = \"0.1.0\"\n\n[lib]\n");
+        File.WriteAllText(Path.Combine(tempDir, "deep-lib", "src", "lib.rs"), "pub fn probe() {}");
+
+        try
+        {
+            var parser = new RustParser();
+            var projects = parser.GetAdditionalProjects(binsDir, Directory.GetFiles(binsDir));
+            var coreDir = Path.GetFullPath(Path.Combine(tempDir, "core-lib"));
+            var utilsDir = Path.GetFullPath(Path.Combine(tempDir, "utils-lib"));
+            var deepDir = Path.GetFullPath(Path.Combine(tempDir, "deep-lib"));
+
+            var server = projects.Single(p => p.Name == "server");
+            server.LocalDependencyPaths.Should().BeEquivalentTo([coreDir]);
+            var serverReach = JsonSerializer.Deserialize<Dictionary<string, string[]>>(
+                server.Properties[OntologyConstants.PropertyNames.SourceReachability])!;
+            var serverFiles = serverReach[coreDir].Select(f => Path.GetRelativePath(coreDir, f).Replace('\\', '/')).ToList();
+            serverFiles.Should().BeEquivalentTo(["src/server.rs", "src/services/batch.rs"]);
+            serverReach[utilsDir].Select(f => Path.GetFileName(f)).Should().BeEquivalentTo(["helpers.rs"]);
+            serverReach[deepDir].Should().BeEmpty();
+
+            var client = projects.Single(p => p.Name == "client");
+            client.LocalDependencyPaths!.Count.Should().Be(2);
+            var clientReach = JsonSerializer.Deserialize<Dictionary<string, string[]>>(
+                client.Properties[OntologyConstants.PropertyNames.SourceReachability])!;
+            var clientFiles = clientReach[coreDir].Select(f => Path.GetRelativePath(coreDir, f).Replace('\\', '/')).ToList();
+            clientFiles.Should().BeEquivalentTo(["src/client/e2e.rs", "src/client/iris_data.rs"]);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
     public void RustParser_PromotesLibraryWithArchitecturalCapability()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "rust_subsystem_" + Guid.NewGuid().ToString("N"));
@@ -271,10 +351,20 @@ public class RustParserTests
     }
 
     [Test]
-    public void AwsTopicParser_DoesNotTreatSelfReceiverAsTopicName()
+    public void AwsTopicParser_DoesNotInventNamesForGenericReceivers()
     {
-        AwsSdkRustLibraryParser.CleanTopicOrQueueName("self", "sns").Should().Be("results-topic");
-        AwsSdkRustLibraryParser.CleanTopicOrQueueName("self", "sqs").Should().Be("sqs-queue");
+        AwsSdkRustLibraryParser.CleanTopicOrQueueName("self").Should().BeEmpty();
+        AwsSdkRustLibraryParser.CleanTopicOrQueueName("queue_url").Should().BeEmpty();
+        AwsSdkRustLibraryParser.CleanTopicOrQueueName("&self.publish.topic_arn").Should().BeEmpty();
+    }
+
+    [Test]
+    public void AwsTopicParser_NormalizesFieldPathsGettersAndUrls()
+    {
+        AwsSdkRustLibraryParser.CleanTopicOrQueueName("&self.config.requests_queue_url").Should().Be("requests-queue");
+        AwsSdkRustLibraryParser.CleanTopicOrQueueName("self.config().sns_request_topic_arn()").Should().Be("request-topic");
+        AwsSdkRustLibraryParser.CleanTopicOrQueueName("self.response_queue_url.clone()").Should().Be("response-queue");
+        AwsSdkRustLibraryParser.CleanTopicOrQueueName("\"arn:aws:sns:eu-west-1:000000000000:iris-results.fifo\"").Should().Be("iris-results.fifo");
     }
 
     [Test]

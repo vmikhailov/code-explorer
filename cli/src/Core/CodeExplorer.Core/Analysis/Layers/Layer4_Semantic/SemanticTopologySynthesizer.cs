@@ -58,6 +58,15 @@ internal static class SemanticTopologySynthesizer
             new Regex(@"\b(?:put_object|upload_part|complete_multipart_upload)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
             "aws-sdk-s3"),
         new(
+            "aws:s3:graph-checkpoints",
+            "AWS S3: HNSW Graph Checkpoint Bucket",
+            "S3Bucket",
+            "graph_checkpoints",
+            new Regex(@"\b(?:graph_)?checkpoint_(?:s3_client|bucket(?:_name)?)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            new Regex(@"\b(?:get_object|head_object|list_objects(?:_v2)?|download_graph_checkpoint\w*)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            new Regex(@"\b(?:put_object|upload_part|complete_multipart_upload|upload_graph_checkpoint\w*)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
+            "aws-sdk-s3"),
+        new(
             "aws:kms:share-encryption-keys",
             "AWS KMS: Share Encryption Keys",
             "KmsKeySet",
@@ -80,9 +89,19 @@ internal static class SemanticTopologySynthesizer
         @"(?:TcpStream::connect|Endpoint::connect|Channel::from_shared|connect_lazy)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    private static readonly Regex PeerAddressingUsagePattern = new(
+        @"\.\s*(?:node_hostnames|service_ports|service_outbound_ports|peer_addresses)\b",
+        RegexOptions.Compiled);
+
     private static readonly Regex ComposeParticipantPattern = new(
         @"\b(?<name>[A-Za-z0-9-]+_participant_\d+)\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    // Lines that only declare names (struct fields, field initializers/destructuring, attributes, fn signatures).
+    // Shared config crates declare every resource field; declaring a field is not evidence that a workload uses it.
+    private static readonly Regex DeclarationLinePattern = new(
+        @"^[ \t]*(?:#\[.*|(?:pub(?:\([^)]*\))?[ \t]+)?[A-Za-z_][A-Za-z0-9_]*[ \t]*(?::[^:].*|,[ \t]*(?://.*)?\r?)|(?:pub(?:\([^)]*\))?[ \t]+)?(?:async[ \t]+)?fn[ \t]+.*)$",
+        RegexOptions.Multiline | RegexOptions.Compiled);
 
     internal static IReadOnlyList<string> DetectAwsResourceRoles(
         string source,
@@ -147,30 +166,87 @@ internal static class SemanticTopologySynthesizer
         var packageById = packages
             .GroupBy(package => package.Id, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+        var projectById = projects
+            .GroupBy(project => project.Id, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
         var projectSource = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var projectEffectiveSource = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var projectPeerAddressingFiles = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         var projectPackageNames = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var sourceCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        string ReadSource(string fullPath)
+        {
+            if (!sourceCache.TryGetValue(fullPath, out var text))
+            {
+                text = File.Exists(fullPath) ? File.ReadAllText(fullPath) : string.Empty;
+                sourceCache[fullPath] = text;
+            }
+            return text;
+        }
+
+        var directPackageNames = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var localDependencyIds = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var dependency in projectDependencies)
+        {
+            if (packageById.TryGetValue(dependency.To, out var package))
+            {
+                if (!directPackageNames.TryGetValue(dependency.From, out var names))
+                {
+                    names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    directPackageNames[dependency.From] = names;
+                }
+                names.Add(package.Name);
+            }
+            else if (projectById.ContainsKey(dependency.To))
+            {
+                if (!localDependencyIds.TryGetValue(dependency.From, out var targets))
+                {
+                    targets = [];
+                    localDependencyIds[dependency.From] = targets;
+                }
+                targets.Add(dependency.To);
+            }
+        }
 
         foreach (var project in projects.Where(project =>
                      project.ProjectType.Equals("rust", StringComparison.OrdinalIgnoreCase) && !project.IsTest))
         {
             ctx.CancellationToken.ThrowIfCancellationRequested();
             var sources = filesByProjectId.GetValueOrDefault(project.Id) ?? [];
-            var source = string.Join('\n', sources
+            var ownFiles = sources
                 .Where(file => file.Name.EndsWith(".rs", StringComparison.OrdinalIgnoreCase) &&
                               !WorkspaceConventions.IsTestFilePath(file.Path))
-                .Select(file => File.ReadAllText(file.FullPath)));
+                .Select(file => file.FullPath)
+                .ToList();
+            var source = string.Join('\n', ownFiles.Select(ReadSource));
             projectSource[project.Id] = source;
 
-            var packageNames = projectDependencies
-                .Where(dependency => dependency.From.Equals(project.Id, StringComparison.OrdinalIgnoreCase) &&
-                                     packageById.ContainsKey(dependency.To))
-                .Select(dependency => packageById[dependency.To].Name)
+            // Only long-running workloads inherit evidence from reachable dependency code; for CLIs the import-level
+            // reachability is too coarse (importing a type pulls in its whole module) to attribute infrastructure.
+            var isRuntimeWorkload = workloadByProjectId.TryGetValue(project.Id, out var workloadId) &&
+                                    semanticStructureNode.Children.Any(node =>
+                                        node.Id.Equals(workloadId, StringComparison.OrdinalIgnoreCase) &&
+                                        node is ServiceNode or WorkerNode or AppNode);
+            var reachableFiles = isRuntimeWorkload
+                ? GetReachableDependencyFiles(project, ctx.AbsoluteWorkspacePath)
+                : [];
+            var reachableSources = string.Join('\n', reachableFiles
+                .Select(file => DeclarationLinePattern.Replace(ReadSource(file), string.Empty)));
+            var effectiveSource = reachableSources.Length == 0 ? source : source + "\n" + reachableSources;
+            projectEffectiveSource[project.Id] = effectiveSource;
+            projectPeerAddressingFiles[project.Id] = ownFiles.Concat(reachableFiles)
+                .Where(file => PeerAddressingUsagePattern.IsMatch(ReadSource(file)))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            // Packages reachable through local workspace dependencies count too: a crate that only calls
+            // `common::kms_dh` still talks to KMS through the dependency's aws-sdk-kms client.
+            var packageNames = CollectEffectivePackageNames(project.Id, directPackageNames, localDependencyIds);
             projectPackageNames[project.Id] = packageNames;
 
             SynthesizeAwsResources(
                 project,
-                source,
+                effectiveSource,
                 packageNames,
                 workloadByProjectId,
                 semanticStructureNode,
@@ -182,6 +258,8 @@ internal static class SemanticTopologySynthesizer
         SynthesizePeerMesh(
             projects,
             projectSource,
+            projectEffectiveSource,
+            projectPeerAddressingFiles,
             projectPackageNames,
             workloadByProjectId,
             workspaceFiles,
@@ -223,7 +301,10 @@ internal static class SemanticTopologySynthesizer
                 ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.CloudService, resource.Name, resourceId);
             }
 
-            var sourceId = workloadByProjectId.GetValueOrDefault(project.Id, project.Id);
+            if (!workloadByProjectId.TryGetValue(project.Id, out var sourceId))
+            {
+                continue;
+            }
             AddRelationship(
                 new Relationship(sourceId, resourceId, OntologyConstants.Relationships.UsesCloud,
                     new Dictionary<string, object>
@@ -271,6 +352,8 @@ internal static class SemanticTopologySynthesizer
     private static void SynthesizePeerMesh(
         IReadOnlyList<ProjectNode> projects,
         IReadOnlyDictionary<string, string> projectSource,
+        IReadOnlyDictionary<string, string> projectEffectiveSource,
+        IReadOnlyDictionary<string, HashSet<string>> projectPeerAddressingFiles,
         IReadOnlyDictionary<string, HashSet<string>> projectPackageNames,
         IReadOnlyDictionary<string, string> workloadByProjectId,
         IReadOnlyList<FileNode> workspaceFiles,
@@ -327,11 +410,12 @@ internal static class SemanticTopologySynthesizer
             .Select(name => name[..name.LastIndexOf("_participant_", StringComparison.OrdinalIgnoreCase)])
             .Select(NormalizeName)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var candidateProjectIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var peerProjectIds = projects
             .Where(project =>
             {
                 if (project.IsTest ||
-                    !projectSource.TryGetValue(project.Id, out var source) ||
+                    !projectEffectiveSource.TryGetValue(project.Id, out var source) ||
                     !workloadByProjectId.TryGetValue(project.Id, out var workloadId) ||
                     semanticStructureNode.Children.FirstOrDefault(node =>
                         node.Id.Equals(workloadId, StringComparison.OrdinalIgnoreCase)) is not (ServiceNode or WorkerNode or AppNode))
@@ -345,6 +429,10 @@ internal static class SemanticTopologySynthesizer
                                 projectPackageNames.GetValueOrDefault(project.Id)?.Contains("cudarc") == true;
                 var independentCodeSignals = new[] { peerConfiguration, bidirectionalTransport, collective }
                     .Count(hasSignal => hasSignal);
+                if (independentCodeSignals >= 1)
+                {
+                    candidateProjectIds.Add(project.Id);
+                }
                 var normalizedProjectName = NormalizeName(project.Name);
                 var composeParticipant = participantNames.Any(name =>
                     name.Length >= 3 &&
@@ -355,15 +443,17 @@ internal static class SemanticTopologySynthesizer
             .Select(project => project.Id)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+        peerProjectIds.UnionWith(FindSharedNetworkingPeers(peerProjectIds, candidateProjectIds, projectPeerAddressingFiles));
+
         foreach (var project in projects.Where(project =>
                      project.ProjectType.Equals("rust", StringComparison.OrdinalIgnoreCase) && !project.IsTest))
         {
-            if (!peerProjectIds.Contains(project.Id))
+            if (!peerProjectIds.Contains(project.Id) ||
+                !workloadByProjectId.TryGetValue(project.Id, out var sourceId))
             {
                 continue;
             }
 
-            var sourceId = workloadByProjectId.GetValueOrDefault(project.Id, project.Id);
             var relationship = new CoordinatesWithRelationship(
                 sourceId,
                 meshId,
@@ -377,6 +467,88 @@ internal static class SemanticTopologySynthesizer
                 semanticRelationships,
                 existingRelKeys);
         }
+    }
+
+    private static IReadOnlyList<string> GetReachableDependencyFiles(ProjectNode project, string workspaceRoot)
+    {
+        var json = project.Extensions?.GetValueOrDefault(OntologyConstants.PropertyNames.SourceReachability);
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return [];
+        }
+
+        Dictionary<string, string[]>? reachability;
+        try
+        {
+            reachability = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string[]>>(json);
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return [];
+        }
+
+        return reachability is null
+            ? []
+            : reachability.Values
+                .SelectMany(files => files)
+                .Where(file => !WorkspaceConventions.IsTestFilePath(file))
+                .Select(file => Path.GetFullPath(Path.Combine(workspaceRoot, file)))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+    }
+
+    /// <summary>
+    /// A candidate workload that reaches every peer-addressing file of a confirmed mesh member runs the same
+    /// peer-networking code path (e.g. alternative server binaries over one server crate), so it is a member too.
+    /// Reaching only part of a member's footprint (typically just shared configuration) is not enough.
+    /// </summary>
+    internal static IReadOnlySet<string> FindSharedNetworkingPeers(
+        IReadOnlySet<string> confirmedMemberIds,
+        IReadOnlySet<string> candidateIds,
+        IReadOnlyDictionary<string, HashSet<string>> peerAddressingFilesByProject)
+    {
+        var memberFootprints = confirmedMemberIds
+            .Select(id => peerAddressingFilesByProject.GetValueOrDefault(id))
+            .Where(files => files is { Count: > 0 })
+            .Select(files => files!)
+            .ToList();
+
+        return candidateIds
+            .Where(id => !confirmedMemberIds.Contains(id) &&
+                         peerAddressingFilesByProject.TryGetValue(id, out var files) &&
+                         memberFootprints.Any(footprint => footprint.IsSubsetOf(files)))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+    private static HashSet<string> CollectEffectivePackageNames(
+        string projectId,
+        IReadOnlyDictionary<string, HashSet<string>> directPackageNames,
+        IReadOnlyDictionary<string, List<string>> localDependencyIds)
+    {
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var queue = new Queue<string>();
+        queue.Enqueue(projectId);
+
+        while (queue.Count > 0)
+        {
+            var current = queue.Dequeue();
+            if (!visited.Add(current))
+            {
+                continue;
+            }
+
+            if (directPackageNames.TryGetValue(current, out var names))
+            {
+                result.UnionWith(names);
+            }
+
+            foreach (var dependencyId in localDependencyIds.GetValueOrDefault(current) ?? [])
+            {
+                queue.Enqueue(dependencyId);
+            }
+        }
+
+        return result;
     }
 
     private static bool IsComposeFile(string path)

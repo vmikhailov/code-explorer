@@ -52,5 +52,6 @@ vscode-extension/bin/
 docs/testing/
 docs/ats-*
 docs/presentations/
+site/presentation.html
 *.orig
 .stats_auth

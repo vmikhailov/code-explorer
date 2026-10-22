@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
@@ -512,6 +513,23 @@ public class Layer2ProjectParser
                     }
 
                     var manifestDirectory = descriptor.Properties.GetValueOrDefault("cargo_manifest_dir") ?? dir;
+                    var extensions = descriptor.Properties.ToDictionary(
+                        property => property.Key,
+                        property => property.Value,
+                        StringComparer.OrdinalIgnoreCase);
+                    if (extensions.TryGetValue(OntologyConstants.PropertyNames.SourceReachability, out var reachabilityJson))
+                    {
+                        var relativeReachability = RelativizeSourceReachability(reachabilityJson, ctx.AbsoluteWorkspacePath);
+                        if (relativeReachability != null)
+                        {
+                            extensions[OntologyConstants.PropertyNames.SourceReachability] = relativeReachability;
+                        }
+                        else
+                        {
+                            extensions.Remove(OntologyConstants.PropertyNames.SourceReachability);
+                        }
+                    }
+
                     var projectNode = ProjectNodeFactory.Create(
                         projectNodeId,
                         descriptor.Name,
@@ -519,10 +537,7 @@ public class Layer2ProjectParser
                         parser.ProjectType,
                         manifestDirectory,
                         [entryPoint],
-                        extensions: descriptor.Properties.ToDictionary(
-                            property => property.Key,
-                            property => property.Value,
-                            StringComparer.OrdinalIgnoreCase));
+                        extensions: extensions);
 
                     projectsStructureNode.Children.Add(projectNode);
                     projects.Add(projectNode);
@@ -531,7 +546,9 @@ public class Layer2ProjectParser
                     var dependencyInfo = await ParseProjectDependenciesAsync(parser, manifestDirectory, ctx);
                     if (dependencyInfo != null)
                     {
-                        var localDependenciesOnly = new ProjectDependencyInfo(dependencyInfo.LocalProjectPaths, []);
+                        var localDependenciesOnly = new ProjectDependencyInfo(
+                            descriptor.LocalDependencyPaths ?? dependencyInfo.LocalProjectPaths,
+                            []);
                         AttachDependencies(
                             projectNode,
                             projectNodeId,
@@ -619,6 +636,31 @@ public class Layer2ProjectParser
         catch (Exception ex)
         {
             ctx.LogWarning($"[Layer2] Error parsing dependencies for {projectParser.ProjectType} in '{projectDir}': {ex.Message}", ex);
+            return null;
+        }
+    }
+
+    private static string? RelativizeSourceReachability(string json, string workspaceRoot)
+    {
+        try
+        {
+            var absolute = JsonSerializer.Deserialize<Dictionary<string, string[]>>(json);
+            if (absolute is null || absolute.Count == 0)
+            {
+                return null;
+            }
+
+            string ToRelative(string path) =>
+                Path.GetRelativePath(workspaceRoot, path).Replace('\\', '/').TrimEnd('/');
+
+            var relative = absolute.ToDictionary(
+                entry => ToRelative(entry.Key),
+                entry => entry.Value.Select(ToRelative).ToArray(),
+                StringComparer.OrdinalIgnoreCase);
+            return JsonSerializer.Serialize(relative);
+        }
+        catch (JsonException)
+        {
             return null;
         }
     }

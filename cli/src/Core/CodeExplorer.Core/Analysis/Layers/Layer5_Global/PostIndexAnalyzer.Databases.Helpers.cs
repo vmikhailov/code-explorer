@@ -191,7 +191,7 @@ public partial class PostIndexAnalyzer
         var ownerConcreteEngines = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         foreach (var (owner, rawTarget, propsElem, isImplicitEdge) in projectDbEdges)
         {
-            var domain = SyntaxEnricher.CleanProjectNameToDomain(owner.Name);
+            var domain = ResourceSemanticAnalyzer.CleanProjectNameToDomain(owner.Name);
             if (string.IsNullOrEmpty(domain)) domain = owner.Id;
             var target = rawTarget;
             if (domainScopedRemap.TryGetValue(domain, out var dMap) && dMap.TryGetValue(target, out var dWin))
@@ -220,7 +220,7 @@ public partial class PostIndexAnalyzer
         var activelyNeededImplicitDbIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (owner, rawTarget, propsElem, isImplicitEdge) in projectDbEdges)
         {
-            var domain = SyntaxEnricher.CleanProjectNameToDomain(owner.Name);
+            var domain = ResourceSemanticAnalyzer.CleanProjectNameToDomain(owner.Name);
             if (string.IsNullOrEmpty(domain)) domain = owner.Id;
             var target = rawTarget;
             if (domainScopedRemap.TryGetValue(domain, out var dMap) && dMap.TryGetValue(target, out var dWin))
@@ -373,14 +373,15 @@ public partial class PostIndexAnalyzer
         HashSet<string> implicitSchemaIds,
         Dictionary<string, int> concreteEnginesCount,
         List<(string Id, string Name, string? Path, bool IsTest, bool IsLibrary)> projectList,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Dictionary<string, string>? projectToWorkloadMap = null)
     {
         var relationshipsToUpload = new List<Relationship>();
         var seen = new HashSet<(string From, string To)>();
 
         foreach (var (owner, rawTarget, propsElem, isImplicitEdge) in projectDbEdges)
         {
-            var domain = SyntaxEnricher.CleanProjectNameToDomain(owner.Name);
+            var domain = ResourceSemanticAnalyzer.CleanProjectNameToDomain(owner.Name);
             if (string.IsNullOrEmpty(domain)) domain = owner.Id;
 
             var target = rawTarget;
@@ -412,7 +413,11 @@ public partial class PostIndexAnalyzer
                 continue;
             }
 
-            if (owner.Id != target && seen.Add((owner.Id, target)))
+            var effectiveFrom = (projectToWorkloadMap != null && projectToWorkloadMap.TryGetValue(owner.Id, out var semFrom) && !string.IsNullOrEmpty(semFrom))
+                ? semFrom
+                : owner.Id;
+
+            if (effectiveFrom != target && seen.Add((effectiveFrom, target)))
             {
                 var props = new Dictionary<string, object>
                 {
@@ -432,13 +437,13 @@ public partial class PostIndexAnalyzer
                     }
                 }
 
-                relationshipsToUpload.Add(new Relationship(owner.Id, target,
+                relationshipsToUpload.Add(new Relationship(effectiveFrom, target,
                     OntologyConstants.Relationships.UsesDb, props));
             }
         }
 
         await db.ExecuteWriteAsync(
-            "DELETE FROM edges WHERE kind = 'USES_DB' AND (from_id LIKE '%:p:%' OR from_id LIKE '%:project:%');",
+            "DELETE FROM edges WHERE kind = 'USES_DB' AND (from_id LIKE '%:p:%' OR from_id LIKE '%:project:%' OR from_id LIKE '%:svc:%' OR from_id LIKE '%:app:%' OR from_id LIKE '%:wrk:%' OR from_id LIKE '%:lib:%');",
             null, cancellationToken);
 
         if (relationshipsToUpload.Count > 0)
@@ -450,7 +455,7 @@ public partial class PostIndexAnalyzer
         foreach (var (domain, dMap) in domainScopedRemap)
         {
             var domProjIds = projectList.Where(p => {
-                var d = SyntaxEnricher.CleanProjectNameToDomain(p.Name);
+                var d = ResourceSemanticAnalyzer.CleanProjectNameToDomain(p.Name);
                 if (string.IsNullOrEmpty(d)) d = p.Id;
                 return d.Equals(domain, StringComparison.OrdinalIgnoreCase);
             }).Select(p => p.Id).ToList();
@@ -462,6 +467,12 @@ public partial class PostIndexAnalyzer
                     await db.ExecuteWriteAsync(
                         "UPDATE OR IGNORE edges SET to_id = @winnerId WHERE to_id = @loserId AND from_id LIKE @pIdPrefix;",
                         new { winnerId, loserId, pIdPrefix = $"{pId}%" }, cancellationToken);
+                    if (projectToWorkloadMap != null && projectToWorkloadMap.TryGetValue(pId, out var wlId) && !string.IsNullOrEmpty(wlId))
+                    {
+                        await db.ExecuteWriteAsync(
+                            "UPDATE OR IGNORE edges SET to_id = @winnerId WHERE to_id = @loserId AND from_id LIKE @wlIdPrefix;",
+                            new { winnerId, loserId, wlIdPrefix = $"{wlId}%" }, cancellationToken);
+                    }
                 }
             }
         }
@@ -617,7 +628,7 @@ public partial class PostIndexAnalyzer
         List<(string Id, string Name, string? Path, bool IsTest, bool IsLibrary)> projectList,
         CancellationToken cancellationToken)
     {
-        var edgesQuery = "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['USES_DB', 'CONFIGURES', 'DEPENDS_ON', 'READS_FROM', 'WRITES_TO'] RETURN src.id AS source, tgt.id AS target, r.kind AS kind, r.properties AS properties, src.role AS src_role, src.path AS src_path, json_extract(src.properties, '$.is_test') AS src_is_test";
+        var edgesQuery = "MATCH (src)-[r]->(tgt) WHERE r.kind IN ['USES_DB', 'CONFIGURES', 'DEPENDS_ON', 'READS_FROM', 'WRITES_TO', 'ACCESSED_BY', 'QUERIED_BY', 'DECLARED_IN'] RETURN src.id AS source, tgt.id AS target, r.kind AS kind, r.properties AS properties, src.role AS src_role, src.path AS src_path, json_extract(src.properties, '$.is_test') AS src_is_test, tgt.role AS tgt_role, tgt.path AS tgt_path, json_extract(tgt.properties, '$.is_test') AS tgt_is_test";
         var edgesJson = await db.ExecuteQueryAsync(edgesQuery, null, cancellationToken);
         var nonTestAccessedTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         using (var edgesDoc = JsonDocument.Parse(edgesJson))
@@ -626,23 +637,31 @@ public partial class PostIndexAnalyzer
             {
                 var src = GetStringProp(row, "source");
                 var tgt = GetStringProp(row, "target");
+                var kind = GetStringProp(row, "kind");
                 if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
 
-                var srcRole = row.TryGetProperty("src_role", out var sr) && sr.ValueKind == JsonValueKind.String ? sr.GetString() : "";
-                var srcPath = row.TryGetProperty("src_path", out var sp) && sp.ValueKind == JsonValueKind.String ? sp.GetString() : "";
-                var srcIsTest = row.TryGetProperty("src_is_test", out var sit) && sit.ValueKind == JsonValueKind.String ? sit.GetString() : "";
+                var isReverse = string.Equals(kind, "ACCESSED_BY", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(kind, "QUERIED_BY", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(kind, "DECLARED_IN", StringComparison.OrdinalIgnoreCase);
 
-                var matchingProj = projectList.FirstOrDefault(p => p.Id == src || src.StartWithIC(p.Id) || (!string.IsNullOrEmpty(p.Path) && src.Contains(p.Path, StringComparison.OrdinalIgnoreCase)));
-                var isTestSrc = string.Equals(srcRole, "Test", StringComparison.OrdinalIgnoreCase) ||
-                                string.Equals(srcRole, "TestSuite", StringComparison.OrdinalIgnoreCase) ||
-                                string.Equals(srcIsTest, "true", StringComparison.OrdinalIgnoreCase) ||
-                                string.Equals(srcIsTest, "1", StringComparison.OrdinalIgnoreCase) ||
-                                WorkspaceConventions.IsTestFilePath(srcPath) ||
+                var dbTarget = isReverse ? src : tgt;
+                var callerSrc = isReverse ? tgt : src;
+                var callerRole = row.TryGetProperty(isReverse ? "tgt_role" : "src_role", out var sr) && sr.ValueKind == JsonValueKind.String ? sr.GetString() : "";
+                var callerPath = row.TryGetProperty(isReverse ? "tgt_path" : "src_path", out var sp) && sp.ValueKind == JsonValueKind.String ? sp.GetString() : "";
+                var callerIsTest = row.TryGetProperty(isReverse ? "tgt_is_test" : "src_is_test", out var sit) && sit.ValueKind == JsonValueKind.String ? sit.GetString() : "";
+
+                var matchingProj = projectList.FirstOrDefault(p => p.Id == callerSrc || callerSrc.StartWithIC(p.Id) || (!string.IsNullOrEmpty(p.Path) && callerSrc.Contains(p.Path, StringComparison.OrdinalIgnoreCase)));
+                var isTestSrc = string.Equals(callerRole, "Test", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(callerRole, "TestSuite", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(callerIsTest, "true", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(callerIsTest, "1", StringComparison.OrdinalIgnoreCase) ||
+                                WorkspaceConventions.IsTestFilePath(callerPath) ||
+                                WorkspaceConventions.IsTestFilePath(callerSrc) ||
                                 (matchingProj != default && matchingProj.IsTest);
 
                 if (!isTestSrc)
                 {
-                    nonTestAccessedTargets.Add(tgt);
+                    nonTestAccessedTargets.Add(dbTarget);
                 }
             }
         }

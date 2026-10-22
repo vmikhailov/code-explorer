@@ -370,7 +370,7 @@ public partial class SqliteGraphClient
                 cmd.CommandText = """
                     SELECT from_id, to_id FROM edges WHERE kind IN ('CALLS', 'CALLS_ENDPOINT', 'USES_DB')
                     UNION
-                    SELECT to_id, from_id FROM edges WHERE kind IN ('CALLED_BY', 'QUERIED_BY');
+                    SELECT to_id, from_id FROM edges WHERE kind IN ('CALLED_BY', 'QUERIED_BY', 'ACCESSED_BY');
                     """;
 
                 await using (var reader = await cmd.ExecuteReaderAsync())
@@ -476,7 +476,7 @@ public partial class SqliteGraphClient
                     UNION
                     SELECT p.id, e.to_id
                     FROM nodes p
-                    JOIN edges b ON b.to_id = p.id AND b.kind = 'BELONGS_TO'
+                    JOIN edges b ON b.to_id = p.id AND b.kind IN ('BELONGS_TO', 'IMPLEMENTED_BY')
                     JOIN edges e ON e.from_id = b.from_id AND e.kind IN ('CONTAINS', 'EXPOSES')
                     WHERE p.kind = 'Project' AND (length(@widPrefix) = 0 OR p.id LIKE @widPrefix || '%');
                     """;

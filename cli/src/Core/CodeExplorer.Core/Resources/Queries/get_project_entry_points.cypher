@@ -1,6 +1,6 @@
-MATCH (p:Project {name: $projectName})-[:CONTAINS]->(ep)
+MATCH (ep)-[:DECLARED_IN]->(p:Project {name: $projectName})
 WHERE ep:Endpoint OR ep:EntryPoint
-OPTIONAL MATCH (ep)-[:TRIGGERS]->(func:Function)
+OPTIONAL MATCH (ep)-[:TRIGGERS|IMPLEMENTED_BY]->(func:Function)
 OPTIONAL MATCH (ep)-[:EXPOSED_BY]->(class:Type)
 OPTIONAL MATCH (func)-[:DECLARED_IN]->(f:File)
 RETURN coalesce(func.name, ep.name) AS entryPoint,

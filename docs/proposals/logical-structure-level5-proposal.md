@@ -1,219 +1,89 @@
-# Level 5 (Logical Structure) & 5-Structure Alignment Design Specification
+# 5-Layer Strict Unidirectional Ontology & Level 5 (Logical Structure) Specification
 
 ## 1. Overview & Architectural Vision
-CodeExplorer's ontology is structured across five cohesive architectural abstractions, transitioning from physical source code representation up to domain-driven business design. 
+CodeExplorer's ontology is structured across five cohesive architectural layers, transitioning from physical files up to domain-driven business design.
 
-This design establishes **Level 5 (Logical Structure)** with **Domain** and **BoundedContext** as first-class, persisted graph citizens in SQLite, while standardizing the naming of all 5 levels across the ontology, pipeline, documentation, and user interfaces:
-
-| Level | Previous Name | New Unified Display Title | Root Structure Node Class (Ontology Label) | Key Node Kinds |
-|---|---|---|---|---|
-| **Level 1** | Layer 1: Physical Topology | **File Structure** | `FilesStructureNode` (`FilesStructure`, `fs:`) | `File`, `Folder`, `GitSettings`, `Counter` |
-| **Level 2** | Layer 2: Project Boundary | **Project Structure** | `ProjectsStructureNode` (`ProjectsStructure`, `ps:`) | `Project`, `Package` |
-| **Level 3** | Layer 3: Syntactic Structure | **Syntax Structure** | `SyntaxStructureNode` (`SyntaxStructure`, `ss:`) | `ProjectSyntax`, `Type`, `Function`, `Member`, `CallLiteral`, `CatchClause` |
-| **Level 4** | Layer 4: Semantic Structure | **Semantic Structure** | `SemanticStructureNode` (`SemanticStructure`, `sem:`) | `App`, `Service`, `Worker`, `Library`, `CliTool`, `Database`, `Table`, `Topic`, `Endpoint`, `EntryPoint`, `ExternalService`, `Query` |
-| **Level 5** | Layer 5: Late Binding / Post-Indexing | **Logical Structure** | `LogicalStructureNode` (`LogicalStructure`, `ls:`) | `Domain`, `BoundedContext` (grouping workloads, data, and domain types) |
-
-> [!NOTE]
-> To preserve backward compatibility across existing database indexes and Cypher queries, the C# node class names and ontology labels remain `FilesStructure` and `ProjectsStructure`, while user-facing display titles in UI menus, diagrams, and logs are unified to the singular titles ("File Structure", "Project Structure", etc.).
-
----
-
-## 2. Graph Ontology & Hierarchy
-
-### 2.1 Workspace Root & Logical Structure Node
-`WorkspaceNode` contains `LogicalStructureNode` alongside the other 4 structure nodes:
-
-```mermaid
-graph TD
-    WS["Workspace (ws:)"]
-    WS -->|CONTAINS| FS["FilesStructure (fs:)"]
-    WS -->|CONTAINS| PS["ProjectsStructure (ps:)"]
-    WS -->|CONTAINS| SS["SyntaxStructure (ss:)"]
-    WS -->|CONTAINS| SEM["SemanticStructure (sem:)"]
-    WS -->|CONTAINS| LS["LogicalStructure (ls:)"]
-
-    LS -->|CONTAINS| DOM1["Domain: Billing (dom:billing)"]
-    LS -->|CONTAINS| DOM2["Domain: Orders (dom:orders)"]
-    LS -->|CONTAINS| DOM_SH["Domain: Shared (dom:shared)"]
-
-    DOM1 -->|CONTAINS| BC1["BoundedContext: Invoicing (bc:billing.invoicing)"]
-    DOM1 -->|CONTAINS| BC2["BoundedContext: Payments (bc:billing.payments)"]
-    DOM_SH -->|CONTAINS| BC_SK["BoundedContext: SharedKernel (bc:shared.kernel)"]
-```
-
-### 2.2 First-Class Nodes: `DomainNode` & `BoundedContextNode`
-
-```mermaid
-graph LR
-    BC["BoundedContext (bc:orders)"]
-    BC -->|CONTAINS| S["Service (s:orders-api)"]
-    BC -->|CONTAINS| W["Worker (w:order-processor)"]
-    BC -->|USES_DB| DB["Database (db:orders-db)"]
-    BC -->|PRODUCES| TOP["Topic (top:order-created)"]
-    BC -->|DEFINES| TYP["Type: OrderAggregate (sym:order)"]
-    
-    BC2["BoundedContext (bc:billing)"]
-    BC -->|DEPENDS_ON| BC2
-```
-
-1. **`LogicalStructureNode`**:
-   - Label: `LogicalStructure`
-   - ID Scheme: `{workspaceId}:ls`
-   - Purpose: Intermediate grouping node for all high-level business domains, bounded contexts, and logical architectures.
-   - Outgoing Edges: `[OntologyEdge<DomainNode>(Relationships.Contains)]`
-
-2. **`DomainNode`**:
-   - Label: `Domain`
-   - ID Scheme: `{workspaceId}:dom:{domainKey}` (e.g. `dom:billing`)
-   - Properties:
-     - `Name`: string (e.g. `Billing`)
-     - `DisplayName`: string (e.g. `Billing & Invoicing`)
-     - `DomainType`: string (`Core` | `Supporting` | `Generic` | `Shared`)
-     - `Summary`: string?
-     - `Icon`: string? (e.g. `💳`)
-   - Outgoing Edges: `[OntologyEdge<BoundedContextNode>(Relationships.Contains)]`
-
-3. **`BoundedContextNode`**:
-   - Label: `BoundedContext`
-   - ID Scheme: `{workspaceId}:bc:{contextKey}` (e.g. `bc:billing.invoicing`)
-   - Legacy ID Alias: Accepts legacy `context:{canonicalKey}` in lookups and routes for complete backward compatibility.
-   - Properties:
-     - `Name`: string (e.g. `Invoicing`)
-     - `DisplayName`: string (e.g. `Invoicing Context`)
-     - `DomainId`: string (foreign key to parent domain)
-     - `Summary`: string?
-     - `BgColor`: string?
-     - `BorderColor`: string?
-     - `PurityPercentage`: double?
-     - `Capabilities`: string[] / JSON?
-   - Outgoing Edges:
-     - `[OntologyEdge<ServiceNode>(Relationships.Contains)]`
-     - `[OntologyEdge<AppNode>(Relationships.Contains)]`
-     - `[OntologyEdge<WorkerNode>(Relationships.Contains)]`
-     - `[OntologyEdge<LibraryNode>(Relationships.Contains)]`
-     - `[OntologyEdge<DatabaseNode>(Relationships.UsesDb)]`
-     - `[OntologyEdge<TopicNode>(Relationships.Produces)]` / `[OntologyEdge<TopicNode>(Relationships.Consumes)]`
-     - `[OntologyEdge<TypeNode>(Relationships.Defines)]`
-     - `[OntologyEdge<BoundedContextNode>(Relationships.DependsOn)]`
-
-### 2.3 Containment Semantics & Query Scoping
-Workloads (`Service`, `App`, `Worker`, `Library`) exist at the intersection of two distinct architectural viewpoints:
-1. **Semantic Workload Manifestation** (Layer 4): Grouped under `SemanticStructure` (`sem:`).
-2. **Logical Domain Ownership** (Layer 5): Grouped under a specific `BoundedContext` (`bc:`).
-
-> [!IMPORTANT]
-> Unbounded recursive traversals like `MATCH (ws:Workspace)-[:CONTAINS*]->(s:Service)` would traverse both paths and double-count workloads. To query cleanly, queries should anchor to their specific root structure:
-> - Layer 4 physical workloads: `MATCH (:SemanticStructure)-[:CONTAINS]->(s:Service)`
-> - Layer 5 logical ownership: `MATCH (:LogicalStructure)-[:CONTAINS*]->(:BoundedContext)-[:CONTAINS]->(s:Service)`
+### Core Ontology Law: Strict Unidirectional Layer Edges
+1. **No Collapsing Across Layers**: Higher layers do not collapse lower-layer relationships into lower-layer nodes. Instead, each Layer $N$ **synthesizes horizontal relationships (`Layer N -> Layer N`)** between entities of Layer $N$ based on the connections established at Layer $N-1$.
+2. **Edges Point Horizontally or Downward — NEVER Upward**:
+   - Every edge belongs to the ontology layer of its source (`from_id`) node.
+   - An entity at **Layer $N$** may only have outgoing edges to:
+     - **Horizontal (Intra-Layer)**: Entities at **Layer $N$** (`Layer N -> Layer N`).
+     - **Downward (Grounding)**: Entities at **Layer $< N$** (`Layer N -> Layer < N`) that implement, declare, or execute it.
+   - **Zero Upward Edges**: No entity at Layer $K$ may ever have an outgoing edge to an entity at Layer $M$ where $M > K$ (e.g., `File -> Project`, `Project -> Service`, `Project -> Database`, `Function -> Database`, `Type -> Table`, `Function -> ExternalService` are strictly forbidden).
+3. **`SyntaxEnricher` Elimination**:
+   - `ISyntaxEnricher` / `SyntaxEnricher` is completely eliminated.
+   - Layer 3 AST visitors and library parsers extract all syntactic symbols (`Type`, `Function`, `Member`, `CallLiteral`, `CatchClause`) and syntactic references (`CALLS`, `IMPLEMENTS`, `INHERITS_FROM`, `USES_TYPE`) in a single pass without disk re-reads or regexes in Layer 4.
 
 ---
 
-## 3. Discovery, Derivation & SQLite Materialization (Layer 5)
+## 2. The 5 Architectural Structures
 
-### 3.1 Hybrid Materialization Strategy
-1. **Source 1: User Configurations**:
-   - Inspect `.codeexplorer/domains.json` and `conventions.json` (explicit domain/bounded context mappings by project, service, or directory path).
-2. **Source 2: DDD Heuristic Auto-Discovery**:
-   - Project name tokens (`Billing.Invoicing.Service` $\to$ Domain: `Billing`, BoundedContext: `Invoicing`).
-   - Namespace prefixes and directory boundaries (`src/Services/Billing/Invoicing/`).
-   - Domain model indicators (aggregates, entities, repositories, value objects, domain events).
-3. **Source 3: Fallback Generic / Shared Handling**:
-   - Projects, common libraries, or utilities with no explicit domain affiliation are automatically assigned to `Domain: Shared` (`dom:shared`) and `BoundedContext: SharedKernel` (`bc:shared.kernel`).
-
-### 3.2 Materialization in Indexing Pipeline (`Layer5_Logical`)
-During `Layer5AnalysisParser.ParseAsync(l4Result, ctx)`:
-1. Synthesize `LogicalStructureNode` and connect `Workspace` -[:CONTAINS]-> `LogicalStructure`.
-2. Extract all domains and bounded contexts via `DomainTaxonomyEngine` + `WorkspaceConventions`.
-3. Materialize concrete `Domain` and `BoundedContext` graph nodes into SQLite `Node` table with `Kind = NodeKind.Domain` (28) and `NodeKind.BoundedContext` (29).
-4. Persist containment edges:
-   - `(LogicalStructure)-[:CONTAINS]->(Domain)`
-   - `(Domain)-[:CONTAINS]->(BoundedContext)`
-   - `(BoundedContext)-[:CONTAINS]->(Service | App | Worker | Library)`
-   - `(BoundedContext)-[:USES_DB]->(Database)`
-   - `(BoundedContext)-[:DEFINES]->(Type)` (for identified AggregateRoots, Entities, ValueObjects)
-5. **Cross-Context Edge Consolidation (Handling `idx_edges_unique`)**:
-   SQLite enforces uniqueness via `CREATE UNIQUE INDEX IF NOT EXISTS idx_edges_unique ON edges(from_id, to_id, kind)`.
-   Therefore, all interactions between two BoundedContexts (RPC calls, messaging topics, database interactions) must be aggregated into a **single directional `DEPENDS_ON` edge** with a consolidated JSON payload:
-   ```json
-   {
-     "interactions": ["rpc", "messaging"],
-     "rpcCallsCount": 4,
-     "eventsPublishedCount": 2,
-     "channels": ["orders.created", "payments.processed"]
-   }
-   ```
+| Level | Unified Display Title | Root Structure Node | Key Node Kinds | Horizontal Edges (`N -> N`) | Downward Grounding Edges (`N -> < N`) |
+|---|---|---|---|---|---|
+| **Level 1** | **File Structure** | `FilesStructureNode` (`FilesStructure`, `fs:`) | `Folder`, `File`, `GitSettings`, `Counter` | `Folder -[:CONTAINS]-> Folder \| File \| GitSettings` | *(None — base layer)* |
+| **Level 2** | **Project Structure** | `ProjectsStructureNode` (`ProjectsStructure`, `ps:`) | `Project`, `Package` | `Project -[:DEPENDS_ON]-> Project \| Package`<br>`Package -[:IMPLEMENTED_BY]-> Project` | `Project -[:CONTAINS]-> File` (L1)<br>`Project -[:LOCATED_IN]-> Folder` (L1)<br>`Project -[:USES_GIT]-> GitSettings` (L1) |
+| **Level 3** | **Syntax Structure** | `SyntaxStructureNode` (`SyntaxStructure`, `ss:`) | `ProjectSyntax`, `Type`, `Function`, `Member`, `CallLiteral`, `CatchClause` | `ProjectSyntax -[:CONTAINS]-> Type \| Function \| Member`<br>`Type -[:HAS_METHOD]-> Function`<br>`Type -[:HAS_MEMBER]-> Member`<br>`Type -[:INHERITS_FROM \| IMPLEMENTS \| USES_TYPE]-> Type`<br>`Function -[:CALLS]-> Function`<br>`Function -[:USES_TYPE]-> Type`<br>`Function -[:PASSES_LITERAL]-> CallLiteral`<br>`Member -[:OF_TYPE]-> Type` | `ProjectSyntax -[:BELONGS_TO]-> Project` (L2)<br>`Type \| Function \| Member \| CallLiteral \| CatchClause -[:DECLARED_IN]-> File` (L1) |
+| **Level 4** | **Semantic Structure** | `SemanticStructureNode` (`SemanticStructure`, `sem:`) | `App`, `Service`, `Worker`, `Library`, `CliTool`, `TestSuite`, `Database`, `DataSet`, `Table`, `Procedure`, `Query`, `Topic`, `Endpoint`, `EntryPoint`, `ExternalService`, `CloudService`, `ApiInUse`, `PeerMesh` | `Workload -[:USES_DB]-> Database`<br>`Workload -[:SERVICE_CALL]-> Service \| ExternalService`<br>`Workload -[:PUBLISHES_TO \| SUBSCRIBES_TO]-> Topic`<br>`Workload -[:USES_CLOUD \| READS_FROM \| WRITES_TO]-> CloudService`<br>`Workload -[:DEPENDS_ON]-> Library`<br>`Workload -[:CONTAINS]-> Endpoint \| EntryPoint \| ApiInUse`<br>`TestSuite -[:TESTS]-> Workload`<br>`ExternalService -[:CALLS_ENDPOINT]-> Endpoint`<br>`Database -[:CONTAINS]-> Table \| Procedure`<br>`Query -[:READS_FROM \| WRITES_TO]-> Table` | `Workload -[:IMPLEMENTED_BY]-> Project` (L2)<br>`Workload -[:LOCATED_IN]-> Folder` (L1)<br>`Workload -[:DEPENDS_ON]-> Package` (L2)<br>`Database \| Table \| Query \| CloudService \| ApiInUse -[:ACCESSED_BY]-> Function \| Type` (L3)<br>`Endpoint \| EntryPoint -[:EXPOSED_BY]-> Function \| Type` (L3)<br>`ExternalService -[:CALLED_BY]-> Function` (L3)<br>`Topic -[:PUBLISHED_BY \| SUBSCRIBED_BY]-> Function` (L3) |
+| **Level 5** | **Logical Structure** | `LogicalStructureNode` (`LogicalStructure`, `ls:`) | `Domain`, `BoundedContext` | `LogicalStructure -[:CONTAINS]-> Domain`<br>`Domain -[:CONTAINS]-> BoundedContext`<br>`BoundedContext -[:DEPENDS_ON]-> BoundedContext` | `BoundedContext -[:CONTAINS]-> Workload \| Database \| Topic` (L4)<br>`BoundedContext -[:DEFINES]-> Type` (L3) |
 
 ---
 
-## 4. Renaming & Ontology Alignment Scope
+## 3. Pipeline Stage Self-Containment
 
-### 4.1 Constants & Node Labels
-- `OntologyConstants.Layers`:
-  - `Physical` $\to$ `"File Structure"`
-  - `ProjectBoundary` $\to$ `"Project Structure"`
-  - `Syntactic` $\to$ `"Syntax Structure"`
-  - `Semantic` $\to$ `"Semantic Structure"`
-  - Add: `Logical = "Logical Structure"`
-- Node classes:
-  - Add `LogicalStructureNode.cs` in `cli/src/Core/CodeExplorer.Core/Common/Nodes/Layer5_Logical/`.
-  - Add `DomainNode.cs` and `BoundedContextNode.cs`.
-- Update `OntologyGen` and re-generate `docs/ontology.md` with Mermaid diagram including the Level 5 subgraph.
+Each pipeline stage completes its own node synthesis, downward grounding edges, and horizontal intra-layer edges before handing off to the next stage:
 
-### 4.2 Layer Pipeline Names & Folders
-- Rename `Layer5_Global` namespace / analyzer references to `Layer5_Logical` (with backwards compatibility aliases if needed).
-- Update `Layer5Result` in `LayerResults.cs` to hold:
-  ```csharp
-  public record Layer5Result(
-      Layer4Result Prev,
-      LogicalStructureNode LogicalStructure,
-      List<DomainNode> Domains,
-      List<BoundedContextNode> BoundedContexts,
-      List<Relationship> LogicalRelationships,
-      List<Relationship> LateBoundRelationships
-  );
+### 3.1 Layer 1: File Structure (`Layer1PhysicalParser`)
+- Discovers `Folder`, `File`, `GitSettings`.
+- Emits `L1 -> L1` `CONTAINS` edges.
+
+### 3.2 Layer 2: Project Structure (`Layer2ProjectParser`)
+- Discovers `Project` and `Package` boundaries.
+- Emits downward `L2 -> L1` edges: `Project -[:CONTAINS]-> File`, `Project -[:LOCATED_IN]-> Folder`, `Project -[:USES_GIT]-> GitSettings` (no upward `File -[:BELONGS_TO]-> Project` edge).
+- Emits horizontal `L2 -> L2` edges: `Project -[:DEPENDS_ON]-> Project | Package`, `Package -[:IMPLEMENTED_BY]-> Project`.
+
+### 3.3 Layer 3: Syntax Structure (`Layer3SyntacticParser`)
+- Parses ASTs and extracts all syntactic symbols (`Type`, `Function`, `Member`, `CallLiteral`, `CatchClause`) including variables/fields/properties directly from ASTs.
+- Emits downward `L3 -> L2` (`ProjectSyntax -[:BELONGS_TO]-> Project`) and `L3 -> L1` (`Symbol -[:DECLARED_IN]-> File`) edges.
+- Resolves all cross-file syntactic references in Layer 3 (`Function -[:CALLS]-> Function`, `Type -[:IMPLEMENTS | INHERITS_FROM | USES_TYPE]-> Type`, `Function -[:USES_TYPE]-> Type`).
+
+### 3.4 Layer 4: Semantic Structure (`Layer4SemanticParser`)
+- Synthesizes Layer 4 workloads (`Service`, `App`, `Worker`, `CliTool`, `Library`, `TestSuite`) and semantic resources (`Database`, `Table`, `Query`, `Topic`, `Endpoint`, `EntryPoint`, `ExternalService`, `CloudService`, `ApiInUse`) from Layer 3 AST symbols + configuration files.
+- Emits downward `L4 -> L2` grounding edges:
+  - `Workload -[:IMPLEMENTED_BY]-> Project`
+- Emits downward `L4 -> L3` grounding edges:
+  - `Database | Table | Query | CloudService | ApiInUse -[:ACCESSED_BY { operation: 'read' | 'write' | 'orm_entity' }]-> Function | Type`
+  - `Endpoint | EntryPoint -[:EXPOSED_BY]-> Function | Type`
+  - `ExternalService -[:CALLED_BY]-> Function`
+  - `Topic -[:PUBLISHED_BY | SUBSCRIBED_BY]-> Function`
+- Derives horizontal `L4 -> L4` edges from Layer 3 & Layer 2 connections:
+  - **Direct Library & Call-Graph Propagation**:
+    - A `Library` gets horizontal edges (e.g., `Library -[:USES_DB]-> Database`) for resources accessed by its own symbols.
+    - Executable workloads (`Service`, `App`, `Worker`, `CliTool`) get horizontal edges (`Workload -[:USES_DB]-> Database`, `Workload -[:SERVICE_CALL]-> Service | ExternalService`, `Workload -[:PUBLISHES_TO | SUBSCRIBES_TO]-> Topic`) when their own symbols or their Layer 3 call/type reachability graph reaches the resource-accessing Layer 3 symbols (recording provenance on the edge).
+  - Late-binds `ExternalService -[:CALLS_ENDPOINT]-> Endpoint` and synthesizes `Workload -[:SERVICE_CALL]-> TargetService`.
+
+### 3.5 Layer 5: Logical Structure (`Layer5LogicalParser`)
+- Synthesizes `LogicalStructureNode` (`{workspaceId}:ls`), `DomainNode` (`{workspaceId}:dom:{domainKey}`), and `BoundedContextNode` (`{workspaceId}:bc:{contextKey}`).
+- **Hybrid Materialization**:
+  1. User configurations from `.codeexplorer/domains.json` and `conventions.json`.
+  2. DDD heuristic auto-discovery (project name tokens, namespaces, folder boundaries, domain aggregates).
+  3. Fallback generic/shared handling (`Domain: Shared` / `dom:shared` and `BoundedContext: SharedKernel` / `bc:shared.kernel`).
+- Emits downward `L5 -> L4` (`BoundedContext -[:CONTAINS]-> Workload | Database | Topic`) and `L5 -> L3` (`BoundedContext -[:DEFINES]-> Type`) edges.
+- Derives horizontal `L5 -> L5` inter-context dependencies by aggregating Layer 4 interactions (`SERVICE_CALL`, `PUBLISHES_TO`/`SUBSCRIBES_TO`, `USES_DB`, `DEPENDS_ON`) between workloads in different Bounded Contexts into consolidated `BoundedContext -[:DEPENDS_ON]-> BoundedContext` edges:
+  ```json
+  {
+    "interactions": ["rpc", "messaging"],
+    "rpcCallsCount": 4,
+    "eventsPublishedCount": 2,
+    "channels": ["orders.created", "payments.processed"]
+  }
   ```
 
 ---
 
-## 5. View Unification (CLI, MCP, Web UI)
-1. **Level 5 Architecture View**:
-   - `ArchitectureViewType.Logical` queries `Domain` and `BoundedContext` nodes and consolidated `DEPENDS_ON` edges directly from SQLite.
-   - Preserves compatibility with `ArchitectureViewType.BoundedContexts` by routing it to the unified Level 5 view engine.
-2. **Cypher Queries**:
-   - Enables standard OpenCypher queries:
-     ```cypher
-     MATCH (d:Domain)-[:CONTAINS]->(bc:BoundedContext)
-     RETURN d.name, bc.name;
-
-     MATCH (a:BoundedContext)-[r:DEPENDS_ON]->(b:BoundedContext)
-     RETURN a.name, b.name, r.interactions, r.rpcCallsCount;
-     ```
-3. **Web UI & VS Code Extension**:
-   - Level dropdown displays:
-     - Level 1: File Structure
-     - Level 2: Project Structure
-     - Level 3: Syntax Structure
-     - Level 4: Semantic Structure
-     - Level 5: Logical Structure
-
----
-
-## 6. Architectural Governance via Semantic Invariant Gates (SIG)
-Materializing Domain and BoundedContext nodes in SQLite allows teams to enforce DDD architectural boundaries directly via `.codeexplorer/gates/*.cypher`:
-
-### Rule 1: Core Domains Must Not Depend on Supporting or Generic Domains
-```cypher
-MATCH (core:Domain { domain_type: 'Core' })-[:CONTAINS]->(bc1:BoundedContext)
-MATCH (other:Domain)-[:CONTAINS]->(bc2:BoundedContext)
-WHERE other.domain_type IN ['Supporting', 'Generic', 'Shared']
-  AND (bc1)-[:DEPENDS_ON]->(bc2)
-RETURN bc1.name AS OffenderContext, bc2.name AS ForbiddenTargetDependency;
-```
-
-### Rule 2: Strict Isolation Between Isolated Bounded Contexts
-```cypher
-// Context A cannot communicate directly with Context B without going through an asynchronous event bus
-MATCH (a:BoundedContext { name: 'Ordering' })-[r:DEPENDS_ON]->(b:BoundedContext { name: 'Inventory' })
-WHERE 'rpc' IN r.interactions
-RETURN a.name AS Source, b.name AS Target, 'Direct RPC coupling is forbidden between Ordering and Inventory' AS Violation;
-```
+## 4. Built-In Semantic Invariant Gate: `no-upward-layer-edges`
+To permanently guarantee ontology hygiene, CodeExplorer enforces a built-in Semantic Invariant Gate that verifies zero edges point from a lower layer to a higher layer:
+- Layer 1 (`File`, `Folder`, `GitSettings`) $\to$ cannot have edges to Layer 2, 3, 4, 5.
+- Layer 2 (`Project`, `Package`) $\to$ cannot have edges to Layer 3, 4, 5.
+- Layer 3 (`ProjectSyntax`, `Type`, `Function`, `Member`, `CallLiteral`, `CatchClause`) $\to$ cannot have edges to Layer 4, 5.
+- Layer 4 (`Service`, `App`, `Worker`, `CliTool`, `Library`, `TestSuite`, `Database`, `Table`, `Query`, `Procedure`, `DataSet`, `Topic`, `Endpoint`, `EntryPoint`, `ExternalService`, `CloudService`, `ApiInUse`, `PeerMesh`) $\to$ cannot have edges to Layer 5.
