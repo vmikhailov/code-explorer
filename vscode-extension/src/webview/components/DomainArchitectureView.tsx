@@ -229,6 +229,8 @@ export type DomainNodeDetail = SelectedNodeDetail;
 import { getNodeBadgeSvgDataUri, getEntityBadgeMeta } from '../domain/entityBadges';
 export { getNodeBadgeSvgDataUri };
 
+export const GROUP_NODE_SIZE = 68;
+
 // Cytoscape stylesheets matching the circular Neo4j / graph ontology styling
 const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
   // Base Node Style (Circular Discs)
@@ -351,8 +353,8 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
   {
     selector: 'node.group-node',
     style: {
-      'width': 62,
-      'height': 62,
+      'width': GROUP_NODE_SIZE,
+      'height': GROUP_NODE_SIZE,
       'border-width': 4.5,
       'border-style': 'double',
     },
@@ -2629,7 +2631,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           kind: groupKind,
           isGroup: 'true',
           groupType: 'custom',
-          size: 62,
+          size: GROUP_NODE_SIZE,
           bgColor: badgeMeta.bgColor,
           borderColor: badgeMeta.borderColor,
           badgeSvg,
@@ -2717,7 +2719,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           kind,
           isGroup: 'true',
           groupType: 'category',
-          size: 62,
+          size: GROUP_NODE_SIZE,
           bgColor: badgeMeta.bgColor,
           borderColor: badgeMeta.borderColor,
           badgeSvg,
