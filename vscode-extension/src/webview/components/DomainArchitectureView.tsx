@@ -4,6 +4,7 @@ import dagre from 'cytoscape-dagre';
 import { GraphData, GraphNode, GraphEdge, isProjectKind } from '../../../../proto/types';
 import {
   computeEchelonTiers,
+  computeEchelonTierReasons,
   computeConcentricLayout,
   ConcentricNodeInput,
   ConcentricEdgeInput,
@@ -2456,10 +2457,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     }
 
     // 5. Compute Stable Architectural Echelon Tiers (0..5) across Full Graph
-    const echelonMap = computeEchelonTiers(
-      cyNodes.map((n) => ({ id: n.data.id as string, kind: (n.data as any).kind as string })),
-      rawEdges
-    );
+    const echelonNodesInput = cyNodes.map((n) => ({
+      id: n.data.id as string,
+      kind: (n.data as any).kind as string,
+      displayName: (n.data as any).displayName as string | undefined,
+    }));
+    const echelonMap = computeEchelonTiers(echelonNodesInput, rawEdges);
+    const tierReasonMap = computeEchelonTierReasons(echelonNodesInput, rawEdges);
 
     for (const node of cyNodes) {
       const id = node.data.id as string;
@@ -2478,6 +2482,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             : ech === 3
             ? 'Tier 3 (Second Echelon / Internal Domain Services & Workers)'
             : 'Tier 4 (Databases & External Infrastructure)';
+        detail.tierReason = detail.tierReason || tierReasonMap.get(id);
       }
     }
 
