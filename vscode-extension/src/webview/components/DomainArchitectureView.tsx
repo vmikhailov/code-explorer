@@ -120,6 +120,22 @@ export interface DomainArchitectureViewProps {
   availableDomains?: string[];
   onRefresh?: () => void;
   gateEditorRequest?: { gateId?: string; timestamp: number } | null;
+  /** Optional custom HUD brand label (e.g., 'C3 Internal Structure'). */
+  hudLabel?: string;
+  /** Optional custom HUD title (e.g., 'Project Map'). */
+  hudTitle?: string;
+  /** Optional custom controls injected into the HUD primary row (e.g., Project selector, quick filters). */
+  headerSlot?: React.ReactNode;
+  /** Default layout algorithm when none is saved under storagePrefix. */
+  defaultLayoutName?: DomainLayoutName;
+  /** Default node sizing mode when none is saved under storagePrefix. */
+  defaultNodeSizingMode?: NodeSizingMode;
+  /** Default node content mode when none is saved under storagePrefix. */
+  defaultNodeContentMode?: NodeContentMode;
+  /** Default hidden entity kinds when none is saved under storagePrefix. */
+  defaultHiddenTypes?: EntityKind[];
+  /** Storage key prefix to isolate persisted settings per view. */
+  storagePrefix?: string;
 }
 
 export interface DomainProjectInfo {
@@ -997,6 +1013,14 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   onSetDomainOverride,
   availableDomains = [],
   onRefresh,
+  hudLabel,
+  hudTitle,
+  headerSlot,
+  defaultLayoutName = 'concentric',
+  defaultNodeSizingMode = 'uniform',
+  defaultNodeContentMode = 'icon',
+  defaultHiddenTypes = ['ExternalService', 'Library'],
+  storagePrefix = 'ce_domain_',
 }) => {
   const isMatrixMode = mode === 'matrix';
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1023,7 +1047,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   searchQueryRef.current = searchQuery;
   const [layoutName, setLayoutName] = useState<DomainLayoutName>(() => {
     try {
-      const saved = localStorage.getItem('ce_domain_layout');
+      const saved = localStorage.getItem(`${storagePrefix}layout`);
       if (
         saved === 'cose' ||
         saved === 'concentric' ||
@@ -1036,42 +1060,42 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         saved === 'hive'
       ) return saved as DomainLayoutName;
     } catch { }
-    return 'concentric';
+    return defaultLayoutName;
   });
 
   const [nodeContentMode, setNodeContentMode] = useState<NodeContentMode>(() => {
     try {
-      const saved = localStorage.getItem('ce_node_content_mode');
+      const saved = localStorage.getItem(`${storagePrefix}node_content_mode`);
       if (saved === 'icon' || saved === 'icon-code' || saved === 'metric') {
         return saved as NodeContentMode;
       }
     } catch { }
-    return 'icon';
+    return defaultNodeContentMode;
   });
 
   const handleNodeContentModeChange = useCallback((mode: NodeContentMode) => {
     setNodeContentMode(mode);
     try {
-      localStorage.setItem('ce_node_content_mode', mode);
+      localStorage.setItem(`${storagePrefix}node_content_mode`, mode);
     } catch { }
-  }, []);
+  }, [storagePrefix]);
 
   const [nodeSizingMode, setNodeSizingMode] = useState<NodeSizingMode>(() => {
     try {
-      const saved = localStorage.getItem('ce_node_sizing_mode');
+      const saved = localStorage.getItem(`${storagePrefix}node_sizing_mode`);
       if (saved === 'uniform' || saved === 'sqrt-weight' || saved === 'degree') {
         return saved as NodeSizingMode;
       }
     } catch { }
-    return 'uniform';
+    return defaultNodeSizingMode;
   });
 
   const handleNodeSizingModeChange = useCallback((mode: NodeSizingMode) => {
     setNodeSizingMode(mode);
     try {
-      localStorage.setItem('ce_node_sizing_mode', mode);
+      localStorage.setItem(`${storagePrefix}node_sizing_mode`, mode);
     } catch { }
-  }, []);
+  }, [storagePrefix]);
   const [edgeCurveMode, setEdgeCurveMode] = useState<EdgeCurveMode>(() => {
     try {
       const saved = localStorage.getItem('ce_edge_curve_mode');
@@ -1287,17 +1311,17 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   }, [applySearchHighlight]);
   const [hiddenTypes, setHiddenTypes] = useState<Set<EntityKind>>(() => {
     try {
-      const saved = readDomainSessionValue('ce_domain_hidden_types_v2');
+      const saved = readDomainSessionValue(`${storagePrefix}hidden_types_v2`);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return new Set<EntityKind>(parsed);
       }
     } catch { }
-    return new Set<EntityKind>(['ExternalService', 'Library']);
+    return new Set<EntityKind>(defaultHiddenTypes);
   });
   const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(() => {
     try {
-      const saved = readDomainSessionValue('ce_domain_hidden_node_ids');
+      const saved = readDomainSessionValue(`${storagePrefix}hidden_node_ids`);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return new Set<string>(parsed);
@@ -1307,7 +1331,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   });
   const [hiddenOrbitTiers, setHiddenOrbitTiers] = useState<Set<number>>(() => {
     try {
-      const saved = readDomainSessionValue('ce_domain_hidden_orbit_tiers');
+      const saved = readDomainSessionValue(`${storagePrefix}hidden_orbit_tiers`);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return new Set<number>(parsed);
@@ -1317,7 +1341,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   });
   const [forcedVisibleNodeIds, setForcedVisibleNodeIds] = useState<Set<string>>(() => {
     try {
-      const saved = readDomainSessionValue('ce_domain_forced_visible_nodes');
+      const saved = readDomainSessionValue(`${storagePrefix}forced_visible_nodes`);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return new Set<string>(parsed);
@@ -1327,14 +1351,14 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   });
   const [hideSingleConnectionDbs, setHideSingleConnectionDbs] = useState<boolean>(() => {
     try {
-      const saved = readDomainSessionValue('ce_hide_single_connection_dbs');
+      const saved = readDomainSessionValue(`${storagePrefix}hide_single_connection_dbs`);
       return saved !== null ? saved === 'true' : false;
     } catch { }
     return false;
   });
   const [hideIsolatedNodes, setHideIsolatedNodes] = useState<boolean>(() => {
     try {
-      const saved = readDomainSessionValue('ce_hide_isolated_nodes');
+      const saved = readDomainSessionValue(`${storagePrefix}hide_isolated_nodes`);
       return saved !== null ? saved === 'true' : false;
     } catch { }
     return false;
@@ -1342,33 +1366,33 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
   // Sync hidden and filter states to in-memory webview session state
   useEffect(() => {
-    writeDomainSessionValue('ce_domain_hidden_types_v2', JSON.stringify([...hiddenTypes]));
-  }, [hiddenTypes]);
+    writeDomainSessionValue(`${storagePrefix}hidden_types_v2`, JSON.stringify([...hiddenTypes]));
+  }, [hiddenTypes, storagePrefix]);
 
   useEffect(() => {
-    writeDomainSessionValue('ce_domain_hidden_node_ids', JSON.stringify([...hiddenNodeIds]));
-  }, [hiddenNodeIds]);
+    writeDomainSessionValue(`${storagePrefix}hidden_node_ids`, JSON.stringify([...hiddenNodeIds]));
+  }, [hiddenNodeIds, storagePrefix]);
 
   useEffect(() => {
-    writeDomainSessionValue('ce_domain_hidden_orbit_tiers', JSON.stringify([...hiddenOrbitTiers]));
-  }, [hiddenOrbitTiers]);
+    writeDomainSessionValue(`${storagePrefix}hidden_orbit_tiers`, JSON.stringify([...hiddenOrbitTiers]));
+  }, [hiddenOrbitTiers, storagePrefix]);
 
   useEffect(() => {
-    writeDomainSessionValue('ce_domain_forced_visible_nodes', JSON.stringify([...forcedVisibleNodeIds]));
-  }, [forcedVisibleNodeIds]);
+    writeDomainSessionValue(`${storagePrefix}forced_visible_nodes`, JSON.stringify([...forcedVisibleNodeIds]));
+  }, [forcedVisibleNodeIds, storagePrefix]);
 
   useEffect(() => {
-    writeDomainSessionValue('ce_hide_single_connection_dbs', String(hideSingleConnectionDbs));
-  }, [hideSingleConnectionDbs]);
+    writeDomainSessionValue(`${storagePrefix}hide_single_connection_dbs`, String(hideSingleConnectionDbs));
+  }, [hideSingleConnectionDbs, storagePrefix]);
 
   useEffect(() => {
-    writeDomainSessionValue('ce_hide_isolated_nodes', String(hideIsolatedNodes));
-  }, [hideIsolatedNodes]);
+    writeDomainSessionValue(`${storagePrefix}hide_isolated_nodes`, String(hideIsolatedNodes));
+  }, [hideIsolatedNodes, storagePrefix]);
 
   // Grouped Types & Custom Groups (held in in-memory webview session state)
   const [groupedTypes, setGroupedTypes] = useState<Set<EntityKind>>(() => {
     try {
-      const saved = readDomainSessionValue('ce_domain_grouped_types');
+      const saved = readDomainSessionValue(`${storagePrefix}grouped_types`);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return new Set<EntityKind>(parsed);
@@ -1379,7 +1403,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
   const [customGroups, setCustomGroups] = useState<CustomNodeGroup[]>(() => {
     try {
-      const saved = readDomainSessionValue('ce_domain_custom_groups');
+      const saved = readDomainSessionValue(`${storagePrefix}custom_groups`);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return parsed;
@@ -1396,12 +1420,12 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
   // Sync grouped types and custom groups to in-memory webview session state
   useEffect(() => {
-    writeDomainSessionValue('ce_domain_grouped_types', JSON.stringify([...groupedTypes]));
-  }, [groupedTypes]);
+    writeDomainSessionValue(`${storagePrefix}grouped_types`, JSON.stringify([...groupedTypes]));
+  }, [groupedTypes, storagePrefix]);
 
   useEffect(() => {
-    writeDomainSessionValue('ce_domain_custom_groups', JSON.stringify(customGroups));
-  }, [customGroups]);
+    writeDomainSessionValue(`${storagePrefix}custom_groups`, JSON.stringify(customGroups));
+  }, [customGroups, storagePrefix]);
 
   // Sync multi-selected classes to Cytoscape
   useEffect(() => {
@@ -2033,20 +2057,38 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         node.properties?.displayTag === ':CLI' ||
         node.properties?.entity_type === 'clitool';
 
+      const resKind = (node.properties?.resource_kind || '').toLowerCase();
+      const isTable =
+        node.kind === 'Table' ||
+        resKind === 'table' ||
+        node.properties?.entity_type === 'table';
+
+      const isProc =
+        node.kind === 'Procedure' ||
+        resKind === 'procedure' ||
+        node.properties?.entity_type === 'procedure';
+
       const isDb =
-        node.kind === 'Database' ||
-        node.properties?.role === 'database' ||
-        node.properties?.role === 'Database' ||
-        node.properties?.entity_type === 'database';
+        !isTable &&
+        !isProc &&
+        (node.kind === 'Database' ||
+          resKind === 'database' ||
+          node.properties?.role === 'database' ||
+          node.properties?.role === 'Database' ||
+          node.properties?.entity_type === 'database');
 
       const isTopic =
         node.kind === 'Topic' ||
+        resKind === 'topic' ||
         node.properties?.role === 'topic' ||
         node.properties?.role === 'Topic' ||
         node.properties?.entity_type === 'topic';
 
       const isExt =
         node.kind === 'ExternalService' ||
+        node.kind === 'CloudService' ||
+        resKind === 'externalservice' ||
+        resKind === 'cloudservice' ||
         node.properties?.role === 'ExternalService' ||
         node.properties?.entity_type === 'external';
 
@@ -2055,6 +2097,11 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         node.kind === 'SharedLibrary' ||
         node.properties?.is_library === 'true' ||
         node.properties?.entity_type === 'library';
+
+      const isModule =
+        node.kind === 'ProjectModule' ||
+        node.kind === 'Module' ||
+        node.properties?.pm_type === 'module';
 
       if (isTest) {
         testSuiteCount++;
@@ -2084,6 +2131,20 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         bgColor = '#d97706';
         borderColor = '#92400e';
         size = 52;
+      } else if (isTable) {
+        dbCount++;
+        tag = ':Table';
+        nodeKind = 'Table';
+        bgColor = '#9333ea';
+        borderColor = '#581c87';
+        size = 50;
+      } else if (isProc) {
+        dbCount++;
+        tag = ':Proc';
+        nodeKind = 'Procedure';
+        bgColor = '#7e22ce';
+        borderColor = '#4c1d95';
+        size = 50;
       } else if (isDb) {
         dbCount++;
         tag = ':DB';
@@ -2112,6 +2173,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         bgColor = '#4b5563';
         borderColor = '#374151';
         size = 46;
+      } else if (isModule) {
+        serviceCount++;
+        tag = ':Module';
+        nodeKind = 'Module';
+        bgColor = '#2563eb';
+        borderColor = '#1e3a8a';
+        size = 52;
       } else {
         serviceCount++;
       }
@@ -2120,7 +2188,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         node.properties?.domain ||
         node.properties?.domainDisplayName ||
         node.properties?.bounded_context ||
-        (isDb ? 'Databases' : isTopic ? 'Messaging' : isExt ? 'External Services' : 'Core Platform');
+        (isDb || isTable || isProc ? 'Databases' : isTopic ? 'Messaging' : isExt ? 'External Services' : 'Core Platform');
 
       const domain = rawDomain.trim();
       const domainDisplayName = node.properties?.domainDisplayName || domain;
@@ -2154,6 +2222,43 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       }
       const primaryRole = node.properties?.primary_role || node.properties?.role;
 
+      const parsedFileCount = node.properties?.file_count ? parseInt(node.properties.file_count, 10) : undefined;
+      let moduleFiles: string[] = [];
+      if (node.properties?.files) {
+        try {
+          const parsed = JSON.parse(node.properties.files);
+          if (Array.isArray(parsed)) moduleFiles = parsed.map(String);
+        } catch { }
+      }
+
+      const projectsList: DomainProjectInfo[] =
+        moduleFiles.length > 0
+          ? moduleFiles.map((fp, idx) => ({
+              id: `${node.id}:file:${idx}`,
+              name: fp.split(/[/\\]/).slice(-2).join('/'),
+              kind: 'File',
+              filePath: fp,
+              lineStart: 1,
+            }))
+          : [
+              {
+                id: node.id,
+                name: node.name || displayName,
+                kind: node.kind,
+                primaryRole,
+                secondaryRoles: secondaryRoles.length > 0 ? secondaryRoles : undefined,
+                filePath: node.filePath,
+                lineStart: node.lineStart ?? (node.properties?.start_line ? parseInt(node.properties.start_line, 10) : undefined),
+                isLibrary: isLib,
+                gitBranch: node.properties?.git_branch,
+              },
+            ];
+
+      const explicitTier =
+        node.properties?.tier !== undefined && !isNaN(Number(node.properties.tier))
+          ? Math.min(4, Math.max(0, Number(node.properties.tier)))
+          : undefined;
+
       const detail: SelectedNodeDetail = {
         id: node.id,
         name: node.name || displayName,
@@ -2169,21 +2274,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         framework: node.properties?.framework || node.properties?.db_type || node.properties?.broker_type || node.properties?.service_type,
         language: node.properties?.language || node.properties?.project_type,
         gitBranch: node.properties?.git_branch,
-        primaryFilePath: node.filePath,
+        primaryFilePath: node.filePath || moduleFiles[0],
         primaryLineStart: node.lineStart ?? (node.properties?.start_line ? parseInt(node.properties.start_line, 10) : undefined),
-        projects: [
-          {
-            id: node.id,
-            name: node.name || displayName,
-            kind: node.kind,
-            primaryRole,
-            secondaryRoles: secondaryRoles.length > 0 ? secondaryRoles : undefined,
-            filePath: node.filePath,
-            lineStart: node.lineStart ?? (node.properties?.start_line ? parseInt(node.properties.start_line, 10) : undefined),
-            isLibrary: isLib,
-            gitBranch: node.properties?.git_branch,
-          },
-        ],
+        projects: projectsList,
+        fileCount: Number.isFinite(parsedFileCount) ? parsedFileCount : undefined,
+        tier: explicitTier,
+        tierLabel: node.properties?.tier_label || undefined,
+        tierReason: node.properties?.tier_reason || undefined,
         inboundCallsCount: 0,
         outboundCallsCount: 0,
         dbCount: 0,
@@ -2247,14 +2344,28 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
       let cat: 'service_call' | 'database' | 'messaging' | 'external' | 'library' | 'test' | null = null;
       let label = 'CALLS';
+      const edgeWeight = edge.properties?.call_count
+        ? Math.max(1, parseInt(edge.properties.call_count, 10) || 1)
+        : 1;
 
-      const isDb = tgtDetail.kind === 'Database' || srcDetail.kind === 'Database' || edge.category === 'database' || edge.kind === 'USES_DB';
+      const isDb =
+        tgtDetail.kind === 'Database' ||
+        tgtDetail.kind === 'Table' ||
+        tgtDetail.kind === 'Procedure' ||
+        srcDetail.kind === 'Database' ||
+        srcDetail.kind === 'Table' ||
+        srcDetail.kind === 'Procedure' ||
+        edge.category === 'database' ||
+        edge.kind === 'USES_DB' ||
+        edge.kind === 'READS_TABLE' ||
+        edge.kind === 'WRITES_TABLE' ||
+        edge.kind === 'CALLS_PROCEDURE';
       const isTopic = tgtDetail.kind === 'Topic' || srcDetail.kind === 'Topic' || edge.category === 'messaging';
       const isExt = tgtDetail.kind === 'ExternalService' || edge.category === 'external';
 
       if (isDb) {
         cat = 'database';
-        label = 'USES_DB';
+        label = tgtDetail.kind === 'Table' || tgtDetail.kind === 'Procedure' ? (edge.kind || 'USES') : 'USES_DB';
         if (!dbUsage.has(edge.source)) dbUsage.set(edge.source, new Set());
         dbUsage.get(edge.source)!.add(edge.target);
       } else if (isTopic) {
@@ -2293,10 +2404,12 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         edge.category === 'service_call' ||
         edge.kind === 'SERVICE_CALL' ||
         edge.kind === 'CALLS_ENDPOINT' ||
-        edge.kind === 'TRIGGERS'
+        edge.kind === 'TRIGGERS' ||
+        edge.kind === 'MODULE_DEPENDS_ON' ||
+        (srcDetail.kind === 'Module' && tgtDetail.kind === 'Module')
       ) {
         cat = 'service_call';
-        label = 'CALLS';
+        label = edge.kind === 'MODULE_DEPENDS_ON' || srcDetail.kind === 'Module' ? 'DEPENDS_ON' : 'CALLS';
       } else if (
         edge.kind === 'SUBSCRIBES_TO' ||
         edge.kind === 'SUBSCRIBED_BY' ||
@@ -2308,13 +2421,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         const chordKey = `${edge.source}->${edge.target}`;
         const existingChord = directPubSubChords.get(chordKey);
         if (existingChord) {
-          existingChord.count += 1;
+          existingChord.count += edgeWeight;
         } else {
           directPubSubChords.set(chordKey, {
             source: edge.source,
             target: edge.target,
             label: chordLabel,
-            count: 1,
+            count: edgeWeight,
           });
         }
         continue;
@@ -2331,13 +2444,16 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       ) {
         cat = 'test';
         label = 'TESTS';
+      } else if (edge.properties?.is_resource_link === 'true') {
+        cat = 'external';
+        label = edge.kind || 'USES';
       }
 
       if (!cat) continue;
 
       if (cat === 'service_call') {
-        outCalls.set(edge.source, (outCalls.get(edge.source) || 0) + 1);
-        inCalls.set(edge.target, (inCalls.get(edge.target) || 0) + 1);
+        outCalls.set(edge.source, (outCalls.get(edge.source) || 0) + edgeWeight);
+        inCalls.set(edge.target, (inCalls.get(edge.target) || 0) + edgeWeight);
       }
 
       const isTrans = Boolean(
@@ -2356,7 +2472,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       const key = `${edge.source}->${edge.target}:${cat}`;
       const existing = macroEdges.get(key);
       if (existing) {
-        existing.count += 1;
+        existing.count += edgeWeight;
         (existing as any).isTransitive = (existing as any).isTransitive || isTrans;
         (existing as any).isInferred = (existing as any).isInferred || isInferred;
       } else {
@@ -2366,7 +2482,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           category: cat,
           kind: edge.kind,
           label,
-          count: 1,
+          count: edgeWeight,
           isTransitive: isTrans,
           isInferred: isInferred,
         } as any);
@@ -2467,13 +2583,16 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
     for (const node of cyNodes) {
       const id = node.data.id as string;
-      const ech = echelonMap.get(id) ?? 2;
-      (node.data as any).echelonTier = ech;
       const detail = detailMap.get(id);
+      const explicitTier = detail?.tier;
+      const ech = explicitTier !== undefined ? explicitTier : (echelonMap.get(id) ?? 2);
+      echelonMap.set(id, ech);
+      (node.data as any).echelonTier = ech;
       if (detail) {
         detail.tier = ech;
         detail.tierLabel =
-          ech === 0
+          detail.tierLabel ||
+          (ech === 0
             ? 'Tier 0 (Ingress / Gateway & Frontends)'
             : ech === 1
             ? 'Tier 1 (First Echelon / Gateway-facing)'
@@ -2481,7 +2600,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             ? 'Tier 2 (Message Topics & Queues)'
             : ech === 3
             ? 'Tier 3 (Second Echelon / Internal Domain Services & Workers)'
-            : 'Tier 4 (Databases & External Infrastructure)';
+            : 'Tier 4 (Databases & External Infrastructure)');
         detail.tierReason = detail.tierReason || tierReasonMap.get(id);
       }
     }
@@ -4322,9 +4441,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const handleLayoutChange = useCallback((newLayout: DomainLayoutName) => {
     setLayoutName(newLayout);
     try {
-      localStorage.setItem('ce_domain_layout', newLayout);
+      localStorage.setItem(`${storagePrefix}layout`, newLayout);
     } catch { }
-  }, []);
+  }, [storagePrefix]);
 
   const searchMatchCount = useMemo(() => {
     if (!searchQuery.trim()) return null;
@@ -4569,7 +4688,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           <div className="view-loading-card">
             <div className="view-loading-spinner" />
             <div className="view-loading-content">
-              <span className="view-loading-title">Architecture Map</span>
+              <span className="view-loading-title">{hudTitle || 'Architecture Map'}</span>
               <span className="view-loading-subtitle">{preparingStatus}</span>
             </div>
           </div>
@@ -4580,8 +4699,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       <header className="domain-map-hud">
         {/* Left Brand Column (Rowspan 2) */}
         <div className="domain-hud-brand">
-          <span className="domain-hud-label">Macro Architecture</span>
-          <span className="domain-hud-title">{isMatrixMode ? 'Architecture Matrix' : 'Architecture Map'}</span>
+          <span className="domain-hud-label">{hudLabel || 'Macro Architecture'}</span>
+          <span className="domain-hud-title">{hudTitle || (isMatrixMode ? 'Architecture Matrix' : 'Architecture Map')}</span>
         </div>
 
         {/* Right Content Column: Two Stacked Rows of Controls */}
@@ -4589,6 +4708,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           {/* Row 1: Studio Canvas Controls */}
           <div className="domain-hud-row domain-hud-primary-row">
             <div className="domain-hud-controls-left">
+            {headerSlot}
             {/* Display & Sliders Tuning Popover (Map mode only) */}
             {!isMatrixMode && (
               <div className="domain-hud-popover-anchor" ref={displayMenuRef}>
