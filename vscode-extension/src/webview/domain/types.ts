@@ -2,9 +2,13 @@ import { GraphData, GraphNode } from '../../../../proto/types';
 
 export type PresentationMode = 'graph' | 'grid' | 'matrix';
 
+export type NodeContentMode = 'icon' | 'icon-code' | 'metric';
+export type NodeSizingMode = 'uniform' | 'sqrt-weight' | 'degree';
+
 export type DomainLayoutName =
   | 'concentric'
   | 'concentric-equispaced'
+  | 'concentric-barycentric'
   | 'concentric-polar-force'
   | 'concentric-sectors'
   | 'swimlanes'
@@ -24,6 +28,9 @@ export type EntityKind =
   | 'Library'
   | 'TestSuite'
   | 'Database'
+  | 'Table'
+  | 'Procedure'
+  | 'Module'
   | 'Topic'
   | 'CloudService'
   | 'PeerMesh'
@@ -72,8 +79,10 @@ export interface SelectedNodeDetail {
   outboundCallsCount: number;
   dbCount: number;
   messagingCount: number;
+  fileCount?: number;
   tier?: number;
   tierLabel?: string;
+  tierReason?: string;
   isGroup?: boolean;
   groupType?: 'category' | 'custom';
   groupKind?: EntityKind;

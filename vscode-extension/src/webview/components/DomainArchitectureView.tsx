@@ -27,6 +27,7 @@ import {
   moveKindToOrbit,
 } from '../layout/orbitConfig';
 import { computeConcentricEquispacedLayout } from '../layout/concentricEquispacedLayout';
+import { computeConcentricBarycentricLayout } from '../layout/projectMapLayout';
 import { computeConcentricPolarForceLayout } from '../layout/concentricPolarForceLayout';
 import { computeConcentricSectorsLayout, describeAnnularSector } from '../layout/concentricSectorsLayout';
 import { computeSwimlanesLayout, SwimlaneGuide } from '../layout/swimlanesLayout';
@@ -50,7 +51,7 @@ import {
   XIcon,
   InfoIcon,
 } from './Icons';
-import { DomainGroupSummary, CustomNodeGroup } from '../domain/types';
+import { DomainGroupSummary, CustomNodeGroup, NodeContentMode, NodeSizingMode } from '../domain/types';
 import { useCommand } from '../commands/CommandContext';
 import {
   HideNodeCommand,
@@ -93,6 +94,7 @@ function writeDomainSessionValue(key: string, value: string): void {
 export type DomainLayoutName =
   | 'concentric'
   | 'concentric-equispaced'
+  | 'concentric-barycentric'
   | 'concentric-polar-force'
   | 'concentric-sectors'
   | 'swimlanes'
@@ -141,6 +143,9 @@ export type EntityKind =
   | 'Library'
   | 'TestSuite'
   | 'Database'
+  | 'Table'
+  | 'Procedure'
+  | 'Module'
   | 'Topic'
   | 'CloudService'
   | 'PeerMesh'
@@ -169,8 +174,10 @@ export interface SelectedNodeDetail {
   outboundCallsCount: number;
   dbCount: number;
   messagingCount: number;
+  fileCount?: number;
   tier?: number;
   tierLabel?: string;
+  tierReason?: string;
   isGroup?: boolean;
   groupType?: 'category' | 'custom';
   groupKind?: EntityKind;
@@ -231,13 +238,13 @@ export { getNodeBadgeSvgDataUri };
 
 export const GROUP_NODE_SIZE = 68;
 
-// Cytoscape stylesheets matching the circular Neo4j / graph ontology styling
+// Cytoscape stylesheets matching the semantic graph ontology styling (circles for code/services, rounded rectangles for resources)
 const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
-  // Base Node Style (Circular Discs)
+  // Base Node Style
   {
     selector: 'node',
     style: {
-      'shape': 'ellipse',
+      'shape': 'data(shape)' as any,
       'width': 'data(size)',
       'height': 'data(size)',
       'background-color': 'data(bgColor)',
@@ -318,9 +325,9 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
       'border-color': '#1e293b',
     },
   },
-  // Database
+  // Database / Table / Procedure
   {
-    selector: 'node[kind = "Database"]',
+    selector: 'node[kind = "Database"], node[kind = "Table"], node[kind = "Procedure"]',
     style: {
       'background-color': '#7b1fa2',
       'border-color': '#4a148c',
@@ -353,8 +360,8 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
   {
     selector: 'node.group-node',
     style: {
-      'width': GROUP_NODE_SIZE,
-      'height': GROUP_NODE_SIZE,
+      'width': 'data(size)',
+      'height': 'data(size)',
       'border-width': 4.5,
       'border-style': 'double',
     },
@@ -1020,6 +1027,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         saved === 'cose' ||
         saved === 'concentric' ||
         saved === 'concentric-equispaced' ||
+        saved === 'concentric-barycentric' ||
         saved === 'concentric-polar-force' ||
         saved === 'concentric-sectors' ||
         saved === 'swimlanes' ||
@@ -1029,6 +1037,40 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     } catch { }
     return 'concentric';
   });
+
+  const [nodeContentMode, setNodeContentMode] = useState<NodeContentMode>(() => {
+    try {
+      const saved = localStorage.getItem('ce_node_content_mode');
+      if (saved === 'icon' || saved === 'icon-code' || saved === 'metric') {
+        return saved as NodeContentMode;
+      }
+    } catch { }
+    return 'icon';
+  });
+
+  const handleNodeContentModeChange = useCallback((mode: NodeContentMode) => {
+    setNodeContentMode(mode);
+    try {
+      localStorage.setItem('ce_node_content_mode', mode);
+    } catch { }
+  }, []);
+
+  const [nodeSizingMode, setNodeSizingMode] = useState<NodeSizingMode>(() => {
+    try {
+      const saved = localStorage.getItem('ce_node_sizing_mode');
+      if (saved === 'uniform' || saved === 'sqrt-weight' || saved === 'degree') {
+        return saved as NodeSizingMode;
+      }
+    } catch { }
+    return 'uniform';
+  });
+
+  const handleNodeSizingModeChange = useCallback((mode: NodeSizingMode) => {
+    setNodeSizingMode(mode);
+    try {
+      localStorage.setItem('ce_node_sizing_mode', mode);
+    } catch { }
+  }, []);
   const [edgeCurveMode, setEdgeCurveMode] = useState<EdgeCurveMode>(() => {
     try {
       const saved = localStorage.getItem('ce_edge_curve_mode');
@@ -3139,6 +3181,63 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       return s && t && visibleNodeIdSet.has(s) && visibleNodeIdSet.has(t);
     });
 
+    // Apply semantic shape, dynamic sizing (uniform | sqrt-weight | degree), and badge content mode (icon | icon-code | metric)
+    const styledVisibleNodes: cytoscape.ElementDefinition[] = finalVisibleNodes.map((n) => {
+      const nid = n.data.id as string;
+      const detail = effectiveDetailMap.get(nid);
+      const kind = ((n.data as any).kind || detail?.kind || 'Service') as EntityKind;
+      const badgeMeta = getEntityBadgeMeta(kind);
+      const isGroup = Boolean(detail?.isGroup || (n.data as any).isGroup === 'true');
+      const memberCount = detail?.memberNodes?.length || detail?.memberIds?.length || 0;
+
+      const totalConnections =
+        (detail?.inboundCallsCount || 0) +
+        (detail?.outboundCallsCount || 0) +
+        (detail?.dbCount || 0) +
+        (detail?.messagingCount || 0);
+      const fileCount =
+        detail?.fileCount ??
+        (detail?.properties?.file_count ? parseInt(detail.properties.file_count, 10) : undefined);
+      const projectCount = detail?.projects?.length || 1;
+      const weightVal =
+        fileCount && !isNaN(fileCount) && fileCount > 0
+          ? fileCount
+          : Math.max(1, projectCount * 3 + totalConnections);
+
+      let computedSize: number = isGroup ? GROUP_NODE_SIZE : ((n.data as any).size || 56);
+      if (nodeSizingMode === 'sqrt-weight') {
+        const base = isGroup ? 44 : 38;
+        computedSize = Math.round(Math.max(40, Math.min(88, base + 6 * Math.sqrt(weightVal))));
+      } else if (nodeSizingMode === 'degree') {
+        const base = isGroup ? 44 : 38;
+        computedSize = Math.round(Math.max(40, Math.min(88, base + 5.5 * Math.sqrt(Math.max(1, totalConnections)))));
+      }
+
+      const metricText =
+        fileCount && !isNaN(fileCount) && fileCount > 0
+          ? `${fileCount}f`
+          : projectCount > 1
+          ? `${projectCount}p`
+          : `${totalConnections}`;
+
+      const badgeSvg = getNodeBadgeSvgDataUri(kind, {
+        isGroup,
+        count: memberCount,
+        contentMode: nodeContentMode,
+        metricText,
+      });
+
+      return {
+        ...n,
+        data: {
+          ...n.data,
+          shape: badgeMeta.shape,
+          size: computedSize,
+          badgeSvg,
+        },
+      };
+    });
+
     let visibleCalls = 0;
     let visibleMsgs = 0;
     let directCalls = 0;
@@ -3157,15 +3256,15 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     }
 
     return {
-      elements: [...finalVisibleNodes, ...safeVisibleEdges],
-      visibleNodes: finalVisibleNodes,
+      elements: [...styledVisibleNodes, ...safeVisibleEdges],
+      visibleNodes: styledVisibleNodes,
       visibleEdges: safeVisibleEdges,
       hiddenNodeIdSet,
-      hiddenCount: rawGraph.allNodes.length - finalVisibleNodes.length,
+      hiddenCount: rawGraph.allNodes.length - styledVisibleNodes.length,
       effectiveDetailMap,
       effectiveRawEdges,
       stats: {
-        total: finalVisibleNodes.length,
+        total: styledVisibleNodes.length,
         ingress: rawGraph.counts.ingress,
         services: rawGraph.counts.services,
         databases: rawGraph.counts.databases,
@@ -3176,7 +3275,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         transitiveCalls,
       },
     };
-  }, [rawGraph, hiddenTypes, hiddenNodeIds, hiddenOrbitTiers, orbitConfig, forcedVisibleNodeIds, hideSingleConnectionDbs, hideIsolatedNodes, showTransitiveEdges, groupedTypes, customGroups]);
+  }, [rawGraph, hiddenTypes, hiddenNodeIds, hiddenOrbitTiers, orbitConfig, forcedVisibleNodeIds, hideSingleConnectionDbs, hideIsolatedNodes, showTransitiveEdges, groupedTypes, customGroups, nodeContentMode, nodeSizingMode]);
 
   const nodeDetailMap = effectiveDetailMap;
 
@@ -3594,6 +3693,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       if (
         layoutName === 'concentric' ||
         layoutName === 'concentric-equispaced' ||
+        layoutName === 'concentric-barycentric' ||
         layoutName === 'concentric-polar-force' ||
         layoutName === 'concentric-sectors'
       ) {
@@ -3651,6 +3751,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           baseSectorGuidesRef.current = [];
           if (layoutName === 'concentric-equispaced') {
             layoutResult = computeConcentricEquispacedLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder, orbitDistanceRef.current, minOrbitNodeDistanceRef.current);
+          } else if (layoutName === 'concentric-barycentric') {
+            layoutResult = computeConcentricBarycentricLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder, orbitDistanceRef.current, minOrbitNodeDistanceRef.current);
           } else if (layoutName === 'concentric-polar-force') {
             layoutResult = computeConcentricPolarForceLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder, orbitDistanceRef.current, minOrbitNodeDistanceRef.current);
           } else {
@@ -4524,12 +4626,51 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                         >
                           <option value="concentric">🎯 Concentric (Original)</option>
                           <option value="concentric-equispaced">🪐 Concentric: Equispaced</option>
+                          <option value="concentric-barycentric">🪐 Concentric: Barycentric</option>
                           <option value="concentric-polar-force">🪐 Concentric: Polar Force</option>
                           <option value="concentric-sectors">🪐 Concentric: Domain Sectors</option>
                           <option value="swimlanes">🏊 Swimlanes (Pipeline)</option>
                           <option value="clusters">🏝️ Domain Islands (Bounded Contexts)</option>
                           <option value="hive">🕸️ Hive Plot (Multi-Axis)</option>
                           <option value="cose">⚡ Force (COSE)</option>
+                        </select>
+                      </div>
+
+                      {/* Node Content Mode (Icon | Icon + Code | Metric) */}
+                      <div className="display-setting-row" title="Choose what is displayed inside each node shape">
+                        <div className="setting-label-row">
+                          <span className="setting-icon">🎨</span>
+                          <span className="setting-name">Node Content</span>
+                        </div>
+                        <select
+                          value={nodeContentMode}
+                          onChange={(e) => handleNodeContentModeChange(e.target.value as NodeContentMode)}
+                          title="Node Content: Clean Icon, Icon + 3-letter Code, or Metric"
+                          className="domain-layout-dropdown"
+                          style={{ width: '100%', marginTop: '4px' }}
+                        >
+                          <option value="icon">✨ Icon Only</option>
+                          <option value="icon-code">🏷️ Icon + Code (SVC, DB)</option>
+                          <option value="metric">📊 Icon + Metric</option>
+                        </select>
+                      </div>
+
+                      {/* Node Sizing Mode (Uniform | √Weight | Connections) */}
+                      <div className="display-setting-row" title="Scale node size uniformly, by √Weight (files/projects), or by connection degree">
+                        <div className="setting-label-row">
+                          <span className="setting-icon">📏</span>
+                          <span className="setting-name">Node Size</span>
+                        </div>
+                        <select
+                          value={nodeSizingMode}
+                          onChange={(e) => handleNodeSizingModeChange(e.target.value as NodeSizingMode)}
+                          title="Node Size: Uniform, √Weight (Files/Projects), or Connections (Degree)"
+                          className="domain-layout-dropdown"
+                          style={{ width: '100%', marginTop: '4px' }}
+                        >
+                          <option value="uniform">⚪ Uniform Size</option>
+                          <option value="sqrt-weight">📐 √Weight (Files / Projects)</option>
+                          <option value="degree">🔗 Connections (Degree)</option>
                         </select>
                       </div>
 

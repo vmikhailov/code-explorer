@@ -167,3 +167,111 @@ function ringOffset(
   });
   return circularMean(residuals) ?? START_ANGLE;
 }
+
+import {
+  ConcentricNodeInput,
+  ConcentricEdgeInput,
+  ConcentricLayoutResult,
+  ORBIT_TITLES,
+} from './concentricLayout';
+
+/**
+ * Adapter that runs the Barycentric Circular-Mean Concentric layout (`computeProjectMapLayout`)
+ * on universal `ConcentricNodeInput` / `ConcentricEdgeInput` and returns `ConcentricLayoutResult`.
+ */
+export function computeConcentricBarycentricLayout(
+  visibleNodes: ConcentricNodeInput[],
+  visibleEdges: ConcentricEdgeInput[],
+  spacing = 1.0,
+  customOrbitOrder?: number[],
+  orbitDistance?: number,
+  minNodeDistance?: number
+): ConcentricLayoutResult {
+  const orbitBuckets: Record<number, string[]> = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [] };
+  for (const node of visibleNodes) {
+    const ech = Math.max(0, Math.min(5, node.echelonTier));
+    orbitBuckets[ech].push(node.id);
+  }
+
+  const populatedTiers = [0, 1, 2, 3, 4, 5].filter((idx) => orbitBuckets[idx].length > 0);
+  const outerTiers = populatedTiers.filter((t) => t === 4 || t === 5);
+  const innerPopulated = populatedTiers.filter((t) => t !== 4 && t !== 5);
+  let effectiveOrder = [...innerPopulated, ...outerTiers];
+  if (customOrbitOrder && customOrbitOrder.length > 0) {
+    const validCustom = customOrbitOrder.filter((t) => populatedTiers.includes(t));
+    const missingInner = innerPopulated.filter((t) => !validCustom.includes(t));
+    const missingOuter = outerTiers.filter((t) => !validCustom.includes(t));
+    effectiveOrder = [...validCustom, ...missingInner, ...missingOuter];
+  }
+
+  const tierToRingRank = new Map<number, number>();
+  effectiveOrder.forEach((tier, idx) => tierToRingRank.set(tier, idx));
+
+  const pmNodes: ProjectMapLayoutNode[] = visibleNodes.map((n) => {
+    const ech = Math.max(0, Math.min(5, n.echelonTier));
+    return {
+      id: n.id,
+      tier: tierToRingRank.get(ech) ?? ech,
+      radius: 28,
+    };
+  });
+
+  const pmEdges: ProjectMapLayoutEdge[] = visibleEdges
+    .filter((e) => e.source && e.target)
+    .map((e) => ({ source: e.source, target: e.target }));
+
+  const minArcSpacing = Math.round((minNodeDistance ?? 125) * spacing);
+  const radialStep = Math.round((orbitDistance ?? 280) * spacing);
+
+  const pmResult = computeProjectMapLayout(pmNodes, pmEdges, {
+    ringGap: radialStep,
+    labelSpace: Math.max(24, minArcSpacing - 56),
+    firstRingMinRadius: Math.round(110 * spacing),
+  });
+
+  const positions = new Map<string, { x: number; y: number }>();
+  const nodeAngles = new Map<string, number>();
+  const nodeRadii = new Map<string, number>();
+  for (const [id, pos] of Object.entries(pmResult.positions)) {
+    positions.set(id, { x: Math.round(pos.x), y: Math.round(pos.y) });
+    nodeAngles.set(id, Math.atan2(pos.y, pos.x));
+    nodeRadii.set(id, Math.hypot(pos.x, pos.y));
+  }
+
+  const populatedOrbits: ConcentricLayoutResult['populatedOrbits'] = [];
+  const guides: ConcentricLayoutResult['guides'] = [];
+
+  pmResult.rings.forEach((ring, displayIdx) => {
+    const origTier = effectiveOrder[ring.tier] ?? ring.tier;
+    const title = ORBIT_TITLES[origTier] || `Tier ${origTier}`;
+    const shortLabel = `Orbit ${displayIdx}`;
+    const label = `${shortLabel}: ${title}`;
+    const r = Math.round(ring.radius);
+    populatedOrbits.push({
+      levelIndex: origTier,
+      label,
+      shortLabel,
+      title,
+      nodeIds: ring.nodeIds,
+      radius: r,
+    });
+    if (r > 0) {
+      guides.push({
+        levelIndex: origTier,
+        radius: r,
+        label,
+        shortLabel,
+        title,
+        count: ring.nodeIds.length,
+      });
+    }
+  });
+
+  return {
+    positions,
+    guides,
+    populatedOrbits,
+    nodeAngles,
+    nodeRadii,
+  };
+}
