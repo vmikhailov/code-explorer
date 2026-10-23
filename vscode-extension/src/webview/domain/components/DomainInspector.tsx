@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { SelectedNodeDetail, SelectedEdgeDetail, DomainProjectInfo, ConnectionDetailItem } from '../types';
-import { useDomainArchitecture } from '../context/DomainArchitectureContext';
 import { FloatingPanel } from '../../components/FloatingPanel';
 import {
   ChevronRightIcon,
@@ -404,25 +403,20 @@ export interface DomainInspectorProps {
 }
 
 export const DomainInspector: React.FC<DomainInspectorProps> = (props) => {
-  let ctx: any = null;
-  try {
-    ctx = useDomainArchitecture();
-  } catch {}
-
-  const selectedNode = props.selectedNode !== undefined ? props.selectedNode : ctx?.selectedNode;
-  const selectedEdge = props.selectedEdge !== undefined ? props.selectedEdge : ctx?.selectedEdge;
-  const selectNode = props.onSelectNode || ctx?.selectNode;
-  const selectEdge = props.onSelectEdge || ctx?.selectEdge;
-  const clearSelection = props.onClearSelection || ctx?.clearSelection;
-  const isInspectorCollapsed = props.isInspectorCollapsed !== undefined ? props.isInspectorCollapsed : !!ctx?.isInspectorCollapsed;
-  const setIsInspectorCollapsed = props.onToggleCollapse || ctx?.setIsInspectorCollapsed;
-  const hideNode = props.onHideNode || ctx?.hideNode;
+  const selectedNode = props.selectedNode ?? null;
+  const selectedEdge = props.selectedEdge ?? null;
+  const selectNode = props.onSelectNode;
+  const selectEdge = props.onSelectEdge;
+  const clearSelection = props.onClearSelection;
+  const isInspectorCollapsed = !!props.isInspectorCollapsed;
+  const setIsInspectorCollapsed = props.onToggleCollapse;
+  const hideNode = props.onHideNode;
   const onUngroupNode = props.onUngroupNode;
   const onRemoveFromGroup = props.onRemoveFromGroup;
-  const onFocusInFlow = props.onFocusInFlow || ctx?.onFocusInFlow;
+  const onFocusInFlow = props.onFocusInFlow;
   const onOpenProjectMap = props.onOpenProjectMap;
-  const onOpenFile = props.onOpenFile || ctx?.onOpenFile;
-  const openOverrideModal = props.onOpenOverrideModal || ctx?.openOverrideModal;
+  const onOpenFile = props.onOpenFile;
+  const openOverrideModal = props.onOpenOverrideModal;
   const nodeDetailMap = props.nodeDetailMap;
   const onClearGraphHighlight = props.onClearGraphHighlight;
   const rawEdges = props.rawEdges;

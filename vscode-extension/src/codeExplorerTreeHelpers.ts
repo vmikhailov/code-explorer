@@ -463,6 +463,13 @@ export function buildDiagramItems(): CodeExplorerTreeItem[] {
       tooltip: 'Architecture Map — System services, resources, and topology',
     },
     {
+      mode: 'matrix',
+      label: 'Architecture Matrix',
+      desc: 'Dependency structure matrix & cycles',
+      icon: 'table',
+      tooltip: 'Architecture Matrix — Caller vs Callee dependency matrix with service calls, databases, messaging, and circular dependency detection',
+    },
+    {
       mode: 'project',
       label: 'Project Map',
       desc: 'Modules, calls & cycles inside a project',
