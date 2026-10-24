@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none">
+  <style>
+    .ce-orbit { stroke: #E2E8F0; opacity: 0.55; }
+    .ce-slider { stroke: #FFFFFF; }
+    .ce-knob { fill: #FFFFFF; }
+
+    @media (prefers-color-scheme: light) {
+      .ce-orbit { stroke: #334155; opacity: 0.65; }
+      .ce-slider { stroke: #0F172A; }
+      .ce-knob { fill: #0F172A; }
+    }
+  </style>
+
+  <!-- Concentric orbit rings + control knobs -->
+  <circle class="ce-orbit" cx="12" cy="12" r="7.5" stroke-width="1.5" stroke-dasharray="3 2" />
+  <circle class="ce-orbit" cx="12" cy="12" r="4.25" stroke-width="1.5" />
+  <circle class="ce-knob" cx="12" cy="12" r="1.6" />
+  <circle class="ce-knob" cx="16.25" cy="12" r="1.4" />
+  <circle class="ce-knob" cx="12" cy="4.5" r="1.4" />
+  <circle class="ce-knob" cx="6.7" cy="17.3" r="1.4" />
+</svg>

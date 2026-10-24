@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import { LlmBridgeService } from './services/llmBridgeService';
 import { GateStateManager } from './gateStateManager';
 import { ServerTransport } from './serverTransport';
+import { GraphInspectorViewProvider } from './graphInspectorViewProvider';
 
 export function getViewTitle(viewMode?: string): string {
   switch (viewMode) {
@@ -255,6 +256,7 @@ export class GraphPanel {
       (e) => {
         if (e.webviewPanel.active) {
           GraphPanel.activePanel = this;
+          this.postMessage({ type: 'REQUEST_INSPECTOR_SYNC' });
         }
       },
       null,
@@ -610,11 +612,28 @@ export class GraphPanel {
             }
             break;
           }
+
+          case 'SYNC_INSPECTOR_STATE': {
+            if (GraphPanel.currentPanel === this) {
+              GraphInspectorViewProvider.getInstance()?.syncState(message.state);
+            }
+            break;
+          }
+
+          case 'FOCUS_INSPECTOR_VIEW': {
+            GraphPanel.activePanel = this;
+            await GraphInspectorViewProvider.getInstance()?.reveal(Boolean(message.preserveFocus));
+            break;
+          }
         }
       },
       null,
       this.disposables
     );
+  }
+
+  public async openFileFromInspector(filePath: string, lineStart?: number, lineEnd?: number) {
+    await this.handleOpenFile(filePath, lineStart, lineEnd);
   }
 
   private orbitConfigPath(): string {

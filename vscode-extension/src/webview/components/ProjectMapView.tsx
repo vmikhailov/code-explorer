@@ -220,9 +220,20 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
         graph={filteredGraph}
         serverHttpUrl={serverHttpUrl}
         hudLabel="C3 Internal Structure"
-        hudTitle="Project Map"
+        hudTitle={`Project Map${model.projectName ? `: ${model.projectName}` : ''}`}
         headerSlot={headerControls}
         customPresetsSlot={projectMapPresets}
+        projectMapPresets={{
+          cyclesCount: model.cycles.length,
+          cyclesOnly,
+          hideUtilities,
+          hideResources,
+        }}
+        onToggleProjectMapPreset={(preset) => {
+          if (preset === 'cyclesOnly') setCyclesOnly((v) => !v);
+          else if (preset === 'hideUtilities') setHideUtilities((v) => !v);
+          else if (preset === 'hideResources') setHideResources((v) => !v);
+        }}
         defaultLayoutName="concentric-barycentric"
         defaultNodeSizingMode="sqrt-weight"
         defaultNodeContentMode="metric"

@@ -59,6 +59,7 @@
   "main": "./dist/extension.js",
   "activationEvents": [
     "onView:codeExplorerView",
+    "onView:codeExplorerInspectorView",
     "workspaceContains:.codeexplorer/graph.db",
     "onWebviewPanel:codeExplorerGraph.semantic",
     "onWebviewPanel:codeExplorerGraph.contexts",
@@ -71,6 +72,7 @@
     "onWebviewPanel:codeExplorerGraph.settings",
     "onWebviewPanel:codeExplorerGraph.gate-editor",
     "onCommand:codeExplorer.showGraph",
+    "onCommand:codeExplorer.focusInspector",
     "onCommand:codeExplorer.reindex",
     "onCommand:codeExplorer.reindexFull",
     "onCommand:codeExplorer.initAndScan",
@@ -84,6 +86,11 @@
           "id": "code-explorer-sidebar",
           "title": "CodeExplorer",
           "icon": "media/icon-sidebar.svg"
+        },
+        {
+          "id": "code-explorer-inspector",
+          "title": "CodeExplorer Inspector",
+          "icon": "media/icon-inspector.svg"
         }
       ]
     },
@@ -93,6 +100,14 @@
           "id": "codeExplorerView",
           "name": "CodeExplorer Graph",
           "type": "tree",
+          "when": "workspaceFolderCount != 0"
+        }
+      ],
+      "code-explorer-inspector": [
+        {
+          "id": "codeExplorerInspectorView",
+          "name": "Graph Inspector & Controls",
+          "type": "webview",
           "when": "workspaceFolderCount != 0"
         }
       ]
@@ -107,6 +122,11 @@
         "command": "codeExplorer.showGraph",
         "title": "CodeExplorer: Show Architecture Graph",
         "icon": "$(type-hierarchy-sub)"
+      },
+      {
+        "command": "codeExplorer.focusInspector",
+        "title": "CodeExplorer: Focus Graph Inspector & Controls",
+        "icon": "$(sliders)"
       },
       {
         "command": "codeExplorer.reindex",
