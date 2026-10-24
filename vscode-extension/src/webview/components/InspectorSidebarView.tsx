@@ -29,6 +29,8 @@ import {
   EyeIcon,
   EyeOffIcon,
   InfoIcon,
+  SettingsIcon,
+  XIcon,
 } from './Icons';
 import { getVsCodeApi } from '../vscodeApi';
 
@@ -147,6 +149,7 @@ export const InspectorSidebarView: React.FC = () => {
   const [state, setState] = useState<InspectorSyncedState | null>(null);
   const [overrideModalOpen, setOverrideModalOpen] = useState(false);
   const [overrideTargetService, setOverrideTargetService] = useState('');
+  const [isOrbitSettingsOpen, setIsOrbitSettingsOpen] = useState(false);
 
   // Local orbit drag & multi-select state
   const [selectedOrbitRows, setSelectedOrbitRows] = useState<number[]>([]);
@@ -500,6 +503,22 @@ export const InspectorSidebarView: React.FC = () => {
     </>
   ) : undefined;
 
+  const hasCustomOrbitSettings =
+    layoutName !== 'concentric' ||
+    spacingFactor !== 1.0 ||
+    orbitDistance !== 280 ||
+    minOrbitNodeDistance !== 125 ||
+    !autoRelayoutOnFilter;
+
+  const hasCustomAppearance =
+    nodeContentMode !== 'icon' ||
+    nodeSizingMode !== 'uniform' ||
+    edgeCurveMode !== 'bezier' ||
+    edgeLabelsOnHover ||
+    fontSize !== 10 ||
+    curveFactor !== 35 ||
+    wheelSensitivity !== 1.0;
+
   const renderOrbitLegend = () => (
     <FloatingPanel
       dock="top-right"
@@ -551,6 +570,19 @@ export const InspectorSidebarView: React.FC = () => {
               <span>Reset</span>
             </button>
           ) : null}
+          <button
+            type="button"
+            className={`floating-dock-btn settings-gear-btn ${isOrbitSettingsOpen ? 'is-open' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsOrbitSettingsOpen((prev) => !prev);
+            }}
+            title="Layout & Orbit Parameters (Algorithm, Spacing, Orbit Distance, Min Distance)"
+            aria-label="Layout & Orbit Parameters"
+          >
+            <SettingsIcon size={13} />
+            {!isOrbitSettingsOpen && hasCustomOrbitSettings && <span className="settings-gear-dot" />}
+          </button>
         </>
       }
       collapsedTitle={`Orbits (${orbitLegendItems.length})`}
@@ -563,147 +595,61 @@ export const InspectorSidebarView: React.FC = () => {
       persistKey="ce_orbit_legend"
       className="domain-orbit-legend-floating no-body-padding"
     >
-      <div className="domain-orbit-legend-body" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-        {/* 1. Layout & Geometry Controls */}
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-            padding: '10px 12px',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-            background: 'rgba(15, 23, 42, 0.35)',
-          }}
-        >
-          <div className="display-setting-row" title="Select graph layout algorithm">
-            <div className="setting-label-row">
-              <span className="setting-icon">📐</span>
-              <span className="setting-name">Graph Layout</span>
-            </div>
-            <select
-              value={layoutName}
-              onChange={(e) => dispatch({ type: 'SET_LAYOUT', layoutName: e.target.value as DomainLayoutName })}
-              title="Graph Layout"
-              className="domain-layout-dropdown"
-              style={{ width: '100%', marginTop: '4px' }}
-            >
-              <option value="concentric">🎯 Concentric (Original)</option>
-              <option value="concentric-equispaced">🪐 Concentric: Equispaced</option>
-              <option value="concentric-barycentric">🪐 Concentric: Barycentric</option>
-              <option value="concentric-polar-force">🪐 Concentric: Polar Force</option>
-              <option value="concentric-sectors">🪐 Concentric: Domain Sectors</option>
-              <option value="swimlanes">🏊 Swimlanes (Pipeline)</option>
-              <option value="clusters">🏝️ Domain Islands (Bounded Contexts)</option>
-              <option value="hive">🕸️ Hive Plot (Multi-Axis)</option>
-              <option value="cose">⚡ Force (COSE)</option>
-            </select>
-          </div>
-
-          {/* Node Spacing / Air Control */}
-          <div className="display-setting-row" title="Adjust node spacing / distance between orbits">
-            <div className="setting-label-row">
-              <span className="setting-icon">💨</span>
-              <span className="setting-name">Node Air (Spacing)</span>
-              <span
-                className="domain-hud-value-badge"
-                onClick={() => dispatch({ type: 'SET_SPACING', spacingFactor: 1.0 })}
-                title="Click to reset air to 1.0x"
-              >
-                {spacingFactor.toFixed(1)}x
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        {/* Collapsible Layout & Geometry Settings Drawer */}
+        {isOrbitSettingsOpen && (
+          <div className="panel-settings-drawer">
+            <div className="panel-settings-drawer-header">
+              <span className="panel-settings-drawer-title">
+                <SettingsIcon size={11} />
+                <span>Layout & Orbit Geometry</span>
               </span>
-            </div>
-            <div className="setting-slider-row">
               <button
                 type="button"
-                className="domain-hud-step-btn"
-                onClick={() =>
-                  dispatch({ type: 'SET_SPACING', spacingFactor: Math.max(0.4, +(spacingFactor - 0.2).toFixed(1)) })
-                }
-                title="Decrease spacing"
+                className="floating-dock-btn close-btn"
+                style={{ width: 20, height: 20, minWidth: 20, padding: 0 }}
+                onClick={() => setIsOrbitSettingsOpen(false)}
+                title="Close layout settings"
               >
-                −
-              </button>
-              <input
-                type="range"
-                min="0.5"
-                max="3.0"
-                step="0.1"
-                value={spacingFactor}
-                onChange={(e) => dispatch({ type: 'SET_SPACING', spacingFactor: parseFloat(e.target.value) })}
-                className="domain-hud-slider"
-              />
-              <button
-                type="button"
-                className="domain-hud-step-btn"
-                onClick={() =>
-                  dispatch({ type: 'SET_SPACING', spacingFactor: Math.min(3.5, +(spacingFactor + 0.2).toFixed(1)) })
-                }
-                title="Increase spacing"
-              >
-                +
+                <XIcon size={11} />
               </button>
             </div>
-          </div>
 
-          {/* Orbit Distance Control */}
-          {layoutName.startsWith('concentric') && (
-            <div className="display-setting-row" title="Adjust distance between concentric orbits (100px - 900px)">
+            <div className="display-setting-row" title="Select graph layout algorithm">
               <div className="setting-label-row">
-                <span className="setting-icon">🪐</span>
-                <span className="setting-name">Orbit Distance</span>
-                <span
-                  className="domain-hud-value-badge"
-                  onClick={() => dispatch({ type: 'SET_ORBIT_DISTANCE', orbitDistance: 280 })}
-                  title="Click to reset orbit distance to 280px"
-                >
-                  {orbitDistance}px
-                </span>
+                <span className="setting-icon">📐</span>
+                <span className="setting-name">Graph Layout</span>
               </div>
-              <div className="setting-slider-row">
-                <button
-                  type="button"
-                  className="domain-hud-step-btn"
-                  onClick={() => dispatch({ type: 'SET_ORBIT_DISTANCE', orbitDistance: orbitDistance - 20 })}
-                  title="Decrease orbit distance (-20px)"
-                >
-                  −
-                </button>
-                <input
-                  type="range"
-                  min="100"
-                  max="900"
-                  step="10"
-                  value={orbitDistance}
-                  onChange={(e) => dispatch({ type: 'SET_ORBIT_DISTANCE', orbitDistance: parseInt(e.target.value, 10) })}
-                  className="domain-hud-slider"
-                />
-                <button
-                  type="button"
-                  className="domain-hud-step-btn"
-                  onClick={() => dispatch({ type: 'SET_ORBIT_DISTANCE', orbitDistance: orbitDistance + 20 })}
-                  title="Increase orbit distance (+20px)"
-                >
-                  +
-                </button>
-              </div>
+              <select
+                value={layoutName}
+                onChange={(e) => dispatch({ type: 'SET_LAYOUT', layoutName: e.target.value as DomainLayoutName })}
+                title="Graph Layout"
+                className="domain-layout-dropdown"
+                style={{ width: '100%', marginTop: '4px' }}
+              >
+                <option value="concentric">🎯 Concentric (Original)</option>
+                <option value="concentric-equispaced">🪐 Concentric: Equispaced</option>
+                <option value="concentric-barycentric">🪐 Concentric: Barycentric</option>
+                <option value="concentric-polar-force">🪐 Concentric: Polar Force</option>
+                <option value="concentric-sectors">🪐 Concentric: Domain Sectors</option>
+                <option value="swimlanes">🏊 Swimlanes (Pipeline)</option>
+                <option value="clusters">🏝️ Domain Islands (Bounded Contexts)</option>
+                <option value="hive">🕸️ Hive Plot (Multi-Axis)</option>
+                <option value="cose">⚡ Force (COSE)</option>
+              </select>
             </div>
-          )}
 
-          {/* Min Distance on Orbit Control */}
-          {layoutName.startsWith('concentric') && (
-            <div
-              className="display-setting-row"
-              title="Adjust minimum distance between nodes on the same orbit (50px - 400px)"
-            >
+            {/* Node Spacing / Air Control */}
+            <div className="display-setting-row" title="Adjust node spacing / distance between orbits">
               <div className="setting-label-row">
-                <span className="setting-icon">↔️</span>
-                <span className="setting-name">Min Distance on Orbit</span>
+                <span className="setting-icon">💨</span>
+                <span className="setting-name">Node Air (Spacing)</span>
                 <span
                   className="domain-hud-value-badge"
-                  onClick={() => dispatch({ type: 'SET_MIN_ORBIT_NODE_DISTANCE', minOrbitNodeDistance: 125 })}
-                  title="Click to reset min orbit node distance to 125px"
+                  onClick={() => dispatch({ type: 'SET_SPACING', spacingFactor: 1.0 })}
+                  title="Click to reset air to 1.0x"
                 >
-                  {minOrbitNodeDistance}px
+                  {spacingFactor.toFixed(1)}x
                 </span>
               </div>
               <div className="setting-slider-row">
@@ -711,71 +657,167 @@ export const InspectorSidebarView: React.FC = () => {
                   type="button"
                   className="domain-hud-step-btn"
                   onClick={() =>
-                    dispatch({ type: 'SET_MIN_ORBIT_NODE_DISTANCE', minOrbitNodeDistance: minOrbitNodeDistance - 15 })
+                    dispatch({ type: 'SET_SPACING', spacingFactor: Math.max(0.4, +(spacingFactor - 0.2).toFixed(1)) })
                   }
-                  title="Decrease min distance on orbit (-15px)"
+                  title="Decrease spacing"
                 >
                   −
                 </button>
                 <input
                   type="range"
-                  min="50"
-                  max="400"
-                  step="5"
-                  value={minOrbitNodeDistance}
-                  onChange={(e) =>
-                    dispatch({
-                      type: 'SET_MIN_ORBIT_NODE_DISTANCE',
-                      minOrbitNodeDistance: parseInt(e.target.value, 10),
-                    })
-                  }
+                  min="0.5"
+                  max="3.0"
+                  step="0.1"
+                  value={spacingFactor}
+                  onChange={(e) => dispatch({ type: 'SET_SPACING', spacingFactor: parseFloat(e.target.value) })}
                   className="domain-hud-slider"
                 />
                 <button
                   type="button"
                   className="domain-hud-step-btn"
                   onClick={() =>
-                    dispatch({ type: 'SET_MIN_ORBIT_NODE_DISTANCE', minOrbitNodeDistance: minOrbitNodeDistance + 15 })
+                    dispatch({ type: 'SET_SPACING', spacingFactor: Math.min(3.5, +(spacingFactor + 0.2).toFixed(1)) })
                   }
-                  title="Increase min distance on orbit (+15px)"
+                  title="Increase spacing"
                 >
                   +
                 </button>
               </div>
             </div>
-          )}
 
-          {/* Auto-update graph & Relayout */}
-          <div className="display-popover-actions" style={{ paddingTop: '2px' }}>
-            <label
-              className={`domain-hud-checkbox-label ${autoRelayoutOnFilter ? 'is-active' : ''}`}
-              title={
-                autoRelayoutOnFilter
-                  ? 'Auto-relayout enabled: layout automatically refits when entities are hidden. Uncheck to keep node positions unchanged.'
-                  : 'Auto-relayout disabled: nodes are hidden in place without moving remaining nodes.'
-              }
-            >
-              <input
-                type="checkbox"
-                className="domain-hud-checkbox"
-                checked={autoRelayoutOnFilter}
-                onChange={(e) => dispatch({ type: 'SET_AUTO_RELAYOUT', enabled: e.target.checked })}
-              />
-              <span>🔄 Auto-recalc</span>
-            </label>
-            <button
-              type="button"
-              className="domain-hud-btn"
-              onClick={() => dispatch({ type: 'FORCE_RELAYOUT' })}
-              title="Recalculate graph layout now (Re-layout)"
-              style={{ padding: '2px 8px', fontSize: '11px', lineHeight: 1 }}
-            >
-              ⟳ Re-layout
-            </button>
+            {/* Orbit Distance Control */}
+            {layoutName.startsWith('concentric') && (
+              <div className="display-setting-row" title="Adjust distance between concentric orbits (100px - 900px)">
+                <div className="setting-label-row">
+                  <span className="setting-icon">🪐</span>
+                  <span className="setting-name">Orbit Distance</span>
+                  <span
+                    className="domain-hud-value-badge"
+                    onClick={() => dispatch({ type: 'SET_ORBIT_DISTANCE', orbitDistance: 280 })}
+                    title="Click to reset orbit distance to 280px"
+                  >
+                    {orbitDistance}px
+                  </span>
+                </div>
+                <div className="setting-slider-row">
+                  <button
+                    type="button"
+                    className="domain-hud-step-btn"
+                    onClick={() => dispatch({ type: 'SET_ORBIT_DISTANCE', orbitDistance: orbitDistance - 20 })}
+                    title="Decrease orbit distance (-20px)"
+                  >
+                    −
+                  </button>
+                  <input
+                    type="range"
+                    min="100"
+                    max="900"
+                    step="10"
+                    value={orbitDistance}
+                    onChange={(e) => dispatch({ type: 'SET_ORBIT_DISTANCE', orbitDistance: parseInt(e.target.value, 10) })}
+                    className="domain-hud-slider"
+                  />
+                  <button
+                    type="button"
+                    className="domain-hud-step-btn"
+                    onClick={() => dispatch({ type: 'SET_ORBIT_DISTANCE', orbitDistance: orbitDistance + 20 })}
+                    title="Increase orbit distance (+20px)"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Min Distance on Orbit Control */}
+            {layoutName.startsWith('concentric') && (
+              <div
+                className="display-setting-row"
+                title="Adjust minimum distance between nodes on the same orbit (50px - 400px)"
+              >
+                <div className="setting-label-row">
+                  <span className="setting-icon">↔️</span>
+                  <span className="setting-name">Min Distance on Orbit</span>
+                  <span
+                    className="domain-hud-value-badge"
+                    onClick={() => dispatch({ type: 'SET_MIN_ORBIT_NODE_DISTANCE', minOrbitNodeDistance: 125 })}
+                    title="Click to reset min orbit node distance to 125px"
+                  >
+                    {minOrbitNodeDistance}px
+                  </span>
+                </div>
+                <div className="setting-slider-row">
+                  <button
+                    type="button"
+                    className="domain-hud-step-btn"
+                    onClick={() =>
+                      dispatch({ type: 'SET_MIN_ORBIT_NODE_DISTANCE', minOrbitNodeDistance: minOrbitNodeDistance - 15 })
+                    }
+                    title="Decrease min distance on orbit (-15px)"
+                  >
+                    −
+                  </button>
+                  <input
+                    type="range"
+                    min="50"
+                    max="400"
+                    step="5"
+                    value={minOrbitNodeDistance}
+                    onChange={(e) =>
+                      dispatch({
+                        type: 'SET_MIN_ORBIT_NODE_DISTANCE',
+                        minOrbitNodeDistance: parseInt(e.target.value, 10),
+                      })
+                    }
+                    className="domain-hud-slider"
+                  />
+                  <button
+                    type="button"
+                    className="domain-hud-step-btn"
+                    onClick={() =>
+                      dispatch({ type: 'SET_MIN_ORBIT_NODE_DISTANCE', minOrbitNodeDistance: minOrbitNodeDistance + 15 })
+                    }
+                    title="Increase min distance on orbit (+15px)"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Auto-update graph & Relayout */}
+            <div className="display-popover-actions" style={{ paddingTop: '2px' }}>
+              <label
+                className={`domain-hud-checkbox-label ${autoRelayoutOnFilter ? 'is-active' : ''}`}
+                title={
+                  autoRelayoutOnFilter
+                    ? 'Auto-relayout enabled: layout automatically refits when entities are hidden. Uncheck to keep node positions unchanged.'
+                    : 'Auto-relayout disabled: nodes are hidden in place without moving remaining nodes.'
+                }
+              >
+                <input
+                  type="checkbox"
+                  className="domain-hud-checkbox"
+                  checked={autoRelayoutOnFilter}
+                  onChange={(e) => dispatch({ type: 'SET_AUTO_RELAYOUT', enabled: e.target.checked })}
+                />
+                <span>🔄 Auto-recalc</span>
+              </label>
+              <button
+                type="button"
+                className="domain-hud-btn"
+                onClick={() => dispatch({ type: 'FORCE_RELAYOUT' })}
+                title="Recalculate graph layout now (Re-layout)"
+                style={{ padding: '2px 8px', fontSize: '11px', lineHeight: 1 }}
+              >
+                ⟳ Re-layout
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* 2. Concentric Orbits Hierarchy */}
+      <div className="domain-orbit-legend-body" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+        {/* Concentric Orbits Hierarchy */}
         {layoutName.startsWith('concentric') ? (
           <>
             <div
@@ -938,9 +980,10 @@ export const InspectorSidebarView: React.FC = () => {
         ) : (
           <div style={{ padding: '14px 12px', fontSize: '11px', color: '#94a3b8', lineHeight: 1.45 }}>
             Concentric orbit rings and tier reordering are active when a <strong>Concentric</strong> layout algorithm is
-            selected above.
+            selected under ⚙️ settings.
           </div>
         )}
+      </div>
       </div>
     </FloatingPanel>
   );
@@ -1088,14 +1131,10 @@ export const InspectorSidebarView: React.FC = () => {
             onDeleteCustomGroup={(groupId) => dispatch({ type: 'DELETE_CUSTOM_GROUP', groupId })}
             onSelectGroupNode={(groupId) => dispatch({ type: 'SELECT_NODE_BY_ID', id: groupId })}
             customPresetsSlot={customPresetsSlot}
+            hasCustomAppearance={hasCustomAppearance}
             appearanceSection={
               !isMatrixMode ? (
-                <div className="visibility-section">
-                  <div className="visibility-section-header">
-                    <span className="visibility-section-title">Node & Edge Style</span>
-                    <span className="visibility-section-hint">Representation, sizing & labels</span>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                       {/* Node Content Mode */}
                       <div className="display-setting-row" title="Choose what is displayed inside each node shape">
@@ -1335,7 +1374,6 @@ export const InspectorSidebarView: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                </div>
               ) : undefined
             }
           />
