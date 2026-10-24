@@ -15,6 +15,12 @@ public static class RustSyntaxProfile
 
     public static readonly LanguageSyntaxProfile Instance = new()
     {
+        StructDeclarations = new[]
+        {
+            TreeSitterSyntax.Rust.StructItem,
+            TreeSitterSyntax.Rust.UnionItem
+        }.ToFrozenSet(),
+
         ClassDeclarations = new[]
         {
             TreeSitterSyntax.Rust.StructItem,
@@ -31,6 +37,9 @@ public static class RustSyntaxProfile
         {
             TreeSitterSyntax.Rust.EnumItem
         }.ToFrozenSet(),
+
+        DefaultEnumKind = "Enum",
+        DefaultStructKind = "Struct",
 
         ConstantDeclarations = new[]
         {

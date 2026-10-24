@@ -94,9 +94,11 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         SymbolStack.Push(RootSymbol);
     }
 
-    protected virtual string? MapNodeType(Node node) => null;
+    public string? PackageName { get; protected set; }
 
-    protected virtual string? ExtractIdentifier(Node node) => null;
+    protected virtual string? MapNodeType(Node node) => MapProfileNodeType(node);
+
+    protected virtual string? ExtractIdentifier(Node node) => ExtractProfileIdentifier(node);
 
     protected virtual void CollectCustomReferencesForSymbol(
         Node node,
@@ -105,10 +107,347 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
     {
     }
 
-    protected abstract string? FindCallName(Node callNode);
+    protected virtual string? FindCallName(Node callNode) => ExtractProfileCallName(callNode);
+
+    protected string? MapProfileNodeType(Node node)
+    {
+        var type = node.Type;
+
+        if (Profile.StringLiterals.Contains(type) && !WorkspaceConventions.IsFrontendFilePath(RelativePath))
+        {
+            if (NestedSqlParser.TryParseSql(CleanStringLiteral(node.Text), out _, out _))
+            {
+                return OntologyConstants.NodeLabels.Query;
+            }
+        }
+
+        if (Profile.StructDeclarations.Contains(type))
+        {
+            return Profile.DefaultStructKind;
+        }
+
+        if (Profile.EnumDeclarations.Contains(type))
+        {
+            return Profile.DefaultEnumKind;
+        }
+
+        if (Profile.ClassDeclarations.Contains(type))
+        {
+            return "Class";
+        }
+
+        if (Profile.InterfaceDeclarations.Contains(type))
+        {
+            return "Interface";
+        }
+
+        if (Profile.MethodDeclarations.Contains(type) || Profile.FunctionDeclarations.Contains(type))
+        {
+            return OntologyConstants.NodeLabels.Function;
+        }
+
+        return null;
+    }
+
+    protected string? ExtractProfileIdentifier(Node node)
+    {
+        if (Profile.StringLiterals.Contains(node.Type) && !WorkspaceConventions.IsFrontendFilePath(RelativePath))
+        {
+            if (NestedSqlParser.TryParseSql(CleanStringLiteral(node.Text), out var firstWord, out _))
+            {
+                return $"{firstWord} Query";
+            }
+        }
+
+        foreach (var fieldName in Profile.IdentifierFieldNames)
+        {
+            var fieldNode = node.GetField(fieldName);
+            if (fieldNode.IsValid())
+            {
+                return NormalizeIdentifierText(fieldNode.Text);
+            }
+        }
+
+        foreach (var child in node.Children)
+        {
+            if (child.IsValid() && Profile.IdentifierChildTypes.Contains(child.Type))
+            {
+                return NormalizeIdentifierText(child.Text);
+            }
+        }
+
+        foreach (var child in node.Children)
+        {
+            if (child.IsValid() && child.Type.Contains("name", StringComparison.Ordinal))
+            {
+                return NormalizeIdentifierText(child.Text);
+            }
+        }
+
+        return null;
+    }
+
+    protected string NormalizeIdentifierText(string rawText)
+    {
+        if (string.IsNullOrEmpty(rawText)) return rawText;
+        return Profile.IdentifierTrimChars.Length > 0
+            ? rawText.TrimStart(Profile.IdentifierTrimChars)
+            : rawText;
+    }
+
+    protected string? ExtractProfileCallName(Node callNode)
+    {
+        var type = callNode.Type;
+
+        if (Profile.ObjectCreationNodeTypes.Contains(type))
+        {
+            var typeNode = callNode.GetField(TreeSitterSyntax.Fields.Type);
+            if (typeNode.IsValid())
+            {
+                return typeNode.Text;
+            }
+
+            foreach (var child in callNode.Children)
+            {
+                if (child.IsValid() && Profile.IdentifierChildTypes.Contains(child.Type))
+                {
+                    return child.Text;
+                }
+            }
+            return null;
+        }
+
+        if (Profile.ConstructorSelfCallNodeTypes.Contains(type))
+        {
+            return "super";
+        }
+
+        // 1. Check direct CallMethodFields on callNode (e.g. Java method_invocation: name + object, PHP member_call_expression: name + object/scope)
+        string? methodName = null;
+        foreach (var methodField in Profile.CallMethodFields)
+        {
+            var mNode = callNode.GetField(methodField);
+            if (mNode.IsValid())
+            {
+                methodName = NormalizeIdentifierText(mNode.Text);
+                break;
+            }
+        }
+
+        if (!string.IsNullOrEmpty(methodName))
+        {
+            if (Profile.IncludeReceiverInCallName)
+            {
+                foreach (var recField in Profile.CallReceiverFields)
+                {
+                    var recNode = callNode.GetField(recField);
+                    if (recNode.IsValid())
+                    {
+                        return $"{recNode.Text}{Profile.CallMemberSeparator}{methodName}";
+                    }
+                }
+            }
+            return methodName;
+        }
+
+        // 2. Check 'function' field or first child (e.g. Go/Python/TS call_expression where function is identifier or selector/member_access)
+        var funcNode = callNode.GetField(TreeSitterSyntax.Fields.Function);
+        if (!funcNode.IsValid() && callNode.Children.Count > 0)
+        {
+            funcNode = callNode.Children[0];
+        }
+
+        if (funcNode.IsValid())
+        {
+            if (Profile.IdentifierChildTypes.Contains(funcNode.Type))
+            {
+                return NormalizeIdentifierText(funcNode.Text);
+            }
+
+            if (Profile.MemberAccessExpressions.Contains(funcNode.Type))
+            {
+                string? memberPart = null;
+                foreach (var mf in Profile.CallMethodFields)
+                {
+                    var fChild = funcNode.GetField(mf);
+                    if (fChild.IsValid())
+                    {
+                        memberPart = NormalizeIdentifierText(fChild.Text);
+                        break;
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(memberPart))
+                {
+                    if (Profile.IncludeReceiverInCallName)
+                    {
+                        foreach (var rf in Profile.CallReceiverFields)
+                        {
+                            var rChild = funcNode.GetField(rf);
+                            if (rChild.IsValid())
+                            {
+                                return $"{rChild.Text}{Profile.CallMemberSeparator}{memberPart}";
+                            }
+                        }
+                    }
+                    return memberPart;
+                }
+            }
+        }
+
+        foreach (var child in callNode.Children)
+        {
+            if (child.IsValid() && Profile.IdentifierChildTypes.Contains(child.Type))
+            {
+                return NormalizeIdentifierText(child.Text);
+            }
+        }
+
+        return null;
+    }
+
+    protected virtual void CollectProfileSymbolMetadata(Node node, SyntacticSymbol symbolNode)
+    {
+        // 1. If EntryPoint from an annotation/attribute, connect to the enclosing method/class
+        if (symbolNode.Kind == OntologyConstants.NodeLabels.EntryPoint && Profile.AnnotationNodeTypes.Contains(node.Type))
+        {
+            var enclosing = FindEnclosingDeclaration(node);
+            if (enclosing.IsValid())
+            {
+                var methodName = ExtractProfileIdentifier(enclosing);
+                if (!string.IsNullOrEmpty(methodName) &&
+                    !symbolNode.References.Any(r => r.Kind == "CALLS" && r.TargetName == methodName))
+                {
+                    symbolNode.References.Add(new Reference("", methodName, "CALLS"));
+                }
+            }
+        }
+
+        // 2. Class/Interface/Struct inheritance, implemented interfaces, and annotations
+        if (symbolNode.Kind is "Class" or "Interface" or "Struct")
+        {
+            if (Profile.SuperclassClauseNodeTypes.Count > 0)
+            {
+                foreach (var child in node.Children)
+                {
+                    if (child.IsValid() && Profile.SuperclassClauseNodeTypes.Contains(child.Type))
+                    {
+                        foreach (var typeChild in child.Children)
+                        {
+                            if (typeChild.IsValid() && Profile.IdentifierChildTypes.Contains(typeChild.Type))
+                            {
+                                symbolNode.References.Add(new Reference("", typeChild.Text, "INHERITS"));
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (Profile.InterfaceClauseNodeTypes.Count > 0)
+            {
+                foreach (var child in node.Children)
+                {
+                    if (child.IsValid() && Profile.InterfaceClauseNodeTypes.Contains(child.Type))
+                    {
+                        foreach (var typeChild in child.Children)
+                        {
+                            if (typeChild.IsValid() && (Profile.IdentifierChildTypes.Contains(typeChild.Type) || typeChild.Type == "scoped_identifier"))
+                            {
+                                symbolNode.References.Add(new Reference("", typeChild.Text, "IMPLEMENTS"));
+                            }
+                        }
+                    }
+                }
+            }
+
+            ExtractProfileAnnotations(node, symbolNode);
+        }
+
+        // 3. Function/Method annotations
+        if (symbolNode.Kind == OntologyConstants.NodeLabels.Function)
+        {
+            ExtractProfileAnnotations(node, symbolNode);
+        }
+    }
+
+    protected Node? FindEnclosingDeclaration(Node node)
+    {
+        var current = node.Parent;
+        while (current.IsValid())
+        {
+            var t = current.Type;
+            if (Profile.MethodDeclarations.Contains(t) ||
+                Profile.FunctionDeclarations.Contains(t) ||
+                Profile.ClassDeclarations.Contains(t) ||
+                Profile.InterfaceDeclarations.Contains(t) ||
+                Profile.StructDeclarations.Contains(t))
+            {
+                return current;
+            }
+            current = current.Parent;
+        }
+        return null;
+    }
+
+    protected void ExtractProfileAnnotations(Node node, SyntacticSymbol symbolNode)
+    {
+        if (Profile.AnnotationNodeTypes.Count == 0) return;
+
+        foreach (var child in node.Children)
+        {
+            if (!child.IsValid()) continue;
+
+            if (Profile.AnnotationNodeTypes.Contains(child.Type))
+            {
+                AttachAnnotationReference(child, symbolNode);
+            }
+            else if (Profile.AnnotationContainerNodeTypes.Contains(child.Type))
+            {
+                foreach (var grandChild in child.Children)
+                {
+                    if (grandChild.IsValid() && Profile.AnnotationNodeTypes.Contains(grandChild.Type))
+                    {
+                        AttachAnnotationReference(grandChild, symbolNode);
+                    }
+                }
+            }
+        }
+    }
+
+    private void AttachAnnotationReference(Node annotationNode, SyntacticSymbol symbolNode)
+    {
+        var id = ExtractAnnotationIdentifier(annotationNode);
+        if (!string.IsNullOrEmpty(id))
+        {
+            symbolNode.References.Add(new Reference("", id, "ANNOTATED_WITH"));
+        }
+    }
+
+    protected string? ExtractAnnotationIdentifier(Node annotationNode)
+    {
+        foreach (var child in annotationNode.Children)
+        {
+            if (child.IsValid() && (Profile.IdentifierChildTypes.Contains(child.Type) || child.Type is "scoped_identifier" or "qualified_name"))
+            {
+                return child.Text;
+            }
+        }
+        var nameField = annotationNode.GetField(TreeSitterSyntax.Fields.Name);
+        return nameField.IsValid() ? nameField.Text : null;
+    }
 
     protected override void VisitNode(Node node, int depth)
     {
+        if (Profile.PackageDeclarationNodeTypes.Contains(node.Type))
+        {
+            var pkgId = ExtractAnnotationIdentifier(node) ?? ExtractProfileIdentifier(node);
+            if (!string.IsNullOrEmpty(pkgId))
+            {
+                PackageName = pkgId;
+            }
+        }
+
         if (SequenceDetector.HasRules)
         {
             SequenceDetector.Push(node);
@@ -132,13 +471,13 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
             {
                 foreach (var libParser in LibraryParsers)
                 {
-                    libParser.CollectReferences(node, "", currentScope.References, null!);
+                    libParser.CollectReferences(node, "", currentScope.References, Context!);
                     if (currentScope.Kind == OntologyConstants.NodeLabels.Query)
                     {
                         var enclosingFunc = SymbolStack.FirstOrDefault(s => s.Kind == OntologyConstants.NodeLabels.Function);
                         if (enclosingFunc != null)
                         {
-                            libParser.CollectReferences(node, "", enclosingFunc.References, null!);
+                            libParser.CollectReferences(node, "", enclosingFunc.References, Context!);
                         }
                     }
                 }
@@ -167,7 +506,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
             return;
         }
 
-        if (Profile.ClassDeclarations.Contains(type))
+        if (Profile.ClassDeclarations.Contains(type) || Profile.EnumDeclarations.Contains(type) || Profile.StructDeclarations.Contains(type))
         {
             VisitClassDeclaration(node, depth);
             return;
@@ -242,7 +581,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
                 }
             }
 
-            var kind = lp.MapNodeType(node, null!);
+            var kind = lp.MapNodeType(node, Context!);
             if (kind != null) return kind;
         }
 
@@ -260,7 +599,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
             }
             else
             {
-                isMatch = lp.MapNodeType(node, null!) == kind;
+                isMatch = lp.MapNodeType(node, Context!) == kind;
             }
 
             if (isMatch)
@@ -323,8 +662,8 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         // Collect references for the symbol node itself (library references & SQL dependencies)
         foreach (var libParser in LibraryParsers)
         {
-            libParser.CollectReferences(node, "", syntacticNode.References, null!);
-            libParser.EnrichSymbol(node, syntacticNode, null!);
+            libParser.CollectReferences(node, "", syntacticNode.References, Context!);
+            libParser.EnrichSymbol(node, syntacticNode, Context!);
         }
 
         if (kind == OntologyConstants.NodeLabels.Topic &&
@@ -354,6 +693,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
             }
         }
 
+        CollectProfileSymbolMetadata(node, syntacticNode);
         CollectCustomReferencesForSymbol(node, syntacticNode, parent);
 
         baseVisit();
@@ -389,7 +729,83 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
     protected override void VisitVariableDeclaration(Node node, int depth)
     {
+        if (Profile.VariableDeclaratorNodeTypes.Count > 0)
+        {
+            CollectProfileVariables(node);
+        }
         VisitSymbolOrBase(node, depth, () => base.VisitVariableDeclaration(node, depth));
+    }
+
+    protected virtual void CollectProfileVariables(Node node)
+    {
+        var typeNode = node.GetField(TreeSitterSyntax.Fields.Type);
+        if (!typeNode.IsValid())
+        {
+            foreach (var child in node.Children)
+            {
+                if (child.IsValid() && Profile.IdentifierChildTypes.Contains(child.Type))
+                {
+                    typeNode = child;
+                    break;
+                }
+            }
+        }
+
+        var typeName = typeNode.IsValid() ? typeNode.Text : "var";
+        var isConstant = Profile.ConstantDeclarations.Contains(node.Type) || HasProfileConstantModifier(node);
+        var scope = SymbolStack.Peek().Kind switch
+        {
+            "Class" or "Interface" or "Struct" => "class",
+            _ => "local"
+        };
+
+        foreach (var declarator in node.Children)
+        {
+            if (declarator.IsValid() && Profile.VariableDeclaratorNodeTypes.Contains(declarator.Type))
+            {
+                var varName = ExtractProfileIdentifier(declarator);
+                if (!string.IsNullOrEmpty(varName))
+                {
+                    var valNode = declarator.GetField(TreeSitterSyntax.Fields.Value);
+                    var initText = valNode.IsValid() ? valNode.Text : "";
+
+                    RawVariables.Add(new RawVariable(
+                        varName,
+                        initText,
+                        scope,
+                        isConstant,
+                        "",
+                        declarator.StartPosition.Row + 1,
+                        declarator.EndPosition.Row + 1,
+                        declarator.StartPosition.Column + 1,
+                        declarator.EndPosition.Column + 1
+                    ));
+
+                    RawTypeBindings.Add(new RawTypeBinding(varName, typeName, "", SymbolStack.Peek().Name));
+                }
+            }
+        }
+    }
+
+    protected bool HasProfileConstantModifier(Node node)
+    {
+        if (Profile.ConstantModifierKeywords.Count == 0) return false;
+        foreach (var child in node.Children)
+        {
+            if (!child.IsValid()) continue;
+            if (Profile.ConstantModifierKeywords.Contains(child.Text)) return true;
+            if (Profile.AnnotationContainerNodeTypes.Contains(child.Type))
+            {
+                foreach (var mod in child.Children)
+                {
+                    if (mod.IsValid() && Profile.ConstantModifierKeywords.Contains(mod.Text))
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     protected override void VisitParameter(Node node, int depth)
@@ -399,7 +815,64 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
     protected override void VisitImportStatement(Node node, int depth)
     {
+        if (Profile.ImportIdentifierChildTypes.Count > 0 && !Profile.PackageDeclarationNodeTypes.Contains(node.Type))
+        {
+            CollectProfileImport(node);
+        }
         VisitSymbolOrBase(node, depth, () => base.VisitImportStatement(node, depth));
+    }
+
+    protected virtual void CollectProfileImport(Node node)
+    {
+        string? importText = null;
+        foreach (var pf in Profile.ImportPathFields)
+        {
+            var fNode = node.GetField(pf);
+            if (fNode.IsValid())
+            {
+                importText = CleanStringLiteral(fNode.Text);
+                break;
+            }
+        }
+
+        if (string.IsNullOrEmpty(importText))
+        {
+            foreach (var child in node.Children)
+            {
+                if (child.IsValid() && Profile.ImportIdentifierChildTypes.Contains(child.Type))
+                {
+                    importText = CleanStringLiteral(child.Text);
+                    break;
+                }
+            }
+        }
+
+        if (!string.IsNullOrEmpty(importText))
+        {
+            var importType = FileParser.ResolveImportType(importText, RelativePath, AbsoluteWorkspacePath);
+            RawImports.Add(new RawImport(importText, "", importType));
+            ResolveAndInjectLibraryParser(importText);
+        }
+    }
+
+    protected override void VisitInheritanceClause(Node node, int depth)
+    {
+        var currentScope = SymbolStack.Peek();
+        if (currentScope.Kind != "file")
+        {
+            foreach (var child in node.Children)
+            {
+                if (child.IsValid() && (child.Type.Contains("identifier", StringComparison.Ordinal) || child.Type.Contains("name", StringComparison.Ordinal)))
+                {
+                    var baseName = child.Text;
+                    var refKind = baseName.StartsWith('I') && baseName.Length > 1 && char.IsUpper(baseName[1])
+                        ? "IMPLEMENTS"
+                        : "INHERITS";
+                    currentScope.References.Add(new Reference("", baseName, refKind));
+                }
+            }
+        }
+        base.VisitInheritanceClause(node, depth);
     }
 
     protected override void VisitDefault(Node node, int depth)
@@ -442,7 +915,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
             foreach (var libParser in LibraryParsers)
             {
-                libParser.CollectReferences(node, "", currentScope.References, null!);
+                libParser.CollectReferences(node, "", currentScope.References, Context!);
             }
 
             var callName = FindCallName(node);
@@ -650,6 +1123,14 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         if (string.IsNullOrEmpty(text)) return "";
         var s = text.Trim();
 
+        if (s.StartsWith("r#\"", StringComparison.Ordinal) && s.EndsWith("\"#", StringComparison.Ordinal) && s.Length >= 5)
+        {
+            return s[3..^2];
+        }
+        if (s.StartsWith("r##\"", StringComparison.Ordinal) && s.EndsWith("\"##", StringComparison.Ordinal) && s.Length >= 7)
+        {
+            return s[4..^3];
+        }
         if (s.StartsWith("\"\"\"") && s.EndsWith("\"\"\"") && s.Length >= 6)
         {
             return s[3..^3].Trim('\r', '\n');
@@ -670,7 +1151,12 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         {
             return s[1..^1];
         }
+        if (s.StartsWith('`') && s.EndsWith('`') && s.Length >= 2)
+        {
+            return s[1..^1];
+        }
 
         return s;
     }
 }
+

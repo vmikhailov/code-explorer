@@ -89,6 +89,16 @@ public static class GoSyntaxProfile
         ElementAccessExpressions = new[]
         {
             "index_expression"
+        }.ToFrozenSet(),
+
+        IncludeReceiverInCallName = false,
+
+        ImportIdentifierChildTypes = new[]
+        {
+            "interpreted_string_literal",
+            "string_literal",
+            "raw_string_literal"
         }.ToFrozenSet()
     };
 }
+
