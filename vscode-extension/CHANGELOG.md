@@ -5,6 +5,31 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.57.0] - 2026-10-24
+
+### Added
+- **Universal `<BaseGraphMap />` & Migrated `ProjectMapView`**:
+  - Extracted universal `<BaseGraphMap />` component (`BaseGraphMap.tsx`) unifying layout engines, HUD controls, search, multi-select grouping, orbit management, and right-docked sidebar across `Architecture Map` and `Project Map`.
+  - Migrated `ProjectMapView` onto `<BaseGraphMap />` with `Concentric: Barycentric` layout, `√Weight` node sizing, and `Icon + Metric` (`19f`, `7f`) content mode by default.
+- **Standalone `Architecture Matrix` View**:
+  - Extracted **Architecture Matrix** (`codeExplorer.openArchitectureMatrix`) as a dedicated view in the left **Architecture Diagrams** sidebar tree, removing the legacy `Grid` mode (`DomainGridView`) and `Gates` tab from the map sidebar.
+- **Declarative 6-Zone Inspector (`<DeclarativeInspector />`) & Tier Explainability**:
+  - Added schema-driven 6-zone node inspector (`inspectorSchema.ts`, `DeclarativeInspector.tsx`) with `tierReason` explainability under the Tier badge explaining why each node was placed on its orbit.
+- **Semantic Node Shapes, `Concentric: Barycentric` Layout & Split HUD Menus**:
+  - Added semantic Cytoscape shapes (`ellipse` for executable/code nodes and modules vs `round-rectangle` for databases, tables, procedures, topics, and external services).
+  - Added `Node Content` (`Icon Only`, `Icon + Code`, `Icon + Metric`) and `Node Size` (`Uniform`, `√Weight`, `Connections`) modes, plus `🪐 Concentric: Barycentric` layout.
+  - Split the HUD display menu into two dedicated menus: **`📐 View`** (layout & visual representation types) and **`🎛️ Parameters`** (sliders & tuning), fixing left-edge clipping.
+
+### Fixed
+- **Project Map Module Partitioning, Visual Differentiation & Edge Lifting**:
+  - Fixed path normalization in `ArchitectureViewEngine.ProjectMap` so `EntryPoint`, `Endpoint`, `Member`, and `Query` nodes with absolute paths are matched alongside workspace-relative `File`, `Type`, and `Function` nodes.
+  - Included `TRIGGERS` edges and synthesized `USES_TYPE` edges from `Type->Member` (`m.data_type`) and `EntryPoint` handlers (capturing C# constructor DI and MediatR command/handler dependencies).
+  - Filtered out non-code, boilerplate, and generated files (`GlobalUsings.cs`, `appsettings*.json`, `Migrations/`, `*.Designer.cs`, `*ModelSnapshot.cs`, `wwwroot/`) and internal MediatR pseudo-topics (`ws:top:mediatr:*`).
+  - Added automatic depth-2 submodule expansion when a single top-level folder holds $\ge 45\%$ of project files (e.g. expanding `Application/` into `Application/Commands`, `Application/Queries`, `Application/DomainEventHandlers`, etc.).
+  - Differentiated Project Map modules visually by architectural tier (`Ingress`, `AppLogic`, `Core`, `DataAccess`, `Foundation`) with distinct colors, icons, and tags.
+
+---
+
 ## [1.56.0] - 2026-10-22
 
 ### Added

@@ -4,6 +4,7 @@ import dagre from 'cytoscape-dagre';
 import { GraphData, GraphNode, GraphEdge, isProjectKind } from '../../../../proto/types';
 import {
   computeEchelonTiers,
+  computeEchelonTierReasons,
   computeConcentricLayout,
   ConcentricNodeInput,
   ConcentricEdgeInput,
@@ -27,6 +28,7 @@ import {
   moveKindToOrbit,
 } from '../layout/orbitConfig';
 import { computeConcentricEquispacedLayout } from '../layout/concentricEquispacedLayout';
+import { computeConcentricBarycentricLayout } from '../layout/projectMapLayout';
 import { computeConcentricPolarForceLayout } from '../layout/concentricPolarForceLayout';
 import { computeConcentricSectorsLayout, describeAnnularSector } from '../layout/concentricSectorsLayout';
 import { computeSwimlanesLayout, SwimlaneGuide } from '../layout/swimlanesLayout';
@@ -35,10 +37,8 @@ import { computeHivePlotLayout, HiveAxisGuide } from '../layout/hivePlotLayout';
 import { DomainMatrixView } from './DomainMatrixView';
 import { DomainOverrideModal } from './DomainOverrideModal';
 import { attachNormalizedCytoscapeWheel } from '../utils/wheelZoom';
-import { DomainGridView } from '../domain/components/DomainGridView';
 import { DomainInspector } from '../domain/components/DomainInspector';
 import { DomainVisibilityPanel } from '../domain/components/DomainVisibilityPanel';
-import { DomainGatesPanel } from '../domain/components/DomainGatesPanel';
 import { matchesSearchTokens } from '../domain/searchUtils';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { FloatingPanel } from './FloatingPanel';
@@ -51,9 +51,8 @@ import {
   EyeOffIcon,
   XIcon,
   InfoIcon,
-  ShieldIcon,
 } from './Icons';
-import { DomainGroupSummary, PresentationMode, CustomNodeGroup } from '../domain/types';
+import { DomainGroupSummary, CustomNodeGroup, NodeContentMode, NodeSizingMode } from '../domain/types';
 import { useCommand } from '../commands/CommandContext';
 import {
   HideNodeCommand,
@@ -96,6 +95,7 @@ function writeDomainSessionValue(key: string, value: string): void {
 export type DomainLayoutName =
   | 'concentric'
   | 'concentric-equispaced'
+  | 'concentric-barycentric'
   | 'concentric-polar-force'
   | 'concentric-sectors'
   | 'swimlanes'
@@ -107,6 +107,7 @@ export type DomainLayoutName =
 export type EdgeCurveMode = 'bezier' | 'straight' | 'avoid-inner';
 
 export interface DomainArchitectureViewProps {
+  mode?: 'map' | 'matrix';
   graph: GraphData | null;
   serverHttpUrl?: string;
   onFocusInFlow?: (projectName: string) => void;
@@ -119,6 +120,22 @@ export interface DomainArchitectureViewProps {
   availableDomains?: string[];
   onRefresh?: () => void;
   gateEditorRequest?: { gateId?: string; timestamp: number } | null;
+  /** Optional custom HUD brand label (e.g., 'C3 Internal Structure'). */
+  hudLabel?: string;
+  /** Optional custom HUD title (e.g., 'Project Map'). */
+  hudTitle?: string;
+  /** Optional custom controls injected into the HUD primary row (e.g., Project selector, quick filters). */
+  headerSlot?: React.ReactNode;
+  /** Default layout algorithm when none is saved under storagePrefix. */
+  defaultLayoutName?: DomainLayoutName;
+  /** Default node sizing mode when none is saved under storagePrefix. */
+  defaultNodeSizingMode?: NodeSizingMode;
+  /** Default node content mode when none is saved under storagePrefix. */
+  defaultNodeContentMode?: NodeContentMode;
+  /** Default hidden entity kinds when none is saved under storagePrefix. */
+  defaultHiddenTypes?: EntityKind[];
+  /** Storage key prefix to isolate persisted settings per view. */
+  storagePrefix?: string;
 }
 
 export interface DomainProjectInfo {
@@ -143,6 +160,9 @@ export type EntityKind =
   | 'Library'
   | 'TestSuite'
   | 'Database'
+  | 'Table'
+  | 'Procedure'
+  | 'Module'
   | 'Topic'
   | 'CloudService'
   | 'PeerMesh'
@@ -171,8 +191,10 @@ export interface SelectedNodeDetail {
   outboundCallsCount: number;
   dbCount: number;
   messagingCount: number;
+  fileCount?: number;
   tier?: number;
   tierLabel?: string;
+  tierReason?: string;
   isGroup?: boolean;
   groupType?: 'category' | 'custom';
   groupKind?: EntityKind;
@@ -233,13 +255,13 @@ export { getNodeBadgeSvgDataUri };
 
 export const GROUP_NODE_SIZE = 68;
 
-// Cytoscape stylesheets matching the circular Neo4j / graph ontology styling
+// Cytoscape stylesheets matching the semantic graph ontology styling (circles for code/services, rounded rectangles for resources)
 const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
-  // Base Node Style (Circular Discs)
+  // Base Node Style
   {
     selector: 'node',
     style: {
-      'shape': 'ellipse',
+      'shape': 'data(shape)' as any,
       'width': 'data(size)',
       'height': 'data(size)',
       'background-color': 'data(bgColor)',
@@ -272,91 +294,11 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
       'transition-duration': 0.2,
     },
   },
-  // Ingress / App
-  {
-    selector: 'node[kind = "Ingress"], node[kind = "App"], node[kind = "FrontendApp"]',
-    style: {
-      'background-color': '#0288d1',
-      'border-color': '#01579b',
-    },
-  },
-  // Service
-  {
-    selector: 'node[kind = "Service"]',
-    style: {
-      'background-color': '#e53935',
-      'border-color': '#7f1d1d',
-    },
-  },
-  // Worker
-  {
-    selector: 'node[kind = "Worker"]',
-    style: {
-      'background-color': '#c026d3',
-      'border-color': '#86198f',
-    },
-  },
-  // CliTool
-  {
-    selector: 'node[kind = "CliTool"]',
-    style: {
-      'background-color': '#d97706',
-      'border-color': '#92400e',
-    },
-  },
-  // TestSuite
-  {
-    selector: 'node[kind = "TestSuite"]',
-    style: {
-      'background-color': '#059669',
-      'border-color': '#047857',
-    },
-  },
-  // Library
-  {
-    selector: 'node[kind = "Library"]',
-    style: {
-      'background-color': '#475569',
-      'border-color': '#1e293b',
-    },
-  },
-  // Database
-  {
-    selector: 'node[kind = "Database"]',
-    style: {
-      'background-color': '#7b1fa2',
-      'border-color': '#4a148c',
-    },
-  },
-  // Topic
-  {
-    selector: 'node[kind = "Topic"]',
-    style: {
-      'background-color': '#f59e0b',
-      'border-color': '#b45309',
-    },
-  },
-  // External
-  {
-    selector: 'node[kind = "ExternalService"]',
-    style: {
-      'background-color': '#26a69a',
-      'border-color': '#004d40',
-    },
-  },
-  // Group Node
-  {
-    selector: 'node[kind = "Group"]',
-    style: {
-      'background-color': '#4f46e5',
-      'border-color': '#312e81',
-    },
-  },
   {
     selector: 'node.group-node',
     style: {
-      'width': GROUP_NODE_SIZE,
-      'height': GROUP_NODE_SIZE,
+      'width': 'data(size)',
+      'height': 'data(size)',
       'border-width': 4.5,
       'border-style': 'double',
     },
@@ -980,6 +922,7 @@ export function applyEdgeCurveMode(
 }
 
 export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
+  mode = 'map',
   graph,
   serverHttpUrl,
   onFocusInFlow,
@@ -990,8 +933,16 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   onSetDomainOverride,
   availableDomains = [],
   onRefresh,
-  gateEditorRequest,
+  hudLabel,
+  hudTitle,
+  headerSlot,
+  defaultLayoutName = 'concentric',
+  defaultNodeSizingMode = 'uniform',
+  defaultNodeContentMode = 'icon',
+  defaultHiddenTypes = ['ExternalService', 'Library'],
+  storagePrefix = 'ce_domain_',
 }) => {
+  const isMatrixMode = mode === 'matrix';
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
   const [isCyReady, setIsCyReady] = useState(false);
@@ -1011,43 +962,60 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const [overrideModalOpen, setOverrideModalOpen] = useState(false);
   const [overrideTargetService, setOverrideTargetService] = useState('');
 
-  const [presentationMode, setPresentationMode] = useState<PresentationMode>(() => {
-    try {
-      const saved = localStorage.getItem('ce_domain_presentation_mode');
-      if (saved === 'graph' || saved === 'grid' || saved === 'matrix') {
-        return saved as PresentationMode;
-      }
-    } catch { }
-    return 'graph';
-  });
-
-  const handlePresentationModeChange = useCallback((mode: PresentationMode) => {
-    setPresentationMode(mode);
-    try {
-      localStorage.setItem('ce_domain_presentation_mode', mode);
-    } catch { }
-  }, []);
-
   const [searchQuery, setSearchQuery] = useState('');
   const searchQueryRef = useRef<string>(searchQuery);
   searchQueryRef.current = searchQuery;
   const [layoutName, setLayoutName] = useState<DomainLayoutName>(() => {
     try {
-      const saved = localStorage.getItem('ce_domain_layout');
+      const saved = localStorage.getItem(`${storagePrefix}layout`);
       if (
         saved === 'cose' ||
         saved === 'concentric' ||
         saved === 'concentric-equispaced' ||
+        saved === 'concentric-barycentric' ||
         saved === 'concentric-polar-force' ||
         saved === 'concentric-sectors' ||
         saved === 'swimlanes' ||
         saved === 'clusters' ||
-        saved === 'hive' ||
-        saved === 'matrix'
+        saved === 'hive'
       ) return saved as DomainLayoutName;
     } catch { }
-    return 'concentric';
+    return defaultLayoutName;
   });
+
+  const [nodeContentMode, setNodeContentMode] = useState<NodeContentMode>(() => {
+    try {
+      const saved = localStorage.getItem(`${storagePrefix}node_content_mode`);
+      if (saved === 'icon' || saved === 'icon-code' || saved === 'metric') {
+        return saved as NodeContentMode;
+      }
+    } catch { }
+    return defaultNodeContentMode;
+  });
+
+  const handleNodeContentModeChange = useCallback((mode: NodeContentMode) => {
+    setNodeContentMode(mode);
+    try {
+      localStorage.setItem(`${storagePrefix}node_content_mode`, mode);
+    } catch { }
+  }, [storagePrefix]);
+
+  const [nodeSizingMode, setNodeSizingMode] = useState<NodeSizingMode>(() => {
+    try {
+      const saved = localStorage.getItem(`${storagePrefix}node_sizing_mode`);
+      if (saved === 'uniform' || saved === 'sqrt-weight' || saved === 'degree') {
+        return saved as NodeSizingMode;
+      }
+    } catch { }
+    return defaultNodeSizingMode;
+  });
+
+  const handleNodeSizingModeChange = useCallback((mode: NodeSizingMode) => {
+    setNodeSizingMode(mode);
+    try {
+      localStorage.setItem(`${storagePrefix}node_sizing_mode`, mode);
+    } catch { }
+  }, [storagePrefix]);
   const [edgeCurveMode, setEdgeCurveMode] = useState<EdgeCurveMode>(() => {
     try {
       const saved = localStorage.getItem('ce_edge_curve_mode');
@@ -1263,17 +1231,17 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   }, [applySearchHighlight]);
   const [hiddenTypes, setHiddenTypes] = useState<Set<EntityKind>>(() => {
     try {
-      const saved = readDomainSessionValue('ce_domain_hidden_types_v2');
+      const saved = readDomainSessionValue(`${storagePrefix}hidden_types_v2`);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return new Set<EntityKind>(parsed);
       }
     } catch { }
-    return new Set<EntityKind>(['ExternalService', 'Library']);
+    return new Set<EntityKind>(defaultHiddenTypes);
   });
   const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(() => {
     try {
-      const saved = readDomainSessionValue('ce_domain_hidden_node_ids');
+      const saved = readDomainSessionValue(`${storagePrefix}hidden_node_ids`);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return new Set<string>(parsed);
@@ -1283,7 +1251,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   });
   const [hiddenOrbitTiers, setHiddenOrbitTiers] = useState<Set<number>>(() => {
     try {
-      const saved = readDomainSessionValue('ce_domain_hidden_orbit_tiers');
+      const saved = readDomainSessionValue(`${storagePrefix}hidden_orbit_tiers`);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return new Set<number>(parsed);
@@ -1293,7 +1261,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   });
   const [forcedVisibleNodeIds, setForcedVisibleNodeIds] = useState<Set<string>>(() => {
     try {
-      const saved = readDomainSessionValue('ce_domain_forced_visible_nodes');
+      const saved = readDomainSessionValue(`${storagePrefix}forced_visible_nodes`);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return new Set<string>(parsed);
@@ -1303,14 +1271,14 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   });
   const [hideSingleConnectionDbs, setHideSingleConnectionDbs] = useState<boolean>(() => {
     try {
-      const saved = readDomainSessionValue('ce_hide_single_connection_dbs');
+      const saved = readDomainSessionValue(`${storagePrefix}hide_single_connection_dbs`);
       return saved !== null ? saved === 'true' : false;
     } catch { }
     return false;
   });
   const [hideIsolatedNodes, setHideIsolatedNodes] = useState<boolean>(() => {
     try {
-      const saved = readDomainSessionValue('ce_hide_isolated_nodes');
+      const saved = readDomainSessionValue(`${storagePrefix}hide_isolated_nodes`);
       return saved !== null ? saved === 'true' : false;
     } catch { }
     return false;
@@ -1318,33 +1286,33 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
   // Sync hidden and filter states to in-memory webview session state
   useEffect(() => {
-    writeDomainSessionValue('ce_domain_hidden_types_v2', JSON.stringify([...hiddenTypes]));
-  }, [hiddenTypes]);
+    writeDomainSessionValue(`${storagePrefix}hidden_types_v2`, JSON.stringify([...hiddenTypes]));
+  }, [hiddenTypes, storagePrefix]);
 
   useEffect(() => {
-    writeDomainSessionValue('ce_domain_hidden_node_ids', JSON.stringify([...hiddenNodeIds]));
-  }, [hiddenNodeIds]);
+    writeDomainSessionValue(`${storagePrefix}hidden_node_ids`, JSON.stringify([...hiddenNodeIds]));
+  }, [hiddenNodeIds, storagePrefix]);
 
   useEffect(() => {
-    writeDomainSessionValue('ce_domain_hidden_orbit_tiers', JSON.stringify([...hiddenOrbitTiers]));
-  }, [hiddenOrbitTiers]);
+    writeDomainSessionValue(`${storagePrefix}hidden_orbit_tiers`, JSON.stringify([...hiddenOrbitTiers]));
+  }, [hiddenOrbitTiers, storagePrefix]);
 
   useEffect(() => {
-    writeDomainSessionValue('ce_domain_forced_visible_nodes', JSON.stringify([...forcedVisibleNodeIds]));
-  }, [forcedVisibleNodeIds]);
+    writeDomainSessionValue(`${storagePrefix}forced_visible_nodes`, JSON.stringify([...forcedVisibleNodeIds]));
+  }, [forcedVisibleNodeIds, storagePrefix]);
 
   useEffect(() => {
-    writeDomainSessionValue('ce_hide_single_connection_dbs', String(hideSingleConnectionDbs));
-  }, [hideSingleConnectionDbs]);
+    writeDomainSessionValue(`${storagePrefix}hide_single_connection_dbs`, String(hideSingleConnectionDbs));
+  }, [hideSingleConnectionDbs, storagePrefix]);
 
   useEffect(() => {
-    writeDomainSessionValue('ce_hide_isolated_nodes', String(hideIsolatedNodes));
-  }, [hideIsolatedNodes]);
+    writeDomainSessionValue(`${storagePrefix}hide_isolated_nodes`, String(hideIsolatedNodes));
+  }, [hideIsolatedNodes, storagePrefix]);
 
   // Grouped Types & Custom Groups (held in in-memory webview session state)
   const [groupedTypes, setGroupedTypes] = useState<Set<EntityKind>>(() => {
     try {
-      const saved = readDomainSessionValue('ce_domain_grouped_types');
+      const saved = readDomainSessionValue(`${storagePrefix}grouped_types`);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return new Set<EntityKind>(parsed);
@@ -1355,7 +1323,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
   const [customGroups, setCustomGroups] = useState<CustomNodeGroup[]>(() => {
     try {
-      const saved = readDomainSessionValue('ce_domain_custom_groups');
+      const saved = readDomainSessionValue(`${storagePrefix}custom_groups`);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return parsed;
@@ -1372,12 +1340,12 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
   // Sync grouped types and custom groups to in-memory webview session state
   useEffect(() => {
-    writeDomainSessionValue('ce_domain_grouped_types', JSON.stringify([...groupedTypes]));
-  }, [groupedTypes]);
+    writeDomainSessionValue(`${storagePrefix}grouped_types`, JSON.stringify([...groupedTypes]));
+  }, [groupedTypes, storagePrefix]);
 
   useEffect(() => {
-    writeDomainSessionValue('ce_domain_custom_groups', JSON.stringify(customGroups));
-  }, [customGroups]);
+    writeDomainSessionValue(`${storagePrefix}custom_groups`, JSON.stringify(customGroups));
+  }, [customGroups, storagePrefix]);
 
   // Sync multi-selected classes to Cytoscape
   useEffect(() => {
@@ -1502,34 +1470,38 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     }
   }, []);
 
-  // Display Settings Popover state
+  // View Types & Display Parameters Popover states
+  const [isViewMenuOpen, setIsViewMenuOpen] = useState(false);
+  const viewMenuRef = useRef<HTMLDivElement>(null);
   const [isDisplayOpen, setIsDisplayOpen] = useState(false);
   const displayMenuRef = useRef<HTMLDivElement>(null);
 
-  // Close display popover on outside click
+  // Close view/display popovers on outside click
   useEffect(() => {
-    if (!isDisplayOpen) return;
+    if (!isViewMenuOpen && !isDisplayOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (displayMenuRef.current && !displayMenuRef.current.contains(e.target as Node)) {
+      if (isViewMenuOpen && viewMenuRef.current && !viewMenuRef.current.contains(e.target as Node)) {
+        setIsViewMenuOpen(false);
+      }
+      if (isDisplayOpen && displayMenuRef.current && !displayMenuRef.current.contains(e.target as Node)) {
         setIsDisplayOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isDisplayOpen]);
+  }, [isViewMenuOpen, isDisplayOpen]);
 
   // Unified Right Side Panel State
-  const [rightSidebarTab, setRightSidebarTab] = useState<'info' | 'orbits' | 'visibility' | 'gates'>(() => {
+  const [rightSidebarTab, setRightSidebarTab] = useState<'info' | 'orbits' | 'visibility'>(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
         const saved = localStorage.getItem('ce_domain_sidebar_tab');
-        if (saved === 'info' || saved === 'orbits' || saved === 'visibility' || saved === 'gates') return saved;
+        if (saved === 'info' || saved === 'orbits' || saved === 'visibility') return saved;
         if (saved === 'hidden') return 'visibility';
       } catch {}
     }
     return 'info';
   });
-  const [gatesBadgeText, setGatesBadgeText] = useState<string>('');
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState<boolean>(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
@@ -1540,7 +1512,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     return true;
   });
 
-  const handleSidebarTabChange = useCallback((tab: 'info' | 'orbits' | 'visibility' | 'gates') => {
+  const handleSidebarTabChange = useCallback((tab: 'info' | 'orbits' | 'visibility') => {
     setRightSidebarTab(tab);
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
@@ -1577,13 +1549,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       }
     }
   }, [selectedNode, selectedEdge]);
-
-  // Handle external OPEN_GATE_EDITOR requests (from left tree view or commands)
-  useEffect(() => {
-    if (!gateEditorRequest) return;
-    handleToggleSidebar(true);
-    handleSidebarTabChange('gates');
-  }, [gateEditorRequest, handleToggleSidebar, handleSidebarTabChange]);
 
   // Restore all hidden entities across individual hides, category filters, and orbits
   const restoreAllHiddenNodes = useCallback(() => {
@@ -2017,20 +1982,38 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         node.properties?.displayTag === ':CLI' ||
         node.properties?.entity_type === 'clitool';
 
+      const resKind = (node.properties?.resource_kind || '').toLowerCase();
+      const isTable =
+        node.kind === 'Table' ||
+        resKind === 'table' ||
+        node.properties?.entity_type === 'table';
+
+      const isProc =
+        node.kind === 'Procedure' ||
+        resKind === 'procedure' ||
+        node.properties?.entity_type === 'procedure';
+
       const isDb =
-        node.kind === 'Database' ||
-        node.properties?.role === 'database' ||
-        node.properties?.role === 'Database' ||
-        node.properties?.entity_type === 'database';
+        !isTable &&
+        !isProc &&
+        (node.kind === 'Database' ||
+          resKind === 'database' ||
+          node.properties?.role === 'database' ||
+          node.properties?.role === 'Database' ||
+          node.properties?.entity_type === 'database');
 
       const isTopic =
         node.kind === 'Topic' ||
+        resKind === 'topic' ||
         node.properties?.role === 'topic' ||
         node.properties?.role === 'Topic' ||
         node.properties?.entity_type === 'topic';
 
       const isExt =
         node.kind === 'ExternalService' ||
+        node.kind === 'CloudService' ||
+        resKind === 'externalservice' ||
+        resKind === 'cloudservice' ||
         node.properties?.role === 'ExternalService' ||
         node.properties?.entity_type === 'external';
 
@@ -2039,6 +2022,11 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         node.kind === 'SharedLibrary' ||
         node.properties?.is_library === 'true' ||
         node.properties?.entity_type === 'library';
+
+      const isModule =
+        node.kind === 'ProjectModule' ||
+        node.kind === 'Module' ||
+        node.properties?.pm_type === 'module';
 
       if (isTest) {
         testSuiteCount++;
@@ -2068,6 +2056,20 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         bgColor = '#d97706';
         borderColor = '#92400e';
         size = 52;
+      } else if (isTable) {
+        dbCount++;
+        tag = ':Table';
+        nodeKind = 'Table';
+        bgColor = '#9333ea';
+        borderColor = '#581c87';
+        size = 50;
+      } else if (isProc) {
+        dbCount++;
+        tag = ':Proc';
+        nodeKind = 'Procedure';
+        bgColor = '#7e22ce';
+        borderColor = '#4c1d95';
+        size = 50;
       } else if (isDb) {
         dbCount++;
         tag = ':DB';
@@ -2096,6 +2098,47 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         bgColor = '#4b5563';
         borderColor = '#374151';
         size = 46;
+      } else if (isModule) {
+        const modTier =
+          node.properties?.tier !== undefined && !isNaN(Number(node.properties.tier))
+            ? Number(node.properties.tier)
+            : 2;
+        if (modTier === 0) {
+          appCount++;
+          tag = ':Ingress';
+          nodeKind = 'Ingress';
+          bgColor = '#0288d1';
+          borderColor = '#01579b';
+          size = 56;
+        } else if (modTier === 1) {
+          workerCount++;
+          tag = ':AppLogic';
+          nodeKind = 'Worker';
+          bgColor = '#8b5cf6';
+          borderColor = '#5b21b6';
+          size = 52;
+        } else if (modTier === 3) {
+          serviceCount++;
+          tag = ':DataAccess';
+          nodeKind = 'Service';
+          bgColor = '#d97706';
+          borderColor = '#92400e';
+          size = 50;
+        } else if (modTier >= 4) {
+          libCount++;
+          tag = ':Foundation';
+          nodeKind = 'Library';
+          bgColor = '#475569';
+          borderColor = '#1e293b';
+          size = 44;
+        } else {
+          serviceCount++;
+          tag = ':Core';
+          nodeKind = 'Module';
+          bgColor = '#10b981';
+          borderColor = '#047857';
+          size = 52;
+        }
       } else {
         serviceCount++;
       }
@@ -2104,7 +2147,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         node.properties?.domain ||
         node.properties?.domainDisplayName ||
         node.properties?.bounded_context ||
-        (isDb ? 'Databases' : isTopic ? 'Messaging' : isExt ? 'External Services' : 'Core Platform');
+        (isDb || isTable || isProc ? 'Databases' : isTopic ? 'Messaging' : isExt ? 'External Services' : 'Core Platform');
 
       const domain = rawDomain.trim();
       const domainDisplayName = node.properties?.domainDisplayName || domain;
@@ -2138,6 +2181,43 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       }
       const primaryRole = node.properties?.primary_role || node.properties?.role;
 
+      const parsedFileCount = node.properties?.file_count ? parseInt(node.properties.file_count, 10) : undefined;
+      let moduleFiles: string[] = [];
+      if (node.properties?.files) {
+        try {
+          const parsed = JSON.parse(node.properties.files);
+          if (Array.isArray(parsed)) moduleFiles = parsed.map(String);
+        } catch { }
+      }
+
+      const projectsList: DomainProjectInfo[] =
+        moduleFiles.length > 0
+          ? moduleFiles.map((fp, idx) => ({
+              id: `${node.id}:file:${idx}`,
+              name: fp.split(/[/\\]/).slice(-2).join('/'),
+              kind: 'File',
+              filePath: fp,
+              lineStart: 1,
+            }))
+          : [
+              {
+                id: node.id,
+                name: node.name || displayName,
+                kind: node.kind,
+                primaryRole,
+                secondaryRoles: secondaryRoles.length > 0 ? secondaryRoles : undefined,
+                filePath: node.filePath,
+                lineStart: node.lineStart ?? (node.properties?.start_line ? parseInt(node.properties.start_line, 10) : undefined),
+                isLibrary: isLib,
+                gitBranch: node.properties?.git_branch,
+              },
+            ];
+
+      const explicitTier =
+        node.properties?.tier !== undefined && !isNaN(Number(node.properties.tier))
+          ? Math.min(4, Math.max(0, Number(node.properties.tier)))
+          : undefined;
+
       const detail: SelectedNodeDetail = {
         id: node.id,
         name: node.name || displayName,
@@ -2153,21 +2233,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         framework: node.properties?.framework || node.properties?.db_type || node.properties?.broker_type || node.properties?.service_type,
         language: node.properties?.language || node.properties?.project_type,
         gitBranch: node.properties?.git_branch,
-        primaryFilePath: node.filePath,
+        primaryFilePath: node.filePath || moduleFiles[0],
         primaryLineStart: node.lineStart ?? (node.properties?.start_line ? parseInt(node.properties.start_line, 10) : undefined),
-        projects: [
-          {
-            id: node.id,
-            name: node.name || displayName,
-            kind: node.kind,
-            primaryRole,
-            secondaryRoles: secondaryRoles.length > 0 ? secondaryRoles : undefined,
-            filePath: node.filePath,
-            lineStart: node.lineStart ?? (node.properties?.start_line ? parseInt(node.properties.start_line, 10) : undefined),
-            isLibrary: isLib,
-            gitBranch: node.properties?.git_branch,
-          },
-        ],
+        projects: projectsList,
+        fileCount: Number.isFinite(parsedFileCount) ? parsedFileCount : undefined,
+        tier: explicitTier,
+        tierLabel: node.properties?.tier_label || undefined,
+        tierReason: node.properties?.tier_reason || undefined,
         inboundCallsCount: 0,
         outboundCallsCount: 0,
         dbCount: 0,
@@ -2231,14 +2303,28 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
       let cat: 'service_call' | 'database' | 'messaging' | 'external' | 'library' | 'test' | null = null;
       let label = 'CALLS';
+      const edgeWeight = edge.properties?.call_count
+        ? Math.max(1, parseInt(edge.properties.call_count, 10) || 1)
+        : 1;
 
-      const isDb = tgtDetail.kind === 'Database' || srcDetail.kind === 'Database' || edge.category === 'database' || edge.kind === 'USES_DB';
+      const isDb =
+        tgtDetail.kind === 'Database' ||
+        tgtDetail.kind === 'Table' ||
+        tgtDetail.kind === 'Procedure' ||
+        srcDetail.kind === 'Database' ||
+        srcDetail.kind === 'Table' ||
+        srcDetail.kind === 'Procedure' ||
+        edge.category === 'database' ||
+        edge.kind === 'USES_DB' ||
+        edge.kind === 'READS_TABLE' ||
+        edge.kind === 'WRITES_TABLE' ||
+        edge.kind === 'CALLS_PROCEDURE';
       const isTopic = tgtDetail.kind === 'Topic' || srcDetail.kind === 'Topic' || edge.category === 'messaging';
       const isExt = tgtDetail.kind === 'ExternalService' || edge.category === 'external';
 
       if (isDb) {
         cat = 'database';
-        label = 'USES_DB';
+        label = tgtDetail.kind === 'Table' || tgtDetail.kind === 'Procedure' ? (edge.kind || 'USES') : 'USES_DB';
         if (!dbUsage.has(edge.source)) dbUsage.set(edge.source, new Set());
         dbUsage.get(edge.source)!.add(edge.target);
       } else if (isTopic) {
@@ -2277,10 +2363,12 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         edge.category === 'service_call' ||
         edge.kind === 'SERVICE_CALL' ||
         edge.kind === 'CALLS_ENDPOINT' ||
-        edge.kind === 'TRIGGERS'
+        edge.kind === 'TRIGGERS' ||
+        edge.kind === 'MODULE_DEPENDS_ON' ||
+        (srcDetail.kind === 'Module' && tgtDetail.kind === 'Module')
       ) {
         cat = 'service_call';
-        label = 'CALLS';
+        label = edge.kind === 'MODULE_DEPENDS_ON' || srcDetail.kind === 'Module' ? 'DEPENDS_ON' : 'CALLS';
       } else if (
         edge.kind === 'SUBSCRIBES_TO' ||
         edge.kind === 'SUBSCRIBED_BY' ||
@@ -2292,13 +2380,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         const chordKey = `${edge.source}->${edge.target}`;
         const existingChord = directPubSubChords.get(chordKey);
         if (existingChord) {
-          existingChord.count += 1;
+          existingChord.count += edgeWeight;
         } else {
           directPubSubChords.set(chordKey, {
             source: edge.source,
             target: edge.target,
             label: chordLabel,
-            count: 1,
+            count: edgeWeight,
           });
         }
         continue;
@@ -2315,13 +2403,16 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       ) {
         cat = 'test';
         label = 'TESTS';
+      } else if (edge.properties?.is_resource_link === 'true') {
+        cat = 'external';
+        label = edge.kind || 'USES';
       }
 
       if (!cat) continue;
 
       if (cat === 'service_call') {
-        outCalls.set(edge.source, (outCalls.get(edge.source) || 0) + 1);
-        inCalls.set(edge.target, (inCalls.get(edge.target) || 0) + 1);
+        outCalls.set(edge.source, (outCalls.get(edge.source) || 0) + edgeWeight);
+        inCalls.set(edge.target, (inCalls.get(edge.target) || 0) + edgeWeight);
       }
 
       const isTrans = Boolean(
@@ -2340,7 +2431,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       const key = `${edge.source}->${edge.target}:${cat}`;
       const existing = macroEdges.get(key);
       if (existing) {
-        existing.count += 1;
+        existing.count += edgeWeight;
         (existing as any).isTransitive = (existing as any).isTransitive || isTrans;
         (existing as any).isInferred = (existing as any).isInferred || isInferred;
       } else {
@@ -2350,7 +2441,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           category: cat,
           kind: edge.kind,
           label,
-          count: 1,
+          count: edgeWeight,
           isTransitive: isTrans,
           isInferred: isInferred,
         } as any);
@@ -2441,20 +2532,26 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     }
 
     // 5. Compute Stable Architectural Echelon Tiers (0..5) across Full Graph
-    const echelonMap = computeEchelonTiers(
-      cyNodes.map((n) => ({ id: n.data.id as string, kind: (n.data as any).kind as string })),
-      rawEdges
-    );
+    const echelonNodesInput = cyNodes.map((n) => ({
+      id: n.data.id as string,
+      kind: (n.data as any).kind as string,
+      displayName: (n.data as any).displayName as string | undefined,
+    }));
+    const echelonMap = computeEchelonTiers(echelonNodesInput, rawEdges);
+    const tierReasonMap = computeEchelonTierReasons(echelonNodesInput, rawEdges);
 
     for (const node of cyNodes) {
       const id = node.data.id as string;
-      const ech = echelonMap.get(id) ?? 2;
-      (node.data as any).echelonTier = ech;
       const detail = detailMap.get(id);
+      const explicitTier = detail?.tier;
+      const ech = explicitTier !== undefined ? explicitTier : (echelonMap.get(id) ?? 2);
+      echelonMap.set(id, ech);
+      (node.data as any).echelonTier = ech;
       if (detail) {
         detail.tier = ech;
         detail.tierLabel =
-          ech === 0
+          detail.tierLabel ||
+          (ech === 0
             ? 'Tier 0 (Ingress / Gateway & Frontends)'
             : ech === 1
             ? 'Tier 1 (First Echelon / Gateway-facing)'
@@ -2462,7 +2559,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             ? 'Tier 2 (Message Topics & Queues)'
             : ech === 3
             ? 'Tier 3 (Second Echelon / Internal Domain Services & Workers)'
-            : 'Tier 4 (Databases & External Infrastructure)';
+            : 'Tier 4 (Databases & External Infrastructure)');
+        detail.tierReason = detail.tierReason || tierReasonMap.get(id);
       }
     }
 
@@ -3166,6 +3264,63 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       return s && t && visibleNodeIdSet.has(s) && visibleNodeIdSet.has(t);
     });
 
+    // Apply semantic shape, dynamic sizing (uniform | sqrt-weight | degree), and badge content mode (icon | icon-code | metric)
+    const styledVisibleNodes: cytoscape.ElementDefinition[] = finalVisibleNodes.map((n) => {
+      const nid = n.data.id as string;
+      const detail = effectiveDetailMap.get(nid);
+      const kind = ((n.data as any).kind || detail?.kind || 'Service') as EntityKind;
+      const badgeMeta = getEntityBadgeMeta(kind);
+      const isGroup = Boolean(detail?.isGroup || (n.data as any).isGroup === 'true');
+      const memberCount = detail?.memberNodes?.length || detail?.memberIds?.length || 0;
+
+      const totalConnections =
+        (detail?.inboundCallsCount || 0) +
+        (detail?.outboundCallsCount || 0) +
+        (detail?.dbCount || 0) +
+        (detail?.messagingCount || 0);
+      const fileCount =
+        detail?.fileCount ??
+        (detail?.properties?.file_count ? parseInt(detail.properties.file_count, 10) : undefined);
+      const projectCount = detail?.projects?.length || 1;
+      const weightVal =
+        fileCount && !isNaN(fileCount) && fileCount > 0
+          ? fileCount
+          : Math.max(1, projectCount * 3 + totalConnections);
+
+      let computedSize: number = isGroup ? GROUP_NODE_SIZE : ((n.data as any).size || 56);
+      if (nodeSizingMode === 'sqrt-weight') {
+        const base = isGroup ? 44 : 30;
+        computedSize = Math.round(Math.max(36, Math.min(92, base + 9.5 * Math.sqrt(weightVal))));
+      } else if (nodeSizingMode === 'degree') {
+        const base = isGroup ? 44 : 36;
+        computedSize = Math.round(Math.max(38, Math.min(90, base + 6.5 * Math.sqrt(Math.max(1, totalConnections)))));
+      }
+
+      const metricText =
+        fileCount && !isNaN(fileCount) && fileCount > 0
+          ? `${fileCount}f`
+          : projectCount > 1
+          ? `${projectCount}p`
+          : `${totalConnections}`;
+
+      const badgeSvg = getNodeBadgeSvgDataUri(kind, {
+        isGroup,
+        count: memberCount,
+        contentMode: nodeContentMode,
+        metricText,
+      });
+
+      return {
+        ...n,
+        data: {
+          ...n.data,
+          shape: badgeMeta.shape,
+          size: computedSize,
+          badgeSvg,
+        },
+      };
+    });
+
     let visibleCalls = 0;
     let visibleMsgs = 0;
     let directCalls = 0;
@@ -3184,15 +3339,15 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     }
 
     return {
-      elements: [...finalVisibleNodes, ...safeVisibleEdges],
-      visibleNodes: finalVisibleNodes,
+      elements: [...styledVisibleNodes, ...safeVisibleEdges],
+      visibleNodes: styledVisibleNodes,
       visibleEdges: safeVisibleEdges,
       hiddenNodeIdSet,
-      hiddenCount: rawGraph.allNodes.length - finalVisibleNodes.length,
+      hiddenCount: rawGraph.allNodes.length - styledVisibleNodes.length,
       effectiveDetailMap,
       effectiveRawEdges,
       stats: {
-        total: finalVisibleNodes.length,
+        total: styledVisibleNodes.length,
         ingress: rawGraph.counts.ingress,
         services: rawGraph.counts.services,
         databases: rawGraph.counts.databases,
@@ -3203,14 +3358,14 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         transitiveCalls,
       },
     };
-  }, [rawGraph, hiddenTypes, hiddenNodeIds, hiddenOrbitTiers, orbitConfig, forcedVisibleNodeIds, hideSingleConnectionDbs, hideIsolatedNodes, showTransitiveEdges, groupedTypes, customGroups]);
+  }, [rawGraph, hiddenTypes, hiddenNodeIds, hiddenOrbitTiers, orbitConfig, forcedVisibleNodeIds, hideSingleConnectionDbs, hideIsolatedNodes, showTransitiveEdges, groupedTypes, customGroups, nodeContentMode, nodeSizingMode]);
 
   const nodeDetailMap = effectiveDetailMap;
 
   // Derived docked panels visibility and active tab selection
   const hasHiddenEntities = hiddenCount > 0;
-  const hasOrbitLegend = layoutName.startsWith('concentric') && orbitLegendItems.length > 0;
-  const effectiveSidebarTab: 'info' | 'orbits' | 'visibility' | 'gates' =
+  const hasOrbitLegend = !isMatrixMode && layoutName.startsWith('concentric') && orbitLegendItems.length > 0;
+  const effectiveSidebarTab: 'info' | 'orbits' | 'visibility' =
     rightSidebarTab === 'orbits' && !hasOrbitLegend
       ? 'info'
       : rightSidebarTab;
@@ -3621,6 +3776,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       if (
         layoutName === 'concentric' ||
         layoutName === 'concentric-equispaced' ||
+        layoutName === 'concentric-barycentric' ||
         layoutName === 'concentric-polar-force' ||
         layoutName === 'concentric-sectors'
       ) {
@@ -3678,6 +3834,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           baseSectorGuidesRef.current = [];
           if (layoutName === 'concentric-equispaced') {
             layoutResult = computeConcentricEquispacedLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder, orbitDistanceRef.current, minOrbitNodeDistanceRef.current);
+          } else if (layoutName === 'concentric-barycentric') {
+            layoutResult = computeConcentricBarycentricLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder, orbitDistanceRef.current, minOrbitNodeDistanceRef.current);
           } else if (layoutName === 'concentric-polar-force') {
             layoutResult = computeConcentricPolarForceLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder, orbitDistanceRef.current, minOrbitNodeDistanceRef.current);
           } else {
@@ -4242,9 +4400,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const handleLayoutChange = useCallback((newLayout: DomainLayoutName) => {
     setLayoutName(newLayout);
     try {
-      localStorage.setItem('ce_domain_layout', newLayout);
+      localStorage.setItem(`${storagePrefix}layout`, newLayout);
     } catch { }
-  }, []);
+  }, [storagePrefix]);
 
   const searchMatchCount = useMemo(() => {
     if (!searchQuery.trim()) return null;
@@ -4484,12 +4642,12 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   return (
     <div className="domain-map-canvas-container">
       {/* Non-blocking loading overlay during heavy synthesis and layout */}
-      {isPreparing && (
+      {isPreparing && !isMatrixMode && (
         <div className="view-loading-overlay">
           <div className="view-loading-card">
             <div className="view-loading-spinner" />
             <div className="view-loading-content">
-              <span className="view-loading-title">Architecture Map</span>
+              <span className="view-loading-title">{hudTitle || 'Architecture Map'}</span>
               <span className="view-loading-subtitle">{preparingStatus}</span>
             </div>
           </div>
@@ -4500,8 +4658,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       <header className="domain-map-hud">
         {/* Left Brand Column (Rowspan 2) */}
         <div className="domain-hud-brand">
-          <span className="domain-hud-label">Macro Architecture</span>
-          <span className="domain-hud-title">Architecture Map</span>
+          <span className="domain-hud-label">{hudLabel || 'Macro Architecture'}</span>
+          <span className="domain-hud-title">{hudTitle || (isMatrixMode ? 'Architecture Matrix' : 'Architecture Map')}</span>
         </div>
 
         {/* Right Content Column: Two Stacked Rows of Controls */}
@@ -4509,80 +4667,38 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           {/* Row 1: Studio Canvas Controls */}
           <div className="domain-hud-row domain-hud-primary-row">
             <div className="domain-hud-controls-left">
-            {/* Presentation Mode: Graph | Grid | Matrix */}
-            <div
-              style={{
-                display: 'inline-flex',
-                borderRadius: 6,
-                background: 'rgba(255, 255, 255, 0.08)',
-                padding: 2,
-                gap: 2,
-                marginRight: 6,
-              }}
-            >
-              <button
-                type="button"
-                className={`domain-hud-btn ${presentationMode === 'graph' ? 'is-active' : ''}`}
-                onClick={() => {
-                  handlePresentationModeChange('graph');
-                  if (layoutName === 'matrix') handleLayoutChange('concentric');
-                }}
-                style={{ padding: '3px 8px', fontSize: '11px', borderRadius: 4 }}
-                title="Interactive 2D Graph Canvas"
-              >
-                🕸️ Graph
-              </button>
-              <button
-                type="button"
-                className={`domain-hud-btn ${presentationMode === 'grid' ? 'is-active' : ''}`}
-                onClick={() => handlePresentationModeChange('grid')}
-                style={{ padding: '3px 8px', fontSize: '11px', borderRadius: 4 }}
-                title="Unified Domain & Services Grid"
-              >
-                ⊞ Grid
-              </button>
-              <button
-                type="button"
-                className={`domain-hud-btn ${presentationMode === 'matrix' ? 'is-active' : ''}`}
-                onClick={() => {
-                  handlePresentationModeChange('matrix');
-                  handleLayoutChange('matrix');
-                }}
-                style={{ padding: '3px 8px', fontSize: '11px', borderRadius: 4 }}
-                title="High-Density Interaction Matrix"
-              >
-                ▦ Matrix
-              </button>
-            </div>
+            {headerSlot}
+            {/* Menu 1: View & Representation Types Popover (Map mode only) */}
+            {!isMatrixMode && (
+              <div className="domain-hud-popover-anchor" ref={viewMenuRef}>
+                <button
+                  type="button"
+                  className={`domain-hud-btn domain-hud-display-btn ${isViewMenuOpen ? 'is-active' : ''}`}
+                  onClick={() => {
+                    setIsViewMenuOpen((prev) => !prev);
+                    setIsDisplayOpen(false);
+                  }}
+                  title="Choose display types (Graph Layout, Node Content, Node Size, Line Style, Edge Labels)"
+                >
+                  📐 View <span style={{ fontSize: '9px', marginLeft: 2 }}>▾</span>
+                </button>
 
-            {/* Display & Sliders Tuning Popover */}
-            <div className="domain-hud-popover-anchor" ref={displayMenuRef}>
-              <button
-                type="button"
-                className={`domain-hud-btn domain-hud-display-btn ${isDisplayOpen ? 'is-active' : ''}`}
-                onClick={() => setIsDisplayOpen((prev) => !prev)}
-                title="Fine-tune display settings (Layout, Line style, Font size, Edge curvature, Air spacing, Wheel sensitivity)"
-              >
-                🎛️ Display <span style={{ fontSize: '9px', marginLeft: 2 }}>▾</span>
-              </button>
+                {isViewMenuOpen && (
+                  <div className="domain-display-popover">
+                    <div className="display-popover-header">
+                      <span>View & Representation</span>
+                      <button
+                        type="button"
+                        className="display-popover-close"
+                        onClick={() => setIsViewMenuOpen(false)}
+                        title="Close"
+                      >
+                        ✕
+                      </button>
+                    </div>
 
-              {isDisplayOpen && (
-                <div className="domain-display-popover">
-                  <div className="display-popover-header">
-                    <span>Display & Tuning</span>
-                    <button
-                      type="button"
-                      className="display-popover-close"
-                      onClick={() => setIsDisplayOpen(false)}
-                      title="Close"
-                    >
-                      ✕
-                    </button>
-                  </div>
-
-                  <div className="display-popover-body">
-                    {/* Graph Layout Selection */}
-                    {presentationMode === 'graph' && (
+                    <div className="display-popover-body">
+                      {/* Graph Layout Selection */}
                       <div className="display-setting-row" title="Select graph layout algorithm">
                         <div className="setting-label-row">
                           <span className="setting-icon">📐</span>
@@ -4597,6 +4713,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                         >
                           <option value="concentric">🎯 Concentric (Original)</option>
                           <option value="concentric-equispaced">🪐 Concentric: Equispaced</option>
+                          <option value="concentric-barycentric">🪐 Concentric: Barycentric</option>
                           <option value="concentric-polar-force">🪐 Concentric: Polar Force</option>
                           <option value="concentric-sectors">🪐 Concentric: Domain Sectors</option>
                           <option value="swimlanes">🏊 Swimlanes (Pipeline)</option>
@@ -4605,10 +4722,46 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                           <option value="cose">⚡ Force (COSE)</option>
                         </select>
                       </div>
-                    )}
 
-                    {/* Edge Curve Mode */}
-                    {presentationMode === 'graph' && (
+                      {/* Node Content Mode (Icon | Icon + Code | Metric) */}
+                      <div className="display-setting-row" title="Choose what is displayed inside each node shape">
+                        <div className="setting-label-row">
+                          <span className="setting-icon">🎨</span>
+                          <span className="setting-name">Node Content</span>
+                        </div>
+                        <select
+                          value={nodeContentMode}
+                          onChange={(e) => handleNodeContentModeChange(e.target.value as NodeContentMode)}
+                          title="Node Content: Clean Icon, Icon + 3-letter Code, or Metric"
+                          className="domain-layout-dropdown"
+                          style={{ width: '100%', marginTop: '4px' }}
+                        >
+                          <option value="icon">✨ Icon Only</option>
+                          <option value="icon-code">🏷️ Icon + Code (SVC, DB)</option>
+                          <option value="metric">📊 Icon + Metric</option>
+                        </select>
+                      </div>
+
+                      {/* Node Sizing Mode (Uniform | √Weight | Connections) */}
+                      <div className="display-setting-row" title="Scale node size uniformly, by √Weight (files/projects), or by connection degree">
+                        <div className="setting-label-row">
+                          <span className="setting-icon">📏</span>
+                          <span className="setting-name">Node Size</span>
+                        </div>
+                        <select
+                          value={nodeSizingMode}
+                          onChange={(e) => handleNodeSizingModeChange(e.target.value as NodeSizingMode)}
+                          title="Node Size: Uniform, √Weight (Files/Projects), or Connections (Degree)"
+                          className="domain-layout-dropdown"
+                          style={{ width: '100%', marginTop: '4px' }}
+                        >
+                          <option value="uniform">⚪ Uniform Size</option>
+                          <option value="sqrt-weight">📐 √Weight (Files / Projects)</option>
+                          <option value="degree">🔗 Connections (Degree)</option>
+                        </select>
+                      </div>
+
+                      {/* Edge Curve Mode */}
                       <div className="display-setting-row" title="Line Style: Straight, Bezier curve, or Bypass Inner Orbits">
                         <div className="setting-label-row">
                           <span className="setting-icon">〰️</span>
@@ -4626,391 +4779,430 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                           <option value="avoid-inner">🛡️ Bypass Inner Orbits</option>
                         </select>
                       </div>
-                    )}
 
-                    {/* 1. Font Size Control */}
-                    <div className="display-setting-row" title="Adjust graph label font size (7px - 24px)">
-                      <div className="setting-label-row">
-                        <span className="setting-icon">🔤</span>
-                        <span className="setting-name">Font Size</span>
-                        <span
-                          className="domain-hud-value-badge"
-                          onClick={() => handleFontSizeChange(10)}
-                          title="Click to reset font size to 10px"
-                        >
-                          {fontSize}px
-                        </span>
-                      </div>
-                      <div className="setting-slider-row">
-                        <button
-                          type="button"
-                          className="domain-hud-step-btn"
-                          onClick={() => handleFontSizeChange(fontSize - 1)}
-                          title="Decrease font size (-1px)"
-                        >
-                          −
-                        </button>
-                        <input
-                          type="range"
-                          min="7"
-                          max="24"
-                          step="1"
-                          value={fontSize}
-                          onChange={(e) => handleFontSizeChange(parseInt(e.target.value, 10))}
-                          className="domain-hud-slider"
-                        />
-                        <button
-                          type="button"
-                          className="domain-hud-step-btn"
-                          onClick={() => handleFontSizeChange(fontSize + 1)}
-                          title="Increase font size (+1px)"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* 2. Edge Curvature Control */}
-                    {edgeCurveMode !== 'straight' && (
-                      <div className="display-setting-row" title="Adjust edge curvature (-200px to +200px)">
+                      {/* Edge Labels Visibility Control */}
+                      <div className="display-setting-row" title="Control when edge text labels are shown: always or only on hover">
                         <div className="setting-label-row">
-                          <span className="setting-icon">〰️</span>
-                          <span className="setting-name">Edge Curvature</span>
+                          <span className="setting-icon">🏷️</span>
+                          <span className="setting-name">Edge Labels</span>
                           <span
-                            className="domain-hud-value-badge"
-                            onClick={() => handleCurveFactorChange(35)}
-                            title="Click to reset curve to +35px"
+                            className={`domain-hud-value-badge ${edgeLabelsOnHover ? 'is-active' : ''}`}
+                            onClick={() => handleEdgeLabelsOnHoverChange(!edgeLabelsOnHover)}
+                            title="Click to toggle: Always Show vs On Hover Only"
+                            style={{ cursor: 'pointer' }}
                           >
-                            {curveFactor > 0 ? `+${curveFactor}` : curveFactor}px
+                            {edgeLabelsOnHover ? 'On Hover' : 'Always'}
                           </span>
                         </div>
-                        <div className="setting-slider-row">
+                        <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
                           <button
                             type="button"
-                            className="domain-hud-step-btn"
-                            onClick={() => handleCurveFactorChange(Math.max(-200, curveFactor - 10))}
-                            title="Decrease curve (-10px)"
+                            className={`domain-hud-btn ${!edgeLabelsOnHover ? 'is-active' : ''}`}
+                            onClick={() => handleEdgeLabelsOnHoverChange(false)}
+                            title="Always show text labels on all edges"
+                            style={{
+                              flex: 1,
+                              padding: '3px 8px',
+                              fontSize: '10.5px',
+                              background: !edgeLabelsOnHover ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                              borderColor: !edgeLabelsOnHover ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)',
+                              color: !edgeLabelsOnHover ? '#ffffff' : '#94a3b8',
+                            }}
                           >
-                            −
+                            Always
                           </button>
-                          <input
-                            type="range"
-                            min="-200"
-                            max="200"
-                            step="5"
-                            value={curveFactor}
-                            onChange={(e) => handleCurveFactorChange(parseInt(e.target.value, 10))}
-                            className="domain-hud-slider"
-                          />
                           <button
                             type="button"
-                            className="domain-hud-step-btn"
-                            onClick={() => handleCurveFactorChange(Math.min(200, curveFactor + 10))}
-                            title="Increase curve (+10px)"
+                            className={`domain-hud-btn ${edgeLabelsOnHover ? 'is-active' : ''}`}
+                            onClick={() => handleEdgeLabelsOnHoverChange(true)}
+                            title="Hide text labels by default, reveal on edge hover or selection"
+                            style={{
+                              flex: 1,
+                              padding: '3px 8px',
+                              fontSize: '10.5px',
+                              background: edgeLabelsOnHover ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                              borderColor: edgeLabelsOnHover ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)',
+                              color: edgeLabelsOnHover ? '#ffffff' : '#94a3b8',
+                            }}
                           >
-                            +
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 3. Node Spacing / Air Control */}
-                    <div className="display-setting-row" title="Adjust node spacing / distance between orbits">
-                      <div className="setting-label-row">
-                        <span className="setting-icon">💨</span>
-                        <span className="setting-name">Node Air (Spacing)</span>
-                        <span
-                          className="domain-hud-value-badge"
-                          onClick={() => handleSpacingChange(1.0)}
-                          title="Click to reset air to 1.0x"
-                        >
-                          {spacingFactor.toFixed(1)}x
-                        </span>
-                      </div>
-                      <div className="setting-slider-row">
-                        <button
-                          type="button"
-                          className="domain-hud-step-btn"
-                          onClick={() => handleSpacingChange(Math.max(0.4, +(spacingFactor - 0.2).toFixed(1)))}
-                          title="Decrease spacing"
-                        >
-                          −
-                        </button>
-                        <input
-                          type="range"
-                          min="0.5"
-                          max="3.0"
-                          step="0.1"
-                          value={spacingFactor}
-                          onChange={(e) => handleSpacingChange(parseFloat(e.target.value))}
-                          className="domain-hud-slider"
-                        />
-                        <button
-                          type="button"
-                          className="domain-hud-step-btn"
-                          onClick={() => handleSpacingChange(Math.min(3.5, +(spacingFactor + 0.2).toFixed(1)))}
-                          title="Increase spacing"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* 3b. Orbit Distance Control */}
-                    {layoutName.startsWith('concentric') && (
-                      <div className="display-setting-row" title="Adjust distance between concentric orbits (100px - 900px)">
-                        <div className="setting-label-row">
-                          <span className="setting-icon">🪐</span>
-                          <span className="setting-name">Orbit Distance</span>
-                          <span
-                            className="domain-hud-value-badge"
-                            onClick={() => handleOrbitDistanceChange(280)}
-                            title="Click to reset orbit distance to 280px"
-                          >
-                            {orbitDistance}px
-                          </span>
-                        </div>
-                        <div className="setting-slider-row">
-                          <button
-                            type="button"
-                            className="domain-hud-step-btn"
-                            onClick={() => handleOrbitDistanceChange(orbitDistance - 20)}
-                            title="Decrease orbit distance (-20px)"
-                          >
-                            −
-                          </button>
-                          <input
-                            type="range"
-                            min="100"
-                            max="900"
-                            step="10"
-                            value={orbitDistance}
-                            onChange={(e) => handleOrbitDistanceChange(parseInt(e.target.value, 10))}
-                            className="domain-hud-slider"
-                          />
-                          <button
-                            type="button"
-                            className="domain-hud-step-btn"
-                            onClick={() => handleOrbitDistanceChange(orbitDistance + 20)}
-                            title="Increase orbit distance (+20px)"
-                          >
-                            +
+                            On Hover Only
                           </button>
                         </div>
                       </div>
-                    )}
-
-                    {/* 3c. Min Distance on Orbit Control */}
-                    {layoutName.startsWith('concentric') && (
-                      <div className="display-setting-row" title="Adjust minimum distance between nodes on the same orbit (50px - 400px)">
-                        <div className="setting-label-row">
-                          <span className="setting-icon">↔️</span>
-                          <span className="setting-name">Min Distance on Orbit</span>
-                          <span
-                            className="domain-hud-value-badge"
-                            onClick={() => handleMinOrbitNodeDistanceChange(125)}
-                            title="Click to reset min orbit node distance to 125px"
-                          >
-                            {minOrbitNodeDistance}px
-                          </span>
-                        </div>
-                        <div className="setting-slider-row">
-                          <button
-                            type="button"
-                            className="domain-hud-step-btn"
-                            onClick={() => handleMinOrbitNodeDistanceChange(minOrbitNodeDistance - 15)}
-                            title="Decrease min distance on orbit (-15px)"
-                          >
-                            −
-                          </button>
-                          <input
-                            type="range"
-                            min="50"
-                            max="400"
-                            step="5"
-                            value={minOrbitNodeDistance}
-                            onChange={(e) => handleMinOrbitNodeDistanceChange(parseInt(e.target.value, 10))}
-                            className="domain-hud-slider"
-                          />
-                          <button
-                            type="button"
-                            className="domain-hud-step-btn"
-                            onClick={() => handleMinOrbitNodeDistanceChange(minOrbitNodeDistance + 15)}
-                            title="Increase min distance on orbit (+15px)"
-                          >
-                            +
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 4. Mouse Wheel Zoom Sensitivity */}
-                    <div className="display-setting-row" title="Adjust mouse wheel zoom sensitivity">
-                      <div className="setting-label-row">
-                        <span className="setting-icon">🖱️</span>
-                        <span className="setting-name">Wheel Sensitivity</span>
-                        <span
-                          className="domain-hud-value-badge"
-                          onClick={() => handleWheelSensitivityChange(1.0)}
-                          title="Click to reset sensitivity to 1.0x"
-                        >
-                          {wheelSensitivity.toFixed(1)}x
-                        </span>
-                      </div>
-                      <div className="setting-slider-row">
-                        <button
-                          type="button"
-                          className="domain-hud-step-btn"
-                          onClick={() => handleWheelSensitivityChange(Math.max(0.2, +(wheelSensitivity - 0.2).toFixed(1)))}
-                          title="Decrease sensitivity"
-                        >
-                          −
-                        </button>
-                        <input
-                          type="range"
-                          min="0.2"
-                          max="3.0"
-                          step="0.1"
-                          value={wheelSensitivity}
-                          onChange={(e) => handleWheelSensitivityChange(parseFloat(e.target.value))}
-                          className="domain-hud-slider"
-                        />
-                        <button
-                          type="button"
-                          className="domain-hud-step-btn"
-                          onClick={() => handleWheelSensitivityChange(Math.min(3.0, +(wheelSensitivity + 0.2).toFixed(1)))}
-                          title="Increase sensitivity"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* 5. Edge Labels Visibility Control */}
-                    <div className="display-setting-row" title="Control when edge text labels are shown: always or only on hover">
-                      <div className="setting-label-row">
-                        <span className="setting-icon">🏷️</span>
-                        <span className="setting-name">Edge Labels</span>
-                        <span
-                          className={`domain-hud-value-badge ${edgeLabelsOnHover ? 'is-active' : ''}`}
-                          onClick={() => handleEdgeLabelsOnHoverChange(!edgeLabelsOnHover)}
-                          title="Click to toggle: Always Show vs On Hover Only"
-                          style={{ cursor: 'pointer' }}
-                        >
-                          {edgeLabelsOnHover ? 'On Hover' : 'Always'}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
-                        <button
-                          type="button"
-                          className={`domain-hud-btn ${!edgeLabelsOnHover ? 'is-active' : ''}`}
-                          onClick={() => handleEdgeLabelsOnHoverChange(false)}
-                          title="Always show text labels on all edges"
-                          style={{
-                            flex: 1,
-                            padding: '3px 8px',
-                            fontSize: '10.5px',
-                            background: !edgeLabelsOnHover ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.04)',
-                            borderColor: !edgeLabelsOnHover ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)',
-                            color: !edgeLabelsOnHover ? '#ffffff' : '#94a3b8',
-                          }}
-                        >
-                          Always
-                        </button>
-                        <button
-                          type="button"
-                          className={`domain-hud-btn ${edgeLabelsOnHover ? 'is-active' : ''}`}
-                          onClick={() => handleEdgeLabelsOnHoverChange(true)}
-                          title="Hide text labels by default, reveal on edge hover or selection"
-                          style={{
-                            flex: 1,
-                            padding: '3px 8px',
-                            fontSize: '10.5px',
-                            background: edgeLabelsOnHover ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.04)',
-                            borderColor: edgeLabelsOnHover ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)',
-                            color: edgeLabelsOnHover ? '#ffffff' : '#94a3b8',
-                          }}
-                        >
-                          On Hover Only
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="display-popover-divider" />
-
-                    {/* 5. Auto-update graph & Relayout */}
-                    <div className="display-popover-actions">
-                      <label
-                        className={`domain-hud-checkbox-label ${autoRelayoutOnFilter ? 'is-active' : ''}`}
-                        title={
-                          autoRelayoutOnFilter
-                            ? 'Auto-relayout enabled: layout automatically refits when entities are hidden. Uncheck to keep node positions unchanged.'
-                            : 'Auto-relayout disabled: nodes are hidden in place without moving remaining nodes.'
-                        }
-                      >
-                        <input
-                          type="checkbox"
-                          className="domain-hud-checkbox"
-                          checked={autoRelayoutOnFilter}
-                          onChange={(e) => handleAutoRelayoutChange(e.target.checked)}
-                        />
-                        <span>🔄 Auto-recalc</span>
-                      </label>
-                      <button
-                        type="button"
-                        className="domain-hud-btn"
-                        onClick={handleForceRelayout}
-                        title="Recalculate graph layout now (Re-layout)"
-                        style={{ padding: '2px 8px', fontSize: '11px', lineHeight: 1 }}
-                      >
-                        ⟳ Re-layout
-                      </button>
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
 
-            {/* Zoom Controls */}
-            <div className="domain-hud-control-group" title="Zoom Controls">
-              <button
-                type="button"
-                className="domain-hud-btn"
-                onClick={handleZoomOut}
-                title="Zoom Out"
-              >
-                −
-              </button>
-              <button
-                type="button"
-                className="domain-hud-btn zoom-level-btn"
-                onClick={handleResetZoom}
-                title="Reset Zoom to 100%"
-              >
-                {Math.round(currentZoom * 100)}%
-              </button>
-              <button
-                type="button"
-                className="domain-hud-btn"
-                onClick={handleZoomIn}
-                title="Zoom In"
-              >
-                +
-              </button>
-              <button
-                type="button"
-                className="domain-hud-btn fit-btn"
-                onClick={handleFitView}
-                title="Fit to Screen"
-              >
-                ⛶ Fit
-              </button>
+            {/* Menu 2: Display Parameters & Sliders Tuning Popover (Map mode only) */}
+            {!isMatrixMode && (
+              <div className="domain-hud-popover-anchor" ref={displayMenuRef}>
+                <button
+                  type="button"
+                  className={`domain-hud-btn domain-hud-display-btn ${isDisplayOpen ? 'is-active' : ''}`}
+                  onClick={() => {
+                    setIsDisplayOpen((prev) => !prev);
+                    setIsViewMenuOpen(false);
+                  }}
+                  title="Fine-tune display parameters (Font size, Edge curvature, Air spacing, Orbit distances, Wheel sensitivity)"
+                >
+                  🎛️ Parameters <span style={{ fontSize: '9px', marginLeft: 2 }}>▾</span>
+                </button>
+
+                {isDisplayOpen && (
+                  <div className="domain-display-popover">
+                    <div className="display-popover-header">
+                      <span>Display Parameters</span>
+                      <button
+                        type="button"
+                        className="display-popover-close"
+                        onClick={() => setIsDisplayOpen(false)}
+                        title="Close"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <div className="display-popover-body">
+                      {/* 1. Font Size Control */}
+                      <div className="display-setting-row" title="Adjust graph label font size (7px - 24px)">
+                        <div className="setting-label-row">
+                          <span className="setting-icon">🔤</span>
+                          <span className="setting-name">Font Size</span>
+                          <span
+                            className="domain-hud-value-badge"
+                            onClick={() => handleFontSizeChange(10)}
+                            title="Click to reset font size to 10px"
+                          >
+                            {fontSize}px
+                          </span>
+                        </div>
+                        <div className="setting-slider-row">
+                          <button
+                            type="button"
+                            className="domain-hud-step-btn"
+                            onClick={() => handleFontSizeChange(fontSize - 1)}
+                            title="Decrease font size (-1px)"
+                          >
+                            −
+                          </button>
+                          <input
+                            type="range"
+                            min="7"
+                            max="24"
+                            step="1"
+                            value={fontSize}
+                            onChange={(e) => handleFontSizeChange(parseInt(e.target.value, 10))}
+                            className="domain-hud-slider"
+                          />
+                          <button
+                            type="button"
+                            className="domain-hud-step-btn"
+                            onClick={() => handleFontSizeChange(fontSize + 1)}
+                            title="Increase font size (+1px)"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 2. Edge Curvature Control */}
+                      {edgeCurveMode !== 'straight' && (
+                        <div className="display-setting-row" title="Adjust edge curvature (-200px to +200px)">
+                          <div className="setting-label-row">
+                            <span className="setting-icon">〰️</span>
+                            <span className="setting-name">Edge Curvature</span>
+                            <span
+                              className="domain-hud-value-badge"
+                              onClick={() => handleCurveFactorChange(35)}
+                              title="Click to reset curve to +35px"
+                            >
+                              {curveFactor > 0 ? `+${curveFactor}` : curveFactor}px
+                            </span>
+                          </div>
+                          <div className="setting-slider-row">
+                            <button
+                              type="button"
+                              className="domain-hud-step-btn"
+                              onClick={() => handleCurveFactorChange(Math.max(-200, curveFactor - 10))}
+                              title="Decrease curve (-10px)"
+                            >
+                              −
+                            </button>
+                            <input
+                              type="range"
+                              min="-200"
+                              max="200"
+                              step="5"
+                              value={curveFactor}
+                              onChange={(e) => handleCurveFactorChange(parseInt(e.target.value, 10))}
+                              className="domain-hud-slider"
+                            />
+                            <button
+                              type="button"
+                              className="domain-hud-step-btn"
+                              onClick={() => handleCurveFactorChange(Math.min(200, curveFactor + 10))}
+                              title="Increase curve (+10px)"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 3. Node Spacing / Air Control */}
+                      <div className="display-setting-row" title="Adjust node spacing / distance between orbits">
+                        <div className="setting-label-row">
+                          <span className="setting-icon">💨</span>
+                          <span className="setting-name">Node Air (Spacing)</span>
+                          <span
+                            className="domain-hud-value-badge"
+                            onClick={() => handleSpacingChange(1.0)}
+                            title="Click to reset air to 1.0x"
+                          >
+                            {spacingFactor.toFixed(1)}x
+                          </span>
+                        </div>
+                        <div className="setting-slider-row">
+                          <button
+                            type="button"
+                            className="domain-hud-step-btn"
+                            onClick={() => handleSpacingChange(Math.max(0.4, +(spacingFactor - 0.2).toFixed(1)))}
+                            title="Decrease spacing"
+                          >
+                            −
+                          </button>
+                          <input
+                            type="range"
+                            min="0.5"
+                            max="3.0"
+                            step="0.1"
+                            value={spacingFactor}
+                            onChange={(e) => handleSpacingChange(parseFloat(e.target.value))}
+                            className="domain-hud-slider"
+                          />
+                          <button
+                            type="button"
+                            className="domain-hud-step-btn"
+                            onClick={() => handleSpacingChange(Math.min(3.5, +(spacingFactor + 0.2).toFixed(1)))}
+                            title="Increase spacing"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 3b. Orbit Distance Control */}
+                      {layoutName.startsWith('concentric') && (
+                        <div className="display-setting-row" title="Adjust distance between concentric orbits (100px - 900px)">
+                          <div className="setting-label-row">
+                            <span className="setting-icon">🪐</span>
+                            <span className="setting-name">Orbit Distance</span>
+                            <span
+                              className="domain-hud-value-badge"
+                              onClick={() => handleOrbitDistanceChange(280)}
+                              title="Click to reset orbit distance to 280px"
+                            >
+                              {orbitDistance}px
+                            </span>
+                          </div>
+                          <div className="setting-slider-row">
+                            <button
+                              type="button"
+                              className="domain-hud-step-btn"
+                              onClick={() => handleOrbitDistanceChange(orbitDistance - 20)}
+                              title="Decrease orbit distance (-20px)"
+                            >
+                              −
+                            </button>
+                            <input
+                              type="range"
+                              min="100"
+                              max="900"
+                              step="10"
+                              value={orbitDistance}
+                              onChange={(e) => handleOrbitDistanceChange(parseInt(e.target.value, 10))}
+                              className="domain-hud-slider"
+                            />
+                            <button
+                              type="button"
+                              className="domain-hud-step-btn"
+                              onClick={() => handleOrbitDistanceChange(orbitDistance + 20)}
+                              title="Increase orbit distance (+20px)"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 3c. Min Distance on Orbit Control */}
+                      {layoutName.startsWith('concentric') && (
+                        <div className="display-setting-row" title="Adjust minimum distance between nodes on the same orbit (50px - 400px)">
+                          <div className="setting-label-row">
+                            <span className="setting-icon">↔️</span>
+                            <span className="setting-name">Min Distance on Orbit</span>
+                            <span
+                              className="domain-hud-value-badge"
+                              onClick={() => handleMinOrbitNodeDistanceChange(125)}
+                              title="Click to reset min orbit node distance to 125px"
+                            >
+                              {minOrbitNodeDistance}px
+                            </span>
+                          </div>
+                          <div className="setting-slider-row">
+                            <button
+                              type="button"
+                              className="domain-hud-step-btn"
+                              onClick={() => handleMinOrbitNodeDistanceChange(minOrbitNodeDistance - 15)}
+                              title="Decrease min distance on orbit (-15px)"
+                            >
+                              −
+                            </button>
+                            <input
+                              type="range"
+                              min="50"
+                              max="400"
+                              step="5"
+                              value={minOrbitNodeDistance}
+                              onChange={(e) => handleMinOrbitNodeDistanceChange(parseInt(e.target.value, 10))}
+                              className="domain-hud-slider"
+                            />
+                            <button
+                              type="button"
+                              className="domain-hud-step-btn"
+                              onClick={() => handleMinOrbitNodeDistanceChange(minOrbitNodeDistance + 15)}
+                              title="Increase min distance on orbit (+15px)"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 4. Mouse Wheel Zoom Sensitivity */}
+                      <div className="display-setting-row" title="Adjust mouse wheel zoom sensitivity">
+                        <div className="setting-label-row">
+                          <span className="setting-icon">🖱️</span>
+                          <span className="setting-name">Wheel Sensitivity</span>
+                          <span
+                            className="domain-hud-value-badge"
+                            onClick={() => handleWheelSensitivityChange(1.0)}
+                            title="Click to reset sensitivity to 1.0x"
+                          >
+                            {wheelSensitivity.toFixed(1)}x
+                          </span>
+                        </div>
+                        <div className="setting-slider-row">
+                          <button
+                            type="button"
+                            className="domain-hud-step-btn"
+                            onClick={() => handleWheelSensitivityChange(Math.max(0.2, +(wheelSensitivity - 0.2).toFixed(1)))}
+                            title="Decrease sensitivity"
+                          >
+                            −
+                          </button>
+                          <input
+                            type="range"
+                            min="0.2"
+                            max="3.0"
+                            step="0.1"
+                            value={wheelSensitivity}
+                            onChange={(e) => handleWheelSensitivityChange(parseFloat(e.target.value))}
+                            className="domain-hud-slider"
+                          />
+                          <button
+                            type="button"
+                            className="domain-hud-step-btn"
+                            onClick={() => handleWheelSensitivityChange(Math.min(3.0, +(wheelSensitivity + 0.2).toFixed(1)))}
+                            title="Increase sensitivity"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="display-popover-divider" />
+
+                      {/* 5. Auto-update graph & Relayout */}
+                      <div className="display-popover-actions">
+                        <label
+                          className={`domain-hud-checkbox-label ${autoRelayoutOnFilter ? 'is-active' : ''}`}
+                          title={
+                            autoRelayoutOnFilter
+                              ? 'Auto-relayout enabled: layout automatically refits when entities are hidden. Uncheck to keep node positions unchanged.'
+                              : 'Auto-relayout disabled: nodes are hidden in place without moving remaining nodes.'
+                          }
+                        >
+                          <input
+                            type="checkbox"
+                            className="domain-hud-checkbox"
+                            checked={autoRelayoutOnFilter}
+                            onChange={(e) => handleAutoRelayoutChange(e.target.checked)}
+                          />
+                          <span>🔄 Auto-recalc</span>
+                        </label>
+                        <button
+                          type="button"
+                          className="domain-hud-btn"
+                          onClick={handleForceRelayout}
+                          title="Recalculate graph layout now (Re-layout)"
+                          style={{ padding: '2px 8px', fontSize: '11px', lineHeight: 1 }}
+                        >
+                          ⟳ Re-layout
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Zoom Controls / Refresh */}
+            <div className="domain-hud-control-group" title="Viewport Controls">
+              {!isMatrixMode && (
+                <>
+                  <button
+                    type="button"
+                    className="domain-hud-btn"
+                    onClick={handleZoomOut}
+                    title="Zoom Out"
+                  >
+                    −
+                  </button>
+                  <button
+                    type="button"
+                    className="domain-hud-btn zoom-level-btn"
+                    onClick={handleResetZoom}
+                    title="Reset Zoom to 100%"
+                  >
+                    {Math.round(currentZoom * 100)}%
+                  </button>
+                  <button
+                    type="button"
+                    className="domain-hud-btn"
+                    onClick={handleZoomIn}
+                    title="Zoom In"
+                  >
+                    +
+                  </button>
+                  <button
+                    type="button"
+                    className="domain-hud-btn fit-btn"
+                    onClick={handleFitView}
+                    title="Fit to Screen"
+                  >
+                    ⛶ Fit
+                  </button>
+                </>
+              )}
               {onRefresh && (
                 <button
                   type="button"
                   className="domain-hud-btn refresh-btn"
                   onClick={onRefresh}
-                  title="Reload Architecture Map"
+                  title={isMatrixMode ? 'Reload Architecture Matrix' : 'Reload Architecture Map'}
                 >
                   🔄 Refresh
                 </button>
@@ -5067,7 +5259,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               type="button"
               className={`domain-hud-btn sidebar-toggle-btn ${isRightSidebarOpen ? 'is-active' : ''}`}
               onClick={() => handleToggleSidebar(!isRightSidebarOpen)}
-              title={isRightSidebarOpen ? 'Close Right Sidebar' : 'Open Right Sidebar (Info, Orbits, Visibility, Gates)'}
+              title={isRightSidebarOpen ? 'Close Right Sidebar' : 'Open Right Sidebar (Info, Orbits, Visibility)'}
             >
               <span className="btn-icon">🗂️</span>
               <span className="btn-text">{isRightSidebarOpen ? 'Hide Panel' : 'Panel'}</span>
@@ -5084,53 +5276,11 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
       {/* Main Content Area: Resizable Horizontal Panel Layout */}
       <Group orientation="horizontal" className="domain-panel-group">
-        {/* Center Canvas / Grid / Matrix Panel */}
+        {/* Center Canvas / Matrix Panel */}
         <Panel id="center-canvas" minSize="30%" className="domain-dock-panel-center">
           <div className="domain-cytoscape-wrapper" style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', flex: 1, position: 'relative', overflow: 'hidden' }}>
 
-      {presentationMode === 'grid' ? (
-        <DomainGridView
-          domainGroups={rawGraph.domainGroups}
-          allNodes={Array.from(rawGraph.detailMap.values())}
-          searchQuery={searchQuery}
-          hiddenTypes={hiddenTypes}
-          hiddenNodeIds={hiddenNodeIds}
-          hiddenOrbitTiers={hiddenOrbitTiers}
-          hideSingleConnectionDbs={hideSingleConnectionDbs}
-          hideIsolatedNodes={hideIsolatedNodes}
-          selectedNode={selectedNode}
-          onSelectNode={(node) => {
-            setSelectedNode(node);
-            if (node) {
-              const gNode: GraphNode = {
-                id: node.id,
-                name: node.name,
-                displayName: node.displayName,
-                kind: node.kind === 'Service' || node.kind === 'Ingress' ? 'Service' : node.kind,
-                filePath: node.primaryFilePath,
-                properties: {
-                  kind: node.kind,
-                  framework: node.framework || '',
-                  language: node.language || '',
-                  inboundCalls: String(node.inboundCallsCount),
-                  outboundCalls: String(node.outboundCallsCount),
-                  dbCount: String(node.dbCount),
-                  messagingCount: String(node.messagingCount),
-                },
-              };
-              onSelectNode?.(gNode);
-            } else {
-              onSelectNode?.(null);
-            }
-          }}
-          onFocusInFlow={onFocusInFlow}
-          onOpenFile={onOpenFile}
-          onOpenOverrideModal={(svc) => {
-            setOverrideTargetService(svc);
-            setOverrideModalOpen(true);
-          }}
-        />
-      ) : presentationMode === 'matrix' || layoutName === 'matrix' ? (
+      {isMatrixMode ? (
         <DomainMatrixView
           nodes={visibleNodes.map((n) => rawGraph.detailMap.get(n.data.id as string)!).filter(Boolean)}
           edges={visibleEdges.map((e) => ({
@@ -5657,7 +5807,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         </div>
       </Panel>
 
-      {/* Right Docked Panel: Unified Sidebar (Info / Orbits / Hidden) */}
+      {/* Right Docked Panel: Unified Sidebar (Info / Orbits / Visibility) */}
       {isRightSidebarOpen && (
         <>
           <Separator className="domain-panel-resize-handle handle-right" />
@@ -5703,16 +5853,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                     <EyeIcon size={12} />
                     <span>Visibility</span>
                     {hiddenCount > 0 && <span className="tab-badge">{hiddenCount}</span>}
-                  </button>
-                  <button
-                    type="button"
-                    className={`domain-sidebar-tab ${effectiveSidebarTab === 'gates' ? 'is-active' : ''}`}
-                    onClick={() => handleSidebarTabChange('gates')}
-                    title="Semantic Invariant Gates (SIG) & Ratchet Baselines"
-                  >
-                    <ShieldIcon size={12} />
-                    <span>Gates</span>
-                    {gatesBadgeText && <span className="tab-badge">{gatesBadgeText}</span>}
                   </button>
                 </div>
                 <button
@@ -5818,18 +5958,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                     onToggleCustomGroupCollapse={toggleCustomGroupCollapse}
                     onDeleteCustomGroup={deleteCustomGroup}
                     onSelectGroupNode={handleSelectNodeById}
-                  />
-                )}
-                {effectiveSidebarTab === 'gates' && (
-                  <DomainGatesPanel
-                    serverHttpUrl={serverHttpUrl}
-                    onOpenFile={onOpenFile}
-                    onSuiteLoaded={(s) => {
-                      setGatesBadgeText(s.totalGates > 0 ? `${s.passedCount}/${s.totalGates}` : '');
-                    }}
-                    docked={true}
-                    onClose={() => handleToggleSidebar(false)}
-                    gateEditorRequest={gateEditorRequest}
                   />
                 )}
               </div>

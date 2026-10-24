@@ -578,8 +578,11 @@
 .domain-display-popover {
   position: absolute;
   top: calc(100% + 6px);
-  right: 0;
+  left: 0;
+  right: auto;
   width: 290px;
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
   background: rgba(15, 23, 42, 0.98);
   backdrop-filter: blur(16px);
   border: 1px solid rgba(56, 189, 248, 0.35);

@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import { SelectedNodeDetail, EntityKind, CustomNodeGroup } from '../types';
-import { useDomainArchitecture } from '../context/DomainArchitectureContext';
 import { FloatingPanel } from '../../components/FloatingPanel';
 import { EyeIcon, EyeOffIcon, RotateCcwIcon, XIcon } from '../../components/Icons';
 import { EntityNodeBadge, getEntityBadgeMeta } from '../entityBadges';
@@ -67,33 +66,28 @@ interface EntityTypeItem {
 }
 
 export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (props) => {
-  let ctx: any = null;
-  try {
-    ctx = useDomainArchitecture();
-  } catch {}
-
-  const hiddenNodeIds = props.hiddenNodeIds || ctx?.hiddenNodeIds || new Set();
-  const hiddenTypes = props.hiddenTypes || ctx?.hiddenTypes || new Set();
-  const hiddenOrbitTiers = props.hiddenOrbitTiers || ctx?.hiddenOrbitTiers || new Set();
-  const hideSingleConnectionDbs = props.hideSingleConnectionDbs !== undefined ? props.hideSingleConnectionDbs : !!ctx?.hideSingleConnectionDbs;
-  const hideIsolatedNodes = props.hideIsolatedNodes !== undefined ? props.hideIsolatedNodes : !!ctx?.hideIsolatedNodes;
-  const showTransitiveEdges = props.showTransitiveEdges !== undefined ? props.showTransitiveEdges : !!ctx?.showTransitiveEdges;
-  const unhideNode = props.onUnhideNode || ctx?.unhideNode;
-  const restoreAllHiddenNodes = props.onRestoreAll || ctx?.restoreAllHiddenNodes;
-  const isHiddenPanelCollapsed = props.isCollapsed !== undefined ? props.isCollapsed : !!ctx?.isHiddenPanelCollapsed;
-  const setIsHiddenPanelCollapsed = props.onToggleCollapse || ctx?.setIsHiddenPanelCollapsed;
-  const toggleType = props.onToggleType || ctx?.toggleTypeVisibility;
-  const toggleSingleConnDbs = props.onToggleSingleConnectionDbs || (() => ctx?.setHideSingleConnectionDbs?.((p: boolean) => !p));
-  const toggleIsolated = props.onToggleIsolatedNodes || (() => ctx?.setHideIsolatedNodes?.((p: boolean) => !p));
-  const toggleTransitive = props.onToggleTransitiveEdges || (() => ctx?.setShowTransitiveEdges?.((p: boolean) => !p));
+  const hiddenNodeIds = props.hiddenNodeIds || new Set<string>();
+  const hiddenTypes = props.hiddenTypes || new Set<EntityKind>();
+  const hiddenOrbitTiers = props.hiddenOrbitTiers || new Set<number>();
+  const hideSingleConnectionDbs = !!props.hideSingleConnectionDbs;
+  const hideIsolatedNodes = !!props.hideIsolatedNodes;
+  const showTransitiveEdges = !!props.showTransitiveEdges;
+  const unhideNode = props.onUnhideNode;
+  const restoreAllHiddenNodes = props.onRestoreAll;
+  const isHiddenPanelCollapsed = !!props.isCollapsed;
+  const setIsHiddenPanelCollapsed = props.onToggleCollapse;
+  const toggleType = props.onToggleType;
+  const toggleSingleConnDbs = props.onToggleSingleConnectionDbs;
+  const toggleIsolated = props.onToggleIsolatedNodes;
+  const toggleTransitive = props.onToggleTransitiveEdges;
   const nodeDetailMap = props.nodeDetailMap;
 
-  const groupedTypes: Set<EntityKind> = props.groupedTypes || ctx?.groupedTypes || new Set<EntityKind>();
-  const toggleTypeGrouping = props.onToggleTypeGrouping || ctx?.toggleTypeGrouping;
-  const customGroups: CustomNodeGroup[] = props.customGroups || ctx?.customGroups || [];
-  const createCustomGroup = props.onCreateCustomGroup || ctx?.createCustomGroup;
-  const toggleCustomGroupCollapse = props.onToggleCustomGroupCollapse || ctx?.toggleCustomGroupCollapse;
-  const deleteCustomGroup = props.onDeleteCustomGroup || ctx?.deleteCustomGroup;
+  const groupedTypes: Set<EntityKind> = props.groupedTypes || new Set<EntityKind>();
+  const toggleTypeGrouping = props.onToggleTypeGrouping;
+  const customGroups: CustomNodeGroup[] = props.customGroups || [];
+  const createCustomGroup = props.onCreateCustomGroup;
+  const toggleCustomGroupCollapse = props.onToggleCustomGroupCollapse;
+  const deleteCustomGroup = props.onDeleteCustomGroup;
   const onSelectGroupNode = props.onSelectGroupNode;
 
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);

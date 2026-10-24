@@ -9,6 +9,8 @@ export function getViewTitle(viewMode?: string): string {
   switch (viewMode) {
     case 'semantic':
       return 'CodeExplorer: Architecture Map';
+    case 'matrix':
+      return 'CodeExplorer: Architecture Matrix';
     case 'project':
       return 'CodeExplorer: Project Map';
     case 'contexts':
@@ -37,6 +39,7 @@ export function getViewTitle(viewMode?: string): string {
 export class GraphPanel {
   public static readonly VIEW_MODES = [
     'semantic',
+    'matrix',
     'project',
     'contexts',
     'layers',

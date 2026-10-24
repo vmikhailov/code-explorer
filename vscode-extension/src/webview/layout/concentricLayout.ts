@@ -212,6 +212,110 @@ export function computeEchelonTiers(
 }
 
 /**
+ * Computes human-readable explainability reasons ("why is this node in this tier?")
+ * for each node in the architecture graph.
+ */
+export function computeEchelonTierReasons(
+  allNodes: Array<{ id: string; kind: string; displayName?: string }>,
+  rawEdges: Array<{ source: string; target: string; category?: string }>
+): Map<string, string> {
+  const nameMap = new Map<string, string>();
+  const kindMap = new Map<string, string>();
+  for (const n of allNodes) {
+    nameMap.set(n.id, n.displayName || n.id);
+    kindMap.set(n.id, n.kind);
+  }
+
+  const serviceAdj = new Map<string, Set<string>>();
+  const inboundCallers = new Map<string, Set<string>>();
+  for (const e of rawEdges) {
+    if (e.category === 'service_call') {
+      if (!serviceAdj.has(e.source)) serviceAdj.set(e.source, new Set());
+      serviceAdj.get(e.source)!.add(e.target);
+      if (!inboundCallers.has(e.target)) inboundCallers.set(e.target, new Set());
+      inboundCallers.get(e.target)!.add(e.source);
+    }
+  }
+
+  const serviceTiers = new Map<string, number>();
+  const viaCaller = new Map<string, string>();
+  const queue: Array<{ id: string; tier: number }> = [];
+
+  for (const n of allNodes) {
+    if (n.kind === 'App' || n.kind === 'FrontendApp' || n.kind === 'Ingress') {
+      queue.push({ id: n.id, tier: 0 });
+    }
+  }
+  for (const n of allNodes) {
+    if (n.kind === 'Service') {
+      const inCount = inboundCallers.get(n.id)?.size || 0;
+      const outCount = serviceAdj.get(n.id)?.size || 0;
+      if (inCount === 0 && outCount > 0) {
+        serviceTiers.set(n.id, 1);
+        queue.push({ id: n.id, tier: 1 });
+      }
+    }
+  }
+
+  while (queue.length > 0) {
+    const { id, tier } = queue.shift()!;
+    const neighbors = serviceAdj.get(id);
+    if (neighbors) {
+      for (const nextId of neighbors) {
+        const nextTier = tier + 1;
+        const existing = serviceTiers.get(nextId);
+        if (existing === undefined || nextTier < existing) {
+          serviceTiers.set(nextId, nextTier);
+          viaCaller.set(nextId, id);
+          queue.push({ id: nextId, tier: nextTier });
+        }
+      }
+    }
+  }
+
+  const reasons = new Map<string, string>();
+  for (const n of allNodes) {
+    if (n.kind === 'App' || n.kind === 'FrontendApp' || n.kind === 'Ingress') {
+      reasons.set(n.id, 'Client application or API ingress entrypoint (Orbit 0)');
+    } else if (n.kind === 'Topic' || n.kind === 'Queue' || n.kind === 'Broker' || n.kind === 'EventBus') {
+      reasons.set(n.id, 'Asynchronous message broker topic/queue bridging echelons (Orbit 2)');
+    } else if (n.kind === 'Service') {
+      const t = serviceTiers.get(n.id) ?? 2;
+      const callerId = viaCaller.get(n.id);
+      const callerName = callerId ? nameMap.get(callerId) || callerId : undefined;
+      if (t <= 1) {
+        if (callerName) {
+          reasons.set(n.id, `Gateway-facing service called directly by ${callerName}`);
+        } else {
+          const outCount = serviceAdj.get(n.id)?.size || 0;
+          reasons.set(n.id, `Top-level orchestrator service (0 inbound calls, ${outCount} downstream calls)`);
+        }
+      } else {
+        if (callerName) {
+          reasons.set(n.id, `Internal domain service (hop depth ${t} via ${callerName})`);
+        } else {
+          reasons.set(n.id, 'Internal domain service with no direct ingress path');
+        }
+      }
+    } else if (n.kind === 'Worker') {
+      reasons.set(n.id, 'Background worker / consumer placed in internal domain echelon (Orbit 3)');
+    } else if (n.kind === 'CliTool' || n.kind === 'TestSuite') {
+      reasons.set(n.id, `${n.kind === 'CliTool' ? 'CLI utility' : 'Test suite'} placed in internal execution echelon (Orbit 3)`);
+    } else if (n.kind === 'Database' || n.kind === 'Table' || n.kind === 'Procedure') {
+      reasons.set(n.id, 'Persistence data store / schema resource on outer infrastructure ring (Orbit 4)');
+    } else if (n.kind === 'ExternalService' || n.kind === 'CloudService') {
+      reasons.set(n.id, 'External third-party or cloud infrastructure dependency (Orbit 4)');
+    } else if (n.kind === 'Library' || n.kind === 'SharedLibrary') {
+      reasons.set(n.id, 'Shared code library referenced across services (Orbit 4)');
+    } else {
+      reasons.set(n.id, `Classified as ${n.kind} in outer orbit`);
+    }
+  }
+
+  return reasons;
+}
+
+/**
  * Optimizes the assignment of `nodeIds` onto a fixed set of `slotAngles` on an orbit of radius `orbitRadius`
  * to strictly minimize total weighted Euclidean link length (both inter-orbit links to already-placed nodes
  * and intra-orbit links between nodes on the same ring), while preserving the exact slot angles (equispacing).

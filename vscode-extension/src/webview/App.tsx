@@ -444,7 +444,7 @@ export const App: React.FC = () => {
         if (!layersGraphRef.current || layersGraphRef.current.nodes?.length === 0) {
           requestLayers();
         }
-      } else if (targetMode === 'semantic') {
+      } else if (targetMode === 'semantic' || targetMode === 'matrix') {
         if (!domainGraphRef.current || domainGraphRef.current.nodes?.length === 0) {
           requestDomain();
         }
@@ -921,7 +921,7 @@ export const App: React.FC = () => {
               // Fetch dedicated graph for initial view mode
               if (viewModeRef.current === 'layers') {
                 requestLayers();
-              } else if (viewModeRef.current === 'semantic') {
+              } else if (viewModeRef.current === 'semantic' || viewModeRef.current === 'matrix') {
                 requestDomain();
               } else if (viewModeRef.current === 'c1') {
                 requestC1();
@@ -965,7 +965,7 @@ export const App: React.FC = () => {
               }
               if (viewModeRef.current === 'contexts') {
                 requestContexts();
-              } else if (viewModeRef.current === 'semantic') {
+              } else if (viewModeRef.current === 'semantic' || viewModeRef.current === 'matrix') {
                 requestDomain();
               } else if (viewModeRef.current === 'layers') {
                 requestLayers();
@@ -1359,7 +1359,7 @@ export const App: React.FC = () => {
   return (
     <CommandProvider manager={commandManager}>
       <div id="app">
-        {viewMode !== 'grid' && viewMode !== 'semantic' && viewMode !== 'project' && viewMode !== 'settings' && viewMode !== 'gate-editor' && (
+        {viewMode !== 'grid' && viewMode !== 'semantic' && viewMode !== 'matrix' && viewMode !== 'project' && viewMode !== 'settings' && viewMode !== 'gate-editor' && (
           <Toolbar
             viewMode={viewMode}
             onSwitchViewMode={(m) => handleViewModeChange(m)}
@@ -1378,7 +1378,7 @@ export const App: React.FC = () => {
               }
             }}
             onRefresh={() => {
-              if ((viewMode as string) === 'semantic') {
+              if ((viewMode as string) === 'semantic' || (viewMode as string) === 'matrix') {
                 requestDomain();
               } else if (viewMode === 'contexts') {
                 setContextsGraph(null);
@@ -1516,9 +1516,9 @@ export const App: React.FC = () => {
           {((viewMode === 'flow' && !flowGraph) ||
             (viewMode === 'contexts' && !contextsGraph) ||
             (viewMode === 'layers' && !layersGraph && !fullGraph) ||
-            (viewMode === 'semantic' && !domainGraph && !fullGraph) ||
+            ((viewMode === 'semantic' || viewMode === 'matrix') && !domainGraph && !fullGraph) ||
             (viewMode === 'c1' && !c1Graph && !fullGraph) ||
-            (viewMode !== 'flow' && viewMode !== 'contexts' && viewMode !== 'layers' && viewMode !== 'semantic' && viewMode !== 'project' && viewMode !== 'c1' && viewMode !== 'settings' && viewMode !== 'gate-editor' && !fullGraph)) &&
+            (viewMode !== 'flow' && viewMode !== 'contexts' && viewMode !== 'layers' && viewMode !== 'semantic' && viewMode !== 'matrix' && viewMode !== 'project' && viewMode !== 'c1' && viewMode !== 'settings' && viewMode !== 'gate-editor' && !fullGraph)) &&
             connectionStatus !== 'error' &&
             connectionStatus !== 'disconnected' && (
               <div className="view-loading-overlay">
@@ -1534,6 +1534,8 @@ export const App: React.FC = () => {
                         ? 'Loading Architecture Tiers...'
                         : viewMode === 'semantic'
                         ? 'Loading Domain Architecture...'
+                        : viewMode === 'matrix'
+                        ? 'Loading Architecture Matrix...'
                         : viewMode === 'c1'
                         ? 'Loading System Context...'
                         : 'Loading architecture graph...'}
@@ -1557,7 +1559,7 @@ export const App: React.FC = () => {
               />
             )}
 
-            {viewMode === 'semantic' && singleCodeProject && (
+            {(viewMode === 'semantic' || viewMode === 'matrix') && singleCodeProject && (
               <div className="pm-single-project-banner">
                 <span>
                   This workspace has a single project (<strong>{singleCodeProject}</strong>). Project Map shows its internal modules,
@@ -1569,8 +1571,9 @@ export const App: React.FC = () => {
               </div>
             )}
 
-            {viewMode === 'semantic' && (
+            {(viewMode === 'semantic' || viewMode === 'matrix') && (
               <DomainArchitectureView
+                mode={viewMode === 'matrix' ? 'matrix' : 'map'}
                 graph={domainGraph}
                 serverHttpUrl={serverHttpUrl}
                 onOpenFile={handleOpenFile}
@@ -1582,7 +1585,6 @@ export const App: React.FC = () => {
                 onRefresh={() => {
                   requestDomain();
                 }}
-                gateEditorRequest={gateEditorRequest}
               />
             )}
 

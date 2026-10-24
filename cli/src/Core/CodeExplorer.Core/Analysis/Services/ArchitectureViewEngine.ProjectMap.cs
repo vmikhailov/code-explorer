@@ -15,7 +15,7 @@ public partial class ArchitectureViewEngine
 {
     private const int ProjectMapEdgeRowLimit = 200_000;
 
-    private static readonly string[] ProjectMapLiftedKinds = ["CALLS", "USES_TYPE", "IMPLEMENTS", "INHERITS_FROM"];
+    private static readonly string[] ProjectMapLiftedKinds = ["CALLS", "USES_TYPE", "IMPLEMENTS", "INHERITS_FROM", "TRIGGERS"];
 
     private static readonly string[] ProjectMapResourceLabels =
         ["Table", "Topic", "ExternalService", "Database", "CloudService", "DataSet", "Procedure"];
@@ -120,7 +120,10 @@ public partial class ArchitectureViewEngine
     {
         var kinds = string.Join(", ", ProjectMapLiftedKinds.Select(EscapeCypherStringLiteral));
         var query =
-            $"MATCH (a)-[r]->(b) WHERE r.kind IN [{kinds}] AND a.file_path STARTS WITH $prefix AND b.file_path STARTS WITH $prefix AND a.file_path <> b.file_path " +
+            $"MATCH (a)-[r]->(b) WHERE r.kind IN [{kinds}] " +
+            "AND (a.file_path STARTS WITH $prefix OR a.file_path CONTAINS $slashPrefix) " +
+            "AND (b.file_path STARTS WITH $prefix OR b.file_path CONTAINS $slashPrefix) " +
+            "AND a.file_path <> b.file_path " +
             $"RETURN a.file_path AS from_file, b.file_path AS to_file, r.kind AS kind, a.name AS from_name, b.name AS to_name, a.start_line AS line LIMIT {ProjectMapEdgeRowLimit}";
 
         var rows = await QueryProjectMapRowsAsync(query, prefix, "symbol edges", warnings, ct);
@@ -129,42 +132,129 @@ public partial class ArchitectureViewEngine
             warnings.Add($"Symbol edges truncated at {ProjectMapEdgeRowLimit} rows.");
         }
 
-        return rows.Select(e => new ProjectMapSymbolEdge(
-                e.GetStringProp("from_file"),
-                e.GetStringProp("to_file"),
+        var edges = rows.Select(e => new ProjectMapSymbolEdge(
+                NormalizeToProjectPath(e.GetStringProp("from_file"), prefix),
+                NormalizeToProjectPath(e.GetStringProp("to_file"), prefix),
                 e.GetStringProp("kind"),
                 e.GetStringProp("from_name"),
                 e.GetStringProp("to_name"),
                 e.GetNullableIntProp("line")))
+            .Where(e => e.FromFile.Length > 0 && e.ToFile.Length > 0 && !e.FromFile.Equals(e.ToFile, StringComparison.OrdinalIgnoreCase))
             .ToList();
+
+        // Synthesize USES_TYPE edges from Type->Member data_type and EntryPoint->Type handler contracts within the project
+        const string typesQuery =
+            "MATCH (t:Type) WHERE t.file_path STARTS WITH $prefix OR t.file_path CONTAINS $slashPrefix " +
+            "RETURN t.name AS name, t.file_path AS file";
+        var typeRows = await QueryProjectMapRowsAsync(typesQuery, prefix, "project types", warnings, ct);
+        var typeToFiles = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        foreach (var tr in typeRows)
+        {
+            var tName = StripGenericArity(tr.GetStringProp("name"));
+            var tFile = NormalizeToProjectPath(tr.GetStringProp("file"), prefix);
+            if (tName.Length == 0 || tFile.Length == 0) continue;
+            if (!typeToFiles.TryGetValue(tName, out var list))
+            {
+                list = [];
+                typeToFiles[tName] = list;
+            }
+            if (!list.Contains(tFile, StringComparer.OrdinalIgnoreCase))
+            {
+                list.Add(tFile);
+            }
+        }
+
+        if (typeToFiles.Count > 0)
+        {
+            const string membersQuery =
+                "MATCH (t:Type)-[:HAS_MEMBER]->(m:Member) " +
+                "WHERE (t.file_path STARTS WITH $prefix OR t.file_path CONTAINS $slashPrefix) AND m.data_type <> '' " +
+                "RETURN t.name AS from_name, t.file_path AS from_file, m.data_type AS dtype, m.start_line AS line";
+            var memberRows = await QueryProjectMapRowsAsync(membersQuery, prefix, "member type references", warnings, ct);
+            var seenMemberTypeEdges = new HashSet<(string FromFile, string ToFile, string FromSym, string ToSym)>();
+
+            foreach (var mr in memberRows)
+            {
+                var fromFile = NormalizeToProjectPath(mr.GetStringProp("from_file"), prefix);
+                var fromName = mr.GetStringProp("from_name");
+                var dtype = mr.GetStringProp("dtype");
+                var line = mr.GetNullableIntProp("line");
+                if (fromFile.Length == 0 || dtype.Length == 0) continue;
+
+                foreach (var token in ExtractTypeIdentifiers(dtype))
+                {
+                    if (!typeToFiles.TryGetValue(token, out var targetFiles)) continue;
+                    foreach (var toFile in targetFiles)
+                    {
+                        if (fromFile.Equals(toFile, StringComparison.OrdinalIgnoreCase)) continue;
+                        if (seenMemberTypeEdges.Add((fromFile, toFile, fromName, token)))
+                        {
+                            edges.Add(new ProjectMapSymbolEdge(fromFile, toFile, "USES_TYPE", fromName, token, line));
+                        }
+                    }
+                }
+            }
+
+            const string entryHandlersQuery =
+                "MATCH (e:EntryPoint) WHERE e.file_path STARTS WITH $prefix OR e.file_path CONTAINS $slashPrefix " +
+                "RETURN e.name AS name, e.file_path AS file, e.start_line AS line";
+            var entryRows = await QueryProjectMapRowsAsync(entryHandlersQuery, prefix, "entrypoint handler types", warnings, ct);
+            foreach (var er in entryRows)
+            {
+                var fromFile = NormalizeToProjectPath(er.GetStringProp("file"), prefix);
+                var rawName = er.GetStringProp("name");
+                var line = er.GetNullableIntProp("line");
+                if (fromFile.Length == 0 || rawName.Length == 0) continue;
+
+                foreach (var token in ExtractTypeIdentifiers(rawName))
+                {
+                    if (!typeToFiles.TryGetValue(token, out var targetFiles)) continue;
+                    foreach (var toFile in targetFiles)
+                    {
+                        if (fromFile.Equals(toFile, StringComparison.OrdinalIgnoreCase)) continue;
+                        if (seenMemberTypeEdges.Add((fromFile, toFile, rawName, token)))
+                        {
+                            edges.Add(new ProjectMapSymbolEdge(fromFile, toFile, "USES_TYPE", rawName, token, line));
+                        }
+                    }
+                }
+            }
+        }
+
+        return edges;
     }
 
     private async Task<List<ProjectMapResourceLink>> LoadProjectMapResourceLinksAsync(string prefix, List<string> warnings, CancellationToken ct)
     {
         var labels = string.Join(", ", ProjectMapResourceLabels.Select(EscapeCypherStringLiteral));
         const string projection =
-            "RETURN res.id AS res_id, labels(res)[0] AS res_kind, res.name AS res_name, r.kind AS kind, s.file_path AS file, s.name AS sym, s.start_line AS line";
+            "RETURN res.id AS res_id, labels(res)[0] AS res_kind, res.name AS res_name, r.kind AS kind, coalesce(s.file_path, s.path) AS file, s.name AS sym, s.start_line AS line";
 
         var queries = new (string Query, string Context)[]
         {
-            ($"MATCH (res)-[r]->(s) WHERE labels(res)[0] IN [{labels}] AND s.file_path STARTS WITH $prefix {projection}", "resource links (inbound)"),
-            ($"MATCH (s)-[r]->(res) WHERE labels(res)[0] IN [{labels}] AND s.file_path STARTS WITH $prefix {projection}", "resource links (outbound)"),
-            ("MATCH (res:Table)<-[r]-(q:Query)-[a]->(s) WHERE a.kind = 'ACCESSED_BY' AND s.file_path STARTS WITH $prefix " + projection, "query tables (accessed by)"),
-            ("MATCH (s)-[a]->(q:Query)-[r]->(res:Table) WHERE s.file_path STARTS WITH $prefix " + projection, "query tables (declared)")
+            ($"MATCH (res)-[r]->(s) WHERE labels(res)[0] IN [{labels}] AND NOT (res.id STARTS WITH 'ws:top:mediatr:') AND NOT (labels(s)[0] IN ['Project', 'Database', 'Domain']) AND (s.file_path STARTS WITH $prefix OR s.file_path CONTAINS $slashPrefix OR s.path STARTS WITH $prefix OR s.path CONTAINS $slashPrefix) {projection}", "resource links (inbound)"),
+            ($"MATCH (s)-[r]->(res) WHERE labels(res)[0] IN [{labels}] AND NOT (res.id STARTS WITH 'ws:top:mediatr:') AND NOT (labels(s)[0] IN ['Project', 'Database', 'Domain']) AND (s.file_path STARTS WITH $prefix OR s.file_path CONTAINS $slashPrefix OR s.path STARTS WITH $prefix OR s.path CONTAINS $slashPrefix) {projection}", "resource links (outbound)"),
+            ("MATCH (res:Table)<-[r]-(q:Query)-[a]->(s) WHERE a.kind = 'ACCESSED_BY' AND (s.file_path STARTS WITH $prefix OR s.file_path CONTAINS $slashPrefix) " + projection, "query tables (accessed by)"),
+            ("MATCH (s)-[a]->(q:Query)-[r]->(res:Table) WHERE (s.file_path STARTS WITH $prefix OR s.file_path CONTAINS $slashPrefix) " + projection, "query tables (declared)")
         };
 
         var links = new List<ProjectMapResourceLink>();
         foreach (var (query, context) in queries)
         {
             var rows = await QueryProjectMapRowsAsync(query, prefix, context, warnings, ct);
-            links.AddRange(rows.Select(e => new ProjectMapResourceLink(
-                e.GetStringProp("file"),
-                e.GetStringProp("res_id"),
-                e.GetStringProp("res_kind", "Table"),
-                e.GetStringProp("res_name", e.GetStringProp("res_id")),
-                e.GetStringProp("kind"),
-                e.GetStringProp("sym"),
-                e.GetNullableIntProp("line"))));
+            foreach (var e in rows)
+            {
+                var normFile = NormalizeToProjectPath(e.GetStringProp("file"), prefix);
+                if (normFile.Length == 0 || ProjectMapPartitioner.IsIgnoredProjectMapFile(normFile)) continue;
+                links.Add(new ProjectMapResourceLink(
+                    normFile,
+                    e.GetStringProp("res_id"),
+                    e.GetStringProp("res_kind", "Table"),
+                    e.GetStringProp("res_name", e.GetStringProp("res_id")),
+                    e.GetStringProp("kind"),
+                    e.GetStringProp("sym"),
+                    e.GetNullableIntProp("line")));
+            }
         }
 
         return links;
@@ -172,13 +262,20 @@ public partial class ArchitectureViewEngine
 
     private async Task<Dictionary<string, int>> LoadProjectMapEntryPointsAsync(string prefix, List<string> warnings, CancellationToken ct)
     {
-        const string query =
-            "MATCH (e)-[r]->(s) WHERE labels(e)[0] IN ['Endpoint', 'EntryPoint'] AND r.kind IN ['TRIGGERS', 'EXPOSED_BY'] AND s.file_path STARTS WITH $prefix " +
-            "RETURN e.id AS eid, s.file_path AS file";
-        var rows = await QueryProjectMapRowsAsync(query, prefix, "entry points", warnings, ct);
+        const string edgeQuery =
+            "MATCH (e)-[r]->(s) WHERE labels(e)[0] IN ['Endpoint', 'EntryPoint'] AND r.kind IN ['TRIGGERS', 'EXPOSED_BY'] " +
+            "AND (s.file_path STARTS WITH $prefix OR s.file_path CONTAINS $slashPrefix OR s.path STARTS WITH $prefix OR s.path CONTAINS $slashPrefix) " +
+            "RETURN e.id AS eid, coalesce(s.file_path, s.path) AS file";
+        const string directQuery =
+            "MATCH (e) WHERE labels(e)[0] IN ['Endpoint', 'EntryPoint'] " +
+            "AND (e.file_path STARTS WITH $prefix OR e.file_path CONTAINS $slashPrefix OR e.path STARTS WITH $prefix OR e.path CONTAINS $slashPrefix) " +
+            "RETURN e.id AS eid, coalesce(e.file_path, e.path) AS file";
 
-        return rows
-            .Select(e => (Id: e.GetStringProp("eid"), File: e.GetStringProp("file")))
+        var edgeRows = await QueryProjectMapRowsAsync(edgeQuery, prefix, "entry points (edges)", warnings, ct);
+        var directRows = await QueryProjectMapRowsAsync(directQuery, prefix, "entry points (direct)", warnings, ct);
+
+        return edgeRows.Concat(directRows)
+            .Select(e => (Id: e.GetStringProp("eid"), File: NormalizeToProjectPath(e.GetStringProp("file"), prefix)))
             .Where(x => x.Id.Length > 0 && x.File.Length > 0)
             .Distinct()
             .GroupBy(x => x.File, StringComparer.OrdinalIgnoreCase)
@@ -190,7 +287,12 @@ public partial class ArchitectureViewEngine
     {
         try
         {
-            var json = await db.ExecuteQueryAsync(query, new Dictionary<string, object?> { ["prefix"] = prefix }, ct);
+            var slashPrefix = "/" + prefix.TrimStart('/');
+            var json = await db.ExecuteQueryAsync(query, new Dictionary<string, object?>
+            {
+                ["prefix"] = prefix,
+                ["slashPrefix"] = slashPrefix
+            }, ct);
             using var doc = JsonDocument.Parse(json);
             return doc.RootElement.EnumerateArray().Select(e => e.Clone()).ToList();
         }
@@ -199,6 +301,55 @@ public partial class ArchitectureViewEngine
             logger?.LogWarning(ex, "[ProjectMap] {Context} query failed: {Message}", context, ex.Message);
             warnings.Add($"{context}: {ex.Message}");
             return [];
+        }
+    }
+
+    private static string NormalizeToProjectPath(string? rawPath, string prefix)
+    {
+        if (string.IsNullOrWhiteSpace(rawPath)) return "";
+        var norm = rawPath.Replace('\\', '/').TrimStart('/');
+        if (prefix.Length == 0 || norm.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return norm;
+        }
+        var slashPrefix = "/" + prefix;
+        var idx = norm.IndexOf(slashPrefix, StringComparison.OrdinalIgnoreCase);
+        if (idx >= 0)
+        {
+            return norm[(idx + 1)..];
+        }
+        return norm;
+    }
+
+    private static string StripGenericArity(string typeName)
+    {
+        if (string.IsNullOrWhiteSpace(typeName)) return "";
+        var angleIdx = typeName.IndexOf('<');
+        if (angleIdx > 0) typeName = typeName[..angleIdx];
+        var tickIdx = typeName.IndexOf('`');
+        if (tickIdx > 0) typeName = typeName[..tickIdx];
+        return typeName.Trim();
+    }
+
+    private static IEnumerable<string> ExtractTypeIdentifiers(string rawTypeExpr)
+    {
+        var start = -1;
+        for (var i = 0; i <= rawTypeExpr.Length; i++)
+        {
+            var ch = i < rawTypeExpr.Length ? rawTypeExpr[i] : '\0';
+            if (char.IsLetterOrDigit(ch) || ch == '_')
+            {
+                if (start < 0) start = i;
+            }
+            else if (start >= 0)
+            {
+                var token = rawTypeExpr[start..i];
+                start = -1;
+                if (token.Length >= 2 && char.IsUpper(token[0]))
+                {
+                    yield return token;
+                }
+            }
         }
     }
 
