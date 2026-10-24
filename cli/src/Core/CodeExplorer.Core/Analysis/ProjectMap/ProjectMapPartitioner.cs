@@ -14,6 +14,56 @@ public static class ProjectMapPartitioner
     internal const string RootKey = "\u0000root";
     internal const string OtherKey = "\u0000other";
 
+    private static readonly HashSet<string> NonCodeExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".json", ".xml", ".yaml", ".yml", ".md", ".txt", ".css", ".scss", ".less",
+        ".html", ".htm", ".svg", ".png", ".jpg", ".jpeg", ".gif", ".ico", ". lock", ".config", ".csproj", ".sln", ".slnx", ".props", ".targets"
+    };
+
+    private static readonly HashSet<string> BoilerplateFileNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "GlobalUsings.cs", "GlobalSuppressions.cs", "AssemblyInfo.cs", "Program.Testing.cs", "_Imports.razor"
+    };
+
+    private static readonly HashSet<string> GeneratedFolderSegments = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Migrations", "wwwroot", "obj", "bin", "node_modules", "dist", "Properties"
+    };
+
+    public static bool IsIgnoredProjectMapFile(string path)
+    {
+        var norm = (path ?? "").Replace('\\', '/').Trim('/');
+        if (norm.Length == 0) return true;
+
+        var segments = norm.Split('/');
+        var fileName = segments[^1];
+
+        if (BoilerplateFileNames.Contains(fileName)) return true;
+        if (fileName.EndsWith(".Designer.cs", StringComparison.OrdinalIgnoreCase) ||
+            fileName.EndsWith("ModelSnapshot.cs", StringComparison.OrdinalIgnoreCase) ||
+            fileName.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase) ||
+            fileName.EndsWith(".generated.cs", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var dotIdx = fileName.LastIndexOf('.');
+        if (dotIdx >= 0 && NonCodeExtensions.Contains(fileName[dotIdx..]))
+        {
+            return true;
+        }
+
+        for (var i = 0; i < segments.Length - 1; i++)
+        {
+            if (GeneratedFolderSegments.Contains(segments[i]))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public sealed record PartitionResult(
         string SourceRoot,
         ProjectMapGranularity Granularity,
@@ -23,7 +73,13 @@ public static class ProjectMapPartitioner
     public static PartitionResult Partition(string projectPath, IReadOnlyList<ProjectMapFile> files)
     {
         var projectPrefix = NormalizeDir(projectPath);
-        var relative = files
+        var filteredFiles = files.Where(f => !IsIgnoredProjectMapFile(f.Path)).ToList();
+        if (filteredFiles.Count == 0)
+        {
+            filteredFiles = files.ToList();
+        }
+
+        var relative = filteredFiles
             .DistinctBy(f => f.Path, StringComparer.OrdinalIgnoreCase)
             .Select(f => (File: f, Rel: ToRelative(f.Path, projectPrefix)))
             .Where(x => x.Rel.Length > 0)
@@ -59,6 +115,44 @@ public static class ProjectMapPartitioner
                 granularity = ProjectMapGranularity.SubModule;
             }
         }
+        else if (underRoot.Count >= 12)
+        {
+            // Expand any single dominant depth-1 folder (>= 45% of project files and >= 6 files with >= 2 subfolders)
+            // so e.g. Ordering.API's Application/ (56 files) expands into Application/Commands, Application/Queries, etc.
+            var folderCounts = depth1.Values
+                .Where(k => k != RootKey)
+                .GroupBy(k => k, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
+
+            var dominantFolders = folderCounts
+                .Where(kv => kv.Value >= 6 && kv.Value >= underRoot.Count * 0.45)
+                .Select(kv => kv.Key)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            if (dominantFolders.Count > 0)
+            {
+                var expanded = new Dictionary<string, string>(depth1, StringComparer.OrdinalIgnoreCase);
+                var anyExpanded = false;
+                foreach (var dom in dominantFolders)
+                {
+                    var domFiles = underRoot.Where(r => string.Equals(depth1[r.File.Path], dom, StringComparison.OrdinalIgnoreCase)).ToList();
+                    var subKeys = domFiles.Select(r => KeyAtDepth(r.Rel, 2)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                    if (subKeys.Count >= 2)
+                    {
+                        foreach (var df in domFiles)
+                        {
+                            expanded[df.File.Path] = KeyAtDepth(df.Rel, 2);
+                        }
+                        anyExpanded = true;
+                    }
+                }
+                if (anyExpanded)
+                {
+                    keys = expanded;
+                    granularity = ProjectMapGranularity.SubModule;
+                }
+            }
+        }
 
         var limit = granularity == ProjectMapGranularity.File ? MaxFileNodes : MaxModules;
         keys = MergeOverflow(keys, limit);
@@ -79,6 +173,23 @@ public static class ProjectMapPartitioner
             module.Files.Add(filePath);
             module.LineCount += lineCounts.GetValueOrDefault(filePath);
             fileToModule[filePath] = module.Id;
+        }
+
+        foreach (var m in modules.Values.Where(m => m.IsRootFiles))
+        {
+            if (m.Files.Count == 1)
+            {
+                var singleFile = m.Files[0].Replace('\\', '/');
+                m.Name = singleFile[(singleFile.LastIndexOf('/') + 1)..];
+            }
+            else if (m.Files.Any(f =>
+                f.EndsWith("/Program.cs", StringComparison.OrdinalIgnoreCase) ||
+                f.EndsWith("/Startup.cs", StringComparison.OrdinalIgnoreCase) ||
+                f.EndsWith("/MauiProgram.cs", StringComparison.OrdinalIgnoreCase) ||
+                f.EndsWith("/App.xaml.cs", StringComparison.OrdinalIgnoreCase)))
+            {
+                m.Name = "Startup & Host";
+            }
         }
 
         var ordered = modules.Values

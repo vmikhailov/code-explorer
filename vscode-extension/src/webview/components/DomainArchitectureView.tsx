@@ -294,86 +294,6 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
       'transition-duration': 0.2,
     },
   },
-  // Ingress / App
-  {
-    selector: 'node[kind = "Ingress"], node[kind = "App"], node[kind = "FrontendApp"]',
-    style: {
-      'background-color': '#0288d1',
-      'border-color': '#01579b',
-    },
-  },
-  // Service
-  {
-    selector: 'node[kind = "Service"]',
-    style: {
-      'background-color': '#e53935',
-      'border-color': '#7f1d1d',
-    },
-  },
-  // Worker
-  {
-    selector: 'node[kind = "Worker"]',
-    style: {
-      'background-color': '#c026d3',
-      'border-color': '#86198f',
-    },
-  },
-  // CliTool
-  {
-    selector: 'node[kind = "CliTool"]',
-    style: {
-      'background-color': '#d97706',
-      'border-color': '#92400e',
-    },
-  },
-  // TestSuite
-  {
-    selector: 'node[kind = "TestSuite"]',
-    style: {
-      'background-color': '#059669',
-      'border-color': '#047857',
-    },
-  },
-  // Library
-  {
-    selector: 'node[kind = "Library"]',
-    style: {
-      'background-color': '#475569',
-      'border-color': '#1e293b',
-    },
-  },
-  // Database / Table / Procedure
-  {
-    selector: 'node[kind = "Database"], node[kind = "Table"], node[kind = "Procedure"]',
-    style: {
-      'background-color': '#7b1fa2',
-      'border-color': '#4a148c',
-    },
-  },
-  // Topic
-  {
-    selector: 'node[kind = "Topic"]',
-    style: {
-      'background-color': '#f59e0b',
-      'border-color': '#b45309',
-    },
-  },
-  // External
-  {
-    selector: 'node[kind = "ExternalService"]',
-    style: {
-      'background-color': '#26a69a',
-      'border-color': '#004d40',
-    },
-  },
-  // Group Node
-  {
-    selector: 'node[kind = "Group"]',
-    style: {
-      'background-color': '#4f46e5',
-      'border-color': '#312e81',
-    },
-  },
   {
     selector: 'node.group-node',
     style: {
@@ -1550,21 +1470,26 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     }
   }, []);
 
-  // Display Settings Popover state
+  // View Types & Display Parameters Popover states
+  const [isViewMenuOpen, setIsViewMenuOpen] = useState(false);
+  const viewMenuRef = useRef<HTMLDivElement>(null);
   const [isDisplayOpen, setIsDisplayOpen] = useState(false);
   const displayMenuRef = useRef<HTMLDivElement>(null);
 
-  // Close display popover on outside click
+  // Close view/display popovers on outside click
   useEffect(() => {
-    if (!isDisplayOpen) return;
+    if (!isViewMenuOpen && !isDisplayOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (displayMenuRef.current && !displayMenuRef.current.contains(e.target as Node)) {
+      if (isViewMenuOpen && viewMenuRef.current && !viewMenuRef.current.contains(e.target as Node)) {
+        setIsViewMenuOpen(false);
+      }
+      if (isDisplayOpen && displayMenuRef.current && !displayMenuRef.current.contains(e.target as Node)) {
         setIsDisplayOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isDisplayOpen]);
+  }, [isViewMenuOpen, isDisplayOpen]);
 
   // Unified Right Side Panel State
   const [rightSidebarTab, setRightSidebarTab] = useState<'info' | 'orbits' | 'visibility'>(() => {
@@ -2174,12 +2099,46 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         borderColor = '#374151';
         size = 46;
       } else if (isModule) {
-        serviceCount++;
-        tag = ':Module';
-        nodeKind = 'Module';
-        bgColor = '#2563eb';
-        borderColor = '#1e3a8a';
-        size = 52;
+        const modTier =
+          node.properties?.tier !== undefined && !isNaN(Number(node.properties.tier))
+            ? Number(node.properties.tier)
+            : 2;
+        if (modTier === 0) {
+          appCount++;
+          tag = ':Ingress';
+          nodeKind = 'Ingress';
+          bgColor = '#0288d1';
+          borderColor = '#01579b';
+          size = 56;
+        } else if (modTier === 1) {
+          workerCount++;
+          tag = ':AppLogic';
+          nodeKind = 'Worker';
+          bgColor = '#8b5cf6';
+          borderColor = '#5b21b6';
+          size = 52;
+        } else if (modTier === 3) {
+          serviceCount++;
+          tag = ':DataAccess';
+          nodeKind = 'Service';
+          bgColor = '#d97706';
+          borderColor = '#92400e';
+          size = 50;
+        } else if (modTier >= 4) {
+          libCount++;
+          tag = ':Foundation';
+          nodeKind = 'Library';
+          bgColor = '#475569';
+          borderColor = '#1e293b';
+          size = 44;
+        } else {
+          serviceCount++;
+          tag = ':Core';
+          nodeKind = 'Module';
+          bgColor = '#10b981';
+          borderColor = '#047857';
+          size = 52;
+        }
       } else {
         serviceCount++;
       }
@@ -3330,11 +3289,11 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
       let computedSize: number = isGroup ? GROUP_NODE_SIZE : ((n.data as any).size || 56);
       if (nodeSizingMode === 'sqrt-weight') {
-        const base = isGroup ? 44 : 38;
-        computedSize = Math.round(Math.max(40, Math.min(88, base + 6 * Math.sqrt(weightVal))));
+        const base = isGroup ? 44 : 30;
+        computedSize = Math.round(Math.max(36, Math.min(92, base + 9.5 * Math.sqrt(weightVal))));
       } else if (nodeSizingMode === 'degree') {
-        const base = isGroup ? 44 : 38;
-        computedSize = Math.round(Math.max(40, Math.min(88, base + 5.5 * Math.sqrt(Math.max(1, totalConnections)))));
+        const base = isGroup ? 44 : 36;
+        computedSize = Math.round(Math.max(38, Math.min(90, base + 6.5 * Math.sqrt(Math.max(1, totalConnections)))));
       }
 
       const metricText =
@@ -4709,26 +4668,29 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           <div className="domain-hud-row domain-hud-primary-row">
             <div className="domain-hud-controls-left">
             {headerSlot}
-            {/* Display & Sliders Tuning Popover (Map mode only) */}
+            {/* Menu 1: View & Representation Types Popover (Map mode only) */}
             {!isMatrixMode && (
-              <div className="domain-hud-popover-anchor" ref={displayMenuRef}>
+              <div className="domain-hud-popover-anchor" ref={viewMenuRef}>
                 <button
                   type="button"
-                  className={`domain-hud-btn domain-hud-display-btn ${isDisplayOpen ? 'is-active' : ''}`}
-                  onClick={() => setIsDisplayOpen((prev) => !prev)}
-                  title="Fine-tune display settings (Layout, Line style, Font size, Edge curvature, Air spacing, Wheel sensitivity)"
+                  className={`domain-hud-btn domain-hud-display-btn ${isViewMenuOpen ? 'is-active' : ''}`}
+                  onClick={() => {
+                    setIsViewMenuOpen((prev) => !prev);
+                    setIsDisplayOpen(false);
+                  }}
+                  title="Choose display types (Graph Layout, Node Content, Node Size, Line Style, Edge Labels)"
                 >
-                  🎛️ Display <span style={{ fontSize: '9px', marginLeft: 2 }}>▾</span>
+                  📐 View <span style={{ fontSize: '9px', marginLeft: 2 }}>▾</span>
                 </button>
 
-                {isDisplayOpen && (
+                {isViewMenuOpen && (
                   <div className="domain-display-popover">
                     <div className="display-popover-header">
-                      <span>Display & Tuning</span>
+                      <span>View & Representation</span>
                       <button
                         type="button"
                         className="display-popover-close"
-                        onClick={() => setIsDisplayOpen(false)}
+                        onClick={() => setIsViewMenuOpen(false)}
                         title="Close"
                       >
                         ✕
@@ -4818,6 +4780,91 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                         </select>
                       </div>
 
+                      {/* Edge Labels Visibility Control */}
+                      <div className="display-setting-row" title="Control when edge text labels are shown: always or only on hover">
+                        <div className="setting-label-row">
+                          <span className="setting-icon">🏷️</span>
+                          <span className="setting-name">Edge Labels</span>
+                          <span
+                            className={`domain-hud-value-badge ${edgeLabelsOnHover ? 'is-active' : ''}`}
+                            onClick={() => handleEdgeLabelsOnHoverChange(!edgeLabelsOnHover)}
+                            title="Click to toggle: Always Show vs On Hover Only"
+                            style={{ cursor: 'pointer' }}
+                          >
+                            {edgeLabelsOnHover ? 'On Hover' : 'Always'}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
+                          <button
+                            type="button"
+                            className={`domain-hud-btn ${!edgeLabelsOnHover ? 'is-active' : ''}`}
+                            onClick={() => handleEdgeLabelsOnHoverChange(false)}
+                            title="Always show text labels on all edges"
+                            style={{
+                              flex: 1,
+                              padding: '3px 8px',
+                              fontSize: '10.5px',
+                              background: !edgeLabelsOnHover ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                              borderColor: !edgeLabelsOnHover ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)',
+                              color: !edgeLabelsOnHover ? '#ffffff' : '#94a3b8',
+                            }}
+                          >
+                            Always
+                          </button>
+                          <button
+                            type="button"
+                            className={`domain-hud-btn ${edgeLabelsOnHover ? 'is-active' : ''}`}
+                            onClick={() => handleEdgeLabelsOnHoverChange(true)}
+                            title="Hide text labels by default, reveal on edge hover or selection"
+                            style={{
+                              flex: 1,
+                              padding: '3px 8px',
+                              fontSize: '10.5px',
+                              background: edgeLabelsOnHover ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                              borderColor: edgeLabelsOnHover ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)',
+                              color: edgeLabelsOnHover ? '#ffffff' : '#94a3b8',
+                            }}
+                          >
+                            On Hover Only
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Menu 2: Display Parameters & Sliders Tuning Popover (Map mode only) */}
+            {!isMatrixMode && (
+              <div className="domain-hud-popover-anchor" ref={displayMenuRef}>
+                <button
+                  type="button"
+                  className={`domain-hud-btn domain-hud-display-btn ${isDisplayOpen ? 'is-active' : ''}`}
+                  onClick={() => {
+                    setIsDisplayOpen((prev) => !prev);
+                    setIsViewMenuOpen(false);
+                  }}
+                  title="Fine-tune display parameters (Font size, Edge curvature, Air spacing, Orbit distances, Wheel sensitivity)"
+                >
+                  🎛️ Parameters <span style={{ fontSize: '9px', marginLeft: 2 }}>▾</span>
+                </button>
+
+                {isDisplayOpen && (
+                  <div className="domain-display-popover">
+                    <div className="display-popover-header">
+                      <span>Display Parameters</span>
+                      <button
+                        type="button"
+                        className="display-popover-close"
+                        onClick={() => setIsDisplayOpen(false)}
+                        title="Close"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <div className="display-popover-body">
                       {/* 1. Font Size Control */}
                       <div className="display-setting-row" title="Adjust graph label font size (7px - 24px)">
                         <div className="setting-label-row">
@@ -5072,56 +5119,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                             title="Increase sensitivity"
                           >
                             +
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* 5. Edge Labels Visibility Control */}
-                      <div className="display-setting-row" title="Control when edge text labels are shown: always or only on hover">
-                        <div className="setting-label-row">
-                          <span className="setting-icon">🏷️</span>
-                          <span className="setting-name">Edge Labels</span>
-                          <span
-                            className={`domain-hud-value-badge ${edgeLabelsOnHover ? 'is-active' : ''}`}
-                            onClick={() => handleEdgeLabelsOnHoverChange(!edgeLabelsOnHover)}
-                            title="Click to toggle: Always Show vs On Hover Only"
-                            style={{ cursor: 'pointer' }}
-                          >
-                            {edgeLabelsOnHover ? 'On Hover' : 'Always'}
-                          </span>
-                        </div>
-                        <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
-                          <button
-                            type="button"
-                            className={`domain-hud-btn ${!edgeLabelsOnHover ? 'is-active' : ''}`}
-                            onClick={() => handleEdgeLabelsOnHoverChange(false)}
-                            title="Always show text labels on all edges"
-                            style={{
-                              flex: 1,
-                              padding: '3px 8px',
-                              fontSize: '10.5px',
-                              background: !edgeLabelsOnHover ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.04)',
-                              borderColor: !edgeLabelsOnHover ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)',
-                              color: !edgeLabelsOnHover ? '#ffffff' : '#94a3b8',
-                            }}
-                          >
-                            Always
-                          </button>
-                          <button
-                            type="button"
-                            className={`domain-hud-btn ${edgeLabelsOnHover ? 'is-active' : ''}`}
-                            onClick={() => handleEdgeLabelsOnHoverChange(true)}
-                            title="Hide text labels by default, reveal on edge hover or selection"
-                            style={{
-                              flex: 1,
-                              padding: '3px 8px',
-                              fontSize: '10.5px',
-                              background: edgeLabelsOnHover ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255, 255, 255, 0.04)',
-                              borderColor: edgeLabelsOnHover ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)',
-                              color: edgeLabelsOnHover ? '#ffffff' : '#94a3b8',
-                            }}
-                          >
-                            On Hover Only
                           </button>
                         </div>
                       </div>

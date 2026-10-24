@@ -69,7 +69,7 @@ public sealed record ProjectMapEvidenceSample(string? FromSymbol, string? ToSymb
 public sealed class ProjectMapModule
 {
     public required string Id { get; init; }
-    public required string Name { get; init; }
+    public required string Name { get; set; }
 
     /// <summary>Workspace-relative folder (or file) path backing this module.</summary>
     public required string Path { get; init; }

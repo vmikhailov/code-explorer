@@ -16,11 +16,11 @@ public static class ProjectMapClassifier
     private const double TieBandLow = 0.35;
     private const double TieBandHigh = 0.65;
 
-    private static readonly HashSet<string> IngressNames = Names("bin", "cmd", "cli", "api", "apis", "controllers", "controller", "routes", "router", "endpoints", "mcp", "ui", "views", "pages", "server", "web", "grpc", "graphql", "commands", "handlers");
-    private static readonly HashSet<string> ApplicationNames = Names("services", "service", "application", "app", "usecases", "use-cases", "sync", "jobs", "workers", "workflows", "orchestration", "features");
-    private static readonly HashSet<string> CoreNames = Names("domain", "core", "model", "models", "engine", "entities", "graph", "logic");
-    private static readonly HashSet<string> DataNames = Names("db", "data", "database", "persistence", "repositories", "repository", "repos", "storage", "dao", "migrations", "store");
-    private static readonly HashSet<string> FoundationNames = Names("utils", "util", "common", "shared", "helpers", "helper", "errors", "types", "constants", "extensions", "logging", "config", "lib");
+    private static readonly HashSet<string> IngressNames = Names("bin", "cmd", "cli", "api", "apis", "controllers", "controller", "routes", "router", "endpoints", "mcp", "ui", "views", "pages", "server", "web", "grpc", "graphql", "commands", "handlers", "quickstart", "platforms", "components");
+    private static readonly HashSet<string> ApplicationNames = Names("services", "service", "application", "app", "usecases", "use-cases", "sync", "jobs", "workers", "workflows", "orchestration", "features", "viewmodels", "viewmodel", "queries", "domaineventhandlers", "eventhandling", "integrationevents", "behaviors");
+    private static readonly HashSet<string> CoreNames = Names("domain", "core", "model", "models", "engine", "entities", "graph", "logic", "aggregatesmodel", "buyeraggregate", "orderaggregate", "validations", "events", "seedwork", "messages");
+    private static readonly HashSet<string> DataNames = Names("db", "data", "database", "persistence", "repositories", "repository", "repos", "storage", "dao", "migrations", "store", "infrastructure", "entityconfigurations", "idempotency", "context");
+    private static readonly HashSet<string> FoundationNames = Names("utils", "util", "common", "shared", "helpers", "helper", "errors", "types", "constants", "extensions", "logging", "config", "lib", "converters", "controls", "animations", "effects", "triggers", "exceptions", "protos");
 
     public static void Classify(ProjectMapResult result)
     {
@@ -50,6 +50,9 @@ public static class ProjectMapClassifier
         var isDependedOn = m.FanIn >= 2 && m.FanIn > m.FanOut;
         if (m.EntryPointCount > 0 && !isDependedOn)
             return (ProjectMapTier.Ingress, $"Exposes {m.EntryPointCount} endpoint/entry point(s)");
+
+        if (m.IsRootFiles && m.FanIn == 0)
+            return (ProjectMapTier.Ingress, "Project startup / host entrypoint files");
 
         var others = Math.Max(1, moduleCount - 1);
         var foundationThreshold = Math.Max(3, (int)Math.Ceiling(others * FoundationFanInShare));

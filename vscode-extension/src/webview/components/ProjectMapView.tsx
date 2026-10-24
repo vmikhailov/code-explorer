@@ -180,9 +180,9 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
         headerSlot={headerControls}
         defaultLayoutName="concentric-barycentric"
         defaultNodeSizingMode="sqrt-weight"
-        defaultNodeContentMode="icon"
+        defaultNodeContentMode="metric"
         defaultHiddenTypes={[]}
-        storagePrefix="ce_pm_"
+        storagePrefix="ce_pm_v2_"
         onOpenFile={onOpenFile}
         onRefresh={() => setReloadToken((t) => t + 1)}
       />
