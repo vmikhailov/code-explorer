@@ -1,0 +1,28 @@
+# CodeExplorer (ce)
+
+> Architecture intelligence for AI coding agents and engineering teams. CodeExplorer indexes a repository (C#/.NET via Roslyn plus 12 Tree-sitter languages) into a unified OpenCypher knowledge graph stored in local SQLite, and exposes it through a fast CLI, a local MCP server, Semantic Invariant Gates (SIG) for CI, and a VS Code extension.
+
+## Get started
+
+- Install (NuGet global tool): `dotnet tool install -g codeexplorer.cli`
+- Install (Homebrew): `brew install vmikhailov/tap/ce`
+- Index a repository: `ce scan --init`
+- Query the graph: `ce query "MATCH (p:Project) RETURN p.name"`
+- Run as an MCP server (stdio): `ce mcp` — see the [MCP server card](https://code-explorer.app/.well-known/mcp/server-card.json)
+
+## Docs
+
+- [Ontology (node and edge types)](https://github.com/vmikhailov/code-explorer/blob/main/docs/ontology.md)
+- [Sample projects](https://github.com/vmikhailov/code-explorer/blob/main/docs/sample-projects.md)
+- [README](https://github.com/vmikhailov/code-explorer#readme)
+- [Releases](https://github.com/vmikhailov/code-explorer/releases)
+
+## Distribution
+
+- [NuGet: CodeExplorer.Cli](https://www.nuget.org/packages/CodeExplorer.Cli)
+- [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode)
+- [Open VSX](https://open-vsx.org/extension/vmikhailov/code-explorer-vscode)
+
+## Optional
+
+- [Presentation](https://code-explorer.app/presentation.html)

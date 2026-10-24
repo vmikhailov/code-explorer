@@ -332,26 +332,24 @@ public static partial class BuiltInGateCatalog
         Severity = GateSeverity.Error,
         Description = "Invoking synchronous blocking functions (std::thread::sleep, std::fs::read/write, reqwest::blocking) inside an async function starves the Tokio executor threadpool.",
         Remediation = "Replace blocking calls with their Tokio non-blocking equivalents (e.g. tokio::time::sleep, tokio::fs) or offload via tokio::task::spawn_blocking.",
+        Message = "Async function '{fn.name}' invokes blocking call: '{target.name}'",
         Query = """
             MATCH (fn:Function)-[:CALLS]->(target)
-            WHERE fn.is_async = true
+            WHERE (fn.is_async = 'true' OR fn.is_async = true)
               AND (
                 target.full_name IN [
                   "std::thread::sleep", "std::fs::read", "std::fs::write",
                   "std::fs::read_to_string", "reqwest::blocking"
                 ]
                 OR target.name IN [
-                  "std::thread::sleep", "std::fs::read", "std::fs::write",
-                  "std::fs::read_to_string", "reqwest::blocking"
+                  "std::thread::sleep", "thread::sleep", "std::fs::read", "fs::read",
+                  "std::fs::write", "fs::write", "std::fs::read_to_string",
+                  "fs::read_to_string", "read_to_string"
                 ]
+                OR (target.name CONTAINS 'blocking' AND NOT target.name CONTAINS 'non_blocking' AND NOT target.name CONTAINS 'spawn_blocking')
               )
               AND NOT coalesce(fn.is_test, false)
-            RETURN 
-              coalesce(fn.file_path, fn.path, 'unknown') AS file,
-              coalesce(fn.start_line, 1) AS line,
-              fn.name AS symbol,
-              coalesce(target.full_name, target.name) AS target,
-              'Async function invokes blocking call: ' + coalesce(target.full_name, target.name) AS message
+            RETURN fn, target
             """,
         Ratchet = new GateRatchetSettings
         {

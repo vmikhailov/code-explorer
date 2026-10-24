@@ -3716,7 +3716,7 @@ ratchet:
       copySnippet(snippet, 'MCP Server JSON copied!');
     }
 
-    // Asynchronously fetch latest release version from GitHub with caching & fallback
+    // Asynchronously fetch latest release version from same-origin /version.json
     async function loadLatestVersion() {
       const heroEl = document.getElementById('heroReleaseBadge');
       const footerEl = document.getElementById('footerCeVersion');
@@ -3727,46 +3727,15 @@ ratchet:
         if (footerEl) footerEl.textContent = cleanTag;
       }
 
-      const CACHE_KEY = 'ce_latest_version_tag';
-      const CACHE_TIME_KEY = 'ce_latest_version_time';
-      const cached = localStorage.getItem(CACHE_KEY);
-      const cacheTime = localStorage.getItem(CACHE_TIME_KEY);
-
-      if (cached) {
-        setVersionText(cached);
-      }
-
-      if (cached && cacheTime && (Date.now() - parseInt(cacheTime, 10) < 15 * 60 * 1000)) {
-        return;
-      }
-
       try {
-        const res = await fetch('https://api.github.com/repos/vmikhailov/code-explorer/releases/latest');
+        const res = await fetch('/version.json', { cache: 'no-cache' });
         if (res.ok) {
           const data = await res.json();
           if (data && data.tag_name) {
-            localStorage.setItem(CACHE_KEY, data.tag_name);
-            localStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
             setVersionText(data.tag_name);
-            return;
           }
         }
-      } catch (err) {
-        // network or CORS error, fall through to fallback
-      }
-
-      try {
-        const resPkg = await fetch('https://raw.githubusercontent.com/vmikhailov/code-explorer/main/vscode-extension/package.json');
-        if (resPkg.ok) {
-          const pkg = await resPkg.json();
-          if (pkg && pkg.version) {
-            const tag = 'v' + pkg.version;
-            localStorage.setItem(CACHE_KEY, tag);
-            localStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
-            setVersionText(tag);
-          }
-        }
-      } catch (err) {
+      } catch (_) {
         // silent fallback to pre-rendered HTML version
       }
     }

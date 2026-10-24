@@ -1,0 +1,21 @@
+{
+  "name": "code-explorer",
+  "title": "CodeExplorer (ce)",
+  "description": "Local architecture-intelligence MCP server. Indexes a codebase into an OpenCypher knowledge graph (projects, symbols, calls, data lineage) and exposes architecture map, dependency, call-chain, impact-analysis and Semantic Invariant Gate tools to AI coding agents.",
+  "homepage": "https://code-explorer.app/",
+  "repository": "https://github.com/vmikhailov/code-explorer",
+  "documentation": "https://code-explorer.app/llms.txt",
+  "transport": {
+    "type": "stdio",
+    "command": "ce",
+    "args": ["mcp"],
+    "env": { "CE_WORKSPACE": "." }
+  },
+  "install": [
+    { "method": "dotnet-tool", "command": "dotnet tool install -g codeexplorer.cli", "package": "https://www.nuget.org/packages/CodeExplorer.Cli" },
+    { "method": "homebrew", "command": "brew install vmikhailov/tap/ce", "package": "https://github.com/vmikhailov/homebrew-tap" }
+  ],
+  "remote": false,
+  "authentication": "none",
+  "dataHandling": "Runs entirely on the developer machine; source code and the graph database never leave the workspace."
+}
