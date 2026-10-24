@@ -55,6 +55,8 @@ export interface DomainVisibilityPanelProps {
   onToggleCollapse?: (collapsed: boolean) => void;
   docked?: boolean;
   onClose?: () => void;
+  appearanceSection?: React.ReactNode;
+  customPresetsSlot?: React.ReactNode;
 }
 
 interface EntityTypeItem {
@@ -256,6 +258,7 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
 
   const content = (
     <div className="domain-visibility-panel-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px', padding: '10px 12px', flex: 1, minHeight: 0, overflowY: 'auto' }}>
+      {props.appearanceSection}
       {/* 1. Quick Entity Type Toggles */}
       <div className="visibility-section">
         <div className="visibility-section-header">
@@ -627,6 +630,7 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
           <span className="visibility-section-hint">High-level view filters</span>
         </div>
         <div className="visibility-presets-list">
+          {props.customPresetsSlot}
           {/* Hide 1:1 Databases */}
           <button
             type="button"
