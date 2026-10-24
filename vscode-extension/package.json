@@ -2,7 +2,7 @@
   "name": "code-explorer-vscode",
   "displayName": "CodeExplorer — AI Architecture Graph, MCP & Gates",
   "description": "MCP Server, OpenCypher Codebase Graph & Semantic Invariant Gates (SIG) for AI Coding Agents (Claude Code, Cursor, Copilot) and Enterprise Architecture.",
-  "version": "1.56.0",
+  "version": "1.57.0",
   "publisher": "vmikhailov",
   "license": "MIT",
   "icon": "media/icon_512_quant.png",
