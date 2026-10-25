@@ -86,11 +86,6 @@
           "id": "code-explorer-sidebar",
           "title": "CodeExplorer",
           "icon": "media/icon-sidebar.svg"
-        },
-        {
-          "id": "code-explorer-inspector",
-          "title": "CodeExplorer Inspector",
-          "icon": "media/icon-inspector.svg"
         }
       ]
     },
@@ -101,9 +96,7 @@
           "name": "CodeExplorer Graph",
           "type": "tree",
           "when": "workspaceFolderCount != 0"
-        }
-      ],
-      "code-explorer-inspector": [
+        },
         {
           "id": "codeExplorerInspectorView",
           "name": "Graph Inspector & Controls",
