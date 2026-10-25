@@ -281,6 +281,62 @@ public class CSharpParser : IProjectParser, IFileParser
         return Path.GetFileName(directoryPath.TrimEnd('/', '\\'));
     }
 
+    public bool TryParse(ProjectParseContext context, out ProjectParseResult? result)
+    {
+        var csprojFiles = context.FilesInDirectory
+            .Where(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (csprojFiles.Count == 0)
+        {
+            result = null;
+            return false;
+        }
+
+        var nonCsprojFiles = context.FilesInDirectory
+            .Where(f => !f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        var primaryCsproj = csprojFiles[0];
+        var primaryFiles = nonCsprojFiles.Append(primaryCsproj).ToArray();
+        var primaryName = GetProjectName(context.DirectoryPath, primaryFiles);
+        var primaryProps = ExtractManifestProperties(context.DirectoryPath, primaryFiles);
+
+        List<ParsedProjectDescriptor>? siblingProjects = null;
+        if (csprojFiles.Count > 1)
+        {
+            siblingProjects = [];
+            for (var i = 1; i < csprojFiles.Count; i++)
+            {
+                var sibCsproj = csprojFiles[i];
+                var sibFiles = nonCsprojFiles.Append(sibCsproj).ToArray();
+                var sibName = Path.GetFileNameWithoutExtension(sibCsproj);
+                var sibProps = ExtractManifestProperties(context.DirectoryPath, sibFiles);
+                var relIdOverride = !string.IsNullOrEmpty(context.AbsoluteWorkspacePath)
+                    ? $"{Path.GetRelativePath(context.AbsoluteWorkspacePath, context.DirectoryPath).Replace('\\', '/').Trim('.').Trim('/')}#{sibName}".TrimStart('#')
+                    : $"{Path.GetFileName(context.DirectoryPath.TrimEnd('/', '\\'))}#{sibName}";
+
+                siblingProjects.Add(new ParsedProjectDescriptor(
+                    Name: sibName,
+                    DirectoryPath: context.DirectoryPath,
+                    ProjectType: ProjectType,
+                    ManifestProperties: sibProps,
+                    RelativeIdPathOverride: relIdOverride));
+            }
+        }
+
+        result = new ProjectParseResult(
+            Project: new ParsedProjectDescriptor(
+                Name: primaryName,
+                DirectoryPath: context.DirectoryPath,
+                ProjectType: ProjectType,
+                ManifestProperties: primaryProps),
+            ClaimMode: ParserClaimMode.AbsorbSecondaryInDirectory,
+            AdditionalSiblingProjects: siblingProjects);
+        return true;
+    }
+
     public ProjectClassification? ClassifyProject(ProjectContext context)
     {
         if (context.ManifestProperties != null)

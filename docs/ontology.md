@@ -162,6 +162,7 @@ graph TD
     Procedure -->|CONTAINS| Query
     Project -->|LOCATED_IN| Folder
     Project -->|LOCATED_IN| Workspace
+    Project -->|CONTAINS| Project
     Project -->|DEPENDS_ON| Project
     Project -->|DEPENDS_ON| Package
     Project -->|PRODUCES| Package
@@ -508,6 +509,7 @@ graph TD
 | :--- | :--- |
 | `LOCATED_IN` | `Folder` |
 | `LOCATED_IN` | `Workspace` |
+| `CONTAINS` | `Project` |
 | `DEPENDS_ON` | `Project` |
 | `DEPENDS_ON` | `Package` |
 | `PRODUCES` | `Package` |
@@ -525,6 +527,7 @@ graph TD
 | `Library` | `IMPLEMENTED_BY` |
 | `Package` | `PRODUCES` |
 | `Package` | `IMPLEMENTED_BY` |
+| `Project` | `CONTAINS` |
 | `Project` | `DEPENDS_ON` |
 | `ProjectsStructure` | `CONTAINS` |
 | `ProjectSyntax` | `BELONGS_TO` |

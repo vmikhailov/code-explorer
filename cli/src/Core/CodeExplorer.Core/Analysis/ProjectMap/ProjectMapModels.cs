@@ -29,6 +29,16 @@ public sealed record ProjectMapResourceLink(
     int? Line = null);
 
 /// <summary>
+/// A nested child project (SubProject) contained inside a parent project.
+/// </summary>
+public sealed record ProjectMapSubProject(
+    string ProjectId,
+    string Name,
+    string Path,
+    string Kind,
+    IReadOnlyList<ProjectMapFile> Files);
+
+/// <summary>
 /// Raw, already-scoped inputs for a single project. Produced by the view engine from existing graph nodes/edges.
 /// </summary>
 public sealed class ProjectMapInput
@@ -36,6 +46,9 @@ public sealed class ProjectMapInput
     public string ProjectId { get; init; } = "";
     public string ProjectName { get; init; } = "";
     public string ProjectPath { get; init; } = "";
+    public bool IsBuildOrchestrator { get; init; }
+    public IReadOnlyList<string> ExcludedSubpaths { get; init; } = [];
+    public IReadOnlyList<ProjectMapSubProject> SubProjects { get; init; } = [];
     public IReadOnlyList<ProjectMapFile> Files { get; init; } = [];
     public IReadOnlyList<ProjectMapSymbolEdge> SymbolEdges { get; init; } = [];
     public IReadOnlyList<ProjectMapResourceLink> ResourceLinks { get; init; } = [];
@@ -76,6 +89,9 @@ public sealed class ProjectMapModule
 
     public bool IsRootFiles { get; init; }
     public bool IsMerged { get; init; }
+    public bool IsSubProject { get; init; }
+    public string? SubProjectId { get; init; }
+    public string? SubProjectKind { get; init; }
     public List<string> Files { get; } = [];
     public int LineCount { get; set; }
     public int EntryPointCount { get; set; }

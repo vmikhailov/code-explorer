@@ -101,6 +101,12 @@ public static class ProjectMapGraphMapper
 
         if (m.IsRootFiles) props["is_root_files"] = "true";
         if (m.IsMerged) props["is_merged"] = "true";
+        if (m.IsSubProject)
+        {
+            props["pm_type"] = "subproject";
+            if (!string.IsNullOrEmpty(m.SubProjectId)) props["subproject_id"] = m.SubProjectId;
+            if (!string.IsNullOrEmpty(m.SubProjectKind)) props["subproject_kind"] = m.SubProjectKind;
+        }
         if (m.CycleGroup.HasValue) props["cycle_group"] = m.CycleGroup.Value.ToString(CultureInfo.InvariantCulture);
         return props;
     }

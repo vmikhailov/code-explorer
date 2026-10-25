@@ -433,4 +433,96 @@ require (
             }
         }
     }
+
+    [Test]
+    public async Task Test_SubProjects_AbsorbedWorkersSite_And_SharedFileContains()
+    {
+        var tempWorkspace = Path.Combine(Path.GetTempPath(), "ce_cfworker_e2e_" + Guid.NewGuid().ToString("N")).Replace('\\', '/');
+        Directory.CreateDirectory(tempWorkspace);
+
+        try
+        {
+            var cfWorkerDir = Path.Combine(tempWorkspace, "src", "services", "cf-worker");
+            var trackerDir = Path.Combine(cfWorkerDir, "workers", "tracker-worker");
+            var trackerSiteDir = Path.Combine(trackerDir, "workers-site");
+            var trackerSrcDir = Path.Combine(trackerSiteDir, "src");
+            var trackerPublicSrc = Path.Combine(trackerDir, "public_src", "land_backends", "1110");
+            var queueDir = Path.Combine(cfWorkerDir, "workers", "queue-consumer-worker");
+            var queueSiteDir = Path.Combine(queueDir, "workers-site");
+
+            Directory.CreateDirectory(trackerSrcDir);
+            Directory.CreateDirectory(trackerPublicSrc);
+            Directory.CreateDirectory(queueSiteDir);
+
+            await File.WriteAllTextAsync(Path.Combine(cfWorkerDir, "package.json"), """
+            {
+              "name": "atscfworkers",
+              "devDependencies": { "gulp": "^4.0.0", "webpack": "^5.0.0" }
+            }
+            """);
+            await File.WriteAllTextAsync(Path.Combine(cfWorkerDir, "gulpfile.js"), "const gulp = require('gulp');");
+
+            await File.WriteAllTextAsync(Path.Combine(trackerDir, "wrangler.toml"), """
+            name = "tracker-worker-dev"
+            main = "workers-site/index.js"
+            [site]
+            bucket = "./public"
+            """);
+            await File.WriteAllTextAsync(Path.Combine(trackerSiteDir, "package.json"), """{ "name": "workers-site" }""");
+            await File.WriteAllTextAsync(Path.Combine(trackerSiteDir, "index.js"), """
+            import { saveImpression } from './src/save-impression';
+            export function handleTrack() { return saveImpression(); }
+            """);
+            await File.WriteAllTextAsync(Path.Combine(trackerSrcDir, "save-impression.js"), """
+            export function saveImpression() { return true; }
+            """);
+            await File.WriteAllTextAsync(Path.Combine(trackerPublicSrc, "landing.js"), "console.log('static landing');");
+
+            await File.WriteAllTextAsync(Path.Combine(queueDir, "wrangler.toml"), """
+            name = "queue-consumer-worker"
+            main = "workers-site/index.js"
+            """);
+            await File.WriteAllTextAsync(Path.Combine(queueSiteDir, "index.js"), """
+            import { saveImpression } from '../../tracker-worker/workers-site/src/save-impression';
+            export function handleQueue() { return saveImpression(); }
+            """);
+
+            var dbPath = Path.Combine(tempWorkspace, "graph.db").Replace('\\', '/');
+            using var db = new SqliteGraphClient(dbPath);
+            var indexer = new WorkspaceIndexer(db);
+            await indexer.IndexAsync(tempWorkspace, clear: true);
+
+            // 1. Verify projects: cf-worker, tracker-worker, queue-consumer-worker exist, and NO standalone "workers-site" project exists
+            var projJson = await db.ExecuteQueryAsync("MATCH (p:Project) RETURN p.name AS name");
+            using var projDoc = JsonDocument.Parse(projJson);
+            var projNames = projDoc.RootElement.EnumerateArray().Select(e => e.GetProperty("name").GetString()!).ToList();
+            projNames.Should().Contain(["cf-worker", "tracker-worker", "queue-consumer-worker"]);
+            projNames.Should().NotContain("workers-site");
+
+            // 2. Verify parent-child (:Project)-[:CONTAINS]->(:Project) relationships
+            var subProjJson = await db.ExecuteQueryAsync("MATCH (p:Project {name: 'cf-worker'})-[:CONTAINS]->(sub:Project) RETURN sub.name AS name");
+            using var subProjDoc = JsonDocument.Parse(subProjJson);
+            var subProjNames = subProjDoc.RootElement.EnumerateArray().Select(e => e.GetProperty("name").GetString()!).ToList();
+            subProjNames.Should().BeEquivalentTo(["tracker-worker", "queue-consumer-worker"]);
+
+            // 3. Verify shared file CONTAINS: save-impression.js is contained in BOTH tracker-worker AND queue-consumer-worker
+            var sharedFileJson = await db.ExecuteQueryAsync(
+                "MATCH (p:Project)-[:CONTAINS]->(f:File) WHERE f.path CONTAINS 'save-impression.js' RETURN p.name AS name");
+            using var sharedDoc = JsonDocument.Parse(sharedFileJson);
+            var ownerProjects = sharedDoc.RootElement.EnumerateArray().Select(e => e.GetProperty("name").GetString()!).ToList();
+            ownerProjects.Should().BeEquivalentTo(["tracker-worker", "queue-consumer-worker"]);
+
+            // 4. Verify Project Map of cf-worker shows tracker-worker and queue-consumer-worker without public_src or gulpfile.js garbage
+            var viewEngine = new ArchitectureViewEngine(db);
+            var cfWorkerMap = await viewEngine.GetProjectMapViewAsync("cf-worker");
+            cfWorkerMap.Nodes.Select(n => n.Name).Should().BeEquivalentTo(["tracker-worker", "queue-consumer-worker"]);
+        }
+        finally
+        {
+            if (Directory.Exists(tempWorkspace))
+            {
+                try { Directory.Delete(tempWorkspace, true); } catch { }
+            }
+        }
+    }
 }

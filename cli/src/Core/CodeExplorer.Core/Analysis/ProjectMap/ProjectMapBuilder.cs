@@ -17,21 +17,76 @@ public static class ProjectMapBuilder
 
     public static ProjectMapResult Build(ProjectMapInput input)
     {
-        var sourceFiles = input.Files.Where(f => !f.IsTest).ToList();
-        var partition = ProjectMapPartitioner.Partition(input.ProjectPath, sourceFiles);
+        var sourceFiles = input.Files
+            .Where(f => !f.IsTest && !ProjectMapPartitioner.IsIgnoredProjectMapFile(f.Path))
+            .ToList();
+        if (input.ExcludedSubpaths.Count > 0)
+        {
+            var normProjPrefix = (input.ProjectPath ?? "").Replace('\\', '/').Trim('/');
+            var fullExcludedPrefixes = input.ExcludedSubpaths
+                .Select(ex => string.IsNullOrEmpty(normProjPrefix)
+                    ? ex.Replace('\\', '/').Trim('/') + "/"
+                    : normProjPrefix + "/" + ex.Replace('\\', '/').Trim('/') + "/")
+                .ToList();
+            sourceFiles = sourceFiles
+                .Where(f => !fullExcludedPrefixes.Any(pre => f.Path.Replace('\\', '/').TrimStart('/').StartsWith(pre, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+        }
+
+        if (input.IsBuildOrchestrator || input.SubProjects.Count > 0)
+        {
+            var nonBuildFiles = sourceFiles.Where(f => !ProjectMapPartitioner.IsBuildToolScript(f.Path)).ToList();
+            if (nonBuildFiles.Count > 0 || input.SubProjects.Count > 0)
+            {
+                sourceFiles = nonBuildFiles;
+            }
+        }
+
+        if (sourceFiles.Count == 0 && input.SubProjects.Count == 0)
+        {
+            sourceFiles = input.Files.Where(f => !f.IsTest).ToList();
+        }
+
+        var partition = sourceFiles.Count > 0
+            ? ProjectMapPartitioner.Partition(input.ProjectPath ?? "", sourceFiles)
+            : new ProjectMapPartitioner.PartitionResult("", ProjectMapGranularity.Module, [], new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
 
         var result = new ProjectMapResult
         {
             Input = input,
             SourceRoot = partition.SourceRoot,
             Granularity = partition.Granularity,
-            TestFilesExcluded = input.Files.Count - sourceFiles.Count
+            TestFilesExcluded = input.Files.Count - input.Files.Count(f => !f.IsTest)
         };
         result.Modules.AddRange(partition.Modules);
 
-        LiftSymbolEdges(result, input.SymbolEdges, partition.FileToModule);
-        LinkResources(result, input.ResourceLinks, partition.FileToModule);
-        ApplyEntryPoints(result, input.EntryPointsByFile, partition.FileToModule);
+        var fileToModule = new Dictionary<string, string>(partition.FileToModule, StringComparer.OrdinalIgnoreCase);
+        foreach (var sub in input.SubProjects)
+        {
+            var subNonTest = sub.Files.Where(f => !f.IsTest && !ProjectMapPartitioner.IsIgnoredProjectMapFile(f.Path)).ToList();
+            var subPath = sub.Path.Replace('\\', '/').Trim('/');
+            var subModId = $"pm:sub:{sub.Name}";
+            var subMod = new ProjectMapModule
+            {
+                Id = subModId,
+                Name = sub.Name,
+                Path = subPath,
+                IsSubProject = true,
+                SubProjectId = sub.ProjectId,
+                SubProjectKind = sub.Kind,
+                LineCount = subNonTest.Sum(f => f.LineCount ?? 0)
+            };
+            foreach (var sf in subNonTest)
+            {
+                subMod.Files.Add(sf.Path);
+                fileToModule.TryAdd(sf.Path, subModId);
+            }
+            result.Modules.Add(subMod);
+        }
+
+        LiftSymbolEdges(result, input.SymbolEdges, fileToModule);
+        LinkResources(result, input.ResourceLinks, fileToModule);
+        ApplyEntryPoints(result, input.EntryPointsByFile, fileToModule);
         ProjectMapClassifier.Classify(result);
         DetectCycles(result);
 

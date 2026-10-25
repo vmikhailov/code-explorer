@@ -5,6 +5,21 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.59.0] - 2026-10-25
+
+### Added
+- **Hierarchical Project Boundary Discovery (`IProjectParser.TryParse`) & Nested `SubProjects`**:
+  - Added `IProjectParser.TryParse(ProjectParseContext, out ProjectParseResult?)` returning a primary `ParsedProjectDescriptor` with nested `SubProjects`, `AbsorbedSubpaths`, `ExcludedSubpaths`, `ParserClaimMode` (`AbsorbSecondaryInDirectory`, `StopAllOtherParsersInDirectory`, `None`), and optional `AdditionalSiblingProjects` when multiple independent manifests share the same directory without a Primary/Secondary relationship (e.g. multiple `.csproj` files).
+  - Added Cloudflare Workers (`wrangler.toml`, `wrangler.jsonc`, `wrangler.json`) boundary parsing in `TypeScriptParser` and `JavaScriptParser`, automatically absorbing embedded `workers-site/` manifests into the parent worker project (`AbsorbedSubpaths`) and excluding static asset buckets (`public_src/`, `public/`).
+  - Added declarative `SubProjects` extraction for `angular.json` and `nest-cli.json` workspaces, embedded `webview/` absorption for VS Code extensions, and build-orchestrator detection (`is_build_orchestrator="true"`).
+  - Linked enclosing parent and nested child projects in Layer 2 via `(:Project)-[:CONTAINS]->(:Project)` and `parent_project_id`.
+- **Many-to-Many Shared File Ownership (`(:Project)-[:CONTAINS]->(:File)`)**:
+  - Updated `Layer3SyntacticParser` to support multiple sibling projects in the same directory and to link files reused across projects via relative imports (when no explicit `Library` project owns the target file) with `(:Project)-[:CONTAINS]->(:File)` edges on both projects without duplicating AST parsing.
+- **SubProjects & Build-Orchestrator Filtering on `Project Map`**:
+  - Updated `ArchitectureViewEngine.ProjectMap` and `ProjectMapBuilder` to render nested `SubProjects` (`pm_type="subproject"`) as first-level components on a parent project's `Project Map`, while excluding static asset directories (`public_src`, `public`) and build-tool scripts (`gulpfile.js`, `minify-*.js`, `webpack.config.js`).
+
+---
+
 ## [1.58.2] - 2026-10-25
 
 ### Fixed

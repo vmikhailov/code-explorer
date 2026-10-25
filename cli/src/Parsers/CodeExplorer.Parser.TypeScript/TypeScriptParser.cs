@@ -21,7 +21,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
         ".turbo", ".cache", ".output", "out", "coverage", "bower_components"
     ];
 
-    public IReadOnlyCollection<string> ManifestFileNames => ["package.json"];
+    public IReadOnlyCollection<string> ManifestFileNames => ["package.json", "wrangler.toml", "wrangler.jsonc", "wrangler.json", "angular.json", "nest-cli.json"];
     public IReadOnlyCollection<string> ManifestExtensions => [];
 
     public bool ShouldSkipFileName(string fileName)
@@ -140,11 +140,17 @@ public class TypeScriptParser : IProjectParser, IFileParser
 
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
     {
+        if (HasWranglerManifest(filesInDirectory))
+        {
+            return true;
+        }
+
         var packageJson = filesInDirectory.FirstOrDefault(f => Path.GetFileName(f).Equals("package.json", StringComparison.OrdinalIgnoreCase));
         if (packageJson != null)
         {
             if (IsNgSecondaryEntryPoint(packageJson, directoryPath, filesInDirectory) ||
-                IsInsideParentWebOrHybridProject(directoryPath))
+                IsInsideParentWebOrHybridProject(directoryPath) ||
+                IsAbsorbedWorkersSiteDirectory(directoryPath))
             {
                 return false;
             }
@@ -164,6 +170,31 @@ public class TypeScriptParser : IProjectParser, IFileParser
             }
         }
         return false;
+    }
+
+    public static bool HasWranglerManifest(string[] filesInDirectory) =>
+        filesInDirectory.Any(f =>
+        {
+            var fn = Path.GetFileName(f);
+            return fn.Equals("wrangler.toml", StringComparison.OrdinalIgnoreCase) ||
+                   fn.Equals("wrangler.jsonc", StringComparison.OrdinalIgnoreCase) ||
+                   fn.Equals("wrangler.json", StringComparison.OrdinalIgnoreCase);
+        });
+
+    public static bool IsAbsorbedWorkersSiteDirectory(string directoryPath)
+    {
+        var dirName = Path.GetFileName(directoryPath.TrimEnd('/', '\\'));
+        if (!dirName.Equals("workers-site", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var parentDir = Path.GetDirectoryName(directoryPath.TrimEnd('/', '\\'));
+        if (string.IsNullOrEmpty(parentDir)) return false;
+
+        return File.Exists(Path.Combine(parentDir, "wrangler.toml")) ||
+               File.Exists(Path.Combine(parentDir, "wrangler.jsonc")) ||
+               File.Exists(Path.Combine(parentDir, "wrangler.json"));
     }
 
     private static bool IsInsideParentWebOrHybridProject(string directoryPath)
@@ -304,6 +335,12 @@ public class TypeScriptParser : IProjectParser, IFileParser
 
     public string GetProjectName(string directoryPath, string[] filesInDirectory)
     {
+        var wranglerName = TryExtractWranglerName(directoryPath, filesInDirectory);
+        if (!string.IsNullOrEmpty(wranglerName))
+        {
+            return wranglerName;
+        }
+
         var packageJsonPath = Path.Combine(directoryPath, "package.json");
         if (File.Exists(packageJsonPath))
         {
@@ -342,6 +379,356 @@ public class TypeScriptParser : IProjectParser, IFileParser
         }
 
         return Path.GetFileName(directoryPath.TrimEnd('/', '\\'));
+    }
+
+    public bool TryParse(ProjectParseContext context, out ProjectParseResult? result)
+    {
+        var dir = context.DirectoryPath;
+        var files = context.FilesInDirectory;
+
+        if (!IsProjectDirectory(dir, files))
+        {
+            result = null;
+            return false;
+        }
+
+        var name = GetProjectName(dir, files);
+        if (string.IsNullOrEmpty(name))
+        {
+            name = Path.GetFileName(dir.TrimEnd('/', '\\'));
+        }
+
+        var props = ExtractManifestProperties(dir, files);
+        var absorbedSubpaths = new List<string>();
+        var excludedSubpaths = new List<string>();
+        var entryPointPaths = new List<string>();
+        var sourceRoots = new List<string>();
+        var subProjects = new List<ParsedProjectDescriptor>();
+
+        // 1. Wrangler (Cloudflare Worker) embedded workers-site and static bucket handling
+        InspectWranglerLayout(dir, files, absorbedSubpaths, excludedSubpaths, entryPointPaths, sourceRoots);
+
+        // 2. Conventional static asset subfolders (public_src, public) when inside a worker or build orchestrator
+        foreach (var staticCandidate in new[] { "public_src", "public", "workers/public" })
+        {
+            var fullCandidate = Path.Combine(dir, staticCandidate);
+            if (Directory.Exists(fullCandidate) && !excludedSubpaths.Contains(staticCandidate, StringComparer.OrdinalIgnoreCase))
+            {
+                excludedSubpaths.Add(staticCandidate);
+            }
+        }
+
+        // 3. VS Code Extension embedded webview folders (Primary/Secondary relationship -> absorbed into parent extension)
+        if (props.GetValueOrDefault("is_vscode_extension") == "true")
+        {
+            foreach (var webviewDirName in new[] { "webview", "webview-ui", "media", "views" })
+            {
+                var fullWebviewDir = Path.Combine(dir, webviewDirName);
+                if (Directory.Exists(fullWebviewDir) && !absorbedSubpaths.Contains(webviewDirName, StringComparer.OrdinalIgnoreCase))
+                {
+                    absorbedSubpaths.Add(webviewDirName);
+                }
+            }
+        }
+
+        // 4. Declarative SubProjects in angular.json or nest-cli.json
+        ExtractWorkspaceManifestSubProjects(dir, sourceRoots, excludedSubpaths, subProjects);
+
+        // 5. Detect build-orchestrator root package.json (e.g. Gulp/Webpack static builder wrapping child workers in subfolders)
+        DetectBuildOrchestratorProperties(dir, files, props);
+
+        if (absorbedSubpaths.Count > 0)
+        {
+            props["absorbed_subpaths"] = System.Text.Json.JsonSerializer.Serialize(absorbedSubpaths);
+        }
+        if (excludedSubpaths.Count > 0)
+        {
+            props["excluded_subpaths"] = System.Text.Json.JsonSerializer.Serialize(excludedSubpaths);
+        }
+
+        result = new ProjectParseResult(
+            Project: new ParsedProjectDescriptor(
+                Name: name,
+                DirectoryPath: dir,
+                ProjectType: ProjectType,
+                ManifestProperties: props,
+                SourceRoots: sourceRoots.Count > 0 ? sourceRoots : null,
+                AbsorbedSubpaths: absorbedSubpaths.Count > 0 ? absorbedSubpaths : null,
+                ExcludedSubpaths: excludedSubpaths.Count > 0 ? excludedSubpaths : null,
+                EntryPointPaths: entryPointPaths.Count > 0 ? entryPointPaths : null,
+                SubProjects: subProjects.Count > 0 ? subProjects : null),
+            ClaimMode: ParserClaimMode.AbsorbSecondaryInDirectory);
+        return true;
+    }
+
+    private static string? TryExtractWranglerName(string directoryPath, string[] filesInDirectory)
+    {
+        var folderName = Path.GetFileName(directoryPath.TrimEnd('/', '\\'));
+        var wranglerToml = filesInDirectory.FirstOrDefault(f => Path.GetFileName(f).Equals("wrangler.toml", StringComparison.OrdinalIgnoreCase))
+                           ?? (File.Exists(Path.Combine(directoryPath, "wrangler.toml")) ? Path.Combine(directoryPath, "wrangler.toml") : null);
+        if (wranglerToml != null && File.Exists(wranglerToml))
+        {
+            try
+            {
+                foreach (var rawLine in File.ReadLines(wranglerToml))
+                {
+                    var line = rawLine.Trim();
+                    if (line.StartsWith('#') || line.StartsWith('[')) continue;
+                    if (line.StartsWith("name", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var eqIdx = line.IndexOf('=');
+                        if (eqIdx > 0)
+                        {
+                            var val = line[(eqIdx + 1)..].Trim().Trim('"', '\'');
+                            if (!string.IsNullOrWhiteSpace(val))
+                            {
+                                foreach (var envSuffix in new[] { "-dev", "-prod", "-production", "-staging", "-stage", "-test" })
+                                {
+                                    if (val.EndsWith(envSuffix, StringComparison.OrdinalIgnoreCase) && val.Length > envSuffix.Length)
+                                    {
+                                        val = val[..^envSuffix.Length];
+                                        break;
+                                    }
+                                }
+                                return !string.IsNullOrWhiteSpace(folderName) && folderName.Equals(val, StringComparison.OrdinalIgnoreCase)
+                                    ? folderName
+                                    : val;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Ignore
+            }
+        }
+        return null;
+    }
+
+    private static void InspectWranglerLayout(
+        string directoryPath,
+        string[] filesInDirectory,
+        List<string> absorbedSubpaths,
+        List<string> excludedSubpaths,
+        List<string> entryPointPaths,
+        List<string> sourceRoots)
+    {
+        var wranglerToml = filesInDirectory.FirstOrDefault(f => Path.GetFileName(f).Equals("wrangler.toml", StringComparison.OrdinalIgnoreCase))
+                           ?? (File.Exists(Path.Combine(directoryPath, "wrangler.toml")) ? Path.Combine(directoryPath, "wrangler.toml") : null);
+        if (wranglerToml != null && File.Exists(wranglerToml))
+        {
+            try
+            {
+                var content = File.ReadAllText(wranglerToml);
+                foreach (var rawLine in content.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var line = rawLine.Trim();
+                    if (line.StartsWith('#')) continue;
+
+                    if (line.StartsWith("main", StringComparison.OrdinalIgnoreCase) && line.Contains('='))
+                    {
+                        var mainRel = line[(line.IndexOf('=') + 1)..].Trim().Trim('"', '\'').Replace('\\', '/').TrimStart('.', '/');
+                        if (!string.IsNullOrEmpty(mainRel))
+                        {
+                            var fullMain = Path.GetFullPath(Path.Combine(directoryPath, mainRel));
+                            if (File.Exists(fullMain))
+                            {
+                                entryPointPaths.Add(fullMain);
+                            }
+                            var firstSeg = mainRel.Split('/')[0];
+                            if (!string.IsNullOrEmpty(firstSeg) && Directory.Exists(Path.Combine(directoryPath, firstSeg)))
+                            {
+                                if (!absorbedSubpaths.Contains(firstSeg, StringComparer.OrdinalIgnoreCase))
+                                    absorbedSubpaths.Add(firstSeg);
+                                if (!sourceRoots.Contains(firstSeg, StringComparer.OrdinalIgnoreCase))
+                                    sourceRoots.Add(firstSeg);
+                            }
+                        }
+                    }
+                    else if (line.Contains("bucket", StringComparison.OrdinalIgnoreCase) && line.Contains('='))
+                    {
+                        var bucketIdx = line.IndexOf("bucket", StringComparison.OrdinalIgnoreCase);
+                        var eqIdx = line.IndexOf('=', bucketIdx);
+                        if (eqIdx > 0)
+                        {
+                            var afterEq = line[(eqIdx + 1)..].Trim();
+                            var quoteChar = afterEq.FirstOrDefault(c => c is '"' or '\'');
+                            if (quoteChar != '\0')
+                            {
+                                var firstQuote = afterEq.IndexOf(quoteChar);
+                                var secondQuote = afterEq.IndexOf(quoteChar, firstQuote + 1);
+                                if (secondQuote > firstQuote)
+                                {
+                                    var bucketPath = afterEq[(firstQuote + 1)..secondQuote].Replace('\\', '/').TrimStart('.', '/').Trim('/');
+                                    if (!string.IsNullOrEmpty(bucketPath) && !excludedSubpaths.Contains(bucketPath, StringComparer.OrdinalIgnoreCase))
+                                    {
+                                        excludedSubpaths.Add(bucketPath);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Ignore
+            }
+        }
+
+        var workersSiteDir = Path.Combine(directoryPath, "workers-site");
+        if (Directory.Exists(workersSiteDir))
+        {
+            if (!absorbedSubpaths.Contains("workers-site", StringComparer.OrdinalIgnoreCase))
+            {
+                absorbedSubpaths.Add("workers-site");
+            }
+            if (!sourceRoots.Contains("workers-site", StringComparer.OrdinalIgnoreCase))
+            {
+                sourceRoots.Add("workers-site");
+            }
+        }
+    }
+
+    private void ExtractWorkspaceManifestSubProjects(
+        string directoryPath,
+        List<string> sourceRoots,
+        List<string> excludedSubpaths,
+        List<ParsedProjectDescriptor> subProjects)
+    {
+        foreach (var manifestFile in new[] { "angular.json", "nest-cli.json" })
+        {
+            var manifestPath = Path.Combine(directoryPath, manifestFile);
+            if (!File.Exists(manifestPath)) continue;
+
+            try
+            {
+                var json = File.ReadAllText(manifestPath);
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+                if (!doc.RootElement.TryGetProperty("projects", out var projectsObj) ||
+                    projectsObj.ValueKind != System.Text.Json.JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                foreach (var projProp in projectsObj.EnumerateObject())
+                {
+                    var childName = projProp.Name;
+                    var projVal = projProp.Value;
+                    if (projVal.ValueKind != System.Text.Json.JsonValueKind.Object) continue;
+
+                    var rootRel = projVal.TryGetProperty("root", out var rProp) && rProp.ValueKind == System.Text.Json.JsonValueKind.String
+                        ? (rProp.GetString() ?? "").Replace('\\', '/').Trim('/')
+                        : "";
+                    var srcRootRel = projVal.TryGetProperty("sourceRoot", out var srProp) && srProp.ValueKind == System.Text.Json.JsonValueKind.String
+                        ? (srProp.GetString() ?? "").Replace('\\', '/').Trim('/')
+                        : "";
+                    var projType = projVal.TryGetProperty("projectType", out var ptProp) && ptProp.ValueKind == System.Text.Json.JsonValueKind.String
+                        ? (ptProp.GetString() ?? "").ToLowerInvariant()
+                        : "application";
+
+                    if (string.IsNullOrEmpty(rootRel) || rootRel == ".")
+                    {
+                        if (!string.IsNullOrEmpty(srcRootRel) && !sourceRoots.Contains(srcRootRel, StringComparer.OrdinalIgnoreCase))
+                        {
+                            sourceRoots.Add(srcRootRel);
+                        }
+                        if (! excludedSubpaths.Contains("src/assets", StringComparer.OrdinalIgnoreCase) &&
+                            Directory.Exists(Path.Combine(directoryPath, "src", "assets")))
+                        {
+                            excludedSubpaths.Add("src/assets");
+                        }
+                        continue;
+                    }
+
+                    var childAbsDir = Path.GetFullPath(Path.Combine(directoryPath, rootRel));
+                    if (!Directory.Exists(childAbsDir)) continue;
+
+                    var childFiles = Directory.GetFiles(childAbsDir);
+                    var childProps = ExtractManifestProperties(childAbsDir, childFiles);
+                    if (projType == "library")
+                    {
+                        childProps["manifest_type"] = "library";
+                        childProps["is_library"] = "true";
+                        childProps["role"] = "SharedLibrary";
+                        childProps["primary_role"] = "Library";
+                        if (manifestFile == "angular.json")
+                        {
+                            childProps["framework_type"] = "frontend";
+                            childProps["is_ui_library"] = "true";
+                        }
+                    }
+                    else
+                    {
+                        childProps["manifest_type"] = "application";
+                    }
+
+                    subProjects.Add(new ParsedProjectDescriptor(
+                        Name: childName,
+                        DirectoryPath: childAbsDir,
+                        ProjectType: ProjectType,
+                        ManifestProperties: childProps));
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+            {
+                // Ignore
+            }
+        }
+    }
+
+    private static void DetectBuildOrchestratorProperties(
+        string directoryPath,
+        string[] filesInDirectory,
+        Dictionary<string, string> props)
+    {
+        var packageJsonPath = Path.Combine(directoryPath, "package.json");
+        if (!File.Exists(packageJsonPath)) return;
+
+        if (HasWranglerManifest(filesInDirectory)) return;
+
+        try
+        {
+            var content = File.ReadAllText(packageJsonPath);
+            using var doc = System.Text.Json.JsonDocument.Parse(content);
+            var root = doc.RootElement;
+
+            var hasMainOrExports = root.TryGetProperty("main", out _) ||
+                                   root.TryGetProperty("module", out _) ||
+                                   root.TryGetProperty("exports", out _) ||
+                                   root.TryGetProperty("bin", out _);
+            if (hasMainOrExports) return;
+
+            var allDeps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var depSec in new[] { "dependencies", "devDependencies" })
+            {
+                if (root.TryGetProperty(depSec, out var dObj) && dObj.ValueKind == System.Text.Json.JsonValueKind.Object)
+                {
+                    foreach (var p in dObj.EnumerateObject()) allDeps.Add(p.Name);
+                }
+            }
+
+            var hasBuildTools = allDeps.Any(d =>
+                d.StartWithIC("gulp") || d.StartWithIC("webpack") || d is "husky" or "lerna" or "turbo" or "nx" or "prettier" or "eslint");
+            if (!hasBuildTools) return;
+
+            var workersSubdir = Path.Combine(directoryPath, "workers");
+            var hasNestedWorkers = Directory.Exists(workersSubdir) &&
+                                   Directory.EnumerateFiles(workersSubdir, "wrangler.*", SearchOption.AllDirectories).Any();
+
+            if (hasNestedWorkers)
+            {
+                props["is_build_orchestrator"] = "true";
+                props["manifest_type"] = "worker";
+                props["framework_type"] = "worker";
+                props["cloud_runtime"] = "cloudflare-worker";
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        {
+            // Ignore
+        }
     }
 
     public Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory)

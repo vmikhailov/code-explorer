@@ -44,47 +44,93 @@ public partial class Layer3SyntacticParser
         IndexPhysicalTree(l2Result.Prev.Workspace);
 
         var projectRels = new List<Relationship>();
-        // O(F * P) pre-grouping of files to enclosing projects (runs once in <2ms, eliminates 167M comparisons in inner loops)
+        // O(F * P) pre-grouping of files to enclosing projects (supports multiple sibling projects in the same directory)
         var filesByProjectId = new Dictionary<string, List<FileNode>>(l2Result.Projects.Count);
+        var primaryOwnerByFilePath = new Dictionary<string, ProjectNode>(l2Result.Prev.Files.Count, StringComparer.OrdinalIgnoreCase);
+        var fileNodeByPath = new Dictionary<string, FileNode>(l2Result.Prev.Files.Count, StringComparer.OrdinalIgnoreCase);
+
         foreach (var file in l2Result.Prev.Files)
         {
-            ProjectNode? bestMatch = null;
+            if (!string.IsNullOrEmpty(file.Path))
+            {
+                fileNodeByPath[file.Path.Replace('\\', '/').Trim('/')] = file;
+            }
+
             int bestMatchLength = -1;
+            var bestMatches = new List<ProjectNode>();
             foreach (var p in l2Result.Projects)
             {
                 if (string.IsNullOrEmpty(p.Path))
                 {
                     if (bestMatchLength < 0)
                     {
-                        bestMatch = p;
                         bestMatchLength = 0;
+                        bestMatches.Clear();
+                        bestMatches.Add(p);
+                    }
+                    else if (bestMatchLength == 0)
+                    {
+                        bestMatches.Add(p);
                     }
                     continue;
                 }
 
-                var prefix = p.Path.Replace('\\', '/').TrimEnd('/') + "/";
-                if (file.Path.StartWithIC(prefix) && prefix.Length > bestMatchLength)
+                var normProjPath = p.Path.Replace('\\', '/').Trim('/');
+                if (file.Path.Equals(normProjPath, StringComparison.OrdinalIgnoreCase))
                 {
-                    bestMatch = p;
-                    bestMatchLength = prefix.Length;
+                    var exactLen = normProjPath.Length + 1;
+                    if (exactLen > bestMatchLength)
+                    {
+                        bestMatchLength = exactLen;
+                        bestMatches.Clear();
+                        bestMatches.Add(p);
+                    }
+                    else if (exactLen == bestMatchLength)
+                    {
+                        bestMatches.Add(p);
+                    }
+                    continue;
+                }
+
+                var prefix = normProjPath + "/";
+                if (file.Path.StartWithIC(prefix))
+                {
+                    if (prefix.Length > bestMatchLength)
+                    {
+                        bestMatchLength = prefix.Length;
+                        bestMatches.Clear();
+                        bestMatches.Add(p);
+                    }
+                    else if (prefix.Length == bestMatchLength)
+                    {
+                        bestMatches.Add(p);
+                    }
                 }
             }
 
-            if (bestMatch != null)
+            if (bestMatches.Count > 0)
             {
-                var isTest = bestMatch.IsTest || WorkspaceConventions.IsTestFilePath(file.Path);
+                var primaryMatch = bestMatches[0];
+                var isTest = primaryMatch.IsTest || WorkspaceConventions.IsTestFilePath(file.Path);
                 file.IsTest = isTest;
-                file.ProjectKind = bestMatch.KindValue;
-                file.ProjectName = bestMatch.Name;
-
-                projectRels.Add(new Relationship(bestMatch.Id, file.Id, OntologyConstants.Relationships.Contains));
-
-                if (!filesByProjectId.TryGetValue(bestMatch.Id, out var list))
+                file.ProjectKind = primaryMatch.KindValue;
+                file.ProjectName = primaryMatch.Name;
+                if (!string.IsNullOrEmpty(file.Path))
                 {
-                    list = [];
-                    filesByProjectId[bestMatch.Id] = list;
+                    primaryOwnerByFilePath[file.Path.Replace('\\', '/').Trim('/')] = primaryMatch;
                 }
-                list.Add(file);
+
+                if (!filesByProjectId.TryGetValue(primaryMatch.Id, out var primaryList))
+                {
+                    primaryList = [];
+                    filesByProjectId[primaryMatch.Id] = primaryList;
+                }
+                primaryList.Add(file);
+
+                foreach (var matchProj in bestMatches)
+                {
+                    projectRels.Add(new Relationship(matchProj.Id, file.Id, OntologyConstants.Relationships.Contains));
+                }
             }
             else
             {
@@ -334,6 +380,14 @@ public partial class Layer3SyntacticParser
                 ctx.RawVariables.AddRange(syntaxTree.RawVariables);
                 ctx.RawTypeBindings.AddRange(syntaxTree.RawTypeBindings);
             }
+        }
+
+        // Link shared files reused across projects via relative imports when no explicit Library project owns the target file
+        var sharedContainsRels = ResolveCrossProjectSharedFileContains(rawImports, primaryOwnerByFilePath, fileNodeByPath, projectRels);
+        if (sharedContainsRels.Count > 0)
+        {
+            await ctx.EnqueueUploadRelationshipsAsync(sharedContainsRels);
+            ctx.AddRelsCount(sharedContainsRels.Count);
         }
 
         ctx.Log($"[Layer3] Syntactic parsing pass complete. Parsed {syntaxTrees.Count} AST trees.");
@@ -722,5 +776,128 @@ public partial class Layer3SyntacticParser
                normalized.Contains("/config/") || normalized.Contains("/configs/") ||
                normalized.Contains("/constants/") || normalized.Contains("/endpoints/") ||
                normalized.Contains("/gateways/");
+    }
+
+    private static List<Relationship> ResolveCrossProjectSharedFileContains(
+        IReadOnlyList<RawImport> rawImports,
+        Dictionary<string, ProjectNode> primaryOwnerByFilePath,
+        Dictionary<string, FileNode> fileNodeByPath,
+        List<Relationship> existingProjectRels)
+    {
+        var newRels = new List<Relationship>();
+        if (rawImports.Count == 0 || fileNodeByPath.Count == 0) return newRels;
+
+        var localImportEdges = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var imp in rawImports)
+        {
+            if (string.IsNullOrWhiteSpace(imp.FilePath) || string.IsNullOrWhiteSpace(imp.Path)) continue;
+            if (!imp.Path.StartsWith('.')) continue;
+
+            var fromNorm = imp.FilePath.Replace('\\', '/').Trim('/');
+            var resolvedTarget = TryResolveRelativeFileImport(fromNorm, imp.Path, fileNodeByPath);
+            if (resolvedTarget == null) continue;
+
+            if (!localImportEdges.TryGetValue(fromNorm, out var targets))
+            {
+                targets = [];
+                localImportEdges[fromNorm] = targets;
+            }
+            if (!targets.Contains(resolvedTarget, StringComparer.OrdinalIgnoreCase))
+            {
+                targets.Add(resolvedTarget);
+            }
+        }
+
+        if (localImportEdges.Count == 0) return newRels;
+
+        var existingContainsSet = new HashSet<(string ProjId, string FileId)>(
+            existingProjectRels.Where(r => r.Kind == OntologyConstants.Relationships.Contains)
+                               .Select(r => (r.From, r.To)));
+
+        foreach (var (fromFile, directTargets) in localImportEdges)
+        {
+            if (!primaryOwnerByFilePath.TryGetValue(fromFile, out var consumerProj) || consumerProj.IsLibrary)
+            {
+                continue;
+            }
+
+            var queue = new Queue<string>();
+            foreach (var dt in directTargets)
+            {
+                if (primaryOwnerByFilePath.TryGetValue(dt, out var targetOwner) &&
+                    !string.Equals(targetOwner.Id, consumerProj.Id, StringComparison.OrdinalIgnoreCase) &&
+                    !targetOwner.IsLibrary)
+                {
+                    queue.Enqueue(dt);
+                }
+            }
+
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            while (queue.Count > 0)
+            {
+                var currentPath = queue.Dequeue();
+                if (!visited.Add(currentPath)) continue;
+                if (!fileNodeByPath.TryGetValue(currentPath, out var targetFileNode)) continue;
+
+                if (existingContainsSet.Add((consumerProj.Id, targetFileNode.Id)))
+                {
+                    var rel = new Relationship(consumerProj.Id, targetFileNode.Id, OntologyConstants.Relationships.Contains);
+                    newRels.Add(rel);
+                    existingProjectRels.Add(rel);
+                }
+
+                if (localImportEdges.TryGetValue(currentPath, out var nestedTargets))
+                {
+                    foreach (var nt in nestedTargets)
+                    {
+                        if (!visited.Contains(nt) &&
+                            primaryOwnerByFilePath.TryGetValue(nt, out var nestedOwner) &&
+                            !nestedOwner.IsLibrary)
+                        {
+                            queue.Enqueue(nt);
+                        }
+                    }
+                }
+            }
+        }
+
+        return newRels;
+    }
+
+    private static string? TryResolveRelativeFileImport(
+        string importerRelativePath,
+        string rawImportSpec,
+        Dictionary<string, FileNode> fileNodeByPath)
+    {
+        var lastSlash = importerRelativePath.LastIndexOf('/');
+        var baseDir = lastSlash >= 0 ? importerRelativePath[..lastSlash] : "";
+        var combined = string.IsNullOrEmpty(baseDir)
+            ? rawImportSpec.Replace('\\', '/')
+            : baseDir + "/" + rawImportSpec.Replace('\\', '/');
+
+        var stack = new List<string>();
+        foreach (var seg in combined.Split('/', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (seg == ".") continue;
+            if (seg == "..")
+            {
+                if (stack.Count > 0) stack.RemoveAt(stack.Count - 1);
+                continue;
+            }
+            stack.Add(seg);
+        }
+
+        if (stack.Count == 0) return null;
+        var normalizedCandidate = string.Join('/', stack);
+
+        if (fileNodeByPath.ContainsKey(normalizedCandidate)) return normalizedCandidate;
+
+        foreach (var ext in new[] { ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", "/index.ts", "/index.tsx", "/index.js", "/index.jsx" })
+        {
+            var withExt = normalizedCandidate + ext;
+            if (fileNodeByPath.ContainsKey(withExt)) return withExt;
+        }
+
+        return null;
     }
 }

@@ -27,8 +27,23 @@ public static class ProjectMapPartitioner
 
     private static readonly HashSet<string> GeneratedFolderSegments = new(StringComparer.OrdinalIgnoreCase)
     {
-        "Migrations", "wwwroot", "obj", "bin", "node_modules", "dist", "Properties"
+        "Migrations", "wwwroot", "obj", "bin", "node_modules", "dist", "Properties", "public_src", "public"
     };
+
+    private static readonly HashSet<string> BuildToolScriptFileNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "gulpfile.js", "gulpfile.ts", "gulpHtmlcompressor.js", "htmlcompressor.js",
+        "minify-html.js", "minify-js.js", "webpack.config.js", "webpack.config.ts",
+        "rollup.config.js", "vite.config.js", "vite.config.ts", "cleanup-worker-trash.js"
+    };
+
+    public static bool IsBuildToolScript(string path)
+    {
+        var norm = (path ?? "").Replace('\\', '/').Trim('/');
+        if (norm.Length == 0) return false;
+        var fileName = norm[(norm.LastIndexOf('/') + 1)..];
+        return BuildToolScriptFileNames.Contains(fileName);
+    }
 
     public static bool IsIgnoredProjectMapFile(string path)
     {

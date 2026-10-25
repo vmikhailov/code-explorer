@@ -31,10 +31,16 @@ public class JavaScriptParser : IProjectParser, IFileParser
 
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
     {
+        if (TypeScriptParser.HasWranglerManifest(filesInDirectory))
+        {
+            return true;
+        }
+
         var packageJson = filesInDirectory.FirstOrDefault(f => Path.GetFileName(f).Equals("package.json", StringComparison.OrdinalIgnoreCase));
         if (packageJson != null)
         {
-            if (TypeScriptParser.IsNgSecondaryEntryPoint(packageJson, directoryPath, filesInDirectory))
+            if (TypeScriptParser.IsNgSecondaryEntryPoint(packageJson, directoryPath, filesInDirectory) ||
+                TypeScriptParser.IsAbsorbedWorkersSiteDirectory(directoryPath))
             {
                 return false;
             }
@@ -50,6 +56,31 @@ public class JavaScriptParser : IProjectParser, IFileParser
             }
         }
         return false;
+    }
+
+    public bool TryParse(ProjectParseContext context, out ProjectParseResult? result)
+    {
+        if (!_tsParser.TryParse(context, out var tsResult) || tsResult == null)
+        {
+            if (!IsProjectDirectory(context.DirectoryPath, context.FilesInDirectory))
+            {
+                result = null;
+                return false;
+            }
+
+            var name = GetProjectName(context.DirectoryPath, context.FilesInDirectory);
+            var props = ExtractManifestProperties(context.DirectoryPath, context.FilesInDirectory);
+            result = new ProjectParseResult(
+                new ParsedProjectDescriptor(name, context.DirectoryPath, ProjectType, props),
+                ParserClaimMode.AbsorbSecondaryInDirectory);
+            return true;
+        }
+
+        result = tsResult with
+        {
+            Project = tsResult.Project with { ProjectType = ProjectType }
+        };
+        return true;
     }
 
     public Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory) =>

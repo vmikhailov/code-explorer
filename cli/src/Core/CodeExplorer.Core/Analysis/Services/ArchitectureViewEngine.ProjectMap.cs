@@ -20,7 +20,14 @@ public partial class ArchitectureViewEngine
     private static readonly string[] ProjectMapResourceLabels =
         ["Table", "Topic", "ExternalService", "Database", "CloudService", "DataSet", "Procedure"];
 
-    private sealed record ProjectMapProjectInfo(string Id, string Name, string Path, bool IsTest, int FileCount);
+    private sealed record ProjectMapProjectInfo(
+        string Id,
+        string Name,
+        string Path,
+        bool IsTest,
+        int FileCount,
+        bool IsBuildOrchestrator = false,
+        string? ExcludedSubpathsJson = null);
 
     public async Task<GraphDataDto> GetProjectMapViewAsync(string? projectScope, CancellationToken ct = default)
     {
@@ -52,15 +59,31 @@ public partial class ArchitectureViewEngine
         }
 
         var prefix = string.IsNullOrEmpty(selected.Path) ? "" : selected.Path.Replace('\\', '/').TrimEnd('/') + "/";
+        var files = await LoadProjectMapFilesAsync(selected.Id, ct);
+        var subProjects = await LoadProjectMapSubProjectsAsync(selected.Id, ct);
+        var excludedSubpaths = ParseJsonStringList(selected.ExcludedSubpathsJson);
+
+        var allRelevantFiles = new HashSet<string>(files.Select(f => f.Path), StringComparer.OrdinalIgnoreCase);
+        foreach (var sp in subProjects)
+        {
+            foreach (var sf in sp.Files)
+            {
+                allRelevantFiles.Add(sf.Path);
+            }
+        }
+
         var input = new ProjectMapInput
         {
             ProjectId = selected.Id,
             ProjectName = selected.Name,
             ProjectPath = selected.Path,
-            Files = await LoadProjectMapFilesAsync(selected.Id, ct),
-            SymbolEdges = await LoadProjectMapSymbolEdgesAsync(prefix, warnings, ct),
-            ResourceLinks = await LoadProjectMapResourceLinksAsync(prefix, warnings, ct),
-            EntryPointsByFile = await LoadProjectMapEntryPointsAsync(prefix, warnings, ct)
+            IsBuildOrchestrator = selected.IsBuildOrchestrator,
+            ExcludedSubpaths = excludedSubpaths,
+            SubProjects = subProjects,
+            Files = files,
+            SymbolEdges = await LoadProjectMapSymbolEdgesAsync(prefix, allRelevantFiles, warnings, ct),
+            ResourceLinks = await LoadProjectMapResourceLinksAsync(prefix, allRelevantFiles, warnings, ct),
+            EntryPointsByFile = await LoadProjectMapEntryPointsAsync(prefix, allRelevantFiles, warnings, ct)
         };
 
         var result = ProjectMapBuilder.Build(input);
@@ -72,19 +95,94 @@ public partial class ArchitectureViewEngine
     private async Task<List<ProjectMapProjectInfo>> LoadProjectMapProjectsAsync(CancellationToken ct)
     {
         const string query =
-            "MATCH (p:Project)-[:CONTAINS]->(f:File) RETURN p.id AS id, p.name AS name, p.path AS path, p.is_test AS is_test, count(f) AS files";
+            "MATCH (p:Project)-[:CONTAINS]->(f:File) RETURN p.id AS id, p.name AS name, p.path AS path, p.is_test AS is_test, p.is_build_orchestrator AS is_build_orch, p.excluded_subpaths AS excluded_subpaths, count(f) AS files";
         var json = await db.ExecuteQueryAsync(query, null, ct);
         using var doc = JsonDocument.Parse(json);
 
-        return doc.RootElement.EnumerateArray()
+        var list = doc.RootElement.EnumerateArray()
             .Select(e => new ProjectMapProjectInfo(
                 e.GetStringProp("id"),
                 e.GetStringProp("name"),
                 e.GetStringProp("path"),
                 ReadBool(e, "is_test"),
-                e.GetNullableIntProp("files") ?? 0))
+                e.GetNullableIntProp("files") ?? 0,
+                ReadBool(e, "is_build_orch"),
+                e.GetStringProp("excluded_subpaths")))
             .Where(p => !string.IsNullOrEmpty(p.Id))
             .ToList();
+
+        // Also include parent projects that only contain child SubProjects (:Project)-[:CONTAINS]->(:Project)
+        const string parentProjectsQuery =
+            "MATCH (p:Project)-[:CONTAINS]->(sub:Project) RETURN p.id AS id, p.name AS name, p.path AS path, p.is_test AS is_test, p.is_build_orchestrator AS is_build_orch, p.excluded_subpaths AS excluded_subpaths, count(sub) AS sub_count";
+        try
+        {
+            var pJson = await db.ExecuteQueryAsync(parentProjectsQuery, null, ct);
+            using var pDoc = JsonDocument.Parse(pJson);
+            var existingIds = list.Select(x => x.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var e in pDoc.RootElement.EnumerateArray())
+            {
+                var id = e.GetStringProp("id");
+                if (!string.IsNullOrEmpty(id) && existingIds.Add(id))
+                {
+                    list.Add(new ProjectMapProjectInfo(
+                        id,
+                        e.GetStringProp("name"),
+                        e.GetStringProp("path"),
+                        ReadBool(e, "is_test"),
+                        e.GetNullableIntProp("sub_count") ?? 1,
+                        ReadBool(e, "is_build_orch"),
+                        e.GetStringProp("excluded_subpaths")));
+                }
+            }
+        }
+        catch
+        {
+            // Ignore if query returns empty
+        }
+
+        return list;
+    }
+
+    private async Task<List<ProjectMapSubProject>> LoadProjectMapSubProjectsAsync(string parentProjectId, CancellationToken ct)
+    {
+        const string query =
+            "MATCH (p:Project)-[:CONTAINS]->(sub:Project) WHERE p.id = $pid RETURN sub.id AS id, sub.name AS name, sub.path AS path, sub.kind AS kind";
+        var result = new List<ProjectMapSubProject>();
+        try
+        {
+            var json = await db.ExecuteQueryAsync(query, new Dictionary<string, object?> { ["pid"] = parentProjectId }, ct);
+            using var doc = JsonDocument.Parse(json);
+            foreach (var e in doc.RootElement.EnumerateArray())
+            {
+                var subId = e.GetStringProp("id");
+                if (string.IsNullOrEmpty(subId)) continue;
+                var subFiles = await LoadProjectMapFilesAsync(subId, ct);
+                result.Add(new ProjectMapSubProject(
+                    subId,
+                    e.GetStringProp("name"),
+                    e.GetStringProp("path"),
+                    e.GetStringProp("kind", "Service"),
+                    subFiles));
+            }
+        }
+        catch
+        {
+            // Ignore if no subprojects exist
+        }
+        return result;
+    }
+
+    private static List<string> ParseJsonStringList(string? rawJson)
+    {
+        if (string.IsNullOrWhiteSpace(rawJson)) return [];
+        try
+        {
+            return JsonSerializer.Deserialize<List<string>>(rawJson) ?? [];
+        }
+        catch
+        {
+            return [];
+        }
     }
 
     private static ProjectMapProjectInfo? SelectProjectMapProject(List<ProjectMapProjectInfo> projects, string? scope)
@@ -116,15 +214,18 @@ public partial class ArchitectureViewEngine
             .ToList();
     }
 
-    private async Task<List<ProjectMapSymbolEdge>> LoadProjectMapSymbolEdgesAsync(string prefix, List<string> warnings, CancellationToken ct)
+    private async Task<List<ProjectMapSymbolEdge>> LoadProjectMapSymbolEdgesAsync(
+        string prefix,
+        HashSet<string> projectFileSet,
+        List<string> warnings,
+        CancellationToken ct)
     {
         var kinds = string.Join(", ", ProjectMapLiftedKinds.Select(EscapeCypherStringLiteral));
         var query =
             $"MATCH (a)-[r]->(b) WHERE r.kind IN [{kinds}] " +
-            "AND (a.file_path STARTS WITH $prefix OR a.file_path CONTAINS $slashPrefix) " +
-            "AND (b.file_path STARTS WITH $prefix OR b.file_path CONTAINS $slashPrefix) " +
-            "AND a.file_path <> b.file_path " +
-            $"RETURN a.file_path AS from_file, b.file_path AS to_file, r.kind AS kind, a.name AS from_name, b.name AS to_name, a.start_line AS line LIMIT {ProjectMapEdgeRowLimit}";
+            "AND (a.file_path STARTS WITH $prefix OR a.file_path CONTAINS $slashPrefix OR a.path STARTS WITH $prefix OR a.path CONTAINS $slashPrefix) " +
+            "AND (b.file_path STARTS WITH $prefix OR b.file_path CONTAINS $slashPrefix OR b.path STARTS WITH $prefix OR b.path CONTAINS $slashPrefix) " +
+            $"RETURN coalesce(a.file_path, a.path) AS from_file, a.path AS from_alt, coalesce(b.file_path, b.path) AS to_file, b.path AS to_alt, r.kind AS kind, a.name AS from_name, b.name AS to_name, a.start_line AS line LIMIT {ProjectMapEdgeRowLimit}";
 
         var rows = await QueryProjectMapRowsAsync(query, prefix, "symbol edges", warnings, ct);
         if (rows.Count >= ProjectMapEdgeRowLimit)
@@ -133,8 +234,8 @@ public partial class ArchitectureViewEngine
         }
 
         var edges = rows.Select(e => new ProjectMapSymbolEdge(
-                NormalizeToProjectPath(e.GetStringProp("from_file"), prefix),
-                NormalizeToProjectPath(e.GetStringProp("to_file"), prefix),
+                ResolveSymbolFilePath(e.GetStringProp("from_file"), e.GetStringProp("from_alt"), prefix, projectFileSet),
+                ResolveSymbolFilePath(e.GetStringProp("to_file"), e.GetStringProp("to_alt"), prefix, projectFileSet),
                 e.GetStringProp("kind"),
                 e.GetStringProp("from_name"),
                 e.GetStringProp("to_name"),
@@ -144,14 +245,14 @@ public partial class ArchitectureViewEngine
 
         // Synthesize USES_TYPE edges from Type->Member data_type and EntryPoint->Type handler contracts within the project
         const string typesQuery =
-            "MATCH (t:Type) WHERE t.file_path STARTS WITH $prefix OR t.file_path CONTAINS $slashPrefix " +
-            "RETURN t.name AS name, t.file_path AS file";
+            "MATCH (t:Type) WHERE t.file_path STARTS WITH $prefix OR t.file_path CONTAINS $slashPrefix OR t.path STARTS WITH $prefix OR t.path CONTAINS $slashPrefix " +
+            "RETURN t.name AS name, coalesce(t.file_path, t.path) AS file, t.path AS alt_path";
         var typeRows = await QueryProjectMapRowsAsync(typesQuery, prefix, "project types", warnings, ct);
         var typeToFiles = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         foreach (var tr in typeRows)
         {
             var tName = StripGenericArity(tr.GetStringProp("name"));
-            var tFile = NormalizeToProjectPath(tr.GetStringProp("file"), prefix);
+            var tFile = ResolveSymbolFilePath(tr.GetStringProp("file"), tr.GetStringProp("alt_path"), prefix, projectFileSet);
             if (tName.Length == 0 || tFile.Length == 0) continue;
             if (!typeToFiles.TryGetValue(tName, out var list))
             {
@@ -168,14 +269,14 @@ public partial class ArchitectureViewEngine
         {
             const string membersQuery =
                 "MATCH (t:Type)-[:HAS_MEMBER]->(m:Member) " +
-                "WHERE (t.file_path STARTS WITH $prefix OR t.file_path CONTAINS $slashPrefix) AND m.data_type <> '' " +
-                "RETURN t.name AS from_name, t.file_path AS from_file, m.data_type AS dtype, m.start_line AS line";
+                "WHERE (t.file_path STARTS WITH $prefix OR t.file_path CONTAINS $slashPrefix OR t.path STARTS WITH $prefix OR t.path CONTAINS $slashPrefix) AND m.data_type <> '' " +
+                "RETURN t.name AS from_name, coalesce(t.file_path, t.path) AS from_file, t.path AS from_alt, m.data_type AS dtype, m.start_line AS line";
             var memberRows = await QueryProjectMapRowsAsync(membersQuery, prefix, "member type references", warnings, ct);
             var seenMemberTypeEdges = new HashSet<(string FromFile, string ToFile, string FromSym, string ToSym)>();
 
             foreach (var mr in memberRows)
             {
-                var fromFile = NormalizeToProjectPath(mr.GetStringProp("from_file"), prefix);
+                var fromFile = ResolveSymbolFilePath(mr.GetStringProp("from_file"), mr.GetStringProp("from_alt"), prefix, projectFileSet);
                 var fromName = mr.GetStringProp("from_name");
                 var dtype = mr.GetStringProp("dtype");
                 var line = mr.GetNullableIntProp("line");
@@ -199,18 +300,22 @@ public partial class ArchitectureViewEngine
         return edges;
     }
 
-    private async Task<List<ProjectMapResourceLink>> LoadProjectMapResourceLinksAsync(string prefix, List<string> warnings, CancellationToken ct)
+    private async Task<List<ProjectMapResourceLink>> LoadProjectMapResourceLinksAsync(
+        string prefix,
+        HashSet<string> projectFileSet,
+        List<string> warnings,
+        CancellationToken ct)
     {
         var labels = string.Join(", ", ProjectMapResourceLabels.Select(EscapeCypherStringLiteral));
         const string projection =
-            "RETURN res.id AS res_id, labels(res)[0] AS res_kind, res.name AS res_name, r.kind AS kind, coalesce(s.file_path, s.path) AS file, s.name AS sym, s.start_line AS line";
+            "RETURN res.id AS res_id, labels(res)[0] AS res_kind, res.name AS res_name, r.kind AS kind, coalesce(s.file_path, s.path) AS file, s.path AS alt_path, s.name AS sym, s.start_line AS line";
 
         var queries = new (string Query, string Context)[]
         {
             ($"MATCH (res)-[r]->(s) WHERE labels(res)[0] IN [{labels}] AND NOT (res.id STARTS WITH 'ws:top:mediatr:') AND NOT (labels(s)[0] IN ['Project', 'Database', 'Domain']) AND (s.file_path STARTS WITH $prefix OR s.file_path CONTAINS $slashPrefix OR s.path STARTS WITH $prefix OR s.path CONTAINS $slashPrefix) {projection}", "resource links (inbound)"),
             ($"MATCH (s)-[r]->(res) WHERE labels(res)[0] IN [{labels}] AND NOT (res.id STARTS WITH 'ws:top:mediatr:') AND NOT (labels(s)[0] IN ['Project', 'Database', 'Domain']) AND (s.file_path STARTS WITH $prefix OR s.file_path CONTAINS $slashPrefix OR s.path STARTS WITH $prefix OR s.path CONTAINS $slashPrefix) {projection}", "resource links (outbound)"),
-            ("MATCH (res:Table)<-[r]-(q:Query)-[a]->(s) WHERE a.kind = 'ACCESSED_BY' AND (s.file_path STARTS WITH $prefix OR s.file_path CONTAINS $slashPrefix) " + projection, "query tables (accessed by)"),
-            ("MATCH (s)-[a]->(q:Query)-[r]->(res:Table) WHERE (s.file_path STARTS WITH $prefix OR s.file_path CONTAINS $slashPrefix) " + projection, "query tables (declared)")
+            ("MATCH (res:Table)<-[r]-(q:Query)-[a]->(s) WHERE a.kind = 'ACCESSED_BY' AND (s.file_path STARTS WITH $prefix OR s.file_path CONTAINS $slashPrefix OR s.path STARTS WITH $prefix OR s.path CONTAINS $slashPrefix) " + projection, "query tables (accessed by)"),
+            ("MATCH (s)-[a]->(q:Query)-[r]->(res:Table) WHERE (s.file_path STARTS WITH $prefix OR s.file_path CONTAINS $slashPrefix OR s.path STARTS WITH $prefix OR s.path CONTAINS $slashPrefix) " + projection, "query tables (declared)")
         };
 
         var links = new List<ProjectMapResourceLink>();
@@ -219,7 +324,7 @@ public partial class ArchitectureViewEngine
             var rows = await QueryProjectMapRowsAsync(query, prefix, context, warnings, ct);
             foreach (var e in rows)
             {
-                var normFile = NormalizeToProjectPath(e.GetStringProp("file"), prefix);
+                var normFile = ResolveSymbolFilePath(e.GetStringProp("file"), e.GetStringProp("alt_path"), prefix, projectFileSet);
                 if (normFile.Length == 0 || ProjectMapPartitioner.IsIgnoredProjectMapFile(normFile)) continue;
                 links.Add(new ProjectMapResourceLink(
                     normFile,
@@ -235,26 +340,51 @@ public partial class ArchitectureViewEngine
         return links;
     }
 
-    private async Task<Dictionary<string, int>> LoadProjectMapEntryPointsAsync(string prefix, List<string> warnings, CancellationToken ct)
+    private async Task<Dictionary<string, int>> LoadProjectMapEntryPointsAsync(
+        string prefix,
+        HashSet<string> projectFileSet,
+        List<string> warnings,
+        CancellationToken ct)
     {
         const string edgeQuery =
             "MATCH (e)-[r]->(s) WHERE labels(e)[0] IN ['Endpoint', 'EntryPoint'] AND r.kind IN ['TRIGGERS', 'EXPOSED_BY'] " +
             "AND (s.file_path STARTS WITH $prefix OR s.file_path CONTAINS $slashPrefix OR s.path STARTS WITH $prefix OR s.path CONTAINS $slashPrefix) " +
-            "RETURN e.id AS eid, coalesce(s.file_path, s.path) AS file";
+            "RETURN e.id AS eid, coalesce(s.file_path, s.path) AS file, s.path AS alt_path";
         const string directQuery =
             "MATCH (e) WHERE labels(e)[0] IN ['Endpoint', 'EntryPoint'] " +
             "AND (e.file_path STARTS WITH $prefix OR e.file_path CONTAINS $slashPrefix OR e.path STARTS WITH $prefix OR e.path CONTAINS $slashPrefix) " +
-            "RETURN e.id AS eid, coalesce(e.file_path, e.path) AS file";
+            "RETURN e.id AS eid, coalesce(e.file_path, e.path) AS file, e.path AS alt_path";
 
         var edgeRows = await QueryProjectMapRowsAsync(edgeQuery, prefix, "entry points (edges)", warnings, ct);
         var directRows = await QueryProjectMapRowsAsync(directQuery, prefix, "entry points (direct)", warnings, ct);
 
         return edgeRows.Concat(directRows)
-            .Select(e => (Id: e.GetStringProp("eid"), File: NormalizeToProjectPath(e.GetStringProp("file"), prefix)))
+            .Select(e => (Id: e.GetStringProp("eid"), File: ResolveSymbolFilePath(e.GetStringProp("file"), e.GetStringProp("alt_path"), prefix, projectFileSet)))
             .Where(x => x.Id.Length > 0 && x.File.Length > 0)
             .Distinct()
             .GroupBy(x => x.File, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.Select(x => x.Id).Distinct().Count(), StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string ResolveSymbolFilePath(
+        string? primaryPath,
+        string? altPath,
+        string prefix,
+        HashSet<string> projectFileSet)
+    {
+        var normPrimary = NormalizeToProjectPath(primaryPath, prefix);
+        if (normPrimary.Length > 0 && (projectFileSet.Count == 0 || projectFileSet.Contains(normPrimary) || normPrimary.Contains('/')))
+        {
+            return normPrimary;
+        }
+
+        var normAlt = NormalizeToProjectPath(altPath, prefix);
+        if (normAlt.Length > 0 && (projectFileSet.Contains(normAlt) || normAlt.Contains('/')))
+        {
+            return normAlt;
+        }
+
+        return normPrimary.Length > 0 ? normPrimary : normAlt;
     }
 
     private async Task<List<JsonElement>> QueryProjectMapRowsAsync(

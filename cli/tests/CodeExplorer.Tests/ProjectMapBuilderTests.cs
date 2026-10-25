@@ -213,4 +213,57 @@ public class ProjectMapBuilderTests
         graph.Metadata["granularity"].Should().Be("module");
         graph.Edges.Should().OnlyContain(e => e.Properties!["is_circular"] == "true");
     }
+
+    [Test]
+    public void Build_ParentProjectWithSubProjectsAndBuildOrchestrator_ShowsSubProjectsAndExcludesPublicSrcAndGulpScripts()
+    {
+        var input = new ProjectMapInput
+        {
+            ProjectId = "ws:p:src/services/cf-worker:",
+            ProjectName = "cf-worker",
+            ProjectPath = "src/services/cf-worker",
+            IsBuildOrchestrator = true,
+            ExcludedSubpaths = ["public_src"],
+            Files =
+            [
+                F("src/services/cf-worker/gulpfile.js"),
+                F("src/services/cf-worker/minify-html.js"),
+                F("src/services/cf-worker/workers/tracker-worker/public_src/land_backends/1110/index.js")
+            ],
+            SubProjects =
+            [
+                new ProjectMapSubProject(
+                    "ws:p:src/services/cf-worker/workers/tracker-worker:",
+                    "tracker-worker",
+                    "src/services/cf-worker/workers/tracker-worker",
+                    "Worker",
+                    [
+                        F("src/services/cf-worker/workers/tracker-worker/workers-site/index.js"),
+                        F("src/services/cf-worker/workers/tracker-worker/workers-site/src/save-impression.js")
+                    ]),
+                new ProjectMapSubProject(
+                    "ws:p:src/services/cf-worker/workers/queue-consumer-worker:",
+                    "queue-consumer-worker",
+                    "src/services/cf-worker/workers/queue-consumer-worker",
+                    "Worker",
+                    [
+                        F("src/services/cf-worker/workers/queue-consumer-worker/workers-site/index.js")
+                    ])
+            ],
+            SymbolEdges =
+            [
+                Call(
+                    "src/services/cf-worker/workers/queue-consumer-worker/workers-site/index.js",
+                    "src/services/cf-worker/workers/tracker-worker/workers-site/src/save-impression.js")
+            ]
+        };
+
+        var result = ProjectMapBuilder.Build(input);
+
+        result.Modules.Select(m => m.Name).Should().BeEquivalentTo("tracker-worker", "queue-consumer-worker");
+        result.Modules.Should().OnlyContain(m => m.IsSubProject);
+        result.Edges.Should().ContainSingle(e =>
+            e.SourceId == "pm:sub:queue-consumer-worker" &&
+            e.TargetId == "pm:sub:tracker-worker");
+    }
 }

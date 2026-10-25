@@ -39,39 +39,147 @@ public class Layer2ProjectParser
             dirsToCheck.Add(ctx.AbsoluteWorkspacePath);
             dirsToCheck.AddRange(l1Result.Folders.Select(f => f.Path));
         }
-        dirsToCheck = [.. dirsToCheck.Distinct(StringComparer.OrdinalIgnoreCase)];
+        dirsToCheck = [.. dirsToCheck
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(d => d.Replace('\\', '/').Length)
+            .ThenBy(d => d, StringComparer.OrdinalIgnoreCase)];
 
         var projectDepList = new List<(ProjectNode Project, ProjectDependencyInfo DepInfo)>();
         var packageToProjectMap = new Dictionary<string, ProjectNode>(StringComparer.OrdinalIgnoreCase);
+        var absorbedDirectoryOwners = new Dictionary<string, ProjectNode>(StringComparer.OrdinalIgnoreCase);
+        var explicitChildToParentMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var dir in dirsToCheck)
         {
             ctx.CancellationToken.ThrowIfCancellationRequested();
 
-            var filesInDir = Directory.GetFiles(dir);
-            var matchingParsers = WorkspaceIndexer._projectParsers
-                .Where(p => !p.IsFallback && p.IsProjectDirectory(dir, filesInDir))
-                .ToList();
-            ProjectParserPrecedence.RemoveSuperseded(matchingParsers);
-
-            var projectParser = matchingParsers.FirstOrDefault();
-            
-            if (projectParser != null)
+            var normCurrentDir = Path.GetFullPath(dir).Replace('\\', '/').TrimEnd('/');
+            ProjectNode? absorbingOwner = null;
+            foreach (var (absPath, ownerNode) in absorbedDirectoryOwners)
             {
-                var projectName = projectParser.GetProjectName(dir, filesInDir);
+                if (normCurrentDir.Equals(absPath, StringComparison.OrdinalIgnoreCase) ||
+                    normCurrentDir.StartsWith(absPath + "/", StringComparison.OrdinalIgnoreCase))
+                {
+                    absorbingOwner = ownerNode;
+                    break;
+                }
+            }
+
+            var filesInDir = Directory.GetFiles(dir);
+
+            if (absorbingOwner != null)
+            {
+                // Merge any dependencies declared inside an absorbed subfolder (e.g. workers-site/package.json or webview/package.json) into the parent owner project
+                foreach (var mp in WorkspaceIndexer._projectParsers.Where(p => !p.IsFallback))
+                {
+                    if (mp.IsManifestFile(Path.GetFileName(filesInDir.FirstOrDefault() ?? "")) ||
+                        filesInDir.Any(f => mp.IsManifestFile(Path.GetFileName(f))))
+                    {
+                        var absorbedDep = await ParseProjectDependenciesAsync(mp, dir, ctx);
+                        if (absorbedDep != null)
+                        {
+                            AttachDependencies(absorbingOwner, absorbingOwner.Id, absorbedDep, dir, dependencies, packages, mp, ctx);
+                            projectDepList.Add((absorbingOwner, absorbedDep));
+                        }
+                    }
+                }
+                continue;
+            }
+
+            var parseContext = new ProjectParseContext(dir, filesInDir, ctx.AbsoluteWorkspacePath);
+            var matchedResults = new List<(IProjectParser Parser, ProjectParseResult Result)>();
+            foreach (var parser in WorkspaceIndexer._projectParsers.Where(p => !p.IsFallback))
+            {
+                if (parser.TryParse(parseContext, out var res) && res != null)
+                {
+                    matchedResults.Add((parser, res));
+                    if (res.ClaimMode == ParserClaimMode.StopAllOtherParsersInDirectory)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            if (matchedResults.Count == 0)
+            {
+                continue;
+            }
+
+            var matchingParsers = matchedResults.Select(m => m.Parser).ToList();
+            ProjectParserPrecedence.RemoveSuperseded(matchingParsers);
+            var activeResults = matchedResults.Where(m => matchingParsers.Contains(m.Parser)).ToList();
+            if (activeResults.Count == 0)
+            {
+                continue;
+            }
+
+            // Separate Primary vs Secondary parsers when Primary claims AbsorbSecondaryInDirectory
+            var hasPrimaryAbsorbing = activeResults.Any(r =>
+                ProjectParserPrecedence.GetTier(r.Parser) == ParserTier.Primary &&
+                r.Result.ClaimMode == ParserClaimMode.AbsorbSecondaryInDirectory);
+
+            var independentEntries = new List<(IProjectParser Parser, ParsedProjectDescriptor Descriptor, List<IProjectParser> MergedSecondaryParsers)>();
+            if (hasPrimaryAbsorbing)
+            {
+                var secondaryParsers = activeResults
+                    .Where(r => ProjectParserPrecedence.GetTier(r.Parser) != ParserTier.Primary)
+                    .Select(r => r.Parser)
+                    .ToList();
+
+                var primaryEntries = activeResults
+                    .Where(r => ProjectParserPrecedence.GetTier(r.Parser) == ParserTier.Primary)
+                    .ToList();
+
+                for (var idx = 0; idx < primaryEntries.Count; idx++)
+                {
+                    var (pParser, pRes) = primaryEntries[idx];
+                    independentEntries.Add((pParser, pRes.Project, idx == 0 ? secondaryParsers : []));
+                    if (pRes.AdditionalSiblingProjects != null)
+                    {
+                        foreach (var sib in pRes.AdditionalSiblingProjects)
+                        {
+                            independentEntries.Add((pParser, sib, []));
+                        }
+                    }
+                }
+            }
+            else
+            {
+                var first = activeResults[0];
+                var restParsers = activeResults.Skip(1).Select(r => r.Parser).ToList();
+                independentEntries.Add((first.Parser, first.Result.Project, restParsers));
+                if (first.Result.AdditionalSiblingProjects != null)
+                {
+                    foreach (var sib in first.Result.AdditionalSiblingProjects)
+                    {
+                        independentEntries.Add((first.Parser, sib, []));
+                    }
+                }
+            }
+
+            foreach (var (projectParser, descriptor, mergedSecondaryParsers) in independentEntries)
+            {
+                var projectName = descriptor.Name;
                 if (string.IsNullOrEmpty(projectName)) projectName = Path.GetFileName(dir);
                 if (string.IsNullOrEmpty(projectName)) projectName = dir;
                 var folderName = Path.GetFileName(dir);
                 if (string.IsNullOrEmpty(folderName)) folderName = projectName;
-                
+
                 var relativeProjectDir = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, dir).Replace('\\', '/');
                 if (relativeProjectDir == ".") relativeProjectDir = "";
 
-                var projectNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Project}:{relativeProjectDir}:";
+                var idKey = !string.IsNullOrEmpty(descriptor.RelativeIdPathOverride)
+                    ? descriptor.RelativeIdPathOverride
+                    : relativeProjectDir;
+                var projectNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Project}:{idKey}:";
+                if (projects.Any(p => p.Id.Equals(projectNodeId, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
 
-                // Parse project dependencies across all matching parsers in hybrid directories (e.g. .csproj + package.json)
+                // Parse project dependencies across primary + absorbed secondary parsers in hybrid directories (e.g. .csproj + package.json)
                 ProjectDependencyInfo? depInfo = null;
-                foreach (var mp in matchingParsers)
+                foreach (var mp in new[] { projectParser }.Concat(mergedSecondaryParsers))
                 {
                     var subDep = await ParseProjectDependenciesAsync(mp, dir, ctx);
                     if (subDep != null)
@@ -97,10 +205,10 @@ public class Layer2ProjectParser
                 }
                 var extPkgNames = depInfo?.ExternalPackages.Select(p => p.Name).ToList();
 
-                var manifestProps = projectParser.ExtractManifestProperties(dir, filesInDir);
-                if (matchingParsers.Count > 1)
+                var manifestProps = new Dictionary<string, string>(descriptor.ManifestProperties, StringComparer.OrdinalIgnoreCase);
+                if (mergedSecondaryParsers.Count > 0)
                 {
-                    foreach (var secParser in matchingParsers.Skip(1))
+                    foreach (var secParser in mergedSecondaryParsers)
                     {
                         var secProps = secParser.ExtractManifestProperties(dir, filesInDir);
                         if (secProps.TryGetValue("primary_role", out var secPrimary) &&
@@ -138,10 +246,34 @@ public class Layer2ProjectParser
                     packageToProjectMap[normName] = projectNode;
                     WorkspaceConventions.RegisterServiceAlias(projectName, normName);
                 }
-                if (!string.Equals(folderName, projectName, StringComparison.OrdinalIgnoreCase))
+                if (!string.Equals(folderName, projectName, StringComparison.OrdinalIgnoreCase) && independentEntries.Count == 1)
                 {
                     packageToProjectMap[folderName] = projectNode;
                     WorkspaceConventions.RegisterServiceAlias(folderName, normName ?? projectName);
+                }
+
+                // Register absorbed subpaths so nested technical folders (e.g. workers-site/, webview/) are merged into this project
+                if (descriptor.AbsorbedSubpaths != null)
+                {
+                    foreach (var sub in descriptor.AbsorbedSubpaths)
+                    {
+                        var fullAbs = Path.GetFullPath(Path.Combine(dir, sub)).Replace('\\', '/').TrimEnd('/');
+                        absorbedDirectoryOwners[fullAbs] = projectNode;
+                    }
+                }
+
+                // Register declarative SubProjects (e.g. angular.json, nest-cli.json) if their directories aren't already created
+                if (descriptor.SubProjects != null)
+                {
+                    foreach (var subDesc in descriptor.SubProjects)
+                    {
+                        if (!string.IsNullOrEmpty(subDesc.RelativeIdPathOverride))
+                        {
+                            continue; // EntryPoint-based targets (like Cargo [[bin]]) are handled in the additional targets pass below
+                        }
+                        var subFullDir = Path.GetFullPath(subDesc.DirectoryPath).Replace('\\', '/').TrimEnd('/');
+                        explicitChildToParentMap[subFullDir] = projectNode.Id;
+                    }
                 }
 
                 if (depInfo != null)
@@ -593,6 +725,58 @@ public class Layer2ProjectParser
                             crossProjectRels.Add(depRel);
                         }
                     }
+                }
+            }
+        }
+
+        // Link parent -> child SubProjects (:Project)-[:CONTAINS]->(:Project) when a project directory is nested inside an enclosing parent project
+        foreach (var childProj in projects)
+        {
+            if (string.IsNullOrEmpty(childProj.Path)) continue;
+            var childNormPath = childProj.Path.Replace('\\', '/').Trim('/');
+
+            ProjectNode? bestParent = null;
+            var bestParentLen = -1;
+            foreach (var candidateParent in projects)
+            {
+                if (string.Equals(candidateParent.Id, childProj.Id, StringComparison.OrdinalIgnoreCase)) continue;
+                var parentNormPath = candidateParent.Path.Replace('\\', '/').Trim('/');
+                if (string.IsNullOrEmpty(parentNormPath))
+                {
+                    if (bestParentLen < 0)
+                    {
+                        bestParent = candidateParent;
+                        bestParentLen = 0;
+                    }
+                    continue;
+                }
+
+                if (childNormPath.StartsWith(parentNormPath + "/", StringComparison.OrdinalIgnoreCase) &&
+                    parentNormPath.Length > bestParentLen)
+                {
+                    bestParent = candidateParent;
+                    bestParentLen = parentNormPath.Length;
+                }
+            }
+
+            if (bestParent != null)
+            {
+                if (childProj.Extensions != null)
+                {
+                    childProj.Extensions["parent_project_id"] = bestParent.Id;
+                }
+                var containsProjRel = new Relationship(bestParent.Id, childProj.Id, OntologyConstants.Relationships.Contains);
+                if (!dependencies.Any(d => d.From == bestParent.Id && d.To == childProj.Id && d.Kind == OntologyConstants.Relationships.Contains))
+                {
+                    dependencies.Add(containsProjRel);
+                }
+
+                if (childProj.IsLibrary && !bestParent.IsLibrary &&
+                    !dependencies.Any(d => d.From == bestParent.Id && d.To == childProj.Id && d.Kind == OntologyConstants.Relationships.DependsOn))
+                {
+                    var depRel = Relationship.FromRelationship(new DependsOnRelationship(bestParent.Id, childProj.Id, new() { ["dependency_type"] = "library" }));
+                    dependencies.Add(depRel);
+                    ctx.AddGlobalProjectDependency(depRel);
                 }
             }
         }

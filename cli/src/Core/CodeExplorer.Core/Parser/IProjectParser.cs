@@ -2,6 +2,61 @@ using CodeExplorer.Core.Common;
 
 namespace CodeExplorer.Core.Parser;
 
+/// <summary>
+/// Controls how a project parser's match in a directory affects lower-precedence or remaining parsers in that directory.
+/// </summary>
+public enum ParserClaimMode
+{
+    /// <summary>
+    /// Absorbs Secondary-tier parsers in the same directory (merging their dependencies into this project),
+    /// while allowing other independent Primary-tier parsers in the same directory to emit their own projects.
+    /// </summary>
+    AbsorbSecondaryInDirectory = 0,
+
+    /// <summary>
+    /// Stops iteration over all remaining project parsers in the current directory.
+    /// </summary>
+    StopAllOtherParsersInDirectory = 1,
+
+    /// <summary>
+    /// Does not block other project parsers in the current directory.
+    /// </summary>
+    None = 2
+}
+
+/// <summary>
+/// Context passed to <see cref="IProjectParser.TryParse"/> for directory-level project boundary evaluation.
+/// </summary>
+public sealed record ProjectParseContext(
+    string DirectoryPath,
+    string[] FilesInDirectory,
+    string AbsoluteWorkspacePath = "");
+
+/// <summary>
+/// Describes a single parsed project boundary and its optional nested subprojects, absorbed subpaths, and excluded asset subpaths.
+/// </summary>
+public sealed record ParsedProjectDescriptor(
+    string Name,
+    string DirectoryPath,
+    string ProjectType,
+    IReadOnlyDictionary<string, string> ManifestProperties,
+    IReadOnlyList<string>? SourceRoots = null,
+    IReadOnlyList<string>? AbsorbedSubpaths = null,
+    IReadOnlyList<string>? ExcludedSubpaths = null,
+    IReadOnlyList<string>? EntryPointPaths = null,
+    IReadOnlyList<ParsedProjectDescriptor>? SubProjects = null,
+    IReadOnlyCollection<string>? LocalDependencyPaths = null,
+    string? RelativeIdPathOverride = null);
+
+/// <summary>
+/// Result of <see cref="IProjectParser.TryParse"/> returning the primary project in the directory,
+/// claim semantics for other parsers in the same directory, and any independent sibling projects in the same directory.
+/// </summary>
+public sealed record ProjectParseResult(
+    ParsedProjectDescriptor Project,
+    ParserClaimMode ClaimMode = ParserClaimMode.AbsorbSecondaryInDirectory,
+    IReadOnlyList<ParsedProjectDescriptor>? AdditionalSiblingProjects = null);
+
 public enum ProjectParserRole
 {
     /// <summary>
@@ -149,6 +204,63 @@ public interface IProjectParser
     /// Returns independently deployable targets declared inside a project manifest.
     /// </summary>
     IReadOnlyList<AdditionalProjectDescriptor> GetAdditionalProjects(string directoryPath, string[] filesInDirectory) => [];
+
+    /// <summary>
+    /// Attempts to parse a project boundary in the given directory, returning the primary project descriptor,
+    /// any nested subprojects or absorbed subpaths, and the parser claim mode for other parsers in the same directory.
+    /// </summary>
+    bool TryParse(ProjectParseContext context, out ProjectParseResult? result)
+    {
+        if (!IsProjectDirectory(context.DirectoryPath, context.FilesInDirectory))
+        {
+            result = null;
+            return false;
+        }
+
+        var name = GetProjectName(context.DirectoryPath, context.FilesInDirectory);
+        if (string.IsNullOrEmpty(name))
+        {
+            name = Path.GetFileName(context.DirectoryPath.TrimEnd('/', '\\'));
+        }
+
+        var props = ExtractManifestProperties(context.DirectoryPath, context.FilesInDirectory);
+        var additional = GetAdditionalProjects(context.DirectoryPath, context.FilesInDirectory);
+        List<ParsedProjectDescriptor>? subProjects = null;
+        if (additional.Count > 0)
+        {
+            subProjects = [];
+            foreach (var add in additional)
+            {
+                var entryDir = Path.GetDirectoryName(add.EntryPointPath) ?? context.DirectoryPath;
+                var relIdOverride = !string.IsNullOrEmpty(context.AbsoluteWorkspacePath)
+                    ? Path.GetRelativePath(context.AbsoluteWorkspacePath, Path.GetFullPath(add.EntryPointPath)).Replace('\\', '/')
+                    : null;
+                subProjects.Add(new ParsedProjectDescriptor(
+                    Name: add.Name,
+                    DirectoryPath: entryDir,
+                    ProjectType: ProjectType,
+                    ManifestProperties: add.Properties,
+                    EntryPointPaths: [add.EntryPointPath],
+                    LocalDependencyPaths: add.LocalDependencyPaths,
+                    RelativeIdPathOverride: relIdOverride));
+            }
+        }
+
+        var tier = ProjectParserPrecedence.GetTier(this);
+        var claimMode = tier == ParserTier.Primary
+            ? ParserClaimMode.AbsorbSecondaryInDirectory
+            : ParserClaimMode.None;
+
+        result = new ProjectParseResult(
+            Project: new ParsedProjectDescriptor(
+                Name: name,
+                DirectoryPath: context.DirectoryPath,
+                ProjectType: ProjectType,
+                ManifestProperties: props,
+                SubProjects: subProjects),
+            ClaimMode: claimMode);
+        return true;
+    }
 
     /// <summary>
     /// Declarative package descriptors (frameworks, test runners, drivers) registered for this language dialect.
