@@ -1,6 +1,6 @@
 {
   "name": "code-explorer-vscode",
-  "displayName": "CodeExplorer — Live Architecture Map, MCP & CI Gates",
+  "displayName": "CodeExplorer",
   "description": "Make AI coding agents production-safe. Live cross-service map of APIs, queues & databases in VS Code, surgical MCP context (Claude Code, Cursor, Copilot), and CI architecture gates.",
   "version": "1.59.0",
   "publisher": "vmikhailov",
