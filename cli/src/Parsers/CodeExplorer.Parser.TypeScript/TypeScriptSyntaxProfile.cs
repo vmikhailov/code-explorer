@@ -112,6 +112,9 @@ public static class TypeScriptSyntaxProfile
         ElementAccessExpressions = new[]
         {
             "subscript_expression"
-        }.ToFrozenSet()
+        }.ToFrozenSet(),
+
+        CallMethodFields = ["property", "name", "field", "member"],
+        CallReceiverFields = ["object", "receiver"]
     };
 }

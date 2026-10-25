@@ -117,9 +117,13 @@ public static class EndpointSemanticAnalyzer
             if (colonIdx > 0)
             {
                 var method = name[..colonIdx].ToUpperInvariant();
-                isEndpoint = method is "GET" or "POST" or "PUT" or "DELETE" or "PATCH" or "OPTIONS" or "HEAD" or "GRAPHQL" or "RPC" or "GRPC" or "QUERY" or "MUTATION" or "SUBSCRIPTION";
+                isEndpoint = method is "GET" or "POST" or "PUT" or "DELETE" or "PATCH" or "OPTIONS" or "HEAD" or "TRACE" or "ANY" or "ALL" or "API"
+                    or "GRAPHQL" or "RPC" or "GRPC" or "QUERY" or "MUTATION" or "SUBSCRIPTION"
+                    or "WS" or "HUB" or "WCF" or "GRAIN"
+                    or "MSG" or "CONSUMER" or "CONSUME" or "HANDLE" or "EVENT"
+                    or "KAFKA" or "RABBITMQ" or "GCP" or "SQS" or "SNS" or "NATS" or "ACTIVE-MQ" or "ACTIVEMQ" or "AZURE-SB" or "MQTT" or "REDIS" or "EVENTBUS" or "MASSTRANSIT";
             }
-            if (syntactic.Protocol is "GraphQL" or "gRPC" or "REST")
+            if (syntactic.Protocol is "GraphQL" or "gRPC" or "REST" or "WS" or "WCF" or "MSG" or "RPC")
             {
                 isEndpoint = true;
             }
@@ -142,6 +146,10 @@ public static class EndpointSemanticAnalyzer
                     var implRel = Relationship.FromRelationship(new ImplementedByRelationship(typedNode.Id, parentScopeId, typedNode.Extensions));
                     ctx?.AddGlobalProjectDependency(implRel);
                     relationships?.Add(implRel);
+
+                    var fnImplRel = Relationship.FromRelationship(new ImplementsRelationship(parentScopeId, typedNode.Id, typedNode.Extensions));
+                    ctx?.AddGlobalProjectDependency(fnImplRel);
+                    relationships?.Add(fnImplRel);
                 }
             }
         }
@@ -350,8 +358,40 @@ public static class EndpointSemanticAnalyzer
         string? projectName = null)
     {
         var idx = name.IndexOf(':');
-        var method = idx > 0 ? name[..idx].ToUpperInvariant() : (syntactic?.Protocol == "gRPC" ? "RPC" : "GET");
+        var rawMethod = idx > 0 ? name[..idx].ToUpperInvariant() : (syntactic?.Protocol == "gRPC" ? "RPC" : (syntactic?.Protocol == "WS" ? "WS" : (syntactic?.Protocol == "MSG" ? "MSG" : "GET")));
         var route = idx > 0 ? name[(idx + 1)..] : name;
+
+        var protocol = syntactic?.Protocol;
+        var method = rawMethod;
+
+        if (rawMethod is "WS" or "HUB" || protocol == "WS")
+        {
+            protocol = "WS";
+            method = "WS";
+            name = $"WS:{route}";
+        }
+        else if (rawMethod is "MSG" or "CONSUMER" or "CONSUME" or "HANDLE" or "EVENT" or "KAFKA" or "RABBITMQ" or "GCP" or "SQS" or "SNS" or "NATS" or "ACTIVE-MQ" or "ACTIVEMQ" or "AZURE-SB" or "MQTT" or "REDIS" or "EVENTBUS" or "MASSTRANSIT" || protocol == "MSG")
+        {
+            protocol = "MSG";
+            method = "MSG";
+            name = $"MSG:{route}";
+        }
+        else if (rawMethod == "GRAIN")
+        {
+            protocol = "RPC";
+            method = "RPC";
+            name = $"RPC:{route}";
+        }
+        else if (rawMethod == "WCF" || protocol == "WCF")
+        {
+            protocol = "WCF";
+            method = "WCF";
+            name = $"WCF:{route}";
+        }
+        else
+        {
+            protocol ??= method is "RPC" or "GRPC" ? "gRPC" : (method is "GRAPHQL" or "QUERY" or "MUTATION" or "SUBSCRIPTION" ? "GraphQL" : "REST");
+        }
 
         var resolvedProj = !string.IsNullOrEmpty(projectName) ? projectName : GetProjectNameFromRelativePath(relativePath);
         if (!string.IsNullOrEmpty(resolvedProj) &&
@@ -363,7 +403,6 @@ public static class EndpointSemanticAnalyzer
             if (!string.IsNullOrEmpty(stripped)) resolvedProj = stripped;
         }
 
-        var protocol = syntactic?.Protocol ?? (method is "RPC" or "GRPC" ? "gRPC" : (method is "GRAPHQL" or "QUERY" or "MUTATION" or "SUBSCRIPTION" ? "GraphQL" : "REST"));
         var operationType = syntactic?.OperationType ?? (protocol == "GraphQL"
             ? (method is "MUTATION" ? "Mutation" : (method is "SUBSCRIPTION" ? "Subscription" : "Query"))
             : (protocol == "gRPC" ? "Unary" : null));

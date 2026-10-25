@@ -24,12 +24,24 @@ public partial class Layer5AnalysisParser
         var isExternalStaticClass = false;
         var callerFile = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId);
         var normCallerFile = callerFile?.Replace('\\', '/');
+        var hasExplicitReceiver = false;
 
         if (targetName.Contains('.'))
         {
             var dotIdx = targetName.LastIndexOf('.');
             var varName = targetName[..dotIdx];
             methodName = targetName[(dotIdx + 1)..];
+
+            var cleanVar = varName;
+            if (cleanVar.StartsWith("this.", StringComparison.Ordinal) ||
+                cleanVar.StartsWith("self.", StringComparison.Ordinal) ||
+                cleanVar.StartsWith("base.", StringComparison.Ordinal))
+            {
+                cleanVar = cleanVar[(cleanVar.IndexOf('.') + 1)..];
+            }
+
+            var isThisReceiver = cleanVar is "this" or "self" or "base" || string.IsNullOrEmpty(cleanVar) || varName is "this" or "self";
+            hasExplicitReceiver = !isThisReceiver;
 
             // Check if varName is a namespace import in callerFile (e.g. import * as text from './plural')
             if (normCallerFile != null && imports.FileImports.TryGetValue((normCallerFile, varName), out var nsImport) && nsImport.IsNamespace)
@@ -43,11 +55,14 @@ public partial class Layer5AnalysisParser
                         return;
                     }
                 }
+                return;
             }
 
-            if (callerFile != null)
+            if (hasExplicitReceiver)
             {
-                if (bindings.BindingsLookup.TryGetValue((callerFile, varName), out var candidates))
+                if (normCallerFile != null &&
+                    (bindings.BindingsLookup.TryGetValue((normCallerFile, varName), out var candidates) ||
+                     bindings.BindingsLookup.TryGetValue((normCallerFile, cleanVar), out candidates)))
                 {
                     for (int i = 0; i < candidates.Count; i++)
                     {
@@ -64,7 +79,13 @@ public partial class Layer5AnalysisParser
                     }
                     targetTypeName ??= candidates[0].TypeName;
                 }
-                else if (bindings.GlobalBindingsLookup.TryGetValue(varName, out var globalCandidates))
+                else if (bindings.BindingsLookup.TryGetValue(("", varName), out var emptyFileCandidates) ||
+                         bindings.BindingsLookup.TryGetValue(("", cleanVar), out emptyFileCandidates))
+                {
+                    targetTypeName = emptyFileCandidates[0].TypeName;
+                }
+                else if (bindings.GlobalBindingsLookup.TryGetValue(varName, out var globalCandidates) ||
+                         bindings.GlobalBindingsLookup.TryGetValue(cleanVar, out globalCandidates))
                 {
                     foreach (var candidate in globalCandidates)
                     {
@@ -90,6 +111,10 @@ public partial class Layer5AnalysisParser
                 {
                     targetName = $"{varName}.{methodName}";
                 }
+                else if (symbols.TypeSymbols.ContainsKey(cleanVar))
+                {
+                    targetName = $"{cleanVar}.{methodName}";
+                }
                 else if (!string.IsNullOrEmpty(varName) && char.IsUpper(varName[0]))
                 {
                     targetName = $"{varName}.{methodName}";
@@ -97,24 +122,13 @@ public partial class Layer5AnalysisParser
                 }
                 else
                 {
-                    targetName = methodName;
+                    // Explicit receiver has no known type binding in workspace; do not strip receiver and match unrelated functions
+                    return;
                 }
             }
             else
             {
-                if (symbols.TypeSymbols.ContainsKey(varName))
-                {
-                    targetName = $"{varName}.{methodName}";
-                }
-                else if (!string.IsNullOrEmpty(varName) && char.IsUpper(varName[0]))
-                {
-                    targetName = $"{varName}.{methodName}";
-                    isExternalStaticClass = true;
-                }
-                else
-                {
-                    targetName = methodName;
-                }
+                targetName = methodName;
             }
         }
 
@@ -174,8 +188,20 @@ public partial class Layer5AnalysisParser
             }
         }
 
-        // Fallback for methodName
-        if (!callAdded && !isExternalStaticClass && methodName != null)
+        // If receiver was bound to a known workspace TypeSymbol, check if the method is registered under short name in that type's file
+        if (!callAdded && hasExplicitReceiver && targetTypeName != null && methodName != null &&
+            symbols.TypeSymbols.TryGetValue(targetTypeName, out var resolvedTypeId))
+        {
+            var typeFile = ExtractFilePathFromSymbolId(resolvedTypeId);
+            if (typeFile != null && symbols.FunctionSymbolsByFile.TryGetValue((typeFile, methodName), out var typeMethodId))
+            {
+                referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, typeMethodId)));
+                callAdded = true;
+            }
+        }
+
+        // Fallback for methodName (only when there is no explicit receiver, e.g. this.foo() / self.foo() / base.foo())
+        if (!callAdded && !isExternalStaticClass && !hasExplicitReceiver && methodName != null)
         {
             if (normCallerFile != null && ctx.FileScopedSymbols.TryGetValue((normCallerFile, OntologyConstants.NodeLabels.Function, methodName), out var localFallbackId))
             {
@@ -334,11 +360,62 @@ public partial class Layer5AnalysisParser
         SymbolLookups symbols,
         List<Relationship> referenceRelationships)
     {
-        var targetId = symbols.FunctionSymbols.GetValueOrDefault(refItem.TargetName);
-        if (targetId == null && refItem.TargetName.Contains('.'))
+        var targetName = refItem.TargetName;
+        var shortName = targetName.Contains('.') ? targetName[(targetName.LastIndexOf('.') + 1)..] : targetName;
+        var callerFile = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId);
+        var callerProj = callerFile != null ? ConstantRegistry.ExtractProjectName(callerFile) : ExtractProjectFromScopeId(refItem.ScopeSymbolId, symbols);
+
+        string? targetId = null;
+
+        // 1. Same file lookup
+        if (callerFile != null)
         {
-            var shortName = refItem.TargetName[(refItem.TargetName.LastIndexOf('.') + 1)..];
-            targetId = symbols.FunctionSymbols.GetValueOrDefault(shortName);
+            if (symbols.FunctionSymbolsByFile.TryGetValue((callerFile, targetName), out targetId) ||
+                symbols.FunctionSymbolsByFile.TryGetValue((callerFile, shortName), out targetId))
+            {
+                // Found in same file
+            }
+        }
+
+        // 2. Same project lookup
+        if (targetId == null && callerProj != null && symbols.FilesByProject.TryGetValue(callerProj, out var projFiles))
+        {
+            foreach (var pFile in projFiles)
+            {
+                if (symbols.FunctionSymbolsByFile.TryGetValue((pFile, targetName), out targetId) ||
+                    symbols.FunctionSymbolsByFile.TryGetValue((pFile, shortName), out targetId))
+                {
+                    break;
+                }
+            }
+        }
+
+        // 3. Fallback to FunctionsByName filtered to caller project if known, or unique globally
+        if (targetId == null)
+        {
+            if (symbols.FunctionsByName.TryGetValue(targetName, out var candidates) ||
+                symbols.FunctionsByName.TryGetValue(shortName, out candidates))
+            {
+                if (callerProj != null)
+                {
+                    targetId = candidates.FirstOrDefault(c =>
+                    {
+                        var cFile = ExtractFilePathFromSymbolId(c);
+                        return cFile != null && string.Equals(ConstantRegistry.ExtractProjectName(cFile), callerProj, StringComparison.OrdinalIgnoreCase);
+                    });
+                }
+                else if (candidates.Count == 1)
+                {
+                    targetId = candidates[0];
+                }
+            }
+        }
+
+        // 4. Last resort: only if caller project is unknown, symbols.FunctionSymbols
+        if (targetId == null && callerProj == null)
+        {
+            targetId = symbols.FunctionSymbols.GetValueOrDefault(targetName)
+                       ?? symbols.FunctionSymbols.GetValueOrDefault(shortName);
         }
 
         if (targetId != null)
@@ -349,6 +426,32 @@ public partial class Layer5AnalysisParser
                     Relationship.FromRelationship(new TriggersRelationship(refItem.ScopeSymbolId, targetId)));
             }
         }
+    }
+
+    private static string? ExtractProjectFromScopeId(string scopeId, SymbolLookups symbols)
+    {
+        var parts = scopeId.Split(':');
+        for (int i = 0; i < parts.Length - 1; i++)
+        {
+            if (parts[i] is "endpoint" or "ep" or "topic" or "service")
+            {
+                var next = parts[i + 1];
+                if (symbols.FilesByProject.ContainsKey(next))
+                {
+                    return next;
+                }
+            }
+        }
+
+        foreach (var proj in symbols.FilesByProject.Keys.OrderByDescending(k => k.Length))
+        {
+            if (scopeId.Contains($":{proj}:", StringComparison.OrdinalIgnoreCase))
+            {
+                return proj;
+            }
+        }
+
+        return null;
     }
 
     internal static List<TopicNode> ResolveMessagingReferenceForTest(Reference refItem, ParsingContext ctx)

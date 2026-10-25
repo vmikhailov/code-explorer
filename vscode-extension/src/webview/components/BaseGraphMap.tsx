@@ -9,6 +9,7 @@ export interface BaseGraphMapProps {
   hudLabel?: string;
   hudTitle?: string;
   headerSlot?: React.ReactNode;
+  customPresetsSlot?: React.ReactNode;
   defaultLayoutName?: DomainLayoutName;
   defaultNodeSizingMode?: NodeSizingMode;
   defaultNodeContentMode?: NodeContentMode;

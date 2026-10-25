@@ -194,31 +194,6 @@ public partial class ArchitectureViewEngine
                     }
                 }
             }
-
-            const string entryHandlersQuery =
-                "MATCH (e:EntryPoint) WHERE e.file_path STARTS WITH $prefix OR e.file_path CONTAINS $slashPrefix " +
-                "RETURN e.name AS name, e.file_path AS file, e.start_line AS line";
-            var entryRows = await QueryProjectMapRowsAsync(entryHandlersQuery, prefix, "entrypoint handler types", warnings, ct);
-            foreach (var er in entryRows)
-            {
-                var fromFile = NormalizeToProjectPath(er.GetStringProp("file"), prefix);
-                var rawName = er.GetStringProp("name");
-                var line = er.GetNullableIntProp("line");
-                if (fromFile.Length == 0 || rawName.Length == 0) continue;
-
-                foreach (var token in ExtractTypeIdentifiers(rawName))
-                {
-                    if (!typeToFiles.TryGetValue(token, out var targetFiles)) continue;
-                    foreach (var toFile in targetFiles)
-                    {
-                        if (fromFile.Equals(toFile, StringComparison.OrdinalIgnoreCase)) continue;
-                        if (seenMemberTypeEdges.Add((fromFile, toFile, rawName, token)))
-                        {
-                            edges.Add(new ProjectMapSymbolEdge(fromFile, toFile, "USES_TYPE", rawName, token, line));
-                        }
-                    }
-                }
-            }
         }
 
         return edges;

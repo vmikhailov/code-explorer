@@ -336,6 +336,11 @@ public static class ConstantRegistry
         return false;
     }
 
+    private static readonly HashSet<string> MonorepoContainers = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "services", "service", "bin", "apps", "packages", "crates", "libs", "lib"
+    };
+
     public static string? ExtractProjectName(string? projectNameOrPath)
     {
         if (string.IsNullOrWhiteSpace(projectNameOrPath)) return null;
@@ -343,19 +348,58 @@ public static class ConstantRegistry
         var s = projectNameOrPath.Replace('\\', '/').Trim();
         if (!s.Contains('/')) return s;
 
-        // Given a path like "traffic-types/src/modules/foo.ts", extract "traffic-types"
+        // Given a path like "traffic-types/src/modules/foo.ts" or "src/services/fe/src/app/foo.ts", extract the project folder ("traffic-types", "fe").
         var parts = s.Split('/', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length > 0)
         {
-            // If path contains "services/xyz", "bin/xyz", "apps/xyz", "packages/xyz", extract xyz
-            foreach (var container in new[] { "services", "service", "bin", "apps", "packages", "crates" })
+            // 1. If there is a project "src" folder (at index > 0) preceded by a project name (not a monorepo container or relative dot),
+            //    the segment immediately preceding that "src" is the project directory.
+            for (var i = 1; i < parts.Length; i++)
             {
-                var idx = Array.LastIndexOf(parts, container);
-                if (idx >= 0 && idx + 1 < parts.Length && !parts[idx + 1].Contains('.'))
+                if (parts[i].Equals("src", StringComparison.OrdinalIgnoreCase))
                 {
-                    return parts[idx + 1];
+                    // If "src" is followed by a monorepo container (e.g. "src/services/fe/..."), keep scanning
+                    if (i + 1 < parts.Length && MonorepoContainers.Contains(parts[i + 1]))
+                    {
+                        continue;
+                    }
+
+                    var prev = parts[i - 1];
+                    if (prev is not (".." or ".") && !prev.Contains(':') && !MonorepoContainers.Contains(prev))
+                    {
+                        return prev;
+                    }
                 }
             }
+
+            // 2. Check top-level monorepo containers ("services/xyz", "apps/xyz", "libs/xyz", etc.)
+            for (var i = 0; i < parts.Length - 1; i++)
+            {
+                if (MonorepoContainers.Contains(parts[i]))
+                {
+                    var next = parts[i + 1];
+                    if (i + 1 < parts.Length - 1 || !next.Contains('.'))
+                    {
+                        return next;
+                    }
+                }
+            }
+
+            // 3. Path starting with "src/<ProjectName>/..."
+            if (parts[0].Equals("src", StringComparison.OrdinalIgnoreCase) && parts.Length >= 2)
+            {
+                if (parts.Length > 2 || !parts[1].Contains('.'))
+                {
+                    return parts[1];
+                }
+            }
+
+            // 4. Clean workspace-relative path starting directly with the project folder (e.g. "OrderService.Api/Controllers/Foo.cs")
+            if (!s.StartsWith('/') && !parts[0].Contains(':') && parts[0] is not (".." or "."))
+            {
+                return parts[0];
+            }
+
             if (parts.Length >= 2)
             {
                 var parentDir = parts[^2];

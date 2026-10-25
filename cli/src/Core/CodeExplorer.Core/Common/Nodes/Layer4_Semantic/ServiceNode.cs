@@ -23,7 +23,6 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<DatabaseNode>(OntologyConstants.Relationships.UsesDb)]
 [OntologyEdge<TopicNode>(OntologyConstants.Relationships.PublishesTo)]
 [OntologyEdge<TopicNode>(OntologyConstants.Relationships.SubscribesTo)]
-[OntologyEdge<EntryPointNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<EndpointNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<CloudServiceNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<CloudServiceNode>(OntologyConstants.Relationships.UsesCloud)]

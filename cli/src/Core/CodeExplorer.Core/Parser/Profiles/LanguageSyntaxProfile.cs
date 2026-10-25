@@ -77,7 +77,7 @@ public class LanguageSyntaxProfile
     public FrozenSet<string> SuperclassClauseNodeTypes { get; init; } = FrozenSet<string>.Empty;
     public FrozenSet<string> InterfaceClauseNodeTypes { get; init; } = FrozenSet<string>.Empty;
 
-    public IReadOnlyList<string> CallMethodFields { get; init; } = ["name", "field", "member"];
+    public IReadOnlyList<string> CallMethodFields { get; init; } = ["name", "field", "member", "property"];
     public IReadOnlyList<string> CallReceiverFields { get; init; } = ["object", "operand", "scope", "receiver"];
     public string CallMemberSeparator { get; init; } = ".";
     public bool IncludeReceiverInCallName { get; init; } = true;

@@ -29,7 +29,7 @@ public class CypressLibraryParser : ISemanticExtension
 
         if (IsCypressSuiteOrTest(node))
         {
-            return OntologyConstants.NodeLabels.EntryPoint;
+            return OntologyConstants.NodeLabels.Function;
         }
 
         return null;

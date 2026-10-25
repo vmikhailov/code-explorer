@@ -1,6 +1,8 @@
 using System.Threading.Channels;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common.Nodes;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
@@ -15,6 +17,28 @@ namespace CodeExplorer.Tests;
 [NonParallelizable]
 public class MessagingParsersTests
 {
+    private static List<EndpointNode> FindEndpointNodes(IEnumerable<IOntologyNode> nodes)
+    {
+        var result = new List<EndpointNode>();
+        foreach (var node in nodes)
+        {
+            if (node is EndpointNode e) result.Add(e);
+            result.AddRange(FindEndpointNodes(node.Children));
+        }
+        return result;
+    }
+
+    private static List<TypeNode> FindTypeNodes(IEnumerable<IOntologyNode> nodes)
+    {
+        var result = new List<TypeNode>();
+        foreach (var node in nodes)
+        {
+            if (node is TypeNode t) result.Add(t);
+            result.AddRange(FindTypeNodes(node.Children));
+        }
+        return result;
+    }
+
     private static List<EntryPointNode> FindEntryPointNodes(IEnumerable<IOntologyNode> nodes)
     {
         var result = new List<EntryPointNode>();
@@ -91,13 +115,13 @@ public class SubmitOrderConsumer : IConsumer<SubmitOrder>
             var fileNode = syntaxTree.FileNode;
             fileNode.Should().NotBeNull();
 
-            var entryPoints = FindEntryPointNodes(fileNode.Children);
+            var endpoints = FindEndpointNodes(fileNode.Children);
             var externalServices = FindExternalServiceNodes(fileNode.Children);
             var refs = FindReferences(fileNode.Children);
 
-            // Verify EntryPoint created for IConsumer Consume
-            var consumerEp = entryPoints.FirstOrDefault(e => e.EntryType == "Consumer");
-            consumerEp.Should().NotBeNull("Expected MassTransit EntryPointNode for IConsumer");
+            // Verify EndpointNode created for IConsumer Consume
+            var consumerEp = endpoints.FirstOrDefault(e => e.Protocol == "MSG");
+            consumerEp.Should().NotBeNull("Expected MassTransit EndpointNode for IConsumer");
             consumerEp!.Name.Should().Contain("SubmitOrder");
 
             // Verify SubscribesTo relationship to SubmitOrder
@@ -173,14 +197,14 @@ public class UserCreatedNotificationHandler : INotificationHandler<UserCreatedEv
             var fileNode = syntaxTree.FileNode;
             fileNode.Should().NotBeNull();
 
-            var entryPoints = FindEntryPointNodes(fileNode.Children);
+            var types = FindTypeNodes(fileNode.Children);
             var externalServices = FindExternalServiceNodes(fileNode.Children);
             var refs = FindReferences(fileNode.Children);
 
-            // Verify EntryPoint created for IRequestHandler and INotificationHandler
-            var handlers = entryPoints.Where(e => e.EntryType == "Handler").ToList();
+            // Verify TypeNodes created for IRequestHandler and INotificationHandler (in-process MediatR handlers are TypeNodes, not EntryPoints)
+            var handlers = types.Where(t => t.Name is "CreateUserHandler" or "UserCreatedNotificationHandler").ToList();
 
-            handlers.Count.Should().BeGreaterThanOrEqualTo(2, "Expected at least 2 MediatR Handler EntryPointNodes");
+            handlers.Count.Should().BeGreaterThanOrEqualTo(2, "Expected at least 2 MediatR Handler TypeNodes");
 
             // Verify SubscribesTo relationships
             var subCmd = refs.FirstOrDefault(r =>
@@ -245,12 +269,12 @@ public class OrderDirectiveHandler : IMessageHandler<OrderDirectiveMessage>
             var fileNode = syntaxTree.FileNode;
             fileNode.Should().NotBeNull();
 
-            var entryPoints = FindEntryPointNodes(fileNode.Children);
+            var endpoints = FindEndpointNodes(fileNode.Children);
             var refs = FindReferences(fileNode.Children);
 
-            // Verify EntryPoint created for IMessageHandler
-            var consumerEp = entryPoints.FirstOrDefault(e => e.EntryType == "Consumer");
-            consumerEp.Should().NotBeNull("Expected KafkaFlow EntryPointNode for IMessageHandler");
+            // Verify EndpointNode created for IMessageHandler
+            var consumerEp = endpoints.FirstOrDefault(e => e.Protocol == "MSG");
+            consumerEp.Should().NotBeNull("Expected KafkaFlow EndpointNode for IMessageHandler");
             consumerEp!.Name.Should().Contain("OrderDirectiveMessage");
 
             // Verify SubscribesTo relationship to OrderDirectiveMessage
@@ -889,12 +913,12 @@ public class OrderStartedIntegrationEventHandler : IIntegrationEventHandler<Orde
             var fileNode = syntaxTree.FileNode;
             fileNode.Should().NotBeNull();
 
-            var entryPoints = FindEntryPointNodes(fileNode.Children);
+            var endpoints = FindEndpointNodes(fileNode.Children);
             var refs = FindReferences(fileNode.Children);
 
-            // Verify EntryPoint created for IIntegrationEventHandler
-            var consumerEp = entryPoints.FirstOrDefault(e => e.EntryType == "Consumer");
-            consumerEp.Should().NotBeNull("Expected EventBus EntryPointNode for IIntegrationEventHandler");
+            // Verify EndpointNode created for IIntegrationEventHandler
+            var consumerEp = endpoints.FirstOrDefault(e => e.Protocol == "MSG");
+            consumerEp.Should().NotBeNull("Expected EventBus EndpointNode for IIntegrationEventHandler");
             consumerEp!.Name.Should().Contain("OrderStartedIntegrationEvent");
 
             // Verify SubscribesTo relationship to OrderStartedIntegrationEvent

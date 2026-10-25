@@ -65,6 +65,13 @@ public class GoFileVisitor : BaseParserVisitor
 
     protected override void CollectCustomReferencesForSymbol(Node node, SyntacticSymbol symbolNode, SyntacticSymbol parentNode)
     {
+        if (symbolNode.Kind == OntologyConstants.NodeLabels.Function &&
+            symbolNode.Name == "main" &&
+            !WorkspaceConventions.IsTestFilePath(RelativePath))
+        {
+            symbolNode.Children.Add(new SyntacticSymbol(OntologyConstants.NodeLabels.EntryPoint, "main-method:main", node) { Text = node.Text });
+        }
+
         if (symbolNode.Kind == OntologyConstants.NodeLabels.EntryPoint)
         {
             var routeVal = ExtractGoEntryPointRoute(node);

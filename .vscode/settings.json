@@ -34,5 +34,23 @@
     ],
     "playwright.testIgnore": [
         "**/cli/tests/SampleProjects/**"
+    ],
+    "nodejs-testing.include": [
+        "vscode-extension/src/**/*.test.ts"
+    ],
+    "nodejs-testing.exclude": [
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/cli/tests/SampleProjects/**"
+    ],
+    "nodejs-testing.extensions": [
+        {
+            "extensions": ["js", "mjs", "cjs"],
+            "parameters": []
+        },
+        {
+            "extensions": ["ts", "tsx"],
+            "parameters": ["--import", "tsx"]
+        }
     ]
 }

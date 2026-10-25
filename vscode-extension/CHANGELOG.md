@@ -5,6 +5,25 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.58.0] - 2026-10-25
+
+### Added
+- **Ontology Separation: Layer 2 `EntryPoint` vs Layer 4 `Endpoint` Contracts**:
+  - Moved `EntryPointNode` from Layer 4 (`Layer4_Semantic`) to Layer 2 (`Layer2_Boundaries`) and introduced the `HAS_ENTRYPOINT` relationship (`(:Project)-[:HAS_ENTRYPOINT]->(:EntryPoint)`).
+  - Promoted all external network and messaging ingress contracts—including WebSockets (`WS`), SignalR Hubs (`HUB`), WCF (`WCF`), Orleans Grains (`GRAIN` / `RPC`), and Message Broker Consumers (`MSG`, `Consumer:`, `kafka:`, `rabbitmq:`, `eventbus:`, `masstransit:`, `gcp:`, `sqs:`)—to Layer 4 `EndpointNode` (`(:Service|:Worker)-[:EXPOSES]->(:Endpoint)`).
+  - Added binary/process `EntryPoint` detection (`main-method`, `top-level`, `script-main`) across C# (`CSharpFileVisitor`), Go (`GoFileVisitor`), and Python (`PythonFileVisitor`), alongside frontend/runtime bootstrap entry points (`React:Root`, `Vue:Root`, `Angular:Bootstrap`, `Svelte:Mount`, `Vite:Config`, `Nest:Bootstrap`, `cli`, `cron`, `activity`, `provider`, `channel`).
+- **Declarative Layer 3/4 Universal Parser Engine**:
+  - Introduced `LanguageSyntaxProfile` and `DeclarativeSemanticExtension` (YAML-driven framework rule packs) to unify AST symbol extraction and library/framework semantics across Java, Go, Rust, Python, Kotlin, C#, and TypeScript.
+
+### Fixed
+- **Eliminated False-Positive `EntryPoint` Emissions & Cross-Project `DEPENDS_ON` Leakage**:
+  - Removed `EntryPointNode` emissions from in-process event/command dispatchers (`MediatRLibraryParser`, `NestJsCqrsLibraryParser`, Spring `@EventListener`), preserving internal `SUBSCRIBES_TO` -> `Topic` (`is_internal="true"`) routing.
+  - Stopped `AngularCoreLibraryParser` from emitting `EntryPointNode` on every `@Component` and `@NgModule` class (only `bootstrapApplication` / `bootstrapModule` emit `Angular:Bootstrap`), keeping component classes as `TypeNode` (`Class`) with `framework: "Angular"`.
+  - Updated JS/TS test framework parsers (`JestVitestLibraryParser`, `MochaLibraryParser`, `CypressLibraryParser`, `PlaywrightLibraryParser`) to emit `FunctionNode` with `is_test="true"` instead of `EntryPointNode`.
+  - Removed the synthetic `(ep:EntryPoint)-[:IMPLEMENTED_BY]->(fn)` `USES_TYPE` edge synthesis from `ArchitectureViewEngine.ProjectMap` and tightened cross-project `CALLS` / `TRIGGERS` resolution guards in `Layer5GlobalAnalyzer.Messaging`, eliminating false `DEPENDS_ON` edges between backend adapters and frontend apps.
+
+---
+
 ## [1.57.0] - 2026-10-24
 
 ### Added

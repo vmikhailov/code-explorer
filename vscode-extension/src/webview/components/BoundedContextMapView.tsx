@@ -228,7 +228,7 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
 
       const p = node.properties || {};
       const name = p.domain || node.name || 'Domain';
-      const displayName = p.displayName || name.replace(/([a-z])([A-Z])/g, '$1 $2');
+      const displayName = p.displayName || name;
       const domainId = p.domainId || 'domain:general';
       const domainName = p.domainName || displayName;
       const domainType = p.domainType || '';

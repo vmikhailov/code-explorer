@@ -465,19 +465,19 @@ public partial class SqliteGraphClient
                 cmd.CommandText = """
                     SELECT p.id, e.to_id
                     FROM nodes p
-                    JOIN edges e ON e.from_id = p.id AND e.kind IN ('CONTAINS', 'EXPOSES')
+                    JOIN edges e ON e.from_id = p.id AND e.kind IN ('CONTAINS', 'EXPOSES', 'HAS_ENTRYPOINT')
                     WHERE p.kind = 'Project' AND (length(@widPrefix) = 0 OR p.id LIKE @widPrefix || '%')
                     UNION
                     SELECT p.id, e2.to_id
                     FROM nodes p
-                    JOIN edges e1 ON e1.from_id = p.id AND e1.kind IN ('CONTAINS', 'EXPOSES')
-                    JOIN edges e2 ON e2.from_id = e1.to_id AND e2.kind IN ('CONTAINS', 'EXPOSES')
+                    JOIN edges e1 ON e1.from_id = p.id AND e1.kind IN ('CONTAINS', 'EXPOSES', 'HAS_ENTRYPOINT')
+                    JOIN edges e2 ON e2.from_id = e1.to_id AND e2.kind IN ('CONTAINS', 'EXPOSES', 'HAS_ENTRYPOINT')
                     WHERE p.kind = 'Project' AND (length(@widPrefix) = 0 OR p.id LIKE @widPrefix || '%')
                     UNION
                     SELECT p.id, e.to_id
                     FROM nodes p
                     JOIN edges b ON b.to_id = p.id AND b.kind IN ('BELONGS_TO', 'IMPLEMENTED_BY')
-                    JOIN edges e ON e.from_id = b.from_id AND e.kind IN ('CONTAINS', 'EXPOSES')
+                    JOIN edges e ON e.from_id = b.from_id AND e.kind IN ('CONTAINS', 'EXPOSES', 'HAS_ENTRYPOINT')
                     WHERE p.kind = 'Project' AND (length(@widPrefix) = 0 OR p.id LIKE @widPrefix || '%');
                     """;
                 cmd.Parameters.AddWithValue("@widPrefix", widPrefix);

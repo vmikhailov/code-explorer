@@ -18,6 +18,8 @@ namespace CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 [OntologyEdge<PackageNode>(OntologyConstants.Relationships.DependsOn)]
 [OntologyEdge<PackageNode>(OntologyConstants.Relationships.Produces)]
 [OntologyEdge<FileNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<EntryPointNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<EntryPointNode>(OntologyConstants.Relationships.HasEntrypoint)]
 public record ProjectNode(
     string Id,
     string Name,

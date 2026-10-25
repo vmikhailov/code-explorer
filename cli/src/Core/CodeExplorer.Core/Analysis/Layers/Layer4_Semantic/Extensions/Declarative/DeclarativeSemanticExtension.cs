@@ -140,7 +140,7 @@ public class DeclarativeSemanticExtension : ISemanticExtension
 
         foreach (var rule in MessagingBrokerRules)
         {
-            if (MatchesMessagingListenerAnnotation(node, rule) || MatchesMethodLevelEventListener(node, rule))
+            if (MatchesMessagingListenerAnnotation(node, rule))
             {
                 return OntologyConstants.NodeLabels.EntryPoint;
             }

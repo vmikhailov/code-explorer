@@ -233,7 +233,7 @@ public partial class ArchitectureViewEngine
                 {
                     var isIngressHint = !isAspire && (IngressKeywords.Any(kw => folder.Contains(kw, StringComparison.OrdinalIgnoreCase)) ||
                                         string.Equals(node.Properties?.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase));
-                    return ($"domain:{folder.ToLowerInvariant()}", WorkspaceConventions.FormatDomainDisplayName(cleanName), isIngressHint);
+                    return ($"domain:{folder.ToLowerInvariant()}", folder, isIngressHint);
                 }
             }
         }
@@ -252,7 +252,7 @@ public partial class ArchitectureViewEngine
         var svcPascal = ToPascalCase(cleanSvc);
         if (svcPascal.Length > 2)
         {
-            return ($"domain:{cleanSvc.ToLowerInvariant()}", WorkspaceConventions.FormatDomainDisplayName(svcPascal), isIngress);
+            return ($"domain:{cleanSvc.ToLowerInvariant()}", name, isIngress);
         }
 
         return ("domain:coredomain", "Core Domain", isIngress);
@@ -305,11 +305,7 @@ public partial class ArchitectureViewEngine
 
     private static string ServiceEntityDisplayName(GraphNodeDto node, string normalizedName)
     {
-        var role = node.Properties?.GetValueOrDefault("role");
-        var isApp = node.Kind == NodeKind.App || role is "FrontendApp" or "App";
-        return isApp && !string.IsNullOrWhiteSpace(node.Name)
-            ? node.Name
-            : WorkspaceConventions.FormatDomainDisplayName(WorkspaceConventions.ToPascalCase(normalizedName));
+        return !string.IsNullOrWhiteSpace(node.Name) ? node.Name : normalizedName;
     }
 
     public async Task<DomainArchitectureDto> GetDomainArchitectureAsync(bool includeLibraries = false, CancellationToken ct = default)
@@ -323,7 +319,7 @@ public partial class ArchitectureViewEngine
         var domainZoneMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var domainNameMap = new Dictionary<string, (string Name, string DisplayName, string? Framework, string? Language)>(StringComparer.OrdinalIgnoreCase);
         var entityDomainMap = new Dictionary<string, (string Key, string DisplayName)>(StringComparer.OrdinalIgnoreCase);
-        var runnablesByDomain = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+
 
         // 1. Categorize Project-like nodes into domains
         foreach (var node in archGraph.Nodes)
@@ -350,27 +346,18 @@ public partial class ArchitectureViewEngine
             }
 
             var isLib = IsLibraryProject(node);
-            var domainKey = groupKey;
-            var domainDisplayName = groupDisplayName;
 
-            // A runnable workload is always its own node, named after the service. The domain is only an attribute
-            // of that node (rendered as a shaded region), so a service never takes the name of its domain.
-            if (!isLib)
+            // Each workload or library is its own node, named after the project/service. The domain is only an attribute
+            // of that node (rendered as a shaded region), so a service or shared library never takes the name of its domain
+            // and shared libraries are never folded into an arbitrary runnable service of the same domain.
+            var rawNorm = WorkspaceConventions.NormalizeServiceName(node.Name).ToLowerInvariant();
+            var norm = string.IsNullOrWhiteSpace(rawNorm) ? node.Name.Trim().ToLowerInvariant() : rawNorm;
+            var domainKey = isLib ? $"library:{norm}" : $"service:{norm}";
+            var domainDisplayName = string.IsNullOrWhiteSpace(rawNorm) ? node.Name : ServiceEntityDisplayName(node, norm);
+            if (WorkspaceConventions.DomainDetectionEnabled ||
+                WorkspaceConventions.TryGetConfiguredDomain(node.Name, node.FilePath, out _))
             {
-                var norm = WorkspaceConventions.NormalizeServiceName(node.Name).ToLowerInvariant();
-                domainKey = $"service:{norm}";
-                domainDisplayName = ServiceEntityDisplayName(node, norm);
-                if (WorkspaceConventions.DomainDetectionEnabled ||
-                    WorkspaceConventions.TryGetConfiguredDomain(node.Name, node.FilePath, out _))
-                {
-                    entityDomainMap[domainKey] = (groupKey, groupDisplayName);
-                }
-                if (!runnablesByDomain.TryGetValue(groupKey, out var members))
-                {
-                    members = [];
-                    runnablesByDomain[groupKey] = members;
-                }
-                if (!members.Contains(domainKey, StringComparer.OrdinalIgnoreCase)) members.Add(domainKey);
+                entityDomainMap[domainKey] = (groupKey, groupDisplayName);
             }
 
             projToDomainMap[node.Id] = domainKey;
@@ -437,23 +424,6 @@ public partial class ArchitectureViewEngine
                     domainZoneMap[domainKey] = isIngress ? "ingress" : "service";
                 }
             }
-        }
-
-        // Libraries have no node of their own: fold their calls into the first runnable service of the same domain.
-        foreach (var (groupKey, entityKeys) in runnablesByDomain)
-        {
-            if (!domainProjectsMap.TryGetValue(groupKey, out var libraryProjects)) continue;
-
-            var host = entityKeys[0];
-            domainProjectsMap[host].AddRange(libraryProjects);
-            foreach (var key in projToDomainMap.Where(kv => kv.Value.Equals(groupKey, StringComparison.OrdinalIgnoreCase)).Select(kv => kv.Key).ToList())
-            {
-                projToDomainMap[key] = host;
-            }
-            domainProjectsMap.Remove(groupKey);
-            domainPrimaryMap.Remove(groupKey);
-            domainZoneMap.Remove(groupKey);
-            domainNameMap.Remove(groupKey);
         }
 
         // 2. Identify Infrastructure Nodes (Databases, Topics, ExternalServices)
@@ -573,8 +543,15 @@ public partial class ArchitectureViewEngine
                 cat = "test";
                 label = "TESTS";
             }
-            else if (edge.Kind is "DEPENDS_ON" or "DependsOn" or "LIBRARY" or "library" || edge.Category == "library")
+            else if (edge.Kind is "LIBRARY" or "library" || edge.Category == "library" ||
+                     (edge.Kind is "DEPENDS_ON" or "DependsOn" && edge.Category != "service_call"))
             {
+                var isTgtLib = tgtDomain.StartsWith("library:", StringComparison.OrdinalIgnoreCase) ||
+                               (domainPrimaryMap.TryGetValue(tgtDomain, out var tgtPrim) && IsLibraryProject(tgtPrim));
+                if (!isTgtLib)
+                {
+                    continue;
+                }
                 cat = "library";
                 label = "DEPENDS_ON";
             }

@@ -33,14 +33,26 @@ public class NestJsLibraryParser : ISemanticExtension
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {
-        if (_decoratorEntryPointSelector.Matches(node)) return OntologyConstants.NodeLabels.EntryPoint;
+        if (_decoratorEntryPointSelector.Matches(node) || IsNestFactoryCreate(node)) return OntologyConstants.NodeLabels.EntryPoint;
         return null;
+    }
+
+    private static bool IsNestFactoryCreate(Node node)
+    {
+        if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return false;
+        var func = node.GetFunctionNode();
+        return func.IsValid() && func.Text.StartsWith("NestFactory.create", StringComparison.Ordinal);
     }
 
     public string? ExtractIdentifier(Node node, ParsingContext ctx) => ExtractIdentifier(node, ctx, null);
 
     public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName)
     {
+        if (IsNestFactoryCreate(node))
+        {
+            return "Nest:Bootstrap";
+        }
+
         if (_decoratorEntryPointSelector.Matches(node))
         {
             var func = _decoratorCallFunctionSelector.Select(node);
@@ -456,7 +468,7 @@ public class NestJsLibraryParser : ISemanticExtension
             }
             else if (decName is "SubscribeMessage")
             {
-                symbol.Protocol = null;
+                symbol.Protocol = "WS";
             }
             else if (decName is "Get" or "Post" or "Put" or "Delete" or "Patch")
             {

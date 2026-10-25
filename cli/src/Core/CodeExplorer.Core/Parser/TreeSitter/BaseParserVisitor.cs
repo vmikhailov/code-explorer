@@ -614,7 +614,26 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
     protected void VisitSymbolOrBase(Node node, int depth, Action baseVisit)
     {
-        var kind = MapNodeTypeUsingLibraries(node) ?? MapNodeType(node);
+        var baseKind = MapNodeType(node);
+        var libKind = MapNodeTypeUsingLibraries(node);
+
+        if (baseKind is "Class" or "Interface" or "Struct" or "Enum" || baseKind == OntologyConstants.NodeLabels.Type)
+        {
+            var baseName = ExtractIdentifier(node);
+            if (!string.IsNullOrEmpty(baseName))
+            {
+                string? extraEntryPointName = null;
+                if (libKind == OntologyConstants.NodeLabels.EntryPoint)
+                {
+                    extraEntryPointName = ExtractIdentifierUsingLibraries(node, libKind);
+                }
+
+                VisitSymbolNode(node, baseKind, baseName, depth, baseVisit, extraEntryPointName);
+                return;
+            }
+        }
+
+        var kind = libKind ?? baseKind;
         string? name = null;
 
         if (kind != null)
@@ -634,7 +653,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         }
     }
 
-    protected void VisitSymbolNode(Node node, string kind, string name, int depth, Action baseVisit)
+    protected void VisitSymbolNode(Node node, string kind, string name, int depth, Action baseVisit, string? extraEntryPointName = null)
     {
         if (kind == "Variable" || kind == OntologyConstants.NodeLabels.Member)
         {
@@ -664,6 +683,17 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         {
             libParser.CollectReferences(node, "", syntacticNode.References, Context!);
             libParser.EnrichSymbol(node, syntacticNode, Context!);
+        }
+
+        if (!string.IsNullOrEmpty(extraEntryPointName) && extraEntryPointName != name)
+        {
+            var epChild = new SyntacticSymbol(OntologyConstants.NodeLabels.EntryPoint, extraEntryPointName, node) { Text = node.Text };
+            foreach (var libParser in LibraryParsers)
+            {
+                libParser.CollectReferences(node, "", epChild.References, Context!);
+                libParser.EnrichSymbol(node, epChild, Context!);
+            }
+            syntacticNode.Children.Add(epChild);
         }
 
         if (kind == OntologyConstants.NodeLabels.Topic &&

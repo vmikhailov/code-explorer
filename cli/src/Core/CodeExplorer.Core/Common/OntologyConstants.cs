@@ -154,6 +154,7 @@ public static class OntologyConstants
         public const string ExposesDomain = "EXPOSES_DOMAIN";
         public const string SubdomainOf = "SUBDOMAIN_OF";
         public const string Handles = "HANDLES";
+        public const string HasEntrypoint = "HAS_ENTRYPOINT";
     }
 
     public static class EvidenceKinds

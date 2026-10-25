@@ -114,14 +114,14 @@ public class GameController : ControllerBase
             var indexer = new WorkspaceIndexer(client);
             await indexer.IndexAsync(tempWorkspace, tempWorkspace, clear: true);
 
-            // Verify Orleans Grain EntryPoint
+            // Verify Orleans Grain Endpoint
             var grainRes =
                 await client.ExecuteQueryAsync(
-                    "MATCH (e:EntryPoint) WHERE e.name CONTAINS 'GameSessionGrain' RETURN e.name AS name");
+                    "MATCH (e:Endpoint) WHERE e.name CONTAINS 'GameSessionGrain' RETURN e.name AS name");
 
             using var grainDoc = JsonDocument.Parse(grainRes);
 
-            grainDoc.RootElement.GetArrayLength().Should().BeGreaterThan(0, "Orleans Grain GameSessionGrain should be detected as EntryPoint");
+            grainDoc.RootElement.GetArrayLength().Should().BeGreaterThan(0, "Orleans Grain GameSessionGrain should be detected as Endpoint");
 
             // Verify no phantom controller endpoint for class
             var phantomRes =

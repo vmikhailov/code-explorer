@@ -1,4 +1,4 @@
-﻿using CodeExplorer.Common;
+using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using TreeSitter;
@@ -20,24 +20,9 @@ public class NestJsCqrsLibraryParser : ISemanticExtension
         "QueryHandler"
     ];
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsCqrsHandlerClass(node))
-        {
-            return OntologyConstants.NodeLabels.EntryPoint;
-        }
-        return null;
-    }
+    public string? MapNodeType(Node node, ParsingContext ctx) => null;
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsCqrsHandlerClass(node))
-        {
-            var (handlerType, msgType) = ExtractHandlerDecoratorInfo(node);
-            return !string.IsNullOrEmpty(msgType) ? $"{handlerType}:{msgType}" : "CqrsHandler";
-        }
-        return null;
-    }
+    public string? ExtractIdentifier(Node node, ParsingContext ctx) => null;
 
     public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
@@ -48,6 +33,7 @@ public class NestJsCqrsLibraryParser : ISemanticExtension
             if (!string.IsNullOrEmpty(msgType))
             {
                 references.Add(new Reference(scopeSymbolId, "cqrs:" + msgType, OntologyConstants.Relationships.SubscribesTo));
+                references.Add(new Reference(scopeSymbolId, msgType, OntologyConstants.Relationships.UsesType));
             }
         }
 

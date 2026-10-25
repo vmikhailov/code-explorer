@@ -35,7 +35,7 @@ public class MassTransitLibraryParser : ISemanticExtension
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {
-        if (IsConsumerClass(node) || IsConsumerMethod(node))
+        if (IsConsumerClass(node))
         {
             return OntologyConstants.NodeLabels.EntryPoint;
         }
@@ -50,12 +50,6 @@ public class MassTransitLibraryParser : ISemanticExtension
             return !string.IsNullOrEmpty(msg) ? $"Consumer:{msg}" : "Consumer";
         }
 
-        if (IsConsumerMethod(node))
-        {
-            var msg = ExtractConsumerMethodMessageType(node);
-            return !string.IsNullOrEmpty(msg) ? $"Consume:{msg}" : "Consume";
-        }
-
         return null;
     }
 
@@ -68,6 +62,7 @@ public class MassTransitLibraryParser : ISemanticExtension
             foreach (var msg in msgTypes)
             {
                 references.Add(new Reference(scopeSymbolId, "masstransit:" + msg, OntologyConstants.Relationships.SubscribesTo));
+                references.Add(new Reference(scopeSymbolId, msg, OntologyConstants.Relationships.UsesType));
             }
         }
 

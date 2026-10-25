@@ -8,6 +8,14 @@
     <IsTestProject>false</IsTestProject>
     <SkipCompilerExecution>true</SkipCompilerExecution>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+
+    <!-- Route any IDE/tool design-time inspection outputs to .Build\ as well -->
+    <SolutionDir Condition="'$(SolutionDir)' == ''">$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildProjectDirectory), CodeExplorer.slnx))\</SolutionDir>
+    <BaseIntermediateOutputPath>$(SolutionDir).Build\obj\SampleProjects\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
+    <IntermediateOutputPath>$(BaseIntermediateOutputPath)$(Configuration)_$(Platform)\</IntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>
+    <OutputPath>$(SolutionDir).Build\bin_SampleProjects\$(MSBuildProjectName)\</OutputPath>
+    <OutDir>$(OutputPath)</OutDir>
   </PropertyGroup>
 
   <!-- Override standard build targets to no-ops -->

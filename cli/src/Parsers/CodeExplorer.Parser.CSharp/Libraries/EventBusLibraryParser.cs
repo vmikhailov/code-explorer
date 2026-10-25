@@ -57,7 +57,7 @@ public class EventBusLibraryParser : ISemanticExtension
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {
-        if (IsHandlerClass(node) || IsHandlerMethod(node))
+        if (IsHandlerClass(node))
         {
             return OntologyConstants.NodeLabels.EntryPoint;
         }
@@ -72,12 +72,6 @@ public class EventBusLibraryParser : ISemanticExtension
             return !string.IsNullOrEmpty(msg) ? $"Consumer:{msg}" : "Consumer";
         }
 
-        if (IsHandlerMethod(node))
-        {
-            var msg = ExtractHandlerMethodMessageType(node);
-            return !string.IsNullOrEmpty(msg) ? $"Handle:{msg}" : "Handle";
-        }
-
         return null;
     }
 
@@ -90,6 +84,7 @@ public class EventBusLibraryParser : ISemanticExtension
             foreach (var msg in msgTypes)
             {
                 references.Add(new Reference(scopeSymbolId, "eventbus:" + msg, OntologyConstants.Relationships.SubscribesTo));
+                references.Add(new Reference(scopeSymbolId, msg, OntologyConstants.Relationships.UsesType));
             }
         }
 

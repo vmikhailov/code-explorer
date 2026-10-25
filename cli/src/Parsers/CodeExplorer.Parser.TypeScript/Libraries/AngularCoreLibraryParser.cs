@@ -22,7 +22,7 @@ public class AngularCoreLibraryParser : ISemanticExtension
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {
-        if (IsAngularBootstrap(node) || IsComponentOrModuleDecorator(node))
+        if (IsAngularBootstrap(node))
         {
             return OntologyConstants.NodeLabels.EntryPoint;
         }
@@ -42,11 +42,6 @@ public class AngularCoreLibraryParser : ISemanticExtension
         if (IsAngularBootstrap(node))
         {
             return "Angular:Bootstrap";
-        }
-
-        if (IsComponentOrModuleDecorator(node))
-        {
-            return ExtractDecoratorIdentifier(node);
         }
 
         if (IsAngularRouteServiceItem(node))
@@ -74,6 +69,21 @@ public class AngularCoreLibraryParser : ISemanticExtension
         else if (IsComponentOrModuleDecorator(node))
         {
             ExtractDecoratorReferences(node, scopeSymbolId, references);
+        }
+        else if (node.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.ClassExpression))
+        {
+            var decorators = node.FindChildrenOfType(TreeSitterSyntax.TypeScript.Decorator).ToList();
+            if (node.Parent.IsValid() && node.Parent.Is(TreeSitterSyntax.TypeScript.ExportStatement))
+            {
+                decorators.AddRange(node.Parent.FindChildrenOfType(TreeSitterSyntax.TypeScript.Decorator));
+            }
+            foreach (var dec in decorators)
+            {
+                if (IsComponentOrModuleDecorator(dec))
+                {
+                    ExtractDecoratorReferences(dec, scopeSymbolId, references);
+                }
+            }
         }
     }
 

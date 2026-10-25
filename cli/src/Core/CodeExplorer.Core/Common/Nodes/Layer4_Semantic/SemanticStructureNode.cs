@@ -24,7 +24,6 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<CloudServiceNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<ApiInUseNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<EndpointNode>(OntologyConstants.Relationships.Contains)]
-[OntologyEdge<EntryPointNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<PeerMeshNode>(OntologyConstants.Relationships.Contains)]
 public record SemanticStructureNode(
     string Id,

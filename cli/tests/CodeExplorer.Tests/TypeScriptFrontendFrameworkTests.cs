@@ -2,6 +2,8 @@ using System.Threading.Channels;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
@@ -161,9 +163,10 @@ bootstrapApplication(AppComponent);
         angularBootstrap.Should().NotBeNull("Expected Angular:Bootstrap EntryPoint");
         angularBootstrap!.References.Any(r => r.TargetName == "AppComponent" && r.Kind == "DEPENDS_ON").Should().BeTrue();
 
-        var compDec = entryPoints.FirstOrDefault(e => e.EntryType == "Component" && e.Name == "app-root");
-        compDec.Should().NotBeNull("Expected Component:app-root EntryPoint");
-        compDec!.References.Any(r => r.TargetName == "./app.component.html" && r.Kind == "DEPENDS_ON").Should().BeTrue();
+        var types = FindNodes<TypeNode>(ws.FileNode.Children);
+        var appComp = types.FirstOrDefault(t => t.Name == "AppComponent");
+        appComp.Should().NotBeNull("Expected AppComponent TypeNode");
+        appComp!.References.Any(r => r.TargetName == "./app.component.html" && r.Kind == "DEPENDS_ON").Should().BeTrue();
     }
 
     [Test]

@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Parser.Python.Components;
@@ -187,8 +188,9 @@ public class FastApiParserTests
 
         var (endpoints, allNodes) = await ParsePythonFileAsync(_parser, code);
 
-        var wsEp = allNodes.OfType<EntryPointNode>().FirstOrDefault(e => e.Name.Contains("/ws/notifications"));
+        var wsEp = endpoints.FirstOrDefault(e => e.Name.Contains("/ws/notifications"));
         wsEp.Should().NotBeNull();
+        wsEp!.Protocol.Should().Be("WS");
 
         var syncEp = endpoints.FirstOrDefault(e => e.RouteTemplate == "/sync");
         syncEp.Should().NotBeNull();

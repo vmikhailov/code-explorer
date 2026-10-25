@@ -2,6 +2,7 @@ using System.Threading.Channels;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
@@ -12,16 +13,16 @@ namespace CodeExplorer.Tests;
 
 public class JavaMessagingTests
 {
-    private static List<EntryPointNode> FindEntryPointNodes(IEnumerable<IOntologyNode> nodes)
+    private static List<EndpointNode> FindEndpointNodes(IEnumerable<IOntologyNode> nodes)
     {
-        var result = new List<EntryPointNode>();
+        var result = new List<EndpointNode>();
         foreach (var node in nodes)
         {
-            if (node is EntryPointNode ep)
+            if (node is EndpointNode ep)
             {
                 result.Add(ep);
             }
-            result.AddRange(FindEntryPointNodes(node.Children));
+            result.AddRange(FindEndpointNodes(node.Children));
         }
         return result;
     }
@@ -76,7 +77,7 @@ public class OrderConsumer {
             var fileNode = syntaxTree.FileNode;
             fileNode.Should().NotBeNull();
 
-            var entryPoints = FindEntryPointNodes(fileNode.Children);
+            var entryPoints = FindEndpointNodes(fileNode.Children);
             entryPoints.Count.Should().BeGreaterThanOrEqualTo(1);
 
             var kafkaEp = entryPoints.FirstOrDefault(ep => ep.Name.Contains("orders-topic"));
@@ -129,7 +130,7 @@ public class OrderRabbitConsumer {
             var fileNode = syntaxTree.FileNode;
             fileNode.Should().NotBeNull();
 
-            var entryPoints = FindEntryPointNodes(fileNode.Children);
+            var entryPoints = FindEndpointNodes(fileNode.Children);
             entryPoints.Count.Should().BeGreaterThanOrEqualTo(1);
 
             var rabbitEp = entryPoints.FirstOrDefault(ep => ep.Name.Contains("incoming-orders-queue"));
