@@ -133,25 +133,69 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
           ⚠️ {model.cycles.length} cycle{model.cycles.length === 1 ? '' : 's'}
         </button>
       )}
-
-      <button
-        type="button"
-        className={`domain-hud-btn ${!hideUtilities ? 'is-active' : ''}`}
-        onClick={() => setHideUtilities((v) => !v)}
-        title="Toggle foundation/utility modules (Orbit 4)"
-      >
-        🧰 Utilities
-      </button>
-
-      <button
-        type="button"
-        className={`domain-hud-btn ${!hideResources ? 'is-active' : ''}`}
-        onClick={() => setHideResources((v) => !v)}
-        title="Toggle tables, procedures, topics, and external services"
-      >
-        🗄️ Resources
-      </button>
     </div>
+  );
+
+  const projectMapPresets = (
+    <>
+      {model.cycles.length > 0 && (
+        <button
+          type="button"
+          className={`visibility-preset-item ${cyclesOnly ? 'is-active' : ''}`}
+          onClick={() => setCyclesOnly((v) => !v)}
+          title="Isolate only modules involved in dependency cycles"
+        >
+          <div className="visibility-preset-main">
+            <span className="visibility-preset-icon">⚠️</span>
+            <div className="visibility-preset-text">
+              <span className="visibility-preset-label">Cycles Only</span>
+              <span className="visibility-preset-desc">
+                {model.cycles.length} dependency cycle{model.cycles.length === 1 ? '' : 's'} detected
+              </span>
+            </div>
+          </div>
+          <div className={`visibility-preset-toggle ${cyclesOnly ? 'is-on' : ''}`}>
+            {cyclesOnly ? 'ON' : 'OFF'}
+          </div>
+        </button>
+      )}
+
+      <button
+        type="button"
+        className={`visibility-preset-item ${hideUtilities ? 'is-active' : ''}`}
+        onClick={() => setHideUtilities((v) => !v)}
+        title="Hide foundation/utility modules (Orbit 4)"
+      >
+        <div className="visibility-preset-main">
+          <span className="visibility-preset-icon">🧰</span>
+          <div className="visibility-preset-text">
+            <span className="visibility-preset-label">Hide Utilities</span>
+            <span className="visibility-preset-desc">Foundation & helper modules (Orbit 4)</span>
+          </div>
+        </div>
+        <div className={`visibility-preset-toggle ${hideUtilities ? 'is-on' : ''}`}>
+          {hideUtilities ? 'ON' : 'OFF'}
+        </div>
+      </button>
+
+      <button
+        type="button"
+        className={`visibility-preset-item ${hideResources ? 'is-active' : ''}`}
+        onClick={() => setHideResources((v) => !v)}
+        title="Hide database tables, procedures, topics, and external resources"
+      >
+        <div className="visibility-preset-main">
+          <span className="visibility-preset-icon">🗄️</span>
+          <div className="visibility-preset-text">
+            <span className="visibility-preset-label">Hide Resources</span>
+            <span className="visibility-preset-desc">Tables, procedures, topics & external APIs</span>
+          </div>
+        </div>
+        <div className={`visibility-preset-toggle ${hideResources ? 'is-on' : ''}`}>
+          {hideResources ? 'ON' : 'OFF'}
+        </div>
+      </button>
+    </>
   );
 
   return (
@@ -176,8 +220,20 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
         graph={filteredGraph}
         serverHttpUrl={serverHttpUrl}
         hudLabel="C3 Internal Structure"
-        hudTitle="Project Map"
+        hudTitle={`Project Map${model.projectName ? `: ${model.projectName}` : ''}`}
         headerSlot={headerControls}
+        customPresetsSlot={projectMapPresets}
+        projectMapPresets={{
+          cyclesCount: model.cycles.length,
+          cyclesOnly,
+          hideUtilities,
+          hideResources,
+        }}
+        onToggleProjectMapPreset={(preset) => {
+          if (preset === 'cyclesOnly') setCyclesOnly((v) => !v);
+          else if (preset === 'hideUtilities') setHideUtilities((v) => !v);
+          else if (preset === 'hideResources') setHideResources((v) => !v);
+        }}
         defaultLayoutName="concentric-barycentric"
         defaultNodeSizingMode="sqrt-weight"
         defaultNodeContentMode="metric"

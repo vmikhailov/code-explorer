@@ -18,6 +18,8 @@ import {
   TagIcon,
   GitBranchIcon,
   ExternalLinkIcon,
+  SettingsIcon,
+  XIcon,
 } from './Icons';
 import { EntityNodeBadge, EntityCodeBadge } from '../domain/entityBadges';
 
@@ -77,12 +79,24 @@ export function DeclarativeInspector<
   const [groupMemberFilter, setGroupMemberFilter] = useState('');
   const [navHistory, setNavHistory] = useState<TNode[]>([]);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const [isInspectorSettingsOpen, setIsInspectorSettingsOpen] = useState(false);
+  const [showTierReason, setShowTierReason] = useState(true);
+  const [showKpiMetrics, setShowKpiMetrics] = useState(true);
+  const [showCodeEvidence, setShowCodeEvidence] = useState(true);
 
   const toggleSection = (key: string) => {
     setCollapsedSections((prev) => ({
       ...prev,
       [key]: !prev[key],
     }));
+  };
+
+  const setAllSectionsCollapsed = (collapsed: boolean) => {
+    const next: Record<string, boolean> = {};
+    for (const s of schema.nodeSections) {
+      next[s.id] = collapsed;
+    }
+    setCollapsedSections(next);
   };
 
   // Find parent group if current selectedNode belongs to a collapsed group in nodeDetailMap
@@ -191,6 +205,7 @@ export function DeclarativeInspector<
       }
 
       case 'kpi-grid': {
+        if (!showKpiMetrics) return null;
         if (section.when && !section.when(item)) return null;
         const visibleMetrics = section.metrics.filter((m) => !m.when || m.when(item));
         if (visibleMetrics.length === 0) return null;
@@ -648,6 +663,7 @@ export function DeclarativeInspector<
       }
 
       case 'async-evidence': {
+        if (!showCodeEvidence) return null;
         if (section.when && !section.when(item)) return null;
         const params = section.getParams(item);
         if (section.endpoint === 'database-evidence' && params.databaseId) {
@@ -910,6 +926,21 @@ export function DeclarativeInspector<
                   <span>Hide</span>
                 </button>
               )}
+              <button
+                type="button"
+                className={`floating-dock-btn settings-gear-btn ${isInspectorSettingsOpen ? 'is-open' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsInspectorSettingsOpen((prev) => !prev);
+                }}
+                title="Inspector Display Settings (Sections, KPI Metrics, Explainability)"
+                aria-label="Inspector Display Settings"
+              >
+                <SettingsIcon size={13} />
+                {!isInspectorSettingsOpen && (!showTierReason || !showKpiMetrics || !showCodeEvidence) && (
+                  <span className="settings-gear-dot" />
+                )}
+              </button>
             </div>
           }
           subtitle={
@@ -936,7 +967,7 @@ export function DeclarativeInspector<
                       {headerModel.tierLabel}
                     </span>
                   </div>
-                  {headerModel.tierReason && (
+                  {showTierReason && headerModel.tierReason && (
                     <div
                       className="inspector-tier-reason"
                       style={{
@@ -995,56 +1026,125 @@ export function DeclarativeInspector<
             </div>
           }
         >
-          <div className="inspector-body">
-            {/* Back to Group / Previous Node Banner */}
-            {backTargetNode && backHeaderModel && (
-              <button
-                type="button"
-                onClick={handleGoBack}
-                title={`Return to ${backHeaderModel.title}`}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 8,
-                  width: '100%',
-                  padding: '6px 10px',
-                  borderRadius: 6,
-                  background: 'rgba(56, 189, 248, 0.1)',
-                  border: '1px solid rgba(56, 189, 248, 0.3)',
-                  color: '#38bdf8',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  flexShrink: 0,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                  <span style={{ fontSize: '12px', lineHeight: 1 }}>←</span>
-                  <EntityNodeBadge kind={backHeaderModel.kind} size={16} />
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    Back to {backHeaderModel.title}
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+            {isInspectorSettingsOpen && (
+              <div className="panel-settings-drawer">
+                <div className="panel-settings-drawer-header">
+                  <span className="panel-settings-drawer-title">
+                    <SettingsIcon size={11} />
+                    <span>Inspector Display</span>
                   </span>
-                </div>
-                {backHeaderModel.isGroup && (
-                  <span
-                    style={{
-                      fontSize: '9.5px',
-                      padding: '1px 5px',
-                      borderRadius: 3,
-                      background: 'rgba(56, 189, 248, 0.18)',
-                      color: '#7dd3fc',
-                      flexShrink: 0,
-                    }}
+                  <button
+                    type="button"
+                    className="floating-dock-btn close-btn"
+                    style={{ width: 20, height: 20, minWidth: 20, padding: 0 }}
+                    onClick={() => setIsInspectorSettingsOpen(false)}
+                    title="Close inspector settings"
                   >
-                    Group List
-                  </span>
-                )}
-              </button>
+                    <XIcon size={11} />
+                  </button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <label className={`domain-hud-checkbox-label ${showTierReason ? 'is-active' : ''}`} style={{ fontSize: '11px' }}>
+                    <input
+                      type="checkbox"
+                      className="domain-hud-checkbox"
+                      checked={showTierReason}
+                      onChange={(e) => setShowTierReason(e.target.checked)}
+                    />
+                    <span>🧭 Show Tier Explainability</span>
+                  </label>
+                  <label className={`domain-hud-checkbox-label ${showKpiMetrics ? 'is-active' : ''}`} style={{ fontSize: '11px' }}>
+                    <input
+                      type="checkbox"
+                      className="domain-hud-checkbox"
+                      checked={showKpiMetrics}
+                      onChange={(e) => setShowKpiMetrics(e.target.checked)}
+                    />
+                    <span>📊 Show KPI Summary Cards</span>
+                  </label>
+                  <label className={`domain-hud-checkbox-label ${showCodeEvidence ? 'is-active' : ''}`} style={{ fontSize: '11px' }}>
+                    <input
+                      type="checkbox"
+                      className="domain-hud-checkbox"
+                      checked={showCodeEvidence}
+                      onChange={(e) => setShowCodeEvidence(e.target.checked)}
+                    />
+                    <span>🔍 Show Source Code Evidence</span>
+                  </label>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
+                    <button
+                      type="button"
+                      className="domain-hud-btn"
+                      style={{ flex: 1, justifyContent: 'center', fontSize: '10.5px', padding: '3px 8px' }}
+                      onClick={() => setAllSectionsCollapsed(false)}
+                    >
+                      ▾ Expand All
+                    </button>
+                    <button
+                      type="button"
+                      className="domain-hud-btn"
+                      style={{ flex: 1, justifyContent: 'center', fontSize: '10.5px', padding: '3px 8px' }}
+                      onClick={() => setAllSectionsCollapsed(true)}
+                    >
+                      ▸ Collapse All
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
 
-            {schema.nodeSections.map((section) => renderSection(section, selectedNode))}
+            <div className="inspector-body" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+              {/* Back to Group / Previous Node Banner */}
+              {backTargetNode && backHeaderModel && (
+                <button
+                  type="button"
+                  onClick={handleGoBack}
+                  title={`Return to ${backHeaderModel.title}`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                    width: '100%',
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    background: 'rgba(56, 189, 248, 0.1)',
+                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                    color: '#38bdf8',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    flexShrink: 0,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                    <span style={{ fontSize: '12px', lineHeight: 1 }}>←</span>
+                    <EntityNodeBadge kind={backHeaderModel.kind} size={16} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      Back to {backHeaderModel.title}
+                    </span>
+                  </div>
+                  {backHeaderModel.isGroup && (
+                    <span
+                      style={{
+                        fontSize: '9.5px',
+                        padding: '1px 5px',
+                        borderRadius: 3,
+                        background: 'rgba(56, 189, 248, 0.18)',
+                        color: '#7dd3fc',
+                        flexShrink: 0,
+                      }}
+                    >
+                      Group List
+                    </span>
+                  )}
+                </button>
+              )}
+
+              {schema.nodeSections.map((section) => renderSection(section, selectedNode))}
+            </div>
           </div>
         </FloatingPanel>
       )}

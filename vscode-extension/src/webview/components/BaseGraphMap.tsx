@@ -9,6 +9,14 @@ export interface BaseGraphMapProps {
   hudLabel?: string;
   hudTitle?: string;
   headerSlot?: React.ReactNode;
+  customPresetsSlot?: React.ReactNode;
+  projectMapPresets?: {
+    cyclesCount: number;
+    cyclesOnly: boolean;
+    hideUtilities: boolean;
+    hideResources: boolean;
+  };
+  onToggleProjectMapPreset?: (preset: 'cyclesOnly' | 'hideUtilities' | 'hideResources') => void;
   defaultLayoutName?: DomainLayoutName;
   defaultNodeSizingMode?: NodeSizingMode;
   defaultNodeContentMode?: NodeContentMode;

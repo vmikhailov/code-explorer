@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { SelectedNodeDetail, EntityKind, CustomNodeGroup } from '../types';
 import { FloatingPanel } from '../../components/FloatingPanel';
-import { EyeIcon, EyeOffIcon, RotateCcwIcon, XIcon } from '../../components/Icons';
+import { EyeIcon, EyeOffIcon, RotateCcwIcon, XIcon, SettingsIcon } from '../../components/Icons';
 import { EntityNodeBadge, getEntityBadgeMeta } from '../entityBadges';
 
 export interface HiddenItem {
@@ -55,6 +55,9 @@ export interface DomainVisibilityPanelProps {
   onToggleCollapse?: (collapsed: boolean) => void;
   docked?: boolean;
   onClose?: () => void;
+  appearanceSection?: React.ReactNode;
+  hasCustomAppearance?: boolean;
+  customPresetsSlot?: React.ReactNode;
 }
 
 interface EntityTypeItem {
@@ -90,6 +93,7 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
   const deleteCustomGroup = props.onDeleteCustomGroup;
   const onSelectGroupNode = props.onSelectGroupNode;
 
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [groupEntitySearch, setGroupEntitySearch] = useState('');
@@ -255,7 +259,28 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
     hideIsolatedNodes;
 
   const content = (
-    <div className="domain-visibility-panel-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px', padding: '10px 12px', flex: 1, minHeight: 0, overflowY: 'auto' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+      {isSettingsOpen && props.appearanceSection && (
+        <div className="panel-settings-drawer">
+          <div className="panel-settings-drawer-header">
+            <span className="panel-settings-drawer-title">
+              <SettingsIcon size={11} />
+              <span>Node & Edge Appearance</span>
+            </span>
+            <button
+              type="button"
+              className="floating-dock-btn close-btn"
+              style={{ width: 20, height: 20, minWidth: 20, padding: 0 }}
+              onClick={() => setIsSettingsOpen(false)}
+              title="Close appearance settings"
+            >
+              <XIcon size={11} />
+            </button>
+          </div>
+          {props.appearanceSection}
+        </div>
+      )}
+      <div className="domain-visibility-panel-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px', padding: '10px 12px', flex: 1, minHeight: 0, overflowY: 'auto' }}>
       {/* 1. Quick Entity Type Toggles */}
       <div className="visibility-section">
         <div className="visibility-section-header">
@@ -627,6 +652,7 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
           <span className="visibility-section-hint">High-level view filters</span>
         </div>
         <div className="visibility-presets-list">
+          {props.customPresetsSlot}
           {/* Hide 1:1 Databases */}
           <button
             type="button"
@@ -787,12 +813,9 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
           )}
         </div>
       </div>
+      </div>
     </div>
   );
-
-  if (props.docked) {
-    return content;
-  }
 
   return (
     <FloatingPanel
@@ -820,19 +843,36 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
       collapseTooltip="Collapse visibility panel"
       expandTooltip={`Click to expand visibility panel (${allHiddenItems.length} hidden)`}
       headerActions={
-        hasAnyFiltersOrHidden ? (
-          <button
-            type="button"
-            className="floating-dock-btn action-btn hidden-panel-restore-all-btn"
-            onClick={restoreAllHiddenNodes}
-            title="Restore all hidden entities to graph"
-          >
-            <RotateCcwIcon size={12} />
-            <span>Restore All</span>
-          </button>
-        ) : undefined
+        <>
+          {hasAnyFiltersOrHidden ? (
+            <button
+              type="button"
+              className="floating-dock-btn action-btn hidden-panel-restore-all-btn"
+              onClick={restoreAllHiddenNodes}
+              title="Restore all hidden entities to graph"
+            >
+              <RotateCcwIcon size={12} />
+              <span>Restore All</span>
+            </button>
+          ) : null}
+          {props.appearanceSection ? (
+            <button
+              type="button"
+              className={`floating-dock-btn settings-gear-btn ${isSettingsOpen ? 'is-open' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsSettingsOpen((prev) => !prev);
+              }}
+              title="Node & Edge Style Settings (Representation, sizing, curvature, font size)"
+              aria-label="Node & Edge Style Settings"
+            >
+              <SettingsIcon size={13} />
+              {!isSettingsOpen && props.hasCustomAppearance && <span className="settings-gear-dot" />}
+            </button>
+          ) : null}
+        </>
       }
-      className="domain-hidden-panel"
+      className="domain-hidden-panel no-body-padding"
       width={360}
       minWidth={280}
       maxWidth={700}

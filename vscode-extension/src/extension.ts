@@ -10,6 +10,7 @@ import {
 
 import { GateStateManager } from './gateStateManager';
 import { GraphPanel } from './graphPanel';
+import { GraphInspectorViewProvider } from './graphInspectorViewProvider';
 import { ServerTransport } from './serverTransport';
 
 let processManager: ProcessManager | null = null;
@@ -63,6 +64,25 @@ export function activate(context: vscode.ExtensionContext) {
   );
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider('codeExplorerView', treeDataProvider)
+  );
+
+  // Register Graph Inspector & Controls WebviewViewProvider for VS Code Sidebar / Secondary Sidebar
+  const inspectorViewProvider = new GraphInspectorViewProvider(
+    context.extensionUri,
+    serverTransport,
+    getWorkspaceRoot,
+    outputChannel
+  );
+  context.subscriptions.push(
+    inspectorViewProvider,
+    vscode.window.registerWebviewViewProvider(
+      GraphInspectorViewProvider.viewType,
+      inspectorViewProvider,
+      { webviewOptions: { retainContextWhenHidden: true } }
+    ),
+    vscode.commands.registerCommand('codeExplorer.focusInspector', async () => {
+      await inspectorViewProvider.reveal(false);
+    })
   );
 
   // Register WebviewPanelSerializers so surviving/restored graph panels reconnect automatically after Extension Host restarts
