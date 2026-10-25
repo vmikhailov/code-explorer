@@ -25,20 +25,34 @@ export function validateGateQueryContract(query: string): {
   const hasTarget = /\b(as\s+target|as\s+destination)\b/.test(returnClause);
   const hasMessage = /\b(as\s+message|as\s+description|as\s+details)\b/.test(returnClause);
 
+  // Check if query returns direct node/edge identifiers (v2 Node-First & Edge-Aware contract)
+  const returnExprBody = returnClause
+    .replace(/^return\s+(distinct\s+)?/i, '')
+    .split(/\b(order\s+by|limit|skip)\b/i)[0]
+    .trim();
+  const returnTerms = returnExprBody
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const hasDirectNodeReturn =
+    returnTerms.length > 0 && returnTerms.some((t) => /^[a-z_][a-z0-9_]*(\s+as\s+[a-z_][a-z0-9_]*)?$/i.test(t));
+
   const missingColumns: string[] = [];
-  if (!hasFile) missingColumns.push('file');
-  if (!hasLine) missingColumns.push('line');
-  if (!hasSymbol) missingColumns.push('symbol');
-  if (!hasTarget) missingColumns.push('target');
-  if (!hasMessage) missingColumns.push('message');
+  if (!hasDirectNodeReturn) {
+    if (!hasFile) missingColumns.push('file');
+    if (!hasLine) missingColumns.push('line');
+    if (!hasSymbol) missingColumns.push('symbol');
+    if (!hasTarget) missingColumns.push('target');
+    if (!hasMessage) missingColumns.push('message');
+  }
 
   return {
-    hasFile,
-    hasLine,
-    hasSymbol,
-    hasTarget,
+    hasFile: hasFile || hasDirectNodeReturn,
+    hasLine: hasLine || hasDirectNodeReturn,
+    hasSymbol: hasSymbol || hasDirectNodeReturn,
+    hasTarget: hasTarget || hasDirectNodeReturn,
     hasMessage,
-    isFullyCompliant: hasFile && hasLine && hasSymbol && hasMessage,
+    isFullyCompliant: (hasFile && hasLine && hasSymbol && hasMessage) || hasDirectNodeReturn,
     missingColumns,
   };
 }
@@ -66,7 +80,8 @@ export function validateGateForm(gate: Partial<GateItemDto>): {
     errors.query = 'OpenCypher query is required.';
   } else {
     const contract = validateGateQueryContract(gate.query);
-    if (!contract.hasFile || !contract.hasLine || !contract.hasMessage) {
+    const hasGateMessage = Boolean(gate.message && gate.message.trim());
+    if (!contract.hasFile || !contract.hasLine || (!contract.hasMessage && !hasGateMessage && !contract.isFullyCompliant)) {
       errors.queryContract = `Query is missing mandatory projection columns: ${contract.missingColumns.join(', ')}`;
     }
   }
@@ -99,7 +114,7 @@ test('validateGateQueryContract: correctly identifies fully compliant SIG return
   assert.equal(result.missingColumns.length, 0);
 });
 
-test('validateGateQueryContract: detects missing contract columns', () => {
+test('validateGateQueryContract: detects missing contract columns on scalar-only projections', () => {
   const query = `
     MATCH (p:Project)
     WHERE p.name CONTAINS 'Legacy'
@@ -116,6 +131,22 @@ test('validateGateQueryContract: detects missing contract columns', () => {
   assert.deepEqual(result.missingColumns, ['file', 'line', 'target']);
 });
 
+test('validateGateQueryContract: accepts v2 node-first and edge-aware RETURN clauses', () => {
+  const query = `
+    MATCH (caller:Function)-[r:CALLS]->(callee:Function)
+    WHERE callee.name = 'DisallowedMethod'
+    RETURN caller, r, callee
+  `;
+
+  const result = validateGateQueryContract(query);
+  assert.equal(result.hasFile, true);
+  assert.equal(result.hasLine, true);
+  assert.equal(result.hasSymbol, true);
+  assert.equal(result.hasTarget, true);
+  assert.equal(result.isFullyCompliant, true);
+  assert.equal(result.missingColumns.length, 0);
+});
+
 test('validateGateForm: rejects missing required fields and invalid ID format', () => {
   const invalidGate: Partial<GateItemDto> = {
     id: '',
@@ -130,8 +161,8 @@ test('validateGateForm: rejects missing required fields and invalid ID format', 
   assert.ok(validation.errors.query);
 });
 
-test('validateGateForm: accepts valid gate configuration', () => {
-  const validGate: Partial<GateItemDto> = {
+test('validateGateForm: accepts valid gate configuration (v1 and v2)', () => {
+  const validGateV1: Partial<GateItemDto> = {
     id: 'SIG-P-B-007',
     name: 'View Decoupling Guarantee',
     category: 'Architectural',
@@ -147,9 +178,27 @@ test('validateGateForm: accepts valid gate configuration', () => {
     ratchetEnabled: true,
   };
 
-  const validation = validateGateForm(validGate);
-  assert.equal(validation.isValid, true);
-  assert.deepEqual(validation.errors, {});
+  assert.equal(validateGateForm(validGateV1).isValid, true);
+
+  const validGateV2: Partial<GateItemDto> = {
+    id: 'SIG-CUSTOM-002',
+    name: 'Node-First Boundary Rule',
+    category: 'Architectural',
+    platform: 'agnostic',
+    scope: 'Module',
+    dimension: 'Boundaries',
+    severity: 'Error',
+    message: 'Function {caller.name} must not call {callee.name}',
+    thresholds: { warning: 1, error: 5 },
+    query: `
+      MATCH (caller:Function)-[r:CALLS]->(callee:Function)
+      WHERE callee.name = 'Forbidden'
+      RETURN caller, r, callee
+    `,
+    ratchetEnabled: true,
+  };
+
+  assert.equal(validateGateForm(validGateV2).isValid, true);
 });
 
 test('highlightCypher: single-pass tokenization handles comments, strings, keywords, labels and relationships without corrupting markup', () => {

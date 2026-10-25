@@ -15,18 +15,14 @@ public static partial class BuiltInGateCatalog
         Severity = GateSeverity.Error,
         Description = "Graph structure cascades, subtree deletions, and topological traversals must be expressed in OpenCypher (e.g. DETACH DELETE), not multi-statement raw SQL scripts with temporary tables and imperative loops.",
         Remediation = "Replace multi-statement SQL scripts with OpenCypher queries executed via IGraphClient / CypherQueryParser.",
+        Target = "Raw SQL temporary table script",
+        Message = "Graph manipulation function {f.name} uses imperative SQL script instead of declarative Cypher DETACH DELETE",
         Query = """
             MATCH (f:Function)
             WHERE (f.name CONTAINS 'DeleteSubpath' OR f.name CONTAINS 'CascadeDeleteSql')
               AND (f.file_path CONTAINS 'Database/' OR f.file_path CONTAINS 'Client')
               AND NOT coalesce(f.is_test, false)
-            RETURN 
-              f.file_path AS file,
-              coalesce(f.start_line, 1) AS line,
-              coalesce(f.start_col, 1) AS column,
-              f.name AS symbol,
-              'Raw SQL temporary table script' AS target,
-              'Graph manipulation function ' + f.name + ' uses imperative SQL script instead of declarative Cypher DETACH DELETE' AS message
+            RETURN f
             """,
         Ratchet = new GateRatchetSettings
         {
@@ -47,18 +43,14 @@ public static partial class BuiltInGateCatalog
         Severity = GateSeverity.Error,
         Description = "Core analysis engines, classifiers, and convention algorithms must not contain hardcoded company/customer domain literals (e.g. dynadot, rtb, antifraud, google-pub-sub-network).",
         Remediation = "Move customer or workspace-specific tokens into .codeexplorer/conventions.json or resolve them dynamically from graph metadata.",
+        Target = "{lit.value}",
+        Message = "Illegal hardcoded customer/domain literal in core algorithm: {lit.value}",
         Query = """
             MATCH (caller)-[:PASSES_LITERAL]->(lit:CallLiteral)
             WHERE (caller.file_path CONTAINS 'Core/Common/' OR caller.file_path CONTAINS 'Core/Analysis/' OR caller.file_path CONTAINS 'Core/Parser/')
               AND lit.value IN ['dynadot_base_url_v3', 'google-pub-sub-network', 'pub-sub-network', 'antifraud', 'rtb']
               AND NOT coalesce(caller.is_test, false)
-            RETURN 
-              lit.file_path AS file,
-              lit.line AS line,
-              lit.column AS column,
-              coalesce(caller.name, 'unknown') AS symbol,
-              lit.value AS target,
-              'Illegal hardcoded customer/domain literal in core algorithm: ' + lit.value AS message
+            RETURN caller, lit
             """,
         Ratchet = new GateRatchetSettings
         {
@@ -79,8 +71,9 @@ public static partial class BuiltInGateCatalog
         Severity = GateSeverity.Error,
         Description = "Enforces strict unidirectional layering across the ontology tiers: Layer 1 (File Structure) -> Layer 2 (Project Structure) -> Layer 3 (Syntax Structure) -> Layer 4 (Semantic Structure) -> Layer 5 (Logical Structure). Lower-layer models must never reference or depend on higher-order ontology layers (prohibits reverse/backward coupling).",
         Remediation = "Remove higher-layer references from lower-layer ontology models. Use downward relationships (e.g. higher-order models referencing lower-order models via DECLARED_IN, LOCATED_IN, EXPOSED_BY) or abstract contracts.",
+        Message = "Ontology layer violation: Lower layer model {src.name} references higher layer model {tgt.name}",
         Query = """
-            MATCH (src:Type)-[:CALLS|USES_TYPE]->(tgt:Type)
+            MATCH (src:Type)-[r:CALLS|USES_TYPE]->(tgt:Type)
             WHERE NOT coalesce(src.is_test, false)
               AND (
                 (src.path CONTAINS 'Common/Nodes/Layer1_' AND (tgt.path CONTAINS 'Common/Nodes/Layer2_' OR tgt.path CONTAINS 'Common/Nodes/Layer3_' OR tgt.path CONTAINS 'Common/Nodes/Layer4_' OR tgt.path CONTAINS 'Common/Nodes/Layer5_'))
@@ -88,13 +81,7 @@ public static partial class BuiltInGateCatalog
                 OR (src.path CONTAINS 'Common/Nodes/Layer3_' AND (tgt.path CONTAINS 'Common/Nodes/Layer4_' OR tgt.path CONTAINS 'Common/Nodes/Layer5_'))
                 OR (src.path CONTAINS 'Common/Nodes/Layer4_' AND tgt.path CONTAINS 'Common/Nodes/Layer5_')
               )
-            RETURN 
-              coalesce(src.path, src.file_path) AS file,
-              coalesce(src.start_line, 1) AS line,
-              coalesce(src.start_col, 1) AS column,
-              src.name AS symbol,
-              tgt.name AS target,
-              'Ontology layer violation: Lower layer model ' + src.name + ' references higher layer model ' + tgt.name AS message
+            RETURN src, r, tgt
             """,
         Ratchet = new GateRatchetSettings
         {
@@ -115,19 +102,14 @@ public static partial class BuiltInGateCatalog
         Severity = GateSeverity.Error,
         Description = "All ontology node models implementing IOntologyNode or extending CompositeNode must reside strictly within CodeExplorer.Core/Common/Nodes/ under an approved layer or root abstraction. No ad-hoc ontology node types may leak into Parser, UI, or external packages.",
         Remediation = "Move external ontology node models into the appropriate layer under cli/src/Core/CodeExplorer.Core/Common/Nodes/ or refactor parser-internal DTOs to not implement IOntologyNode.",
+        Message = "Ontology cohesion violation: Model {src.name} implements/uses ontology contract outside Common/Nodes",
         Query = """
-            MATCH (src:Type)-[:IMPLEMENTS|USES_TYPE]->(contract:Type)
+            MATCH (src:Type)-[r:IMPLEMENTS|USES_TYPE]->(contract:Type)
             WHERE contract.name IN ['IOntologyNode', 'CompositeNode']
               AND NOT coalesce(src.is_test, false)
               AND NOT src.path CONTAINS 'Common/Nodes/'
               AND NOT src.name IN ['IOntologyNode', 'CompositeNode', 'OntologyAttributes', 'OntologyEdgeAttribute', 'OntologyPropertyAttribute', 'OntologyNodeAttribute', 'OntologyRelationshipAttribute', 'OntologyRegistry', 'LayerResults', 'Layer4Result']
-            RETURN 
-              coalesce(src.path, src.file_path) AS file,
-              coalesce(src.start_line, 1) AS line,
-              coalesce(src.start_col, 1) AS column,
-              src.name AS symbol,
-              contract.name AS target,
-              'Ontology cohesion violation: Model ' + src.name + ' implements/uses ontology contract outside Common/Nodes' AS message
+            RETURN src, r, contract
             """,
         Ratchet = new GateRatchetSettings
         {
@@ -148,6 +130,8 @@ public static partial class BuiltInGateCatalog
         Severity = GateSeverity.Error,
         Description = "Domain and architectural classifications must be modeled using strongly-typed enums or value objects. Properties or fields ending in 'Type', 'Kind', or 'Category' must not use primitive string types.",
         Remediation = "Replace primitive string taxonomy properties with dedicated enums or strongly-typed value objects.",
+        Target = "{m.data_type|string}",
+        Message = "Property or field {m.name} uses stringly-typed primitive {m.data_type|string} for taxonomy/classification; use an enum or strongly-typed value object.",
         Query = """
             MATCH (m:Member)
             WHERE m.kind IN ['property', 'field']
@@ -156,13 +140,7 @@ public static partial class BuiltInGateCatalog
                    m.name = 'Category' OR m.name ENDS WITH 'Category')
               AND m.data_type IN ['string', 'String', 'string?', 'String?']
               AND NOT (coalesce(m.file_path, '') CONTAINS 'Test' OR coalesce(m.file_path, '') CONTAINS 'test')
-            RETURN 
-              coalesce(m.file_path, 'unknown') AS file,
-              coalesce(m.start_line, 0) AS line,
-              coalesce(m.start_col, 0) AS column,
-              m.name AS symbol,
-              coalesce(m.data_type, 'string') AS target,
-              'Property or field ' + m.name + ' uses stringly-typed primitive ' + coalesce(m.data_type, 'string') + ' for taxonomy/classification; use an enum or strongly-typed value object.' AS message
+            RETURN m
             """,
         Ratchet = new GateRatchetSettings
         {
@@ -183,6 +161,8 @@ public static partial class BuiltInGateCatalog
         Severity = GateSeverity.Error,
         Description = "Enforces strict parity and integrity between physical project roles, Layer 4 semantic workloads, and architectural view node kinds. Test projects must never be classified as runnable App/Service/Worker workloads, and workload node labels must strictly align with their kind property.",
         Remediation = "Ensure test projects reference test frameworks or match test naming conventions, and verify project classifiers do not overwrite test or workload kinds with conflicting defaults.",
+        Target = "{n.label}",
+        Message = "Workload node {n.name} has invalid entity type, misclassified test project, or kind mismatch with label {n.label}",
         Query = """
             MATCH (n)
             WHERE (n:App OR n:Service OR n:Worker OR n:CliTool)
@@ -199,13 +179,7 @@ public static partial class BuiltInGateCatalog
                 OR (n:Worker AND n.kind IS NOT NULL AND n.kind <> 'Worker')
                 OR (n:CliTool AND n.kind IS NOT NULL AND n.kind <> 'CliTool')
               )
-            RETURN 
-              coalesce(n.path, n.file_path, 'unknown') AS file,
-              coalesce(n.start_line, 1) AS line,
-              coalesce(n.start_col, 1) AS column,
-              n.name AS symbol,
-              labels(n)[0] AS target,
-              'Workload node ' + n.name + ' has invalid entity type, misclassified test project, or kind mismatch with label ' + labels(n)[0] AS message
+            RETURN n
             """,
         Ratchet = new GateRatchetSettings
         {
@@ -226,6 +200,8 @@ public static partial class BuiltInGateCatalog
         Severity = GateSeverity.Error,
         Description = "Database nodes must represent concrete databases with a valid schema or catalog (e.g. 'PostgreSQL.catalog', 'Redis.basket'). Abstract engine-only or driver-only database nodes (such as 'PostgreSQL', 'MongoDB', 'Redis', 'Database', or generic placeholders) violate domain boundaries and cross-service isolation.",
         Remediation = "Ensure projects declare an explicit database schema in connection strings or code, or avoid creating database nodes for bare driver/ORM library references.",
+        Target = "{d.engine|unknown}",
+        Message = "Abstract engine-only database node {d.name} ({d.id}) is not associated with a concrete schema or domain database",
         Query = """
             MATCH (d:Database)
             WHERE (
@@ -242,13 +218,7 @@ public static partial class BuiltInGateCatalog
                 OR d.id ENDS WITH ':keyvalue:redis'
                 OR d.id ENDS WITH ':default:default'
               )
-            RETURN 
-              coalesce(d.file_path, d.path, 'architecture') AS file,
-              coalesce(d.start_line, 1) AS line,
-              coalesce(d.start_col, 1) AS column,
-              d.name AS symbol,
-              coalesce(d.engine, 'unknown') AS target,
-              'Abstract engine-only database node ' + d.name + ' (' + d.id + ') is not associated with a concrete schema or domain database' AS message
+            RETURN d
             """,
         Ratchet = new GateRatchetSettings
         {
@@ -269,6 +239,7 @@ public static partial class BuiltInGateCatalog
         Severity = GateSeverity.Error,
         Description = "Memory safety is Rust's primary value proposition. Unsafe functions and blocks must be isolated to low-level hardware or foreign abstraction crates (sys, native, ffi) and are strictly forbidden in business logic, HTTP handlers, or application services.",
         Remediation = "Move unsafe code into a dedicated low-level crate (e.g. *-sys or *-native) or encapsulate it behind safe abstractions.",
+        Message = "Unsafe function declared outside approved FFI/sys boundary: {fn.name}",
         Query = """
             MATCH (fn:Function)-[:DECLARED_IN]->(f:File)<-[:CONTAINS]-(p:Project)
             WHERE fn.is_unsafe = true
@@ -276,12 +247,7 @@ public static partial class BuiltInGateCatalog
               AND NOT toLower(coalesce(p.path, p.name, '')) CONTAINS "native"
               AND NOT toLower(coalesce(p.path, p.name, '')) CONTAINS "ffi"
               AND NOT coalesce(fn.is_test, false)
-            RETURN 
-              coalesce(f.path, fn.file_path, 'unknown') AS file,
-              coalesce(fn.start_line, fn.line_number, 1) AS line,
-              fn.name AS symbol,
-              p.name AS target,
-              'Unsafe function declared outside approved FFI/sys boundary: ' + fn.name AS message
+            RETURN fn, f, p
             """,
         Ratchet = new GateRatchetSettings
         {
@@ -302,16 +268,12 @@ public static partial class BuiltInGateCatalog
         Severity = GateSeverity.Error,
         Description = "Domain crates (core, domain) must remain pure and decoupled from infrastructure. A domain crate must never depend on web frameworks (axum, actix-web, rocket) or database drivers/ORMs (sqlx, diesel, sea-orm).",
         Remediation = "Remove infrastructure dependencies from domain/core crates. Declare interfaces/traits in domain and implement them in infrastructure adapter crates.",
+        Message = "Domain project violates Clean Architecture by depending on infrastructure crate: {pkg.name}",
         Query = """
-            MATCH (p:Project)-[:DEPENDS_ON]->(pkg:Package)
+            MATCH (p:Project)-[r:DEPENDS_ON]->(pkg:Package)
             WHERE (toLower(p.name) CONTAINS "domain" OR toLower(p.name) CONTAINS "core")
               AND pkg.name IN ["axum", "actix-web", "rocket", "sqlx", "diesel", "sea-orm"]
-            RETURN 
-              coalesce(p.path, p.file_path, p.name) AS file,
-              1 AS line,
-              p.name AS symbol,
-              pkg.name AS target,
-              'Domain project violates Clean Architecture by depending on infrastructure crate: ' + pkg.name AS message
+            RETURN p, r, pkg
             """,
         Ratchet = new GateRatchetSettings
         {
@@ -332,8 +294,9 @@ public static partial class BuiltInGateCatalog
         Severity = GateSeverity.Error,
         Description = "Invoking synchronous blocking functions (std::thread::sleep, std::fs::read/write, reqwest::blocking) inside an async function starves the Tokio executor threadpool.",
         Remediation = "Replace blocking calls with their Tokio non-blocking equivalents (e.g. tokio::time::sleep, tokio::fs) or offload via tokio::task::spawn_blocking.",
+        Message = "Async function invokes blocking call: {target.full_name}",
         Query = """
-            MATCH (fn:Function)-[:CALLS]->(target)
+            MATCH (fn:Function)-[r:CALLS]->(target)
             WHERE fn.is_async = true
               AND (
                 target.full_name IN [
@@ -346,12 +309,7 @@ public static partial class BuiltInGateCatalog
                 ]
               )
               AND NOT coalesce(fn.is_test, false)
-            RETURN 
-              coalesce(fn.file_path, fn.path, 'unknown') AS file,
-              coalesce(fn.start_line, 1) AS line,
-              fn.name AS symbol,
-              coalesce(target.full_name, target.name) AS target,
-              'Async function invokes blocking call: ' + coalesce(target.full_name, target.name) AS message
+            RETURN fn, r, target
             """,
         Ratchet = new GateRatchetSettings
         {
@@ -372,6 +330,7 @@ public static partial class BuiltInGateCatalog
         Severity = GateSeverity.Error,
         Description = "Enforce parameter binding in database queries. String formatting (format!) within a database query represents a critical SQL injection vulnerability.",
         Remediation = "Use query parameter bindings ($1, $2 or ?) instead of format! macro string concatenation.",
+        Message = "Dynamic string formatting detected in SQL query: {lit.text|format!}",
         Query = """
             MATCH (fn:Function)-[:QUERIES_DB]->(tbl:Table),
                   (fn)-[:CALLS]->(lit:CallLiteral)
@@ -382,12 +341,7 @@ public static partial class BuiltInGateCatalog
                 OR toUpper(coalesce(lit.text, lit.value)) CONTAINS "UPDATE"
                 OR toUpper(coalesce(lit.text, lit.value)) CONTAINS "INSERT"
               )
-            RETURN 
-              coalesce(fn.file_path, fn.path, lit.file_path, 'unknown') AS file,
-              coalesce(lit.line, fn.start_line, 1) AS line,
-              fn.name AS symbol,
-              tbl.name AS target,
-              'Dynamic string formatting detected in SQL query: ' + coalesce(lit.text, lit.value) AS message
+            RETURN fn, lit, tbl
             """,
         Ratchet = new GateRatchetSettings
         {
@@ -408,6 +362,8 @@ public static partial class BuiltInGateCatalog
         Severity = GateSeverity.Error,
         Description = "Classes and structs must not exceed 1,000 lines of code or declare more than 30 methods in a single type unit. Monolithic 'God Classes' accumulate unrelated responsibilities, violate the Single Responsibility Principle (SRP), and degrade maintainability.",
         Remediation = "Decompose the God Class into smaller, cohesive domain services, handlers, or strategy classes with focused responsibilities.",
+        Target = "GodClass",
+        Message = "God class detected: {t.name} has {loc} LOC and {method_count} methods (max allowed: 1000 LOC / 30 methods)",
         Query = """
             MATCH (t:Type)
             WHERE coalesce(t.kind, 'class') IN ['class', 'struct']
@@ -416,13 +372,7 @@ public static partial class BuiltInGateCatalog
             OPTIONAL MATCH (t)-[:HAS_METHOD]->(m:Function)
             WITH t, count(m) AS method_count, coalesce(t.loc, t.end_line - t.start_line + 1) AS loc
             WHERE loc > 1000 OR method_count > 30
-            RETURN 
-              coalesce(t.path, t.file_path) AS file,
-              coalesce(t.start_line, 1) AS line,
-              coalesce(t.start_col, 1) AS column,
-              t.name AS symbol,
-              'GodClass' AS target,
-              'God class detected: ' + t.name + ' has ' + toString(loc) + ' LOC and ' + toString(method_count) + ' methods (max allowed: 1000 LOC / 30 methods)' AS message
+            RETURN t, loc, method_count
             """,
         Ratchet = new GateRatchetSettings
         {

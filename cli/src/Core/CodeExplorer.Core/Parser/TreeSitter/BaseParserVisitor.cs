@@ -124,9 +124,12 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
                 if (node.IsAny(TreeSitterSyntax.Common.Identifier, TreeSitterSyntax.Common.TypeIdentifier))
                 {
                     currentScope.References.Add(new Reference("", node.Text,
-                        OntologyConstants.Relationships.PotentialType));
+                        OntologyConstants.Relationships.PotentialType,
+                        node.StartPosition.Row + 1,
+                        node.StartPosition.Column + 1));
                 }
             }
+
 
             if (LibraryParsers.Count > 0)
             {
@@ -449,8 +452,11 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
             if (!string.IsNullOrEmpty(callName) && currentScope.Kind != "file")
             {
-                currentScope.References.Add(new Reference("", callName, "CALLS"));
+                currentScope.References.Add(new Reference("", callName, "CALLS",
+                    node.StartPosition.Row + 1,
+                    node.StartPosition.Column + 1));
             }
+
 
             CollectCallLiteralArguments(node, callName, currentScope);
 

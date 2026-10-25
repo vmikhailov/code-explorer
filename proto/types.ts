@@ -231,6 +231,13 @@ export interface GateViolationDto {
   message?: string;
   fingerprint: string;
   isTolerated: boolean;
+  nodeId?: string;
+  targetNodeId?: string;
+}
+
+export interface GateThresholdSettingsDto {
+  warning?: number;
+  error?: number;
 }
 
 export interface GateItemDto {
@@ -243,11 +250,14 @@ export interface GateItemDto {
   severity: string;
   description?: string;
   remediation?: string;
+  message?: string;
+  target?: string;
+  thresholds?: GateThresholdSettingsDto;
   query: string;
   source: string;
   ratchetEnabled: boolean;
   baselinePath?: string;
-  status: 'Passed' | 'PassedTolerated' | 'FailedNew' | 'Error' | 'Pending' | 'Evaluating' | string;
+  status: 'Passed' | 'PassedTolerated' | 'Warning' | 'FailedNew' | 'Error' | 'Pending' | 'Evaluating' | string;
   totalViolations: number;
   newViolationsCount: number;
   toleratedViolationsCount: number;
@@ -262,6 +272,7 @@ export interface GateSuiteSummaryDto {
   totalGates: number;
   passedCount: number;
   failedCount: number;
+  warningCount?: number;
   newViolationsCount: number;
   toleratedViolationsCount: number;
   ratchetOpportunities: number;
@@ -307,6 +318,8 @@ export interface TestGateRequestDto {
   query: string;
   gateId?: string;
   parameters?: Record<string, string>;
+  message?: string;
+  target?: string;
 }
 
 export interface TestGateResponseDto {

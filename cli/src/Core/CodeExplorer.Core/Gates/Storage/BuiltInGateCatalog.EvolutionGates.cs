@@ -22,8 +22,9 @@ public static partial class BuiltInGateCatalog
         Severity = GateSeverity.Error,
         Description = "Enforces unidirectional pipeline flow: code in analysis layer N must not call into higher layers. Layers are identified by their folder (Layer1_Physical .. Layer5_Global).",
         Remediation = "Move the shared helper into a layer-neutral location (Core/Common or Core/Parser/Shared), or invert the dependency with an abstraction or pipeline-context data.",
+        Message = "Pipeline stage violation: {src.name} calls {tgt.name} declared in a higher-order layer ({tgt.path})",
         Query = $"""
-            MATCH (src:Function)-[:CALLS]->(tgt:Function)
+            MATCH (src:Function)-[r:CALLS]->(tgt:Function)
             WHERE NOT coalesce(src.is_test, false)
               AND NOT tgt.name IN {AmbiguousCalleeNames}
               AND (
@@ -32,12 +33,7 @@ public static partial class BuiltInGateCatalog
                 OR (src.path CONTAINS 'Layer3_Syntactic' AND (tgt.path CONTAINS 'Layer4_Semantic' OR tgt.path CONTAINS 'Layer5_Global'))
                 OR (src.path CONTAINS 'Layer4_Semantic' AND tgt.path CONTAINS 'Layer5_Global')
               )
-            RETURN
-              coalesce(src.path, src.file_path) AS file,
-              coalesce(src.start_line, 0) AS line,
-              src.name AS symbol,
-              tgt.name AS target,
-              'Pipeline stage violation: ' + src.name + ' calls ' + tgt.name + ' declared in a higher-order layer (' + coalesce(tgt.path, tgt.file_path) + ')' AS message
+            RETURN src, r, tgt
             """,
         Ratchet = new GateRatchetSettings
         {
@@ -58,8 +54,9 @@ public static partial class BuiltInGateCatalog
         Severity = GateSeverity.Error,
         Description = "Language parsers are independent plug-ins: they may depend on Core and Parser.Shared only. Core, Cypher and Parser.Shared must not depend on any parser or on the host application.",
         Remediation = "Move the shared code into CodeExplorer.Parser.Shared (or Core) and reference it from both parsers; never reference a sibling parser or the host.",
+        Message = "Project dependency {p.name} -> {d.name} breaks the parser plug-in / Core-isolation contract",
         Query = """
-            MATCH (p:Project)-[:DEPENDS_ON]->(d:Project)
+            MATCH (p:Project)-[r:DEPENDS_ON]->(d:Project)
             WHERE d.name <> p.name
               AND (
                 (p.name STARTS WITH 'CodeExplorer.Parser.' AND p.name <> 'CodeExplorer.Parser.Shared'
@@ -68,12 +65,7 @@ public static partial class BuiltInGateCatalog
                   AND (d.name STARTS WITH 'CodeExplorer.Parser.' OR d.name = 'CodeExplorer'))
                 OR (p.name = 'CodeExplorer.Cypher' AND d.name STARTS WITH 'CodeExplorer')
               )
-            RETURN
-              coalesce(p.path, p.file_path, p.name) AS file,
-              1 AS line,
-              p.name AS symbol,
-              d.name AS target,
-              'Project dependency ' + p.name + ' -> ' + d.name + ' breaks the parser plug-in / Core-isolation contract' AS message
+            RETURN p, r, d
             """,
         Ratchet = new GateRatchetSettings
         {
@@ -94,18 +86,14 @@ public static partial class BuiltInGateCatalog
         Severity = GateSeverity.Warning,
         Description = "Read-model services (Analysis/Services) answer questions from the persisted graph and must not call into the indexing pipeline (Analysis/Layers, Analysis/Pipeline). Anything both sides need belongs in a neutral module.",
         Remediation = "Extract the shared helper (naming, canonicalisation, classification) into Core/Common and call it from both sides, or persist the derived value in the graph during indexing.",
+        Message = "Query-side service {src.name} depends on indexing-pipeline code {tgt.name} ({tgt.path})",
         Query = $"""
-            MATCH (src:Function)-[:CALLS]->(tgt:Function)
+            MATCH (src:Function)-[r:CALLS]->(tgt:Function)
             WHERE src.path CONTAINS 'CodeExplorer.Core/Analysis/Services/'
               AND (tgt.path CONTAINS 'CodeExplorer.Core/Analysis/Layers/' OR tgt.path CONTAINS 'CodeExplorer.Core/Analysis/Pipeline/')
               AND NOT tgt.name IN {AmbiguousCalleeNames}
               AND NOT coalesce(src.is_test, false)
-            RETURN
-              coalesce(src.path, src.file_path) AS file,
-              coalesce(src.start_line, 0) AS line,
-              src.name AS symbol,
-              tgt.name AS target,
-              'Query-side service ' + src.name + ' depends on indexing-pipeline code ' + tgt.name + ' (' + coalesce(tgt.path, tgt.file_path) + ')' AS message
+            RETURN src, r, tgt
             """,
         Ratchet = new GateRatchetSettings
         {
@@ -126,19 +114,15 @@ public static partial class BuiltInGateCatalog
         Severity = GateSeverity.Error,
         Description = "Non-source files (.env, appsettings, yaml, properties, ...) are read and parsed exactly once, by SharedFileEnricher in Layer 2, and attached to the project as enrichments. Later layers consume the enrichments and must not invoke shared file parsers again.",
         Remediation = "Read the data from ProjectNode.Enrichments / ConfigurationIndex instead of calling SharedFileParserRegistry.Parse or ParseFile.",
+        Message = "{caller.name} re-parses a file through the shared parser registry instead of consuming project enrichments",
         Query = """
-            MATCH (caller:Function)-[:CALLS]->(parse:Function)
+            MATCH (caller:Function)-[r:CALLS]->(parse:Function)
             WHERE parse.name IN ['Parse', 'ParseFile']
               AND parse.path CONTAINS 'Parser/Shared/SharedFileParserRegistry'
               AND NOT caller.path CONTAINS 'SharedFileEnricher'
               AND NOT caller.path CONTAINS 'Parser/Shared/'
               AND NOT coalesce(caller.is_test, false)
-            RETURN
-              coalesce(caller.path, caller.file_path) AS file,
-              coalesce(caller.start_line, 0) AS line,
-              caller.name AS symbol,
-              parse.name AS target,
-              caller.name + ' re-parses a file through the shared parser registry instead of consuming project enrichments' AS message
+            RETURN caller, r, parse
             """,
         Ratchet = new GateRatchetSettings
         {

@@ -110,7 +110,7 @@ public class FileGateRepository : IGateRepository
         if (!File.Exists(exampleFile) || overwrite)
         {
             var exampleYaml = """
-                # Semantic Invariant Gate Example Template
+                # Semantic Invariant Gate Example Template (v2 Node-First & Edge-Aware)
                 # To activate this gate, rename this file to .yaml and customize the Cypher query.
                 id: SIG-M-I-002
                 category: Architectural
@@ -121,17 +121,13 @@ public class FileGateRepository : IGateRepository
                 severity: Error
                 description: Methods must not exceed 500 lines of code.
                 remediation: Refactor long methods into smaller focused helper functions or handlers.
+                target: "{loc} lines"
+                message: "Method {f.name} exceeds maximum allowed length of 500 lines ({loc} lines)"
                 query: |
                   MATCH (f:Function)
-                  WHERE coalesce(f.loc, f.end_line - f.start_line + 1) > 500
-                    AND NOT coalesce(f.is_test, false)
-                  RETURN 
-                    coalesce(f.path, f.file_path) AS file,
-                    coalesce(f.start_line, 1) AS line,
-                    coalesce(f.start_col, 1) AS column,
-                    f.name AS symbol,
-                    toString(coalesce(f.loc, f.end_line - f.start_line + 1)) + ' lines' AS target,
-                    'Method ' + f.name + ' exceeds maximum allowed length of 500 lines' AS message
+                  WITH f, coalesce(f.loc, f.end_line - f.start_line + 1) AS loc
+                  WHERE loc > 500 AND NOT coalesce(f.is_test, false)
+                  RETURN f, loc
                 ratchet:
                   enabled: true
                   baseline: baselines/SIG-M-I-002.json

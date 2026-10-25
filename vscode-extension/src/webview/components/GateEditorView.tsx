@@ -71,18 +71,17 @@ const STARTER_TEMPLATE = {
   severity: 'Error',
   description: 'Ensure architectural boundaries are respected.',
   remediation: 'Refactor violating components to decouple module dependencies.',
+  message: 'Calling {callee.name} from {caller.name} is prohibited across module boundaries',
+  target: '',
   query:
-    `MATCH (caller:Function)-[:CALLS]->(callee:Function)\n` +
+    `MATCH (caller:Function)-[r:CALLS]->(callee:Function)\n` +
     `WHERE callee.name = 'ForbiddenMethod'\n` +
     `  AND NOT coalesce(caller.is_test, false)\n` +
-    `RETURN \n` +
-    `  coalesce(caller.path, caller.file_path) AS file,\n` +
-    `  coalesce(caller.start_line, 1) AS line,\n` +
-    `  caller.name AS symbol,\n` +
-    `  callee.name AS target,\n` +
-    `  'Calling ' + callee.name + ' is prohibited across module boundaries' AS message`,
+    `RETURN caller, r, callee`,
   ratchetEnabled: true,
   baselinePath: '',
+  warningThreshold: '',
+  errorThreshold: '',
 };
 
 const cardStyle: React.CSSProperties = {
@@ -143,9 +142,13 @@ export const GateEditorView: React.FC<GateEditorViewProps> = ({
   const [severity, setSeverity] = useState<string>(STARTER_TEMPLATE.severity);
   const [description, setDescription] = useState<string>(STARTER_TEMPLATE.description);
   const [remediation, setRemediation] = useState<string>(STARTER_TEMPLATE.remediation);
+  const [message, setMessage] = useState<string>(STARTER_TEMPLATE.message);
+  const [target, setTarget] = useState<string>(STARTER_TEMPLATE.target);
   const [query, setQuery] = useState<string>(STARTER_TEMPLATE.query);
   const [ratchetEnabled, setRatchetEnabled] = useState<boolean>(STARTER_TEMPLATE.ratchetEnabled);
   const [baselinePath, setBaselinePath] = useState<string>(STARTER_TEMPLATE.baselinePath);
+  const [warningThreshold, setWarningThreshold] = useState<string>(STARTER_TEMPLATE.warningThreshold);
+  const [errorThreshold, setErrorThreshold] = useState<string>(STARTER_TEMPLATE.errorThreshold);
   const [gateSource, setGateSource] = useState<string | undefined>(undefined);
 
   // Status & Dry-Run State
@@ -172,9 +175,13 @@ export const GateEditorView: React.FC<GateEditorViewProps> = ({
       setSeverity(g.severity || 'Error');
       setDescription(g.description || '');
       setRemediation(g.remediation || '');
+      setMessage(g.message || '');
+      setTarget(g.target || '');
       setQuery(g.query || '');
       setRatchetEnabled(g.ratchetEnabled ?? true);
       setBaselinePath(g.baselinePath || '');
+      setWarningThreshold(g.thresholds?.warning !== undefined && g.thresholds?.warning !== null ? String(g.thresholds.warning) : '');
+      setErrorThreshold(g.thresholds?.error !== undefined && g.thresholds?.error !== null ? String(g.thresholds.error) : '');
       setGateSource(g.source);
     } else {
       setId(STARTER_TEMPLATE.id);
@@ -186,9 +193,13 @@ export const GateEditorView: React.FC<GateEditorViewProps> = ({
       setSeverity(STARTER_TEMPLATE.severity);
       setDescription(STARTER_TEMPLATE.description);
       setRemediation(STARTER_TEMPLATE.remediation);
+      setMessage(STARTER_TEMPLATE.message);
+      setTarget(STARTER_TEMPLATE.target);
       setQuery(STARTER_TEMPLATE.query);
       setRatchetEnabled(STARTER_TEMPLATE.ratchetEnabled);
       setBaselinePath(STARTER_TEMPLATE.baselinePath);
+      setWarningThreshold(STARTER_TEMPLATE.warningThreshold);
+      setErrorThreshold(STARTER_TEMPLATE.errorThreshold);
       setGateSource(undefined);
     }
     setTestResult(null);
@@ -331,12 +342,17 @@ export const GateEditorView: React.FC<GateEditorViewProps> = ({
     setTestError(null);
     setTestResult(null);
 
+    const trimmedMsg = message.trim() || undefined;
+    const trimmedTgt = target.trim() || undefined;
+
     const vscode = getVsCodeApi();
     if (vscode) {
       vscode.postMessage({
         type: 'TEST_GATE',
         query: trimmedQuery,
         gateId: id.trim(),
+        message: trimmedMsg,
+        target: trimmedTgt,
       });
       return;
     }
@@ -354,6 +370,8 @@ export const GateEditorView: React.FC<GateEditorViewProps> = ({
         body: JSON.stringify({
           query: trimmedQuery,
           gateId: id.trim(),
+          message: trimmedMsg,
+          target: trimmedTgt,
         }),
       });
 
@@ -368,7 +386,7 @@ export const GateEditorView: React.FC<GateEditorViewProps> = ({
     } finally {
       setIsTesting(false);
     }
-  }, [query, id, resolvedHttpUrl]);
+  }, [query, id, message, target, resolvedHttpUrl]);
 
   // Save Gate Definition
   const handleSave = useCallback(async () => {
@@ -386,6 +404,17 @@ export const GateEditorView: React.FC<GateEditorViewProps> = ({
     setIsSaving(true);
     setSaveError(null);
 
+    const parsedWarn = warningThreshold.trim() !== '' ? Number(warningThreshold.trim()) : undefined;
+    const parsedErr = errorThreshold.trim() !== '' ? Number(errorThreshold.trim()) : undefined;
+    const thresholds =
+      (parsedWarn !== undefined && !Number.isNaN(parsedWarn)) ||
+      (parsedErr !== undefined && !Number.isNaN(parsedErr))
+        ? {
+            warning: parsedWarn !== undefined && !Number.isNaN(parsedWarn) ? parsedWarn : undefined,
+            error: parsedErr !== undefined && !Number.isNaN(parsedErr) ? parsedErr : undefined,
+          }
+        : undefined;
+
     const payloadGate: Partial<GateItemDto> = {
       id: trimmedId,
       name: name.trim() || trimmedId,
@@ -396,6 +425,9 @@ export const GateEditorView: React.FC<GateEditorViewProps> = ({
       severity,
       description: description.trim() || undefined,
       remediation: remediation.trim() || undefined,
+      message: message.trim() || undefined,
+      target: target.trim() || undefined,
+      thresholds,
       query: trimmedQuery,
       ratchetEnabled,
       baselinePath: baselinePath.trim() || undefined,
@@ -466,6 +498,10 @@ export const GateEditorView: React.FC<GateEditorViewProps> = ({
     severity,
     description,
     remediation,
+    message,
+    target,
+    warningThreshold,
+    errorThreshold,
     query,
     ratchetEnabled,
     baselinePath,
@@ -788,10 +824,10 @@ export const GateEditorView: React.FC<GateEditorViewProps> = ({
         </div>
       </div>
 
-      {/* Section 2: Description & Remediation */}
+      {/* Section 2: Description, Remediation & Templates */}
       <div style={cardStyle}>
         <h3 style={{ fontSize: '0.98rem', fontWeight: 600, margin: '0 0 14px', color: '#38bdf8' }}>
-          2. Description & Remediation
+          2. Description, Remediation & Templates
         </h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '14px' }}>
           <div>
@@ -814,22 +850,46 @@ export const GateEditorView: React.FC<GateEditorViewProps> = ({
               style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.4 }}
             />
           </div>
+          <div>
+            <label style={labelStyle}>
+              Message Template <span style={{ fontSize: '0.78rem', fontWeight: 400, color: '#94a3b8' }}>(e.g. {'{caller.name} -> {callee.name|unknown}'})</span>
+            </label>
+            <input
+              type="text"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Calling {callee.name} from {caller.name} violates boundary rules"
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>
+              Target Template <span style={{ fontSize: '0.78rem', fontWeight: 400, color: '#94a3b8' }}>(optional override for multi-hop targets)</span>
+            </label>
+            <input
+              type="text"
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+              placeholder="e.g. {mid.name} -> {db.name}"
+              style={inputStyle}
+            />
+          </div>
         </div>
       </div>
 
       {/* Section 3: OpenCypher Rule Query */}
       <div style={cardStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
           <div>
             <h3 style={{ fontSize: '0.98rem', fontWeight: 600, margin: 0, color: '#38bdf8' }}>
-              3. OpenCypher Invariant Rule (Zero-Match Contract)
+              3. OpenCypher Invariant Rule (Node-First &amp; Edge-Aware Contract)
             </h3>
             <p style={{ margin: '3px 0 0', fontSize: '0.82rem', opacity: 0.8 }}>
-              Query returns 0 rows if compliant; each returned row represents an invariant violation.
+              Query returns 0 rows if compliant; return nodes/edges directly (<code>RETURN caller, r, callee</code>) or scalar columns.
             </p>
           </div>
           <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
-            Expected columns: <code>file</code>, <code>line</code>, <code>symbol</code>, <code>target</code>, <code>message</code>
+            Supported: <code>RETURN src, r, tgt</code> or <code>file, line, symbol, target, message</code>
           </span>
         </div>
 
@@ -841,7 +901,7 @@ export const GateEditorView: React.FC<GateEditorViewProps> = ({
           onRunTest={handleTestQuery}
         />
 
-        {/* Ratchet Baseline Configuration */}
+        {/* Ratchet Baseline & Threshold Configuration */}
         <div
           style={{
             marginTop: '16px',
@@ -875,12 +935,12 @@ export const GateEditorView: React.FC<GateEditorViewProps> = ({
             />
             <span style={{ fontWeight: 600 }}>Enable Ratchet Baseline</span>
             <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
-              (Tolerates existing technical debt and strictly prevents new regressions)
+              (Tolerates existing debt and prevents new regressions)
             </span>
           </label>
 
           {ratchetEnabled && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '260px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '240px' }}>
               <span style={{ fontSize: '0.82rem', color: '#94a3b8', whiteSpace: 'nowrap' }}>Baseline Path:</span>
               <input
                 type="text"
@@ -891,6 +951,31 @@ export const GateEditorView: React.FC<GateEditorViewProps> = ({
               />
             </div>
           )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '0.82rem', color: '#fbbf24', whiteSpace: 'nowrap' }}>Warning ≥</span>
+              <input
+                type="number"
+                min={1}
+                value={warningThreshold}
+                onChange={(e) => setWarningThreshold(e.target.value)}
+                placeholder="none"
+                style={{ ...inputStyle, width: '76px', padding: '5px 8px', fontSize: '0.84rem' }}
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '0.82rem', color: '#f87171', whiteSpace: 'nowrap' }}>Error ≥</span>
+              <input
+                type="number"
+                min={1}
+                value={errorThreshold}
+                onChange={(e) => setErrorThreshold(e.target.value)}
+                placeholder="1"
+                style={{ ...inputStyle, width: '76px', padding: '5px 8px', fontSize: '0.84rem' }}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1013,7 +1098,7 @@ export const GateEditorView: React.FC<GateEditorViewProps> = ({
                   }}
                 >
                   <th style={{ padding: '6px 10px', width: '36px' }}>#</th>
-                  <th style={{ padding: '6px 10px' }}>File : Line</th>
+                  <th style={{ padding: '6px 10px' }}>File : Line : Col</th>
                   <th style={{ padding: '6px 10px' }}>Symbol</th>
                   <th style={{ padding: '6px 10px' }}>Target</th>
                   <th style={{ padding: '6px 10px' }}>Message</th>
@@ -1040,6 +1125,7 @@ export const GateEditorView: React.FC<GateEditorViewProps> = ({
                           title={v.file}
                         >
                           {v.file.split(/[/\\]/).pop()}:{v.line || 1}
+                          {v.column && v.column > 1 ? `:${v.column}` : ''}
                         </span>
                       ) : (
                         <span style={{ color: '#64748b' }}>-</span>

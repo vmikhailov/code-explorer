@@ -1,7 +1,8 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using CodeExplorer.Core.Analysis;
 using CodeExplorer.Cypher.Ast;
 using CodeExplorer.Cypher.Compiler;
 using CodeExplorer.Cypher.Linq;
@@ -12,6 +13,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CodeExplorer.Core.Database;
+
 
 public partial class SqliteGraphClient : IGraphClient, IDisposable
 {
@@ -192,9 +194,10 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
 
             const string emptyPropsJson = "{}";
             const int batchSize = 200;
-            var distinctRels = rels.Count > 1 ? [.. rels.DistinctBy(r => (r.From, r.To, r.Kind))] : rels;
+            var distinctRels = DeduplicateAndMergeRelationships(rels);
 
             var lastReport = Stopwatch.GetTimestamp();
+
             for (int i = 0; i < distinctRels.Count; i += batchSize)
             {
                 var count = Math.Min(batchSize, distinctRels.Count - i);
@@ -254,7 +257,32 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         }
     }
 
+    private static List<Relationship> DeduplicateAndMergeRelationships(List<Relationship> rels)
+    {
+        if (rels.Count <= 1) return rels;
+
+        var unique = new List<Relationship>(rels.Count);
+        var byKey = new Dictionary<(string From, string To, string Kind), Relationship>(rels.Count);
+
+        foreach (var rel in rels)
+        {
+            var key = (rel.From, rel.To, rel.Kind);
+            if (!byKey.TryGetValue(key, out var existing))
+            {
+                byKey[key] = rel;
+                unique.Add(rel);
+            }
+            else if (rel.Properties is { Count: > 0 })
+            {
+                EvidenceProvenanceHelper.MergeEdgeProperties(existing.Properties, rel.Properties);
+            }
+        }
+
+        return unique;
+    }
+
     public async Task<string> ExecuteQueryAsync(string query, object? parameters = null, CancellationToken cancellationToken = default)
+
     {
         var sw = Stopwatch.StartNew();
         ValidateQuerySecurity(query);

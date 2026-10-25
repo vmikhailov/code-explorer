@@ -65,17 +65,13 @@ public static partial class BuiltInGateCatalog
             Severity = GateSeverity.Error,
             Description = "Storage infrastructure drivers are leaf components and must not reference domain logic, parsers, or analyzers.",
             Remediation = "Remove calls to domain parsers from database drivers. Drivers must only execute graph commands passed to them.",
+            Message = "Storage infrastructure driver '{driver.name}' illegally references high-level domain parser/analyzer '{domain.name}'",
             Query = """
-                MATCH (driver)-[:CALLS|USES_TYPE]->(domain:Type)
+                MATCH (driver)-[r:CALLS|USES_TYPE]->(domain:Type)
                 WHERE (driver.symbol CONTAINS 'Database/' OR driver.file_path CONTAINS 'Database/')
                   AND (domain.symbol CONTAINS 'CodeExplorer.Core/Parser/' OR domain.name IN ['PostIndexAnalyzer', 'WorkspaceIndexer'])
                   AND NOT coalesce(driver.is_test, false)
-                RETURN 
-                  coalesce(driver.symbol, driver.file_path) AS file,
-                  coalesce(driver.start_line, 0) AS line,
-                  driver.name AS symbol,
-                  domain.name AS target,
-                  'Storage infrastructure driver illegally references high-level domain parser/analyzer' AS message
+                RETURN driver, r, domain
                 """,
             Ratchet = new GateRatchetSettings
             {
@@ -96,18 +92,13 @@ public static partial class BuiltInGateCatalog
             Severity = GateSeverity.Error,
             Description = "Domain logic must interact with the graph database solely via abstract IGraphClient without concrete downcasting.",
             Remediation = "Remove casts to SqliteGraphClient and raw SQLite DDL/DML. Use Cypher queries or declare maintenance abstractions.",
+            Message = "High-level parser '{parser.name}' directly couples to concrete SQLite storage implementation '{concreteDb.name}' instead of IGraphClient",
             Query = """
-                MATCH (parser)-[:CALLS|USES_TYPE]->(concreteDb:Type)
+                MATCH (parser)-[r:CALLS|USES_TYPE]->(concreteDb:Type)
                 WHERE (parser.symbol CONTAINS 'Parser/' OR parser.file_path CONTAINS 'Parser/')
                   AND concreteDb.name IN ['SqliteGraphClient', 'SqliteConnection', 'SqliteCommand']
                   AND NOT coalesce(parser.is_test, false)
-                RETURN 
-                  coalesce(parser.symbol, parser.file_path) AS file,
-                  coalesce(parser.start_line, 0) AS line,
-                  coalesce(parser.start_col, 0) AS column,
-                  parser.name AS symbol,
-                  concreteDb.name AS target,
-                  'High-level parser directly couples to concrete SQLite storage implementation instead of IGraphClient' AS message
+                RETURN parser, r, concreteDb
                 """,
             Ratchet = new GateRatchetSettings
             {
@@ -128,8 +119,9 @@ public static partial class BuiltInGateCatalog
             Severity = GateSeverity.Error,
             Description = "Syntax visitors and enrichers must operate purely on in-memory ASTs and avoid ambient disk I/O across any language.",
             Remediation = "Eliminate direct filesystem read/write calls (e.g. File/Directory in .NET, fs in Node, os/ioutil in Go, pathlib in Python, Files in Java) inside AST traversal. Pass file text or AST nodes from the pipeline context.",
+            Message = "AST enricher/visitor '{visitor.name}' performs ambient disk I/O via '{io.name}' instead of operating on memory AST",
             Query = """
-                MATCH (visitor:Type)-[:CALLS]->(io:Type)
+                MATCH (visitor:Type)-[r:CALLS]->(io:Type)
                 WHERE (visitor.symbol CONTAINS 'SyntaxEnricher' OR visitor.symbol CONTAINS 'Visitor' OR visitor.file_path CONTAINS 'SyntaxEnricher')
                   AND io.name IN [
                     'File', 'Directory', 'FileStream', 'StreamReader', 'StreamWriter',
@@ -138,13 +130,7 @@ public static partial class BuiltInGateCatalog
                     'pathlib', 'shutil',
                     'Files', 'Paths', 'FileInputStream', 'FileOutputStream'
                   ]
-                RETURN 
-                  coalesce(visitor.symbol, visitor.file_path) AS file,
-                  coalesce(visitor.start_line, 0) AS line,
-                  coalesce(visitor.start_col, 0) AS column,
-                  visitor.name AS symbol,
-                  io.name AS target,
-                  'AST enricher/visitor performs ambient disk I/O instead of operating on memory AST' AS message
+                RETURN visitor, r, io
                 """,
             Ratchet = new GateRatchetSettings
             {
@@ -165,15 +151,12 @@ public static partial class BuiltInGateCatalog
             Severity = GateSeverity.Error,
             Description = "Within a workspace, each logical project entity must have a unique name and 1-to-1 bijection with a directory.",
             Remediation = "Rename duplicated project names or resolve naming collisions with the directory name.",
+            Target = "{p2.path}",
+            Message = "Ambiguous project identity: multiple workspace projects claim identical name '{p1.name}' ({p1.path} vs {p2.path})",
             Query = """
                 MATCH (p1:Project), (p2:Project)
                 WHERE p1.name = p2.name AND p1.path <> p2.path
-                RETURN 
-                  p1.path AS file,
-                  1 AS line,
-                  p1.name AS symbol,
-                  p2.path AS target,
-                  'Ambiguous project identity: multiple workspace projects claim identical name' AS message
+                RETURN p1, p2
                 """,
             Ratchet = new GateRatchetSettings
             {
@@ -194,17 +177,13 @@ public static partial class BuiltInGateCatalog
             Severity = GateSeverity.Warning,
             Description = "Every external interaction must be provably rooted in an atomic calling function or endpoint handler.",
             Remediation = "Propagate caller_symbol_id when synthesizing external service calls so that callers link directly to endpoints.",
+            Message = "Dangling cross-service interaction: external call '{es.name}' -> '{ep.name}' cannot be attributed to an atomic calling function",
             Query = """
-                MATCH (es:ExternalService)-[:CALLS_ENDPOINT]->(ep:Endpoint)
+                MATCH (es:ExternalService)-[r:CALLS_ENDPOINT]->(ep:Endpoint)
                 WHERE NOT EXISTS((es)-[:CALLED_BY]->(:Function))
                   AND NOT EXISTS((:Function)-[:CALLS]->(es))
                   AND NOT EXISTS((:Function)-[:CALLS_ENDPOINT]->(ep))
-                RETURN 
-                  es.file_path AS file,
-                  coalesce(es.start_line, 0) AS line,
-                  es.name AS symbol,
-                  ep.name AS target,
-                  'Dangling cross-service interaction: external call cannot be attributed to an atomic calling function' AS message
+                RETURN es, r, ep
                 """,
             Ratchet = new GateRatchetSettings
             {
@@ -225,17 +204,14 @@ public static partial class BuiltInGateCatalog
             Severity = GateSeverity.Error,
             Description = "Services must not make HTTP calls to internal system routes that are not exposed by any active service endpoint.",
             Remediation = "Update the HTTP call to a valid endpoint or register the missing endpoint handler in the target service.",
+            Target = "{es.path}",
+            Message = "Internal HTTP call to non-existent endpoint {es.path}",
             Query = """
                 MATCH (es:ExternalService)-[:CALLED_BY]->(caller), (target:Project)
                 WHERE es.is_internal = true
                   AND (target.name = es.name OR target.name = es.domain)
                   AND NOT (es)-[:CALLS_ENDPOINT]->(:Endpoint)
-                RETURN 
-                  coalesce(caller.file_path, caller.path) AS file,
-                  coalesce(caller.start_line, 1) AS line,
-                  caller.name AS symbol,
-                  es.path AS target,
-                  'Internal HTTP call to non-existent endpoint ' + es.path AS message
+                RETURN caller, es
                 """,
             Ratchet = new GateRatchetSettings
             {
@@ -256,14 +232,10 @@ public static partial class BuiltInGateCatalog
             Severity = GateSeverity.Error,
             Description = "Controllers and HTTP transport endpoints must not directly execute database queries or mutate ORM tables.",
             Remediation = "Delegate data persistence to a service or repository layer; controllers must not call database contexts directly.",
+            Message = "Transport endpoint '{ep.name}' directly calls raw database query '{q.name}' bypassing domain services",
             Query = """
-                MATCH (ep:Endpoint)-[:CALLS]->(q:Query)
-                RETURN 
-                  ep.file_path AS file,
-                  coalesce(ep.start_line, 0) AS line,
-                  ep.name AS symbol,
-                  q.name AS target,
-                  'Transport endpoint directly calls raw database query bypassing domain services' AS message
+                MATCH (ep:Endpoint)-[r:CALLS]->(q:Query)
+                RETURN ep, r, q
                 """,
             Ratchet = new GateRatchetSettings
             {
@@ -284,16 +256,12 @@ public static partial class BuiltInGateCatalog
             Severity = GateSeverity.Error,
             Description = "Inter-package and inter-project dependencies must form an acyclic directed graph (DAG).",
             Remediation = "Break the circular dependency cycle using interfaces, events, or moving shared dependencies to a common leaf module.",
+            Message = "Circular dependency detected between packages or projects: {p1.name} <-> {p2.name}",
             Query = """
                 MATCH (p1)-[:DEPENDS_ON*1..3]->(p2)
                 WHERE (p1:Package OR p1:Project) AND (p2:Package OR p2:Project)
                   AND (p2)-[:DEPENDS_ON*1..3]->(p1) AND p1.id <> p2.id
-                RETURN 
-                  p1.name AS file,
-                  1 AS line,
-                  p1.name AS symbol,
-                  p2.name AS target,
-                  'Circular dependency detected between packages or projects' AS message
+                RETURN p1, p2
                 """,
             Ratchet = new GateRatchetSettings
             {
@@ -314,17 +282,13 @@ public static partial class BuiltInGateCatalog
             Severity = GateSeverity.Error,
             Description = "Methods must not receive raw, hardcoded string literals as arguments. Use typed enums, strongly-typed domain identifiers, named constants, or external configuration.",
             Remediation = "Replace raw string literals with domain enums, strongly-typed IDs, named constants, or external configuration.",
+            Target = "{lit.callee}",
+            Message = "Hardcoded string literal \"{lit.value}\" passed to {lit.callee}",
             Query = """
                 MATCH (caller)-[:PASSES_LITERAL]->(lit:CallLiteral)
                 WHERE NOT coalesce(caller.is_test, false) AND NOT coalesce(lit.is_test, false)
                   AND coalesce(lit.role, 'Business') = 'Business'
-                RETURN 
-                  lit.file_path AS file,
-                  lit.line AS line,
-                  lit.column AS column,
-                  coalesce(caller.name, 'unknown') AS symbol,
-                  lit.callee AS target,
-                  'Hardcoded string literal "' + (CASE WHEN size(lit.value) > 40 THEN substring(lit.value, 0, 37) + '...' ELSE lit.value END) + '" passed to ' + lit.callee AS message
+                RETURN caller, lit
                 """,
             Ratchet = new GateRatchetSettings
             {
@@ -345,17 +309,13 @@ public static partial class BuiltInGateCatalog
             Severity = GateSeverity.Error,
             Description = "Methods must not exceed 500 lines of code to prevent monster/god methods and maintain readability and single responsibility.",
             Remediation = "Refactor long methods into smaller focused helper functions, sub-routines, or dedicated pipeline/handler classes.",
+            Target = "{loc} lines",
+            Message = "Method {f.name} exceeds maximum allowed length of 500 lines ({loc} lines)",
             Query = """
                 MATCH (f:Function)
-                WHERE coalesce(f.loc, f.end_line - f.start_line + 1) > 500
-                  AND NOT coalesce(f.is_test, false)
-                RETURN 
-                  coalesce(f.path, f.file_path) AS file,
-                  coalesce(f.start_line, 1) AS line,
-                  coalesce(f.start_col, 1) AS column,
-                  f.name AS symbol,
-                  toString(coalesce(f.loc, f.end_line - f.start_line + 1)) + ' lines' AS target,
-                  'Method ' + f.name + ' exceeds maximum allowed length of 500 lines (' + toString(coalesce(f.loc, f.end_line - f.start_line + 1)) + ' lines)' AS message
+                WITH f, coalesce(f.loc, f.end_line - f.start_line + 1) AS loc
+                WHERE loc > 500 AND NOT coalesce(f.is_test, false)
+                RETURN f, loc
                 """,
             Ratchet = new GateRatchetSettings
             {
@@ -376,17 +336,13 @@ public static partial class BuiltInGateCatalog
             Severity = GateSeverity.Error,
             Description = "Methods and functions must not exceed 500 lines of code to maintain readability and prevent monolithic implementations.",
             Remediation = "Refactor oversized methods into smaller, focused helper functions, sub-routines, or dedicated pipeline/handler classes.",
+            Target = "{loc} lines",
+            Message = "Method {f.name} exceeds maximum allowed length of 500 lines ({loc} lines)",
             Query = """
                 MATCH (f:Function)
-                WHERE coalesce(f.loc, f.end_line - f.start_line + 1) > 500
-                  AND NOT coalesce(f.is_test, false)
-                RETURN 
-                  coalesce(f.path, f.file_path) AS file,
-                  coalesce(f.start_line, 1) AS line,
-                  coalesce(f.start_col, 1) AS column,
-                  f.name AS symbol,
-                  toString(coalesce(f.loc, f.end_line - f.start_line + 1)) + ' lines' AS target,
-                  'Method ' + f.name + ' exceeds maximum allowed length of 500 lines (' + toString(coalesce(f.loc, f.end_line - f.start_line + 1)) + ' lines)' AS message
+                WITH f, coalesce(f.loc, f.end_line - f.start_line + 1) AS loc
+                WHERE loc > 500 AND NOT coalesce(f.is_test, false)
+                RETURN f, loc
                 """,
             Ratchet = new GateRatchetSettings
             {
@@ -407,16 +363,12 @@ public static partial class BuiltInGateCatalog
             Severity = GateSeverity.Warning,
             Description = "Catches must not silently suppress exceptions without at least an explanatory comment or handling logic.",
             Remediation = "Log or handle the exception appropriately, rethrow it, or add an explanatory comment (e.g. `// ignored: expected transient condition`) explaining why it is safe to swallow.",
+            Target = "catch",
+            Message = "Empty catch block without an explanatory comment suppresses errors silently",
             Query = """
                 MATCH (c:CatchClause)
                 WHERE c.is_empty = true AND c.has_comment = false AND NOT coalesce(c.is_test, false)
-                RETURN 
-                  c.file_path AS file,
-                  c.line AS line,
-                  c.column AS column,
-                  coalesce(c.exception_type, 'catch') AS symbol,
-                  'catch' AS target,
-                  'Empty catch block without an explanatory comment suppresses errors silently' AS message
+                RETURN c
                 """,
             Ratchet = new GateRatchetSettings
             {
@@ -438,19 +390,15 @@ public static partial class BuiltInGateCatalog
         Severity = GateSeverity.Error,
         Description = "Disallows duplicate API endpoints within the same service/project with identical HTTP method and route template.",
         Remediation = "Ensure each route template in a microservice is registered only once. Check for overlapping router mounts or duplicate route declarations.",
+        Target = "{e2.id}",
+        Message = "Duplicate endpoint route declared in project {p.name}: {e1.http_method} {e1.route_template}",
         Query = """
             MATCH (e1:Endpoint)-[:DECLARED_IN]->(p:Project)
             MATCH (e2:Endpoint)-[:DECLARED_IN]->(p)
             WHERE e1.id < e2.id
               AND e1.http_method = e2.http_method
               AND e1.route_template = e2.route_template
-            RETURN 
-              coalesce(e1.path, e1.file_path) AS file,
-              1 AS line,
-              1 AS column,
-              e1.name AS symbol,
-              e2.id AS target,
-              'Duplicate endpoint route declared in project ' + p.name + ': ' + e1.http_method + ' ' + e1.route_template AS message
+            RETURN e1, e2, p
             """,
         Ratchet = new GateRatchetSettings
         {
@@ -471,6 +419,8 @@ public static partial class BuiltInGateCatalog
         Severity = GateSeverity.Error,
         Description = "Graph Table entities must represent valid SQL tables and must not contain SQL keywords (e.g. SKIP, LOCKED, FETCH) or whitespace/syntax fragments.",
         Remediation = "Refactor SQL queries or update SQL lexer exclusions so SQL clauses and keywords are not mistakenly ingested as database tables.",
+        Target = "{t.name}",
+        Message = "Invalid or keyword SQL Table entity detected in graph: {t.name}",
         Query = """
             MATCH (t:Table)
             WHERE t.name IN ['SKIP', 'LOCKED', 'NOWAIT', 'RETURNING', 'CASCADE', 'RESTRICT', 'CONFLICT', 'DO', 'NOTHING', 'FETCH', 'NEXT', 'ROWS', 'ONLY', 'ROW', 'FIRST', 'LAST', 'FILTER', 'MATERIALIZED', 'COLLATE', 'CHECK', 'CONSTRAINT', 'DEFAULT']
@@ -479,13 +429,7 @@ public static partial class BuiltInGateCatalog
                OR t.name CONTAINS '('
                OR t.name CONTAINS ')'
                OR t.name CONTAINS ';'
-            RETURN 
-              coalesce(t.path, t.file_path, 'schema') AS file,
-              1 AS line,
-              1 AS column,
-              t.name AS symbol,
-              t.name AS target,
-              'Invalid or keyword SQL Table entity detected in graph: ' + t.name AS message
+            RETURN t
             """,
         Ratchet = new GateRatchetSettings
         {
@@ -506,16 +450,12 @@ public static partial class BuiltInGateCatalog
         Severity = GateSeverity.Warning,
         Description = "Parameterized root routes (such as /:id, /:uuid, /:key) must not exist directly at the service root without their resource mount prefix.",
         Remediation = "Mount the route router using app.use('/api/<resource>', router) or prepend the canonical resource path to the route declaration.",
+        Target = "{e.id}",
+        Message = "Unmounted parameter root route detected: {e.http_method} {e.route_template} in {e.path|unknown}",
         Query = """
             MATCH (e:Endpoint)
             WHERE e.route_template IN ['/:id', '/:uuid', '/:key']
-            RETURN 
-              coalesce(e.path, e.file_path) AS file,
-              1 AS line,
-              1 AS column,
-              e.name AS symbol,
-              e.id AS target,
-              'Unmounted parameter root route detected: ' + e.http_method + ' ' + e.route_template + ' in ' + coalesce(e.path, 'unknown') AS message
+            RETURN e
             """,
         Ratchet = new GateRatchetSettings
         {
@@ -536,18 +476,13 @@ public static partial class BuiltInGateCatalog
         Severity = GateSeverity.Error,
         Description = "Generic parser pipeline layers (Layer1-Layer5) must not directly reference or couple to library-specific extension parsers (Libraries/). Library support must strictly implement ISemanticExtension.",
         Remediation = "Remove library-specific imports and calls from generic pipeline layers. Implement ISemanticExtension under Libraries/ and register it via dependency injection or parser registry.",
+        Message = "Generic pipeline layer illegally references library-specific extension parser: {lib.name}",
         Query = """
-            MATCH (layer:Type)-[:CALLS|USES_TYPE]->(lib:Type)
+            MATCH (layer:Type)-[r:CALLS|USES_TYPE]->(lib:Type)
             WHERE (layer.file_path CONTAINS 'Parser/Layers/' OR layer.symbol CONTAINS 'Parser.Layers')
               AND (lib.file_path CONTAINS 'Libraries/' OR lib.symbol CONTAINS 'Libraries.')
               AND NOT coalesce(layer.is_test, false)
-            RETURN 
-              layer.file_path AS file,
-              coalesce(layer.start_line, 1) AS line,
-              coalesce(layer.start_col, 1) AS column,
-              layer.name AS symbol,
-              lib.name AS target,
-              'Generic pipeline layer illegally references library-specific extension parser: ' + lib.name AS message
+            RETURN layer, r, lib
             """,
         Ratchet = new GateRatchetSettings
         {

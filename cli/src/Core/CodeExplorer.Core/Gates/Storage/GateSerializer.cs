@@ -45,6 +45,7 @@ public static class GateSerializer
         var dim = Enum.TryParse<InvariantDimension>(raw.Dimension, true, out var dm) ? dm : InvariantDimension.Boundaries;
         var sev = Enum.TryParse<GateSeverity>(raw.Severity, true, out var sv) ? sv : GateSeverity.Error;
         var message = raw.Message?.Trim() ?? raw.MessageTemplate?.Trim();
+        var target = raw.Target?.Trim() ?? raw.TargetTemplate?.Trim();
         GateThresholdSettings? thresholds = null;
         if (raw.Thresholds != null && (raw.Thresholds.Warning.HasValue || raw.Thresholds.Error.HasValue))
         {
@@ -67,6 +68,7 @@ public static class GateSerializer
             Description = raw.Description?.Trim(),
             Remediation = raw.Remediation?.Trim(),
             Message = message,
+            Target = target,
             Thresholds = thresholds,
             Query = raw.Query.Trim(),
             Ratchet = new GateRatchetSettings
@@ -93,6 +95,7 @@ public static class GateSerializer
             Description = gate.Description,
             Remediation = gate.Remediation,
             Message = gate.Message,
+            Target = gate.Target,
             Thresholds = gate.Thresholds != null
                 ? new RawThresholdDefinition { Warning = gate.Thresholds.Warning, Error = gate.Thresholds.Error }
                 : null,
@@ -132,11 +135,14 @@ public static class GateSerializer
         public string? Remediation { get; set; }
         public string? Message { get; set; }
         public string? MessageTemplate { get; set; }
+        public string? Target { get; set; }
+        public string? TargetTemplate { get; set; }
         public RawThresholdDefinition? Thresholds { get; set; }
         public string? Query { get; set; }
         public RawRatchetDefinition? Ratchet { get; set; }
         public Dictionary<string, string>? Parameters { get; set; }
     }
+
 
     private class RawRatchetDefinition
     {

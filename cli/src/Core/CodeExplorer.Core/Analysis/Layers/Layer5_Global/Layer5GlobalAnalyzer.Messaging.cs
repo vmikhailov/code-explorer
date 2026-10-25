@@ -1,4 +1,5 @@
 using CodeExplorer.Common;
+using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -9,6 +10,12 @@ namespace CodeExplorer.Core.Parser.Layers;
 
 public partial class Layer5AnalysisParser
 {
+    private static Relationship CreateCallRel(Reference refItem, string targetId) =>
+        Relationship.FromRelationship(new CallsRelationship(
+            refItem.ScopeSymbolId,
+            targetId,
+            EvidenceProvenanceHelper.BuildCallSiteExtensions(refItem.Line, refItem.Column)));
+
     private static void ResolveCallsReference(
         Reference refItem,
         ParsingContext ctx,
@@ -39,7 +46,7 @@ public partial class Layer5AnalysisParser
                 {
                     if (symbols.FunctionSymbolsByFile.TryGetValue((nsCand, methodName), out var nsTargetId))
                     {
-                        referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, nsTargetId)));
+                        referenceRelationships.Add(CreateCallRel(refItem, nsTargetId));
                         return;
                     }
                 }
@@ -124,26 +131,26 @@ public partial class Layer5AnalysisParser
         // 1. Same file
         if (normCallerFile != null && ctx.FileScopedSymbols.TryGetValue((normCallerFile, OntologyConstants.NodeLabels.Function, targetName), out var localTargetId))
         {
-            referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, localTargetId)));
+            referenceRelationships.Add(CreateCallRel(refItem, localTargetId));
             callAdded = true;
             targetNodeId = localTargetId;
         }
         else if (normCallerFile != null && symbols.FunctionSymbolsByFile.TryGetValue((normCallerFile, targetName), out localTargetId))
         {
-            referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, localTargetId)));
+            referenceRelationships.Add(CreateCallRel(refItem, localTargetId));
             callAdded = true;
             targetNodeId = localTargetId;
         }
         // 2. Through explicit module imports (e.g. import { pluralize } from './plural' or from '@repro/text')
         else if (normCallerFile != null && (targetNodeId = ResolveFunctionCallThroughImports(normCallerFile, targetName, symbols, imports, ctx)) != null)
         {
-            referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, targetNodeId)));
+            referenceRelationships.Add(CreateCallRel(refItem, targetNodeId));
             callAdded = true;
         }
         // 3. Same project fallback (when function is defined uniquely in caller's project)
         else if (normCallerFile != null && (targetNodeId = ResolveSameProjectFunctionFallback(normCallerFile, targetName, symbols)) != null)
         {
-            referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, targetNodeId)));
+            referenceRelationships.Add(CreateCallRel(refItem, targetNodeId));
             callAdded = true;
         }
         // 4. Globally unambiguous function (only 1 function with this name across entire workspace, or 1 non-graphql function when paired with a .graphql operation)
@@ -151,13 +158,16 @@ public partial class Layer5AnalysisParser
                  (uniqueCandidates.Count == 1 || SelectPreferredFunctionCandidate(uniqueCandidates) != null))
         {
             targetNodeId = uniqueCandidates.Count == 1 ? uniqueCandidates[0] : SelectPreferredFunctionCandidate(uniqueCandidates)!;
-            referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, targetNodeId)));
+            referenceRelationships.Add(CreateCallRel(refItem, targetNodeId));
             callAdded = true;
         }
         // 5. Procedure symbols fallback
         else if (symbols.ProcedureSymbols.TryGetValue(targetName, out var targetProcId))
         {
-            referenceRelationships.Add(Relationship.FromRelationship(new CalledByRelationship(targetProcId, refItem.ScopeSymbolId)));
+            referenceRelationships.Add(Relationship.FromRelationship(new CalledByRelationship(
+                targetProcId,
+                refItem.ScopeSymbolId,
+                EvidenceProvenanceHelper.BuildCallSiteExtensions(refItem.Line, refItem.Column))));
             callAdded = true;
         }
 
@@ -168,7 +178,7 @@ public partial class Layer5AnalysisParser
             {
                 if (symbols.FunctionSymbols.TryGetValue($"{implClass}.{methodName}", out var implNodeId) && implNodeId != targetNodeId)
                 {
-                    referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, implNodeId)));
+                    referenceRelationships.Add(CreateCallRel(refItem, implNodeId));
                     callAdded = true;
                 }
             }
@@ -179,19 +189,19 @@ public partial class Layer5AnalysisParser
         {
             if (normCallerFile != null && ctx.FileScopedSymbols.TryGetValue((normCallerFile, OntologyConstants.NodeLabels.Function, methodName), out var localFallbackId))
             {
-                referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, localFallbackId)));
+                referenceRelationships.Add(CreateCallRel(refItem, localFallbackId));
             }
             else if (normCallerFile != null && symbols.FunctionSymbolsByFile.TryGetValue((normCallerFile, methodName), out localFallbackId))
             {
-                referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, localFallbackId)));
+                referenceRelationships.Add(CreateCallRel(refItem, localFallbackId));
             }
             else if (normCallerFile != null && (targetNodeId = ResolveFunctionCallThroughImports(normCallerFile, methodName, symbols, imports, ctx)) != null)
             {
-                referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, targetNodeId)));
+                referenceRelationships.Add(CreateCallRel(refItem, targetNodeId));
             }
             else if (normCallerFile != null && (targetNodeId = ResolveSameProjectFunctionFallback(normCallerFile, methodName, symbols)) != null)
             {
-                referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, targetNodeId)));
+                referenceRelationships.Add(CreateCallRel(refItem, targetNodeId));
             }
             else if (symbols.FunctionsByName.TryGetValue(methodName, out var fallbackCandidates))
             {
@@ -204,13 +214,14 @@ public partial class Layer5AnalysisParser
 
                     if (isSameProjectOrFile || (normCallerFile == null && targetFile == null))
                     {
-                        referenceRelationships.Add(Relationship.FromRelationship(new CallsRelationship(refItem.ScopeSymbolId, fallbackNodeId)));
+                        referenceRelationships.Add(CreateCallRel(refItem, fallbackNodeId));
                         break;
                     }
                 }
             }
         }
     }
+
 
     private static bool IsGraphQLDocumentSymbolId(string symbolId)
     {

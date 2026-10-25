@@ -565,7 +565,13 @@ export class GraphPanel {
           case 'TEST_GATE': {
             try {
               const gateStateManager = GateStateManager.getInstance();
-              const result = await gateStateManager.testGateQuery(message.query, message.gateId, message.parameters);
+              const result = await gateStateManager.testGateQuery(
+                message.query,
+                message.gateId,
+                message.parameters,
+                message.message,
+                message.target
+              );
               this.panel.webview.postMessage({
                 type: 'GATE_TEST_RESULT',
                 requestId: message.requestId,

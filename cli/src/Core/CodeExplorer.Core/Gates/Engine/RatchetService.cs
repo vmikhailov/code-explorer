@@ -59,10 +59,10 @@ public static class RatchetService
     {
         if (violationCount == 0) return GateCheckStatus.Passed;
 
-        if (gate.Thresholds != null)
+        if (gate.Thresholds is { Warning: not null } or { Error: not null })
         {
             var errThreshold = gate.Thresholds.Error ?? int.MaxValue;
-            var warnThreshold = gate.Thresholds.Warning ?? 1;
+            var warnThreshold = gate.Thresholds.Warning ?? (gate.Thresholds.Error.HasValue ? int.MaxValue : 1);
 
             if (violationCount >= errThreshold)
             {
