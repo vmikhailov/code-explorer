@@ -151,7 +151,7 @@ public partial class ArchitectureViewEngine
         var rawName = !string.IsNullOrWhiteSpace(projectName) ? projectName.Trim() : (!string.IsNullOrWhiteSpace(candidate) ? candidate : cleaned);
         var pascal = ToPascalCase(cleaned);
         var key = pascal.ToLowerInvariant();
-        var displayName = rawName;
+        var displayName = Regex.Replace(pascal, "([a-z])([A-Z])", "$1 $2");
 
         // 2. Classify into Domain (Problem Space) via CanonicalizeDomain
         var canonicalDomain = WorkspaceConventions.CanonicalizeDomain(rawDomain, projectName, filePath);

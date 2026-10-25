@@ -5,6 +5,14 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.58.1] - 2026-10-25
+
+### Fixed
+- **Domain & Bounded Context Display Name Formatting**:
+  - Restored human-readable domain display name formatting (`WorkspaceConventions.FormatDomainDisplayName`) in `ArchitectureViewEngine.ExtractDomainKey` and PascalCase word-splitting in `ArchitectureViewEngine.ClassifyBoundedContext` after the `v1.58.0` merge.
+
+---
+
 ## [1.58.0] - 2026-10-25
 
 ### Added

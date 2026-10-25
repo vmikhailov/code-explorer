@@ -233,7 +233,7 @@ public partial class ArchitectureViewEngine
                 {
                     var isIngressHint = !isAspire && (IngressKeywords.Any(kw => folder.Contains(kw, StringComparison.OrdinalIgnoreCase)) ||
                                         string.Equals(node.Properties?.GetValueOrDefault("layer"), StandardLayers.Ingress.LayerId, StringComparison.OrdinalIgnoreCase));
-                    return ($"domain:{folder.ToLowerInvariant()}", folder, isIngressHint);
+                    return ($"domain:{folder.ToLowerInvariant()}", WorkspaceConventions.FormatDomainDisplayName(cleanName), isIngressHint);
                 }
             }
         }
@@ -252,7 +252,7 @@ public partial class ArchitectureViewEngine
         var svcPascal = ToPascalCase(cleanSvc);
         if (svcPascal.Length > 2)
         {
-            return ($"domain:{cleanSvc.ToLowerInvariant()}", name, isIngress);
+            return ($"domain:{cleanSvc.ToLowerInvariant()}", WorkspaceConventions.FormatDomainDisplayName(svcPascal), isIngress);
         }
 
         return ("domain:coredomain", "Core Domain", isIngress);
