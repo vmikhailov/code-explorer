@@ -65,15 +65,34 @@ export class GraphInspectorViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  public async reveal(preserveFocus = true): Promise<void> {
+  public async reveal(preserveFocus = false): Promise<void> {
+    try {
+      if (preserveFocus) {
+        // Subtle background reveal (e.g. canvas selection): keep user focus in editor/canvas
+        try {
+          await vscode.commands.executeCommand('codeExplorerInspectorView.open', { preserveFocus: true });
+        } catch {
+          this.view?.show(true);
+        }
+      } else {
+        // Explicit user action (Inspector HUD button or command):
+        // Execute focus command to guarantee VS Code opens the hosting container
+        // (Secondary Side Bar / Auxiliary Bar, Primary Side Bar, or Bottom Panel) even if closed/collapsed,
+        // brings this view container forward, and expands the view pane.
+        await vscode.commands.executeCommand('codeExplorerInspectorView.focus');
+      }
+    } catch (err: any) {
+      this.outputChannel?.appendLine(`[InspectorView] 'codeExplorerInspectorView.focus' failed: ${err?.message || err}`);
+      try {
+        await vscode.commands.executeCommand('workbench.view.extension.code-explorer-inspector');
+      } catch {}
+      try {
+        await vscode.commands.executeCommand('workbench.action.focusAuxiliaryBar');
+      } catch {}
+    }
+
     if (this.view) {
       this.view.show(preserveFocus);
-      return;
-    }
-    try {
-      await vscode.commands.executeCommand('codeExplorerInspectorView.focus');
-    } catch (err: any) {
-      this.outputChannel?.appendLine(`[InspectorView] Failed to focus view: ${err?.message || err}`);
     }
   }
 

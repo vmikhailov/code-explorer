@@ -2,7 +2,7 @@
   "name": "code-explorer-vscode",
   "displayName": "CodeExplorer",
   "description": "Make AI coding agents production-safe. Live cross-service map of APIs, queues & databases in VS Code, surgical MCP context (Claude Code, Cursor, Copilot), and CI architecture gates.",
-  "version": "1.59.1",
+  "version": "1.59.2",
   "publisher": "vmikhailov",
   "license": "MIT",
   "icon": "media/icon_512_quant.png",
@@ -87,6 +87,13 @@
           "title": "CodeExplorer",
           "icon": "media/icon-sidebar.svg"
         }
+      ],
+      "secondarySidebar": [
+        {
+          "id": "code-explorer-inspector",
+          "title": "CodeExplorer Inspector",
+          "icon": "media/icon-inspector.svg"
+        }
       ]
     },
     "views": {
@@ -96,7 +103,9 @@
           "name": "CodeExplorer Graph",
           "type": "tree",
           "when": "workspaceFolderCount != 0"
-        },
+        }
+      ],
+      "code-explorer-inspector": [
         {
           "id": "codeExplorerInspectorView",
           "name": "Graph Inspector & Controls",
@@ -258,6 +267,11 @@
           "command": "codeExplorer.showGraph",
           "when": "view == codeExplorerView",
           "group": "navigation@2"
+        },
+        {
+          "command": "codeExplorer.focusInspector",
+          "when": "view == codeExplorerView",
+          "group": "navigation@2.5"
         },
         {
           "command": "codeExplorer.reindex",

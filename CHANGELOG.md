@@ -5,6 +5,16 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.59.2] - 2026-10-25
+
+### Fixed
+- **VS Code Extension Secondary Side Bar Container & Inspector Reveal**:
+  - Restored dedicated view container for Graph Inspector & Controls in the Secondary Side Bar (`viewsContainers.secondarySidebar`), placing the Inspector panel in the right sidebar (next to Chat/Copilot) by default while allowing full drag-and-drop flexibility across the primary sidebar or bottom panel.
+  - Fixed `GraphInspectorViewProvider.reveal` and HUD "Inspector" button behavior: explicitly executing `codeExplorerInspectorView.focus` to guarantee that VS Code opens the host container (Auxiliary Bar, Primary Sidebar, or Panel) even if collapsed or closed, expands the view, and brings the inspector into view wherever it is docked.
+  - Added shortcut button `codeExplorer.focusInspector` to the `CodeExplorer Graph` sidebar view title bar (`view/title`).
+
+---
+
 ## [1.59.1] - 2026-10-25
 
 ### Changed

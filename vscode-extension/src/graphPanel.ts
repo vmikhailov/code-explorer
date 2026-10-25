@@ -622,7 +622,12 @@ export class GraphPanel {
 
           case 'FOCUS_INSPECTOR_VIEW': {
             GraphPanel.activePanel = this;
-            await GraphInspectorViewProvider.getInstance()?.reveal(Boolean(message.preserveFocus));
+            const inspector = GraphInspectorViewProvider.getInstance();
+            if (inspector) {
+              await inspector.reveal(Boolean(message.preserveFocus));
+            } else {
+              await vscode.commands.executeCommand('codeExplorerInspectorView.focus');
+            }
             break;
           }
         }

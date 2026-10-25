@@ -5333,8 +5333,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             <button
               type="button"
               className="domain-hud-btn sidebar-toggle-btn"
-              onClick={() => getVsCodeApi()?.postMessage({ type: 'FOCUS_INSPECTOR_VIEW', preserveFocus: false })}
-              title="Open Graph Inspector & Controls in VS Code Sidebar (Info, Orbits, Visibility)"
+              onClick={() => {
+                getVsCodeApi()?.postMessage({ type: 'FOCUS_INSPECTOR_VIEW', preserveFocus: false });
+                try {
+                  getVsCodeApi()?.postMessage({ type: 'SYNC_INSPECTOR_STATE', state: buildInspectorSyncedState() });
+                } catch {}
+              }}
+              title="Open Graph Inspector & Controls in Secondary Side Bar (Info, Orbits, Visibility)"
             >
               <span className="btn-icon">🗂️</span>
               <span className="btn-text">Inspector</span>
