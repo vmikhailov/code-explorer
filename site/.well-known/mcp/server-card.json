@@ -1,7 +1,7 @@
 {
   "name": "code-explorer",
-  "title": "CodeExplorer (ce)",
-  "description": "Local architecture-intelligence MCP server. Indexes a codebase into an OpenCypher knowledge graph (projects, symbols, calls, data lineage) and exposes architecture map, dependency, call-chain, impact-analysis and Semantic Invariant Gate tools to AI coding agents.",
+  "title": "CodeExplorer (ce) — Make AI Coding Agents Production-Safe",
+  "description": "AI agents see files, not architecture. CodeExplorer gives your agents and engineers a live cross-service map of every API, queue, and database in VS Code & MCP—plus hard architectural guardrails in CI, backed by a 100% local SQLite OpenCypher graph.",
   "homepage": "https://code-explorer.app/",
   "repository": "https://github.com/vmikhailov/code-explorer",
   "documentation": "https://code-explorer.app/llms.txt",

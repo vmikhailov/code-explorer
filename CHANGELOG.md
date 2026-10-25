@@ -5,6 +5,15 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.59.1] - 2026-10-25
+
+### Changed
+- **Unified Product Positioning & Documentation (`Make AI Coding Agents Production-Safe`)**:
+  - Updated VS Code Marketplace metadata (`package.json` display name, description, and `https://code-explorer.app` homepage) and extension documentation (`vscode-extension/README.md`).
+  - Synchronized root `README.md`, `docs/README.md`, `benchmarks/README.md`, `site/index.html`, `site/llms.txt`, and `site/.well-known/mcp/server-card.json` with the unified value proposition and 450-module enterprise benchmark metrics.
+
+---
+
 ## [1.59.0] - 2026-10-25
 
 ### Added

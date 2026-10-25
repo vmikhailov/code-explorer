@@ -1,5 +1,6 @@
-# CodeExplorer (`ce`)
+# CodeExplorer (`ce`) — Make AI Coding Agents Production-Safe
 
+[![Website](https://img.shields.io/badge/Website-code--explorer.app-8b5cf6.svg)](https://code-explorer.app)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/vmikhailov/code-explorer/blob/main/LICENSE)
 [![Homebrew](https://img.shields.io/badge/Homebrew-vmikhailov%2Ftap%2Fce-orange.svg)](https://github.com/vmikhailov/homebrew-tap)
 [![.NET](https://img.shields.io/badge/.NET-10.0-blue.svg)](https://dotnet.microsoft.com/download)
@@ -7,12 +8,25 @@
 [![VS Marketplace](https://vsmarketplacebadges.dev/version/vmikhailov.code-explorer-vscode.svg?label=Marketplace)](https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode)
 [![Open VSX](https://img.shields.io/open-vsx/v/vmikhailov/code-explorer-vscode?label=Open%20VSX)](https://open-vsx.org/extension/vmikhailov/code-explorer-vscode)
 
-CodeExplorer (`ce`) is a static analysis engine and embedded graph database for polyglot codebases. It parses source files, project manifests, HTTP endpoints, message broker topologies, and SQL schemas into a local SQLite graph (`graph.db`) with a built-in OpenCypher-to-SQL compiler.
+**AI agents see files, not architecture.** CodeExplorer (`ce`) gives your AI coding agents (`Claude Code`, `Cursor`, `GitHub Copilot`, `Windsurf`, `Cline`) and engineering teams a **live cross-service map of every API, queue, and database in VS Code & MCP—plus hard architectural guardrails in CI**.
 
-It is designed for three workflows:
-1. **Model Context Protocol (MCP) Server**: Gives coding agents (Claude Code, Cursor, GitHub Copilot, Cline) direct access to call chains, cross-service dependencies, data lineage, and impact analysis without reading entire repositories into context.
-2. **Semantic Invariant Gates (SIG)**: Enforces architectural boundaries in CI and in the IDE using declarative OpenCypher rules and SHA-256 ratchet baselines.
-3. **VS Code Architecture Explorer**: Visualizes service topologies, project dependency flows, and bounded contexts with direct navigation to source files.
+**✓ Live Architecture Map in VS Code** • **✓ Surgical MCP Context (7.5× Faster, 40× Fewer Tokens)** • **✓ CI Architecture Gates** • **✓ 100% Local SQLite Graph**
+
+It indexes polyglot source files, project manifests, HTTP/gRPC/GraphQL endpoints, message broker topologies, and SQL schemas into a single local SQLite graph (`.codeexplorer/graph.db`) powered by an embedded OpenCypher-to-SQL compiler:
+
+1. **Live Architecture Map in VS Code**: Interactive C1/C2/C3 service topologies, concentric architectural tiers, async broker flows, and database lineage with click-to-source navigation.
+2. **Surgical MCP Context for AI Agents**: Gives coding agents instant access to call chains, cross-service dependencies, data lineage, and blast-radius impact analysis without burning millions of tokens on blind `grep` searches.
+3. **CI Architecture Gates (Semantic Invariant Gates)**: Enforces architectural boundaries in the IDE and CI (`ce gate check`) using declarative OpenCypher rules and SHA-256 ratchet baselines.
+
+### Enterprise Benchmark: Plain AI Agent (`ripgrep`) vs. AI Agent + CodeExplorer MCP
+*(Measured on a 450-module enterprise monorepo: 324 microservices, 93 shared libraries, 33 workers — [full benchmark details](./benchmarks/02-enterprise-microservices-deep-audit/README.md))*
+
+| Metric | Plain AI Agent (`ripgrep` + file reads) | AI Agent + **CodeExplorer MCP** | Improvement |
+| :--- | :--- | :--- | :--- |
+| **Analysis Time** | 29m 52s | **3m 56s** | **7.59× faster** |
+| **Cumulative Input Tokens** | 17.19M tokens | **393K tokens** | **43.7× fewer tokens** |
+| **Agent Effort** | 285 turns (142 shell commands, 114 file reads) | **23 turns (18 graph queries, 0 file reads)** | **12.4× fewer turns** |
+| **Blast-Radius Recall** | 82% *(missed 9 RTB services behind env constants)* | **100% recall** *(all services & DB tables found)* | **Zero blind spots** |
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/vmikhailov/code-explorer/main/docs/all_services.png" alt="CodeExplorer Service Topology" width="100%" />

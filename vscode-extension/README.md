@@ -1,6 +1,8 @@
-# CodeExplorer — AI Architecture Graph, MCP Server & Semantic Invariant Gates
+# CodeExplorer — Make AI Coding Agents Production-Safe
 
-**Deterministic architecture intelligence for AI coding agents (`Claude Code`, `Cursor`, `Windsurf`, `GitHub Copilot`, `Roo Code`) and enterprise engineers.**
+**AI agents see files, not architecture. CodeExplorer gives your agents (`Claude Code`, `Cursor`, `Windsurf`, `GitHub Copilot`, `Roo Code`) and engineers a live cross-service map of every API, queue, and database in VS Code & MCP—plus hard architectural guardrails in CI.**
+
+**✓ Live Architecture Map in VS Code** • **✓ Surgical MCP Context (7.5× Faster, 40× Fewer Tokens)** • **✓ CI Architecture Gates** • **✓ 100% Local SQLite Graph**
 
 CodeExplorer indexes polyglot repositories, microservices, and monorepos into a single local SQLite graph database (`.codeexplorer/graph.db`) powered by an **OpenCypher 9 query compiler**, **Semantic Invariant Gates (SIG)** with ratchet baselines, a **23-tool Model Context Protocol (MCP) server**, and an **interactive VS Code architecture cockpit**.
 

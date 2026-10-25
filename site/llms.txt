@@ -1,6 +1,6 @@
 # CodeExplorer (ce)
 
-> Architecture intelligence for AI coding agents and engineering teams. CodeExplorer indexes a repository (C#/.NET via Roslyn plus 12 Tree-sitter languages) into a unified OpenCypher knowledge graph stored in local SQLite, and exposes it through a fast CLI, a local MCP server, Semantic Invariant Gates (SIG) for CI, and a VS Code extension.
+> Make AI coding agents production-safe. AI agents see files, not architecture. CodeExplorer gives your agents and engineers a live cross-service map of every API, queue, and database in VS Code & MCP—plus hard architectural guardrails in CI, powered by a 100% local SQLite OpenCypher graph.
 
 ## Get started
 

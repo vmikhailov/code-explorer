@@ -14,6 +14,7 @@ This directory tracks the engineering roadmap, active epic specifications, and a
 | [**`../proposals/semantic-archetypes-and-yaml-projections-proposal.md`**](../proposals/semantic-archetypes-and-yaml-projections-proposal.md) | Declarative YAML Semantic Projection Engine & 5 Archetypes | 💡 Active Proposal |
 | [**`../proposals/universal-edge-and-node-evidence-proposal.md`**](../proposals/universal-edge-and-node-evidence-proposal.md) | Creation-Time Provenance (`evidence_ids`) for Layer 4/5 Edges | 💡 Active Proposal (Remaining v2.0.0 Work) |
 | [**`../proposals/project-map-proposal.md`**](../proposals/project-map-proposal.md) | Project Map: C3 internal module view, call lifting, cycle detection | ✅ v1.56.0 (remaining: DDL table linking patch, module-cycle gate) |
+| [**`../proposals/entrypoint-vs-endpoint-ontology-proposal.md`**](../proposals/entrypoint-vs-endpoint-ontology-proposal.md) | Separating Binary `EntryPoint` (Layer 2) from External `Endpoint` Contracts (Layer 4) | 💡 Active Proposal |
 | [**`../proposals/semantic-gates-v2-node-extraction-and-thresholds-proposal.md`**](../proposals/semantic-gates-v2-node-extraction-and-thresholds-proposal.md) | Semantic Gates v2: Node extraction, parameterized messages, call-site coordinates & thresholds | 💡 Active Proposal (Phase 1 in Core; Phases 2–4 Next) |
 
 ---

@@ -1,6 +1,6 @@
-# CodeExplorer Benchmarks: Architecture Graph vs. Ripgrep Navigation
+# CodeExplorer Benchmarks: Making AI Coding Agents Production-Safe (`Graph` vs. `ripgrep`)
 
-This directory contains reproducible, telemetry-backed benchmarks measuring the impact of **CodeExplorer's OpenCypher Architecture Graph** on autonomous AI coding agents (`Gemini 3.8 Flash`) compared to traditional CLI exploration (`ripgrep` (`rg`), `git grep`, custom Python scripts, and `view_file`).
+**AI agents see files, not architecture.** This directory contains reproducible, telemetry-backed benchmarks measuring how **CodeExplorer (`ce`)** gives autonomous AI coding agents (`Gemini 3.8 Flash`) a live cross-service map of APIs, queues, and databases via MCP—compared to traditional CLI exploration (`ripgrep` (`rg`), `git grep`, custom Python scripts, and `view_file`).
 
 ---
 

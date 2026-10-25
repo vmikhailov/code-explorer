@@ -1,13 +1,16 @@
 # CodeExplorer Documentation Portal 📚
 
-Welcome to the **CodeExplorer (`ce`)** documentation suite. This portal organizes architectural specifications, system designs, benchmark registries, roadmap tracking, and technical references.
+**Make AI Coding Agents Production-Safe.**  
+AI agents see files, not architecture. **CodeExplorer (`ce`)** gives your agents and engineers a live cross-service map of every API, queue, and database in VS Code & MCP—plus hard architectural guardrails in CI.
+
+This portal organizes architectural specifications, system designs, benchmark registries, roadmap tracking, and technical references.
 
 ---
 
 ## 🗺️ Documentation Map
 
 ```
-site/                                         # Interactive Web Documentation Portal (code-explorer.mikhailov.cc)
+site/                                         # Interactive Web Documentation Portal (https://code-explorer.app)
 ├── index.html                                # Web Documentation & Interactive Landing Page
 ├── logo.svg, favicon.svg                     # Vector Branding Assets
 ├── all_services.png                          # Macro Architecture & Concentric Orbits
@@ -28,7 +31,12 @@ docs/                                         # Technical Architecture & Referen
 │   └── vscode-extension.md                   # Interactive VS Code & Antigravity Extension Architecture
 │
 ├── proposals/                                # Active Technical Proposals & Design Specs
-│   └── semantic-invariant-gates-proposal.md  # Comprehensive Semantic Invariant Gates Catalog & Proposal
+│   ├── entrypoint-vs-endpoint-ontology-proposal.md # Separating Binary EntryPoint (L2) from Endpoint Contracts (L4)
+│   ├── project-map-proposal.md               # Project Map (C3 Internal Architecture View)
+│   ├── universal-parser-proposal.md          # Universal AST Visitor & ILanguageHooks
+│   ├── semantic-archetypes-and-yaml-projections-proposal.md # Declarative YAML Semantic Projections
+│   ├── universal-edge-and-node-evidence-proposal.md # Creation-Time Provenance (evidence_ids)
+│   └── semantic-gates-v2-node-extraction-and-thresholds-proposal.md # Semantic Gates v2 Specification
 │
 ├── roadmap/                                  # Engineering Milestones & Task Tracking
 │   ├── README.md                             # Unified Engineering Roadmap, Specs & Backlog
@@ -61,7 +69,9 @@ docs/                                         # Technical Architecture & Referen
 | [**`architecture/query-engine.md`**](architecture/query-engine.md) | Architecture | **Active Standard** | Graph Developers | SQLite schema (`nodes`, `edges`), B-Tree indexing, Cypher-to-SQL compiler, and timeout bounds. |
 | [**`architecture/fractal-orthogonal-invariant-matrix.md`**](architecture/fractal-orthogonal-invariant-matrix.md) | Architecture | **Active Standard** | Architects / QA / AI Agents | Formal FOIM 5x4 matrix taxonomy governing semantic invariant rules across all scopes and dimensions. |
 | [**`architecture/vscode-extension.md`**](architecture/vscode-extension.md) | Architecture | **Active Standard** | Extension Developers | Architecture for interactive Cytoscape.js webview extension, host messaging RPC, and native binaries. |
-| [**`proposals/semantic-invariant-gates-proposal.md`**](proposals/semantic-invariant-gates-proposal.md) | Proposals | **Active Proposal** | Architects / QA / AI Agents | Comprehensive theoretical catalog of 34 Architectural and Polyglot Platform gates ("Gates on Growth"). |
+| [**`proposals/entrypoint-vs-endpoint-ontology-proposal.md`**](proposals/entrypoint-vs-endpoint-ontology-proposal.md) | Proposals | **Active Proposal** | Engine Developers / Architects | Separating binary/process `EntryPoint` (Layer 2) from external `Endpoint` API/MSG contracts (Layer 4). |
+| [**`proposals/project-map-proposal.md`**](proposals/project-map-proposal.md) | Proposals | **Active Proposal** | Engine / Extension Developers | Project Map (C3 internal module view), symbol-edge lifting, and Tarjan SCC cycle detection. |
+| [**`proposals/universal-parser-proposal.md`**](proposals/universal-parser-proposal.md) | Proposals | **Active Proposal** | Core Developers | Universal AST Visitor & `ILanguageHooks` reducing per-language parser footprint by ~80%. |
 | [**`roadmap/README.md`**](roadmap/README.md) | Roadmap | **Active Master** | All Contributors / AI Agents | Unified roadmap: delivered milestones, active MCP & CLI semantic architecture spec, and backlog. |
 | [**`roadmap/todo.md`**](roadmap/todo.md) | Roadmap | **Active Checklist** | Contributors / AI Agents | Granular engineering task list, active epics, and release checklists. |
 | [**`roadmap/semantic-invariant-gates-plan.md`**](roadmap/semantic-invariant-gates-plan.md) | Roadmap | **Active Milestone** | Architects / QA | Declarative Cypher-based architectural guardrails and monotonic debt ratchets. |
