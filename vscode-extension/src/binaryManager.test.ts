@@ -118,11 +118,11 @@ test('parseSemver and cleanSemver: parses complex version strings', () => {
 });
 
 test('cleanSemver & extractVersionFromOutput: ignores startup warning lines with temp paths and extracts valid semver', () => {
-  const warningLine = "[DiscoverParserAssemblies] Warning: Could not load DLL from 'C:\\Users\\viach\\AppData\\Local\\Temp\\.net\\ce\\-ZFt6mpvEmAQ\\aspnetcorev2_inprocess.dll': An attempt was made to load a program with an incorrect format.";
+  const warningLine = "[DiscoverParserAssemblies] Warning: Could not load DLL from 'C:\\Users\\user\\AppData\\Local\\Temp\\.net\\ce\\-ZFt6mpvEmAQ\\aspnetcorev2_inprocess.dll': An attempt was made to load a program with an incorrect format.";
   assert.equal(cleanSemver(warningLine), '');
   assert.equal(parseSemver(warningLine), null);
 
-  const fullOutput = `${warningLine}\n[DiscoverParserAssemblies] Warning: Could not load DLL from 'C:\\Users\\viach\\AppData\\Local\\Temp\\.net\\ce\\-ZFt6mpvEmAQ\\e_sqlite3.dll'\nce 1.45.2\n`;
+  const fullOutput = `${warningLine}\n[DiscoverParserAssemblies] Warning: Could not load DLL from 'C:\\Users\\user\\AppData\\Local\\Temp\\.net\\ce\\-ZFt6mpvEmAQ\\e_sqlite3.dll'\nce 1.45.2\n`;
   const ver = extractVersionFromOutput(fullOutput);
   assert.equal(ver, '1.45.2');
 

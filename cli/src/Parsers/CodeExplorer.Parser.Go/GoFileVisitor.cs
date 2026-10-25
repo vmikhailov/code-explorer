@@ -25,12 +25,6 @@ public class GoFileVisitor : BaseParserVisitor
 
     protected override string? MapNodeType(Node node)
     {
-        foreach (var libParser in LibraryParsers)
-        {
-            var kind = libParser.MapNodeType(node, Context!);
-            if (kind != null) return kind;
-        }
-
         if (IsGoHttpClientCall(node))
         {
             return OntologyConstants.NodeLabels.ExternalService;
@@ -41,43 +35,21 @@ public class GoFileVisitor : BaseParserVisitor
             return OntologyConstants.NodeLabels.EntryPoint;
         }
 
-        if (node.IsAny(TreeSitterSyntax.Go.InterpretedStringLiteral, TreeSitterSyntax.Go.StringLiteral, TreeSitterSyntax.Go.RawStringLiteral))
-        {
-            if (NestedSqlParser.TryParseSql(node.Text, out _, out _))
-            {
-                return OntologyConstants.NodeLabels.Query;
-            }
-        }
-
         if (node.Is(TreeSitterSyntax.Go.TypeSpec))
         {
-            var isInterface = false;
-            foreach (var child in node.Children)
-            {
-                if (child.Is(TreeSitterSyntax.Go.InterfaceType))
-                {
-                    isInterface = true;
-                    break;
-                }
-            }
-            return isInterface ? "Interface" : "Class";
+            return node.Children.Any(c => c.Is(TreeSitterSyntax.Go.InterfaceType)) ? "Interface" : "Class";
         }
 
-        return node.Type switch
+        if (node.IsAny(TreeSitterSyntax.Go.TypeDeclaration, TreeSitterSyntax.Go.StructType, TreeSitterSyntax.Go.InterfaceType))
         {
-            TreeSitterSyntax.Go.FunctionDeclaration or TreeSitterSyntax.Go.MethodDeclaration => OntologyConstants.NodeLabels.Function,
-            _ => null
-        };
+            return null;
+        }
+
+        return base.MapNodeType(node);
     }
 
     protected override string? ExtractIdentifier(Node node)
     {
-        foreach (var libParser in LibraryParsers)
-        {
-            var ident = libParser.ExtractIdentifier(node, Context!, ProjectName, RelativePath);
-            if (ident != null) return ident;
-        }
-
         if (IsGoHttpClientCall(node))
         {
             return ExtractGoHttpClientTarget(node);
@@ -88,19 +60,18 @@ public class GoFileVisitor : BaseParserVisitor
             return ExtractGoEntryPointRoute(node);
         }
 
-        if (node.IsAny(TreeSitterSyntax.Go.InterpretedStringLiteral, TreeSitterSyntax.Go.StringLiteral, TreeSitterSyntax.Go.RawStringLiteral))
-        {
-            if (NestedSqlParser.TryParseSql(node.Text, out var firstWord, out _))
-            {
-                return $"{firstWord} Query";
-            }
-        }
-
-        return ExtractGoIdentifier(node);
+        return base.ExtractIdentifier(node);
     }
 
     protected override void CollectCustomReferencesForSymbol(Node node, SyntacticSymbol symbolNode, SyntacticSymbol parentNode)
     {
+        if (symbolNode.Kind == OntologyConstants.NodeLabels.Function &&
+            symbolNode.Name == "main" &&
+            !WorkspaceConventions.IsTestFilePath(RelativePath))
+        {
+            symbolNode.Children.Add(new SyntacticSymbol(OntologyConstants.NodeLabels.EntryPoint, "main-method:main", node) { Text = node.Text });
+        }
+
         if (symbolNode.Kind == OntologyConstants.NodeLabels.EntryPoint)
         {
             var routeVal = ExtractGoEntryPointRoute(node);
@@ -124,71 +95,12 @@ public class GoFileVisitor : BaseParserVisitor
         }
     }
 
-    private string? ExtractGoIdentifier(Node node)
-    {
-        var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name);
-        if (nameNode != null && nameNode.Id != IntPtr.Zero)
-        {
-            return nameNode.Text;
-        }
-
-        foreach (var child in node.Children)
-        {
-            if (child.IsAny(TreeSitterSyntax.Go.Identifier, TreeSitterSyntax.Go.VariableName))
-            {
-                return child.Text;
-            }
-        }
-
-        foreach (var child in node.Children)
-        {
-            if (child.Type.Contains("name"))
-            {
-                return child.Text;
-            }
-        }
-
-        return null;
-    }
-
     protected override void VisitVariableDeclaration(Node node, int depth)
     {
         CollectVariable(node);
         VisitChildren(node, depth);
     }
 
-    protected override void VisitImportStatement(Node node, int depth)
-    {
-        var pathNode = node.GetChildForField(TreeSitterSyntax.Fields.Path) ?? node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Go.StringLiteral));
-        if (pathNode.IsValid())
-        {
-            var importPath = pathNode.Text.Trim('"');
-            RawImports.Add(new RawImport(importPath, "", ImportType.External));
-            ResolveAndInjectLibraryParser(importPath);
-        }
-        VisitChildren(node, depth);
-    }
-
-    protected override string? FindCallName(Node callNode)
-    {
-        var expr = callNode.GetChildForField(TreeSitterSyntax.Fields.Function);
-        if (expr.IsValid() && expr.Id == IntPtr.Zero && callNode.Children.Count > 0)
-        {
-            expr = callNode.Children[0];
-        }
-        if (!expr.IsValid()) return null;
-
-        if (expr.Is(TreeSitterSyntax.Go.Identifier))
-        {
-            return expr.Text;
-        }
-        if (expr.Is(TreeSitterSyntax.Go.SelectorExpression))
-        {
-            var fieldChild = expr.GetChildForField(TreeSitterSyntax.Fields.Field);
-            if (fieldChild.IsValid()) return fieldChild.Text;
-        }
-        return null;
-    }
 
     private void CollectVariable(Node node)
     {

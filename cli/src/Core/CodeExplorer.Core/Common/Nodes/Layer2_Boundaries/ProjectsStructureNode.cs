@@ -10,6 +10,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
     isSystemNode: true
 )]
 [OntologyEdge<ProjectNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<EntryPointNode>(OntologyConstants.Relationships.Contains)]
 public record ProjectsStructureNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,

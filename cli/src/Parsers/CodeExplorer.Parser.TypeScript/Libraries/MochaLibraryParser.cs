@@ -61,7 +61,7 @@ public class MochaLibraryParser : ISemanticExtension
 
     private static bool IsMochaCall(Node node, out string kind)
     {
-        kind = OntologyConstants.NodeLabels.EntryPoint;
+        kind = OntologyConstants.NodeLabels.Function;
         if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return false;
 
         // Distinctive Mocha idioms: `context(...)` and `specify(...)`

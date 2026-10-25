@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CodeExplorer (ce) — Architecture Intelligence for AI Agents & Engineers</title>
-  <meta name="description" content="Architecture intelligence for AI coding agents and engineering teams. Unified OpenCypher knowledge graph, fast CLI & MCP server, automated Semantic Invariant Gates (SIG), and interactive VS Code visualization.">
+  <title>CodeExplorer (ce) — Make AI Coding Agents Production-Safe</title>
+  <meta name="description" content="AI agents see files, not architecture. CodeExplorer gives your agents and engineers a live cross-service map of every API, queue, and database in VS Code & MCP—plus hard architectural guardrails in CI.">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
 
   <style>
@@ -1874,12 +1874,12 @@
   <section class="hero">
     <div class="container">
       <h1 class="hero-title">
-        Architecture Intelligence<br class="desktop-br">for <span>AI Agents &amp; Engineers</span>
+        Make AI Coding Agents<br class="desktop-br"><span>Production-Safe</span>
       </h1>
 
       <p class="hero-subtitle">
-        Static analysis and codebase graph engine for AI coding agents and CI pipelines.<br class="desktop-br">
-        OpenCypher over SQLite, Semantic Invariant Gates, MCP server, and interactive VS Code topology.
+        AI agents see files, not architecture. CodeExplorer gives your agents and engineers<br class="desktop-br">
+        a live cross-service map of every API, queue, and database in VS Code &amp; MCP—plus hard architectural guardrails in CI.
       </p>
 
       <div style="margin-bottom: 24px;">
@@ -1926,13 +1926,13 @@
       </div>
 
       <div class="hero-badges-row">
-        <span class="hero-badge-item">✓ Single-File SQLite Graph</span>
+        <span class="hero-badge-item">✓ Live Architecture Map in VS Code</span>
         <span class="hero-badge-item">•</span>
-        <span class="hero-badge-item">✓ OpenCypher 9 Compiler</span>
+        <span class="hero-badge-item">✓ Surgical MCP Context (7.5× Faster, 40× Fewer Tokens)</span>
         <span class="hero-badge-item">•</span>
-        <span class="hero-badge-item">✓ Semantic Invariant Gates</span>
+        <span class="hero-badge-item">✓ CI Architecture Gates</span>
         <span class="hero-badge-item">•</span>
-        <span class="hero-badge-item">✓ Native CLI &amp; MCP Server</span>
+        <span class="hero-badge-item">✓ 100% Local SQLite Graph</span>
       </div>
 
       <!-- ==========================================================================
@@ -3716,7 +3716,7 @@ ratchet:
       copySnippet(snippet, 'MCP Server JSON copied!');
     }
 
-    // Asynchronously fetch latest release version from GitHub with caching & fallback
+    // Asynchronously fetch latest release version from same-origin /version.json
     async function loadLatestVersion() {
       const heroEl = document.getElementById('heroReleaseBadge');
       const footerEl = document.getElementById('footerCeVersion');
@@ -3727,46 +3727,15 @@ ratchet:
         if (footerEl) footerEl.textContent = cleanTag;
       }
 
-      const CACHE_KEY = 'ce_latest_version_tag';
-      const CACHE_TIME_KEY = 'ce_latest_version_time';
-      const cached = localStorage.getItem(CACHE_KEY);
-      const cacheTime = localStorage.getItem(CACHE_TIME_KEY);
-
-      if (cached) {
-        setVersionText(cached);
-      }
-
-      if (cached && cacheTime && (Date.now() - parseInt(cacheTime, 10) < 15 * 60 * 1000)) {
-        return;
-      }
-
       try {
-        const res = await fetch('https://api.github.com/repos/vmikhailov/code-explorer/releases/latest');
+        const res = await fetch('/version.json', { cache: 'no-cache' });
         if (res.ok) {
           const data = await res.json();
           if (data && data.tag_name) {
-            localStorage.setItem(CACHE_KEY, data.tag_name);
-            localStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
             setVersionText(data.tag_name);
-            return;
           }
         }
-      } catch (err) {
-        // network or CORS error, fall through to fallback
-      }
-
-      try {
-        const resPkg = await fetch('https://raw.githubusercontent.com/vmikhailov/code-explorer/main/vscode-extension/package.json');
-        if (resPkg.ok) {
-          const pkg = await resPkg.json();
-          if (pkg && pkg.version) {
-            const tag = 'v' + pkg.version;
-            localStorage.setItem(CACHE_KEY, tag);
-            localStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
-            setVersionText(tag);
-          }
-        }
-      } catch (err) {
+      } catch (_) {
         // silent fallback to pre-rendered HTML version
       }
     }

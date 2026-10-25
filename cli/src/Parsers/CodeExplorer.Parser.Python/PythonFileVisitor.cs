@@ -25,10 +25,9 @@ public class PythonFileVisitor : BaseParserVisitor
 
     protected override string? MapNodeType(Node node)
     {
-        foreach (var libParser in LibraryParsers)
+        if (IsPythonMainGuard(node))
         {
-            var kind = libParser.MapNodeType(node, Context!);
-            if (kind != null) return kind;
+            return OntologyConstants.NodeLabels.EntryPoint;
         }
 
         if (IsPythonDecoratorEntryPoint(node))
@@ -63,10 +62,9 @@ public class PythonFileVisitor : BaseParserVisitor
 
     protected override string? ExtractIdentifier(Node node)
     {
-        foreach (var libParser in LibraryParsers)
+        if (IsPythonMainGuard(node))
         {
-            var ident = libParser.ExtractIdentifier(node, Context!, ProjectName, RelativePath);
-            if (ident != null) return ident;
+            return "script-main:__main__";
         }
 
         if (IsPythonDecoratorEntryPoint(node))
@@ -93,6 +91,23 @@ public class PythonFileVisitor : BaseParserVisitor
         }
 
         return ExtractPythonIdentifier(node);
+    }
+
+    private bool IsPythonMainGuard(Node node)
+    {
+        if (node.Type != "if_statement" || WorkspaceConventions.IsTestFilePath(RelativePath))
+            return false;
+
+        var cond = node.GetChildForField("condition");
+        if (!cond.IsValid() && node.Children.Count > 1)
+        {
+            cond = node.Children[1];
+        }
+
+        if (!cond.IsValid()) return false;
+        var text = cond.Text;
+        return text.Contains("__name__", StringComparison.Ordinal) &&
+               text.Contains("__main__", StringComparison.Ordinal);
     }
 
     protected override void CollectCustomReferencesForSymbol(Node node, SyntacticSymbol symbolNode, SyntacticSymbol parentNode)

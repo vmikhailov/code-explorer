@@ -22,6 +22,7 @@ graph TD
     end
 
     subgraph Layer2 ["Layer 2: Project Structure"]
+        EntryPoint["EntryPoint"]
         Package["Package"]
         Project["Project"]
         ProjectsStructure["ProjectsStructure"]
@@ -45,7 +46,6 @@ graph TD
         Database["Database"]
         DataSet["DataSet"]
         Endpoint["Endpoint"]
-        EntryPoint["EntryPoint"]
         ExternalService["ExternalService"]
         Library["Library"]
         PeerMesh["PeerMesh"]
@@ -81,7 +81,6 @@ graph TD
     App -->|READS_FROM| CloudService
     App -->|WRITES_TO| CloudService
     App -->|COORDINATES_WITH| PeerMesh
-    App -->|CONTAINS| EntryPoint
     App -->|CONTAINS| Endpoint
     App -->|CONTAINS| ApiInUse
     App -->|USES_API| ApiInUse
@@ -110,7 +109,7 @@ graph TD
     CliTool -->|WRITES_TO| CloudService
     CliTool -->|COORDINATES_WITH| PeerMesh
     CliTool -->|USES_DB| Database
-    CliTool -->|CONTAINS| EntryPoint
+    CliTool -->|CONTAINS| Endpoint
     CliTool -->|USES_API| ApiInUse
     CloudService -->|ACCESSED_BY| Function
     CloudService -->|ACCESSED_BY| Type
@@ -124,8 +123,9 @@ graph TD
     Endpoint -->|TRIGGERS| Function
     Endpoint -->|EXPOSED_BY| Type
     Endpoint -->|EXPOSED_BY| Function
-    EntryPoint -->|TRIGGERS| Function
-    EntryPoint -->|EXPOSED_BY| Type
+    Endpoint -->|SUBSCRIBES_TO| Topic
+    EntryPoint -->|DECLARED_IN| File
+    EntryPoint -->|BELONGS_TO| Project
     ExternalService -->|CALLS_ENDPOINT| Endpoint
     ExternalService -->|CALLED_BY| Function
     FilesStructure -->|CONTAINS| Folder
@@ -136,6 +136,7 @@ graph TD
     Function -->|DECLARED_IN| File
     Function -->|CALLS| Function
     Function -->|USES_TYPE| Type
+    Function -->|IMPLEMENTS| EntryPoint
     Library -->|LOCATED_IN| Folder
     Library -->|LOCATED_IN| Workspace
     Library -->|IMPLEMENTED_BY| Project
@@ -165,7 +166,10 @@ graph TD
     Project -->|DEPENDS_ON| Package
     Project -->|PRODUCES| Package
     Project -->|CONTAINS| File
+    Project -->|CONTAINS| EntryPoint
+    Project -->|HAS_ENTRYPOINT| EntryPoint
     ProjectsStructure -->|CONTAINS| Project
+    ProjectsStructure -->|CONTAINS| EntryPoint
     ProjectSyntax -->|CONTAINS| Type
     ProjectSyntax -->|CONTAINS| Function
     ProjectSyntax -->|BELONGS_TO| Project
@@ -189,7 +193,6 @@ graph TD
     SemanticStructure -->|CONTAINS| CloudService
     SemanticStructure -->|CONTAINS| ApiInUse
     SemanticStructure -->|CONTAINS| Endpoint
-    SemanticStructure -->|CONTAINS| EntryPoint
     SemanticStructure -->|CONTAINS| PeerMesh
     Service -->|LOCATED_IN| Folder
     Service -->|LOCATED_IN| Workspace
@@ -201,7 +204,6 @@ graph TD
     Service -->|USES_DB| Database
     Service -->|PUBLISHES_TO| Topic
     Service -->|SUBSCRIBES_TO| Topic
-    Service -->|CONTAINS| EntryPoint
     Service -->|CONTAINS| Endpoint
     Service -->|CONTAINS| CloudService
     Service -->|USES_CLOUD| CloudService
@@ -245,7 +247,7 @@ graph TD
     Worker -->|READS_FROM| CloudService
     Worker -->|WRITES_TO| CloudService
     Worker -->|COORDINATES_WITH| PeerMesh
-    Worker -->|CONTAINS| EntryPoint
+    Worker -->|CONTAINS| Endpoint
     Worker -->|USES_API| ApiInUse
     Workspace -->|CONTAINS| FilesStructure
     Workspace -->|CONTAINS| ProjectsStructure
@@ -321,6 +323,7 @@ graph TD
 | :--- | :--- |
 | `CallLiteral` | `DECLARED_IN` |
 | `CatchClause` | `DECLARED_IN` |
+| `EntryPoint` | `DECLARED_IN` |
 | `FilesStructure` | `CONTAINS` |
 | `Folder` | `CONTAINS` |
 | `Function` | `DECLARED_IN` |
@@ -428,6 +431,36 @@ graph TD
 
 ### 📂 Layer 2: Project Structure
 
+#### `EntryPoint`
+
+> Represents the binary, process, or bundle bootstrap entry point of an executable project (e.g. Program.Main, func main, __main__, index.tsx root mount).
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `DECLARED_IN` | `File` |
+| `BELONGS_TO` | `Project` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `Function` | `IMPLEMENTS` |
+| `Project` | `CONTAINS` |
+| `Project` | `HAS_ENTRYPOINT` |
+| `ProjectsStructure` | `CONTAINS` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The name of the binary or process entry point. |
+| `Path` | `string` | The path of the entry point file relative to its parent container. |
+| `EntryType` | `string` | The kind of binary/process entry point (e.g. main-method, top-level, script-main, bundle-entry). |
+
+---
+
 #### `Package`
 
 > Represents an external dependency package or workspace package referenced or produced by projects.
@@ -479,6 +512,8 @@ graph TD
 | `DEPENDS_ON` | `Package` |
 | `PRODUCES` | `Package` |
 | `CONTAINS` | `File` |
+| `CONTAINS` | `EntryPoint` |
+| `HAS_ENTRYPOINT` | `EntryPoint` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -486,6 +521,7 @@ graph TD
 | :--- | :--- |
 | `App` | `IMPLEMENTED_BY` |
 | `CliTool` | `IMPLEMENTED_BY` |
+| `EntryPoint` | `BELONGS_TO` |
 | `Library` | `IMPLEMENTED_BY` |
 | `Package` | `PRODUCES` |
 | `Package` | `IMPLEMENTED_BY` |
@@ -526,6 +562,7 @@ graph TD
 | Relationship | To |
 | :--- | :--- |
 | `CONTAINS` | `Project` |
+| `CONTAINS` | `EntryPoint` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -612,6 +649,7 @@ graph TD
 | `DECLARED_IN` | `File` |
 | `CALLS` | `Function` |
 | `USES_TYPE` | `Type` |
+| `IMPLEMENTS` | `EntryPoint` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -622,7 +660,6 @@ graph TD
 | `Database` | `ACCESSED_BY` |
 | `Endpoint` | `TRIGGERS` |
 | `Endpoint` | `EXPOSED_BY` |
-| `EntryPoint` | `TRIGGERS` |
 | `ExternalService` | `CALLED_BY` |
 | `Function` | `CALLS` |
 | `Library` | `CONTAINS` |
@@ -764,7 +801,6 @@ graph TD
 | `CloudService` | `ACCESSED_BY` |
 | `Database` | `ACCESSED_BY` |
 | `Endpoint` | `EXPOSED_BY` |
-| `EntryPoint` | `EXPOSED_BY` |
 | `Function` | `USES_TYPE` |
 | `Library` | `CONTAINS` |
 | `Member` | `OF_TYPE` |
@@ -854,7 +890,6 @@ graph TD
 | `READS_FROM` | `CloudService` |
 | `WRITES_TO` | `CloudService` |
 | `COORDINATES_WITH` | `PeerMesh` |
-| `CONTAINS` | `EntryPoint` |
 | `CONTAINS` | `Endpoint` |
 | `CONTAINS` | `ApiInUse` |
 | `USES_API` | `ApiInUse` |
@@ -899,7 +934,7 @@ graph TD
 | `WRITES_TO` | `CloudService` |
 | `COORDINATES_WITH` | `PeerMesh` |
 | `USES_DB` | `Database` |
-| `CONTAINS` | `EntryPoint` |
+| `CONTAINS` | `Endpoint` |
 | `USES_API` | `ApiInUse` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
@@ -1013,7 +1048,7 @@ graph TD
 
 #### `Endpoint`
 
-> Represents an exposed HTTP API endpoint route.
+> Represents an exposed external API or message contract endpoint (REST, gRPC, GraphQL, WebSocket, WCF, or Broker Consumer).
 
 **Outbound edges:**
 
@@ -1022,44 +1057,7 @@ graph TD
 | `TRIGGERS` | `Function` |
 | `EXPOSED_BY` | `Type` |
 | `EXPOSED_BY` | `Function` |
-
-**Incoming edges** *(derived from other nodes' declarations)*:
-
-| From | Relationship |
-| :--- | :--- |
-| `App` | `CONTAINS` |
-| `ExternalService` | `CALLS_ENDPOINT` |
-| `SemanticStructure` | `CONTAINS` |
-| `Service` | `CONTAINS` |
-
-**Properties:**
-
-| Property | Type | Description |
-| :--- | :--- | :--- |
-| `Name` | `string` | The HTTP endpoint name (e.g. GET /api/orders). |
-| `Path` | `string` | The path of the folder or file relative to its parent container. |
-| `HttpMethod` | `string` | The HTTP Verb (GET, POST, PUT, DELETE, ALL). |
-| `RouteTemplate` | `string` | The declared route template. |
-| `Protocol` | `string` | The API protocol (REST, gRPC, GraphQL). |
-| `IsAnonymous` | `bool` | Whether endpoint allows unauthenticated anonymous access. |
-| `RequiredRoles` | `string?` | Comma-separated required roles or permissions. |
-| `Policies` | `string?` | Authorization policies guarding the endpoint. |
-| `RequestType` | `string?` | The request payload type (e.g. StartRideRequest, CreateOrderDto). |
-| `ResponseType` | `string?` | The response payload type (e.g. RideDto, OrderResponse). |
-| `OperationType` | `string?` | The operation type for GraphQL (Query, Mutation, Subscription) or gRPC (Unary, Streaming). |
-
----
-
-#### `EntryPoint`
-
-> Represents non-HTTP execution triggers (e.g. gRPC services, CLI command definitions, Cron schedules, queue subscribers).
-
-**Outbound edges:**
-
-| Relationship | To |
-| :--- | :--- |
-| `TRIGGERS` | `Function` |
-| `EXPOSED_BY` | `Type` |
+| `SUBSCRIBES_TO` | `Topic` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -1067,6 +1065,7 @@ graph TD
 | :--- | :--- |
 | `App` | `CONTAINS` |
 | `CliTool` | `CONTAINS` |
+| `ExternalService` | `CALLS_ENDPOINT` |
 | `SemanticStructure` | `CONTAINS` |
 | `Service` | `CONTAINS` |
 | `Worker` | `CONTAINS` |
@@ -1075,9 +1074,17 @@ graph TD
 
 | Property | Type | Description |
 | :--- | :--- | :--- |
-| `Name` | `string` | The name of the entry point. |
+| `Name` | `string` | The endpoint name (e.g. GET /api/orders, MSG:SubmitOrder). |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
-| `EntryType` | `string` | The specifier type (grpc, cli, cron, queue-listener). |
+| `HttpMethod` | `string` | The HTTP Verb or contract verb (GET, POST, PUT, DELETE, ALL, MSG, WS, RPC). |
+| `RouteTemplate` | `string` | The declared route template or message contract name. |
+| `Protocol` | `string` | The contract protocol (REST, gRPC, GraphQL, WS, WCF, MSG, RPC). |
+| `IsAnonymous` | `bool` | Whether endpoint allows unauthenticated anonymous access. |
+| `RequiredRoles` | `string?` | Comma-separated required roles or permissions. |
+| `Policies` | `string?` | Authorization policies guarding the endpoint. |
+| `RequestType` | `string?` | The request payload type (e.g. StartRideRequest, CreateOrderDto). |
+| `ResponseType` | `string?` | The response payload type (e.g. RideDto, OrderResponse). |
+| `OperationType` | `string?` | The operation type for GraphQL (Query, Mutation, Subscription) or gRPC (Unary, Streaming). |
 
 ---
 
@@ -1246,7 +1253,6 @@ graph TD
 | `CONTAINS` | `CloudService` |
 | `CONTAINS` | `ApiInUse` |
 | `CONTAINS` | `Endpoint` |
-| `CONTAINS` | `EntryPoint` |
 | `CONTAINS` | `PeerMesh` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
@@ -1282,7 +1288,6 @@ graph TD
 | `USES_DB` | `Database` |
 | `PUBLISHES_TO` | `Topic` |
 | `SUBSCRIBES_TO` | `Topic` |
-| `CONTAINS` | `EntryPoint` |
 | `CONTAINS` | `Endpoint` |
 | `CONTAINS` | `CloudService` |
 | `USES_CLOUD` | `CloudService` |
@@ -1393,6 +1398,7 @@ graph TD
 | `BoundedContext` | `CONTAINS` |
 | `CliTool` | `PUBLISHES_TO` |
 | `CliTool` | `SUBSCRIBES_TO` |
+| `Endpoint` | `SUBSCRIBES_TO` |
 | `Library` | `PUBLISHES_TO` |
 | `Library` | `SUBSCRIBES_TO` |
 | `SemanticStructure` | `CONTAINS` |
@@ -1433,7 +1439,7 @@ graph TD
 | `READS_FROM` | `CloudService` |
 | `WRITES_TO` | `CloudService` |
 | `COORDINATES_WITH` | `PeerMesh` |
-| `CONTAINS` | `EntryPoint` |
+| `CONTAINS` | `Endpoint` |
 | `USES_API` | `ApiInUse` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
@@ -1571,6 +1577,7 @@ graph TD
 | `DEPENDS_ON` | Represents a dependency relationship between projects, packages, or other entities. |
 | `EXPOSED_BY` | Links an entrypoint or endpoint to the type or function that exposes it. |
 | `EXPOSES` | Links a semantic workload (Service, App, Worker) to an endpoint or entrypoint it exposes. |
+| `HAS_ENTRYPOINT` | Links an executable ProjectNode to its binary or process EntryPointNode. |
 | `HAS_MEMBER` | Links a type declaration to its declared member variables or fields. |
 | `HAS_METHOD` | Links a type declaration to its declared methods or functions. |
 | `HAS_VARIABLE` | Links a function scope to its declared local variables or parameters. |
@@ -1613,6 +1620,7 @@ graph TD
 | Layer 1: File Structure | `FilesStructure` | `{workspaceId}:fs` |
 | Layer 1: File Structure | `Folder` | `{workspaceId}:dir:{relativeDirectoryPath}` |
 | Layer 1: File Structure | `GitSettings` | `{workspaceId}:git` |
+| Layer 2: Project Structure | `EntryPoint` | `{workspaceId}:entry:{entryType}:{name}` |
 | Layer 2: Project Structure | `Package` | `{workspaceId}:pkg:{ecosystem}:{packageName}` |
 | Layer 2: Project Structure | `Project` | `{workspaceId}:p:{relativeProjectDir}:` |
 | Layer 2: Project Structure | `ProjectsStructure` | `{workspaceId}:ps` |
@@ -1630,7 +1638,6 @@ graph TD
 | Layer 4: Semantic Structure | `Database` | `{workspaceId}:db:{dbType}:{dbName}` |
 | Layer 4: Semantic Structure | `DataSet` | `{workspaceId}:ds:{datasetName}` |
 | Layer 4: Semantic Structure | `Endpoint` | `{workspaceId}:ep:{httpMethod}:{routeTemplate}` |
-| Layer 4: Semantic Structure | `EntryPoint` | `{workspaceId}:entry:{type}:{name}` |
 | Layer 4: Semantic Structure | `ExternalService` | `{workspaceId}:es:{protocol}:{host}` |
 | Layer 4: Semantic Structure | `Library` | `{workspaceId}:lib:{libraryName}` |
 | Layer 4: Semantic Structure | `PeerMesh` | `{workspaceId}:mesh:peer-network` |

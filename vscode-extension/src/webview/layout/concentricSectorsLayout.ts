@@ -57,10 +57,7 @@ function formatDomainTitle(token: string): string {
   if (token === '__external__' || token === 'external') {
     return 'External Services';
   }
-  return token
-    .split(/[-_]/)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ');
+  return token;
 }
 
 export function computeConcentricSectorsLayout(

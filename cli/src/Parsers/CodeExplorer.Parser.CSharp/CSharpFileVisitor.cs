@@ -20,6 +20,16 @@ public class CSharpFileVisitor : BaseParserVisitor
         : base(rootNode, activeExtensions, relativePath, absoluteWorkspacePath, fileParser, extensionRegistry)
     {
         _parser = parser;
+
+        if (rootNode.IsValid() && !WorkspaceConventions.IsTestFilePath(relativePath))
+        {
+            var firstGlobal = rootNode.Children.FirstOrDefault(c => c.Type == "global_statement");
+            if (firstGlobal.IsValid())
+            {
+                var fileName = Path.GetFileName(relativePath);
+                RootSymbol.Children.Add(new SyntacticSymbol(OntologyConstants.NodeLabels.EntryPoint, $"top-level:{fileName}", firstGlobal) { Text = firstGlobal.Text });
+            }
+        }
     }
 
     protected override string? MapNodeType(Node node)
@@ -145,6 +155,14 @@ public class CSharpFileVisitor : BaseParserVisitor
         SyntacticSymbol symbolNode,
         SyntacticSymbol parentNode)
     {
+        if (symbolNode.Kind == OntologyConstants.NodeLabels.Function &&
+            symbolNode.Name == "Main" &&
+            !WorkspaceConventions.IsTestFilePath(RelativePath) &&
+            node.Children.Any(c => c.Text == "static"))
+        {
+            symbolNode.Children.Add(new SyntacticSymbol(OntologyConstants.NodeLabels.EntryPoint, "main-method:Main", node) { Text = node.Text });
+        }
+
         if (symbolNode.Kind == OntologyConstants.NodeLabels.EntryPoint)
         {
             var curr = node.IsAny(
@@ -275,7 +293,8 @@ public class CSharpFileVisitor : BaseParserVisitor
 
                     foreach (var declarator in node.FindChildrenOfType(TreeSitterSyntax.CSharp.VariableDeclarator))
                     {
-                        var nameNode = declarator.GetField(TreeSitterSyntax.Fields.Name);
+                        var nameNode = declarator.GetField(TreeSitterSyntax.Fields.Name) ??
+                                       declarator.FindChildOfType(TreeSitterSyntax.Common.Identifier);
 
                         if (!nameNode.IsValid())
                         {
@@ -290,6 +309,16 @@ public class CSharpFileVisitor : BaseParserVisitor
                             var valueNode = declarator.GetField(TreeSitterSyntax.Fields.Value) ?? declarator
                                 .FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause)?.Children
                                 .ElementAtOrDefault(1);
+
+                            if (!valueNode.IsValid())
+                            {
+                                valueNode = declarator.FindChildOfType(TreeSitterSyntax.CSharp.ObjectCreationExpression);
+                            }
+
+                            if (!valueNode.IsValid() && declarator.Children.Count >= 3 && declarator.Children[1].Text == "=")
+                            {
+                                valueNode = declarator.Children[2];
+                            }
 
                             if (valueNode.IsValid() && valueNode.Is(TreeSitterSyntax.CSharp.ObjectCreationExpression))
                             {

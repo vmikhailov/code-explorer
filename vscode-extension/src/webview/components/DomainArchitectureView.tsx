@@ -3802,7 +3802,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             const displayName =
               detail.properties?.domainDisplayName ||
               rawGraph.domainMap.get(detail.domain || '')?.displayName ||
-              raw.replace(/([a-z])([A-Z])/g, '$1 $2');
+              raw;
             nodeDomainMap.set(id, domainKey);
             if (!domainDetailsMap.has(domainKey)) {
               domainDetailsMap.set(domainKey, { name: domainKey, displayName });

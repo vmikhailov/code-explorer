@@ -29,7 +29,7 @@ public class PlaywrightLibraryParser : ISemanticExtension
 
         if (IsPlaywrightSuiteOrTest(node))
         {
-            return OntologyConstants.NodeLabels.EntryPoint;
+            return OntologyConstants.NodeLabels.Function;
         }
 
         return null;

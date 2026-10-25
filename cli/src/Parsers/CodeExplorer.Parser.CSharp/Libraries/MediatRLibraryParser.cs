@@ -38,31 +38,9 @@ public class MediatRLibraryParser : ISemanticExtension
         "DispatchAsync"
     ];
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
-    {
-        if (IsHandlerClass(node) || IsHandleMethod(node))
-        {
-            return OntologyConstants.NodeLabels.EntryPoint;
-        }
-        return null;
-    }
+    public string? MapNodeType(Node node, ParsingContext ctx) => null;
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx)
-    {
-        if (IsHandlerClass(node))
-        {
-            var req = ExtractHandlerRequestType(node);
-            return !string.IsNullOrEmpty(req) ? $"Handler:{req}" : "Handler";
-        }
-
-        if (IsHandleMethod(node))
-        {
-            var req = ExtractHandleMethodRequestType(node);
-            return !string.IsNullOrEmpty(req) ? $"Handle:{req}" : "Handle";
-        }
-
-        return null;
-    }
+    public string? ExtractIdentifier(Node node, ParsingContext ctx) => null;
 
     public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
@@ -73,6 +51,7 @@ public class MediatRLibraryParser : ISemanticExtension
             foreach (var req in reqTypes)
             {
                 references.Add(new Reference(scopeSymbolId, "mediatr:" + req, OntologyConstants.Relationships.SubscribesTo));
+                references.Add(new Reference(scopeSymbolId, req, OntologyConstants.Relationships.UsesType));
             }
         }
 

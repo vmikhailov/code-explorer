@@ -607,7 +607,13 @@ public partial class Layer5AnalysisParser
             if (markerIdx >= 0)
             {
                 var start = markerIdx + marker.Length;
-                var end = scopeSymbolId.IndexOf(':', start);
+                var searchStart = (start + 2 < scopeSymbolId.Length &&
+                                   char.IsLetter(scopeSymbolId[start]) &&
+                                   scopeSymbolId[start + 1] == ':' &&
+                                   (scopeSymbolId[start + 2] == '/' || scopeSymbolId[start + 2] == '\\'))
+                    ? start + 2
+                    : start;
+                var end = scopeSymbolId.IndexOf(':', searchStart);
                 if (end > start)
                 {
                     return scopeSymbolId[start..end].Replace('\\', '/');

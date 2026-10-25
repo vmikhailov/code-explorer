@@ -180,8 +180,8 @@ public static class OntologyUploader
             }
         }
 
-        // Special: If CallLiteral or CatchClause, link it to File via DECLARED_IN
-        if (node.Kind is OntologyConstants.NodeLabels.CallLiteral or OntologyConstants.NodeLabels.CatchClause)
+        // Special: If CallLiteral, CatchClause, or EntryPoint, link it to File via DECLARED_IN
+        if (node.Kind is OntologyConstants.NodeLabels.CallLiteral or OntologyConstants.NodeLabels.CatchClause or OntologyConstants.NodeLabels.EntryPoint)
         {
             var filePath = node.Path;
             if (string.IsNullOrEmpty(filePath) && node is CallLiteralNode cln)
@@ -373,9 +373,13 @@ public static class OntologyUploader
         }
         if (child.Kind == OntologyConstants.NodeLabels.EntryPoint)
         {
-            if (IsFileNodeId(parentId) || IsProjectNodeId(parentId))
+            if (IsFileNodeId(parentId))
             {
                 return new DeclaredInRelationship(child.Id, parentId);
+            }
+            if (IsProjectNodeId(parentId))
+            {
+                return new HasEntrypointRelationship(parentId, child.Id);
             }
             if (IsWorkloadNodeId(parentId))
             {

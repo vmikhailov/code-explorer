@@ -2,6 +2,8 @@ using System.Threading.Channels;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
@@ -100,19 +102,19 @@ describe("Auth Module", () => {
 """;
         using var ws = await TestWorkspace.CreateAsync(code, "auth.test.ts");
 
-        var entryPoints = FindNodes<EntryPointNode>(ws.FileNode.Children);
-        entryPoints.Should().NotBeEmpty();
+        var functions = FindNodes<FunctionNode>(ws.FileNode.Children);
+        functions.Should().NotBeEmpty();
 
-        var suite = entryPoints.FirstOrDefault(e => e.EntryType == "Jest" && e.Name == "Suite:Auth Module");
+        var suite = functions.FirstOrDefault(e => e.Name == "Jest:Suite:Auth Module");
         suite.Should().NotBeNull("Expected Jest:Suite:Auth Module to be detected");
         suite!.Extensions?.GetValueOrDefault("is_test").Should().Be("true");
         suite.Extensions?.GetValueOrDefault("test_framework").Should().Be("jest");
 
-        var itTest = entryPoints.FirstOrDefault(e => e.EntryType == "Jest" && e.Name == "Test:should login successfully");
+        var itTest = functions.FirstOrDefault(e => e.Name == "Jest:Test:should login successfully");
         itTest.Should().NotBeNull("Expected Jest:Test:should login successfully to be detected");
         itTest!.Extensions?.GetValueOrDefault("is_test").Should().Be("true");
 
-        var fnTest = entryPoints.FirstOrDefault(e => e.EntryType == "Jest" && e.Name == "Test:should handle invalid credentials");
+        var fnTest = functions.FirstOrDefault(e => e.Name == "Jest:Test:should handle invalid credentials");
         fnTest.Should().NotBeNull("Expected Jest:Test:should handle invalid credentials to be detected");
 
         var allRefs = FindAllReferences(ws.FileNode);
@@ -139,13 +141,13 @@ describe("User Controller", () => {
 """;
         using var ws = await TestWorkspace.CreateAsync(code, "user.spec.ts");
 
-        var entryPoints = FindNodes<EntryPointNode>(ws.FileNode.Children);
-        var suite = entryPoints.FirstOrDefault(e => e.EntryType == "Vitest" && e.Name == "Suite:User Controller");
+        var functions = FindNodes<FunctionNode>(ws.FileNode.Children);
+        var suite = functions.FirstOrDefault(e => e.Name == "Vitest:Suite:User Controller");
         suite.Should().NotBeNull("Expected Vitest:Suite:User Controller to be detected");
         suite!.Extensions?.GetValueOrDefault("is_test").Should().Be("true");
         suite.Extensions?.GetValueOrDefault("test_framework").Should().Be("vitest");
 
-        var testCase = entryPoints.FirstOrDefault(e => e.EntryType == "Vitest" && e.Name == "Test:fetches user by ID");
+        var testCase = functions.FirstOrDefault(e => e.Name == "Vitest:Test:fetches user by ID");
         testCase.Should().NotBeNull();
         testCase!.Extensions?.GetValueOrDefault("is_test").Should().Be("true");
 
@@ -171,16 +173,16 @@ describe("Mocha Payment Suite", () => {
 """;
         using var ws = await TestWorkspace.CreateAsync(code, "payment.test.ts");
 
-        var entryPoints = FindNodes<EntryPointNode>(ws.FileNode.Children);
-        var suite = entryPoints.FirstOrDefault(e => e.EntryType == "Mocha" && e.Name == "Suite:Mocha Payment Suite");
+        var functions = FindNodes<FunctionNode>(ws.FileNode.Children);
+        var suite = functions.FirstOrDefault(e => e.Name == "Mocha:Suite:Mocha Payment Suite");
         suite.Should().NotBeNull("Expected Mocha:Suite:Mocha Payment Suite");
         suite!.Extensions?.GetValueOrDefault("is_test").Should().Be("true");
         suite.Extensions?.GetValueOrDefault("test_framework").Should().Be("mocha");
 
-        var ctxSuite = entryPoints.FirstOrDefault(e => e.EntryType == "Mocha" && e.Name == "Suite:when balance is sufficient");
+        var ctxSuite = functions.FirstOrDefault(e => e.Name == "Mocha:Suite:when balance is sufficient");
         ctxSuite.Should().NotBeNull("Expected Mocha:Suite:when balance is sufficient");
 
-        var specifyTest = entryPoints.FirstOrDefault(e => e.EntryType == "Mocha" && e.Name == "Test:sends receipt email");
+        var specifyTest = functions.FirstOrDefault(e => e.Name == "Mocha:Test:sends receipt email");
         specifyTest.Should().NotBeNull("Expected Mocha:Test:sends receipt email");
         specifyTest!.Extensions?.GetValueOrDefault("is_test").Should().Be("true");
     }
@@ -198,12 +200,12 @@ describe("Checkout Workflow", () => {
 """;
         using var ws = await TestWorkspace.CreateAsync(code, "checkout.cy.ts");
 
-        var entryPoints = FindNodes<EntryPointNode>(ws.FileNode.Children);
-        var suite = entryPoints.FirstOrDefault(e => e.EntryType == "Cypress" && e.Name == "Suite:Checkout Workflow");
+        var functions = FindNodes<FunctionNode>(ws.FileNode.Children);
+        var suite = functions.FirstOrDefault(e => e.Name == "Cypress:Suite:Checkout Workflow");
         suite.Should().NotBeNull("Expected Cypress:Suite:Checkout Workflow");
         suite!.Extensions?.GetValueOrDefault("test_framework").Should().Be("cypress");
 
-        var testCase = entryPoints.FirstOrDefault(e => e.EntryType == "Cypress" && e.Name == "Test:completes order");
+        var testCase = functions.FirstOrDefault(e => e.Name == "Cypress:Test:completes order");
         testCase.Should().NotBeNull("Expected Cypress:Test:completes order");
 
         var allRefs = FindAllReferences(ws.FileNode);
@@ -229,12 +231,12 @@ test.describe("Admin Portal", () => {
 """;
         using var ws = await TestWorkspace.CreateAsync(code, "admin.spec.ts");
 
-        var entryPoints = FindNodes<EntryPointNode>(ws.FileNode.Children);
-        var suite = entryPoints.FirstOrDefault(e => e.EntryType == "Playwright" && e.Name == "Suite:Admin Portal");
+        var functions = FindNodes<FunctionNode>(ws.FileNode.Children);
+        var suite = functions.FirstOrDefault(e => e.Name == "Playwright:Suite:Admin Portal");
         suite.Should().NotBeNull("Expected Playwright:Suite:Admin Portal");
         suite!.Extensions?.GetValueOrDefault("test_framework").Should().Be("playwright");
 
-        var testCase = entryPoints.FirstOrDefault(e => e.EntryType == "Playwright" && e.Name == "Test:navigates and verifies telemetry");
+        var testCase = functions.FirstOrDefault(e => e.Name == "Playwright:Test:navigates and verifies telemetry");
         testCase.Should().NotBeNull("Expected Playwright:Test:navigates and verifies telemetry");
 
         var allRefs = FindAllReferences(ws.FileNode);

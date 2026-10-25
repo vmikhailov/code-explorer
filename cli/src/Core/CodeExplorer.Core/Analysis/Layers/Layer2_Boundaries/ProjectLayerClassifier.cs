@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 
 namespace CodeExplorer.Core.Analysis;
 
@@ -77,7 +78,7 @@ public class ProjectClassifierItem
     public string? Role { get; set; }
     public bool IsLibrary { get; set; }
     public int EndpointsCount { get; init; }
-    public IReadOnlyList<Common.Nodes.Layer4_Semantic.EntryPointNode> EntryPoints { get; init; } = [];
+    public IReadOnlyList<EntryPointNode> EntryPoints { get; init; } = [];
     public int ExternalServicesCount { get; init; }
     public int UsesDbCount { get; init; }
     public IReadOnlyDictionary<string, string>? Extensions { get; set; }

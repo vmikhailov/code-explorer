@@ -27,7 +27,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<CloudServiceNode>(OntologyConstants.Relationships.WritesTo)]
 [OntologyEdge<PeerMeshNode>(OntologyConstants.Relationships.CoordinatesWith)]
 [OntologyEdge<DatabaseNode>(OntologyConstants.Relationships.UsesDb)]
-[OntologyEdge<EntryPointNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<EndpointNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<ApiInUseNode>(OntologyConstants.Relationships.UsesApi)]
 public record CliToolNode(
     string Id,

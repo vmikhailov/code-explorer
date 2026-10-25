@@ -98,6 +98,76 @@ public class DomainMapServiceIdentityTests
         }
     }
 
+    [Test]
+    public async Task SharedLibraryInSameDomainAsFrontendApp_NeverRedirectsLibraryDependencyToApp()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "ce_domain_lib_fold_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, ".codeexplorer"));
+        try
+        {
+            File.WriteAllText(Path.Combine(root, ".codeexplorer", "domains.json"),
+                """{"domains":[{"name":"PlatformAndUI","services":["fe","library"]},{"name":"TrafficAndRouting","services":["bundle-update-adapter"]}]}""");
+            WorkspaceConventions.LoadFromWorkspace(root);
+
+            using var db = new SqliteGraphClient(Path.Combine(root, "graph.db").Replace('\\', '/'));
+            await db.CreateIndicesAsync();
+            var engine = new ArchitectureViewEngine(db);
+
+            await db.UploadNodesAsync(
+            [
+                new Node("ws:app:fe", "App", new Dictionary<string, object>
+                {
+                    ["name"] = "fe",
+                    ["path"] = "fe",
+                    ["role"] = "FrontendApp",
+                    ["is_library"] = "false"
+                }),
+                new Node("ws:s:bundle-update-adapter", "Service", new Dictionary<string, object>
+                {
+                    ["name"] = "bundle-update-adapter",
+                    ["path"] = "bundle-update-adapter",
+                    ["role"] = "Service",
+                    ["is_library"] = "false"
+                }),
+                new Node("ws:lib:library", "Library", new Dictionary<string, object>
+                {
+                    ["name"] = "library",
+                    ["path"] = "../libs/library",
+                    ["role"] = "SharedLibrary",
+                    ["is_library"] = "true"
+                })
+            ]);
+
+            await db.UploadRelationshipsAsync(
+            [
+                new Relationship("ws:s:bundle-update-adapter", "ws:lib:library", OntologyConstants.Relationships.DependsOn,
+                    new Dictionary<string, object> { ["dependency_type"] = "library", ["category"] = "library" })
+            ]);
+
+            // 1. Default (includeLibraries: false): library node is hidden and no bogus library edge points to fe
+            var archNoLibs = await engine.GetDomainArchitectureAsync(includeLibraries: false);
+            archNoLibs.Nodes.Select(n => n.Name).Should().BeEquivalentTo("fe", "bundle-update-adapter");
+            archNoLibs.Edges.Should().NotContain(e =>
+                e.Source == "service:bundle-update-adapter" && e.Target == "service:fe",
+                "a dependency on a shared library in the same domain as fe must never fold into fe");
+
+            // 2. With includeLibraries: true: library has its own node and the DEPENDS_ON edge targets library:library
+            var archWithLibs = await engine.GetDomainArchitectureAsync(includeLibraries: true);
+            archWithLibs.Nodes.Select(n => n.Name).Should().BeEquivalentTo("fe", "bundle-update-adapter", "library");
+            archWithLibs.Edges.Should().ContainSingle(e =>
+                e.Source == "service:bundle-update-adapter" &&
+                e.Target == "library:library" &&
+                e.Category == "library" &&
+                e.Label == "DEPENDS_ON");
+            archWithLibs.Edges.Should().NotContain(e =>
+                e.Source == "service:bundle-update-adapter" && e.Target == "service:fe");
+        }
+        finally
+        {
+            try { Directory.Delete(root, true); } catch (IOException) { /* best effort */ }
+        }
+    }
+
     private static async Task<DomainArchitectureDto> BuildAsync()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_domain_identity_" + Guid.NewGuid().ToString("N"));

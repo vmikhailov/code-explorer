@@ -94,7 +94,7 @@ public class JestVitestLibraryParser : ISemanticExtension
 
     private static bool IsJestVitestCall(Node node, out string kind)
     {
-        kind = OntologyConstants.NodeLabels.EntryPoint;
+        kind = OntologyConstants.NodeLabels.Function;
         if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return false;
 
         // Ensure this is not Playwright (which uses `test` with `{ page }` or imports `@playwright/test`)

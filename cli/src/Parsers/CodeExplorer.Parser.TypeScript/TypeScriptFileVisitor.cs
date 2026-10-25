@@ -663,19 +663,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
                 }
                 else if (valueNode.IsValid())
                 {
-                    var unwrappedVal = UnwrapExpression(valueNode);
-                    if (unwrappedVal.IsAny(TreeSitterSyntax.TypeScript.CallExpression, TreeSitterSyntax.TypeScript.NewExpression))
-                    {
-                        typeName = ExtractFirstGenericTypeArgument(unwrappedVal);
-                        if (string.IsNullOrEmpty(typeName) && unwrappedVal.Is(TreeSitterSyntax.TypeScript.NewExpression))
-                        {
-                            var constructorNode = unwrappedVal.GetField(TreeSitterSyntax.Fields.Constructor);
-                            if (constructorNode.IsValid())
-                            {
-                                typeName = constructorNode.Text;
-                            }
-                        }
-                    }
+                    typeName = TryInferTypeFromInitializer(valueNode);
                 }
 
                 if (!string.IsNullOrEmpty(typeName))
@@ -702,20 +690,63 @@ public class TypeScriptFileVisitor : BaseParserVisitor
                     node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1));
 
                 var typeAnnotation = node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.TypeAnnotation));
+                string? fieldTypeName = null;
 
                 if (typeAnnotation != null)
                 {
                     var typeNode = typeAnnotation.Children.FirstOrDefault(c => !c.Is(TreeSitterSyntax.Symbols.Colon));
+                    if (typeNode != null) fieldTypeName = typeNode.Text;
+                }
+                else if (valueNode.IsValid())
+                {
+                    fieldTypeName = TryInferTypeFromInitializer(valueNode);
+                }
 
-                    if (typeNode != null)
+                if (!string.IsNullOrEmpty(fieldTypeName))
+                {
+                    var scopeName = GetContainingScopeName(node);
+                    RawTypeBindings.Add(new RawTypeBinding(name, fieldTypeName, "", scopeName));
+                }
+            }
+        }
+    }
+
+    private string? TryInferTypeFromInitializer(Node valueNode)
+    {
+        var unwrappedVal = UnwrapExpression(valueNode);
+        if (!unwrappedVal.IsAny(TreeSitterSyntax.TypeScript.CallExpression, TreeSitterSyntax.TypeScript.NewExpression))
+        {
+            return null;
+        }
+
+        var typeName = ExtractFirstGenericTypeArgument(unwrappedVal);
+        if (string.IsNullOrEmpty(typeName) && unwrappedVal.Is(TreeSitterSyntax.TypeScript.NewExpression))
+        {
+            var constructorNode = unwrappedVal.GetField(TreeSitterSyntax.Fields.Constructor);
+            if (constructorNode.IsValid())
+            {
+                typeName = constructorNode.Text;
+            }
+        }
+
+        if (string.IsNullOrEmpty(typeName) && unwrappedVal.Is(TreeSitterSyntax.TypeScript.CallExpression))
+        {
+            var callFn = unwrappedVal.GetField(TreeSitterSyntax.Fields.Function);
+            if (callFn.IsValid() && callFn.Text == "inject")
+            {
+                var args = unwrappedVal.FindChildOfType(TreeSitterSyntax.TypeScript.Arguments);
+                if (args.IsValid())
+                {
+                    var firstArg = args.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.Identifier));
+                    if (firstArg.IsValid())
                     {
-                        var scopeName = GetContainingScopeName(node);
-                        RawTypeBindings.Add(new RawTypeBinding(name, typeNode.Text, "", scopeName));
-                        RawTypeBindings.Add(new RawTypeBinding("this." + name, typeNode.Text, "", scopeName));
+                        typeName = firstArg.Text;
                     }
                 }
             }
         }
+
+        return typeName;
     }
 
     private static bool IsTypeScriptConstant(Node node)

@@ -27,7 +27,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 [OntologyEdge<CloudServiceNode>(OntologyConstants.Relationships.ReadsFrom)]
 [OntologyEdge<CloudServiceNode>(OntologyConstants.Relationships.WritesTo)]
 [OntologyEdge<PeerMeshNode>(OntologyConstants.Relationships.CoordinatesWith)]
-[OntologyEdge<EntryPointNode>(OntologyConstants.Relationships.Contains)]
+[OntologyEdge<EndpointNode>(OntologyConstants.Relationships.Contains)]
 [OntologyEdge<ApiInUseNode>(OntologyConstants.Relationships.UsesApi)]
 public record WorkerNode(
     string Id,

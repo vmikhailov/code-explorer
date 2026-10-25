@@ -104,6 +104,45 @@ public static class JavaSyntaxProfile
         ElementAccessExpressions = new[]
         {
             "array_access"
+        }.ToFrozenSet(),
+
+        AnnotationNodeTypes = new[]
+        {
+            "annotation",
+            "marker_annotation"
+        }.ToFrozenSet(),
+
+        AnnotationContainerNodeTypes = new[]
+        {
+            "modifiers"
+        }.ToFrozenSet(),
+
+        SuperclassClauseNodeTypes = new[]
+        {
+            "superclass"
+        }.ToFrozenSet(),
+
+        InterfaceClauseNodeTypes = new[]
+        {
+            "super_interfaces",
+            "extends_interfaces"
+        }.ToFrozenSet(),
+
+        PackageDeclarationNodeTypes = new[]
+        {
+            "package_declaration"
+        }.ToFrozenSet(),
+
+        ImportIdentifierChildTypes = new[]
+        {
+            "scoped_identifier",
+            "identifier"
+        }.ToFrozenSet(),
+
+        VariableDeclaratorNodeTypes = new[]
+        {
+            "variable_declarator"
         }.ToFrozenSet()
     };
 }
+

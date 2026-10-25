@@ -41,6 +41,10 @@ public partial class ArchitectureViewEngine
             }
             else if (attr.Layer == OntologyConstants.Layers.ProjectBoundary)
             {
+                if (kind is "EntryPoint" && count == 0)
+                {
+                    continue;
+                }
                 l2Categories.Add(new() { Kind = kind, Label = attr.PluralLabel, Icon = attr.Icon, Count = count, LayerId = 2 });
             }
             else if (attr.Layer == OntologyConstants.Layers.Syntactic)
@@ -49,7 +53,7 @@ public partial class ArchitectureViewEngine
             }
             else if (attr.Layer == OntologyConstants.Layers.Semantic)
             {
-                if (kind is "DataSet" || (kind is "Procedure" or "Query" or "EntryPoint" or "ApiInUse" && count == 0))
+                if (kind is "DataSet" || (kind is "Procedure" or "Query" or "ApiInUse" && count == 0))
                 {
                     continue;
                 }

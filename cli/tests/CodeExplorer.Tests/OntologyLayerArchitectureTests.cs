@@ -64,7 +64,7 @@ public class OntologyLayerArchitectureTests
 
         var prohibitedTokens = new[]
         {
-            "ProjectNode", "PackageNode", "ProjectsStructureNode",
+            "ProjectNode", "PackageNode", "ProjectsStructureNode", "EntryPointNode",
             "TypeNode", "FunctionNode", "MemberNode", "CallLiteralNode", "CatchClauseNode", "ProjectSyntaxNode",
             "ServiceNode", "AppNode", "WorkerNode", "LibraryNode", "CliToolNode",
             "EndpointNode", "DatabaseNode", "TableNode", "TopicNode", "ExternalServiceNode"

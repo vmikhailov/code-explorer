@@ -98,67 +98,19 @@ public class RustFileVisitor : BaseParserVisitor
     protected override string? MapNodeType(Node node)
     {
         AutoActivateFromNode(node);
-
-        foreach (var libParser in LibraryParsers)
-        {
-            var kind = libParser.MapNodeType(node, Context!);
-            if (kind != null) return kind;
-        }
-
-        if (node.IsAny(TreeSitterSyntax.Rust.StringLiteral, TreeSitterSyntax.Rust.RawStringLiteral))
-        {
-            var cleanText = CleanRustString(node.Text);
-            if (NestedSqlParser.TryParseSql(cleanText, out _, out _))
-            {
-                return OntologyConstants.NodeLabels.Query;
-            }
-        }
-
-        return node.Type switch
-        {
-            TreeSitterSyntax.Rust.StructItem or TreeSitterSyntax.Rust.UnionItem => "Struct",
-            TreeSitterSyntax.Rust.EnumItem => "Enum",
-            TreeSitterSyntax.Rust.TraitItem => "Interface",
-            TreeSitterSyntax.Rust.FunctionItem or TreeSitterSyntax.Rust.FunctionSignatureItem =>
-                OntologyConstants.NodeLabels.Function,
-            _ => null
-        };
+        return MapNodeTypeUsingLibraries(node) ?? base.MapNodeType(node);
     }
 
     protected override string? ExtractIdentifier(Node node)
     {
         AutoActivateFromNode(node);
-
-        foreach (var libParser in LibraryParsers)
+        var kind = MapNodeType(node);
+        if (kind != null)
         {
-            var ident = libParser.ExtractIdentifier(node, Context!, ProjectName, RelativePath);
-            if (ident != null) return ident;
+            var libIdent = ExtractIdentifierUsingLibraries(node, kind);
+            if (libIdent != null) return libIdent;
         }
-
-        if (node.IsAny(TreeSitterSyntax.Rust.StringLiteral, TreeSitterSyntax.Rust.RawStringLiteral))
-        {
-            var cleanText = CleanRustString(node.Text);
-            if (NestedSqlParser.TryParseSql(cleanText, out var firstWord, out _))
-            {
-                return $"{firstWord} Query";
-            }
-        }
-
-        var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name);
-        if (nameNode.IsValid())
-        {
-            return nameNode.Text;
-        }
-
-        foreach (var child in node.Children)
-        {
-            if (child.IsAny(TreeSitterSyntax.Rust.Identifier, TreeSitterSyntax.Rust.TypeIdentifier))
-            {
-                return child.Text;
-            }
-        }
-
-        return null;
+        return base.ExtractIdentifier(node);
     }
 
     protected override void CollectCustomReferencesForSymbol(

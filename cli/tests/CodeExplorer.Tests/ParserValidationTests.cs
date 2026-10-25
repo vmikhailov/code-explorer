@@ -523,10 +523,9 @@ public class ParserValidationTests
         ep.Should().NotBeNull();
         ep.HttpMethod.Should().Be("POST");
 
-        var entryPoints = FindEntryPointNodes(fileNode.Children);
-        var wsEp = entryPoints.FirstOrDefault(e => e.EntryType == "queue-listener");
+        var wsEp = endpoints.FirstOrDefault(e => e.Protocol == "WS");
         wsEp.Should().NotBeNull();
-        wsEp.Name.Should().Be("ping");
+        wsEp!.RouteTemplate.Should().Be("ping");
 
         var externalServices = FindExternalServiceNodes(fileNode.Children);
         externalServices.Should().NotBeEmpty();
@@ -1164,10 +1163,12 @@ public class MyHub {}
             getEndpoint.Should().NotBeNull();
             getEndpoint!.RouteTemplate.Should().Be("/HealtCheck");
 
-            // Verify SignalR MapHub was captured as EntryPoint with /hub (MyHub)
+            // Verify SignalR MapHub was captured as Endpoint (WS) or EntryPoint with /hub (MyHub)
+            var hubEndpoint = endpoints.FirstOrDefault(ep => ep.Name.Contains("/hub"));
             var hubEntryPoint = entryPoints.FirstOrDefault(ep => ep.Name.Contains("/hub"));
-            hubEntryPoint.Should().NotBeNull();
-            hubEntryPoint!.Name.Should().Contain("MyHub");
+            (hubEndpoint != null || hubEntryPoint != null).Should().BeTrue();
+            var hubName = hubEndpoint?.Name ?? hubEntryPoint!.Name;
+            hubName.Should().Contain("MyHub");
         }
         finally
         {

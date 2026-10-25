@@ -395,16 +395,16 @@ public partial class Layer3SyntacticParser
         var effectiveProjectKind = projectKind ?? syntaxTree.FileNode?.ProjectKind;
         var effectiveProjectName = projectName ?? syntaxTree.FileNode?.ProjectName;
 
-        var rootCounts = new Dictionary<(string Kind, string Name), int>();
+        var fileSymbolCounts = new Dictionary<(string Kind, string Name), int>();
         foreach (var childSyntactic in mainVisitor.RootSymbol.Children)
         {
             var key = (childSyntactic.Kind, childSyntactic.Name);
-            rootCounts.TryGetValue(key, out var count);
+            fileSymbolCounts.TryGetValue(key, out var count);
             count++;
-            rootCounts[key] = count;
+            fileSymbolCounts[key] = count;
 
             var childNode = MapSyntacticSymbolToOntology(childSyntactic, Path.GetFileName(syntaxTree.FilePath),
-                relativePath, workspaceId, syntaxTree.FileNode!.Id, ctx, count > 1 ? count : 0, effectiveProjectName, effectiveIsTest, effectiveProjectKind, syntaxTree);
+                relativePath, workspaceId, syntaxTree.FileNode!.Id, ctx, count > 1 ? count : 0, effectiveProjectName, effectiveIsTest, effectiveProjectKind, syntaxTree, fileSymbolCounts);
             if (childNode != null)
             {
                 syntaxTree.FileNode!.Children.Add(childNode);
@@ -550,7 +550,8 @@ public partial class Layer3SyntacticParser
         string? projectName = null,
         bool isTest = false,
         string? projectKind = null,
-        SyntaxTree? syntaxTree = null)
+        SyntaxTree? syntaxTree = null,
+        Dictionary<(string Kind, string Name), int>? fileSymbolCounts = null)
     {
         var node = syntactic.Node;
         var kind = syntactic.Kind;
@@ -614,7 +615,7 @@ public partial class Layer3SyntacticParser
 
         if (typedNode == null) return null;
 
-        var childCounts = new Dictionary<(string Kind, string Name), int>();
+        var childCounts = fileSymbolCounts ?? new Dictionary<(string Kind, string Name), int>();
         foreach (var childSyntactic in syntactic.Children)
         {
             if (syntactic.Properties.TryGetValue("graphql_field", out var parentGqlField))
@@ -631,7 +632,7 @@ public partial class Layer3SyntacticParser
             count++;
             childCounts[key] = count;
 
-            var childNode = MapSyntacticSymbolToOntology(childSyntactic, fileName, relativePath, workspaceId, symbolId, ctx, count > 1 ? count : 0, projectName, symbolIsTest, projectKind, syntaxTree);
+            var childNode = MapSyntacticSymbolToOntology(childSyntactic, fileName, relativePath, workspaceId, symbolId, ctx, count > 1 ? count : 0, projectName, symbolIsTest, projectKind, syntaxTree, childCounts);
             if (childNode != null)
             {
                 typedNode.Children.Add(childNode);

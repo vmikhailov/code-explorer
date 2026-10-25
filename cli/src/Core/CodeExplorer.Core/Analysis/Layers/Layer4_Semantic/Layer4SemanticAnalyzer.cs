@@ -404,7 +404,7 @@ public class Layer4SemanticParser
             foreach (var semNode in projectSemanticNodes)
             {
                 semanticNodes.Add(semNode);
-                if (semNode is EndpointNode or EntryPointNode or ExternalServiceNode)
+                if (semNode is EndpointNode or ExternalServiceNode)
                 {
                     if (workloadNode.Children.All(c => c.Id != semNode.Id))
                     {
@@ -564,7 +564,7 @@ public class Layer4SemanticParser
     {
         foreach (var child in node.Children)
         {
-            if (child is DatabaseNode || child is EndpointNode || child is QueryNode || child is ExternalServiceNode || child is TopicNode || child is CloudServiceNode || child is PeerMeshNode || child is ApiInUseNode || child is TableNode || child is DataSetNode || child is ServiceNode || child is AppNode || child is WorkerNode || child is LibraryNode || child is CliToolNode || child is EntryPointNode)
+            if (child is DatabaseNode || child is EndpointNode || child is QueryNode || child is ExternalServiceNode || child is TopicNode || child is CloudServiceNode || child is PeerMeshNode || child is ApiInUseNode || child is TableNode || child is DataSetNode || child is ServiceNode || child is AppNode || child is WorkerNode || child is LibraryNode || child is CliToolNode)
             {
                 semanticNodes.Add(child);
             }
@@ -591,28 +591,46 @@ public class Layer4SemanticParser
             }
         }
 
-        if (entryPoints.Count > 0 && workloadNode != null)
+        if (entryPoints.Count > 0)
         {
-            foreach (var ep in entryPoints)
+            foreach (var ep in entryPoints.DistinctBy(e => e.Id))
             {
-                if (workloadNode.Children.All(c => c.Id != ep.Id))
+                if (project.IsLibrary && ep.EntryType is "main-method" or "top-level" or "script-main")
                 {
-                    workloadNode.Children.Add(ep);
+                    continue;
                 }
 
-                if (existingRelKeys.Add((ep.Id, project.Id, OntologyConstants.Relationships.DeclaredIn)))
+                if (project.Children.All(c => c.Id != ep.Id))
+                {
+                    project.Children.Add(ep);
+                }
+
+                if (existingRelKeys.Add((project.Id, ep.Id, OntologyConstants.Relationships.HasEntrypoint)))
+                {
+                    semanticRelationships.Add(new Relationship(
+                        project.Id,
+                        ep.Id,
+                        OntologyConstants.Relationships.HasEntrypoint,
+                        new Dictionary<string, object>()));
+                }
+
+                if (existingRelKeys.Add((ep.Id, project.Id, OntologyConstants.Relationships.BelongsTo)))
                 {
                     semanticRelationships.Add(new Relationship(
                         ep.Id,
                         project.Id,
-                        OntologyConstants.Relationships.DeclaredIn,
+                        OntologyConstants.Relationships.BelongsTo,
                         new Dictionary<string, object>()));
                 }
 
-                if (parentMap.TryGetValue(ep.Id, out var parentId))
+                if (parentMap.TryGetValue(ep.Id, out var parentId) &&
+                    !parentId.Contains($":{OntologyConstants.IdPrefixes.File}:", StringComparison.Ordinal))
                 {
                     var implRel = new ImplementedByRelationship(ep.Id, parentId);
                     ctx.AddGlobalProjectDependency(Relationship.FromRelationship(implRel));
+
+                    var fnImplRel = new ImplementsRelationship(parentId, ep.Id);
+                    ctx.AddGlobalProjectDependency(Relationship.FromRelationship(fnImplRel));
                 }
             }
         }
@@ -628,7 +646,11 @@ public class Layer4SemanticParser
         foreach (var ep in epsInNode)
         {
             entryPoints.Add(ep);
-            parentMap[ep.Id] = node.Id;
+            if (!node.Id.Contains($":{OntologyConstants.IdPrefixes.File}:", StringComparison.Ordinal) ||
+                !parentMap.ContainsKey(ep.Id))
+            {
+                parentMap[ep.Id] = node.Id;
+            }
             node.Children.Remove(ep);
         }
 

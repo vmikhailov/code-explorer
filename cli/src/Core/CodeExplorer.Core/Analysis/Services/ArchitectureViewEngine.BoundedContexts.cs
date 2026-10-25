@@ -148,15 +148,18 @@ public partial class ArchitectureViewEngine
             cleaned = "Frontend";
         }
 
+        var rawName = !string.IsNullOrWhiteSpace(projectName) ? projectName.Trim() : (!string.IsNullOrWhiteSpace(candidate) ? candidate : cleaned);
         var pascal = ToPascalCase(cleaned);
         var key = pascal.ToLowerInvariant();
-        var displayName = Regex.Replace(pascal, "([a-z])([A-Z])", "$1 $2");
+        var displayName = rawName;
 
         // 2. Classify into Domain (Problem Space) via CanonicalizeDomain
         var canonicalDomain = WorkspaceConventions.CanonicalizeDomain(rawDomain, projectName, filePath);
         var domPascal = ToPascalCase(canonicalDomain);
         var domKey = domPascal.ToLowerInvariant();
-        var domDisplayName = WorkspaceConventions.FormatDomainDisplayName(domPascal);
+        var domDisplayName = string.Equals(domPascal, pascal, StringComparison.OrdinalIgnoreCase)
+            ? rawName
+            : WorkspaceConventions.FormatDomainDisplayName(domPascal);
 
         // Deterministic color assignment based on domain id
         var (bgCol, borderCol) = ResolveContextColors("", $"domain:{domKey}");

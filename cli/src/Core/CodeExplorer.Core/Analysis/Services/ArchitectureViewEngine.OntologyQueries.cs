@@ -567,7 +567,7 @@ public partial class ArchitectureViewEngine
         }
         else if (string.Equals(safeKind, "Layer2", StringComparison.OrdinalIgnoreCase))
         {
-            layerFilter = "WHERE (n:Project OR n:Package)";
+            layerFilter = "WHERE (n:Project OR n:Package OR n:EntryPoint)";
             safeKind = null;
         }
         else if (string.Equals(safeKind, "Layer3", StringComparison.OrdinalIgnoreCase))
@@ -577,7 +577,7 @@ public partial class ArchitectureViewEngine
         }
         else if (string.Equals(safeKind, "Layer4", StringComparison.OrdinalIgnoreCase))
         {
-            layerFilter = "WHERE (n:Service OR n:App OR n:Worker OR n:Library OR n:CliTool OR n:TestSuite OR n:Test OR n:EntryPoint OR n:Endpoint OR n:Procedure OR n:Database OR n:Table OR n:DataSet OR (n:Topic AND coalesce(n.is_internal, 'false') <> 'true' AND coalesce(n.broker_type, '') <> 'mediatr' AND coalesce(n.broker_type, '') <> 'in-memory') OR n:ExternalService OR n:CloudService OR n:ApiInUse OR n:Query)";
+            layerFilter = "WHERE (n:Service OR n:App OR n:Worker OR n:Library OR n:CliTool OR n:TestSuite OR n:Test OR n:Endpoint OR n:Procedure OR n:Database OR n:Table OR n:DataSet OR (n:Topic AND coalesce(n.is_internal, 'false') <> 'true' AND coalesce(n.broker_type, '') <> 'mediatr' AND coalesce(n.broker_type, '') <> 'in-memory') OR n:ExternalService OR n:CloudService OR n:ApiInUse OR n:Query)";
             safeKind = null;
         }
         else if (string.Equals(safeKind, "App", StringComparison.OrdinalIgnoreCase) && serviceId == null)
@@ -618,7 +618,7 @@ public partial class ArchitectureViewEngine
         if (safeKind == null && layerFilter == null && serviceId == null)
         {
             // Default macro filter for unconstrained / 'all' queries (prevents pulling thousands of raw AST symbols)
-            layerFilter = "WHERE (n:Service OR n:App OR n:Worker OR n:Library OR n:CliTool OR n:TestSuite OR n:Test OR n:EntryPoint OR n:Endpoint OR n:Database OR n:Table OR (n:Topic AND coalesce(n.is_internal, 'false') <> 'true' AND coalesce(n.broker_type, '') <> 'mediatr' AND coalesce(n.broker_type, '') <> 'in-memory') OR n:ExternalService OR n:CloudService)";
+            layerFilter = "WHERE (n:Service OR n:App OR n:Worker OR n:Library OR n:CliTool OR n:TestSuite OR n:Test OR n:Endpoint OR n:Database OR n:Table OR (n:Topic AND coalesce(n.is_internal, 'false') <> 'true' AND coalesce(n.broker_type, '') <> 'mediatr' AND coalesce(n.broker_type, '') <> 'in-memory') OR n:ExternalService OR n:CloudService)";
         }
 
         var matchClause = safeKind != null ? $"MATCH (n:{safeKind})" : "MATCH (n)";
