@@ -112,12 +112,12 @@ public class SqlAlchemyLibraryParser : ISemanticExtension
                     var innerArgs = PythonAstHelper.GetCallArguments(firstArg);
                     if (innerArgs.Count > 0)
                     {
-                        targetInfo = PythonAstHelper.ResolveStringOrVariable(innerArgs[0]);
+                        targetInfo = PythonAstHelper.ResolveSqlStringOrVariable(innerArgs[0]);
                     }
                 }
                 else
                 {
-                    targetInfo = PythonAstHelper.ResolveStringOrVariable(firstArg) ?? firstArg.Text.Trim();
+                    targetInfo = PythonAstHelper.ResolveSqlStringOrVariable(firstArg) ?? firstArg.Text.Trim();
                 }
             }
             return true;

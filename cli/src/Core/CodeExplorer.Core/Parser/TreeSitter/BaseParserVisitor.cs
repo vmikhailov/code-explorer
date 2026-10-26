@@ -710,7 +710,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
         if (kind == OntologyConstants.NodeLabels.Query)
         {
-            NestedSqlParser.TryDetectSqlDependencies(node.Text, "", syntacticNode.References);
+            NestedSqlParser.TryDetectSqlDependencies(syntacticNode.Text ?? node.Text, "", syntacticNode.References);
             if (parent.Kind == OntologyConstants.NodeLabels.Function)
             {
                 foreach (var r in syntacticNode.References)
@@ -912,6 +912,34 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
     protected override void VisitStringLiteral(Node node, int depth)
     {
+        var currentScope = SymbolStack.Peek();
+        if (currentScope.Kind == OntologyConstants.NodeLabels.Query)
+        {
+            var cleanedLiteral = CleanStringLiteral(node.Text);
+            if ((string.IsNullOrEmpty(currentScope.Text) || !NestedSqlParser.TryParseSql(currentScope.Text, out _, out _)) &&
+                NestedSqlParser.TryParseSql(cleanedLiteral, out _, out _))
+            {
+                currentScope.Text = cleanedLiteral;
+            }
+            if (!WorkspaceConventions.IsFrontendFilePath(RelativePath))
+            {
+                NestedSqlParser.TryDetectSqlDependencies(cleanedLiteral, "", currentScope.References);
+                var enclosingFunc = SymbolStack.FirstOrDefault(s => s.Kind == OntologyConstants.NodeLabels.Function);
+                if (enclosingFunc != null)
+                {
+                    foreach (var r in currentScope.References)
+                    {
+                        if (r.Kind == OntologyConstants.Relationships.DependsOn && !enclosingFunc.References.Contains(r))
+                        {
+                            enclosingFunc.References.Add(r);
+                        }
+                    }
+                }
+            }
+            base.VisitStringLiteral(node, depth);
+            return;
+        }
+
         if (!WorkspaceConventions.IsFrontendFilePath(RelativePath) && NestedSqlParser.TryParseSql(node.Text, out _, out _))
         {
             var name = "Query";
@@ -926,8 +954,6 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         }
         else
         {
-            var currentScope = SymbolStack.Peek();
-
             if (currentScope.Kind != "file" && !WorkspaceConventions.IsFrontendFilePath(RelativePath))
             {
                 NestedSqlParser.TryDetectSqlDependencies(node.Text, "", currentScope.References);

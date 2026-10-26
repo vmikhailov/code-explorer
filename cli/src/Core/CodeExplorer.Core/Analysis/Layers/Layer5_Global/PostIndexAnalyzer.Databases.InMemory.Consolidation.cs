@@ -759,9 +759,20 @@ public partial class PostIndexAnalyzer
                 {
                     foreach (var child in loserNode.Children)
                     {
-                        if (!winnerNode.Children.Any(c => c.Id == child.Id))
+                        var existingChild = winnerNode.Children.FirstOrDefault(c => c.Id == child.Id);
+                        if (existingChild == null)
                         {
                             winnerNode.Children.Add(child);
+                        }
+                        else if (existingChild is DataSetNode existingDs && child is DataSetNode newDs)
+                        {
+                            foreach (var grandChild in newDs.Children)
+                            {
+                                if (!existingDs.Children.Any(gc => gc.Id == grandChild.Id))
+                                {
+                                    existingDs.Children.Add(grandChild);
+                                }
+                            }
                         }
                     }
                 }

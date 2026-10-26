@@ -259,6 +259,15 @@ public static class OntologyUploader
                 CollectTreeElements(child, node, ctx, collectedNodes, collectedRelationships, visitedNodeIds, visitedRelKeys);
             }
         }
+        else if (node is DatabaseNode or DataSetNode)
+        {
+            // Multiple QueryNodes construct separate DatabaseNode/DataSetNode instances sharing the same canonical ID,
+            // each holding its own TableNode/ProcedureNode children. Always traverse children of duplicate DB/DataSet containers.
+            foreach (var child in node.Children)
+            {
+                CollectTreeElements(child, node, ctx, collectedNodes, collectedRelationships, visitedNodeIds, visitedRelKeys);
+            }
+        }
     }
 
     private static IOntologyRelationship GetRelationship(string parentId, IOntologyNode child)

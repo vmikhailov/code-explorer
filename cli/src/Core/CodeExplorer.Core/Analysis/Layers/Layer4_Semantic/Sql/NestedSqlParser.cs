@@ -11,19 +11,75 @@ public class SqlDependencyVisitor : TSqlFragmentVisitor
 {
     public List<(string? Db, string? Schema, string Table)> Tables { get; } = [];
     public List<(string? Db, string? Schema, string Procedure)> Procedures { get; } = [];
+    public HashSet<string> CteNames { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    private void AddSchemaObject(SchemaObjectName? schemaObject)
+    {
+        if (schemaObject == null) return;
+        var db = NestedSqlParser.CleanSqlIdentifier(schemaObject.DatabaseIdentifier?.Value ?? "");
+        var schema = NestedSqlParser.CleanSqlIdentifier(schemaObject.SchemaIdentifier?.Value ?? "");
+        var table = NestedSqlParser.CleanSqlIdentifier(schemaObject.BaseIdentifier?.Value ?? "");
+        if (!string.IsNullOrEmpty(table) && !NestedSqlParser.IsSqlKeyword(table))
+        {
+            Tables.Add((string.IsNullOrEmpty(db) ? null : db, string.IsNullOrEmpty(schema) ? null : schema, table));
+        }
+    }
+
+    public override void Visit(CommonTableExpression node)
+    {
+        var cteName = NestedSqlParser.CleanSqlIdentifier(node.ExpressionName?.Value ?? "");
+        if (!string.IsNullOrEmpty(cteName))
+        {
+            CteNames.Add(cteName);
+        }
+        base.Visit(node);
+    }
 
     public override void Visit(NamedTableReference node)
     {
-        if (node.SchemaObject != null)
+        AddSchemaObject(node.SchemaObject);
+        base.Visit(node);
+    }
+
+    public override void Visit(CreateTableStatement node)
+    {
+        AddSchemaObject(node.SchemaObjectName);
+        base.Visit(node);
+    }
+
+    public override void Visit(AlterTableStatement node)
+    {
+        AddSchemaObject(node.SchemaObjectName);
+        base.Visit(node);
+    }
+
+    public override void Visit(DropTableStatement node)
+    {
+        if (node.Objects != null)
         {
-            var db = NestedSqlParser.CleanSqlIdentifier(node.SchemaObject.DatabaseIdentifier?.Value ?? "");
-            var schema = NestedSqlParser.CleanSqlIdentifier(node.SchemaObject.SchemaIdentifier?.Value ?? "");
-            var table = NestedSqlParser.CleanSqlIdentifier(node.SchemaObject.BaseIdentifier?.Value ?? "");
-            if (!string.IsNullOrEmpty(table) && !NestedSqlParser.IsSqlKeyword(table))
+            foreach (var obj in node.Objects)
             {
-                Tables.Add((string.IsNullOrEmpty(db) ? null : db, string.IsNullOrEmpty(schema) ? null : schema, table));
+                AddSchemaObject(obj);
             }
         }
+        base.Visit(node);
+    }
+
+    public override void Visit(TruncateTableStatement node)
+    {
+        AddSchemaObject(node.TableName);
+        base.Visit(node);
+    }
+
+    public override void Visit(CreateViewStatement node)
+    {
+        AddSchemaObject(node.SchemaObjectName);
+        base.Visit(node);
+    }
+
+    public override void Visit(ForeignKeyConstraintDefinition node)
+    {
+        AddSchemaObject(node.ReferenceTableName);
         base.Visit(node);
     }
 
@@ -47,20 +103,44 @@ public static class NestedSqlParser
 {
     private static readonly HashSet<string> SqlKeywords = new(StringComparer.OrdinalIgnoreCase)
     {
-        "SELECT", "INSERT", "UPDATE", "DELETE", "MERGE"
+        "SELECT", "INSERT", "UPDATE", "DELETE", "MERGE",
+        "CREATE", "ALTER", "DROP", "TRUNCATE", "WITH"
     };
 
     private static bool FastCheckSqlCandidate(string text)
     {
         if (string.IsNullOrEmpty(text)) return false;
         int i = 0;
-        while (i < text.Length && (char.IsWhiteSpace(text[i]) || text[i] is '"' or '\'' or '`' or '('))
+        while (i < text.Length)
         {
-            i++;
+            while (i < text.Length && (char.IsWhiteSpace(text[i]) || text[i] is '"' or '\'' or '`' or '('))
+            {
+                i++;
+            }
+            if (i + 1 < text.Length && text[i] == '-' && text[i + 1] == '-')
+            {
+                i += 2;
+                while (i < text.Length && text[i] != '\n') i++;
+                continue;
+            }
+            if (i + 1 < text.Length && text[i] == '/' && text[i + 1] == '*')
+            {
+                i += 2;
+                while (i + 1 < text.Length && !(text[i] == '*' && text[i + 1] == '/')) i++;
+                i += 2;
+                continue;
+            }
+            break;
         }
         if (i >= text.Length) return false;
         char c = char.ToUpperInvariant(text[i]);
-        return c is 'S' or 'I' or 'U' or 'D' or 'M';
+        return c is 'S' or 'I' or 'U' or 'D' or 'M' or 'C' or 'A' or 'T' or 'W';
+    }
+
+    private static string StripLeadingSqlComments(string sql)
+    {
+        if (string.IsNullOrEmpty(sql)) return sql;
+        return Regex.Replace(sql, @"^(?:\s*(?:--[^\r\n]*|/\*[\s\S]*?\*/))+", "").TrimStart();
     }
 
     public static bool TryParseSql(string text, out string? firstWord, out string cleanedSql)
@@ -86,14 +166,15 @@ public static class NestedSqlParser
             return false;
         }
 
-        var match = Regex.Match(cleanedSql, @"^\s*([a-zA-Z]+)\b");
+        var uncommented = StripLeadingSqlComments(cleanedSql);
+        var match = Regex.Match(uncommented, @"^\s*([a-zA-Z]+)\b");
         if (match.Success)
         {
             var word = match.Groups[1].Value.ToUpperInvariant();
             if (SqlKeywords.Contains(word))
             {
                 // Reject colon right after the keyword (e.g. "Select: Person", "Update:")
-                if (Regex.IsMatch(cleanedSql, @"^\s*[a-zA-Z]+:\s*"))
+                if (Regex.IsMatch(uncommented, @"^\s*[a-zA-Z]+:\s*"))
                 {
                     return false;
                 }
@@ -101,8 +182,8 @@ public static class NestedSqlParser
                 // Verify structural syntax for SQL statements to avoid false positives (e.g. Swagger / UI strings)
                 if (word == "SELECT")
                 {
-                    var isScalar = Regex.IsMatch(cleanedSql, @"^\s*SELECT\s+(?:[\d@'""\(]|COUNT\(|NOW\(|CURRENT_|@@|TRUE\b|FALSE\b|NULL\b)", RegexOptions.IgnoreCase);
-                    var hasFrom = Regex.Match(cleanedSql, @"\bFROM\s+([a-zA-Z0-9_\.\[\]""`#@']+)", RegexOptions.IgnoreCase);
+                    var isScalar = Regex.IsMatch(uncommented, @"^\s*SELECT\s+(?:[\d@'""\(]|COUNT\(|NOW\(|CURRENT_|@@|TRUE\b|FALSE\b|NULL\b)", RegexOptions.IgnoreCase);
+                    var hasFrom = Regex.Match(uncommented, @"\bFROM\s+([a-zA-Z0-9_\.\[\]""`#@']+)", RegexOptions.IgnoreCase);
 
                     if (!isScalar && !hasFrom.Success)
                     {
@@ -120,7 +201,7 @@ public static class NestedSqlParser
                 }
                 else if (word == "INSERT")
                 {
-                    var insertMatch = Regex.Match(cleanedSql, @"^\s*INSERT\s+INTO\s+([a-zA-Z0-9_\.\[\]""`#@']+)", RegexOptions.IgnoreCase);
+                    var insertMatch = Regex.Match(uncommented, @"^\s*INSERT\s+(?:OR\s+(?:REPLACE|IGNORE|ABORT|FAIL|ROLLBACK)\s+|IGNORE\s+)?INTO\s+([a-zA-Z0-9_\.\[\]""`#@']+)", RegexOptions.IgnoreCase);
                     if (!insertMatch.Success)
                     {
                         return false;
@@ -133,7 +214,7 @@ public static class NestedSqlParser
                 }
                 else if (word == "UPDATE")
                 {
-                    var updateMatch = Regex.Match(cleanedSql, @"^\s*UPDATE\s+([a-zA-Z0-9_\.\[\]""`#@']+)\s+SET\b", RegexOptions.IgnoreCase);
+                    var updateMatch = Regex.Match(uncommented, @"^\s*UPDATE\s+(?:OR\s+(?:REPLACE|IGNORE|ABORT|FAIL|ROLLBACK)\s+)?([a-zA-Z0-9_\.\[\]""`#@']+)\s+SET\b", RegexOptions.IgnoreCase);
                     if (!updateMatch.Success)
                     {
                         return false;
@@ -146,7 +227,7 @@ public static class NestedSqlParser
                 }
                 else if (word == "DELETE")
                 {
-                    var deleteMatch = Regex.Match(cleanedSql, @"^\s*DELETE\s+(?:FROM\s+|[a-zA-Z0-9_]+\s+FROM\s+)([a-zA-Z0-9_\.\[\]""`#@']+)", RegexOptions.IgnoreCase);
+                    var deleteMatch = Regex.Match(uncommented, @"^\s*DELETE\s+(?:FROM\s+|[a-zA-Z0-9_]+\s+FROM\s+)([a-zA-Z0-9_\.\[\]""`#@']+)", RegexOptions.IgnoreCase);
                     if (!deleteMatch.Success)
                     {
                         return false;
@@ -159,13 +240,61 @@ public static class NestedSqlParser
                 }
                 else if (word == "MERGE")
                 {
-                    var mergeMatch = Regex.Match(cleanedSql, @"^\s*MERGE\s+(?:INTO\s+)?([a-zA-Z0-9_\.\[\]""`#@']+)\s+(?:USING\b|AS\b)", RegexOptions.IgnoreCase);
+                    var mergeMatch = Regex.Match(uncommented, @"^\s*MERGE\s+(?:INTO\s+)?([a-zA-Z0-9_\.\[\]""`#@']+)\s+(?:USING\b|AS\b)", RegexOptions.IgnoreCase);
                     if (!mergeMatch.Success)
                     {
                         return false;
                     }
                     var targetTable = CleanSqlIdentifier(mergeMatch.Groups[1].Value);
                     if (IsSqlKeyword(targetTable))
+                    {
+                        return false;
+                    }
+                }
+                else if (word == "CREATE")
+                {
+                    var createMatch = Regex.Match(uncommented, @"^\s*CREATE\s+(?:OR\s+REPLACE\s+)?(?:TEMP(?:ORARY)?\s+|EXTERNAL\s+|MATERIALIZED\s+|UNIQUE\s+)*?(?:TABLE|VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_\.\[\]""`#@']+)", RegexOptions.IgnoreCase);
+                    if (!createMatch.Success)
+                    {
+                        return false;
+                    }
+                    var targetTable = CleanSqlIdentifier(createMatch.Groups[1].Value);
+                    if (IsSqlKeyword(targetTable))
+                    {
+                        return false;
+                    }
+                }
+                else if (word is "ALTER" or "DROP")
+                {
+                    var ddlMatch = Regex.Match(uncommented, @"^\s*(?:ALTER|DROP)\s+(?:TABLE|VIEW)\s+(?:IF\s+EXISTS\s+)?([a-zA-Z0-9_\.\[\]""`#@']+)", RegexOptions.IgnoreCase);
+                    if (!ddlMatch.Success)
+                    {
+                        return false;
+                    }
+                    var targetTable = CleanSqlIdentifier(ddlMatch.Groups[1].Value);
+                    if (IsSqlKeyword(targetTable))
+                    {
+                        return false;
+                    }
+                }
+                else if (word == "TRUNCATE")
+                {
+                    var truncMatch = Regex.Match(uncommented, @"^\s*TRUNCATE\s+TABLE\s+([a-zA-Z0-9_\.\[\]""`#@']+)", RegexOptions.IgnoreCase);
+                    if (!truncMatch.Success)
+                    {
+                        return false;
+                    }
+                    var targetTable = CleanSqlIdentifier(truncMatch.Groups[1].Value);
+                    if (IsSqlKeyword(targetTable))
+                    {
+                        return false;
+                    }
+                }
+                else if (word == "WITH")
+                {
+                    var cteMatch = Regex.IsMatch(uncommented, @"^\s*WITH\s+(?:RECURSIVE\s+)?[a-zA-Z0-9_\[\]""`]+\s+AS\s*\(", RegexOptions.IgnoreCase) &&
+                                   Regex.IsMatch(uncommented, @"\b(?:SELECT|INSERT|UPDATE|DELETE|MERGE)\b", RegexOptions.IgnoreCase);
+                    if (!cteMatch)
                     {
                         return false;
                     }
@@ -184,6 +313,25 @@ public static class NestedSqlParser
         if (string.IsNullOrEmpty(text)) return text;
         
         var cleaned = text.Trim();
+
+        // Strip Python/Rust/raw string prefixes (f, r, b, u) before quotes
+        var pLen = 0;
+        while (pLen < cleaned.Length && pLen < 2 && char.ToLowerInvariant(cleaned[pLen]) is 'f' or 'r' or 'b' or 'u')
+        {
+            pLen++;
+        }
+        if (pLen > 0 && pLen < cleaned.Length && cleaned[pLen] is '"' or '\'')
+        {
+            cleaned = cleaned[pLen..];
+        }
+
+        if (cleaned.Length >= 6 &&
+            ((cleaned.StartsWith("\"\"\"", StringComparison.Ordinal) && cleaned.EndsWith("\"\"\"", StringComparison.Ordinal)) ||
+             (cleaned.StartsWith("'''", StringComparison.Ordinal) && cleaned.EndsWith("'''", StringComparison.Ordinal))))
+        {
+            cleaned = cleaned[3..^3].Trim();
+        }
+
         while (cleaned.Length >= 2 && 
                ((cleaned.StartsWith('"') && cleaned.EndsWith('"')) || 
                 (cleaned.StartsWith('\'') && cleaned.EndsWith('\'')) || 
@@ -298,23 +446,43 @@ public static class NestedSqlParser
         return false;
     }
 
+    private static string NormalizeDialectForTSqlParser(string sql)
+    {
+        if (string.IsNullOrEmpty(sql)) return sql;
+        var norm = Regex.Replace(sql, @"\bIF\s+NOT\s+EXISTS\b", "", RegexOptions.IgnoreCase);
+        norm = Regex.Replace(norm, @"\bAUTOINCREMENT\b", "IDENTITY(1,1)", RegexOptions.IgnoreCase);
+        norm = Regex.Replace(norm, @"\bINSERT\s+OR\s+(?:REPLACE|IGNORE|ABORT|FAIL|ROLLBACK)\s+INTO\b", "INSERT INTO", RegexOptions.IgnoreCase);
+        // Replace positional '?' placeholders outside single/double quotes with valid T-SQL variable '@p'
+        norm = Regex.Replace(norm, @"('[^']*'|""[^""]*"")|\?", m => m.Groups[1].Success ? m.Groups[1].Value : "@p");
+        return norm;
+    }
+
     private static void ExtractSqlDependencies(
         string cleanedSql,
         string rawText,
         HashSet<(string? Db, string? Schema, string Table)> tables,
         HashSet<(string? Db, string? Schema, string Procedure)> procedures)
     {
+        var cteNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (Match cteMatch in Regex.Matches(cleanedSql, @"(?:\bWITH\s+(?:RECURSIVE\s+)?|,\s*)([a-zA-Z0-9_\[\]""`]+)\s+AS\s*\(", RegexOptions.IgnoreCase))
+        {
+            var cte = CleanSqlIdentifier(cteMatch.Groups[1].Value);
+            if (!string.IsNullOrEmpty(cte)) cteNames.Add(cte);
+        }
+
         // 1. Try Grammar Parser (ScriptDom)
         try
         {
             var parser = new TSql160Parser(true);
 
-            using var reader = new StringReader(cleanedSql);
+            using var reader = new StringReader(NormalizeDialectForTSqlParser(cleanedSql));
 
             var fragment = parser.Parse(reader, out _);
 
             var visitor = new SqlDependencyVisitor();
             fragment?.Accept(visitor);
+
+            foreach (var c in visitor.CteNames) cteNames.Add(c);
 
             foreach (var t in visitor.Tables)
             {
@@ -322,6 +490,7 @@ public static class NestedSqlParser
                 var schema = ResolveSqlIdentifier(t.Schema, rawText);
                 var db = ResolveSqlIdentifier(t.Db, rawText);
 
+                if (cteNames.Contains(table)) continue;
                 if (IsSqlKeyword(table)) continue;
                 if (!PostIndexAnalyzer.IsValidTableIdentifier(table)) continue;
                 if (!string.IsNullOrEmpty(schema) && !string.Equals(schema, "default", StringComparison.OrdinalIgnoreCase) && IsSqlKeyword(schema)) continue;
@@ -351,8 +520,11 @@ public static class NestedSqlParser
             // Ignore syntax errors, fall back to regex
         }
 
-        // 2. Lexical Fallback: Match identifiers after FROM, JOIN, UPDATE, INTO, MERGE
-        var tableMatches = Regex.Matches(cleanedSql, @"\b(?:FROM|JOIN|(?<!FOR\s+)UPDATE|INTO|MERGE)\s+(?!(?:EXTERNAL_QUERY|UNNEST|GENERATE_SERIES)\s*\()([a-zA-Z0-9_\.\[\]""#@'`\$\{\}\*]+)", RegexOptions.IgnoreCase);
+        // 2. Lexical Fallback: Match identifiers after DML (FROM, JOIN, UPDATE, INTO, MERGE, REFERENCES) and DDL (CREATE/ALTER/DROP/TRUNCATE TABLE/VIEW)
+        var tableMatches = Regex.Matches(
+            cleanedSql,
+            @"\b(?:FROM|JOIN|(?<!FOR\s+)UPDATE(?:\s+OR\s+(?:REPLACE|IGNORE|ABORT|FAIL|ROLLBACK))?|INTO|MERGE|REFERENCES|CREATE\s+(?:OR\s+REPLACE\s+)?(?:TEMP(?:ORARY)?\s+|EXTERNAL\s+|MATERIALIZED\s+|UNIQUE\s+)*?(?:TABLE|VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?|(?:ALTER|DROP)\s+(?:TABLE|VIEW)\s+(?:IF\s+EXISTS\s+)?|TRUNCATE\s+TABLE)\s+(?!(?:EXTERNAL_QUERY|UNNEST|GENERATE_SERIES)\s*\()([a-zA-Z0-9_\.\[\]""#@'`\$\{\}\*]+)",
+            RegexOptions.IgnoreCase);
         foreach (Match match in tableMatches)
         {
             var rawTableName = match.Groups[1].Value.Trim();
@@ -387,6 +559,7 @@ public static class NestedSqlParser
             schemaName = ResolveSqlIdentifier(schemaName, rawText);
             dbName = ResolveSqlIdentifier(dbName, rawText);
 
+            if (cteNames.Contains(tableName)) continue;
             if (IsSqlKeyword(tableName) || IsSqlKeyword(rawTableName)) continue;
             if (!PostIndexAnalyzer.IsValidTableIdentifier(tableName)) continue;
             if (!string.IsNullOrEmpty(schemaName) && !string.Equals(schemaName, "default", StringComparison.OrdinalIgnoreCase) && IsSqlKeyword(schemaName)) continue;
@@ -607,7 +780,7 @@ public static class NestedSqlParser
 
             if (ctx != null)
             {
-                var relKind = verb is "INSERT" or "UPDATE" or "DELETE" or "MERGE"
+                var relKind = verb is "INSERT" or "UPDATE" or "DELETE" or "MERGE" or "CREATE" or "ALTER" or "DROP" or "TRUNCATE"
                     ? OntologyConstants.Relationships.WritesTo
                     : OntologyConstants.Relationships.ReadsFrom;
                 var relProps = new Dictionary<string, object>

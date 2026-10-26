@@ -12,6 +12,181 @@ public static class PythonAstHelper
         return ResolveStringOrVariable(argNode, 0, null);
     }
 
+    public static string? ResolveSqlStringOrVariable(Node? argNode)
+    {
+        return ResolveSqlStringOrVariable(argNode, 0, null);
+    }
+
+    public static string StripPythonStringQuotes(string raw)
+    {
+        if (string.IsNullOrEmpty(raw)) return raw;
+        var text = raw.Trim();
+
+        // Strip string prefixes (f, r, b, u, fr, rf, br, rb)
+        var prefixLen = 0;
+        while (prefixLen < text.Length && prefixLen < 2 &&
+               char.ToLowerInvariant(text[prefixLen]) is 'f' or 'r' or 'b' or 'u')
+        {
+            prefixLen++;
+        }
+        if (prefixLen > 0 && prefixLen < text.Length && (text[prefixLen] == '\'' || text[prefixLen] == '"'))
+        {
+            text = text[prefixLen..];
+        }
+
+        if (text.StartsWith("\"\"\"", StringComparison.Ordinal) && text.EndsWith("\"\"\"", StringComparison.Ordinal) && text.Length >= 6)
+        {
+            return text[3..^3].Trim();
+        }
+        if (text.StartsWith("'''", StringComparison.Ordinal) && text.EndsWith("'''", StringComparison.Ordinal) && text.Length >= 6)
+        {
+            return text[3..^3].Trim();
+        }
+        return text.Trim('\'', '"').Trim();
+    }
+
+    private static string? ResolveSqlStringOrVariable(Node? argNode, int depth, HashSet<string>? visitedVars)
+    {
+        if (depth > MaxRecursionDepth || !argNode.IsValid()) return null;
+
+        // 1. String literal / f-string / triple-quoted string
+        if (argNode.IsAny(TreeSitterSyntax.Python.String, TreeSitterSyntax.Python.FormatString, "concatenated_string", "interpolated_string"))
+        {
+            var text = StripPythonStringQuotes(argNode.Text);
+            if (string.IsNullOrWhiteSpace(text) || text.Length > 65536) return null;
+            return text;
+        }
+
+        // 2. Identifier (variable)
+        if (argNode.IsAny(TreeSitterSyntax.Python.Identifier, TreeSitterSyntax.Python.VariableName))
+        {
+            var varName = argNode.Text;
+            return FindSqlVariableInitializerInScope(argNode, varName, depth + 1, visitedVars);
+        }
+
+        // 3. Binary operator: base_client_sql + " WHERE c.id = ?"
+        if (argNode.IsAny(TreeSitterSyntax.Python.BinaryOperator, TreeSitterSyntax.Common.BinaryExpression))
+        {
+            var left = argNode.GetField(TreeSitterSyntax.Fields.Left) ??
+                       (argNode.Children.Count > 0 ? argNode.Children[0] : null);
+            var right = argNode.GetField(TreeSitterSyntax.Fields.Right) ??
+                        (argNode.Children.Count >= 3 ? argNode.Children[2] : null);
+
+            var leftResolved = left.IsValid() ? ResolveSqlStringOrVariable(left, depth + 1, visitedVars) : null;
+            var rightResolved = right.IsValid() ? ResolveSqlStringOrVariable(right, depth + 1, visitedVars) : null;
+
+            if (!string.IsNullOrEmpty(leftResolved) && !string.IsNullOrEmpty(rightResolved))
+            {
+                return $"{leftResolved} {rightResolved}";
+            }
+            if (!string.IsNullOrEmpty(leftResolved))
+            {
+                return leftResolved;
+            }
+            if (!string.IsNullOrEmpty(rightResolved))
+            {
+                return rightResolved;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? FindSqlVariableInitializerInScope(Node node, string varName, int depth, HashSet<string>? visitedVars)
+    {
+        if (depth > MaxRecursionDepth) return null;
+        visitedVars ??= new HashSet<string>(StringComparer.Ordinal);
+        if (!visitedVars.Add(varName))
+        {
+            return null;
+        }
+
+        try
+        {
+            var curr = node.Parent;
+            var maxScopeSteps = 50;
+            var steps = 0;
+            while (curr.IsValid() && ++steps <= maxScopeSteps)
+            {
+                if (curr.IsAny(TreeSitterSyntax.Python.Block, TreeSitterSyntax.Python.FunctionDefinition, TreeSitterSyntax.Python.ClassDefinition, TreeSitterSyntax.Python.Module))
+                {
+                    string? baseAssigned = null;
+                    var augmentedParts = new List<string>();
+
+                    foreach (var child in curr.Children)
+                    {
+                        if (child.StartPosition.Row > node.StartPosition.Row)
+                        {
+                            break;
+                        }
+
+                        var assign = child.Is(TreeSitterSyntax.Python.Assignment) ? child : child.FindChildOfType(TreeSitterSyntax.Python.Assignment);
+                        if (assign.IsValid() && !IsNodeContainedWithin(node, assign))
+                        {
+                            var left = assign.GetField(TreeSitterSyntax.Fields.Left) ??
+                                       assign.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.Python.Identifier, TreeSitterSyntax.Python.VariableName));
+                            if (left.IsValid() && left.Text == varName)
+                            {
+                                var right = assign.GetField(TreeSitterSyntax.Fields.Right);
+                                if (!right.IsValid())
+                                {
+                                    for (var i = 0; i < assign.Children.Count - 1; i++)
+                                    {
+                                        if (assign.Children[i].Text == "=")
+                                        {
+                                            right = assign.Children[i + 1];
+                                            break;
+                                        }
+                                    }
+                                }
+                                if (right.IsValid())
+                                {
+                                    var resolved = ResolveSqlStringOrVariable(right, depth + 1, visitedVars);
+                                    if (!string.IsNullOrEmpty(resolved))
+                                    {
+                                        baseAssigned = resolved;
+                                    }
+                                }
+                            }
+                        }
+
+                        var augAssign = child.Type == "augmented_assignment" ? child : child.FindChildOfType("augmented_assignment");
+                        if (augAssign.IsValid() && !IsNodeContainedWithin(node, augAssign))
+                        {
+                            var left = augAssign.GetField(TreeSitterSyntax.Fields.Left) ??
+                                       augAssign.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.Python.Identifier, TreeSitterSyntax.Python.VariableName));
+                            if (left.IsValid() && left.Text == varName)
+                            {
+                                var right = augAssign.GetField(TreeSitterSyntax.Fields.Right) ?? augAssign.Children.LastOrDefault();
+                                if (right.IsValid())
+                                {
+                                    var augResolved = ResolveSqlStringOrVariable(right, depth + 1, visitedVars);
+                                    if (!string.IsNullOrEmpty(augResolved))
+                                    {
+                                        augmentedParts.Add(augResolved);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(baseAssigned))
+                    {
+                        return augmentedParts.Count > 0
+                            ? $"{baseAssigned} {string.Join(" ", augmentedParts)}"
+                            : baseAssigned;
+                    }
+                }
+                curr = curr.Parent;
+            }
+            return null;
+        }
+        finally
+        {
+            visitedVars.Remove(varName);
+        }
+    }
+
     private static string? ResolveStringOrVariable(Node? argNode, int depth, HashSet<string>? visitedVars)
     {
         if (depth > MaxRecursionDepth || !argNode.IsValid()) return null;

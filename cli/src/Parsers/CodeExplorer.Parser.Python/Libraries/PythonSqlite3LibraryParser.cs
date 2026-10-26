@@ -27,18 +27,14 @@ public class PythonSqlite3LibraryParser : ISemanticExtension
     {
         if (DbApiHelper.IsDbApiCall(node, out var sqlText, out var method))
         {
-            if (!string.IsNullOrEmpty(sqlText))
-            {
-                var clean = NestedSqlParser.CleanQueryText(sqlText);
-                if (NestedSqlParser.TryParseSql(sqlText, out var firstWord, out _))
-                {
-                    return $"{firstWord} Query: {clean}";
-                }
-                return $"SQLite: {clean}";
-            }
-            return $"SQLite: {method ?? "execute"}";
+            return DbApiHelper.FormatQueryIdentifier("SQLite", sqlText, method);
         }
         return null;
+    }
+
+    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    {
+        DbApiHelper.EnrichDbApiSymbol(node, symbol);
     }
 
     public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)

@@ -127,7 +127,7 @@ public class PeeweeLibraryParser : ISemanticExtension
                     var args = PythonAstHelper.GetCallArguments(node);
                     if (args.Count > 0)
                     {
-                        targetInfo = PythonAstHelper.ResolveStringOrVariable(args[0]);
+                        targetInfo = PythonAstHelper.ResolveSqlStringOrVariable(args[0]);
                     }
                 }
                 else
