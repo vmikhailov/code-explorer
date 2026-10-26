@@ -3,7 +3,8 @@ using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser;
-using TreeSitter;
+using CodeExplorer.Core.Parser.Syntax;
+using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.ColdFusion;
 
@@ -115,7 +116,9 @@ public class ColdFusionFileParser : IFileParser
         // 6. Calls and Inclusions
         ParseInclusionsAndCalls(content, relativePath, rawImports, rawTypeBindings);
 
-        return new SyntaxTree(filePath, relativePath, null, null, null, fileNode, this, rawImports, [], rawTypeBindings);
+        var doc = UniversalSyntaxBuilder.CreateDocument(content, LanguageName, filePath, relativePath);
+
+        return new SyntaxTree(filePath, relativePath, doc, fileNode, this, rawImports, [], rawTypeBindings);
     }
 
     private static void ParseFunctionsAndEndpoints(

@@ -113,7 +113,12 @@ public static class ProjectMapGraphMapper
         if (m.Methods.Count > 0)
         {
             props["method_count"] = m.Methods.Count.ToString(CultureInfo.InvariantCulture);
-            props["methods"] = JsonSerializer.Serialize(m.Methods.Take(MaxListedFiles));
+            props["methods"] = JsonSerializer.Serialize(m.Methods.Take(MaxListedFiles).Select(x => new
+            {
+                name = x.Name,
+                path = x.FilePath,
+                line = x.Line
+            }));
         }
         if (m.ImplementedInterfaces.Count > 0)
         {

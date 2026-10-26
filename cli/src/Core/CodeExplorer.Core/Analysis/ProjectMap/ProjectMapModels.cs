@@ -52,6 +52,14 @@ public sealed record ProjectMapEntryPointNode(
     IReadOnlyList<string>? TargetFiles = null);
 
 /// <summary>
+/// A method/function belonging to a ProjectMap module or type.
+/// </summary>
+public sealed record ProjectMapMethod(string Name, string? FilePath = null, int? Line = null)
+{
+    public static implicit operator ProjectMapMethod(string name) => new(name);
+}
+
+/// <summary>
 /// A Type declaration (class, interface, struct, record, enum) in the project.
 /// </summary>
 public sealed record ProjectMapTypeNode(
@@ -62,7 +70,7 @@ public sealed record ProjectMapTypeNode(
     int? StartLine = null,
     int? LineCount = null,
     bool IsTest = false,
-    IReadOnlyList<string>? Methods = null);
+    IReadOnlyList<ProjectMapMethod>? Methods = null);
 
 /// <summary>
 /// A Function/Method declaration in the project.
@@ -149,7 +157,7 @@ public sealed class ProjectMapModule
     public string? SubKind { get; init; }
     public int? StartLine { get; set; }
     public int? BfsDepth { get; set; }
-    public List<string> Methods { get; } = [];
+    public List<ProjectMapMethod> Methods { get; } = [];
     public List<string> ImplementedInterfaces { get; } = [];
     public bool IsRootFiles { get; init; }
     public bool IsMerged { get; init; }

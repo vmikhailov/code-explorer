@@ -3,7 +3,8 @@ using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser;
-using TreeSitter;
+using CodeExplorer.Core.Parser.Syntax;
+using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 [assembly: ParserAssembly]
 
@@ -126,12 +127,12 @@ public class AndroidManifestFileParser : IFileParser
             }
         }
 
+        var doc = UniversalSyntaxBuilder.CreateDocument(content, LanguageName, filePath, relativePath);
+
         return new SyntaxTree(
             filePath,
             relativePath,
-            null,
-            null,
-            null,
+            doc,
             fileNode,
             this,
             [],

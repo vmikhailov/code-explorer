@@ -46,7 +46,7 @@ public class PythonTestComponentParser : IComponentLibraryParser
 
         var root = syntaxTree.Tree.RootNode;
 
-        void WalkNode(TreeSitter.Node node)
+        void WalkNode(CodeExplorer.Core.Parser.Syntax.SyntaxNode node)
         {
             if (node.Is(TreeSitterSyntax.Python.FunctionDefinition))
             {

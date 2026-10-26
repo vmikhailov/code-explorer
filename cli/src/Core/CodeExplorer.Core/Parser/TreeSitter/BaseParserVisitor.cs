@@ -1,6 +1,7 @@
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
-using TreeSitter;
+using CodeExplorer.Core.Parser.Syntax;
+using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Core.Parser;
 

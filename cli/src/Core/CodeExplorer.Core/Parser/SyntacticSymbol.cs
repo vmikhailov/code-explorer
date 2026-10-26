@@ -1,13 +1,13 @@
 using CodeExplorer.Common;
-using TreeSitter;
+using CodeExplorer.Core.Parser.Syntax;
 
 namespace CodeExplorer.Core.Parser;
 
-public class SyntacticSymbol(string kind, string name, Node node)
+public class SyntacticSymbol(string kind, string name, SyntaxNode node)
 {
     public string Kind { get; } = kind;
     public string Name { get; } = name;
-    public Node Node { get; } = node;
+    public SyntaxNode Node { get; } = node;
     public List<SyntacticSymbol> Children { get; } = [];
     public List<Reference> References { get; } = [];
     public string? Text { get; set; }

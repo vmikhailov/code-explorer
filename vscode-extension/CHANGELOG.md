@@ -5,6 +5,20 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.60.0] - 2026-10-26
+
+### Added
+- **Roslyn-Style Universal `*Syntax` AST Architecture (`SyntaxDocument`, `SyntaxNode`, `UniversalSyntaxBuilder`, `SyntaxValueEvaluator`)**:
+  - Introduced a strongly-typed, managed C# `*Syntax` hierarchy (`SyntaxDocument`, `SyntaxNode`, `DeclarationSyntax`, `StatementSyntax`, `ExprSyntax`, `TypeRefSyntax`, `BindingPatternSyntax`, `SqlStmtSyntax`, `TokenSyntax`, `UnmappedSyntax`) in `CodeExplorer.Core.Parser.Syntax` as a lossless union across all 12 supported languages (C#, TypeScript, JavaScript, Python, Java, Go, Rust, Kotlin, SQL, GraphQL, ColdFusion, and AndroidManifest).
+  - Enforced a strict compiler boundary (`PrivateAssets="compile"` on `TreeSitter.DotNet` in `CodeExplorer.Core.csproj` and removed `TreeSitter.DotNet` references from all parser assemblies): `UniversalSyntaxBuilder.Parse` is the sole translation boundary that converts the native Tree-sitter CST into a managed `SyntaxDocument` and immediately disposes the unmanaged `Tree` and `Parser`.
+  - Added `SyntaxValueEvaluator` in Layer 3 to evaluate variable initializers, constant references, string concatenations, template interpolations, and embedded SQL fragments (`SqlStmtSyntax`) directly onto `ExprSyntax.ResolvedValue` and `SyntaxDocument.AllSqlStatements`.
+  - Eliminated secondary `File.ReadAllText` disk re-reads in Layer 4 semantic extensions by sharing `SyntaxDocument.SourceText` and zero-allocation `SyntaxNode.AsSpan()` slices across Layers 3, 4, and 5.
+- **Project Map C3 Aggregation & Edge Evidence Refinements**:
+  - Improved `ProjectMapBuilder`, `ProjectMapGraphMapper`, `ArchitectureViewEngine.ProjectMap`, and `ArchitectureViewEngine.EdgeEvidence` for cleaner C3 structural grouping, external boundary collapsing, and evidence resolution.
+  - Updated `inspectorSchema.ts` in the VS Code Extension to align inspector badge and metadata rendering with the canonical ontology.
+
+---
+
 ## [1.59.3] - 2026-10-26
 
 ### Fixed

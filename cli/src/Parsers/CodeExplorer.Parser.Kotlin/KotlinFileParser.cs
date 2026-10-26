@@ -5,7 +5,8 @@ using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser;
-using TreeSitter;
+using CodeExplorer.Core.Parser.Syntax;
+using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Kotlin;
 
@@ -247,12 +248,13 @@ public class KotlinFileParser : IFileParser
             }
         }
 
+        var doc = UniversalSyntaxBuilder.CreateDocument(content, LanguageName, filePath, relativePath);
+        doc.PackageOrNamespace = packageName;
+
         return new SyntaxTree(
             filePath,
             relativePath,
-            null,
-            null,
-            null,
+            doc,
             fileNode,
             this,
             rawImports,

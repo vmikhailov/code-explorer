@@ -6,7 +6,8 @@ using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser;
-using TreeSitter;
+using CodeExplorer.Core.Parser.Syntax;
+using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript;
 
@@ -67,9 +68,10 @@ public class GraphQLFileParser : IFileParser
         var fileNode = new FileNode(fileId, fileName, relativePath, filePath);
 
         var content = File.Exists(filePath) ? await File.ReadAllTextAsync(filePath) : string.Empty;
+        var doc = UniversalSyntaxBuilder.CreateDocument(content, LanguageName, filePath, relativePath);
         if (string.IsNullOrWhiteSpace(content))
         {
-            return new SyntaxTree(filePath, relativePath, null, null, null, fileNode, this, [], [], []);
+            return new SyntaxTree(filePath, relativePath, doc, fileNode, this, [], [], []);
         }
 
         var (operations, sdlFields) = GraphQLDocumentExtractor.ParseDocument(content);
@@ -161,7 +163,7 @@ public class GraphQLFileParser : IFileParser
             fileNode.Children.Add(epNode);
         }
 
-        return new SyntaxTree(filePath, relativePath, null, null, null, fileNode, this, [], [], []);
+        return new SyntaxTree(filePath, relativePath, doc, fileNode, this, [], [], []);
     }
 
     internal static List<string> BuildCodegenAliases(string opName, string opType)

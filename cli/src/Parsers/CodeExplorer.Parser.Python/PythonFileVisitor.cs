@@ -2,7 +2,8 @@ using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Parser.Python.Libraries;
-using TreeSitter;
+using CodeExplorer.Core.Parser.Syntax;
+using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Python;
 
@@ -64,7 +65,8 @@ public class PythonFileVisitor : BaseParserVisitor
     {
         if (IsPythonMainGuard(node))
         {
-            return "script-main:__main__";
+            var fileName = Path.GetFileName(RelativePath);
+            return string.IsNullOrEmpty(fileName) ? "script-main:__main__" : $"script-main:{fileName}";
         }
 
         if (IsPythonDecoratorEntryPoint(node))

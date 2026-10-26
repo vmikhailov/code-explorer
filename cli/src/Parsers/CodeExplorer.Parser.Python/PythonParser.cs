@@ -1,7 +1,8 @@
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Parser;
-using TreeSitter;
+using CodeExplorer.Core.Parser.Syntax;
+using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 [assembly: ParserAssembly]
 

@@ -7,6 +7,7 @@ using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Relationships;
 using CodeExplorer.Core.Database;
+using CodeExplorer.Core.Parser.Syntax;
 
 namespace CodeExplorer.Core.Parser.Layers;
 
@@ -424,7 +425,15 @@ public partial class Layer3SyntacticParser
             if (!string.IsNullOrEmpty(projectKind)) syntaxTree.FileNode.ProjectKind = projectKind;
         }
 
+        SyntaxValueEvaluator.EvaluateDocument(syntaxTree.Document, projectName);
+
         var fileParser = syntaxTree.FileParser;
+        if (!fileParser.UsesTreeSitter)
+        {
+            SemanticPostProcessor?.Invoke(syntaxTree, ctx);
+            return;
+        }
+
         var relativePath = syntaxTree.RelativePath;
 
         var (cachedActive, registry) = _parserRegistryCache.GetOrAdd(fileParser, fp =>
@@ -710,7 +719,7 @@ public partial class Layer3SyntacticParser
 
     private static CallLiteralNode CreateCallLiteralNode(
         string name,
-        TreeSitter.Node node,
+        SyntaxNode node,
         string relativePath,
         string workspaceId,
         SyntacticSymbol syntactic,
@@ -732,7 +741,7 @@ public partial class Layer3SyntacticParser
 
     private static CatchClauseNode CreateCatchClauseNode(
         string name,
-        TreeSitter.Node node,
+        SyntaxNode node,
         string relativePath,
         string workspaceId,
         SyntacticSymbol syntactic,

@@ -3,7 +3,8 @@ using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Parser.Android;
-using TreeSitter;
+using CodeExplorer.Core.Parser.Syntax;
+using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 [assembly: ParserAssembly]
 

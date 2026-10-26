@@ -96,6 +96,7 @@ public partial class ArchitectureViewEngine
 {
     private static readonly string[] KnownEntityIdPrefixes =
     [
+        "pm:cls:", "pm:ep:", "pm:mod:", "pm:file:", "pm:res:", "pm:sub:", "pm:",
         "service:", "domain:", "dom:", "ws:s:", "ws:app:", "ws:w:", "ws:cli:", "ws:lib:",
         "ws:p:", "ws:project:", "project:", "app:", "worker:", "cli:", "lib:"
     ];

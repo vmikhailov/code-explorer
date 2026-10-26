@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
-using TreeSitter;
+using CodeExplorer.Core.Parser.Syntax;
+using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Core.Parser
 {

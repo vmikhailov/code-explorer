@@ -24,7 +24,7 @@ public class JavaScriptParser : IProjectParser, IFileParser
                fileExtension.Equals(".jsx", StringComparison.OrdinalIgnoreCase);
     }
 
-    public void ExtractDeclarations(TreeSitter.Node rootNode, Action<string, TreeSitter.Node?, string?> registerDeclaration)
+    public void ExtractDeclarations(CodeExplorer.Core.Parser.Syntax.SyntaxNode rootNode, Action<string, CodeExplorer.Core.Parser.Syntax.SyntaxNode?, string?> registerDeclaration)
     {
         TypeScriptDeclarationExtractor.Extract(rootNode, registerDeclaration);
     }
@@ -219,7 +219,7 @@ public class JavaScriptParser : IProjectParser, IFileParser
     private readonly TypeScriptParser _tsParser = new();
 
     public BaseParserVisitor CreateVisitor(
-        TreeSitter.Node rootNode,
+        CodeExplorer.Core.Parser.Syntax.SyntaxNode rootNode,
         List<ISemanticExtension> activeExtensions,
         string relativePath,
         string absoluteWorkspacePath,

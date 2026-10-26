@@ -58,7 +58,7 @@ public class DotNetTestComponentParser : IComponentLibraryParser
         var root = syntaxTree.Tree.RootNode;
         var hasTestsInFile = false;
 
-        void WalkNode(TreeSitter.Node node)
+        void WalkNode(CodeExplorer.Core.Parser.Syntax.SyntaxNode node)
         {
             if (node.Is(TreeSitterSyntax.CSharp.MethodDeclaration))
             {

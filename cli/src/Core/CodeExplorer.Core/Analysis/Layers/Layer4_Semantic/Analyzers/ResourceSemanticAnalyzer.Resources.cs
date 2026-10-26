@@ -6,7 +6,8 @@ using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using TsNode = TreeSitter.Node;
+using CodeExplorer.Core.Parser.Syntax;
+using TsNode = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Core.Parser;
 
@@ -25,12 +26,16 @@ public partial class ResourceSemanticAnalyzer
             return true;
         }
 
-        if (syntaxTree != null && !string.IsNullOrEmpty(syntaxTree.FilePath) && File.Exists(syntaxTree.FilePath))
+        if (syntaxTree != null)
         {
             try
             {
-                var text = File.ReadAllText(syntaxTree.FilePath);
-                if (Regex.IsMatch(text, @"(?::\s*(?:[A-Za-z0-9_.]+\.)?(?:Identity)?DbContext\b|\bI?DbSet\s*<|\b__tablename__\b|@(?:Entity|Table|ViewEntity)\b|\[\s*Table\s*\(|\bdeclarative_base\b|\bmodelBuilder\.Entity\b)", RegexOptions.IgnoreCase))
+                var text = syntaxTree.Document?.SourceText
+                           ?? (!string.IsNullOrEmpty(syntaxTree.FilePath) && File.Exists(syntaxTree.FilePath)
+                               ? File.ReadAllText(syntaxTree.FilePath)
+                               : null);
+                if (!string.IsNullOrEmpty(text) &&
+                    Regex.IsMatch(text, @"(?::\s*(?:[A-Za-z0-9_.]+\.)?(?:Identity)?DbContext\b|\bI?DbSet\s*<|\b__tablename__\b|@(?:Entity|Table|ViewEntity)\b|\[\s*Table\s*\(|\bdeclarative_base\b|\bmodelBuilder\.Entity\b)", RegexOptions.IgnoreCase))
                 {
                     return true;
                 }
@@ -54,15 +59,16 @@ public partial class ResourceSemanticAnalyzer
         SyntaxTree? syntaxTree)
     {
         var filePath = syntaxTree?.FilePath ?? fileNode?.FullPath;
-        if (string.IsNullOrEmpty(filePath) || !filePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) || !File.Exists(filePath))
+        if (string.IsNullOrEmpty(filePath) || !filePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
         {
             return [];
         }
 
         try
         {
-            var text = File.ReadAllText(filePath);
-            if (!text.Contains("DbContext", StringComparison.Ordinal))
+            var text = syntaxTree?.Document?.SourceText
+                       ?? (File.Exists(filePath) ? File.ReadAllText(filePath) : null);
+            if (string.IsNullOrEmpty(text) || !text.Contains("DbContext", StringComparison.Ordinal))
             {
                 return [];
             }
@@ -389,11 +395,12 @@ public partial class ResourceSemanticAnalyzer
         return results;
     }
 
-    private static string? ScanFileTextForSchema(string filePath)
+    private static string? ScanFileTextForSchema(string filePath, string? sourceText = null)
     {
         try
         {
-            var text = File.ReadAllText(filePath);
+            var text = sourceText ?? (File.Exists(filePath) ? File.ReadAllText(filePath) : null);
+            if (string.IsNullOrEmpty(text)) return null;
             var m1 = SchemaCallRegex.Match(text);
             if (m1.Success)
             {

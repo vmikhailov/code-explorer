@@ -275,7 +275,7 @@ public static class ProjectMapBuilder
         public int? StartLine { get; set; }
         public int LineCount { get; set; }
         public HashSet<string> Files { get; } = new(StringComparer.OrdinalIgnoreCase);
-        public HashSet<string> Methods { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, ProjectMapMethod> Methods { get; } = new(StringComparer.OrdinalIgnoreCase);
         public HashSet<string> ImplementedInterfaces { get; } = new(StringComparer.OrdinalIgnoreCase);
         public int EntryPointCount { get; set; }
         public int ExternalCallersCount { get; set; }
@@ -343,9 +343,9 @@ public static class ProjectMapBuilder
             {
                 foreach (var m in t.Methods)
                 {
-                    if (!IsConstructorOrNoiseMethod(m))
+                    if (!IsConstructorOrNoiseMethod(m.Name))
                     {
-                        cand.Methods.Add(m);
+                        cand.Methods.TryAdd(m.Name, m);
                     }
                 }
             }
@@ -380,7 +380,7 @@ public static class ProjectMapBuilder
             var encName = StripGenericArity(fn.EnclosingTypeName ?? "");
             if (!string.IsNullOrEmpty(encName) && classes.TryGetValue(encName, out var encCand))
             {
-                encCand.Methods.Add(fn.Name);
+                encCand.Methods[fn.Name] = new ProjectMapMethod(fn.Name, fn.FilePath, fn.StartLine);
                 encCand.Files.Add(fn.FilePath);
                 continue;
             }
@@ -388,7 +388,7 @@ public static class ProjectMapBuilder
             if (fileToPrimaryClass.TryGetValue(fn.FilePath, out var primaryInFile) &&
                 classes.TryGetValue(primaryInFile, out var fileCand))
             {
-                fileCand.Methods.Add(fn.Name);
+                fileCand.Methods[fn.Name] = new ProjectMapMethod(fn.Name, fn.FilePath, fn.StartLine);
                 continue;
             }
 
@@ -409,7 +409,7 @@ public static class ProjectMapBuilder
                 fileToPrimaryClass[fn.FilePath] = moduleName;
             }
             modCand.Files.Add(fn.FilePath);
-            modCand.Methods.Add(fn.Name);
+            modCand.Methods[fn.Name] = new ProjectMapMethod(fn.Name, fn.FilePath, fn.StartLine);
         }
 
         // Ensure files with top-level entrypoints, resource links, or symbol calls (e.g. JS/TS workers without named classes/functions) get a module candidate
@@ -532,10 +532,17 @@ public static class ProjectMapBuilder
         string? ResolveSourceClass(string? symbol, string? file)
         {
             var clean = StripGenericArity(symbol ?? "");
-            if (!string.IsNullOrEmpty(clean) && classes.TryGetValue(clean, out var c)) return c.Name;
+            if (!string.IsNullOrEmpty(clean) && classes.TryGetValue(clean, out var c))
+            {
+                if (string.IsNullOrEmpty(file) || c.Files.Contains(file)) return c.Name;
+            }
             if (!string.IsNullOrEmpty(file) && fileToPrimaryClass.TryGetValue(file, out var primary) && classes.TryGetValue(primary, out var pc))
             {
                 return pc.Name;
+            }
+            if (!string.IsNullOrEmpty(clean) && classes.TryGetValue(clean, out var fallback))
+            {
+                return fallback.Name;
             }
             return null;
         }
@@ -545,12 +552,16 @@ public static class ProjectMapBuilder
             var clean = StripGenericArity(symbol ?? "");
             if (!string.IsNullOrEmpty(clean))
             {
-                if (classes.TryGetValue(clean, out var c)) return [c.Name];
+                if (classes.TryGetValue(clean, out var c) && (string.IsNullOrEmpty(file) || c.Files.Contains(file))) return [c.Name];
                 if (interfaceToImpls.TryGetValue(clean, out var impls) && impls.Count > 0) return impls;
             }
             if (!string.IsNullOrEmpty(file) && fileToPrimaryClass.TryGetValue(file, out var primary) && classes.TryGetValue(primary, out var pc))
             {
                 return [pc.Name];
+            }
+            if (!string.IsNullOrEmpty(clean) && classes.TryGetValue(clean, out var fallback))
+            {
+                return [fallback.Name];
             }
             return [];
         }
@@ -989,7 +1000,7 @@ public static class ProjectMapBuilder
                 TierReason = bfsReason[c.Id]
             };
             mod.Files.AddRange(c.Files.OrderBy(f => f, StringComparer.OrdinalIgnoreCase));
-            mod.Methods.AddRange(c.Methods.OrderBy(m => m, StringComparer.OrdinalIgnoreCase));
+            mod.Methods.AddRange(c.Methods.Values.OrderBy(m => m.Name, StringComparer.OrdinalIgnoreCase));
             mod.ImplementedInterfaces.AddRange(c.ImplementedInterfaces.OrderBy(i => i, StringComparer.OrdinalIgnoreCase));
             result.Modules.Add(mod);
         }

@@ -1,6 +1,6 @@
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
-using TreeSitter;
+using CodeExplorer.Core.Parser.Syntax;
 
 namespace CodeExplorer.Core.Parser;
 
@@ -8,9 +8,9 @@ public class SyntaxTree : IDisposable
 {
     public string FilePath { get; }
     public string RelativePath { get; }
-    public Tree? Tree { get; }
-    public TreeSitter.Parser? Parser { get; }
-    public Language? Language { get; }
+    public SyntaxDocument? Document { get; }
+    public SyntaxDocument? Tree => Document;
+    public SyntaxNode? RootNode => Document?.RootNode;
     public FileNode FileNode { get; }
     public IFileParser FileParser { get; }
     public List<RawImport> RawImports { get; }
@@ -22,9 +22,7 @@ public class SyntaxTree : IDisposable
     public SyntaxTree(
         string filePath,
         string relativePath,
-        Tree? tree,
-        TreeSitter.Parser? parser,
-        Language? language,
+        SyntaxDocument? document,
         FileNode fileNode,
         IFileParser fileParser,
         List<RawImport> rawImports,
@@ -33,9 +31,7 @@ public class SyntaxTree : IDisposable
     {
         FilePath = filePath;
         RelativePath = relativePath;
-        Tree = tree;
-        Parser = parser;
-        Language = language;
+        Document = document;
         FileNode = fileNode;
         FileParser = fileParser;
         RawImports = rawImports;
@@ -43,21 +39,34 @@ public class SyntaxTree : IDisposable
         RawTypeBindings = rawTypeBindings;
     }
 
-    private bool _disposed;
+    public SyntaxTree(
+        string filePath,
+        string relativePath,
+        SyntaxDocument? document,
+        object? unusedParser,
+        object? unusedLanguage,
+        FileNode fileNode,
+        IFileParser fileParser,
+        List<RawImport> rawImports,
+        List<RawVariable> rawVariables,
+        List<RawTypeBinding> rawTypeBindings)
+        : this(filePath, relativePath, document, fileNode, fileParser, rawImports, rawVariables, rawTypeBindings)
+    {
+    }
 
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
-        Tree?.Dispose();
-        Parser?.Dispose();
-        // Language is cached in _languageCache and reused across all files
+        // Native TreeSitter.Tree and TreeSitter.Parser are disposed immediately inside UniversalSyntaxBuilder.Parse
     }
 
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Language> _languageCache = new(StringComparer.OrdinalIgnoreCase);
-
-    public static Language GetLanguage(string languageName) =>
-        _languageCache.GetOrAdd(languageName, name => new Language(name));
+    public static SyntaxDocument? ParseText(
+        string sourceText,
+        string languageName,
+        string filePath = "",
+        string relativePath = "",
+        LanguageSyntaxProfile? profile = null,
+        ILanguageSyntaxHooks? hooks = null) =>
+        UniversalSyntaxBuilder.Parse(sourceText, languageName, filePath, relativePath, profile, hooks);
 
     public static async Task<SyntaxTree> ParseAsync(
         string filePath,
@@ -70,25 +79,25 @@ public class SyntaxTree : IDisposable
         filePath = filePath.Replace('\\', '/');
         relativePath = relativePath.Replace('\\', '/');
         var sourceText = await File.ReadAllTextAsync(filePath);
-        var language = GetLanguage(fileParser.LanguageName);
-        var parser = new TreeSitter.Parser(language);
-        var tree = parser.Parse(sourceText);
+        var document = UniversalSyntaxBuilder.Parse(
+            sourceText,
+            fileParser.LanguageName,
+            filePath,
+            relativePath,
+            fileParser.SyntaxProfile,
+            fileParser as ILanguageSyntaxHooks);
 
         var fileNodeId = $"{workspaceId}:{OntologyConstants.IdPrefixes.File}:{relativePath}";
         var fileNode = new FileNode(fileNodeId, Path.GetFileName(filePath), relativePath, filePath);
 
-        if (tree == null)
-        {
-            parser.Dispose();
-        }
-
         return new SyntaxTree(
             filePath,
             relativePath,
-            tree,
-            parser,
-            language,
+            document,
             fileNode,
-            fileParser, [], [], []);
+            fileParser,
+            [],
+            [],
+            []);
     }
 }

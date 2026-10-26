@@ -91,7 +91,7 @@ public class JavaScriptTestRunnerComponentParser : IComponentLibraryParser
                              syntaxTree.RelativePath.EndsWith(".test.js", StringComparison.OrdinalIgnoreCase) ||
                              syntaxTree.RelativePath.EndsWith(".spec.js", StringComparison.OrdinalIgnoreCase);
 
-        void WalkNode(TreeSitter.Node node)
+        void WalkNode(CodeExplorer.Core.Parser.Syntax.SyntaxNode node)
         {
             if (node.Is(TreeSitterSyntax.Common.CallExpression))
             {

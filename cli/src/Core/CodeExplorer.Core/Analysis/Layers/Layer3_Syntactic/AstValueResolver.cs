@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Common;
-using TreeSitter;
+using CodeExplorer.Core.Parser.Syntax;
+using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Core.Parser;
 
@@ -47,6 +48,13 @@ public static class AstValueResolver
     {
         result = string.Empty;
         if (!node.IsValid() || depth > MaxRecursionDepth) return false;
+
+        if (node is ExprSyntax { ResolvedValue: { Length: > 0 } preResolved } &&
+            (_localBindings == null || _localBindings.Count == 0))
+        {
+            result = preResolved;
+            return true;
+        }
 
         var type = node.Type;
 

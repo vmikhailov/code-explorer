@@ -9,6 +9,7 @@ using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
+using CodeExplorer.Core.Parser.Syntax;
 
 namespace CodeExplorer.Core.Analysis.Layers.Layer4_Semantic.Analyzers;
 
@@ -351,7 +352,7 @@ public static class EndpointSemanticAnalyzer
 
     private static EndpointNode CreateEndpointNode(
         string name,
-        TreeSitter.Node node,
+        SyntaxNode node,
         string relativePath,
         string workspaceId,
         SyntacticSymbol? syntactic = null,
@@ -457,7 +458,7 @@ public static class EndpointSemanticAnalyzer
 
     private static EntryPointNode CreateEntryPointNode(
         string name,
-        TreeSitter.Node node,
+        SyntaxNode node,
         string relativePath,
         string workspaceId,
         string? projectName = null)
@@ -493,6 +494,12 @@ public static class EndpointSemanticAnalyzer
             cleanName = name[(idx + 1)..];
         }
 
+        if (cleanName == "__main__" && !string.IsNullOrEmpty(relativePath))
+        {
+            var fn = Path.GetFileName(relativePath);
+            if (!string.IsNullOrEmpty(fn)) cleanName = fn;
+        }
+
         var projPart = (!string.IsNullOrEmpty(resolvedProj) && resolvedProj != "default") ? $"{resolvedProj}:" : "";
         var entryPointId = $"{workspaceId}:{OntologyConstants.IdPrefixes.EntryPoint}:{projPart}{entryType}:{cleanName}";
 
@@ -507,7 +514,7 @@ public static class EndpointSemanticAnalyzer
 
     private static ExternalServiceNode CreateExternalServiceNode(
         string name,
-        TreeSitter.Node node,
+        SyntaxNode node,
         string relativePath,
         string workspaceId,
         string? parentScopeId = null)

@@ -6,7 +6,7 @@ namespace CodeExplorer.Core.Analysis;
 
 public partial class ArchitectureViewEngine
 {
-    private sealed record EvidenceNodeRef(string Id, string Name, string Label, string? Path);
+    private sealed record EvidenceNodeRef(string Id, string Name, string Label, string? Path, int? Line = null);
 
     private static readonly string[] PublishOutgoingKinds = [OntologyConstants.Relationships.PublishesTo];
     private static readonly string[] PublishIncomingKinds = [OntologyConstants.Relationships.PublishedBy];
@@ -170,6 +170,21 @@ public partial class ArchitectureViewEngine
                 {
                     AddItem(item);
                 }
+            }
+        }
+
+        // 3. Batched code-level references (calls, uses_type, implements, inherits_from, exposed_by)
+        var codeCallers = unrecordedSources
+            .Where(n => n.Label is not (OntologyConstants.NodeLabels.Database or OntologyConstants.NodeLabels.Topic))
+            .ToList();
+        var codeCallees = unrecordedTargets
+            .Where(n => n.Label is not (OntologyConstants.NodeLabels.Topic))
+            .ToList();
+        if (codeCallers.Count > 0 && codeCallees.Count > 0)
+        {
+            foreach (var item in await CollectBatchCodeLevelEvidenceAsync(codeCallers, codeCallees, warnings, ct))
+            {
+                AddItem(item);
             }
         }
 
@@ -429,7 +444,7 @@ public partial class ArchitectureViewEngine
         _ => 7
     };
 
-    private static int NodeKindResolutionRank(string kind, bool rawHadServicePrefix)
+    private static int NodeKindResolutionRank(string kind, string rawId, bool rawHadServicePrefix)
     {
         if (rawHadServicePrefix)
         {
@@ -438,7 +453,53 @@ public partial class ArchitectureViewEngine
                 "Service" or "App" or "Worker" or "CliTool" or "Library" or "TestSuite" => 100,
                 "Project" => 90,
                 "Database" or "Topic" or "ExternalService" or "CloudService" => 20,
-                _ => 0
+                _ => 10
+            };
+        }
+
+        if (rawId.StartsWith("pm:cls:", StringComparison.OrdinalIgnoreCase))
+        {
+            return kind switch
+            {
+                "Type" or "Class" or "Interface" => 100,
+                "File" => 90,
+                "Folder" => 60,
+                "Function" or "Method" or "Member" => 40,
+                _ => 5
+            };
+        }
+
+        if (rawId.StartsWith("pm:ep:", StringComparison.OrdinalIgnoreCase) ||
+            rawId.StartsWith("ws:entry:", StringComparison.OrdinalIgnoreCase) ||
+            rawId.StartsWith("ws:ep:", StringComparison.OrdinalIgnoreCase))
+        {
+            return kind switch
+            {
+                "EntryPoint" or "Endpoint" => 100,
+                _ => 5
+            };
+        }
+
+        if (rawId.StartsWith("pm:mod:", StringComparison.OrdinalIgnoreCase) ||
+            rawId.StartsWith("pm:file:", StringComparison.OrdinalIgnoreCase) ||
+            rawId.StartsWith("pm:sub:", StringComparison.OrdinalIgnoreCase))
+        {
+            return kind switch
+            {
+                "File" or "Folder" => 100,
+                "Project" or "Service" => 90,
+                "Type" or "Class" => 80,
+                _ => 5
+            };
+        }
+
+        if (rawId.StartsWith("pm:res:", StringComparison.OrdinalIgnoreCase))
+        {
+            return kind switch
+            {
+                "Database" or "Topic" or "ExternalService" or "CloudService" => 100,
+                "Table" or "Procedure" => 90,
+                _ => 5
             };
         }
 
@@ -448,7 +509,9 @@ public partial class ArchitectureViewEngine
             "Service" or "App" or "Worker" or "CliTool" or "Library" or "TestSuite" => 95,
             "Project" => 90,
             "Endpoint" or "EntryPoint" or "Table" or "Procedure" => 50,
-            _ => 0
+            "Type" or "Class" or "Interface" or "File" or "Folder" => 40,
+            "Function" or "Method" or "Member" => 30,
+            _ => 10
         };
     }
 
@@ -473,23 +536,37 @@ public partial class ArchitectureViewEngine
             if (string.IsNullOrWhiteSpace(cleanId)) cleanId = id;
             candidateTerms.Add(id);
             candidateTerms.Add(cleanId);
+            candidateTerms.Add($"ws:f:{cleanId}");
             cleanSuffixes.Add($":{cleanId}");
             cleanSuffixes.Add($":{cleanId}:");
+            cleanSuffixes.Add($"/{cleanId}");
+            if (!cleanId.Contains('.'))
+            {
+                cleanSuffixes.Add($"/{cleanId}.ts");
+                cleanSuffixes.Add($"/{cleanId}.tsx");
+                cleanSuffixes.Add($"/{cleanId}.js");
+                cleanSuffixes.Add($"/{cleanId}.jsx");
+                cleanSuffixes.Add($"/{cleanId}.py");
+                cleanSuffixes.Add($"/{cleanId}.cs");
+                cleanSuffixes.Add($"/{cleanId}.go");
+                cleanSuffixes.Add($"/{cleanId}.java");
+            }
         }
 
         var termLiterals = string.Join(", ", candidateTerms.Select(EscapeCypherStringLiteral));
-        var suffixChecks = string.Join(" OR ", cleanSuffixes.Select(s => $"n.id ENDS WITH {EscapeCypherStringLiteral(s)}"));
+        var suffixChecks = string.Join(" OR ", cleanSuffixes.Select(s => $"n.id ENDS WITH {EscapeCypherStringLiteral(s)} OR coalesce(n.file_path, n.path) ENDS WITH {EscapeCypherStringLiteral(s)}"));
         var whereClause = string.IsNullOrEmpty(suffixChecks)
-            ? $"n.id IN [{termLiterals}] OR n.name IN [{termLiterals}]"
-            : $"n.id IN [{termLiterals}] OR n.name IN [{termLiterals}] OR {suffixChecks}";
+            ? $"n.id IN [{termLiterals}] OR n.name IN [{termLiterals}] OR coalesce(n.file_path, n.path) IN [{termLiterals}]"
+            : $"n.id IN [{termLiterals}] OR n.name IN [{termLiterals}] OR coalesce(n.file_path, n.path) IN [{termLiterals}] OR {suffixChecks}";
 
-        var candidates = new List<(string Id, string Name, string Kind, string? Path)>();
+        var candidates = new List<(string Id, string Name, string Kind, string? Path, int? Line)>();
         try
         {
             var query = $"""
                 MATCH (n)
                 WHERE {whereClause}
-                RETURN n.id AS id, n.name AS name, labels(n)[0] AS kind, coalesce(n.file_path, n.path) AS path
+                RETURN n.id AS id, n.name AS name, labels(n)[0] AS kind, coalesce(n.file_path, n.path) AS path,
+                       coalesce(n.start_line, n.line) AS line
                 """;
             var json = await db.ExecuteQueryAsync(query, null, ct);
             using var doc = JsonDocument.Parse(json);
@@ -501,7 +578,8 @@ public partial class ArchitectureViewEngine
                     rId,
                     row.GetStringProp("name", rId),
                     row.GetStringProp("kind"),
-                    row.GetStringProp("path")));
+                    row.GetStringProp("path"),
+                    row.GetNullableIntProp("line")));
             }
         }
         catch (Exception ex)
@@ -515,6 +593,7 @@ public partial class ArchitectureViewEngine
             var cleanId = StripEntityIdPrefix(id);
             if (string.IsNullOrWhiteSpace(cleanId)) cleanId = id;
             var rawHadServicePrefix = !id.Equals(cleanId, StringComparison.OrdinalIgnoreCase) &&
+                                      !id.StartsWith("pm:", StringComparison.OrdinalIgnoreCase) &&
                                       !id.StartsWith("ws:db:", StringComparison.OrdinalIgnoreCase) &&
                                       !id.StartsWith("ws:top:", StringComparison.OrdinalIgnoreCase) &&
                                       !id.StartsWith("ws:es:", StringComparison.OrdinalIgnoreCase) &&
@@ -523,27 +602,33 @@ public partial class ArchitectureViewEngine
 
             EvidenceNodeRef? best = null;
             var bestScore = -1;
-            foreach (var (rId, rName, rKind, rPath) in candidates)
+            foreach (var (rId, rName, rKind, rPath, rLine) in candidates)
             {
                 var matchesThisId = rId.Equals(id, StringComparison.OrdinalIgnoreCase) ||
                                     rName.Equals(id, StringComparison.OrdinalIgnoreCase) ||
                                     rId.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
                                     rName.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
                                     rId.EndsWith(":" + cleanId, StringComparison.OrdinalIgnoreCase) ||
-                                    rId.EndsWith(":" + cleanId + ":", StringComparison.OrdinalIgnoreCase);
+                                    rId.EndsWith(":" + cleanId + ":", StringComparison.OrdinalIgnoreCase) ||
+                                    (rPath != null && (rPath.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ||
+                                                       rPath.EndsWith("/" + cleanId, StringComparison.OrdinalIgnoreCase) ||
+                                                       string.Equals(Path.GetFileNameWithoutExtension(rPath), cleanId, StringComparison.OrdinalIgnoreCase)));
                 if (!matchesThisId) continue;
 
-                var rank = NodeKindResolutionRank(rKind, rawHadServicePrefix);
+                var rank = NodeKindResolutionRank(rKind, id, rawHadServicePrefix);
                 if (rank == 0 && !rId.Equals(id, StringComparison.OrdinalIgnoreCase)) continue;
 
-                var exactBonus = rId.Equals(id, StringComparison.OrdinalIgnoreCase) ? 1000
+                var isExactIdMatch = rId.Equals(id, StringComparison.OrdinalIgnoreCase) ||
+                                     rId.Equals(cleanId, StringComparison.OrdinalIgnoreCase);
+                var exactBonus = isExactIdMatch ? 1000
                                : rName.Equals(cleanId, StringComparison.OrdinalIgnoreCase) ? 200
+                               : (rPath != null && string.Equals(Path.GetFileNameWithoutExtension(rPath), cleanId, StringComparison.OrdinalIgnoreCase)) ? 150
                                : 0;
                 var score = exactBonus + rank;
                 if (score > bestScore)
                 {
                     bestScore = score;
-                    best = new EvidenceNodeRef(rId, rName, rKind, rPath);
+                    best = new EvidenceNodeRef(rId, rName, rKind, rPath, rLine);
                 }
             }
             if (best is not null && !result.Any(r => r.Id.Equals(best.Id, StringComparison.OrdinalIgnoreCase)))
@@ -1020,6 +1105,203 @@ public partial class ArchitectureViewEngine
             {
                 RecordEvidenceWarning(warnings, "Direct macro edge fallback query", ex);
             }
+        }
+
+        return items;
+    }
+
+    private async Task<List<ArchitectureEvidenceItemDto>> CollectBatchCodeLevelEvidenceAsync(
+        IReadOnlyList<EvidenceNodeRef> sources,
+        IReadOnlyList<EvidenceNodeRef> targets,
+        List<string> warnings,
+        CancellationToken ct)
+    {
+        var items = new List<ArchitectureEvidenceItemDto>();
+        if (sources.Count == 0 || targets.Count == 0) return items;
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // 1. Direct EntryPoint / Endpoint to Target file/module match
+        foreach (var s in sources.Where(n => n.Label == OntologyConstants.NodeLabels.EntryPoint || n.Label == "Endpoint"))
+        {
+            foreach (var t in targets)
+            {
+                var sFile = s.Path;
+                var tFile = t.Path;
+                var sName = s.Name;
+                var tName = t.Name;
+
+                var isPathMatch = !string.IsNullOrEmpty(sFile) && !string.IsNullOrEmpty(tFile) &&
+                    (sFile.Equals(tFile, StringComparison.OrdinalIgnoreCase) ||
+                     sFile.EndsWith("/" + tFile, StringComparison.OrdinalIgnoreCase) ||
+                     tFile.EndsWith("/" + sFile, StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(Path.GetFileName(sFile), Path.GetFileName(tFile), StringComparison.OrdinalIgnoreCase));
+
+                var isNameMatch = !string.IsNullOrEmpty(sName) && !string.IsNullOrEmpty(tName) &&
+                    (sName.Equals(tName, StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(Path.GetFileNameWithoutExtension(sName), Path.GetFileNameWithoutExtension(tName), StringComparison.OrdinalIgnoreCase));
+
+                if (isPathMatch || isNameMatch)
+                {
+                    if (seen.Add($"entry:{s.Id}:{t.Id}"))
+                    {
+                        var filePath = !string.IsNullOrEmpty(sFile) ? sFile : tFile;
+                        items.Add(new ArchitectureEvidenceItemDto
+                        {
+                            Id = s.Id,
+                            Kind = "EXPOSED_BY",
+                            Operation = "ENTRY",
+                            Title = $"{s.Name} → {t.Name}",
+                            FilePath = filePath ?? string.Empty,
+                            LineStart = s.Line,
+                            LineEnd = s.Line,
+                            Confidence = OntologyConstants.EvidenceConfidence.Recorded,
+                            CallerSymbol = s.Name,
+                            TargetSymbol = t.Name,
+                            Reason = $"Entry point '{s.Name}' exposes module '{t.Name}'"
+                        });
+                    }
+                }
+            }
+        }
+
+        // 2. Query code-level relationships between source files/symbols and target files/symbols
+        var sourcePaths = sources.Select(s => s.Path).Where(p => !string.IsNullOrEmpty(p)).Select(p => p!).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var targetPaths = targets.Select(t => t.Path).Where(p => !string.IsNullOrEmpty(p)).Select(p => p!).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var sourceNames = sources.Select(s => s.Name).Where(n => !string.IsNullOrEmpty(n)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var targetNames = targets.Select(t => t.Name).Where(n => !string.IsNullOrEmpty(n)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var sourceIds = sources.Select(s => s.Id).Where(i => !string.IsNullOrEmpty(i)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var targetIds = targets.Select(t => t.Id).Where(i => !string.IsNullOrEmpty(i)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+        var srcConditions = new List<string>();
+        if (sourceIds.Count > 0)
+        {
+            var srcIdLit = string.Join(", ", sourceIds.Select(EscapeCypherStringLiteral));
+            srcConditions.Add($"a.id IN [{srcIdLit}]");
+        }
+        if (sourceNames.Count > 0)
+        {
+            var srcNameLit = string.Join(", ", sourceNames.Select(EscapeCypherStringLiteral));
+            srcConditions.Add($"a.name IN [{srcNameLit}]");
+            srcConditions.Add($"a.enclosing_type IN [{srcNameLit}]");
+        }
+        if (sourcePaths.Count > 0)
+        {
+            var srcFileLit = string.Join(", ", sourcePaths.Select(EscapeCypherStringLiteral));
+            srcConditions.Add($"coalesce(a.file_path, a.path) IN [{srcFileLit}]");
+            foreach (var p in sourcePaths)
+            {
+                var cleanP = p.TrimStart('/');
+                srcConditions.Add($"coalesce(a.file_path, a.path) = {EscapeCypherStringLiteral(cleanP)}");
+                srcConditions.Add($"coalesce(a.file_path, a.path) ENDS WITH {EscapeCypherStringLiteral("/" + cleanP)}");
+                var fn = Path.GetFileName(p);
+                if (!string.IsNullOrEmpty(fn) && !fn.Equals(cleanP, StringComparison.OrdinalIgnoreCase))
+                {
+                    srcConditions.Add($"coalesce(a.file_path, a.path) ENDS WITH {EscapeCypherStringLiteral("/" + fn)}");
+                }
+            }
+        }
+
+        var tgtConditions = new List<string>();
+        if (targetIds.Count > 0)
+        {
+            var tgtIdLit = string.Join(", ", targetIds.Select(EscapeCypherStringLiteral));
+            tgtConditions.Add($"b.id IN [{tgtIdLit}]");
+        }
+        if (targetNames.Count > 0)
+        {
+            var tgtNameLit = string.Join(", ", targetNames.Select(EscapeCypherStringLiteral));
+            tgtConditions.Add($"b.name IN [{tgtNameLit}]");
+            tgtConditions.Add($"b.enclosing_type IN [{tgtNameLit}]");
+        }
+        if (targetPaths.Count > 0)
+        {
+            var tgtFileLit = string.Join(", ", targetPaths.Select(EscapeCypherStringLiteral));
+            tgtConditions.Add($"coalesce(b.file_path, b.path) IN [{tgtFileLit}]");
+            foreach (var p in targetPaths)
+            {
+                var cleanP = p.TrimStart('/');
+                tgtConditions.Add($"coalesce(b.file_path, b.path) = {EscapeCypherStringLiteral(cleanP)}");
+                tgtConditions.Add($"coalesce(b.file_path, b.path) ENDS WITH {EscapeCypherStringLiteral("/" + cleanP)}");
+                var fn = Path.GetFileName(p);
+                if (!string.IsNullOrEmpty(fn) && !fn.Equals(cleanP, StringComparison.OrdinalIgnoreCase))
+                {
+                    tgtConditions.Add($"coalesce(b.file_path, b.path) ENDS WITH {EscapeCypherStringLiteral("/" + fn)}");
+                }
+            }
+        }
+
+        if (srcConditions.Count == 0 || tgtConditions.Count == 0) return items;
+
+        var srcClause = string.Join(" OR ", srcConditions);
+        var tgtClause = string.Join(" OR ", tgtConditions);
+
+        var query = $"""
+            MATCH (a)-[r]->(b)
+            WHERE r.kind IN ['CALLS', 'USES_TYPE', 'IMPLEMENTS', 'INHERITS_FROM', 'EXPOSED_BY', 'TRIGGERS', 'READS', 'WRITES', 'INSTANTIATES', 'ACCESSES', 'ACCESSED_BY']
+              AND ({srcClause})
+              AND ({tgtClause})
+            RETURN r.kind AS kind,
+                   a.id AS from_id,
+                   a.name AS from_name,
+                   coalesce(a.file_path, a.path) AS from_file,
+                   coalesce(a.start_line, a.line) AS from_line,
+                   coalesce(a.end_line, a.line_end) AS from_end_line,
+                   b.id AS to_id,
+                   b.name AS to_name,
+                   coalesce(b.file_path, b.path) AS to_file,
+                   coalesce(b.start_line, b.line) AS to_line,
+                   coalesce(r.call_snippet, r.snippet) AS snippet
+            LIMIT 100
+            """;
+
+        try
+        {
+            var json = await db.ExecuteQueryAsync(query, null, ct);
+            using var doc = JsonDocument.Parse(json);
+            foreach (var row in doc.RootElement.EnumerateArray())
+            {
+                var kind = row.GetStringProp("kind", "CALLS");
+                var fromName = row.GetStringProp("from_name");
+                var toName = row.GetStringProp("to_name");
+                var file = row.GetStringProp("from_file");
+                if (string.IsNullOrEmpty(file))
+                {
+                    file = row.GetStringProp("to_file");
+                }
+                var line = row.GetNullableIntProp("from_line");
+                var endLine = row.GetNullableIntProp("from_end_line");
+                var snippet = row.GetStringProp("snippet");
+
+                var itemKey = $"{kind}:{file}:{line}:{fromName}:{toName}";
+                if (!seen.Add(itemKey)) continue;
+
+                var op = kind == "CALLS" ? "CALL"
+                       : kind == "USES_TYPE" ? "USE"
+                       : kind;
+
+                items.Add(new ArchitectureEvidenceItemDto
+                {
+                    Id = $"{row.GetStringProp("from_id")}->{row.GetStringProp("to_id")}:{kind}",
+                    Kind = kind,
+                    Operation = op,
+                    Title = !string.IsNullOrEmpty(fromName) && !string.IsNullOrEmpty(toName)
+                        ? $"{fromName}() → {toName}()"
+                        : $"{fromName ?? "call"} → {toName ?? "target"}",
+                    FilePath = file,
+                    LineStart = line,
+                    LineEnd = endLine,
+                    Confidence = OntologyConstants.EvidenceConfidence.Recorded,
+                    CallerSymbol = fromName,
+                    TargetSymbol = toName,
+                    CodeSnippet = snippet,
+                    Reason = $"Code reference ({kind}) from '{fromName}' to '{toName}'"
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            RecordEvidenceWarning(warnings, "Batch code-level evidence query", ex);
         }
 
         return items;

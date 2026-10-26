@@ -2,7 +2,8 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
-using TreeSitter;
+using CodeExplorer.Core.Parser.Syntax;
+using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 [assembly: ParserAssembly]
 

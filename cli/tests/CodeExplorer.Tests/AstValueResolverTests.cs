@@ -1,4 +1,5 @@
 using CodeExplorer.Core.Parser;
+using CodeExplorer.Core.Parser.Syntax;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -155,11 +156,7 @@ function setupRabbit(rabbit: any) {
     rabbit.createQueue(queueName);
 }
 ";
-        var language = SyntaxTree.GetLanguage("typescript");
-
-        using var parser = new TreeSitter.Parser(language);
-
-        using var tree = parser.Parse(tsCode);
+        var tree = SyntaxTree.ParseText(tsCode, "typescript");
 
         tree.Should().NotBeNull();
 
@@ -190,11 +187,7 @@ class Worker {
     }
 }
 ";
-        var language = SyntaxTree.GetLanguage("c-sharp");
-
-        using var parser = new TreeSitter.Parser(language);
-
-        using var tree = parser.Parse(csharpCode);
+        var tree = SyntaxTree.ParseText(csharpCode, "c-sharp");
 
         tree.Should().NotBeNull();
 
@@ -242,9 +235,7 @@ func Fetch() {
     http.Get(url)
 }
 ";
-        var language = SyntaxTree.GetLanguage("go");
-        using var parser = new TreeSitter.Parser(language);
-        using var tree = parser.Parse(goCode);
+        var tree = SyntaxTree.ParseText(goCode, "go");
         tree.Should().NotBeNull();
 
         var call = tree!.RootNode.FindDescendantOfType("call_expression");
@@ -266,9 +257,7 @@ def fetch():
     url = url + '/api/v1/items'
     requests.get(url)
 ";
-        var language = SyntaxTree.GetLanguage("python");
-        using var parser = new TreeSitter.Parser(language);
-        using var tree = parser.Parse(pyCode);
+        var tree = SyntaxTree.ParseText(pyCode, "python");
         tree.Should().NotBeNull();
 
         var call = tree!.RootNode.FindDescendantOfType(TreeSitterSyntax.Python.Call);
@@ -291,9 +280,7 @@ function fetch() {
     get(url);
 }
 ";
-        var language = SyntaxTree.GetLanguage("typescript");
-        using var parser = new TreeSitter.Parser(language);
-        using var tree = parser.Parse(tsCode);
+        var tree = SyntaxTree.ParseText(tsCode, "typescript");
         tree.Should().NotBeNull();
 
         var call = tree!.RootNode.FindDescendantOfType(TreeSitterSyntax.TypeScript.CallExpression);
@@ -330,5 +317,34 @@ export const HTTP_API_PREFIX_CONFIG = {
         }
         ConstantRegistry.TryResolve("integration-service-helper-nest", "HTTP_API_PREFIX_CONFIG.SMART_CPA.GLOBAL_PREFIX", out var val).Should().BeTrue();
         val.Should().Be("smart-cpa");
+    }
+
+    [Test]
+    public void UniversalSyntaxBuilder_ProducesTypedSyntaxHierarchyAndEmbeddedSql()
+    {
+        var csCode = @"
+namespace OrderService.Data;
+
+public class OrderRepository
+{
+    public void LoadOrders()
+    {
+        var sql = ""SELECT id, total FROM "" + ""orders WHERE status = 1"";
+        Execute(sql);
+    }
+}
+";
+        var doc = SyntaxTree.ParseText(csCode, "c-sharp", "OrderRepository.cs", "Data/OrderRepository.cs");
+        doc.Should().NotBeNull();
+        doc!.AllTypes.Should().ContainSingle(t => t.Name == "OrderRepository" && t.Kind == TypeSyntaxKind.Class);
+        doc.AllFunctions.Should().ContainSingle(f => f.Name == "LoadOrders");
+        doc.AllCalls.Should().ContainSingle(c => c.MethodName == "Execute");
+
+        SyntaxValueEvaluator.EvaluateDocument(doc, "OrderService");
+
+        doc.AllSqlStatements.Should().ContainSingle();
+        var sqlStmt = doc.AllSqlStatements[0];
+        sqlStmt.Operation.Should().Be(SqlOperationKind.Select);
+        sqlStmt.Tables.Should().Contain(t => t.TableName == "orders");
     }
 }

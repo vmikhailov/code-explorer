@@ -1,8 +1,9 @@
 using CodeExplorer.Core.Parser;
+using CodeExplorer.Core.Parser.Syntax;
 using CodeExplorer.Parser.TypeScript;
 using CodeExplorer.Tests.Shared;
 using NUnit.Framework;
-using TreeSitter;
+using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Tests;
 

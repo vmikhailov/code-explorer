@@ -1,4 +1,5 @@
-using TreeSitter;
+using CodeExplorer.Core.Parser.Syntax;
+using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Core.Parser;
 
@@ -45,15 +46,17 @@ public static class AstConstantExtractor
 
         try
         {
-            var language = SyntaxTree.GetLanguage(fileParser.LanguageName);
+            var doc = UniversalSyntaxBuilder.Parse(
+                content,
+                fileParser.LanguageName,
+                filePath,
+                filePath,
+                fileParser.SyntaxProfile,
+                fileParser as ILanguageSyntaxHooks);
 
-            using var parser = new TreeSitter.Parser(language);
-
-            using var tree = parser.Parse(content);
-
-            if (tree?.RootNode != null && tree.RootNode.Children.Count > 0)
+            if (doc?.RootNode != null && doc.RootNode.Children.Count > 0)
             {
-                ExtractAndRegister(tree.RootNode, fileParser, projectName);
+                ExtractAndRegister(doc.RootNode, fileParser, projectName);
             }
         }
         catch (Exception ex)

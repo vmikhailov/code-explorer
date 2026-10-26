@@ -637,12 +637,23 @@ export function createArchitectureInspectorSchema(
           try {
             const parsed = JSON.parse(raw);
             if (!Array.isArray(parsed)) return [];
-            return parsed.map((m: unknown, idx: number) => ({
-              id: `method-${idx}`,
-              label: `${String(m)}()`,
-              path: n.primaryFilePath,
-              line: n.primaryLineStart || 1,
-            }));
+            return parsed.map((m: unknown, idx: number) => {
+              if (typeof m === 'object' && m !== null) {
+                const obj = m as { name?: string; path?: string; file?: string; line?: number };
+                return {
+                  id: `method-${idx}`,
+                  label: `${obj.name || String(m)}()`,
+                  path: obj.path || obj.file || n.primaryFilePath,
+                  line: obj.line || n.primaryLineStart || 1,
+                };
+              }
+              return {
+                id: `method-${idx}`,
+                label: `${String(m)}()`,
+                path: n.primaryFilePath,
+                line: n.primaryLineStart || 1,
+              };
+            });
           } catch {
             return [];
           }

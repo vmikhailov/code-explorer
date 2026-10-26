@@ -52,7 +52,7 @@ public class GoTestComponentParser : IComponentLibraryParser
         var isTestFile = syntaxTree.RelativePath.EndsWith("_test.go", StringComparison.OrdinalIgnoreCase);
         var root = syntaxTree.Tree.RootNode;
 
-        void WalkNode(TreeSitter.Node node)
+        void WalkNode(CodeExplorer.Core.Parser.Syntax.SyntaxNode node)
         {
             if (node.IsAny(TreeSitterSyntax.Go.FunctionDeclaration, TreeSitterSyntax.Go.MethodDeclaration))
             {

@@ -5,6 +5,7 @@ using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser;
+using CodeExplorer.Core.Parser.Syntax;
 
 [assembly: ParserAssembly]
 
@@ -44,7 +45,7 @@ public class SqlParser : IProjectParser, IFileParser
     }
 
     public BaseParserVisitor CreateVisitor(
-        TreeSitter.Node rootNode,
+        SyntaxNode rootNode,
         List<ISemanticExtension> activeExtensions,
         string relativePath,
         string absoluteWorkspacePath,
@@ -89,7 +90,32 @@ public class SqlParser : IProjectParser, IFileParser
 
         TryDetectContains(cleanSql, fileNode, fileNodeId, relativePath, datasets, tables, procedures, workspaceId);
 
-        return new SyntaxTree(filePath, relativePath, null, null, null, fileNode, this, [], [], []);
+        var sqlChildren = new List<SyntaxNode>();
+        foreach (var kvp in tables)
+        {
+            sqlChildren.Add(new SqlStmtSyntax
+            {
+                RawGrammarKind = "create_table_statement",
+                Operation = SqlOperationKind.CreateTable,
+                OperationVerb = "CREATE TABLE",
+                Tables = [new SqlTableRefSyntax(kvp.Value.Name, IsWriteTarget: true)],
+                RawSql = kvp.Value.Name
+            });
+        }
+        foreach (var proc in procedures)
+        {
+            sqlChildren.Add(new SqlStmtSyntax
+            {
+                RawGrammarKind = "create_procedure_statement",
+                Operation = SqlOperationKind.CreateProcedure,
+                OperationVerb = "CREATE PROCEDURE",
+                Procedures = [proc.Name],
+                RawSql = proc.Body
+            });
+        }
+        var doc = UniversalSyntaxBuilder.CreateDocument(sqlText, LanguageName, filePath, relativePath, sqlChildren);
+
+        return new SyntaxTree(filePath, relativePath, doc, fileNode, this, [], [], []);
     }
 
     private void TryDetectContains(
@@ -417,7 +443,7 @@ public class SqlParser : IProjectParser, IFileParser
         return (schemaName, tableName);
     }
 
-    public void CollectSemanticData(TreeSitter.Node node, string filePath, List<RawImport> rawImports, List<RawVariable> rawVariables, List<RawTypeBinding> rawTypeBindings)
+    public void CollectSemanticData(CodeExplorer.Core.Parser.Syntax.SyntaxNode node, string filePath, List<RawImport> rawImports, List<RawVariable> rawVariables, List<RawTypeBinding> rawTypeBindings)
     {
     }
 }

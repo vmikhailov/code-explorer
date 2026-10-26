@@ -244,9 +244,10 @@ public partial class ResourceSemanticAnalyzer
 
                     if (parser.Id.Equals("sqlx", StringComparison.OrdinalIgnoreCase) && string.IsNullOrEmpty(detectedEngine))
                     {
-                        var fileText = _syntaxTree.FileNode?.FullPath != null && File.Exists(_syntaxTree.FileNode.FullPath)
-                            ? File.ReadAllText(_syntaxTree.FileNode.FullPath)
-                            : string.Empty;
+                        var fileText = _syntaxTree.Document?.SourceText
+                            ?? (_syntaxTree.FileNode?.FullPath != null && File.Exists(_syntaxTree.FileNode.FullPath)
+                                ? File.ReadAllText(_syntaxTree.FileNode.FullPath)
+                                : string.Empty);
                         if (fileText.Contains("PgPool", StringComparison.OrdinalIgnoreCase) ||
                             fileText.Contains("postgres", StringComparison.OrdinalIgnoreCase))
                         {
@@ -623,14 +624,19 @@ public partial class ResourceSemanticAnalyzer
 
     private static int FindDatabaseUsageLine(FileNode fileNode, SyntaxTree syntaxTree, string? schema, string parserId)
     {
-        if (string.IsNullOrEmpty(fileNode.FullPath) || !File.Exists(fileNode.FullPath))
-        {
-            return 0;
-        }
-
         try
         {
-            var lines = File.ReadAllLines(fileNode.FullPath);
+            string[]? lines = null;
+            if (!string.IsNullOrEmpty(syntaxTree.Document?.SourceText))
+            {
+                lines = syntaxTree.Document.SourceText.Split('\n');
+            }
+            else if (!string.IsNullOrEmpty(fileNode.FullPath) && File.Exists(fileNode.FullPath))
+            {
+                lines = File.ReadAllLines(fileNode.FullPath);
+            }
+
+            if (lines == null) return 0;
             var hasSpecificSchema = !string.IsNullOrWhiteSpace(schema) &&
                                     !schema.Equals("public", StringComparison.OrdinalIgnoreCase) &&
                                     !schema.Equals("dbo", StringComparison.OrdinalIgnoreCase) &&
@@ -751,9 +757,9 @@ public partial class ResourceSemanticAnalyzer
             }
         }
 
-        if (syntaxTree != null && !string.IsNullOrEmpty(syntaxTree.FilePath) && File.Exists(syntaxTree.FilePath))
+        if (syntaxTree != null && (!string.IsNullOrEmpty(syntaxTree.Document?.SourceText) || (!string.IsNullOrEmpty(syntaxTree.FilePath) && File.Exists(syntaxTree.FilePath))))
         {
-            var fileSchema = ScanFileTextForSchema(syntaxTree.FilePath);
+            var fileSchema = ScanFileTextForSchema(syntaxTree.FilePath, syntaxTree.Document?.SourceText);
             if (!string.IsNullOrEmpty(fileSchema))
             {
                 if (ConstantRegistry.TryResolve(projectNode?.Name ?? syntaxTree.FilePath, fileSchema, out var resolved))

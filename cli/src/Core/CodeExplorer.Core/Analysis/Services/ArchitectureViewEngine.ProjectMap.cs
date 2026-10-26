@@ -245,9 +245,9 @@ public partial class ArchitectureViewEngine
         const string methodsQuery =
             "MATCH (t:Type)-[r]->(fn:Function) WHERE r.kind IN ['HAS_METHOD', 'CONTAINS', 'HAS_MEMBER'] " +
             "AND (t.file_path STARTS WITH $prefix OR t.file_path CONTAINS $slashPrefix OR t.path STARTS WITH $prefix OR t.path CONTAINS $slashPrefix) " +
-            "RETURN t.id AS tid, t.name AS tname, fn.id AS fnid, fn.name AS fnname";
+            "RETURN t.id AS tid, t.name AS tname, fn.id AS fnid, fn.name AS fnname, coalesce(fn.file_path, fn.path) AS fnfile, fn.start_line AS fnline";
         var methodRows = await QueryProjectMapRowsAsync(methodsQuery, prefix, "type methods", warnings, ct);
-        var typeMethods = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        var typeMethods = new Dictionary<string, List<ProjectMapMethod>>(StringComparer.OrdinalIgnoreCase);
         var funcIdToTypeName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var mr in methodRows)
@@ -263,7 +263,9 @@ public partial class ArchitectureViewEngine
                     list = [];
                     typeMethods[tid] = list;
                 }
-                list.Add(fnname);
+                var fnFile = ResolveSymbolFilePath(mr.GetStringProp("fnfile"), null, prefix, projectFileSet);
+                var fnLine = mr.GetNullableIntProp("fnline");
+                list.Add(new ProjectMapMethod(fnname, fnFile.Length > 0 ? fnFile : null, fnLine));
             }
             if (fnid.Length > 0 && tname.Length > 0)
             {
