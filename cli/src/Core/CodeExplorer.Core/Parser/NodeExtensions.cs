@@ -21,14 +21,15 @@ namespace CodeExplorer.Core.Parser
         public static Node? GetFunctionNode(this Node? node)
         {
             if (node == null || node.Id == IntPtr.Zero) return null;
-            var func = node.GetChildForField(TreeSitterSyntax.Fields.Function);
+            var func = node.GetChildForField(SyntaxFields.Function);
             if (func == null || (func.Id == IntPtr.Zero && node.Children.Count > 0))
             {
                 var firstChild = node.Children[0];
                 func = firstChild.Id != IntPtr.Zero ? firstChild : null;
             }
 
-            while (func.IsValid() && (func.Type is TreeSitterSyntax.Common.AwaitExpression or TreeSitterSyntax.Common.ParenthesizedExpression ||
+            while (func.IsValid() && (func is AwaitOrTryExprSyntax ||
+                                      func.Type is "await_expression" or "parenthesized_expression" ||
                                       func.Type.Contains("instantiation") || func.Type.Contains("type_arguments") || func.Type == "expression_with_type_arguments"))
             {
                 var inner = func.Children.FirstOrDefault(c => c.IsValid() && c.Type != "await" && c.Type != "(" && c.Type != ")" && !c.Type.Contains("type_argument"));

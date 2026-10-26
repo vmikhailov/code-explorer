@@ -260,7 +260,7 @@ def fetch():
         var tree = SyntaxTree.ParseText(pyCode, "python");
         tree.Should().NotBeNull();
 
-        var call = tree!.RootNode.FindDescendantOfType(TreeSitterSyntax.Python.Call);
+        var call = tree!.RootNode.FindDescendantOfType("call");
         call.IsValid().Should().BeTrue();
 
         var args = Parser.Python.Libraries.PythonAstHelper.GetCallArguments(call);
@@ -283,7 +283,7 @@ function fetch() {
         var tree = SyntaxTree.ParseText(tsCode, "typescript");
         tree.Should().NotBeNull();
 
-        var call = tree!.RootNode.FindDescendantOfType(TreeSitterSyntax.TypeScript.CallExpression);
+        var call = tree!.RootNode.FindDescendantOfType("call_expression");
         call.IsValid().Should().BeTrue();
 
         var args = Parser.TypeScript.Libraries.AstHelper.GetCallArguments(call);

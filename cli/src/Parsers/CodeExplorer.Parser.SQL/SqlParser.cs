@@ -113,7 +113,7 @@ public class SqlParser : IProjectParser, IFileParser
                 RawSql = proc.Body
             });
         }
-        var doc = UniversalSyntaxBuilder.CreateDocument(sqlText, LanguageName, filePath, relativePath, sqlChildren);
+        var doc = SyntaxDocument.Create(sqlText, LanguageName, filePath, relativePath, sqlChildren);
 
         return new SyntaxTree(filePath, relativePath, doc, fileNode, this, [], [], []);
     }

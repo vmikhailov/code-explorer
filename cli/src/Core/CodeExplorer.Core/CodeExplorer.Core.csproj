@@ -17,7 +17,6 @@
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.2" />
     <PackageReference Include="Dapper" Version="2.1.66" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.13" />
-    <PackageReference Include="TreeSitter.DotNet" Version="1.3.0" PrivateAssets="compile" />
     <PackageReference Include="ModelContextProtocol" Version="1.3.0" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.3.0" />
     <PackageReference Include="LLamaSharp" Version="0.27.0" />

@@ -356,7 +356,7 @@ public class DeclarativeSemanticExtension : ISemanticExtension
         var targetDecl = annotationNode.Parent;
         while (targetDecl.IsValid())
         {
-            if (targetDecl.IsAny(TreeSitterSyntax.Java.MethodDeclaration, TreeSitterSyntax.Java.ClassDeclaration))
+            if (targetDecl is FunctionDeclSyntax or TypeDeclSyntax)
             {
                 EnrichSecurityFromAnnotations(targetDecl, symbol);
                 break;
@@ -364,14 +364,14 @@ public class DeclarativeSemanticExtension : ISemanticExtension
             targetDecl = targetDecl.Parent;
         }
 
-        if (targetDecl.IsValid() && targetDecl.Is(TreeSitterSyntax.Java.MethodDeclaration))
+        if (targetDecl is FunctionDeclSyntax)
         {
             ExtractMethodPayloadSchemas(targetDecl, symbol);
 
             var classDecl = targetDecl.Parent;
             while (classDecl.IsValid())
             {
-                if (classDecl.Is(TreeSitterSyntax.Java.ClassDeclaration))
+                if (classDecl is TypeDeclSyntax)
                 {
                     EnrichSecurityFromAnnotations(classDecl, symbol);
                     break;
@@ -383,7 +383,7 @@ public class DeclarativeSemanticExtension : ISemanticExtension
 
     private static void ExtractMethodPayloadSchemas(Node methodDecl, SyntacticSymbol symbol)
     {
-        var typeNode = methodDecl.GetField(TreeSitterSyntax.Fields.Type);
+        var typeNode = methodDecl.GetField(SyntaxFields.Type);
         if (typeNode.IsValid())
         {
             var ret = UnwrapGenericResponseType(typeNode.Text);
@@ -393,16 +393,16 @@ public class DeclarativeSemanticExtension : ISemanticExtension
             }
         }
 
-        var paramList = methodDecl.GetField(TreeSitterSyntax.Fields.Parameters);
+        var paramList = methodDecl.GetField(SyntaxFields.Parameters);
         if (paramList.IsValid())
         {
             foreach (var param in paramList.Children)
             {
-                if (!param.Type.Contains("parameter", StringComparison.Ordinal)) continue;
+                if (param is not ParameterDeclSyntax && !param.Type.Contains("parameter", StringComparison.Ordinal)) continue;
 
                 var isRequestBody = param.Text.Contains("@RequestBody", StringComparison.Ordinal) ||
                                     param.Text.Contains("@ModelAttribute", StringComparison.Ordinal);
-                var pType = param.GetField(TreeSitterSyntax.Fields.Type);
+                var pType = param.GetField(SyntaxFields.Type);
                 if (pType.IsValid())
                 {
                     var pTypeName = UnwrapGenericResponseType(pType.Text);
@@ -519,7 +519,7 @@ public class DeclarativeSemanticExtension : ISemanticExtension
             }
         }
 
-        if (node.Is(TreeSitterSyntax.Java.InterfaceDeclaration) && rule.ClientAnnotationSuffixes.Count > 0)
+        if (node is TypeDeclSyntax { Kind: TypeSyntaxKind.Interface } && rule.ClientAnnotationSuffixes.Count > 0)
         {
             var annotations = GetNodeAnnotations(node, rule.AnnotationNodeTypes);
             if (annotations.Any(a =>
@@ -539,7 +539,7 @@ public class DeclarativeSemanticExtension : ISemanticExtension
     private static string ExtractOutboundHttpTarget(Node node, OutboundHttpRule rule)
     {
         var targetNode = node;
-        if (node.Is(TreeSitterSyntax.Java.InterfaceDeclaration))
+        if (node is TypeDeclSyntax { Kind: TypeSyntaxKind.Interface })
         {
             var annotations = GetNodeAnnotations(node, rule.AnnotationNodeTypes);
             var clientAnnot = annotations.FirstOrDefault(a =>
@@ -559,15 +559,15 @@ public class DeclarativeSemanticExtension : ISemanticExtension
             string? nameVal = null;
             string? pathVal = null;
 
-            var str = targetNode.FindChildOfType(TreeSitterSyntax.Java.StringLiteral);
+            var str = targetNode.Children.FirstOrDefault(IsStringLiteral);
             if (str.IsValid()) nameVal = str.Text.Trim('"', '\'');
 
             var pairs = new List<Node>();
-            CollectNodesByType(targetNode, TreeSitterSyntax.Java.ElementValuePair, pairs);
+            CollectNodesByType(targetNode, "element_value_pair", pairs);
             foreach (var pair in pairs)
             {
-                var key = pair.FindChildOfType(TreeSitterSyntax.Java.Identifier);
-                var val = pair.FindChildOfType(TreeSitterSyntax.Java.StringLiteral);
+                var key = pair.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
+                var val = pair.Children.FirstOrDefault(IsStringLiteral);
                 if (key.IsValid() && val.IsValid())
                 {
                     var keyText = key.Text;
@@ -609,7 +609,7 @@ public class DeclarativeSemanticExtension : ISemanticExtension
                             return RouteDictionaryRegistry.NormalizeResolvedUrl(text);
                         }
                     }
-                    else if (child.Is(TreeSitterSyntax.Java.Identifier))
+                    else if (child is IdentifierExprSyntax)
                     {
                         var varName = child.Text;
                         if (RouteDictionaryRegistry.TryResolve(varName, out var rPath, out var rService))
@@ -624,9 +624,9 @@ public class DeclarativeSemanticExtension : ISemanticExtension
                             return RouteDictionaryRegistry.NormalizeResolvedUrl(resolved);
                         }
                     }
-                    else if (child.Is(TreeSitterSyntax.Common.BinaryExpression))
+                    else if (child is BinaryExprSyntax)
                     {
-                        var left = child.GetField(TreeSitterSyntax.Fields.Left) ?? (child.Children.Count >= 1 ? child.Children[0] : null);
+                        var left = child.GetField(SyntaxFields.Left) ?? (child.Children.Count >= 1 ? child.Children[0] : null);
                         if (left.IsValid() && IsStringLiteral(left))
                         {
                             var text = left.Text.Trim('"', '\'');
@@ -636,7 +636,7 @@ public class DeclarativeSemanticExtension : ISemanticExtension
                             }
                         }
 
-                        var right = child.GetField(TreeSitterSyntax.Fields.Right) ?? (child.Children.Count >= 3 ? child.Children[2] : null);
+                        var right = child.GetField(SyntaxFields.Right) ?? (child.Children.Count >= 3 ? child.Children[2] : null);
                         if (right.IsValid() && IsStringLiteral(right))
                         {
                             return RouteDictionaryRegistry.NormalizeResolvedUrl(right.Text.Trim('"', '\''));
@@ -654,21 +654,21 @@ public class DeclarativeSemanticExtension : ISemanticExtension
         var curr = node.Parent;
         while (curr.IsValid())
         {
-            if (curr.IsAny(TreeSitterSyntax.Java.Block, TreeSitterSyntax.Java.MethodDeclaration, TreeSitterSyntax.Java.ClassBody, "statement_block", "compound_statement"))
+            if (curr is BlockStmtSyntax or FunctionDeclSyntax or TypeDeclSyntax || curr.IsAny("class_body", "statement_block", "compound_statement"))
             {
                 foreach (var child in curr.Children)
                 {
-                    if (child.IsAny(TreeSitterSyntax.Java.LocalVariableDeclaration, TreeSitterSyntax.Java.FieldDeclaration, "variable_declaration", "property_declaration"))
+                    if (child is VariableDeclSyntax or MemberDeclSyntax)
                     {
                         foreach (var decl in child.Children)
                         {
-                            if (!decl.IsAny(TreeSitterSyntax.Java.VariableDeclarator, "property_element")) continue;
+                            if (decl is not VariableDeclSyntax && decl.Type != "property_element") continue;
 
-                            var nameNode = decl.GetChildForField(TreeSitterSyntax.Fields.Name) ??
-                                           decl.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.Java.Identifier, "variable_name"));
+                            var nameNode = decl.GetChildForField(SyntaxFields.Name) ??
+                                           decl.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
                             if (nameNode.IsValid() && nameNode.Text.TrimStart('$') == varName.TrimStart('$'))
                             {
-                                var valNode = decl.GetChildForField(TreeSitterSyntax.Fields.Value) ??
+                                var valNode = decl.GetChildForField(SyntaxFields.Value) ??
                                               (decl.Children.Count >= 3 ? decl.Children[^1] : null);
                                 if (valNode.IsValid())
                                 {
@@ -676,11 +676,11 @@ public class DeclarativeSemanticExtension : ISemanticExtension
                                     {
                                         return valNode.Text.Trim('"', '\'');
                                     }
-                                    if (valNode.Is(TreeSitterSyntax.Common.BinaryExpression))
+                                    if (valNode is BinaryExprSyntax)
                                     {
-                                        var left = valNode.GetChildForField(TreeSitterSyntax.Fields.Left) ??
+                                        var left = valNode.GetChildForField(SyntaxFields.Left) ??
                                                    (valNode.Children.Count > 0 ? valNode.Children[0] : null);
-                                        var right = valNode.GetChildForField(TreeSitterSyntax.Fields.Right) ??
+                                        var right = valNode.GetChildForField(SyntaxFields.Right) ??
                                                     (valNode.Children.Count >= 3 ? valNode.Children[2] : null);
 
                                         if (left.IsValid() && IsStringLiteral(left))
@@ -697,7 +697,7 @@ public class DeclarativeSemanticExtension : ISemanticExtension
                                             return right.Text.Trim('"', '\'');
                                         }
                                     }
-                                    if (valNode.Is(TreeSitterSyntax.Java.MethodInvocation))
+                                    if (valNode is CallExprSyntax)
                                     {
                                         var argList = FindArgumentsNode(valNode);
                                         var str = argList?.Children.FirstOrDefault(IsStringLiteral);
@@ -745,24 +745,22 @@ public class DeclarativeSemanticExtension : ISemanticExtension
 
     private static string? ExtractSqlText(Node node)
     {
-        if (node.IsAny(TreeSitterSyntax.Java.MarkerAnnotation, TreeSitterSyntax.Java.Annotation, "attribute", "attribute_group"))
+        if (node is AnnotationSyntax || node.Type == "attribute_group")
         {
-            var strNode = node.FindChildOfType(TreeSitterSyntax.Java.StringLiteral)
-                          ?? node.FindChildOfType(TreeSitterSyntax.Java.TextBlock);
+            var strNode = node.Children.FirstOrDefault(IsStringLiteral);
             if (strNode.IsValid())
             {
                 return strNode.Text.Trim('"', '\'').Trim();
             }
 
             var pairs = new List<Node>();
-            CollectNodesByType(node, TreeSitterSyntax.Java.ElementValuePair, pairs);
+            CollectNodesByType(node, "element_value_pair", pairs);
             foreach (var pair in pairs)
             {
-                var key = pair.FindChildOfType(TreeSitterSyntax.Java.Identifier);
+                var key = pair.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
                 if (key.IsValid() && key.Text is "value" or "query" or "nativeQuery")
                 {
-                    var val = pair.FindChildOfType(TreeSitterSyntax.Java.StringLiteral)
-                              ?? pair.FindChildOfType(TreeSitterSyntax.Java.TextBlock);
+                    var val = pair.Children.FirstOrDefault(IsStringLiteral);
                     if (val.IsValid()) return val.Text.Trim('"', '\'').Trim();
                 }
             }
@@ -813,7 +811,7 @@ public class DeclarativeSemanticExtension : ISemanticExtension
 
     private static bool MatchesMethodLevelEventListener(Node node, MessagingBrokerRule rule)
     {
-        if (rule.MethodLevelEventAnnotations.Count == 0 || !node.Is(TreeSitterSyntax.Java.MethodDeclaration))
+        if (rule.MethodLevelEventAnnotations.Count == 0 || node is not FunctionDeclSyntax)
             return false;
 
         var annotations = GetNodeAnnotations(node, rule.AnnotationNodeTypes);
@@ -836,7 +834,7 @@ public class DeclarativeSemanticExtension : ISemanticExtension
                 {
                     if (argChild.Type == "element_value_pair")
                     {
-                        var keyNode = argChild.FindChildOfType(TreeSitterSyntax.Java.Identifier);
+                        var keyNode = argChild.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
                         if (keyNode.IsValid() && rule.TopicArgumentKeys.Contains(keyNode.Text))
                         {
                             ExtractStringsFromSubtree(argChild, list);
@@ -882,8 +880,8 @@ public class DeclarativeSemanticExtension : ISemanticExtension
 
         if (rule.PublishReceiverSubstrings.Count > 0)
         {
-            var objNode = callNode.GetField(TreeSitterSyntax.Fields.Object)
-                          ?? callNode.GetField(TreeSitterSyntax.Fields.Operand)
+            var objNode = callNode.GetField(SyntaxFields.Object)
+                          ?? callNode.GetField(SyntaxFields.Operand)
                           ?? callNode.GetField("scope");
             var objText = objNode.IsValid() ? objNode.Text : "";
             if (!rule.PublishReceiverSubstrings.Any(sub => objText.Contains(sub, StringComparison.OrdinalIgnoreCase)))
@@ -897,11 +895,11 @@ public class DeclarativeSemanticExtension : ISemanticExtension
 
         if (rule.ExtractEventTypeFromObjectCreationArg)
         {
-            var objCreation = argList.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.Java.ObjectCreationExpression, "object_creation_expression"));
+            var objCreation = argList.Children.FirstOrDefault(c => c is CallExprSyntax { CallKind: CallSyntaxKind.Constructor } || c.Type == "object_creation_expression");
             if (objCreation.IsValid())
             {
-                var typeNode = objCreation.GetField(TreeSitterSyntax.Fields.Type)
-                               ?? objCreation.Children.FirstOrDefault(c => c.Type is "type_identifier" or "identifier" or "name");
+                var typeNode = objCreation.GetField(SyntaxFields.Type)
+                               ?? objCreation.Children.FirstOrDefault(c => c is IdentifierExprSyntax or TypeRefSyntax);
                 if (typeNode.IsValid())
                 {
                     references.Add(new Reference(scopeSymbolId, $"{rule.Protocol}:{typeNode.Text}", OntologyConstants.Relationships.PublishesTo));
@@ -936,7 +934,7 @@ public class DeclarativeSemanticExtension : ISemanticExtension
             return argNode.Text.Trim('"', '\'');
         }
 
-        if (argNode.IsAny(TreeSitterSyntax.Java.ObjectCreationExpression, "object_creation_expression"))
+        if (argNode is CallExprSyntax { CallKind: CallSyntaxKind.Constructor } || argNode.Type == "object_creation_expression")
         {
             var innerArgs = FindArgumentsNode(argNode);
             if (innerArgs.IsValid())
@@ -949,7 +947,7 @@ public class DeclarativeSemanticExtension : ISemanticExtension
             }
         }
 
-        if (argNode.IsAny(TreeSitterSyntax.Java.Identifier, TreeSitterSyntax.Java.ScopedIdentifier, "identifier", "scoped_identifier"))
+        if (argNode is IdentifierExprSyntax or MemberAccessExprSyntax)
         {
             var text = argNode.Text.Trim('"', '\'');
             if (text.Contains('.')) text = text[(text.LastIndexOf('.') + 1)..];
@@ -965,9 +963,8 @@ public class DeclarativeSemanticExtension : ISemanticExtension
 
     private static string? GetShortAnnotationName(Node annot)
     {
-        var nameNode = annot.FindChildOfType(TreeSitterSyntax.Java.Identifier)
-                       ?? annot.FindChildOfType(TreeSitterSyntax.Java.ScopedIdentifier)
-                       ?? annot.GetField(TreeSitterSyntax.Fields.Name)
+        var nameNode = annot.GetField(SyntaxFields.Name)
+                       ?? annot.Children.FirstOrDefault(c => c is IdentifierExprSyntax or MemberAccessExprSyntax)
                        ?? annot.Children.FirstOrDefault(c => c.Type.Contains("identifier", StringComparison.Ordinal) || c.Type.Contains("name", StringComparison.Ordinal));
         if (!nameNode.IsValid()) return null;
 
@@ -979,15 +976,15 @@ public class DeclarativeSemanticExtension : ISemanticExtension
 
     private static string? GetCallMethodName(Node callNode)
     {
-        var nameNode = callNode.GetField(TreeSitterSyntax.Fields.Name)
-                       ?? callNode.GetField("field")
+        var nameNode = callNode.GetField(SyntaxFields.Name)
+                       ?? callNode.GetField(SyntaxFields.Field)
                        ?? callNode.GetField("member");
         if (nameNode.IsValid()) return nameNode.Text;
 
-        var funcNode = callNode.GetField(TreeSitterSyntax.Fields.Function);
+        var funcNode = callNode.GetField(SyntaxFields.Function);
         if (funcNode.IsValid())
         {
-            var field = funcNode.GetField("field") ?? funcNode.GetField(TreeSitterSyntax.Fields.Name);
+            var field = funcNode.GetField(SyntaxFields.Field) ?? funcNode.GetField(SyntaxFields.Name);
             if (field.IsValid()) return field.Text;
             return funcNode.Text;
         }
@@ -997,16 +994,17 @@ public class DeclarativeSemanticExtension : ISemanticExtension
 
     private static Node? FindArgumentsNode(Node callNode)
     {
-        return callNode.FindChildOfType(TreeSitterSyntax.Java.ArgumentList)
-               ?? callNode.FindChildOfType(TreeSitterSyntax.Common.Arguments)
-               ?? callNode.GetField("arguments")
+        return callNode.GetField(SyntaxFields.Arguments)
+               ?? callNode.FindChildOfType("argument_list")
+               ?? callNode.FindChildOfType("arguments")
                ?? callNode.Children.FirstOrDefault(c => c.Type.Contains("argument", StringComparison.Ordinal));
     }
 
     private static bool IsStringLiteral(Node node)
     {
         return node.IsValid() &&
-               (node.IsAny(TreeSitterSyntax.Java.StringLiteral, TreeSitterSyntax.Java.TextBlock, "string", "encapsed_string") ||
+               (node is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.RawString } ||
+                node.IsAny("string", "encapsed_string") ||
                 node.Type.Contains("string_literal", StringComparison.Ordinal));
     }
 
@@ -1038,12 +1036,12 @@ public class DeclarativeSemanticExtension : ISemanticExtension
     {
         foreach (var child in annotNode.Children)
         {
-            if (child.Is(TreeSitterSyntax.Java.ElementValuePair))
+            if (child.Type == "element_value_pair")
             {
-                var key = child.FindChildOfType(TreeSitterSyntax.Java.Identifier);
+                var key = child.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
                 if (key.IsValid() && acceptedKeys.Contains(key.Text))
                 {
-                    var val = child.FindChildOfType(TreeSitterSyntax.Java.StringLiteral);
+                    var val = child.Children.FirstOrDefault(IsStringLiteral);
                     if (val.IsValid()) return val.Text.Trim('"', '\'');
                 }
             }
@@ -1051,13 +1049,12 @@ public class DeclarativeSemanticExtension : ISemanticExtension
             {
                 foreach (var argChild in child.Children)
                 {
-                    if (argChild.Is(TreeSitterSyntax.Java.ElementValuePair) || argChild.Type == "argument")
+                    if (argChild.Type is "element_value_pair" or "argument")
                     {
-                        var key = argChild.FindChildOfType(TreeSitterSyntax.Java.Identifier) ?? argChild.GetField("name");
+                        var key = argChild.Children.FirstOrDefault(c => c is IdentifierExprSyntax) ?? argChild.GetField(SyntaxFields.Name);
                         if (key.IsValid() && acceptedKeys.Contains(key.Text))
                         {
-                            var val = argChild.FindChildOfType(TreeSitterSyntax.Java.StringLiteral)
-                                      ?? argChild.Children.FirstOrDefault(IsStringLiteral);
+                            var val = argChild.Children.FirstOrDefault(IsStringLiteral);
                             if (val.IsValid()) return val.Text.Trim('"', '\'');
                         }
                     }
@@ -1118,14 +1115,15 @@ public class DeclarativeSemanticExtension : ISemanticExtension
         var current = annotNode.Parent;
         while (current.IsValid())
         {
-            if (current.IsAny(TreeSitterSyntax.Java.MethodDeclaration, "function_definition", "method_declaration"))
+            if (current is FunctionDeclSyntax fn)
             {
-                var nameField = current.GetField(TreeSitterSyntax.Fields.Name);
+                if (!string.IsNullOrEmpty(fn.Name)) return fn.Name;
+                var nameField = current.GetField(SyntaxFields.Name);
                 if (nameField.IsValid()) return nameField.Text;
 
                 foreach (var child in current.Children)
                 {
-                    if (child.Is(TreeSitterSyntax.Java.Identifier)) return child.Text;
+                    if (child is IdentifierExprSyntax) return child.Text;
                 }
             }
             current = current.Parent;
@@ -1135,15 +1133,19 @@ public class DeclarativeSemanticExtension : ISemanticExtension
 
     private static string? ExtractFirstParameterType(Node methodNode)
     {
-        var paramList = methodNode.FindChildOfType(TreeSitterSyntax.Java.FormalParameters)
-                        ?? methodNode.GetField(TreeSitterSyntax.Fields.Parameters);
+        if (methodNode is FunctionDeclSyntax { Parameters.Count: > 0 } fn && fn.Parameters[0].ParameterType != null)
+        {
+            return fn.Parameters[0].ParameterType!.Text;
+        }
+
+        var paramList = methodNode.GetField(SyntaxFields.Parameters)
+                        ?? methodNode.Children.FirstOrDefault(c => c.Type.Contains("parameters", StringComparison.Ordinal));
         if (!paramList.IsValid()) return null;
 
-        var firstParam = paramList.FindChildOfType(TreeSitterSyntax.Java.FormalParameter)
-                         ?? paramList.Children.FirstOrDefault(c => c.Type.Contains("parameter", StringComparison.Ordinal));
+        var firstParam = paramList.Children.FirstOrDefault(c => c is ParameterDeclSyntax || c.Type.Contains("parameter", StringComparison.Ordinal));
         if (!firstParam.IsValid()) return null;
 
-        var typeNode = firstParam.GetField(TreeSitterSyntax.Fields.Type);
+        var typeNode = firstParam.GetField(SyntaxFields.Type);
         return typeNode.IsValid() ? typeNode.Text : null;
     }
 

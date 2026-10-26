@@ -5,17 +5,9 @@ using TreeSitter;
 namespace CodeExplorer.Core.Parser.Syntax;
 
 /// <summary>
-/// Optional language-specific hook interface for customizing CST-to-Syntax conversion.
-/// </summary>
-public interface ILanguageSyntaxHooks
-{
-    void EnrichSyntaxNode(SyntaxNode node, SyntaxDocument document) { }
-}
-
-/// <summary>
-/// Universal CST-to-Syntax builder.
-/// This is the ONLY class in the entire CodeExplorer solution that interacts with native TreeSitter.Tree and TreeSitter.Node.
-/// It parses source code into a strongly-typed <see cref="SyntaxDocument"/> hierarchy and immediately disposes the native Tree-sitter tree and parser.
+/// Tree-sitter CST-to-SyntaxDocument builder shared by Tree-sitter language parsers.
+/// Converts native TreeSitter.Tree and TreeSitter.Node into a strongly-typed <see cref="SyntaxDocument"/>
+/// hierarchy and immediately disposes the native Tree-sitter tree and parser.
 /// </summary>
 public static class UniversalSyntaxBuilder
 {

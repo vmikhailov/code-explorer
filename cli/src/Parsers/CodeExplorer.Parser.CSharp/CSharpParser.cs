@@ -1052,6 +1052,9 @@ public class CSharpParser : IProjectParser, IFileParser
     }
 
     public bool UsesTreeSitter => true;
+
+    public SyntaxDocument? ParseDocument(string sourceText, string filePath = "", string relativePath = "") =>
+        UniversalSyntaxBuilder.Parse(sourceText, LanguageName, filePath, relativePath, SyntaxProfile, this as ILanguageSyntaxHooks);
     public async Task<SyntaxTree> ParseAsync(string filePath, string parentNodeId, string workspaceId, string absoluteWorkspacePath)
     {
         var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace('\\', '/');

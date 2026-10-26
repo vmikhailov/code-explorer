@@ -68,7 +68,7 @@ public class GraphQLFileParser : IFileParser
         var fileNode = new FileNode(fileId, fileName, relativePath, filePath);
 
         var content = File.Exists(filePath) ? await File.ReadAllTextAsync(filePath) : string.Empty;
-        var doc = UniversalSyntaxBuilder.CreateDocument(content, LanguageName, filePath, relativePath);
+        var doc = SyntaxDocument.Create(content, LanguageName, filePath, relativePath);
         if (string.IsNullOrWhiteSpace(content))
         {
             return new SyntaxTree(filePath, relativePath, doc, fileNode, this, [], [], []);

@@ -116,7 +116,7 @@ public class ColdFusionFileParser : IFileParser
         // 6. Calls and Inclusions
         ParseInclusionsAndCalls(content, relativePath, rawImports, rawTypeBindings);
 
-        var doc = UniversalSyntaxBuilder.CreateDocument(content, LanguageName, filePath, relativePath);
+        var doc = SyntaxDocument.Create(content, LanguageName, filePath, relativePath);
 
         return new SyntaxTree(filePath, relativePath, doc, fileNode, this, rawImports, [], rawTypeBindings);
     }

@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Core\CodeExplorer.Core\CodeExplorer.Core.csproj" />
     <ProjectReference Include="..\CodeExplorer.Parser.Android\CodeExplorer.Parser.Android.csproj" />
+    <ProjectReference Include="..\CodeExplorer.Parser.Shared\CodeExplorer.Parser.Shared.csproj" />
   </ItemGroup>
 
 </Project>

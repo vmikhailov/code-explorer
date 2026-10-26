@@ -348,6 +348,48 @@ public abstract class SyntaxNode
 }
 
 /// <summary>
+/// Optional language-specific hook interface for customizing CST-to-Syntax conversion.
+/// </summary>
+public interface ILanguageSyntaxHooks
+{
+    void EnrichSyntaxNode(SyntaxNode node, SyntaxDocument document) { }
+}
+
+/// <summary>
+/// Universal field role names for structural child access on <see cref="SyntaxNode"/>.
+/// </summary>
+public static class SyntaxFields
+{
+    public const string Name = "name";
+    public const string Function = "function";
+    public const string Type = "type";
+    public const string Value = "value";
+    public const string Pattern = "pattern";
+    public const string Left = "left";
+    public const string Right = "right";
+    public const string Body = "body";
+    public const string Arguments = "arguments";
+    public const string Parameters = "parameters";
+    public const string Return = "return";
+    public const string Operator = "operator";
+    public const string Expression = "expression";
+    public const string Property = "property";
+    public const string Object = "object";
+    public const string Source = "source";
+    public const string Constructor = "constructor";
+    public const string Field = "field";
+    public const string Path = "path";
+    public const string Key = "key";
+    public const string Operand = "operand";
+    public const string Returns = "returns";
+    public const string ReturnType = "return_type";
+    public const string Index = "index";
+    public const string Subscript = "subscript";
+    public const string ModuleName = "module_name";
+    public const string Tag = "tag";
+}
+
+/// <summary>
 /// Root Universal Syntax Tree document representing a parsed source or schema file.
 /// </summary>
 public sealed class SyntaxDocument : SyntaxNode, IDisposable
@@ -386,6 +428,104 @@ public sealed class SyntaxDocument : SyntaxNode, IDisposable
     public void Dispose()
     {
         // Managed syntax tree is eligible for GC when references are released after Layer 4.
+    }
+
+    /// <summary>
+    /// Creates a <see cref="SyntaxDocument"/> from source text and optional syntax children.
+    /// </summary>
+    public static SyntaxDocument Create(
+        string sourceText,
+        string languageName,
+        string filePath = "",
+        string relativePath = "",
+        IReadOnlyList<SyntaxNode>? children = null)
+    {
+        sourceText ??= string.Empty;
+        var span = ComputeTextSpan(sourceText);
+        var doc = new SyntaxDocument
+        {
+            NodeId = 1,
+            Span = span,
+            RawGrammarKind = "document",
+            FilePath = filePath,
+            RelativePath = relativePath,
+            LanguageName = languageName,
+            SourceText = sourceText
+        };
+        doc.Document = doc;
+
+        if (children is { Count: > 0 })
+        {
+            var nextId = 2;
+            var allTypes = new List<TypeDeclSyntax>();
+            var allFunctions = new List<FunctionDeclSyntax>();
+            var allMembers = new List<MemberDeclSyntax>();
+            var allVariables = new List<VariableDeclSyntax>();
+            var allCalls = new List<CallExprSyntax>();
+            var allSql = new List<SqlStmtSyntax>();
+            var imports = new List<ImportDeclSyntax>();
+            var declarations = new List<DeclarationSyntax>();
+
+            void AttachRecursive(SyntaxNode node, SyntaxNode parent)
+            {
+                node.NodeId = nextId++;
+                node.Document = doc;
+                node.Parent = parent;
+                switch (node)
+                {
+                    case TypeDeclSyntax td: allTypes.Add(td); break;
+                    case FunctionDeclSyntax fd: allFunctions.Add(fd); break;
+                    case MemberDeclSyntax md: allMembers.Add(md); break;
+                    case VariableDeclSyntax vd: allVariables.Add(vd); break;
+                    case CallExprSyntax ce: allCalls.Add(ce); break;
+                    case SqlStmtSyntax sq: allSql.Add(sq); break;
+                    case ImportDeclSyntax im: imports.Add(im); break;
+                }
+                for (int i = 0; i < node.Children.Count; i++)
+                {
+                    node.Children[i].ChildIndex = i;
+                    AttachRecursive(node.Children[i], node);
+                }
+            }
+
+            for (int i = 0; i < children.Count; i++)
+            {
+                var c = children[i];
+                c.ChildIndex = i;
+                AttachRecursive(c, doc);
+                if (c is DeclarationSyntax d && d is not ImportDeclSyntax)
+                {
+                    declarations.Add(d);
+                }
+            }
+
+            doc.Children = children;
+            doc.Imports = imports;
+            doc.Declarations = declarations;
+            doc.AllTypes = allTypes;
+            doc.AllFunctions = allFunctions;
+            doc.AllMembers = allMembers;
+            doc.AllVariables = allVariables;
+            doc.AllCalls = allCalls;
+            doc.AllSqlStatements = allSql;
+        }
+
+        return doc;
+    }
+
+    private static TextSpan ComputeTextSpan(string sourceText)
+    {
+        int lines = 0;
+        int lastLineStart = 0;
+        for (int i = 0; i < sourceText.Length; i++)
+        {
+            if (sourceText[i] == '\n')
+            {
+                lines++;
+                lastLineStart = i + 1;
+            }
+        }
+        return new TextSpan(0, sourceText.Length, 0, 0, lines, sourceText.Length - lastLineStart);
     }
 }
 

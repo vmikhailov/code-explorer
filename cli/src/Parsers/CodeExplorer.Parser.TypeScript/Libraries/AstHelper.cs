@@ -280,10 +280,10 @@ public static partial class AstHelper
     public static bool IsStringLiteralNode(Node? node)
     {
         if (node is null || !node.IsValid()) return false;
-        return node.IsAny(TreeSitterSyntax.TypeScript.String,
+        return node is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.RawString } ||
+               node.IsAny(TreeSitterSyntax.TypeScript.String,
                            TreeSitterSyntax.TypeScript.TemplateString,
-                           TreeSitterSyntax.Common.StringLiteral,
-                           TreeSitterSyntax.Go.InterpretedStringLiteral);
+                           TreeSitterSyntax.Common.StringLiteral);
     }
 
     public static bool TryGetObjectProperty(Node? objectNode, string propertyName, out Node? valueNode)

@@ -46,13 +46,7 @@ public static class AstConstantExtractor
 
         try
         {
-            var doc = UniversalSyntaxBuilder.Parse(
-                content,
-                fileParser.LanguageName,
-                filePath,
-                filePath,
-                fileParser.SyntaxProfile,
-                fileParser as ILanguageSyntaxHooks);
+            var doc = fileParser.ParseDocument(content, filePath, filePath);
 
             if (doc?.RootNode != null && doc.RootNode.Children.Count > 0)
             {

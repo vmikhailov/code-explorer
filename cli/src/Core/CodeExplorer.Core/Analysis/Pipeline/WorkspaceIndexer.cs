@@ -99,7 +99,14 @@ public class WorkspaceIndexer
 
     public static IFileParser? GetParserForFile(string filePath)
     {
+        if (_fileParsers.Count == 0) AutoRegisterParsers();
         return _fileParsers.FirstOrDefault(p => p.CanParseFile(filePath));
+    }
+
+    public static IFileParser? GetParserByLanguage(string languageName)
+    {
+        if (_fileParsers.Count == 0) AutoRegisterParsers();
+        return _fileParsers.FirstOrDefault(p => string.Equals(p.LanguageName, languageName, StringComparison.OrdinalIgnoreCase));
     }
 
     public static IProjectParser? GetProjectParser(string projectType)

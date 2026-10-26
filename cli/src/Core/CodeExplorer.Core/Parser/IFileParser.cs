@@ -37,6 +37,12 @@ public interface IFileParser
     bool UsesTreeSitter { get; }
 
     /// <summary>
+    /// Parses source text into a universal <see cref="SyntaxDocument"/>.
+    /// </summary>
+    SyntaxDocument? ParseDocument(string sourceText, string filePath = "", string relativePath = "") =>
+        SyntaxDocument.Create(sourceText, LanguageName, filePath, relativePath);
+
+    /// <summary>
     /// Parses the file and returns a rich SyntaxTree with the AST and child symbols.
     /// </summary>
     Task<SyntaxTree> ParseAsync(string filePath, string parentNodeId, string workspaceId, string absoluteWorkspacePath);

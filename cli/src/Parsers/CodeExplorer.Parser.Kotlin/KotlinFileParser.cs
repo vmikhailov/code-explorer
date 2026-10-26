@@ -248,7 +248,7 @@ public class KotlinFileParser : IFileParser
             }
         }
 
-        var doc = UniversalSyntaxBuilder.CreateDocument(content, LanguageName, filePath, relativePath);
+        var doc = SyntaxDocument.Create(content, LanguageName, filePath, relativePath);
         doc.PackageOrNamespace = packageName;
 
         return new SyntaxTree(

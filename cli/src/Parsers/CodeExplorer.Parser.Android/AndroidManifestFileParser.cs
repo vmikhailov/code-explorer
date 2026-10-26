@@ -127,7 +127,7 @@ public class AndroidManifestFileParser : IFileParser
             }
         }
 
-        var doc = UniversalSyntaxBuilder.CreateDocument(content, LanguageName, filePath, relativePath);
+        var doc = SyntaxDocument.Create(content, LanguageName, filePath, relativePath);
 
         return new SyntaxTree(
             filePath,

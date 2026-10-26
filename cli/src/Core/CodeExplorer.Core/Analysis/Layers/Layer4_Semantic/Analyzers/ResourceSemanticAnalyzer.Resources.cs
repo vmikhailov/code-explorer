@@ -197,45 +197,41 @@ public partial class ResourceSemanticAnalyzer
 
                     void WalkAst(TsNode node)
                     {
-                        var type = node.Type;
-
-                        if (isNonTestFile && type == TreeSitterSyntax.Rust.ModItem)
+                        if (isNonTestFile && node is NamespaceDeclSyntax nsDecl)
                         {
-                            var modName = node.GetField(TreeSitterSyntax.Fields.Name) ??
-                                          node.FindChildOfType(TreeSitterSyntax.Rust.Identifier);
-                            if (modName.IsValid() &&
-                                (modName.Text.Equals("tests", StringComparison.OrdinalIgnoreCase) ||
-                                 modName.Text.Equals("test_utils", StringComparison.OrdinalIgnoreCase)))
+                            var modNameText = !string.IsNullOrEmpty(nsDecl.Name)
+                                ? nsDecl.Name
+                                : (node.GetField(SyntaxFields.Name) ?? node.Children.FirstOrDefault(c => c is IdentifierExprSyntax))?.Text;
+                            if (!string.IsNullOrEmpty(modNameText) &&
+                                (modNameText.Equals("tests", StringComparison.OrdinalIgnoreCase) ||
+                                 modNameText.Equals("test_utils", StringComparison.OrdinalIgnoreCase)))
                             {
                                 return;
                             }
                         }
 
-                        if (type is TreeSitterSyntax.Rust.LetDeclaration or
-                                    TreeSitterSyntax.Rust.ConstItem or
-                                    TreeSitterSyntax.Rust.StaticItem or
-                                    TreeSitterSyntax.CSharp.VariableDeclarator or
-                                    TreeSitterSyntax.TypeScript.VariableDeclarator or
-                                    TreeSitterSyntax.Go.ShortVarDeclaration or
-                                    "assignment_statement" or
-                                    TreeSitterSyntax.Common.AssignmentExpression or
-                                    "keyed_element")
+                        if (node is VariableDeclSyntax or MemberDeclSyntax or AssignmentExprSyntax || node.Type == "keyed_element")
                         {
                             string? varName = null;
                             TsNode? valNode = null;
 
-                            if (type == TreeSitterSyntax.Rust.LetDeclaration)
+                            if (node is VariableDeclSyntax varDecl)
                             {
-                                var pat = node.GetField("pattern") ?? node.FindChildOfType(TreeSitterSyntax.Rust.Identifier);
-                                if (pat.IsValid()) varName = pat.Text;
-                                valNode = node.GetField(TreeSitterSyntax.Fields.Value);
+                                varName = !string.IsNullOrEmpty(varDecl.Name)
+                                    ? varDecl.Name
+                                    : (node.GetField(SyntaxFields.Pattern) ?? node.GetField(SyntaxFields.Name) ?? node.GetField(SyntaxFields.Left) ?? node.Children.FirstOrDefault(c => c is IdentifierExprSyntax))?.Text;
+                                valNode = varDecl.Initializer ?? node.GetField(SyntaxFields.Value) ?? node.GetField(SyntaxFields.Right);
+                                if (valNode.IsValid() && valNode.Children.Count > 0 && valNode is not ExprSyntax)
+                                {
+                                    valNode = valNode.Children[^1];
+                                }
                             }
-                            else if (type is TreeSitterSyntax.Rust.ConstItem or TreeSitterSyntax.Rust.StaticItem)
+                            else if (node is MemberDeclSyntax memDecl)
                             {
-                                var nameNode = node.GetField(TreeSitterSyntax.Fields.Name) ??
-                                               node.Children.FirstOrDefault(c => c.Type == TreeSitterSyntax.Rust.Identifier);
-                                if (nameNode.IsValid()) varName = nameNode.Text;
-                                valNode = node.GetField(TreeSitterSyntax.Fields.Value);
+                                varName = !string.IsNullOrEmpty(memDecl.Name)
+                                    ? memDecl.Name
+                                    : (node.GetField(SyntaxFields.Name) ?? node.Children.FirstOrDefault(c => c is IdentifierExprSyntax))?.Text;
+                                valNode = memDecl.Initializer ?? node.GetField(SyntaxFields.Value);
                                 if (!valNode.IsValid())
                                 {
                                     var equalsIdx = -1;
@@ -253,23 +249,17 @@ public partial class ResourceSemanticAnalyzer
                                     }
                                 }
                             }
-                            else if (type is TreeSitterSyntax.CSharp.VariableDeclarator or TreeSitterSyntax.TypeScript.VariableDeclarator)
+                            else if (node is AssignmentExprSyntax assignExpr)
                             {
-                                var nameNode = node.GetField(TreeSitterSyntax.Fields.Name) ?? node.FindChildOfType(TreeSitterSyntax.Common.Identifier);
-                                if (nameNode.IsValid()) varName = nameNode.Text;
-                                valNode = node.GetField(TreeSitterSyntax.Fields.Value);
-                            }
-                            else if (type is TreeSitterSyntax.Go.ShortVarDeclaration or "assignment_statement" or TreeSitterSyntax.Common.AssignmentExpression)
-                            {
-                                var left = node.GetField(TreeSitterSyntax.Fields.Left);
+                                var left = assignExpr.Left ?? node.GetField(SyntaxFields.Left);
                                 if (left.IsValid()) varName = left.Text;
-                                valNode = node.GetField(TreeSitterSyntax.Fields.Right);
-                                if (valNode.IsValid() && valNode.Type == TreeSitterSyntax.Go.ExpressionList && valNode.Children.Count > 0)
+                                valNode = assignExpr.Right ?? node.GetField(SyntaxFields.Right);
+                                if (valNode.IsValid() && valNode is not ExprSyntax && valNode.Children.Count > 0)
                                 {
                                     valNode = valNode.Children[0];
                                 }
                             }
-                            else if (type == "keyed_element")
+                            else if (node.Type == "keyed_element")
                             {
                                 var colonIdx = -1;
                                 for (var i = 0; i < node.Children.Count; i++)
@@ -300,21 +290,23 @@ public partial class ResourceSemanticAnalyzer
                             }
                         }
 
-                        if (type == TreeSitterSyntax.Rust.FieldDeclarationList && (projectNode == null || !projectNode.IsLibrary))
+                        if ((projectNode == null || !projectNode.IsLibrary) && node.Children.Any(c => c is MemberDeclSyntax))
                         {
                             TsNode? lastAttr = null;
                             foreach (var child in node.Children)
                             {
-                                if (child.Type == TreeSitterSyntax.Rust.AttributeItem)
+                                if (child is AnnotationSyntax)
                                 {
                                     lastAttr = child;
                                 }
-                                else if (child.Type == TreeSitterSyntax.Rust.FieldDeclaration)
+                                else if (child is MemberDeclSyntax memChild)
                                 {
-                                    var attr = child.FindChildOfType(TreeSitterSyntax.Rust.AttributeItem);
+                                    var attr = child.Children.FirstOrDefault(c => c is AnnotationSyntax);
                                     var effectiveAttr = attr.IsValid() ? attr : lastAttr;
-                                    var fNameNode = child.GetField(TreeSitterSyntax.Fields.Name) ?? child.FindChildOfType(TreeSitterSyntax.Rust.FieldIdentifier);
-                                    if (effectiveAttr.IsValid() && fNameNode.IsValid() && IsSchemaVarName(fNameNode.Text))
+                                    var fNameText = !string.IsNullOrEmpty(memChild.Name)
+                                        ? memChild.Name
+                                        : (child.GetField(SyntaxFields.Name) ?? child.Children.FirstOrDefault(c => c is IdentifierExprSyntax))?.Text;
+                                    if (effectiveAttr.IsValid() && !string.IsNullOrEmpty(fNameText) && IsSchemaVarName(fNameText))
                                     {
                                         if (AstValueResolver.TryResolveString(effectiveAttr, projectNode?.Name ?? fileNode?.Path ?? syntaxTree?.FilePath, out var s))
                                         {
@@ -326,10 +318,10 @@ public partial class ResourceSemanticAnalyzer
                             }
                         }
 
-                        if (type is TreeSitterSyntax.Common.CallExpression or TreeSitterSyntax.CSharp.InvocationExpression)
+                        if (node is CallExprSyntax callExpr)
                         {
                             var funcNode = node.GetFunctionNode();
-                            var funcText = funcNode.IsValid() ? funcNode.Text : "";
+                            var funcText = funcNode.IsValid() ? funcNode.Text : callExpr.MethodName;
 
                             if (funcText.EndsWith("_schema", StringComparison.OrdinalIgnoreCase) ||
                                 funcText.EndsWith("_schema_name", StringComparison.OrdinalIgnoreCase) ||
@@ -344,8 +336,9 @@ public partial class ResourceSemanticAnalyzer
 
                             if (clientConstructors.Any(c => funcText.EndsWith(c, StringComparison.OrdinalIgnoreCase)))
                             {
-                                var argsList = node.FindChildOfType(TreeSitterSyntax.Common.ArgumentList) ??
-                                               node.FindChildOfType(TreeSitterSyntax.Common.Arguments);
+                                var argsList = node.GetField(SyntaxFields.Arguments) ??
+                                               node.FindChildOfType("argument_list") ??
+                                               node.FindChildOfType("arguments");
                                 if (argsList.IsValid())
                                 {
                                     foreach (var arg in argsList.Children)
@@ -367,7 +360,7 @@ public partial class ResourceSemanticAnalyzer
                         foreach (var child in node.Children)
                         {
                             if (!child.IsValid()) continue;
-                            if (isNonTestFile && child.Type == TreeSitterSyntax.Rust.AttributeItem)
+                            if (isNonTestFile && child is AnnotationSyntax)
                             {
                                 if (child.Text.Contains("test", StringComparison.OrdinalIgnoreCase))
                                 {

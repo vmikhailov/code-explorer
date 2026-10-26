@@ -65,8 +65,16 @@ public class SyntaxTree : IDisposable
         string filePath = "",
         string relativePath = "",
         LanguageSyntaxProfile? profile = null,
-        ILanguageSyntaxHooks? hooks = null) =>
-        UniversalSyntaxBuilder.Parse(sourceText, languageName, filePath, relativePath, profile, hooks);
+        ILanguageSyntaxHooks? hooks = null)
+    {
+        var parser = WorkspaceIndexer.GetParserByLanguage(languageName)
+                     ?? (!string.IsNullOrEmpty(filePath) ? WorkspaceIndexer.GetParserForFile(filePath) : null);
+        if (parser != null)
+        {
+            return parser.ParseDocument(sourceText, filePath, relativePath);
+        }
+        return SyntaxDocument.Create(sourceText, languageName, filePath, relativePath);
+    }
 
     public static async Task<SyntaxTree> ParseAsync(
         string filePath,
@@ -79,13 +87,7 @@ public class SyntaxTree : IDisposable
         filePath = filePath.Replace('\\', '/');
         relativePath = relativePath.Replace('\\', '/');
         var sourceText = await File.ReadAllTextAsync(filePath);
-        var document = UniversalSyntaxBuilder.Parse(
-            sourceText,
-            fileParser.LanguageName,
-            filePath,
-            relativePath,
-            fileParser.SyntaxProfile,
-            fileParser as ILanguageSyntaxHooks);
+        var document = fileParser.ParseDocument(sourceText, filePath, relativePath);
 
         var fileNodeId = $"{workspaceId}:{OntologyConstants.IdPrefixes.File}:{relativePath}";
         var fileNode = new FileNode(fileNodeId, Path.GetFileName(filePath), relativePath, filePath);

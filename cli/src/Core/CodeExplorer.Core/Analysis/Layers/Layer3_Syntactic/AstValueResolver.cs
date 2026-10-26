@@ -6,7 +6,7 @@ using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 namespace CodeExplorer.Core.Parser;
 
 /// <summary>
-/// Universal AST value evaluator and expression resolver across all supported languages (C#, TypeScript, Go, Python, Java).
+/// Universal AST value evaluator and expression resolver operating on Universal Syntax nodes.
 /// Replaces heuristic regex searches with AST-driven resolution of literals, binary concatenations,
 /// template strings, configuration readers, and local reaching definitions.
 /// </summary>
@@ -56,29 +56,31 @@ public static class AstValueResolver
             return true;
         }
 
-        var type = node.Type;
-
         // 1. Direct String Literals (only if it does not contain interpolation substitutions)
-        var hasInterpolationChildren = node.Children.Any(c => c.IsValid() && c.Type is TreeSitterSyntax.CSharp.Interpolation or TreeSitterSyntax.TypeScript.TemplateSubstitution);
-        if (!hasInterpolationChildren && (IsStringLiteralType(type) || (node.Children.Count == 0 && IsQuoted(node.Text))))
+        var hasInterpolationChildren = node is InterpolatedStringExprSyntax ||
+                                       node.Children.Any(c => c.IsValid() && c.Type is "interpolation" or "template_substitution");
+
+        if (!hasInterpolationChildren &&
+            (node is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.Char or LiteralSyntaxKind.RawString } ||
+             (node.Children.Count == 0 && IsQuoted(node.Text))))
         {
             result = Unquote(node.Text);
             return true;
         }
 
         // 2. Numeric and Boolean Literals
-        if (type is "number" or "integer" or "float" or "number_literal" or "integer_literal" or "float_literal" or
-                    "true" or "false" or "boolean_literal")
+        if (node is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.Integer or LiteralSyntaxKind.Float or LiteralSyntaxKind.Boolean })
         {
             result = node.Text.Trim();
             return true;
         }
 
-        // 2b. Argument / Attribute Argument wrapper: unwrap inner expression
-        if (type is TreeSitterSyntax.Common.Argument or TreeSitterSyntax.CSharp.AttributeArgument)
+        // 2b. Argument wrapper: unwrap inner expression
+        if (node is ArgumentSyntax argSyntax)
         {
-            var exprChild = node.GetChildForField(TreeSitterSyntax.Fields.Expression) ??
-                            node.Children.FirstOrDefault(c => c.IsValid() && c.Type is not ":" and not "," and not "identifier");
+            var exprChild = argSyntax.Value ??
+                            node.GetChildForField(SyntaxFields.Expression) ??
+                            node.Children.FirstOrDefault(c => c.IsValid() && c.Type is not ":" and not "," && c is not IdentifierExprSyntax);
             if (!exprChild.IsValid())
             {
                 exprChild = node.Children.LastOrDefault(c => c.IsValid());
@@ -89,19 +91,19 @@ public static class AstValueResolver
             }
         }
 
-        // 2c. Equals value clause: unwrap inner expression
-        if (type is TreeSitterSyntax.CSharp.EqualsValueClause)
+        // 2c. Initializer value wrapper (e.g. `= expr`): unwrap inner expression
+        if (node.Children.Count > 1 && node.Children[0].Text == "=")
         {
-            var valChild = node.GetField(TreeSitterSyntax.Fields.Value) ??
-                           node.Children.LastOrDefault(c => c.IsValid() && c.Type != "=");
+            var valChild = node.GetField(SyntaxFields.Value) ??
+                           node.Children.LastOrDefault(c => c.IsValid() && c.Text != "=");
             if (valChild.IsValid() && valChild.Id != node.Id)
             {
                 return TryResolveStringInternal(valChild, contextOrProject, depth + 1, visitedVars, out result);
             }
         }
 
-        // 2d. Rust attribute item: #[serde(default = "default_schema_name")]
-        if (type == TreeSitterSyntax.Rust.AttributeItem)
+        // 2d. Annotation / Attribute default reference (e.g. default = "fn_name")
+        if (node is AnnotationSyntax)
         {
             var match = Regex.Match(node.Text, @"default\s*=\s*""([A-Za-z0-9_]+)""");
             if (match.Success)
@@ -114,29 +116,31 @@ public static class AstValueResolver
             }
         }
 
-        // 2e. Rust unary/reference/await/try expressions: unwrap inner
-        if (type is "reference_expression" or TreeSitterSyntax.Rust.UnaryExpression or TreeSitterSyntax.Rust.AwaitExpression or TreeSitterSyntax.Rust.TryExpression)
+        // 2e. Unary / reference / await / try expressions: unwrap inner
+        if (node is UnaryExprSyntax or AwaitOrTryExprSyntax)
         {
-            var inner = node.Children.FirstOrDefault(c => c.IsValid() && c.Type is not "&" and not "mut" and not "*" and not "?" and not "." and not "await");
+            var inner = (node as UnaryExprSyntax)?.Operand ??
+                        (node as AwaitOrTryExprSyntax)?.Operand ??
+                        node.Children.FirstOrDefault(c => c.IsValid() && c.Type is not "&" and not "mut" and not "*" and not "?" and not "." and not "await");
             if (inner.IsValid() && inner.Id != node.Id)
             {
                 return TryResolveStringInternal(inner, contextOrProject, depth + 1, visitedVars, out result);
             }
         }
 
-        // 2f. Rust function item (zero-arg / getter evaluation or 1-arg formatter when bound)
-        if (type == TreeSitterSyntax.Rust.FunctionItem)
+        // 2f. Function declaration (zero-arg / getter evaluation or 1-arg formatter when bound)
+        if (node is FunctionDeclSyntax)
         {
-            return TryResolveRustFunctionItem(node, contextOrProject, depth, visitedVars, out result);
+            return TryResolveFunctionDeclaration(node, contextOrProject, depth, visitedVars, out result);
         }
 
         // 3. Parenthesized Expression: unwrap inner
-        if (type is TreeSitterSyntax.Common.ParenthesizedExpression)
+        if (node.Children.Count >= 3 && node.Children[0].Text == "(" && node.Children[^1].Text == ")")
         {
-            for (int i = 0; i < node.Children.Count; i++)
+            for (int i = 1; i < node.Children.Count - 1; i++)
             {
                 var c = node.Children[i];
-                if (c.IsValid() && c.Type is not "(" and not ")")
+                if (c.IsValid() && c.Text is not "(" and not ")")
                 {
                     return TryResolveStringInternal(c, contextOrProject, depth + 1, visitedVars, out result);
                 }
@@ -144,63 +148,45 @@ public static class AstValueResolver
         }
 
         // 4. Binary Expressions (String Concatenation: Left + Right)
-        if (type is TreeSitterSyntax.Common.BinaryExpression or TreeSitterSyntax.Python.BinaryOperator)
+        if (node is BinaryExprSyntax)
         {
             return TryResolveBinary(node, contextOrProject, depth, visitedVars, out result);
         }
 
         // 5. Universal Interpolated / Template / Format String ($"...", `...`, f"...")
-        if (hasInterpolationChildren ||
-            type is TreeSitterSyntax.CSharp.InterpolatedStringExpression or
-                    TreeSitterSyntax.CSharp.InterpolatedVerbatimStringExpression or
-                    TreeSitterSyntax.CSharp.InterpolatedRawStringExpression or
-                    TreeSitterSyntax.TypeScript.TemplateString or
-                    TreeSitterSyntax.Python.FormatString)
+        if (hasInterpolationChildren)
         {
             return TryResolveInterpolation(node, contextOrProject, depth, visitedVars, out result);
         }
 
-        // 6. Rust format! macro invocation
-        if (type == TreeSitterSyntax.Rust.MacroInvocation &&
+        // 6. Format macro invocation (e.g. format!(...))
+        if (node is CallExprSyntax { CallKind: CallSyntaxKind.Macro } &&
             (node.Text.StartsWith("format!", StringComparison.Ordinal) ||
              (node.Children.Count > 0 && node.Children[0].Text == "format")))
         {
-            return TryResolveRustMacro(node, contextOrProject, depth, visitedVars, out result);
+            return TryResolveFormatMacro(node, contextOrProject, depth, visitedVars, out result);
         }
 
-        // 7. Member Expression / Selector Expression / Attribute
-        if (type is TreeSitterSyntax.Common.MemberExpression or
-                    TreeSitterSyntax.CSharp.MemberAccessExpression or
-                    TreeSitterSyntax.Go.SelectorExpression or
-                    TreeSitterSyntax.Python.Attribute or
-                    TreeSitterSyntax.Java.ScopedIdentifier or
-                    TreeSitterSyntax.Rust.FieldExpression or
-                    TreeSitterSyntax.Rust.ScopedIdentifier)
+        // 7. Member Access Expression
+        if (node is MemberAccessExprSyntax)
         {
             return TryResolveMember(node, contextOrProject, depth, visitedVars, out result);
         }
 
-        // 8. Subscript / Element Access
-        if (type is TreeSitterSyntax.TypeScript.SubscriptExpression or
-                    TreeSitterSyntax.CSharp.ElementAccessExpression or
-                    "bracket_expression" or
-                    TreeSitterSyntax.Python.Subscript or
-                    TreeSitterSyntax.Common.IndexExpression or
-                    TreeSitterSyntax.Java.ArrayAccess)
+        // 8. Index / Slice Access
+        if (node is IndexOrSliceExprSyntax)
         {
             return TryResolveSubscript(node, contextOrProject, depth, visitedVars, out result);
         }
 
         // 9. Call Expression
-        if (type is TreeSitterSyntax.Common.CallExpression or TreeSitterSyntax.CSharp.InvocationExpression or
-                    TreeSitterSyntax.Python.Call or TreeSitterSyntax.Java.MethodInvocation)
+        if (node is CallExprSyntax)
         {
             return TryResolveCall(node, contextOrProject, depth, visitedVars, out result);
         }
 
         // 10. Plain Identifier
-        if (type is TreeSitterSyntax.Common.Identifier or TreeSitterSyntax.Common.TypeIdentifier or
-                    TreeSitterSyntax.Common.VariableName)
+        if (node is IdentifierExprSyntax or IdentifierPatternSyntax or TypeRefSyntax { TypeArguments.Count: 0 })
         {
             return TryResolveIdentifier(node, contextOrProject, depth, visitedVars, out result);
         }
@@ -208,30 +194,32 @@ public static class AstValueResolver
         return false;
     }
 
-    private static bool TryResolveRustFunctionItem(Node node, string? contextOrProject, int depth, HashSet<string>? visitedVars, out string result)
+    private static bool TryResolveFunctionDeclaration(Node node, string? contextOrProject, int depth, HashSet<string>? visitedVars, out string result)
     {
         result = string.Empty;
-        var parameters = node.FindChildOfType(TreeSitterSyntax.Rust.Parameters);
-        var regularParamsCount = parameters.IsValid()
-            ? parameters.Children.Count(c => c.IsValid() && c.Type == TreeSitterSyntax.Rust.Parameter)
+        var fn = node as FunctionDeclSyntax;
+        var regularParamsCount = fn != null
+            ? fn.Parameters.Count(p => p.PassingMode != ParameterPassingMode.Receiver && p.Name is not "self" and not "&self" and not "&mut self")
             : 0;
+
         if (regularParamsCount == 0 || (regularParamsCount == 1 && _localBindings is { Count: > 0 }))
         {
-            var block = node.FindChildOfType(TreeSitterSyntax.Rust.Block);
+            Node? block = fn?.Body ?? node.Children.FirstOrDefault(c => c is BlockStmtSyntax);
             if (block.IsValid())
             {
-                var returnExpr = block.FindDescendantsOfType(TreeSitterSyntax.Rust.ReturnExpression).FirstOrDefault();
+                var returnStmt = FindFirstReturnStmt(block);
                 Node? retChild = null;
-                if (returnExpr.IsValid())
+                if (returnStmt.IsValid())
                 {
-                    retChild = returnExpr.Children.FirstOrDefault(c => c.IsValid() && c.Type is not "return" and not ";");
+                    retChild = (returnStmt as ReturnOrYieldStmtSyntax)?.Value ??
+                               returnStmt.Children.FirstOrDefault(c => c.IsValid() && c.Text is not "return" and not ";");
                 }
                 else
                 {
                     for (int i = block.Children.Count - 1; i >= 0; i--)
                     {
                         var c = block.Children[i];
-                        if (c.IsValid() && c.Type is not "}" and not "{" and not ";")
+                        if (c.IsValid() && c.Text is not "}" and not "{" and not ";")
                         {
                             retChild = c;
                             break;
@@ -248,16 +236,30 @@ public static class AstValueResolver
         return false;
     }
 
+    private static Node? FindFirstReturnStmt(Node root)
+    {
+        foreach (var child in root.Children)
+        {
+            if (child is ReturnOrYieldStmtSyntax) return child;
+            var sub = FindFirstReturnStmt(child);
+            if (sub.IsValid()) return sub;
+        }
+        return null;
+    }
+
     private static bool TryResolveBinary(Node node, string? contextOrProject, int depth, HashSet<string>? visitedVars, out string result)
     {
         result = string.Empty;
-        var op = node.GetChildForField(TreeSitterSyntax.Fields.Operator)?.Text ??
-                 node.Children.FirstOrDefault(c => c.Type is "+" or ".")?.Text;
+        var bin = node as BinaryExprSyntax;
+        var op = !string.IsNullOrEmpty(bin?.Operator)
+            ? bin.Operator
+            : (node.GetChildForField(SyntaxFields.Operator)?.Text ??
+               node.Children.FirstOrDefault(c => c.Text is "+" or ".")?.Text);
 
         if (op == "+" || op == ".")
         {
-            var left = node.GetChildForField(TreeSitterSyntax.Fields.Left);
-            var right = node.GetChildForField(TreeSitterSyntax.Fields.Right);
+            var left = bin?.Left ?? node.GetChildForField(SyntaxFields.Left);
+            var right = bin?.Right ?? node.GetChildForField(SyntaxFields.Right);
 
             if (!left.IsValid() && node.Children.Count >= 2)
             {
@@ -273,7 +275,7 @@ public static class AstValueResolver
                 result = leftVal + rightVal;
                 return true;
             }
-            if (leftResolved && !rightResolved && right.IsValid() && right.Type == TreeSitterSyntax.Common.Identifier)
+            if (leftResolved && !rightResolved && right is IdentifierExprSyntax)
             {
                 if (ConstantRegistry.TryResolve(contextOrProject, right.Text, out var rVal))
                 {
@@ -281,7 +283,7 @@ public static class AstValueResolver
                     return true;
                 }
             }
-            if (!leftResolved && rightResolved && left.IsValid() && left.Type == TreeSitterSyntax.Common.Identifier)
+            if (!leftResolved && rightResolved && left is IdentifierExprSyntax)
             {
                 if (ConstantRegistry.TryResolve(contextOrProject, left.Text, out var lVal))
                 {
@@ -306,7 +308,7 @@ public static class AstValueResolver
             var cType = child.Type;
             if (cType is "$\"" or "@$\"" or "$@\"" or "\"" or "\"\"\"" or "`" or "f\"" or "f'" or "'" or "f" or "string_start" or "string_end" or "interpolation_start") continue;
 
-            if (cType is TreeSitterSyntax.CSharp.Interpolation or TreeSitterSyntax.TypeScript.TemplateSubstitution)
+            if (cType is "interpolation" or "template_substitution")
             {
                 var expr = child.Children.FirstOrDefault(c => c.IsValid() && c.Type is not "{" and not "}" and not "${" and not "interpolation_brace");
                 if (expr.IsValid() && TryResolveStringInternal(expr, contextOrProject, depth + 1, visitedVars, out var part))
@@ -333,7 +335,7 @@ public static class AstValueResolver
         return allResolved;
     }
 
-    private static bool TryResolveRustMacro(Node node, string? contextOrProject, int depth, HashSet<string>? visitedVars, out string result)
+    private static bool TryResolveFormatMacro(Node node, string? contextOrProject, int depth, HashSet<string>? visitedVars, out string result)
     {
         result = string.Empty;
         var tokenTree = node.FindChildOfType("token_tree");
@@ -391,7 +393,6 @@ public static class AstValueResolver
             rawText.StartWithIC("self."))
         {
             var propName = rawText[5..].Trim();
-            // A plain field (no further member access) must not leak workspace-global constants of the same name.
             var isPlainField = propName.IndexOf('.') < 0;
             if (isPlainField
                     ? ConstantRegistry.TryResolveProjectScoped(contextOrProject, propName, out var propVal)
@@ -445,25 +446,28 @@ public static class AstValueResolver
         }
 
         // Check rightmost property
-        var propNode = node.GetChildForField(TreeSitterSyntax.Fields.Property) ??
-                       node.GetChildForField(TreeSitterSyntax.Fields.Field) ??
-                       node.GetChildForField(TreeSitterSyntax.Fields.Name) ??
-                       node.FindChildOfType(TreeSitterSyntax.Rust.FieldIdentifier);
+        var memberSyntax = node as MemberAccessExprSyntax;
+        var propText = !string.IsNullOrEmpty(memberSyntax?.MemberName)
+            ? memberSyntax.MemberName
+            : (node.GetChildForField(SyntaxFields.Property) ??
+               node.GetChildForField(SyntaxFields.Field) ??
+               node.GetChildForField(SyntaxFields.Name) ??
+               node.Children.LastOrDefault(c => c is IdentifierExprSyntax))?.Text;
 
-        if (propNode.IsValid())
+        if (!string.IsNullOrEmpty(propText))
         {
-            if (ConstantRegistry.TryResolve(contextOrProject, $"self.{propNode.Text}", out var selfFieldVal))
+            if (ConstantRegistry.TryResolve(contextOrProject, $"self.{propText}", out var selfFieldVal))
             {
                 result = selfFieldVal;
                 return true;
             }
 
-            if ((Regex.IsMatch(propNode.Text, @"^[A-Z0-9_]{3,}$") ||
-                 propNode.Text.Contains("schema", StringComparison.OrdinalIgnoreCase) ||
-                 propNode.Text.EndsWith("Topic", StringComparison.OrdinalIgnoreCase) ||
-                 propNode.Text.EndsWith("Queue", StringComparison.OrdinalIgnoreCase) ||
-                 propNode.Text.EndsWith("Subscription", StringComparison.OrdinalIgnoreCase)) &&
-                ConstantRegistry.TryResolve(contextOrProject, propNode.Text, out var pVal))
+            if ((Regex.IsMatch(propText, @"^[A-Z0-9_]{3,}$") ||
+                 propText.Contains("schema", StringComparison.OrdinalIgnoreCase) ||
+                 propText.EndsWith("Topic", StringComparison.OrdinalIgnoreCase) ||
+                 propText.EndsWith("Queue", StringComparison.OrdinalIgnoreCase) ||
+                 propText.EndsWith("Subscription", StringComparison.OrdinalIgnoreCase)) &&
+                ConstantRegistry.TryResolve(contextOrProject, propText, out var pVal))
             {
                 result = pVal;
                 return true;
@@ -476,22 +480,28 @@ public static class AstValueResolver
     private static bool TryResolveSubscript(Node node, string? contextOrProject, int depth, HashSet<string>? visitedVars, out string result)
     {
         result = string.Empty;
-        Node? argNode = null;
-        var bracketList = node.FindChildOfType(TreeSitterSyntax.CSharp.BracketedArgumentList);
-        if (bracketList.IsValid())
+        var idxSyntax = node as IndexOrSliceExprSyntax;
+        Node? argNode = idxSyntax?.Index;
+
+        if (!argNode.IsValid())
         {
-            var arg = bracketList.FindChildOfType(TreeSitterSyntax.Common.Argument) ?? bracketList.Children.FirstOrDefault(c => c.IsValid() && c.Type is not "[" and not "]");
-            if (arg.IsValid())
+            var bracketList = node.Children.FirstOrDefault(c => c.Children.Count > 0 && c.Text.StartsWith('['));
+            if (bracketList.IsValid())
             {
-                argNode = (arg.Type == TreeSitterSyntax.Common.Argument && arg.Children.Count > 0) ? arg.Children[0] : arg;
+                var arg = bracketList.Children.FirstOrDefault(c => c is ArgumentSyntax) ??
+                          bracketList.Children.FirstOrDefault(c => c.IsValid() && c.Text is not "[" and not "]");
+                if (arg.IsValid())
+                {
+                    argNode = arg is ArgumentSyntax { Value: { } argVal } ? argVal : (arg is ArgumentSyntax && arg.Children.Count > 0 ? arg.Children[0] : arg);
+                }
             }
-        }
-        else
-        {
-            argNode = node.GetChildForField(TreeSitterSyntax.Fields.Index) ?? node.GetChildForField(TreeSitterSyntax.Fields.Subscript);
-            if (!argNode.IsValid())
+            else
             {
-                argNode = node.Children.LastOrDefault(c => c.IsValid() && c.Type is not "[" and not "]" and not ")" and not "(");
+                argNode = node.GetChildForField(SyntaxFields.Index) ?? node.GetChildForField(SyntaxFields.Subscript);
+                if (!argNode.IsValid())
+                {
+                    argNode = node.Children.LastOrDefault(c => c.IsValid() && c.Text is not "[" and not "]" and not ")" and not "(");
+                }
             }
         }
 
@@ -518,23 +528,25 @@ public static class AstValueResolver
         var func = node.GetFunctionNode();
         var funcText = func.IsValid() ? func.Text : "";
 
-        var argsList = node.FindChildOfType(TreeSitterSyntax.Common.ArgumentList) ??
-                       node.FindChildOfType(TreeSitterSyntax.Common.Arguments);
+        var argsList = node.GetChildForField(SyntaxFields.Arguments) ??
+                       node.FindChildOfType("argument_list") ??
+                       node.FindChildOfType("arguments");
 
         var argChildren = argsList.IsValid()
-            ? argsList.Children.Where(c => c.IsValid() && c.Type is not "(" and not ")" and not ",").ToList()
-            : new List<Node>();
+            ? argsList.Children.Where(c => c.IsValid() && c.Text is not "(" and not ")" and not ",").ToList()
+            : (node is CallExprSyntax { Arguments.Count: > 0 } ce ? ce.Arguments.Cast<Node>().ToList() : []);
 
         var firstArg = argChildren.FirstOrDefault();
 
         // 0-arg calls
         if (argChildren.Count == 0)
         {
-            if (func.IsValid() && func.Type == TreeSitterSyntax.Rust.FieldExpression)
+            if (func is MemberAccessExprSyntax funcMember)
             {
-                var recv = func.GetChildForField("value") ?? func.Children.FirstOrDefault();
-                var methodIdent = func.GetChildForField("field") ?? func.FindChildOfType(TreeSitterSyntax.Rust.FieldIdentifier);
-                var mName = methodIdent.IsValid() ? methodIdent.Text : "";
+                var recv = funcMember.Object ?? func.GetChildForField(SyntaxFields.Value) ?? func.Children.FirstOrDefault();
+                var mName = !string.IsNullOrEmpty(funcMember.MemberName)
+                    ? funcMember.MemberName
+                    : (func.GetChildForField(SyntaxFields.Field)?.Text ?? "");
 
                 if (mName is "to_string" or "to_owned" or "clone" or "as_str" or "into" or "as_ref" or "trim")
                 {
@@ -568,10 +580,11 @@ public static class AstValueResolver
                 return TryResolveStringInternal(firstArg, contextOrProject, depth + 1, visitedVars, out result);
             }
 
-            if (func.IsValid() && func.Type == TreeSitterSyntax.Rust.FieldExpression)
+            if (func is MemberAccessExprSyntax funcMember)
             {
-                var methodIdent = func.GetChildForField("field") ?? func.FindChildOfType(TreeSitterSyntax.Rust.FieldIdentifier);
-                var mName = methodIdent.IsValid() ? methodIdent.Text : "";
+                var mName = !string.IsNullOrEmpty(funcMember.MemberName)
+                    ? funcMember.MemberName
+                    : (func.GetChildForField(SyntaxFields.Field)?.Text ?? "");
                 if (!string.IsNullOrEmpty(mName))
                 {
                     var targetFn = AstScopeResolver.FindEnclosingFunctionItem(node, mName);
@@ -664,7 +677,7 @@ public static class AstValueResolver
             }
         }
 
-        // Go fmt.Sprintf
+        // Format functions (e.g. fmt.Sprintf)
         if (funcText.Equals("fmt.Sprintf", StringComparison.OrdinalIgnoreCase) && argChildren.Count >= 1)
         {
             if (TryResolveStringInternal(argChildren[0], contextOrProject, depth + 1, visitedVars, out var fmtStr) ||
@@ -758,15 +771,13 @@ public static class AstValueResolver
             return true;
         }
 
-        if (node.Type is TreeSitterSyntax.Common.MemberExpression or
-                       TreeSitterSyntax.CSharp.MemberAccessExpression or
-                       TreeSitterSyntax.Go.SelectorExpression or
-                       TreeSitterSyntax.Python.Attribute or
-                       TreeSitterSyntax.Common.Identifier)
+        if (node is MemberAccessExprSyntax or IdentifierExprSyntax)
         {
-            var propName = node.Type == TreeSitterSyntax.Common.Identifier
+            var propName = node is IdentifierExprSyntax
                 ? node.Text
-                : (node.GetChildForField(TreeSitterSyntax.Fields.Property)?.Text ?? node.GetChildForField(TreeSitterSyntax.Fields.Name)?.Text ?? "");
+                : ((node as MemberAccessExprSyntax)?.MemberName ??
+                   node.GetChildForField(SyntaxFields.Property)?.Text ??
+                   node.GetChildForField(SyntaxFields.Name)?.Text ?? "");
 
             if (ConstantRegistry.TryDeriveTopicOrQueueFromConstantName(propName, out var derived))
             {
@@ -788,17 +799,6 @@ public static class AstValueResolver
 
     public static Node? FindClassFieldInitializer(Node node, string fieldName) =>
         AstScopeResolver.FindClassFieldInitializer(node, fieldName);
-
-    private static bool IsStringLiteralType(string type) =>
-        type is TreeSitterSyntax.Common.String or
-                TreeSitterSyntax.Common.StringLiteral or
-                TreeSitterSyntax.CSharp.VerbatimStringLiteral or
-                TreeSitterSyntax.Go.RawStringLiteral or
-                TreeSitterSyntax.Go.InterpretedStringLiteral or
-                TreeSitterSyntax.Java.TextBlock or
-                TreeSitterSyntax.Rust.StringLiteral or
-                TreeSitterSyntax.Rust.RawStringLiteral or
-                TreeSitterSyntax.TypeScript.TemplateString;
 
     public static bool IsQuoted(string text)
     {

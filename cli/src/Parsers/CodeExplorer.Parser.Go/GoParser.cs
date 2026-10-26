@@ -50,6 +50,9 @@ public class GoParser : IProjectParser, IFileParser
 
     public bool UsesTreeSitter => true;
 
+    public SyntaxDocument? ParseDocument(string sourceText, string filePath = "", string relativePath = "") =>
+        UniversalSyntaxBuilder.Parse(sourceText, LanguageName, filePath, relativePath, SyntaxProfile, this as ILanguageSyntaxHooks);
+
     public LanguageSyntaxProfile SyntaxProfile => GoSyntaxProfile.Instance;
 
     public GoParser()

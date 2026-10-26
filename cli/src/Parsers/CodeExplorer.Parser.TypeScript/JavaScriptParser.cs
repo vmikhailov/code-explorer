@@ -1,4 +1,5 @@
 using CodeExplorer.Core.Parser;
+using CodeExplorer.Core.Parser.Syntax;
 
 namespace CodeExplorer.Parser.TypeScript;
 
@@ -15,6 +16,9 @@ public class JavaScriptParser : IProjectParser, IFileParser
     public IReadOnlyList<ISemanticExtension> SemanticExtensions => _tsParser.SemanticExtensions;
 
     public bool UsesTreeSitter => true;
+
+    public SyntaxDocument? ParseDocument(string sourceText, string filePath = "", string relativePath = "") =>
+        UniversalSyntaxBuilder.Parse(sourceText, LanguageName, filePath, relativePath, SyntaxProfile, this as ILanguageSyntaxHooks);
 
     public LanguageSyntaxProfile SyntaxProfile => TypeScriptSyntaxProfile.Instance;
 

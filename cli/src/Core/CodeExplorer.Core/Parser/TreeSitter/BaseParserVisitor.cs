@@ -202,7 +202,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
         if (Profile.ObjectCreationNodeTypes.Contains(type))
         {
-            var typeNode = callNode.GetField(TreeSitterSyntax.Fields.Type);
+            var typeNode = callNode.GetField(SyntaxFields.Type);
             if (typeNode.IsValid())
             {
                 return typeNode.Text;
@@ -251,8 +251,8 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
             return methodName;
         }
 
-        // 2. Check 'function' field or first child (e.g. Go/Python/TS call_expression where function is identifier or selector/member_access)
-        var funcNode = callNode.GetField(TreeSitterSyntax.Fields.Function);
+        // 2. Check 'function' field or first child
+        var funcNode = callNode.GetField(SyntaxFields.Function);
         if (!funcNode.IsValid() && callNode.Children.Count > 0)
         {
             funcNode = callNode.Children[0];
@@ -434,7 +434,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
                 return child.Text;
             }
         }
-        var nameField = annotationNode.GetField(TreeSitterSyntax.Fields.Name);
+        var nameField = annotationNode.GetField(SyntaxFields.Name);
         return nameField.IsValid() ? nameField.Text : null;
     }
 
@@ -461,7 +461,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
             if (currentScope.Kind != "file")
             {
-                if (node.IsAny(TreeSitterSyntax.Common.Identifier, TreeSitterSyntax.Common.TypeIdentifier))
+                if (node is IdentifierExprSyntax || node.IsAny("identifier", "type_identifier"))
                 {
                     currentScope.References.Add(new Reference("", node.Text,
                         OntologyConstants.Relationships.PotentialType,
@@ -772,7 +772,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
     protected virtual void CollectProfileVariables(Node node)
     {
-        var typeNode = node.GetField(TreeSitterSyntax.Fields.Type);
+        var typeNode = node.GetField(SyntaxFields.Type);
         if (!typeNode.IsValid())
         {
             foreach (var child in node.Children)
@@ -800,7 +800,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
                 var varName = ExtractProfileIdentifier(declarator);
                 if (!string.IsNullOrEmpty(varName))
                 {
-                    var valNode = declarator.GetField(TreeSitterSyntax.Fields.Value);
+                    var valNode = declarator.GetField(SyntaxFields.Value);
                     var initText = valNode.IsValid() ? valNode.Text : "";
 
                     RawVariables.Add(new RawVariable(
@@ -1004,8 +1004,9 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         callName ??= FindCallName(callNode);
         var (role, isDecorator) = CallSemanticClassifier.Classify(callNode, callName);
 
-        var argsNode = callNode.FindChildOfType(TreeSitterSyntax.Common.ArgumentList) ??
-                       callNode.FindChildOfType(TreeSitterSyntax.Common.Arguments) ??
+        var argsNode = callNode.GetField(SyntaxFields.Arguments) ??
+                       callNode.FindChildOfType("argument_list") ??
+                       callNode.FindChildOfType("arguments") ??
                        callNode.FindChildOfType("attribute_argument_list");
 
         if (!argsNode.IsValid())
