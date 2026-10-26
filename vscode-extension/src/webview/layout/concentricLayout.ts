@@ -66,6 +66,7 @@ export const ORBIT_TITLES: Record<number, string> = {
   3: 'Second Echelon (Internal Domain Services & Workers)',
   4: 'Databases & External Infrastructure',
   5: 'Databases & External Infrastructure',
+  6: 'Databases & Storage',
 };
 
 export const ORBIT_NAMES: Record<number, string> = {
@@ -75,6 +76,7 @@ export const ORBIT_NAMES: Record<number, string> = {
   3: 'Orbit 3: Second Echelon (Internal Domain Services & Workers)',
   4: 'Orbit 4: Databases & External Infrastructure',
   5: 'Orbit 5: Databases & External Infrastructure',
+  6: 'Orbit 6: Databases & Storage',
 };
 
 export function normRad(a: number): number {
@@ -669,7 +671,8 @@ export function computeConcentricLayout(
   spacing = 1.0,
   customOrbitOrder?: number[],
   orbitDistance?: number,
-  minNodeDistance?: number
+  minNodeDistance?: number,
+  customOrbitTitles?: Record<number, string>
 ): ConcentricLayoutResult {
   const orbitBuckets: Record<number, string[]> = {
     0: [],
@@ -678,11 +681,12 @@ export function computeConcentricLayout(
     3: [],
     4: [],
     5: [],
+    6: [],
   };
 
   const nodeToTier = new Map<string, number>();
   for (const node of visibleNodes) {
-    const ech = Math.max(0, Math.min(5, node.echelonTier));
+    const ech = Math.max(0, Math.min(6, node.echelonTier));
     nodeToTier.set(node.id, ech);
     orbitBuckets[ech].push(node.id);
   }
@@ -699,9 +703,9 @@ export function computeConcentricLayout(
     }
   }
 
-  const populatedTiers = [0, 1, 2, 3, 4, 5].filter((idx) => orbitBuckets[idx].length > 0);
-  const outerTiers = populatedTiers.filter((t) => t === 4 || t === 5);
-  const innerPopulated = populatedTiers.filter((t) => t !== 4 && t !== 5);
+  const populatedTiers = [0, 1, 2, 3, 4, 5, 6].filter((idx) => orbitBuckets[idx].length > 0);
+  const outerTiers = populatedTiers.filter((t) => t === 4 || t === 5 || t === 6);
+  const innerPopulated = populatedTiers.filter((t) => t !== 4 && t !== 5 && t !== 6);
   let optimalOrder: number[];
   if (customOrbitOrder && customOrbitOrder.length > 0) {
     const validCustom = customOrbitOrder.filter((t) => populatedTiers.includes(t));
@@ -730,7 +734,7 @@ export function computeConcentricLayout(
 
   let displayIdx = 0;
   for (const idx of optimalOrder) {
-    const title = ORBIT_TITLES[idx] || `Tier ${idx}`;
+    const title = customOrbitTitles?.[idx] || ORBIT_TITLES[idx] || `Tier ${idx}`;
     const shortLabel = `Orbit ${displayIdx}`;
     populatedOrbits.push({
       levelIndex: idx,

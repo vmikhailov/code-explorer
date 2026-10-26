@@ -459,7 +459,9 @@ export function createArchitectureInspectorSchema(
         when: (n) =>
           Boolean(
             (n as SelectedNodeDetail).isGroup ||
-              ['Service', 'Ingress', 'Worker', 'App', 'Module'].includes((n as SelectedNodeDetail).kind)
+              ['Service', 'Ingress', 'Endpoint', 'EntryPoint', 'Type', 'Worker', 'App', 'Module'].includes(
+                (n as SelectedNodeDetail).kind
+              )
           ),
         columns: 2,
         metrics: [
@@ -522,6 +524,7 @@ export function createArchitectureInspectorSchema(
           n.kind === 'Service' ||
           n.kind === 'Worker' ||
           n.kind === 'Ingress' ||
+          n.kind === 'Type' ||
           n.kind === 'Module' ||
           items.length > 0,
         getItems: (n) =>
@@ -545,6 +548,9 @@ export function createArchitectureInspectorSchema(
           n.kind === 'Service' ||
           n.kind === 'Worker' ||
           n.kind === 'Ingress' ||
+          n.kind === 'Endpoint' ||
+          n.kind === 'EntryPoint' ||
+          n.kind === 'Type' ||
           n.kind === 'App' ||
           n.kind === 'Module' ||
           items.length > 0,
@@ -611,7 +617,38 @@ export function createArchitectureInspectorSchema(
           }),
         },
       },
-      // Zone 5a: Clustered Subprojects / Files
+      // Zone 5a: Class Methods (C3 Type nodes)
+      {
+        type: 'file-list',
+        id: 'class-methods',
+        title: (n) => {
+          try {
+            const parsed = n.properties?.methods ? JSON.parse(n.properties.methods) : [];
+            return `Methods (${Array.isArray(parsed) ? parsed.length : 0})`;
+          } catch {
+            return 'Methods';
+          }
+        },
+        monospace: true,
+        when: (n, items) => n.kind === 'Type' && items.length > 0,
+        getFiles: (n) => {
+          const raw = n.properties?.methods;
+          if (!raw) return [];
+          try {
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) return [];
+            return parsed.map((m: unknown, idx: number) => ({
+              id: `method-${idx}`,
+              label: `${String(m)}()`,
+              path: n.primaryFilePath,
+              line: n.primaryLineStart || 1,
+            }));
+          } catch {
+            return [];
+          }
+        },
+      },
+      // Zone 5b: Clustered Subprojects / Files
       {
         type: 'file-list',
         id: 'projects',
@@ -699,7 +736,7 @@ export function createArchitectureInspectorSchema(
           {
             id: 'direct-calls',
             label: 'Direct Calls',
-            color: '#38bdf8',
+            color: '#34d399',
             value: (e: SelectedEdgeDetail) => e.directCallsCount,
           },
           {

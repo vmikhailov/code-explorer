@@ -739,7 +739,7 @@ export function DeclarativeInspector<
               const isMsg = conn.category === 'messaging';
               const isDb = conn.category === 'database';
               const tagColor = isDirectCall
-                ? '#38bdf8'
+                ? '#34d399'
                 : isMsg
                 ? '#fbbf24'
                 : isDb
@@ -953,7 +953,7 @@ export function DeclarativeInspector<
                       style={{
                         color:
                           headerModel.tier === 0
-                            ? '#38bdf8'
+                            ? '#34d399'
                             : headerModel.tier === 1
                             ? '#4ade80'
                             : headerModel.tier === 2

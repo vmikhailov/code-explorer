@@ -130,52 +130,35 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
 
   const [hiddenSearchQuery, setHiddenSearchQuery] = useState('');
 
-  // Count entities by type if counts prop is not fully provided
-  const entityTypeCounts = useMemo(() => {
-    const calculated: Record<string, number> = {
-      Service: 0,
-      Worker: 0,
-      TestSuite: 0,
-      Database: 0,
-      Topic: 0,
-      ExternalService: 0,
-      App: 0,
-      CliTool: 0,
-      Library: 0,
-    };
+  const isProjectMapMode = Boolean(props.customPresetsSlot);
+
+  // Derive entity types directly from the ontological node kinds present in the graph (no view-side mapping)
+  const entityTypes: EntityTypeItem[] = useMemo(() => {
+    const countsByKind = new Map<EntityKind, number>();
     for (const node of nodeDetailMap.values()) {
-      if (calculated[node.kind] !== undefined) {
-        calculated[node.kind]++;
-      }
+      if (node.isGroup) continue;
+      countsByKind.set(node.kind, (countsByKind.get(node.kind) ?? 0) + 1);
     }
-    return {
-      services: props.counts?.services ?? calculated.Service,
-      workers: props.counts?.workers ?? calculated.Worker,
-      testSuites: props.counts?.testSuites ?? calculated.TestSuite,
-      databases: props.counts?.databases ?? calculated.Database,
+    return Array.from(countsByKind.entries()).map(([kind, count]) => {
+      const meta = getEntityBadgeMeta(kind);
+      return {
+        kind,
+        label: meta.label,
+        icon: meta.code,
+        color: meta.bgColor,
+        count,
+      };
+    });
+  }, [nodeDetailMap]);
+
+  const entityTypeCounts = useMemo(
+    () => ({
       singleConnDbs: props.counts?.singleConnDbs ?? 0,
       sharedDbs: props.counts?.sharedDbs ?? 0,
-      topics: props.counts?.topics ?? calculated.Topic,
-      external: props.counts?.external ?? calculated.ExternalService,
-      ingress: props.counts?.ingress ?? calculated.App,
-      cli: props.counts?.cli ?? calculated.CliTool,
-      libraries: props.counts?.libraries ?? calculated.Library,
       transitiveCalls: props.counts?.transitiveCalls ?? 0,
-    };
-  }, [nodeDetailMap, props.counts]);
-
-  // Entity types catalog for quick toggles
-  const entityTypes: EntityTypeItem[] = useMemo(() => [
-    { kind: 'Service', label: 'Services', icon: '⚙️', color: '#e53935', count: entityTypeCounts.services },
-    { kind: 'Worker', label: 'Workers', icon: '⚡', color: '#c026d3', count: entityTypeCounts.workers },
-    { kind: 'TestSuite', label: 'Tests', icon: '🧪', color: '#059669', count: entityTypeCounts.testSuites },
-    { kind: 'Database', label: 'Databases', icon: '🗄️', color: '#7b1fa2', count: entityTypeCounts.databases },
-    { kind: 'Topic', label: 'Topics', icon: '📬', color: '#f59e0b', count: entityTypeCounts.topics },
-    { kind: 'ExternalService', label: 'External', icon: '🔌', color: '#26a69a', count: entityTypeCounts.external },
-    { kind: 'App', label: 'Apps', icon: '🌐', color: '#0288d1', count: entityTypeCounts.ingress },
-    { kind: 'CliTool', label: 'CLI Tools', icon: '💻', color: '#d97706', count: entityTypeCounts.cli },
-    { kind: 'Library', label: 'Libraries', icon: '📚', color: '#4b5563', count: entityTypeCounts.libraries },
-  ], [entityTypeCounts]);
+    }),
+    [props.counts]
+  );
 
   // Collect all effectively hidden items with reasons
   const allHiddenItems = useMemo(() => {
@@ -244,9 +227,6 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
   const handleToggleKind = (kind: EntityKind) => {
     if (toggleType) {
       toggleType(kind);
-      if (kind === 'App') {
-        toggleType('Ingress' as EntityKind);
-      }
     }
   };
 
@@ -381,7 +361,7 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
           {/* Active Category Groups */}
           {Array.from(groupedTypes).map((kind) => {
             const count = Array.from(nodeDetailMap.values()).filter(
-              (n) => (n.kind === kind || (kind === 'App' && n.kind === 'Ingress')) && !hiddenNodeIds.has(n.id)
+              (n) => n.kind === kind && !hiddenNodeIds.has(n.id)
             ).length;
             const meta = getEntityBadgeMeta(kind);
             return (
@@ -653,28 +633,30 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
         </div>
         <div className="visibility-presets-list">
           {props.customPresetsSlot}
-          {/* Hide 1:1 Databases */}
-          <button
-            type="button"
-            className={`visibility-preset-item ${hideSingleConnectionDbs ? 'is-active' : ''}`}
-            onClick={toggleSingleConnDbs}
-            title="Hide dedicated databases connected to only 1 service, revealing only shared data stores"
-          >
-            <div className="visibility-preset-main">
-              <EntityNodeBadge kind="Database" size={20} />
-              <div className="visibility-preset-text">
-                <span className="visibility-preset-label">Hide 1:1 Databases</span>
-                <span className="visibility-preset-desc">
-                  {entityTypeCounts.singleConnDbs > 0
-                    ? `${entityTypeCounts.singleConnDbs} dedicated / ${entityTypeCounts.sharedDbs} shared`
-                    : 'Leaves only shared databases'}
-                </span>
+          {/* Hide 1:1 Databases (C1/C2 only) */}
+          {!isProjectMapMode && (
+            <button
+              type="button"
+              className={`visibility-preset-item ${hideSingleConnectionDbs ? 'is-active' : ''}`}
+              onClick={toggleSingleConnDbs}
+              title="Hide dedicated databases connected to only 1 service, revealing only shared data stores"
+            >
+              <div className="visibility-preset-main">
+                <EntityNodeBadge kind="Database" size={20} />
+                <div className="visibility-preset-text">
+                  <span className="visibility-preset-label">Hide 1:1 Databases</span>
+                  <span className="visibility-preset-desc">
+                    {entityTypeCounts.singleConnDbs > 0
+                      ? `${entityTypeCounts.singleConnDbs} dedicated / ${entityTypeCounts.sharedDbs} shared`
+                      : 'Leaves only shared databases'}
+                  </span>
+                </div>
               </div>
-            </div>
-            <div className={`visibility-preset-toggle ${hideSingleConnectionDbs ? 'is-on' : ''}`}>
-              {hideSingleConnectionDbs ? 'ON' : 'OFF'}
-            </div>
-          </button>
+              <div className={`visibility-preset-toggle ${hideSingleConnectionDbs ? 'is-on' : ''}`}>
+                {hideSingleConnectionDbs ? 'ON' : 'OFF'}
+              </div>
+            </button>
+          )}
 
           {/* Hide Isolated Components */}
           <button
@@ -695,28 +677,30 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
             </div>
           </button>
 
-          {/* Transitive Messaging Calls */}
-          <button
-            type="button"
-            className={`visibility-preset-item ${showTransitiveEdges ? 'is-active' : ''}`}
-            onClick={toggleTransitive}
-            title="Show or hide direct interaction chords between services through message topics"
-          >
-            <div className="visibility-preset-main">
-              <span className="visibility-preset-icon">╌</span>
-              <div className="visibility-preset-text">
-                <span className="visibility-preset-label">Transitive Messaging</span>
-                <span className="visibility-preset-desc">
-                  {entityTypeCounts.transitiveCalls > 0
-                    ? `${entityTypeCounts.transitiveCalls} cross-topic calls`
-                    : 'Direct producer-consumer chords'}
-                </span>
+          {/* Transitive Messaging Calls (C1/C2 only) */}
+          {!isProjectMapMode && (
+            <button
+              type="button"
+              className={`visibility-preset-item ${showTransitiveEdges ? 'is-active' : ''}`}
+              onClick={toggleTransitive}
+              title="Show or hide direct interaction chords between services through message topics"
+            >
+              <div className="visibility-preset-main">
+                <span className="visibility-preset-icon">╌</span>
+                <div className="visibility-preset-text">
+                  <span className="visibility-preset-label">Transitive Messaging</span>
+                  <span className="visibility-preset-desc">
+                    {entityTypeCounts.transitiveCalls > 0
+                      ? `${entityTypeCounts.transitiveCalls} cross-topic calls`
+                      : 'Direct producer-consumer chords'}
+                  </span>
+                </div>
               </div>
-            </div>
-            <div className={`visibility-preset-toggle ${showTransitiveEdges ? 'is-on' : ''}`}>
-              {showTransitiveEdges ? 'ON' : 'OFF'}
-            </div>
-          </button>
+              <div className={`visibility-preset-toggle ${showTransitiveEdges ? 'is-on' : ''}`}>
+                {showTransitiveEdges ? 'ON' : 'OFF'}
+              </div>
+            </button>
+          )}
         </div>
       </div>
 

@@ -24,6 +24,8 @@ export interface ProjectMapSample {
 export interface ProjectMapNodeModel {
   id: string;
   name: string;
+  kind: string;
+  pmType?: string;
   isResource: boolean;
   resourceKind?: string;
   tier: number;
@@ -75,6 +77,7 @@ export interface ProjectMapModel {
 
 export const FOUNDATION_TIER = 4;
 export const RESOURCE_TIER = 5;
+export const DATABASE_TIER = 6;
 
 export const TIER_COLORS: Record<number, string> = {
   0: '#4fc3f7',
@@ -83,6 +86,7 @@ export const TIER_COLORS: Record<number, string> = {
   3: '#ffb74d',
   4: '#90a4ae',
   5: '#e57373',
+  6: '#7e57c2',
 };
 
 function parseJson<T>(raw: string | undefined, fallback: T): T {
@@ -101,12 +105,14 @@ function num(raw: string | undefined, fallback = 0): number {
 
 function toNode(n: GraphNode): ProjectMapNodeModel {
   const p = n.properties ?? {};
-  const isResource = p.pm_type === 'resource';
+  const isResource = p.pm_type === 'resource' || (n.kind !== 'Endpoint' && n.kind !== 'EntryPoint' && n.kind !== 'Type' && n.kind !== 'Folder' && n.kind !== 'File');
   return {
     id: n.id,
     name: n.name,
+    kind: n.kind,
+    pmType: p.pm_type,
     isResource,
-    resourceKind: isResource ? p.resource_kind || n.kind : undefined,
+    resourceKind: isResource ? n.kind : undefined,
     tier: num(p.tier, isResource ? RESOURCE_TIER : 2),
     tierLabel: p.tier_label ?? '',
     tierReason: p.tier_reason ?? '',

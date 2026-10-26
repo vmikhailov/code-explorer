@@ -68,7 +68,8 @@ export function computeConcentricSectorsLayout(
   explicitDomainMap?: Map<string, string>,
   explicitDomainDetails?: Map<string, { name?: string; displayName?: string; color?: string }>,
   orbitDistance?: number,
-  minNodeDistance?: number
+  minNodeDistance?: number,
+  customOrbitTitles?: Record<number, string>
 ): ConcentricLayoutResult {
   const positions = new Map<string, { x: number; y: number }>();
   const nodeAngles = new Map<string, number>();
@@ -86,18 +87,18 @@ export function computeConcentricSectorsLayout(
   }
 
   // 1. Group nodes by echelon tier
-  const orbitBuckets: Record<number, string[]> = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [] };
+  const orbitBuckets: Record<number, string[]> = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
   const nodeMap = new Map<string, ConcentricNodeInput>();
 
   for (const node of visibleNodes) {
-    const ech = Math.max(0, Math.min(5, node.echelonTier));
+    const ech = Math.max(0, Math.min(6, node.echelonTier));
     orbitBuckets[ech].push(node.id);
     nodeMap.set(node.id, node);
   }
 
-  const populatedTiers = [0, 1, 2, 3, 4, 5].filter((idx) => orbitBuckets[idx].length > 0);
-  const outerTiers = populatedTiers.filter((t) => t === 4 || t === 5);
-  const innerPopulated = populatedTiers.filter((t) => t !== 4 && t !== 5);
+  const populatedTiers = [0, 1, 2, 3, 4, 5, 6].filter((idx) => orbitBuckets[idx].length > 0);
+  const outerTiers = populatedTiers.filter((t) => t === 4 || t === 5 || t === 6);
+  const innerPopulated = populatedTiers.filter((t) => t !== 4 && t !== 5 && t !== 6);
   let effectiveOrder = [...innerPopulated, ...outerTiers];
   if (customOrbitOrder && customOrbitOrder.length > 0) {
     const validCustom = customOrbitOrder.filter((t) => populatedTiers.includes(t));
@@ -518,7 +519,7 @@ export function computeConcentricSectorsLayout(
   // 7. Generate concentric orbit guides (rings)
   const populatedOrbits = activeOrbitOrder.map((tierIdx, rank) => {
     const r = orbitRadii.get(tierIdx) || BASE_INNER_R;
-    const title = ORBIT_TITLES[tierIdx] || `Tier ${tierIdx}`;
+    const title = customOrbitTitles?.[tierIdx] || ORBIT_TITLES[tierIdx] || `Tier ${tierIdx}`;
     const shortLabel = `Orbit ${rank}`;
     return {
       levelIndex: tierIdx,

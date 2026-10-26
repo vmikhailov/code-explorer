@@ -266,4 +266,98 @@ public class ProjectMapBuilderTests
             e.SourceId == "pm:sub:queue-consumer-worker" &&
             e.TargetId == "pm:sub:tracker-worker");
     }
+
+    [Test]
+    public void Build_ClassMap_AssignsEntryPointsAndBfsClassOrbitsAndResolvesInterfacesAndOuterResourceOrbits()
+    {
+        var input = new ProjectMapInput
+        {
+            ProjectId = "ws:p:orders-api:",
+            ProjectName = "Orders.Api",
+            ProjectPath = "src/Orders.Api",
+            Files =
+            [
+                F("src/Orders.Api/Controllers/OrdersController.cs"),
+                F("src/Orders.Api/Services/IOrderService.cs"),
+                F("src/Orders.Api/Services/OrderService.Part1.cs"),
+                F("src/Orders.Api/Services/OrderService.Part2.cs"),
+                F("src/Orders.Api/Domain/OrderValidator.cs"),
+                F("src/Orders.Api/Repositories/OrderRepository.cs"),
+                F("src/Orders.Api/Utils/ClockHelper.cs"),
+                F("src/Orders.Api/Models/OrderDto.cs")
+            ],
+            EntryPointNodes =
+            [
+                new ProjectMapEntryPointNode(
+                    "ep:post-orders",
+                    "POST /api/orders",
+                    "Endpoint",
+                    "src/Orders.Api/Controllers/OrdersController.cs",
+                    15,
+                    "HTTP",
+                    ["OrdersController"],
+                    ["src/Orders.Api/Controllers/OrdersController.cs"])
+            ],
+            Types =
+            [
+                new ProjectMapTypeNode("t:ctrl", "OrdersController", "class", "src/Orders.Api/Controllers/OrdersController.cs", 10, 45, false, ["CreateOrder"]),
+                new ProjectMapTypeNode("t:isvc", "IOrderService", "interface", "src/Orders.Api/Services/IOrderService.cs", 5, 12, false, ["PlaceOrderAsync"]),
+                new ProjectMapTypeNode("t:svc1", "OrderService", "class", "src/Orders.Api/Services/OrderService.Part1.cs", 8, 60, false, ["PlaceOrderAsync"]),
+                new ProjectMapTypeNode("t:svc2", "OrderService", "class", "src/Orders.Api/Services/OrderService.Part2.cs", 8, 40, false, ["NotifyOrderCreatedAsync"]),
+                new ProjectMapTypeNode("t:val", "OrderValidator", "class", "src/Orders.Api/Domain/OrderValidator.cs", 6, 30, false, ["Validate"]),
+                new ProjectMapTypeNode("t:repo", "OrderRepository", "class", "src/Orders.Api/Repositories/OrderRepository.cs", 9, 50, false, ["SaveAsync"]),
+                new ProjectMapTypeNode("t:clk", "ClockHelper", "class", "src/Orders.Api/Utils/ClockHelper.cs", 4, 20, false, ["UtcNow"]),
+                new ProjectMapTypeNode("t:dto", "OrderDto", "record", "src/Orders.Api/Models/OrderDto.cs", 3, 10, false, [])
+            ],
+            TypeEdges =
+            [
+                new ProjectMapTypeEdge("OrderService", "src/Orders.Api/Services/OrderService.Part1.cs", "IOrderService", "src/Orders.Api/Services/IOrderService.cs", "IMPLEMENTS", 8),
+                new ProjectMapTypeEdge("OrdersController", "src/Orders.Api/Controllers/OrdersController.cs", "IOrderService", "src/Orders.Api/Services/IOrderService.cs", "CALLS", 20),
+                new ProjectMapTypeEdge("OrderService", "src/Orders.Api/Services/OrderService.Part1.cs", "OrderValidator", "src/Orders.Api/Domain/OrderValidator.cs", "CALLS", 30),
+                new ProjectMapTypeEdge("OrderValidator", "src/Orders.Api/Domain/OrderValidator.cs", "OrderRepository", "src/Orders.Api/Repositories/OrderRepository.cs", "CALLS", 18),
+                new ProjectMapTypeEdge("OrderRepository", "src/Orders.Api/Repositories/OrderRepository.cs", "ClockHelper", "src/Orders.Api/Utils/ClockHelper.cs", "CALLS", 25)
+            ],
+            ResourceLinks =
+            [
+                new ProjectMapResourceLink("src/Orders.Api/Services/OrderService.Part2.cs", "ws:top:mediatr:OrderCreated", "Topic", "OrderCreated", "PUBLISHES", "OrderService", 22),
+                new ProjectMapResourceLink("src/Orders.Api/Services/OrderService.Part1.cs", "ws:p:Orders.Shared:", "Library", "Orders.Shared", "CALLS", "OrderService", 14),
+                new ProjectMapResourceLink("src/Orders.Api/Repositories/OrderRepository.cs", "ws:db:orders_db", "Database", "orders_db", "USES_DB", "OrderRepository", 33),
+                new ProjectMapResourceLink("src/Orders.Api/Repositories/OrderRepository.cs", "ws:tbl:orders", "Table", "orders", "WRITES_TO", "OrderRepository", 35)
+            ]
+        };
+
+        var result = ProjectMapBuilder.Build(input);
+
+        result.Granularity.Should().Be(ProjectMapGranularity.Class);
+
+        // Pure DTO without behavior and interface should be excluded
+        result.Modules.Select(m => m.Name).Should().NotContain(["IOrderService", "OrderDto"]);
+
+        // Partial class OrderService merged into a single node with 2 files and 100 lines
+        var orderService = result.Modules.Single(m => m.Name == "OrderService");
+        orderService.Files.Should().HaveCount(2);
+        orderService.LineCount.Should().Be(100);
+        orderService.ImplementedInterfaces.Should().Contain("IOrderService");
+
+        // Orbit assignment:
+        // Orbit 0 (Ingress): POST /api/orders
+        // Orbit 1 (Application): OrdersController (BFS Depth 1)
+        // Orbit 2 (Core): OrderService (BFS Depth 2, resolved through IOrderService!)
+        // Orbit 3 (Data): OrderValidator (BFS Depth 3)
+        // Orbit 4 (Foundation): OrderRepository (BFS Depth 4) & ClockHelper (BFS Depth 5 -> clamped to Tier 4)
+        result.Modules.Single(m => m.Name == "POST /api/orders").Tier.Should().Be(ProjectMapTier.Ingress);
+        result.Modules.Single(m => m.Name == "OrdersController").Tier.Should().Be(ProjectMapTier.Application);
+        orderService.Tier.Should().Be(ProjectMapTier.Core);
+        result.Modules.Single(m => m.Name == "OrderValidator").Tier.Should().Be(ProjectMapTier.Data);
+        result.Modules.Single(m => m.Name == "OrderRepository").Tier.Should().Be(ProjectMapTier.Foundation);
+        result.Modules.Single(m => m.Name == "ClockHelper").Tier.Should().Be(ProjectMapTier.Foundation);
+
+        // Outer Resource Orbits:
+        // Orbit 5 (Resource): Topic (OrderCreated) + Library (Orders.Shared)
+        // Orbit 6 (Database): Database (orders_db) + Table (orders)
+        result.Resources.Single(r => r.Name == "OrderCreated").Tier.Should().Be(ProjectMapTier.Resource);
+        result.Resources.Single(r => r.Name == "Orders.Shared").Tier.Should().Be(ProjectMapTier.Resource);
+        result.Resources.Single(r => r.Name == "orders_db").Tier.Should().Be(ProjectMapTier.Database);
+        result.Resources.Single(r => r.Name == "orders").Tier.Should().Be(ProjectMapTier.Database);
+    }
 }

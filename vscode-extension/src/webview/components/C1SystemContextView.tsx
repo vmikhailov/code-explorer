@@ -433,11 +433,11 @@ export const C1SystemContextView: React.FC<C1SystemContextViewProps> = ({
         type: curveType,
         animated: edgeStyle === 'animated',
         label: showLabels ? (e.count > 1 ? `CALLS (${e.count})` : 'CALLS') : undefined,
-        labelStyle: { fill: '#38bdf8', fontSize: 9.5, fontWeight: 600 },
+        labelStyle: { fill: '#34d399', fontSize: 9.5, fontWeight: 600 },
         labelBgStyle: { fill: '#0b1120', fillOpacity: 0.88, rx: 3, ry: 3 },
         labelBgPadding: [4, 6],
         style: {
-          stroke: '#38bdf8',
+          stroke: '#34d399',
           strokeWidth,
           strokeDasharray: strokeDash,
           opacity: 0.85,
@@ -445,7 +445,7 @@ export const C1SystemContextView: React.FC<C1SystemContextViewProps> = ({
         markerEnd: showArrows
           ? {
               type: MarkerType.ArrowClosed,
-              color: '#38bdf8',
+              color: '#34d399',
               width: 14 + strokeWidth,
               height: 14 + strokeWidth,
             }

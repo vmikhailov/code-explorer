@@ -16,6 +16,7 @@ import {
 import {
   OrbitConfig,
   DEFAULT_ORBIT_CONFIG,
+  DEFAULT_PROJECT_MAP_ORBIT_CONFIG,
   sanitizeOrbitConfig,
   isDefaultOrbitConfig,
   effectiveOrbitTier,
@@ -166,6 +167,9 @@ export type EntityKind =
   | 'App'
   | 'Service'
   | 'Ingress'
+  | 'Endpoint'
+  | 'EntryPoint'
+  | 'Type'
   | 'Worker'
   | 'CliTool'
   | 'Library'
@@ -376,9 +380,9 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
     selector: 'edge[category = "service_call"]',
     style: {
       'line-style': 'solid',
-      'line-color': '#38bdf8',
-      'target-arrow-color': '#38bdf8',
-      'source-arrow-color': '#38bdf8',
+      'line-color': '#34d399',
+      'target-arrow-color': '#34d399',
+      'source-arrow-color': '#34d399',
     },
   },
   {
@@ -404,27 +408,27 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
     selector: 'edge[category = "external"]',
     style: {
       'line-style': 'solid',
-      'line-color': '#34d399',
-      'target-arrow-color': '#34d399',
-      'source-arrow-color': '#34d399',
+      'line-color': '#26a69a',
+      'target-arrow-color': '#26a69a',
+      'source-arrow-color': '#26a69a',
     },
   },
   {
     selector: 'edge[category = "mixed"]',
     style: {
       'line-style': 'solid',
-      'line-color': '#38bdf8',
-      'target-arrow-color': '#38bdf8',
-      'source-arrow-color': '#38bdf8',
+      'line-color': '#34d399',
+      'target-arrow-color': '#34d399',
+      'source-arrow-color': '#34d399',
     },
   },
   {
     selector: 'edge[category = "library"]',
     style: {
       'line-style': 'solid',
-      'line-color': '#9ca3af',
-      'target-arrow-color': '#9ca3af',
-      'source-arrow-color': '#9ca3af',
+      'line-color': '#34d399',
+      'target-arrow-color': '#34d399',
+      'source-arrow-color': '#34d399',
     },
   },
   {
@@ -531,9 +535,9 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
   {
     selector: 'edge[category = "service_call"].highlighted, edge[category = "service_call"]:selected',
     style: {
-      'line-color': '#38bdf8',
-      'target-arrow-color': '#38bdf8',
-      'source-arrow-color': '#38bdf8',
+      'line-color': '#34d399',
+      'target-arrow-color': '#34d399',
+      'source-arrow-color': '#34d399',
     },
   },
   {
@@ -557,17 +561,25 @@ const CYTOSCAPE_STYLES: cytoscape.StylesheetStyle[] = [
   {
     selector: 'edge[category = "external"].highlighted, edge[category = "external"]:selected',
     style: {
+      'line-color': '#26a69a',
+      'target-arrow-color': '#26a69a',
+      'source-arrow-color': '#26a69a',
+    },
+  },
+  {
+    selector: 'edge[category = "mixed"].highlighted, edge[category = "mixed"]:selected',
+    style: {
       'line-color': '#34d399',
       'target-arrow-color': '#34d399',
       'source-arrow-color': '#34d399',
     },
   },
   {
-    selector: 'edge[category = "mixed"].highlighted, edge[category = "mixed"]:selected',
+    selector: 'edge[category = "library"].highlighted, edge[category = "library"]:selected',
     style: {
-      'line-color': '#38bdf8',
-      'target-arrow-color': '#38bdf8',
-      'source-arrow-color': '#38bdf8',
+      'line-color': '#34d399',
+      'target-arrow-color': '#34d399',
+      'source-arrow-color': '#34d399',
     },
   },
   // Transitive Edges MUST retain dashed style and dash pattern in Highlighted & Selected states
@@ -715,7 +727,8 @@ export function buildAllOrbitLegendItems(
   allNodes: cytoscape.NodeDefinition[],
   echelonMap: Map<string, number>,
   layoutPopulatedOrbits: Array<{ levelIndex: number; radius: number; shortLabel?: string; title?: string; nodeIds: string[] }>,
-  config: OrbitConfig
+  config: OrbitConfig,
+  customTitles?: Record<number, string>
 ): OrbitLegendItem[] {
   const slotBuckets = new Map<number, Array<{ id: string; kind: string }>>();
   for (const n of allNodes) {
@@ -747,7 +760,7 @@ export function buildAllOrbitLegendItems(
         slotTier: tier,
         orbitIndex,
         shortLabel,
-        title: ORBIT_TITLES[tier] || `Tier ${tier}`,
+        title: customTitles?.[tier] || ORBIT_TITLES[tier] || `Tier ${tier}`,
         count: members.length,
         radius: radiusMap.get(tiers[0]) || 0,
         nodeIds: members.map((m) => m.id),
@@ -764,10 +777,10 @@ export function buildAllOrbitLegendItems(
 }
 
 /** Gives merged orbits a combined title on the canvas guides and in the layout result. */
-function relabelMergedOrbits(result: ConcentricLayoutResult, config: OrbitConfig): void {
+function relabelMergedOrbits(result: ConcentricLayoutResult, config: OrbitConfig, customTitles?: Record<number, string>): void {
   const titleFor = (levelIndex: number) => {
     const entry = config.orbits.find((o) => o[0] === levelIndex);
-    return entry && entry.length > 1 ? orbitTitle(entry) : undefined;
+    return entry && entry.length > 1 ? orbitTitle(entry, customTitles) : undefined;
   };
   for (const orbit of result.populatedOrbits) {
     const title = titleFor(orbit.levelIndex);
@@ -1099,16 +1112,44 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     }
   }, []);
 
+  const isProjectMapGraph = graph?.metadata?.graphType === 'projectmap' || storagePrefix.startsWith('ce_pm_');
+  const customOrbitTitles = useMemo<Record<number, string> | undefined>(() => {
+    const rawTiers = graph?.metadata?.tiers;
+    if (!rawTiers) return undefined;
+    try {
+      const parsed = JSON.parse(rawTiers);
+      if (Array.isArray(parsed)) {
+        const map: Record<number, string> = {};
+        for (const item of parsed) {
+          if (typeof item?.tier === 'number' && typeof item?.label === 'string') {
+            map[item.tier] = item.label;
+          }
+        }
+        return Object.keys(map).length > 0 ? map : undefined;
+      }
+    } catch { }
+    return undefined;
+  }, [graph?.metadata?.tiers]);
+  const customOrbitTitlesRef = useRef<Record<number, string> | undefined>(customOrbitTitles);
+  customOrbitTitlesRef.current = customOrbitTitles;
+
   const [concentricGuides, setConcentricGuides] = useState<ConcentricOrbitGuide[]>([]);
   const [orbitLegendItems, setOrbitLegendItems] = useState<OrbitLegendItem[]>([]);
   const [isOrbitLegendOpen, setIsOrbitLegendOpen] = useState(true);
-  const [orbitConfig, setOrbitConfigState] = useState<OrbitConfig>(DEFAULT_ORBIT_CONFIG);
+  const [orbitConfig, setOrbitConfigState] = useState<OrbitConfig>(() =>
+    isProjectMapGraph ? DEFAULT_PROJECT_MAP_ORBIT_CONFIG : DEFAULT_ORBIT_CONFIG
+  );
   const orbitConfigRef = useRef<OrbitConfig>(orbitConfig);
   orbitConfigRef.current = orbitConfig;
   const [selectedOrbitRows, setSelectedOrbitRows] = useState<number[]>([]);
   const lastSelectedOrbitRowRef = useRef<number | null>(null);
 
   useEffect(() => {
+    if (isProjectMapGraph) {
+      orbitConfigRef.current = DEFAULT_PROJECT_MAP_ORBIT_CONFIG;
+      setOrbitConfigState(DEFAULT_PROJECT_MAP_ORBIT_CONFIG);
+      return;
+    }
     const onMessage = (event: MessageEvent) => {
       const msg = event.data;
       if (msg?.type === 'ORBIT_CONFIG') {
@@ -1121,7 +1162,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     window.addEventListener('message', onMessage);
     getVsCodeApi()?.postMessage({ type: 'GET_ORBIT_CONFIG' });
     return () => window.removeEventListener('message', onMessage);
-  }, []);
+  }, [isProjectMapGraph]);
 
   const [draggedOrbitIndex, setDraggedOrbitIndex] = useState<number | null>(null);
   const draggedKindRef = useRef<string | null>(null);
@@ -1948,197 +1989,46 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       // Ignore NuGet / npm package dependencies
       if (node.kind === 'Package') continue;
 
-      let tag = ':Service';
-      let nodeKind: EntityKind = 'Service';
-      let bgColor = '#e53935';
-      let borderColor = '#7f1d1d';
-      let size = 54;
+      const nodeKind = node.kind as EntityKind;
+      const badgeMeta = getEntityBadgeMeta(nodeKind);
+      let tag = `:${badgeMeta.label}`;
+      let bgColor = badgeMeta.bgColor;
+      let borderColor = badgeMeta.borderColor;
+      let size = 52;
 
-      const isTest =
-        node.kind === 'TestSuite' ||
-        node.kind === 'Test' ||
-        node.properties?.role === 'Test' ||
-        node.properties?.role === 'TestSuite' ||
-        node.properties?.is_test_project === 'true';
-
-      const isApp =
-        node.kind === 'App' ||
-        node.kind === 'FrontendApp' ||
-        node.properties?.role === 'App' ||
-        node.properties?.role === 'FrontendApp' ||
-        node.properties?.entity_type === 'app';
-
-      const isWorker =
-        node.kind === 'Worker' ||
-        node.properties?.role === 'Worker' ||
-        node.properties?.entity_type === 'worker';
-
-      const isCli =
-        node.kind === 'CliTool' ||
-        node.properties?.role === 'CliTool' ||
-        node.properties?.displayTag === ':CLI' ||
-        node.properties?.entity_type === 'clitool';
-
-      const resKind = (node.properties?.resource_kind || '').toLowerCase();
-      const isTable =
-        node.kind === 'Table' ||
-        resKind === 'table' ||
-        node.properties?.entity_type === 'table';
-
-      const isProc =
-        node.kind === 'Procedure' ||
-        resKind === 'procedure' ||
-        node.properties?.entity_type === 'procedure';
-
-      const isDb =
-        !isTable &&
-        !isProc &&
-        (node.kind === 'Database' ||
-          resKind === 'database' ||
-          node.properties?.role === 'database' ||
-          node.properties?.role === 'Database' ||
-          node.properties?.entity_type === 'database');
-
-      const isTopic =
-        node.kind === 'Topic' ||
-        resKind === 'topic' ||
-        node.properties?.role === 'topic' ||
-        node.properties?.role === 'Topic' ||
-        node.properties?.entity_type === 'topic';
-
-      const isExt =
-        node.kind === 'ExternalService' ||
-        node.kind === 'CloudService' ||
-        resKind === 'externalservice' ||
-        resKind === 'cloudservice' ||
-        node.properties?.role === 'ExternalService' ||
-        node.properties?.entity_type === 'external';
-
-      const isLib =
-        node.kind === 'Library' ||
-        node.kind === 'SharedLibrary' ||
-        node.properties?.is_library === 'true' ||
-        node.properties?.entity_type === 'library';
-
-      const isModule =
-        node.kind === 'ProjectModule' ||
-        node.kind === 'Module' ||
-        node.properties?.pm_type === 'module';
-
-      if (isTest) {
-        testSuiteCount++;
-        tag = ':TestSuite';
-        nodeKind = 'TestSuite';
-        bgColor = '#059669';
-        borderColor = '#047857';
-        size = 52;
-      } else if (isApp) {
+      if (nodeKind === 'Type') {
+        serviceCount++;
+      } else if (nodeKind === 'App' || nodeKind === 'Endpoint' || nodeKind === 'EntryPoint') {
         appCount++;
-        tag = ':App';
-        nodeKind = 'App';
-        bgColor = '#0288d1';
-        borderColor = '#01579b';
-        size = 58;
-      } else if (isWorker) {
+        size = 56;
+      } else if (nodeKind === 'Worker') {
         workerCount++;
-        tag = ':Worker';
-        nodeKind = 'Worker';
-        bgColor = '#c026d3';
-        borderColor = '#86198f';
-        size = 52;
-      } else if (isCli) {
+      } else if (nodeKind === 'CliTool') {
         cliCount++;
-        tag = ':CliTool';
-        nodeKind = 'CliTool';
-        bgColor = '#d97706';
-        borderColor = '#92400e';
-        size = 52;
-      } else if (isTable) {
+      } else if (nodeKind === 'TestSuite') {
+        testSuiteCount++;
+      } else if (nodeKind === 'Database' || nodeKind === 'Table' || nodeKind === 'Procedure') {
         dbCount++;
-        tag = ':Table';
-        nodeKind = 'Table';
-        bgColor = '#9333ea';
-        borderColor = '#581c87';
         size = 50;
-      } else if (isProc) {
-        dbCount++;
-        tag = ':Proc';
-        nodeKind = 'Procedure';
-        bgColor = '#7e22ce';
-        borderColor = '#4c1d95';
-        size = 50;
-      } else if (isDb) {
-        dbCount++;
-        tag = ':DB';
-        nodeKind = 'Database';
-        bgColor = '#7b1fa2';
-        borderColor = '#4a148c';
-        size = 52;
-      } else if (isTopic) {
+      } else if (nodeKind === 'Topic') {
         topicCount++;
-        tag = ':Topic';
-        nodeKind = 'Topic';
-        bgColor = '#f59e0b';
-        borderColor = '#b45309';
         size = 50;
-      } else if (isExt) {
+      } else if (nodeKind === 'ExternalService' || nodeKind === 'CloudService') {
         extCount++;
-        tag = ':External';
-        nodeKind = 'ExternalService';
-        bgColor = '#26a69a';
-        borderColor = '#004d40';
         size = 50;
-      } else if (isLib) {
+      } else if (nodeKind === 'Library') {
         libCount++;
-        tag = ':Library';
-        nodeKind = 'Library';
-        bgColor = '#4b5563';
-        borderColor = '#374151';
         size = 46;
-      } else if (isModule) {
-        const modTier =
-          node.properties?.tier !== undefined && !isNaN(Number(node.properties.tier))
-            ? Number(node.properties.tier)
-            : 2;
-        if (modTier === 0) {
-          appCount++;
-          tag = ':Ingress';
-          nodeKind = 'Ingress';
-          bgColor = '#0288d1';
-          borderColor = '#01579b';
-          size = 56;
-        } else if (modTier === 1) {
-          workerCount++;
-          tag = ':AppLogic';
-          nodeKind = 'Worker';
-          bgColor = '#8b5cf6';
-          borderColor = '#5b21b6';
-          size = 52;
-        } else if (modTier === 3) {
-          serviceCount++;
-          tag = ':DataAccess';
-          nodeKind = 'Service';
-          bgColor = '#d97706';
-          borderColor = '#92400e';
-          size = 50;
-        } else if (modTier >= 4) {
-          libCount++;
-          tag = ':Foundation';
-          nodeKind = 'Library';
-          bgColor = '#475569';
-          borderColor = '#1e293b';
-          size = 44;
-        } else {
-          serviceCount++;
-          tag = ':Core';
-          nodeKind = 'Module';
-          bgColor = '#10b981';
-          borderColor = '#047857';
-          size = 52;
-        }
       } else {
         serviceCount++;
       }
+
+      const isDb = nodeKind === 'Database';
+      const isTable = nodeKind === 'Table';
+      const isProc = nodeKind === 'Procedure';
+      const isTopic = nodeKind === 'Topic';
+      const isExt = nodeKind === 'ExternalService' || nodeKind === 'CloudService';
+      const isLib = nodeKind === 'Library';
 
       const rawDomain =
         node.properties?.domain ||
@@ -2212,7 +2102,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
       const explicitTier =
         node.properties?.tier !== undefined && !isNaN(Number(node.properties.tier))
-          ? Math.min(4, Math.max(0, Number(node.properties.tier)))
+          ? Math.min(6, Math.max(0, Number(node.properties.tier)))
           : undefined;
 
       const detail: SelectedNodeDetail = {
@@ -2357,15 +2247,31 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         cat = 'external';
         label = 'CALLS';
       } else if (
+        tgtDetail.kind === 'Library' &&
+        (edge.properties?.is_resource_link === 'true' ||
+          edge.category === 'library' ||
+          edge.kind === 'LIBRARY' ||
+          edge.kind === 'DEPENDS_ON')
+      ) {
+        cat = 'library';
+        label = (edge as any).label || (edge as any).properties?.label || edge.kind || 'CALLS';
+      } else if (
         edge.category === 'service_call' ||
+        edge.category === 'dependency' ||
         edge.kind === 'SERVICE_CALL' ||
+        edge.kind === 'CALLS' ||
+        edge.kind === 'USES_TYPE' ||
+        edge.kind === 'IMPLEMENTS' ||
+        edge.kind === 'INHERITS_FROM' ||
+        edge.kind === 'EXPOSED_BY' ||
+        edge.kind === 'IMPLEMENTED_BY' ||
         edge.kind === 'CALLS_ENDPOINT' ||
         edge.kind === 'TRIGGERS' ||
         edge.kind === 'MODULE_DEPENDS_ON' ||
         (srcDetail.kind === 'Module' && tgtDetail.kind === 'Module')
       ) {
         cat = 'service_call';
-        label = edge.kind === 'MODULE_DEPENDS_ON' || srcDetail.kind === 'Module' ? 'DEPENDS_ON' : 'CALLS';
+        label = edge.kind === 'MODULE_DEPENDS_ON' ? 'DEPENDS_ON' : edge.kind || 'CALLS';
       } else if (
         edge.kind === 'SUBSCRIBES_TO' ||
         edge.kind === 'SUBSCRIBED_BY' ||
@@ -2407,7 +2313,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
       if (!cat) continue;
 
-      if (cat === 'service_call') {
+      if (cat === 'service_call' || cat === 'library') {
         outCalls.set(edge.source, (outCalls.get(edge.source) || 0) + edgeWeight);
         inCalls.set(edge.target, (inCalls.get(edge.target) || 0) + edgeWeight);
       }
@@ -2748,11 +2654,18 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       Worker: 'Workers',
       TestSuite: 'Tests',
       Database: 'Databases',
+      Table: 'Tables',
+      Procedure: 'Procedures',
       Topic: 'Topics',
       ExternalService: 'External',
+      CloudService: 'Cloud Services',
       App: 'Apps',
       CliTool: 'CLI Tools',
       Library: 'Libraries',
+      Endpoint: 'Endpoints',
+      EntryPoint: 'EntryPoints',
+      Type: 'Classes',
+      Module: 'Modules',
     };
 
     for (const kind of groupedTypes) {
@@ -2761,7 +2674,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         .filter((n) => {
           const k = (n.data as any).kind as EntityKind;
           const id = n.data.id as string;
-          return (k === kind || (kind === 'App' && k === 'Ingress')) && !nodeToGroupId.has(id);
+          return k === kind && !nodeToGroupId.has(id);
         })
         .map((n) => n.data.id as string);
 
@@ -3071,7 +2984,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       const edgeSource = hasUtoV ? nodeU : nodeV;
       const edgeTarget = hasUtoV ? nodeV : nodeU;
 
-      const hasServiceCall = interactions.some((i) => i.category === 'service_call');
+      const hasServiceCall = interactions.some((i) => i.category === 'service_call' || i.category === 'library');
       const hasMessaging = interactions.some((i) => i.category === 'messaging');
       const hasDatabase = interactions.some((i) => i.category === 'database');
       const allTransitive = interactions.every((i) => i.isTransitive);
@@ -3090,7 +3003,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       }
 
       const totalCount = interactions.reduce((sum, i) => sum + i.count, 0);
-      const serviceCallsCount = interactions.filter((i) => i.category === 'service_call').reduce((s, i) => s + i.count, 0);
+      const serviceCallsCount = interactions.filter((i) => i.category === 'service_call' || i.category === 'library').reduce((s, i) => s + i.count, 0);
       const messagingCount = interactions.filter((i) => i.category === 'messaging').reduce((s, i) => s + i.count, 0);
       const dbCount = interactions.filter((i) => i.category === 'database').reduce((s, i) => s + i.count, 0);
       const transitiveCount = interactions.filter((i) => i.isTransitive).reduce((s, i) => s + i.count, 0);
@@ -3408,7 +3321,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           id: detail.id,
           name: detail.name,
           displayName: detail.displayName,
-          kind: detail.kind === 'Service' || detail.kind === 'Ingress' ? 'Service' : detail.kind,
+          kind: detail.kind as any,
           filePath: detail.primaryFilePath,
           properties: {
             kind: detail.kind,
@@ -3817,7 +3730,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             nodeDomainMap,
             domainDetailsMap,
             orbitDistanceRef.current,
-            minOrbitNodeDistanceRef.current
+            minOrbitNodeDistanceRef.current,
+            customOrbitTitlesRef.current
           );
           const effSpacing = spacing || 1.0;
           setSectorGuides(layoutResult.sectors || []);
@@ -3830,13 +3744,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           setSectorGuides([]);
           baseSectorGuidesRef.current = [];
           if (layoutName === 'concentric-equispaced') {
-            layoutResult = computeConcentricEquispacedLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder, orbitDistanceRef.current, minOrbitNodeDistanceRef.current);
+            layoutResult = computeConcentricEquispacedLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder, orbitDistanceRef.current, minOrbitNodeDistanceRef.current, customOrbitTitlesRef.current);
           } else if (layoutName === 'concentric-barycentric') {
-            layoutResult = computeConcentricBarycentricLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder, orbitDistanceRef.current, minOrbitNodeDistanceRef.current);
+            layoutResult = computeConcentricBarycentricLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder, orbitDistanceRef.current, minOrbitNodeDistanceRef.current, customOrbitTitlesRef.current);
           } else if (layoutName === 'concentric-polar-force') {
-            layoutResult = computeConcentricPolarForceLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder, orbitDistanceRef.current, minOrbitNodeDistanceRef.current);
+            layoutResult = computeConcentricPolarForceLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder, orbitDistanceRef.current, minOrbitNodeDistanceRef.current, customOrbitTitlesRef.current);
           } else {
-            layoutResult = computeConcentricLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder, orbitDistanceRef.current, minOrbitNodeDistanceRef.current);
+            layoutResult = computeConcentricLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder, orbitDistanceRef.current, minOrbitNodeDistanceRef.current, customOrbitTitlesRef.current);
           }
         }
 
@@ -3853,14 +3767,15 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           ...g,
           radius: g.radius / effSpacing,
         }));
-        relabelMergedOrbits(layoutResult, orbitCfg);
+        relabelMergedOrbits(layoutResult, orbitCfg, customOrbitTitlesRef.current);
         setConcentricGuides(layoutResult.guides);
         setOrbitLegendItems(
           buildAllOrbitLegendItems(
             rawGraph.allNodes,
             rawGraph.echelonMap,
             layoutResult.populatedOrbits,
-            orbitCfg
+            orbitCfg,
+            customOrbitTitlesRef.current
           )
         );
       } else if (layoutName === 'swimlanes') {
@@ -4341,8 +4256,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const handleResetOrbitOrder = useCallback(() => {
     setHiddenOrbitTiers(new Set());
     setForcedVisibleNodeIds(new Set());
-    applyOrbitConfig(DEFAULT_ORBIT_CONFIG);
-  }, [applyOrbitConfig]);
+    applyOrbitConfig(Boolean(customPresetsSlot) ? DEFAULT_PROJECT_MAP_ORBIT_CONFIG : DEFAULT_ORBIT_CONFIG);
+  }, [applyOrbitConfig, customPresetsSlot]);
 
   // Wheel sensitivity change handler
   const handleWheelSensitivityChange = useCallback((val: number) => {
@@ -4804,7 +4719,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                         onDragEnd={handleDragEnd}
                         title={`Drag ${k.kind} onto another orbit to move all ${k.kind} entities there`}
                       >
-                        <span className="orbit-kind-chip-name">{k.kind}</span>
+                        <span className="orbit-kind-chip-name">{getEntityBadgeMeta(k.kind as EntityKind)?.label || k.kind}</span>
                         <span className="orbit-kind-chip-count">{k.count}</span>
                         {k.overridden ? (
                           <button
@@ -5379,7 +5294,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                 id: node.id,
                 name: node.name,
                 displayName: node.displayName,
-                kind: node.kind === 'Service' || node.kind === 'Ingress' ? 'Service' : node.kind,
+                kind: node.kind as any,
                 filePath: node.primaryFilePath,
                 properties: {
                   kind: node.kind,

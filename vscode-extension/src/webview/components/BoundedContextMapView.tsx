@@ -440,14 +440,14 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
       const isEvent = bEdge.category === 'messaging';
       const isDb = bEdge.category === 'database';
 
-      let edgeColor = '#60a5fa'; // Blue for direct calls
+      let edgeColor = '#34d399'; // Green for direct calls
       let lineStyle = 'solid';
 
       if (isEvent) {
         edgeColor = '#f59e0b'; // Amber for events
         lineStyle = 'dashed';
       } else if (isDb) {
-        edgeColor = '#06b6d4'; // Cyan for shared database
+        edgeColor = '#c084fc'; // Purple for shared database
         lineStyle = 'dotted';
       }
 

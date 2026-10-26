@@ -5,6 +5,17 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.59.3] - 2026-10-26
+
+### Fixed
+- **Strict Ontology Entity Rendering & Unified Diagram Color Standard**:
+  - Removed all view-side entity-type guessing and remapping in `DomainArchitectureView`, `DomainVisibilityPanel`, `ProjectMapView`, and `projectMapModel`: node types (`node.kind`) and visibility legend filters now come strictly from backend ontology without frontend overrides or synthetic `(root files)` buckets.
+  - Standardized node and edge colors across `DomainArchitectureView`, `ProjectMapView`, `BoundedContextMapView`, `C1SystemContextView`, `DomainMatrixView`, and `DeclarativeInspector` using the Architecture Map palette: direct calls (`service_call` / `CALLS` / `DEPENDS_ON`) are rendered in green (`#34d399`), database links in purple (`#c084fc`), messaging in dashed amber (`#fbbf24`), and core class/service entities in canonical red (`#e53935`) without per-orbit color overrides.
+  - Fixed `ProjectMapView` initial load race condition (`Failed to fetch` on startup) by subscribing to `useServerTransport()` connection readiness and adding automatic startup retries.
+  - Updated `ProjectMapBuilder` and `ArchitectureViewEngine.ProjectMap` to map C3 nodes strictly to canonical ontology entities (`Endpoint`, `EntryPoint`, `Type`, `Table`, `Procedure`, `Database`, `Topic`, `ExternalService`) and preserve subproject kinds in multi-project workspaces.
+
+---
+
 ## [1.59.2] - 2026-10-25
 
 ### Fixed

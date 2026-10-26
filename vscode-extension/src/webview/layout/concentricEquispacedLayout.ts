@@ -26,18 +26,19 @@ export function computeConcentricEquispacedLayout(
   spacing = 1.0,
   customOrbitOrder?: number[],
   orbitDistance?: number,
-  minNodeDistance?: number
+  minNodeDistance?: number,
+  customOrbitTitles?: Record<number, string>
 ): ConcentricLayoutResult {
-  const orbitBuckets: Record<number, string[]> = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [] };
+  const orbitBuckets: Record<number, string[]> = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
 
   for (const node of visibleNodes) {
-    const ech = Math.max(0, Math.min(5, node.echelonTier));
+    const ech = Math.max(0, Math.min(6, node.echelonTier));
     orbitBuckets[ech].push(node.id);
   }
 
-  const populatedTiers = [0, 1, 2, 3, 4, 5].filter((idx) => orbitBuckets[idx].length > 0);
-  const outerTiers = populatedTiers.filter((t) => t === 4 || t === 5);
-  const innerPopulated = populatedTiers.filter((t) => t !== 4 && t !== 5);
+  const populatedTiers = [0, 1, 2, 3, 4, 5, 6].filter((idx) => orbitBuckets[idx].length > 0);
+  const outerTiers = populatedTiers.filter((t) => t === 4 || t === 5 || t === 6);
+  const innerPopulated = populatedTiers.filter((t) => t !== 4 && t !== 5 && t !== 6);
   let effectiveOrder = [...innerPopulated, ...outerTiers];
   if (customOrbitOrder && customOrbitOrder.length > 0) {
     const validCustom = customOrbitOrder.filter((t) => populatedTiers.includes(t));
@@ -57,7 +58,7 @@ export function computeConcentricEquispacedLayout(
 
   let displayIdx = 0;
   for (const idx of effectiveOrder) {
-    const title = ORBIT_TITLES[idx] || `Tier ${idx}`;
+    const title = customOrbitTitles?.[idx] || ORBIT_TITLES[idx] || `Tier ${idx}`;
     const shortLabel = `Orbit ${displayIdx}`;
     populatedOrbits.push({
       levelIndex: idx,

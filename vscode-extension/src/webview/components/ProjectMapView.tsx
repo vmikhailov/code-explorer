@@ -4,6 +4,7 @@ import {
   filterProjectMap,
   parseProjectMapGraph,
 } from '../projectMap/projectMapModel';
+import { useServerTransport } from '../services/webviewTransport';
 import { BaseGraphMap } from './BaseGraphMap';
 
 export interface ProjectMapViewProps {
@@ -25,6 +26,7 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
   onProjectChange,
   onOpenFile,
 }) => {
+  const { httpUrl: transportHttpUrl, connectionState } = useServerTransport();
   const [graph, setGraph] = useState<GraphData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,33 +36,47 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
   const [cyclesOnly, setCyclesOnly] = useState(false);
 
   useEffect(() => {
-    const baseUrl = resolveBaseUrl(serverHttpUrl);
+    const baseUrl = serverHttpUrl || transportHttpUrl || resolveBaseUrl(serverHttpUrl);
     if (!baseUrl) {
-      setError('Server connection not ready yet.');
+      setLoading(true);
+      setError(null);
       return;
     }
     let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
     setLoading(true);
     setError(null);
-    fetch(`${baseUrl}/api/view?view=project-map&scope=${encodeURIComponent(project ?? '')}`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-        return (await res.json()) as GraphData;
-      })
-      .then((data) => {
-        if (cancelled) return;
-        setGraph(data);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+
+    const loadWithRetry = (attempt: number) => {
+      const currentBase = serverHttpUrl || transportHttpUrl || resolveBaseUrl(serverHttpUrl) || baseUrl;
+      fetch(`${currentBase}/api/view?view=project-map&scope=${encodeURIComponent(project ?? '')}`)
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+          return (await res.json()) as GraphData;
+        })
+        .then((data) => {
+          if (cancelled) return;
+          setGraph(data);
+          setError(null);
+          setLoading(false);
+        })
+        .catch((err: unknown) => {
+          if (cancelled) return;
+          if (attempt < 5) {
+            retryTimer = setTimeout(() => loadWithRetry(attempt + 1), 500);
+            return;
+          }
+          setError(err instanceof Error ? err.message : String(err));
+          setLoading(false);
+        });
+    };
+
+    loadWithRetry(0);
     return () => {
       cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [serverHttpUrl, project, reloadToken]);
+  }, [serverHttpUrl, transportHttpUrl, connectionState === 'connected', project, reloadToken]);
 
   const model = useMemo(() => parseProjectMapGraph(graph), [graph]);
   const visible = useMemo(
@@ -84,8 +100,9 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
     };
   }, [graph, visible, hideUtilities, hideResources, cyclesOnly]);
 
-  const moduleCount = model.nodes.filter((n) => !n.isResource).length;
-  const resourceCount = model.nodes.length - moduleCount;
+  const entryPointNodeCount = model.nodes.filter((n) => n.kind === 'Endpoint' || n.kind === 'EntryPoint').length;
+  const moduleCount = model.nodes.filter((n) => !n.isResource && n.kind !== 'Endpoint' && n.kind !== 'EntryPoint').length;
+  const resourceCount = model.nodes.filter((n) => n.isResource).length;
   const depCount = model.edges.filter((e) => !e.isResourceLink).length;
 
   const headerControls = (
@@ -107,14 +124,19 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
         ))}
       </select>
 
-      <span className="pm-chip" title="Code modules / files in this project">
-        {moduleCount} {model.granularity === 'file' ? 'files' : 'modules'}
+      {entryPointNodeCount > 0 && (
+        <span className="pm-chip" title="EntryPoints & Endpoints in Orbit 0">
+          {entryPointNodeCount} {entryPointNodeCount === 1 ? 'entrypoint' : 'entrypoints'}
+        </span>
+      )}
+      <span className="pm-chip" title="Classes / modules in this project">
+        {moduleCount} {model.granularity === 'class' ? 'classes' : model.granularity === 'file' ? 'files' : 'modules'}
       </span>
-      <span className="pm-chip" title="Internal module dependencies">
+      <span className="pm-chip" title="Internal call & dependency links">
         {depCount} deps
       </span>
       {resourceCount > 0 && (
-        <span className="pm-chip" title="Database tables, procedures, topics, and external resources">
+        <span className="pm-chip" title="Transports, buses, libraries, databases, and tables">
           {resourceCount} resources
         </span>
       )}
@@ -238,7 +260,7 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
         defaultNodeSizingMode="sqrt-weight"
         defaultNodeContentMode="metric"
         defaultHiddenTypes={[]}
-        storagePrefix="ce_pm_v2_"
+        storagePrefix="ce_pm_v3_"
         onOpenFile={onOpenFile}
         onRefresh={() => setReloadToken((t) => t + 1)}
       />

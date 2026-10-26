@@ -123,13 +123,14 @@ export const DomainMatrixView: React.FC<DomainMatrixViewProps> = ({
   const getEdgeCategoryColor = (cat: string) => {
     switch (cat) {
       case 'service_call':
-        return '#38bdf8';
+      case 'library':
+        return '#34d399';
       case 'database':
         return '#c084fc';
       case 'messaging':
         return '#fbbf24';
       case 'external':
-        return '#34d399';
+        return '#26a69a';
       default:
         return '#94a3b8';
     }

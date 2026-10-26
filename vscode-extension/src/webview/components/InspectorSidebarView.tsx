@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   OrbitConfig,
   DEFAULT_ORBIT_CONFIG,
+  DEFAULT_PROJECT_MAP_ORBIT_CONFIG,
   isDefaultOrbitConfig,
   mergeOrbits,
   splitOrbit,
@@ -17,6 +18,7 @@ import {
   EntityKind,
 } from './DomainArchitectureView';
 import { CustomNodeGroup, NodeContentMode, NodeSizingMode } from '../domain/types';
+import { getEntityBadgeMeta } from '../domain/entityBadges';
 import { DomainInspector, RawEdgeInfo } from '../domain/components/DomainInspector';
 import { DomainVisibilityPanel } from '../domain/components/DomainVisibilityPanel';
 import { DomainOverrideModal } from './DomainOverrideModal';
@@ -363,8 +365,9 @@ export const InspectorSidebarView: React.FC = () => {
   );
 
   const handleResetOrbitOrder = useCallback(() => {
-    applyOrbitCfg(DEFAULT_ORBIT_CONFIG, [], true);
-  }, [applyOrbitCfg]);
+    const defaultCfg = state?.projectMapPresets ? DEFAULT_PROJECT_MAP_ORBIT_CONFIG : DEFAULT_ORBIT_CONFIG;
+    applyOrbitCfg(defaultCfg, [], true);
+  }, [applyOrbitCfg, state?.projectMapPresets]);
 
   if (!state) {
     return (
@@ -950,7 +953,7 @@ export const InspectorSidebarView: React.FC = () => {
                             onDragEnd={handleDragEnd}
                             title={`Drag ${k.kind} onto another orbit to move all ${k.kind} entities there`}
                           >
-                            <span className="orbit-kind-chip-name">{k.kind}</span>
+                            <span className="orbit-kind-chip-name">{getEntityBadgeMeta(k.kind as EntityKind)?.label || k.kind}</span>
                             <span className="orbit-kind-chip-count">{k.count}</span>
                             {k.overridden ? (
                               <button

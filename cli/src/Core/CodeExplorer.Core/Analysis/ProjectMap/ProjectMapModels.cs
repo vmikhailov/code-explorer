@@ -39,6 +39,56 @@ public sealed record ProjectMapSubProject(
     IReadOnlyList<ProjectMapFile> Files);
 
 /// <summary>
+/// An Endpoint or EntryPoint node exposed by the project (Orbit 0).
+/// </summary>
+public sealed record ProjectMapEntryPointNode(
+    string Id,
+    string Name,
+    string Kind,
+    string FilePath,
+    int? Line = null,
+    string? SubKind = null,
+    IReadOnlyList<string>? TargetSymbols = null,
+    IReadOnlyList<string>? TargetFiles = null);
+
+/// <summary>
+/// A Type declaration (class, interface, struct, record, enum) in the project.
+/// </summary>
+public sealed record ProjectMapTypeNode(
+    string Id,
+    string Name,
+    string SubKind,
+    string FilePath,
+    int? StartLine = null,
+    int? LineCount = null,
+    bool IsTest = false,
+    IReadOnlyList<string>? Methods = null);
+
+/// <summary>
+/// A Function/Method declaration in the project.
+/// </summary>
+public sealed record ProjectMapFunctionNode(
+    string Id,
+    string Name,
+    string FilePath,
+    int? StartLine = null,
+    int? LineCount = null,
+    bool IsTest = false,
+    string? EnclosingTypeName = null);
+
+/// <summary>
+/// A type-level or symbol-level relationship (CALLS, USES_TYPE, IMPLEMENTS, INHERITS_FROM) resolved to enclosing types/modules.
+/// </summary>
+public sealed record ProjectMapTypeEdge(
+    string FromSymbol,
+    string FromFile,
+    string ToSymbol,
+    string ToFile,
+    string Kind,
+    int? Line = null,
+    bool IsExternalCaller = false);
+
+/// <summary>
 /// Raw, already-scoped inputs for a single project. Produced by the view engine from existing graph nodes/edges.
 /// </summary>
 public sealed class ProjectMapInput
@@ -55,13 +105,19 @@ public sealed class ProjectMapInput
 
     /// <summary>Number of Endpoint/EntryPoint nodes that trigger or are exposed by symbols in each file.</summary>
     public IReadOnlyDictionary<string, int> EntryPointsByFile { get; init; } = new Dictionary<string, int>();
+
+    public IReadOnlyList<ProjectMapEntryPointNode> EntryPointNodes { get; init; } = [];
+    public IReadOnlyList<ProjectMapTypeNode> Types { get; init; } = [];
+    public IReadOnlyList<ProjectMapFunctionNode> Functions { get; init; } = [];
+    public IReadOnlyList<ProjectMapTypeEdge> TypeEdges { get; init; } = [];
 }
 
 public enum ProjectMapGranularity
 {
     Module,
     SubModule,
-    File
+    File,
+    Class
 }
 
 /// <summary>
@@ -74,7 +130,8 @@ public enum ProjectMapTier
     Core = 2,
     Data = 3,
     Foundation = 4,
-    Resource = 5
+    Resource = 5,
+    Database = 6
 }
 
 public sealed record ProjectMapEvidenceSample(string? FromSymbol, string? ToSymbol, string File, int? Line, string Kind);
@@ -87,6 +144,13 @@ public sealed class ProjectMapModule
     /// <summary>Workspace-relative folder (or file) path backing this module.</summary>
     public required string Path { get; init; }
 
+    public string? NodeKindOverride { get; init; }
+    public string? PmType { get; init; }
+    public string? SubKind { get; init; }
+    public int? StartLine { get; set; }
+    public int? BfsDepth { get; set; }
+    public List<string> Methods { get; } = [];
+    public List<string> ImplementedInterfaces { get; } = [];
     public bool IsRootFiles { get; init; }
     public bool IsMerged { get; init; }
     public bool IsSubProject { get; init; }
@@ -110,6 +174,7 @@ public sealed class ProjectMapResource
     public required string Id { get; init; }
     public required string Kind { get; init; }
     public required string Name { get; init; }
+    public ProjectMapTier Tier { get; init; } = ProjectMapTier.Resource;
 }
 
 public sealed class ProjectMapEdge

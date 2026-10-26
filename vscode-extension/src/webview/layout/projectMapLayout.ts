@@ -185,17 +185,18 @@ export function computeConcentricBarycentricLayout(
   spacing = 1.0,
   customOrbitOrder?: number[],
   orbitDistance?: number,
-  minNodeDistance?: number
+  minNodeDistance?: number,
+  customOrbitTitles?: Record<number, string>
 ): ConcentricLayoutResult {
-  const orbitBuckets: Record<number, string[]> = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [] };
+  const orbitBuckets: Record<number, string[]> = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
   for (const node of visibleNodes) {
-    const ech = Math.max(0, Math.min(5, node.echelonTier));
+    const ech = Math.max(0, Math.min(6, node.echelonTier));
     orbitBuckets[ech].push(node.id);
   }
 
-  const populatedTiers = [0, 1, 2, 3, 4, 5].filter((idx) => orbitBuckets[idx].length > 0);
-  const outerTiers = populatedTiers.filter((t) => t === 4 || t === 5);
-  const innerPopulated = populatedTiers.filter((t) => t !== 4 && t !== 5);
+  const populatedTiers = [0, 1, 2, 3, 4, 5, 6].filter((idx) => orbitBuckets[idx].length > 0);
+  const outerTiers = populatedTiers.filter((t) => t === 4 || t === 5 || t === 6);
+  const innerPopulated = populatedTiers.filter((t) => t !== 4 && t !== 5 && t !== 6);
   let effectiveOrder = [...innerPopulated, ...outerTiers];
   if (customOrbitOrder && customOrbitOrder.length > 0) {
     const validCustom = customOrbitOrder.filter((t) => populatedTiers.includes(t));
@@ -208,7 +209,7 @@ export function computeConcentricBarycentricLayout(
   effectiveOrder.forEach((tier, idx) => tierToRingRank.set(tier, idx));
 
   const pmNodes: ProjectMapLayoutNode[] = visibleNodes.map((n) => {
-    const ech = Math.max(0, Math.min(5, n.echelonTier));
+    const ech = Math.max(0, Math.min(6, n.echelonTier));
     return {
       id: n.id,
       tier: tierToRingRank.get(ech) ?? ech,
@@ -243,7 +244,7 @@ export function computeConcentricBarycentricLayout(
 
   pmResult.rings.forEach((ring, displayIdx) => {
     const origTier = effectiveOrder[ring.tier] ?? ring.tier;
-    const title = ORBIT_TITLES[origTier] || `Tier ${origTier}`;
+    const title = customOrbitTitles?.[origTier] || ORBIT_TITLES[origTier] || `Tier ${origTier}`;
     const shortLabel = `Orbit ${displayIdx}`;
     const label = `${shortLabel}: ${title}`;
     const r = Math.round(ring.radius);

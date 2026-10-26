@@ -15,26 +15,34 @@ public static class ProjectMapGraphMapper
 
     public static readonly IReadOnlyList<(ProjectMapTier Tier, string Label, string Description)> TierDefinitions =
     [
-        (ProjectMapTier.Ingress, "Ingress & Entrypoints", "Endpoints, CLI/MCP/UI entrypoints, or modules nothing else depends on"),
-        (ProjectMapTier.Application, "Application & Orchestration", "Unstable modules that coordinate other modules"),
-        (ProjectMapTier.Core, "Core Domain & Engine", "Stable modules other modules depend on"),
-        (ProjectMapTier.Data, "Data & Persistence", "Modules that access tables, databases, or queries"),
-        (ProjectMapTier.Foundation, "Foundation & Utilities", "Leaf modules used by most of the project"),
-        (ProjectMapTier.Resource, "Resources", "Tables, topics, external services and other infrastructure")
+        (ProjectMapTier.Ingress, "EntryPoints & Endpoints", "CLI commands, HTTP/gRPC/MCP endpoints, and external triggers (Orbit 0)"),
+        (ProjectMapTier.Application, "Classes — Orbit 1", "Entry handlers and direct orchestrators (BFS Depth 1)"),
+        (ProjectMapTier.Core, "Classes — Orbit 2", "Application and domain services (BFS Depth 2)"),
+        (ProjectMapTier.Data, "Classes — Orbit 3", "Engine, repositories, and lower-level services (BFS Depth 3)"),
+        (ProjectMapTier.Foundation, "Classes — Orbit 4+", "Foundation classes, helpers, and deep dependencies (BFS Depth 4+)"),
+        (ProjectMapTier.Resource, "Transports, Buses & Libraries", "Message buses, topics, external services, and workspace libraries (Orbit 5)"),
+        (ProjectMapTier.Database, "Databases & Storage", "Databases, tables, procedures, and datasets (Orbit 6)")
     ];
 
     public static void Populate(GraphDataDto graph, ProjectMapResult result)
     {
-        var moduleKind = result.Granularity == ProjectMapGranularity.File ? NodeKind.File : NodeKind.Folder;
+        var defaultModuleKind = result.Granularity == ProjectMapGranularity.File ? NodeKind.File : NodeKind.Folder;
 
         foreach (var m in result.Modules)
         {
+            var nodeKind = !string.IsNullOrEmpty(m.NodeKindOverride)
+                ? EnumExtensions.ParseNodeKind(m.NodeKindOverride)
+                : defaultModuleKind;
+            var filePath = !string.IsNullOrEmpty(m.NodeKindOverride)
+                ? (m.Files.FirstOrDefault() ?? m.Path)
+                : (result.Granularity == ProjectMapGranularity.File ? m.Path : null);
+
             graph.Nodes.Add(new GraphNodeDto
             {
                 Id = m.Id,
                 Name = m.Name,
-                Kind = moduleKind,
-                FilePath = result.Granularity == ProjectMapGranularity.File ? m.Path : null,
+                Kind = nodeKind,
+                FilePath = filePath,
                 Properties = BuildModuleProperties(m)
             });
         }
@@ -50,8 +58,8 @@ public static class ProjectMapGraphMapper
                 {
                     ["pm_type"] = "resource",
                     ["resource_kind"] = r.Kind,
-                    ["tier"] = ((int)ProjectMapTier.Resource).ToString(CultureInfo.InvariantCulture),
-                    ["tier_label"] = TierLabel(ProjectMapTier.Resource)
+                    ["tier"] = ((int)r.Tier).ToString(CultureInfo.InvariantCulture),
+                    ["tier_label"] = TierLabel(r.Tier)
                 }
             });
         }
@@ -83,7 +91,7 @@ public static class ProjectMapGraphMapper
     {
         var props = new Dictionary<string, string>
         {
-            ["pm_type"] = "module",
+            ["pm_type"] = m.PmType ?? "module",
             ["path"] = m.Path,
             ["tier"] = ((int)m.Tier).ToString(CultureInfo.InvariantCulture),
             ["tier_label"] = TierLabel(m.Tier),
@@ -99,6 +107,18 @@ public static class ProjectMapGraphMapper
             ["files"] = JsonSerializer.Serialize(m.Files.OrderBy(f => f, StringComparer.OrdinalIgnoreCase).Take(MaxListedFiles))
         };
 
+        if (!string.IsNullOrEmpty(m.SubKind)) props["sub_kind"] = m.SubKind;
+        if (m.StartLine.HasValue) props["start_line"] = m.StartLine.Value.ToString(CultureInfo.InvariantCulture);
+        if (m.BfsDepth.HasValue) props["bfs_depth"] = m.BfsDepth.Value.ToString(CultureInfo.InvariantCulture);
+        if (m.Methods.Count > 0)
+        {
+            props["method_count"] = m.Methods.Count.ToString(CultureInfo.InvariantCulture);
+            props["methods"] = JsonSerializer.Serialize(m.Methods.Take(MaxListedFiles));
+        }
+        if (m.ImplementedInterfaces.Count > 0)
+        {
+            props["interfaces"] = JsonSerializer.Serialize(m.ImplementedInterfaces);
+        }
         if (m.IsRootFiles) props["is_root_files"] = "true";
         if (m.IsMerged) props["is_merged"] = "true";
         if (m.IsSubProject)

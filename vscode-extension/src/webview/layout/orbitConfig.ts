@@ -23,8 +23,15 @@ export const DEFAULT_ORBIT_CONFIG: OrbitConfig = {
   kindTiers: {},
 };
 
+/** Project Map (C3): Orbit 0 EntryPoints/Endpoints, Orbits 1..4 Classes by BFS depth, Orbit 5 Transports/Buses/Libraries, Orbit 6 Databases/Tables. */
+export const DEFAULT_PROJECT_MAP_ORBIT_CONFIG: OrbitConfig = {
+  version: 1,
+  orbits: [[0], [1], [2], [3], [4], [5], [6]],
+  kindTiers: {},
+};
+
 const isTier = (v: unknown): v is number =>
-  typeof v === 'number' && Number.isInteger(v) && ALL_ORBIT_TIERS.includes(v as any);
+  typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 6;
 
 export function cloneOrbitConfig(cfg: OrbitConfig): OrbitConfig {
   return {
@@ -93,10 +100,10 @@ export function orbitOrder(cfg: OrbitConfig): number[] {
   return cfg.orbits.map((o) => o[0]);
 }
 
-export function orbitTitle(tiers: number[]): string {
+export function orbitTitle(tiers: number[], customTitles?: Record<number, string>): string {
   const titles: string[] = [];
   for (const t of tiers) {
-    const title = ORBIT_TITLES[t] || `Tier ${t}`;
+    const title = customTitles?.[t] || ORBIT_TITLES[t] || `Tier ${t}`;
     if (!titles.includes(title)) titles.push(title);
   }
   return titles.join(' + ');

@@ -279,6 +279,58 @@ export const ENTITY_BADGES: Record<string, EntityBadgeMeta> = {
       </>
     ),
   },
+  Endpoint: {
+    kind: 'Endpoint',
+    code: 'EPT',
+    label: 'Endpoint',
+    bgColor: '#0288d1',
+    borderColor: '#01579b',
+    shape: 'ellipse',
+    rawIconSvg: `
+      <circle cx="24" cy="24" r="4" />
+      <path d="M28 24 H42 M37 19 L42 24 L37 29" />
+    `,
+    iconPaths: (
+      <>
+        <circle cx="24" cy="24" r="4" />
+        <path d="M28 24 H42 M37 19 L42 24 L37 29" />
+      </>
+    ),
+  },
+  EntryPoint: {
+    kind: 'EntryPoint',
+    code: 'ENT',
+    label: 'EntryPoint',
+    bgColor: '#0ea5e9',
+    borderColor: '#0369a1',
+    shape: 'ellipse',
+    rawIconSvg: `
+      <polygon points="25 16 41 25 25 34 25 16" />
+    `,
+    iconPaths: <polygon points="25 16 41 25 25 34 25 16" />,
+  },
+  Type: {
+    kind: 'Type',
+    code: 'CLS',
+    label: 'Class',
+    bgColor: '#e53935',
+    borderColor: '#7f1d1d',
+    shape: 'ellipse',
+    rawIconSvg: `
+      <rect x="20" y="14" width="24" height="20" rx="2.5" />
+      <line x1="20" y1="21" x2="44" y2="21" />
+      <line x1="24" y1="25.5" x2="36" y2="25.5" />
+      <line x1="24" y1="29.5" x2="33" y2="29.5" />
+    `,
+    iconPaths: (
+      <>
+        <rect x="20" y="14" width="24" height="20" rx="2.5" />
+        <line x1="20" y1="21" x2="44" y2="21" />
+        <line x1="24" y1="25.5" x2="36" y2="25.5" />
+        <line x1="24" y1="29.5" x2="33" y2="29.5" />
+      </>
+    ),
+  },
   Group: {
     kind: 'Group',
     code: 'GRP',
@@ -335,6 +387,22 @@ export function getEntityBadgeMeta(kind: EntityKind | string): EntityBadgeMeta {
     case 'procedure':
     case 'PRC':
       return ENTITY_BADGES.Procedure;
+    case 'Endpoint':
+    case 'endpoint':
+    case 'Endpoints':
+    case 'EPT':
+      return ENTITY_BADGES.Endpoint;
+    case 'EntryPoint':
+    case 'entrypoint':
+    case 'EntryPoints':
+    case 'ENT':
+      return ENTITY_BADGES.EntryPoint;
+    case 'Type':
+    case 'Class':
+    case 'class':
+    case 'Classes':
+    case 'CLS':
+      return ENTITY_BADGES.Type;
     case 'Module':
     case 'ProjectModule':
     case 'module':
