@@ -165,6 +165,14 @@ public class WorkspaceIndexer
             }
         }
 
+        if (_dbClient.IsSchemaOutdated)
+        {
+            _logger.LogInformation(
+                "[Database] Schema version outdated (v{SchemaVersion} < v{CurrentSchemaVersion}). Forcing full graph rebuild...",
+                _dbClient.SchemaVersion, IGraphClient.CurrentSchemaVersion);
+            clear = true;
+        }
+
         var ctx = CreateContext(root, scanPath, clear, enableIntentAnalysis, cancellationToken, progress);
 
         await RunParsingPipelineAsync(ctx);
@@ -377,6 +385,15 @@ public class WorkspaceIndexer
         var root = string.IsNullOrWhiteSpace(workspaceRoot) ? targetPath : workspaceRoot;
         var absoluteWorkspacePath = Path.GetFullPath(root).Replace('\\', '/');
         var absoluteTargetPath = Path.GetFullPath(targetPath).Replace('\\', '/');
+
+        if (_dbClient.IsSchemaOutdated)
+        {
+            _logger.LogInformation(
+                "[Incremental:Decision] Full rescan triggered: Database schema is outdated (v{SchemaVersion} < v{CurrentSchemaVersion}).",
+                _dbClient.SchemaVersion, IGraphClient.CurrentSchemaVersion);
+            await IndexAsync(targetPath, workspaceRoot, clear: true, cancellationToken: cancellationToken, progress: progress, enableIntentAnalysis: enableIntentAnalysis);
+            return true;
+        }
 
         if (_fileRegistry.Count == 0)
         {

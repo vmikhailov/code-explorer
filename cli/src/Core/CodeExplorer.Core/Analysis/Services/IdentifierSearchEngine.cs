@@ -96,7 +96,7 @@ public class IdentifierSearchEngine
         // Use correlated subquery for owner_name to ensure SQLite uses primary key index lookup on nodes(id)
         // rather than full table scanning nodes across tens/hundreds of thousands of candidate rows.
         var candidateQuery = """
-            SELECT n.id, n.kind, n.properties,
+            SELECT n.id, n.kind, json(n.properties) AS properties,
                    (SELECT json_extract(o.properties, '$.name') FROM nodes o WHERE o.id = e.from_id AND o.kind = 'Type') as owner_name
             FROM nodes n
             LEFT JOIN edges e ON (e.to_id = n.id AND e.kind IN ('HAS_METHOD', 'HAS_MEMBER'))

@@ -1,6 +1,8 @@
+using System.Collections;
 using CodeExplorer.Cypher.Ast;
 using CodeExplorer.Cypher.Compiler;
 using CodeExplorer.Cypher.Linq;
+using CodeExplorer.Cypher.Linq.Entities;
 using NUnit.Framework;
 
 namespace CodeExplorer.Cypher.Tests;
@@ -12,18 +14,38 @@ public class LinqTests
     {
         public CypherQuery? LastQuery { get; private set; }
         public IReadOnlyDictionary<string, object?>? LastParameters { get; private set; }
-        public string FakeResultJson { get; set; } = "[]";
+        public int FakeCount { get; set; }
+        public bool FakeAny { get; set; }
+        public IList? FakeItems { get; set; }
 
-        public Task<string> ExecuteQueryAsync(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default)
+        public Task<int> ExecuteCountAsync(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default)
         {
             LastQuery = query;
             LastParameters = parameters;
-            return Task.FromResult(FakeResultJson);
+            return Task.FromResult(FakeCount);
         }
 
-        public Task<string> ExecuteRawAsync(string cypher, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default)
+        public Task<bool> ExecuteAnyAsync(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default)
         {
-            return Task.FromResult(FakeResultJson);
+            LastQuery = query;
+            LastParameters = parameters;
+            return Task.FromResult(FakeAny);
+        }
+
+        public Task<List<TElement>> ExecuteListAsync<TElement>(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default)
+        {
+            LastQuery = query;
+            LastParameters = parameters;
+            return Task.FromResult(FakeItems as List<TElement> ?? []);
+        }
+
+        public Task<TElement?> ExecuteFirstOrDefaultAsync<TElement>(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default)
+        {
+            LastQuery = query;
+            LastParameters = parameters;
+            if (FakeItems is List<TElement> { Count: > 0 } list)
+                return Task.FromResult<TElement?>(list[0]);
+            return Task.FromResult<TElement?>(default);
         }
     }
 
@@ -139,7 +161,7 @@ public class LinqTests
     {
         var fake = new FakeQueryExecutor
         {
-            FakeResultJson = "[{\"count\": 42}]"
+            FakeCount = 42
         };
         var graph = new GraphContext(fake);
 
@@ -155,7 +177,7 @@ public class LinqTests
     {
         var fake = new FakeQueryExecutor
         {
-            FakeResultJson = "[{\"any\": true}]"
+            FakeAny = true
         };
         var graph = new GraphContext(fake);
 
@@ -189,36 +211,33 @@ public class LinqTests
     {
         var fake = new FakeQueryExecutor
         {
-            FakeResultJson = """
-            [
-              {
-                "id": "ws:s:bff",
-                "name": "bff",
-                "display_name": "BFF Service",
-                "file_path": "bff/src/main.ts",
-                "line_start": 1,
-                "line_end": 100,
-                "properties": {
-                  "framework": "nestjs",
-                  "language": "typescript",
-                  "role": "Service",
-                  "is_library": "false"
+            FakeItems = new List<ServiceEntity>
+            {
+                new()
+                {
+                    Id = "ws:s:bff",
+                    Name = "bff",
+                    DisplayName = "BFF Service",
+                    FilePath = "bff/src/main.ts",
+                    LineStart = 1,
+                    LineEnd = 100,
+                    Framework = "nestjs",
+                    Language = "typescript",
+                    Role = "Service",
+                    IsLibrary = false
+                },
+                new()
+                {
+                    Id = "ws:s:billing",
+                    Name = "billing",
+                    DisplayName = "Billing Service",
+                    FilePath = "billing/Program.cs",
+                    Framework = "aspnetcore",
+                    Language = "csharp",
+                    Role = "Service",
+                    IsLibrary = false
                 }
-              },
-              {
-                "id": "ws:s:billing",
-                "name": "billing",
-                "display_name": "Billing Service",
-                "file_path": "billing/Program.cs",
-                "properties": {
-                  "framework": "aspnetcore",
-                  "language": "csharp",
-                  "role": "Service",
-                  "is_library": false
-                }
-              }
-            ]
-            """
+            }
         };
         var graph = new GraphContext(fake);
 
@@ -245,18 +264,16 @@ public class LinqTests
     {
         var fake = new FakeQueryExecutor
         {
-            FakeResultJson = """
-            [
-              {
-                "id": "ws:db:main",
-                "name": "main_postgres",
-                "properties": {
-                  "db_type": "relational",
-                  "engine": "postgresql"
+            FakeItems = new List<DatabaseEntity>
+            {
+                new()
+                {
+                    Id = "ws:db:main",
+                    Name = "main_postgres",
+                    DbType = "relational",
+                    Engine = "postgresql"
                 }
-              }
-            ]
-            """
+            }
         };
         var graph = new GraphContext(fake);
 
@@ -492,12 +509,11 @@ public class LinqTests
     {
         var fake = new FakeQueryExecutor
         {
-            FakeResultJson = """
-            [
-              { "id": "s:1", "name": "service-one" },
-              { "id": "s:2", "name": "service-two" }
-            ]
-            """
+            FakeItems = new List<ServiceEntity>
+            {
+                new() { Id = "s:1", Name = "service-one" },
+                new() { Id = "s:2", Name = "service-two" }
+            }
         };
         var graph = new GraphContext(fake);
 

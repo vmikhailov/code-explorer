@@ -240,7 +240,7 @@ public partial class SqliteGraphClient
             cmd.Parameters.AddWithValue("@needExternalServices", needExternalServices ? 1 : 0);
 
             cmd.CommandText = """
-                              SELECT id, kind, properties
+                              SELECT id, kind, json(properties)
                               FROM nodes
                               WHERE (length(@widPrefix) = 0 OR id LIKE @widPrefix || '%')
                                 AND (
@@ -545,7 +545,7 @@ public partial class SqliteGraphClient
                 insCmd.Transaction = tx;
 
                 insCmd.CommandText =
-                    "INSERT OR REPLACE INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, 'TRANSITIVELY_CALLS', @props);";
+                    "INSERT OR REPLACE INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, 'TRANSITIVELY_CALLS', jsonb(@props));";
                 var pFrom = insCmd.Parameters.Add("@from", SqliteType.Text);
                 var pTo = insCmd.Parameters.Add("@to", SqliteType.Text);
                 var pProps = insCmd.Parameters.Add("@props", SqliteType.Text);
@@ -568,7 +568,7 @@ public partial class SqliteGraphClient
                 insCmd.Transaction = tx;
 
                 insCmd.CommandText =
-                    "INSERT OR REPLACE INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, 'ATTRIBUTED_TO', @props);";
+                    "INSERT OR REPLACE INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, 'ATTRIBUTED_TO', jsonb(@props));";
                 var pFrom = insCmd.Parameters.Add("@from", SqliteType.Text);
                 var pTo = insCmd.Parameters.Add("@to", SqliteType.Text);
                 var pProps = insCmd.Parameters.Add("@props", SqliteType.Text);
@@ -596,7 +596,7 @@ public partial class SqliteGraphClient
                 updCmd.Transaction = tx;
 
                 updCmd.CommandText =
-                    "UPDATE nodes SET properties = json_set(properties, '$.external_apis', json(@domains)) WHERE id = @id;";
+                    "UPDATE nodes SET properties = jsonb_set(properties, '$.external_apis', jsonb(@domains)) WHERE id = @id;";
                 var pDomains = updCmd.Parameters.Add("@domains", SqliteType.Text);
                 var pId = updCmd.Parameters.Add("@id", SqliteType.Text);
 
@@ -646,7 +646,7 @@ public partial class SqliteGraphClient
             updCmd.Transaction = tx;
 
             updCmd.CommandText =
-                "UPDATE nodes SET properties = json_set(properties, '$.external_apis', json(@domains)) WHERE id = @id;";
+                "UPDATE nodes SET properties = jsonb_set(properties, '$.external_apis', jsonb(@domains)) WHERE id = @id;";
             var pDomains = updCmd.Parameters.Add("@domains", SqliteType.Text);
             var pId = updCmd.Parameters.Add("@id", SqliteType.Text);
 

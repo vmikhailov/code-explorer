@@ -178,12 +178,12 @@ ratchet:
 ```
 
 ### Step 4: Verify Gate via CLI
-Run the gate evaluator:
+Run the gate evaluator (returns clean summary table only):
 ```bash
-# Check single gate
+# Check single gate (summary only)
 ce gate check -g SIG-P-B-004
 
-# Run all gates
+# Run all gates (summary only)
 ce gate check
 
 # Run only architectural gates
@@ -191,6 +191,15 @@ ce gate check --category architectural
 
 # Run only platform gates for dotnet
 ce gate check --platform dotnet
+```
+
+To view complete failure details, rules, remediations, and individual violation listings:
+```bash
+# View full failure details across evaluated gates
+ce gate details
+
+# View details and violations for a specific gate
+ce gate details -g SIG-P-B-004
 ```
 
 ### Step 5: Freeze Existing Debt into Baseline

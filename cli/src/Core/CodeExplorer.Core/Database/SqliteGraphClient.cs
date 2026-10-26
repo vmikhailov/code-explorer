@@ -28,12 +28,14 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         set => _logger = value ?? NullLogger.Instance;
     }
 
+    private GraphContext? _graph;
+
     public int CommandTimeoutSeconds { get; set; } = 15;
     public string DbPath => _conn.DataSource;
     public SqliteConnection Connection => _conn;
-    public GraphContext Graph => new(this);
+    public GraphContext Graph => _graph ??= new(this);
 
-    public const int CurrentSchemaVersion = 3;
+    public const int CurrentSchemaVersion = 4;
     public int SchemaVersion { get; private set; }
     public bool IsSchemaOutdated => SchemaVersion < CurrentSchemaVersion;
 
@@ -101,8 +103,8 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         try
         {
             const string sql = """
-                INSERT INTO nodes (id, kind, properties) VALUES (@id, 'Workspace', @props)
-                ON CONFLICT(id) DO UPDATE SET properties = json_set(properties, '$.path', @path);
+                INSERT INTO nodes (id, kind, properties) VALUES (@id, 'Workspace', jsonb(@props))
+                ON CONFLICT(id) DO UPDATE SET properties = jsonb_set(properties, '$.path', @path);
                 """;
             await _conn.ExecuteAsync(sql, new { id, props = propsJson, path = normalized });
         }
@@ -140,7 +142,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                 for (int j = 0; j < count; j++)
                 {
                     if (j > 0) sb.Append(',');
-                    sb.Append($"(@i{j}, @k{j}, @p{j})");
+                    sb.Append($"(@i{j}, @k{j}, jsonb(@p{j}))");
 
                     var node = distinctNodes[i + j];
                     var dict = new Dictionary<string, object>(node.Properties) { ["id"] = node.Id };
@@ -212,7 +214,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                 for (int j = 0; j < count; j++)
                 {
                     if (j > 0) sb.Append(',');
-                    sb.Append($"(@f{j}, @t{j}, @k{j}, @p{j})");
+                    sb.Append($"(@f{j}, @t{j}, @k{j}, jsonb(@p{j}))");
 
                     var rel = distinctRels[i + j];
                     cmd.Parameters.AddWithValue($"@f{j}", rel.From);
@@ -383,6 +385,58 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
 
     public Task<string> ExecuteRawAsync(string cypher, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default) =>
         ExecuteQueryAsync(cypher, parameters, ct);
+
+    public async Task<int> ExecuteCountAsync(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default)
+    {
+        await _lock.WaitAsync(ct);
+        try
+        {
+            return await DbEntityMaterializer.ExecuteScalarCountAsync(_conn, query, parameters, CommandTimeoutSeconds, ct);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public async Task<bool> ExecuteAnyAsync(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default)
+    {
+        await _lock.WaitAsync(ct);
+        try
+        {
+            return await DbEntityMaterializer.ExecuteScalarAnyAsync(_conn, query, parameters, CommandTimeoutSeconds, ct);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public async Task<List<TElement>> ExecuteListAsync<TElement>(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default)
+    {
+        await _lock.WaitAsync(ct);
+        try
+        {
+            return await DbEntityMaterializer.ExecuteReaderListAsync<TElement>(_conn, query, parameters, CommandTimeoutSeconds, ct);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public async Task<TElement?> ExecuteFirstOrDefaultAsync<TElement>(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default)
+    {
+        await _lock.WaitAsync(ct);
+        try
+        {
+            return await DbEntityMaterializer.ExecuteReaderFirstOrDefaultAsync<TElement>(_conn, query, parameters, CommandTimeoutSeconds, ct);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
 
     private static string GetQueryPreview(string query)
     {

@@ -1,4 +1,4 @@
-﻿using Dapper;
+using Dapper;
 using Microsoft.Extensions.Logging;
 
 namespace CodeExplorer.Core.Database;
@@ -44,8 +44,7 @@ public partial class SqliteGraphClient
 
                     if (count > 0)
                     {
-                        SchemaVersion = 1;
-                        return;
+                        ver = 1;
                     }
                 }
                 catch
@@ -54,65 +53,103 @@ public partial class SqliteGraphClient
                 }
             }
 
-            cmd.CommandText = $"PRAGMA user_version = {CurrentSchemaVersion};";
-            cmd.ExecuteNonQuery();
-            SchemaVersion = CurrentSchemaVersion;
-        }
-        else if (ver < CurrentSchemaVersion)
-        {
-            try
+            if (ver == 0)
             {
-                using var migrateCmd = _conn.CreateCommand();
+                cmd.CommandText = $"PRAGMA user_version = {CurrentSchemaVersion};";
+                cmd.ExecuteNonQuery();
+                SchemaVersion = CurrentSchemaVersion;
+                return;
+            }
+        }
 
-                migrateCmd.CommandText = $"""
-                                          DELETE FROM edges WHERE from_id IN (
-                                              SELECT p1.id FROM nodes p1
-                                              WHERE p1.kind = 'Project' AND (p1.id LIKE '%:project:%' OR p1.id LIKE '%:project')
-                                              AND EXISTS (
-                                                  SELECT 1 FROM nodes p2 
-                                                  WHERE p2.kind = 'Project' AND p2.id LIKE '%:p:%'
-                                                  AND json_extract(p2.properties, '$.path') = json_extract(p1.properties, '$.path')
-                                              )
-                                          );
-                                          DELETE FROM edges WHERE to_id IN (
-                                              SELECT p1.id FROM nodes p1
-                                              WHERE p1.kind = 'Project' AND (p1.id LIKE '%:project:%' OR p1.id LIKE '%:project')
-                                              AND EXISTS (
-                                                  SELECT 1 FROM nodes p2 
-                                                  WHERE p2.kind = 'Project' AND p2.id LIKE '%:p:%'
-                                                  AND json_extract(p2.properties, '$.path') = json_extract(p1.properties, '$.path')
-                                              )
-                                          );
-                                          DELETE FROM nodes 
-                                          WHERE kind = 'Project' AND (id LIKE '%:project:%' OR id LIKE '%:project')
-                                          AND EXISTS (
-                                              SELECT 1 FROM nodes p2 
-                                              WHERE p2.kind = 'Project' AND p2.id LIKE '%:p:%'
-                                              AND json_extract(p2.properties, '$.path') = json_extract(nodes.properties, '$.path')
-                                          );
-                                          DELETE FROM edges WHERE from_id IN (
-                                              SELECT id FROM nodes WHERE kind IN ('ProjectSemantic', 'ProjectSyntax') AND id LIKE '%:project:%'
-                                          );
-                                          DELETE FROM edges WHERE to_id IN (
-                                              SELECT id FROM nodes WHERE kind IN ('ProjectSemantic', 'ProjectSyntax') AND id LIKE '%:project:%'
-                                          );
-                                          DELETE FROM nodes WHERE kind IN ('ProjectSemantic', 'ProjectSyntax') AND id LIKE '%:project:%';
-                                          DELETE FROM edges WHERE from_id NOT IN (SELECT id FROM nodes) OR to_id NOT IN (SELECT id FROM nodes);
-                                          PRAGMA user_version = {CurrentSchemaVersion};
-                                          """;
-                migrateCmd.ExecuteNonQuery();
+        if (ver < CurrentSchemaVersion)
+        {
+            if (TryRunSchemaMigrator(ver, CurrentSchemaVersion))
+            {
                 SchemaVersion = CurrentSchemaVersion;
             }
-            catch (Exception ex)
+            else
             {
-                _logger.LogWarning(ex, "Schema migration from v{From} to v{To} encountered an error: {Message}",
-                    ver, CurrentSchemaVersion, ex.Message);
                 SchemaVersion = ver;
             }
         }
         else
         {
             SchemaVersion = ver;
+        }
+    }
+
+    public bool TryRunSchemaMigrator(int fromVersion, int toVersion)
+    {
+        if (toVersion > 4)
+        {
+            // Unknown future schema version: force full rebuild via IsSchemaOutdated = true
+            return false;
+        }
+
+        try
+        {
+            using var migrateCmd = _conn.CreateCommand();
+            var sb = new System.Text.StringBuilder();
+
+            if (fromVersion < 3)
+            {
+                sb.AppendLine("""
+                    DELETE FROM edges WHERE from_id IN (
+                        SELECT p1.id FROM nodes p1
+                        WHERE p1.kind = 'Project' AND (p1.id LIKE '%:project:%' OR p1.id LIKE '%:project')
+                        AND EXISTS (
+                            SELECT 1 FROM nodes p2 
+                            WHERE p2.kind = 'Project' AND p2.id LIKE '%:p:%'
+                            AND json_extract(p2.properties, '$.path') = json_extract(p1.properties, '$.path')
+                        )
+                    );
+                    DELETE FROM edges WHERE to_id IN (
+                        SELECT p1.id FROM nodes p1
+                        WHERE p1.kind = 'Project' AND (p1.id LIKE '%:project:%' OR p1.id LIKE '%:project')
+                        AND EXISTS (
+                            SELECT 1 FROM nodes p2 
+                            WHERE p2.kind = 'Project' AND p2.id LIKE '%:p:%'
+                            AND json_extract(p2.properties, '$.path') = json_extract(p1.properties, '$.path')
+                        )
+                    );
+                    DELETE FROM nodes 
+                    WHERE kind = 'Project' AND (id LIKE '%:project:%' OR id LIKE '%:project')
+                    AND EXISTS (
+                        SELECT 1 FROM nodes p2 
+                        WHERE p2.kind = 'Project' AND p2.id LIKE '%:p:%'
+                        AND json_extract(p2.properties, '$.path') = json_extract(nodes.properties, '$.path')
+                    );
+                    DELETE FROM edges WHERE from_id IN (
+                        SELECT id FROM nodes WHERE kind IN ('ProjectSemantic', 'ProjectSyntax') AND id LIKE '%:project:%'
+                    );
+                    DELETE FROM edges WHERE to_id IN (
+                        SELECT id FROM nodes WHERE kind IN ('ProjectSemantic', 'ProjectSyntax') AND id LIKE '%:project:%'
+                    );
+                    DELETE FROM nodes WHERE kind IN ('ProjectSemantic', 'ProjectSyntax') AND id LIKE '%:project:%';
+                    DELETE FROM edges WHERE from_id NOT IN (SELECT id FROM nodes) OR to_id NOT IN (SELECT id FROM nodes);
+                    """);
+            }
+
+            if (fromVersion < 4)
+            {
+                sb.AppendLine("""
+                    UPDATE nodes SET properties = jsonb(properties) WHERE typeof(properties) = 'text';
+                    UPDATE edges SET properties = jsonb(properties) WHERE typeof(properties) = 'text';
+                    REINDEX;
+                    """);
+            }
+
+            sb.AppendLine($"PRAGMA user_version = {toVersion};");
+            migrateCmd.CommandText = sb.ToString();
+            migrateCmd.ExecuteNonQuery();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Schema migration from v{From} to v{To} encountered an error (will trigger full rebuild): {Message}",
+                fromVersion, toVersion, ex.Message);
+            return false;
         }
     }
 
@@ -138,7 +175,7 @@ public partial class SqliteGraphClient
                           CREATE TABLE IF NOT EXISTS nodes (
                               id TEXT PRIMARY KEY,
                               kind TEXT NOT NULL,
-                              properties JSON NOT NULL
+                              properties JSONB NOT NULL
                           );
                           CREATE INDEX IF NOT EXISTS idx_nodes_kind ON nodes(kind);
                           CREATE INDEX IF NOT EXISTS idx_nodes_kind_path ON nodes(kind, json_extract(properties, '$.path'));
@@ -152,7 +189,7 @@ public partial class SqliteGraphClient
                               from_id TEXT NOT NULL,
                               to_id TEXT NOT NULL,
                               kind TEXT NOT NULL,
-                              properties JSON NOT NULL
+                              properties JSONB NOT NULL
                           );
                           DROP INDEX IF EXISTS idx_edges_from;
                           DROP INDEX IF EXISTS idx_edges_to;
@@ -232,7 +269,7 @@ public partial class SqliteGraphClient
 
                           -- Promote workspace package dependencies to direct project DEPENDS_ON links
                           INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
-                          SELECT DISTINCT d.from_id, i.to_id, 'DEPENDS_ON', '{"dependency_type":"library"}'
+                          SELECT DISTINCT d.from_id, i.to_id, 'DEPENDS_ON', jsonb('{"dependency_type":"library"}')
                           FROM edges d
                           JOIN edges i ON d.to_id = i.from_id
                           WHERE d.kind = 'DEPENDS_ON'

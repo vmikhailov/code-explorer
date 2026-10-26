@@ -42,16 +42,18 @@ public partial class SqliteCompiler : ICypherVisitor<string>
     private int _paramIndex;
     private int _varIndex;
     private int _cteIndex;
+    private readonly bool _rawNodeColumns;
 
-    private SqliteCompiler(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null)
+    private SqliteCompiler(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, bool rawNodeColumns = false)
     {
         _query = query;
         _initialParameters = parameters;
+        _rawNodeColumns = rawNodeColumns;
     }
 
-    public static SqliteCompiledQuery Compile(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, bool strictLabels = true)
+    public static SqliteCompiledQuery Compile(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, bool strictLabels = true, bool rawNodeColumns = false)
     {
-        return new SqliteCompiler(query, parameters).Compile();
+        return new SqliteCompiler(query, parameters, rawNodeColumns).Compile();
     }
 
     public SqliteCompiledQuery Compile()
@@ -507,6 +509,15 @@ public partial class SqliteCompiler : ICypherVisitor<string>
             if (item.Expression is WildcardExpression)
             {
                 selectColumns.Add("*");
+                continue;
+            }
+
+            if (_rawNodeColumns && item.Expression is IdentifierExpression rawId && _declaredNodes.Contains(rawId.Name))
+            {
+                var esc = EscapeVar(rawId.Name);
+                var idSrc = _nodeIdSource.GetValueOrDefault(rawId.Name, $"{esc}.id");
+                var propSrc = _nodePropertySource.GetValueOrDefault(rawId.Name, $"{esc}.properties");
+                selectColumns.Add($"{idSrc} AS id, {propSrc} AS properties");
                 continue;
             }
 

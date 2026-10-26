@@ -5,6 +5,23 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.61.0] - 2026-10-26
+
+### Added
+- **`ce gate details` & Streamlined `ce gate check`**:
+  - Added `details` action to `ce gate` CLI (`ce gate details [-g <gate-id>]`) for deep-dive failure inspection, providing rule descriptions, remediation instructions, and complete tabular/JSON/Markdown violation listings with pagination and filters (`--limit`, `--offset`, `--only-new`, `--tolerated`, `--file`, `--symbol`, `--target`).
+  - Streamlined `ce gate check` to output concise, high-level evaluation summaries and counts only (Gate ID, status, severity, category, scope, and new vs tolerated violations) without flooding CI or developer terminal logs with violation tables, appending an actionable tip pointing to `ce gate details`.
+  - Maintained complete JSON and Markdown schema parity between summary-only (`check`) and drill-down (`details`) evaluations.
+- **Cypher LINQ Query Capabilities & Schema Evolution**:
+  - Expanded strongly-typed LINQ-to-Cypher expression translation and SQL query compilation for graph entities.
+
+### Changed
+- **Unified Build Output Architecture & Nullability Hardening**:
+  - Centralized all build artifacts and intermediate objects across projects under `.Build/` (`BaseIntermediateOutputPath` and `OutputPath`), simplifying cleanup and artifact packaging.
+  - Hardened C# nullable reference type annotations across `SqliteGraphClient`, `PostIndexAnalyzer`, `TestIntelligenceService`, and Cypher expression trees.
+
+---
+
 ## [1.60.0] - 2026-10-26
 
 ### Added

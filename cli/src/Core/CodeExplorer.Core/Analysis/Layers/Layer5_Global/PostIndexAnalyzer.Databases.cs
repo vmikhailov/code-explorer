@@ -38,7 +38,7 @@ public partial class PostIndexAnalyzer
 
         // 4. Query relationships targeting any database and consolidate per service/project
         var relEdgesQuery =
-            "SELECT from_id AS source, to_id AS target, kind, properties FROM edges WHERE kind IN ('USES_DB', 'CONFIGURES', 'DEPENDS_ON', 'IMPLEMENTED_BY', 'DEPLOYS', 'ACCESSED_BY', 'QUERIED_BY', 'DECLARED_IN')";
+            "SELECT from_id AS source, to_id AS target, kind, json(properties) AS properties FROM edges WHERE kind IN ('USES_DB', 'CONFIGURES', 'DEPENDS_ON', 'IMPLEMENTED_BY', 'DEPLOYS', 'ACCESSED_BY', 'QUERIED_BY', 'DECLARED_IN')";
         var relEdgesJson = await db.ExecuteQueryAsync(relEdgesQuery, null, cancellationToken);
 
         var libraryProjects = projectList.Where(p => p.IsLibrary).ToDictionary(p => p.Id, p => p, StringComparer.OrdinalIgnoreCase);

@@ -259,7 +259,7 @@ public class TestIntelligenceService
         // Query Nodes
         await using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = "SELECT id, kind, properties FROM nodes WHERE kind IN ('Type', 'Function');";
+            cmd.CommandText = "SELECT id, kind, json(properties) FROM nodes WHERE kind IN ('Type', 'Function');";
 
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
@@ -533,7 +533,7 @@ public class TestIntelligenceService
             : null;
 
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT id, kind, properties FROM nodes WHERE kind IN ('Function', 'Type', 'Member', 'class', 'interface');";
+        cmd.CommandText = "SELECT id, kind, json(properties) FROM nodes WHERE kind IN ('Function', 'Type', 'Member', 'class', 'interface');";
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
@@ -668,7 +668,7 @@ public class TestIntelligenceService
                     SELECT e.from_id,
                            e.to_id,
                            e.kind,
-                           fn.properties,
+                           json(fn.properties),
                            COALESCE(json_extract(fn.properties, '$.name'), e.from_id) AS caller_name
                     FROM temp_frontier f
                     JOIN edges e ON e.to_id = f.id
@@ -883,8 +883,9 @@ public class TestIntelligenceService
                 WHERE f.kind IN ('Function', 'Method')
                   AND (
                       json_extract(f.properties, '$.is_test') = 'true'
-                      OR f.properties LIKE '%"is_test"%"true"%'
-                      OR f.properties LIKE '%"is_test":true%'
+                      OR json_extract(f.properties, '$.is_test') = 1
+                      OR json(f.properties) LIKE '%"is_test"%"true"%'
+                      OR json(f.properties) LIKE '%"is_test":true%'
                   );
                 """;
 

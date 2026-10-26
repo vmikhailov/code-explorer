@@ -1,13 +1,14 @@
 using System.Collections;
-using System.Text.Json;
+using System.Collections.Concurrent;
 using CodeExplorer.Cypher.Ast;
-using CodeExplorer.Cypher.Linq.Entities;
 using LinqExpression = System.Linq.Expressions.Expression;
 
 namespace CodeExplorer.Cypher.Linq;
 
 public class CypherQueryProvider : IQueryProvider
 {
+    private static readonly ConcurrentDictionary<Type, Func<CypherQueryProvider, LinqExpression, IQueryable>> _queryableFactories = new();
+
     private readonly ICypherQueryExecutor _executor;
 
     public CypherQueryProvider(ICypherQueryExecutor executor)
@@ -20,16 +21,19 @@ public class CypherQueryProvider : IQueryProvider
     public IQueryable CreateQuery(LinqExpression expression)
     {
         var elementType = TypeHelper.GetElementType(expression.Type);
-        try
+        var factory = _queryableFactories.GetOrAdd(elementType, static elemType =>
         {
-            return (IQueryable)Activator.CreateInstance(
-                typeof(CypherQueryable<>).MakeGenericType(elementType),
-                this, expression)!;
-        }
-        catch (System.Reflection.TargetInvocationException tie)
-        {
-            throw tie.InnerException ?? tie;
-        }
+            var queryableType = typeof(CypherQueryable<>).MakeGenericType(elemType);
+            var ctor = queryableType.GetConstructor([typeof(CypherQueryProvider), typeof(LinqExpression)])!;
+            var providerParam = LinqExpression.Parameter(typeof(CypherQueryProvider), "provider");
+            var exprParam = LinqExpression.Parameter(typeof(LinqExpression), "expression");
+            var newExpr = LinqExpression.New(ctor, providerParam, exprParam);
+            var castExpr = LinqExpression.Convert(newExpr, typeof(IQueryable));
+            return LinqExpression.Lambda<Func<CypherQueryProvider, LinqExpression, IQueryable>>(
+                castExpr, providerParam, exprParam).Compile();
+        });
+
+        return factory(this, expression);
     }
 
     public IQueryable<TElement> CreateQuery<TElement>(LinqExpression expression)
@@ -47,217 +51,36 @@ public class CypherQueryProvider : IQueryProvider
         throw new NotSupportedException("Synchronous execution is not supported. Use async execution methods (ToListAsync, CountAsync, FirstOrDefaultAsync).");
     }
 
-    public async Task<int> ExecuteCountAsync(LinqExpression expression, Type entityType, CancellationToken ct = default)
+    public Task<int> ExecuteCountAsync(LinqExpression expression, Type entityType, CancellationToken ct = default)
     {
         var model = CypherExpressionVisitor.Translate(expression, entityType);
         model.IsCountQuery = true;
         var ast = model.BuildAst();
-
-        var json = await _executor.ExecuteQueryAsync(ast, model.Parameters, ct);
-        if (string.IsNullOrWhiteSpace(json)) return 0;
-
-        using var doc = JsonDocument.Parse(json);
-        if (doc.RootElement.ValueKind == JsonValueKind.Array)
-        {
-            var first = doc.RootElement.EnumerateArray().FirstOrDefault();
-            if (first.ValueKind == JsonValueKind.Object && first.TryGetProperty("count", out var cProp))
-            {
-                if (cProp.TryGetInt32(out var count)) return count;
-                if (cProp.TryGetInt64(out var count64)) return (int)count64;
-            }
-        }
-
-        return 0;
+        return _executor.ExecuteCountAsync(ast, model.Parameters, ct);
     }
 
-    public async Task<bool> ExecuteAnyAsync(LinqExpression expression, Type entityType, CancellationToken ct = default)
+    public Task<bool> ExecuteAnyAsync(LinqExpression expression, Type entityType, CancellationToken ct = default)
     {
         var model = CypherExpressionVisitor.Translate(expression, entityType);
         model.IsAnyQuery = true;
         var ast = model.BuildAst();
-
-        var json = await _executor.ExecuteQueryAsync(ast, model.Parameters, ct);
-        if (string.IsNullOrWhiteSpace(json)) return false;
-
-        using var doc = JsonDocument.Parse(json);
-        if (doc.RootElement.ValueKind == JsonValueKind.Array)
-        {
-            var first = doc.RootElement.EnumerateArray().FirstOrDefault();
-            if (first.ValueKind == JsonValueKind.Object && first.TryGetProperty("any", out var aProp))
-            {
-                if (aProp.ValueKind == JsonValueKind.True) return true;
-                if (aProp.ValueKind == JsonValueKind.False) return false;
-                if (aProp.TryGetInt32(out var anyInt)) return anyInt > 0;
-            }
-        }
-
-        return false;
+        return _executor.ExecuteAnyAsync(ast, model.Parameters, ct);
     }
 
-    public async Task<List<TElement>> ExecuteListAsync<TElement>(LinqExpression expression, CancellationToken ct = default)
+    public Task<List<TElement>> ExecuteListAsync<TElement>(LinqExpression expression, CancellationToken ct = default)
     {
         var model = CypherExpressionVisitor.Translate(expression, typeof(TElement));
         var ast = model.BuildAst();
-
-        var json = await _executor.ExecuteQueryAsync(ast, model.Parameters, ct);
-        if (string.IsNullOrWhiteSpace(json)) return [];
-
-        var results = new List<TElement>();
-        using var doc = JsonDocument.Parse(json);
-
-        if (doc.RootElement.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var elem in doc.RootElement.EnumerateArray())
-            {
-                var entity = DeserializeEntity<TElement>(elem);
-                if (entity != null)
-                {
-                    results.Add(entity);
-                }
-            }
-        }
-
-        return results;
+        return _executor.ExecuteListAsync<TElement>(ast, model.Parameters, ct);
     }
 
-    public async Task<TElement?> ExecuteFirstOrDefaultAsync<TElement>(LinqExpression expression, CancellationToken ct = default)
+    public Task<TElement?> ExecuteFirstOrDefaultAsync<TElement>(LinqExpression expression, CancellationToken ct = default)
     {
         var model = CypherExpressionVisitor.Translate(expression, typeof(TElement));
         model.LimitCount = 1;
         var ast = model.BuildAst();
-
-        var json = await _executor.ExecuteQueryAsync(ast, model.Parameters, ct);
-        if (string.IsNullOrWhiteSpace(json)) return default;
-
-        using var doc = JsonDocument.Parse(json);
-        if (doc.RootElement.ValueKind == JsonValueKind.Array)
-        {
-            var first = doc.RootElement.EnumerateArray().FirstOrDefault();
-            if (first.ValueKind != JsonValueKind.Undefined && first.ValueKind != JsonValueKind.Null)
-            {
-                return DeserializeEntity<TElement>(first);
-            }
-        }
-
-        return default;
+        return _executor.ExecuteFirstOrDefaultAsync<TElement>(ast, model.Parameters, ct);
     }
-
-    private static TElement? DeserializeEntity<TElement>(JsonElement elem)
-    {
-        if (elem.ValueKind != JsonValueKind.Object) return default;
-
-        // If the row wraps the entity under a column name (e.g. {"n": {"id": ...}}), unwrap it
-        var targetElem = elem;
-        if (!targetElem.TryGetProperty("id", out _))
-        {
-            foreach (var prop in elem.EnumerateObject())
-            {
-                if (prop.Value.ValueKind == JsonValueKind.Object && prop.Value.TryGetProperty("id", out _))
-                {
-                    targetElem = prop.Value;
-                    break;
-                }
-            }
-        }
-
-        if (typeof(GraphEntity).IsAssignableFrom(typeof(TElement)))
-        {
-            var entity = (GraphEntity)(Activator.CreateInstance(typeof(TElement)) ?? throw new InvalidOperationException($"Cannot create instance of {typeof(TElement).FullName}"));
-
-            if (targetElem.TryGetProperty("id", out var idProp) && idProp.ValueKind == JsonValueKind.String)
-            {
-                entity.Id = idProp.GetString() ?? "";
-            }
-
-            if (targetElem.TryGetProperty("name", out var nameProp) && nameProp.ValueKind == JsonValueKind.String)
-            {
-                entity.Name = nameProp.GetString() ?? "";
-            }
-
-            if (targetElem.TryGetProperty("display_name", out var dispProp) && dispProp.ValueKind == JsonValueKind.String)
-            {
-                entity.DisplayName = dispProp.GetString();
-            }
-
-            if (targetElem.TryGetProperty("file_path", out var fpProp) && fpProp.ValueKind == JsonValueKind.String)
-            {
-                entity.FilePath = fpProp.GetString();
-            }
-
-            if (targetElem.TryGetProperty("line_start", out var lsProp) && lsProp.TryGetInt32(out var ls))
-            {
-                entity.LineStart = ls;
-            }
-
-            if (targetElem.TryGetProperty("line_end", out var leProp) && leProp.TryGetInt32(out var le))
-            {
-                entity.LineEnd = le;
-            }
-
-            // Properties dictionary
-            if (targetElem.TryGetProperty("properties", out var propsElem))
-            {
-                if (propsElem.ValueKind == JsonValueKind.Object)
-                {
-                    foreach (var p in propsElem.EnumerateObject())
-                    {
-                        entity.Properties[p.Name] = ConvertJsonElement(p.Value);
-                    }
-                }
-                else if (propsElem.ValueKind == JsonValueKind.String)
-                {
-                    try
-                    {
-                        if (propsElem.GetString() is { Length: > 0 } rawProps)
-                    {
-                        using var pDoc = JsonDocument.Parse(rawProps);
-                        foreach (var p in pDoc.RootElement.EnumerateObject())
-                        {
-                            entity.Properties[p.Name] = ConvertJsonElement(p.Value);
-                        }
-                    }
-                    }
-                    catch { }
-                }
-            }
-
-            // Fallback for name / display_name from properties if not on top-level
-            if (string.IsNullOrEmpty(entity.Name) && entity.Properties.TryGetValue("name", out var pName) && pName is string sName)
-            {
-                entity.Name = sName;
-            }
-            if (string.IsNullOrEmpty(entity.DisplayName) && entity.Properties.TryGetValue("display_name", out var pDisp) && pDisp is string sDisp)
-            {
-                entity.DisplayName = sDisp;
-            }
-
-            // Copy top-level properties if present
-            foreach (var prop in targetElem.EnumerateObject())
-            {
-                if (prop.Name is not ("id" or "name" or "display_name" or "file_path" or "line_start" or "line_end" or "properties"))
-                {
-                    if (!entity.Properties.ContainsKey(prop.Name))
-                    {
-                        entity.Properties[prop.Name] = ConvertJsonElement(prop.Value);
-                    }
-                }
-            }
-
-            return (TElement)(object)entity;
-        }
-
-        return JsonSerializer.Deserialize<TElement>(targetElem.GetRawText());
-    }
-
-    private static object? ConvertJsonElement(JsonElement elem) => elem.ValueKind switch
-    {
-        JsonValueKind.String => elem.GetString(),
-        JsonValueKind.Number => elem.TryGetInt32(out var ni) ? (object)ni : elem.GetDouble(),
-        JsonValueKind.True => true,
-        JsonValueKind.False => false,
-        JsonValueKind.Null => null,
-        _ => elem.ToString()
-    };
 }
 
 public class CypherQueryable<T> : IOrderedQueryable<T>, IAsyncEnumerable<T>
@@ -377,12 +200,10 @@ public static class CypherQueryableExtensions
 
 internal static class TypeHelper
 {
-    public static Type GetElementType(Type type)
-    {
-        var ienum = FindIEnumerable(type);
-        if (ienum == null) return type;
-        return ienum.GetGenericArguments()[0];
-    }
+    private static readonly ConcurrentDictionary<Type, Type> _elementTypes = new();
+
+    public static Type GetElementType(Type type) =>
+        _elementTypes.GetOrAdd(type, static t => FindIEnumerable(t) is { } ienum ? ienum.GetGenericArguments()[0] : t);
 
     private static Type? FindIEnumerable(Type? type)
     {
@@ -398,14 +219,10 @@ internal static class TypeHelper
             }
         }
 
-        var ifaces = type.GetInterfaces();
-        if (ifaces.Length > 0)
+        foreach (var iface in type.GetInterfaces())
         {
-            foreach (var iface in ifaces)
-            {
-                var ienum = FindIEnumerable(iface);
-                if (ienum != null) return ienum;
-            }
+            var ienum = FindIEnumerable(iface);
+            if (ienum != null) return ienum;
         }
 
         if (type.BaseType != null && type.BaseType != typeof(object))
