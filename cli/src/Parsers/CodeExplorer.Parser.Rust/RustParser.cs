@@ -64,7 +64,8 @@ public class RustParser : IProjectParser, IFileParser
         new Libraries.RdKafkaRustLibraryParser(),
         new Libraries.LapinLibraryParser(),
         new Libraries.AsyncNatsLibraryParser(),
-        new Libraries.AwsSdkRustLibraryParser()
+        new Libraries.AwsSdkRustLibraryParser(),
+        Libraries.RustTestLibraryParser.Instance
     ];
 
     public RustParser()
@@ -761,8 +762,11 @@ public class RustParser : IProjectParser, IFileParser
             return props;
         }
 
-        // Check if pure test harness
-        if (manifest.Dependencies.Count == 0 && manifest.DevDependencies.Count > 0 && manifest.LibTarget == null && manifest.BinTargets.Count == 0)
+        // Check if pure test harness (or crate whose dependencies are solely test frameworks with no lib/bin target)
+        var devAndRuntimeDepNames = manifest.Dependencies.Concat(manifest.DevDependencies).Select(d => d.Name).ToList();
+        if (manifest.LibTarget == null && manifest.BinTargets.Count == 0 &&
+            ((manifest.Dependencies.Count == 0 && manifest.DevDependencies.Count > 0) ||
+             ((IProjectParser)this).HasTestFrameworkDependency(devAndRuntimeDepNames)))
         {
             props["manifest_type"] = "test";
             props["is_test_project"] = "true";

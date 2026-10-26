@@ -43,7 +43,7 @@ public class JavaScriptParser : IProjectParser, IFileParser
         var packageJson = filesInDirectory.FirstOrDefault(f => Path.GetFileName(f).Equals("package.json", StringComparison.OrdinalIgnoreCase));
         if (packageJson != null)
         {
-            if (TypeScriptParser.IsNgSecondaryEntryPoint(packageJson, directoryPath, filesInDirectory) ||
+            if (TypeScriptParser.IsSubpathEntryPointPackageJson(packageJson, directoryPath) ||
                 TypeScriptParser.IsAbsorbedWorkersSiteDirectory(directoryPath))
             {
                 return false;

@@ -13,19 +13,18 @@ public class JavaScriptTestRunnerComponentParser : IComponentLibraryParser
     public string Id => "js-test-runner";
     public string Name => "JavaScript Test Runner";
 
-    private static readonly HashSet<string> TestFrameworks = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "jest", "@types/jest", "ts-jest", "babel-jest",
-        "vitest", "@vitest/ui",
-        "mocha", "@types/mocha",
-        "cypress",
-        "@playwright/test", "playwright",
-        "jasmine", "jasmine-core", "@types/jasmine", "karma", "supertest"
-    };
+    private static readonly PackageDescriptor[] TestPackageDescriptors =
+    [
+        .. new Libraries.JestVitestLibraryParser().GetPackageDescriptors(),
+        .. new Libraries.MochaLibraryParser().GetPackageDescriptors(),
+        .. new Libraries.CypressLibraryParser().GetPackageDescriptors(),
+        .. new Libraries.PlaywrightLibraryParser().GetPackageDescriptors(),
+        new PackageDescriptor("jasmine", "Jasmine / Karma", LibraryRole.TestFramework, "library", ["jasmine", "jasmine-core", "@types/jasmine", "karma", "supertest"])
+    ];
 
     public bool CanHandle(ProjectContext context)
     {
-        return context.Dependencies.Any(d => TestFrameworks.Contains(d)) ||
+        return TestPackageDescriptors.Any(p => p.Matches(context)) ||
                context.ManifestProperties.GetValueOrDefault("manifest_type") == "test" ||
                context.ManifestProperties.GetValueOrDefault("is_test_project") == "true";
     }

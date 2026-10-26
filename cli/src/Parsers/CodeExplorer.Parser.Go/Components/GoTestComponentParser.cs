@@ -16,7 +16,7 @@ public class GoTestComponentParser : IComponentLibraryParser
     public bool CanHandle(ProjectContext context)
     {
         return context.ProjectType.Equals("go", StringComparison.OrdinalIgnoreCase) &&
-               (context.Dependencies.Any(d => d.Contains("testify")) ||
+               (Libraries.GoTestLibraryParser.Instance.GetPackageDescriptors().Any(p => p.Matches(context)) ||
                 context.FilesInDirectory.Any(f => f.EndsWith("_test.go")) ||
                 context.ManifestProperties.GetValueOrDefault("manifest_type") == "test" ||
                 context.ManifestProperties.GetValueOrDefault("is_test_project") == "true");

@@ -16,8 +16,20 @@ public class NestJsComponentParser : IComponentLibraryParser
     public bool CanHandle(ProjectContext context)
     {
         return context.Dependencies.Any(d =>
-            d.StartWithIC("@nestjs/") ||
-            d.Equals("nestjs", StringComparison.OrdinalIgnoreCase));
+                   d.StartWithIC("@nestjs/") ||
+                   d.Equals("nestjs", StringComparison.OrdinalIgnoreCase)) ||
+               context.FilesInDirectory.Any(f =>
+                   Path.GetFileName(f).Equals("nest-cli.json", StringComparison.OrdinalIgnoreCase));
+    }
+
+    public static void ExtractWorkspaceSubProjects(
+        string directoryPath,
+        IProjectParser projectParser,
+        List<string> sourceRoots,
+        List<string> excludedSubpaths,
+        List<ParsedProjectDescriptor> subProjects)
+    {
+        AngularComponentParser.ExtractDeclarativeSubProjects(directoryPath, "nest-cli.json", isFrontendWorkspace: false, projectParser, sourceRoots, excludedSubpaths, subProjects);
     }
 
     public ComponentAnalysisResult AnalyzeManifest(ProjectContext context)

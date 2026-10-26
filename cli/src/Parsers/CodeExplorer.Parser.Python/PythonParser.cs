@@ -29,26 +29,6 @@ public class PythonParser : IProjectParser, IFileParser
     public PythonParser()
     {
         Packages = [.. SemanticExtensions.SelectMany(e => e.GetPackageDescriptors())];
-
-        /*
-        // Unimplemented / Backlog packages (commented out until AST semantic extensions are implemented):
-        // Test Frameworks
-        new("pytest", "Pytest", LibraryRole.TestFramework, "library", ["pytest", "pytest-*"]),
-        new("unittest", "Unittest", LibraryRole.TestFramework, "library", ["unittest"]),
-
-        // Databases / ORMs
-        new("bigquery", "BigQuery", LibraryRole.OrmOrDatabase, "library", ["google-cloud-bigquery", "google.cloud.bigquery"]),
-        new("clickhouse", "ClickHouse", LibraryRole.OrmOrDatabase, "library", ["clickhouse-connect", "clickhouse-driver"]),
-
-        // Generic Cloud Services
-        new("stripe", "Stripe", LibraryRole.CloudSdk, "library", ["stripe"]),
-        new("aws", "AWS", LibraryRole.CloudSdk, "library", ["boto3"]),
-        new("gcp", "GCP", LibraryRole.CloudSdk, "library", ["google-cloud-", "google.cloud", "firebase-admin"]),
-        new("azure", "Azure", LibraryRole.CloudSdk, "library", ["azure-", "azure."]),
-
-        // Generic API Clients
-        new("urllib", "urllib", LibraryRole.General, "library", ["urllib.request", "urllib3", "urllib"])
-        */
     }
 
     public IReadOnlyList<ISemanticExtension> SemanticExtensions { get; } =
@@ -70,7 +50,8 @@ public class PythonParser : IProjectParser, IFileParser
         new Libraries.PythonRedisLibraryParser(),
         new Libraries.PythonSqlite3LibraryParser(),
         new Libraries.RequestsPythonLibraryParser(),
-        new Libraries.SqlAlchemyLibraryParser()
+        new Libraries.SqlAlchemyLibraryParser(),
+        Libraries.PythonTestLibraryParser.Instance
     ];
 
     public bool UsesTreeSitter => true;

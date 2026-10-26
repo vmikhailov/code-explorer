@@ -269,6 +269,19 @@ public interface IProjectParser
     IReadOnlyList<PackageDescriptor> Packages => [.. SemanticExtensions.SelectMany(e => e.GetPackageDescriptors())];
 
     /// <summary>
+    /// Checks whether any of the provided dependency names matches a registered <see cref="PackageDescriptor"/>
+    /// with the specified <paramref name="role"/>.
+    /// </summary>
+    bool HasPackageWithRole(IEnumerable<string> dependencies, LibraryRole role) =>
+        Packages.Any(p => p.Role == role && p.MatchesAnyDependency(dependencies));
+
+    /// <summary>
+    /// Checks whether any of the provided dependency names matches a registered <see cref="LibraryRole.TestFramework"/> library.
+    /// </summary>
+    bool HasTestFrameworkDependency(IEnumerable<string> dependencies) =>
+        HasPackageWithRole(dependencies, LibraryRole.TestFramework);
+
+    /// <summary>
     /// Semantic AST extensions (e.g. Tree-sitter visitors) registered for this language dialect.
     /// </summary>
     IReadOnlyList<ISemanticExtension> SemanticExtensions => [];

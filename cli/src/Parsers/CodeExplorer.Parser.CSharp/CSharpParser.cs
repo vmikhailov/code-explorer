@@ -212,7 +212,8 @@ public class CSharpParser : IProjectParser, IFileParser
         new Libraries.OrleansLibraryParser(),
         new Libraries.RestSharpLibraryParser(),
         new Libraries.RefitLibraryParser(),
-        new Libraries.StripeLibraryParser()
+        new Libraries.StripeLibraryParser(),
+        Libraries.DotNetTestLibraryParser.Instance
     ];
 
     public LanguageSyntaxProfile SyntaxProfile => CSharpSyntaxProfile.Instance;
@@ -220,29 +221,6 @@ public class CSharpParser : IProjectParser, IFileParser
     public CSharpParser()
     {
         Packages = [.. SemanticExtensions.SelectMany(e => e.GetPackageDescriptors())];
-
-        /*
-        // Unimplemented / Backlog packages (commented out until AST semantic extensions are implemented):
-        // Web Frameworks
-        new PackageDescriptor("aspnet-mvc", "ASP.NET MVC", LibraryRole.WebFramework, "library", ["Microsoft.AspNet.Mvc", "Microsoft.AspNet.WebApi", "Microsoft.AspNet.WebApi.Core", "Microsoft.AspNet.WebApi.WebHost"]),
-
-        // API Clients
-        new PackageDescriptor("webapiclient", "WebApiClient", LibraryRole.General, "library", ["WebApiClient"]),
-        new PackageDescriptor("apizr", "Apizr", LibraryRole.General, "library", ["Apizr"]),
-        new PackageDescriptor("notoriousclient", "NotoriousClient", LibraryRole.General, "library", ["NotoriousClient"]),
-
-        // Generic Cloud Services
-        new PackageDescriptor("aws", "AWS", LibraryRole.CloudSdk, "library", ["Amazon.S3", "AWSSDK"]),
-        new PackageDescriptor("gcp", "GCP", LibraryRole.CloudSdk, "library", ["Google.Cloud."]),
-        new PackageDescriptor("azure", "Azure", LibraryRole.CloudSdk, "library", ["Azure."]),
-
-        // Test Frameworks
-        new PackageDescriptor("nunit", "NUnit", LibraryRole.TestFramework, "library", ["nunit", "nunit3testadapter"]),
-        new PackageDescriptor("xunit", "xUnit", LibraryRole.TestFramework, "library", ["xunit", "xunit.runner.*", "xunit.v3.*"]),
-        new PackageDescriptor("mstest", "MSTest", LibraryRole.TestFramework, "library", ["mstest", "mstest.testframework", "mstest.testadapter"]),
-        new PackageDescriptor("benchmarkdotnet", "BenchmarkDotNet", LibraryRole.TestFramework, "library", ["benchmarkdotnet"]),
-        new PackageDescriptor("nettestsdk", "Microsoft.NET.Test.Sdk", LibraryRole.TestFramework, "library", ["microsoft.net.test.sdk"])
-        */
     }
 
 
@@ -379,39 +357,12 @@ public class CSharpParser : IProjectParser, IFileParser
             var normalizedDir = directoryPath.Replace('\\', '/').Trim('/');
 
             // Stage 1 (Hard Physical Gates)
-            // 1.1 Test Suite Priority: detect test projects FIRST before Maui, Exe, or Web SDK checks
-            var isTest = Regex.IsMatch(content, @"<IsTestProject>\s*true\s*</IsTestProject>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
-                         Regex.IsMatch(content, @"<IsTestingPlatformApplication>\s*true\s*</IsTestingPlatformApplication>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
-                         content.Contains("Microsoft.NET.Test.Sdk", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("MSTest.Sdk", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("MSTest.TestFramework", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("MSTest", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("Include=\"xunit", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("Include='xunit", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("Include=\"NUnit", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("Include='NUnit", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("Include=\"nunit", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("Include='nunit", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("Include=\"TUnit", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("Include='TUnit", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("Include=\"Verify.Xunit", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("Include='Verify.Xunit", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("Include=\"Verify.NUnit", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("Include='Verify.NUnit", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("Include=\"bunit", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("Include=\"FluentAssertions", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("Include=\"BenchmarkDotNet", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("Include='BenchmarkDotNet", StringComparison.OrdinalIgnoreCase) ||
-                         projName.EndsWith(".UnitTests", StringComparison.OrdinalIgnoreCase) ||
-                         projName.EndsWith(".FunctionalTests", StringComparison.OrdinalIgnoreCase) ||
-                         projName.EndsWith(".IntegrationTests", StringComparison.OrdinalIgnoreCase) ||
-                         projName.EndsWith(".Tests", StringComparison.OrdinalIgnoreCase) ||
-                         projName.EndsWith(".Test", StringComparison.OrdinalIgnoreCase) ||
-                         projName.EndsWith(".Benchmarks", StringComparison.OrdinalIgnoreCase) ||
-                         projName.Contains(".Benchmarks.", StringComparison.OrdinalIgnoreCase) ||
-                         projName.EndsWith("Benchmarks", StringComparison.OrdinalIgnoreCase) ||
-                         projName.EndsWith("Tests", StringComparison.OrdinalIgnoreCase) ||
-                         projName.EndsWith("Test", StringComparison.OrdinalIgnoreCase);
+            // 1.1 Test Suite Priority: detect test projects via LibraryRole.TestFramework library parsers or MSBuild test flags
+            var referencedPackages = ExtractReferencedPackagesAndSdks(csprojFile, content);
+            var isTest = ((IProjectParser)this).HasTestFrameworkDependency(referencedPackages) ||
+                         Regex.IsMatch(content, @"<IsTestProject>\s*true\s*</IsTestProject>", RegexOptions.IgnoreCase) ||
+                         Regex.IsMatch(content, @"<IsTestingPlatformApplication>\s*true\s*</IsTestingPlatformApplication>", RegexOptions.IgnoreCase) ||
+                         IsTestProjectName(projName);
 
             if (isTest)
             {
@@ -795,6 +746,57 @@ public class CSharpParser : IProjectParser, IFileParser
 
         return props;
     }
+
+    private static HashSet<string> ExtractReferencedPackagesAndSdks(string csprojFile, string content)
+    {
+        var packages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        CollectPackagesFromXmlText(content, packages);
+
+        var dir = Path.GetDirectoryName(csprojFile);
+        for (int depth = 0; depth < 4 && !string.IsNullOrEmpty(dir); depth++)
+        {
+            var buildProps = Path.Combine(dir, "Directory.Build.props");
+            if (File.Exists(buildProps))
+            {
+                try
+                {
+                    CollectPackagesFromXmlText(File.ReadAllText(buildProps), packages);
+                }
+                catch
+                {
+                    // Ignore unreadable parent build props
+                }
+            }
+            dir = Path.GetDirectoryName(dir);
+        }
+
+        return packages;
+    }
+
+    private static void CollectPackagesFromXmlText(string xmlText, HashSet<string> packages)
+    {
+        foreach (Match m in Regex.Matches(xmlText, @"<(?:PackageReference|Reference)\b[^>]*?\b(?:Include|Update)\s*=\s*[""']([^""',;\s]+)", RegexOptions.IgnoreCase))
+        {
+            if (m.Success) packages.Add(m.Groups[1].Value);
+        }
+
+        foreach (Match m in Regex.Matches(xmlText, @"<(?:Project|Sdk)\b[^>]*?\b(?:Sdk|Name)\s*=\s*[""']([^""'/;\s]+)", RegexOptions.IgnoreCase))
+        {
+            if (m.Success) packages.Add(m.Groups[1].Value);
+        }
+    }
+
+    private static bool IsTestProjectName(string projName) =>
+        projName.EndsWith(".UnitTests", StringComparison.OrdinalIgnoreCase) ||
+        projName.EndsWith(".FunctionalTests", StringComparison.OrdinalIgnoreCase) ||
+        projName.EndsWith(".IntegrationTests", StringComparison.OrdinalIgnoreCase) ||
+        projName.EndsWith(".Tests", StringComparison.OrdinalIgnoreCase) ||
+        projName.EndsWith(".Test", StringComparison.OrdinalIgnoreCase) ||
+        projName.EndsWith(".Benchmarks", StringComparison.OrdinalIgnoreCase) ||
+        projName.Contains(".Benchmarks.", StringComparison.OrdinalIgnoreCase) ||
+        projName.EndsWith("Benchmarks", StringComparison.OrdinalIgnoreCase) ||
+        projName.EndsWith("Tests", StringComparison.OrdinalIgnoreCase) ||
+        projName.EndsWith("Test", StringComparison.OrdinalIgnoreCase);
 
     public BaseParserVisitor CreateVisitor(
         Node rootNode,

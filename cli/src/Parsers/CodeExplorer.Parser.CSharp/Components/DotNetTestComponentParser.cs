@@ -15,13 +15,9 @@ public class DotNetTestComponentParser : IComponentLibraryParser
 
     public bool CanHandle(ProjectContext context)
     {
-        return context.Dependencies.Any(d =>
-            d.StartWithIC("xunit") ||
-            d.StartWithIC("NUnit") ||
-            d.StartWithIC("MSTest") ||
-            d.Equals("Microsoft.NET.Test.Sdk", StringComparison.OrdinalIgnoreCase)) ||
-            context.ManifestProperties.GetValueOrDefault("is_test_project") == "true" ||
-            context.ManifestProperties.GetValueOrDefault("manifest_type") == "test";
+        return Libraries.DotNetTestLibraryParser.Instance.GetPackageDescriptors().Any(p => p.Matches(context)) ||
+               context.ManifestProperties.GetValueOrDefault("is_test_project") == "true" ||
+               context.ManifestProperties.GetValueOrDefault("manifest_type") == "test";
     }
 
     public ComponentAnalysisResult AnalyzeManifest(ProjectContext context)

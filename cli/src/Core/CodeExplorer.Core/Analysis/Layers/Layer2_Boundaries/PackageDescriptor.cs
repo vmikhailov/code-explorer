@@ -31,15 +31,35 @@ public record PackageDescriptor(
             return false;
         }
 
-        for (int i = 0; i < context.Dependencies.Count; i++)
+        return MatchesAnyDependency(context.Dependencies);
+    }
+
+    public bool MatchesDependency(string dependencyName)
+    {
+        if (string.IsNullOrEmpty(dependencyName) || SupportedPatterns.Count == 0)
+            return false;
+
+        for (int j = 0; j < SupportedPatterns.Count; j++)
         {
-            var dep = context.Dependencies[i];
-            for (int j = 0; j < SupportedPatterns.Count; j++)
+            if (IsLibraryMatch(dependencyName, SupportedPatterns[j]))
             {
-                if (IsLibraryMatch(dep, SupportedPatterns[j]))
-                {
-                    return true;
-                }
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public bool MatchesAnyDependency(IEnumerable<string>? dependencies)
+    {
+        if (dependencies == null || SupportedPatterns.Count == 0)
+            return false;
+
+        foreach (var dep in dependencies)
+        {
+            if (MatchesDependency(dep))
+            {
+                return true;
             }
         }
 
@@ -47,15 +67,15 @@ public record PackageDescriptor(
     }
 
     /// <summary>
-    /// Performs a part-based matching of library names, splitting by '.' and '/' and comparing segments,
+    /// Performs a part-based matching of library names, splitting by '.', '/', and ':' and comparing segments,
     /// supporting wildcard '*' segments and prefixes.
     /// </summary>
     public static bool IsLibraryMatch(string a, string b)
     {
         if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return false;
 
-        var aParts = a.Split(['.', '/'], StringSplitOptions.RemoveEmptyEntries);
-        var bParts = b.Split(['.', '/'], StringSplitOptions.RemoveEmptyEntries);
+        var aParts = a.Split(['.', '/', ':'], StringSplitOptions.RemoveEmptyEntries);
+        var bParts = b.Split(['.', '/', ':'], StringSplitOptions.RemoveEmptyEntries);
 
         if (aParts.Length < bParts.Length) return false;
 

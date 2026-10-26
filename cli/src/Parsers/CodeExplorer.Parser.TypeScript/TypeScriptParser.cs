@@ -152,7 +152,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
         var packageJson = filesInDirectory.FirstOrDefault(f => Path.GetFileName(f).Equals("package.json", StringComparison.OrdinalIgnoreCase));
         if (packageJson != null)
         {
-            if (IsNgSecondaryEntryPoint(packageJson, directoryPath, filesInDirectory) ||
+            if (IsSubpathEntryPointPackageJson(packageJson, directoryPath) ||
                 IsInsideParentWebOrHybridProject(directoryPath) ||
                 IsAbsorbedWorkersSiteDirectory(directoryPath))
             {
@@ -166,7 +166,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
             var fileName = Path.GetFileName(file).ToLowerInvariant();
             if (fileName == "tsconfig.json")
             {
-                if (IsInsideNgPackage(directoryPath) || IsInsideParentProject(directoryPath) || HasOnlyAmbientDeclarationFiles(directoryPath))
+                if (IsInsideParentProject(directoryPath) || HasOnlyAmbientDeclarationFiles(directoryPath))
                 {
                     return false;
                 }
@@ -233,7 +233,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
     {
         var parentDir = Path.GetDirectoryName(directoryPath);
         int depth = 0;
-        while (parentDir != null && parentDir.Length >= 3 && depth < 4)
+        while (parentDir != null && parentDir.Length >= 3 && depth < 8)
         {
             depth++;
             try
@@ -290,51 +290,48 @@ public class TypeScriptParser : IProjectParser, IFileParser
         }
     }
 
-    public static bool IsNgSecondaryEntryPoint(string? packageJsonPath, string directoryPath, string[]? filesInDirectory = null)
+    public static bool IsSubpathEntryPointPackageJson(string? packageJsonPath, string directoryPath)
     {
-        filesInDirectory ??= Directory.GetFiles(directoryPath);
-        var hasNgPackageJson = filesInDirectory.Any(f => Path.GetFileName(f).Equals("ng-package.json", StringComparison.OrdinalIgnoreCase));
-
-        if (!string.IsNullOrEmpty(packageJsonPath) && File.Exists(packageJsonPath))
+        if (string.IsNullOrEmpty(packageJsonPath) || !File.Exists(packageJsonPath))
         {
-            try
-            {
-                var content = File.ReadAllText(packageJsonPath);
-                using var doc = System.Text.Json.JsonDocument.Parse(content);
-                var root = doc.RootElement;
-                // If it has ngPackage (or sibling ng-package.json) and does not have a valid "name" property, it's an Angular secondary entry point
-                if ((root.TryGetProperty("ngPackage", out _) || hasNgPackageJson) &&
-                    (!root.TryGetProperty("name", out var nameProp) || string.IsNullOrWhiteSpace(nameProp.GetString())))
-                {
-                    return true;
-                }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
-            {
-                // Ignore parse errors
-            }
-        }
-        else if (hasNgPackageJson)
-        {
-            return true;
+            return false;
         }
 
-        return false;
-    }
-
-    private static bool IsInsideNgPackage(string directoryPath)
-    {
-        var parentDir = Path.GetDirectoryName(directoryPath);
-        while (parentDir != null && parentDir.Length >= 3)
+        try
         {
-            if (File.Exists(Path.Combine(parentDir, "ng-package.json")) ||
-                File.Exists(Path.Combine(parentDir, "angular.json")))
+            var content = File.ReadAllText(packageJsonPath);
+            using var doc = System.Text.Json.JsonDocument.Parse(content);
+            var root = doc.RootElement;
+            if (root.ValueKind != System.Text.Json.JsonValueKind.Object || !root.EnumerateObject().Any())
+            {
+                return false;
+            }
+
+            if (root.TryGetProperty("name", out var nameProp) && !string.IsNullOrWhiteSpace(nameProp.GetString()))
+            {
+                return false;
+            }
+
+            if (IsInsideParentProject(directoryPath))
             {
                 return true;
             }
-            parentDir = Path.GetDirectoryName(parentDir);
+
+            var hasRootManifestFields =
+                root.TryGetProperty("version", out _) ||
+                root.TryGetProperty("dependencies", out _) ||
+                root.TryGetProperty("devDependencies", out _) ||
+                root.TryGetProperty("peerDependencies", out _) ||
+                root.TryGetProperty("scripts", out _) ||
+                root.TryGetProperty("workspaces", out _) ||
+                root.TryGetProperty("private", out _);
+
+            return !hasRootManifestFields;
         }
-        return false;
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        {
+            return false;
+        }
     }
 
     public string GetProjectName(string directoryPath, string[] filesInDirectory)
@@ -601,85 +598,8 @@ public class TypeScriptParser : IProjectParser, IFileParser
         List<string> excludedSubpaths,
         List<ParsedProjectDescriptor> subProjects)
     {
-        foreach (var manifestFile in new[] { "angular.json", "nest-cli.json" })
-        {
-            var manifestPath = Path.Combine(directoryPath, manifestFile);
-            if (!File.Exists(manifestPath)) continue;
-
-            try
-            {
-                var json = File.ReadAllText(manifestPath);
-                using var doc = System.Text.Json.JsonDocument.Parse(json);
-                if (!doc.RootElement.TryGetProperty("projects", out var projectsObj) ||
-                    projectsObj.ValueKind != System.Text.Json.JsonValueKind.Object)
-                {
-                    continue;
-                }
-
-                foreach (var projProp in projectsObj.EnumerateObject())
-                {
-                    var childName = projProp.Name;
-                    var projVal = projProp.Value;
-                    if (projVal.ValueKind != System.Text.Json.JsonValueKind.Object) continue;
-
-                    var rootRel = projVal.TryGetProperty("root", out var rProp) && rProp.ValueKind == System.Text.Json.JsonValueKind.String
-                        ? (rProp.GetString() ?? "").Replace('\\', '/').Trim('/')
-                        : "";
-                    var srcRootRel = projVal.TryGetProperty("sourceRoot", out var srProp) && srProp.ValueKind == System.Text.Json.JsonValueKind.String
-                        ? (srProp.GetString() ?? "").Replace('\\', '/').Trim('/')
-                        : "";
-                    var projType = projVal.TryGetProperty("projectType", out var ptProp) && ptProp.ValueKind == System.Text.Json.JsonValueKind.String
-                        ? (ptProp.GetString() ?? "").ToLowerInvariant()
-                        : "application";
-
-                    if (string.IsNullOrEmpty(rootRel) || rootRel == ".")
-                    {
-                        if (!string.IsNullOrEmpty(srcRootRel) && !sourceRoots.Contains(srcRootRel, StringComparer.OrdinalIgnoreCase))
-                        {
-                            sourceRoots.Add(srcRootRel);
-                        }
-                        if (! excludedSubpaths.Contains("src/assets", StringComparer.OrdinalIgnoreCase) &&
-                            Directory.Exists(Path.Combine(directoryPath, "src", "assets")))
-                        {
-                            excludedSubpaths.Add("src/assets");
-                        }
-                        continue;
-                    }
-
-                    var childAbsDir = Path.GetFullPath(Path.Combine(directoryPath, rootRel));
-                    if (!Directory.Exists(childAbsDir)) continue;
-
-                    var childFiles = Directory.GetFiles(childAbsDir);
-                    var childProps = ExtractManifestProperties(childAbsDir, childFiles);
-                    if (projType == "library")
-                    {
-                        childProps["manifest_type"] = "library";
-                        childProps["is_library"] = "true";
-                        childProps["role"] = "SharedLibrary";
-                        childProps["primary_role"] = "Library";
-                        if (manifestFile == "angular.json")
-                        {
-                            childProps["framework_type"] = "frontend";
-                            childProps["is_ui_library"] = "true";
-                        }
-                    }
-                    else
-                    {
-                        childProps["manifest_type"] = "application";
-                    }
-
-                    subProjects.Add(new ParsedProjectDescriptor(
-                        Name: childName,
-                        DirectoryPath: childAbsDir,
-                        ProjectType: ProjectType,
-                        ManifestProperties: childProps));
-                }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
-            {
-                // Ignore
-            }
-        }
+        Components.AngularComponentParser.ExtractWorkspaceSubProjects(directoryPath, this, sourceRoots, excludedSubpaths, subProjects);
+        Components.NestJsComponentParser.ExtractWorkspaceSubProjects(directoryPath, this, sourceRoots, excludedSubpaths, subProjects);
     }
 
     private static void DetectBuildOrchestratorProperties(
@@ -781,17 +701,8 @@ public class TypeScriptParser : IProjectParser, IFileParser
             }
         }
 
-        // 3. Check ng-package.json or angular.json
-        if (filesInDirectory.Any(f => Path.GetFileName(f).Equals("ng-package.json", StringComparison.OrdinalIgnoreCase)))
-        {
-            props["manifest_type"] = "library";
-            props["framework_type"] = "frontend";
-        }
-        else if (filesInDirectory.Any(f => Path.GetFileName(f).Equals("angular.json", StringComparison.OrdinalIgnoreCase))
-                 || File.Exists(Path.Combine(directoryPath, "angular.json")))
-        {
-            if (!props.ContainsKey("framework_type")) props["framework_type"] = "frontend";
-        }
+        // 3. Enrich with Angular workspace/package manifest properties if present
+        Components.AngularComponentParser.EnrichManifestProperties(directoryPath, filesInDirectory, props);
 
         // 4. Inspect package.json
         var packageJsonPath = Path.Combine(directoryPath, "package.json");
@@ -822,13 +733,6 @@ public class TypeScriptParser : IProjectParser, IFileParser
                     }
                 }
 
-                // Check "ngPackage" in package.json
-                if (root.TryGetProperty("ngPackage", out _))
-                {
-                    props["manifest_type"] = "library";
-                    props["framework_type"] = "frontend";
-                }
-
                 // Collect dependencies
                 var allDeps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -844,84 +748,28 @@ public class TypeScriptParser : IProjectParser, IFileParser
                     foreach (var prop in devDepsObj.EnumerateObject()) allDeps.Add(prop.Name);
                 }
 
-                var hasNgPackage = root.TryGetProperty("ngPackage", out _) || filesInDirectory.Any(f =>
-                    Path.GetFileName(f).Equals("ng-package.json", StringComparison.OrdinalIgnoreCase));
-
                 var hasIndexHtml = filesInDirectory.Any(f =>
                     Path.GetFileName(f).Equals("index.html", StringComparison.OrdinalIgnoreCase))
                     || File.Exists(Path.Combine(directoryPath, "src", "index.html"))
                     || File.Exists(Path.Combine(directoryPath, "public", "index.html"));
 
-                // If inside a monorepo, check ancestor angular.json or nx.json
-                var parentDir = Path.GetDirectoryName(directoryPath);
-                while (parentDir != null && parentDir.Length >= 3)
-                {
-                    var ancestorAngularJson = Path.Combine(parentDir, "angular.json");
-                    if (File.Exists(ancestorAngularJson))
-                    {
-                        try
-                        {
-                            var json = File.ReadAllText(ancestorAngularJson);
-                            using var angDoc = System.Text.Json.JsonDocument.Parse(json);
-                            if (angDoc.RootElement.TryGetProperty("projects", out var projectsObj))
-                            {
-                                foreach (var pProp in projectsObj.EnumerateObject())
-                                {
-                                    var projVal = pProp.Value;
-                                    var rootPath = projVal.TryGetProperty("root", out var r) ? r.GetString() : null;
-                                    if (!string.IsNullOrEmpty(rootPath) && directoryPath.Replace('\\', '/').EndsWith(rootPath.Replace('\\', '/').Trim('/')))
-                                    {
-                                        if (projVal.TryGetProperty("projectType", out var ptProp))
-                                        {
-                                            var pt = ptProp.GetString()?.ToLowerInvariant();
-                                            if (pt == "application")
-                                            {
-                                                props["manifest_type"] = "application";
-                                                props["framework_type"] = "frontend";
-                                                hasIndexHtml = true;
-                                            }
-                                            else if (pt == "library")
-                                            {
-                                                props["manifest_type"] = "library";
-                                                props["framework_type"] = "frontend";
-                                                props["is_ui_library"] = "true";
-                                                props["is_library"] = "true";
-                                            }
-                                        }
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                        catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException)
-                        {
-                            // Ignore monorepo ancestor parse errors
-                        }
-                        break;
-                    }
-                    parentDir = Path.GetDirectoryName(parentDir);
-                }
-
-                if (hasNgPackage)
-                {
-                    props["manifest_type"] = "library";
-                    props["framework_type"] = "frontend";
-                    props["is_ui_library"] = "true";
-                    props["is_library"] = "true";
-                }
-
-                // Framework and workload detection
+                // Framework and workload detection via registered LibraryRole descriptors + runtime indicators
                 var hasGrpcDeps = allDeps.Any(d => d is "@grpc/grpc-js" or "grpc" || d.StartsWith("@grpc/"));
                 if (hasGrpcDeps) props["has_grpc"] = "true";
 
                 var hasWebFramework =
-                    hasGrpcDeps || allDeps.Any(d => d is "express" or "@nestjs/core" or "fastify" or "koa" or "hono");
+                    hasGrpcDeps ||
+                    ((IProjectParser)this).HasPackageWithRole(allDeps, LibraryRole.WebService) ||
+                    allDeps.Contains("hono");
 
-                var hasWorkerDeps = allDeps.Any(d =>
-                    d is "@nestjs/schedule" or "@nestjs/bull" or "@nestjs/bullmq" or "bullmq" or "bull" or "amqplib"
-                        or "kafkajs" or "@cloudflare/workers-types" or "wrangler" or "node-cron" or "cron"
-                        or "agenda" || d.StartWithIC("cloudflare-")
-                        || d.StartWithIC("@cloudflare/")) || hasWrangler;
+                var hasWorkerDeps =
+                    ((IProjectParser)this).HasPackageWithRole(allDeps, LibraryRole.WorkerService) ||
+                    ((IProjectParser)this).HasPackageWithRole(allDeps, LibraryRole.MessageBroker) ||
+                    allDeps.Any(d =>
+                        d is "@nestjs/schedule" or "@nestjs/bull" or "@nestjs/bullmq" or "@cloudflare/workers-types"
+                            or "wrangler" or "node-cron" or "cron" or "agenda"
+                            || d.StartWithIC("cloudflare-") || d.StartWithIC("@cloudflare/")) ||
+                    hasWrangler;
 
                 var hasMobileDeps = allDeps.Any(d => d is "react-native" or "expo" || d.StartsWith("expo-") || d.StartsWith("@expo/")) ||
                                     filesInDirectory.Any(f => Path.GetFileName(f).Equals("app.json", StringComparison.OrdinalIgnoreCase));
@@ -929,9 +777,11 @@ public class TypeScriptParser : IProjectParser, IFileParser
                 var hasDesktopDeps = allDeps.Any(d =>
                     d is "electron" or "@electron-forge/cli" or "electron-builder" or "@tauri-apps/api");
 
-                var hasFrontendDeps = hasMobileDeps || hasDesktopDeps || allDeps.Any(d =>
-                    d is "react" or "react-dom" or "@angular/core" or "vue" or "svelte" or "solid-js" or "next"
-                        or "nuxt");
+                var hasFrontendDeps =
+                    hasMobileDeps ||
+                    hasDesktopDeps ||
+                    ((IProjectParser)this).HasPackageWithRole(allDeps, LibraryRole.FrontendFramework) ||
+                    allDeps.Any(d => d is "solid-js" or "nuxt");
 
                 var pkgName =
                     root.TryGetProperty("name", out var np) && np.ValueKind == System.Text.Json.JsonValueKind.String
@@ -1047,9 +897,9 @@ public class TypeScriptParser : IProjectParser, IFileParser
 
                     if (!props.ContainsKey("manifest_type"))
                     {
-                        var isExplicitUiLib = hasNgPackage || (!hasIndexHtml && !allDeps.Contains("next") &&
-                                                               !allDeps.Contains("nuxt") &&
-                                                               root.TryGetProperty("exports", out _));
+                        var isExplicitUiLib = !hasIndexHtml && !allDeps.Contains("next") &&
+                                              !allDeps.Contains("nuxt") &&
+                                              root.TryGetProperty("exports", out _);
                         props["manifest_type"] = isExplicitUiLib ? "library" : "application";
 
                         if (isExplicitUiLib)

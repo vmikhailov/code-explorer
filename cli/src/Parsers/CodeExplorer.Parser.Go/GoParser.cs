@@ -45,7 +45,8 @@ public class GoParser : IProjectParser, IFileParser
         new Libraries.RabbitMqGoLibraryParser(),
         new Libraries.PgxLibraryParser(),
         new Libraries.RestyLibraryParser(),
-        new Libraries.GoHttpClientLibraryParser()
+        new Libraries.GoHttpClientLibraryParser(),
+        Libraries.GoTestLibraryParser.Instance
     ];
 
     public bool UsesTreeSitter => true;
@@ -58,26 +59,6 @@ public class GoParser : IProjectParser, IFileParser
     public GoParser()
     {
         Packages = [.. SemanticExtensions.SelectMany(e => e.GetPackageDescriptors())];
-
-        /*
-        // Unimplemented / Backlog packages (commented out until AST semantic extensions are implemented):
-
-
-        // Generic Cloud Services
-        new PackageDescriptor("stripe", "Stripe", LibraryRole.CloudSdk, "library", ["github.com/stripe/stripe-go*"]),
-        new PackageDescriptor("aws", "AWS", LibraryRole.CloudSdk, "library", ["github.com/aws/aws-sdk-go*"]),
-        new PackageDescriptor("gcp", "GCP", LibraryRole.CloudSdk, "library", ["cloud.google.com/*", "firebase.google.com/*"]),
-        new PackageDescriptor("azure", "Azure", LibraryRole.CloudSdk, "library", ["*Azure*", "*azure-sdk-for-go*"]),
-
-        // Test Frameworks
-        new PackageDescriptor("testify", "Testify", LibraryRole.TestFramework, "library", ["github.com/stretchr/testify*"]),
-
-        // API Clients
-        new PackageDescriptor("req", "req", LibraryRole.General, "library", ["github.com/imroc/req*"]),
-        new PackageDescriptor("grequests", "grequests", LibraryRole.General, "library", ["github.com/levigross/grequests*"]),
-        new PackageDescriptor("gorequest", "gorequest", LibraryRole.General, "library", ["github.com/parnurzeal/gorequest*"]),
-        new PackageDescriptor("surf", "surf", LibraryRole.General, "library", ["github.com/go-surf/surf*"])
-        */
     }
 
     public bool CanParse(string fileExtension)

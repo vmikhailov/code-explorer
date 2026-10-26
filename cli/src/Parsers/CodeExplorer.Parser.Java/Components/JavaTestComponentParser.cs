@@ -16,7 +16,7 @@ public class JavaTestComponentParser : IComponentLibraryParser
     public bool CanHandle(ProjectContext context)
     {
         return context.ProjectType.Equals("java", StringComparison.OrdinalIgnoreCase) &&
-               (context.Dependencies.Any(d => d.Contains("junit") || d.Contains("testng")) ||
+               (Libraries.JavaTestLibraryParser.Instance.GetPackageDescriptors().Any(p => p.Matches(context)) ||
                 context.FilesInDirectory.Any(f => f.EndsWith("Test.java") || f.EndsWith("Tests.java")) ||
                 context.ManifestProperties.GetValueOrDefault("manifest_type") == "test" ||
                 context.ManifestProperties.GetValueOrDefault("is_test_project") == "true");
