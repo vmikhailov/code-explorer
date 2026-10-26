@@ -231,6 +231,7 @@ public class WorkspaceIndexer
         await using (new DatabasePersistenceWriter(ctx))
         {
             await PrepareDatabaseAsync(ctx);
+            if (ctx.Clear && !ctx.IsSubtreeScan) { await ctx.DbClient.BeginBulkLoadAsync(); }
             var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
             indexedFiles = l1.Files;
             ctx.TriggerProgressReport();
@@ -246,6 +247,7 @@ public class WorkspaceIndexer
             ctx.TriggerProgressReport();
         }
 
+        if (ctx.Clear && !ctx.IsSubtreeScan) { await ctx.DbClient.EndBulkLoadAsync(); }
         LogPersistenceSummary(ctx);
         await SyncFileRegistryAsync(indexedFiles, projects, syntaxTrees, ctx);
         await _dbClient.SetSchemaVersionAsync(IGraphClient.CurrentSchemaVersion);

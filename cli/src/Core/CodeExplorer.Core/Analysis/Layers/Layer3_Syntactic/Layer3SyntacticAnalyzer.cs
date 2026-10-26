@@ -29,8 +29,7 @@ public partial class Layer3SyntacticParser
         var rawTypeBindings = new List<RawTypeBinding>();
         var globalReferences = new List<Reference>();
         var globalSymbols = new Dictionary<(string Kind, string Name), string>();
-        var nProject = 0;
-
+        
         // O(1) parent index of Layer 1 tree (eliminates 160M recursive DFS traversals)
         var parentByChildId = new Dictionary<string, IOntologyNode>();
         void IndexPhysicalTree(IOntologyNode parent)
@@ -204,89 +203,102 @@ public partial class Layer3SyntacticParser
             }
         });
 
+        // Create ProjectSyntax nodes and BelongsTo relationships up front
+        var projectSyntaxNodes = new Dictionary<string, ProjectSyntaxNode>(l2Result.Projects.Count);
+        var belongsToRels = new List<Relationship>(l2Result.Projects.Count);
         foreach (var project in l2Result.Projects)
         {
-            nProject++;
-            ctx.CancellationToken.ThrowIfCancellationRequested();
-
-            ctx.LogDebug($"[Layer3] Parsing project {nProject} of {l2Result.Projects.Count} at:'{project.Path}'...");
-
             var projectSyntaxId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Project}:{project.Path}:syntax";
             var projectSyntaxNode = new ProjectSyntaxNode(projectSyntaxId, "ProjectSyntax", project.Path);
             syntaxStructureNode.Children.Add(projectSyntaxNode);
+            projectSyntaxNodes[project.Id] = projectSyntaxNode;
+            belongsToRels.Add(Relationship.FromRelationship(new BelongsToRelationship(projectSyntaxId, project.Id)));
+        }
+        if (belongsToRels.Count > 0)
+        {
+            await ctx.EnqueueUploadRelationshipsAsync(belongsToRels);
+            ctx.AddRelsCount(belongsToRels.Count);
+        }
 
-            var belongsToRel = Relationship.FromRelationship(new BelongsToRelationship(projectSyntaxId, project.Id));
-            await ctx.EnqueueUploadRelationshipsAsync([belongsToRel]);
-            ctx.AddRelsCount(1);
-
-            if (!filesByProjectId.TryGetValue(project.Id, out var projectFiles) || projectFiles.Count == 0)
+        // Build flat list of all project files to eliminate thread barrier synchronization across projects
+        var allWorkItems = new List<(FileNode File, ProjectNode Project, IOntologyNode ParentNode)>();
+        foreach (var project in l2Result.Projects)
+        {
+            if (filesByProjectId.TryGetValue(project.Id, out var pFiles) && pFiles.Count > 0)
             {
-                continue;
-            }
-
-            var parallelOptions = new ParallelOptions
-            {
-                CancellationToken = ctx.CancellationToken,
-                MaxDegreeOfParallelism = Environment.ProcessorCount
-            };
-
-            var parsedResults = new (FileNode File, SyntaxTree SyntaxTree, IOntologyNode ParentNode)?[projectFiles.Count];
-
-            // Pass 1: Parse all syntax trees and discover declarations (constants, enums, raw variables)
-            await Parallel.ForAsync(0, projectFiles.Count, parallelOptions, async (i, ct) =>
-            {
-                var file = projectFiles[i];
-                var fileParser = WorkspaceIndexer.GetParserForFile(file.FullPath);
-                if (fileParser == null) return;
-
-                if (!parentByChildId.TryGetValue(file.Id, out var parentNode)) return;
-                var parentId = parentNode.Id;
-
-                try
+                foreach (var file in pFiles)
                 {
-                    var syntaxTree = await fileParser.ParseAsync(file.FullPath, parentId, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-                    syntaxTree.FileNode.IsTest = file.IsTest;
-                    syntaxTree.FileNode.ProjectKind = file.ProjectKind;
-                    syntaxTree.FileNode.ProjectName = file.ProjectName;
-                    syntaxTree.FileNode.LineCount = file.LineCount;
-                    syntaxTree.FileNode.SizeBytes = file.SizeBytes;
-                    syntaxTree.FileNode.ContentHash = file.ContentHash;
-                    syntaxTree.FileNode.LastModifiedUtc = file.LastModifiedUtc;
-                    if (syntaxTree.Tree != null)
+                    if (parentByChildId.TryGetValue(file.Id, out var parentNode))
                     {
-                        AstConstantExtractor.ExtractAndRegister(syntaxTree, project.Name);
+                        allWorkItems.Add((file, project, parentNode));
+                    }
+                }
+            }
+        }
 
-                        for (int v = 0; v < syntaxTree.RawVariables.Count; v++)
+        var parallelOptions = new ParallelOptions
+        {
+            CancellationToken = ctx.CancellationToken,
+            MaxDegreeOfParallelism = Environment.ProcessorCount
+        };
+
+        var parsedSyntaxTrees = new SyntaxTree?[allWorkItems.Count];
+
+        // Pass 1: Parse all syntax trees globally across all projects in parallel
+        await Parallel.ForAsync(0, allWorkItems.Count, parallelOptions, async (idx, ct) =>
+        {
+            var item = allWorkItems[idx];
+            var fileParser = WorkspaceIndexer.GetParserForFile(item.File.FullPath);
+            if (fileParser == null) return;
+
+            try
+            {
+                var syntaxTree = await fileParser.ParseAsync(item.File.FullPath, item.ParentNode.Id, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+                syntaxTree.FileNode.IsTest = item.File.IsTest;
+                syntaxTree.FileNode.ProjectKind = item.File.ProjectKind;
+                syntaxTree.FileNode.ProjectName = item.File.ProjectName;
+                syntaxTree.FileNode.LineCount = item.File.LineCount;
+                syntaxTree.FileNode.SizeBytes = item.File.SizeBytes;
+                syntaxTree.FileNode.ContentHash = item.File.ContentHash;
+                syntaxTree.FileNode.LastModifiedUtc = item.File.LastModifiedUtc;
+                if (syntaxTree.Tree != null)
+                {
+                    AstConstantExtractor.ExtractAndRegister(syntaxTree, item.Project.Name);
+
+                    for (int v = 0; v < syntaxTree.RawVariables.Count; v++)
+                    {
+                        var rv = syntaxTree.RawVariables[v];
+                        if (rv.Scope != "local" && rv.IsConstant &&
+                            !string.IsNullOrWhiteSpace(rv.Name) && !string.IsNullOrWhiteSpace(rv.InitializerText))
                         {
-                            var rv = syntaxTree.RawVariables[v];
-                            if (rv.Scope != "local" && rv.IsConstant &&
-                                !string.IsNullOrWhiteSpace(rv.Name) && !string.IsNullOrWhiteSpace(rv.InitializerText))
+                            var rawInit = rv.InitializerText.Trim();
+                            if ((rawInit.StartsWith('"') && rawInit.EndsWith('"')) ||
+                                (rawInit.StartsWith('\'') && rawInit.EndsWith('\'')) ||
+                                (rawInit.StartsWith('`') && rawInit.EndsWith('`')))
                             {
-                                var rawInit = rv.InitializerText.Trim();
-                                if ((rawInit.StartsWith('"') && rawInit.EndsWith('"')) ||
-                                    (rawInit.StartsWith('\'') && rawInit.EndsWith('\'')) ||
-                                    (rawInit.StartsWith('`') && rawInit.EndsWith('`')))
-                                {
-                                    ConstantRegistry.Register(project.Name, rv.Name, rawInit.Trim('\'', '"', '`'));
-                                }
+                                ConstantRegistry.Register(item.Project.Name, rv.Name, rawInit.Trim('\'', '"', '`'));
                             }
-                        }
-
-                        if (syntaxTree.Tree?.RootNode != null)
-                        {
-                            fileParser.DiscoverDeclarations(syntaxTree.Tree.RootNode, file.Path, project.Name, ctx);
                         }
                     }
 
-                    parsedResults[i] = (file, syntaxTree, parentNode);
+                    if (syntaxTree.Tree?.RootNode != null)
+                    {
+                        fileParser.DiscoverDeclarations(syntaxTree.Tree.RootNode, item.File.Path, item.Project.Name, ctx);
+                    }
                 }
-                catch (Exception ex)
-                {
-                    ctx.LogWarning($"[Layer3] Error parsing file '{file.Path}': {ex.Message}", ex);
-                }
-            });
 
-            // Pass 2: Traverse ASTs with language visitors and component parsers (now that all constants and symbols are registered)
+                parsedSyntaxTrees[idx] = syntaxTree;
+            }
+            catch (Exception ex)
+            {
+                ctx.LogWarning($"[Layer3] Error parsing file '{item.File.Path}': {ex.Message}", ex);
+            }
+        });
+
+        // Pre-build component library parsers per project for Pass 2
+        var componentParsersByProject = new Dictionary<string, IReadOnlyList<Components.IComponentLibraryParser>>(l2Result.Projects.Count);
+        foreach (var project in l2Result.Projects)
+        {
             var projectAbsDir = Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, project.Path)).Replace('\\', '/');
             var filesInProjectDir = Directory.Exists(projectAbsDir) ? Directory.GetFiles(projectAbsDir) : [];
             var projectContext = new ProjectContext(
@@ -295,91 +307,87 @@ public partial class Layer3SyntacticParser
                 project.Name,
                 project.ProjectType,
                 filesInProjectDir,
-                // Package dependencies resolved at Layer 2 — CanHandle() of component parsers
-                // (e.g. the JS test runner keyed on jest/jasmine) used to receive an empty list
-                // and therefore never matched.
                 [
                     .. project.Children.OfType<PackageNode>().Select(p => p.Name)
                         .Distinct(StringComparer.OrdinalIgnoreCase)
                 ],
                 project.Extensions ?? new Dictionary<string, string>());
-            var componentParsers = Components.ComponentLibraryParserRegistry.GetParsers(projectContext);
+            componentParsersByProject[project.Id] = Components.ComponentLibraryParserRegistry.GetParsers(projectContext);
+        }
 
-            await Parallel.ForAsync(0, projectFiles.Count, parallelOptions, (i, ct) =>
+        // Pass 2: Traverse ASTs with language visitors and component parsers across all projects in parallel
+        await Parallel.ForAsync(0, allWorkItems.Count, parallelOptions, (idx, ct) =>
+        {
+            var syntaxTree = parsedSyntaxTrees[idx];
+            if (syntaxTree?.Tree == null) return ValueTask.CompletedTask;
+
+            var item = allWorkItems[idx];
+            var componentParsers = componentParsersByProject[item.Project.Id];
+
+            try
             {
-                var item = parsedResults[i];
-                if (item == null) return ValueTask.CompletedTask;
-
-                var (file, syntaxTree, _) = item.Value;
-                if (syntaxTree.Tree != null)
+                var isTestFile = item.File.IsTest;
+                for (int cp = 0; !isTestFile && cp < componentParsers.Count; cp++)
                 {
-                    try
-                    {
-                        // File category comes from the parser that owns it (test framework component),
-                        // and must be known before symbols are mapped so they inherit is_test.
-                        var isTestFile = file.IsTest;
-                        for (int cp = 0; !isTestFile && cp < componentParsers.Count; cp++)
-                        {
-                            isTestFile = componentParsers[cp].IsTestSource(syntaxTree);
-                        }
-                        if (isTestFile)
-                        {
-                            file.IsTest = true;
-                            syntaxTree.FileNode.IsTest = true;
-                        }
-
-                        ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, ctx, project.Name, isTestFile, project.KindValue);
-
-                        if (componentParsers.Count > 0)
-                        {
-                            for (int cp = 0; cp < componentParsers.Count; cp++)
-                            {
-                                componentParsers[cp].EnrichWithSyntax(null, syntaxTree, ctx);
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        ctx.LogWarning($"[Layer3] Error processing visitor for '{syntaxTree.FilePath}': {ex.Message}", ex);
-                    }
+                    isTestFile = componentParsers[cp].IsTestSource(syntaxTree);
+                }
+                if (isTestFile)
+                {
+                    item.File.IsTest = true;
+                    syntaxTree.FileNode.IsTest = true;
                 }
 
-                return ValueTask.CompletedTask;
-            });
+                ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, ctx, item.Project.Name, isTestFile, item.Project.KindValue);
 
-            for (int i = 0; i < projectFiles.Count; i++)
-            {
-                var item = parsedResults[i];
-                if (item == null) continue;
-
-                var (file, syntaxTree, parentNode) = item.Value;
-
-                // Replace the empty FileNode in physical tree with the parsed FileNode
-                var idx = parentNode.Children.FindIndex(c => c.Id == file.Id);
-                if (idx >= 0)
+                if (componentParsers.Count > 0)
                 {
-                    parentNode.Children[idx] = syntaxTree.FileNode;
-                }
-
-                // Add top-level symbols to project syntax node
-                foreach (var child in syntaxTree.FileNode.Children)
-                {
-                    if (child is TypeNode || child is FunctionNode || child is MemberNode)
+                    for (int cp = 0; cp < componentParsers.Count; cp++)
                     {
-                        projectSyntaxNode.Children.Add(child);
+                        componentParsers[cp].EnrichWithSyntax(null, syntaxTree, ctx);
                     }
                 }
-
-                syntaxTrees.Add(syntaxTree);
-                rawImports.AddRange(syntaxTree.RawImports);
-                rawVariables.AddRange(syntaxTree.RawVariables);
-                rawTypeBindings.AddRange(syntaxTree.RawTypeBindings);
-
-                // Add to global lists in context for late binding / indexing compatibility
-                ctx.RawImports.AddRange(syntaxTree.RawImports);
-                ctx.RawVariables.AddRange(syntaxTree.RawVariables);
-                ctx.RawTypeBindings.AddRange(syntaxTree.RawTypeBindings);
             }
+            catch (Exception ex)
+            {
+                ctx.LogWarning($"[Layer3] Error processing visitor for '{syntaxTree.FilePath}': {ex.Message}", ex);
+            }
+
+            return ValueTask.CompletedTask;
+        });
+
+        // Assemble physical tree and global collection lists
+        for (int i = 0; i < allWorkItems.Count; i++)
+        {
+            var syntaxTree = parsedSyntaxTrees[i];
+            if (syntaxTree == null) continue;
+
+            var item = allWorkItems[i];
+            var projectSyntaxNode = projectSyntaxNodes[item.Project.Id];
+
+            // Replace the empty FileNode in physical tree with the parsed FileNode
+            var idx = item.ParentNode.Children.FindIndex(c => c.Id == item.File.Id);
+            if (idx >= 0)
+            {
+                item.ParentNode.Children[idx] = syntaxTree.FileNode;
+            }
+
+            // Add top-level symbols to project syntax node
+            foreach (var child in syntaxTree.FileNode.Children)
+            {
+                if (child is TypeNode || child is FunctionNode || child is MemberNode)
+                {
+                    projectSyntaxNode.Children.Add(child);
+                }
+            }
+
+            syntaxTrees.Add(syntaxTree);
+            rawImports.AddRange(syntaxTree.RawImports);
+            rawVariables.AddRange(syntaxTree.RawVariables);
+            rawTypeBindings.AddRange(syntaxTree.RawTypeBindings);
+
+            ctx.RawImports.AddRange(syntaxTree.RawImports);
+            ctx.RawVariables.AddRange(syntaxTree.RawVariables);
+            ctx.RawTypeBindings.AddRange(syntaxTree.RawTypeBindings);
         }
 
         // Link shared files reused across projects via relative imports when no explicit Library project owns the target file

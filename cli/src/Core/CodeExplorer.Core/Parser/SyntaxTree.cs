@@ -56,6 +56,20 @@ public class SyntaxTree : IDisposable
 
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Language> _languageCache = new(StringComparer.OrdinalIgnoreCase);
 
+        [ThreadStatic]
+    private static Dictionary<string, TreeSitter.Parser>? _threadParsers;
+
+    public static TreeSitter.Parser GetParserForThread(string languageName)
+    {
+        _threadParsers ??= new Dictionary<string, TreeSitter.Parser>(StringComparer.OrdinalIgnoreCase);
+        if (!_threadParsers.TryGetValue(languageName, out var parser))
+        {
+            var language = GetLanguage(languageName);
+            parser = new TreeSitter.Parser(language);
+            _threadParsers[languageName] = parser;
+        }
+        return parser;
+    }
     public static Language GetLanguage(string languageName) =>
         _languageCache.GetOrAdd(languageName, name => new Language(name));
 
@@ -71,22 +85,17 @@ public class SyntaxTree : IDisposable
         relativePath = relativePath.Replace('\\', '/');
         var sourceText = await File.ReadAllTextAsync(filePath);
         var language = GetLanguage(fileParser.LanguageName);
-        var parser = new TreeSitter.Parser(language);
+        var parser = GetParserForThread(fileParser.LanguageName);
         var tree = parser.Parse(sourceText);
 
         var fileNodeId = $"{workspaceId}:{OntologyConstants.IdPrefixes.File}:{relativePath}";
         var fileNode = new FileNode(fileNodeId, Path.GetFileName(filePath), relativePath, filePath);
 
-        if (tree == null)
-        {
-            parser.Dispose();
-        }
-
         return new SyntaxTree(
             filePath,
             relativePath,
             tree,
-            parser,
+            null,
             language,
             fileNode,
             fileParser, [], [], []);

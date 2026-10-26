@@ -110,6 +110,46 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         }
     }
 
+    private const int DefaultBatchSize = 200;
+
+    private static readonly string[] NodeParamI = Enumerable.Range(0, DefaultBatchSize).Select(j => $"@i{j}").ToArray();
+    private static readonly string[] NodeParamK = Enumerable.Range(0, DefaultBatchSize).Select(j => $"@k{j}").ToArray();
+    private static readonly string[] NodeParamP = Enumerable.Range(0, DefaultBatchSize).Select(j => $"@p{j}").ToArray();
+
+    private static readonly string[] EdgeParamF = Enumerable.Range(0, DefaultBatchSize).Select(j => $"@f{j}").ToArray();
+    private static readonly string[] EdgeParamT = Enumerable.Range(0, DefaultBatchSize).Select(j => $"@t{j}").ToArray();
+    private static readonly string[] EdgeParamK = Enumerable.Range(0, DefaultBatchSize).Select(j => $"@k{j}").ToArray();
+    private static readonly string[] EdgeParamP = Enumerable.Range(0, DefaultBatchSize).Select(j => $"@p{j}").ToArray();
+
+    private static readonly string FullNodeBatchSql = BuildNodeSql(DefaultBatchSize);
+    private static readonly string FullEdgeBatchSql = BuildEdgeSql(DefaultBatchSize);
+
+    private static string BuildNodeSql(int count)
+    {
+        var sb = new System.Text.StringBuilder(count * 20 + 120);
+        sb.Append("INSERT INTO nodes (id, kind, properties) VALUES ");
+        for (int j = 0; j < count; j++)
+        {
+            if (j > 0) sb.Append(',');
+            sb.Append($"(@i{j}, @k{j}, @p{j})");
+        }
+        sb.Append(" ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, properties = excluded.properties;");
+        return sb.ToString();
+    }
+
+    private static string BuildEdgeSql(int count)
+    {
+        var sb = new System.Text.StringBuilder(count * 25 + 120);
+        sb.Append("INSERT INTO edges (from_id, to_id, kind, properties) VALUES ");
+        for (int j = 0; j < count; j++)
+        {
+            if (j > 0) sb.Append(',');
+            sb.Append($"(@f{j}, @t{j}, @k{j}, @p{j})");
+        }
+        sb.Append(" ON CONFLICT(from_id, to_id, kind) DO UPDATE SET properties = excluded.properties;");
+        return sb.ToString();
+    }
+
     public async Task UploadNodesAsync(List<Node> nodes)
     {
         if (nodes.Count == 0) return;
@@ -120,7 +160,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         {
             await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync();
 
-            const int batchSize = 200;
+            const int batchSize = DefaultBatchSize;
             var distinctNodes = nodes.Count > 1 ? [.. nodes.DistinctBy(n => n.Id)] : nodes;
 
             var lastReport = Stopwatch.GetTimestamp();
@@ -129,27 +169,26 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                 var count = Math.Min(batchSize, distinctNodes.Count - i);
 
                 await using var cmd = _conn.CreateCommand();
-
                 cmd.Transaction = tx;
-
-                var sb = new System.Text.StringBuilder(count * 60 + 120);
-                sb.Append("INSERT INTO nodes (id, kind, properties) VALUES ");
+                cmd.CommandText = count == DefaultBatchSize ? FullNodeBatchSql : BuildNodeSql(count);
 
                 for (int j = 0; j < count; j++)
                 {
-                    if (j > 0) sb.Append(',');
-                    sb.Append($"(@i{j}, @k{j}, @p{j})");
-
                     var node = distinctNodes[i + j];
-                    var dict = new Dictionary<string, object>(node.Properties) { ["id"] = node.Id };
-                    cmd.Parameters.AddWithValue($"@i{j}", node.Id);
-                    cmd.Parameters.AddWithValue($"@k{j}", node.Kind);
-                    cmd.Parameters.AddWithValue($"@p{j}", JsonSerializer.Serialize(dict));
+                    if (!node.Properties.ContainsKey("id"))
+                    {
+                        node.Properties["id"] = node.Id;
+                    }
+
+                    var pI = j < DefaultBatchSize ? NodeParamI[j] : $"@i{j}";
+                    var pK = j < DefaultBatchSize ? NodeParamK[j] : $"@k{j}";
+                    var pP = j < DefaultBatchSize ? NodeParamP[j] : $"@p{j}";
+
+                    cmd.Parameters.AddWithValue(pI, node.Id);
+                    cmd.Parameters.AddWithValue(pK, node.Kind);
+                    cmd.Parameters.AddWithValue(pP, JsonSerializer.Serialize(node.Properties));
                 }
 
-                sb.Append(
-                    " ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, properties = excluded.properties;");
-                cmd.CommandText = sb.ToString();
                 cmd.ExecuteNonQuery();
 
                 if (distinctNodes.Count >= 5000 && (i + count == distinctNodes.Count || Stopwatch.GetElapsedTime(lastReport).TotalSeconds >= 3))
@@ -191,7 +230,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync();
 
             const string emptyPropsJson = "{}";
-            const int batchSize = 200;
+            const int batchSize = DefaultBatchSize;
             var distinctRels = rels.Count > 1 ? [.. rels.DistinctBy(r => (r.From, r.To, r.Kind))] : rels;
 
             var lastReport = Stopwatch.GetTimestamp();
@@ -200,30 +239,26 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                 var count = Math.Min(batchSize, distinctRels.Count - i);
 
                 await using var cmd = _conn.CreateCommand();
-
                 cmd.Transaction = tx;
-
-                var sb = new System.Text.StringBuilder(count * 60 + 120);
-                sb.Append("INSERT INTO edges (from_id, to_id, kind, properties) VALUES ");
+                cmd.CommandText = count == DefaultBatchSize ? FullEdgeBatchSql : BuildEdgeSql(count);
 
                 for (int j = 0; j < count; j++)
                 {
-                    if (j > 0) sb.Append(',');
-                    sb.Append($"(@f{j}, @t{j}, @k{j}, @p{j})");
-
                     var rel = distinctRels[i + j];
-                    cmd.Parameters.AddWithValue($"@f{j}", rel.From);
-                    cmd.Parameters.AddWithValue($"@t{j}", rel.To);
-                    cmd.Parameters.AddWithValue($"@k{j}", rel.Kind);
+                    var pF = j < DefaultBatchSize ? EdgeParamF[j] : $"@f{j}";
+                    var pT = j < DefaultBatchSize ? EdgeParamT[j] : $"@t{j}";
+                    var pK = j < DefaultBatchSize ? EdgeParamK[j] : $"@k{j}";
+                    var pP = j < DefaultBatchSize ? EdgeParamP[j] : $"@p{j}";
 
-                    cmd.Parameters.AddWithValue($"@p{j}",
+                    cmd.Parameters.AddWithValue(pF, rel.From);
+                    cmd.Parameters.AddWithValue(pT, rel.To);
+                    cmd.Parameters.AddWithValue(pK, rel.Kind);
+                    cmd.Parameters.AddWithValue(pP,
                         rel.Properties == null || rel.Properties.Count == 0
                             ? emptyPropsJson
                             : JsonSerializer.Serialize(rel.Properties));
                 }
 
-                sb.Append(" ON CONFLICT(from_id, to_id, kind) DO UPDATE SET properties = excluded.properties;");
-                cmd.CommandText = sb.ToString();
                 cmd.ExecuteNonQuery();
 
                 if (distinctRels.Count >= 5000 && (i + count == distinctRels.Count || Stopwatch.GetElapsedTime(lastReport).TotalSeconds >= 3))

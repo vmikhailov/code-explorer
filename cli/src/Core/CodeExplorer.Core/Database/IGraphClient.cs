@@ -11,6 +11,8 @@ public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
     GraphContext Graph => new(this);
 
     Task CreateIndicesAsync();
+    Task BeginBulkLoadAsync() => Task.CompletedTask;
+    Task EndBulkLoadAsync() => Task.CompletedTask;
     Task ClearDatabaseAsync();
     Task<bool> ClearWorkspaceAsync(string workspacePath);
     Task<string> GetOrCreateWorkspaceIdAsync(string workspacePath);

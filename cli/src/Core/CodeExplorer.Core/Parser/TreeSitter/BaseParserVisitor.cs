@@ -467,7 +467,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
                 }
             }
 
-            if (LibraryParsers.Count > 0)
+            if (LibraryParsers.Count > 0 && node.Type.Length > 1 && node.Type != "comment")
             {
                 foreach (var libParser in LibraryParsers)
                 {

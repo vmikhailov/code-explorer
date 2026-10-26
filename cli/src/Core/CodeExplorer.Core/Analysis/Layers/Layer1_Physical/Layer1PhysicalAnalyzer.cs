@@ -100,6 +100,27 @@ public class Layer1PhysicalParser
             await ScanDirectoryAsync(ctx.ScanPath, currentParent, files, folders, gitignore, ctx);
         }
 
+        if (files.Count > 0)
+        {
+            await Parallel.ForEachAsync(files, new ParallelOptions
+            {
+                CancellationToken = ctx.CancellationToken,
+                MaxDegreeOfParallelism = Environment.ProcessorCount
+            }, async (fileNode, ct) =>
+            {
+                try
+                {
+                    var bytes = await File.ReadAllBytesAsync(fileNode.FullPath, ct);
+                    fileNode.LineCount = CountLines(bytes);
+                    fileNode.ContentHash = Incremental.HashUtility.ComputeSha256(bytes);
+                }
+                catch
+                {
+                    // Fallback for locked or unreadable files
+                }
+            });
+        }
+
         ctx.Log($"[Layer1] Physical topology scan complete. Found {files.Count} files, {folders.Count} folders.");
         return new Layer1Result(workspaceNode, filesStructureNode, files, folders);
     }
@@ -194,28 +215,13 @@ public class Layer1PhysicalParser
                 continue;
             }
 
-            var absoluteFilePath = fileInfo.FullName.Replace('\\', '/');
+                        var absoluteFilePath = fileInfo.FullName.Replace('\\', '/');
             var fileId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.File}:{relativeFile}";
             var fileName = fileInfo.Name;
             var sizeBytes = fileInfo.Length;
-            int? lineCount = null;
-            string? contentHash = null;
-            DateTime? lastModifiedUtc = null;
-            try
+            var fileNode = new FileNode(fileId, fileName, relativeFile, absoluteFilePath, false, null, null, null, sizeBytes)
             {
-                lastModifiedUtc = fileInfo.LastWriteTimeUtc;
-                var bytes = await File.ReadAllBytesAsync(fileInfo.FullName, ctx.CancellationToken);
-                lineCount = CountLines(bytes);
-                contentHash = Incremental.HashUtility.ComputeSha256(bytes);
-            }
-            catch
-            {
-                // Fallback for locked or unreadable files
-            }
-            var fileNode = new FileNode(fileId, fileName, relativeFile, absoluteFilePath, false, null, null, lineCount, sizeBytes)
-            {
-                ContentHash = contentHash,
-                LastModifiedUtc = lastModifiedUtc
+                LastModifiedUtc = fileInfo.LastWriteTimeUtc
             };
 
             currentParentNode.Children.Add(fileNode);

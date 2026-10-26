@@ -32,49 +32,8 @@ public class TypeScriptFileVisitor : BaseParserVisitor
             RouteDictionaryRegistry.ScanAndRegister(rootNode.Text);
         }
 
-        // Register a sequence detector rule for CommonJS 'require' statements
-        SequenceDetector.Register([
-            n => n.Is(TreeSitterSyntax.TypeScript.CallExpression) &&
-                 n.GetField(TreeSitterSyntax.Fields.Function)?.Text == "require"
-        ], path =>
-        {
-            var callNode = path[^1];
-            var argList = callNode.GetField(TreeSitterSyntax.Fields.Arguments);
+        // CommonJS require statements are handled in VisitCallExpression for optimal performance
 
-            if (argList.IsValid() && argList.Children.Count > 1)
-            {
-                var firstArg = argList.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.String));
-
-                if (firstArg.IsValid())
-                {
-                    var importPath = firstArg.Text.Trim('\'', '"');
-                    var specifiers = new List<ImportSpecifier>();
-
-                    var declarator = callNode.Parent;
-                    if (declarator.IsValid() && declarator.Is(TreeSitterSyntax.TypeScript.VariableDeclarator))
-                    {
-                        var nameField = declarator.GetField(TreeSitterSyntax.Fields.Name);
-                        if (nameField.IsValid())
-                        {
-                            if (nameField.Is(TreeSitterSyntax.TypeScript.Identifier))
-                            {
-                                specifiers.Add(new ImportSpecifier(nameField.Text, "default", IsDefault: true));
-                            }
-                            else if (nameField.Type == "object_pattern")
-                            {
-                                foreach (var prop in nameField.FindChildrenOfType("shorthand_property_identifier_pattern"))
-                                {
-                                    specifiers.Add(new ImportSpecifier(prop.Text, prop.Text));
-                                }
-                            }
-                        }
-                    }
-
-                    RawImports.Add(new RawImport(importPath, "", ImportType.External, specifiers));
-                    ResolveAndInjectLibraryParser(importPath);
-                }
-            }
-        });
     }
 
     protected override string? MapNodeType(Node node)
@@ -837,4 +796,51 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 
         return "global";
     }
+
+    protected override void VisitCallExpression(Node node, int depth)
+    {
+        if (node.GetField(TreeSitterSyntax.Fields.Function)?.Text == "require")
+        {
+            HandleRequireCall(node);
+        }
+        base.VisitCallExpression(node, depth);
+    }
+
+    private void HandleRequireCall(Node callNode)
+    {
+        var argList = callNode.GetField(TreeSitterSyntax.Fields.Arguments);
+        if (argList.IsValid() && argList.Children.Count > 1)
+        {
+            var firstArg = argList.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.String));
+            if (firstArg.IsValid())
+            {
+                var importPath = firstArg.Text.Trim('\'', '"');
+                var specifiers = new List<ImportSpecifier>();
+
+                var declarator = callNode.Parent;
+                if (declarator.IsValid() && declarator.Is(TreeSitterSyntax.TypeScript.VariableDeclarator))
+                {
+                    var nameField = declarator.GetField(TreeSitterSyntax.Fields.Name);
+                    if (nameField.IsValid())
+                    {
+                        if (nameField.Is(TreeSitterSyntax.TypeScript.Identifier))
+                        {
+                            specifiers.Add(new ImportSpecifier(nameField.Text, "default", IsDefault: true));
+                        }
+                        else if (nameField.Type == "object_pattern")
+                        {
+                            foreach (var prop in nameField.FindChildrenOfType("shorthand_property_identifier_pattern"))
+                            {
+                                specifiers.Add(new ImportSpecifier(prop.Text, prop.Text));
+                            }
+                        }
+                    }
+                }
+
+                RawImports.Add(new RawImport(importPath, "", ImportType.External, specifiers));
+                ResolveAndInjectLibraryParser(importPath);
+            }
+        }
+    }
+
 }

@@ -1,4 +1,4 @@
-﻿using Dapper;
+using Dapper;
 using Microsoft.Extensions.Logging;
 
 namespace CodeExplorer.Core.Database;
@@ -123,6 +123,32 @@ public partial class SqliteGraphClient
         {
             await _conn.ExecuteAsync($"PRAGMA user_version = {version};");
             SchemaVersion = version;
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public async Task BeginBulkLoadAsync()
+    {
+        await _lock.WaitAsync();
+        try
+        {
+            await _conn.ExecuteAsync("PRAGMA synchronous = OFF;");
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public async Task EndBulkLoadAsync()
+    {
+        await _lock.WaitAsync();
+        try
+        {
+            await _conn.ExecuteAsync("PRAGMA synchronous = NORMAL;");
         }
         finally
         {
