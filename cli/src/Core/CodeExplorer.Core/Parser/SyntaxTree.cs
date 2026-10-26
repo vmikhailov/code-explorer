@@ -56,7 +56,6 @@ public class SyntaxTree : IDisposable
 
     public void Dispose()
     {
-        // Native TreeSitter.Tree and TreeSitter.Parser are disposed immediately inside UniversalSyntaxBuilder.Parse
     }
 
     public static SyntaxDocument? ParseText(
@@ -64,8 +63,7 @@ public class SyntaxTree : IDisposable
         string languageName,
         string filePath = "",
         string relativePath = "",
-        LanguageSyntaxProfile? profile = null,
-        ILanguageSyntaxHooks? hooks = null)
+        LanguageSyntaxProfile? profile = null)
     {
         var parser = WorkspaceIndexer.GetParserByLanguage(languageName)
                      ?? (!string.IsNullOrEmpty(filePath) ? WorkspaceIndexer.GetParserForFile(filePath) : null);

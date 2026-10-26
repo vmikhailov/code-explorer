@@ -348,14 +348,6 @@ public abstract class SyntaxNode
 }
 
 /// <summary>
-/// Optional language-specific hook interface for customizing CST-to-Syntax conversion.
-/// </summary>
-public interface ILanguageSyntaxHooks
-{
-    void EnrichSyntaxNode(SyntaxNode node, SyntaxDocument document) { }
-}
-
-/// <summary>
 /// Universal field role names for structural child access on <see cref="SyntaxNode"/>.
 /// </summary>
 public static class SyntaxFields

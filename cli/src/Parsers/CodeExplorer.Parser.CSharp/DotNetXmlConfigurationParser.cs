@@ -1,7 +1,7 @@
 using System.Xml.Linq;
 using CodeExplorer.Core.Parser;
 
-namespace CodeExplorer.Parser.Shared;
+namespace CodeExplorer.Parser.CSharp;
 
 /// <summary>.NET web.config / app.config: connectionStrings, appSettings and WCF client endpoints.</summary>
 public sealed class DotNetXmlConfigurationParser : ISharedFileParser
@@ -127,3 +127,4 @@ public sealed class DotNetXmlConfigurationParser : ISharedFileParser
         }
     }
 }
+

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Syntax;
@@ -379,8 +380,8 @@ public class CSharpParser : IProjectParser, IFileParser
 
             // Stage 1 (Hard Physical Gates)
             // 1.1 Test Suite Priority: detect test projects FIRST before Maui, Exe, or Web SDK checks
-            var isTest = System.Text.RegularExpressions.Regex.IsMatch(content, @"<IsTestProject>\s*true\s*</IsTestProject>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
-                         System.Text.RegularExpressions.Regex.IsMatch(content, @"<IsTestingPlatformApplication>\s*true\s*</IsTestingPlatformApplication>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
+            var isTest = Regex.IsMatch(content, @"<IsTestProject>\s*true\s*</IsTestProject>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
+                         Regex.IsMatch(content, @"<IsTestingPlatformApplication>\s*true\s*</IsTestingPlatformApplication>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
                          content.Contains("Microsoft.NET.Test.Sdk", StringComparison.OrdinalIgnoreCase) ||
                          content.Contains("MSTest.Sdk", StringComparison.OrdinalIgnoreCase) ||
                          content.Contains("MSTest.TestFramework", StringComparison.OrdinalIgnoreCase) ||
@@ -1054,7 +1055,7 @@ public class CSharpParser : IProjectParser, IFileParser
     public bool UsesTreeSitter => true;
 
     public SyntaxDocument? ParseDocument(string sourceText, string filePath = "", string relativePath = "") =>
-        UniversalSyntaxBuilder.Parse(sourceText, LanguageName, filePath, relativePath, SyntaxProfile, this as ILanguageSyntaxHooks);
+        CSharpSyntaxConverter.Instance.Parse(sourceText, LanguageName, filePath, relativePath);
     public async Task<SyntaxTree> ParseAsync(string filePath, string parentNodeId, string workspaceId, string absoluteWorkspacePath)
     {
         var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace('\\', '/');

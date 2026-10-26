@@ -18,7 +18,7 @@ public class JavaScriptParser : IProjectParser, IFileParser
     public bool UsesTreeSitter => true;
 
     public SyntaxDocument? ParseDocument(string sourceText, string filePath = "", string relativePath = "") =>
-        UniversalSyntaxBuilder.Parse(sourceText, LanguageName, filePath, relativePath, SyntaxProfile, this as ILanguageSyntaxHooks);
+        TypeScriptSyntaxConverter.Instance.Parse(sourceText, LanguageName, filePath, relativePath);
 
     public LanguageSyntaxProfile SyntaxProfile => TypeScriptSyntaxProfile.Instance;
 
