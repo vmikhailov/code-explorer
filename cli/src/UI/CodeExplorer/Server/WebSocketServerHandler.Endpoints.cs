@@ -143,6 +143,7 @@ public partial class WebSocketServerHandler
         {
             TotalGates = allGates.Count,
             PassedCount = 0,
+            WarningCount = 0,
             FailedCount = 0,
             NewViolationsCount = 0,
             ToleratedViolationsCount = 0,
@@ -160,6 +161,11 @@ public partial class WebSocketServerHandler
                 Severity = g.Severity.ToString(),
                 Description = g.Description,
                 Remediation = g.Remediation,
+                Message = g.Message,
+                Target = g.Target,
+                Thresholds = g.Thresholds != null
+                    ? new GateThresholdSettingsDto { Warning = g.Thresholds.Warning, Error = g.Thresholds.Error }
+                    : null,
                 Query = g.Query,
                 Source = g.Source,
                 RatchetEnabled = g.Ratchet.Enabled,
@@ -226,6 +232,7 @@ public partial class WebSocketServerHandler
                     }
 
                     int passed = 0;
+                    int warning = 0;
                     int failed = 0;
                     int newViolations = 0;
                     int toleratedViolations = 0;
@@ -242,6 +249,11 @@ public partial class WebSocketServerHandler
                             passed++;
                             toleratedViolations += g.ToleratedViolationsCount;
                         }
+                        else if (string.Equals(g.Status, "Warning", StringComparison.OrdinalIgnoreCase))
+                        {
+                            warning++;
+                            newViolations += g.NewViolationsCount;
+                        }
                         else if (string.Equals(g.Status, "FailedNew", StringComparison.OrdinalIgnoreCase) || string.Equals(g.Status, "Error", StringComparison.OrdinalIgnoreCase))
                         {
                             failed++;
@@ -255,6 +267,7 @@ public partial class WebSocketServerHandler
                     {
                         TotalGates = nextGates.Count,
                         PassedCount = passed,
+                        WarningCount = warning,
                         FailedCount = failed,
                         NewViolationsCount = newViolations,
                         ToleratedViolationsCount = toleratedViolations,
@@ -375,6 +388,14 @@ public partial class WebSocketServerHandler
         var dim = Enum.TryParse<Core.Gates.Models.InvariantDimension>(gateDto.Dimension, true, out var dm) ? dm : Core.Gates.Models.InvariantDimension.Boundaries;
         var sev = Enum.TryParse<Core.Gates.Models.GateSeverity>(gateDto.Severity, true, out var sv) ? sv : Core.Gates.Models.GateSeverity.Error;
 
+        var thresholds = gateDto.Thresholds != null && (gateDto.Thresholds.Warning.HasValue || gateDto.Thresholds.Error.HasValue)
+            ? new Core.Gates.Models.GateThresholdSettings
+            {
+                Warning = gateDto.Thresholds.Warning,
+                Error = gateDto.Thresholds.Error
+            }
+            : null;
+
         var gate = new Core.Gates.Models.SemanticGate
         {
             Id = gateDto.Id.Trim(),
@@ -386,6 +407,9 @@ public partial class WebSocketServerHandler
             Severity = sev,
             Description = gateDto.Description?.Trim(),
             Remediation = gateDto.Remediation?.Trim(),
+            Message = string.IsNullOrWhiteSpace(gateDto.Message) ? null : gateDto.Message.Trim(),
+            Target = string.IsNullOrWhiteSpace(gateDto.Target) ? null : gateDto.Target.Trim(),
+            Thresholds = thresholds,
             Query = gateDto.Query.Trim(),
             Ratchet = new Core.Gates.Models.GateRatchetSettings
             {
@@ -413,7 +437,13 @@ public partial class WebSocketServerHandler
         };
     }
 
-    public async Task<TestGateResponseDto> TestGateQueryAsync(string query, string? gateId = null, Dictionary<string, string>? parameters = null, CancellationToken cancellationToken = default)
+    public async Task<TestGateResponseDto> TestGateQueryAsync(
+        string query,
+        string? gateId = null,
+        Dictionary<string, string>? parameters = null,
+        CancellationToken cancellationToken = default,
+        string? messageTemplate = null,
+        string? targetTemplate = null)
     {
         if (string.IsNullOrWhiteSpace(query))
         {
@@ -440,9 +470,10 @@ public partial class WebSocketServerHandler
             sw.Stop();
 
             var effectiveGateId = !string.IsNullOrWhiteSpace(gateId) ? gateId.Trim() : "TEST_GATE";
-            var violations = Core.Gates.Engine.GateExecutionEngine.ParseViolations(effectiveGateId, rawJson);
+            var violations = Core.Gates.Engine.GateExecutionEngine.ParseViolations(effectiveGateId, rawJson, messageTemplate, targetTemplate);
 
             var projectedCols = new List<string>();
+            var hasGraphNode = false;
             if (!string.IsNullOrWhiteSpace(rawJson))
             {
                 try
@@ -456,6 +487,12 @@ public partial class WebSocketServerHandler
                             foreach (var prop in first.EnumerateObject())
                             {
                                 projectedCols.Add(prop.Name);
+                                if (prop.Value.ValueKind == JsonValueKind.Object &&
+                                    prop.Value.TryGetProperty("properties", out _) &&
+                                    prop.Value.TryGetProperty("id", out _))
+                                {
+                                    hasGraphNode = true;
+                                }
                             }
                         }
                     }
@@ -466,10 +503,17 @@ public partial class WebSocketServerHandler
                 }
             }
 
-            var requiredContract = new[] { "file", "line", "symbol", "target", "message" };
-            var missingCols = requiredContract
-                .Where(req => !projectedCols.Any(c => string.Equals(c, req, StringComparison.OrdinalIgnoreCase)))
-                .ToList();
+            var missingCols = new List<string>();
+            if (projectedCols.Count > 0 && !hasGraphNode)
+            {
+                var requiredContract = new List<string> { "file", "line", "symbol" };
+                if (string.IsNullOrWhiteSpace(targetTemplate)) requiredContract.Add("target");
+                if (string.IsNullOrWhiteSpace(messageTemplate)) requiredContract.Add("message");
+
+                missingCols = requiredContract
+                    .Where(req => !projectedCols.Any(c => string.Equals(c, req, StringComparison.OrdinalIgnoreCase)))
+                    .ToList();
+            }
 
             var vDtos = violations.Take(50).Select(v => new GateViolationDto
             {
@@ -480,6 +524,8 @@ public partial class WebSocketServerHandler
                 Symbol = v.Symbol,
                 Target = v.Target,
                 Message = v.Message,
+                NodeId = v.NodeId,
+                TargetNodeId = v.TargetNodeId,
                 Fingerprint = v.Fingerprint,
                 IsTolerated = false
             }).ToList();
@@ -524,6 +570,8 @@ public partial class WebSocketServerHandler
                 Symbol = v.Symbol,
                 Target = v.Target,
                 Message = v.Message,
+                NodeId = v.NodeId,
+                TargetNodeId = v.TargetNodeId,
                 Fingerprint = v.Fingerprint,
                 IsTolerated = toleratedFps.Contains(v.Fingerprint)
             }).ToList();
@@ -539,6 +587,11 @@ public partial class WebSocketServerHandler
                 Severity = r.Gate.Severity.ToString(),
                 Description = r.Gate.Description,
                 Remediation = r.Gate.Remediation,
+                Message = r.Gate.Message,
+                Target = r.Gate.Target,
+                Thresholds = r.Gate.Thresholds != null
+                    ? new GateThresholdSettingsDto { Warning = r.Gate.Thresholds.Warning, Error = r.Gate.Thresholds.Error }
+                    : null,
                 Query = r.Gate.Query,
                 Source = r.Gate.Source,
                 RatchetEnabled = r.Gate.Ratchet.Enabled,
@@ -559,6 +612,7 @@ public partial class WebSocketServerHandler
         {
             TotalGates = suite.TotalGates,
             PassedCount = suite.PassedCount,
+            WarningCount = suite.WarningCount,
             FailedCount = suite.FailedCount,
             NewViolationsCount = suite.NewViolationsCount,
             ToleratedViolationsCount = suite.ToleratedViolationsCount,

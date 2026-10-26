@@ -80,43 +80,45 @@ ce gate check --category platform
 
 ---
 
-### 3. The Zero-Match Contract
+### 3. The Zero-Match Contract & v2 Node-First / Edge-Aware Extraction
 
 A Semantic Invariant Gate operates on a strict **Zero-Match Contract**:
 - **0 rows returned** $\implies$ **PASS** (Invariant holds across the codebase).
-- **$\ge 1$ rows returned** $\implies$ **VIOLATION** (Each row returned is a violation).
+- **$\ge 1$ rows returned** $\implies$ **VIOLATION** (Each row returned is a violation, evaluated against `thresholds` and `ratchet`).
 
-#### Standard Cypher Output Columns:
-Your Cypher `RETURN` clause **must** yield these columns:
-1. `file`: Path to the violating source file (string).
-2. `line`: 1-indexed line / row number (integer, or 0 if symbol-level).
-3. `column`: 1-indexed column number (integer, or 0 if symbol-level).
-4. `symbol`: Offending caller or symbol name (e.g. class, method, or project name).
-5. `target`: Target being violated (e.g. prohibited dependency, callee, or package).
-6. `message`: Human-readable explanation of why this violation occurred.
+#### Preferred v2 Contract — Node-First & Edge-Aware `RETURN`:
+Instead of manually projecting scalar columns (`AS file`, `AS line`, `AS symbol`, `AS target`, `AS message`), return the matched graph nodes and relationship directly and declare `message` (and optional `target`) templates on the gate manifest:
+
+```yaml
+target: "{target.name}" # optional override for single-node or aggregate queries
+message: "Prohibited call from '{caller.name}' to '{target.name}' at {location}"
+thresholds:
+  warning: 1
+  error: 5
+query: |
+  MATCH (caller:Function)-[r:CALLS]->(target:Function)
+  WHERE caller.path CONTAINS 'Domain/' AND target.path CONTAINS 'Infrastructure/'
+  RETURN caller, r, target
+```
+
+`GateExecutionEngine` automatically extracts:
+1. **Source Node** (`caller`, `fn`, `src`, `p`, `c`, `t`, etc.): extracts `file` (`file_path` / `path`), `line` (`start_line`), `column` (`start_col`), `symbol` (`name`), and `nodeId` (`id`).
+2. **Relationship Edge** (`r`, `rel`, `edge`, `call`): extracts exact call-site `line` and `column` (overriding the declaration line of the caller function) and automatically **unrolls `r.call_sites`** (`["45:12", "88:9"]`) when a function invokes a forbidden target multiple times!
+3. **Target Node** (`target`, `tgt`, `pkg`, `d`, `ep`, etc.): extracts `target` (`name` / `full_name`) and `targetNodeId` (`id`).
+4. **Template Interpolation (`message` & `target`)**: supports `{fn.name}`, `{r.line}`, `{node.label}`, `{node.id}`, `{location}`, flat scalar columns (`{loc}`), and default fallback values (`{d.engine|unknown}`).
 
 > [!NOTE]
-> Locations are displayed in standard 2D format (`file:line:column`, e.g. `src/MyFile.cs:42:15`), enabling direct clickable navigation in IDEs and terminals.
-
-```cypher
-RETURN 
-  caller.file_path AS file,
-  caller.line AS line,
-  caller.column AS column,
-  caller.name AS symbol,
-  target.name AS target,
-  'Prohibited direct dependency from ' + caller.name + ' to ' + target.name AS message
-```
+> Legacy v1 scalar projections (`RETURN ... AS file, AS line, AS column, AS symbol, AS target, AS message`) remain 100% supported as an explicit override.
 
 ---
 
 ### 4. Line-Shift Immune Fingerprinting
 
 CodeExplorer calculates violation fingerprints without depending on volatile line numbers:
-$$\text{Fingerprint} = \text{SHA256}(\text{GateId} + \text{FilePath} + \text{Symbol} + \text{Target})$$
+$$\text{Fingerprint} = \text{SHA256}(\text{GateId} \parallel \text{FilePath} \parallel \text{Symbol} \parallel \text{Target} \parallel \text{Occurrence})$$
 
 * **Why**: Adding comments, reformatting, or inserting code above a violation shifts line numbers but must **never** invalidate the baseline snapshot.
-* **Best Practice**: Ensure `target` contains differentiating detail when a single method can have multiple violations (e.g. for `SIG-M-I-001`, `target` is `callee(argValue)`).
+* **Multi-Call-Site Unrolling**: When a single `(File, Symbol, Target)` pair occurs multiple times (either as multiple rows or unrolled from `r.call_sites`), `GateExecutionEngine` assigns deterministic occurrence indices (`#1`, `#2`, ...), ensuring every call site gets its own unique fingerprint.
 
 ---
 
@@ -136,14 +138,14 @@ $$\text{Fingerprint} = \text{SHA256}(\text{GateId} + \text{FilePath} + \text{Sym
 ### Step 2: Prototype and Test the Cypher Query
 Run your query interactively using `ce query` to test against the current workspace:
 ```bash
-ce query "MATCH (l:Library)-[:DEPENDS_ON]->(p:Package) WHERE p.name = 'Microsoft.Data.Sqlite' RETURN l.path AS file, 0 AS line, l.name AS symbol, p.name AS target, 'Direct SQLite reference' AS message"
+ce query "MATCH (l:Library)-[r:DEPENDS_ON]->(pkg:Package) WHERE pkg.name = 'Microsoft.Data.Sqlite' RETURN l, r, pkg"
 ```
 Verify that:
 - Clean code returns **0 rows**.
 - Real violations are caught.
 - Test projects/files are appropriately excluded if not subject to the rule:
   ```cypher
-  WHERE NOT (file CONTAINS 'test' OR file CONTAINS 'Test')
+  WHERE NOT coalesce(fn.is_test, false)
   ```
 
 ### Step 3: Create Gate Manifest YAML
@@ -161,16 +163,15 @@ name: "Disallow Direct Database Packages in Domain Libraries"
 severity: Error # Error | Warning
 description: "Domain and Core libraries must remain storage-agnostic. Direct references to database drivers violate Clean Architecture."
 remediation: "Move database drivers and EF Core dependencies to Infrastructure/Data layer projects."
+message: "Core library '{l.name}' must not depend on database driver '{pkg.name}'"
+thresholds:
+  warning: 1
+  error: 1
 query: |
-  MATCH (l:Library)-[:DEPENDS_ON]->(pkg:Package)
+  MATCH (l:Library)-[r:DEPENDS_ON]->(pkg:Package)
   WHERE (l.name CONTAINS 'Core' OR l.name CONTAINS 'Domain')
     AND pkg.name IN ['Microsoft.Data.Sqlite', 'Npgsql', 'System.Data.SqlClient', 'MySqlConnector', 'better-sqlite3', 'pg', 'mysql2']
-  RETURN 
-    l.path AS file,
-    0 AS line,
-    l.name AS symbol,
-    pkg.name AS target,
-    'Core library ' + l.name + ' must not depend on database driver ' + pkg.name AS message
+  RETURN l, r, pkg
 ratchet:
   enabled: true
   baseline: baselines/SIG-P-B-004.json

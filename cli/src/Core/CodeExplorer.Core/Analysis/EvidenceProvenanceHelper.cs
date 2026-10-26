@@ -132,4 +132,141 @@ public static class EvidenceProvenanceHelper
         }
         return fallback;
     }
+
+    public static Dictionary<string, string>? BuildCallSiteExtensions(int line, int column)
+    {
+        if (line <= 0) return null;
+        var col = Math.Max(1, column);
+        return new Dictionary<string, string>
+        {
+            ["line"] = line.ToString(),
+            ["column"] = col.ToString(),
+            ["call_sites"] = $"[\"{line}:{col}\"]",
+            ["call_count"] = "1"
+        };
+    }
+
+    public static List<string> ParseCallSites(IReadOnlyDictionary<string, object>? properties)
+    {
+        if (properties is null) return [];
+
+        if (properties.TryGetValue("call_sites", out var raw) && raw is not null)
+        {
+            var json = raw.ToString();
+            if (!string.IsNullOrWhiteSpace(json))
+            {
+                try
+                {
+                    var parsed = JsonSerializer.Deserialize<List<string>>(json);
+                    if (parsed is { Count: > 0 }) return parsed;
+                }
+                catch
+                {
+                    // Fallback to scalar line/column below
+                }
+            }
+        }
+
+        if (TryExtractLineCol(properties, out var line, out var col))
+        {
+            return [$"{line}:{col}"];
+        }
+
+        return [];
+    }
+
+    public static void MergeEdgeProperties(
+        Dictionary<string, object> targetProperties,
+        IReadOnlyDictionary<string, object>? sourceProperties,
+        int cap = DefaultEvidenceCap)
+    {
+        if (sourceProperties is null || sourceProperties.Count == 0) return;
+
+        MergeProvenance(targetProperties, sourceProperties, cap);
+        MergeCallSites(targetProperties, sourceProperties, cap);
+
+        foreach (var (key, value) in sourceProperties)
+        {
+            if (!targetProperties.ContainsKey(key))
+            {
+                targetProperties[key] = value;
+            }
+        }
+    }
+
+    public static void MergeCallSites(
+        Dictionary<string, object> targetProperties,
+        IReadOnlyDictionary<string, object>? sourceProperties,
+        int cap = DefaultEvidenceCap)
+    {
+        if (sourceProperties is null) return;
+
+        var sourceSites = ParseCallSites(sourceProperties);
+        if (sourceSites.Count == 0) return;
+
+        var targetSites = ParseCallSites(targetProperties);
+        var targetCount = GetIntProperty(targetProperties, "call_count", targetSites.Count);
+        var sourceCount = GetIntProperty(sourceProperties, "call_count", sourceSites.Count);
+
+        var added = 0;
+        foreach (var site in sourceSites)
+        {
+            if (targetSites.Contains(site, StringComparer.Ordinal)) continue;
+            added++;
+            if (targetSites.Count < cap)
+            {
+                targetSites.Add(site);
+            }
+        }
+
+        var extraBeyondListed = Math.Max(0, sourceCount - sourceSites.Count);
+        var newTotal = Math.Max(targetSites.Count, targetCount + added + extraBeyondListed);
+
+        if (targetSites.Count > 0)
+        {
+            if (!targetProperties.ContainsKey("line") && TryParseSite(targetSites[0], out var firstLine, out var firstCol))
+            {
+                targetProperties["line"] = firstLine.ToString();
+                targetProperties["column"] = firstCol.ToString();
+            }
+
+            targetProperties["call_sites"] = JsonSerializer.Serialize(targetSites);
+            targetProperties["call_count"] = newTotal.ToString();
+        }
+    }
+
+    private static bool TryExtractLineCol(IReadOnlyDictionary<string, object> properties, out int line, out int col)
+    {
+        line = GetIntProperty(properties, "line", 0);
+        col = GetIntProperty(properties, "column", 1);
+        if (col <= 0) col = 1;
+        return line > 0;
+    }
+
+    public static bool TryParseSite(string site, out int line, out int col)
+    {
+        line = 0;
+        col = 1;
+        if (string.IsNullOrWhiteSpace(site)) return false;
+        var idx = site.IndexOf(':');
+        if (idx <= 0)
+        {
+            return int.TryParse(site, out line) && line > 0;
+        }
+
+        if (!int.TryParse(site[..idx], out line) || line <= 0) return false;
+        if (!int.TryParse(site[(idx + 1)..], out col) || col <= 0) col = 1;
+        return true;
+    }
+
+    private static int GetIntProperty(IReadOnlyDictionary<string, object> properties, string key, int fallback)
+    {
+        if (properties.TryGetValue(key, out var raw) && raw is not null)
+        {
+            if (raw is int i) return i;
+            if (int.TryParse(raw.ToString(), out var parsed)) return parsed;
+        }
+        return fallback;
+    }
 }
+

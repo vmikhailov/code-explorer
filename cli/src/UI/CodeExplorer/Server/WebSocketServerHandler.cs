@@ -505,7 +505,13 @@ public partial class WebSocketServerHandler
                         await SendErrorAsync(session, reqId, "INVALID_PAYLOAD", "Payload must contain 'query'.", cancellationToken);
                         break;
                     }
-                    var testResult = await TestGateQueryAsync(testReq.Query, testReq.GateId, testReq.Parameters, cancellationToken);
+                    var testResult = await TestGateQueryAsync(
+                        testReq.Query,
+                        testReq.GateId,
+                        testReq.Parameters,
+                        cancellationToken,
+                        testReq.Message,
+                        testReq.Target);
                     await SendResponseAsync(session, WsMessageTypes.TestGateResponse, reqId, testResult, cancellationToken);
                     break;
 

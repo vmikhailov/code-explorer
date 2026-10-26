@@ -1180,6 +1180,161 @@ public class SemanticInvariantGateTests
         serialized.Should().Contain("message:");
     }
 
+    [Test]
+    public void ParseViolations_UnrollsMultiCallSiteEdgeAndInterpolatesTargetAndFallbacks()
+    {
+        var json = """
+        [
+          {
+            "fn": {
+              "id": "ws:sym:src/handler.rs:Function:process_batch",
+              "kind": "Function",
+              "properties": {
+                "name": "process_batch",
+                "path": "src/handler.rs",
+                "start_line": 10,
+                "start_col": 1
+              }
+            },
+            "r": {
+              "type": "CALLS",
+              "source": "ws:sym:src/handler.rs:Function:process_batch",
+              "target": "ws:sym:src/io.rs:Function:fs_sync",
+              "properties": {
+                "call_sites": ["15:4", "28:12"],
+                "call_count": 2
+              }
+            },
+            "target": {
+              "id": "ws:sym:src/io.rs:Function:fs_sync",
+              "kind": "Function",
+              "properties": {
+                "name": "fs_sync",
+                "file_path": "src/io.rs",
+                "start_line": 200
+              }
+            }
+          }
+        ]
+        """;
+
+        var violations = GateExecutionEngine.ParseViolations(
+            "SIG-CALLSITES-001",
+            json,
+            "[{fn.label}] '{fn.full_name}' calls '{target.name}' at {line}:{column} (fallback: {fn.missing_prop|default_val})",
+            "{fn.name} -> {target.name}");
+
+        violations.Should().HaveCount(2);
+
+        violations[0].File.Should().Be("src/handler.rs");
+        violations[0].Line.Should().Be(15);
+        violations[0].Column.Should().Be(4);
+        violations[0].Symbol.Should().Be("process_batch");
+        violations[0].Target.Should().Be("process_batch -> fs_sync");
+        violations[0].NodeId.Should().Be("ws:sym:src/handler.rs:Function:process_batch");
+        violations[0].TargetNodeId.Should().Be("ws:sym:src/io.rs:Function:fs_sync");
+        violations[0].Message.Should().Be("[Function] 'process_batch' calls 'fs_sync' at 15:4 (fallback: default_val)");
+
+        violations[1].File.Should().Be("src/handler.rs");
+        violations[1].Line.Should().Be(28);
+        violations[1].Column.Should().Be(12);
+        violations[1].Symbol.Should().Be("process_batch");
+        violations[1].Target.Should().Be("process_batch -> fs_sync");
+        violations[1].Message.Should().Be("[Function] 'process_batch' calls 'fs_sync' at 28:12 (fallback: default_val)");
+
+        // Distinct fingerprints per call-site occurrence so ratcheting tracks exact call count
+        violations[0].Fingerprint.Should().NotBe(violations[1].Fingerprint);
+    }
+
+    [Test]
+    public void RatchetService_ErrorOnlyThreshold_DoesNotTriggerImplicitWarningAt1()
+    {
+        var gate = new SemanticGate
+        {
+            Id = "SIG-THRESH-ERR-ONLY",
+            Name = "Error-Only Threshold Gate",
+            Query = "RETURN 1",
+            Thresholds = new GateThresholdSettings
+            {
+                Warning = null,
+                Error = 5
+            }
+        };
+
+        var violations3 = new List<GateViolation>
+        {
+            new() { GateId = gate.Id, File = "A.cs", Symbol = "A", Fingerprint = "fp1" },
+            new() { GateId = gate.Id, File = "B.cs", Symbol = "B", Fingerprint = "fp2" },
+            new() { GateId = gate.Id, File = "C.cs", Symbol = "C", Fingerprint = "fp3" }
+        };
+
+        var res = RatchetService.Evaluate(gate, violations3, null);
+        res.Status.Should().Be(GateCheckStatus.Passed);
+    }
+
+    [Test]
+    public async Task SqliteGraphClient_MergesMultipleCallSitesOnSameEdgeAndUnrollsInGateCheck()
+    {
+        var dbPath = Path.Combine(_tempWorkspace, "graph_callsites.db");
+        await using var client = new SqliteGraphClient(dbPath);
+        await client.CreateIndicesAsync();
+
+        var caller = new Node("fn:caller", OntologyConstants.NodeLabels.Function, new()
+        {
+            ["name"] = "HandleRequest",
+            ["file_path"] = "src/Controller.cs",
+            ["start_line"] = 10,
+            ["start_col"] = 5
+        });
+
+        var callee = new Node("fn:callee", OntologyConstants.NodeLabels.Function, new()
+        {
+            ["name"] = "LegacyHelper",
+            ["file_path"] = "src/Legacy.cs",
+            ["start_line"] = 50,
+            ["start_col"] = 5
+        });
+
+        await client.UploadNodesAsync([caller, callee]);
+
+        // Upload two CALLS edges between the same pair at different call sites
+        var relSite1 = Relationship.FromRelationship(new CodeExplorer.Core.Common.Relationships.CallsRelationship(
+            caller.Id,
+            callee.Id,
+            CodeExplorer.Core.Analysis.EvidenceProvenanceHelper.BuildCallSiteExtensions(18, 9)));
+        var relSite2 = Relationship.FromRelationship(new CodeExplorer.Core.Common.Relationships.CallsRelationship(
+            caller.Id,
+            callee.Id,
+            CodeExplorer.Core.Analysis.EvidenceProvenanceHelper.BuildCallSiteExtensions(34, 13)));
+
+        await client.UploadRelationshipsAsync([relSite1, relSite2]);
+
+        var repo = new FileGateRepository(_tempWorkspace);
+        var engine = new GateExecutionEngine(client, repo);
+
+        var gate = new SemanticGate
+        {
+            Id = "SIG-EDGE-CALLSITES",
+            Name = "No Calls To LegacyHelper",
+            Message = "Function {caller.name} calls forbidden {callee.name} at line {line}:{column}",
+            Query = """
+                MATCH (caller:Function)-[r:CALLS]->(callee:Function)
+                WHERE callee.name = 'LegacyHelper'
+                RETURN caller, r, callee
+                """
+        };
+
+        var res = await engine.CheckGateAsync(gate);
+        res.Status.Should().Be(GateCheckStatus.FailedNew);
+        res.Violations.Should().HaveCount(2);
+        res.Violations[0].Line.Should().Be(18);
+        res.Violations[0].Column.Should().Be(9);
+        res.Violations[0].Message.Should().Be("Function HandleRequest calls forbidden LegacyHelper at line 18:9");
+        res.Violations[1].Line.Should().Be(34);
+        res.Violations[1].Column.Should().Be(13);
+        res.Violations[1].Message.Should().Be("Function HandleRequest calls forbidden LegacyHelper at line 34:13");
+    }
+
     private class MockGateDbClient : IGraphClient
     {
         public string QueryResponse { get; set; } = "[]";

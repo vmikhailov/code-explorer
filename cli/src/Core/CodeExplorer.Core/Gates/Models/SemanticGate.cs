@@ -54,9 +54,21 @@ public record SemanticGate
     public string? MessageTemplate => Message;
 
     /// <summary>
+    /// Optional target label or parameterized target template (e.g. "GodClass", "{lit.callee}", "{d.engine|unknown}").
+    /// Used when a query returns a single node or custom target representation.
+    /// </summary>
+    public string? Target { get; init; }
+
+    /// <summary>
+    /// Alias for Target for template clarity.
+    /// </summary>
+    public string? TargetTemplate => Target;
+
+    /// <summary>
     /// Optional thresholds for classifying infractions into warnings vs blocking errors.
     /// </summary>
     public GateThresholdSettings? Thresholds { get; init; }
+
 
     /// <summary>
     /// OpenCypher query following the Zero-Match Contract.

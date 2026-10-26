@@ -215,6 +215,7 @@ export class GateStateManager implements vscode.Disposable {
 
             let passed = 0;
             let failed = 0;
+            let warnings = 0;
             let newViolations = 0;
             let toleratedViolations = 0;
             let ratchetOps = 0;
@@ -222,6 +223,10 @@ export class GateStateManager implements vscode.Disposable {
               if (g.status === 'Passed') passed++;
               else if (g.status === 'PassedTolerated') {
                 passed++;
+                toleratedViolations += g.toleratedViolationsCount;
+              } else if (g.status === 'Warning') {
+                warnings++;
+                newViolations += g.newViolationsCount;
                 toleratedViolations += g.toleratedViolationsCount;
               } else if (g.status === 'FailedNew' || g.status === 'Error') {
                 failed++;
@@ -235,6 +240,7 @@ export class GateStateManager implements vscode.Disposable {
               totalGates: nextGates.length,
               passedCount: passed,
               failedCount: failed,
+              warningCount: warnings,
               newViolationsCount: newViolations,
               toleratedViolationsCount: toleratedViolations,
               ratchetOpportunities: ratchetOps,
@@ -426,7 +432,9 @@ export class GateStateManager implements vscode.Disposable {
   public async testGateQuery(
     query: string,
     gateId?: string,
-    parameters?: Record<string, string>
+    parameters?: Record<string, string>,
+    message?: string,
+    target?: string
   ): Promise<TestGateResponseDto> {
     const root = this.getWorkspaceRoot();
     if (!root) {
@@ -435,7 +443,7 @@ export class GateStateManager implements vscode.Disposable {
 
     return await this.transport.post<TestGateResponseDto>(
       '/api/gates/test',
-      { query, gateId, parameters },
+      { query, gateId, parameters, message, target },
       { workspaceRoot: root }
     );
   }

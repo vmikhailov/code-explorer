@@ -518,6 +518,7 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
           const isPending = gate.status === 'Pending';
           const isGateEvaluating = gate.status === 'Evaluating' || (loading && actionStatus?.includes(gate.id));
           const isFailed = gate.status === 'FailedNew' || gate.status === 'Error';
+          const isWarning = gate.status === 'Warning';
           const isTolerated = gate.status === 'PassedTolerated';
           const statusColor = isGateEvaluating
             ? '#38bdf8'
@@ -525,7 +526,7 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
             ? '#94a3b8'
             : isFailed
             ? '#f87171'
-            : isTolerated
+            : isWarning || isTolerated
             ? '#fbbf24'
             : '#34d399';
           const statusBg = isGateEvaluating
@@ -534,7 +535,7 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
             ? 'rgba(148, 163, 184, 0.14)'
             : isFailed
             ? 'rgba(239, 68, 68, 0.14)'
-            : isTolerated
+            : isWarning || isTolerated
             ? 'rgba(245, 158, 11, 0.14)'
             : 'rgba(16, 185, 129, 0.14)';
           const statusLabel = isGateEvaluating
@@ -543,6 +544,8 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
             ? 'NOT CHECKED'
             : isFailed
             ? `${gate.newViolationsCount} NEW`
+            : isWarning
+            ? `${gate.newViolationsCount} WARNING`
             : isTolerated
             ? `${gate.toleratedViolationsCount} TOLERATED`
             : 'PASSED';
@@ -553,7 +556,11 @@ export const DomainGatesPanel: React.FC<DomainGatesPanelProps> = ({
               style={{
                 borderRadius: '8px',
                 border: `1px solid ${
-                  isFailed ? 'rgba(239, 68, 68, 0.35)' : 'rgba(148, 163, 184, 0.18)'
+                  isFailed
+                    ? 'rgba(239, 68, 68, 0.35)'
+                    : isWarning
+                    ? 'rgba(245, 158, 11, 0.35)'
+                    : 'rgba(148, 163, 184, 0.18)'
                 }`,
                 background: 'rgba(15, 23, 42, 0.65)',
                 overflow: 'hidden',

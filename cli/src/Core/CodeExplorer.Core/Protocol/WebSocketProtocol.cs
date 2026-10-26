@@ -1181,11 +1181,30 @@ public class GateViolationDto
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Message { get; set; }
 
+    [JsonPropertyName("nodeId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? NodeId { get; set; }
+
+    [JsonPropertyName("targetNodeId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TargetNodeId { get; set; }
+
     [JsonPropertyName("fingerprint")]
     public string Fingerprint { get; set; } = string.Empty;
 
     [JsonPropertyName("isTolerated")]
     public bool IsTolerated { get; set; }
+}
+
+public class GateThresholdSettingsDto
+{
+    [JsonPropertyName("warning")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? Warning { get; set; }
+
+    [JsonPropertyName("error")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? Error { get; set; }
 }
 
 public class GateItemDto
@@ -1219,6 +1238,18 @@ public class GateItemDto
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Remediation { get; set; }
 
+    [JsonPropertyName("message")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Message { get; set; }
+
+    [JsonPropertyName("target")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Target { get; set; }
+
+    [JsonPropertyName("thresholds")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GateThresholdSettingsDto? Thresholds { get; set; }
+
     [JsonPropertyName("query")]
     public string Query { get; set; } = string.Empty;
 
@@ -1233,7 +1264,7 @@ public class GateItemDto
     public string? BaselinePath { get; set; }
 
     [JsonPropertyName("status")]
-    public string Status { get; set; } = "Passed"; // "Passed" | "PassedTolerated" | "FailedNew" | "Error"
+    public string Status { get; set; } = "Passed"; // "Passed" | "PassedTolerated" | "Warning" | "FailedNew" | "Error"
 
     [JsonPropertyName("totalViolations")]
     public int TotalViolations { get; set; }
@@ -1268,6 +1299,9 @@ public class GateSuiteSummaryDto
 
     [JsonPropertyName("passedCount")]
     public int PassedCount { get; set; }
+
+    [JsonPropertyName("warningCount")]
+    public int WarningCount { get; set; }
 
     [JsonPropertyName("failedCount")]
     public int FailedCount { get; set; }
@@ -1367,6 +1401,14 @@ public class TestGateRequestDto
     [JsonPropertyName("gateId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? GateId { get; set; }
+
+    [JsonPropertyName("message")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Message { get; set; }
+
+    [JsonPropertyName("target")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Target { get; set; }
 
     [JsonPropertyName("parameters")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
