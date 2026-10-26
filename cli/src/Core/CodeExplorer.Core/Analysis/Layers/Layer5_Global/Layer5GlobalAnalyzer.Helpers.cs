@@ -241,14 +241,14 @@ public partial class Layer5AnalysisParser
 
         var distinctTargetProjects = candidates
             .Select(getTargetProj)
-            .Where(p => p != null)
-            .DistinctBy(p => p!.Id)
+            .OfType<ProjectNode>()
+            .DistinctBy(p => p.Id)
             .ToList();
 
         if (distinctTargetProjects.Count <= 1)
             return candidates;
 
-        if (extService.CallerProj != null && distinctTargetProjects.Any(p => p!.Id == extService.CallerProj.Id))
+        if (extService.CallerProj != null && distinctTargetProjects.Any(p => p.Id == extService.CallerProj.Id))
         {
             return candidates.Where(e => getTargetProj(e)?.Id == extService.CallerProj.Id).ToList();
         }
@@ -258,8 +258,8 @@ public partial class Layer5AnalysisParser
             .ToList();
         var exactProjects = exactMatches
             .Select(getTargetProj)
-            .Where(p => p != null)
-            .DistinctBy(p => p!.Id)
+            .OfType<ProjectNode>()
+            .DistinctBy(p => p.Id)
             .ToList();
 
         if (exactProjects.Count == 1)

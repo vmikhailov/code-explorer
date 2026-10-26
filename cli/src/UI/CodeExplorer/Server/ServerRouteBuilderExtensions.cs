@@ -319,8 +319,8 @@ public static class ServerRouteBuilderExtensions
         {
             try
             {
-                var sources = (sourceIds ?? []).Append(sourceId).Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!).Distinct().ToList();
-                var targets = (targetIds ?? []).Append(targetId).Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!).Distinct().ToList();
+                var sources = (sourceIds ?? []).Append(sourceId).OfType<string>().Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().ToList();
+                var targets = (targetIds ?? []).Append(targetId).OfType<string>().Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().ToList();
                 if (sources.Count == 0 || targets.Count == 0)
                 {
                     return Results.BadRequest(new { error = "'sourceId'/'sourceIds' and 'targetId'/'targetIds' are required." });
@@ -340,7 +340,7 @@ public static class ServerRouteBuilderExtensions
         {
             try
             {
-                var nodeIds = (ids ?? []).Append(id).Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!).Distinct().ToList();
+                var nodeIds = (ids ?? []).Append(id).OfType<string>().Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().ToList();
                 if (nodeIds.Count == 0)
                 {
                     return Results.BadRequest(new { error = "'id' or 'ids' is required." });

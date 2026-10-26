@@ -33,11 +33,11 @@ public static class JsonElementExtensions
                 result[prop.Name] = prop.Value.ToString();
             }
         }
-        else if (pElem.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(pElem.GetString()))
+        else if (pElem.ValueKind == JsonValueKind.String && pElem.GetString() is { Length: > 0 } rawJson)
         {
             try
             {
-                using var innerDoc = JsonDocument.Parse(pElem.GetString()!);
+                using var innerDoc = JsonDocument.Parse(rawJson);
 
                 if (innerDoc.RootElement.ValueKind == JsonValueKind.Object)
                 {

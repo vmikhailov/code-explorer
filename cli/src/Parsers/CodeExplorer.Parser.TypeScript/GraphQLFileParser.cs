@@ -81,7 +81,7 @@ public class GraphQLFileParser : IFileParser
             if (op.RootFields.Count == 0) continue;
 
             var opName = !string.IsNullOrEmpty(op.OperationName)
-                ? op.OperationName!
+                ? op.OperationName
                 : $"Anonymous{op.OperationType}_{op.StartLine}";
 
             var pascalOp = ToPascalCase(opName);
@@ -111,7 +111,7 @@ public class GraphQLFileParser : IFileParser
 
             if (!string.IsNullOrEmpty(op.OperationName))
             {
-                var aliases = BuildCodegenAliases(op.OperationName!, op.OperationType);
+                var aliases = BuildCodegenAliases(op.OperationName, op.OperationType);
                 funcNode.SetExtension("graphql_aliases", string.Join(",", aliases));
             }
 

@@ -10,7 +10,7 @@ namespace CodeExplorer.Core.Parser;
 public static class ParserAssemblyDiscovery
 {
     private static readonly string AttributeName = nameof(ParserAssemblyAttribute);
-    private static readonly string AttributeNamespace = typeof(ParserAssemblyAttribute).Namespace!;
+    private static readonly string AttributeNamespace = typeof(ParserAssemblyAttribute).Namespace ?? string.Empty;
 
     private static readonly Type[] ParserContracts =
     [

@@ -509,8 +509,8 @@ internal static class SemanticTopologySynthesizer
     {
         var memberFootprints = confirmedMemberIds
             .Select(id => peerAddressingFilesByProject.GetValueOrDefault(id))
-            .Where(files => files is { Count: > 0 })
-            .Select(files => files!)
+            .OfType<HashSet<string>>()
+            .Where(files => files.Count > 0)
             .ToList();
 
         return candidateIds

@@ -158,9 +158,12 @@ public partial class SqliteCompiler : ICypherVisitor<string>
 
         foreach (var with in withClauses)
         {
-            foreach (var item in with.Items.Where(x => x.Alias != null))
+            foreach (var item in with.Items)
             {
-                PreScanWithItem(item.Alias!, item.Expression);
+                if (item.Alias != null)
+                {
+                    PreScanWithItem(item.Alias, item.Expression);
+                }
             }
         }
     }

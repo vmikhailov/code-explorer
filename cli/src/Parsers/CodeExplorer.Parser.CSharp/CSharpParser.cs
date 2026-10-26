@@ -912,7 +912,7 @@ public class CSharpParser : IProjectParser, IFileParser
                     if (string.IsNullOrEmpty(include)) continue;
 
                     var resolvedInclude = include.Replace('\\', '/');
-                    var csprojDir = Path.GetDirectoryName(csprojFile)!.Replace('\\', '/');
+                    var csprojDir = (Path.GetDirectoryName(csprojFile) ?? string.Empty).Replace('\\', '/');
                     if (resolvedInclude.Contains("$(SolutionDir)", StringComparison.OrdinalIgnoreCase))
                     {
                         var slnDir = FindSolutionDir(csprojDir).Replace('\\', '/');
@@ -928,7 +928,7 @@ public class CSharpParser : IProjectParser, IFileParser
                     }
 
                     var referencedCsprojPath = Path.GetFullPath(Path.Combine(csprojDir, resolvedInclude)).Replace('\\', '/');
-                    var referencedProjectDir = Path.GetFullPath(Path.GetDirectoryName(referencedCsprojPath)!).Replace('\\', '/');
+                    var referencedProjectDir = Path.GetFullPath(Path.GetDirectoryName(referencedCsprojPath) ?? string.Empty).Replace('\\', '/');
                     referencedProjectDir = ResolveActualDirectoryPath(referencedProjectDir);
                     localProjectPaths.Add(referencedProjectDir);
                 }

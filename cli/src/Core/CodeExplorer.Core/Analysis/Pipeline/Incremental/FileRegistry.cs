@@ -113,8 +113,8 @@ public class FileRegistry
     public bool TryGetEntry(string relativePath, out (string ContentHash, DateTime LastModifiedUtc, string ProjectPath) entry) =>
         _entries.TryGetValue(relativePath, out entry);
 
-    public bool TryGetSnapshot(string relativePath, out FileGraphSnapshot snapshot) =>
-        _snapshots.TryGetValue(relativePath, out snapshot!);
+    public bool TryGetSnapshot(string relativePath, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out FileGraphSnapshot? snapshot) =>
+        _snapshots.TryGetValue(relativePath, out snapshot);
 
     public void SetSnapshot(string relativePath, FileGraphSnapshot snapshot)
     {

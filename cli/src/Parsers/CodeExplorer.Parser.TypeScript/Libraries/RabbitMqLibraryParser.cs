@@ -158,7 +158,7 @@ public class RabbitMqLibraryParser : ISemanticExtension
     {
         if (IsValidQueueName(target))
         {
-            references.Add(new Reference(scopeSymbolId, "rabbitmq:" + target!.Trim(), OntologyConstants.Relationships.PublishesTo));
+            references.Add(new Reference(scopeSymbolId, "rabbitmq:" + target.Trim(), OntologyConstants.Relationships.PublishesTo));
         }
     }
 
@@ -166,11 +166,11 @@ public class RabbitMqLibraryParser : ISemanticExtension
     {
         if (IsValidQueueName(target))
         {
-            references.Add(new Reference(scopeSymbolId, "rabbitmq:" + target!.Trim(), OntologyConstants.Relationships.SubscribesTo));
+            references.Add(new Reference(scopeSymbolId, "rabbitmq:" + target.Trim(), OntologyConstants.Relationships.SubscribesTo));
         }
     }
 
-    private static bool IsValidQueueName(string? name)
+    private static bool IsValidQueueName([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] string? name)
     {
         return WorkspaceConventions.IsValidTopicOrQueueName(name);
     }

@@ -1365,7 +1365,7 @@ public class InitGatesRequestDto
 public class SaveGateRequestDto
 {
     [JsonPropertyName("gate")]
-    public GateItemDto Gate { get; set; } = default!;
+    public GateItemDto? Gate { get; set; }
 
     [JsonPropertyName("targetPath")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

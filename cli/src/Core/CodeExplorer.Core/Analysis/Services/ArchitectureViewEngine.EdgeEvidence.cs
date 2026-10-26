@@ -1166,8 +1166,8 @@ public partial class ArchitectureViewEngine
         }
 
         // 2. Query code-level relationships between source files/symbols and target files/symbols
-        var sourcePaths = sources.Select(s => s.Path).Where(p => !string.IsNullOrEmpty(p)).Select(p => p!).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        var targetPaths = targets.Select(t => t.Path).Where(p => !string.IsNullOrEmpty(p)).Select(p => p!).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var sourcePaths = sources.Select(s => s.Path).OfType<string>().Where(p => !string.IsNullOrEmpty(p)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var targetPaths = targets.Select(t => t.Path).OfType<string>().Where(p => !string.IsNullOrEmpty(p)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         var sourceNames = sources.Select(s => s.Name).Where(n => !string.IsNullOrEmpty(n)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         var targetNames = targets.Select(t => t.Name).Where(n => !string.IsNullOrEmpty(n)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         var sourceIds = sources.Select(s => s.Id).Where(i => !string.IsNullOrEmpty(i)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();

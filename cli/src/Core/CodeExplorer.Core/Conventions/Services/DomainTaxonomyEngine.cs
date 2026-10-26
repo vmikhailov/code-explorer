@@ -41,9 +41,9 @@ public sealed class DomainTaxonomyEngine
     /// <summary>
     /// Attempts to resolve a user-configured domain icon.
     /// </summary>
-    public bool TryGetDomainIcon(string domainName, out string icon)
+    public bool TryGetDomainIcon(string domainName, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? icon)
     {
-        return _domainIcons.TryGetValue(domainName, out icon!);
+        return _domainIcons.TryGetValue(domainName, out icon);
     }
 
     /// <summary>

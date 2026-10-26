@@ -169,9 +169,9 @@ public partial class Layer5AnalysisParser
         }
         // 4. Globally unambiguous function (only 1 function with this name across entire workspace, or 1 non-graphql function when paired with a .graphql operation)
         else if (symbols.FunctionsByName.TryGetValue(targetName, out var uniqueCandidates) &&
-                 (uniqueCandidates.Count == 1 || SelectPreferredFunctionCandidate(uniqueCandidates) != null))
+                 (uniqueCandidates.Count == 1 ? uniqueCandidates[0] : SelectPreferredFunctionCandidate(uniqueCandidates)) is { } candidateId)
         {
-            targetNodeId = uniqueCandidates.Count == 1 ? uniqueCandidates[0] : SelectPreferredFunctionCandidate(uniqueCandidates)!;
+            targetNodeId = candidateId;
             referenceRelationships.Add(CreateCallRel(refItem, targetNodeId));
             callAdded = true;
         }

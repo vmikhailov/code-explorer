@@ -25,9 +25,9 @@ public sealed class MessagingConventionService
     /// <summary>
     /// Attempts to resolve an aliased topic name configured in conventions.json.
     /// </summary>
-    public bool TryGetTopicAlias(string key, out string alias)
+    public bool TryGetTopicAlias(string key, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? alias)
     {
-        return _topicAliases.TryGetValue(key, out alias!);
+        return _topicAliases.TryGetValue(key, out alias);
     }
 
     /// <summary>
@@ -61,7 +61,7 @@ public sealed class MessagingConventionService
     /// Strictly validates whether a string represents a valid messaging topic or queue identifier.
     /// Rejects code expressions, ternary statements, function calls, URLs, emojis, and placeholders.
     /// </summary>
-    public bool IsValidTopicOrQueueName(string? s)
+    public bool IsValidTopicOrQueueName([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] string? s)
     {
         if (string.IsNullOrWhiteSpace(s)) return false;
         var t = s.Trim().Trim('\'', '"', '`');

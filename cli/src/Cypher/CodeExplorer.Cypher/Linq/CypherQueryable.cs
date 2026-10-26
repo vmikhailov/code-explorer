@@ -162,7 +162,7 @@ public class CypherQueryProvider : IQueryProvider
 
         if (typeof(GraphEntity).IsAssignableFrom(typeof(TElement)))
         {
-            var entity = (GraphEntity)Activator.CreateInstance(typeof(TElement))!;
+            var entity = (GraphEntity)(Activator.CreateInstance(typeof(TElement)) ?? throw new InvalidOperationException($"Cannot create instance of {typeof(TElement).FullName}"));
 
             if (targetElem.TryGetProperty("id", out var idProp) && idProp.ValueKind == JsonValueKind.String)
             {
@@ -208,11 +208,14 @@ public class CypherQueryProvider : IQueryProvider
                 {
                     try
                     {
-                        using var pDoc = JsonDocument.Parse(propsElem.GetString()!);
+                        if (propsElem.GetString() is { Length: > 0 } rawProps)
+                    {
+                        using var pDoc = JsonDocument.Parse(rawProps);
                         foreach (var p in pDoc.RootElement.EnumerateObject())
                         {
                             entity.Properties[p.Name] = ConvertJsonElement(p.Value);
                         }
+                    }
                     }
                     catch { }
                 }
@@ -384,7 +387,7 @@ internal static class TypeHelper
     private static Type? FindIEnumerable(Type? type)
     {
         if (type == null || type == typeof(string)) return null;
-        if (type.IsArray) return typeof(IEnumerable<>).MakeGenericType(type.GetElementType()!);
+        if (type.IsArray && type.GetElementType() is { } elemType) return typeof(IEnumerable<>).MakeGenericType(elemType);
 
         if (type.IsGenericType)
         {

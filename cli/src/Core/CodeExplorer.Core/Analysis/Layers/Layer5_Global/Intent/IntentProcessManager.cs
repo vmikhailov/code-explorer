@@ -30,7 +30,7 @@ public static class IntentProcessManager
     /// </summary>
     public static bool TryGetRunningProcess(
         string workspaceRoot,
-        out IntentProcessLock? lockInfo,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out IntentProcessLock? lockInfo,
         out Process? process)
     {
         lockInfo = null;
@@ -108,11 +108,17 @@ public static class IntentProcessManager
                 // Access denied or not supported on this platform, accept PID match
             }
 
+            if (lockInfo == null)
+            {
+                return false;
+            }
+
             process = candidate;
             return true;
         }
         catch
         {
+            lockInfo = null;
             return false;
         }
     }
@@ -126,7 +132,7 @@ public static class IntentProcessManager
 
         if (TryGetRunningProcess(workspaceRoot, out var existingLock, out _))
         {
-            var elapsed = DateTimeOffset.UtcNow - existingLock!.LockAcquiredTime;
+            var elapsed = DateTimeOffset.UtcNow - existingLock.LockAcquiredTime;
             var elapsedStr = elapsed.TotalMinutes >= 1
                 ? $"{(int)elapsed.TotalMinutes}m {elapsed.Seconds}s"
                 : $"{elapsed.Seconds}s";
@@ -174,11 +180,11 @@ public static class IntentProcessManager
     {
         if (TryGetRunningProcess(workspaceRoot, out var lockInfo, out var proc))
         {
-            var pid = lockInfo!.ProcessId;
+            var pid = lockInfo.ProcessId;
             try
             {
-                proc!.Kill(entireProcessTree: true);
-                proc.WaitForExit(5000);
+                proc?.Kill(entireProcessTree: true);
+                proc?.WaitForExit(5000);
                 TryDeleteFile(GetLockFilePath(workspaceRoot));
                 return (true, pid, $"Successfully stopped intent distillation process (PID: {pid}).");
             }
@@ -207,7 +213,7 @@ public static class IntentProcessManager
     {
         if (TryGetRunningProcess(workspaceRoot, out var lockInfo, out _))
         {
-            var elapsed = DateTimeOffset.UtcNow - lockInfo!.LockAcquiredTime;
+            var elapsed = DateTimeOffset.UtcNow - lockInfo.LockAcquiredTime;
             return (true, lockInfo, elapsed);
         }
 

@@ -242,11 +242,11 @@ public partial class PostIndexAnalyzer
                             if (prop.NameEquals("dependency_type")) existingDepType = valStr;
                         }
                     }
-                    else if (pElem.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(pElem.GetString()))
+                    else if (pElem.ValueKind == JsonValueKind.String && pElem.GetString() is { Length: > 0 } rawJson)
                     {
                         try
                         {
-                            using var innerDoc = JsonDocument.Parse(pElem.GetString()!);
+                            using var innerDoc = JsonDocument.Parse(rawJson);
 
                             if (innerDoc.RootElement.ValueKind == JsonValueKind.Object)
                             {

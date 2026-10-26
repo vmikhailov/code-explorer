@@ -517,9 +517,9 @@ public class GateExecutionEngine
                 return resolved;
             }
 
-            if (hasFallback)
+            if (hasFallback && fallback != null)
             {
-                return fallback!;
+                return fallback;
             }
 
             return match.Value;

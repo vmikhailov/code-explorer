@@ -419,7 +419,7 @@ public partial class CodeExplorerRepository
             catch
             {
                 var nestedNodes = JsonSerializer.Deserialize<List<NestedMcpRAGNode>>(nodesJson);
-                return nestedNodes?.Where(n => n.props != null).Select(n => n.props!).ToList();
+                return nestedNodes?.Select(n => n.props).OfType<McpRAGNode>().ToList();
             }
         }
         return null;
@@ -437,11 +437,14 @@ public partial class CodeExplorerRepository
 
     private static string FormatCodeSnippet(string[] lines, McpRAGNode node)
     {
-        var sIdx = Math.Min(Math.Max(0, node.start_line!.Value), lines.Length);
-        var eIdx = Math.Max(sIdx, Math.Min(lines.Length, node.end_line!.Value + 1));
+        var startLine = node.start_line ?? 0;
+        var endLine = node.end_line ?? (lines.Length > 0 ? lines.Length - 1 : 0);
+        var sIdx = Math.Min(Math.Max(0, startLine), lines.Length);
+        var eIdx = Math.Max(sIdx, Math.Min(lines.Length, endLine + 1));
         var snippet = string.Join("\n", lines.Skip(sIdx).Take(eIdx - sIdx));
 
-        var ext = Path.GetExtension(node.file_path!).ToLower().TrimStart('.');
+        var filePath = node.file_path ?? string.Empty;
+        var ext = Path.GetExtension(filePath).ToLower().TrimStart('.');
         var lang = ext switch
         {
             "ts" or "tsx" => "typescript",
@@ -455,7 +458,8 @@ public partial class CodeExplorerRepository
 
     private static async Task<string> ExtractFileSnippetAsync(McpRAGNode node, string? workspaceRoot, string? hostWorkspacePath)
     {
-        var relativePath = PathTools.GetRelativePath(node.file_path!, hostWorkspacePath);
+        if (string.IsNullOrEmpty(node.file_path)) return "### Invalid node: missing file_path.";
+        var relativePath = PathTools.GetRelativePath(node.file_path, hostWorkspacePath);
         var joinedPath = Path.Combine(workspaceRoot ?? "", relativePath);
         var absPath = Path.GetFullPath(joinedPath);
         var absRoot = Path.GetFullPath(workspaceRoot ?? "");

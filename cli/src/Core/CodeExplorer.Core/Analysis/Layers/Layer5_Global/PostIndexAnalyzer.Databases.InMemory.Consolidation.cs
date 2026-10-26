@@ -648,9 +648,9 @@ public partial class PostIndexAnalyzer
             var domainKey = sGroup.Key;
             var candidateNodes = sGroup
                 .Select(e => canonicalDbNodes.GetValueOrDefault(e.CanonicalTarget))
-                .Where(n => n != null)
+                .OfType<DatabaseNode>()
                 .Select(n => {
-                    var name = n!.Name;
+                    var name = n.Name;
                     var engine = (n.Extensions != null && n.Extensions.TryGetValue("engine", out var eng) && !string.IsNullOrWhiteSpace(eng))
                         ? eng
                         : (name.Contains('.') ? name.Split('.', 2)[0] : name);

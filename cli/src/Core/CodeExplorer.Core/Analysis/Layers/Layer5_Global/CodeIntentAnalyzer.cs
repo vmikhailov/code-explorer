@@ -185,7 +185,7 @@ public static partial class CodeIntentAnalyzer
                 if (projectSignatures.Count > 0)
                 {
                     var distinctExistingDomains = projectSignatures
-                        .Where(s => !string.IsNullOrWhiteSpace(s.ExistingDomain)).Select(s => s.ExistingDomain!)
+                        .Select(s => s.ExistingDomain).OfType<string>().Where(d => !string.IsNullOrWhiteSpace(d))
                         .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
                     var unclassifiedCount = projectSignatures.Count(s => string.IsNullOrWhiteSpace(s.ExistingDomain));

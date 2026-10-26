@@ -334,7 +334,7 @@ public class DeclarativeSemanticExtension : ISemanticExtension
         var name = GetShortAnnotationName(node);
         if (string.IsNullOrEmpty(name)) return false;
 
-        return rule.AnnotationToHttpMethod.TryGetValue(name, out httpMethod!);
+        if (rule.AnnotationToHttpMethod.TryGetValue(name, out var m)) { httpMethod = m; return true; } return false;
     }
 
     private static string ExtractAnnotationRoute(Node annotationNode, AnnotationEndpointRule rule, string httpMethod)
@@ -1133,9 +1133,9 @@ public class DeclarativeSemanticExtension : ISemanticExtension
 
     private static string? ExtractFirstParameterType(Node methodNode)
     {
-        if (methodNode is FunctionDeclSyntax { Parameters.Count: > 0 } fn && fn.Parameters[0].ParameterType != null)
+        if (methodNode is FunctionDeclSyntax { Parameters.Count: > 0 } fn && fn.Parameters[0].ParameterType is { } pt)
         {
-            return fn.Parameters[0].ParameterType!.Text;
+            return pt.Text;
         }
 
         var paramList = methodNode.GetField(SyntaxFields.Parameters)

@@ -230,7 +230,7 @@ public class GcpLibraryParser : ISemanticExtension
     {
         if (IsValidTopicName(topic))
         {
-            references.Add(new Reference("", "gcp:" + topic!.Trim(), OntologyConstants.Relationships.PublishesTo));
+            references.Add(new Reference("", "gcp:" + topic.Trim(), OntologyConstants.Relationships.PublishesTo));
         }
     }
 
@@ -238,11 +238,11 @@ public class GcpLibraryParser : ISemanticExtension
     {
         if (IsValidTopicName(topic))
         {
-            references.Add(new Reference("", "gcp:" + topic!.Trim(), OntologyConstants.Relationships.SubscribesTo));
+            references.Add(new Reference("", "gcp:" + topic.Trim(), OntologyConstants.Relationships.SubscribesTo));
         }
     }
 
-    private static bool IsValidTopicName(string? topic)
+    private static bool IsValidTopicName([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] string? topic)
     {
         return WorkspaceConventions.IsValidTopicOrQueueName(topic);
     }

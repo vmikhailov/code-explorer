@@ -423,8 +423,9 @@ public static partial class CodeIntentAnalyzer
         // 2. If majority of services share a directory namespace, canonicalize it
         var nsCounts = signatures
             .Select(s => GetDirectoryNamespace(s.RelativePath))
+            .OfType<string>()
             .Where(ns => !string.IsNullOrWhiteSpace(ns))
-            .GroupBy(ns => ns!, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(ns => ns, StringComparer.OrdinalIgnoreCase)
             .OrderByDescending(g => g.Count())
             .FirstOrDefault();
 

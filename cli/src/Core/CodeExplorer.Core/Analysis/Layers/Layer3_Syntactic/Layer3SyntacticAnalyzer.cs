@@ -458,6 +458,9 @@ public partial class Layer3SyntacticParser
         var effectiveProjectKind = projectKind ?? syntaxTree.FileNode?.ProjectKind;
         var effectiveProjectName = projectName ?? syntaxTree.FileNode?.ProjectName;
 
+        var fileNode = syntaxTree.FileNode;
+        if (fileNode == null) return;
+
         var fileSymbolCounts = new Dictionary<(string Kind, string Name), int>();
         foreach (var childSyntactic in mainVisitor.RootSymbol.Children)
         {
@@ -467,16 +470,16 @@ public partial class Layer3SyntacticParser
             fileSymbolCounts[key] = count;
 
             var childNode = MapSyntacticSymbolToOntology(childSyntactic, Path.GetFileName(syntaxTree.FilePath),
-                relativePath, workspaceId, syntaxTree.FileNode!.Id, ctx, count > 1 ? count : 0, effectiveProjectName, effectiveIsTest, effectiveProjectKind, syntaxTree, fileSymbolCounts);
+                relativePath, workspaceId, fileNode.Id, ctx, count > 1 ? count : 0, effectiveProjectName, effectiveIsTest, effectiveProjectKind, syntaxTree, fileSymbolCounts);
             if (childNode != null)
             {
-                syntaxTree.FileNode!.Children.Add(childNode);
+                fileNode.Children.Add(childNode);
             }
         }
 
         foreach (var reference in mainVisitor.RootSymbol.References)
         {
-            syntaxTree.FileNode!.References.Add(reference with { ScopeSymbolId = syntaxTree.FileNode!.Id });
+            fileNode.References.Add(reference with { ScopeSymbolId = fileNode.Id });
         }
 
         var rawImports = mainVisitor.RawImports.Select(ri => ri with

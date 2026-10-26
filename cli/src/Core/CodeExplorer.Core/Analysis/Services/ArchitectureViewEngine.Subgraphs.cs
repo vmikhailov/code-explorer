@@ -617,8 +617,9 @@ public partial class ArchitectureViewEngine
 
         foreach (var elem in doc.RootElement.EnumerateArray())
         {
-            var id = elem.GetProperty("id").GetString()!;
-            var kind = elem.GetProperty("kind").GetString()!;
+            var id = elem.GetProperty("id").GetString();
+            var kind = elem.GetProperty("kind").GetString();
+            if (id == null || kind == null) continue;
             var name = elem.GetProperty("name").GetString() ?? id;
             var path = elem.TryGetProperty("path", out var pp) ? pp.GetString() : null;
 
@@ -645,9 +646,10 @@ public partial class ArchitectureViewEngine
 
                 foreach (var elem in relsDoc.RootElement.EnumerateArray())
                 {
-                    var fromId = elem.GetProperty("from_id").GetString()!;
-                    var toId = elem.GetProperty("to_id").GetString()!;
-                    var kind = elem.GetProperty("kind").GetString()!;
+                    var fromId = elem.GetProperty("from_id").GetString();
+                    var toId = elem.GetProperty("to_id").GetString();
+                    var kind = elem.GetProperty("kind").GetString();
+                    if (fromId == null || toId == null || kind == null) continue;
 
                     if (!compIds.Contains(toId)) continue;
 

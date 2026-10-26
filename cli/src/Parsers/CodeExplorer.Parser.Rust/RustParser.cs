@@ -132,7 +132,7 @@ public class RustParser : IProjectParser, IFileParser
         var wsRootManifest = !string.IsNullOrEmpty(wsRoot) && File.Exists(wsRoot) ? GetOrLoadManifest(wsRoot) : null;
         if (wsRootManifest?.Workspace != null)
         {
-            var wsRootDir = Path.GetDirectoryName(wsRoot)!;
+            var wsRootDir = Path.GetDirectoryName(wsRoot) ?? string.Empty;
             foreach (var member in wsRootManifest.Workspace.Members)
             {
                 var memberToml = Path.Combine(wsRootDir, member, "Cargo.toml");
@@ -305,7 +305,7 @@ public class RustParser : IProjectParser, IFileParser
                     .Where(dep => usedCrates.Contains(dep.Name.Replace('-', '_')))
                     .Select(dep => (Dependency: dep, Directory: ResolveLocalDependencyDirectory(dep, directoryPath)))
                     .Where(d => d.Directory != null)
-                    .Select(d => (d.Dependency, Directory: d.Directory!))
+                    .Select(d => (d.Dependency, Directory: d.Directory ?? string.Empty))
                     .DistinctBy(d => d.Directory, StringComparer.OrdinalIgnoreCase)
                     .ToList();
 
@@ -376,7 +376,7 @@ public class RustParser : IProjectParser, IFileParser
                     dependencyManifest?.Package?.Name
                 }
                 .Where(name => !string.IsNullOrEmpty(name))
-                .Select(name => name!.Replace('-', '_'))
+                .OfType<string>().Select(name => name.Replace('-', '_'))
                 .ToHashSet(StringComparer.Ordinal);
 
             var reachableFiles = RustModuleReachability.ComputeReachableFiles(consumerFiles, crateIdentifiers, libraryPath);
@@ -593,7 +593,7 @@ public class RustParser : IProjectParser, IFileParser
                 var gpManifest = GetOrLoadManifest(gpCargo);
                 if (gpManifest != null)
                 {
-                    var gpDir = Path.GetDirectoryName(gpCargo)!;
+                    var gpDir = Path.GetDirectoryName(gpCargo) ?? string.Empty;
                     var usedCrates = ScanUsedCrates(projectDirectory);
 
                     foreach (var dep in gpManifest.Dependencies)

@@ -470,7 +470,7 @@ public class QueryCommandHandler : BaseCommandHandler
 
     public static int ShowQuerySource(QueryOptions opts)
     {
-        var queryName = opts.ShowQueryName!.Trim();
+        var queryName = (opts.ShowQueryName ?? string.Empty).Trim();
         var ws = WorkspaceLocator.Find(opts.Dir);
 
         ProjectQueryItem? custom = null;

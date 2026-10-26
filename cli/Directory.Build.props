@@ -30,6 +30,7 @@
     <PackageOutputPath>$(SolutionDir).Packages</PackageOutputPath>
     <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Nullable>enable</Nullable>
     <NoWarn>$(NoWarn);1591</NoWarn>
     <DefaultItemExcludes>$(DefaultItemExcludes);**/SampleProjects/**;**/obj/**</DefaultItemExcludes>
   </PropertyGroup>

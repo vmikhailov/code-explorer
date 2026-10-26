@@ -71,7 +71,7 @@ public sealed class DotNetXmlConfigurationParser : ISharedFileParser
     }
 
     private static bool IsNamed(XElement e, string name) => e.Name.LocalName.Equals(name, StringComparison.OrdinalIgnoreCase);
-    private static IEnumerable<XElement> Sections(XDocument doc, string name) => doc.Root!.Descendants().Where(e => IsNamed(e, name));
+    private static IEnumerable<XElement> Sections(XDocument doc, string name) => doc.Root?.Descendants().Where(e => IsNamed(e, name)) ?? [];
     private static IEnumerable<XElement> Adds(XElement section) => section.Elements().Where(e => IsNamed(e, "add"));
 
     // Linked files are separate files on disk (configSource / file attributes), resolved relative to the owner.
@@ -118,8 +118,7 @@ public sealed class DotNetXmlConfigurationParser : ISharedFileParser
                 .ToList();
 
             return siblings.FirstOrDefault(f =>
-                       Path.GetDirectoryName(f)!.EndsWith(".UI", StringComparison.OrdinalIgnoreCase) ||
-                       Path.GetDirectoryName(f)!.EndsWith(".Web", StringComparison.OrdinalIgnoreCase))
+                       Path.GetDirectoryName(f) is { } d && (d.EndsWith(".UI", StringComparison.OrdinalIgnoreCase) || d.EndsWith(".Web", StringComparison.OrdinalIgnoreCase)))
                    ?? siblings.FirstOrDefault();
         }
         catch

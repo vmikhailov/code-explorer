@@ -127,8 +127,8 @@ public class GraphQLClientLibraryParser : ISemanticExtension
             {
                 if (!string.IsNullOrEmpty(op.OperationName))
                 {
-                    symbol.Properties.TryAdd("graphql_operation", op.OperationName!);
-                    aliases.AddRange(GraphQLFileParser.BuildCodegenAliases(op.OperationName!, op.OperationType));
+                    symbol.Properties.TryAdd("graphql_operation", op.OperationName);
+                    aliases.AddRange(GraphQLFileParser.BuildCodegenAliases(op.OperationName, op.OperationType));
                 }
                 symbol.Properties.TryAdd("operation_type", op.OperationType);
 

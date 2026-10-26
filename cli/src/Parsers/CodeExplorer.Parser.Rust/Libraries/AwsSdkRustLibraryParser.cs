@@ -136,7 +136,7 @@ public class AwsSdkRustLibraryParser : ISemanticExtension
                     break;
             }
 
-            if (receiver.IsValid() && receiver!.Id != current.Id)
+            if (receiver.IsValid() && receiver.Id != current.Id)
             {
                 current = receiver;
             }
@@ -151,7 +151,7 @@ public class AwsSdkRustLibraryParser : ISemanticExtension
             return false;
         }
 
-        topic = queueOrTopicArg.IsValid() ? ResolveQueueOrTopicName(queueOrTopicArg!, 0) : string.Empty;
+        topic = queueOrTopicArg.IsValid() ? ResolveQueueOrTopicName(queueOrTopicArg, 0) : string.Empty;
         if (topic.Length == 0)
         {
             return false;
@@ -229,7 +229,7 @@ public class AwsSdkRustLibraryParser : ISemanticExtension
             }
 
             var bound = FindLetBindingValue(arg, segments[0]);
-            return bound.IsValid() ? ResolveQueueOrTopicName(bound!, depth + 1) : string.Empty;
+            return bound.IsValid() ? ResolveQueueOrTopicName(bound, depth + 1) : string.Empty;
         }
 
         var fieldName = segments[^1];
@@ -277,7 +277,7 @@ public class AwsSdkRustLibraryParser : ISemanticExtension
 
                     var pattern = letDecl.GetField(TreeSitterSyntax.Fields.Pattern);
                     var value = letDecl.GetField(TreeSitterSyntax.Fields.Value);
-                    if (pattern.IsValid() && value.IsValid() && pattern!.Text == identifier)
+                    if (pattern.IsValid() && value.IsValid() && pattern.Text == identifier)
                     {
                         match = value;
                     }
@@ -312,9 +312,9 @@ public class AwsSdkRustLibraryParser : ISemanticExtension
         {
             var field = initializer.GetField(TreeSitterSyntax.Fields.Field);
             var value = initializer.GetField(TreeSitterSyntax.Fields.Value);
-            if (field.IsValid() && value.IsValid() && field!.Text == fieldName)
+            if (field.IsValid() && value.IsValid() && field.Text == fieldName)
             {
-                yield return value!;
+                yield return value;
             }
         }
     }

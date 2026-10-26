@@ -57,12 +57,12 @@ public class McpCommandHandler : BaseCommandHandler
         }
 
         var isStandby = string.IsNullOrEmpty(dbPath) || !File.Exists(dbPath);
-        if (isStandby && string.IsNullOrEmpty(dbPath))
+        if (string.IsNullOrEmpty(dbPath))
         {
             dbPath = "Data Source=:memory:;Mode=Memory;Cache=Shared";
         }
 
-        await using var client = new SqliteGraphClient(dbPath!);
+        await using var client = new SqliteGraphClient(dbPath);
 
         var wsRoot = ws?.RootDirectory;
         if (!string.IsNullOrEmpty(wsRoot))

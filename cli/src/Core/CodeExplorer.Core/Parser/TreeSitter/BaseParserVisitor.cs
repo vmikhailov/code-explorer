@@ -649,7 +649,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
         if (isSymbol)
         {
-            VisitSymbolNode(node, kind!, name!, depth, baseVisit);
+            if (kind != null && name != null) VisitSymbolNode(node, kind, name, depth, baseVisit);
         }
         else
         {

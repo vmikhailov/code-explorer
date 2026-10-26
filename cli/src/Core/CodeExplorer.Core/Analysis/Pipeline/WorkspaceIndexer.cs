@@ -84,7 +84,7 @@ public class WorkspaceIndexer
     {
         try
         {
-            return Activator.CreateInstance(type)!;
+            return Activator.CreateInstance(type) ?? throw new InvalidOperationException($"Failed to instantiate parser '{type.FullName}'");
         }
         catch (Exception ex)
         {

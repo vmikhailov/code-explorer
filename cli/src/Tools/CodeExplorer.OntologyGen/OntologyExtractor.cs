@@ -116,8 +116,8 @@ public sealed class OntologyExtractor
             {
                 var generic = (GenericNameSyntax)a.Name;
                 var toType = generic.TypeArgumentList.Arguments[0].ToString();   // e.g. "ClassNode"
-                var relExpr = a.ArgumentList!.Arguments[0].Expression;
-                var rel = ResolveConstant(relExpr);
+                var relExpr = a.ArgumentList?.Arguments.FirstOrDefault()?.Expression;
+                var rel = relExpr != null ? ResolveConstant(relExpr) : string.Empty;
                 return new EdgeInfo(label, rel, toType);
             })
             .ToList();
@@ -132,7 +132,7 @@ public sealed class OntologyExtractor
 
                 if (propAttr is null) return null;
 
-                var desc = Unquote(propAttr.ArgumentList!.Arguments[0].Expression);
+                var desc = propAttr.ArgumentList?.Arguments.FirstOrDefault()?.Expression is { } expr ? Unquote(expr) : "";
                 return new PropertyInfo(p.Identifier.Text, p.Type?.ToString() ?? "?", desc);
             })
             .OfType<PropertyInfo>()
@@ -148,7 +148,7 @@ public sealed class OntologyExtractor
 
                 if (propAttr is null) return null;
 
-                var desc = Unquote(propAttr.ArgumentList!.Arguments[0].Expression);
+                var desc = propAttr.ArgumentList?.Arguments.FirstOrDefault()?.Expression is { } expr ? Unquote(expr) : "";
                 return new PropertyInfo(p.Identifier.Text, p.Type.ToString(), desc);
             })
             .OfType<PropertyInfo>();

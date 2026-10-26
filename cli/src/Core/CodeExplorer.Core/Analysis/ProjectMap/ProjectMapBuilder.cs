@@ -496,9 +496,10 @@ public static class ProjectMapBuilder
             var toName = StripGenericArity(te.ToSymbol);
             if (string.IsNullOrEmpty(fromName) || string.IsNullOrEmpty(toName)) continue;
 
-            if (!classes.ContainsKey(fromName) && !string.IsNullOrEmpty(te.FromFile))
+            if (!classes.ContainsKey(fromName) && !string.IsNullOrEmpty(te.FromFile) &&
+                fileToPrimaryClass.TryGetValue(te.FromFile, out var pc))
             {
-                fileToPrimaryClass.TryGetValue(te.FromFile, out fromName!);
+                fromName = pc;
             }
             if (string.IsNullOrEmpty(fromName) || !classes.ContainsKey(fromName)) continue;
 

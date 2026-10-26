@@ -449,7 +449,7 @@ public partial class SqliteCompiler
 
         var headVar = path.Head.Variable;
         var headIsOuter = headVar != null && _declaredNodes.Contains(headVar);
-        var actualHeadVar = headIsOuter ? headVar! : $"{prefix}_h{_varIndex++}";
+        var actualHeadVar = headVar != null && _declaredNodes.Contains(headVar) ? headVar : $"{prefix}_h{_varIndex++}";
 
         if (!headIsOuter)
         {
@@ -466,7 +466,7 @@ public partial class SqliteCompiler
             var relVar = $"{prefix}_r{_varIndex++}";
             var targetVar = targetNode.Variable;
             var targetIsOuter = targetVar != null && _declaredNodes.Contains(targetVar);
-            var actualTargetVar = targetIsOuter ? targetVar! : (targetVar ?? $"{prefix}_t{_varIndex++}");
+            var actualTargetVar = targetVar != null && _declaredNodes.Contains(targetVar) ? targetVar : (targetVar ?? $"{prefix}_t{_varIndex++}");
 
             if (!targetIsOuter)
             {

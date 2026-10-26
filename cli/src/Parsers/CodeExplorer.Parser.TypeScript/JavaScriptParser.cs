@@ -184,7 +184,7 @@ public class JavaScriptParser : IProjectParser, IFileParser
                                 try
                                 {
                                     var referencedDir =
-                                        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(packageJsonPath)!,
+                                        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(packageJsonPath) ?? string.Empty,
                                             relativePath)).Replace('\\', '/');
 
                                     if (Directory.Exists(referencedDir) || File.Exists(referencedDir))

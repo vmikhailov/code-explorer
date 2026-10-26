@@ -77,7 +77,7 @@ public static class RustModuleReachability
             return null;
         }
 
-        var srcRoot = Path.GetDirectoryName(Path.GetFullPath(crateRootFile))!;
+        var srcRoot = Path.GetDirectoryName(Path.GetFullPath(crateRootFile)) ?? string.Empty;
         var rootFile = Path.GetFullPath(crateRootFile);
         var reachable = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var queue = new Queue<string>();
@@ -218,7 +218,7 @@ public static class RustModuleReachability
 
     private static string GetChildModuleDirectory(string file, bool isCrateRoot)
     {
-        var directory = Path.GetDirectoryName(file)!;
+        var directory = Path.GetDirectoryName(file) ?? string.Empty;
         var fileName = Path.GetFileName(file);
         return isCrateRoot || fileName.Equals("mod.rs", StringComparison.OrdinalIgnoreCase)
             ? directory

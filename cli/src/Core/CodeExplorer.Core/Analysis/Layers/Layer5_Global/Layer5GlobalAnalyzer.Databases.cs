@@ -679,7 +679,7 @@ public partial class Layer5AnalysisParser
                                     mainFile = modProp.GetString();
                                 }
 
-                                var dir = Path.GetDirectoryName(pkgJsonPath)!;
+                                var dir = Path.GetDirectoryName(pkgJsonPath) ?? string.Empty;
                                 var relDir = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, dir).Replace('\\', '/');
                                 if (relDir == ".") relDir = "";
                                 workspacePackages[pkgName] = new PackageTargetInfo(relDir, mainFile);

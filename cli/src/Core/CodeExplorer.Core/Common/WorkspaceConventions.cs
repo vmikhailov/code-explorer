@@ -45,9 +45,9 @@ public static class WorkspaceConventions
     public static bool IsTestFilePath(string? path) => _current.IsTestFilePath(path);
     public static bool IsFrontendFilePath(string? path) => _current.IsFrontendFilePath(path);
 
-    public static bool TryGetTopicAlias(string key, out string alias) => _current.Messaging.TryGetTopicAlias(key, out alias);
+    public static bool TryGetTopicAlias(string key, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? alias) => _current.Messaging.TryGetTopicAlias(key, out alias);
 
-    public static bool TryGetDomainIcon(string domainName, out string icon) => _current.Domains.TryGetDomainIcon(domainName, out icon);
+    public static bool TryGetDomainIcon(string domainName, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? icon) => _current.Domains.TryGetDomainIcon(domainName, out icon);
 
     /// <summary>
     /// Domain detection (configured domains.json patterns and the path/name/intent heuristics) is switched off for now:
@@ -68,7 +68,7 @@ public static class WorkspaceConventions
 
     public static bool IsPlaceholderName(string? name) => _current.Messaging.IsPlaceholderName(name);
 
-    public static bool IsValidTopicOrQueueName(string? s) => _current.Messaging.IsValidTopicOrQueueName(s);
+    public static bool IsValidTopicOrQueueName([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] string? s) => _current.Messaging.IsValidTopicOrQueueName(s);
 
     public static string NormalizeTopicName(string raw) => _current.Messaging.NormalizeTopicName(raw);
 

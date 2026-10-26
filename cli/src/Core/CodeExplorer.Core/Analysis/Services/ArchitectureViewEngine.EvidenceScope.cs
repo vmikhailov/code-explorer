@@ -28,8 +28,8 @@ internal sealed class EvidenceScope(
     public IReadOnlyList<string> ExcludedSubdirectories { get; } =
         excludedSubdirectories?
             .Select(NormalizeDirectory)
+            .OfType<string>()
             .Where(d => !string.IsNullOrEmpty(d))
-            .Select(d => d!)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray()
         ?? [];

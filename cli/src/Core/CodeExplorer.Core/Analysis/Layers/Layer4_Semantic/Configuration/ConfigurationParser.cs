@@ -237,7 +237,7 @@ public static class ConfigurationParser
         }
         else if (!isGenericConfigKey && !string.IsNullOrWhiteSpace(leaf))
         {
-            var cleanCustom = leaf!;
+            var cleanCustom = leaf;
             if (cleanCustom.EndsWith("Options", StringComparison.OrdinalIgnoreCase) && cleanCustom.Length > "Options".Length)
             {
                 cleanCustom = cleanCustom[..^"Options".Length];

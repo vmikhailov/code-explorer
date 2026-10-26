@@ -1192,7 +1192,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
                                 try
                                 {
                                     var referencedDir =
-                                        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(packageJsonPath)!,
+                                        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(packageJsonPath) ?? string.Empty,
                                             relativePath)).Replace('\\', '/');
 
                                     if (Directory.Exists(referencedDir) || File.Exists(referencedDir))
@@ -1356,26 +1356,26 @@ public class TypeScriptParser : IProjectParser, IFileParser
         var curr = node.Parent;
         while (curr.IsValid())
         {
-            if (curr!.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.InterfaceDeclaration))
+            if (curr.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.InterfaceDeclaration))
             {
                 var nameNode = curr.GetChildForField(TreeSitterSyntax.Fields.Name);
-                if (nameNode.IsValid()) return nameNode!.Text;
+                if (nameNode.IsValid()) return nameNode.Text;
             }
-            else if (curr!.IsAny(TreeSitterSyntax.TypeScript.FunctionDeclaration, TreeSitterSyntax.TypeScript.MethodDefinition))
+            else if (curr.IsAny(TreeSitterSyntax.TypeScript.FunctionDeclaration, TreeSitterSyntax.TypeScript.MethodDefinition))
             {
                 var nameNode = curr.GetChildForField(TreeSitterSyntax.Fields.Name);
                 if (nameNode.IsValid())
                 {
-                    var nameText = nameNode!.Text;
+                    var nameText = nameNode.Text;
                     if (nameText == "constructor")
                     {
                         var classNode = curr.Parent;
                         while (classNode.IsValid())
                         {
-                            if (classNode!.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.InterfaceDeclaration))
+                            if (classNode.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.InterfaceDeclaration))
                             {
                                 var classNameNode = classNode.GetChildForField(TreeSitterSyntax.Fields.Name);
-                                if (classNameNode.IsValid()) return classNameNode!.Text;
+                                if (classNameNode.IsValid()) return classNameNode.Text;
                             }
                             classNode = classNode.Parent;
                         }

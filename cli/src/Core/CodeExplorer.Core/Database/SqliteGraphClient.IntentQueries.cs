@@ -180,8 +180,8 @@ public partial class SqliteGraphClient
             }
 
             // 2. Materialize Domain nodes and BELONGS_TO_DOMAIN relationships
-            var distinctDomains = predictions.Where(p => !string.IsNullOrWhiteSpace(p.Domain))
-                .Select(p => p.Domain!.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var distinctDomains = predictions.Select(p => p.Domain).OfType<string>().Where(d => !string.IsNullOrWhiteSpace(d))
+                .Select(d => d.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
             if (distinctDomains.Count > 0)
             {
@@ -224,9 +224,10 @@ public partial class SqliteGraphClient
                 var pFromId = edgeCmd.Parameters.Add("@fromId", SqliteType.Text);
                 var pToId = edgeCmd.Parameters.Add("@toId", SqliteType.Text);
 
-                foreach (var pred in predictions.Where(p => !string.IsNullOrWhiteSpace(p.Domain)))
+                foreach (var pred in predictions)
                 {
-                    var domId = $"{widPrefix}dom:{pred.Domain!.Trim().ToLowerInvariant()}";
+                    if (string.IsNullOrWhiteSpace(pred.Domain)) continue;
+                    var domId = $"{widPrefix}dom:{pred.Domain.Trim().ToLowerInvariant()}";
                     pFromId.Value = pred.Id;
                     pToId.Value = domId;
                     await edgeCmd.ExecuteNonQueryAsync(cancellationToken);

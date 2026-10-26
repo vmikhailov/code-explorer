@@ -422,7 +422,7 @@ public partial class ResourceSemanticAnalyzer
                         break;
                     }
 
-                    var schemasToProcess = declaredSchemas.Count > 0 ? declaredSchemas : new List<string> { null! };
+                    IEnumerable<string?> schemasToProcess = declaredSchemas.Count > 0 ? (IEnumerable<string?>)declaredSchemas : new string?[] { null };
 
                     foreach (var schemaItem in schemasToProcess)
                     {
@@ -648,7 +648,7 @@ public partial class ResourceSemanticAnalyzer
             for (var i = 0; i < lines.Length; i++)
             {
                 var line = lines[i];
-                if (hasSpecificSchema && line.Contains(schema!, StringComparison.OrdinalIgnoreCase))
+                if (hasSpecificSchema && schema != null && line.Contains(schema, StringComparison.OrdinalIgnoreCase))
                 {
                     return i + 1;
                 }

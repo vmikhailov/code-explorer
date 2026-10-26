@@ -18,7 +18,7 @@ public static class OntologyRegistry
 
                 var instance = (IOntologyNode)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(t);
                 return new NodeMetadataInfo(instance.Kind, t, attr);
-            }).Where(x => x != null).Select(x => x!)
+            }).OfType<NodeMetadataInfo>()
     ];
 
     public static readonly HashSet<string> SystemKinds = AllNodes
@@ -142,7 +142,7 @@ public static class OntologyRegistry
 
             var propType = prop.PropertyType;
             var isNullable = propType.IsGenericType && propType.GetGenericTypeDefinition() == typeof(Nullable<>);
-            var underlyingType = isNullable ? Nullable.GetUnderlyingType(propType)! : propType;
+            var underlyingType = isNullable ? (Nullable.GetUnderlyingType(propType) ?? propType) : propType;
 
             var typeStr = underlyingType == typeof(string) ? "string" :
                           underlyingType == typeof(int) || underlyingType == typeof(long) ? "integer" :

@@ -355,8 +355,9 @@ public partial class CodeExplorerRepository
             {
                 if (node.TryGetProperty("id", out var idProp) && node.TryGetProperty("kind", out var kindProp))
                 {
-                    var id = idProp.GetString()!;
-                    var kind = kindProp.GetString()!;
+                    var id = idProp.GetString();
+                    var kind = kindProp.GetString();
+                    if (id == null || kind == null) continue;
                     var props = node.TryGetProperty("properties", out var p) ? p.GetRawText() : "{}";
 
                     await client.ExecuteWriteAsync(
@@ -383,8 +384,9 @@ public partial class CodeExplorerRepository
                     if (!string.IsNullOrEmpty(kind) && rel.TryGetProperty("from_id", out var fProp) &&
                         rel.TryGetProperty("to_id", out var toProp))
                     {
-                        var fromId = fProp.GetString()!;
-                        var toId = toProp.GetString()!;
+                        var fromId = fProp.GetString();
+                        var toId = toProp.GetString();
+                        if (fromId == null || toId == null) continue;
                         var props = rel.TryGetProperty("properties", out var p) ? p.GetRawText() : "{}";
 
                         await client.ExecuteWriteAsync(

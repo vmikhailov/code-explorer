@@ -42,7 +42,7 @@ public static class ServeCommandHandler
         if (string.IsNullOrEmpty(dbPath) || !File.Exists(dbPath))
         {
             var targetDir = ws != null
-                ? Path.GetDirectoryName(ws.DbPath)!
+                ? (Path.GetDirectoryName(ws.DbPath) ?? Path.Combine(wsRoot, ".codeexplorer"))
                 : Path.Combine(wsRoot, ".codeexplorer");
 
             if (!Directory.Exists(targetDir))
