@@ -154,6 +154,7 @@ Once verified:
    The unified GitHub Actions workflow ([`.github/workflows/release.yml`](../../../.github/workflows/release.yml)) is triggered strictly by the tag:
    - Builds native single-file binaries for **win-x64** and **osx-arm64** (reduced native matrix).
    - Packs and publishes universal `codeexplorer.cli` NuGet tool package to NuGet.org and GitHub Releases (serving non-native architectures: `linux-*`, `osx-x64`, `win-arm64`).
+   - Updates `vmikhailov/homebrew-tap` formula (`ce.rb`) with the latest macOS Apple Silicon binary and sha256 checksum (when `HOMEBREW_TAP_TOKEN` secret is configured).
    - Packages lightweight universal `.vsix` extension and publishes to VS Code Marketplace & Open VSX Registry.
    - **Important**: Do **NOT** schedule any timer/hook or background check to monitor GitHub Actions after pushing the tag. The user monitors GitHub Actions manually.
 
