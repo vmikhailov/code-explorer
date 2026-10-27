@@ -365,10 +365,6 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 5px;
-  padding: 2px 7px;
   font-size: 11px;
 }
 
@@ -388,7 +384,7 @@
   border-radius: 3px;
   min-width: 22px;
   height: 22px;
-  padding: 0 5px;
+  padding: 0 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -397,6 +393,7 @@
   cursor: pointer;
   transition: all 0.15s ease;
   user-select: none;
+  white-space: nowrap;
 }
 
 .domain-hud-btn:hover,

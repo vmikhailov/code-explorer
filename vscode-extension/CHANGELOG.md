@@ -5,6 +5,15 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.65.11] - 2026-10-27
+
+### Fixed
+- **HUD Control Groups Extra Border & Button Wrapping**:
+  - Removed redundant outer border, background, and padding from `.domain-hud-control-group` and `.domain-hud-layout-select`, eliminating double-border framing around the layout dropdown and viewport controls.
+  - Added non-breaking spaces (`&nbsp;` / `\u00A0`) and enforced `white-space: nowrap` on HUD action buttons (`⛶ Fit` and `🔄 Refresh`), preventing text from awkwardly wrapping below icons.
+
+---
+
 ## [1.65.10] - 2026-10-27
 
 ### Changed

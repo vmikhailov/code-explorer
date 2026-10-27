@@ -5390,7 +5390,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
             {/* Graph Layout Selector */}
             {!isMatrixMode && (
-              <div className="domain-hud-control-group domain-hud-layout-select" title="Graph Layout Algorithm">
+              <div className="domain-hud-layout-select" title="Graph Layout Algorithm">
                 <select
                   value={layoutName}
                   onChange={(e) => handleLayoutChange(e.target.value as any)}
@@ -5440,7 +5440,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                     onClick={handleFitView}
                     title="Fit to Screen"
                   >
-                    ⛶ Fit
+                    {'⛶\u00A0Fit'}
                   </button>
                 </>
               )}
@@ -5451,7 +5451,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                   onClick={onRefresh}
                   title={isMatrixMode ? 'Reload Architecture Matrix' : 'Reload Architecture Map'}
                 >
-                  🔄 Refresh
+                  {'🔄\u00A0Refresh'}
                 </button>
               )}
             </div>
