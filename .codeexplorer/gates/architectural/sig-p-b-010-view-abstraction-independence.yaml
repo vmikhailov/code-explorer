@@ -1,0 +1,22 @@
+id: SIG-P-B-010
+category: Architectural
+platform: agnostic
+scope: Module
+dimension: Boundaries
+name: C2 / C3 Architecture View Independence
+severity: Error
+description: ProjectMapView (C3 internal project map) must maintain an independent canvas and lifecycle, and must not delegate to, embed, or wrap DomainArchitectureView (C2 cross-service domain view) or BaseGraphMap.
+remediation: Decouple ProjectMapView into a dedicated C3 project map component using projectMapModel and projectMapLayout, rendering its own Cytoscape/swimlane canvas directly.
+query: >-
+  MATCH (caller:Function)-[:CALLS*1..2]->(target:Function)
+  WHERE coalesce(caller.file_path, caller.path) CONTAINS 'ProjectMapView'
+    AND target.name IN ['DomainArchitectureView', 'BaseGraphMap']
+    AND NOT coalesce(caller.is_test, false)
+  RETURN 
+    coalesce(caller.path, caller.file_path) AS file,
+    coalesce(caller.start_line, 0) AS line,
+    caller.name AS symbol,
+    target.name AS target,
+    'View abstraction independence violation: ProjectMapView illegally delegates to DomainArchitectureView or BaseGraphMap' AS message
+ratchet:
+  enabled: false

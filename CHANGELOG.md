@@ -5,6 +5,27 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.66.0] - 2026-10-28
+
+### Added
+- **Semantic Invariant Gates `SIG-C-B-003` & `SIG-P-B-010`**:
+  - `SIG-C-B-003` (Passive View Generation Purity): Strictly disallows view engines (`ArchitectureViewEngine`, `ProjectMapBuilder`) from performing ambient disk I/O or synthesizing ad-hoc runtime graph mutations.
+  - `SIG-P-B-010` (C2 / C3 Architecture View Independence): Prohibits `ProjectMapView` (C3 internal module map) from delegating to, embedding, or wrapping `DomainArchitectureView` (C2 cross-service domain map) or `BaseGraphMap`.
+- **AST-Driven UI Host Boundary Resolution**:
+  - Integrated `VsCodeLibraryParser` and `Layer5GlobalAnalyzer.HostBoundaries` to discover webview entrypoints, resolving assets like `dist/webview.js` to source components and emitting formal `INSTANTIATES` relationships.
+
+### Fixed
+- **Canvas View Lifecycle & Empty View Recovery (Mermaid â Cytoscape)**:
+  - Fixed vanishing nodes and NaN zoom when switching back from Mermaid flowchart to Default/Concentric or COSE layout.
+  - Added non-zero DOM container dimension polling and explicit `cy.resize()` + `cy.fit()` checks before executing layout, preventing viewport collapse against 0×0 unmounted dimensions.
+- **Dedicated C3 Project Map Architecture**:
+  - Decoupled `ProjectMapView` into an independent canvas component with its own Cytoscape instance, SVG concentric tier rings, swimlane guides, and right-docked element inspector.
+  - Removed transitional wrapper `BaseGraphMap.tsx`.
+- **Backend Edge Preservation & Query Determinism**:
+  - Enhanced `ArchitectureViewEngine.ProjectMap.cs` to prevent silent edge drops on non-empty relative symbol file paths.
+
+---
+
 ## [1.65.11] - 2026-10-27
 
 ### Fixed

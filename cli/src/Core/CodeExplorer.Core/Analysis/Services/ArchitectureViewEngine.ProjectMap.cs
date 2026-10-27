@@ -719,6 +719,10 @@ public partial class ArchitectureViewEngine
                 if (normPrimary.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return normPrimary;
                 if (normAlt.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return normAlt;
             }
+
+            // Fallback: Preserve non-empty normalized path rather than silently dropping edge
+            if (normPrimary.Length > 0) return normPrimary;
+            if (normAlt.Length > 0) return normAlt;
             return "";
         }
 

@@ -3728,6 +3728,26 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         if (cancelled) return;
       }
 
+      // Ensure container has non-zero DOM dimensions and Cytoscape is resized before laying out (e.g. after returning from Mermaid)
+      if (containerRef.current) {
+        if (containerRef.current.clientWidth === 0 || containerRef.current.clientHeight === 0) {
+          await new Promise<void>((resolve) => {
+            let attempts = 0;
+            const checkDimensions = () => {
+              if (cancelled || attempts++ > 30) return resolve();
+              if (containerRef.current && containerRef.current.clientWidth > 0 && containerRef.current.clientHeight > 0) {
+                resolve();
+              } else {
+                requestAnimationFrame(checkDimensions);
+              }
+            };
+            requestAnimationFrame(checkDimensions);
+          });
+          if (cancelled) return;
+        }
+        cy.resize();
+      }
+
       cy.batch(() => {
         cy.elements().remove();
         cy.add(elements);
@@ -4074,6 +4094,11 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           ...layoutConfig,
           stop: () => {
             if (!cancelled) {
+              cy.resize();
+              const validZ = cy.zoom();
+              if (!Number.isFinite(validZ) || validZ <= 0) {
+                cy.fit(undefined, 60);
+              }
               recordBasePositions(cy);
               const factor = spacingFactorRef.current;
               if (factor !== 1.0) {

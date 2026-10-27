@@ -1,0 +1,26 @@
+id: SIG-C-B-003
+category: Architectural
+platform: agnostic
+scope: Class
+dimension: Boundaries
+name: Passive View Generation Purity
+severity: Error
+description: Architecture and Project Map view engines must operate purely as read-only projections of ontology nodes and edges; they must never perform disk I/O, execute database write mutations, or synthesize ad-hoc runtime mutations.
+remediation: Ensure view engines (ArchitectureViewEngine, ProjectMapBuilder) only query existing graph relationships and projections without performing disk operations (File/Directory) or mutating the underlying graph store.
+query: >-
+  MATCH (caller)-[:CALLS]->(target)
+  WHERE (coalesce(caller.file_path, caller.path) CONTAINS 'ArchitectureViewEngine' OR coalesce(caller.file_path, caller.path) CONTAINS 'ProjectMapBuilder')
+    AND target.name IN [
+      'File', 'Directory', 'FileStream', 'StreamReader', 'StreamWriter', 'ReadAllText', 'WriteAllText',
+      'ExecuteWriteAsync', 'InsertAsync', 'UpdateAsync', 'DeleteAsync'
+    ]
+    AND NOT coalesce(caller.is_test, false)
+  RETURN 
+    coalesce(caller.path, caller.file_path) AS file,
+    coalesce(caller.start_line, 0) AS line,
+    coalesce(caller.start_col, 0) AS column,
+    caller.name AS symbol,
+    target.name AS target,
+    'Passive view generation violation: view engine performs forbidden I/O or graph mutation operations' AS message
+ratchet:
+  enabled: false
