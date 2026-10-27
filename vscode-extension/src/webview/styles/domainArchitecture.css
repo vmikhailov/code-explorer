@@ -2192,6 +2192,85 @@
   color: #ffffff;
 }
 
+.context-menu-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.context-menu-submenu-container {
+  position: relative;
+  width: 100%;
+}
+
+.context-menu-submenu-trigger {
+  justify-content: space-between;
+}
+
+.context-menu-submenu-trigger .submenu-arrow {
+  font-size: 9px;
+  color: #94a3b8;
+  margin-left: auto;
+  padding-left: 8px;
+}
+
+.context-menu-submenu {
+  position: absolute;
+  top: -4px;
+  left: 100%;
+  margin-left: 4px;
+  min-width: 170px;
+  max-width: 250px;
+  max-height: 260px;
+  overflow-y: auto;
+  background: rgba(18, 24, 38, 0.98);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  z-index: 1010;
+  animation: contextMenuFadeIn 0.12s ease-out;
+}
+
+.context-menu-submenu::before {
+  content:  '  ' ;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  left: -8px;
+}
+
+.context-menu-submenu.submenu-left {
+  left: auto;
+  right: 100%;
+  margin-left: 0;
+  margin-right: 4px;
+}
+
+.context-menu-submenu.submenu-left::before {
+  left: auto;
+  right: -8px;
+}
+
+.context-menu-submenu-item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.context-menu-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 5px;
+  border-radius: 10px;
+  margin-left: auto;
+}
+
 /* ==========================================================================
    Docked Split-Pane Layout (react-resizable-panels)
    ========================================================================== */

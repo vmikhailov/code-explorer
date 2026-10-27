@@ -1463,6 +1463,19 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     );
   }, []);
 
+  const addNodesToCustomGroup = useCallback((groupId: string, nodeIds: string[]) => {
+    forceRelayoutRef.current = true;
+    setCustomGroups((prev) =>
+      prev.map((g) => {
+        if (g.id !== groupId) return g;
+        const set = new Set(g.nodeIds);
+        for (const id of nodeIds) set.add(id);
+        return { ...g, nodeIds: Array.from(set) };
+      })
+    );
+    setMultiSelectedNodeIds(new Set());
+  }, []);
+
   const toggleMultiSelectedNode = useCallback((id: string) => {
     setMultiSelectedNodeIds((prev) => {
       const next = new Set(prev);
@@ -1795,6 +1808,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     nodeName: string;
     nodeKind: EntityKind;
   } | null>(null);
+  const [isAddGroupSubmenuOpen, setIsAddGroupSubmenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!contextMenu) {
+      setIsAddGroupSubmenuOpen(false);
+    }
+  }, [contextMenu]);
 
   const hideNode = useCallback((nodeId: string) => {
     const nodeName = rawGraphRef.current?.detailMap?.get(nodeId)?.displayName || nodeId;
@@ -1833,8 +1853,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     }
   }, [hiddenNodeIds, forcedVisibleNodeIds, executeCommand]);
 
-  const hideDownstreamNodes = useCallback((rootNodeId: string) => {
-    const downstreamIds = new Set<string>();
+  const getDownstreamNodeIds = useCallback((rootNodeId: string): string[] => {
+    const downstreamIds: string[] = [];
     const queue = [rootNodeId];
     const visited = new Set<string>([rootNodeId]);
 
@@ -1844,13 +1864,19 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       for (const edge of outgoing) {
         if (!visited.has(edge.target)) {
           visited.add(edge.target);
-          downstreamIds.add(edge.target);
+          downstreamIds.push(edge.target);
           queue.push(edge.target);
         }
       }
     }
+    return downstreamIds;
+  }, []);
 
-    if (downstreamIds.size > 0) {
+  const hideDownstreamNodes = useCallback((rootNodeId: string) => {
+    const downstreamIds = getDownstreamNodeIds(rootNodeId);
+
+    if (downstreamIds.length > 0) {
+      const downstreamSet = new Set(downstreamIds);
       const rootNodeName = rawGraphRef.current?.detailMap?.get(rootNodeId)?.displayName || rootNodeId;
       const prevHidden = new Set(hiddenNodeIds);
       const nextHidden = new Set(prevHidden);
@@ -1862,7 +1888,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
       const cmd = new HideDownstreamCommand(
         rootNodeName,
-        downstreamIds.size,
+        downstreamIds.length,
         prevHidden,
         nextHidden,
         prevForced,
@@ -1881,13 +1907,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         cmd.execute();
       }
 
-      setSelectedNode((curr) => (curr && downstreamIds.has(curr.id) ? null : curr));
+      setSelectedNode((curr) => (curr && downstreamSet.has(curr.id) ? null : curr));
     }
     setContextMenu(null);
     if (cyRef.current) {
       cyRef.current.elements().removeClass('highlighted dimmed');
     }
-  }, [hiddenNodeIds, forcedVisibleNodeIds, executeCommand]);
+  }, [hiddenNodeIds, forcedVisibleNodeIds, executeCommand, getDownstreamNodeIds]);
 
   const hideAllOfKind = useCallback((kind: EntityKind) => {
     const prevHiddenTypes = new Set(hiddenTypes);
@@ -5746,77 +5772,156 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           )}
 
           {/* Context Menu for Nodes */}
-          {contextMenu && (
-            <div
-              className="domain-node-context-menu"
-              style={{
-                position: 'absolute',
-                left: `${contextMenu.x}px`,
-                top: `${contextMenu.y}px`,
-                zIndex: 1000,
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="context-menu-header">
-                <span className="context-menu-title" title={contextMenu.nodeName}>
-                  {contextMenu.nodeName}
-                </span>
-                <span className="context-menu-kind">{contextMenu.nodeKind}</span>
+          {contextMenu && (() => {
+            const isGroupNode = contextMenu.nodeId.startsWith('group:');
+            const targetNodeIds = multiSelectedNodeIds.has(contextMenu.nodeId) && multiSelectedNodeIds.size > 1
+              ? Array.from(multiSelectedNodeIds)
+              : [contextMenu.nodeId];
+            const downstreamNodeIds = isGroupNode ? [] : getDownstreamNodeIds(contextMenu.nodeId);
+            const isSubmenuLeft = typeof window !== 'undefined' && contextMenu.x + 360 > window.innerWidth;
+
+            return (
+              <div
+                className="domain-node-context-menu"
+                style={{
+                  position: 'absolute',
+                  left: `${contextMenu.x}px`,
+                  top: `${contextMenu.y}px`,
+                  zIndex: 1000,
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="context-menu-header">
+                  <span className="context-menu-title" title={contextMenu.nodeName}>
+                    {contextMenu.nodeName}
+                  </span>
+                  <span className="context-menu-kind">{contextMenu.nodeKind}</span>
+                </div>
+                <div className="context-menu-divider" />
+                {multiSelectedNodeIds.size > 1 && (
+                  <button
+                    type="button"
+                    className="context-menu-item"
+                    onClick={() => {
+                      createCustomGroup(`Group (${multiSelectedNodeIds.size})`, Array.from(multiSelectedNodeIds));
+                      setContextMenu(null);
+                    }}
+                  >
+                    <span>Group {multiSelectedNodeIds.size} Selected</span>
+                  </button>
+                )}
+                {!isGroupNode && (
+                  <>
+                    <div
+                      className="context-menu-submenu-container"
+                      onMouseEnter={() => setIsAddGroupSubmenuOpen(true)}
+                      onMouseLeave={() => setIsAddGroupSubmenuOpen(false)}
+                    >
+                      <button
+                        type="button"
+                        className="context-menu-item context-menu-submenu-trigger"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsAddGroupSubmenuOpen((prev) => !prev);
+                        }}
+                      >
+                        <span>Add to group</span>
+                        <span className="submenu-arrow">▶</span>
+                      </button>
+                      {isAddGroupSubmenuOpen && (
+                        <div className={`context-menu-submenu ${isSubmenuLeft ? 'submenu-left' : ''}`}>
+                          {customGroups.map((group) => {
+                            const isMember = targetNodeIds.every((id) => group.nodeIds.includes(id));
+                            return (
+                              <button
+                                key={group.id}
+                                type="button"
+                                className="context-menu-item"
+                                onClick={() => {
+                                  addNodesToCustomGroup(group.id, targetNodeIds);
+                                  setContextMenu(null);
+                                }}
+                              >
+                                <span className="context-menu-submenu-item-name" title={group.name}>
+                                  {isMember ? '✓ ' : ''}{group.name}
+                                </span>
+                                <span className="context-menu-badge">{group.nodeIds.length}</span>
+                              </button>
+                            );
+                          })}
+                          {customGroups.length > 0 && <div className="context-menu-divider" />}
+                          <button
+                            type="button"
+                            className="context-menu-item"
+                            onClick={() => {
+                              const defaultName = targetNodeIds.length > 1
+                                ? `Group (${targetNodeIds.length})`
+                                : `Group of ${contextMenu.nodeName}`;
+                              createCustomGroup(defaultName, targetNodeIds);
+                              setContextMenu(null);
+                            }}
+                          >
+                            <span>+ New Group...</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      className="context-menu-item"
+                      disabled={downstreamNodeIds.length === 0}
+                      onClick={() => {
+                        createCustomGroup(`Downstream of ${contextMenu.nodeName}`, downstreamNodeIds);
+                        setContextMenu(null);
+                      }}
+                    >
+                      <span>Group all downstream {downstreamNodeIds.length > 0 ? `(${downstreamNodeIds.length})` : ''}</span>
+                    </button>
+                  </>
+                )}
+                {isGroupNode && (
+                  <button
+                    type="button"
+                    className="context-menu-item"
+                    onClick={() => {
+                      const gId = contextMenu.nodeId;
+                      if (gId.startsWith('group:custom:')) {
+                        deleteCustomGroup(gId.replace('group:custom:', ''));
+                      } else if (gId.startsWith('group:kind:')) {
+                        toggleTypeGrouping(gId.replace('group:kind:', '') as EntityKind);
+                      }
+                      setContextMenu(null);
+                      setSelectedNode(null);
+                    }}
+                  >
+                    <span>Ungroup / Expand</span>
+                  </button>
+                )}
+                <div className="context-menu-divider" />
+                <button
+                  type="button"
+                  className="context-menu-item"
+                  onClick={() => hideNode(contextMenu.nodeId)}
+                >
+                  <span>Hide Node</span>
+                </button>
+                <button
+                  type="button"
+                  className="context-menu-item"
+                  onClick={() => hideDownstreamNodes(contextMenu.nodeId)}
+                >
+                  <span>Hide Downstream</span>
+                </button>
+                <button
+                  type="button"
+                  className="context-menu-item"
+                  onClick={() => hideAllOfKind(contextMenu.nodeKind)}
+                >
+                  <span>Hide all {contextMenu.nodeKind}s</span>
+                </button>
               </div>
-              <div className="context-menu-divider" />
-              {multiSelectedNodeIds.size > 1 && (
-                <button
-                  type="button"
-                  className="context-menu-item"
-                  onClick={() => {
-                    createCustomGroup(`Group (${multiSelectedNodeIds.size})`, Array.from(multiSelectedNodeIds));
-                    setContextMenu(null);
-                  }}
-                >
-                  <span>Group {multiSelectedNodeIds.size} Selected</span>
-                </button>
-              )}
-              {contextMenu.nodeId.startsWith('group:') && (
-                <button
-                  type="button"
-                  className="context-menu-item"
-                  onClick={() => {
-                    const gId = contextMenu.nodeId;
-                    if (gId.startsWith('group:custom:')) {
-                      deleteCustomGroup(gId.replace('group:custom:', ''));
-                    } else if (gId.startsWith('group:kind:')) {
-                      toggleTypeGrouping(gId.replace('group:kind:', '') as EntityKind);
-                    }
-                    setContextMenu(null);
-                    setSelectedNode(null);
-                  }}
-                >
-                  <span>Ungroup / Expand</span>
-                </button>
-              )}
-              <button
-                type="button"
-                className="context-menu-item"
-                onClick={() => hideNode(contextMenu.nodeId)}
-              >
-                <span>Hide Node</span>
-              </button>
-              <button
-                type="button"
-                className="context-menu-item"
-                onClick={() => hideDownstreamNodes(contextMenu.nodeId)}
-              >
-                <span>Hide Downstream</span>
-              </button>
-              <button
-                type="button"
-                className="context-menu-item"
-                onClick={() => hideAllOfKind(contextMenu.nodeKind)}
-              >
-                <span>Hide all {contextMenu.nodeKind}s</span>
-              </button>
-            </div>
-          )}
+            );
+          })()}
 
         </div>
       </Panel>

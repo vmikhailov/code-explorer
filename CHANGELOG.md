@@ -5,6 +5,21 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.64.2] - 2026-10-27
+
+### Added
+- **Node Context Menu Grouping Actions ("Add to group" & "Group all downstream")**:
+  - Added an **"Add to group"** submenu flyout to the canvas right-click context menu on nodes:
+    - Lists all existing custom groups with live member counts and checkmark indicators.
+    - Clicking any existing group immediately assigns the node (or any multi-selected nodes) into that group.
+    - Includes a **+ New Group...** option to instantly create a new custom group containing the active or multi-selected nodes.
+    - Fully accessible with hover and click interactions, zero-flicker bridge, and smart horizontal boundary flipping when opened near viewport edges.
+  - Added a **"Group all downstream"** context menu action:
+    - Analyzes transitive downstream topology using BFS traversal along outgoing dependency edges.
+    - Dynamically displays downstream node count (e.g. Group all downstream (3)), automatically disabling when no downstream nodes exist.
+    - One-click groups all reachable downstream dependencies into a collapsed composite node named Downstream of <nodeName>.
+
+---
 ## [1.64.1] - 2026-10-27
 
 ### Added

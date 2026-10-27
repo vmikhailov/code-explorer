@@ -409,3 +409,40 @@ test('nodeGrouping: external edges bundle with preserved original endpoints, int
   // Group node metrics updated
   assert.equal(groupNode.inboundCallsCount, 5);
 });
+
+test( ' nodeGrouping: downstream traversal finds all transitive downstream nodes ' , () => {
+  const outAdj = new Map<string, Array<{ target: string }>>([
+    [ ' svc:api ' , [{ target:  ' svc:order '  }, { target:  ' svc:payment '  }]],
+    [ ' svc:order ' , [{ target:  ' db:order '  }]],
+    [ ' svc:payment ' , []],
+    [ ' db:order ' , []],
+  ]);
+
+  function getDownstreamNodeIds(rootNodeId: string): string[] {
+    const downstreamIds: string[] = [];
+    const queue = [rootNodeId];
+    const visited = new Set<string>([rootNodeId]);
+
+    while (queue.length > 0) {
+      const curr = queue.shift()!;
+      const outgoing = outAdj.get(curr) || [];
+      for (const edge of outgoing) {
+        if (!visited.has(edge.target)) {
+          visited.add(edge.target);
+          downstreamIds.push(edge.target);
+          queue.push(edge.target);
+        }
+      }
+    }
+    return downstreamIds;
+  }
+
+  const downstreamOfApi = getDownstreamNodeIds( ' svc:api ' );
+  assert.deepEqual(downstreamOfApi, [ ' svc:order ' ,  ' svc:payment ' ,  ' db:order ' ]);
+
+  const downstreamOfOrder = getDownstreamNodeIds( ' svc:order ' );
+  assert.deepEqual(downstreamOfOrder, [ ' db:order ' ]);
+
+  const downstreamOfDb = getDownstreamNodeIds( ' db:order ' );
+  assert.deepEqual(downstreamOfDb, []);
+});
