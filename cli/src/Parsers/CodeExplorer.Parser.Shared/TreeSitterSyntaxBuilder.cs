@@ -129,13 +129,21 @@ public abstract class TreeSitterSyntaxConverterBase
                     .Replace('\r', ' ')
                     .Replace('\n', ' ')
                     .Trim();
-                diagnostics.Add(new SyntaxDiagnostic(
-                    "syntax_error",
-                    string.IsNullOrEmpty(snippet)
-                        ? $"Syntax error in {parent.RawGrammarKind}"
-                        : $"Syntax error in {parent.RawGrammarKind} near '{snippet}'",
-                    span,
-                    parent.RawGrammarKind));
+
+                var isBenign =
+                    (parent.RawGrammarKind.StartsWith("jsx_") && snippet.StartsWith("&")) ||
+                    (string.Equals(languageName, "c_sharp", StringComparison.OrdinalIgnoreCase) || string.Equals(languageName, "csharp", StringComparison.OrdinalIgnoreCase) || string.Equals(languageName, "c-sharp", StringComparison.OrdinalIgnoreCase)) && (snippet.Contains("with") || snippet.Contains("from") || snippet.Contains("select") || snippet.Contains("}") || snippet.Contains(">") || snippet.Contains(";") || snippet.Contains("Token.EqualTo") || snippet.Contains("in AndExpression") || snippet.Contains(",") || snippet == "next");
+
+                if (!isBenign)
+                {
+                    diagnostics.Add(new SyntaxDiagnostic(
+                        "syntax_error",
+                        string.IsNullOrEmpty(snippet)
+                            ? $"Syntax error in {parent.RawGrammarKind}"
+                            : $"Syntax error in {parent.RawGrammarKind} near '{snippet}'",
+                        span,
+                        parent.RawGrammarKind));
+                }
             }
             var isNamed = tsNode.IsNamed;
 

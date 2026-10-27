@@ -30,12 +30,18 @@ Whenever fixes or features are made to CodeExplorer (CLI or VS Code Extension):
      - In `vscode-extension/`, run `npm run typecheck` and `npm run test`.
 
 3. **Pack and Reinstall Local Tool (optional / for manual verification)**:
-   - Pack the NuGet tool package:
+   - **One-step Local Redeployment (Recommended)**:
+     Handles background process file-locking (e.g. `ce.exe serve` spawned by VS Code), packs, uninstalls old version, and installs fresh binaries:
+     ```bash
+     .\update-local.cmd # or: pwsh scripts/update-local.ps1
+     ```
+     To optionally increment patch version before packing:
+     ```bash
+     pwsh scripts/update-local.ps1 -BumpPatch
+     ```
+   - Alternatively, manual pack and update:
      ```bash
      dotnet pack cli/src/UI/CodeExplorer/CodeExplorer.csproj -c Release -o ./cli/.Packages
-     ```
-   - Update the locally installed global tool:
-     ```bash
      dotnet tool update -g codeexplorer.cli --add-source ./cli/.Packages
      ```
    - Package VSIX locally (optional):
