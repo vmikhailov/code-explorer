@@ -5,6 +5,22 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.66.1] - 2026-10-28
+
+### Fixed
+- **HUD Control Heights Unification & Overlap Prevention**:
+  - Unified all HUD controls (buttons, dropdown selects, search inputs, slider groups) across `ProjectMapView`, `DomainArchitectureView`, `BoundedContextMapView`, and `C1SystemContextView` to a standard uniform height of `26px` with `box-sizing: border-box`.
+  - Added responsive `flex-wrap: wrap` and row gaps (`6px` - `8px`) to parent toolbar rows and child control containers, preventing horizontal overflow, clipping, and collisions in split editor and narrow pane layouts.
+  - Centered search input action buttons (`✕` clear button and match count badge) with dynamic input right-padding to strictly prevent text overlap.
+  - Added `flex-shrink: 0` and `white-space: nowrap` across buttons and badges, plus ellipsis text truncation on project selector to protect toolbars against runaway layout expansion.
+- **Tree View Gate Evaluation State Isolation**:
+  - Fixed single-gate evaluation in `GateStateManager` by matching returned gate results strictly by `gateId`, resolving a bug where evaluating an individual gate caused the first gate in the suite (`SIG-A-B-001`) to overwrite the clicked gate item in place in the tree.
+  - Ensured backend CLI endpoint `/api/gates/check` preloads configured gates when evaluating a single target, preserving full suite context.
+- **Redundant Gate Edit Action Removal**:
+  - Removed duplicate raw YAML/JSON edit button (`codeExplorer.openGateYaml`) from the tree item inline menu, leaving the primary Visual Gate Editor (`codeExplorer.editGate`) inline while retaining YAML editing in the context menu.
+
+---
+
 ## [1.66.0] - 2026-10-28
 
 ### Added
