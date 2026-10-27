@@ -222,7 +222,7 @@ export class GraphInspectorViewProvider implements vscode.WebviewViewProvider {
   <link rel="stylesheet" href="${styleUri}">
   <script nonce="${nonce}">${configScript}</script>
 </head>
-<body class="ce-inspector-webview-body" style="margin: 0; padding: 0; overflow: hidden;">
+<body class="ce-inspector-webview-body" style="margin: 0; padding: 0; overflow: hidden; background: var(--vscode-sideBar-background, #181818); color: var(--vscode-sideBar-foreground, var(--vscode-foreground, #cccccc));">
   <div id="root"></div>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>

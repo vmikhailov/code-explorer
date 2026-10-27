@@ -233,8 +233,8 @@ export const InspectorSidebarView: React.FC = () => {
           height: '100vh',
           padding: '24px 16px',
           textAlign: 'center',
-          color: '#94a3b8',
-          background: '#0b0f19',
+          color: 'var(--vscode-sideBar-foreground, #94a3b8)',
+          background: 'var(--vscode-sideBar-background, #181818)',
           gap: '12px',
         }}
       >
@@ -373,7 +373,7 @@ export const InspectorSidebarView: React.FC = () => {
         width: '100%',
         height: '100vh',
         minHeight: 0,
-        background: '#0b0f19',
+        background: 'var(--vscode-sideBar-background, #181818)',
         overflow: 'hidden',
       }}
     >
@@ -384,8 +384,8 @@ export const InspectorSidebarView: React.FC = () => {
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '6px 10px',
-          background: 'rgba(15, 23, 42, 0.75)',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+          background: 'var(--vscode-sideBarSectionHeader-background, rgba(255, 255, 255, 0.03))',
+          borderBottom: '1px solid var(--vscode-sideBar-border, var(--vscode-widget-border, rgba(255, 255, 255, 0.08)))',
           fontSize: '11px',
         }}
       >

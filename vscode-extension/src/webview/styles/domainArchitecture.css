@@ -2462,6 +2462,13 @@
   margin: 0;
 }
 
-
-
+/* Webview Inspector native VS Code body styling */
+body.ce-inspector-webview-body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: var(--vscode-sideBar-background, #181818);
+  color: var(--vscode-sideBar-foreground, var(--vscode-foreground, #cccccc));
+  font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif);
+}
 

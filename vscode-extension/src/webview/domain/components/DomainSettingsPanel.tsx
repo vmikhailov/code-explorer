@@ -106,7 +106,7 @@ export const DomainSettingsPanel: React.FC<DomainSettingsPanelProps> = ({
         flex: 1,
         minHeight: 0,
         overflowY: 'auto',
-        background: '#0b0f19',
+        background: 'var(--vscode-sideBar-background, #181818)',
         padding: '10px 12px',
         gap: '12px',
       }}

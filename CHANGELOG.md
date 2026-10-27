@@ -5,6 +5,16 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.65.9] - 2026-10-27
+
+### Fixed
+- **VS Code Extension Inspector Theme Integration**:
+  - Replaced hardcoded deep navy background (`#0b0f19`) across all Graph Inspector views (`InspectorSidebarView`, `DomainOrbitsPanel`, `DomainSettingsPanel`, and empty states) with native VS Code sidebar background token `var(--vscode-sideBar-background, #181818)`.
+  - Replaced hardcoded context banner header background with `var(--vscode-sideBarSectionHeader-background, rgba(255, 255, 255, 0.03))` and themed border `var(--vscode-sideBar-border, var(--vscode-widget-border, rgba(255, 255, 255, 0.08)))`.
+  - Added native VS Code sidebar foreground and background styles to Inspector webview body (`body.ce-inspector-webview-body`), ensuring seamless visual integration across VS Code Dark Modern, Dark+, High Contrast, and Light themes.
+
+---
+
 ## [1.65.8] - 2026-10-27
 
 ### Fixed
