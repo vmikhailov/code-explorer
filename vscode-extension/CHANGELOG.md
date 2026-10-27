@@ -5,6 +5,16 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.65.10] - 2026-10-27
+
+### Changed
+- **Relocated Project Map Stats from HUD Header to Info Panel**:
+  - Removed wrapping stat pills (`entrypoints`, `classes`, `deps`, `resources`, `⚠️ cycles`) from the main canvas HUD header (`ProjectMapView`), keeping the project selector clean, compact, and single-line.
+  - Added rich **Project Overview** card in the Graph Inspector's Info tab when no element is selected, displaying macro project metrics (EntryPoints, Classes/Modules, Dependencies, Resources), source file count, interactive dependency cycle isolation toggle, and canvas hints.
+  - Added compact stat strip at the top of the Info tab during node or edge inspection, allowing continuous visibility of project-level metrics alongside granular element details.
+
+---
+
 ## [1.65.9] - 2026-10-27
 
 ### Fixed

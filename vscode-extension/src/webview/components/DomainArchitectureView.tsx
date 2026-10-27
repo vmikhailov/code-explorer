@@ -149,6 +149,13 @@ export interface DomainArchitectureViewProps {
     cyclesOnly: boolean;
     hideUtilities: boolean;
     hideResources: boolean;
+    projectName?: string;
+    filesCount?: number;
+    entryPointCount?: number;
+    moduleCount?: number;
+    granularity?: 'class' | 'file' | 'module';
+    depCount?: number;
+    resourceCount?: number;
   };
   /** Handler for toggling Project Map presets from the native VS Code Inspector sidebar. */
   onToggleProjectMapPreset?: (preset: 'cyclesOnly' | 'hideUtilities' | 'hideResources') => void;

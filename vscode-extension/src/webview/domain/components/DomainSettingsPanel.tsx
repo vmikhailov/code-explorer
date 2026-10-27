@@ -15,6 +15,13 @@ export interface ProjectMapPresetsState {
   cyclesOnly: boolean;
   hideUtilities: boolean;
   hideResources: boolean;
+  projectName?: string;
+  filesCount?: number;
+  entryPointCount?: number;
+  moduleCount?: number;
+  granularity?: 'class' | 'file' | 'module';
+  depCount?: number;
+  resourceCount?: number;
 }
 
 export interface DomainSettingsPanelProps {

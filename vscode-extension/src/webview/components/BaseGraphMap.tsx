@@ -15,6 +15,13 @@ export interface BaseGraphMapProps {
     cyclesOnly: boolean;
     hideUtilities: boolean;
     hideResources: boolean;
+    projectName?: string;
+    filesCount?: number;
+    entryPointCount?: number;
+    moduleCount?: number;
+    granularity?: 'class' | 'file' | 'module';
+    depCount?: number;
+    resourceCount?: number;
   };
   onToggleProjectMapPreset?: (preset: 'cyclesOnly' | 'hideUtilities' | 'hideResources') => void;
   defaultLayoutName?: DomainLayoutName;

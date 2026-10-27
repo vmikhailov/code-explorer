@@ -2,7 +2,7 @@
   "name": "code-explorer-vscode",
   "displayName": "CodeExplorer",
   "description": "Make AI coding agents production-safe. Live cross-service map of APIs, queues & databases in VS Code, surgical MCP context (Claude Code, Cursor, Copilot), and CI architecture gates.",
-  "version": "1.65.9",
+  "version": "1.65.10",
   "publisher": "vmikhailov",
   "license": "MIT",
   "icon": "media/icon_512_quant.png",

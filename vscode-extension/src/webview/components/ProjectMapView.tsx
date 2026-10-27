@@ -112,8 +112,10 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
   const resourceCount = model.nodes.filter((n) => n.isResource).length;
   const depCount = model.edges.filter((e) => !e.isResourceLink).length;
 
+  const currentProjectFiles = model.projects.find((p) => p.name === (model.projectName || project))?.files;
+
   const headerControls = (
-    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
       <select
         className="domain-layout-dropdown"
         style={{ minWidth: 180, height: 26, fontSize: 11 }}
@@ -130,38 +132,6 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
           </option>
         ))}
       </select>
-
-      {entryPointNodeCount > 0 && (
-        <span className="pm-chip" title="EntryPoints & Endpoints in Orbit 0">
-          {entryPointNodeCount} {entryPointNodeCount === 1 ? 'entrypoint' : 'entrypoints'}
-        </span>
-      )}
-      <span className="pm-chip" title="Classes / modules in this project">
-        {moduleCount} {model.granularity === 'class' ? 'classes' : model.granularity === 'file' ? 'files' : 'modules'}
-      </span>
-      <span className="pm-chip" title="Internal call & dependency links">
-        {depCount} deps
-      </span>
-      {resourceCount > 0 && (
-        <span className="pm-chip" title="Transports, buses, libraries, databases, and tables">
-          {resourceCount} resources
-        </span>
-      )}
-
-      {model.cycles.length > 0 && (
-        <button
-          type="button"
-          className={`domain-hud-btn ${cyclesOnly ? 'is-active' : ''}`}
-          onClick={() => setCyclesOnly((v) => !v)}
-          title="Show only modules involved in dependency cycles"
-          style={{
-            borderColor: cyclesOnly ? '#f59e0b' : 'rgba(245, 158, 11, 0.45)',
-            color: '#fbbf24',
-          }}
-        >
-          ⚠️ {model.cycles.length} cycle{model.cycles.length === 1 ? '' : 's'}
-        </button>
-      )}
     </div>
   );
 
@@ -257,6 +227,13 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
           cyclesOnly,
           hideUtilities,
           hideResources,
+          projectName: model.projectName || project || '',
+          filesCount: currentProjectFiles,
+          entryPointCount: entryPointNodeCount,
+          moduleCount,
+          granularity: (model.granularity as any) || 'class',
+          depCount,
+          resourceCount,
         }}
         onToggleProjectMapPreset={(preset) => {
           if (preset === 'cyclesOnly') setCyclesOnly((v) => !v);
