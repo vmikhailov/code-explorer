@@ -216,7 +216,111 @@ public class ExpressLibraryParser : ISemanticExtension
         return $"/{prefix}/{route}";
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx) { }
+    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    {
+        if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return;
+
+        var func = node.GetFunctionNode();
+        if (!func.IsValid() || !func.Is(TreeSitterSyntax.TypeScript.MemberExpression)) return;
+
+        var prop = func.GetChildForField(TreeSitterSyntax.Fields.Property);
+        var obj = func.GetChildForField(TreeSitterSyntax.Fields.Object);
+        if (!prop.IsValid() || !obj.IsValid()) return;
+
+        if (prop.Text != "use") return;
+
+        var objName = obj.Text.ToLowerInvariant();
+        if (!objName.Contains("app") && !objName.Contains("router") && !objName.Contains("route") && !objName.Contains("server") && !objName.Contains("express"))
+        {
+            return;
+        }
+
+        var args = AstHelper.GetCallArguments(node);
+        if (args.Count == 0) return;
+
+        var startIndex = 0;
+        if (args.Count >= 2 && (AstHelper.IsStringLiteralNode(args[0]) || args[0].Type.Contains("string")))
+        {
+            startIndex = 1;
+        }
+
+        for (var i = startIndex; i < args.Count; i++)
+        {
+            ExtractUseHandlerReferences(args[i], references);
+        }
+    }
+
+    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    {
+        if (symbol.Kind != OntologyConstants.NodeLabels.EntryPoint) return;
+        if (!IsExpressRouteCall(node)) return;
+
+        var args = AstHelper.GetCallArguments(node);
+        if (args.Count < 2) return;
+
+        for (var i = 1; i < args.Count; i++)
+        {
+            var arg = args[i];
+            if (arg.Is(TreeSitterSyntax.TypeScript.Identifier) || arg.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+            {
+                var name = arg.Text;
+                if (!string.IsNullOrEmpty(name) && !IsNoiseIdentifier(name))
+                {
+                    var line = (int)arg.StartPosition.Row + 1;
+                    var col = (int)arg.StartPosition.Column + 1;
+                    if (!symbol.References.Any(r => r.TargetName == name && r.Kind == OntologyConstants.Relationships.Triggers))
+                    {
+                        symbol.References.Add(new Reference(symbol.Name, name, OntologyConstants.Relationships.Triggers, line, col));
+                    }
+                }
+            }
+        }
+    }
+
+    private static void ExtractUseHandlerReferences(Node arg, List<Reference> references)
+    {
+        if (!arg.IsValid()) return;
+
+        if (arg.Is(TreeSitterSyntax.TypeScript.Identifier))
+        {
+            var name = arg.Text;
+            if (!string.IsNullOrEmpty(name) && !IsNoiseIdentifier(name))
+            {
+                var line = (int)arg.StartPosition.Row + 1;
+                var col = (int)arg.StartPosition.Column + 1;
+                if (!references.Any(r => r.TargetName == name && r.Kind == OntologyConstants.Relationships.Calls))
+                {
+                    references.Add(new Reference("", name, OntologyConstants.Relationships.Calls, line, col));
+                }
+            }
+        }
+        else if (arg.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+        {
+            var name = arg.Text;
+            if (!string.IsNullOrEmpty(name))
+            {
+                var line = (int)arg.StartPosition.Row + 1;
+                var col = (int)arg.StartPosition.Column + 1;
+                if (!references.Any(r => r.TargetName == name && r.Kind == OntologyConstants.Relationships.Calls))
+                {
+                    references.Add(new Reference("", name, OntologyConstants.Relationships.Calls, line, col));
+                }
+            }
+        }
+        else if (arg.Type is "array" or "array_expression")
+        {
+            foreach (var child in arg.Children)
+            {
+                if (child.IsValid() && (char.IsLetter(child.Type[0]) || child.Type[0] == '_'))
+                {
+                    ExtractUseHandlerReferences(child, references);
+                }
+            }
+        }
+    }
+
+    private static bool IsNoiseIdentifier(string name) =>
+        name is "req" or "res" or "next" or "err" or "error" or "undefined" or "null" or "true" or "false";
 
     public void DiscoverDeclarations(string filePath, string content, string? projectName, ParsingContext? ctx)
     {

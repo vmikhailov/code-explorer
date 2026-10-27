@@ -360,4 +360,89 @@ public class ProjectMapBuilderTests
         result.Resources.Single(r => r.Name == "orders_db").Tier.Should().Be(ProjectMapTier.Database);
         result.Resources.Single(r => r.Name == "orders").Tier.Should().Be(ProjectMapTier.Database);
     }
+
+    [Test]
+    public void Build_ClassMap_ExpressRoutersAndControllers_EvenlyDistributesEntryPointsAndConnectsLanes()
+    {
+        var input = new ProjectMapInput
+        {
+            ProjectId = "ws:p:redis-route:",
+            ProjectName = "redis-route",
+            ProjectPath = "services/redis-route",
+            Files =
+            [
+                F("services/redis-route/src/routers/auth.router.ts"),
+                F("services/redis-route/src/routers/campaign.router.ts"),
+                F("services/redis-route/src/routers/messages.router.ts"),
+                F("services/redis-route/src/controllers/auth.controller.ts"),
+                F("services/redis-route/src/controllers/campaigns.controller.ts"),
+                F("services/redis-route/src/controllers/messages.controller.ts"),
+                F("services/redis-route/src/repos/campaigns.repo.ts")
+            ],
+            EntryPointNodes =
+            [
+                new ProjectMapEntryPointNode("ep:get-auth", "GET /auth/:network", "Endpoint", "services/redis-route/src/routers/auth.router.ts", 5, "HTTP", ["getAuthData"], ["services/redis-route/src/controllers/auth.controller.ts"]),
+                new ProjectMapEntryPointNode("ep:post-auth", "POST /auth/:network", "Endpoint", "services/redis-route/src/routers/auth.router.ts", 6, "HTTP", ["updateAuthData"], ["services/redis-route/src/controllers/auth.controller.ts"]),
+                new ProjectMapEntryPointNode("ep:post-camp-1", "POST /campaigns/create", "Endpoint", "services/redis-route/src/routers/campaign.router.ts", 5, "HTTP", ["updateCampaignCreateQueues"], ["services/redis-route/src/controllers/campaigns.controller.ts"]),
+                new ProjectMapEntryPointNode("ep:post-camp-2", "POST /campaigns/delete", "Endpoint", "services/redis-route/src/routers/campaign.router.ts", 6, "HTTP", ["updateCampaignDeleteQueues"], ["services/redis-route/src/controllers/campaigns.controller.ts"]),
+                new ProjectMapEntryPointNode("ep:post-msg", "POST /messages/invalid", "Endpoint", "services/redis-route/src/routers/messages.router.ts", 5, "HTTP", ["addInvalidMessage"], ["services/redis-route/src/controllers/messages.controller.ts"])
+            ],
+            Functions =
+            [
+                new ProjectMapFunctionNode("fn:getAuthData", "getAuthData", "services/redis-route/src/controllers/auth.controller.ts", 5, 20, false),
+                new ProjectMapFunctionNode("fn:updateAuthData", "updateAuthData", "services/redis-route/src/controllers/auth.controller.ts", 26, 20, false),
+                new ProjectMapFunctionNode("fn:campCreate", "updateCampaignCreateQueues", "services/redis-route/src/controllers/campaigns.controller.ts", 10, 30, false),
+                new ProjectMapFunctionNode("fn:campDelete", "updateCampaignDeleteQueues", "services/redis-route/src/controllers/campaigns.controller.ts", 41, 30, false),
+                new ProjectMapFunctionNode("fn:addMsg", "addInvalidMessage", "services/redis-route/src/controllers/messages.controller.ts", 8, 25, false),
+                new ProjectMapFunctionNode("fn:repoSave", "saveCampaign", "services/redis-route/src/repos/campaigns.repo.ts", 12, 35, false)
+            ],
+            SymbolEdges =
+            [
+                new ProjectMapSymbolEdge("services/redis-route/src/routers/auth.router.ts", "services/redis-route/src/controllers/auth.controller.ts", "CALLS", "router", "getAuthData", 5),
+                new ProjectMapSymbolEdge("services/redis-route/src/routers/campaign.router.ts", "services/redis-route/src/controllers/campaigns.controller.ts", "CALLS", "router", "updateCampaignCreateQueues", 5),
+                new ProjectMapSymbolEdge("services/redis-route/src/routers/messages.router.ts", "services/redis-route/src/controllers/messages.controller.ts", "CALLS", "router", "addInvalidMessage", 5),
+                new ProjectMapSymbolEdge("services/redis-route/src/controllers/campaigns.controller.ts", "services/redis-route/src/repos/campaigns.repo.ts", "CALLS", "updateCampaignCreateQueues", "saveCampaign", 15)
+            ]
+        };
+
+        var result = ProjectMapBuilder.Build(input);
+
+        // Verify consistent module naming for router files: all routers have 'routers/' prefix
+        var routerAuth = result.Modules.Single(m => m.Name == "routers/auth");
+        var routerCampaign = result.Modules.Single(m => m.Name == "routers/campaign");
+        var routerMessages = result.Modules.Single(m => m.Name == "routers/messages");
+
+        // Verify POST-only routers are NOT starved and have incoming edges from Endpoints
+        var campInEdges = result.Edges.Where(e => e.TargetId == routerCampaign.Id).ToList();
+        campInEdges.Should().NotBeEmpty("POST-only campaign router must have incoming endpoint edge");
+
+        var msgInEdges = result.Edges.Where(e => e.TargetId == routerMessages.Id).ToList();
+        msgInEdges.Should().NotBeEmpty("POST-only messages router must have incoming endpoint edge");
+
+        // Verify Tier / Swimlane placement:
+        // Routers = Application Handlers (Lane 1)
+        routerAuth.Tier.Should().Be(ProjectMapTier.Application);
+        routerCampaign.Tier.Should().Be(ProjectMapTier.Application);
+        routerMessages.Tier.Should().Be(ProjectMapTier.Application);
+
+        // Controllers = Domain Core (Lane 2, called from routers)
+        var ctrlAuth = result.Modules.Single(m => m.Name == "auth");
+        var ctrlCamp = result.Modules.Single(m => m.Name == "campaigns");
+        var ctrlMsg = result.Modules.Single(m => m.Name == "messages");
+        ctrlAuth.Tier.Should().Be(ProjectMapTier.Core);
+        ctrlCamp.Tier.Should().Be(ProjectMapTier.Core);
+        ctrlMsg.Tier.Should().Be(ProjectMapTier.Core);
+
+        // Repos = Repositories & Foundation (Lane 3)
+        var repo = result.Modules.Single(m => m.Path.Contains("campaigns.repo.ts"));
+        repo.Tier.Should().Be(ProjectMapTier.Data);
+
+        // Verify edges exist from routers to controllers
+        result.Edges.Should().Contain(e => e.SourceId == routerAuth.Id && e.TargetId == ctrlAuth.Id);
+        result.Edges.Should().Contain(e => e.SourceId == routerCampaign.Id && e.TargetId == ctrlCamp.Id);
+        result.Edges.Should().Contain(e => e.SourceId == routerMessages.Id && e.TargetId == ctrlMsg.Id);
+
+        // Verify edge from controller to repo
+        result.Edges.Should().Contain(e => e.SourceId == ctrlCamp.Id && e.TargetId == repo.Id);
+    }
 }

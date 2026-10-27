@@ -683,6 +683,41 @@ app.delete('/api/v1/sessions', (req, res) => res.json({}));
     }
 
     [Test]
+    public async Task Test_Express_Router_ExtractsRouteHandlerReferences()
+    {
+        var code = @"
+import { Router } from 'express';
+import { getAuthData, updateAuthData } from './controllers/auth.controller';
+import { authMiddleware } from './middlewares/auth.middleware';
+
+const router = Router();
+router.get('/:network', getAuthData);
+router.post('/:network', authMiddleware, updateAuthData);
+export default router;
+";
+
+        using var ws = await TestWorkspace.CreateAsync(code, "auth.router.ts");
+
+        // Verify FileNode.References has CALLS edges to handlers and middleware
+        ws.FileNode.References.Should().Contain(r => r.TargetName == "getAuthData" && r.Kind == OntologyConstants.Relationships.Calls);
+        ws.FileNode.References.Should().Contain(r => r.TargetName == "updateAuthData" && r.Kind == OntologyConstants.Relationships.Calls);
+        ws.FileNode.References.Should().Contain(r => r.TargetName == "authMiddleware" && r.Kind == OntologyConstants.Relationships.Calls);
+
+        // Verify endpoints were created
+        var endpoints = FindNodes<EndpointNode>(ws.FileNode.Children);
+        endpoints.Should().HaveCount(2);
+
+        var getEp = endpoints.FirstOrDefault(e => e.HttpMethod == "GET");
+        getEp.Should().NotBeNull();
+        getEp!.References.Should().Contain(r => r.TargetName == "getAuthData" && r.Kind == OntologyConstants.Relationships.Triggers);
+
+        var postEp = endpoints.FirstOrDefault(e => e.HttpMethod == "POST");
+        postEp.Should().NotBeNull();
+        postEp!.References.Should().Contain(r => r.TargetName == "updateAuthData" && r.Kind == OntologyConstants.Relationships.Triggers);
+        postEp!.References.Should().Contain(r => r.TargetName == "authMiddleware" && r.Kind == OntologyConstants.Relationships.Triggers);
+    }
+
+    [Test]
     public async Task Test_NestJs_AppGetConfigService_NotTreatedAsExpressEndpoint()
     {
         var code = @"

@@ -10,7 +10,7 @@ public static class ProjectMapBuilder
     public const int MaxSamplesPerEdge = 8;
     public const int MaxResources = 40;
     public const int MaxClasses = 80;
-    public const int MaxEntryPointNodes = 32;
+    public const int MaxEntryPointNodes = 64;
 
     private static readonly HashSet<string> DataResourceKinds = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -640,7 +640,14 @@ public static class ProjectMapBuilder
         foreach (var ep in input.EntryPointNodes)
         {
             var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            if (ep.TargetSymbols != null)
+            if (!string.IsNullOrEmpty(ep.FilePath))
+            {
+                foreach (var resolved in ResolveTargetClasses(null, ep.FilePath))
+                {
+                    targets.Add(resolved);
+                }
+            }
+            if (targets.Count == 0 && ep.TargetSymbols != null)
             {
                 for (var i = 0; i < ep.TargetSymbols.Count; i++)
                 {
@@ -660,13 +667,6 @@ public static class ProjectMapBuilder
                     {
                         targets.Add(resolved);
                     }
-                }
-            }
-            if (targets.Count == 0 && !string.IsNullOrEmpty(ep.FilePath))
-            {
-                foreach (var resolved in ResolveTargetClasses(null, ep.FilePath))
-                {
-                    targets.Add(resolved);
                 }
             }
 
@@ -784,12 +784,34 @@ public static class ProjectMapBuilder
         };
 
         // 1. Add Orbit 0 EntryPoint & Endpoint nodes
-        var activeEntryPoints = input.EntryPointNodes
+        // Round-robin selection across targets to ensure even representation of all routers/entrypoint classes
+        var eligibleEntryPoints = input.EntryPointNodes
             .Where(ep => entryPointTargets.TryGetValue(ep.Id, out var tgts) && tgts.Any(activeByName.ContainsKey))
-            .OrderBy(ep => ep.Kind, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(ep => ep.Name, StringComparer.OrdinalIgnoreCase)
-            .Take(MaxEntryPointNodes)
             .ToList();
+
+        var byTarget = eligibleEntryPoints
+            .GroupBy(ep => entryPointTargets[ep.Id].First(activeByName.ContainsKey), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.OrderBy(ep => ep.Kind, StringComparer.OrdinalIgnoreCase).ThenBy(ep => ep.Name, StringComparer.OrdinalIgnoreCase).ToList(), StringComparer.OrdinalIgnoreCase);
+
+        var activeEntryPoints = new List<ProjectMapEntryPointNode>();
+        var maxLimit = Math.Max(MaxEntryPointNodes, byTarget.Count * 4);
+        maxLimit = Math.Min(maxLimit, 100);
+
+        var round = 0;
+        bool addedAny;
+        do
+        {
+            addedAny = false;
+            foreach (var targetList in byTarget.Values)
+            {
+                if (round < targetList.Count && activeEntryPoints.Count < maxLimit)
+                {
+                    activeEntryPoints.Add(targetList[round]);
+                    addedAny = true;
+                }
+            }
+            round++;
+        } while (addedAny && activeEntryPoints.Count < maxLimit);
 
         foreach (var ep in activeEntryPoints)
         {
@@ -1127,11 +1149,23 @@ public static class ProjectMapBuilder
             stem = parts[^2];
         }
 
+        // If in a router or route folder, always qualify with router/route folder to avoid collision with controllers and ensure consistent naming
+        if (parts.Length >= 2 && (parts[^2].Equals("routers", StringComparison.OrdinalIgnoreCase) || parts[^2].Equals("routes", StringComparison.OrdinalIgnoreCase)))
+        {
+            var routerQualified = $"{parts[^2]}/{stem}";
+            if (!exists(routerQualified)) return routerQualified;
+        }
+
         if (!exists(stem)) return stem;
         if (parts.Length >= 2)
         {
             var qualified = $"{parts[^2]}/{stem}";
             if (!exists(qualified)) return qualified;
+        }
+        if (parts.Length >= 3)
+        {
+            var subQualified = $"{parts[^3]}/{parts[^2]}/{stem}";
+            if (!exists(subQualified)) return subQualified;
         }
         return norm;
     }
