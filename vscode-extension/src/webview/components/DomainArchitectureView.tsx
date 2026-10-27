@@ -5486,16 +5486,17 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                   layoutName !== 'concentric-sectors' &&
                   concentricGuides.map((g, idx) => {
                     if (hiddenOrbitTiers.has(g.levelIndex)) return null;
-                    const strokeW = Math.max(1, 1.5 / cyTransform.zoom);
-                    const dashPattern = `${8 / cyTransform.zoom} ${6 / cyTransform.zoom}`;
-                    const guideFontSize = Math.max(9, 11 / cyTransform.zoom);
+                    const zoomFactor = Math.max(0.75, Math.min(1.35, 1 / cyTransform.zoom));
+                    const strokeW = Math.max(1, Math.min(3, 1.5 / cyTransform.zoom));
+                    const dashPattern = `${Math.round(8 / cyTransform.zoom)} ${Math.round(6 / cyTransform.zoom)}`;
+                    const guideFontSize = Math.min(14, Math.max(9, 11 * zoomFactor));
                     const shortLabel = g.shortLabel || (g.label.includes(':') ? g.label.split(':')[0] : g.label);
                     const labelText = `${shortLabel} (${g.count})`;
-                    const textWidth = labelText.length * guideFontSize * 0.65;
-                    const hPad = Math.max(14, 18 / cyTransform.zoom);
-                    const badgeWidth = Math.max(textWidth + hPad, 75 / cyTransform.zoom);
-                    const badgeHeight = Math.max(18, 22 / cyTransform.zoom);
-                    const badgeY = -g.radius - badgeHeight - 6 / cyTransform.zoom;
+                    const textWidth = labelText.length * guideFontSize * 0.58;
+                    const hPad = Math.max(10, Math.min(18, 14 * zoomFactor));
+                    const badgeWidth = textWidth + hPad * 2;
+                    const badgeHeight = Math.max(18, Math.min(28, 22 * zoomFactor));
+                    const badgeY = -g.radius - badgeHeight - Math.min(10, 6 * zoomFactor);
 
                     return (
                       <g key={idx}>
@@ -5513,20 +5514,23 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                           y={badgeY}
                           width={badgeWidth}
                           height={badgeHeight}
-                          rx={4 / cyTransform.zoom}
+                          rx={Math.min(6, 4 * zoomFactor)}
                           fill="rgba(15, 23, 42, 0.88)"
                           stroke="rgba(56, 189, 248, 0.45)"
-                          strokeWidth={1 / cyTransform.zoom}
+                          strokeWidth={strokeW}
                         />
                         <text
                           x={0}
                           y={badgeY + badgeHeight / 2}
                           fill="#38bdf8"
-                          fontSize={`${guideFontSize}px`}
+                          fontSize={`${guideFontSize.toFixed(1)}px`}
                           fontWeight="700"
                           textAnchor="middle"
                           dominantBaseline="central"
+                          textLength={badgeWidth - 8}
+                          lengthAdjust="spacingAndGlyphs"
                         >
+                          <title>{labelText}</title>
                           {labelText}
                         </text>
                       </g>
@@ -5555,14 +5559,15 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
                     {/* Sector wedges and headers */}
                     {sectorGuides.map((g) => {
-                      const strokeW = Math.max(1, 1.5 / cyTransform.zoom);
-                      const dashPattern = `${6 / cyTransform.zoom} ${4 / cyTransform.zoom}`;
-                      const guideFontSize = Math.max(9.5, 12 / cyTransform.zoom);
+                      const zoomFactor = Math.max(0.75, Math.min(1.35, 1 / cyTransform.zoom));
+                      const strokeW = Math.max(1, Math.min(3, 1.5 / cyTransform.zoom));
+                      const dashPattern = `${Math.round(6 / cyTransform.zoom)} ${Math.round(4 / cyTransform.zoom)}`;
+                      const guideFontSize = Math.min(14, Math.max(9, 11.5 * zoomFactor));
                       const labelText = `${g.displayName} (${g.count})`;
-                      const textWidth = labelText.length * guideFontSize * 0.65;
-                      const hPad = Math.max(16, 20 / cyTransform.zoom);
-                      const badgeWidth = Math.max(textWidth + hPad, 85 / cyTransform.zoom);
-                      const badgeHeight = Math.max(20, 24 / cyTransform.zoom);
+                      const textWidth = labelText.length * guideFontSize * 0.58;
+                      const hPad = Math.max(12, Math.min(20, 16 * zoomFactor));
+                      const badgeWidth = textWidth + hPad * 2;
+                      const badgeHeight = Math.max(20, Math.min(30, 24 * zoomFactor));
 
                       const isFullCircle = g.innerRadius <= 0 && g.endAngle - g.startAngle >= 2 * Math.PI - 0.01;
                       const wedgePath = isFullCircle
@@ -5636,10 +5641,33 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                 {/* 2. Swimlane Guides */}
                 {layoutName === 'swimlanes' &&
                   swimlaneGuides.map((g) => {
-                    const strokeW = Math.max(1, 1.5 / cyTransform.zoom);
-                    const dashPattern = `${6 / cyTransform.zoom} ${4 / cyTransform.zoom}`;
-                    const headerHeight = Math.max(22, 28 / cyTransform.zoom);
-                    const fontSize = Math.max(9.5, 11.5 / cyTransform.zoom);
+                    const strokeW = Math.max(1, Math.min(3, 1.5 / cyTransform.zoom));
+                    const dashPattern = `${Math.round(6 / cyTransform.zoom)} ${Math.round(4 / cyTransform.zoom)}`;
+                    const zoomFactor = Math.max(0.75, Math.min(1.35, 1 / cyTransform.zoom));
+                    const headerHeight = Math.max(24, Math.min(36, 28 * zoomFactor));
+                    const hPad = Math.max(6, Math.min(12, 8 * zoomFactor));
+                    const boxWidth = Math.max(40, g.width - hPad * 2);
+                    const maxTextWidth = Math.max(20, boxWidth - 14);
+
+                    const fullLabel = `${g.icon ? g.icon + ' ' : ''}${g.title} (${g.count})`;
+                    const estCharWidth = 0.56;
+                    const preferredFontSize = 11.5 * zoomFactor;
+                    const maxFittingFontSize = maxTextWidth / (fullLabel.length * estCharWidth);
+                    const finalFontSize = Math.min(preferredFontSize, Math.max(8, maxFittingFontSize));
+
+                    let displayLabel = fullLabel;
+                    if (fullLabel.length * 8 * estCharWidth > maxTextWidth) {
+                      const iconPart = g.icon ? g.icon + ' ' : '';
+                      const countPart = ` (${g.count})`;
+                      const fixedLen = iconPart.length + countPart.length + 3;
+                      const availableTitleChars = Math.max(3, Math.floor((maxTextWidth / (8 * estCharWidth)) - fixedLen));
+                      const truncatedTitle = g.title.length > availableTitleChars
+                        ? g.title.substring(0, availableTitleChars).trim() + '...'
+                        : g.title;
+                      displayLabel = `${iconPart}${truncatedTitle}${countPart}`;
+                    }
+
+                    const isSqueezed = fullLabel.length * finalFontSize * estCharWidth > maxTextWidth;
 
                     return (
                       <g key={g.id}>
@@ -5648,32 +5676,35 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                           y={g.y}
                           width={g.width}
                           height={g.height}
-                          rx={8 / cyTransform.zoom}
+                          rx={Math.min(12, 8 * zoomFactor)}
                           fill="rgba(15, 23, 42, 0.45)"
                           stroke={`${g.color}35`}
                           strokeWidth={strokeW}
                           strokeDasharray={dashPattern}
                         />
                         <rect
-                          x={g.x + 8 / cyTransform.zoom}
-                          y={g.y + 8 / cyTransform.zoom}
-                          width={g.width - 16 / cyTransform.zoom}
+                          x={g.x + hPad}
+                          y={g.y + hPad}
+                          width={boxWidth}
                           height={headerHeight}
-                          rx={4 / cyTransform.zoom}
+                          rx={Math.min(6, 4 * zoomFactor)}
                           fill="rgba(15, 23, 42, 0.92)"
                           stroke={`${g.color}70`}
-                          strokeWidth={1 / cyTransform.zoom}
+                          strokeWidth={strokeW}
                         />
                         <text
                           x={g.x + g.width / 2}
-                          y={g.y + 8 / cyTransform.zoom + headerHeight / 2}
+                          y={g.y + hPad + headerHeight / 2}
                           fill={g.color}
-                          fontSize={`${fontSize}px`}
+                          fontSize={`${finalFontSize.toFixed(1)}px`}
                           fontWeight="700"
                           textAnchor="middle"
                           dominantBaseline="central"
+                          textLength={isSqueezed ? maxTextWidth : undefined}
+                          lengthAdjust={isSqueezed ? "spacingAndGlyphs" : undefined}
                         >
-                          {g.icon} {g.title} ({g.count})
+                          <title>{fullLabel}</title>
+                          {displayLabel}
                         </text>
                       </g>
                     );
@@ -5682,10 +5713,33 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                 {/* 3. Domain Island Guides */}
                 {layoutName === 'clusters' &&
                   islandGuides.map((g) => {
-                    const strokeW = Math.max(1, 2 / cyTransform.zoom);
-                    const badgeW = Math.min(g.width - 16 / cyTransform.zoom, Math.max(150, 220 / cyTransform.zoom));
-                    const badgeH = Math.max(20, 26 / cyTransform.zoom);
-                    const fontSize = Math.max(9.5, 11 / cyTransform.zoom);
+                    const strokeW = Math.max(1, Math.min(3, 2 / cyTransform.zoom));
+                    const zoomFactor = Math.max(0.75, Math.min(1.35, 1 / cyTransform.zoom));
+                    const badgeH = Math.max(22, Math.min(34, 26 * zoomFactor));
+                    const hPad = Math.max(6, Math.min(12, 8 * zoomFactor));
+
+                    const fullLabel = `${g.title} (${g.count})`;
+                    const estCharWidth = 0.56;
+                    const preferredFontSize = 11.5 * zoomFactor;
+
+                    const maxBadgeW = Math.max(40, g.width - hPad * 2);
+                    const idealBadgeW = Math.min(maxBadgeW, Math.max(120, fullLabel.length * preferredFontSize * estCharWidth + 24));
+                    const badgeW = idealBadgeW;
+                    const maxTextWidth = Math.max(20, badgeW - 14);
+
+                    const maxFittingFontSize = maxTextWidth / (fullLabel.length * estCharWidth);
+                    const finalFontSize = Math.min(preferredFontSize, Math.max(8, maxFittingFontSize));
+
+                    let displayLabel = fullLabel;
+                    if (fullLabel.length * 8 * estCharWidth > maxTextWidth) {
+                      const countPart = ` (${g.count})`;
+                      const availableTitleChars = Math.max(3, Math.floor((maxTextWidth / (8 * estCharWidth)) - countPart.length - 3));
+                      const truncated = g.title.length > availableTitleChars
+                        ? g.title.substring(0, availableTitleChars).trim() + '...'
+                        : g.title;
+                      displayLabel = `${truncated}${countPart}`;
+                    }
+                    const isSqueezed = fullLabel.length * finalFontSize * estCharWidth > maxTextWidth;
 
                     return (
                       <g key={g.id}>
@@ -5694,32 +5748,35 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                           y={g.y}
                           width={g.width}
                           height={g.height}
-                          rx={16 / cyTransform.zoom}
+                          rx={Math.min(20, 16 * zoomFactor)}
                           fill={g.isSharedCore ? 'rgba(88, 28, 135, 0.14)' : 'rgba(30, 41, 59, 0.35)'}
                           stroke={`${g.color}50`}
                           strokeWidth={strokeW}
-                          strokeDasharray={g.isSharedCore ? `${8 / cyTransform.zoom} ${4 / cyTransform.zoom}` : undefined}
+                          strokeDasharray={g.isSharedCore ? `${Math.round(8 / cyTransform.zoom)} ${Math.round(4 / cyTransform.zoom)}` : undefined}
                         />
                         <rect
-                          x={g.x + 10 / cyTransform.zoom}
-                          y={g.y + 8 / cyTransform.zoom}
+                          x={g.x + hPad}
+                          y={g.y + hPad}
                           width={badgeW}
                           height={badgeH}
-                          rx={4 / cyTransform.zoom}
+                          rx={Math.min(6, 4 * zoomFactor)}
                           fill="rgba(15, 23, 42, 0.92)"
                           stroke={`${g.color}75`}
-                          strokeWidth={1 / cyTransform.zoom}
+                          strokeWidth={strokeW}
                         />
                         <text
-                          x={g.x + 10 / cyTransform.zoom + badgeW / 2}
-                          y={g.y + 8 / cyTransform.zoom + badgeH / 2}
+                          x={g.x + hPad + badgeW / 2}
+                          y={g.y + hPad + badgeH / 2}
                           fill={g.color}
-                          fontSize={`${fontSize}px`}
+                          fontSize={`${finalFontSize.toFixed(1)}px`}
                           fontWeight="700"
                           textAnchor="middle"
                           dominantBaseline="central"
+                          textLength={isSqueezed ? maxTextWidth : undefined}
+                          lengthAdjust={isSqueezed ? "spacingAndGlyphs" : undefined}
                         >
-                          {g.title} ({g.count})
+                          <title>{fullLabel}</title>
+                          {displayLabel}
                         </text>
                       </g>
                     );
@@ -5728,13 +5785,16 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                 {/* 4. Hive Plot Guides */}
                 {layoutName === 'hive' &&
                   hiveGuides.map((g) => {
-                    const strokeW = Math.max(1, 1.8 / cyTransform.zoom);
-                    const dashPattern = `${6 / cyTransform.zoom} ${4 / cyTransform.zoom}`;
+                    const zoomFactor = Math.max(0.75, Math.min(1.35, 1 / cyTransform.zoom));
+                    const strokeW = Math.max(1, Math.min(3, 1.8 / cyTransform.zoom));
+                    const dashPattern = `${Math.round(6 / cyTransform.zoom)} ${Math.round(4 / cyTransform.zoom)}`;
                     const tipX = Math.round(g.length * Math.cos(g.angle));
                     const tipY = Math.round(g.length * Math.sin(g.angle));
-                    const badgeW = Math.max(160, 210 / cyTransform.zoom);
-                    const badgeH = Math.max(22, 26 / cyTransform.zoom);
-                    const guideFontSize = Math.max(9, 11 / cyTransform.zoom);
+                    const guideFontSize = Math.min(14, Math.max(9, 11 * zoomFactor));
+                    const labelText = `${g.title} (${g.count})`;
+                    const textWidth = labelText.length * guideFontSize * 0.58;
+                    const badgeW = textWidth + Math.min(28, 20 * zoomFactor);
+                    const badgeH = Math.max(20, Math.min(30, 24 * zoomFactor));
 
                     return (
                       <g key={g.id}>

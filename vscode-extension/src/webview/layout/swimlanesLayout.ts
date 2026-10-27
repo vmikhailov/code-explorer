@@ -143,8 +143,8 @@ export function computeSwimlanesLayout(
   }
 
   // 4. Dimensions & Spacing
-  const laneColWidth = Math.round(280 * air);
-  const laneSpacing = Math.round(140 * air);
+  const laneColWidth = Math.round(300 * air);
+  const laneSpacing = Math.round(100 * air);
   const nodeHeight = Math.round(60 * air);
   const nodeGap = Math.round(45 * air);
 

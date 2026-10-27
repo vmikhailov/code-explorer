@@ -5,6 +5,20 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.65.1] - 2026-10-27
+
+### Fixed
+- **SVG Overlay Guide Text Fitting & Overlap Prevention**:
+  - Fixed an issue where swimlane, concentric, sector, and island guide headers severely overflowed their boundary pills and collided with adjacent columns when zoomed out:
+    - Replaced unbounded `1 / zoom` font scaling with a bounded zoom factor (`[0.75, 1.35]`).
+    - Dynamically constrained font sizes based on maximum available box width (`maxTextWidth`).
+    - Added automatic label truncation with ellipsis for ultra-narrow columns.
+    - Enforced strict text boundary clamping using SVG `textLength={maxTextWidth}` and `lengthAdjust="spacingAndGlyphs"`, guaranteeing text never exceeds container bounds.
+    - Added full native tooltip `<title>` showing unabbreviated titles and counts on hover.
+  - Increased swimlane column width from 280px to 300px with optimized 100px inter-lane spacing for cleaner readability.
+
+---
+
 ## [1.65.0] - 2026-10-27
 
 ### Added
