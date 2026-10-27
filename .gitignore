@@ -38,7 +38,8 @@ appsettings.local.json
 dist/
 scratch/
 /.scripts/
-/scripts/
+/scripts/*
+!/scripts/update-local.ps1
 # --- CodeExplorer local databases & locks ---
 **/.codeexplorer/*.db
 **/.codeexplorer/*.db-*

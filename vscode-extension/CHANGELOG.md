@@ -5,6 +5,16 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.63.1] - 2026-10-27
+
+### Fixed
+- **Tree-Sitter Benign CST Grammar Recovery Filtering**:
+  - Filtered known benign Tree-sitter CST recovery `ERROR` tokens from being recorded as `ScanIssue` nodes:
+    - TSX: Raw ampersands (`&`) in JSX text nodes parsed by `tree-sitter-tsx` as prospective unclosed HTML entities.
+    - C#: Contextual keyword `with` used as a variable name in `foreach (var with in ...)` or property access (`with.Where`), and LINQ query expression clauses (`from ... in ... select ...`) declared inside property/field initializers.
+
+---
+
 ## [1.63.0] - 2026-10-27
 
 ### Added
