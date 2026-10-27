@@ -84,6 +84,8 @@ public class Layer4SemanticParser
         ctx.Log($"[Layer 4    ] Materializing semantic workload hierarchy ({allProjects.Count} projects)...");
         var workloadByProjectId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var workloadNodeByProjectId = new Dictionary<string, IOntologyNode>(StringComparer.OrdinalIgnoreCase);
+        var semanticStructureChildIds = new HashSet<string>(semanticStructureNode.Children.Select(c => c.Id), StringComparer.Ordinal);
+        var workloadChildIdsByWorkload = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
         var rawProjectNames = allProjects.Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var project in allProjects)
         {
@@ -223,10 +225,14 @@ public class Layer4SemanticParser
                         : new ServiceNode($"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Service}:{cleanName}", cleanName, project.Path, project.ProjectType, extensions)
                 };
 
-            if (!semanticStructureNode.Children.Any(c => c.Id == workloadNode.Id))
+            if (semanticStructureChildIds.Add(workloadNode.Id))
             {
                 semanticStructureNode.Children.Add(workloadNode);
                 semanticNodes.Add(workloadNode);
+            }
+            if (!workloadChildIdsByWorkload.ContainsKey(workloadNode.Id))
+            {
+                workloadChildIdsByWorkload[workloadNode.Id] = new HashSet<string>(workloadNode.Children.Select(c => c.Id), StringComparer.Ordinal);
             }
 
             if (existingRelKeys.Add((workloadNode.Id, project.Id, OntologyConstants.Relationships.ImplementedBy)))
@@ -238,6 +244,7 @@ public class Layer4SemanticParser
             workloadNodeByProjectId[project.Id] = workloadNode;
         }
 
+        ResourceSemanticAnalyzer.ResetCache();
         var lastLogTicks = Environment.TickCount64;
         var projectsProcessed = 0;
 
@@ -262,16 +269,25 @@ public class Layer4SemanticParser
                 }
             }
 
-            // Find project parser(s)
-            var projectDirectory = project.Extensions?.GetValueOrDefault("cargo_manifest_dir");
-            var projectAbsDir = !string.IsNullOrWhiteSpace(projectDirectory)
-                ? Path.GetFullPath(projectDirectory)
-                : Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, project.Path));
-            projectAbsDir = projectAbsDir.Replace('\\', '/');
-            var filesInDir = Directory.Exists(projectAbsDir) ? Directory.GetFiles(projectAbsDir) : [];
-            var matchingParsers = WorkspaceIndexer._projectParsers
-                .Where(p => p.IsProjectDirectory(projectAbsDir, filesInDir))
-                .ToList();
+            // Find project parser(s) — fast-path via in-memory ProjectType lookup before falling back to directory scan
+            var directParser = WorkspaceIndexer.GetProjectParser(project.ProjectType);
+            List<IProjectParser> matchingParsers;
+            if (directParser != null)
+            {
+                matchingParsers = [directParser];
+            }
+            else
+            {
+                var projectDirectory = project.Extensions?.GetValueOrDefault("cargo_manifest_dir");
+                var projectAbsDir = !string.IsNullOrWhiteSpace(projectDirectory)
+                    ? Path.GetFullPath(projectDirectory)
+                    : Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, project.Path));
+                projectAbsDir = projectAbsDir.Replace('\\', '/');
+                var filesInDir = Directory.Exists(projectAbsDir) ? Directory.GetFiles(projectAbsDir) : [];
+                matchingParsers = WorkspaceIndexer._projectParsers
+                    .Where(p => p.IsProjectDirectory(projectAbsDir, filesInDir))
+                    .ToList();
+            }
             var projectParser = matchingParsers.FirstOrDefault();
 
             if (projectParser == null)
@@ -306,6 +322,7 @@ public class Layer4SemanticParser
             {
                 ctx.CancellationToken.ThrowIfCancellationRequested();
                 EndpointSemanticAnalyzer.Enrich(syntaxTree, project, ctx, semanticRelationships);
+
                 var targetParser = projectParser;
                 if (syntaxTree.FileNode != null)
                 {
@@ -403,12 +420,13 @@ public class Layer4SemanticParser
                 }
             }
 
+            var workloadChildIds = workloadChildIdsByWorkload[workloadNode.Id];
             foreach (var semNode in projectSemanticNodes)
             {
                 semanticNodes.Add(semNode);
                 if (semNode is EndpointNode or ExternalServiceNode)
                 {
-                    if (workloadNode.Children.All(c => c.Id != semNode.Id))
+                    if (workloadChildIds.Add(semNode.Id))
                     {
                         workloadNode.Children.Add(semNode);
                     }
@@ -438,7 +456,7 @@ public class Layer4SemanticParser
                 }
                 else if (!nestedSemanticIds.Contains(semNode.Id))
                 {
-                    if (semanticStructureNode.Children.All(c => c.Id != semNode.Id))
+                    if (semanticStructureChildIds.Add(semNode.Id))
                     {
                         semanticStructureNode.Children.Add(semNode);
                     }

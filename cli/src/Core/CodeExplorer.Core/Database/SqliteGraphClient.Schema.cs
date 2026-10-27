@@ -191,18 +191,9 @@ public partial class SqliteGraphClient
                               kind TEXT NOT NULL,
                               properties JSONB NOT NULL
                           );
-                          DROP INDEX IF EXISTS idx_edges_from;
-                          DROP INDEX IF EXISTS idx_edges_to;
-                          DROP INDEX IF EXISTS idx_edges_kind;
-                          DROP INDEX IF EXISTS idx_edges_from_kind;
-                          DROP INDEX IF EXISTS idx_edges_to_kind;
-
                           CREATE INDEX IF NOT EXISTS idx_edges_from_kind_to ON edges(from_id, kind, to_id);
                           CREATE INDEX IF NOT EXISTS idx_edges_to_kind_from ON edges(to_id, kind, from_id);
                           CREATE INDEX IF NOT EXISTS idx_edges_kind_from_to ON edges(kind, from_id, to_id);
-                          DELETE FROM edges WHERE rowid NOT IN (
-                              SELECT min(rowid) FROM edges GROUP BY from_id, to_id, kind
-                          );
                           CREATE UNIQUE INDEX IF NOT EXISTS idx_edges_unique ON edges(from_id, to_id, kind);
 
                           CREATE TABLE IF NOT EXISTS file_registry (
@@ -266,71 +257,8 @@ public partial class SqliteGraphClient
                           CREATE INDEX IF NOT EXISTS idx_intents_domain ON intents(domain);
                           CREATE INDEX IF NOT EXISTS idx_intents_hash ON intents(content_hash);
                           CREATE INDEX IF NOT EXISTS idx_intents_errors ON intents(error_count);
-
-                          -- Promote workspace package dependencies to direct project DEPENDS_ON links
-                          INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
-                          SELECT DISTINCT d.from_id, i.to_id, 'DEPENDS_ON', jsonb('{"dependency_type":"library"}')
-                          FROM edges d
-                          JOIN edges i ON d.to_id = i.from_id
-                          WHERE d.kind = 'DEPENDS_ON'
-                            AND i.kind = 'IMPLEMENTED_BY'
-                            AND d.from_id != i.to_id
-                            AND (d.from_id LIKE '%:p:%' OR d.from_id LIKE '%:project:%')
-                            AND (i.to_id LIKE '%:p:%' OR i.to_id LIKE '%:project:%');
-
-                          -- Promote project_semantic edges to direct Project node edges
-                          INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
-                          SELECT DISTINCT
-                              SUBSTR(from_id, 1, LENGTH(from_id) - LENGTH('project_semantic')),
-                              to_id,
-                              kind,
-                              properties
-                          FROM edges
-                          WHERE from_id LIKE '%:p:%:project_semantic' OR from_id LIKE '%:project:%:project_semantic';
-
-                          INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
-                          SELECT DISTINCT
-                              from_id,
-                              SUBSTR(to_id, 1, LENGTH(to_id) - LENGTH('project_semantic')),
-                              kind,
-                              properties
-                          FROM edges
-                          WHERE to_id LIKE '%:p:%:project_semantic' OR to_id LIKE '%:project:%:project_semantic';
                           """;
         cmd.ExecuteNonQuery();
-
-        try
-        {
-            using var alterCmd = _conn.CreateCommand();
-
-            alterCmd.CommandText = "ALTER TABLE file_registry ADD COLUMN snapshot_json TEXT;";
-            alterCmd.ExecuteNonQuery();
-        }
-        catch
-        {
-            // Column already exists or freshly created
-        }
-
-        try
-        {
-            using var statCmd = _conn.CreateCommand();
-            statCmd.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='sqlite_stat1';";
-            var hasStats = Convert.ToInt32(statCmd.ExecuteScalar()) > 0;
-            if (!hasStats)
-            {
-                statCmd.CommandText = "ANALYZE;";
-                statCmd.ExecuteNonQuery();
-            }
-            else
-            {
-                statCmd.CommandText = "PRAGMA optimize;";
-                statCmd.ExecuteNonQuery();
-            }
-        }
-        catch
-        {
-            // Read-only database or in-memory
-        }
     }
 
     public async Task CreateIndicesAsync()
@@ -358,14 +286,22 @@ public partial class SqliteGraphClient
         await _lock.WaitAsync();
         try
         {
-            await _conn.ExecuteAsync("""
-                DELETE FROM edges;
-                DELETE FROM nodes;
-                DELETE FROM file_registry;
-                DELETE FROM metadata;
-                """);
-            await _conn.ExecuteAsync("VACUUM;");
-            await _conn.ExecuteAsync("PRAGMA wal_checkpoint(TRUNCATE);");
+            using var tx = _conn.BeginTransaction();
+            try
+            {
+                await _conn.ExecuteAsync("""
+                    DELETE FROM edges;
+                    DELETE FROM nodes;
+                    DELETE FROM file_registry;
+                    DELETE FROM metadata;
+                    """, transaction: tx);
+                tx.Commit();
+            }
+            catch
+            {
+                tx.Rollback();
+                throw;
+            }
 
             Analysis.ArchitectureViewEngine.InvalidateCache();
         }

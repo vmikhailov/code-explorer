@@ -5,6 +5,16 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.62.1] - 2026-10-27
+
+### Changed
+- **Enrichment & Persistence Pipeline Optimization (2x Faster Indexing)**:
+  - **Prepared SQLite Parameterized Commands**: Replaced dynamic multi-row SQL string building and per-batch `SqliteParameter` allocations in `SqliteGraphClient.UploadNodesAsync`, `UploadRelationshipsAsync`, `SavePostIndexResultsAsync`, and `IdentifierSearchEngine.RebuildIndexAsync` with single prepared parameterized `SqliteCommand` instances (`cmd.Prepare()`) and eliminated per-node dictionary cloning.
+  - **Sub-Second Layer 4 Semantic Enrichment (`< 40ms` per project)**: Added in-memory `PackageNode` driver resolution and cross-run cache reset in `ResourceSemanticAnalyzer`, fast substring pre-filters in `DetectDeclaredSchemas` and `ScanFileTextForSchema` to skip unnecessary AST walks and regexes, zero-allocation `AsSpan().EnumerateLines()` in `FindDatabaseUsageLine`, in-memory parser lookup and $O(1)$ `HashSet<string>` child deduplication in `Layer4SemanticAnalyzer`, and early non-Rust exit in `SemanticTopologySynthesizer`.
+  - **Layer 5 & Post-Index Consolidation**: Added an immediate early exit in `PostIndexAnalyzer.PruneUnverifiedConfigDbEdges` when no config-derived database nodes exist (avoiding redundant full-workspace disk reads), preserved binary `jsonb(@p)` format in `NormalizeEdgesAsync`, and removed redundant mid-pipeline `ANALYZE` and orphan-edge table scans.
+
+---
+
 ## [1.62.0] - 2026-10-27
 
 ### Added

@@ -150,33 +150,33 @@ public class IdentifierSearchEngine
             entries.Add((id, name, fullName, kind, path, startLine, bytes));
         }
 
-        // Batch insert into identifier_index
+        // Batch insert into identifier_index using a single prepared statement
         await using var tx = (SqliteTransaction)await conn.BeginTransactionAsync(ct);
-        const int batchSize = 250;
-        for (int i = 0; i < entries.Count; i += batchSize)
+        await using (var insertCmd = conn.CreateCommand())
         {
-            int countThisBatch = Math.Min(batchSize, entries.Count - i);
-            await using var insertCmd = conn.CreateCommand();
             insertCmd.Transaction = tx;
+            insertCmd.CommandText =
+                "INSERT OR REPLACE INTO identifier_index (node_id, name, full_name, kind, path, start_line, embedding) VALUES (@id, @nm, @fn, @kd, @pt, @sl, @eb);";
+            var pId = insertCmd.Parameters.Add("@id", SqliteType.Text);
+            var pNm = insertCmd.Parameters.Add("@nm", SqliteType.Text);
+            var pFn = insertCmd.Parameters.Add("@fn", SqliteType.Text);
+            var pKd = insertCmd.Parameters.Add("@kd", SqliteType.Text);
+            var pPt = insertCmd.Parameters.Add("@pt", SqliteType.Text);
+            var pSl = insertCmd.Parameters.Add("@sl", SqliteType.Integer);
+            var pEb = insertCmd.Parameters.Add("@eb", SqliteType.Blob);
+            insertCmd.Prepare();
 
-            var sb = new System.Text.StringBuilder();
-            sb.Append("INSERT OR REPLACE INTO identifier_index (node_id, name, full_name, kind, path, start_line, embedding) VALUES ");
-            for (int j = 0; j < countThisBatch; j++)
+            foreach (var item in entries)
             {
-                var item = entries[i + j];
-                if (j > 0) sb.Append(',');
-                sb.Append($"(@id{j}, @nm{j}, @fn{j}, @kd{j}, @pt{j}, @sl{j}, @eb{j})");
-                insertCmd.Parameters.AddWithValue($"@id{j}", item.NodeId);
-                insertCmd.Parameters.AddWithValue($"@nm{j}", item.Name);
-                insertCmd.Parameters.AddWithValue($"@fn{j}", item.FullName);
-                insertCmd.Parameters.AddWithValue($"@kd{j}", item.Kind);
-                insertCmd.Parameters.AddWithValue($"@pt{j}", (object?)item.Path ?? DBNull.Value);
-                insertCmd.Parameters.AddWithValue($"@sl{j}", item.StartLine);
-                insertCmd.Parameters.AddWithValue($"@eb{j}", item.Embedding);
+                pId.Value = item.NodeId;
+                pNm.Value = item.Name;
+                pFn.Value = item.FullName;
+                pKd.Value = item.Kind;
+                pPt.Value = (object?)item.Path ?? DBNull.Value;
+                pSl.Value = item.StartLine;
+                pEb.Value = item.Embedding;
+                insertCmd.ExecuteNonQuery();
             }
-            sb.Append(';');
-            insertCmd.CommandText = sb.ToString();
-            await insertCmd.ExecuteNonQueryAsync(ct);
         }
 
         // Populate identifier_fts in a single statement directly from identifier_index (vastly faster than per-row string batches)

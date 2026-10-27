@@ -549,13 +549,14 @@ public partial class SqliteGraphClient
                 var pFrom = insCmd.Parameters.Add("@from", SqliteType.Text);
                 var pTo = insCmd.Parameters.Add("@to", SqliteType.Text);
                 var pProps = insCmd.Parameters.Add("@props", SqliteType.Text);
+                insCmd.Prepare();
 
                 foreach (var rel in result.TransitivelyCalls)
                 {
                     pFrom.Value = rel.From;
                     pTo.Value = rel.To;
                     pProps.Value = $"{{\"hops\":{rel.Hops}}}";
-                    await insCmd.ExecuteNonQueryAsync();
+                    insCmd.ExecuteNonQuery();
                 }
             }
 
@@ -572,6 +573,7 @@ public partial class SqliteGraphClient
                 var pFrom = insCmd.Parameters.Add("@from", SqliteType.Text);
                 var pTo = insCmd.Parameters.Add("@to", SqliteType.Text);
                 var pProps = insCmd.Parameters.Add("@props", SqliteType.Text);
+                insCmd.Prepare();
 
                 foreach (var rel in result.AttributedTo)
                 {
@@ -583,7 +585,7 @@ public partial class SqliteGraphClient
                         ["hops"] = rel.Hops, ["sink_kind"] = rel.SinkKind
                     };
                     pProps.Value = JsonSerializer.Serialize(props);
-                    await insCmd.ExecuteNonQueryAsync();
+                    insCmd.ExecuteNonQuery();
                 }
             }
 
@@ -599,12 +601,13 @@ public partial class SqliteGraphClient
                     "UPDATE nodes SET properties = jsonb_set(properties, '$.external_apis', jsonb(@domains)) WHERE id = @id;";
                 var pDomains = updCmd.Parameters.Add("@domains", SqliteType.Text);
                 var pId = updCmd.Parameters.Add("@id", SqliteType.Text);
+                updCmd.Prepare();
 
                 foreach (var (projId, domains) in result.ProjectExternalApis)
                 {
                     pId.Value = projId;
                     pDomains.Value = JsonSerializer.Serialize(domains);
-                    await updCmd.ExecuteNonQueryAsync();
+                    updCmd.ExecuteNonQuery();
                 }
             }
 

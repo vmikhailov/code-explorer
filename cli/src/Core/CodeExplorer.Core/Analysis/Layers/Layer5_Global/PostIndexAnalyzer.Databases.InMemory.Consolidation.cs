@@ -22,6 +22,11 @@ public partial class PostIndexAnalyzer
         Dictionary<string, List<ProjectNode>> projectsByDomain,
         Func<string, string?, bool> isTestSource)
     {
+        if (!allDbNodes.Any(d => d.Extensions != null && d.Extensions.TryGetValue("from_config", out var fc) && fc == "true") &&
+            !canonicalDbNodes.Values.Any(d => d.Extensions != null && d.Extensions.TryGetValue("from_config", out var fc) && fc == "true"))
+        {
+            return;
+        }
         var domainVerifiedEngines = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         var domainVerifiedDbTypes = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         var domainVerifiedKeys = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
@@ -148,60 +153,63 @@ public partial class PostIndexAnalyzer
                 }
             }
 
-            // 3. Scan code file content for config keys or driver usage
-            foreach (var cf in domainCodeFiles)
+            // 3. Scan code file content for config keys or driver usage (skip disk read if all 6 engines are already verified via packages/AST)
+            if (vEngines.Count < 6)
             {
-                var absPath = Path.IsPathRooted(cf.Path)
-                    ? cf.Path
-                    : Path.Combine(ctx.AbsoluteWorkspacePath, cf.Path);
-
-                if (File.Exists(absPath))
+                foreach (var cf in domainCodeFiles)
                 {
-                    try
+                    var absPath = Path.IsPathRooted(cf.Path)
+                        ? cf.Path
+                        : Path.Combine(ctx.AbsoluteWorkspacePath, cf.Path);
+
+                    if (File.Exists(absPath))
                     {
-                        var text = File.ReadAllText(absPath);
-                        if (text.Contains("PostgresOptions", StringComparison.OrdinalIgnoreCase) || text.Contains("Npgsql", StringComparison.OrdinalIgnoreCase))
+                        try
                         {
-                            vKeys.Add("PostgresOptions");
-                            vEngines.Add("PostgreSQL");
-                            vDbTypes.Add("relational");
+                            var text = File.ReadAllText(absPath);
+                            if (text.Contains("PostgresOptions", StringComparison.OrdinalIgnoreCase) || text.Contains("Npgsql", StringComparison.OrdinalIgnoreCase))
+                            {
+                                vKeys.Add("PostgresOptions");
+                                vEngines.Add("PostgreSQL");
+                                vDbTypes.Add("relational");
+                            }
+                            if (text.Contains("MongoOptions", StringComparison.OrdinalIgnoreCase) || text.Contains("MongoDB", StringComparison.OrdinalIgnoreCase) || text.Contains("MongoDbContext", StringComparison.OrdinalIgnoreCase))
+                            {
+                                vKeys.Add("MongoOptions");
+                                vEngines.Add("MongoDB");
+                                vDbTypes.Add("document");
+                            }
+                            if (text.Contains("RedisOptions", StringComparison.OrdinalIgnoreCase) || text.Contains("StackExchange.Redis", StringComparison.OrdinalIgnoreCase) || text.Contains("ConnectionMultiplexer", StringComparison.OrdinalIgnoreCase))
+                            {
+                                vKeys.Add("RedisOptions");
+                                vEngines.Add("Redis");
+                                vDbTypes.Add("cache");
+                            }
+                            if (text.Contains("MySqlOptions", StringComparison.OrdinalIgnoreCase) || text.Contains("MySql", StringComparison.OrdinalIgnoreCase))
+                            {
+                                vKeys.Add("MySqlOptions");
+                                vEngines.Add("MySQL");
+                                vDbTypes.Add("relational");
+                            }
+                            if (text.Contains("SqliteOptions", StringComparison.OrdinalIgnoreCase) || text.Contains("Sqlite", StringComparison.OrdinalIgnoreCase))
+                            {
+                                vKeys.Add("SqliteOptions");
+                                vEngines.Add("SQLite");
+                                vDbTypes.Add("relational");
+                            }
+                            if (text.Contains("SqlServerOptions", StringComparison.OrdinalIgnoreCase) || text.Contains("SqlClient", StringComparison.OrdinalIgnoreCase))
+                            {
+                                vKeys.Add("SqlServerOptions");
+                                vEngines.Add("SQL Server");
+                                vDbTypes.Add("relational");
+                            }
+                            if (text.Contains("ConnectionStrings", StringComparison.OrdinalIgnoreCase) || text.Contains("GetConnectionString", StringComparison.OrdinalIgnoreCase))
+                            {
+                                vKeys.Add("ConnectionStrings");
+                            }
                         }
-                        if (text.Contains("MongoOptions", StringComparison.OrdinalIgnoreCase) || text.Contains("MongoDB", StringComparison.OrdinalIgnoreCase) || text.Contains("MongoDbContext", StringComparison.OrdinalIgnoreCase))
-                        {
-                            vKeys.Add("MongoOptions");
-                            vEngines.Add("MongoDB");
-                            vDbTypes.Add("document");
-                        }
-                        if (text.Contains("RedisOptions", StringComparison.OrdinalIgnoreCase) || text.Contains("StackExchange.Redis", StringComparison.OrdinalIgnoreCase) || text.Contains("ConnectionMultiplexer", StringComparison.OrdinalIgnoreCase))
-                        {
-                            vKeys.Add("RedisOptions");
-                            vEngines.Add("Redis");
-                            vDbTypes.Add("cache");
-                        }
-                        if (text.Contains("MySqlOptions", StringComparison.OrdinalIgnoreCase) || text.Contains("MySql", StringComparison.OrdinalIgnoreCase))
-                        {
-                            vKeys.Add("MySqlOptions");
-                            vEngines.Add("MySQL");
-                            vDbTypes.Add("relational");
-                        }
-                        if (text.Contains("SqliteOptions", StringComparison.OrdinalIgnoreCase) || text.Contains("Sqlite", StringComparison.OrdinalIgnoreCase))
-                        {
-                            vKeys.Add("SqliteOptions");
-                            vEngines.Add("SQLite");
-                            vDbTypes.Add("relational");
-                        }
-                        if (text.Contains("SqlServerOptions", StringComparison.OrdinalIgnoreCase) || text.Contains("SqlClient", StringComparison.OrdinalIgnoreCase))
-                        {
-                            vKeys.Add("SqlServerOptions");
-                            vEngines.Add("SQL Server");
-                            vDbTypes.Add("relational");
-                        }
-                        if (text.Contains("ConnectionStrings", StringComparison.OrdinalIgnoreCase) || text.Contains("GetConnectionString", StringComparison.OrdinalIgnoreCase))
-                        {
-                            vKeys.Add("ConnectionStrings");
-                        }
+                        catch { }
                     }
-                    catch { }
                 }
             }
         }

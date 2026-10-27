@@ -170,10 +170,15 @@ public partial class ResourceSemanticAnalyzer
         var directSchema = DetectDeclaredSchema(projectNode, fileNode, syntaxTree, dbType);
         AddCandidate(directSchema);
 
-        // 2. Walk AST if available
+        // 2. Walk AST if available (only if source text actually mentions schema or client constructors)
         try
         {
-            if (syntaxTree?.Tree != null)
+            var docText = syntaxTree?.Document?.SourceText;
+            var shouldWalkAst = string.IsNullOrEmpty(docText) ||
+                                docText.Contains("schema", StringComparison.OrdinalIgnoreCase) ||
+                                docText.Contains("PgClient", StringComparison.OrdinalIgnoreCase) ||
+                                docText.Contains("PostgresClient", StringComparison.OrdinalIgnoreCase);
+            if (shouldWalkAst && syntaxTree?.Tree != null)
             {
                 var root = syntaxTree.Tree.RootNode;
                 if (root.IsValid())
@@ -394,6 +399,11 @@ public partial class ResourceSemanticAnalyzer
         {
             var text = sourceText ?? (File.Exists(filePath) ? File.ReadAllText(filePath) : null);
             if (string.IsNullOrEmpty(text)) return null;
+            if (!text.Contains("schema", StringComparison.OrdinalIgnoreCase) &&
+                !text.Contains("ToTable", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
             var m1 = SchemaCallRegex.Match(text);
             if (m1.Success)
             {
@@ -566,6 +576,54 @@ public partial class ResourceSemanticAnalyzer
         if (projectNode == null) return (null, null);
         var cacheKey = $"{ctx.AbsoluteWorkspacePath}|{projectNode.Id}";
         if (_projectDriverCache.TryGetValue(cacheKey, out var cached)) return cached;
+
+        // Fast path: check in-memory PackageNodes parsed in Layer 2 before hitting the filesystem
+        foreach (var pkg in projectNode.Children.OfType<PackageNode>())
+        {
+            var pLower = pkg.Name.ToLowerInvariant();
+            if (pLower.Contains("npgsql") || pLower is "pg" or "pg-promise" or "@types/pg" or "postgres" or "tokio-postgres" || pLower.Contains("psycopg") || pLower.Contains("asyncpg"))
+            {
+                var res = ("PostgreSQL", "relational");
+                _projectDriverCache[cacheKey] = res;
+                return res;
+            }
+            if (pLower.Contains("sqlclient") || pLower.Contains("entityframeworkcore.sqlserver") || pLower is "mssql" or "tedious")
+            {
+                var res = ("SQL Server", "relational");
+                _projectDriverCache[cacheKey] = res;
+                return res;
+            }
+            if (pLower.Contains("mysql") || pLower.Contains("pomelo") || pLower.Contains("pymysql"))
+            {
+                var res = ("MySQL", "relational");
+                _projectDriverCache[cacheKey] = res;
+                return res;
+            }
+            if (pLower.Contains("sqlite"))
+            {
+                var res = ("SQLite", "relational");
+                _projectDriverCache[cacheKey] = res;
+                return res;
+            }
+            if (pLower.Contains("oracle"))
+            {
+                var res = ("Oracle", "relational");
+                _projectDriverCache[cacheKey] = res;
+                return res;
+            }
+            if (pLower.Contains("mongodb"))
+            {
+                var res = ("MongoDB", "document");
+                _projectDriverCache[cacheKey] = res;
+                return res;
+            }
+            if (pLower is "redis" or "ioredis" || pLower.Contains("stackexchange.redis"))
+            {
+                var res = ("Redis", "cache");
+                _projectDriverCache[cacheKey] = res;
+                return res;
+            }
+        }
 
         try
         {

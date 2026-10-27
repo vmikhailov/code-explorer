@@ -124,43 +124,33 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         {
             await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync();
 
-            const int batchSize = 200;
             var distinctNodes = nodes.Count > 1 ? [.. nodes.DistinctBy(n => n.Id)] : nodes;
 
+            await using var cmd = _conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText =
+                "INSERT INTO nodes (id, kind, properties) VALUES (@i, @k, jsonb(@p)) ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, properties = excluded.properties;";
+            var pId = cmd.Parameters.Add("@i", SqliteType.Text);
+            var pKind = cmd.Parameters.Add("@k", SqliteType.Text);
+            var pProps = cmd.Parameters.Add("@p", SqliteType.Text);
+            cmd.Prepare();
+
             var lastReport = Stopwatch.GetTimestamp();
-            for (int i = 0; i < distinctNodes.Count; i += batchSize)
+            for (var i = 0; i < distinctNodes.Count; i++)
             {
-                var count = Math.Min(batchSize, distinctNodes.Count - i);
-
-                await using var cmd = _conn.CreateCommand();
-
-                cmd.Transaction = tx;
-
-                var sb = new System.Text.StringBuilder(count * 60 + 120);
-                sb.Append("INSERT INTO nodes (id, kind, properties) VALUES ");
-
-                for (int j = 0; j < count; j++)
-                {
-                    if (j > 0) sb.Append(',');
-                    sb.Append($"(@i{j}, @k{j}, jsonb(@p{j}))");
-
-                    var node = distinctNodes[i + j];
-                    var dict = new Dictionary<string, object>(node.Properties) { ["id"] = node.Id };
-                    cmd.Parameters.AddWithValue($"@i{j}", node.Id);
-                    cmd.Parameters.AddWithValue($"@k{j}", node.Kind);
-                    cmd.Parameters.AddWithValue($"@p{j}", JsonSerializer.Serialize(dict));
-                }
-
-                sb.Append(
-                    " ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, properties = excluded.properties;");
-                cmd.CommandText = sb.ToString();
+                var node = distinctNodes[i];
+                node.Properties["id"] = node.Id;
+                pId.Value = node.Id;
+                pKind.Value = node.Kind;
+                pProps.Value = JsonSerializer.Serialize(node.Properties);
                 cmd.ExecuteNonQuery();
 
-                if (distinctNodes.Count >= 10000 && (i + count == distinctNodes.Count || Stopwatch.GetElapsedTime(lastReport).TotalSeconds >= 3))
+                if (distinctNodes.Count >= 10000 && ((i + 1) % 2000 == 0 || i + 1 == distinctNodes.Count) &&
+                    (i + 1 == distinctNodes.Count || Stopwatch.GetElapsedTime(lastReport).TotalSeconds >= 3))
                 {
                     lastReport = Stopwatch.GetTimestamp();
-                    var pct = (double)(i + count) / distinctNodes.Count * 100.0;
-                    _logger.LogDebug("[Database   ] Saved {Processed}/{Total} nodes ({Pct:F0}%)...", i + count, distinctNodes.Count, pct);
+                    var pct = (double)(i + 1) / distinctNodes.Count * 100.0;
+                    _logger.LogDebug("[Database   ] Saved {Processed}/{Total} nodes ({Pct:F0}%)...", i + 1, distinctNodes.Count, pct);
                 }
             }
 
@@ -187,47 +177,37 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync();
 
             const string emptyPropsJson = "{}";
-            const int batchSize = 200;
             var distinctRels = DeduplicateAndMergeRelationships(rels);
+
+            await using var cmd = _conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText =
+                "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@f, @t, @k, jsonb(@p)) ON CONFLICT(from_id, to_id, kind) DO UPDATE SET properties = excluded.properties;";
+            var pFrom = cmd.Parameters.Add("@f", SqliteType.Text);
+            var pTo = cmd.Parameters.Add("@t", SqliteType.Text);
+            var pKind = cmd.Parameters.Add("@k", SqliteType.Text);
+            var pProps = cmd.Parameters.Add("@p", SqliteType.Text);
+            cmd.Prepare();
 
             var lastReport = Stopwatch.GetTimestamp();
 
-            for (int i = 0; i < distinctRels.Count; i += batchSize)
+            for (var i = 0; i < distinctRels.Count; i++)
             {
-                var count = Math.Min(batchSize, distinctRels.Count - i);
-
-                await using var cmd = _conn.CreateCommand();
-
-                cmd.Transaction = tx;
-
-                var sb = new System.Text.StringBuilder(count * 60 + 120);
-                sb.Append("INSERT INTO edges (from_id, to_id, kind, properties) VALUES ");
-
-                for (int j = 0; j < count; j++)
-                {
-                    if (j > 0) sb.Append(',');
-                    sb.Append($"(@f{j}, @t{j}, @k{j}, jsonb(@p{j}))");
-
-                    var rel = distinctRels[i + j];
-                    cmd.Parameters.AddWithValue($"@f{j}", rel.From);
-                    cmd.Parameters.AddWithValue($"@t{j}", rel.To);
-                    cmd.Parameters.AddWithValue($"@k{j}", rel.Kind);
-
-                    cmd.Parameters.AddWithValue($"@p{j}",
-                        rel.Properties == null || rel.Properties.Count == 0
-                            ? emptyPropsJson
-                            : JsonSerializer.Serialize(rel.Properties));
-                }
-
-                sb.Append(" ON CONFLICT(from_id, to_id, kind) DO UPDATE SET properties = excluded.properties;");
-                cmd.CommandText = sb.ToString();
+                var rel = distinctRels[i];
+                pFrom.Value = rel.From;
+                pTo.Value = rel.To;
+                pKind.Value = rel.Kind;
+                pProps.Value = rel.Properties == null || rel.Properties.Count == 0
+                    ? emptyPropsJson
+                    : JsonSerializer.Serialize(rel.Properties);
                 cmd.ExecuteNonQuery();
 
-                if (distinctRels.Count >= 10000 && (i + count == distinctRels.Count || Stopwatch.GetElapsedTime(lastReport).TotalSeconds >= 3))
+                if (distinctRels.Count >= 10000 && ((i + 1) % 2000 == 0 || i + 1 == distinctRels.Count) &&
+                    (i + 1 == distinctRels.Count || Stopwatch.GetElapsedTime(lastReport).TotalSeconds >= 3))
                 {
                     lastReport = Stopwatch.GetTimestamp();
-                    var pct = (double)(i + count) / distinctRels.Count * 100.0;
-                    _logger.LogDebug("[Database   ] Saved {Processed}/{Total} relationships ({Pct:F0}%)...", i + count, distinctRels.Count, pct);
+                    var pct = (double)(i + 1) / distinctRels.Count * 100.0;
+                    _logger.LogDebug("[Database   ] Saved {Processed}/{Total} relationships ({Pct:F0}%)...", i + 1, distinctRels.Count, pct);
                 }
             }
 

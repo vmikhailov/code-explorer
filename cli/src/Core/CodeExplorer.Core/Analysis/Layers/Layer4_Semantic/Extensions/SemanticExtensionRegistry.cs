@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 
 namespace CodeExplorer.Core.Parser;
@@ -9,6 +10,8 @@ public class SemanticExtensionRegistry
 {
     private readonly TrieNode _root = new();
     private readonly List<WildcardPattern> _wildcardPatterns = [];
+    private readonly ConcurrentDictionary<string, ISemanticExtension?> _matchCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, List<ISemanticExtension>> _matchAllCache = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly record struct WildcardPattern(string Pattern, Regex Regex, ISemanticExtension Extension);
 
@@ -63,13 +66,18 @@ public class SemanticExtensionRegistry
 
     public ISemanticExtension? Match(string import)
     {
-        return MatchAll(import).FirstOrDefault();
+        if (string.IsNullOrEmpty(import)) return null;
+        return _matchCache.GetOrAdd(import, imp => MatchAll(imp).FirstOrDefault());
     }
 
     public List<ISemanticExtension> MatchAll(string import)
     {
         if (string.IsNullOrEmpty(import)) return [];
+        return _matchAllCache.GetOrAdd(import, ComputeMatchAll);
+    }
 
+    private List<ISemanticExtension> ComputeMatchAll(string import)
+    {
         var results = new List<MatchResult>();
 
         // 1. Fast Trie-based match on path segments
@@ -90,7 +98,7 @@ public class SemanticExtensionRegistry
         // 3. Glob / Wildcard pattern matching (e.g. *rabbit*, *pubsub*, *EventBus*)
         if (_wildcardPatterns.Count > 0)
         {
-            var normalizedImport = import.Replace('\\', '/');
+            var normalizedImport = import.Contains('\\') ? import.Replace('\\', '/') : import;
             foreach (var wp in _wildcardPatterns)
             {
                 if (wp.Regex.IsMatch(normalizedImport))

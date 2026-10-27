@@ -163,6 +163,14 @@ internal static class SemanticTopologySynthesizer
         HashSet<(string From, string To, string Kind)> existingRelKeys,
         ParsingContext ctx)
     {
+        var nonTestRustProjects = projects
+            .Where(project => project.ProjectType.Equals("rust", StringComparison.OrdinalIgnoreCase) && !project.IsTest)
+            .ToList();
+        if (nonTestRustProjects.Count == 0)
+        {
+            return;
+        }
+
         var packageById = packages
             .GroupBy(package => package.Id, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
@@ -209,8 +217,7 @@ internal static class SemanticTopologySynthesizer
             }
         }
 
-        foreach (var project in projects.Where(project =>
-                     project.ProjectType.Equals("rust", StringComparison.OrdinalIgnoreCase) && !project.IsTest))
+        foreach (var project in nonTestRustProjects)
         {
             ctx.CancellationToken.ThrowIfCancellationRequested();
             var sources = filesByProjectId.GetValueOrDefault(project.Id) ?? [];

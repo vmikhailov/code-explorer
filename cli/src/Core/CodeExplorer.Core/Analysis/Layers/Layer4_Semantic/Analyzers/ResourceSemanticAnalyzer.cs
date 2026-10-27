@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
@@ -13,9 +14,29 @@ namespace CodeExplorer.Core.Parser;
 
 public partial class ResourceSemanticAnalyzer
 {
+    private static readonly ConcurrentDictionary<IProjectParser, (IReadOnlyList<ISemanticExtension> Extensions, SemanticExtensionRegistry Registry)> _parserRegistryCache = new();
+    private static readonly ConcurrentDictionary<string, string?> _projectFrameworkCache = new(StringComparer.OrdinalIgnoreCase);
+
+    public static void ResetCache()
+    {
+        _parserRegistryCache.Clear();
+        _projectFrameworkCache.Clear();
+        _projectDriverCache.Clear();
+    }
+
     private readonly IReadOnlyList<ISemanticExtension> _semanticExtensions;
     private readonly SemanticExtensionRegistry _trieRegistry;
     private readonly SyntaxTree _syntaxTree;
+
+    public ResourceSemanticAnalyzer(
+        IReadOnlyList<ISemanticExtension> semanticExtensions,
+        SemanticExtensionRegistry registry,
+        SyntaxTree syntaxTree)
+    {
+        _semanticExtensions = semanticExtensions;
+        _trieRegistry = registry;
+        _syntaxTree = syntaxTree;
+    }
 
     public ResourceSemanticAnalyzer(
         IReadOnlyList<ISemanticExtension> semanticExtensions,
@@ -47,7 +68,25 @@ public partial class ResourceSemanticAnalyzer
         ParsingContext ctx,
         IOntologyNode? workloadNode = null)
     {
-        var analyzer = new ResourceSemanticAnalyzer(parser.SemanticExtensions, syntaxTree, parser.Packages);
+        var (extensions, registry) = _parserRegistryCache.GetOrAdd(parser, p =>
+        {
+            var allExtensions = new List<ISemanticExtension>(p.SemanticExtensions);
+            if (p.Packages != null)
+            {
+                var existingIds = p.SemanticExtensions.Select(e => e.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                foreach (var pkg in p.Packages)
+                {
+                    if (!existingIds.Contains(pkg.Id))
+                    {
+                        allExtensions.Add(new PackageSemanticExtensionAdapter(pkg));
+                    }
+                }
+            }
+            var reg = new SemanticExtensionRegistry(allExtensions);
+            return (allExtensions, reg);
+        });
+
+        var analyzer = new ResourceSemanticAnalyzer(extensions, registry, syntaxTree);
         return analyzer.EnrichAsync(projectNode, ctx, workloadNode);
     }
 
@@ -145,46 +184,52 @@ public partial class ResourceSemanticAnalyzer
         ArgumentNullException.ThrowIfNull(projectNode);
         var workloadId = ResolveWorkloadId(projectNode, ctx, workloadNode);
 
-        var packageNames = projectNode.Children
-            .OfType<PackageNode>()
-            .Select(p => p.Name)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        // Detect and enrich project-level framework using the Trie
+        // Detect and enrich project-level framework using the Trie (evaluated once per project)
         ISemanticExtension? frameworkParser = null;
-        if (packageNames.Count > 0)
+        if (!_projectFrameworkCache.TryGetValue(projectNode.Id, out var cachedFwName))
         {
-            foreach (var pkg in packageNames)
+            foreach (var child in projectNode.Children)
             {
-                var match = _trieRegistry.Match(pkg);
-                if (match is { Type: OntologyConstants.LibraryTypes.Framework } && frameworkParser == null)
+                if (child is PackageNode pkg)
                 {
-                    frameworkParser = match;
-                    break;
+                    var match = _trieRegistry.Match(pkg.Name);
+                    if (match is { Type: OntologyConstants.LibraryTypes.Framework })
+                    {
+                        frameworkParser = match;
+                        cachedFwName = match.Name;
+                        break;
+                    }
                 }
             }
+            _projectFrameworkCache[projectNode.Id] = cachedFwName;
+        }
+
+        if (frameworkParser != null || cachedFwName != null)
+        {
+            projectNode.SetExtension(OntologyConstants.LibraryTypes.Framework, frameworkParser?.Name ?? cachedFwName!);
         }
 
         var fileNode = _syntaxTree.FileNode;
         var relativePath = fileNode.Path;
 
-        var fileImports = _syntaxTree.RawImports
-            .Where(i => i.Type == ImportType.External || _trieRegistry.Match(i.Path) != null)
-            .Select(i => i.Path)
-            .ToList();
-
         var matchedParsers = new List<ISemanticExtension>();
-        foreach (var import in fileImports)
+        foreach (var import in _syntaxTree.RawImports)
         {
-            var match = _trieRegistry.Match(import);
-            if (match != null && !matchedParsers.Contains(match))
+            var match = _trieRegistry.Match(import.Path);
+            if (match != null)
             {
-                matchedParsers.Add(match);
-            }
+                if (!matchedParsers.Contains(match))
+                {
+                    matchedParsers.Add(match);
+                }
 
-            if (match is { Type: OntologyConstants.LibraryTypes.Framework } && frameworkParser == null)
-            {
-                frameworkParser = match;
+                if (frameworkParser == null && cachedFwName == null && match.Type == OntologyConstants.LibraryTypes.Framework)
+                {
+                    frameworkParser = match;
+                    cachedFwName = match.Name;
+                    _projectFrameworkCache[projectNode.Id] = match.Name;
+                    projectNode.SetExtension(OntologyConstants.LibraryTypes.Framework, match.Name);
+                }
             }
         }
 
@@ -626,17 +671,13 @@ public partial class ResourceSemanticAnalyzer
     {
         try
         {
-            string[]? lines = null;
-            if (!string.IsNullOrEmpty(syntaxTree.Document?.SourceText))
+            var sourceText = syntaxTree.Document?.SourceText;
+            if (string.IsNullOrEmpty(sourceText) && !string.IsNullOrEmpty(fileNode.FullPath) && File.Exists(fileNode.FullPath))
             {
-                lines = syntaxTree.Document.SourceText.Split('\n');
-            }
-            else if (!string.IsNullOrEmpty(fileNode.FullPath) && File.Exists(fileNode.FullPath))
-            {
-                lines = File.ReadAllLines(fileNode.FullPath);
+                sourceText = File.ReadAllText(fileNode.FullPath);
             }
 
-            if (lines == null) return 0;
+            if (string.IsNullOrEmpty(sourceText)) return 0;
             var hasSpecificSchema = !string.IsNullOrWhiteSpace(schema) &&
                                     !schema.Equals("public", StringComparison.OrdinalIgnoreCase) &&
                                     !schema.Equals("dbo", StringComparison.OrdinalIgnoreCase) &&
@@ -644,31 +685,32 @@ public partial class ResourceSemanticAnalyzer
 
             var clientCallLine = 0;
             var importLine = 0;
+            var lineNo = 0;
 
-            for (var i = 0; i < lines.Length; i++)
+            foreach (var line in sourceText.AsSpan().EnumerateLines())
             {
-                var line = lines[i];
-                if (hasSpecificSchema && schema != null && line.Contains(schema, StringComparison.OrdinalIgnoreCase))
+                lineNo++;
+                if (hasSpecificSchema && schema != null && line.Contains(schema.AsSpan(), StringComparison.OrdinalIgnoreCase))
                 {
-                    return i + 1;
+                    return lineNo;
                 }
 
                 if (clientCallLine == 0 &&
-                    (line.Contains("PostgresClient::new", StringComparison.Ordinal) ||
-                     line.Contains("AnonStatsPgClient::new", StringComparison.Ordinal) ||
-                     line.Contains("PgPool", StringComparison.Ordinal) ||
-                     line.Contains("DbContext", StringComparison.Ordinal) ||
-                     line.Contains("get_cpu_db_schema", StringComparison.Ordinal) ||
-                     line.Contains("get_gpu_db_schema", StringComparison.Ordinal) ||
-                     line.Contains("get_anon_stats_db_schema", StringComparison.Ordinal)))
+                    (line.Contains("PostgresClient::new".AsSpan(), StringComparison.Ordinal) ||
+                     line.Contains("AnonStatsPgClient::new".AsSpan(), StringComparison.Ordinal) ||
+                     line.Contains("PgPool".AsSpan(), StringComparison.Ordinal) ||
+                     line.Contains("DbContext".AsSpan(), StringComparison.Ordinal) ||
+                     line.Contains("get_cpu_db_schema".AsSpan(), StringComparison.Ordinal) ||
+                     line.Contains("get_gpu_db_schema".AsSpan(), StringComparison.Ordinal) ||
+                     line.Contains("get_anon_stats_db_schema".AsSpan(), StringComparison.Ordinal)))
                 {
-                    clientCallLine = i + 1;
+                    clientCallLine = lineNo;
                 }
 
                 if (importLine == 0 && !string.IsNullOrWhiteSpace(parserId) &&
-                    line.Contains(parserId, StringComparison.OrdinalIgnoreCase))
+                    line.Contains(parserId.AsSpan(), StringComparison.OrdinalIgnoreCase))
                 {
-                    importLine = i + 1;
+                    importLine = lineNo;
                 }
             }
 
