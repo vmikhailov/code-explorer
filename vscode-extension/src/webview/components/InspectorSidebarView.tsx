@@ -295,6 +295,9 @@ export const InspectorSidebarView: React.FC = () => {
   } = state;
 
   const currentTab = effectiveSidebarTab || 'info';
+  const isSwimlanes = layoutName === 'swimlanes';
+  const unitName = isSwimlanes ? 'Lane' : 'Orbit';
+  const unitsName = isSwimlanes ? 'Lanes' : 'Orbits';
 
   const customPresetsSlot = projectMapPresets ? (
     <>
@@ -324,13 +327,13 @@ export const InspectorSidebarView: React.FC = () => {
         type="button"
         className={`visibility-preset-item ${projectMapPresets.hideUtilities ? 'is-active' : ''}`}
         onClick={() => dispatch({ type: 'TOGGLE_PM_PRESET', preset: 'hideUtilities' })}
-        title="Hide foundation/utility modules (Orbit 4)"
+        title={`Hide foundation/utility modules (${unitName} 4)`}
       >
         <div className="visibility-preset-main">
           <span className="visibility-preset-icon">🧰</span>
           <div className="visibility-preset-text">
             <span className="visibility-preset-label">Hide Utilities</span>
-            <span className="visibility-preset-desc">Foundation & helper modules (Orbit 4)</span>
+            <span className="visibility-preset-desc">Foundation & helper modules ({unitName} 4)</span>
           </div>
         </div>
         <div className={`visibility-preset-toggle ${projectMapPresets.hideUtilities ? 'is-on' : ''}`}>
@@ -420,10 +423,14 @@ export const InspectorSidebarView: React.FC = () => {
               type="button"
               className={`domain-sidebar-tab ${currentTab === 'orbits' ? 'is-active' : ''}`}
               onClick={() => dispatch({ type: 'SET_SIDEBAR_TAB', tab: 'orbits' })}
-              title="Concentric Orbits Hierarchy and Tier Arrangement"
+              title={
+                isSwimlanes
+                  ? 'Swimlane Hierarchy and Column Arrangement'
+                  : 'Concentric Orbits Hierarchy and Tier Arrangement'
+              }
             >
               <LayersIcon size={12} />
-              <span>Orbits</span>
+              <span>{unitsName}</span>
               {orbitLegendItems.length > 0 && <span className="tab-badge">{orbitLegendItems.length}</span>}
             </button>
           )}

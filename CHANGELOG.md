@@ -5,6 +5,25 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.65.6] - 2026-10-27
+
+### Added
+- **Dynamic Lanes Sidebar Integration for Swimlanes View**:
+  - Dynamically adapts the 2nd sidebar tab from **Orbits** to **Lanes** when the active layout is `swimlanes` on both the Architecture Map and Project Map.
+  - Parameterized unit naming, tooltips, and axis labels across `InspectorSidebarView`, `DomainOrbitsPanel`, and the floating legend dock without duplicating components or logic:
+    - Tab button displays `Lanes` with the active lane count badge.
+    - Header displays `Architectural Lanes` (or `Orbit Rings` in concentric mode).
+    - Top axis marker reads `Ingress (Left)` instead of `Center`; bottom axis marker reads `Databases (Right)` instead of `Periphery`.
+    - Directional reordering actions read `Move toward ingress (left lane)` / `Move toward storage (right lane)`.
+  - Reused the unified underlying tier/slot model (`OrbitConfig`, `effectiveOrbitTier`, `hiddenOrbitTiers`):
+    - Reordering lanes shifts the swimlane columns horizontally on the canvas.
+    - Toggling lane visibility cleanly hides and restores all microservices, modules, and resources belonging to that lane.
+    - Dragging kind chips dynamically reassigns entities between lanes.
+    - Hovering highlights all nodes belonging to the hovered lane.
+  - Added `populatedLanes` metadata and custom lane titles to `computeSwimlanesLayout` for both domain architectures and project maps.
+
+---
+
 ## [1.65.5] - 2026-10-27
 
 ### Added

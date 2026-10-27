@@ -34,7 +34,12 @@ import { computeConcentricEquispacedLayout } from '../layout/concentricEquispace
 import { computeConcentricBarycentricLayout } from '../layout/projectMapLayout';
 import { computeConcentricPolarForceLayout } from '../layout/concentricPolarForceLayout';
 import { computeConcentricSectorsLayout, describeAnnularSector } from '../layout/concentricSectorsLayout';
-import { computeSwimlanesLayout, SwimlaneGuide } from '../layout/swimlanesLayout';
+import {
+  computeSwimlanesLayout,
+  SwimlaneGuide,
+  SWIMLANE_TITLES,
+  PROJECT_MAP_SWIMLANE_TITLES,
+} from '../layout/swimlanesLayout';
 import { computeDomainIslandsLayout, IslandGuide } from '../layout/domainIslandsLayout';
 import { computeHivePlotLayout, HiveAxisGuide } from '../layout/hivePlotLayout';
 import { DomainMatrixView } from './DomainMatrixView';
@@ -737,7 +742,9 @@ export function buildAllOrbitLegendItems(
   echelonMap: Map<string, number>,
   layoutPopulatedOrbits: Array<{ levelIndex: number; radius: number; shortLabel?: string; title?: string; nodeIds: string[] }>,
   config: OrbitConfig,
-  customTitles?: Record<number, string>
+  customTitles?: Record<number, string>,
+  unitPrefix: string = 'Orbit',
+  titlesByTier?: Record<number, string>
 ): OrbitLegendItem[] {
   const slotBuckets = new Map<number, Array<{ id: string; kind: string }>>();
   for (const n of allNodes) {
@@ -759,7 +766,7 @@ export function buildAllOrbitLegendItems(
   config.orbits.forEach((tiers, orbitIndex) => {
     const populated = tiers.filter((t) => (slotBuckets.get(t)?.length ?? 0) > 0);
     if (populated.length === 0) return;
-    const shortLabel = `Orbit ${orbitNumber++}`;
+    const shortLabel = `${unitPrefix} ${orbitNumber++}`;
     populated.forEach((tier, i) => {
       const members = slotBuckets.get(tier)!;
       const kindCounts = new Map<string, number>();
@@ -769,7 +776,7 @@ export function buildAllOrbitLegendItems(
         slotTier: tier,
         orbitIndex,
         shortLabel,
-        title: customTitles?.[tier] || ORBIT_TITLES[tier] || `Tier ${tier}`,
+        title: customTitles?.[tier] || titlesByTier?.[tier] || ORBIT_TITLES[tier] || `Tier ${tier}`,
         count: members.length,
         radius: radiusMap.get(tiers[0]) || 0,
         nodeIds: members.map((m) => m.id),
@@ -3856,7 +3863,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         );
       } else if (layoutName === 'swimlanes') {
         setConcentricGuides([]);
-        setOrbitLegendItems([]);
         setIslandGuides([]);
         setHiveGuides([]);
         setSectorGuides([]);
@@ -3864,7 +3870,14 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         baseIslandGuidesRef.current = [];
         baseHiveGuidesRef.current = [];
         baseSectorGuidesRef.current = [];
-        const layoutResult = computeSwimlanesLayout(visibleNodesInput, visibleEdgesInput, spacing, isProjectMap);
+        const effectiveOrder = orbitOrder(orbitCfg);
+        const layoutResult = computeSwimlanesLayout(
+          visibleNodesInput,
+          visibleEdgesInput,
+          spacing,
+          isProjectMap,
+          effectiveOrder
+        );
         layoutConfig = {
           name: 'preset',
           positions: (node: any) => layoutResult.positions.get(node.id()) || { x: 0, y: 0 },
@@ -3881,6 +3894,23 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           height: g.height / effSpacing,
         }));
         setSwimlaneGuides(layoutResult.lanes);
+        setOrbitLegendItems(
+          buildAllOrbitLegendItems(
+            rawGraph.allNodes,
+            rawGraph.echelonMap,
+            layoutResult.populatedLanes.map((l) => ({
+              levelIndex: l.levelIndex,
+              radius: 0,
+              shortLabel: `Lane ${l.levelIndex}`,
+              title: l.title,
+              nodeIds: l.nodeIds,
+            })),
+            orbitCfg,
+            customOrbitTitlesRef.current,
+            'Lane',
+            isProjectMap ? PROJECT_MAP_SWIMLANE_TITLES : SWIMLANE_TITLES
+          )
+        );
       } else if (layoutName === 'clusters') {
         setConcentricGuides([]);
         setOrbitLegendItems([]);
@@ -4479,12 +4509,18 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     return count;
   }, [searchQuery, visibleNodes, rawGraph.detailMap]);
 
-  const renderOrbitLegend = (docked: boolean) => (
+  const renderOrbitLegend = (docked: boolean) => {
+    const isSwimlanes = layoutName === 'swimlanes';
+    const unitName = isSwimlanes ? 'Lane' : 'Orbit';
+    const unitsName = isSwimlanes ? 'Lanes' : 'Orbits';
+    const isTierActive = layoutName.startsWith('concentric') || isSwimlanes;
+
+    return (
     <FloatingPanel
       dock="top-right"
       docked={docked}
       isCollapsed={false}
-      title="Orbit Legend"
+      title={`${unitName} Legend`}
       icon={<LayersIcon size={14} />}
       badge={
         <span
@@ -4510,7 +4546,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                 e.stopPropagation();
                 handleMergeSelected();
               }}
-              title="Merge the selected adjacent orbits into one ring"
+              title={`Merge the selected adjacent ${isSwimlanes ? 'lanes into one column' : 'orbits into one ring'}`}
             >
               <LayersIcon size={11} />
               <span>Merge {mergeSelection.length}</span>
@@ -4524,7 +4560,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                 e.stopPropagation();
                 handleResetOrbitOrder();
               }}
-              title="Reset to the default orbit order and show all orbits"
+              title={`Reset to the default ${isSwimlanes ? 'lane order and show all lanes' : 'orbit order and show all orbits'}`}
             >
               <RotateCcwIcon size={11} />
               <span>Reset</span>
@@ -4532,10 +4568,10 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           ) : null}
         </>
       }
-      collapsedTitle={`Orbits (${orbitLegendItems.length})`}
+      collapsedTitle={`${unitsName} (${orbitLegendItems.length})`}
       collapsedIcon={<LayersIcon size={13} />}
-      collapseTooltip="Collapse Orbit Legend"
-      expandTooltip="Expand Orbit Legend"
+      collapseTooltip={`Collapse ${unitName} Legend`}
+      expandTooltip={`Expand ${unitName} Legend`}
       width={360}
       minWidth={280}
       maxWidth={700}
@@ -4734,15 +4770,19 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           </div>
         </div>
 
-        {/* 2. Concentric Orbits Hierarchy */}
-        {layoutName.startsWith('concentric') ? (
+        {/* 2. Concentric Orbits / Swimlanes Hierarchy */}
+        {isTierActive ? (
           <>
             <div
               className="orbit-axis-label"
-              title="Orbits run from the center of the map (top) to its periphery (bottom). Drag cards or use ▲/▼ to reorder; shift-click adjacent cards, then Merge, to share one ring; drag a kind chip onto another orbit to move it."
+              title={
+                isSwimlanes
+                  ? 'Lanes run from ingress (left) to storage (right). Drag cards or use ▲/▼ to reorder; shift-click adjacent cards, then Merge, to share one column; drag a kind chip onto another lane to move it.'
+                  : 'Orbits run from the center of the map (top) to its periphery (bottom). Drag cards or use ▲/▼ to reorder; shift-click adjacent cards, then Merge, to share one ring; drag a kind chip onto another orbit to move it.'
+              }
             >
               <span className="orbit-axis-dot" />
-              <span>Center</span>
+              <span>{isSwimlanes ? 'Ingress (Left)' : 'Center'}</span>
             </div>
         {orbitLegendGroups.map((group, gIdx) => {
           const anchorIdx = group.rows[0].idx;
@@ -4771,11 +4811,11 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               title={`${group.shortLabel}: ${groupTitle} (${total} nodes). Drag or use ▲/▼ to reorder; shift-click to select for merging.`}
             >
               <header className="orbit-card-header">
-                <span className="orbit-drag-handle" title="Drag to reorder orbit">⠿</span>
+                <span className="orbit-drag-handle" title={`Drag to reorder ${unitName.toLowerCase()}`}>⠿</span>
                 <span className="orbit-legend-pill">{group.shortLabel}</span>
                 {isMerged ? <span className="orbit-merged-tag">Merged</span> : null}
                 <span className="orbit-card-spacer" />
-                <span className="orbit-legend-count" title={`${total} nodes on this orbit`}>{total}</span>
+                <span className="orbit-legend-count" title={`${total} nodes in this ${unitName.toLowerCase()}`}>{total}</span>
                 <div className="orbit-card-actions">
                   {isMerged ? (
                     <button
@@ -4785,7 +4825,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                         e.stopPropagation();
                         handleSplitOrbit(group.orbitIndex);
                       }}
-                      title="Split this merged orbit back into separate orbits"
+                      title={`Split this merged ${unitName.toLowerCase()} back into separate ${unitsName.toLowerCase()}`}
                     >
                       Split
                     </button>
@@ -4798,7 +4838,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                       e.stopPropagation();
                       handleMoveOrbit(anchorItem, -1);
                     }}
-                    title="Move toward center (inner orbit)"
+                    title={isSwimlanes ? 'Move toward ingress (left lane)' : 'Move toward center (inner orbit)'}
                   >
                     <ChevronUpIcon size={10} />
                   </button>
@@ -4810,7 +4850,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                       e.stopPropagation();
                       handleMoveOrbit(anchorItem, 1);
                     }}
-                    title="Move toward periphery (outer orbit)"
+                    title={isSwimlanes ? 'Move toward storage (right lane)' : 'Move toward periphery (outer orbit)'}
                   >
                     <ChevronDownIcon size={10} />
                   </button>
@@ -4851,7 +4891,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                           e.dataTransfer.setData('text/plain', k.kind);
                         }}
                         onDragEnd={handleDragEnd}
-                        title={`Drag ${k.kind} onto another orbit to move all ${k.kind} entities there`}
+                        title={`Drag ${k.kind} onto another ${unitName.toLowerCase()} to move all ${k.kind} entities there`}
                       >
                         <span className="orbit-kind-chip-name">{getEntityBadgeMeta(k.kind as EntityKind)?.label || k.kind}</span>
                         <span className="orbit-kind-chip-count">{k.count}</span>
@@ -4863,7 +4903,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                               e.stopPropagation();
                               applyOrbitConfig(moveKindToOrbit(orbitConfigRef.current, k.kind, null), [item.levelIndex]);
                             }}
-                            title="Restore the default orbit for this kind"
+                            title={`Restore the default ${unitName.toLowerCase()} for this kind`}
                           >
                             ✕
                           </button>
@@ -4877,17 +4917,18 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           );
         })}
             <div className="orbit-axis-label is-outer">
-              <span>Periphery</span>
+              <span>{isSwimlanes ? 'Databases (Right)' : 'Periphery'}</span>
             </div>
           </>
         ) : (
           <div style={{ padding: '14px 12px', fontSize: '11px', color: '#94a3b8', lineHeight: 1.45 }}>
-            Concentric orbit rings and tier reordering are active when a <strong>Concentric</strong> layout algorithm is selected above.
+            Tier hierarchy and reordering are active when a <strong>Concentric</strong> or <strong>Swimlanes</strong> layout algorithm is selected above.
           </div>
         )}
       </div>
     </FloatingPanel>
   );
+};
 
   const inspectorRawEdges = useMemo(() => {
     if (

@@ -37,6 +37,8 @@ test('computeSwimlanesLayout: computes non-overlapping vertical columns for all 
 
   assert.equal(result.positions.size, sampleNodes.length, 'All nodes must have positions');
   assert.ok(result.lanes.length >= 4, 'Must have at least 4 swimlane guides');
+  assert.ok(result.populatedLanes.length >= 4, 'Must have populatedLanes metadata');
+  assert.equal(result.populatedLanes[0].title, 'Clients & Ingress');
 
   // Verify each node is inside its lane's x bounds
   for (const node of sampleNodes) {
@@ -76,7 +78,9 @@ test('computeSwimlanesLayout: uses 5 clean architectural lanes in Project Map mo
   const result = computeSwimlanesLayout(pmNodes, pmEdges, 1.2, true);
   assert.equal(result.positions.size, pmNodes.length);
   assert.equal(result.lanes.length, 5, 'Must produce 5 clean architectural lanes');
+  assert.equal(result.populatedLanes.length, 5, 'Must produce 5 populated lane entries');
   assert.equal(result.lanes[0].title, 'Endpoints & Ingress');
+  assert.equal(result.populatedLanes[0].title, 'Endpoints & Ingress');
   assert.equal(result.lanes[1].title, 'Application Handlers');
   assert.equal(result.lanes[2].title, 'Domain Core');
   assert.equal(result.lanes[3].title, 'Repositories & Foundation');

@@ -40,9 +40,17 @@ export interface SwimlaneGuide {
   color: string;
 }
 
+export interface SwimlanePopulatedLane {
+  levelIndex: number;
+  title: string;
+  icon: string;
+  nodeIds: string[];
+}
+
 export interface SwimlanesLayoutResult {
   positions: Map<string, { x: number; y: number }>;
   lanes: SwimlaneGuide[];
+  populatedLanes: SwimlanePopulatedLane[];
   bounds: { minX: number; maxX: number; minY: number; maxY: number };
 }
 
@@ -71,6 +79,23 @@ export const PROJECT_MAP_LANE_DEFINITIONS: LaneDefinition[] = [
   { tier: 4, title: 'Databases & Storage', icon: '🗄️', color: '#c084fc', accentBg: 'rgba(192, 132, 252, 0.08)' },
 ];
 
+export const SWIMLANE_TITLES: Record<number, string> = {
+  0: 'Clients & Ingress',
+  1: 'Primary Services',
+  2: 'Domain Services',
+  3: 'Workers & Async',
+  4: 'Event Bus & Topics',
+  5: 'Databases & Storage',
+};
+
+export const PROJECT_MAP_SWIMLANE_TITLES: Record<number, string> = {
+  0: 'Endpoints & Ingress',
+  1: 'Application Handlers',
+  2: 'Domain Core',
+  3: 'Repositories & Foundation',
+  4: 'Databases & Storage',
+};
+
 export function mapProjectMapTierToLane(tier: number): number {
   if (tier <= 0) return 0;
   if (tier === 1) return 1;
@@ -84,13 +109,15 @@ export function computeSwimlanesLayout(
   nodes: SwimlaneNodeInput[],
   edges: SwimlaneEdgeInput[],
   air: number = 1.2,
-  isProjectMap?: boolean
+  isProjectMap?: boolean,
+  laneOrder?: number[]
 ): SwimlanesLayoutResult {
   const positions = new Map<string, { x: number; y: number }>();
   if (nodes.length === 0) {
     return {
       positions,
       lanes: [],
+      populatedLanes: [],
       bounds: { minX: 0, maxX: 0, minY: 0, maxY: 0 },
     };
   }
@@ -112,11 +139,14 @@ export function computeSwimlanesLayout(
     else (laneBuckets.get(2) || []).push(n.id);
   }
 
-  // 2. Identify populated lanes
+  // 2. Identify populated lanes (in configured or natural tier order)
   const populatedLanes: Array<{ def: LaneDefinition; nodeIds: string[] }> = [];
-  for (const def of laneDefs) {
+  const orderedTiers = laneOrder ?? laneDefs.map((d) => d.tier);
+  for (const tier of orderedTiers) {
+    const def = laneDefs.find((d) => d.tier === tier);
+    if (!def) continue;
     const list = laneBuckets.get(def.tier) || [];
-    if (list.length > 0) {
+    if (list.length > 0 && !populatedLanes.some((p) => p.def.tier === def.tier)) {
       populatedLanes.push({ def, nodeIds: list });
     }
   }
@@ -125,6 +155,7 @@ export function computeSwimlanesLayout(
     return {
       positions,
       lanes: [],
+      populatedLanes: [],
       bounds: { minX: 0, maxX: 0, minY: 0, maxY: 0 },
     };
   }
@@ -290,6 +321,12 @@ export function computeSwimlanesLayout(
   return {
     positions,
     lanes: guides,
+    populatedLanes: populatedLanes.map((l) => ({
+      levelIndex: l.def.tier,
+      title: l.def.title,
+      icon: l.def.icon,
+      nodeIds: l.nodeIds,
+    })),
     bounds: {
       minX: globalMinX,
       maxX: globalMaxX,

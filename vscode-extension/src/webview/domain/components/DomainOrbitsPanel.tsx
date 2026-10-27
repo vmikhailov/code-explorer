@@ -64,6 +64,10 @@ export const DomainOrbitsPanel: React.FC<DomainOrbitsPanelProps> = ({
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   const isConcentric = !layoutName || layoutName.startsWith('concentric');
+  const isSwimlanes = layoutName === 'swimlanes';
+  const isTierActive = isConcentric || isSwimlanes;
+  const unitName = isSwimlanes ? 'Lane' : 'Orbit';
+  const unitsName = isSwimlanes ? 'Lanes' : 'Orbits';
 
   const mergeSelection = useMemo(() => {
     const entries = Array.from(new Set(selectedOrbitRows.map((i) => orbitLegendItems[i]?.orbitIndex))).filter(
@@ -226,7 +230,7 @@ export const DomainOrbitsPanel: React.FC<DomainOrbitsPanelProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <LayersIcon size={13} />
           <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#f8fafc' }}>
-            Orbit Rings
+            {isSwimlanes ? 'Architectural Lanes' : 'Orbit Rings'}
           </span>
           <span
             style={{
@@ -249,7 +253,7 @@ export const DomainOrbitsPanel: React.FC<DomainOrbitsPanelProps> = ({
               type="button"
               className="floating-dock-btn action-btn"
               onClick={handleMergeSelected}
-              title="Merge the selected adjacent orbits into one ring"
+              title={`Merge the selected adjacent ${isSwimlanes ? 'lanes into one column' : 'orbits into one ring'}`}
               style={{ padding: '2px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
             >
               <LayersIcon size={11} />
@@ -262,7 +266,7 @@ export const DomainOrbitsPanel: React.FC<DomainOrbitsPanelProps> = ({
               type="button"
               className="floating-dock-btn action-btn"
               onClick={handleResetOrbitOrder}
-              title="Reset to default orbit order and unhide all orbits"
+              title={`Reset to default ${isSwimlanes ? 'lane order and unhide all lanes' : 'orbit order and unhide all orbits'}`}
               style={{ padding: '2px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
             >
               <RotateCcwIcon size={11} />
@@ -272,16 +276,20 @@ export const DomainOrbitsPanel: React.FC<DomainOrbitsPanelProps> = ({
         </div>
       </div>
 
-      {/* Orbit Body List */}
+      {/* Orbit / Lane Body List */}
       <div className="domain-orbit-legend-body" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 10px' }}>
-        {isConcentric ? (
+        {isTierActive ? (
           <>
             <div
               className="orbit-axis-label"
-              title="Orbits run from center (top) to periphery (bottom). Drag cards or use ▲/▼ to reorder; shift-click adjacent cards, then Merge, to share one ring; drag a kind chip onto another orbit to move it."
+              title={
+                isSwimlanes
+                  ? 'Lanes run from ingress (left) to storage (right). Drag cards or use ▲/▼ to reorder; shift-click adjacent cards, then Merge, to share one column; drag a kind chip onto another lane to move it.'
+                  : 'Orbits run from center (top) to periphery (bottom). Drag cards or use ▲/▼ to reorder; shift-click adjacent cards, then Merge, to share one ring; drag a kind chip onto another orbit to move it.'
+              }
             >
               <span className="orbit-axis-dot" />
-              <span>Center</span>
+              <span>{isSwimlanes ? 'Ingress (Left)' : 'Center'}</span>
             </div>
 
             {orbitLegendGroups.map((group, gIdx) => {
@@ -311,13 +319,13 @@ export const DomainOrbitsPanel: React.FC<DomainOrbitsPanelProps> = ({
                   title={`${group.shortLabel}: ${groupTitle} (${total} nodes). Drag or use ▲/▼ to reorder; shift-click to select for merging.`}
                 >
                   <header className="orbit-card-header">
-                    <span className="orbit-drag-handle" title="Drag to reorder orbit">
+                    <span className="orbit-drag-handle" title={`Drag to reorder ${unitName.toLowerCase()}`}>
                       ⠿
                     </span>
                     <span className="orbit-legend-pill">{group.shortLabel}</span>
                     {isMerged ? <span className="orbit-merged-tag">Merged</span> : null}
                     <span className="orbit-card-spacer" />
-                    <span className="orbit-legend-count" title={`${total} nodes on this orbit`}>
+                    <span className="orbit-legend-count" title={`${total} nodes in this ${unitName.toLowerCase()}`}>
                       {total}
                     </span>
                     <div className="orbit-card-actions">
@@ -329,7 +337,7 @@ export const DomainOrbitsPanel: React.FC<DomainOrbitsPanelProps> = ({
                             e.stopPropagation();
                             handleSplitOrbit(group.orbitIndex);
                           }}
-                          title="Split this merged orbit back into separate orbits"
+                          title={`Split this merged ${unitName.toLowerCase()} back into separate ${unitsName.toLowerCase()}`}
                         >
                           Split
                         </button>
@@ -342,7 +350,7 @@ export const DomainOrbitsPanel: React.FC<DomainOrbitsPanelProps> = ({
                           e.stopPropagation();
                           handleMoveOrbit(anchorItem, -1);
                         }}
-                        title="Move toward center (inner orbit)"
+                        title={isSwimlanes ? 'Move toward ingress (left lane)' : 'Move toward center (inner orbit)'}
                       >
                         <ChevronUpIcon size={10} />
                       </button>
@@ -354,7 +362,7 @@ export const DomainOrbitsPanel: React.FC<DomainOrbitsPanelProps> = ({
                           e.stopPropagation();
                           handleMoveOrbit(anchorItem, 1);
                         }}
-                        title="Move toward periphery (outer orbit)"
+                        title={isSwimlanes ? 'Move toward storage (right lane)' : 'Move toward periphery (outer orbit)'}
                       >
                         <ChevronDownIcon size={10} />
                       </button>
@@ -399,7 +407,7 @@ export const DomainOrbitsPanel: React.FC<DomainOrbitsPanelProps> = ({
                               e.dataTransfer.setData('text/plain', k.kind);
                             }}
                             onDragEnd={handleDragEnd}
-                            title={`Drag ${k.kind} onto another orbit to move all ${k.kind} entities there`}
+                            title={`Drag ${k.kind} onto another ${unitName.toLowerCase()} to move all ${k.kind} entities there`}
                           >
                             <span className="orbit-kind-chip-name">
                               {getEntityBadgeMeta(k.kind as EntityKind)?.label || k.kind}
@@ -413,7 +421,7 @@ export const DomainOrbitsPanel: React.FC<DomainOrbitsPanelProps> = ({
                                   e.stopPropagation();
                                   applyOrbitCfg(moveKindToOrbit(orbitConfig, k.kind, null), [item.levelIndex]);
                                 }}
-                                title="Restore default orbit for this kind"
+                                title={`Restore default ${unitName.toLowerCase()} for this kind`}
                               >
                                 ✕
                               </button>
@@ -428,14 +436,14 @@ export const DomainOrbitsPanel: React.FC<DomainOrbitsPanelProps> = ({
             })}
 
             <div className="orbit-axis-label is-outer">
-              <span>Periphery</span>
+              <span>{isSwimlanes ? 'Databases (Right)' : 'Periphery'}</span>
             </div>
           </>
         ) : (
           <div style={{ padding: '24px 16px', fontSize: '11.5px', color: '#94a3b8', lineHeight: 1.5, textAlign: 'center' }}>
-            <div style={{ fontSize: '24px', marginBottom: '8px' }}>🪐</div>
+            <div style={{ fontSize: '24px', marginBottom: '8px' }}>📑</div>
             <div>
-              Concentric orbit rings and radial tier reordering are active when a <strong>Concentric</strong> layout algorithm is selected.
+              Tier hierarchy and arrangement are active when a <strong>Concentric</strong> or <strong>Swimlanes</strong> layout algorithm is selected.
             </div>
             <div style={{ marginTop: '6px', fontSize: '11px', color: '#64748b' }}>
               Current layout: <strong>{layoutName}</strong>
