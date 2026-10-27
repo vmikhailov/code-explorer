@@ -5,6 +5,19 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.65.8] - 2026-10-27
+
+### Fixed
+- **VS Code Extension Inspector Activity Bar Contribution & Unhide Reveal**:
+  - Moved `code-explorer-inspector` from `viewsContainers.secondarySidebar` into `viewsContainers.activitybar`, guaranteeing the dedicated Inspector icon (`media/icon-inspector.svg`) is always permanently visible in the primary Activity Bar dock.
+  - Added explicit `"icon": "media/icon-inspector.svg"` to `codeExplorerInspectorView` under `contributes.views` so the icon is preserved when dragged or moved to the Secondary Side Bar or Panel.
+  - Fixed `GraphInspectorViewProvider.reveal` and HUD `FOCUS_INSPECTOR_VIEW` handler to execute `codeExplorerInspectorView.open` directly. This automatically unhides the view if marked hidden in user workbench state, expands the host container (Activity Bar, Secondary Side Bar, or bottom Panel), and focuses the Inspector without triggering the focus-toggle blur bug.
+  - Users can now click the Inspector icon directly in the Activity Bar or right-click to "Move to Secondary Side Bar" for permanent right-docked inspection.
+- **Express Route Handler References & Entrypoint Distribution**:
+  - Extracted route handler method references and improved Project Map entrypoint distribution in CLI AST analyzer.
+
+---
+
 ## [1.65.7] - 2026-10-27
 
 ### Added

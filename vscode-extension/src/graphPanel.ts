@@ -633,12 +633,17 @@ export class GraphPanel {
               await inspector.reveal(Boolean(message.preserveFocus));
             } else {
               try {
-                await vscode.commands.executeCommand('workbench.view.extension.code-explorer-inspector');
-              } catch {}
-              try {
-                await vscode.commands.executeCommand('workbench.action.focusAuxiliaryBar');
-              } catch {}
-              await vscode.commands.executeCommand('codeExplorerInspectorView.focus');
+                await vscode.commands.executeCommand('codeExplorerInspectorView.open', {
+                  preserveFocus: Boolean(message.preserveFocus)
+                });
+              } catch {
+                try {
+                  await vscode.commands.executeCommand('workbench.view.extension.code-explorer-inspector');
+                } catch {}
+                try {
+                  await vscode.commands.executeCommand('codeExplorerInspectorView.focus');
+                } catch {}
+              }
             }
             break;
           }
