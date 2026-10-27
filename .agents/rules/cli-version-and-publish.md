@@ -56,6 +56,7 @@ Whenever fixes or features are made to CodeExplorer (CLI or VS Code Extension):
    - The unified GitHub Actions workflow ([`release.yml`](../../.github/workflows/release.yml)) automatically:
      - Builds native standalone binaries for **win-x64** and **osx-arm64** (reduced native matrix).
      - Packs and publishes universal `codeexplorer.cli` NuGet tool package to NuGet.org and GitHub Releases (serving non-native architectures: `linux-*`, `osx-x64`, `win-arm64`).
+     - Updates `vmikhailov/homebrew-tap` formula (`ce.rb`) with the latest macOS Apple Silicon binary and sha256 checksum (when `HOMEBREW_TAP_TOKEN` secret is configured).
      - Typechecks, tests, packages the lightweight universal VS Code Extension (`.vsix`), attaches it to the GitHub Release, and publishes to VS Code Marketplace & Open VSX Registry.
    - **Do NOT schedule any timer/hook or poll GitHub Actions** after pushing the release tag (the user checks CI/CD status manually).
 

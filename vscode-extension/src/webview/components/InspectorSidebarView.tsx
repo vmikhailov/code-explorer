@@ -233,8 +233,8 @@ export const InspectorSidebarView: React.FC = () => {
           height: '100vh',
           padding: '24px 16px',
           textAlign: 'center',
-          color: '#94a3b8',
-          background: '#0b0f19',
+          color: 'var(--vscode-sideBar-foreground, #94a3b8)',
+          background: 'var(--vscode-sideBar-background, #181818)',
           gap: '12px',
         }}
       >
@@ -373,7 +373,7 @@ export const InspectorSidebarView: React.FC = () => {
         width: '100%',
         height: '100vh',
         minHeight: 0,
-        background: '#0b0f19',
+        background: 'var(--vscode-sideBar-background, #181818)',
         overflow: 'hidden',
       }}
     >
@@ -384,8 +384,8 @@ export const InspectorSidebarView: React.FC = () => {
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '6px 10px',
-          background: 'rgba(15, 23, 42, 0.75)',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+          background: 'var(--vscode-sideBarSectionHeader-background, rgba(255, 255, 255, 0.03))',
+          borderBottom: '1px solid var(--vscode-sideBar-border, var(--vscode-widget-border, rgba(255, 255, 255, 0.08)))',
           fontSize: '11px',
         }}
       >
@@ -462,34 +462,167 @@ export const InspectorSidebarView: React.FC = () => {
       {/* Tab Content Body */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         {currentTab === 'info' && (
-          <DomainInspector
-            selectedNode={selectedNode}
-            selectedEdge={selectedEdge}
-            nodeDetailMap={nodeDetailMap}
-            rawEdges={rawEdges}
-            isInspectorCollapsed={isInspectorCollapsed}
-            onToggleCollapse={(collapsed) => dispatch({ type: 'SET_INSPECTOR_COLLAPSED', collapsed })}
-            isEdgeInspectorCollapsed={isEdgeInspectorCollapsed}
-            onToggleEdgeCollapse={(collapsed) => dispatch({ type: 'SET_EDGE_INSPECTOR_COLLAPSED', collapsed })}
-            onSelectNode={(node) => dispatch({ type: 'SELECT_NODE', node })}
-            onSelectNodeById={(id) => dispatch({ type: 'SELECT_NODE_BY_ID', id })}
-            onSelectEdge={(edge) => dispatch({ type: 'SELECT_EDGE', edge })}
-            onClearSelection={() => dispatch({ type: 'CLEAR_SELECTION' })}
-            onClearGraphHighlight={() => dispatch({ type: 'CLEAR_GRAPH_HIGHLIGHT' })}
-            onHideNode={(id) => dispatch({ type: 'HIDE_NODE', id })}
-            onUngroupNode={(node) => dispatch({ type: 'UNGROUP_NODE', node })}
-            onRemoveFromGroup={(groupId, memberId) => dispatch({ type: 'REMOVE_FROM_GROUP', groupId, memberId })}
-            onFocusInFlow={(projectName) => dispatch({ type: 'FOCUS_IN_FLOW', projectName })}
-            onOpenProjectMap={(projectName) => dispatch({ type: 'OPEN_PROJECT_MAP', projectName })}
-            onOpenFile={(filePath, lineStart) =>
-              getVsCodeApi()?.postMessage({ type: 'OPEN_FILE', filePath, lineStart })
-            }
-            onOpenOverrideModal={(name) => {
-              setOverrideTargetService(name);
-              setOverrideModalOpen(true);
-            }}
-            docked={true}
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+            {/* If Project Map stats exist, render the stats strip at the top of the Info tab */}
+            {projectMapPresets && (projectMapPresets.entryPointCount !== undefined || projectMapPresets.moduleCount !== undefined) && (
+              <div className="inspector-project-stat-strip">
+                {projectMapPresets.entryPointCount !== undefined && projectMapPresets.entryPointCount > 0 && (
+                  <span className="pm-chip" title="EntryPoints & Endpoints in Orbit 0">
+                    {projectMapPresets.entryPointCount} {projectMapPresets.entryPointCount === 1 ? 'entrypoint' : 'entrypoints'}
+                  </span>
+                )}
+                {projectMapPresets.moduleCount !== undefined && (
+                  <span className="pm-chip" title="Classes / modules in this project">
+                    {projectMapPresets.moduleCount} {projectMapPresets.granularity === 'class' ? 'classes' : projectMapPresets.granularity === 'file' ? 'files' : 'modules'}
+                  </span>
+                )}
+                {projectMapPresets.depCount !== undefined && (
+                  <span className="pm-chip" title="Internal call & dependency links">
+                    {projectMapPresets.depCount} deps
+                  </span>
+                )}
+                {projectMapPresets.resourceCount !== undefined && projectMapPresets.resourceCount > 0 && (
+                  <span className="pm-chip" title="Transports, buses, libraries, databases, and tables">
+                    {projectMapPresets.resourceCount} resources
+                  </span>
+                )}
+                {projectMapPresets.cyclesCount !== undefined && projectMapPresets.cyclesCount > 0 && (
+                  <button
+                    type="button"
+                    className={`pm-chip pm-chip-warning ${projectMapPresets.cyclesOnly ? 'is-active' : ''}`}
+                    onClick={() => dispatch({ type: 'TOGGLE_PM_PRESET', preset: 'cyclesOnly' })}
+                    title="Show only modules involved in dependency cycles"
+                  >
+                    ⚠️ {projectMapPresets.cyclesCount} cycle{projectMapPresets.cyclesCount === 1 ? '' : 's'}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* If no node or edge is selected and project map stats exist, render the full Project Overview card */}
+            {!selectedNode && !selectedEdge && projectMapPresets && (projectMapPresets.entryPointCount !== undefined || projectMapPresets.moduleCount !== undefined) ? (
+              <div className="inspector-project-overview">
+                <div className="inspector-project-card">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 22 }}>📁</span>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <h4 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--vscode-sideBar-foreground, #f1f5f9)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {projectMapPresets.projectName || state.hudTitle || 'Project Overview'}
+                      </h4>
+                      {projectMapPresets.filesCount !== undefined && (
+                        <span style={{ fontSize: 11, color: 'var(--vscode-descriptionForeground, #94a3b8)' }}>
+                          {projectMapPresets.filesCount} source files
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Metrics 4-quadrant grid */}
+                  <div className="inspector-stat-grid">
+                    <div className="inspector-stat-cell">
+                      <span className="inspector-stat-val" style={{ color: '#38bdf8' }}>
+                        {projectMapPresets.entryPointCount ?? 0}
+                      </span>
+                      <span className="inspector-stat-lbl">EntryPoints</span>
+                    </div>
+                    <div className="inspector-stat-cell">
+                      <span className="inspector-stat-val" style={{ color: '#a78bfa' }}>
+                        {projectMapPresets.moduleCount ?? 0}
+                      </span>
+                      <span className="inspector-stat-lbl">
+                        {projectMapPresets.granularity === 'class' ? 'Classes' : projectMapPresets.granularity === 'file' ? 'Files' : 'Modules'}
+                      </span>
+                    </div>
+                    <div className="inspector-stat-cell">
+                      <span className="inspector-stat-val" style={{ color: '#34d399' }}>
+                        {projectMapPresets.depCount ?? 0}
+                      </span>
+                      <span className="inspector-stat-lbl">Dependencies</span>
+                    </div>
+                    <div className="inspector-stat-cell">
+                      <span className="inspector-stat-val" style={{ color: '#f472b6' }}>
+                        {projectMapPresets.resourceCount ?? 0}
+                      </span>
+                      <span className="inspector-stat-lbl">Resources</span>
+                    </div>
+                  </div>
+
+                  {/* Cycles Alert & Isolation Toggle */}
+                  {projectMapPresets.cyclesCount !== undefined && projectMapPresets.cyclesCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => dispatch({ type: 'TOGGLE_PM_PRESET', preset: 'cyclesOnly' })}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 10px',
+                        borderRadius: 6,
+                        border: '1px solid',
+                        borderColor: projectMapPresets.cyclesOnly ? '#f59e0b' : 'rgba(245, 158, 11, 0.35)',
+                        background: projectMapPresets.cyclesOnly ? 'rgba(245, 158, 11, 0.2)' : 'rgba(245, 158, 11, 0.06)',
+                        cursor: 'pointer',
+                        color: '#fbbf24',
+                        width: '100%',
+                        textAlign: 'left',
+                        boxSizing: 'border-box',
+                      }}
+                      title="Isolate only modules involved in dependency cycles"
+                    >
+                      <span style={{ fontSize: 11, fontWeight: 600 }}>
+                        ⚠️ {projectMapPresets.cyclesCount} dependency cycle{projectMapPresets.cyclesCount === 1 ? '' : 's'}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: 9.5,
+                          fontWeight: 700,
+                          padding: '2px 6px',
+                          borderRadius: 3,
+                          background: projectMapPresets.cyclesOnly ? '#f59e0b' : 'rgba(255, 255, 255, 0.1)',
+                          color: projectMapPresets.cyclesOnly ? '#1e1e1e' : '#fbbf24',
+                        }}
+                      >
+                        {projectMapPresets.cyclesOnly ? 'ISOLATING' : 'ISOLATE'}
+                      </span>
+                    </button>
+                  )}
+
+                  <p style={{ margin: '4px 0 0 0', fontSize: 11, lineHeight: 1.5, color: 'var(--vscode-descriptionForeground, #94a3b8)' }}>
+                    Click any node, group, or connection edge on the canvas to inspect its architecture, calls, and relationships.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <DomainInspector
+                selectedNode={selectedNode}
+                selectedEdge={selectedEdge}
+                nodeDetailMap={nodeDetailMap}
+                rawEdges={rawEdges}
+                isInspectorCollapsed={isInspectorCollapsed}
+                onToggleCollapse={(collapsed) => dispatch({ type: 'SET_INSPECTOR_COLLAPSED', collapsed })}
+                isEdgeInspectorCollapsed={isEdgeInspectorCollapsed}
+                onToggleEdgeCollapse={(collapsed) => dispatch({ type: 'SET_EDGE_INSPECTOR_COLLAPSED', collapsed })}
+                onSelectNode={(node) => dispatch({ type: 'SELECT_NODE', node })}
+                onSelectNodeById={(id) => dispatch({ type: 'SELECT_NODE_BY_ID', id })}
+                onSelectEdge={(edge) => dispatch({ type: 'SELECT_EDGE', edge })}
+                onClearSelection={() => dispatch({ type: 'CLEAR_SELECTION' })}
+                onClearGraphHighlight={() => dispatch({ type: 'CLEAR_GRAPH_HIGHLIGHT' })}
+                onHideNode={(id) => dispatch({ type: 'HIDE_NODE', id })}
+                onUngroupNode={(node) => dispatch({ type: 'UNGROUP_NODE', node })}
+                onRemoveFromGroup={(groupId, memberId) => dispatch({ type: 'REMOVE_FROM_GROUP', groupId, memberId })}
+                onFocusInFlow={(projectName) => dispatch({ type: 'FOCUS_IN_FLOW', projectName })}
+                onOpenProjectMap={(projectName) => dispatch({ type: 'OPEN_PROJECT_MAP', projectName })}
+                onOpenFile={(filePath, lineStart) =>
+                  getVsCodeApi()?.postMessage({ type: 'OPEN_FILE', filePath, lineStart })
+                }
+                onOpenOverrideModal={(name) => {
+                  setOverrideTargetService(name);
+                  setOverrideModalOpen(true);
+                }}
+                docked={true}
+              />
+            )}
+          </div>
         )}
         {currentTab === 'orbits' && (
           <DomainOrbitsPanel

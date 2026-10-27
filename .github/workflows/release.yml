@@ -179,6 +179,64 @@ jobs:
           draft: false
           prerelease: false
 
+      - name: Update Homebrew Tap Formula
+        continue-on-error: true
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN || secrets.GH_PAT }}
+          VERSION: ${{ needs.resolve-tag.outputs.version }}
+        run: |
+          if [ -z "$TAP_TOKEN" ]; then
+            echo "::warning::HOMEBREW_TAP_TOKEN is not configured; skipping Homebrew tap formula update."
+            exit 0
+          fi
+
+          if [ ! -f ./dist/ce-osx-arm64.tar.gz ]; then
+            echo "::warning::./dist/ce-osx-arm64.tar.gz not found; skipping Homebrew tap formula update."
+            exit 0
+          fi
+
+          SHA256_ARM64=$(sha256sum ./dist/ce-osx-arm64.tar.gz | awk '{print $1}')
+          echo "Updating vmikhailov/homebrew-tap formula for ce v${VERSION} (sha256: ${SHA256_ARM64})..."
+
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/vmikhailov/homebrew-tap.git" /tmp/homebrew-tap
+          cd /tmp/homebrew-tap
+
+          mkdir -p Formula
+          cat <<EOF > Formula/ce.rb
+class Ce < Formula
+  desc "Codebase intelligence CLI and knowledge graph engine"
+  homepage "https://github.com/vmikhailov/code-explorer"
+  version "${VERSION}"
+  license "MIT"
+
+  depends_on :macos
+  depends_on arch: :arm64
+
+  url "https://github.com/vmikhailov/code-explorer/releases/download/v${VERSION}/ce-osx-arm64.tar.gz"
+  sha256 "${SHA256_ARM64}"
+
+  def install
+    bin.install "ce"
+  end
+
+  test do
+    assert_match "ce", shell_output("#{bin}/ce --version", 2) rescue nil
+  end
+end
+EOF
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/ce.rb
+
+          if git diff --staged --quiet; then
+            echo "Formula/ce.rb is already up to date."
+          else
+            git commit -m "feat(ce): update formula to v${VERSION}"
+            git push origin main
+            echo "Successfully updated and pushed vmikhailov/homebrew-tap."
+          fi
+
       - name: NuGet Login (Trusted Publishing / OIDC)
         uses: NuGet/login@v1
         id: nuget-login

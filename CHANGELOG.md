@@ -5,6 +5,48 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.65.11] - 2026-10-27
+
+### Fixed
+- **HUD Control Groups Extra Border & Button Wrapping**:
+  - Removed redundant outer border, background, and padding from `.domain-hud-control-group` and `.domain-hud-layout-select`, eliminating double-border framing around the layout dropdown and viewport controls.
+  - Added non-breaking spaces (`&nbsp;` / `\u00A0`) and enforced `white-space: nowrap` on HUD action buttons (`⛶ Fit` and `🔄 Refresh`), preventing text from awkwardly wrapping below icons.
+
+---
+
+## [1.65.10] - 2026-10-27
+
+### Changed
+- **Relocated Project Map Stats from HUD Header to Info Panel**:
+  - Removed wrapping stat pills (`entrypoints`, `classes`, `deps`, `resources`, `⚠️ cycles`) from the main canvas HUD header (`ProjectMapView`), keeping the project selector clean, compact, and single-line.
+  - Added rich **Project Overview** card in the Graph Inspector's Info tab when no element is selected, displaying macro project metrics (EntryPoints, Classes/Modules, Dependencies, Resources), source file count, interactive dependency cycle isolation toggle, and canvas hints.
+  - Added compact stat strip at the top of the Info tab during node or edge inspection, allowing continuous visibility of project-level metrics alongside granular element details.
+
+---
+
+## [1.65.9] - 2026-10-27
+
+### Fixed
+- **VS Code Extension Inspector Theme Integration**:
+  - Replaced hardcoded deep navy background (`#0b0f19`) across all Graph Inspector views (`InspectorSidebarView`, `DomainOrbitsPanel`, `DomainSettingsPanel`, and empty states) with native VS Code sidebar background token `var(--vscode-sideBar-background, #181818)`.
+  - Replaced hardcoded context banner header background with `var(--vscode-sideBarSectionHeader-background, rgba(255, 255, 255, 0.03))` and themed border `var(--vscode-sideBar-border, var(--vscode-widget-border, rgba(255, 255, 255, 0.08)))`.
+  - Added native VS Code sidebar foreground and background styles to Inspector webview body (`body.ce-inspector-webview-body`), ensuring seamless visual integration across VS Code Dark Modern, Dark+, High Contrast, and Light themes.
+
+---
+
+## [1.65.8] - 2026-10-27
+
+### Fixed
+- **VS Code Extension Inspector Activity Bar Contribution & Unhide Reveal**:
+  - Moved `code-explorer-inspector` from `viewsContainers.secondarySidebar` into `viewsContainers.activitybar`, guaranteeing the dedicated Inspector icon (`media/icon-inspector.svg`) is always permanently visible in the primary Activity Bar dock.
+  - Added explicit `"icon": "media/icon-inspector.svg"` to `codeExplorerInspectorView` under `contributes.views` so the icon is preserved when dragged or moved to the Secondary Side Bar or Panel.
+  - Fixed `GraphInspectorViewProvider.reveal` and HUD `FOCUS_INSPECTOR_VIEW` handler to execute `codeExplorerInspectorView.open` directly. This automatically unhides the view if marked hidden in user workbench state, expands the host container (Activity Bar, Secondary Side Bar, or bottom Panel), and focuses the Inspector without triggering the focus-toggle blur bug.
+  - Users can now click the Inspector icon directly in the Activity Bar or right-click to "Move to Secondary Side Bar" for permanent right-docked inspection.
+- **Express Route Handler References & Entrypoint Distribution**:
+  - Extracted route handler method references and improved Project Map entrypoint distribution in CLI AST analyzer.
+
+---
+
 ## [1.65.7] - 2026-10-27
 
 ### Added

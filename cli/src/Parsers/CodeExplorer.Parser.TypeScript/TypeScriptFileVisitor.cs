@@ -2,6 +2,7 @@ using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Syntax;
+using CodeExplorer.Parser.TypeScript.Libraries;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript;
@@ -142,7 +143,81 @@ public class TypeScriptFileVisitor : BaseParserVisitor
                 }
             }
         }
+        else if (node.Is(TreeSitterSyntax.TypeScript.CallExpression) && symbolNode.Kind == OntologyConstants.NodeLabels.EntryPoint)
+        {
+            ExtractExpressRouteReferences(node, symbolNode, parentNode);
+        }
     }
+
+    private static void ExtractExpressRouteReferences(Node callNode, SyntacticSymbol symbolNode, SyntacticSymbol parentNode)
+    {
+        var args = AstHelper.GetCallArguments(callNode);
+        if (args.Count == 0) return;
+
+        var startIndex = 0;
+        if (AstHelper.IsStringLiteralNode(args[0]) || args[0].Type.Contains("string") || args[0].Type.Contains("regex"))
+        {
+            startIndex = 1;
+        }
+
+        for (var i = startIndex; i < args.Count; i++)
+        {
+            ExtractHandlerReferencesFromArg(args[i], symbolNode, parentNode);
+        }
+    }
+
+    private static void ExtractHandlerReferencesFromArg(Node arg, SyntacticSymbol symbolNode, SyntacticSymbol parentNode)
+    {
+        if (!arg.IsValid()) return;
+
+        if (arg.Is(TreeSitterSyntax.TypeScript.Identifier))
+        {
+            var name = arg.Text;
+            if (!string.IsNullOrEmpty(name) && !IsNoiseHandlerName(name))
+            {
+                var line = (int)arg.StartPosition.Row + 1;
+                var col = (int)arg.StartPosition.Column + 1;
+                if (!parentNode.References.Any(r => r.TargetName == name && r.Kind == OntologyConstants.Relationships.Calls))
+                {
+                    parentNode.References.Add(new Reference("", name, OntologyConstants.Relationships.Calls, line, col));
+                }
+                if (!symbolNode.References.Any(r => r.TargetName == name && r.Kind == OntologyConstants.Relationships.Triggers))
+                {
+                    symbolNode.References.Add(new Reference(symbolNode.Name, name, OntologyConstants.Relationships.Triggers, line, col));
+                }
+            }
+        }
+        else if (arg.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+        {
+            var name = arg.Text;
+            if (!string.IsNullOrEmpty(name))
+            {
+                var line = (int)arg.StartPosition.Row + 1;
+                var col = (int)arg.StartPosition.Column + 1;
+                if (!parentNode.References.Any(r => r.TargetName == name && r.Kind == OntologyConstants.Relationships.Calls))
+                {
+                    parentNode.References.Add(new Reference("", name, OntologyConstants.Relationships.Calls, line, col));
+                }
+                if (!symbolNode.References.Any(r => r.TargetName == name && r.Kind == OntologyConstants.Relationships.Triggers))
+                {
+                    symbolNode.References.Add(new Reference(symbolNode.Name, name, OntologyConstants.Relationships.Triggers, line, col));
+                }
+            }
+        }
+        else if (arg.Type is "array" or "array_expression")
+        {
+            foreach (var child in arg.Children)
+            {
+                if (child.IsValid() && (char.IsLetter(child.Type[0]) || child.Type[0] == '_'))
+                {
+                    ExtractHandlerReferencesFromArg(child, symbolNode, parentNode);
+                }
+            }
+        }
+    }
+
+    private static bool IsNoiseHandlerName(string name) =>
+        name is "req" or "res" or "next" or "err" or "error" or "undefined" or "null" or "true" or "false";
 
     /// <summary>
     /// Name of the nearest declaration that owns an object literal containing <paramref name="pair"/>:

@@ -213,7 +213,7 @@ export const DomainOrbitsPanel: React.FC<DomainOrbitsPanelProps> = ({
         flex: 1,
         minHeight: 0,
         overflow: 'hidden',
-        background: '#0b0f19',
+        background: 'var(--vscode-sideBar-background, #181818)',
       }}
     >
       {/* Orbits Header & Actions */}

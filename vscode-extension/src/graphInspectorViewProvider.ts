@@ -66,33 +66,18 @@ export class GraphInspectorViewProvider implements vscode.WebviewViewProvider {
   }
 
   public async reveal(preserveFocus = false): Promise<void> {
-    if (preserveFocus) {
-      // Subtle background reveal (e.g. canvas selection): keep user focus in editor/canvas
-      try {
-        await vscode.commands.executeCommand('codeExplorerInspectorView.open', { preserveFocus: true });
-      } catch {
-        this.view?.show(true);
-      }
-    } else {
-      // Explicit user action (Inspector HUD button or command):
-      // 1. Explicitly open and activate the view container (Secondary Side Bar or wherever docked)
+    try {
+      // Direct view open command: opens the host container (Activity Bar, Secondary Side Bar, or Panel),
+      // unhides the view if marked hidden in workbench state, expands it, and focuses according to preserveFocus
+      await vscode.commands.executeCommand('codeExplorerInspectorView.open', { preserveFocus });
+    } catch {
+      // Fallback: activate container and focus view directly
       try {
         await vscode.commands.executeCommand('workbench.view.extension.code-explorer-inspector');
-      } catch (err: any) {
-        this.outputChannel?.appendLine(`[InspectorView] 'workbench.view.extension.code-explorer-inspector' failed: ${err?.message || err}`);
-      }
-
-      // 2. Ensure the Auxiliary Bar (Secondary Side Bar) is expanded/visible
-      try {
-        await vscode.commands.executeCommand('workbench.action.focusAuxiliaryBar');
       } catch {}
-
-      // 3. Focus the specific view inside the container
       try {
         await vscode.commands.executeCommand('codeExplorerInspectorView.focus');
-      } catch (err: any) {
-        this.outputChannel?.appendLine(`[InspectorView] 'codeExplorerInspectorView.focus' failed: ${err?.message || err}`);
-      }
+      } catch {}
     }
 
     if (this.view) {
@@ -237,7 +222,7 @@ export class GraphInspectorViewProvider implements vscode.WebviewViewProvider {
   <link rel="stylesheet" href="${styleUri}">
   <script nonce="${nonce}">${configScript}</script>
 </head>
-<body class="ce-inspector-webview-body" style="margin: 0; padding: 0; overflow: hidden;">
+<body class="ce-inspector-webview-body" style="margin: 0; padding: 0; overflow: hidden; background: var(--vscode-sideBar-background, #181818); color: var(--vscode-sideBar-foreground, var(--vscode-foreground, #cccccc));">
   <div id="root"></div>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>

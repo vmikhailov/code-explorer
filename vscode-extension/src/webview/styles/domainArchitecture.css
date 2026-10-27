@@ -365,10 +365,6 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 5px;
-  padding: 2px 7px;
   font-size: 11px;
 }
 
@@ -388,7 +384,7 @@
   border-radius: 3px;
   min-width: 22px;
   height: 22px;
-  padding: 0 5px;
+  padding: 0 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -397,6 +393,7 @@
   cursor: pointer;
   transition: all 0.15s ease;
   user-select: none;
+  white-space: nowrap;
 }
 
 .domain-hud-btn:hover,
@@ -2462,6 +2459,78 @@
   margin: 0;
 }
 
+/* Webview Inspector native VS Code body styling */
+body.ce-inspector-webview-body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: var(--vscode-sideBar-background, #181818);
+  color: var(--vscode-sideBar-foreground, var(--vscode-foreground, #cccccc));
+  font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif);
+}
 
+/* Inspector Project Map Stat Strip & Overview */
+.inspector-project-stat-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--vscode-sideBarSectionHeader-background, rgba(255, 255, 255, 0.02));
+  border-bottom: 1px solid var(--vscode-sideBar-border, var(--vscode-widget-border, rgba(255, 255, 255, 0.08)));
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
 
+.inspector-project-overview {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 12px;
+  height: 100%;
+  overflow-y: auto;
+  gap: 14px;
+  box-sizing: border-box;
+}
+
+.inspector-project-card {
+  width: 100%;
+  padding: 14px;
+  border-radius: 8px;
+  background: var(--vscode-sideBarSectionHeader-background, rgba(255, 255, 255, 0.02));
+  border: 1px solid var(--vscode-sideBar-border, var(--vscode-widget-border, rgba(255, 255, 255, 0.08)));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-sizing: border-box;
+}
+
+.inspector-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  width: 100%;
+}
+
+.inspector-stat-cell {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.inspector-stat-val {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.inspector-stat-lbl {
+  font-size: 10px;
+  color: var(--vscode-descriptionForeground, #94a3b8);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
 
