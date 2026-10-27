@@ -109,7 +109,7 @@ public static class ScanCommandHandler
                 Console.ForegroundColor = ConsoleColor.Cyan;
 
                 Console.WriteLine(
-                    $"\n[Watch] Watching for file changes in {targetPath} (press Ctrl+C to exit)...");
+                    $"\n[Watch       ] Watching for file changes in {targetPath} (press Ctrl+C to exit)...");
                 Console.ResetColor();
 
                 using var cts = new CancellationTokenSource();
@@ -123,7 +123,7 @@ public static class ScanCommandHandler
                 using var watcher = new FileWatcher(targetPath, async batch =>
                 {
                     logger.LogInformation(
-                        "[Watch] File changes detected ({Count} file(s)): {Files}. Evaluating incremental update...",
+                        "[Watch       ] File changes detected ({Count} file(s)): {Files}. Evaluating incremental update...",
                         batch.Count, string.Join(", ", batch));
 
                     try
@@ -134,7 +134,7 @@ public static class ScanCommandHandler
 
                         if (changed)
                         {
-                            logger.LogInformation("[Watch] Incremental indexing complete.");
+                            logger.LogInformation("[Watch       ] Incremental indexing complete.");
 
                             var (nodesCount, relsCount) =
                                 await client.GetGraphCountsAsync(cts.Token);
@@ -143,7 +143,7 @@ public static class ScanCommandHandler
                         }
                         else
                         {
-                            logger.LogInformation("[Watch] No graph changes needed.");
+                            logger.LogInformation("[Watch       ] No graph changes needed.");
                         }
                     }
                     catch (OperationCanceledException)
@@ -152,7 +152,7 @@ public static class ScanCommandHandler
                     }
                     catch (Exception ex)
                     {
-                        logger.LogError(ex, "[Watch] Incremental indexing failed: {Message}",
+                        logger.LogError(ex, "[Watch       ] Incremental indexing failed: {Message}",
                             ex.Message);
                     }
                 });
@@ -165,7 +165,7 @@ public static class ScanCommandHandler
                 }
                 catch (OperationCanceledException)
                 {
-                    logger.LogInformation("[Watch] Stopped watching.");
+                    logger.LogInformation("[Watch       ] Stopped watching.");
                 }
             }
 

@@ -20,24 +20,24 @@ public partial class PostIndexAnalyzer(IGraphClient db)
     {
         var widPrefix = string.IsNullOrEmpty(workspaceId) ? "" : (workspaceId.EndsWith(':') ? workspaceId : workspaceId + ":");
 
-        ctx?.Log("[PostIndexAnalyzer] Canonicalizing databases across workspace...");
+        ctx?.Log("[PostIndex  ] Canonicalizing databases across workspace...");
         await CanonicalizeDatabasesAsync(db, widPrefix);
-        ctx?.Log("[PostIndexAnalyzer] Normalizing architectural edges...");
+        ctx?.Log("[PostIndex  ] Normalizing architectural edges...");
         await NormalizeEdgesAsync(db, widPrefix);
-        ctx?.Log("[PostIndexAnalyzer] Purging phantom external services...");
+        ctx?.LogDebug("[PostIndex  ] Purging phantom external services...");
         await PurgePhantomExternalServicesAsync(db, widPrefix);
-        ctx?.Log("[PostIndexAnalyzer] Purging placeholder topics...");
+        ctx?.LogDebug("[PostIndex  ] Purging placeholder topics...");
         await PurgePlaceholderTopicsAsync(db, widPrefix);
-        ctx?.Log("[PostIndexAnalyzer] Deduplicating project nodes...");
+        ctx?.LogDebug("[PostIndex  ] Deduplicating project nodes...");
         await DeduplicateProjectNodesAsync(db, widPrefix);
 
-        ctx?.Log("[PostIndexAnalyzer] Loading post-index graph reachability data...");
+        ctx?.LogDebug("[PostIndex  ] Loading post-index graph reachability data...");
         var graphData = await db.LoadPostIndexGraphDataAsync(widPrefix);
         if (graphData.CallsAdjacency.Count > 0 || graphData.Sinks.Count > 0 || graphData.Callers.Count > 0)
         {
-            ctx?.Log("[PostIndexAnalyzer] Analyzing call paths and external API dependencies...");
+            ctx?.LogDebug("[PostIndex  ] Analyzing call paths and external API dependencies...");
             var result = Analyze(graphData, widPrefix);
-            ctx?.Log("[PostIndexAnalyzer] Saving reachability analysis results to database...");
+            ctx?.LogDebug("[PostIndex  ] Saving reachability analysis results to database...");
             await db.SavePostIndexResultsAsync(widPrefix, result);
         }
         else
@@ -248,14 +248,14 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         allCombinedRels.AddRange(lateBoundRels);
         allCombinedRels.AddRange(ctx.TreeRelationships);
 
-        ctx.Log("[PostIndexAnalyzer] Building file-to-project map...");
+        ctx.LogDebug("[PostIndex  ] Building file-to-project map...");
         var fileToProject = Layer2ProjectParser.BuildFileToProjectMap(
             l4Result.Prev.Prev.Prev.Files,
             l4Result.Prev.Prev.Projects
         );
 
         // Canonicalize databases and link projects in graph
-        ctx.Log("[PostIndexAnalyzer] Canonicalizing databases and linking projects...");
+        ctx.Log("[PostIndex  ] Canonicalizing databases and linking projects...");
         var (canonicalDbRels, rawToCanonicalDbMap) = await CanonicalizeDatabasesInMemoryAsync(
             ctx,
             l4Result,
@@ -288,7 +288,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
             }
         }
 
-        ctx.Log("[PostIndexAnalyzer] Materializing direct project relationships...");
+        ctx.LogDebug("[PostIndex  ] Materializing direct project relationships...");
         var directProjectRels = MaterializeDirectProjectRelationships(
             l4Result.Prev.Prev.Projects,
             l4Result.Prev.Prev.Prev.Files,
@@ -300,13 +300,13 @@ public partial class PostIndexAnalyzer(IGraphClient db)
 
         if (directProjectRels.Count > 0)
         {
-            ctx.Log($"[PostIndexAnalyzer] Uploading {directProjectRels.Count} direct project relationships...");
+            ctx.LogDebug($"[PostIndex  ] Uploading {directProjectRels.Count} direct project relationships...");
             await ctx.DbClient.UploadRelationshipsAsync(directProjectRels);
             ctx.AddRelsCount(directProjectRels.Count);
             allCombinedRels.AddRange(directProjectRels);
         }
 
-        ctx.Log("[PostIndexAnalyzer] Materializing transitive semantic relationships...");
+        ctx.LogDebug("[PostIndex  ] Materializing transitive semantic relationships...");
         var liftedSemanticRels = LiftTransitiveSemanticRelations(
             l4Result.Prev.Prev.Projects,
             allCombinedRels,
@@ -315,13 +315,13 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         );
         if (liftedSemanticRels.Count > 0)
         {
-            ctx.Log($"[PostIndexAnalyzer] Uploading {liftedSemanticRels.Count} transitive semantic relationships...");
+            ctx.LogDebug($"[PostIndex  ] Uploading {liftedSemanticRels.Count} transitive semantic relationships...");
             await ctx.DbClient.UploadRelationshipsAsync(liftedSemanticRels);
             ctx.AddRelsCount(liftedSemanticRels.Count);
         }
 
         // Classify projects and persist layer metadata into SQLite nodes
-        ctx.Log($"[PostIndexAnalyzer] Classifying architectural layers for {l4Result.Prev.Prev.Projects.Count} projects...");
+        ctx.Log($"[PostIndex  ] Classifying architectural layers for {l4Result.Prev.Prev.Projects.Count} projects...");
         var classifierItems = l4Result.Prev.Prev.Projects.Select(p =>
         {
             var allChildren = new List<IOntologyNode>();
@@ -442,7 +442,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
 
         if (updatedProjectNodes.Count > 0)
         {
-            ctx.Log($"[PostIndexAnalyzer] Uploading {updatedProjectNodes.Count} classified project nodes...");
+            ctx.LogDebug($"[PostIndex  ] Uploading {updatedProjectNodes.Count} classified project nodes...");
             await ctx.DbClient.UploadNodesAsync(updatedProjectNodes);
         }
 
@@ -456,7 +456,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         }
 
         // Normalize edges in SQLite graph database
-        ctx.Log("[PostIndexAnalyzer] Normalizing architectural edges and cleaning database...");
+        ctx.Log("[PostIndex  ] Normalizing architectural edges and cleaning database...");
         await NormalizeEdgesAsync(ctx.DbClient, widPrefix, ctx.CancellationToken);
         await PurgePhantomExternalServicesAsync(ctx.DbClient, widPrefix, ctx.CancellationToken);
         await PurgePlaceholderTopicsAsync(ctx.DbClient, widPrefix, ctx.CancellationToken);

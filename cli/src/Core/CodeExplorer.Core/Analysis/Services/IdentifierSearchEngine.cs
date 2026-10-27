@@ -191,7 +191,7 @@ public class IdentifierSearchEngine
 
         await tx.CommitAsync(ct);
         sw.Stop();
-        _logger.LogInformation("[IdentifierSearch] Indexed {Count} identifiers into vector/trigram index in {ElapsedMs:F1}ms", entries.Count, sw.Elapsed.TotalMilliseconds);
+        _logger.LogDebug("[Database   ] Indexed {Count} identifiers into vector/trigram index in {ElapsedMs:F1}ms", entries.Count, sw.Elapsed.TotalMilliseconds);
     }
 
     public async Task<IReadOnlyList<IdentifierMatch>> SearchAsync(

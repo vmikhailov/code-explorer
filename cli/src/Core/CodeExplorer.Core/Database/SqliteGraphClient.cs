@@ -156,26 +156,18 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                 cmd.CommandText = sb.ToString();
                 cmd.ExecuteNonQuery();
 
-                if (distinctNodes.Count >= 5000 && (i + count == distinctNodes.Count || Stopwatch.GetElapsedTime(lastReport).TotalSeconds >= 3))
+                if (distinctNodes.Count >= 10000 && (i + count == distinctNodes.Count || Stopwatch.GetElapsedTime(lastReport).TotalSeconds >= 3))
                 {
                     lastReport = Stopwatch.GetTimestamp();
                     var pct = (double)(i + count) / distinctNodes.Count * 100.0;
-                    _logger.LogInformation("[DB:Nodes] Saved: {Processed}/{Total} nodes ({Pct:F0}%)...", i + count, distinctNodes.Count, pct);
+                    _logger.LogDebug("[Database   ] Saved {Processed}/{Total} nodes ({Pct:F0}%)...", i + count, distinctNodes.Count, pct);
                 }
             }
 
             await tx.CommitAsync();
             sw.Stop();
 
-            if (distinctNodes.Count >= 5000)
-            {
-                _logger.LogInformation("[DB:Nodes] Successfully uploaded {Count} nodes in {ElapsedMs:F0}ms.", nodes.Count, sw.Elapsed.TotalMilliseconds);
-            }
-            else
-            {
-                _logger.LogDebug("[DB:Nodes] Uploaded {Count} nodes in {ElapsedMs:F1}ms", nodes.Count,
-                    sw.Elapsed.TotalMilliseconds);
-            }
+            _logger.LogDebug("[Database   ] Uploaded {Count} nodes in {ElapsedMs:F0}ms", nodes.Count, sw.Elapsed.TotalMilliseconds);
             Analysis.ArchitectureViewEngine.InvalidateCache();
         }
         finally
@@ -231,26 +223,18 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                 cmd.CommandText = sb.ToString();
                 cmd.ExecuteNonQuery();
 
-                if (distinctRels.Count >= 5000 && (i + count == distinctRels.Count || Stopwatch.GetElapsedTime(lastReport).TotalSeconds >= 3))
+                if (distinctRels.Count >= 10000 && (i + count == distinctRels.Count || Stopwatch.GetElapsedTime(lastReport).TotalSeconds >= 3))
                 {
                     lastReport = Stopwatch.GetTimestamp();
                     var pct = (double)(i + count) / distinctRels.Count * 100.0;
-                    _logger.LogInformation("[DB:Edges] Saved: {Processed}/{Total} relationships ({Pct:F0}%)...", i + count, distinctRels.Count, pct);
+                    _logger.LogDebug("[Database   ] Saved {Processed}/{Total} relationships ({Pct:F0}%)...", i + count, distinctRels.Count, pct);
                 }
             }
 
             await tx.CommitAsync();
             sw.Stop();
 
-            if (distinctRels.Count >= 5000)
-            {
-                _logger.LogInformation("[DB:Edges] Successfully uploaded {Count} relationships in {ElapsedMs:F0}ms.", rels.Count, sw.Elapsed.TotalMilliseconds);
-            }
-            else
-            {
-                _logger.LogDebug("[DB:Edges] Uploaded {Count} relationships in {ElapsedMs:F1}ms", rels.Count,
-                    sw.Elapsed.TotalMilliseconds);
-            }
+            _logger.LogDebug("[Database   ] Uploaded {Count} relationships in {ElapsedMs:F0}ms", rels.Count, sw.Elapsed.TotalMilliseconds);
             Analysis.ArchitectureViewEngine.InvalidateCache();
         }
         finally
@@ -324,7 +308,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             var rows = await ReadRowsAsync(reader, cancellationToken);
             sw.Stop();
 
-            _logger.LogDebug("[DB:Query] Completed in {ElapsedMs:F1}ms (rows: {RowCount}): {QueryPreview}",
+            _logger.LogDebug("[Database   ] Completed in {ElapsedMs:F1}ms (rows: {RowCount}): {QueryPreview}",
                 sw.Elapsed.TotalMilliseconds, rows.Count, GetQueryPreview(query));
 
             return JsonSerializer.Serialize(rows, new JsonSerializerOptions { WriteIndented = true });
@@ -332,7 +316,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         catch (SqliteException ex) when (ex.SqliteErrorCode == 5 || ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase))
         {
             sw.Stop();
-            _logger.LogError(ex, "[DB:Query] Query timed out after {ElapsedMs:F1}ms (limit: {Timeout}s): {QueryPreview}",
+            _logger.LogError(ex, "[Database   ] Query timed out after {ElapsedMs:F1}ms (limit: {Timeout}s): {QueryPreview}",
                 sw.Elapsed.TotalMilliseconds, CommandTimeoutSeconds, GetQueryPreview(query));
             throw new TimeoutException($"Query execution timed out after {CommandTimeoutSeconds} seconds. Consider narrowing filters or bounding traversal depth.", ex);
         }
@@ -365,7 +349,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             var rows = await ReadRowsAsync(reader, ct);
             sw.Stop();
 
-            _logger.LogDebug("[DB:QueryAst] Completed in {ElapsedMs:F1}ms (rows: {RowCount})",
+            _logger.LogDebug("[Database   ] Completed in {ElapsedMs:F1}ms (rows: {RowCount})",
                 sw.Elapsed.TotalMilliseconds, rows.Count);
 
             return JsonSerializer.Serialize(rows, new JsonSerializerOptions { WriteIndented = true });
@@ -373,7 +357,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         catch (SqliteException ex) when (ex.SqliteErrorCode == 5 || ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase))
         {
             sw.Stop();
-            _logger.LogError(ex, "[DB:QueryAst] Query timed out after {ElapsedMs:F1}ms (limit: {Timeout}s)",
+            _logger.LogError(ex, "[Database   ] Query timed out after {ElapsedMs:F1}ms (limit: {Timeout}s)",
                 sw.Elapsed.TotalMilliseconds, CommandTimeoutSeconds);
             throw new TimeoutException($"Query execution timed out after {CommandTimeoutSeconds} seconds.", ex);
         }
@@ -498,13 +482,13 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             await cmd.ExecuteNonQueryAsync(cancellationToken);
             sw.Stop();
 
-            _logger.LogDebug("[DB:Write] Write completed in {ElapsedMs:F1}ms: {QueryPreview}",
+            _logger.LogDebug("[Database   ] Write completed in {ElapsedMs:F1}ms: {QueryPreview}",
                 sw.Elapsed.TotalMilliseconds, GetQueryPreview(query));
         }
         catch (SqliteException ex) when (ex.SqliteErrorCode == 5 || ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase))
         {
             sw.Stop();
-            _logger.LogError(ex, "[DB:Write] Write timed out after {ElapsedMs:F1}ms: {QueryPreview}",
+            _logger.LogError(ex, "[Database   ] Write timed out after {ElapsedMs:F1}ms: {QueryPreview}",
                 sw.Elapsed.TotalMilliseconds, GetQueryPreview(query));
             throw new TimeoutException($"Database write timed out after {CommandTimeoutSeconds} seconds.", ex);
         }

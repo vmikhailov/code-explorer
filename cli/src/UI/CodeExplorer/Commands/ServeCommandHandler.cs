@@ -62,7 +62,7 @@ public static class ServeCommandHandler
         if (client.IsSchemaOutdated && !opts.Quiet)
         {
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($"[Database] Database schema version is outdated (v{client.SchemaVersion} < v{SqliteGraphClient.CurrentSchemaVersion}). Server starting; graph rebuild will occur asynchronously.");
+            Console.WriteLine($"[Database   ] Database schema version is outdated (v{client.SchemaVersion} < v{SqliteGraphClient.CurrentSchemaVersion}). Server starting; graph rebuild will occur asynchronously.");
             Console.ResetColor();
         }
 

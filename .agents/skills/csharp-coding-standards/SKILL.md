@@ -32,7 +32,9 @@ Use this skill when:
 6. **API Design** - Accept abstractions, return appropriately specific types
 7. **Composition Over Inheritance** - Avoid abstract base classes, prefer composition
 8. **Value Objects as Structs** - Use `readonly record struct` for value objects
-9. **Namespace Hygiene** - Shorten namespaces, avoid redundant type qualification, and leverage global/implicit usings
+9. **Namespace Hygiene** - Shorten namespaces, avoid redundant type qualification, and leverage global/implicit usings. Ensure that namespaces reflect the logical structure of the project.
+10. **Consistent Naming** - Follow .NET naming conventions for types, methods, and properties
+11. **Consistent Formatting** - Follow consistent code formatting and indentation rules
 
 ---
 

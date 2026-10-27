@@ -168,7 +168,7 @@ public class WorkspaceIndexer
         if (_dbClient.IsSchemaOutdated)
         {
             _logger.LogInformation(
-                "[Database] Schema version outdated (v{SchemaVersion} < v{CurrentSchemaVersion}). Forcing full graph rebuild...",
+                "[Database   ] Schema version outdated (v{SchemaVersion} < v{CurrentSchemaVersion}). Forcing full graph rebuild...",
                 _dbClient.SchemaVersion, IGraphClient.CurrentSchemaVersion);
             clear = true;
         }
@@ -177,8 +177,9 @@ public class WorkspaceIndexer
 
         await RunParsingPipelineAsync(ctx);
 
+        ctx.ReportProgress(100, "Completed", "Indexing process completed successfully.", ctx.TotalNodesCount, ctx.TotalNodesCount);
         ctx.Log(
-            $"Indexing process completed successfully! Total Nodes: {ctx.TotalNodesCount}, Total Relationships: {ctx.TotalRelsCount}.");
+            $"[Indexer    ] Indexing process completed successfully! Total Nodes: {ctx.TotalNodesCount:N0}, Total Relationships: {ctx.TotalRelsCount:N0}.");
 
         return (ctx.TotalNodesCount, ctx.TotalRelsCount, ctx.NodesByKind);
     }
@@ -245,26 +246,34 @@ public class WorkspaceIndexer
         IReadOnlyList<SyntaxTree> syntaxTrees;
         await using (new DatabasePersistenceWriter(ctx))
         {
+            ctx.ReportProgress(1, "Layer 1: Physical", "Preparing database and physical scanning...", 0, 0);
             await PrepareDatabaseAsync(ctx);
             var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
             indexedFiles = l1.Files;
-            ctx.TriggerProgressReport();
+            ctx.ReportProgress(8, "Layer 2: Boundaries", $"Discovered {indexedFiles.Count} files across workspace.", 0, indexedFiles.Count);
+
             var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
             projects = l2.Projects;
-            ctx.TriggerProgressReport();
+            ctx.ReportProgress(14, "Layer 3: Syntactic", $"Discovered {projects.Count} projects. Starting syntax parsing...", 0, indexedFiles.Count);
+
             var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
             syntaxTrees = l3.SyntaxTrees;
-            ctx.TriggerProgressReport();
+            ctx.ReportProgress(52, "Layer 4: Semantic", $"Parsed {syntaxTrees.Count} syntax trees. Analyzing semantics...", syntaxTrees.Count, indexedFiles.Count);
+
             var l4 = await new Layer4SemanticParser().ParseAsync(l3, ctx);
-            ctx.TriggerProgressReport();
+            ctx.ReportProgress(68, "Layer 5: Global", "Semantic enrichment complete. Resolving global references...", syntaxTrees.Count, indexedFiles.Count);
+
             await new Layer5AnalysisParser().ParseAsync(l4, ctx);
-            ctx.TriggerProgressReport();
+            ctx.ReportProgress(86, "Finalizing", "Post-indexing analysis pass complete.", syntaxTrees.Count, indexedFiles.Count);
         }
 
         LogPersistenceSummary(ctx);
+        ctx.ReportProgress(88, "Finalizing", $"Synchronizing file registry for {indexedFiles.Count} files...", syntaxTrees.Count, indexedFiles.Count);
         await SyncFileRegistryAsync(indexedFiles, projects, syntaxTrees, ctx);
+        ctx.ReportProgress(94, "Finalizing", "Rebuilding database indices...", syntaxTrees.Count, indexedFiles.Count);
         await _dbClient.SetSchemaVersionAsync(IGraphClient.CurrentSchemaVersion);
         await _dbClient.CreateIndicesAsync();
+        ctx.ReportProgress(99, "Finalizing", "Invalidating view cache...", syntaxTrees.Count, indexedFiles.Count);
         Analysis.ArchitectureViewEngine.InvalidateCache();
     }
 
@@ -275,7 +284,7 @@ public class WorkspaceIndexer
         IReadOnlyList<SyntaxTree> syntaxTrees,
         ParsingContext ctx)
     {
-        ctx.Log($"[Incremental] Synchronizing file registry and caching AST snapshots for {files.Count} files in parallel...");
+        ctx.Log($"[Database   ] Synchronizing file registry and caching AST snapshots for {files.Count} files in parallel...");
 
         var parallelOptions = new ParallelOptions
         {
@@ -703,16 +712,14 @@ public class WorkspaceIndexer
         if (ctx.Clear)
         {
             var clearTarget = ctx.IsSubtreeScan ? ctx.ScanPath : ctx.HostWorkspacePath;
-            ctx.Log($"Clearing previous data for '{clearTarget}'...");
+            ctx.Log($"[Database   ] Clearing previous data for '{clearTarget}'...");
             await _dbClient.ClearWorkspaceAsync(clearTarget);
         }
-
-        await _dbClient.CreateIndicesAsync();
     }
 
     private void LogPersistenceSummary(ParsingContext ctx)
     {
         ctx.LogDebug(
-            $"All background channel persistence writes completed! Total parsed: {ctx.GetTotalNodesPersisted()} nodes, {ctx.GetTotalRelsPersisted()} relationships.");
+            $"[Database   ] All background channel persistence writes completed! Total persisted: {ctx.GetTotalNodesPersisted()} nodes, {ctx.GetTotalRelsPersisted()} relationships.");
     }
 }

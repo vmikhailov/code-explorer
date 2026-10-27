@@ -5,6 +5,28 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.62.0] - 2026-10-27
+
+### Added
+- **`ce status` Schema Versioning**:
+  - Added ontology schema version (`schema_version: 1.0.0`) reporting to `ce status` in both terminal formatted output and raw JSON mode.
+- **Compiled IL-Emitted `NodeFactory`**:
+  - Replaced the legacy `JsonSerializer` dictionary mapping roundtrip in `Node.FromNode(IOntologyNode)` and `Relationship.FromRelationship` with lightweight, dynamically emitted Expression Tree IL converters (`NodeFactory`), achieving an **18.5x performance speedup** (from 10.2 µs/op down to 0.58 µs/op) and eliminating heap serialization allocations during SQLite graph persistence.
+- **Clean Registry-Driven Wildcard & Relative Import Matching**:
+  - Completely refactored `BaseParserVisitor` into a clean, decoupled mechanism by removing hardcoded vendor strings (`amqplib`, `rabbitmq`, `pubsub`, etc.) and delegating import resolution entirely to `SemanticExtensionRegistry.MatchAll`.
+  - Added compiled glob regex matching (`_wildcardPatterns`) and relative path normalization (`./` and `../`) to `SemanticExtensionRegistry`, supporting arbitrary glob patterns (e.g. `*rabbit*`, `*pubsub*`, `*EventBus*`) with strict specificity ordering.
+
+### Fixed
+- **SQL Parser False Positive Table Detection**:
+  - Eliminated noise and spurious table node creation in `NestedSqlParser` caused by SQL keywords (`their`, `test`, `table_`), SQLite JSON virtual table helpers (`json_each`), temporary/deleted markers (`temp_*`, `del_rec`), and procedural identifiers, ensuring strict accuracy for `MATCH (t:Table) RETURN t`.
+
+### Changed
+- **Indexing Throughput & AST Performance**:
+  - Optimized AST visitor traversal fast-path in `BaseParserVisitor` by skipping non-symbol syntax tokens and leaf expressions (`TokenSyntax`, primitive statements).
+  - Streamlined SQLite transaction batches and memory allocations during Layer 4 and Layer 5 indexing.
+
+---
+
 ## [1.61.0] - 2026-10-26
 
 ### Added

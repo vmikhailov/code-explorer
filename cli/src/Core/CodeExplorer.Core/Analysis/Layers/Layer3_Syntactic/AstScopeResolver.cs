@@ -227,17 +227,48 @@ public static class AstScopeResolver
 
     public static Node? FindEnclosingFunctionItem(Node node, string funcName)
     {
-        var curr = node.Parent;
-        while (curr.IsValid())
+        if (string.IsNullOrEmpty(funcName)) return null;
+
+        var doc = node.Document;
+        if (doc != null)
         {
-            if (curr is ImplDeclSyntax or TypeDeclSyntax or SyntaxDocument or NamespaceDeclSyntax)
+            var fn = doc.FindFunctionByName(funcName);
+            if (fn == null) return null;
+
+            var curr = node.Parent;
+            while (curr.IsValid())
             {
-                var fn = FindFunctionRecursive(curr, funcName);
+                if (curr is ImplDeclSyntax or TypeDeclSyntax or SyntaxDocument or NamespaceDeclSyntax)
+                {
+                    if (IsDescendantOf(fn, curr)) return fn;
+                }
+                curr = curr.Parent;
+            }
+            return null;
+        }
+
+        var current = node.Parent;
+        while (current.IsValid())
+        {
+            if (current is ImplDeclSyntax or TypeDeclSyntax or SyntaxDocument or NamespaceDeclSyntax)
+            {
+                var fn = FindFunctionRecursive(current, funcName);
                 if (fn.IsValid()) return fn;
             }
-            curr = curr.Parent;
+            current = current.Parent;
         }
         return null;
+    }
+
+    private static bool IsDescendantOf(Node child, Node ancestor)
+    {
+        var curr = child.Parent;
+        while (curr.IsValid())
+        {
+            if (ReferenceEquals(curr, ancestor)) return true;
+            curr = curr.Parent;
+        }
+        return false;
     }
 
     private static Node? FindFunctionRecursive(Node container, string funcName)

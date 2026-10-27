@@ -14,7 +14,9 @@ public class RabbitMqGoLibraryParser : ISemanticExtension
     public IReadOnlyList<string> SupportedPatterns =>
     [
         "github.com/rabbitmq/amqp091-go*",
-        "github.com/streadway/amqp*"
+        "github.com/streadway/amqp*",
+        "*rabbit*",
+        "*Rabbit*"
     ];
     public bool IsImplemented => true;
     public LibraryRole LibraryRole => LibraryRole.MessageBroker;

@@ -611,8 +611,8 @@ public partial class SqliteGraphClient
             await tx.CommitAsync();
             sw.Stop();
 
-            _logger.LogInformation(
-                "[DB:PostIndex] Saved {TcCount} TRANSITIVELY_CALLS, {AttrCount} ATTRIBUTED_TO, and {ApiCount} project external_apis for prefix '{Prefix}' in {ElapsedMs:F1}ms",
+            _logger.LogDebug(
+                "[Database   ] Saved {TcCount} TRANSITIVELY_CALLS, {AttrCount} ATTRIBUTED_TO, and {ApiCount} project external_apis for prefix '{Prefix}' in {ElapsedMs:F1}ms",
                 result.TransitivelyCalls.Count, result.AttributedTo.Count, result.ProjectExternalApis.Count,
                 widPrefix, sw.Elapsed.TotalMilliseconds);
 
@@ -623,7 +623,7 @@ public partial class SqliteGraphClient
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "[DB:PostIndex] Failed to update identifier vector index: {Message}", ex.Message);
+                _logger.LogWarning(ex, "[Database   ] Failed to update identifier vector index: {Message}", ex.Message);
             }
         }
         finally

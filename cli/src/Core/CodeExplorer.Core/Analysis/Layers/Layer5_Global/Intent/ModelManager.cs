@@ -83,8 +83,8 @@ public static class ModelManager
 
         if (!autoDownload)
         {
-            ctx.Log($"[CodeIntent] Architectural intent model '{ModelFileName}' (~940MB) not found.");
-            ctx.Log($"[CodeIntent] Run 'ce model download' or set CODE_INTENT_AUTO_DOWNLOAD=1 to download it.");
+            ctx.Log($"[Intent     ] Architectural intent model '{ModelFileName}' (~940MB) not found.");
+            ctx.Log($"[Intent     ] Run 'ce model download' or set CODE_INTENT_AUTO_DOWNLOAD=1 to download it.");
             return null;
         }
 
@@ -105,7 +105,7 @@ public static class ModelManager
         }
 
         var tempPath = destinationPath + ".downloading";
-        ctx?.Log($"[CodeIntent] Downloading {ModelFileName} from {downloadUrl}...");
+        ctx?.Log($"[Intent     ] Downloading {ModelFileName} from {downloadUrl}...");
 
         try
         {
@@ -145,11 +145,11 @@ public static class ModelManager
                             var pct = (double)downloadedBytes / totalBytes * 100.0;
 
                             ctx?.Log(
-                                $"[CodeIntent] Downloading model: {currentMb} MB / {totalBytes / (1024 * 1024)} MB ({pct:F0}%)...");
+                                $"[Intent     ] Downloading model: {currentMb} MB / {totalBytes / (1024 * 1024)} MB ({pct:F0}%)...");
                         }
                         else
                         {
-                            ctx?.Log($"[CodeIntent] Downloading model: {currentMb} MB...");
+                            ctx?.Log($"[Intent     ] Downloading model: {currentMb} MB...");
                         }
                     }
                 }
@@ -161,12 +161,12 @@ public static class ModelManager
             }
 
             File.Move(tempPath, destinationPath);
-            ctx?.Log($"[CodeIntent] Successfully downloaded model to '{destinationPath}'.");
+            ctx?.Log($"[Intent     ] Successfully downloaded model to '{destinationPath}'.");
             return destinationPath;
         }
         catch (Exception ex)
         {
-            ctx?.LogWarning($"[CodeIntent] Failed to download model: {ex.Message}");
+            ctx?.LogWarning($"[Intent     ] Failed to download model: {ex.Message}");
             try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { /* Ignore */ }
             return null;
         }

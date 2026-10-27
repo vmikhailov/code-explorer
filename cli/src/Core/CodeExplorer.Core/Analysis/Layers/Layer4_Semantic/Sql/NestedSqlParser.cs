@@ -137,10 +137,10 @@ public static class NestedSqlParser
         return c is 'S' or 'I' or 'U' or 'D' or 'M' or 'C' or 'A' or 'T' or 'W';
     }
 
-    private static string StripLeadingSqlComments(string sql)
+    public static string StripSqlComments(string sql)
     {
         if (string.IsNullOrEmpty(sql)) return sql;
-        return Regex.Replace(sql, @"^(?:\s*(?:--[^\r\n]*|/\*[\s\S]*?\*/))+", "").TrimStart();
+        return Regex.Replace(sql, @"('(?:''|[^'])*'|""(?:""""|[^""])*"")|--[^\r\n]*|/\*[\s\S]*?\*/", m => m.Groups[1].Success ? m.Groups[1].Value : " ");
     }
 
     public static bool TryParseSql(string text, out string? firstWord, out string cleanedSql)
@@ -166,7 +166,7 @@ public static class NestedSqlParser
             return false;
         }
 
-        var uncommented = StripLeadingSqlComments(cleanedSql);
+        var uncommented = StripSqlComments(cleanedSql);
         var match = Regex.Match(uncommented, @"^\s*([a-zA-Z]+)\b");
         if (match.Success)
         {
@@ -292,7 +292,7 @@ public static class NestedSqlParser
                 }
                 else if (word == "WITH")
                 {
-                    var cteMatch = Regex.IsMatch(uncommented, @"^\s*WITH\s+(?:RECURSIVE\s+)?[a-zA-Z0-9_\[\]""`]+\s+AS\s*\(", RegexOptions.IgnoreCase) &&
+                    var cteMatch = Regex.IsMatch(uncommented, @"^\s*WITH\s+(?:RECURSIVE\s+)?[a-zA-Z0-9_\[\]""`]+(?:\s*\([^\)]*\))?\s+AS\s*\(", RegexOptions.IgnoreCase) &&
                                    Regex.IsMatch(uncommented, @"\b(?:SELECT|INSERT|UPDATE|DELETE|MERGE)\b", RegexOptions.IgnoreCase);
                     if (!cteMatch)
                     {
@@ -463,8 +463,10 @@ public static class NestedSqlParser
         HashSet<(string? Db, string? Schema, string Table)> tables,
         HashSet<(string? Db, string? Schema, string Procedure)> procedures)
     {
+        cleanedSql = StripSqlComments(cleanedSql);
+
         var cteNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (Match cteMatch in Regex.Matches(cleanedSql, @"(?:\bWITH\s+(?:RECURSIVE\s+)?|,\s*)([a-zA-Z0-9_\[\]""`]+)\s+AS\s*\(", RegexOptions.IgnoreCase))
+        foreach (Match cteMatch in Regex.Matches(cleanedSql, @"(?:\bWITH\s+(?:RECURSIVE\s+)?|,\s*)([a-zA-Z0-9_\[\]""`]+)(?:\s*\([^\)]*\))?\s+AS\s*\(", RegexOptions.IgnoreCase))
         {
             var cte = CleanSqlIdentifier(cteMatch.Groups[1].Value);
             if (!string.IsNullOrEmpty(cte)) cteNames.Add(cte);
@@ -523,10 +525,20 @@ public static class NestedSqlParser
         // 2. Lexical Fallback: Match identifiers after DML (FROM, JOIN, UPDATE, INTO, MERGE, REFERENCES) and DDL (CREATE/ALTER/DROP/TRUNCATE TABLE/VIEW)
         var tableMatches = Regex.Matches(
             cleanedSql,
-            @"\b(?:FROM|JOIN|(?<!FOR\s+)UPDATE(?:\s+OR\s+(?:REPLACE|IGNORE|ABORT|FAIL|ROLLBACK))?|INTO|MERGE|REFERENCES|CREATE\s+(?:OR\s+REPLACE\s+)?(?:TEMP(?:ORARY)?\s+|EXTERNAL\s+|MATERIALIZED\s+|UNIQUE\s+)*?(?:TABLE|VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?|(?:ALTER|DROP)\s+(?:TABLE|VIEW)\s+(?:IF\s+EXISTS\s+)?|TRUNCATE\s+TABLE)\s+(?!(?:EXTERNAL_QUERY|UNNEST|GENERATE_SERIES)\s*\()([a-zA-Z0-9_\.\[\]""#@'`\$\{\}\*]+)",
+            @"\b(?:FROM|JOIN|(?<!FOR\s+)UPDATE(?:\s+OR\s+(?:REPLACE|IGNORE|ABORT|FAIL|ROLLBACK))?|INTO|MERGE|REFERENCES|CREATE\s+(?:OR\s+REPLACE\s+)?(?:EXTERNAL\s+|MATERIALIZED\s+|UNIQUE\s+)*?(?:TABLE|VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?|(?:ALTER|DROP)\s+(?:TABLE|VIEW)\s+(?:IF\s+EXISTS\s+)?|TRUNCATE\s+TABLE)\s+(?!(?:EXTERNAL_QUERY|UNNEST|GENERATE_SERIES)\s*\()([a-zA-Z0-9_\.\[\]""#@'`\$\{\}\*]+)",
             RegexOptions.IgnoreCase);
         foreach (Match match in tableMatches)
         {
+            // If the matched identifier is immediately followed by '(', it is a function call unless it is a SQL Server table hint like (NOLOCK)
+            var afterMatch = cleanedSql.AsSpan(match.Index + match.Length).TrimStart();
+            if (afterMatch.StartsWith("(", StringComparison.Ordinal))
+            {
+                if (!Regex.IsMatch(afterMatch.ToString(), @"^\(\s*(?:NOLOCK|READUNCOMMITTED|UPDLOCK|REPEATABLEREAD|SERIALIZABLE|READCOMMITTED|TABLOCK|TABLOCKX|PAGLOCK|ROWLOCK|NOWAIT|READPAST|XLOCK|SNAPSHOT|INDEX|FORCESEEK)\b", RegexOptions.IgnoreCase))
+                {
+                    continue;
+                }
+            }
+
             var rawTableName = match.Groups[1].Value.Trim();
             var parts = rawTableName.Split('.')
                 .Select(CleanSqlIdentifier)

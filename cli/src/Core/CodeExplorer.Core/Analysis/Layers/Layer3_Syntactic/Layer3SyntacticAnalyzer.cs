@@ -15,7 +15,7 @@ public partial class Layer3SyntacticParser
 {
     public async Task<Layer3Result> ParseAsync(Layer2Result l2Result, ParsingContext ctx)
     {
-        ctx.Log("[Layer3] Starting tree-sitter AST syntactic parsing pass...");
+        ctx.Log("[Layer 3    ] Starting tree-sitter AST syntactic parsing pass...");
 
         WorkspaceConventions.LoadFromWorkspace(l2Result.Prev.Workspace.Path);
 
@@ -31,6 +31,9 @@ public partial class Layer3SyntacticParser
         var globalReferences = new List<Reference>();
         var globalSymbols = new Dictionary<(string Kind, string Name), string>();
         var nProject = 0;
+        var totalFilesAcrossProjects = 0;
+        var parsedFilesCount = 0;
+        var lastFileReportTicks = Environment.TickCount64;
 
         // O(1) parent index of Layer 1 tree (eliminates 160M recursive DFS traversals)
         var parentByChildId = new Dictionary<string, IOntologyNode>();
@@ -157,6 +160,7 @@ public partial class Layer3SyntacticParser
             ConfigurationIndex.Register(enrichment, null);
         }
 
+
         foreach (var project in l2Result.Projects)
         {
             foreach (var enrichment in project.Enrichments.OfType<ConfigurationFileInformation>())
@@ -172,6 +176,7 @@ public partial class Layer3SyntacticParser
         {
             if (IsRouteOrConfigCandidate(wfile.Path) && !SharedFileParserRegistry.CanParse(wfile.Name)) allCandidateFiles.Add((wfile.FullPath, null));
         }
+
         foreach (var project in l2Result.Projects)
         {
             if (filesByProjectId.TryGetValue(project.Id, out var pFiles))
@@ -202,15 +207,26 @@ public partial class Layer3SyntacticParser
             catch
             {
                 // Graceful skip on concurrent file access or reading errors
+
+
+
+
+
+
             }
         });
+
 
         foreach (var project in l2Result.Projects)
         {
             nProject++;
+            if (nProject == 1)
+            {
+                totalFilesAcrossProjects = filesByProjectId.Values.Sum(list => list.Count);
+            }
             ctx.CancellationToken.ThrowIfCancellationRequested();
 
-            ctx.LogDebug($"[Layer3] Parsing project {nProject} of {l2Result.Projects.Count} at:'{project.Path}'...");
+            ctx.LogDebug($"[Layer 3    ] Parsing project {nProject} of {l2Result.Projects.Count} at: '{project.Path}'...");
 
             var projectSyntaxId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Project}:{project.Path}:syntax";
             var projectSyntaxNode = new ProjectSyntaxNode(projectSyntaxId, "ProjectSyntax", project.Path);
@@ -280,10 +296,23 @@ public partial class Layer3SyntacticParser
                     }
 
                     parsedResults[i] = (file, syntaxTree, parentNode);
+
+                    var completed = Interlocked.Increment(ref parsedFilesCount);
+                    var nowTicks = Environment.TickCount64;
+                    if (totalFilesAcrossProjects > 0 &&
+                        (completed == totalFilesAcrossProjects ||
+                         completed % Math.Max(25, totalFilesAcrossProjects / 10) == 0 ||
+                         (nowTicks - lastFileReportTicks >= 3000 && completed > 0)))
+                    {
+                        lastFileReportTicks = nowTicks;
+                        var pct = 14 + (int)(38.0 * completed / totalFilesAcrossProjects);
+                        ctx.ReportProgress(pct, "Layer 3: Syntactic", $"Parsing syntax trees: {completed}/{totalFilesAcrossProjects} files ({completed * 100.0 / totalFilesAcrossProjects:F0}%) [{project.Name}]", completed, totalFilesAcrossProjects);
+                        ctx.Log($"[Layer 3    ] Parsing syntax trees: {completed}/{totalFilesAcrossProjects} files ({completed * 100.0 / totalFilesAcrossProjects:F0}%) [{project.Name}]...");
+                    }
                 }
                 catch (Exception ex)
                 {
-                    ctx.LogWarning($"[Layer3] Error parsing file '{file.Path}': {ex.Message}", ex);
+                    ctx.LogWarning($"[Layer 3    ] Error parsing file '{file.Path}': {ex.Message}", ex);
                 }
             });
 
@@ -341,7 +370,7 @@ public partial class Layer3SyntacticParser
                     }
                     catch (Exception ex)
                     {
-                        ctx.LogWarning($"[Layer3] Error processing visitor for '{syntaxTree.FilePath}': {ex.Message}", ex);
+                        ctx.LogWarning($"[Layer 3    ] Error processing visitor for '{syntaxTree.FilePath}': {ex.Message}", ex);
                     }
                 }
 
@@ -391,7 +420,7 @@ public partial class Layer3SyntacticParser
             ctx.AddRelsCount(sharedContainsRels.Count);
         }
 
-        ctx.Log($"[Layer3] Syntactic parsing pass complete. Parsed {syntaxTrees.Count} AST trees.");
+        ctx.Log($"[Layer 3    ] Syntactic parsing pass complete. Parsed {syntaxTrees.Count} files.");
         return new Layer3Result(
             l2Result,
             syntaxStructureNode,

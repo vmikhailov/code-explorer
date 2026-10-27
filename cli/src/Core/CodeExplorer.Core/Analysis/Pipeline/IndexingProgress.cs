@@ -5,5 +5,10 @@ public record IndexingProgress(
     int RelationshipsPersisted,
     int NodesCount,
     int RelationshipsCount,
-    IReadOnlyDictionary<string, int> NodesByKind
+    IReadOnlyDictionary<string, int> NodesByKind,
+    int Percentage = 0,
+    string Phase = "Indexing",
+    string? Message = null,
+    int TotalFiles = 0,
+    int ProcessedFiles = 0
 );

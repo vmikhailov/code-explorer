@@ -227,7 +227,7 @@ public partial class PostIndexAnalyzer
 
         if (canonicalDbNodes.Count > 0 && ctx.DbClient != null)
         {
-            ctx.LogDebug($"[PostIndexAnalyzer] Materializing {canonicalDbNodes.Count} canonical Database nodes into graph...");
+            ctx.LogDebug($"[PostIndex  ] Materializing {canonicalDbNodes.Count} canonical Database nodes into graph...");
             await ctx.DbClient.UploadNodesAsync([.. canonicalDbNodes.Values.Select(Node.FromNode)]);
             ctx.AddNodesCount(canonicalDbNodes.Count);
         }
@@ -349,7 +349,7 @@ public partial class PostIndexAnalyzer
 
         if (canonicalRels.Count > 0 && ctx.DbClient != null)
         {
-            ctx.LogDebug($"[PostIndexAnalyzer] Materializing {canonicalRels.Count} direct workload->canonical database relationships...");
+            ctx.LogDebug($"[PostIndex  ] Materializing {canonicalRels.Count} direct workload->canonical database relationships...");
             await ctx.DbClient.UploadRelationshipsAsync(canonicalRels);
             ctx.AddRelsCount(canonicalRels.Count);
         }

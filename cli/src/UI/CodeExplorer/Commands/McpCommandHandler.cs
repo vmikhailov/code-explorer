@@ -139,7 +139,7 @@ public class McpCommandHandler : BaseCommandHandler
                     var contentType = context.Response.ContentType ?? string.Empty;
                     if (!contentType.Contains("text/event-stream", StringComparison.OrdinalIgnoreCase))
                     {
-                        app.Logger.LogInformation("[MCP] {Method} {Path} completed with {StatusCode} in {ElapsedMs:F1}ms",
+                        app.Logger.LogInformation("[MCP         ] {Method} {Path} completed with {StatusCode} in {ElapsedMs:F1}ms",
                             method, path, context.Response.StatusCode, sw.Elapsed.TotalMilliseconds);
                     }
                 }

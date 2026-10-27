@@ -118,7 +118,7 @@ public partial class WebSocketServerHandler
 
         _sessions[connectionId] = session;
 
-        _logger.LogInformation("[WS] Client connected: {ConnectionId} (total active: {Count})", connectionId,
+        _logger.LogInformation("[Server     ] Client connected: {ConnectionId} (total active: {Count})", connectionId,
             _sessions.Count);
 
         CancelIdleTimer();
@@ -165,7 +165,7 @@ public partial class WebSocketServerHandler
         catch (WebSocketException ex) when (ex.WebSocketErrorCode == WebSocketError.ConnectionClosedPrematurely ||
                                             ex.WebSocketErrorCode == WebSocketError.InvalidState)
         {
-            _logger.LogDebug("[WS] Client disconnected prematurely: {ConnectionId}", connectionId);
+            _logger.LogDebug("[Server     ] Client disconnected prematurely: {ConnectionId}", connectionId);
         }
         catch (OperationCanceledException)
         {
@@ -173,13 +173,13 @@ public partial class WebSocketServerHandler
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "[WS] Error handling socket connection {ConnectionId}", connectionId);
+            _logger.LogError(ex, "[Server     ] Error handling socket connection {ConnectionId}", connectionId);
         }
         finally
         {
             _sessions.TryRemove(connectionId, out _);
 
-            _logger.LogInformation("[WS] Client disconnected: {ConnectionId} (remaining active: {Count})",
+            _logger.LogInformation("[Server     ] Client disconnected: {ConnectionId} (remaining active: {Count})",
                 connectionId, _sessions.Count);
 
             if (_sessions.IsEmpty && _idleTimeoutSeconds > 0)
@@ -208,7 +208,7 @@ public partial class WebSocketServerHandler
         }
 
         var reqId = envelope.RequestId ?? "";
-        _logger.LogInformation("[WS] Received '{Type}' (reqId: {ReqId}, client: {ClientId})", envelope.Type, reqId, session.Id);
+        _logger.LogInformation("[Server     ] Received '{Type}' (reqId: {ReqId}, client: {ClientId})", envelope.Type, reqId, session.Id);
 
         try
         {
@@ -522,14 +522,14 @@ public partial class WebSocketServerHandler
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "[WS] Failed processing message {Type} (reqId: {ReqId})", envelope.Type, reqId);
+            _logger.LogError(ex, "[Server     ] Failed processing message {Type} (reqId: {ReqId})", envelope.Type, reqId);
             await SendErrorAsync(session, reqId, "EXECUTION_ERROR", ex.Message, cancellationToken, ex.ToString());
         }
     }
 
     public async Task BroadcastAsync<T>(string type, T payload, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("[WS] Broadcasting '{Type}' to {Count} active clients", type, _sessions.Count);
+        _logger.LogInformation("[Server     ] Broadcasting '{Type}' to {Count} active clients", type, _sessions.Count);
         var envelope = new WsEnvelope<T>
         {
             Type = type,
@@ -548,14 +548,14 @@ public partial class WebSocketServerHandler
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "[WS] Failed broadcasting to client {Id}", id);
+                _logger.LogWarning(ex, "[Server     ] Failed broadcasting to client {Id}", id);
             }
         }
     }
 
     private async Task SendResponseAsync<T>(ClientSession session, string type, string reqId, T payload, CancellationToken cancellationToken)
     {
-        _logger.LogInformation("[WS] Responding '{Type}' (reqId: {ReqId}, client: {ClientId})", type, reqId, session.Id);
+        _logger.LogInformation("[Server     ] Responding '{Type}' (reqId: {ReqId}, client: {ClientId})", type, reqId, session.Id);
         var envelope = new WsEnvelope<T>
         {
             Type = type,
@@ -569,7 +569,7 @@ public partial class WebSocketServerHandler
 
     private async Task SendErrorAsync(ClientSession session, string reqId, string code, string message, CancellationToken cancellationToken, string? details = null)
     {
-        _logger.LogWarning("[WS] Sending error [{Code}] (reqId: {ReqId}, client: {ClientId}): {Message} | Details: {Details}", code, reqId, session.Id, message, details ?? "none");
+        _logger.LogWarning("[Server     ] Sending error [{Code}] (reqId: {ReqId}, client: {ClientId}): {Message} | Details: {Details}", code, reqId, session.Id, message, details ?? "none");
         var envelope = new WsEnvelope<ErrorResponseDto>
         {
             Type = WsMessageTypes.ErrorResponse,
@@ -613,7 +613,7 @@ public partial class WebSocketServerHandler
                     await Task.Delay(TimeSpan.FromSeconds(_idleTimeoutSeconds), token);
                     if (!token.IsCancellationRequested && _sessions.IsEmpty)
                     {
-                        _logger.LogInformation("[WS Server] Idle timeout of {Seconds}s reached with 0 connected clients. Shutting down...", _idleTimeoutSeconds);
+                        _logger.LogInformation("[Server     ] Idle timeout of {Seconds}s reached with 0 connected clients. Shutting down...", _idleTimeoutSeconds);
                         _appLifetime?.StopApplication();
                     }
                 }
