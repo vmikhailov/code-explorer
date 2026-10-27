@@ -117,6 +117,26 @@ root.render(React.createElement(App, null));
     }
 
     [Test]
+    public async Task Test_Jsx_Component_Calls_Extracted()
+    {
+        var code = """
+import React from 'react';
+import { Toolbar } from './Toolbar';
+export function App() {
+  return (
+    <div>
+      <Toolbar />
+    </div>
+  );
+}
+""";
+        using var ws = await TestWorkspace.CreateAsync(code, "App.tsx");
+        var appFunc = FindNodes<FunctionNode>(ws.FileNode.Children).FirstOrDefault(f => f.Name == "App");
+        appFunc.Should().NotBeNull();
+        appFunc!.References.Any(r => r.TargetName == "Toolbar" && r.Kind == "CALLS").Should().BeTrue();
+    }
+
+    [Test]
     public async Task Test_Vue_CreateApp_Mount_And_AsyncComponent()
     {
         var code = """
@@ -253,5 +273,24 @@ const routes: Routes = [
         {
             ConstantRegistry.Clear();
         }
+    }
+
+    [Test]
+    public async Task VsCodeWebviewInstantiation_EmitsInstantiatesReference()
+    {
+        var code = """
+import * as vscode from 'vscode';
+
+export class GraphPanel {
+    private updateHtml(webview: vscode.Webview, extensionUri: vscode.Uri) {
+        const scriptUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(extensionUri, 'dist', 'webview.js')
+        );
+    }
+}
+""";
+        using var ws = await TestWorkspace.CreateAsync(code, "graphPanel.ts");
+        var references = FindAllReferences(ws.FileNode);
+        references.Should().Contain(r => r.Kind == OntologyConstants.Relationships.Instantiates && r.TargetName == "dist/webview.js");
     }
 }

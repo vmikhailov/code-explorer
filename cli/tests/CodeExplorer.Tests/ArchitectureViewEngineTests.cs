@@ -1,5 +1,4 @@
 using CodeExplorer.Core.Analysis;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Protocol;
 using CodeExplorer.Cypher.Common;

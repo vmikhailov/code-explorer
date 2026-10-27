@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Gates.Engine;

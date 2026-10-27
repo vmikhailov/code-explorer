@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Protocol;
 
 namespace CodeExplorer.Core.Analysis;
@@ -213,7 +212,7 @@ public partial class ArchitectureViewEngine
             RETURN d.id AS id, d.name AS name, d.engine AS engine, d.schema AS schema, d.db_type AS db_type, coalesce(d.file_path, d.path) AS path
             LIMIT 1
             """;
-        
+
         string dbName = databaseId;
         string dbEngine = "";
         string dbSchema = "";

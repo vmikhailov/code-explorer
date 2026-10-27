@@ -1,6 +1,5 @@
 using CodeExplorer.Common;
 using CodeExplorer.Core.Analysis;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
@@ -301,6 +300,12 @@ public partial class Layer5AnalysisParser
                 {
                     return funcId;
                 }
+                if (ctx.FileScopedSymbols.TryGetValue((cand, OntologyConstants.NodeLabels.Type, importedEntry.ImportedName), out var typeSymbolId) ||
+                    ctx.FileScopedSymbols.TryGetValue((cand, "Class", importedEntry.ImportedName), out typeSymbolId) ||
+                    ctx.FileScopedSymbols.TryGetValue((cand, "Interface", importedEntry.ImportedName), out typeSymbolId))
+                {
+                    return typeSymbolId;
+                }
 
                 // If default import, try targetName as importedName or file-named function
                 if (importedEntry.IsDefault)
@@ -429,6 +434,28 @@ public partial class Layer5AnalysisParser
                        ?? symbols.FunctionSymbols.GetValueOrDefault(shortName);
         }
 
+        // 5. Fallback to TypeSymbols if target is a Class/Component (e.g. React root component)
+        if (targetId == null)
+        {
+            if (callerProj != null && symbols.FilesByProject.TryGetValue(callerProj, out var projFiles2))
+            {
+                if (symbols.TypeSymbols.TryGetValue(targetName, out var typeCand) ||
+                    symbols.TypeSymbols.TryGetValue(shortName, out typeCand))
+                {
+                    var tFile = ExtractFilePathFromSymbolId(typeCand);
+                    if (tFile != null && string.Equals(ConstantRegistry.ExtractProjectName(tFile), callerProj, StringComparison.OrdinalIgnoreCase))
+                    {
+                        targetId = typeCand;
+                    }
+                }
+            }
+            if (targetId == null)
+            {
+                targetId = symbols.TypeSymbols.GetValueOrDefault(targetName)
+                           ?? symbols.TypeSymbols.GetValueOrDefault(shortName);
+            }
+        }
+
         if (targetId != null)
         {
             if (!referenceRelationships.Any(r => r.From == refItem.ScopeSymbolId && r.To == targetId && r.Kind == OntologyConstants.Relationships.Triggers))
@@ -444,7 +471,7 @@ public partial class Layer5AnalysisParser
         var parts = scopeId.Split(':');
         for (int i = 0; i < parts.Length - 1; i++)
         {
-            if (parts[i] is "endpoint" or "ep" or "topic" or "service")
+            if (parts[i] is "endpoint" or "ep" or "topic" or "service" or "entry" or "entrypoint")
             {
                 var next = parts[i + 1];
                 if (symbols.FilesByProject.ContainsKey(next))

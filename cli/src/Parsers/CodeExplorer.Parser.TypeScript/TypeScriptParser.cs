@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
@@ -118,6 +117,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
         new Libraries.AngularCoreLibraryParser(),
         new Libraries.SvelteLibraryParser(),
         new Libraries.ViteLibraryParser(),
+        new Libraries.VsCodeLibraryParser(),
         new Libraries.JestVitestLibraryParser(),
         new Libraries.MochaLibraryParser(),
         new Libraries.CypressLibraryParser(),

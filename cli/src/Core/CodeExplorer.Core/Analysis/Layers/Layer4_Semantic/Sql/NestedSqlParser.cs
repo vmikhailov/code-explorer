@@ -1,7 +1,6 @@
 using System.Text.RegularExpressions;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Analysis;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using Microsoft.SqlServer.TransactSql.ScriptDom;
 
@@ -311,7 +310,7 @@ public static class NestedSqlParser
     public static string CleanQueryText(string text)
     {
         if (string.IsNullOrEmpty(text)) return text;
-        
+
         var cleaned = text.Trim();
 
         // Strip Python/Rust/raw string prefixes (f, r, b, u) before quotes
@@ -332,9 +331,9 @@ public static class NestedSqlParser
             cleaned = cleaned[3..^3].Trim();
         }
 
-        while (cleaned.Length >= 2 && 
-               ((cleaned.StartsWith('"') && cleaned.EndsWith('"')) || 
-                (cleaned.StartsWith('\'') && cleaned.EndsWith('\'')) || 
+        while (cleaned.Length >= 2 &&
+               ((cleaned.StartsWith('"') && cleaned.EndsWith('"')) ||
+                (cleaned.StartsWith('\'') && cleaned.EndsWith('\'')) ||
                 (cleaned.StartsWith('`') && cleaned.EndsWith('`'))))
         {
             cleaned = cleaned[1..^1].Trim();
@@ -648,7 +647,7 @@ public static class NestedSqlParser
         var engine = "default";
         string? concreteDbName = null;
 
-        bool isBigQueryContext = 
+        bool isBigQueryContext =
             rawText.Contains("_TABLE_SUFFIX", StringComparison.OrdinalIgnoreCase) ||
             rawText.Contains("BigQuery", StringComparison.OrdinalIgnoreCase) ||
             rawText.Contains("bq.driver", StringComparison.OrdinalIgnoreCase) ||
@@ -784,7 +783,7 @@ public static class NestedSqlParser
 
             var tableNodeId = $"{schemaNode.Id}:{OntologyConstants.IdPrefixes.Table}:{tableName.ToLowerInvariant()}";
             var tableNode = new TableNode(tableNodeId, tableName, filePath);
-            
+
             if (!schemaNode.Children.Any(c => c.Id.Equals(tableNodeId, StringComparison.OrdinalIgnoreCase)))
             {
                 schemaNode.Children.Add(tableNode);
@@ -879,7 +878,7 @@ public static class NestedSqlParser
 
             var procNodeId = $"{schemaNode.Id}:{OntologyConstants.IdPrefixes.Procedure}:{procName.ToLowerInvariant()}";
             var procNode = new ProcedureNode(procNodeId, procName, filePath);
-            
+
             if (!schemaNode.Children.Any(c => c.Id.Equals(procNodeId, StringComparison.OrdinalIgnoreCase)))
             {
                 schemaNode.Children.Add(procNode);
@@ -925,8 +924,8 @@ public static class NestedSqlParser
             {
                 references.Add(new Reference(scopeSymbolId, tableRef.Table, OntologyConstants.Relationships.DependsOn));
             }
-            if (!string.IsNullOrEmpty(tableRef.Schema) && 
-                !tableRef.Schema.Equals("dbo", StringComparison.OrdinalIgnoreCase) && 
+            if (!string.IsNullOrEmpty(tableRef.Schema) &&
+                !tableRef.Schema.Equals("dbo", StringComparison.OrdinalIgnoreCase) &&
                 !tableRef.Schema.Equals("public", StringComparison.OrdinalIgnoreCase) &&
                 addedTables.Add(tableRef.Schema))
             {
@@ -944,7 +943,7 @@ public static class NestedSqlParser
         do
         {
             previous = current;
-            
+
             // Strip outer quotes, brackets, backticks
             if (current.Length >= 2 &&
                 ((current.StartsWith('`') && current.EndsWith('`')) ||
@@ -954,7 +953,7 @@ public static class NestedSqlParser
             {
                 current = current[1..^1].Trim();
             }
-            
+
             current = current
                 .Replace("\"", "")
                 .Replace("`", "")
@@ -962,7 +961,7 @@ public static class NestedSqlParser
                 .Replace("[", "")
                 .Replace("]", "")
                 .Trim();
-            
+
         } while (current != previous);
 
         return current;

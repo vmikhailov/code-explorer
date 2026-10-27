@@ -1,6 +1,5 @@
 using System.Text.Json;
 using CodeExplorer.Core.Analysis;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser.Layers;
@@ -765,7 +764,7 @@ public partial class PostIndexAnalyzer
                 SELECT p1.id FROM nodes p1
                 WHERE p1.kind = 'Project' AND (p1.id LIKE '%:project:%' OR p1.id LIKE '%:project')
                 AND EXISTS (
-                    SELECT 1 FROM nodes p2 
+                    SELECT 1 FROM nodes p2
                     WHERE p2.kind = 'Project' AND p2.id LIKE '%:p:%'
                     AND json_extract(p2.properties, '$.path') = json_extract(p1.properties, '$.path')
                 )
@@ -774,15 +773,15 @@ public partial class PostIndexAnalyzer
                 SELECT p1.id FROM nodes p1
                 WHERE p1.kind = 'Project' AND (p1.id LIKE '%:project:%' OR p1.id LIKE '%:project')
                 AND EXISTS (
-                    SELECT 1 FROM nodes p2 
+                    SELECT 1 FROM nodes p2
                     WHERE p2.kind = 'Project' AND p2.id LIKE '%:p:%'
                     AND json_extract(p2.properties, '$.path') = json_extract(p1.properties, '$.path')
                 )
             );
-            DELETE FROM nodes 
+            DELETE FROM nodes
             WHERE kind = 'Project' AND (id LIKE '%:project:%' OR id LIKE '%:project')
             AND EXISTS (
-                SELECT 1 FROM nodes p2 
+                SELECT 1 FROM nodes p2
                 WHERE p2.kind = 'Project' AND p2.id LIKE '%:p:%'
                 AND json_extract(p2.properties, '$.path') = json_extract(nodes.properties, '$.path')
             );

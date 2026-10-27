@@ -1,6 +1,5 @@
 using System.Text.Json;
 using CodeExplorer.Cypher.Ast;
-using CodeExplorer.Cypher.Compiler;
 using CodeExplorer.Cypher.Linq;
 using CodeExplorer.Cypher.Tests.Shared;
 using Microsoft.Data.Sqlite;

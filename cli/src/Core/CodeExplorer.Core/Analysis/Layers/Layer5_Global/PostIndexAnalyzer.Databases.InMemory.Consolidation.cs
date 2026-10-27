@@ -1,5 +1,4 @@
 using CodeExplorer.Core.Analysis;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -336,7 +335,7 @@ public partial class PostIndexAnalyzer
         }
 
         // 2. Gather project references and consolidate databases per service/project
-        var libraryProjects = projects.Where(p => 
+        var libraryProjects = projects.Where(p =>
             p.Role is "Library" or "SharedLibrary" ||
             p.IsLibrary ||
             p.EntityKind == ProjectEntityKind.Library ||

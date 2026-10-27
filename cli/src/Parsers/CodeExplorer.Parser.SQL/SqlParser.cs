@@ -1,6 +1,5 @@
 using System.Text.RegularExpressions;
 using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -156,7 +155,7 @@ public class SqlParser : IProjectParser, IFileParser
         }
 
         // 3. Identify Schema (DataSet)
-        var schemaMatches = Regex.Matches(cleanSql, 
+        var schemaMatches = Regex.Matches(cleanSql,
             @"(?i)\bCREATE\s+SCHEMA\s+(?>(?:IF\s+NOT\s+EXISTS?\s+)?)(?<schemaName>[^\s\(;]+)");
         foreach (Match match in schemaMatches)
         {
@@ -174,7 +173,7 @@ public class SqlParser : IProjectParser, IFileParser
         }
 
         // 4. Identify Tables
-        var tableMatches = Regex.Matches(cleanSql, 
+        var tableMatches = Regex.Matches(cleanSql,
             @"(?i)\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:TEMPORARY\s+|TEMP\s+|EXTERNAL\s+)?TABLE\s+(?>(?:IF\s+NOT\s+EXISTS?\s+)?)(?<tableName>[^\s\(;]+)");
         foreach (Match match in tableMatches)
         {
@@ -205,7 +204,7 @@ public class SqlParser : IProjectParser, IFileParser
         }
 
         // 5. Identify Procedures / Functions and their boundaries
-        var procMatches = Regex.Matches(cleanSql, 
+        var procMatches = Regex.Matches(cleanSql,
             @"(?i)\bCREATE\s+(?:OR\s+(?:REPLACE|ALTER)\s+)?(?:PROCEDURE|PROC|FUNCTION)\s+(?>(?:IF\s+NOT\s+EXISTS?\s+)?)(?<procName>[^\s\(;]+)");
         var tempScopes = new List<(Match Match, string Name, string RawName, string Id, ProcedureNode Node)>();
         for (var i = 0; i < procMatches.Count; i++)
@@ -354,7 +353,7 @@ public class SqlParser : IProjectParser, IFileParser
         }
 
         // Match table references after FROM, JOIN, INTO, UPDATE, MERGE
-        var fromMatches = Regex.Matches(statement, 
+        var fromMatches = Regex.Matches(statement,
             @"(?i)\b(?:FROM|JOIN|INTO|UPDATE|MERGE)\s+(?!(?:EXTERNAL_QUERY|UNNEST|GENERATE_SERIES)\s*\()(?<target>[^\s\(;]+)");
 
         foreach (Match fm in fromMatches)

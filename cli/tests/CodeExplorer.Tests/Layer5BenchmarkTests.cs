@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Threading.Channels;
 using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;

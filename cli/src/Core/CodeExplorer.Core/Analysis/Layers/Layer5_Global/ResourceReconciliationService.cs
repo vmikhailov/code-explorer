@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Common;
 
 namespace CodeExplorer.Core.Analysis;
 
@@ -405,7 +404,7 @@ public class ResourceReconciliationService
                              IsKnownDatabaseEngine(aliasOrName) ||
                              aliasOrName.EndsWith("_client", StringComparison.OrdinalIgnoreCase) ||
                              aliasOrName.EndsWith("-client", StringComparison.OrdinalIgnoreCase) ||
-                             (!string.IsNullOrWhiteSpace(expectedEngine) && 
+                             (!string.IsNullOrWhiteSpace(expectedEngine) &&
                               (aliasOrName.Equals(expectedEngine, StringComparison.OrdinalIgnoreCase) ||
                                aliasOrName.StartWithIC($"{expectedEngine}_")));
 
@@ -520,7 +519,7 @@ public class ResourceReconciliationService
 
     public static bool IsEngineDbName(string lower)
     {
-        return lower is "mongodb" or "cosmosdb" or "dynamodb" or "couchdb" or "mariadb" or 
+        return lower is "mongodb" or "cosmosdb" or "dynamodb" or "couchdb" or "mariadb" or
                         "influxdb" or "duckdb" or "leveldb" or "rocksdb" or "alloydb" or "tidb";
     }
 

@@ -1,9 +1,6 @@
 using System.Text.Json;
 using CodeExplorer.Commands;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
-using CodeExplorer.Core.Gates.Models;
-using CodeExplorer.Core.Gates.Storage;
 using CodeExplorer.Options;
 using NUnit.Framework;
 

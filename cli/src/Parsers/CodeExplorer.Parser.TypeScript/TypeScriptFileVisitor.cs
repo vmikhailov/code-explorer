@@ -1,7 +1,5 @@
 using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using CodeExplorer.Parser.TypeScript.Libraries;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
@@ -585,6 +583,68 @@ public class TypeScriptFileVisitor : BaseParserVisitor
         }
 
         VisitChildren(node, depth);
+    }
+
+        protected override void VisitDefault(Node node, int depth)
+    {
+        if (node.Type is "jsx_opening_element" or "jsx_self_closing_element")
+        {
+            ExtractJsxComponentCall(node);
+        }
+
+        base.VisitDefault(node, depth);
+    }
+
+    private void ExtractJsxComponentCall(Node node)
+    {
+        var nameNode = node.GetField(TreeSitterSyntax.Fields.Name);
+        if (!nameNode.IsValid())
+        {
+            nameNode = node.Children.FirstOrDefault(c =>
+                c.Is(TreeSitterSyntax.TypeScript.Identifier) ||
+                c.Type is "nested_identifier" or "member_expression" or "jsx_identifier");
+        }
+
+        if (!nameNode.IsValid()) return;
+
+        var tagName = nameNode.Text;
+        if (string.IsNullOrEmpty(tagName)) return;
+
+        // Custom React/Vue components start with uppercase letter
+        // (DOM elements like <div>, <span>, <button> start with lowercase)
+        if (!char.IsUpper(tagName[0]) || tagName is "Fragment" or "StrictMode" or "React.Fragment" or "React.StrictMode")
+        {
+            return;
+        }
+
+        var line = (int)nameNode.StartPosition.Row + 1;
+        var col = (int)nameNode.StartPosition.Column + 1;
+        var currentScope = SymbolStack.Peek();
+
+        if (currentScope.Kind == OntologyConstants.NodeLabels.EntryPoint)
+        {
+            if (!currentScope.References.Any(r => r.TargetName == tagName && r.Kind == OntologyConstants.Relationships.Triggers))
+            {
+                currentScope.References.Add(new Reference(currentScope.Name, tagName, OntologyConstants.Relationships.Triggers, line, col));
+            }
+            if (!currentScope.References.Any(r => r.TargetName == tagName && r.Kind == OntologyConstants.Relationships.Calls))
+            {
+                currentScope.References.Add(new Reference("", tagName, OntologyConstants.Relationships.Calls, line, col));
+            }
+
+            // Also attach to RootSymbol so the entry file (e.g. index.tsx) has a CALLS edge to the component
+            if (!RootSymbol.References.Any(r => r.TargetName == tagName && r.Kind == OntologyConstants.Relationships.Calls))
+            {
+                RootSymbol.References.Add(new Reference("", tagName, OntologyConstants.Relationships.Calls, line, col));
+            }
+        }
+        else
+        {
+            if (!currentScope.References.Any(r => r.TargetName == tagName && r.Kind == OntologyConstants.Relationships.Calls))
+            {
+                currentScope.References.Add(new Reference("", tagName, OntologyConstants.Relationships.Calls, line, col));
+            }
+        }
     }
 
     private void CollectImport(Node node)

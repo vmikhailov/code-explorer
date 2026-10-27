@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using CodeExplorer.Common;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Core.Parser;

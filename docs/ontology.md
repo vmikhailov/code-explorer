@@ -1638,6 +1638,7 @@ graph TD
 | `IMPLEMENTED_BY` | Links a library package to the project that implements or encapsulates it. |
 | `IMPLEMENTS` | Links a class/struct declaration to the interface it implements. |
 | `INHERITS_FROM` | Links a class/interface to its base class or inherited interface. |
+| `INSTANTIATES` | Links a host component to a runtime UI or subsystem component it instantiates. |
 | `LOCATED_IN` | Links a project to the physical folder or files structure where it is located. |
 | `OF_TYPE` | Links a member variable or field to its declared type. |
 | `PASSES_LITERAL` | Links a calling function or scope to a literal argument passed directly into an invocation. |

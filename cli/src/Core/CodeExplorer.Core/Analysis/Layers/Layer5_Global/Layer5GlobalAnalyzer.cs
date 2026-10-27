@@ -1,6 +1,6 @@
 using System.Diagnostics;
-using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common;
+using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -22,7 +22,7 @@ public partial class Layer5AnalysisParser
 
         // 1. Upload the early enqueued relationships after all nodes are created
         var belongsToRels = new List<Relationship>();
-        
+
         // Syntactic BelongsTo
         foreach (var pSyntax in l4Result.Prev.SyntaxStructure.Children)
         {
@@ -32,7 +32,7 @@ public partial class Layer5AnalysisParser
                 belongsToRels.Add(Relationship.FromRelationship(new BelongsToRelationship(pSyntax.Id, matchedProj.Id)));
             }
         }
-        
+
         // Semantic BelongsTo
         foreach (var pSem in l4Result.SemanticStructure.Children)
         {
@@ -159,6 +159,9 @@ public partial class Layer5AnalysisParser
                     case OntologyConstants.Relationships.PersistedIn:
                         ResolvePersistedInReference(refItem, ctx, symbols, referenceRelationships);
                         break;
+                    case OntologyConstants.Relationships.Instantiates:
+                        ResolveInstantiatesReference(refItem, ctx, symbols, imports, referenceRelationships);
+                        break;
                 }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -166,7 +169,7 @@ public partial class Layer5AnalysisParser
                 ctx.RecordScanIssue("Layer5_Global", "reference_error", refItem.ScopeSymbolId, $"Failed to resolve reference '{refItem.TargetName}': {ex.Message}", name: "ReferenceResolutionError", exception: ex, isFileParent: false);
             }
         }
-        
+
         ctx.Log($"[Layer 5    ] Resolved {resolvedCount}/{totalReferences} global cross-references ({referenceRelationships.Count} edges).");
 
         if (newTopicNodes.Count > 0)

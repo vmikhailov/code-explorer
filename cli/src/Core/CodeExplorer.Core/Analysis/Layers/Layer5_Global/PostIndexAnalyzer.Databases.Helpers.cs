@@ -1,7 +1,5 @@
 using System.Text.Json;
 using CodeExplorer.Core.Analysis;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Database;
 
 namespace CodeExplorer.Core.Parser;
@@ -553,7 +551,7 @@ public partial class PostIndexAnalyzer
             if (string.IsNullOrWhiteSpace(engineToUse)) continue;
 
             await db.ExecuteWriteAsync(@"
-                UPDATE nodes 
+                UPDATE nodes
                 SET properties = json_set(COALESCE(NULLIF(properties, ''), '{}'), '$.engine', @engineToUse, '$.schema', COALESCE(json_extract(properties, '$.name'), @sch))
                 WHERE id IN (
                     SELECT to_id FROM edges WHERE from_id = @canonicalId AND kind = 'CONTAINS'
@@ -561,7 +559,7 @@ public partial class PostIndexAnalyzer
                 new { canonicalId, engineToUse, sch }, cancellationToken);
 
             await db.ExecuteWriteAsync(@"
-                UPDATE nodes 
+                UPDATE nodes
                 SET properties = json_set(COALESCE(NULLIF(properties, ''), '{}'), '$.engine', @engineToUse, '$.schema', @sch)
                 WHERE id IN (
                     SELECT to_id FROM edges WHERE from_id = @canonicalId AND kind = 'CONTAINS'
@@ -569,9 +567,9 @@ public partial class PostIndexAnalyzer
                 new { canonicalId, engineToUse, sch }, cancellationToken);
 
             await db.ExecuteWriteAsync(@"
-                UPDATE nodes 
-                SET properties = json_set(COALESCE(NULLIF(properties, ''), '{}'), 
-                    '$.engine', @engineToUse, 
+                UPDATE nodes
+                SET properties = json_set(COALESCE(NULLIF(properties, ''), '{}'),
+                    '$.engine', @engineToUse,
                     '$.schema', COALESCE((SELECT json_extract(ds.properties, '$.name') FROM nodes ds JOIN edges e2 ON ds.id = e2.from_id WHERE e2.to_id = nodes.id AND e2.kind = 'CONTAINS' LIMIT 1), @sch)
                 )
                 WHERE id IN (

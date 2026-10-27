@@ -3,7 +3,6 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using CodeExplorer.Core.Analysis;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Mcp;
 using CodeExplorer.Core.Parser;
@@ -100,8 +99,8 @@ public partial class WebSocketServerHandler
         _appLifetime = appLifetime;
         _idleTimeoutSeconds = idleTimeoutSeconds;
         _workspaceRoot = workspaceRoot ?? WorkspaceLocator.Find()?.RootDirectory ?? Directory.GetCurrentDirectory();
-        _serverVersion = serverVersion 
-            ?? typeof(WebSocketServerHandler).Assembly.GetName().Version?.ToString(3) 
+        _serverVersion = serverVersion
+            ?? typeof(WebSocketServerHandler).Assembly.GetName().Version?.ToString(3)
             ?? "1.4.1";
 
         if (_idleTimeoutSeconds > 0)

@@ -1,5 +1,4 @@
 using System.Text.Json;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Protocol;
 using CodeExplorer.Cypher.Common;
 
@@ -67,7 +66,7 @@ public partial class ArchitectureViewEngine
 
         // Exclude Database nodes that have NO USES_DB / READS_FROM / WRITES_TO edges from non-test workloads
         var nonTestNodeIds = graph.Nodes
-            .Where(n => n.Kind != NodeKind.TestSuite && 
+            .Where(n => n.Kind != NodeKind.TestSuite &&
                         (n.Properties == null || (!string.Equals(n.Properties.GetValueOrDefault("role"), "Test", StringComparison.OrdinalIgnoreCase) &&
                                                   !string.Equals(n.Properties.GetValueOrDefault("role"), "TestSuite", StringComparison.OrdinalIgnoreCase) &&
                                                   !string.Equals(n.Properties.GetValueOrDefault("is_test"), "true", StringComparison.OrdinalIgnoreCase) &&

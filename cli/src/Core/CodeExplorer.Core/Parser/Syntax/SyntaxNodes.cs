@@ -1,5 +1,3 @@
-using System.Collections.Frozen;
-
 namespace CodeExplorer.Core.Parser.Syntax;
 
 /// <summary>

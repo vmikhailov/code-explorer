@@ -1,6 +1,5 @@
 using System.Collections.Frozen;
 using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 

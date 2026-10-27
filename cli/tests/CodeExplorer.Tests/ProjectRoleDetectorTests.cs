@@ -1,5 +1,4 @@
 using CodeExplorer.Core.Analysis;
-using CodeExplorer.Core.Common;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;

@@ -5570,29 +5570,31 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           }}
           onOpenFile={onOpenFile}
         />
-      ) : layoutName === 'mermaid' ? (
-        <DomainMermaidView
-          nodes={visibleNodes.map((n) => rawGraph.detailMap.get(n.data.id as string)!).filter(Boolean)}
-          edges={visibleEdges.map((e) => ({
-            source: (e.data as any).source,
-            target: (e.data as any).target,
-            category: (e.data as any).category,
-            count: (e.data as any).count || 1,
-            label: (e.data as any).label,
-            kind: (e.data as any).kind,
-          }))}
-          selectedNodeId={selectedNode?.id}
-          onSelectNode={(nodeId) => {
-            const detail = rawGraph.detailMap.get(nodeId);
-            if (detail) {
-              setSelectedNode(detail);
-              setSelectedEdge(null);
-            }
-          }}
-          title={hudTitle || 'Architecture Mermaid Flowchart'}
-        />
       ) : (
         <>
+          {layoutName === 'mermaid' ? (
+            <DomainMermaidView
+              nodes={visibleNodes.map((n) => rawGraph.detailMap.get(n.data.id as string)!).filter(Boolean)}
+              edges={visibleEdges.map((e) => ({
+                source: (e.data as any).source,
+                target: (e.data as any).target,
+                category: (e.data as any).category,
+                count: (e.data as any).count || 1,
+                label: (e.data as any).label,
+                kind: (e.data as any).kind,
+              }))}
+              selectedNodeId={selectedNode?.id}
+              onSelectNode={(nodeId) => {
+                const detail = rawGraph.detailMap.get(nodeId);
+                if (detail) {
+                  setSelectedNode(detail);
+                  setSelectedEdge(null);
+                }
+              }}
+              title={hudTitle || 'Architecture Mermaid Flowchart'}
+            />
+          ) : (
+            <>
           {/* SVG Overlay Guides for Concentric, Swimlanes, Domain Islands, and Hive Plot */}
           {((layoutName.startsWith('concentric') && (concentricGuides.length > 0 || sectorGuides.length > 0)) ||
             (layoutName === 'swimlanes' && swimlaneGuides.length > 0) ||
@@ -5966,7 +5968,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               </g>
             </svg>
           )}
-          <div ref={containerRef} className="domain-cytoscape-container" />
+            </>
+          )}
+          <div
+            ref={containerRef}
+            className="domain-cytoscape-container"
+            style={{ display: layoutName === 'mermaid' ? 'none' : 'block' }}
+          />
         </>
       )}
 

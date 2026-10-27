@@ -1,8 +1,6 @@
 using System.Text.Json;
 using CodeExplorer.Core.Analysis.ProjectMap;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Protocol;
-using CodeExplorer.Cypher.Common;
 using Microsoft.Extensions.Logging;
 
 namespace CodeExplorer.Core.Analysis;
@@ -15,7 +13,7 @@ public partial class ArchitectureViewEngine
 {
     private const int ProjectMapEdgeRowLimit = 200_000;
 
-    private static readonly string[] ProjectMapLiftedKinds = ["CALLS", "USES_TYPE", "IMPLEMENTS", "INHERITS_FROM", "TRIGGERS"];
+    private static readonly string[] ProjectMapLiftedKinds = ["CALLS", "USES_TYPE", "IMPLEMENTS", "INHERITS_FROM", "TRIGGERS", "INSTANTIATES"];
 
     private static readonly string[] ProjectMapResourceLabels =
         ["Table", "Topic", "ExternalService", "Database", "CloudService", "DataSet", "Procedure"];
@@ -599,7 +597,7 @@ public partial class ArchitectureViewEngine
                 r.GetStringProp("ename"),
                 r.GetStringProp("ekind", "Endpoint"),
                 r.GetStringProp("sub_kind"),
-                sFile.Length > 0 ? sFile : eFile,
+                eFile.Length > 0 ? eFile : sFile,
                 r.GetNullableIntProp("eline"),
                 targetSym,
                 sFile);

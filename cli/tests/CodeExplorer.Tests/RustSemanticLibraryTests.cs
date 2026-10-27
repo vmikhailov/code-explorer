@@ -1,5 +1,4 @@
 using System.Threading.Channels;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -488,7 +487,7 @@ public class RustSemanticLibraryTests
                     .connect(url)
                     .await
                     .unwrap();
-                
+
                 sqlx::query_as::<_, User>("SELECT id, name FROM users WHERE id = $1")
                     .bind(1)
                     .fetch_one(&pool)

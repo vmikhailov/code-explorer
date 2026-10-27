@@ -1,6 +1,5 @@
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Analysis;
-using CodeExplorer.Core.Common;
 
 namespace CodeExplorer.Core.Parser;
 
@@ -128,7 +127,7 @@ public partial class PostIndexAnalyzer
         var lower = trimmed.ToLowerInvariant();
         if (lower.Length <= 1) return false;
         if (char.IsDigit(lower[0])) return false;
-        
+
         // Reject SQL keywords, stopwords, functions, and PostgreSQL system catalogs
         if (NestedSqlParser.IsSqlKeyword(lower)) return false;
         if (lower.StartsWith("pg_") || lower.StartsWith("information_schema") || lower == "sys" || lower == "guest") return false;
@@ -175,7 +174,7 @@ public partial class PostIndexAnalyzer
         if (lower.EndsWith("_db") || lower.EndsWith("-db") || lower.EndsWith("database")) return true;
 
         // Reject if it contains table or function indicators
-        if (lower.Contains("_tb") || lower.Contains("_table") || lower.Contains("_history") || 
+        if (lower.Contains("_tb") || lower.Contains("_table") || lower.Contains("_history") ||
             lower.Contains("_rules") || lower.Contains("jsonb_") || lower.Contains("dblink")) return false;
 
         return false;
@@ -260,7 +259,7 @@ public partial class PostIndexAnalyzer
         }
 
         // 2. If an explicit rawSchema is provided and valid
-        if (!string.IsNullOrWhiteSpace(rawSchema) && 
+        if (!string.IsNullOrWhiteSpace(rawSchema) &&
             !rawSchema.Equals("database", StringComparison.OrdinalIgnoreCase) &&
             IsValidSchemaIdentifier(rawSchema))
         {

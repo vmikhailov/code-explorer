@@ -1,6 +1,4 @@
 using System.Collections.Frozen;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 
 namespace CodeExplorer.Parser.Java.Libraries;

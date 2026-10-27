@@ -1,5 +1,3 @@
-using CodeExplorer.Core.Common;
-
 namespace CodeExplorer.Common;
 
 public static class HelpDisplay

@@ -1,5 +1,4 @@
 using CodeExplorer.Core.Analysis;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -41,7 +40,7 @@ public partial class PostIndexAnalyzer
 
         CollectDbNodes(l4Result.SemanticStructure);
         CollectDbNodes(l4Result.Prev.Prev.Prev.Workspace);
-        
+
         foreach (var p in l4Result.Prev.Prev.Projects) CollectDbNodes(p);
         foreach (var f in l4Result.Prev.Prev.Prev.Files) CollectDbNodes(f);
 
@@ -173,8 +172,8 @@ public partial class PostIndexAnalyzer
                     return d.Name.Split('.', 2)[0];
                 return d.Name;
             })
-            .FirstOrDefault(e => !string.IsNullOrWhiteSpace(e) && 
-                                 !e.Equals("Database", StringComparison.OrdinalIgnoreCase) && 
+            .FirstOrDefault(e => !string.IsNullOrWhiteSpace(e) &&
+                                 !e.Equals("Database", StringComparison.OrdinalIgnoreCase) &&
                                  !e.Equals("default", StringComparison.OrdinalIgnoreCase) &&
                                  !ResourceReconciliationService.IsGenericConfigKey(e) &&
                                  IsRelationalEngine(e));

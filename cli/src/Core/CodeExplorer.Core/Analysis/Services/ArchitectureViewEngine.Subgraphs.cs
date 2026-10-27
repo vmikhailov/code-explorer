@@ -1,5 +1,4 @@
 using System.Text.Json;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Protocol;
 using CodeExplorer.Cypher.Common;

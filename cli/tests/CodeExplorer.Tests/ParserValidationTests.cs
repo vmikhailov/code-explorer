@@ -1,6 +1,5 @@
 using System.Threading.Channels;
 using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
@@ -229,7 +228,7 @@ public class ParserValidationTests
     {
         var rawSql = "SELECT DISTINCT _TABLE_SUFFIX AS suffix FROM `calculation_history.expect_site_cpm_*`";
         var queryNode = NestedSqlParser.ParseNestedSql(rawSql, "ws:query:1", "bq-routes-calculation/src/repository/history.repository.ts");
-        
+
         queryNode.Should().NotBeNull();
         var dbNode = queryNode!.Children.OfType<DatabaseNode>().FirstOrDefault();
         dbNode.Should().NotBeNull();
@@ -359,7 +358,7 @@ public class ParserValidationTests
 
         // "EXTERNAL_QUERY" should NEVER be recognized as a TableNode
         allTables.Any(t => t.Name.Equals("EXTERNAL_QUERY", StringComparison.OrdinalIgnoreCase)).Should().BeFalse("EXTERNAL_QUERY must not be recognized as a table!");
-        
+
         // "sources" and "cost_loss_all_sources" should be recognized
         (allTables.Any(t => t.Name == "cost_loss_all_sources")).Should().BeTrue("Table 'cost_loss_all_sources' should be recognized");
         (allTables.Any(t => t.Name == "sources")).Should().BeTrue("Table 'sources' should be recognized");

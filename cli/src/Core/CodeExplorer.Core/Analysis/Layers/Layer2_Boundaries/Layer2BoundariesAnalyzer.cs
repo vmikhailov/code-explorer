@@ -1,6 +1,5 @@
 using System.Text.Json;
 using CodeExplorer.Core.Analysis;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Relationships;
@@ -15,8 +14,8 @@ public class Layer2ProjectParser
         ctx.Log("[Layer 2    ] Starting project boundary detection and dependency scan...");
 
         var projectsStructureNode = new ProjectsStructureNode(
-            $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.ProjectsStructure}", 
-            "ProjectsStructure", 
+            $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.ProjectsStructure}",
+            "ProjectsStructure",
             l1Result.Workspace.Path
         );
         l1Result.Workspace.Children.Add(projectsStructureNode);

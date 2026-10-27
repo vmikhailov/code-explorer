@@ -363,8 +363,26 @@ public static class ProjectMapBuilder
 
         // Attach functions to enclosing class, primary class in file, or synthesize file-level functional module
         var fileToPrimaryClass = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var fileToFunctions = input.Functions
+            .Where(f => !f.IsTest && IsAllowedFile(f.FilePath))
+            .GroupBy(f => f.FilePath, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.Select(f => f.Name).ToHashSet(StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase);
+
         foreach (var (file, clsNames) in fileToClasses)
         {
+            var baseFileName = Path.GetFileNameWithoutExtension(file);
+            var matchingClass = clsNames.FirstOrDefault(c => string.Equals(c, baseFileName, StringComparison.OrdinalIgnoreCase));
+            if (matchingClass != null)
+            {
+                fileToPrimaryClass[file] = matchingClass;
+                continue;
+            }
+
+            if (fileToFunctions.TryGetValue(file, out var fnNames) && fnNames.Contains(baseFileName))
+            {
+                continue;
+            }
+
             var primary = clsNames
                 .OrderByDescending(n => classes[n].Methods.Count)
                 .ThenByDescending(n => classes[n].LineCount)

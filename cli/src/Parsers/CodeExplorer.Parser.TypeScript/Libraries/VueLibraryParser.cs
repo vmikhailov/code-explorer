@@ -1,7 +1,5 @@
 using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
@@ -123,6 +121,8 @@ public class VueLibraryParser : ISemanticExtension
                     if (!string.IsNullOrEmpty(compName) && compName != "undefined")
                     {
                         references.Add(new Reference(scopeSymbolId, compName, OntologyConstants.Relationships.DependsOn));
+                        references.Add(new Reference(scopeSymbolId, compName, OntologyConstants.Relationships.Triggers));
+                        references.Add(new Reference("", compName, OntologyConstants.Relationships.Calls));
                     }
                 }
             }
@@ -139,6 +139,8 @@ public class VueLibraryParser : ISemanticExtension
                         if (char.IsUpper(id.Text[0]))
                         {
                             references.Add(new Reference(scopeSymbolId, id.Text, OntologyConstants.Relationships.DependsOn));
+                            references.Add(new Reference(scopeSymbolId, id.Text, OntologyConstants.Relationships.Triggers));
+                            references.Add(new Reference("", id.Text, OntologyConstants.Relationships.Calls));
                         }
                     }
                 }

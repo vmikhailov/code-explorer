@@ -121,6 +121,7 @@ public static class OntologyConstants
         public const string Defines = "DEFINES";
         public const string Declares = "DECLARES";
         public const string PassesLiteral = "PASSES_LITERAL";
+        public const string Instantiates = "INSTANTIATES";
 
         // Transitive architectural macro-relationships (C4 Level)
         public const string IntegratesWith = "INTEGRATES_WITH";
