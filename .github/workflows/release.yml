@@ -202,28 +202,28 @@ jobs:
           cd /tmp/homebrew-tap
 
           mkdir -p Formula
-          cat <<EOF > Formula/ce.rb
-class Ce < Formula
-  desc "Codebase intelligence CLI and knowledge graph engine"
-  homepage "https://github.com/vmikhailov/code-explorer"
-  version "${VERSION}"
-  license "MIT"
+          cat <<EOF | sed -e 's/^          //' > Formula/ce.rb
+          class Ce < Formula
+            desc "Codebase intelligence CLI and knowledge graph engine"
+            homepage "https://github.com/vmikhailov/code-explorer"
+            version "${VERSION}"
+            license "MIT"
 
-  depends_on :macos
-  depends_on arch: :arm64
+            depends_on :macos
+            depends_on arch: :arm64
 
-  url "https://github.com/vmikhailov/code-explorer/releases/download/v${VERSION}/ce-osx-arm64.tar.gz"
-  sha256 "${SHA256_ARM64}"
+            url "https://github.com/vmikhailov/code-explorer/releases/download/v${VERSION}/ce-osx-arm64.tar.gz"
+            sha256 "${SHA256_ARM64}"
 
-  def install
-    bin.install "ce"
-  end
+            def install
+              bin.install "ce"
+            end
 
-  test do
-    assert_match "ce", shell_output("#{bin}/ce --version", 2) rescue nil
-  end
-end
-EOF
+            test do
+              assert_match "ce", shell_output("#{bin}/ce --version", 2) rescue nil
+            end
+          end
+          EOF
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
