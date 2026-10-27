@@ -5,6 +5,18 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.64.1] - 2026-10-27
+
+### Added
+- **Wildcards, Regular Expressions & Select-All in Node Grouping**:
+  - Enhanced the custom group creation search in [`DomainSettingsPanel`](file:///c:/Work/Personal/code-explorer/vscode-extension/src/webview/domain/components/DomainSettingsPanel.tsx) and [`DomainVisibilityPanel`](file:///c:/Work/Personal/code-explorer/vscode-extension/src/webview/domain/components/DomainVisibilityPanel.tsx) with [`matchesSearchPattern`](file:///c:/Work/Personal/code-explorer/vscode-extension/src/webview/domain/searchUtils.ts):
+    - **Wildcard matching**: Supports `*` and `?` patterns (e.g. `user-*`, `*Service`, `*.Tests`, `api?`).
+    - **RegExp literals & expressions**: Supports explicit `/pattern/flags` (e.g. `/^user-\d+$/i`) and implicit regular expressions (e.g. `(auth|billing)`, `^order-`).
+    - **Resilient fallback**: Incomplete regex expressions while typing gracefully fall back to substring and token matching without throwing errors.
+  - Added a **"Select All Matching"** / **"Deselect Matching"** action button in the group creator dialog to quickly multi-select or unselect all filtered candidates with 1 click across successive searches.
+
+---
+
 ## [1.64.0] - 2026-10-27
 
 ### Added

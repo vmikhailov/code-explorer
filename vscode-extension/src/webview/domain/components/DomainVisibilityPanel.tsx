@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { SelectedNodeDetail, EntityKind, CustomNodeGroup } from '../types';
 import { FloatingPanel } from '../../components/FloatingPanel';
 import { EyeIcon, EyeOffIcon, RotateCcwIcon, XIcon, SettingsIcon } from '../../components/Icons';
 import { EntityNodeBadge, getEntityBadgeMeta } from '../entityBadges';
+import { matchesSearchPattern } from '../searchUtils';
 
 export interface HiddenItem {
   id: string;
@@ -101,21 +102,47 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
 
   const availableNodesForGroup = useMemo(() => {
     const list: SelectedNodeDetail[] = [];
-    const q = groupEntitySearch.trim().toLowerCase();
+    const q = groupEntitySearch.trim();
     for (const [id, node] of nodeDetailMap.entries()) {
       if (hiddenNodeIds.has(id)) continue;
       if (hiddenTypes.has(node.kind)) continue;
       if (node.isGroup) continue;
       if (q) {
-        const name = (node.displayName || node.name || '').toLowerCase();
-        const kind = (node.kind || '').toLowerCase();
-        if (!name.includes(q) && !kind.includes(q)) continue;
+        const fields = [
+          node.displayName,
+          node.name,
+          node.kind,
+          node.displayTag,
+          node.id,
+        ];
+        if (!matchesSearchPattern(fields, q)) continue;
       }
       list.push(node);
     }
     list.sort((a, b) => (a.displayName || a.name).localeCompare(b.displayName || b.name));
     return list;
   }, [nodeDetailMap, hiddenNodeIds, hiddenTypes, groupEntitySearch]);
+
+  const areAllMatchingSelected = useMemo(() => {
+    if (availableNodesForGroup.length === 0) return false;
+    return availableNodesForGroup.every((node) => groupSelectedNodeIds.has(node.id));
+  }, [availableNodesForGroup, groupSelectedNodeIds]);
+
+  const handleToggleSelectAllMatching = useCallback(() => {
+    setGroupSelectedNodeIds((prev) => {
+      const next = new Set(prev);
+      if (areAllMatchingSelected) {
+        for (const node of availableNodesForGroup) {
+          next.delete(node.id);
+        }
+      } else {
+        for (const node of availableNodesForGroup) {
+          next.add(node.id);
+        }
+      }
+      return next;
+    });
+  }, [areAllMatchingSelected, availableNodesForGroup]);
 
   const handleCreateGroupSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -519,7 +546,7 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
 
             <input
               type="text"
-              placeholder="Filter entities to select..."
+              placeholder="Filter entities (text, *wildcard*, /regex/)..."
               value={groupEntitySearch}
               onChange={(e) => setGroupEntitySearch(e.target.value)}
               style={{
@@ -534,6 +561,32 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
                 outline: 'none',
               }}
             />
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 0' }}>
+              <span style={{ fontSize: '10px', color: '#94a3b8' }}>
+                {availableNodesForGroup.length} matching
+                {groupSelectedNodeIds.size > 0 && ` • ${groupSelectedNodeIds.size} selected`}
+              </span>
+              {availableNodesForGroup.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleToggleSelectAllMatching}
+                  style={{
+                    background: areAllMatchingSelected ? 'rgba(239, 68, 68, 0.15)' : 'rgba(56, 189, 248, 0.15)',
+                    border: `1px solid ${areAllMatchingSelected ? 'rgba(239, 68, 68, 0.35)' : 'rgba(56, 189, 248, 0.35)'}`,
+                    borderRadius: 3,
+                    color: areAllMatchingSelected ? '#fca5a5' : '#38bdf8',
+                    fontSize: '10px',
+                    fontWeight: 600,
+                    padding: '1px 7px',
+                    cursor: 'pointer',
+                  }}
+                  title={areAllMatchingSelected ? 'Deselect all matching entities' : 'Select all matching entities'}
+                >
+                  {areAllMatchingSelected ? 'Deselect Matching' : `Select All Matching (${availableNodesForGroup.length})`}
+                </button>
+              )}
+            </div>
 
             <div
               style={{
