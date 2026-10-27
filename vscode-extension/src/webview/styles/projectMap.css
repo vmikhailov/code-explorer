@@ -25,21 +25,28 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  row-gap: 6px;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .pm-title {
   font-weight: 600;
   font-size: 13px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .pm-select {
   background: var(--vscode-dropdown-background);
   color: var(--vscode-dropdown-foreground);
   border: 1px solid var(--vscode-dropdown-border, transparent);
-  padding: 2px 6px;
+  padding: 0 8px;
+  height: 26px;
+  box-sizing: border-box;
   font-size: 12px;
   max-width: 320px;
+  flex-shrink: 0;
 }
 
 .pm-chip {
@@ -79,9 +86,16 @@ button.pm-chip {
   border: 1px solid var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.4));
   color: var(--vscode-foreground);
   border-radius: 4px;
-  padding: 1px 7px;
+  padding: 0 8px;
+  height: 26px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   font-size: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .pm-icon-btn:hover {

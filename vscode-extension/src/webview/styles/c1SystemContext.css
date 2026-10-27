@@ -75,12 +75,15 @@
   background: rgba(15, 23, 42, 0.85);
   color: #f8fafc;
   border: 1px solid rgba(56, 189, 248, 0.35);
-  border-radius: 5px;
-  padding: 3.5px 8px;
+  border-radius: 4px;
+  padding: 0 8px;
+  height: 26px;
+  box-sizing: border-box;
   font-size: 11px;
   font-weight: 600;
   outline: none;
   cursor: pointer;
+  flex-shrink: 0;
   transition: all 0.2s ease;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
@@ -108,7 +111,9 @@
   color: #cbd5e1;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.15);
-  padding: 3px 9px;
+  padding: 0 9px;
+  height: 26px;
+  box-sizing: border-box;
   border-radius: 4px;
   font-weight: 600;
   white-space: nowrap;
@@ -116,6 +121,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  flex-shrink: 0;
   transition: all 0.15s ease;
   user-select: none;
 }

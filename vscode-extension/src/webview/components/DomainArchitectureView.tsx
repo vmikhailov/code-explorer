@@ -5483,13 +5483,16 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           </div>
 
           {/* Search & Sidebar Controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="domain-hud-controls-right">
             <div className="domain-hud-search">
               <input
                 type="text"
                 className="domain-search-input"
                 placeholder="Search domain or service..."
                 value={searchQuery}
+                style={{
+                  paddingRight: searchMatchCount !== null && searchQuery ? 54 : (searchMatchCount !== null || searchQuery ? 28 : 8)
+                }}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {

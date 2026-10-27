@@ -550,25 +550,31 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
           borderBottom: '1px solid rgba(51, 65, 85, 0.5)',
           zIndex: 10,
           gap: 12,
+          rowGap: 8,
           flexWrap: 'wrap',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: '12px', fontWeight: 600, color: '#38bdf8' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
+          <span style={{ fontSize: '12px', fontWeight: 600, color: '#38bdf8', whiteSpace: 'nowrap', flexShrink: 0 }}>
             📦 Project Map
           </span>
 
           <select
             className="domain-layout-dropdown"
             style={{
-              minWidth: 170,
+              minWidth: 150,
+              maxWidth: 240,
               height: 26,
+              boxSizing: 'border-box',
               fontSize: 11,
               background: '#1e293b',
               color: '#f8fafc',
               border: '1px solid #334155',
               borderRadius: 4,
               padding: '0 6px',
+              textOverflow: 'ellipsis',
+              overflow: 'hidden',
+              flexShrink: 0,
             }}
             value={model.projectName || project || ''}
             onChange={(e) => onProjectChange?.(e.target.value)}
@@ -588,12 +594,14 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
             className="domain-layout-dropdown"
             style={{
               height: 26,
+              boxSizing: 'border-box',
               fontSize: 11,
               background: '#1e293b',
               color: '#f8fafc',
               border: '1px solid #334155',
               borderRadius: 4,
               padding: '0 6px',
+              flexShrink: 0,
             }}
             value={layoutType}
             onChange={(e) => setLayoutType(e.target.value as ProjectMapLayoutType)}
@@ -608,13 +616,14 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
         </div>
 
         {/* Filters and Search */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', minWidth: 0 }}>
           {model.cycles.length > 0 && (
             <button
               type="button"
               onClick={() => setCyclesOnly((v) => !v)}
               style={{
                 height: 26,
+                boxSizing: 'border-box',
                 padding: '0 8px',
                 fontSize: 11,
                 borderRadius: 4,
@@ -623,6 +632,10 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
                 color: cyclesOnly ? '#0f172a' : '#f59e0b',
                 cursor: 'pointer',
                 fontWeight: 600,
+                whiteSpace: 'nowrap',
+                display: 'inline-flex',
+                alignItems: 'center',
+                flexShrink: 0,
               }}
               title="Isolate only modules in dependency cycles"
             >
@@ -635,6 +648,7 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
             onClick={() => setHideUtilities((v) => !v)}
             style={{
               height: 26,
+              boxSizing: 'border-box',
               padding: '0 8px',
               fontSize: 11,
               borderRadius: 4,
@@ -642,6 +656,10 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
               background: hideUtilities ? '#334155' : 'transparent',
               color: hideUtilities ? '#94a3b8' : '#e2e8f0',
               cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              display: 'inline-flex',
+              alignItems: 'center',
+              flexShrink: 0,
             }}
             title="Hide utility and foundation classes (Tier 4+)"
           >
@@ -653,6 +671,7 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
             onClick={() => setHideResources((v) => !v)}
             style={{
               height: 26,
+              boxSizing: 'border-box',
               padding: '0 8px',
               fontSize: 11,
               borderRadius: 4,
@@ -660,6 +679,10 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
               background: hideResources ? '#334155' : 'transparent',
               color: hideResources ? '#94a3b8' : '#e2e8f0',
               cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              display: 'inline-flex',
+              alignItems: 'center',
+              flexShrink: 0,
             }}
             title="Hide databases, tables, and external resources"
           >
@@ -672,7 +695,8 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{
-              height: 24,
+              height: 26,
+              boxSizing: 'border-box',
               width: 130,
               fontSize: 11,
               background: '#0f172a',
@@ -680,6 +704,7 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
               borderRadius: 4,
               padding: '0 6px',
               color: '#f8fafc',
+              flexShrink: 0,
             }}
           />
 
@@ -688,6 +713,7 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
             onClick={handleFit}
             style={{
               height: 26,
+              boxSizing: 'border-box',
               padding: '0 8px',
               fontSize: 11,
               borderRadius: 4,
@@ -695,6 +721,10 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
               background: '#1e293b',
               color: '#f8fafc',
               cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              display: 'inline-flex',
+              alignItems: 'center',
+              flexShrink: 0,
             }}
             title="Fit view to graph"
           >
@@ -706,6 +736,7 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
             onClick={() => setReloadToken((t) => t + 1)}
             style={{
               height: 26,
+              boxSizing: 'border-box',
               padding: '0 8px',
               fontSize: 11,
               borderRadius: 4,
@@ -713,6 +744,10 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
               background: '#1e293b',
               color: '#f8fafc',
               cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              display: 'inline-flex',
+              alignItems: 'center',
+              flexShrink: 0,
             }}
             title="Refresh graph"
           >
