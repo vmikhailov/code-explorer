@@ -110,7 +110,8 @@ export function computeSwimlanesLayout(
   edges: SwimlaneEdgeInput[],
   air: number = 1.2,
   isProjectMap?: boolean,
-  laneOrder?: number[]
+  laneOrder?: number[],
+  baseIconSize?: number
 ): SwimlanesLayoutResult {
   const positions = new Map<string, { x: number; y: number }>();
   if (nodes.length === 0) {
@@ -174,10 +175,11 @@ export function computeSwimlanesLayout(
   }
 
   // 4. Dimensions & Spacing
-  const laneColWidth = Math.round(300 * air);
+  const effBaseIcon = baseIconSize ?? 52;
+  const laneColWidth = Math.max(Math.round(300 * air), Math.round(effBaseIcon * 5 * air));
   const laneSpacing = Math.round(100 * air);
-  const nodeHeight = Math.round(60 * air);
-  const nodeGap = Math.round(45 * air);
+  const nodeHeight = Math.round(effBaseIcon * 1.15 * air);
+  const nodeGap = Math.round(Math.max(35, effBaseIcon * 0.85) * air);
 
   // Compute lane X coordinates (centered horizontally around 0)
   const totalWidth = populatedLanes.length * laneColWidth + (populatedLanes.length - 1) * laneSpacing;

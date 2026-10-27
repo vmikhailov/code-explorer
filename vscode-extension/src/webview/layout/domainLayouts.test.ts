@@ -56,6 +56,13 @@ test('computeSwimlanesLayout: computes non-overlapping vertical columns for all 
   }
 });
 
+test('computeSwimlanesLayout: scales vertical slot heights when baseIconSize is customized', () => {
+  const defaultRes = computeSwimlanesLayout(sampleNodes as SwimlaneNodeInput[], sampleEdges as SwimlaneEdgeInput[], 1.0, false, undefined, 52);
+  const largeRes = computeSwimlanesLayout(sampleNodes as SwimlaneNodeInput[], sampleEdges as SwimlaneEdgeInput[], 1.0, false, undefined, 80);
+
+  assert.ok(largeRes.lanes[0].height >= defaultRes.lanes[0].height, 'Lane guide height scales with icon size');
+});
+
 test('computeSwimlanesLayout: uses 5 clean architectural lanes in Project Map mode', () => {
   const pmNodes: SwimlaneNodeInput[] = [
     { id: 'ep:1', name: 'UsersController', kind: 'Endpoint', echelonTier: 0 },

@@ -5,6 +5,19 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.65.7] - 2026-10-27
+
+### Added
+- **Base Icon Size Setting & Sizing Baseline Computation**:
+  - Added a dedicated **Base Icon Size** control in the Settings tab (`DomainSettingsPanel`) under Node & Edge Appearance (`28px - 84px`, default `52px`, step `2px`, with quick reset).
+  - Persisted base icon size per diagram type (`base_icon_size_<layout>`) with fallback to global settings, preserving user preferences across layout switches.
+  - Used `baseIconSize` as the baseline across all node and icon size computations in `styledVisibleNodes`:
+    - Uniform sizing scales proportionally across all architectural node kinds (applications, services, databases, libraries, groups).
+    - `sqrt-weight` and `degree` dynamic sizing modes scale their baseline, minimum/maximum bounds, and growth curves proportionally relative to the chosen base icon size.
+  - Integrated `baseIconSize` into `computeSwimlanesLayout` to scale vertical slot heights, gaps, and lane columns proportionally, ensuring clean layout balance.
+
+---
+
 ## [1.65.6] - 2026-10-27
 
 ### Added

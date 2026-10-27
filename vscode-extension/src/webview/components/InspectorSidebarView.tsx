@@ -82,6 +82,7 @@ export interface InspectorSyncedState {
   nodeSizingMode: NodeSizingMode;
   edgeCurveMode: EdgeCurveMode;
   edgeLabelsOnHover: boolean;
+  baseIconSize: number;
   fontSize: number;
   curveFactor: number;
   wheelSensitivity: number;
@@ -128,6 +129,7 @@ export type InspectorAction =
   | { type: 'SET_NODE_SIZING_MODE'; mode: NodeSizingMode }
   | { type: 'SET_EDGE_CURVE_MODE'; mode: EdgeCurveMode }
   | { type: 'SET_EDGE_LABELS_ON_HOVER'; onHover: boolean }
+  | { type: 'SET_BASE_ICON_SIZE'; size: number }
   | { type: 'SET_FONT_SIZE'; fontSize: number }
   | { type: 'SET_CURVE_FACTOR'; curveFactor: number }
   | { type: 'SET_WHEEL_SENSITIVITY'; wheelSensitivity: number }
@@ -287,6 +289,7 @@ export const InspectorSidebarView: React.FC = () => {
     nodeSizingMode,
     edgeCurveMode,
     edgeLabelsOnHover,
+    baseIconSize = 52,
     fontSize,
     curveFactor,
     wheelSensitivity,
@@ -560,6 +563,7 @@ export const InspectorSidebarView: React.FC = () => {
             nodeSizingMode={nodeSizingMode}
             edgeCurveMode={edgeCurveMode}
             edgeLabelsOnHover={edgeLabelsOnHover}
+            baseIconSize={baseIconSize}
             fontSize={fontSize}
             curveFactor={curveFactor}
             wheelSensitivity={wheelSensitivity}
@@ -567,6 +571,7 @@ export const InspectorSidebarView: React.FC = () => {
             onSetNodeSizingMode={(mode) => dispatch({ type: 'SET_NODE_SIZING_MODE', mode })}
             onSetEdgeCurveMode={(mode) => dispatch({ type: 'SET_EDGE_CURVE_MODE', mode })}
             onSetEdgeLabelsOnHover={(onHover) => dispatch({ type: 'SET_EDGE_LABELS_ON_HOVER', onHover })}
+            onSetBaseIconSize={(size) => dispatch({ type: 'SET_BASE_ICON_SIZE', size })}
             onSetFontSize={(size) => dispatch({ type: 'SET_FONT_SIZE', fontSize: size })}
             onSetCurveFactor={(factor) => dispatch({ type: 'SET_CURVE_FACTOR', curveFactor: factor })}
             onSetWheelSensitivity={(sens) =>

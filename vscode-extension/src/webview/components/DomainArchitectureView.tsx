@@ -1772,6 +1772,41 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     setRelayoutTrigger((prev) => prev + 1);
   }, []);
 
+  const loadBaseIconSizeForLayout = useCallback((prefix: string, layout: DomainLayoutName): number => {
+    try {
+      const saved = localStorage.getItem(`${prefix}base_icon_size_${layout}`);
+      if (saved) {
+        const val = parseInt(saved, 10);
+        if (!isNaN(val) && val >= 28 && val <= 84) return val;
+      }
+      const globalSaved = localStorage.getItem(`${prefix}base_icon_size`);
+      if (globalSaved) {
+        const val = parseInt(globalSaved, 10);
+        if (!isNaN(val) && val >= 28 && val <= 84) return val;
+      }
+    } catch { }
+    return 52;
+  }, []);
+
+  // Base Icon Size (28px - 84px, default 52px baseline for real icon size computations)
+  const [baseIconSize, setBaseIconSize] = useState<number>(() => {
+    return loadBaseIconSizeForLayout(storagePrefix, layoutName);
+  });
+  const baseIconSizeRef = useRef<number>(baseIconSize);
+  baseIconSizeRef.current = baseIconSize;
+
+  const handleBaseIconSizeChange = useCallback((newSize: number) => {
+    const clamped = Math.max(28, Math.min(84, Math.round(newSize)));
+    setBaseIconSize(clamped);
+    baseIconSizeRef.current = clamped;
+    try {
+      localStorage.setItem(`${storagePrefix}base_icon_size_${layoutName}`, String(clamped));
+      localStorage.setItem(`${storagePrefix}base_icon_size`, String(clamped));
+    } catch { }
+    forceRelayoutRef.current = true;
+    setRelayoutTrigger((prev) => prev + 1);
+  }, [storagePrefix, layoutName]);
+
   // Mouse wheel zoom sensitivity (default 1.0x with universal normalized wheel)
   const [wheelSensitivity, setWheelSensitivity] = useState<number>(() => {
     try {
@@ -3283,13 +3318,23 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           ? fileCount
           : Math.max(1, projectCount * 3 + totalConnections);
 
-      let computedSize: number = isGroup ? GROUP_NODE_SIZE : ((n.data as any).size || 56);
+      // Base icon size is the baseline for all real icon/node size computations
+      const baseNodeScale = (n.data as any).size ? (n.data as any).size / 52 : 1.0;
+      const groupSize = Math.round(baseIconSize * (68 / 52));
+      let computedSize: number = isGroup ? groupSize : Math.round(baseIconSize * baseNodeScale);
+
       if (nodeSizingMode === 'sqrt-weight') {
-        const base = isGroup ? 44 : 30;
-        computedSize = Math.round(Math.max(36, Math.min(92, base + 9.5 * Math.sqrt(weightVal))));
+        const base = isGroup ? Math.round(baseIconSize * (44 / 52)) : Math.round(baseIconSize * (30 / 52));
+        const factor = (baseIconSize / 52) * 9.5;
+        const minSize = Math.round(baseIconSize * (36 / 52));
+        const maxSize = Math.round(baseIconSize * (92 / 52));
+        computedSize = Math.round(Math.max(minSize, Math.min(maxSize, base + factor * Math.sqrt(weightVal))));
       } else if (nodeSizingMode === 'degree') {
-        const base = isGroup ? 44 : 36;
-        computedSize = Math.round(Math.max(38, Math.min(90, base + 6.5 * Math.sqrt(Math.max(1, totalConnections)))));
+        const base = isGroup ? Math.round(baseIconSize * (44 / 52)) : Math.round(baseIconSize * (36 / 52));
+        const factor = (baseIconSize / 52) * 6.5;
+        const minSize = Math.round(baseIconSize * (38 / 52));
+        const maxSize = Math.round(baseIconSize * (90 / 52));
+        computedSize = Math.round(Math.max(minSize, Math.min(maxSize, base + factor * Math.sqrt(Math.max(1, totalConnections)))));
       }
 
       const metricText =
@@ -3354,7 +3399,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         transitiveCalls,
       },
     };
-  }, [rawGraph, hiddenTypes, hiddenNodeIds, hiddenOrbitTiers, orbitConfig, forcedVisibleNodeIds, hideSingleConnectionDbs, hideIsolatedNodes, showTransitiveEdges, groupedTypes, customGroups, nodeContentMode, nodeSizingMode]);
+  }, [rawGraph, hiddenTypes, hiddenNodeIds, hiddenOrbitTiers, orbitConfig, forcedVisibleNodeIds, hideSingleConnectionDbs, hideIsolatedNodes, showTransitiveEdges, groupedTypes, customGroups, nodeContentMode, nodeSizingMode, baseIconSize]);
 
   const nodeDetailMap = effectiveDetailMap;
 
@@ -3876,7 +3921,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           visibleEdgesInput,
           spacing,
           isProjectMap,
-          effectiveOrder
+          effectiveOrder,
+          baseIconSizeRef.current
         );
         layoutConfig = {
           name: 'preset',
@@ -4459,9 +4505,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     setMinOrbitNodeDistance(nextMinOrbitDist);
     minOrbitNodeDistanceRef.current = nextMinOrbitDist;
 
+    const nextBaseIconSize = loadBaseIconSizeForLayout(storagePrefix, newLayout);
+    setBaseIconSize(nextBaseIconSize);
+    baseIconSizeRef.current = nextBaseIconSize;
+
     forceRelayoutRef.current = true;
     setRelayoutTrigger((prev) => prev + 1);
-  }, [storagePrefix, loadSpacingForLayout, loadOrbitDistanceForLayout, loadMinOrbitDistForLayout]);
+  }, [storagePrefix, loadSpacingForLayout, loadOrbitDistanceForLayout, loadMinOrbitDistForLayout, loadBaseIconSizeForLayout]);
 
   const DEFAULT_LAYOUT_OPTIONS: Array<{ id: DomainLayoutName; label: string }> = [
     { id: 'concentric', label: '🎯 Concentric (Original)' },
@@ -4984,6 +5034,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       nodeSizingMode,
       edgeCurveMode,
       edgeLabelsOnHover,
+      baseIconSize,
       fontSize,
       curveFactor,
       wheelSensitivity,
@@ -5025,6 +5076,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     nodeSizingMode,
     edgeCurveMode,
     edgeLabelsOnHover,
+    baseIconSize,
     fontSize,
     curveFactor,
     wheelSensitivity,
@@ -5077,6 +5129,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     handleNodeSizingModeChange,
     handleEdgeCurveModeChange,
     handleEdgeLabelsOnHoverChange,
+    handleBaseIconSizeChange,
     handleFontSizeChange,
     handleCurveFactorChange,
     handleWheelSensitivityChange,
@@ -5118,6 +5171,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     handleNodeSizingModeChange,
     handleEdgeCurveModeChange,
     handleEdgeLabelsOnHoverChange,
+    handleBaseIconSizeChange,
     handleFontSizeChange,
     handleCurveFactorChange,
     handleWheelSensitivityChange,
@@ -5274,6 +5328,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             break;
           case 'SET_EDGE_LABELS_ON_HOVER':
             h.handleEdgeLabelsOnHoverChange(act.onHover);
+            break;
+          case 'SET_BASE_ICON_SIZE':
+            h.handleBaseIconSizeChange(act.size);
             break;
           case 'SET_FONT_SIZE':
             h.handleFontSizeChange(act.fontSize);

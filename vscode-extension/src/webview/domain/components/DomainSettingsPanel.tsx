@@ -34,6 +34,7 @@ export interface DomainSettingsPanelProps {
   nodeSizingMode: NodeSizingMode;
   edgeCurveMode: EdgeCurveMode;
   edgeLabelsOnHover: boolean;
+  baseIconSize: number;
   fontSize: number;
   curveFactor: number;
   wheelSensitivity: number;
@@ -42,6 +43,7 @@ export interface DomainSettingsPanelProps {
   onSetNodeSizingMode: (mode: NodeSizingMode) => void;
   onSetEdgeCurveMode: (mode: EdgeCurveMode) => void;
   onSetEdgeLabelsOnHover: (onHover: boolean) => void;
+  onSetBaseIconSize: (size: number) => void;
   onSetFontSize: (size: number) => void;
   onSetCurveFactor: (factor: number) => void;
   onSetWheelSensitivity: (sens: number) => void;
@@ -65,6 +67,7 @@ export const DomainSettingsPanel: React.FC<DomainSettingsPanelProps> = ({
   nodeSizingMode,
   edgeCurveMode,
   edgeLabelsOnHover,
+  baseIconSize,
   fontSize,
   curveFactor,
   wheelSensitivity,
@@ -72,6 +75,7 @@ export const DomainSettingsPanel: React.FC<DomainSettingsPanelProps> = ({
   onSetNodeSizingMode,
   onSetEdgeCurveMode,
   onSetEdgeLabelsOnHover,
+  onSetBaseIconSize,
   onSetFontSize,
   onSetCurveFactor,
   onSetWheelSensitivity,
@@ -416,6 +420,48 @@ export const DomainSettingsPanel: React.FC<DomainSettingsPanelProps> = ({
                   <option value="always">Always Show</option>
                   <option value="hover">On Hover Only</option>
                 </select>
+              </div>
+            </div>
+
+            {/* Base Icon Size Control */}
+            <div className="display-setting-row" title="Adjust baseline node icon size (28px - 84px, default 52px)">
+              <div className="setting-label-row">
+                <span className="setting-icon">🎨</span>
+                <span className="setting-name">Base Icon Size</span>
+                <span
+                  className="domain-hud-value-badge"
+                  onClick={() => onSetBaseIconSize(52)}
+                  title="Click to reset base icon size to 52px"
+                >
+                  {baseIconSize}px
+                </span>
+              </div>
+              <div className="setting-slider-row">
+                <button
+                  type="button"
+                  className="domain-hud-step-btn"
+                  onClick={() => onSetBaseIconSize(Math.max(28, baseIconSize - 2))}
+                  title="Decrease icon size (-2px)"
+                >
+                  −
+                </button>
+                <input
+                  type="range"
+                  min="28"
+                  max="84"
+                  step="2"
+                  value={baseIconSize}
+                  onChange={(e) => onSetBaseIconSize(parseInt(e.target.value, 10))}
+                  className="domain-hud-slider"
+                />
+                <button
+                  type="button"
+                  className="domain-hud-step-btn"
+                  onClick={() => onSetBaseIconSize(Math.min(84, baseIconSize + 2))}
+                  title="Increase icon size (+2px)"
+                >
+                  +
+                </button>
               </div>
             </div>
 
