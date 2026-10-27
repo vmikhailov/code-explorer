@@ -137,7 +137,7 @@ public partial class SqliteGraphClient
                 updCmd.CommandTimeout = CommandTimeoutSeconds;
 
                 updCmd.CommandText = """
-                                     UPDATE nodes SET properties = json_set(
+                                     UPDATE nodes SET properties = jsonb_set(
                                          properties,
                                          '$.intent_domain', @domain,
                                          '$.intent_layer', @layer,
@@ -146,8 +146,8 @@ public partial class SqliteGraphClient
                                          '$.intent_capability', @capability,
                                          '$.intent_summary', @summary,
                                          '$.is_pure_domain', @isPureDomain,
-                                         '$.target_entities', json(@targetEntities),
-                                         '$.emitted_events', json(@emittedEvents)
+                                         '$.target_entities', jsonb(@targetEntities),
+                                         '$.emitted_events', jsonb(@emittedEvents)
                                      ) WHERE id = @id;
                                      """;
 
@@ -192,7 +192,7 @@ public partial class SqliteGraphClient
 
                 domCmd.CommandText = """
                                      INSERT INTO nodes (id, kind, properties)
-                                     VALUES (@id, 'Domain', @props)
+                                     VALUES (@id, 'Domain', jsonb(@props))
                                      ON CONFLICT(id) DO NOTHING;
                                      """;
                 var pDomId = domCmd.Parameters.Add("@id", SqliteType.Text);
@@ -219,7 +219,7 @@ public partial class SqliteGraphClient
 
                 edgeCmd.CommandText = """
                                       INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
-                                      VALUES (@fromId, @toId, 'BELONGS_TO_DOMAIN', '{}');
+                                      VALUES (@fromId, @toId, 'BELONGS_TO_DOMAIN', jsonb('{}'));
                                       """;
                 var pFromId = edgeCmd.Parameters.Add("@fromId", SqliteType.Text);
                 var pToId = edgeCmd.Parameters.Add("@toId", SqliteType.Text);
@@ -419,7 +419,7 @@ public partial class SqliteGraphClient
                                             OR id IN ({inClause})
                                      );
                                    UPDATE nodes
-                                   SET properties = json_remove(
+                                   SET properties = jsonb_remove(
                                        properties,
                                        '$.intent_domain',
                                        '$.intent_layer',
@@ -480,7 +480,7 @@ public partial class SqliteGraphClient
 
                 updCmd.CommandText = """
                                      UPDATE nodes
-                                     SET properties = json_set(
+                                     SET properties = jsonb_set(
                                          properties,
                                          '$.intent_domain', i.domain,
                                          '$.intent_layer', i.layer,
@@ -489,8 +489,8 @@ public partial class SqliteGraphClient
                                          '$.intent_capability', i.capability_tag,
                                          '$.intent_summary', i.intent_summary,
                                          '$.is_pure_domain', i.is_pure_domain,
-                                         '$.target_entities', json(i.target_entities),
-                                         '$.emitted_events', json(i.emitted_events)
+                                         '$.target_entities', jsonb(i.target_entities),
+                                         '$.emitted_events', jsonb(i.emitted_events)
                                      )
                                      FROM intents i
                                      WHERE (nodes.id = i.file_id 
@@ -512,7 +512,7 @@ public partial class SqliteGraphClient
                                      SELECT DISTINCT
                                          @widPrefix || 'dom:' || lower(domain) AS id,
                                          'Domain' AS kind,
-                                         json_object('id', @widPrefix || 'dom:' || lower(domain), 'name', domain) AS properties
+                                         jsonb_object('id', @widPrefix || 'dom:' || lower(domain), 'name', domain) AS properties
                                      FROM intents
                                      WHERE domain IS NOT NULL AND trim(domain) != ''
                                      ON CONFLICT(id) DO NOTHING;
@@ -533,7 +533,7 @@ public partial class SqliteGraphClient
                                           n.id AS from_id,
                                           @widPrefix || 'dom:' || lower(i.domain) AS to_id,
                                           'BELONGS_TO_DOMAIN' AS kind,
-                                          '{}' AS properties
+                                          jsonb('{}') AS properties
                                       FROM nodes n
                                       JOIN intents i ON (n.id = i.file_id 
                                                          OR json_extract(n.properties, '$.path') = i.file_path 
@@ -556,7 +556,7 @@ public partial class SqliteGraphClient
                                              p.id AS from_id,
                                              @widPrefix || 'dom:' || lower(i.domain) AS to_id,
                                              'EXPOSES_DOMAIN' AS kind,
-                                             '{}' AS properties
+                                             jsonb('{}') AS properties
                                          FROM edges e
                                          JOIN nodes p ON e.to_id = p.id AND (p.kind = 'Project' OR p.kind = 'App')
                                          JOIN nodes n ON e.from_id = n.id
@@ -582,7 +582,7 @@ public partial class SqliteGraphClient
                                             e_sub.to_id AS from_id,
                                             e_base.to_id AS to_id,
                                             'SUBDOMAIN_OF' AS kind,
-                                            '{}' AS properties
+                                            jsonb('{}') AS properties
                                         FROM edges e_sub
                                         JOIN edges e_base ON e_sub.from_id = e_base.from_id 
                                                          AND e_sub.kind = 'EXPOSES_DOMAIN' 

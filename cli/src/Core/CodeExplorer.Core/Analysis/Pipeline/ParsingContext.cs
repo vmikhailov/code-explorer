@@ -135,6 +135,21 @@ public class ParsingContext
     private int _lastReportedRels;
     private long _lastNodeReportTicks;
     private long _lastRelReportTicks;
+    private int _currentPercentage;
+    private string _currentPhase = "Starting";
+    private string? _currentProgressMessage;
+    private int _currentTotalFiles;
+    private int _currentProcessedFiles;
+
+    public void ReportProgress(int percentage, string phase, string? message = null, int processedFiles = 0, int totalFiles = 0)
+    {
+        _currentPercentage = Math.Clamp(percentage, 0, 100);
+        _currentPhase = phase;
+        _currentProgressMessage = message;
+        if (totalFiles > 0) _currentTotalFiles = totalFiles;
+        if (processedFiles > 0) _currentProcessedFiles = processedFiles;
+        TriggerProgressReport();
+    }
 
     public void RecordNodesPersisted(int count)
     {
@@ -153,9 +168,9 @@ public class ParsingContext
     private void ReportNodesProgressIfNeeded()
     {
         var now = Environment.TickCount64;
-        if (_nodesPersisted - _lastReportedNodes >= 10000 || (now - _lastNodeReportTicks >= 3000 && _nodesPersisted > _lastReportedNodes))
+        if (_nodesPersisted - _lastReportedNodes >= 10000)
         {
-            Log($"[PersistenceProgress] Saved: {_nodesPersisted} nodes to database...");
+            Log($"[Database   ] Persisted {_nodesPersisted:N0} nodes to database...");
             _lastReportedNodes = _nodesPersisted;
             _lastNodeReportTicks = now;
         }
@@ -164,9 +179,9 @@ public class ParsingContext
     private void ReportRelationshipsProgressIfNeeded()
     {
         var now = Environment.TickCount64;
-        if (_relsPersisted - _lastReportedRels >= 10000 || (now - _lastRelReportTicks >= 3000 && _relsPersisted > _lastReportedRels))
+        if (_relsPersisted - _lastReportedRels >= 10000)
         {
-            Log($"[PersistenceProgress] Saved: {_relsPersisted} relationships to database...");
+            Log($"[Database   ] Persisted {_relsPersisted:N0} relationships to database...");
             _lastReportedRels = _relsPersisted;
             _lastRelReportTicks = now;
         }
@@ -177,13 +192,13 @@ public class ParsingContext
         var now = Environment.TickCount64;
         if (_nodesPersisted > _lastReportedNodes)
         {
-            Log($"[PersistenceProgress] Saved: {_nodesPersisted} nodes to database.");
+            LogDebug($"[Database   ] Persisted {_nodesPersisted:N0} nodes to database.");
             _lastReportedNodes = _nodesPersisted;
             _lastNodeReportTicks = now;
         }
         if (_relsPersisted > _lastReportedRels)
         {
-            Log($"[PersistenceProgress] Saved: {_relsPersisted} relationships to database.");
+            LogDebug($"[Database   ] Persisted {_relsPersisted:N0} relationships to database.");
             _lastReportedRels = _relsPersisted;
             _lastRelReportTicks = now;
         }
@@ -207,7 +222,12 @@ public class ParsingContext
                 _relsPersisted,
                 _totalNodesCount,
                 _totalRelsCount,
-                nodesByKindCopy
+                nodesByKindCopy,
+                _currentPercentage,
+                _currentPhase,
+                _currentProgressMessage,
+                _currentTotalFiles,
+                _currentProcessedFiles
             );
             _progress.Report(snapshot);
         }
@@ -222,7 +242,7 @@ public class ParsingContext
         {
             await DbClient.UploadNodesAsync(copy);
             RecordNodesPersisted(copy.Count);
-        });
+        }, CancellationToken).ConfigureAwait(false);
     }
 
     public async Task EnqueueUploadRelationshipsAsync(List<Relationship> rels)
@@ -233,7 +253,7 @@ public class ParsingContext
         {
             await DbClient.UploadRelationshipsAsync(copy);
             RecordRelationshipsPersisted(copy.Count);
-        });
+        }, CancellationToken);
     }
 
     public async Task WaitForQueueDrainedAsync()
@@ -243,20 +263,19 @@ public class ParsingContext
         {
             tcs.SetResult();
             return Task.CompletedTask;
-        });
+        }, CancellationToken).ConfigureAwait(false);
+        
         await tcs.Task;
         FlushPersistenceProgressReport();
 
-        if (DbClient != null)
+        try
         {
-            try
-            {
-                await DbClient.ExecuteWriteAsync("PRAGMA wal_checkpoint(PASSIVE); ANALYZE;");
-            }
-            catch
-            {
-                // In-memory or test databases might not support WAL checkpoint or ANALYZE
-            }
+            await DbClient.ExecuteWriteAsync("PRAGMA wal_checkpoint(PASSIVE); ANALYZE;", cancellationToken: CancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch
+        {
+            // In-memory or test databases might not support WAL checkpoint or ANALYZE
         }
     }
 

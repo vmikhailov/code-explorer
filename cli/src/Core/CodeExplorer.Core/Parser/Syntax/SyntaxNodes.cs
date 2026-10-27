@@ -407,6 +407,30 @@ public sealed class SyntaxDocument : SyntaxNode, IDisposable
     public IReadOnlyList<CallExprSyntax> AllCalls { get; set; } = [];
     public IReadOnlyList<SqlStmtSyntax> AllSqlStatements { get; set; } = [];
 
+    private Dictionary<string, FunctionDeclSyntax>? _functionsByName;
+
+    public FunctionDeclSyntax? FindFunctionByName(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return null;
+        if (_functionsByName == null)
+        {
+            var dict = new Dictionary<string, FunctionDeclSyntax>(AllFunctions.Count, StringComparer.Ordinal);
+            for (int i = 0; i < AllFunctions.Count; i++)
+            {
+                var fn = AllFunctions[i];
+                var fnName = !string.IsNullOrEmpty(fn.Name)
+                    ? fn.Name
+                    : (fn.GetChildForField(SyntaxFields.Name) ?? fn.Children.FirstOrDefault(c => c is IdentifierExprSyntax))?.Text;
+                if (!string.IsNullOrEmpty(fnName) && !dict.ContainsKey(fnName))
+                {
+                    dict[fnName] = fn;
+                }
+            }
+            _functionsByName = dict;
+        }
+        return _functionsByName.TryGetValue(name, out var found) ? found : null;
+    }
+
     public ReadOnlySpan<char> Slice(TextSpan span) =>
         span.StartByte >= 0 && span.EndByte <= SourceText.Length && span.EndByte >= span.StartByte
             ? SourceText.AsSpan(span.StartByte, span.EndByte - span.StartByte)

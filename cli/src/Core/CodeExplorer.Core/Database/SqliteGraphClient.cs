@@ -28,12 +28,14 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         set => _logger = value ?? NullLogger.Instance;
     }
 
+    private GraphContext? _graph;
+
     public int CommandTimeoutSeconds { get; set; } = 15;
     public string DbPath => _conn.DataSource;
     public SqliteConnection Connection => _conn;
-    public GraphContext Graph => new(this);
+    public GraphContext Graph => _graph ??= new(this);
 
-    public const int CurrentSchemaVersion = 3;
+    public const int CurrentSchemaVersion = 4;
     public int SchemaVersion { get; private set; }
     public bool IsSchemaOutdated => SchemaVersion < CurrentSchemaVersion;
 
@@ -101,8 +103,8 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         try
         {
             const string sql = """
-                INSERT INTO nodes (id, kind, properties) VALUES (@id, 'Workspace', @props)
-                ON CONFLICT(id) DO UPDATE SET properties = json_set(properties, '$.path', @path);
+                INSERT INTO nodes (id, kind, properties) VALUES (@id, 'Workspace', jsonb(@props))
+                ON CONFLICT(id) DO UPDATE SET properties = jsonb_set(properties, '$.path', @path);
                 """;
             await _conn.ExecuteAsync(sql, new { id, props = propsJson, path = normalized });
         }
@@ -122,58 +124,40 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         {
             await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync();
 
-            const int batchSize = 200;
             var distinctNodes = nodes.Count > 1 ? [.. nodes.DistinctBy(n => n.Id)] : nodes;
 
+            await using var cmd = _conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText =
+                "INSERT INTO nodes (id, kind, properties) VALUES (@i, @k, jsonb(@p)) ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, properties = excluded.properties;";
+            var pId = cmd.Parameters.Add("@i", SqliteType.Text);
+            var pKind = cmd.Parameters.Add("@k", SqliteType.Text);
+            var pProps = cmd.Parameters.Add("@p", SqliteType.Text);
+            cmd.Prepare();
+
             var lastReport = Stopwatch.GetTimestamp();
-            for (int i = 0; i < distinctNodes.Count; i += batchSize)
+            for (var i = 0; i < distinctNodes.Count; i++)
             {
-                var count = Math.Min(batchSize, distinctNodes.Count - i);
-
-                await using var cmd = _conn.CreateCommand();
-
-                cmd.Transaction = tx;
-
-                var sb = new System.Text.StringBuilder(count * 60 + 120);
-                sb.Append("INSERT INTO nodes (id, kind, properties) VALUES ");
-
-                for (int j = 0; j < count; j++)
-                {
-                    if (j > 0) sb.Append(',');
-                    sb.Append($"(@i{j}, @k{j}, @p{j})");
-
-                    var node = distinctNodes[i + j];
-                    var dict = new Dictionary<string, object>(node.Properties) { ["id"] = node.Id };
-                    cmd.Parameters.AddWithValue($"@i{j}", node.Id);
-                    cmd.Parameters.AddWithValue($"@k{j}", node.Kind);
-                    cmd.Parameters.AddWithValue($"@p{j}", JsonSerializer.Serialize(dict));
-                }
-
-                sb.Append(
-                    " ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, properties = excluded.properties;");
-                cmd.CommandText = sb.ToString();
+                var node = distinctNodes[i];
+                node.Properties["id"] = node.Id;
+                pId.Value = node.Id;
+                pKind.Value = node.Kind;
+                pProps.Value = JsonSerializer.Serialize(node.Properties);
                 cmd.ExecuteNonQuery();
 
-                if (distinctNodes.Count >= 5000 && (i + count == distinctNodes.Count || Stopwatch.GetElapsedTime(lastReport).TotalSeconds >= 3))
+                if (distinctNodes.Count >= 10000 && ((i + 1) % 2000 == 0 || i + 1 == distinctNodes.Count) &&
+                    (i + 1 == distinctNodes.Count || Stopwatch.GetElapsedTime(lastReport).TotalSeconds >= 3))
                 {
                     lastReport = Stopwatch.GetTimestamp();
-                    var pct = (double)(i + count) / distinctNodes.Count * 100.0;
-                    _logger.LogInformation("[DB:Nodes] Saved: {Processed}/{Total} nodes ({Pct:F0}%)...", i + count, distinctNodes.Count, pct);
+                    var pct = (double)(i + 1) / distinctNodes.Count * 100.0;
+                    _logger.LogDebug("[Database   ] Saved {Processed}/{Total} nodes ({Pct:F0}%)...", i + 1, distinctNodes.Count, pct);
                 }
             }
 
             await tx.CommitAsync();
             sw.Stop();
 
-            if (distinctNodes.Count >= 5000)
-            {
-                _logger.LogInformation("[DB:Nodes] Successfully uploaded {Count} nodes in {ElapsedMs:F0}ms.", nodes.Count, sw.Elapsed.TotalMilliseconds);
-            }
-            else
-            {
-                _logger.LogDebug("[DB:Nodes] Uploaded {Count} nodes in {ElapsedMs:F1}ms", nodes.Count,
-                    sw.Elapsed.TotalMilliseconds);
-            }
+            _logger.LogDebug("[Database   ] Uploaded {Count} nodes in {ElapsedMs:F0}ms", nodes.Count, sw.Elapsed.TotalMilliseconds);
             Analysis.ArchitectureViewEngine.InvalidateCache();
         }
         finally
@@ -193,62 +177,44 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync();
 
             const string emptyPropsJson = "{}";
-            const int batchSize = 200;
             var distinctRels = DeduplicateAndMergeRelationships(rels);
+
+            await using var cmd = _conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText =
+                "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@f, @t, @k, jsonb(@p)) ON CONFLICT(from_id, to_id, kind) DO UPDATE SET properties = excluded.properties;";
+            var pFrom = cmd.Parameters.Add("@f", SqliteType.Text);
+            var pTo = cmd.Parameters.Add("@t", SqliteType.Text);
+            var pKind = cmd.Parameters.Add("@k", SqliteType.Text);
+            var pProps = cmd.Parameters.Add("@p", SqliteType.Text);
+            cmd.Prepare();
 
             var lastReport = Stopwatch.GetTimestamp();
 
-            for (int i = 0; i < distinctRels.Count; i += batchSize)
+            for (var i = 0; i < distinctRels.Count; i++)
             {
-                var count = Math.Min(batchSize, distinctRels.Count - i);
-
-                await using var cmd = _conn.CreateCommand();
-
-                cmd.Transaction = tx;
-
-                var sb = new System.Text.StringBuilder(count * 60 + 120);
-                sb.Append("INSERT INTO edges (from_id, to_id, kind, properties) VALUES ");
-
-                for (int j = 0; j < count; j++)
-                {
-                    if (j > 0) sb.Append(',');
-                    sb.Append($"(@f{j}, @t{j}, @k{j}, @p{j})");
-
-                    var rel = distinctRels[i + j];
-                    cmd.Parameters.AddWithValue($"@f{j}", rel.From);
-                    cmd.Parameters.AddWithValue($"@t{j}", rel.To);
-                    cmd.Parameters.AddWithValue($"@k{j}", rel.Kind);
-
-                    cmd.Parameters.AddWithValue($"@p{j}",
-                        rel.Properties == null || rel.Properties.Count == 0
-                            ? emptyPropsJson
-                            : JsonSerializer.Serialize(rel.Properties));
-                }
-
-                sb.Append(" ON CONFLICT(from_id, to_id, kind) DO UPDATE SET properties = excluded.properties;");
-                cmd.CommandText = sb.ToString();
+                var rel = distinctRels[i];
+                pFrom.Value = rel.From;
+                pTo.Value = rel.To;
+                pKind.Value = rel.Kind;
+                pProps.Value = rel.Properties == null || rel.Properties.Count == 0
+                    ? emptyPropsJson
+                    : JsonSerializer.Serialize(rel.Properties);
                 cmd.ExecuteNonQuery();
 
-                if (distinctRels.Count >= 5000 && (i + count == distinctRels.Count || Stopwatch.GetElapsedTime(lastReport).TotalSeconds >= 3))
+                if (distinctRels.Count >= 10000 && ((i + 1) % 2000 == 0 || i + 1 == distinctRels.Count) &&
+                    (i + 1 == distinctRels.Count || Stopwatch.GetElapsedTime(lastReport).TotalSeconds >= 3))
                 {
                     lastReport = Stopwatch.GetTimestamp();
-                    var pct = (double)(i + count) / distinctRels.Count * 100.0;
-                    _logger.LogInformation("[DB:Edges] Saved: {Processed}/{Total} relationships ({Pct:F0}%)...", i + count, distinctRels.Count, pct);
+                    var pct = (double)(i + 1) / distinctRels.Count * 100.0;
+                    _logger.LogDebug("[Database   ] Saved {Processed}/{Total} relationships ({Pct:F0}%)...", i + 1, distinctRels.Count, pct);
                 }
             }
 
             await tx.CommitAsync();
             sw.Stop();
 
-            if (distinctRels.Count >= 5000)
-            {
-                _logger.LogInformation("[DB:Edges] Successfully uploaded {Count} relationships in {ElapsedMs:F0}ms.", rels.Count, sw.Elapsed.TotalMilliseconds);
-            }
-            else
-            {
-                _logger.LogDebug("[DB:Edges] Uploaded {Count} relationships in {ElapsedMs:F1}ms", rels.Count,
-                    sw.Elapsed.TotalMilliseconds);
-            }
+            _logger.LogDebug("[Database   ] Uploaded {Count} relationships in {ElapsedMs:F0}ms", rels.Count, sw.Elapsed.TotalMilliseconds);
             Analysis.ArchitectureViewEngine.InvalidateCache();
         }
         finally
@@ -322,7 +288,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             var rows = await ReadRowsAsync(reader, cancellationToken);
             sw.Stop();
 
-            _logger.LogDebug("[DB:Query] Completed in {ElapsedMs:F1}ms (rows: {RowCount}): {QueryPreview}",
+            _logger.LogDebug("[Database   ] Completed in {ElapsedMs:F1}ms (rows: {RowCount}): {QueryPreview}",
                 sw.Elapsed.TotalMilliseconds, rows.Count, GetQueryPreview(query));
 
             return JsonSerializer.Serialize(rows, new JsonSerializerOptions { WriteIndented = true });
@@ -330,7 +296,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         catch (SqliteException ex) when (ex.SqliteErrorCode == 5 || ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase))
         {
             sw.Stop();
-            _logger.LogError(ex, "[DB:Query] Query timed out after {ElapsedMs:F1}ms (limit: {Timeout}s): {QueryPreview}",
+            _logger.LogError(ex, "[Database   ] Query timed out after {ElapsedMs:F1}ms (limit: {Timeout}s): {QueryPreview}",
                 sw.Elapsed.TotalMilliseconds, CommandTimeoutSeconds, GetQueryPreview(query));
             throw new TimeoutException($"Query execution timed out after {CommandTimeoutSeconds} seconds. Consider narrowing filters or bounding traversal depth.", ex);
         }
@@ -363,7 +329,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             var rows = await ReadRowsAsync(reader, ct);
             sw.Stop();
 
-            _logger.LogDebug("[DB:QueryAst] Completed in {ElapsedMs:F1}ms (rows: {RowCount})",
+            _logger.LogDebug("[Database   ] Completed in {ElapsedMs:F1}ms (rows: {RowCount})",
                 sw.Elapsed.TotalMilliseconds, rows.Count);
 
             return JsonSerializer.Serialize(rows, new JsonSerializerOptions { WriteIndented = true });
@@ -371,7 +337,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         catch (SqliteException ex) when (ex.SqliteErrorCode == 5 || ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase))
         {
             sw.Stop();
-            _logger.LogError(ex, "[DB:QueryAst] Query timed out after {ElapsedMs:F1}ms (limit: {Timeout}s)",
+            _logger.LogError(ex, "[Database   ] Query timed out after {ElapsedMs:F1}ms (limit: {Timeout}s)",
                 sw.Elapsed.TotalMilliseconds, CommandTimeoutSeconds);
             throw new TimeoutException($"Query execution timed out after {CommandTimeoutSeconds} seconds.", ex);
         }
@@ -383,6 +349,58 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
 
     public Task<string> ExecuteRawAsync(string cypher, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default) =>
         ExecuteQueryAsync(cypher, parameters, ct);
+
+    public async Task<int> ExecuteCountAsync(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default)
+    {
+        await _lock.WaitAsync(ct);
+        try
+        {
+            return await DbEntityMaterializer.ExecuteScalarCountAsync(_conn, query, parameters, CommandTimeoutSeconds, ct);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public async Task<bool> ExecuteAnyAsync(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default)
+    {
+        await _lock.WaitAsync(ct);
+        try
+        {
+            return await DbEntityMaterializer.ExecuteScalarAnyAsync(_conn, query, parameters, CommandTimeoutSeconds, ct);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public async Task<List<TElement>> ExecuteListAsync<TElement>(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default)
+    {
+        await _lock.WaitAsync(ct);
+        try
+        {
+            return await DbEntityMaterializer.ExecuteReaderListAsync<TElement>(_conn, query, parameters, CommandTimeoutSeconds, ct);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public async Task<TElement?> ExecuteFirstOrDefaultAsync<TElement>(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default)
+    {
+        await _lock.WaitAsync(ct);
+        try
+        {
+            return await DbEntityMaterializer.ExecuteReaderFirstOrDefaultAsync<TElement>(_conn, query, parameters, CommandTimeoutSeconds, ct);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
 
     private static string GetQueryPreview(string query)
     {
@@ -444,13 +462,13 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             await cmd.ExecuteNonQueryAsync(cancellationToken);
             sw.Stop();
 
-            _logger.LogDebug("[DB:Write] Write completed in {ElapsedMs:F1}ms: {QueryPreview}",
+            _logger.LogDebug("[Database   ] Write completed in {ElapsedMs:F1}ms: {QueryPreview}",
                 sw.Elapsed.TotalMilliseconds, GetQueryPreview(query));
         }
         catch (SqliteException ex) when (ex.SqliteErrorCode == 5 || ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase))
         {
             sw.Stop();
-            _logger.LogError(ex, "[DB:Write] Write timed out after {ElapsedMs:F1}ms: {QueryPreview}",
+            _logger.LogError(ex, "[Database   ] Write timed out after {ElapsedMs:F1}ms: {QueryPreview}",
                 sw.Elapsed.TotalMilliseconds, GetQueryPreview(query));
             throw new TimeoutException($"Database write timed out after {CommandTimeoutSeconds} seconds.", ex);
         }

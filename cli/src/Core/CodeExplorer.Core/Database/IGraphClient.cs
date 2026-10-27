@@ -20,11 +20,18 @@ public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
     Task<string> ExecuteQueryAsync(string query, object? parameters = null, CancellationToken cancellationToken = default);
     Task ExecuteWriteAsync(string query, object? parameters = null, CancellationToken cancellationToken = default);
 
-    Task<string> ICypherQueryExecutor.ExecuteQueryAsync(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters, CancellationToken ct) =>
-        ExecuteQueryAsync(query.ToString() ?? "", parameters, ct);
 
-    Task<string> ICypherQueryExecutor.ExecuteRawAsync(string cypher, IReadOnlyDictionary<string, object?>? parameters, CancellationToken ct) =>
-        ExecuteQueryAsync(cypher, parameters, ct);
+    Task<int> ICypherQueryExecutor.ExecuteCountAsync(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters, CancellationToken ct) =>
+        throw new NotSupportedException();
+
+    Task<bool> ICypherQueryExecutor.ExecuteAnyAsync(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters, CancellationToken ct) =>
+        throw new NotSupportedException();
+
+    Task<List<TElement>> ICypherQueryExecutor.ExecuteListAsync<TElement>(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters, CancellationToken ct) =>
+        throw new NotSupportedException();
+
+    Task<TElement?> ICypherQueryExecutor.ExecuteFirstOrDefaultAsync<TElement>(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters, CancellationToken ct) where TElement : default =>
+        throw new NotSupportedException();
 
     Task<Dictionary<(string Kind, string Name), string>> LoadSymbolsByNamesAsync(
         IEnumerable<string> names,
@@ -151,7 +158,7 @@ public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
         CancellationToken cancellationToken = default) =>
         Task.CompletedTask;
 
-    const int CurrentSchemaVersion = 3;
+    const int CurrentSchemaVersion = 4;
     int SchemaVersion => 0;
     bool IsSchemaOutdated => false;
     Task SetSchemaVersionAsync(int version) => Task.CompletedTask;

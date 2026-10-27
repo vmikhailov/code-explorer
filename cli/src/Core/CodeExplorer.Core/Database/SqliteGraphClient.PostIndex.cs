@@ -240,7 +240,7 @@ public partial class SqliteGraphClient
             cmd.Parameters.AddWithValue("@needExternalServices", needExternalServices ? 1 : 0);
 
             cmd.CommandText = """
-                              SELECT id, kind, properties
+                              SELECT id, kind, json(properties)
                               FROM nodes
                               WHERE (length(@widPrefix) = 0 OR id LIKE @widPrefix || '%')
                                 AND (
@@ -545,17 +545,18 @@ public partial class SqliteGraphClient
                 insCmd.Transaction = tx;
 
                 insCmd.CommandText =
-                    "INSERT OR REPLACE INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, 'TRANSITIVELY_CALLS', @props);";
+                    "INSERT OR REPLACE INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, 'TRANSITIVELY_CALLS', jsonb(@props));";
                 var pFrom = insCmd.Parameters.Add("@from", SqliteType.Text);
                 var pTo = insCmd.Parameters.Add("@to", SqliteType.Text);
                 var pProps = insCmd.Parameters.Add("@props", SqliteType.Text);
+                insCmd.Prepare();
 
                 foreach (var rel in result.TransitivelyCalls)
                 {
                     pFrom.Value = rel.From;
                     pTo.Value = rel.To;
                     pProps.Value = $"{{\"hops\":{rel.Hops}}}";
-                    await insCmd.ExecuteNonQueryAsync();
+                    insCmd.ExecuteNonQuery();
                 }
             }
 
@@ -568,10 +569,11 @@ public partial class SqliteGraphClient
                 insCmd.Transaction = tx;
 
                 insCmd.CommandText =
-                    "INSERT OR REPLACE INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, 'ATTRIBUTED_TO', @props);";
+                    "INSERT OR REPLACE INTO edges (from_id, to_id, kind, properties) VALUES (@from, @to, 'ATTRIBUTED_TO', jsonb(@props));";
                 var pFrom = insCmd.Parameters.Add("@from", SqliteType.Text);
                 var pTo = insCmd.Parameters.Add("@to", SqliteType.Text);
                 var pProps = insCmd.Parameters.Add("@props", SqliteType.Text);
+                insCmd.Prepare();
 
                 foreach (var rel in result.AttributedTo)
                 {
@@ -583,7 +585,7 @@ public partial class SqliteGraphClient
                         ["hops"] = rel.Hops, ["sink_kind"] = rel.SinkKind
                     };
                     pProps.Value = JsonSerializer.Serialize(props);
-                    await insCmd.ExecuteNonQueryAsync();
+                    insCmd.ExecuteNonQuery();
                 }
             }
 
@@ -596,23 +598,24 @@ public partial class SqliteGraphClient
                 updCmd.Transaction = tx;
 
                 updCmd.CommandText =
-                    "UPDATE nodes SET properties = json_set(properties, '$.external_apis', json(@domains)) WHERE id = @id;";
+                    "UPDATE nodes SET properties = jsonb_set(properties, '$.external_apis', jsonb(@domains)) WHERE id = @id;";
                 var pDomains = updCmd.Parameters.Add("@domains", SqliteType.Text);
                 var pId = updCmd.Parameters.Add("@id", SqliteType.Text);
+                updCmd.Prepare();
 
                 foreach (var (projId, domains) in result.ProjectExternalApis)
                 {
                     pId.Value = projId;
                     pDomains.Value = JsonSerializer.Serialize(domains);
-                    await updCmd.ExecuteNonQueryAsync();
+                    updCmd.ExecuteNonQuery();
                 }
             }
 
             await tx.CommitAsync();
             sw.Stop();
 
-            _logger.LogInformation(
-                "[DB:PostIndex] Saved {TcCount} TRANSITIVELY_CALLS, {AttrCount} ATTRIBUTED_TO, and {ApiCount} project external_apis for prefix '{Prefix}' in {ElapsedMs:F1}ms",
+            _logger.LogDebug(
+                "[Database   ] Saved {TcCount} TRANSITIVELY_CALLS, {AttrCount} ATTRIBUTED_TO, and {ApiCount} project external_apis for prefix '{Prefix}' in {ElapsedMs:F1}ms",
                 result.TransitivelyCalls.Count, result.AttributedTo.Count, result.ProjectExternalApis.Count,
                 widPrefix, sw.Elapsed.TotalMilliseconds);
 
@@ -623,7 +626,7 @@ public partial class SqliteGraphClient
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "[DB:PostIndex] Failed to update identifier vector index: {Message}", ex.Message);
+                _logger.LogWarning(ex, "[Database   ] Failed to update identifier vector index: {Message}", ex.Message);
             }
         }
         finally
@@ -646,7 +649,7 @@ public partial class SqliteGraphClient
             updCmd.Transaction = tx;
 
             updCmd.CommandText =
-                "UPDATE nodes SET properties = json_set(properties, '$.external_apis', json(@domains)) WHERE id = @id;";
+                "UPDATE nodes SET properties = jsonb_set(properties, '$.external_apis', jsonb(@domains)) WHERE id = @id;";
             var pDomains = updCmd.Parameters.Add("@domains", SqliteType.Text);
             var pId = updCmd.Parameters.Add("@id", SqliteType.Text);
 

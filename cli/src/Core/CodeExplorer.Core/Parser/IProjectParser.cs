@@ -306,26 +306,25 @@ public interface IProjectParser
     public static ProjectClassification? DefaultClassifyProject(IProjectParser parser, ProjectContext context)
     {
         // 1. Dialect Manifest Evidence
-        if (context.ManifestProperties != null)
-        {
-            var manifestType = context.ManifestProperties.GetValueOrDefault("manifest_type")?.ToLowerInvariant();
-            if (manifestType == "test" || context.ManifestProperties.GetValueOrDefault("is_test_project") == "true") return ProjectClassification.Test;
-            if (manifestType == "library") return ProjectClassification.Library;
-            if (manifestType == "cli" || context.ManifestProperties.GetValueOrDefault("has_cli_bin") == "true") return ProjectClassification.CliApp;
-            if (manifestType == "worker") return ProjectClassification.Worker;
-            if (manifestType == "migration") return ProjectClassification.DatabaseMigration;
-            if (manifestType is "function" or "serverless") return ProjectClassification.FunctionApp;
-            if (manifestType == "mobile") return ProjectClassification.MobileApp;
-            if (manifestType == "desktop") return ProjectClassification.DesktopApp;
+        
+        var manifestType = context.ManifestProperties.GetValueOrDefault("manifest_type")?.ToLowerInvariant();
+        if (manifestType == "test" || context.ManifestProperties.GetValueOrDefault("is_test_project") == "true") return ProjectClassification.Test;
+        if (manifestType == "library") return ProjectClassification.Library;
+        if (manifestType == "cli" || context.ManifestProperties.GetValueOrDefault("has_cli_bin") == "true") return ProjectClassification.CliApp;
+        if (manifestType == "worker") return ProjectClassification.Worker;
+        if (manifestType == "migration") return ProjectClassification.DatabaseMigration;
+        if (manifestType is "function" or "serverless") return ProjectClassification.FunctionApp;
+        if (manifestType == "mobile") return ProjectClassification.MobileApp;
+        if (manifestType == "desktop") return ProjectClassification.DesktopApp;
 
-            var frameworkType = context.ManifestProperties.GetValueOrDefault("framework_type")?.ToLowerInvariant();
-            if (frameworkType == "frontend" || frameworkType == "web-client") return ProjectClassification.WebApp;
-            if (frameworkType == "mobile") return ProjectClassification.MobileApp;
-            if (frameworkType == "desktop") return ProjectClassification.DesktopApp;
-            if (frameworkType == "cli") return ProjectClassification.CliApp;
-            if (frameworkType == "worker") return ProjectClassification.Worker;
-            if (frameworkType == "web" || frameworkType == "api") return ProjectClassification.Service;
-        }
+        var frameworkType = context.ManifestProperties.GetValueOrDefault("framework_type")?.ToLowerInvariant();
+        if (frameworkType == "frontend" || frameworkType == "web-client") return ProjectClassification.WebApp;
+        if (frameworkType == "mobile") return ProjectClassification.MobileApp;
+        if (frameworkType == "desktop") return ProjectClassification.DesktopApp;
+        if (frameworkType == "cli") return ProjectClassification.CliApp;
+        if (frameworkType == "worker") return ProjectClassification.Worker;
+        if (frameworkType == "web" || frameworkType == "api") return ProjectClassification.Service;
+        
 
         // 2. Inversion of Control: Query dialect's test framework packages FIRST!
         var testPackages = parser.Packages.Where(p => p.Role == LibraryRole.TestFramework);

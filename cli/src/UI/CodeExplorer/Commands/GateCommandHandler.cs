@@ -179,7 +179,7 @@ public class GateCommandHandler : BaseCommandHandler
             return 0;
         }
 
-        if (action is "violations" or "show")
+        if (action is "details" or "violations" or "show")
         {
             var resultsToInspect = new List<GateCheckResult>();
             if (!string.IsNullOrWhiteSpace(opts.GateId))
@@ -201,6 +201,11 @@ public class GateCommandHandler : BaseCommandHandler
             {
                 var suite = await engine.CheckSuiteAsync(null, scopeFilter, dimFilter, categoryFilter, platformFilter);
                 resultsToInspect.AddRange(suite.Results);
+            }
+
+            if (action == "details")
+            {
+                return RenderDetails(resultsToInspect, opts);
             }
 
             return RenderViolations(resultsToInspect, opts);
@@ -245,17 +250,29 @@ public class GateCommandHandler : BaseCommandHandler
 
     private static int RenderSingleGate(GateCheckResult r, GateOptions opts)
     {
-        if (opts.All || opts.OnlyTolerated || !string.IsNullOrWhiteSpace(opts.GroupBy) || !string.IsNullOrWhiteSpace(opts.FileFilter))
-        {
-            return RenderViolations([r], opts);
-        }
-
         var isSingleFail = r.Status is GateCheckStatus.FailedNew or GateCheckStatus.Error
             || ((opts.FailOnWarning || opts.Strict) && r.Status == GateCheckStatus.Warning);
 
         if (opts.Format.Equals("json", StringComparison.OrdinalIgnoreCase))
         {
-            Console.WriteLine(JsonSerializer.Serialize(r, new JsonSerializerOptions { WriteIndented = true }));
+            var summary = new
+            {
+                r.Gate.Id,
+                r.Gate.Name,
+                Category = r.Gate.Category.ToString(),
+                r.Gate.Platform,
+                Scope = r.Gate.Scope.ToString(),
+                Dimension = r.Gate.Dimension.ToString(),
+                Severity = r.Gate.Severity.ToString(),
+                Status = r.Status.ToString(),
+                Violations = r.Violations.Count,
+                NewViolations = r.NewViolations.Count,
+                ToleratedViolations = r.ToleratedViolations.Count,
+                r.CanRatchetDown,
+                DurationMs = r.Duration.TotalMilliseconds,
+                r.ErrorMessage
+            };
+            Console.WriteLine(JsonSerializer.Serialize(summary, new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
             return isSingleFail ? 1 : 0;
         }
 
@@ -268,6 +285,29 @@ public class GateCommandHandler : BaseCommandHandler
             _ => (ConsoleColor.DarkRed, "[ERROR]")
         };
 
+        if (opts.Format.Equals(FormatMarkdown, StringComparison.OrdinalIgnoreCase))
+        {
+            Console.WriteLine($"### Gate Check: `{r.Gate.Id}`\n");
+            Console.WriteLine("| Status | ID | Category | Platform | Scope | Violations | Name | Duration |");
+            Console.WriteLine("| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |");
+            var st = r.Status switch
+            {
+                GateCheckStatus.Passed => "PASS",
+                GateCheckStatus.PassedTolerated => "TOLERATED",
+                GateCheckStatus.Warning => "WARN",
+                GateCheckStatus.FailedNew => "FAIL",
+                _ => "ERROR"
+            };
+            var vText = r.NewViolations.Count > 0 ? $"{r.NewViolations.Count} new" : $"{r.Violations.Count} tol";
+            if (r.Violations.Count == 0) vText = "0";
+            Console.WriteLine($"| {st} | `{r.Gate.Id}` | {r.Gate.Category} | `{r.Gate.Platform}` | {r.Gate.Scope} | {vText} | {r.Gate.Name} | {r.Duration.TotalMilliseconds:F0}ms |\n");
+            if (isSingleFail || r.Status == GateCheckStatus.Warning)
+            {
+                Console.WriteLine($"- **Tip**: Run `ce gate details -g {r.Gate.Id}` to view violation details and remediation.\n");
+            }
+            return isSingleFail ? 1 : 0;
+        }
+
         Console.Write($"{label} ", color);
         Console.WriteLine($"{r.Gate.Id} [{r.Gate.Category}/{r.Gate.Platform}] - {r.Gate.Name} ({r.Duration.TotalMilliseconds:F0}ms)");
         if (!string.IsNullOrEmpty(r.Gate.Description))
@@ -275,46 +315,22 @@ public class GateCommandHandler : BaseCommandHandler
             Console.WriteLine($"  Rule: {r.Gate.Description}");
         }
 
-        if (r.NewViolations.Count > 0)
-        {
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"\n  New Violations ({r.NewViolations.Count}):");
-            Console.ResetColor();
-
-            var sampleCount = opts.All ? r.NewViolations.Count : Math.Min(5, r.NewViolations.Count);
-            for (var i = 0; i < sampleCount; i++)
-            {
-                var v = r.NewViolations[i];
-                var loc = v.Location != "-" ? v.Location : "";
-                var target = !string.IsNullOrEmpty(v.Target) ? $" -> {v.Target}" : "";
-                Console.WriteLine($"    - {loc} {v.Symbol}{target}: {v.Message}");
-            }
-
-            if (!opts.All && r.NewViolations.Count > sampleCount)
-            {
-                Console.WriteLine($"    ... and {r.NewViolations.Count - sampleCount} more new violation(s).");
-                Console.WriteLine($"    Tip: Inspect all violations: ce gate violations -g {r.Gate.Id} (e.g. '--group-by file')");
-            }
-
-            if (!string.IsNullOrEmpty(r.Gate.Remediation))
-            {
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine($"\n  Remediation: {r.Gate.Remediation}");
-                Console.ResetColor();
-            }
-        }
-        else if (r.Violations.Count > 0)
-        {
-            Console.WriteLine($"\n  Active Violations: {r.Violations.Count} (all tolerated by baseline)");
-            Console.WriteLine($"  Tip: View violations with: ce gate violations -g {r.Gate.Id}");
-            Console.WriteLine($"       ce gate violations -g {r.Gate.Id} --group-by file");
-        }
+        var violSummary = r.NewViolations.Count > 0
+            ? $"{r.NewViolations.Count} new" + (r.ToleratedViolations.Count > 0 ? $", {r.ToleratedViolations.Count} tolerated" : "")
+            : $"{r.Violations.Count} tolerated";
+        if (r.Violations.Count == 0) violSummary = "0";
+        Console.WriteLine($"  Violations: {violSummary} | Status: {label.Trim('[', ']')}");
 
         if (r.CanRatchetDown)
         {
             Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.WriteLine($"\n  Ratchet: Violations reduced from {r.BaselineCount} -> {r.Violations.Count}. Run 'ce gate ratchet --update'.");
+            Console.WriteLine($"  Ratchet: Violations reduced from {r.BaselineCount} -> {r.Violations.Count}. Run 'ce gate ratchet --update -g {r.Gate.Id}'.");
             Console.ResetColor();
+        }
+
+        if (isSingleFail || r.Status == GateCheckStatus.Warning)
+        {
+            Console.WriteLine($"  Tip: Run 'ce gate details -g {r.Gate.Id}' to view violation details and remediation.");
         }
 
         return isSingleFail ? 1 : 0;
@@ -322,12 +338,40 @@ public class GateCommandHandler : BaseCommandHandler
 
     private static int RenderSuite(GateSuiteResult suite, GateOptions opts)
     {
+        var failOnWarnings = opts.FailOnWarning || opts.Strict;
+        var maxWarningsExceeded = opts.MaxWarnings >= 0 && suite.WarningCount > opts.MaxWarnings;
+        var isFailure = suite.FailedCount > 0 || (failOnWarnings && suite.WarningCount > 0) || maxWarningsExceeded;
+
         if (opts.Format.Equals("json", StringComparison.OrdinalIgnoreCase))
         {
-            Console.WriteLine(JsonSerializer.Serialize(suite, new JsonSerializerOptions { WriteIndented = true }));
-            var failOnWarnings = opts.FailOnWarning || opts.Strict;
-            var maxWarningsExceeded = opts.MaxWarnings >= 0 && suite.WarningCount > opts.MaxWarnings;
-            var isFailure = suite.FailedCount > 0 || (failOnWarnings && suite.WarningCount > 0) || maxWarningsExceeded;
+            var summary = new
+            {
+                suite.TotalGates,
+                suite.PassedCount,
+                suite.WarningCount,
+                suite.FailedCount,
+                suite.NewViolationsCount,
+                suite.ToleratedViolationsCount,
+                suite.RatchetOpportunities,
+                suite.IsSuccess,
+                DurationMs = suite.TotalDuration.TotalMilliseconds,
+                Gates = suite.Results.Select(r => new
+                {
+                    r.Gate.Id,
+                    r.Gate.Name,
+                    Category = r.Gate.Category.ToString(),
+                    r.Gate.Platform,
+                    Scope = r.Gate.Scope.ToString(),
+                    Dimension = r.Gate.Dimension.ToString(),
+                    Severity = r.Gate.Severity.ToString(),
+                    Status = r.Status.ToString(),
+                    Violations = r.Violations.Count,
+                    NewViolations = r.NewViolations.Count,
+                    ToleratedViolations = r.ToleratedViolations.Count,
+                    DurationMs = r.Duration.TotalMilliseconds
+                })
+            };
+            Console.WriteLine(JsonSerializer.Serialize(summary, new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
             return isFailure ? 1 : 0;
         }
 
@@ -359,27 +403,11 @@ public class GateCommandHandler : BaseCommandHandler
             }
             Console.WriteLine($"\n**Total**: {suite.TotalGates} gates | Passed: {suite.PassedCount} | Warnings: {suite.WarningCount} | Failed: {suite.FailedCount} | Duration: {suite.TotalDuration.TotalMilliseconds:F0}ms\n");
 
-            var failedGates = suite.Results.Where(r => r.Status is GateCheckStatus.FailedNew or GateCheckStatus.Error).ToList();
-            if (failedGates.Count > 0)
+            if (isFailure || suite.WarningCount > 0)
             {
-                Console.WriteLine("#### Blocking Failures\n");
-                foreach (var fg in failedGates)
-                {
-                    var countText = fg.NewViolations.Count > 0 ? $" ({fg.NewViolations.Count} new)" : "";
-                    Console.WriteLine($"- **`{fg.Gate.Id}`** - {fg.Gate.Name}{countText}");
-                    if (!string.IsNullOrEmpty(fg.Gate.Remediation))
-                    {
-                        Console.WriteLine($"  - *Remediation*: {fg.Gate.Remediation}");
-                    }
-                    if (fg.NewViolations.Count > 0)
-                    {
-                        Console.WriteLine($"  - *Inspect*: `ce gate violations -g {fg.Gate.Id}`");
-                    }
-                }
-                Console.WriteLine();
+                Console.WriteLine("- **Tip**: Run `ce gate details` to inspect failure details and violation locations.\n");
             }
-
-            return suite.IsSuccess ? 0 : 1;
+            return isFailure ? 1 : 0;
         }
 
         Console.WriteLine("\n--- Semantic Invariant Gates Evaluation ---\n");
@@ -410,56 +438,6 @@ public class GateCommandHandler : BaseCommandHandler
         Console.WriteLine(new string('-', 105));
         Console.WriteLine($"Total: {suite.TotalGates} gates | Passed: {suite.PassedCount} | Warnings: {suite.WarningCount} | Failed: {suite.FailedCount} | Duration: {suite.TotalDuration.TotalMilliseconds:F0}ms\n");
 
-        var failed = suite.Results.Where(r => r.Status is GateCheckStatus.FailedNew or GateCheckStatus.Error).ToList();
-        if (failed.Count > 0)
-        {
-            var totalNew = failed.Sum(f => f.NewViolations.Count);
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"Failed Gates ({failed.Count} gate(s) failed, {totalNew} new violation(s)):\n");
-            Console.ResetColor();
-
-            foreach (var fg in failed)
-            {
-                var countText = fg.NewViolations.Count > 0 ? $" ({fg.NewViolations.Count} new violation(s))" : "";
-                Console.WriteLine($"Gate [{fg.Gate.Id}] {fg.Gate.Name}{countText}:");
-                if (!string.IsNullOrEmpty(fg.Gate.Description))
-                {
-                    Console.WriteLine($"  Rule: {fg.Gate.Description}");
-                }
-
-                if (fg.NewViolations.Count > 0)
-                {
-                    var sampleCount = opts.All ? fg.NewViolations.Count : Math.Min(3, fg.NewViolations.Count);
-                    for (var i = 0; i < sampleCount; i++)
-                    {
-                        var v = fg.NewViolations[i];
-                        var loc = v.Location != "-" ? v.Location : "";
-                        var target = !string.IsNullOrEmpty(v.Target) ? $" -> {v.Target}" : "";
-                        Console.WriteLine($"  - {loc} {v.Symbol}{target}: {v.Message}");
-                    }
-
-                    if (!opts.All && fg.NewViolations.Count > sampleCount)
-                    {
-                        Console.WriteLine($"  ... and {fg.NewViolations.Count - sampleCount} more new violation(s).");
-                    }
-                }
-
-                if (!string.IsNullOrEmpty(fg.Gate.Remediation))
-                {
-                    Console.ForegroundColor = ConsoleColor.Yellow;
-                    Console.WriteLine($"  Remediation: {fg.Gate.Remediation}");
-                    Console.ResetColor();
-                }
-
-                if (fg.NewViolations.Count > 0)
-                {
-                    Console.WriteLine($"  Inspect: ce gate violations -g {fg.Gate.Id} (e.g. '--group-by file')");
-                }
-                Console.WriteLine();
-            }
-            return 1;
-        }
-
         if (suite.RatchetOpportunities > 0)
         {
             Console.ForegroundColor = ConsoleColor.Cyan;
@@ -468,69 +446,311 @@ public class GateCommandHandler : BaseCommandHandler
             Console.ResetColor();
         }
 
-        if (suite.ToleratedViolationsCount > 0)
+        if (isFailure)
         {
-            Console.WriteLine($"Tip: Inspect tolerated debt with 'ce gate violations -g <id>' (e.g. '--group-by file').");
-        }
-
-        var warnings = suite.Results.Where(r => r.Status == GateCheckStatus.Warning).ToList();
-        if (warnings.Count > 0)
-        {
-            var totalWarn = warnings.Sum(w => w.NewViolations.Count);
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($"Warning Gates ({warnings.Count} gate(s) with warnings, {totalWarn} new violation(s)):\n");
-            Console.ResetColor();
-
-            foreach (var wg in warnings)
-            {
-                var countText = wg.NewViolations.Count > 0 ? $" ({wg.NewViolations.Count} new violation(s))" : "";
-                Console.WriteLine($"Gate [{wg.Gate.Id}] {wg.Gate.Name}{countText}:");
-                if (!string.IsNullOrEmpty(wg.Gate.Description))
-                {
-                    Console.WriteLine($"  Rule: {wg.Gate.Description}");
-                }
-
-                if (wg.NewViolations.Count > 0)
-                {
-                    var sampleCount = opts.All ? wg.NewViolations.Count : Math.Min(3, wg.NewViolations.Count);
-                    for (var i = 0; i < sampleCount; i++)
-                    {
-                        var v = wg.NewViolations[i];
-                        var loc = v.Location != "-" ? v.Location : "";
-                        var target = !string.IsNullOrEmpty(v.Target) ? $" -> {v.Target}" : "";
-                        Console.WriteLine($"  - {loc} {v.Symbol}{target}: {v.Message}");
-                    }
-
-                    if (!opts.All && wg.NewViolations.Count > sampleCount)
-                    {
-                        Console.WriteLine($"  ... and {wg.NewViolations.Count - sampleCount} more new violation(s).");
-                    }
-                }
-
-                if (!string.IsNullOrEmpty(wg.Gate.Remediation))
-                {
-                    Console.ForegroundColor = ConsoleColor.Yellow;
-                    Console.WriteLine($"  Remediation: {wg.Gate.Remediation}");
-                    Console.ResetColor();
-                }
-
-                if (wg.NewViolations.Count > 0)
-                {
-                    Console.WriteLine($"  Inspect: ce gate violations -g {wg.Gate.Id} (e.g. '--group-by file')");
-                }
-                Console.WriteLine();
-            }
-        }
-
-        var failOnWarnSuite = opts.FailOnWarning || opts.Strict;
-        var maxWarnSuiteExceeded = opts.MaxWarnings >= 0 && suite.WarningCount > opts.MaxWarnings;
-        if (suite.FailedCount > 0 || (failOnWarnSuite && suite.WarningCount > 0) || maxWarnSuiteExceeded)
-        {
+            Console.WriteLine("Tip: Run 'ce gate details' to view failure details and remediation.");
             return 1;
+        }
+
+        if (suite.WarningCount > 0)
+        {
+            Console.WriteLine("Tip: Run 'ce gate details' to view warning details and remediation.");
         }
 
         PrintSuccess("All architectural semantic gates passed successfully.");
         return 0;
+    }
+
+    private static List<(GateViolation Violation, bool IsTolerated)> FilterViolations(GateCheckResult r, GateOptions opts)
+    {
+        var items = new List<(GateViolation Violation, bool IsTolerated)>();
+        var toleratedFp = new HashSet<string>(r.ToleratedViolations.Select(t => t.Fingerprint));
+        foreach (var v in r.Violations)
+        {
+            var isTol = toleratedFp.Contains(v.Fingerprint);
+            if (opts.OnlyNew && isTol) continue;
+            if (opts.OnlyTolerated && !isTol) continue;
+
+            if (!string.IsNullOrWhiteSpace(opts.FileFilter) &&
+                (v.File == null || !v.File.Contains(opts.FileFilter, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(opts.SymbolFilter) &&
+                (v.Symbol == null || !v.Symbol.Contains(opts.SymbolFilter, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(opts.TargetFilter) &&
+                (v.Target == null || !v.Target.Contains(opts.TargetFilter, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            items.Add((v, isTol));
+        }
+        return items;
+    }
+
+    private static int RenderDetails(IReadOnlyList<GateCheckResult> results, GateOptions opts)
+    {
+        if (!string.IsNullOrWhiteSpace(opts.GroupBy))
+        {
+            return RenderViolations(results, opts);
+        }
+
+        var singleTargeted = results.Count == 1 && !string.IsNullOrWhiteSpace(opts.GateId);
+
+        List<GateCheckResult> gatesToDisplay;
+        if (singleTargeted)
+        {
+            gatesToDisplay = results.ToList();
+        }
+        else if (opts.All)
+        {
+            gatesToDisplay = results.Where(r => r.Violations.Count > 0 || r.Status == GateCheckStatus.Error).ToList();
+        }
+        else if (opts.OnlyNew)
+        {
+            gatesToDisplay = results.Where(r => r.NewViolations.Count > 0 || r.Status is GateCheckStatus.FailedNew or GateCheckStatus.Error).ToList();
+        }
+        else if (opts.OnlyTolerated)
+        {
+            gatesToDisplay = results.Where(r => r.ToleratedViolations.Count > 0).ToList();
+        }
+        else
+        {
+            var problemGates = results.Where(r => r.Status is GateCheckStatus.FailedNew or GateCheckStatus.Error or GateCheckStatus.Warning || r.NewViolations.Count > 0).ToList();
+            gatesToDisplay = problemGates.Count > 0
+                ? problemGates
+                : results.Where(r => r.Violations.Count > 0).ToList();
+        }
+
+        var isJson = opts.Format.Equals("json", StringComparison.OrdinalIgnoreCase);
+        var isMarkdown = opts.Format.Equals(FormatMarkdown, StringComparison.OrdinalIgnoreCase);
+
+        var failOnWarnings = opts.FailOnWarning || opts.Strict;
+        var maxWarningsExceeded = opts.MaxWarnings >= 0 && results.Count(r => r.Status == GateCheckStatus.Warning) > opts.MaxWarnings;
+        var isFailure = results.Any(r => r.Status is GateCheckStatus.FailedNew or GateCheckStatus.Error)
+            || (failOnWarnings && results.Any(r => r.Status == GateCheckStatus.Warning))
+            || maxWarningsExceeded;
+
+        if (gatesToDisplay.Count == 0)
+        {
+            if (isJson)
+            {
+                var emptyPayload = new
+                {
+                    totalGates = results.Count,
+                    isSuccess = !isFailure,
+                    message = "All architectural semantic gates passed with zero violations.",
+                    gates = Array.Empty<object>()
+                };
+                Console.WriteLine(JsonSerializer.Serialize(emptyPayload, new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+                return 0;
+            }
+
+            if (isMarkdown)
+            {
+                Console.WriteLine("### Semantic Invariant Gate Details\n");
+                Console.WriteLine("**All architectural semantic gates passed with zero violations.**\n");
+                return 0;
+            }
+
+            PrintSuccess("All architectural semantic gates passed with zero violations. No failure details to display.");
+            return 0;
+        }
+
+        if (isJson)
+        {
+            var jsonPayload = new
+            {
+                totalGates = results.Count,
+                inspectedGates = gatesToDisplay.Count,
+                isSuccess = !isFailure,
+                gates = gatesToDisplay.Select(r =>
+                {
+                    var items = FilterViolations(r, opts);
+                    var paged = opts.Limit > 0 ? items.Skip(opts.Offset).Take(opts.Limit).ToList() : items.Skip(opts.Offset).ToList();
+                    return new
+                    {
+                        r.Gate.Id,
+                        r.Gate.Name,
+                        Category = r.Gate.Category.ToString(),
+                        r.Gate.Platform,
+                        Scope = r.Gate.Scope.ToString(),
+                        Dimension = r.Gate.Dimension.ToString(),
+                        Severity = r.Gate.Severity.ToString(),
+                        Status = r.Status.ToString(),
+                        Description = r.Gate.Description,
+                        Remediation = r.Gate.Remediation,
+                        TotalViolations = items.Count,
+                        NewViolationsCount = items.Count(x => !x.IsTolerated),
+                        ToleratedViolationsCount = items.Count(x => x.IsTolerated),
+                        Offset = opts.Offset,
+                        Limit = opts.Limit,
+                        Violations = paged.Select(x => new
+                        {
+                            Status = x.IsTolerated ? "TOLERATED" : "NEW",
+                            File = GateViolation.CleanFilePath(x.Violation.File) != "-" ? GateViolation.CleanFilePath(x.Violation.File) : x.Violation.File,
+                            x.Violation.Line,
+                            x.Violation.Column,
+                            x.Violation.Location,
+                            x.Violation.Symbol,
+                            x.Violation.Target,
+                            x.Violation.Message,
+                            x.Violation.Fingerprint,
+                            isTolerated = x.IsTolerated
+                        })
+                    };
+                })
+            };
+            Console.WriteLine(JsonSerializer.Serialize(jsonPayload, new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+            return isFailure ? 1 : 0;
+        }
+
+        if (isMarkdown)
+        {
+            Console.WriteLine("### Semantic Invariant Gate Details\n");
+            foreach (var r in gatesToDisplay)
+            {
+                var st = r.Status switch
+                {
+                    GateCheckStatus.Passed => "PASS",
+                    GateCheckStatus.PassedTolerated => "TOLERATED",
+                    GateCheckStatus.Warning => "WARN",
+                    GateCheckStatus.FailedNew => "FAIL",
+                    _ => "ERROR"
+                };
+                Console.WriteLine($"#### [{st}] `{r.Gate.Id}` - {r.Gate.Name}\n");
+                Console.WriteLine($"- **Status**: `{st}` ({r.NewViolations.Count} new, {r.ToleratedViolations.Count} tolerated)");
+                Console.WriteLine($"- **Category**: {r.Gate.Category} | **Platform**: `{r.Gate.Platform}` | **Scope**: {r.Gate.Scope} | **Severity**: {r.Gate.Severity}");
+                if (!string.IsNullOrEmpty(r.Gate.Description))
+                {
+                    Console.WriteLine($"- **Rule**: {r.Gate.Description}");
+                }
+                if (!string.IsNullOrEmpty(r.Gate.Remediation))
+                {
+                    Console.WriteLine($"- **Remediation**: {r.Gate.Remediation}");
+                }
+                Console.WriteLine();
+
+                var items = FilterViolations(r, opts);
+                if (items.Count == 0)
+                {
+                    Console.WriteLine("*No violations matching the specified filter for this gate.*\n");
+                    continue;
+                }
+
+                var paged = opts.Limit > 0 ? items.Skip(opts.Offset).Take(opts.Limit).ToList() : items.Skip(opts.Offset).ToList();
+                Console.WriteLine("| Status | Location | Symbol | Target / Details |");
+                Console.WriteLine("| :--- | :--- | :--- | :--- |");
+                foreach (var (v, isTol) in paged)
+                {
+                    var statusStr = isTol ? "TOLERATED" : "NEW";
+                    var loc = v.Location != "-" ? $"`{v.Location}`" : "-";
+                    var sym = !string.IsNullOrEmpty(v.Symbol) ? $"`{v.Symbol}`" : "-";
+                    var tgt = !string.IsNullOrEmpty(v.Target) ? $"`{v.Target}`" : (v.Message ?? "");
+                    Console.WriteLine($"| {statusStr} | {loc} | {sym} | {tgt} |");
+                }
+                if (items.Count > paged.Count)
+                {
+                    Console.WriteLine($"\n*... and {items.Count - paged.Count} more violation(s). Use `--limit 0` to show all.*");
+                }
+                Console.WriteLine();
+            }
+
+            return isFailure ? 1 : 0;
+        }
+
+        // Table / Console format
+        Console.WriteLine("\n--- Semantic Invariant Gate Details ---\n");
+        for (var idx = 0; idx < gatesToDisplay.Count; idx++)
+        {
+            var r = gatesToDisplay[idx];
+            var (color, label) = r.Status switch
+            {
+                GateCheckStatus.Passed => (ConsoleColor.Green, "[PASS]"),
+                GateCheckStatus.PassedTolerated => (ConsoleColor.Yellow, "[TOLERATED]"),
+                GateCheckStatus.Warning => (ConsoleColor.Yellow, "[WARN]"),
+                GateCheckStatus.FailedNew => (ConsoleColor.Red, "[FAIL]"),
+                _ => (ConsoleColor.DarkRed, "[ERROR]")
+            };
+
+            Console.ForegroundColor = color;
+            Console.Write($"{label} ");
+            Console.ResetColor();
+            Console.WriteLine($"{r.Gate.Id} [{r.Gate.Category}/{r.Gate.Platform}] - {r.Gate.Name} ({r.Duration.TotalMilliseconds:F0}ms)");
+
+            if (!string.IsNullOrEmpty(r.Gate.Description))
+            {
+                Console.WriteLine($"  Rule: {r.Gate.Description}");
+            }
+            if (!string.IsNullOrEmpty(r.Gate.Remediation))
+            {
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine($"  Remediation: {r.Gate.Remediation}");
+                Console.ResetColor();
+            }
+
+            var items = FilterViolations(r, opts);
+            if (items.Count == 0)
+            {
+                Console.WriteLine("  No violations detected for this gate.\n");
+                continue;
+            }
+
+            var paged = opts.Limit > 0 ? items.Skip(opts.Offset).Take(opts.Limit).ToList() : items.Skip(opts.Offset).ToList();
+            var newCount = items.Count(x => !x.IsTolerated);
+            var tolCount = items.Count(x => x.IsTolerated);
+            Console.WriteLine($"\n  Violations ({newCount} new, {tolCount} tolerated) | Showing {paged.Count} of {items.Count}:");
+
+            var statusWidth = Math.Max("STATUS".Length, paged.Count > 0 ? paged.Max(x => (x.IsTolerated ? "[TOL]" : "[NEW]").Length) : 6);
+            var locWidth = Math.Max("LOCATION".Length, paged.Count > 0 ? paged.Max(x => (x.Violation.Location != "-" ? x.Violation.Location : "").Length) : 8);
+            var symWidth = Math.Max("SYMBOL".Length, paged.Count > 0 ? paged.Max(x => (x.Violation.Symbol ?? "").Length) : 6);
+            var tgtWidth = Math.Max("TARGET / CALL".Length, paged.Count > 0 ? paged.Max(x => (!string.IsNullOrEmpty(x.Violation.Target) ? x.Violation.Target : (x.Violation.Message ?? "")).Length) : 13);
+
+            var headerLine = $"  {"STATUS".PadRight(statusWidth)} | {"LOCATION".PadRight(locWidth)} | {"SYMBOL".PadRight(symWidth)} | {"TARGET / CALL".PadRight(tgtWidth)}";
+            var dividerLine = $"  {new string('-', statusWidth)}-+-{new string('-', locWidth)}-+-{new string('-', symWidth)}-+-{new string('-', tgtWidth)}";
+
+            Console.WriteLine(headerLine);
+            Console.WriteLine(dividerLine);
+
+            foreach (var (v, isTol) in paged)
+            {
+                var st = isTol ? "[TOL]" : "[NEW]";
+                var loc = v.Location != "-" ? v.Location : "";
+                var sym = v.Symbol ?? "";
+                var tgt = !string.IsNullOrEmpty(v.Target) ? v.Target : (v.Message ?? "");
+
+                var vColor = isTol ? ConsoleColor.Yellow : ConsoleColor.Red;
+                Console.Write("  ");
+                Console.ForegroundColor = vColor;
+                Console.Write(st.PadRight(statusWidth));
+                Console.ResetColor();
+
+                Console.WriteLine($" | {loc.PadRight(locWidth)} | {sym.PadRight(symWidth)} | {tgt}");
+            }
+
+            Console.WriteLine(dividerLine);
+            if (items.Count > paged.Count)
+            {
+                Console.WriteLine($"  ... and {items.Count - paged.Count} more violation(s). Use '--limit 0' to show all.");
+            }
+
+            if (r.CanRatchetDown)
+            {
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine($"  Ratchet: Violations reduced from {r.BaselineCount} -> {r.Violations.Count}. Run 'ce gate ratchet --update -g {r.Gate.Id}'.");
+                Console.ResetColor();
+            }
+
+            Console.WriteLine();
+        }
+
+        return isFailure ? 1 : 0;
     }
 
     private static int RenderViolations(IReadOnlyList<GateCheckResult> results, GateOptions opts)

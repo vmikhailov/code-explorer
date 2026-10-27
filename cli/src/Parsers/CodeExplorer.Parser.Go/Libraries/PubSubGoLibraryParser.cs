@@ -15,7 +15,9 @@ public class PubSubGoLibraryParser : ISemanticExtension
     public IReadOnlyList<string> SupportedPatterns =>
     [
         "cloud.google.com/go/pubsub",
-        "cloud.google.com/go/pubsub/*"
+        "cloud.google.com/go/pubsub/*",
+        "*pubsub*",
+        "*pub-sub*"
     ];
     public bool IsImplemented => true;
     public LibraryRole LibraryRole => LibraryRole.MessageBroker;

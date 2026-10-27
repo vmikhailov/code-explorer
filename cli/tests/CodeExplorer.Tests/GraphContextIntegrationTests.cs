@@ -161,4 +161,27 @@ public class GraphContextIntegrationTests
 
         nonLibs.Should().HaveCount(3);
     }
+
+    [Test]
+    public async Task SchemaVersion_Migrator_UpgradesV3TextToV4Jsonb_AndFlagsOutdatedWhenUnsupported()
+    {
+        _client.SchemaVersion.Should().Be(SqliteGraphClient.CurrentSchemaVersion);
+        _client.IsSchemaOutdated.Should().BeFalse();
+
+        // Simulate legacy v3 TEXT JSON row
+        await _client.ExecuteWriteAsync("UPDATE nodes SET properties = json(properties); PRAGMA user_version = 3;");
+        var migrated = _client.TryRunSchemaMigrator(3, SqliteGraphClient.CurrentSchemaVersion);
+        migrated.Should().BeTrue();
+
+        var typeAfterMigration = await _client.ExecuteRawAsync(async conn =>
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT typeof(properties) FROM nodes LIMIT 1;";
+            return (string?)await cmd.ExecuteScalarAsync();
+        });
+        typeAfterMigration.Should().Be("blob");
+
+        // Simulate unsupported future version -> migrator returns false so full rebuild is triggered
+        _client.TryRunSchemaMigrator(3, 999).Should().BeFalse();
+    }
 }

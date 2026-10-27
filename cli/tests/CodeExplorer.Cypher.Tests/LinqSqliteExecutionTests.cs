@@ -24,56 +24,17 @@ public class LinqSqliteExecutionTests
             _conn = conn;
         }
 
-        public async Task<string> ExecuteQueryAsync(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default)
-        {
-            var compiled = SqliteCompiler.Compile(query, parameters);
+        public Task<int> ExecuteCountAsync(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default) =>
+            DbEntityMaterializer.ExecuteScalarCountAsync(_conn, query, parameters, ct: ct);
 
-            await using var cmd = _conn.CreateCommand();
-            cmd.CommandText = compiled.Sql;
+        public Task<bool> ExecuteAnyAsync(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default) =>
+            DbEntityMaterializer.ExecuteScalarAnyAsync(_conn, query, parameters, ct: ct);
 
-            foreach (var (k, v) in compiled.Parameters)
-            {
-                cmd.Parameters.AddWithValue("@" + k, v ?? DBNull.Value);
-            }
+        public Task<List<TElement>> ExecuteListAsync<TElement>(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default) =>
+            DbEntityMaterializer.ExecuteReaderListAsync<TElement>(_conn, query, parameters, ct: ct);
 
-            await using var reader = await cmd.ExecuteReaderAsync(ct);
-            var rows = new List<Dictionary<string, object?>>();
-
-            while (await reader.ReadAsync(ct))
-            {
-                var row = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-                for (var i = 0; i < reader.FieldCount; i++)
-                {
-                    var colName = reader.GetName(i);
-                    var val = reader.IsDBNull(i) ? null : reader.GetValue(i);
-
-                    // Parse JSON if needed
-                    if (val is string strVal && (strVal.StartsWith("{") || strVal.StartsWith("[")))
-                    {
-                        try
-                        {
-                            using var doc = JsonDocument.Parse(strVal);
-                            row[colName] = doc.RootElement.Clone();
-                            continue;
-                        }
-                        catch
-                        {
-                            // Not JSON, keep string
-                        }
-                    }
-
-                    row[colName] = val;
-                }
-                rows.Add(row);
-            }
-
-            return JsonSerializer.Serialize(rows);
-        }
-
-        public Task<string> ExecuteRawAsync(string cypher, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default)
-        {
-            throw new NotImplementedException();
-        }
+        public Task<TElement?> ExecuteFirstOrDefaultAsync<TElement>(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default) =>
+            DbEntityMaterializer.ExecuteReaderFirstOrDefaultAsync<TElement>(_conn, query, parameters, ct: ct);
     }
 
     [SetUp]
@@ -120,7 +81,7 @@ public class LinqSqliteExecutionTests
     private void InsertNode(string id, string kind, Dictionary<string, object?> props)
     {
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "INSERT INTO nodes (id, kind, properties) VALUES (@id, @kind, @props)";
+        cmd.CommandText = "INSERT INTO nodes (id, kind, properties) VALUES (@id, @kind, jsonb(@props))";
         cmd.Parameters.AddWithValue("@id", id);
         cmd.Parameters.AddWithValue("@kind", kind);
         cmd.Parameters.AddWithValue("@props", JsonSerializer.Serialize(props));

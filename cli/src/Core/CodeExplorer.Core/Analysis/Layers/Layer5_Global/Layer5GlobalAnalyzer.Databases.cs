@@ -108,7 +108,7 @@ public partial class Layer5AnalysisParser
         }
 
         // 2. Query matching symbols from SQLite
-        ctx.Log($"[Layer5] Targeted preloading: querying SQLite for {neededNames.Count} referenced symbol names across workspace...");
+        ctx.Log($"[Layer 5    ] Targeted preloading: querying SQLite for {neededNames.Count} referenced symbol names across workspace...");
         var preloaded = await ctx.DbClient.LoadSymbolsByNamesAsync(neededNames, ctx.WorkspaceId, ctx.CancellationToken);
 
         var addedCount = 0;
@@ -120,7 +120,7 @@ public partial class Layer5AnalysisParser
             }
         }
 
-        ctx.Log($"[Layer5] Targeted preloading complete: preloaded {addedCount} external symbols into memory.");
+        ctx.Log($"[Layer 5    ] Targeted preloading complete: preloaded {addedCount} external symbols into memory.");
     }
 
     private record SymbolLookups(
@@ -341,7 +341,7 @@ public partial class Layer5AnalysisParser
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                ctx.LogDebug($"[Layer5] Failed to resolve inheritance reference '{refItem.TargetName}': {ex.Message}");
+                ctx.LogDebug($"[Layer 5    ] Failed to resolve inheritance reference '{refItem.TargetName}': {ex.Message}");
             }
         }
     }

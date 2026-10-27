@@ -96,7 +96,7 @@ public class IdentifierSearchEngine
         // Use correlated subquery for owner_name to ensure SQLite uses primary key index lookup on nodes(id)
         // rather than full table scanning nodes across tens/hundreds of thousands of candidate rows.
         var candidateQuery = """
-            SELECT n.id, n.kind, n.properties,
+            SELECT n.id, n.kind, json(n.properties) AS properties,
                    (SELECT json_extract(o.properties, '$.name') FROM nodes o WHERE o.id = e.from_id AND o.kind = 'Type') as owner_name
             FROM nodes n
             LEFT JOIN edges e ON (e.to_id = n.id AND e.kind IN ('HAS_METHOD', 'HAS_MEMBER'))
@@ -150,33 +150,33 @@ public class IdentifierSearchEngine
             entries.Add((id, name, fullName, kind, path, startLine, bytes));
         }
 
-        // Batch insert into identifier_index
+        // Batch insert into identifier_index using a single prepared statement
         await using var tx = (SqliteTransaction)await conn.BeginTransactionAsync(ct);
-        const int batchSize = 250;
-        for (int i = 0; i < entries.Count; i += batchSize)
+        await using (var insertCmd = conn.CreateCommand())
         {
-            int countThisBatch = Math.Min(batchSize, entries.Count - i);
-            await using var insertCmd = conn.CreateCommand();
             insertCmd.Transaction = tx;
+            insertCmd.CommandText =
+                "INSERT OR REPLACE INTO identifier_index (node_id, name, full_name, kind, path, start_line, embedding) VALUES (@id, @nm, @fn, @kd, @pt, @sl, @eb);";
+            var pId = insertCmd.Parameters.Add("@id", SqliteType.Text);
+            var pNm = insertCmd.Parameters.Add("@nm", SqliteType.Text);
+            var pFn = insertCmd.Parameters.Add("@fn", SqliteType.Text);
+            var pKd = insertCmd.Parameters.Add("@kd", SqliteType.Text);
+            var pPt = insertCmd.Parameters.Add("@pt", SqliteType.Text);
+            var pSl = insertCmd.Parameters.Add("@sl", SqliteType.Integer);
+            var pEb = insertCmd.Parameters.Add("@eb", SqliteType.Blob);
+            insertCmd.Prepare();
 
-            var sb = new System.Text.StringBuilder();
-            sb.Append("INSERT OR REPLACE INTO identifier_index (node_id, name, full_name, kind, path, start_line, embedding) VALUES ");
-            for (int j = 0; j < countThisBatch; j++)
+            foreach (var item in entries)
             {
-                var item = entries[i + j];
-                if (j > 0) sb.Append(',');
-                sb.Append($"(@id{j}, @nm{j}, @fn{j}, @kd{j}, @pt{j}, @sl{j}, @eb{j})");
-                insertCmd.Parameters.AddWithValue($"@id{j}", item.NodeId);
-                insertCmd.Parameters.AddWithValue($"@nm{j}", item.Name);
-                insertCmd.Parameters.AddWithValue($"@fn{j}", item.FullName);
-                insertCmd.Parameters.AddWithValue($"@kd{j}", item.Kind);
-                insertCmd.Parameters.AddWithValue($"@pt{j}", (object?)item.Path ?? DBNull.Value);
-                insertCmd.Parameters.AddWithValue($"@sl{j}", item.StartLine);
-                insertCmd.Parameters.AddWithValue($"@eb{j}", item.Embedding);
+                pId.Value = item.NodeId;
+                pNm.Value = item.Name;
+                pFn.Value = item.FullName;
+                pKd.Value = item.Kind;
+                pPt.Value = (object?)item.Path ?? DBNull.Value;
+                pSl.Value = item.StartLine;
+                pEb.Value = item.Embedding;
+                insertCmd.ExecuteNonQuery();
             }
-            sb.Append(';');
-            insertCmd.CommandText = sb.ToString();
-            await insertCmd.ExecuteNonQueryAsync(ct);
         }
 
         // Populate identifier_fts in a single statement directly from identifier_index (vastly faster than per-row string batches)
@@ -191,7 +191,7 @@ public class IdentifierSearchEngine
 
         await tx.CommitAsync(ct);
         sw.Stop();
-        _logger.LogInformation("[IdentifierSearch] Indexed {Count} identifiers into vector/trigram index in {ElapsedMs:F1}ms", entries.Count, sw.Elapsed.TotalMilliseconds);
+        _logger.LogDebug("[Database   ] Indexed {Count} identifiers into vector/trigram index in {ElapsedMs:F1}ms", entries.Count, sw.Elapsed.TotalMilliseconds);
     }
 
     public async Task<IReadOnlyList<IdentifierMatch>> SearchAsync(

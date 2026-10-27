@@ -12,7 +12,7 @@ public class Layer2ProjectParser
 {
     public async Task<Layer2Result> ParseAsync(Layer1Result l1Result, ParsingContext ctx)
     {
-        ctx.Log("[Layer2] Starting project boundary detection and dependency scan...");
+        ctx.Log("[Layer 2    ] Starting project boundary detection and dependency scan...");
 
         var projectsStructureNode = new ProjectsStructureNode(
             $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.ProjectsStructure}", 
@@ -609,7 +609,7 @@ public class Layer2ProjectParser
                     }
                     catch (Exception ex)
                     {
-                        ctx.LogWarning($"[Layer2] Sibling library scan error in '{libRoot}': {ex.Message}", ex);
+                        ctx.LogWarning($"[Layer 2    ] Sibling library scan error in '{libRoot}': {ex.Message}", ex);
                     }
                 }
             }
@@ -799,12 +799,12 @@ public class Layer2ProjectParser
         {
             await ctx.EnqueueUploadRelationshipsAsync(dependencies);
             ctx.AddRelsCount(dependencies.Count);
-            ctx.Log($"[Layer2] Resolved and enqueued {dependencies.Count} project dependencies.");
+            ctx.Log($"[Layer 2    ] Resolved and enqueued {dependencies.Count} project dependencies.");
         }
 
         SharedFileEnricher.Enrich(l1Result.Files, projects, ctx);
 
-        ctx.Log($"[Layer2] Project detection scan complete. Found {projects.Count} projects, {packages.Count} package nodes.");
+        ctx.Log($"[Layer 2    ] Project detection scan complete. Found {projects.Count} projects, {packages.Count} package nodes.");
         return new Layer2Result(l1Result, projectsStructureNode, projects, packages, dependencies);
     }
 
@@ -819,7 +819,7 @@ public class Layer2ProjectParser
         }
         catch (Exception ex)
         {
-            ctx.LogWarning($"[Layer2] Error parsing dependencies for {projectParser.ProjectType} in '{projectDir}': {ex.Message}", ex);
+            ctx.LogWarning($"[Layer 2    ] Error parsing dependencies for {projectParser.ProjectType} in '{projectDir}': {ex.Message}", ex);
             return null;
         }
     }
@@ -944,7 +944,7 @@ public class Layer2ProjectParser
         }
         catch (Exception ex)
         {
-            ctx.LogWarning($"[Layer2] Error getting produced package from {projectParser.ProjectType} parser in '{projectDir}': {ex.Message}", ex);
+            ctx.LogWarning($"[Layer 2    ] Error getting produced package from {projectParser.ProjectType} parser in '{projectDir}': {ex.Message}", ex);
         }
 
         if (!packageDetected)

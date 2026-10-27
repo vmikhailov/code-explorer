@@ -5,6 +5,55 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.62.1] - 2026-10-27
+
+### Changed
+- **Enrichment & Persistence Pipeline Optimization (2x Faster Indexing)**:
+  - **Prepared SQLite Parameterized Commands**: Replaced dynamic multi-row SQL string building and per-batch `SqliteParameter` allocations in `SqliteGraphClient.UploadNodesAsync`, `UploadRelationshipsAsync`, `SavePostIndexResultsAsync`, and `IdentifierSearchEngine.RebuildIndexAsync` with single prepared parameterized `SqliteCommand` instances (`cmd.Prepare()`) and eliminated per-node dictionary cloning.
+  - **Sub-Second Layer 4 Semantic Enrichment (`< 40ms` per project)**: Added in-memory `PackageNode` driver resolution and cross-run cache reset in `ResourceSemanticAnalyzer`, fast substring pre-filters in `DetectDeclaredSchemas` and `ScanFileTextForSchema` to skip unnecessary AST walks and regexes, zero-allocation `AsSpan().EnumerateLines()` in `FindDatabaseUsageLine`, in-memory parser lookup and $O(1)$ `HashSet<string>` child deduplication in `Layer4SemanticAnalyzer`, and early non-Rust exit in `SemanticTopologySynthesizer`.
+  - **Layer 5 & Post-Index Consolidation**: Added an immediate early exit in `PostIndexAnalyzer.PruneUnverifiedConfigDbEdges` when no config-derived database nodes exist (avoiding redundant full-workspace disk reads), preserved binary `jsonb(@p)` format in `NormalizeEdgesAsync`, and removed redundant mid-pipeline `ANALYZE` and orphan-edge table scans.
+
+---
+
+## [1.62.0] - 2026-10-27
+
+### Added
+- **`ce status` Schema Versioning**:
+  - Added ontology schema version (`schema_version: 1.0.0`) reporting to `ce status` in both terminal formatted output and raw JSON mode.
+- **Compiled IL-Emitted `NodeFactory`**:
+  - Replaced the legacy `JsonSerializer` dictionary mapping roundtrip in `Node.FromNode(IOntologyNode)` and `Relationship.FromRelationship` with lightweight, dynamically emitted Expression Tree IL converters (`NodeFactory`), achieving an **18.5x performance speedup** (from 10.2 µs/op down to 0.58 µs/op) and eliminating heap serialization allocations during SQLite graph persistence.
+- **Clean Registry-Driven Wildcard & Relative Import Matching**:
+  - Completely refactored `BaseParserVisitor` into a clean, decoupled mechanism by removing hardcoded vendor strings (`amqplib`, `rabbitmq`, `pubsub`, etc.) and delegating import resolution entirely to `SemanticExtensionRegistry.MatchAll`.
+  - Added compiled glob regex matching (`_wildcardPatterns`) and relative path normalization (`./` and `../`) to `SemanticExtensionRegistry`, supporting arbitrary glob patterns (e.g. `*rabbit*`, `*pubsub*`, `*EventBus*`) with strict specificity ordering.
+
+### Fixed
+- **SQL Parser False Positive Table Detection**:
+  - Eliminated noise and spurious table node creation in `NestedSqlParser` caused by SQL keywords (`their`, `test`, `table_`), SQLite JSON virtual table helpers (`json_each`), temporary/deleted markers (`temp_*`, `del_rec`), and procedural identifiers, ensuring strict accuracy for `MATCH (t:Table) RETURN t`.
+
+### Changed
+- **Indexing Throughput & AST Performance**:
+  - Optimized AST visitor traversal fast-path in `BaseParserVisitor` by skipping non-symbol syntax tokens and leaf expressions (`TokenSyntax`, primitive statements).
+  - Streamlined SQLite transaction batches and memory allocations during Layer 4 and Layer 5 indexing.
+
+---
+
+## [1.61.0] - 2026-10-26
+
+### Added
+- **`ce gate details` & Streamlined `ce gate check`**:
+  - Added `details` action to `ce gate` CLI (`ce gate details [-g <gate-id>]`) for deep-dive failure inspection, providing rule descriptions, remediation instructions, and complete tabular/JSON/Markdown violation listings with pagination and filters (`--limit`, `--offset`, `--only-new`, `--tolerated`, `--file`, `--symbol`, `--target`).
+  - Streamlined `ce gate check` to output concise, high-level evaluation summaries and counts only (Gate ID, status, severity, category, scope, and new vs tolerated violations) without flooding CI or developer terminal logs with violation tables, appending an actionable tip pointing to `ce gate details`.
+  - Maintained complete JSON and Markdown schema parity between summary-only (`check`) and drill-down (`details`) evaluations.
+- **Cypher LINQ Query Capabilities & Schema Evolution**:
+  - Expanded strongly-typed LINQ-to-Cypher expression translation and SQL query compilation for graph entities.
+
+### Changed
+- **Unified Build Output Architecture & Nullability Hardening**:
+  - Centralized all build artifacts and intermediate objects across projects under `.Build/` (`BaseIntermediateOutputPath` and `OutputPath`), simplifying cleanup and artifact packaging.
+  - Hardened C# nullable reference type annotations across `SqliteGraphClient`, `PostIndexAnalyzer`, `TestIntelligenceService`, and Cypher expression trees.
+
+---
+
 ## [1.60.0] - 2026-10-26
 
 ### Added

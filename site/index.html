@@ -2299,6 +2299,10 @@ query: |
     }
 
     function copyText(text, message) {
+      try {
+        const evt = text.includes('brew ') ? '/event/copy-brew' : (text.includes('mcp') ? '/event/copy-mcp' : '/event/copy-cli');
+        if (navigator.sendBeacon) navigator.sendBeacon(evt);
+      } catch (_) {}
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(() => showToast(message));
       } else {
@@ -2328,8 +2332,9 @@ query: |
       fetch('/version.json', { cache: 'no-cache' })
         .then(r => r.ok ? r.json() : null)
         .then(data => {
-          if (data && data.version) {
-            const v = data.version.startsWith('v') ? data.version : 'v' + data.version;
+          const rawVer = data && (data.tag_name || data.version);
+          if (rawVer) {
+            const v = rawVer.startsWith('v') ? rawVer : 'v' + rawVer;
             const heroBadge = document.getElementById('heroReleaseBadge');
             const footerVer = document.getElementById('footerCeVersion');
             if (heroBadge) heroBadge.textContent = v;

@@ -22,7 +22,7 @@ public sealed class DatabasePersistenceWriter : IAsyncDisposable
             }
             catch (Exception ex)
             {
-                _ctx.LogError($"[Persistence] Error writing to database: {ex.Message}", ex);
+                _ctx.LogError($"[Database   ] Error writing to database: {ex.Message}", ex);
             }
         }
     }

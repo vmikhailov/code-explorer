@@ -192,7 +192,7 @@ public partial class PostIndexAnalyzer
         }
 
         // 2. Query architectural/macro edges directly from edges table
-        var edgeQuery = "SELECT from_id AS source, to_id AS target, kind, properties FROM edges WHERE kind IN ('USES_DB', 'CONFIGURES', 'DEPENDS_ON', 'SERVICE_CALL', 'INTEGRATES_WITH', 'CALLS_ENDPOINT', 'PUBLISHES_TO', 'TRIGGERS', 'SUBSCRIBES_TO', 'LIBRARY')";
+        var edgeQuery = "SELECT from_id AS source, to_id AS target, kind, json(properties) AS properties FROM edges WHERE kind IN ('USES_DB', 'CONFIGURES', 'DEPENDS_ON', 'SERVICE_CALL', 'INTEGRATES_WITH', 'CALLS_ENDPOINT', 'PUBLISHES_TO', 'TRIGGERS', 'SUBSCRIBES_TO', 'LIBRARY')";
         var edgesJson = await db.ExecuteQueryAsync(edgeQuery, null, cancellationToken);
 
         using (var edgesDoc = JsonDocument.Parse(edgesJson))
@@ -295,7 +295,7 @@ public partial class PostIndexAnalyzer
                 for (int j = 0; j < chunk.Count; j++)
                 {
                     var u = chunk[j];
-                    sb.AppendLine($"UPDATE OR IGNORE edges SET kind = @k{j}, properties = @p{j} WHERE from_id = @s{j} AND to_id = @t{j} AND kind = @rk{j};");
+                    sb.AppendLine($"UPDATE OR IGNORE edges SET kind = @k{j}, properties = jsonb(@p{j}) WHERE from_id = @s{j} AND to_id = @t{j} AND kind = @rk{j};");
                     paramDict[$"k{j}"] = u.NormalizedKind;
                     paramDict[$"p{j}"] = u.PropsJson;
                     paramDict[$"s{j}"] = u.Src;
@@ -786,7 +786,6 @@ public partial class PostIndexAnalyzer
                 SELECT id FROM nodes WHERE kind IN ('ProjectSemantic', 'ProjectSyntax') AND id LIKE '%:project:%'
             );
             DELETE FROM nodes WHERE kind IN ('ProjectSemantic', 'ProjectSyntax') AND id LIKE '%:project:%';
-            DELETE FROM edges WHERE NOT EXISTS (SELECT 1 FROM nodes WHERE id = edges.from_id) OR NOT EXISTS (SELECT 1 FROM nodes WHERE id = edges.to_id);
             """, null, cancellationToken);
     }
 }

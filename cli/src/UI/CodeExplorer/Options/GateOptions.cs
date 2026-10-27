@@ -5,7 +5,7 @@ namespace CodeExplorer.Options;
 [Verb("gate", HelpText = "Manage and evaluate Semantic Invariant Gates (SIG) for architectural governance and technical debt ratchets.")]
 public class GateOptions : ITargetOption
 {
-    [Value(0, MetaName = "action", Required = false, Default = "check", HelpText = "Action: 'check' (default), 'list', 'init', 'ratchet', 'violations' (or 'show').")]
+    [Value(0, MetaName = "action", Required = false, Default = "check", HelpText = "Action: 'check' (default), 'details', 'list', 'init', 'ratchet', 'violations' (or 'show').")]
     public string Action { get; set; } = "check";
 
     [Option('g', "gate", Required = false, HelpText = "Optional specific Gate ID to evaluate (e.g. 'SIG-P-B-001').")]

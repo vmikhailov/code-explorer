@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Dapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
@@ -408,12 +408,12 @@ public partial class SqliteGraphClient
 
                         cmd.CommandText = """
                                           UPDATE nodes
-                                          SET properties = json_set(
-                                              json_set(
-                                                  json_set(properties, '$.intent_domain', @domain),
+                                          SET properties = jsonb_set(
+                                              jsonb_set(
+                                                  jsonb_set(properties, '$.intent_domain', @domain),
                                                   '$.intent_summary', @summary
                                               ),
-                                              '$.intent_capabilities', json(@capabilities)
+                                              '$.intent_capabilities', jsonb(@capabilities)
                                           )
                                           WHERE kind IN ('Project', 'Service', 'App', 'Worker')
                                             AND (
@@ -443,7 +443,7 @@ public partial class SqliteGraphClient
 
                         cmd.CommandText = """
                                           INSERT OR IGNORE INTO nodes(id, kind, properties)
-                                          VALUES (@id, 'Domain', json_object('id', @id, 'name', @domain));
+                                          VALUES (@id, 'Domain', jsonb_object('id', @id, 'name', @domain));
                                           """;
                         cmd.Parameters.AddWithValue("@id", domainId);
                         cmd.Parameters.AddWithValue("@domain", domain);
@@ -482,7 +482,7 @@ public partial class SqliteGraphClient
 
                         cmd.CommandText = """
                                           INSERT OR IGNORE INTO edges(from_id, to_id, kind, properties)
-                                          SELECT id, @domainId, 'BELONGS_TO_DOMAIN', '{}'
+                                          SELECT id, @domainId, 'BELONGS_TO_DOMAIN', jsonb('{}')
                                           FROM nodes
                                           WHERE kind IN ('Project', 'Service', 'App', 'Worker')
                                             AND (
@@ -507,7 +507,7 @@ public partial class SqliteGraphClient
 
                         cmd.CommandText = """
                                           INSERT OR IGNORE INTO edges(from_id, to_id, kind, properties)
-                                          SELECT n.id, @domainId, 'BELONGS_TO_DOMAIN', '{}'
+                                          SELECT n.id, @domainId, 'BELONGS_TO_DOMAIN', jsonb('{}')
                                           FROM nodes n
                                           JOIN nodes p ON p.kind IN ('Project', 'Service', 'App', 'Worker')
                                           WHERE (
@@ -640,7 +640,7 @@ public partial class SqliteGraphClient
             cmd.CommandText = """
                               DELETE FROM intents WHERE (@workspaceId = '' OR workspace_id = @workspaceId COLLATE NOCASE OR REPLACE(workspace_id, '\\', '/') = REPLACE(@workspaceId, '\\', '/') COLLATE NOCASE);
                               UPDATE nodes
-                              SET properties = json_remove(properties, '$.intent_domain', '$.intent_summary', '$.intent_capabilities')
+                              SET properties = jsonb_remove(properties, '$.intent_domain', '$.intent_summary', '$.intent_capabilities')
                               WHERE json_extract(properties, '$.intent_domain') IS NOT NULL;
                               """;
             cmd.Parameters.AddWithValue("@workspaceId", workspaceId ?? "");

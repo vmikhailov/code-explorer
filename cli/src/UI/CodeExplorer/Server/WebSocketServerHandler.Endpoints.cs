@@ -32,16 +32,21 @@ public partial class WebSocketServerHandler
 
                 var progress = new Progress<IndexingProgress>(p =>
                 {
-                    var percent = p.NodesCount > 0
+                    var percent = p.Percentage > 0
+                        ? Math.Clamp(p.Percentage, 1, 99)
+                        : (p.NodesCount > 0
                         ? (int)Math.Min(95, Math.Max(10, (double)p.NodesPersisted / p.NodesCount * 100))
-                        : 50;
+                        : 50);
+                    var currentMsg = p.Message ?? (p.TotalFiles > 0
+                        ? $"Parsing syntax: {p.ProcessedFiles}/{p.TotalFiles} files ({percent}%)"
+                        : $"Saved {p.NodesPersisted} nodes, {p.RelationshipsPersisted} relationships...");
                     var progEv = new ScanProgressEventDto
                     {
-                        Phase = "Indexing",
+                        Phase = p.Phase,
                         Percentage = percent,
-                        CurrentFile = $"Saved {p.NodesPersisted} nodes, {p.RelationshipsPersisted} relationships...",
-                        TotalFiles = p.NodesCount,
-                        ProcessedFiles = p.NodesPersisted
+                        CurrentFile = currentMsg,
+                        TotalFiles = p.TotalFiles > 0 ? p.TotalFiles : p.NodesCount,
+                        ProcessedFiles = p.ProcessedFiles > 0 ? p.ProcessedFiles : p.NodesPersisted
                     };
                     _lastProgress = progEv;
                     _ = BroadcastAsync(WsMessageTypes.ScanProgressEvent, progEv, CancellationToken.None);
@@ -64,7 +69,7 @@ public partial class WebSocketServerHandler
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "[WS] Background scan failed");
+                _logger.LogError(ex, "[Server     ] Background scan failed");
                 var failEv = new ScanProgressEventDto
                 {
                     Phase = "Failed",

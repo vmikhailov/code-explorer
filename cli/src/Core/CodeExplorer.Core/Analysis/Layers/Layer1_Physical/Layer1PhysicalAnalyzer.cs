@@ -8,7 +8,7 @@ public class Layer1PhysicalParser
 {
     public async Task<Layer1Result> ParseAsync(ParsingContext ctx)
     {
-        ctx.Log("[Layer1] Starting physical scan of directory topology...");
+        ctx.Log("[Layer 1    ] Starting physical scan of directory topology...");
 
         // 0. Get or create Workspace ID from database (auto-incremented)
         var wsId = await ctx.DbClient.GetOrCreateWorkspaceIdAsync(ctx.HostWorkspacePath);
@@ -100,7 +100,7 @@ public class Layer1PhysicalParser
             await ScanDirectoryAsync(ctx.ScanPath, currentParent, files, folders, gitignore, ctx);
         }
 
-        ctx.Log($"[Layer1] Physical topology scan complete. Found {files.Count} files, {folders.Count} folders.");
+        ctx.Log($"[Layer 1    ] Physical topology scan complete. Found {files.Count} files, {folders.Count} folders.");
         return new Layer1Result(workspaceNode, filesStructureNode, files, folders);
     }
 
@@ -121,7 +121,7 @@ public class Layer1PhysicalParser
 
         if (currentDir != ctx.AbsoluteWorkspacePath && ctx.FileFilter.IsExcludedDirectory(dirName, currentDir))
         {
-            ctx.Log($"[Layer1] Skipping excluded directory: '{relativeDir}'");
+            ctx.LogDebug($"[Layer 1    ] Skipping excluded directory: '{relativeDir}'");
             return;
         }
 
@@ -132,7 +132,7 @@ public class Layer1PhysicalParser
 
         if (!string.IsNullOrEmpty(relativeDir) && gitignore.IsIgnored(relativeDir, true))
         {
-            ctx.Log($"[Layer1] GitIgnore: Skipping ignored directory: '{relativeDir}'");
+            ctx.LogDebug($"[Layer 1    ] GitIgnore: Skipping ignored directory: '{relativeDir}'");
             return;
         }
 

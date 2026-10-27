@@ -74,7 +74,7 @@ public class PostIndexAnalyzerTests
 
         using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = "SELECT from_id, to_id, properties FROM edges WHERE kind = 'TRANSITIVELY_CALLS';";
+            cmd.CommandText = "SELECT from_id, to_id, json(properties) FROM edges WHERE kind = 'TRANSITIVELY_CALLS';";
 
             using (var reader = cmd.ExecuteReader())
             {
@@ -103,7 +103,7 @@ public class PostIndexAnalyzerTests
         // 5. Verify ATTRIBUTED_TO in edges table
         using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = "SELECT from_id, to_id, properties FROM edges WHERE kind = 'ATTRIBUTED_TO';";
+            cmd.CommandText = "SELECT from_id, to_id, json(properties) FROM edges WHERE kind = 'ATTRIBUTED_TO';";
 
             using (var reader = cmd.ExecuteReader())
             {
@@ -135,7 +135,7 @@ public class PostIndexAnalyzerTests
         // 6. Verify Project external_apis annotation
         using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = "SELECT properties FROM nodes WHERE id = '1:project:main';";
+            cmd.CommandText = "SELECT json(properties) FROM nodes WHERE id = '1:project:main';";
             var rawJson = (string)cmd.ExecuteScalar()!;
             var doc = JsonDocument.Parse(rawJson);
             doc.RootElement.TryGetProperty("external_apis", out var extApis).Should().BeTrue();

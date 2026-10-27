@@ -106,6 +106,9 @@ public static class StatusCommandHandler
                     database_path = ws.DbPath,
                     database_size_bytes = fileInfo.Length,
                     database_size_mb = Math.Round(sizeMb, 2),
+                    schema_version = client.SchemaVersion,
+                    current_schema_version = SqliteGraphClient.CurrentSchemaVersion,
+                    is_schema_outdated = client.IsSchemaOutdated,
                     last_updated = lastUpdated.ToString("o"),
                     last_updated_human = lastUpdatedText,
                     total_nodes = nodeCount,
@@ -129,6 +132,10 @@ public static class StatusCommandHandler
             Console.ResetColor();
             Console.WriteLine($"  Root:      {ws.RootDirectory}");
             Console.WriteLine($"  Database:  {ws.DbPath} ({sizeMb:F1} MB)");
+            var schemaText = client.IsSchemaOutdated
+                ? $"v{client.SchemaVersion} (outdated, current is v{SqliteGraphClient.CurrentSchemaVersion} - run 'ce scan --clear' to upgrade)"
+                : $"v{client.SchemaVersion}";
+            Console.WriteLine($"  Schema:    {schemaText}");
             Console.WriteLine($"  Updated:   {lastUpdatedText}");
             Console.WriteLine($"  Nodes:     {nodeCount:N0}");
 

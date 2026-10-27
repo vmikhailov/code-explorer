@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using System.Reflection;
 using CodeExplorer.Cypher.Ast;
 using CodeExplorer.Cypher.Common;
 using CodeExplorer.Cypher.Linq.Entities;
@@ -118,20 +119,13 @@ public class CypherExpressionVisitor
 
     public void VisitQuery(LinqExpression expression)
     {
-        // Unroll method call chain
-        var stack = new Stack<MethodCallExpression>();
-        var current = expression;
-
-        while (current is MethodCallExpression mce)
+        if (expression is MethodCallExpression mce)
         {
-            stack.Push(mce);
-            current = mce.Arguments.Count > 0 ? mce.Arguments[0] : null;
-        }
-
-        while (stack.Count > 0)
-        {
-            var call = stack.Pop();
-            ProcessMethodCall(call);
+            if (mce.Arguments.Count > 0)
+            {
+                VisitQuery(mce.Arguments[0]);
+            }
+            ProcessMethodCall(mce);
         }
     }
 
@@ -448,7 +442,7 @@ public class CypherExpressionVisitor
         return false;
     }
 
-    private static string MapPropertyName(string memberName) => memberName switch
+    internal static string MapPropertyName(string memberName) => memberName switch
     {
         "Id" => "id",
         "Name" => "name",
@@ -460,17 +454,26 @@ public class CypherExpressionVisitor
         "Language" => "language",
         "Role" => "role",
         "Layer" => "layer",
+        "Port" => "port",
         "IsLibrary" => "is_library",
+        "AppType" => "app_type",
+        "QueueType" => "queue_type",
+        "CommandName" => "command_name",
         "DbType" => "db_type",
         "Engine" => "engine",
         "Schema" => "schema",
         "BrokerType" => "broker_type",
+        "PartitionCount" => "partition_count",
         "IsInternal" => "is_internal",
         "Protocol" => "protocol",
         "DomainOrService" => "domain_or_service",
         "BaseUrl" => "base_url",
+        "Category" => "category",
         "IsExternal" => "is_external",
+        "PackageName" => "package_name",
+        "Version" => "version",
         "ProjectType" => "project_type",
+        "Route" => "route",
         "RouteTemplate" => "route_template",
         "HttpMethod" => "http_method",
         _ => ToSnakeCase(memberName)
@@ -478,7 +481,27 @@ public class CypherExpressionVisitor
 
     private static string ToSnakeCase(string str)
     {
-        return string.Concat(str.Select((x, i) => i > 0 && char.IsUpper(x) ? "_" + x : x.ToString())).ToLowerInvariant();
+        if (string.IsNullOrEmpty(str)) return str;
+
+        var upperCount = 0;
+        for (var i = 1; i < str.Length; i++)
+        {
+            if (char.IsUpper(str[i])) upperCount++;
+        }
+
+        return string.Create(str.Length + upperCount, str, static (span, src) =>
+        {
+            var pos = 0;
+            for (var i = 0; i < src.Length; i++)
+            {
+                var c = src[i];
+                if (i > 0 && char.IsUpper(c))
+                {
+                    span[pos++] = '_';
+                }
+                span[pos++] = char.ToLowerInvariant(c);
+            }
+        });
     }
 
     private static LinqExpression StripQuotes(LinqExpression expression)
@@ -492,11 +515,48 @@ public class CypherExpressionVisitor
 
     private static T EvaluateConstant<T>(LinqExpression expression)
     {
-        if (expression is ConstantExpression ce && ce.Value is T val)
-            return val;
+        var val = EvaluateValue(expression);
+        return val is T typed ? typed : (T)Convert.ChangeType(val, typeof(T))!;
+    }
 
-        var lambda = LinqExpression.Lambda(expression);
-        var compiled = lambda.Compile();
-        return (T)compiled.DynamicInvoke()!;
+    private static object? EvaluateValue(LinqExpression? expression)
+    {
+        return expression switch
+        {
+            null => null,
+            ConstantExpression ce => ce.Value,
+            MemberExpression me => EvaluateMemberAccess(me),
+            LinqUnaryExpression { NodeType: ExpressionType.Convert or ExpressionType.ConvertChecked } ue => EvaluateValue(ue.Operand),
+            MethodCallExpression mce => EvaluateMethodCallValue(mce),
+            _ => LinqExpression.Lambda(expression).Compile(preferInterpretation: true).DynamicInvoke()
+        };
+    }
+
+    private static object? EvaluateMemberAccess(MemberExpression me)
+    {
+        var target = me.Expression != null ? EvaluateValue(me.Expression) : null;
+        return me.Member switch
+        {
+            FieldInfo fi => fi.GetValue(target),
+            PropertyInfo pi => pi.GetValue(target),
+            _ => null
+        };
+    }
+
+    private static object? EvaluateMethodCallValue(MethodCallExpression mce)
+    {
+        var instance = mce.Object != null ? EvaluateValue(mce.Object) : null;
+        var argsList = mce.Arguments;
+        if (argsList.Count == 0)
+        {
+            return mce.Method.Invoke(instance, null);
+        }
+
+        var args = new object?[argsList.Count];
+        for (var i = 0; i < argsList.Count; i++)
+        {
+            args[i] = EvaluateValue(argsList[i]);
+        }
+        return mce.Method.Invoke(instance, args);
     }
 }

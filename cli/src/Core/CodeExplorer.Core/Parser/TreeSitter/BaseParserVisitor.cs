@@ -22,45 +22,12 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
     public void ResolveAndInjectExtension(string importPath)
     {
-        var type = FileParser.ResolveImportType(importPath, RelativePath, AbsoluteWorkspacePath);
-        if (type == ImportType.External || ExtensionRegistry.Match(importPath) != null)
+        var matches = ExtensionRegistry.MatchAll(importPath);
+        foreach (var match in matches)
         {
-            var matches = ExtensionRegistry.MatchAll(importPath);
-            foreach (var match in matches)
+            if (match.IsImplemented && !SemanticExtensions.Contains(match))
             {
-                if (match.IsImplemented && !SemanticExtensions.Contains(match))
-                {
-                    SemanticExtensions.Add(match);
-                }
-            }
-        }
-        else
-        {
-            // For local imports referencing messaging/queue helpers (e.g. ./rabbit/rabbit, ../util/pubsub/GoogleCloudPublisher)
-            if (importPath.Contains("rabbit", StringComparison.OrdinalIgnoreCase))
-            {
-                var matches = ExtensionRegistry.MatchAll("amqplib");
-                if (matches.Count == 0) matches = ExtensionRegistry.MatchAll("github.com/rabbitmq/amqp091-go");
-                foreach (var match in matches)
-                {
-                    if (match.IsImplemented && !SemanticExtensions.Contains(match))
-                    {
-                        SemanticExtensions.Add(match);
-                    }
-                }
-            }
-            if (importPath.Contains("pubsub", StringComparison.OrdinalIgnoreCase) ||
-                importPath.Contains("pub-sub", StringComparison.OrdinalIgnoreCase))
-            {
-                var matches = ExtensionRegistry.MatchAll("@google-cloud/pubsub");
-                if (matches.Count == 0) matches = ExtensionRegistry.MatchAll("cloud.google.com/go/pubsub");
-                foreach (var match in matches)
-                {
-                    if (match.IsImplemented && !SemanticExtensions.Contains(match))
-                    {
-                        SemanticExtensions.Add(match);
-                    }
-                }
+                SemanticExtensions.Add(match);
             }
         }
     }
@@ -90,7 +57,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         AbsoluteWorkspacePath = absoluteWorkspacePath;
         FileParser = fileParser;
         ExtensionRegistry = extensionRegistry;
-        Profile = fileParser.SyntaxProfile ?? LanguageSyntaxProfile.Empty;
+        Profile = fileParser.SyntaxProfile;
         RootSymbol = new SyntacticSymbol("file", "root", rootNode);
         SymbolStack.Push(RootSymbol);
     }
@@ -440,6 +407,8 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
     protected override void VisitNode(Node node, int depth)
     {
+        if (node is TokenSyntax) return;
+
         if (Profile.PackageDeclarationNodeTypes.Contains(node.Type))
         {
             var pkgId = ExtractAnnotationIdentifier(node) ?? ExtractProfileIdentifier(node);
@@ -471,7 +440,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
             }
 
 
-            if (LibraryParsers.Count > 0)
+            if (LibraryParsers.Count > 0 && MayContainSymbolsOrReferences(node))
             {
                 foreach (var libParser in LibraryParsers)
                 {
@@ -616,7 +585,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         return null;
     }
 
-    protected void VisitSymbolOrBase(Node node, int depth, Action baseVisit)
+    protected void VisitSymbolOrBase(Node node, int depth, Action? baseVisit = null)
     {
         var baseKind = MapNodeType(node);
         var libKind = MapNodeTypeUsingLibraries(node);
@@ -653,16 +622,16 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         }
         else
         {
-            baseVisit();
+            if (baseVisit != null) baseVisit(); else VisitChildren(node, depth);
         }
     }
 
-    protected void VisitSymbolNode(Node node, string kind, string name, int depth, Action baseVisit, string? extraEntryPointName = null)
+    protected void VisitSymbolNode(Node node, string kind, string name, int depth, Action? baseVisit = null, string? extraEntryPointName = null)
     {
         if (kind == "Variable" || kind == OntologyConstants.NodeLabels.Member)
         {
             // Skip variable/member nodes in the graph as they are too deep level
-            baseVisit();
+            if (baseVisit != null) baseVisit(); else VisitChildren(node, depth);
             return;
         }
 
@@ -675,7 +644,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         {
             // External services represent target endpoints/hosts (leaf nodes).
             // Any inner calls or expressions within the call arguments belong to the enclosing function/scope (parent).
-            baseVisit();
+            if (baseVisit != null) baseVisit(); else VisitChildren(node, depth);
             return;
         }
 
@@ -730,7 +699,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         CollectProfileSymbolMetadata(node, syntacticNode);
         CollectCustomReferencesForSymbol(node, syntacticNode, parent);
 
-        baseVisit();
+        if (baseVisit != null) baseVisit(); else VisitChildren(node, depth);
 
         if (PushedNodeIds.Count <= 0 || PushedNodeIds.Peek() != node.Id)
         {
@@ -743,22 +712,22 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
     protected override void VisitClassDeclaration(Node node, int depth)
     {
-        VisitSymbolOrBase(node, depth, () => base.VisitClassDeclaration(node, depth));
+        VisitSymbolOrBase(node, depth);
     }
 
     protected override void VisitInterfaceDeclaration(Node node, int depth)
     {
-        VisitSymbolOrBase(node, depth, () => base.VisitInterfaceDeclaration(node, depth));
+        VisitSymbolOrBase(node, depth);
     }
 
     protected override void VisitMethodDeclaration(Node node, int depth)
     {
-        VisitSymbolOrBase(node, depth, () => base.VisitMethodDeclaration(node, depth));
+        VisitSymbolOrBase(node, depth);
     }
 
     protected override void VisitFunctionDeclaration(Node node, int depth)
     {
-        VisitSymbolOrBase(node, depth, () => base.VisitFunctionDeclaration(node, depth));
+        VisitSymbolOrBase(node, depth);
     }
 
     protected override void VisitVariableDeclaration(Node node, int depth)
@@ -767,7 +736,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         {
             CollectProfileVariables(node);
         }
-        VisitSymbolOrBase(node, depth, () => base.VisitVariableDeclaration(node, depth));
+        VisitSymbolOrBase(node, depth);
     }
 
     protected virtual void CollectProfileVariables(Node node)
@@ -844,7 +813,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
 
     protected override void VisitParameter(Node node, int depth)
     {
-        VisitSymbolOrBase(node, depth, () => base.VisitParameter(node, depth));
+        VisitSymbolOrBase(node, depth);
     }
 
     protected override void VisitImportStatement(Node node, int depth)
@@ -853,7 +822,7 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         {
             CollectProfileImport(node);
         }
-        VisitSymbolOrBase(node, depth, () => base.VisitImportStatement(node, depth));
+        VisitSymbolOrBase(node, depth);
     }
 
     protected virtual void CollectProfileImport(Node node)
@@ -909,9 +878,31 @@ public abstract class BaseParserVisitor : TreeSitterAstVisitor
         base.VisitInheritanceClause(node, depth);
     }
 
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+    private static bool MayContainSymbolsOrReferences(Node node)
+    {
+        var type = node.Type;
+        if (type is "identifier" or "type_identifier" or "predefined_type" or "generic_name" or "qualified_name"
+            or "block" or "statement_block" or "argument_list" or "parameter_list" or "type_argument_list"
+            or "equals_value_clause" or "variable_declarator" or "return_statement" or "if_statement"
+            or "for_statement" or "foreach_statement" or "while_statement" or "binary_expression"
+            or "parenthesized_expression" or "assignment_expression" or "member_access_expression"
+            or "cast_expression" or "conditional_expression" or "empty_statement")
+        {
+            return false;
+        }
+        return true;
+    }
+
     protected override void VisitDefault(Node node, int depth)
     {
-        VisitSymbolOrBase(node, depth, () => base.VisitDefault(node, depth));
+        if (!MayContainSymbolsOrReferences(node))
+        {
+            VisitChildren(node, depth);
+            return;
+        }
+
+        VisitSymbolOrBase(node, depth);
     }
 
     protected override void VisitStringLiteral(Node node, int depth)

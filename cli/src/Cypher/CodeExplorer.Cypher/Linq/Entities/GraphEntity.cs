@@ -1,362 +1,296 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using System.Buffers.Text;
+using System.Text;
 using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Cypher.Linq.Entities;
 
 public class GraphEntity
 {
-    [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
-
-    [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
-
-    [JsonPropertyName("displayName")]
     public string? DisplayName { get; set; }
-
-    [JsonPropertyName("filePath")]
     public string? FilePath { get; set; }
-
-    [JsonPropertyName("lineStart")]
     public int? LineStart { get; set; }
-
-    [JsonPropertyName("lineEnd")]
     public int? LineEnd { get; set; }
-
-    [JsonPropertyName("kind")]
     public virtual NodeKind Kind => NodeKind.Unspecified;
 
-    [JsonPropertyName("properties")]
-    public Dictionary<string, object?> Properties { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-
-    public T? GetProperty<T>(string key)
+    public virtual bool TryReadJsonbProperty(ReadOnlySpan<byte> propName, int valType, ReadOnlySpan<byte> valSpan)
     {
-        if (Properties.TryGetValue(key, out var val) && val != null)
+        if (propName.SequenceEqual("name"u8))
         {
-            if (val is T direct) return direct;
-            if (val is JsonElement je)
-            {
-                if (typeof(T) == typeof(string)) return (T)(object)je.ToString();
-                if (typeof(T) == typeof(bool) && (je.ValueKind == JsonValueKind.True || je.ValueKind == JsonValueKind.False))
-                    return (T)(object)je.GetBoolean();
-                if (typeof(T) == typeof(int) && je.TryGetInt32(out var i))
-                    return (T)(object)i;
-            }
-            try
-            {
-                var targetType = Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T);
-                return (T)Convert.ChangeType(val, targetType);
-            }
-            catch
-            {
-                return default;
-            }
+            Name = ReadString(valSpan) ?? string.Empty;
+            return true;
         }
-        return default;
+        if (propName.SequenceEqual("display_name"u8) || propName.SequenceEqual("displayName"u8))
+        {
+            DisplayName = ReadString(valSpan);
+            return true;
+        }
+        if (propName.SequenceEqual("file_path"u8) || propName.SequenceEqual("filePath"u8))
+        {
+            FilePath = ReadString(valSpan);
+            return true;
+        }
+        if (propName.SequenceEqual("path"u8))
+        {
+            FilePath ??= ReadString(valSpan);
+            return true;
+        }
+        if (propName.SequenceEqual("line_start"u8) || propName.SequenceEqual("lineStart"u8) || propName.SequenceEqual("start_line"u8))
+        {
+            LineStart = ReadNullableInt32(valSpan);
+            return true;
+        }
+        if (propName.SequenceEqual("line_end"u8) || propName.SequenceEqual("lineEnd"u8) || propName.SequenceEqual("end_line"u8))
+        {
+            LineEnd = ReadNullableInt32(valSpan);
+            return true;
+        }
+        return false;
+    }
+
+    protected static string? ReadString(ReadOnlySpan<byte> valSpan) =>
+        valSpan.IsEmpty ? string.Empty : Encoding.UTF8.GetString(valSpan);
+
+    protected static int? ReadNullableInt32(ReadOnlySpan<byte> valSpan) =>
+        Utf8Parser.TryParse(valSpan, out int parsed, out _) ? parsed : null;
+
+    protected static bool ReadBoolean(int valType, ReadOnlySpan<byte> valSpan)
+    {
+        if (valType == 1) return true;  // JSONB_TRUE
+        if (valType == 2) return false; // JSONB_FALSE
+        if (!valSpan.IsEmpty)
+        {
+            return valSpan.SequenceEqual("true"u8) || valSpan.SequenceEqual("True"u8) || valSpan.SequenceEqual("1"u8);
+        }
+        return false;
     }
 }
 
 public class ServiceEntity : GraphEntity
 {
+    private string? _language;
+    private string? _projectType;
+
     public override NodeKind Kind => NodeKind.Service;
+    public string? Framework { get; set; }
 
-    [JsonPropertyName("framework")]
-    public string? Framework
-    {
-        get => GetProperty<string>("framework");
-        set => Properties["framework"] = value;
-    }
-
-    [JsonPropertyName("language")]
     public string? Language
     {
-        get => GetProperty<string>("language") ?? GetProperty<string>("project_type");
-        set => Properties["language"] = value;
+        get => _language ?? _projectType;
+        set => _language = value;
     }
 
-    [JsonPropertyName("role")]
-    public string? Role
-    {
-        get => GetProperty<string>("role");
-        set => Properties["role"] = value;
-    }
+    public string? Role { get; set; }
+    public string? Layer { get; set; }
+    public int? Port { get; set; }
+    public bool IsLibrary { get; set; }
 
-    [JsonPropertyName("layer")]
-    public string? Layer
+    public override bool TryReadJsonbProperty(ReadOnlySpan<byte> propName, int valType, ReadOnlySpan<byte> valSpan)
     {
-        get => GetProperty<string>("layer");
-        set => Properties["layer"] = value;
-    }
-
-    [JsonPropertyName("port")]
-    public int? Port
-    {
-        get => GetProperty<int?>("port");
-        set => Properties["port"] = value;
-    }
-
-    [JsonPropertyName("isLibrary")]
-    public bool IsLibrary
-    {
-        get => GetProperty<bool>("is_library") || GetProperty<string>("is_library") == "true";
-        set => Properties["is_library"] = value;
+        if (propName.SequenceEqual("framework"u8)) { Framework = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("language"u8)) { _language = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("project_type"u8)) { _projectType = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("role"u8)) { Role = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("layer"u8)) { Layer = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("port"u8)) { Port = ReadNullableInt32(valSpan); return true; }
+        if (propName.SequenceEqual("is_library"u8) || propName.SequenceEqual("isLibrary"u8)) { IsLibrary = ReadBoolean(valType, valSpan); return true; }
+        return base.TryReadJsonbProperty(propName, valType, valSpan);
     }
 }
 
 public class AppEntity : GraphEntity
 {
+    private string? _language;
+    private string? _projectType;
+
     public override NodeKind Kind => NodeKind.App;
+    public string? Framework { get; set; }
 
-    [JsonPropertyName("framework")]
-    public string? Framework
-    {
-        get => GetProperty<string>("framework");
-        set => Properties["framework"] = value;
-    }
-
-    [JsonPropertyName("language")]
     public string? Language
     {
-        get => GetProperty<string>("language") ?? GetProperty<string>("project_type");
-        set => Properties["language"] = value;
+        get => _language ?? _projectType;
+        set => _language = value;
     }
 
-    [JsonPropertyName("appType")]
-    public string? AppType
-    {
-        get => GetProperty<string>("app_type");
-        set => Properties["app_type"] = value;
-    }
+    public string? AppType { get; set; }
+    public int? Port { get; set; }
 
-    [JsonPropertyName("port")]
-    public int? Port
+    public override bool TryReadJsonbProperty(ReadOnlySpan<byte> propName, int valType, ReadOnlySpan<byte> valSpan)
     {
-        get => GetProperty<int?>("port");
-        set => Properties["port"] = value;
+        if (propName.SequenceEqual("framework"u8)) { Framework = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("language"u8)) { _language = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("project_type"u8)) { _projectType = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("app_type"u8) || propName.SequenceEqual("appType"u8)) { AppType = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("port"u8)) { Port = ReadNullableInt32(valSpan); return true; }
+        return base.TryReadJsonbProperty(propName, valType, valSpan);
     }
 }
 
 public class WorkerEntity : GraphEntity
 {
+    private string? _language;
+    private string? _projectType;
+
     public override NodeKind Kind => NodeKind.Worker;
+    public string? Framework { get; set; }
 
-    [JsonPropertyName("framework")]
-    public string? Framework
-    {
-        get => GetProperty<string>("framework");
-        set => Properties["framework"] = value;
-    }
-
-    [JsonPropertyName("language")]
     public string? Language
     {
-        get => GetProperty<string>("language") ?? GetProperty<string>("project_type");
-        set => Properties["language"] = value;
+        get => _language ?? _projectType;
+        set => _language = value;
     }
 
-    [JsonPropertyName("queueType")]
-    public string? QueueType
+    public string? QueueType { get; set; }
+
+    public override bool TryReadJsonbProperty(ReadOnlySpan<byte> propName, int valType, ReadOnlySpan<byte> valSpan)
     {
-        get => GetProperty<string>("queue_type");
-        set => Properties["queue_type"] = value;
+        if (propName.SequenceEqual("framework"u8)) { Framework = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("language"u8)) { _language = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("project_type"u8)) { _projectType = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("queue_type"u8) || propName.SequenceEqual("queueType"u8)) { QueueType = ReadString(valSpan); return true; }
+        return base.TryReadJsonbProperty(propName, valType, valSpan);
     }
 }
 
 public class CliToolEntity : GraphEntity
 {
+    private string? _language;
+    private string? _projectType;
+
     public override NodeKind Kind => NodeKind.CliTool;
+    public string? CommandName { get; set; }
 
-    [JsonPropertyName("commandName")]
-    public string? CommandName
-    {
-        get => GetProperty<string>("command_name");
-        set => Properties["command_name"] = value;
-    }
-
-    [JsonPropertyName("language")]
     public string? Language
     {
-        get => GetProperty<string>("language") ?? GetProperty<string>("project_type");
-        set => Properties["language"] = value;
+        get => _language ?? _projectType;
+        set => _language = value;
+    }
+
+    public override bool TryReadJsonbProperty(ReadOnlySpan<byte> propName, int valType, ReadOnlySpan<byte> valSpan)
+    {
+        if (propName.SequenceEqual("command_name"u8) || propName.SequenceEqual("commandName"u8)) { CommandName = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("language"u8)) { _language = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("project_type"u8)) { _projectType = ReadString(valSpan); return true; }
+        return base.TryReadJsonbProperty(propName, valType, valSpan);
     }
 }
 
 public class DatabaseEntity : GraphEntity
 {
     public override NodeKind Kind => NodeKind.Database;
+    public string? DbType { get; set; }
+    public string? Engine { get; set; }
+    public int? Port { get; set; }
 
-    [JsonPropertyName("dbType")]
-    public string? DbType
+    public override bool TryReadJsonbProperty(ReadOnlySpan<byte> propName, int valType, ReadOnlySpan<byte> valSpan)
     {
-        get => GetProperty<string>("db_type");
-        set => Properties["db_type"] = value;
-    }
-
-    [JsonPropertyName("engine")]
-    public string? Engine
-    {
-        get => GetProperty<string>("engine");
-        set => Properties["engine"] = value;
-    }
-
-    [JsonPropertyName("schema")]
-    public string? Schema
-    {
-        get => GetProperty<string>("schema");
-        set => Properties["schema"] = value;
-    }
-
-    [JsonPropertyName("port")]
-    public int? Port
-    {
-        get => GetProperty<int?>("port");
-        set => Properties["port"] = value;
+        if (propName.SequenceEqual("db_type"u8) || propName.SequenceEqual("dbType"u8)) { DbType = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("engine"u8)) { Engine = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("port"u8)) { Port = ReadNullableInt32(valSpan); return true; }
+        return base.TryReadJsonbProperty(propName, valType, valSpan);
     }
 }
 
 public class TopicEntity : GraphEntity
 {
     public override NodeKind Kind => NodeKind.Topic;
+    public string? BrokerType { get; set; }
+    public int? PartitionCount { get; set; }
 
-    [JsonPropertyName("brokerType")]
-    public string? BrokerType
+    public override bool TryReadJsonbProperty(ReadOnlySpan<byte> propName, int valType, ReadOnlySpan<byte> valSpan)
     {
-        get => GetProperty<string>("broker_type");
-        set => Properties["broker_type"] = value;
-    }
-
-    [JsonPropertyName("partitionCount")]
-    public int? PartitionCount
-    {
-        get => GetProperty<int?>("partition_count");
-        set => Properties["partition_count"] = value;
-    }
-
-    [JsonPropertyName("isInternal")]
-    public bool IsInternal
-    {
-        get => GetProperty<bool>("is_internal") || GetProperty<string>("is_internal") == "true";
-        set => Properties["is_internal"] = value;
+        if (propName.SequenceEqual("broker_type"u8) || propName.SequenceEqual("brokerType"u8)) { BrokerType = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("partition_count"u8) || propName.SequenceEqual("partitionCount"u8)) { PartitionCount = ReadNullableInt32(valSpan); return true; }
+        return base.TryReadJsonbProperty(propName, valType, valSpan);
     }
 }
 
 public class ExternalServiceEntity : GraphEntity
 {
+    private string? _baseUrl;
+    private string? _domainOrService;
+
     public override NodeKind Kind => NodeKind.ExternalService;
+    public string? Protocol { get; set; }
 
-    [JsonPropertyName("protocol")]
-    public string? Protocol
-    {
-        get => GetProperty<string>("protocol");
-        set => Properties["protocol"] = value;
-    }
-
-    [JsonPropertyName("domainOrService")]
-    public string? DomainOrService
-    {
-        get => GetProperty<string>("domain_or_service");
-        set => Properties["domain_or_service"] = value;
-    }
-
-    [JsonPropertyName("baseUrl")]
     public string? BaseUrl
     {
-        get => GetProperty<string>("base_url");
-        set => Properties["base_url"] = value;
+        get => _baseUrl ?? _domainOrService;
+        set => _baseUrl = value;
     }
 
-    [JsonPropertyName("category")]
-    public string? Category
-    {
-        get => GetProperty<string>("category");
-        set => Properties["category"] = value;
-    }
+    public string? Category { get; set; }
 
-    [JsonPropertyName("isExternal")]
-    public bool IsExternal
+    public override bool TryReadJsonbProperty(ReadOnlySpan<byte> propName, int valType, ReadOnlySpan<byte> valSpan)
     {
-        get => GetProperty<bool>("is_external") || GetProperty<string>("is_external") == "true";
-        set => Properties["is_external"] = value;
+        if (propName.SequenceEqual("protocol"u8)) { Protocol = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("base_url"u8) || propName.SequenceEqual("baseUrl"u8)) { _baseUrl = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("domain_or_service"u8)) { _domainOrService = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("category"u8)) { Category = ReadString(valSpan); return true; }
+        return base.TryReadJsonbProperty(propName, valType, valSpan);
     }
 }
 
 public class LibraryEntity : GraphEntity
 {
+    private string? _packageName;
+    private string? _language;
+    private string? _projectType;
+
     public override NodeKind Kind => NodeKind.Library;
 
-    [JsonPropertyName("language")]
-    public string? Language
-    {
-        get => GetProperty<string>("language") ?? GetProperty<string>("project_type");
-        set => Properties["language"] = value;
-    }
-
-    [JsonPropertyName("packageName")]
     public string? PackageName
     {
-        get => GetProperty<string>("package_name");
-        set => Properties["package_name"] = value;
+        get => _packageName ?? Name;
+        set => _packageName = value;
     }
 
-    [JsonPropertyName("version")]
-    public string? Version
+    public string? Version { get; set; }
+
+    public string? Language
     {
-        get => GetProperty<string>("version");
-        set => Properties["version"] = value;
+        get => _language ?? _projectType;
+        set => _language = value;
     }
 
-    [JsonPropertyName("projectType")]
-    public string? ProjectType
-    {
-        get => GetProperty<string>("project_type");
-        set => Properties["project_type"] = value;
-    }
+    public bool IsLibrary { get; set; } = true;
 
-    [JsonPropertyName("isLibrary")]
-    public bool IsLibrary
+    public override bool TryReadJsonbProperty(ReadOnlySpan<byte> propName, int valType, ReadOnlySpan<byte> valSpan)
     {
-        get => GetProperty<bool>("is_library") || GetProperty<string>("is_library") == "true";
-        set => Properties["is_library"] = value;
+        if (propName.SequenceEqual("package_name"u8) || propName.SequenceEqual("packageName"u8)) { _packageName = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("version"u8)) { Version = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("language"u8)) { _language = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("project_type"u8)) { _projectType = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("is_library"u8) || propName.SequenceEqual("isLibrary"u8)) { IsLibrary = ReadBoolean(valType, valSpan); return true; }
+        return base.TryReadJsonbProperty(propName, valType, valSpan);
     }
 }
 
 public class EndpointEntity : GraphEntity
 {
+    private string? _route;
+    private string? _routeTemplate;
+
     public override NodeKind Kind => NodeKind.Endpoint;
 
-    [JsonPropertyName("route")]
     public string? Route
     {
-        get => GetProperty<string>("route") ?? RouteTemplate;
-        set => Properties["route"] = value;
+        get => _route ?? _routeTemplate ?? FilePath;
+        set => _route = value;
     }
 
-    [JsonPropertyName("routeTemplate")]
-    public string? RouteTemplate
-    {
-        get => GetProperty<string>("route_template") ?? GetProperty<string>("path");
-        set => Properties["route_template"] = value;
-    }
+    public string? HttpMethod { get; set; }
+    public string? Protocol { get; set; }
+    public int? Port { get; set; }
 
-    [JsonPropertyName("httpMethod")]
-    public string? HttpMethod
+    public override bool TryReadJsonbProperty(ReadOnlySpan<byte> propName, int valType, ReadOnlySpan<byte> valSpan)
     {
-        get => GetProperty<string>("http_method");
-        set => Properties["http_method"] = value;
-    }
-
-    [JsonPropertyName("protocol")]
-    public string? Protocol
-    {
-        get => GetProperty<string>("protocol");
-        set => Properties["protocol"] = value;
-    }
-
-    [JsonPropertyName("port")]
-    public int? Port
-    {
-        get => GetProperty<int?>("port");
-        set => Properties["port"] = value;
+        if (propName.SequenceEqual("route"u8)) { _route = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("route_template"u8)) { _routeTemplate = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("http_method"u8) || propName.SequenceEqual("httpMethod"u8)) { HttpMethod = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("protocol"u8)) { Protocol = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("port"u8)) { Port = ReadNullableInt32(valSpan); return true; }
+        return base.TryReadJsonbProperty(propName, valType, valSpan);
     }
 }

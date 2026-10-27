@@ -991,6 +991,33 @@ public class ParserValidationTests
         registry.Match("stripe").Should().BeNull();
     }
 
+    [Test]
+    public void Test_SemanticExtensionRegistry_WildcardsAndRelativeImports()
+    {
+        var rabbitExt = new TestSemanticExtension("rabbitmq", "RabbitMQ", "queue", ["amqplib", "*rabbit*", "*Rabbit*"]);
+        var pubsubExt = new TestSemanticExtension("pubsub", "PubSub", "queue", ["cloud.google.com/go/pubsub", "*pubsub*", "*pub-sub*"]);
+        var eventBusExt = new TestSemanticExtension("eventbus", "EventBus", "queue", ["*EventBus*"]);
+
+        var registry = new SemanticExtensionRegistry([rabbitExt, pubsubExt, eventBusExt]);
+
+        // Exact match
+        registry.Match("amqplib").Should().BeSameAs(rabbitExt);
+        registry.Match("cloud.google.com/go/pubsub").Should().BeSameAs(pubsubExt);
+
+        // Wildcard match for relative local helper imports
+        registry.Match("./rabbit/rabbit").Should().BeSameAs(rabbitExt);
+        registry.Match("../services/rabbitWorker").Should().BeSameAs(rabbitExt);
+        registry.Match("./rabbit/queue.rabbit").Should().BeSameAs(rabbitExt);
+        registry.Match("../util/pubsub/GoogleCloudPublisher").Should().BeSameAs(pubsubExt);
+        registry.Match("./pub-sub/handler").Should().BeSameAs(pubsubExt);
+
+        // Substring / Glob match with specificity ordering
+        var eventBusMatches = registry.MatchAll("EventBusRabbitMQ");
+        eventBusMatches.Should().Contain(eventBusExt);
+        eventBusMatches.Should().Contain(rabbitExt);
+        eventBusMatches[0].Should().BeSameAs(eventBusExt); // "*EventBus*" (length 10) > "*rabbit*" (length 8)
+    }
+
 
     [Test]
     public async Task Test_CrossServiceInteractionDetection()

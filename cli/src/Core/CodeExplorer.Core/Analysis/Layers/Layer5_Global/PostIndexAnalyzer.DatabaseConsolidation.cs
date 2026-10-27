@@ -71,12 +71,26 @@ public partial class PostIndexAnalyzer
         "pg_trigger", "dual"
     };
 
+    public static readonly HashSet<string> KnownTableValuedFunctions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "json_each", "json_tree", "json_extract", "string_split", "openjson", "opendatasource",
+        "openquery", "openrowset", "unnest", "flatten", "generate_series", "range", "values",
+        "external_query", "read_csv", "read_parquet"
+    };
+
     public static bool IsValidTableIdentifier(string? name)
     {
         if (string.IsNullOrWhiteSpace(name)) return false;
         var clean = name.Trim('`', '"', '\'', '[', ']').Trim();
         if (clean.Length < 1 || clean.Length > 128) return false;
         if (clean.Contains(' ') || clean.Contains('\t') || clean.Contains('\n') || clean.Contains('\r')) return false;
+
+        // Reject temporary tables, table variables, and cut-off interpolation tokens ending with '_'
+        if (clean.StartsWith('#') || clean.StartsWith('@') || clean.EndsWith('_'))
+        {
+            return false;
+        }
+
         var parts = clean.Split('.');
         foreach (var p in parts)
         {
@@ -93,10 +107,13 @@ public partial class PostIndexAnalyzer
         }
 
         var tableName = parts[^1].Trim('`', '"', '\'', '[', ']').Trim().ToLowerInvariant();
-        if (tableName.StartWithIC("pg_stat_") ||
+        if (tableName.StartWithIC("temp_") ||
+            tableName.StartWithIC("tmp_") ||
+            tableName.StartWithIC("pg_stat_") ||
             tableName.StartWithIC("pg_toast") ||
             tableName.StartWithIC("sqlite_") ||
-            SystemCatalogTables.Contains(tableName))
+            SystemCatalogTables.Contains(tableName) ||
+            KnownTableValuedFunctions.Contains(tableName))
         {
             return false;
         }

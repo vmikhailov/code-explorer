@@ -135,7 +135,7 @@ public partial class SqliteCompiler
 
         if (propName.Equals("properties", StringComparison.OrdinalIgnoreCase))
         {
-            return propSrc;
+            return $"json({propSrc})";
         }
 
         if (propName.Equals("language", StringComparison.OrdinalIgnoreCase))
@@ -182,7 +182,7 @@ public partial class SqliteCompiler
 
             if (propName.Equals("properties", StringComparison.OrdinalIgnoreCase))
             {
-                return $"{v}.properties";
+                return $"json({v}.properties)";
             }
 
             return $"json_extract({v}.properties, '$.{propName}')";
@@ -200,7 +200,7 @@ public partial class SqliteCompiler
 
         if (propName.Equals("properties", StringComparison.OrdinalIgnoreCase))
         {
-            return $"{v}.properties";
+            return $"json({v}.properties)";
         }
 
         if (propName.Equals("language", StringComparison.OrdinalIgnoreCase))
