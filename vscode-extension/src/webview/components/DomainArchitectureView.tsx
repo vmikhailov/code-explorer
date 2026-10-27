@@ -1526,12 +1526,12 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   }, []);
 
   // Unified Right Side Panel State
-  const [rightSidebarTab, setRightSidebarTab] = useState<'info' | 'orbits' | 'visibility'>(() => {
+  const [rightSidebarTab, setRightSidebarTab] = useState<'info' | 'settings'>(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
         const saved = localStorage.getItem('ce_domain_sidebar_tab');
-        if (saved === 'info' || saved === 'orbits' || saved === 'visibility') return saved;
-        if (saved === 'hidden') return 'visibility';
+        if (saved === 'info' || saved === 'settings') return saved;
+        if (saved === 'orbits' || saved === 'visibility' || saved === 'hidden') return 'settings';
       } catch {}
     }
     return 'info';
@@ -1546,7 +1546,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     return true;
   });
 
-  const handleSidebarTabChange = useCallback((tab: 'info' | 'orbits' | 'visibility') => {
+  const handleSidebarTabChange = useCallback((tab: 'info' | 'settings') => {
     setRightSidebarTab(tab);
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
@@ -3275,10 +3275,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   // Derived docked panels visibility and active tab selection
   const hasHiddenEntities = hiddenCount > 0;
   const hasOrbitLegend = !isMatrixMode;
-  const effectiveSidebarTab: 'info' | 'orbits' | 'visibility' =
-    rightSidebarTab === 'orbits' && !hasOrbitLegend
-      ? 'info'
-      : rightSidebarTab;
+  const effectiveSidebarTab: 'info' | 'settings' = rightSidebarTab;
 
 
   // Initialize Cytoscape Instance
@@ -5149,6 +5146,28 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             <div className="domain-hud-controls-left">
             {headerSlot}
 
+            {/* Graph Layout Selector */}
+            {!isMatrixMode && (
+              <div className="domain-hud-control-group domain-hud-layout-select" title="Graph Layout Algorithm">
+                <select
+                  value={layoutName}
+                  onChange={(e) => handleLayoutChange(e.target.value as any)}
+                  className="domain-layout-dropdown"
+                  title="Graph Layout"
+                >
+                  <option value="concentric">🎯 Concentric (Original)</option>
+                  <option value="concentric-equispaced">🪐 Concentric: Equispaced</option>
+                  <option value="concentric-barycentric">🪐 Concentric: Barycentric</option>
+                  <option value="concentric-polar-force">🪐 Concentric: Polar Force</option>
+                  <option value="concentric-sectors">🪐 Concentric: Domain Sectors</option>
+                  <option value="swimlanes">🏊 Swimlanes (Pipeline)</option>
+                  <option value="clusters">🏝️ Domain Islands (Bounded Contexts)</option>
+                  <option value="hive">🕸️ Hive Plot (Multi-Axis)</option>
+                  <option value="cose">⚡ Force (COSE)</option>
+                </select>
+              </div>
+            )}
+
             {/* Zoom Controls / Refresh */}
             <div className="domain-hud-control-group" title="Viewport Controls">
               {!isMatrixMode && (
@@ -5254,7 +5273,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                   getVsCodeApi()?.postMessage({ type: 'SYNC_INSPECTOR_STATE', state: buildInspectorSyncedState() });
                 } catch {}
               }}
-              title="Open Graph Inspector & Controls in Secondary Side Bar (Info, Orbits, Visibility)"
+              title="Open Graph Inspector & Controls in Secondary Side Bar (Info, Settings)"
             >
               <span className="btn-icon">🗂️</span>
               <span className="btn-text">Inspector</span>
@@ -5802,7 +5821,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         </div>
       </Panel>
 
-      {/* Graph Inspector & Controls (Info / Orbits / Visibility) now lives in the native VS Code WebviewView sidebar (codeExplorerInspectorView) */}
+      {/* Graph Inspector & Controls (Info / Settings) now lives in the native VS Code WebviewView sidebar (codeExplorerInspectorView) */}
     </Group>
 
       <DomainOverrideModal

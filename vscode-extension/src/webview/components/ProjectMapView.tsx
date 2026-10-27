@@ -256,7 +256,7 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
           else if (preset === 'hideUtilities') setHideUtilities((v) => !v);
           else if (preset === 'hideResources') setHideResources((v) => !v);
         }}
-        defaultLayoutName="concentric-barycentric"
+        defaultLayoutName="concentric"
         defaultNodeSizingMode="sqrt-weight"
         defaultNodeContentMode="metric"
         defaultHiddenTypes={[]}

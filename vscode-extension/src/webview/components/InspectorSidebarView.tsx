@@ -1,13 +1,7 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   OrbitConfig,
   DEFAULT_ORBIT_CONFIG,
-  DEFAULT_PROJECT_MAP_ORBIT_CONFIG,
-  isDefaultOrbitConfig,
-  mergeOrbits,
-  splitOrbit,
-  moveOrbit,
-  moveKindToOrbit,
 } from '../layout/orbitConfig';
 import {
   DomainLayoutName,
@@ -18,36 +12,25 @@ import {
   EntityKind,
 } from './DomainArchitectureView';
 import { CustomNodeGroup, NodeContentMode, NodeSizingMode } from '../domain/types';
-import { getEntityBadgeMeta } from '../domain/entityBadges';
 import { DomainInspector, RawEdgeInfo } from '../domain/components/DomainInspector';
-import { DomainVisibilityPanel } from '../domain/components/DomainVisibilityPanel';
-import { DomainOverrideModal } from './DomainOverrideModal';
-import { FloatingPanel } from './FloatingPanel';
 import {
-  LayersIcon,
-  RotateCcwIcon,
-  ChevronUpIcon,
-  ChevronDownIcon,
-  EyeIcon,
-  EyeOffIcon,
+  DomainSettingsPanel,
+  ProjectMapPresetsState,
+} from '../domain/components/DomainSettingsPanel';
+import { DomainOverrideModal } from './DomainOverrideModal';
+import {
   InfoIcon,
   SettingsIcon,
-  XIcon,
 } from './Icons';
 import { getVsCodeApi } from '../vscodeApi';
 
-export interface ProjectMapPresetsState {
-  cyclesCount: number;
-  cyclesOnly: boolean;
-  hideUtilities: boolean;
-  hideResources: boolean;
-}
+export type { ProjectMapPresetsState };
 
 export interface InspectorSyncedState {
   hudLabel?: string;
   hudTitle?: string;
   isMatrixMode: boolean;
-  effectiveSidebarTab: 'info' | 'orbits' | 'visibility';
+  effectiveSidebarTab: 'info' | 'settings' | 'orbits' | 'visibility';
   hasOrbitLegend: boolean;
   orbitLegendItems: OrbitLegendItem[];
   hiddenCount: number;
@@ -59,7 +42,7 @@ export interface InspectorSyncedState {
   isInspectorCollapsed: boolean;
   isEdgeInspectorCollapsed: boolean;
   availableDomains: string[];
-  // Orbits & Layout tab
+  // Settings tab
   layoutName: DomainLayoutName;
   spacingFactor: number;
   orbitDistance: number;
@@ -67,7 +50,6 @@ export interface InspectorSyncedState {
   autoRelayoutOnFilter: boolean;
   orbitConfig: OrbitConfig;
   hiddenOrbitTiers: number[];
-  // Visibility & Style tab
   echelonEntries: Array<[string, number]>;
   hiddenNodeIds: string[];
   hiddenTypes: EntityKind[];
@@ -103,7 +85,7 @@ export interface InspectorSyncedState {
 }
 
 export type InspectorAction =
-  | { type: 'SET_SIDEBAR_TAB'; tab: 'info' | 'orbits' | 'visibility' }
+  | { type: 'SET_SIDEBAR_TAB'; tab: 'info' | 'settings' | 'orbits' | 'visibility' }
   | { type: 'SET_INSPECTOR_COLLAPSED'; collapsed: boolean }
   | { type: 'SET_EDGE_INSPECTOR_COLLAPSED'; collapsed: boolean }
   | { type: 'SELECT_NODE'; node: SelectedNodeDetail | null }
@@ -151,22 +133,16 @@ export const InspectorSidebarView: React.FC = () => {
   const [state, setState] = useState<InspectorSyncedState | null>(null);
   const [overrideModalOpen, setOverrideModalOpen] = useState(false);
   const [overrideTargetService, setOverrideTargetService] = useState('');
-  const [isOrbitSettingsOpen, setIsOrbitSettingsOpen] = useState(false);
-
-  // Local orbit drag & multi-select state
-  const [selectedOrbitRows, setSelectedOrbitRows] = useState<number[]>([]);
-  const lastSelectedOrbitRowRef = useRef<number | null>(null);
-  const [draggedOrbitIndex, setDraggedOrbitIndex] = useState<number | null>(null);
-  const draggedKindRef = useRef<string | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   const dispatch = useCallback((action: InspectorAction) => {
     // Optimistically update local state for immediate slider/tab feedback
     setState((prev) => {
       if (!prev) return prev;
       switch (action.type) {
-        case 'SET_SIDEBAR_TAB':
-          return { ...prev, effectiveSidebarTab: action.tab };
+        case 'SET_SIDEBAR_TAB': {
+          const tab = action.tab === 'orbits' || action.tab === 'visibility' ? 'settings' : action.tab;
+          return { ...prev, effectiveSidebarTab: tab };
+        }
         case 'SET_LAYOUT':
           return { ...prev, layoutName: action.layoutName };
         case 'SET_SPACING':
@@ -242,133 +218,6 @@ export const InspectorSidebarView: React.FC = () => {
   const orbitLegendItems = state?.orbitLegendItems || [];
   const orbitConfig = state?.orbitConfig || DEFAULT_ORBIT_CONFIG;
 
-  const mergeSelection = useMemo(() => {
-    const entries = Array.from(new Set(selectedOrbitRows.map((i) => orbitLegendItems[i]?.orbitIndex))).filter(
-      (v): v is number => v !== undefined
-    );
-    if (entries.length < 2) return null;
-    entries.sort((a, b) => a - b);
-    const populated = Array.from(new Set(orbitLegendItems.map((it) => it.orbitIndex)));
-    const adjacent = entries.every((e, i) => i === 0 || populated.indexOf(e) === populated.indexOf(entries[i - 1]) + 1);
-    return adjacent ? entries : null;
-  }, [selectedOrbitRows, orbitLegendItems]);
-
-  const orbitLegendGroups = useMemo(() => {
-    const groups: Array<{
-      orbitIndex: number;
-      levelIndex: number;
-      shortLabel: string;
-      rows: Array<{ item: OrbitLegendItem; idx: number }>;
-    }> = [];
-    orbitLegendItems.forEach((item, idx) => {
-      const last = groups[groups.length - 1];
-      if (last && last.orbitIndex === item.orbitIndex) {
-        last.rows.push({ item, idx });
-      } else {
-        groups.push({
-          orbitIndex: item.orbitIndex,
-          levelIndex: item.levelIndex,
-          shortLabel: item.shortLabel,
-          rows: [{ item, idx }],
-        });
-      }
-    });
-    return groups;
-  }, [orbitLegendItems]);
-
-  const applyOrbitCfg = useCallback(
-    (next: OrbitConfig, clearHiddenFor: number[] = [], resetHidden = false) => {
-      setSelectedOrbitRows([]);
-      lastSelectedOrbitRowRef.current = null;
-      dispatch({ type: 'APPLY_ORBIT_CONFIG', next, clearHiddenFor, resetHidden });
-    },
-    [dispatch]
-  );
-
-  const handleMoveOrbit = useCallback(
-    (item: OrbitLegendItem, direction: -1 | 1) => {
-      const populated = Array.from(new Set(orbitLegendItems.map((it) => it.orbitIndex)));
-      const pos = populated.indexOf(item.orbitIndex);
-      const target = populated[pos + direction];
-      if (pos < 0 || target === undefined) return;
-      applyOrbitCfg(moveOrbit(orbitConfig, item.orbitIndex, target));
-    },
-    [orbitLegendItems, orbitConfig, applyOrbitCfg]
-  );
-
-  const handleDragStart = useCallback((e: React.DragEvent, idx: number) => {
-    setDraggedOrbitIndex(idx);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', String(idx));
-  }, []);
-
-  const handleDragOver = useCallback((e: React.DragEvent, idx: number) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setDragOverIndex((prev) => (prev !== idx ? idx : prev));
-  }, []);
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent, targetIdx: number) => {
-      e.preventDefault();
-      const dragged = draggedOrbitIndex;
-      const kind = draggedKindRef.current;
-      setDraggedOrbitIndex(null);
-      setDragOverIndex(null);
-      draggedKindRef.current = null;
-      const target = orbitLegendItems[targetIdx];
-      if (!target) return;
-      if (kind) {
-        applyOrbitCfg(moveKindToOrbit(orbitConfig, kind, target.levelIndex), [target.levelIndex]);
-        return;
-      }
-      const source = dragged === null ? undefined : orbitLegendItems[dragged];
-      if (!source || source.orbitIndex === target.orbitIndex) return;
-      applyOrbitCfg(moveOrbit(orbitConfig, source.orbitIndex, target.orbitIndex));
-    },
-    [draggedOrbitIndex, orbitLegendItems, orbitConfig, applyOrbitCfg]
-  );
-
-  const handleDragEnd = useCallback(() => {
-    setDraggedOrbitIndex(null);
-    setDragOverIndex(null);
-    draggedKindRef.current = null;
-  }, []);
-
-  const handleOrbitRowClick = useCallback((e: React.MouseEvent, idx: number) => {
-    if (!e.shiftKey && !e.ctrlKey && !e.metaKey) return false;
-    e.preventDefault();
-    const anchor = lastSelectedOrbitRowRef.current;
-    if (e.shiftKey && anchor !== null) {
-      const [a, b] = anchor < idx ? [anchor, idx] : [idx, anchor];
-      setSelectedOrbitRows(Array.from({ length: b - a + 1 }, (_, i) => a + i));
-    } else {
-      setSelectedOrbitRows((prev) => (prev.includes(idx) ? prev.filter((i) => i !== idx) : [...prev, idx]));
-      lastSelectedOrbitRowRef.current = idx;
-    }
-    return true;
-  }, []);
-
-  const handleMergeSelected = useCallback(() => {
-    if (!mergeSelection) return;
-    const first = mergeSelection[0];
-    const last = mergeSelection[mergeSelection.length - 1];
-    const affected = orbitConfig.orbits.slice(first, last + 1).flat();
-    applyOrbitCfg(mergeOrbits(orbitConfig, first, last), affected);
-  }, [mergeSelection, orbitConfig, applyOrbitCfg]);
-
-  const handleSplitOrbit = useCallback(
-    (orbitIndex: number) => {
-      applyOrbitCfg(splitOrbit(orbitConfig, orbitIndex), orbitConfig.orbits[orbitIndex] ?? []);
-    },
-    [orbitConfig, applyOrbitCfg]
-  );
-
-  const handleResetOrbitOrder = useCallback(() => {
-    const defaultCfg = state?.projectMapPresets ? DEFAULT_PROJECT_MAP_ORBIT_CONFIG : DEFAULT_ORBIT_CONFIG;
-    applyOrbitCfg(defaultCfg, [], true);
-  }, [applyOrbitCfg, state?.projectMapPresets]);
-
   if (!state) {
     return (
       <div
@@ -387,10 +236,10 @@ export const InspectorSidebarView: React.FC = () => {
       >
         <div style={{ fontSize: '28px', opacity: 0.75 }}>🪐</div>
         <div style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0' }}>
-          Graph Inspector & Controls
+          Graph Inspector & Settings
         </div>
         <div style={{ fontSize: '11.5px', lineHeight: 1.5, maxWidth: '240px' }}>
-          Open an Architecture Map or Project Map tab to inspect nodes, configure orbits, and adjust visual parameters here.
+          Open an Architecture Map or Project Map tab to inspect nodes, configure orbits, and adjust settings here.
         </div>
         <button
           type="button"
@@ -422,7 +271,6 @@ export const InspectorSidebarView: React.FC = () => {
     rawEdges,
     isInspectorCollapsed,
     isEdgeInspectorCollapsed,
-    availableDomains,
     layoutName,
     spacingFactor,
     orbitDistance,
@@ -444,552 +292,9 @@ export const InspectorSidebarView: React.FC = () => {
     projectMapPresets,
   } = state;
 
-  const customPresetsSlot = projectMapPresets ? (
-    <>
-      {projectMapPresets.cyclesCount > 0 && (
-        <button
-          type="button"
-          className={`visibility-preset-item ${projectMapPresets.cyclesOnly ? 'is-active' : ''}`}
-          onClick={() => dispatch({ type: 'TOGGLE_PM_PRESET', preset: 'cyclesOnly' })}
-          title="Isolate only modules involved in dependency cycles"
-        >
-          <div className="visibility-preset-main">
-            <span className="visibility-preset-icon">⚠️</span>
-            <div className="visibility-preset-text">
-              <span className="visibility-preset-label">Cycles Only</span>
-              <span className="visibility-preset-desc">
-                {projectMapPresets.cyclesCount} dependency cycle{projectMapPresets.cyclesCount === 1 ? '' : 's'} detected
-              </span>
-            </div>
-          </div>
-          <div className={`visibility-preset-toggle ${projectMapPresets.cyclesOnly ? 'is-on' : ''}`}>
-            {projectMapPresets.cyclesOnly ? 'ON' : 'OFF'}
-          </div>
-        </button>
-      )}
-
-      <button
-        type="button"
-        className={`visibility-preset-item ${projectMapPresets.hideUtilities ? 'is-active' : ''}`}
-        onClick={() => dispatch({ type: 'TOGGLE_PM_PRESET', preset: 'hideUtilities' })}
-        title="Hide foundation/utility modules (Orbit 4)"
-      >
-        <div className="visibility-preset-main">
-          <span className="visibility-preset-icon">🧰</span>
-          <div className="visibility-preset-text">
-            <span className="visibility-preset-label">Hide Utilities</span>
-            <span className="visibility-preset-desc">Foundation & helper modules (Orbit 4)</span>
-          </div>
-        </div>
-        <div className={`visibility-preset-toggle ${projectMapPresets.hideUtilities ? 'is-on' : ''}`}>
-          {projectMapPresets.hideUtilities ? 'ON' : 'OFF'}
-        </div>
-      </button>
-
-      <button
-        type="button"
-        className={`visibility-preset-item ${projectMapPresets.hideResources ? 'is-active' : ''}`}
-        onClick={() => dispatch({ type: 'TOGGLE_PM_PRESET', preset: 'hideResources' })}
-        title="Hide database tables, procedures, topics, and external resources"
-      >
-        <div className="visibility-preset-main">
-          <span className="visibility-preset-icon">🗄️</span>
-          <div className="visibility-preset-text">
-            <span className="visibility-preset-label">Hide Resources</span>
-            <span className="visibility-preset-desc">Tables, procedures, topics & external APIs</span>
-          </div>
-        </div>
-        <div className={`visibility-preset-toggle ${projectMapPresets.hideResources ? 'is-on' : ''}`}>
-          {projectMapPresets.hideResources ? 'ON' : 'OFF'}
-        </div>
-      </button>
-    </>
-  ) : undefined;
-
-  const hasCustomOrbitSettings =
-    layoutName !== 'concentric' ||
-    spacingFactor !== 1.0 ||
-    orbitDistance !== 280 ||
-    minOrbitNodeDistance !== 125 ||
-    !autoRelayoutOnFilter;
-
-  const hasCustomAppearance =
-    nodeContentMode !== 'icon' ||
-    nodeSizingMode !== 'uniform' ||
-    edgeCurveMode !== 'bezier' ||
-    edgeLabelsOnHover ||
-    fontSize !== 10 ||
-    curveFactor !== 35 ||
-    wheelSensitivity !== 1.0;
-
-  const renderOrbitLegend = () => (
-    <FloatingPanel
-      dock="top-right"
-      docked={true}
-      isCollapsed={false}
-      title="Orbit Legend"
-      icon={<LayersIcon size={14} />}
-      badge={
-        <span
-          className="floating-dock-badge"
-          style={{
-            backgroundColor: 'rgba(56, 189, 248, 0.18)',
-            color: '#38bdf8',
-            border: '1px solid rgba(56, 189, 248, 0.35)',
-            fontSize: '10px',
-            padding: '1px 6px',
-          }}
-        >
-          {orbitLegendItems.length}
-        </span>
-      }
-      headerActions={
-        <>
-          {mergeSelection ? (
-            <button
-              type="button"
-              className="floating-dock-btn action-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleMergeSelected();
-              }}
-              title="Merge the selected adjacent orbits into one ring"
-            >
-              <LayersIcon size={11} />
-              <span>Merge {mergeSelection.length}</span>
-            </button>
-          ) : null}
-          {!isDefaultOrbitConfig(orbitConfig) || hiddenOrbitTiers.size > 0 ? (
-            <button
-              type="button"
-              className="floating-dock-btn action-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleResetOrbitOrder();
-              }}
-              title="Reset to the default orbit order and show all orbits"
-            >
-              <RotateCcwIcon size={11} />
-              <span>Reset</span>
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className={`floating-dock-btn settings-gear-btn ${isOrbitSettingsOpen ? 'is-open' : ''}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsOrbitSettingsOpen((prev) => !prev);
-            }}
-            title="Layout & Orbit Parameters (Algorithm, Spacing, Orbit Distance, Min Distance)"
-            aria-label="Layout & Orbit Parameters"
-          >
-            <SettingsIcon size={13} />
-            {!isOrbitSettingsOpen && hasCustomOrbitSettings && <span className="settings-gear-dot" />}
-          </button>
-        </>
-      }
-      collapsedTitle={`Orbits (${orbitLegendItems.length})`}
-      collapsedIcon={<LayersIcon size={13} />}
-      collapseTooltip="Collapse Orbit Legend"
-      expandTooltip="Expand Orbit Legend"
-      width={360}
-      minWidth={240}
-      maxWidth={700}
-      persistKey="ce_orbit_legend"
-      className="domain-orbit-legend-floating no-body-padding"
-    >
-      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-        {/* Collapsible Layout & Geometry Settings Drawer */}
-        {isOrbitSettingsOpen && (
-          <div className="panel-settings-drawer">
-            <div className="panel-settings-drawer-header">
-              <span className="panel-settings-drawer-title">
-                <SettingsIcon size={11} />
-                <span>Layout & Orbit Geometry</span>
-              </span>
-              <button
-                type="button"
-                className="floating-dock-btn close-btn"
-                style={{ width: 20, height: 20, minWidth: 20, padding: 0 }}
-                onClick={() => setIsOrbitSettingsOpen(false)}
-                title="Close layout settings"
-              >
-                <XIcon size={11} />
-              </button>
-            </div>
-
-            <div className="display-setting-row" title="Select graph layout algorithm">
-              <div className="setting-label-row">
-                <span className="setting-icon">📐</span>
-                <span className="setting-name">Graph Layout</span>
-              </div>
-              <select
-                value={layoutName}
-                onChange={(e) => dispatch({ type: 'SET_LAYOUT', layoutName: e.target.value as DomainLayoutName })}
-                title="Graph Layout"
-                className="domain-layout-dropdown"
-                style={{ width: '100%', marginTop: '4px' }}
-              >
-                <option value="concentric">🎯 Concentric (Original)</option>
-                <option value="concentric-equispaced">🪐 Concentric: Equispaced</option>
-                <option value="concentric-barycentric">🪐 Concentric: Barycentric</option>
-                <option value="concentric-polar-force">🪐 Concentric: Polar Force</option>
-                <option value="concentric-sectors">🪐 Concentric: Domain Sectors</option>
-                <option value="swimlanes">🏊 Swimlanes (Pipeline)</option>
-                <option value="clusters">🏝️ Domain Islands (Bounded Contexts)</option>
-                <option value="hive">🕸️ Hive Plot (Multi-Axis)</option>
-                <option value="cose">⚡ Force (COSE)</option>
-              </select>
-            </div>
-
-            {/* Node Spacing / Air Control */}
-            <div className="display-setting-row" title="Adjust node spacing / distance between orbits">
-              <div className="setting-label-row">
-                <span className="setting-icon">💨</span>
-                <span className="setting-name">Node Air (Spacing)</span>
-                <span
-                  className="domain-hud-value-badge"
-                  onClick={() => dispatch({ type: 'SET_SPACING', spacingFactor: 1.0 })}
-                  title="Click to reset air to 1.0x"
-                >
-                  {spacingFactor.toFixed(1)}x
-                </span>
-              </div>
-              <div className="setting-slider-row">
-                <button
-                  type="button"
-                  className="domain-hud-step-btn"
-                  onClick={() =>
-                    dispatch({ type: 'SET_SPACING', spacingFactor: Math.max(0.4, +(spacingFactor - 0.2).toFixed(1)) })
-                  }
-                  title="Decrease spacing"
-                >
-                  −
-                </button>
-                <input
-                  type="range"
-                  min="0.5"
-                  max="3.0"
-                  step="0.1"
-                  value={spacingFactor}
-                  onChange={(e) => dispatch({ type: 'SET_SPACING', spacingFactor: parseFloat(e.target.value) })}
-                  className="domain-hud-slider"
-                />
-                <button
-                  type="button"
-                  className="domain-hud-step-btn"
-                  onClick={() =>
-                    dispatch({ type: 'SET_SPACING', spacingFactor: Math.min(3.5, +(spacingFactor + 0.2).toFixed(1)) })
-                  }
-                  title="Increase spacing"
-                >
-                  +
-                </button>
-              </div>
-            </div>
-
-            {/* Orbit Distance Control */}
-            {layoutName.startsWith('concentric') && (
-              <div className="display-setting-row" title="Adjust distance between concentric orbits (100px - 900px)">
-                <div className="setting-label-row">
-                  <span className="setting-icon">🪐</span>
-                  <span className="setting-name">Orbit Distance</span>
-                  <span
-                    className="domain-hud-value-badge"
-                    onClick={() => dispatch({ type: 'SET_ORBIT_DISTANCE', orbitDistance: 280 })}
-                    title="Click to reset orbit distance to 280px"
-                  >
-                    {orbitDistance}px
-                  </span>
-                </div>
-                <div className="setting-slider-row">
-                  <button
-                    type="button"
-                    className="domain-hud-step-btn"
-                    onClick={() => dispatch({ type: 'SET_ORBIT_DISTANCE', orbitDistance: orbitDistance - 20 })}
-                    title="Decrease orbit distance (-20px)"
-                  >
-                    −
-                  </button>
-                  <input
-                    type="range"
-                    min="100"
-                    max="900"
-                    step="10"
-                    value={orbitDistance}
-                    onChange={(e) => dispatch({ type: 'SET_ORBIT_DISTANCE', orbitDistance: parseInt(e.target.value, 10) })}
-                    className="domain-hud-slider"
-                  />
-                  <button
-                    type="button"
-                    className="domain-hud-step-btn"
-                    onClick={() => dispatch({ type: 'SET_ORBIT_DISTANCE', orbitDistance: orbitDistance + 20 })}
-                    title="Increase orbit distance (+20px)"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Min Distance on Orbit Control */}
-            {layoutName.startsWith('concentric') && (
-              <div
-                className="display-setting-row"
-                title="Adjust minimum distance between nodes on the same orbit (50px - 400px)"
-              >
-                <div className="setting-label-row">
-                  <span className="setting-icon">↔️</span>
-                  <span className="setting-name">Min Distance on Orbit</span>
-                  <span
-                    className="domain-hud-value-badge"
-                    onClick={() => dispatch({ type: 'SET_MIN_ORBIT_NODE_DISTANCE', minOrbitNodeDistance: 125 })}
-                    title="Click to reset min orbit node distance to 125px"
-                  >
-                    {minOrbitNodeDistance}px
-                  </span>
-                </div>
-                <div className="setting-slider-row">
-                  <button
-                    type="button"
-                    className="domain-hud-step-btn"
-                    onClick={() =>
-                      dispatch({ type: 'SET_MIN_ORBIT_NODE_DISTANCE', minOrbitNodeDistance: minOrbitNodeDistance - 15 })
-                    }
-                    title="Decrease min distance on orbit (-15px)"
-                  >
-                    −
-                  </button>
-                  <input
-                    type="range"
-                    min="50"
-                    max="400"
-                    step="5"
-                    value={minOrbitNodeDistance}
-                    onChange={(e) =>
-                      dispatch({
-                        type: 'SET_MIN_ORBIT_NODE_DISTANCE',
-                        minOrbitNodeDistance: parseInt(e.target.value, 10),
-                      })
-                    }
-                    className="domain-hud-slider"
-                  />
-                  <button
-                    type="button"
-                    className="domain-hud-step-btn"
-                    onClick={() =>
-                      dispatch({ type: 'SET_MIN_ORBIT_NODE_DISTANCE', minOrbitNodeDistance: minOrbitNodeDistance + 15 })
-                    }
-                    title="Increase min distance on orbit (+15px)"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Auto-update graph & Relayout */}
-            <div className="display-popover-actions" style={{ paddingTop: '2px' }}>
-              <label
-                className={`domain-hud-checkbox-label ${autoRelayoutOnFilter ? 'is-active' : ''}`}
-                title={
-                  autoRelayoutOnFilter
-                    ? 'Auto-relayout enabled: layout automatically refits when entities are hidden. Uncheck to keep node positions unchanged.'
-                    : 'Auto-relayout disabled: nodes are hidden in place without moving remaining nodes.'
-                }
-              >
-                <input
-                  type="checkbox"
-                  className="domain-hud-checkbox"
-                  checked={autoRelayoutOnFilter}
-                  onChange={(e) => dispatch({ type: 'SET_AUTO_RELAYOUT', enabled: e.target.checked })}
-                />
-                <span>🔄 Auto-recalc</span>
-              </label>
-              <button
-                type="button"
-                className="domain-hud-btn"
-                onClick={() => dispatch({ type: 'FORCE_RELAYOUT' })}
-                title="Recalculate graph layout now (Re-layout)"
-                style={{ padding: '2px 8px', fontSize: '11px', lineHeight: 1 }}
-              >
-                ⟳ Re-layout
-              </button>
-            </div>
-          </div>
-        )}
-
-      <div className="domain-orbit-legend-body" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-        {/* Concentric Orbits Hierarchy */}
-        {layoutName.startsWith('concentric') ? (
-          <>
-            <div
-              className="orbit-axis-label"
-              title="Orbits run from the center of the map (top) to its periphery (bottom). Drag cards or use ▲/▼ to reorder; shift-click adjacent cards, then Merge, to share one ring; drag a kind chip onto another orbit to move it."
-            >
-              <span className="orbit-axis-dot" />
-              <span>Center</span>
-            </div>
-            {orbitLegendGroups.map((group, gIdx) => {
-              const anchorIdx = group.rows[0].idx;
-              const anchorItem = group.rows[0].item;
-              const isOrbitHidden = hiddenOrbitTiers.has(group.levelIndex);
-              const isMerged = group.rows.length > 1;
-              const isSelected = group.rows.some((r) => selectedOrbitRows.includes(r.idx));
-              const total = group.rows.reduce((sum, r) => sum + r.item.count, 0);
-              const allNodeIds = group.rows.flatMap((r) => r.item.nodeIds);
-              const depth = orbitLegendGroups.length > 1 ? gIdx / (orbitLegendGroups.length - 1) : 0;
-              const groupTitle = group.rows.map((r) => r.item.title).join(' + ');
-
-              return (
-                <section
-                  key={`${group.orbitIndex}-${group.levelIndex}`}
-                  className={`orbit-card ${isOrbitHidden ? 'is-orbit-hidden' : ''} ${isSelected ? 'is-selected' : ''} ${isMerged ? 'is-merged' : ''} ${draggedOrbitIndex === anchorIdx ? 'is-dragging' : ''} ${dragOverIndex === anchorIdx ? 'is-drag-over' : ''}`}
-                  style={{ '--orbit-depth': depth } as React.CSSProperties}
-                  draggable
-                  onClick={(e) => handleOrbitRowClick(e, anchorIdx)}
-                  onDragStart={(e) => handleDragStart(e, anchorIdx)}
-                  onDragOver={(e) => handleDragOver(e, anchorIdx)}
-                  onDrop={(e) => handleDrop(e, anchorIdx)}
-                  onDragEnd={handleDragEnd}
-                  onMouseEnter={() =>
-                    !isOrbitHidden && dispatch({ type: 'HIGHLIGHT_ORBIT_NODES', nodeIds: allNodeIds })
-                  }
-                  onMouseLeave={() => dispatch({ type: 'CLEAR_ORBIT_HIGHLIGHT' })}
-                  title={`${group.shortLabel}: ${groupTitle} (${total} nodes). Drag or use ▲/▼ to reorder; shift-click to select for merging.`}
-                >
-                  <header className="orbit-card-header">
-                    <span className="orbit-drag-handle" title="Drag to reorder orbit">
-                      ⠿
-                    </span>
-                    <span className="orbit-legend-pill">{group.shortLabel}</span>
-                    {isMerged ? <span className="orbit-merged-tag">Merged</span> : null}
-                    <span className="orbit-card-spacer" />
-                    <span className="orbit-legend-count" title={`${total} nodes on this orbit`}>
-                      {total}
-                    </span>
-                    <div className="orbit-card-actions">
-                      {isMerged ? (
-                        <button
-                          type="button"
-                          className="orbit-split-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleSplitOrbit(group.orbitIndex);
-                          }}
-                          title="Split this merged orbit back into separate orbits"
-                        >
-                          Split
-                        </button>
-                      ) : null}
-                      <button
-                        type="button"
-                        className="orbit-move-btn"
-                        disabled={gIdx === 0}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleMoveOrbit(anchorItem, -1);
-                        }}
-                        title="Move toward center (inner orbit)"
-                      >
-                        <ChevronUpIcon size={10} />
-                      </button>
-                      <button
-                        type="button"
-                        className="orbit-move-btn"
-                        disabled={gIdx === orbitLegendGroups.length - 1}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleMoveOrbit(anchorItem, 1);
-                        }}
-                        title="Move toward periphery (outer orbit)"
-                      >
-                        <ChevronDownIcon size={10} />
-                      </button>
-                      <button
-                        type="button"
-                        className={`orbit-visibility-btn ${isOrbitHidden ? 'is-hidden' : ''}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          dispatch({ type: 'TOGGLE_ORBIT_VISIBILITY', levelIndex: group.levelIndex });
-                        }}
-                        title={isOrbitHidden ? `Show ${group.shortLabel}` : `Hide ${group.shortLabel}`}
-                      >
-                        {isOrbitHidden ? <EyeOffIcon size={13} /> : <EyeIcon size={13} />}
-                      </button>
-                    </div>
-                  </header>
-                  {group.rows.map(({ item }) => (
-                    <div
-                      key={item.slotTier}
-                      className="orbit-tier"
-                      onMouseEnter={() =>
-                        isMerged &&
-                        !isOrbitHidden &&
-                        dispatch({ type: 'HIGHLIGHT_ORBIT_NODES', nodeIds: item.nodeIds })
-                      }
-                      onMouseLeave={() =>
-                        isMerged &&
-                        !isOrbitHidden &&
-                        dispatch({ type: 'HIGHLIGHT_ORBIT_NODES', nodeIds: allNodeIds })
-                      }
-                    >
-                      <div className="orbit-tier-title">
-                        <span>{item.title}</span>
-                        {isMerged ? <span className="orbit-tier-count">{item.count}</span> : null}
-                      </div>
-                      <div className="orbit-kind-chips">
-                        {item.kinds.map((k) => (
-                          <span
-                            key={k.kind}
-                            className={`orbit-kind-chip ${k.overridden ? 'is-overridden' : ''}`}
-                            draggable
-                            onDragStart={(e) => {
-                              e.stopPropagation();
-                              draggedKindRef.current = k.kind;
-                              e.dataTransfer.effectAllowed = 'move';
-                              e.dataTransfer.setData('text/plain', k.kind);
-                            }}
-                            onDragEnd={handleDragEnd}
-                            title={`Drag ${k.kind} onto another orbit to move all ${k.kind} entities there`}
-                          >
-                            <span className="orbit-kind-chip-name">{getEntityBadgeMeta(k.kind as EntityKind)?.label || k.kind}</span>
-                            <span className="orbit-kind-chip-count">{k.count}</span>
-                            {k.overridden ? (
-                              <button
-                                type="button"
-                                className="orbit-kind-chip-clear"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  applyOrbitCfg(moveKindToOrbit(orbitConfig, k.kind, null), [item.levelIndex]);
-                                }}
-                                title="Restore the default orbit for this kind"
-                              >
-                                ✕
-                              </button>
-                            ) : null}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </section>
-              );
-            })}
-            <div className="orbit-axis-label is-outer">
-              <span>Periphery</span>
-            </div>
-          </>
-        ) : (
-          <div style={{ padding: '14px 12px', fontSize: '11px', color: '#94a3b8', lineHeight: 1.45 }}>
-            Concentric orbit rings and tier reordering are active when a <strong>Concentric</strong> layout algorithm is
-            selected under ⚙️ settings.
-          </div>
-        )}
-      </div>
-      </div>
-    </FloatingPanel>
-  );
+  const currentTab = effectiveSidebarTab === 'orbits' || effectiveSidebarTab === 'visibility'
+    ? 'settings'
+    : effectiveSidebarTab;
 
   return (
     <div
@@ -1028,47 +333,34 @@ export const InspectorSidebarView: React.FC = () => {
         </div>
         <button
           type="button"
-          className="domain-hud-btn"
-          style={{ padding: '2px 6px', fontSize: '10px', height: '20px' }}
+          className="domain-dock-toggle-btn"
           onClick={() => getVsCodeApi()?.postMessage({ type: 'MOVE_INSPECTOR_VIEW' })}
-          title="Move Inspector panel to Secondary Side Bar (Right, next to Chat) or Primary Side Bar"
+          title="Move this panel to the Secondary Side Bar (Right, next to AI Chat) or Primary Side Bar"
         >
           ⇄ Dock
         </button>
       </div>
 
-      {/* Unified Tab Switcher Header */}
+      {/* Unified Tab Switcher Header: Info & Settings */}
       <div className="domain-sidebar-tab-bar">
         <div className="domain-sidebar-tabs" style={{ width: '100%' }}>
           <button
             type="button"
-            className={`domain-sidebar-tab ${effectiveSidebarTab === 'info' ? 'is-active' : ''}`}
+            className={`domain-sidebar-tab ${currentTab === 'info' ? 'is-active' : ''}`}
             onClick={() => dispatch({ type: 'SET_SIDEBAR_TAB', tab: 'info' })}
             title="Inspect Selected Microservice, Database, or Edge"
           >
             <InfoIcon size={12} />
             <span>Info</span>
           </button>
-          {hasOrbitLegend && (
-            <button
-              type="button"
-              className={`domain-sidebar-tab ${effectiveSidebarTab === 'orbits' ? 'is-active' : ''}`}
-              onClick={() => dispatch({ type: 'SET_SIDEBAR_TAB', tab: 'orbits' })}
-              title="Concentric Orbits Legend and Layout Parameters"
-            >
-              <LayersIcon size={12} />
-              <span>Orbits</span>
-              <span className="tab-badge">{orbitLegendItems.length}</span>
-            </button>
-          )}
           <button
             type="button"
-            className={`domain-sidebar-tab ${effectiveSidebarTab === 'visibility' ? 'is-active' : ''}`}
-            onClick={() => dispatch({ type: 'SET_SIDEBAR_TAB', tab: 'visibility' })}
-            title="Visibility, Entity Filters, Node/Edge Style, and Architectural Presets"
+            className={`domain-sidebar-tab ${currentTab === 'settings' ? 'is-active' : ''}`}
+            onClick={() => dispatch({ type: 'SET_SIDEBAR_TAB', tab: 'settings' })}
+            title="Graph Settings, Orbits Hierarchy, Visibility Filters, and Appearance"
           >
-            <EyeIcon size={12} />
-            <span>Visibility</span>
+            <SettingsIcon size={12} />
+            <span>Settings</span>
             {hiddenCount > 0 && <span className="tab-badge">{hiddenCount}</span>}
           </button>
         </div>
@@ -1076,7 +368,7 @@ export const InspectorSidebarView: React.FC = () => {
 
       {/* Tab Content Body */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        {effectiveSidebarTab === 'info' && (
+        {currentTab === 'info' && (
           <DomainInspector
             selectedNode={selectedNode}
             selectedEdge={selectedEdge}
@@ -1106,279 +398,77 @@ export const InspectorSidebarView: React.FC = () => {
             docked={true}
           />
         )}
-        {effectiveSidebarTab === 'orbits' && renderOrbitLegend()}
-        {effectiveSidebarTab === 'visibility' && (
-          <DomainVisibilityPanel
-            nodeDetailMap={nodeDetailMap}
-            echelonMap={echelonMap}
-            hiddenNodeIds={hiddenNodeIds}
-            hiddenTypes={hiddenTypes}
-            hiddenOrbitTiers={hiddenOrbitTiers}
+        {currentTab === 'settings' && (
+          <DomainSettingsPanel
+            layoutName={layoutName}
+            spacingFactor={spacingFactor}
+            orbitDistance={orbitDistance}
+            minOrbitNodeDistance={minOrbitNodeDistance}
+            autoRelayoutOnFilter={autoRelayoutOnFilter}
+            onSetSpacing={(factor) => dispatch({ type: 'SET_SPACING', spacingFactor: factor })}
+            onSetOrbitDistance={(dist) => dispatch({ type: 'SET_ORBIT_DISTANCE', orbitDistance: dist })}
+            onSetMinOrbitNodeDistance={(dist) =>
+              dispatch({ type: 'SET_MIN_ORBIT_NODE_DISTANCE', minOrbitNodeDistance: dist })
+            }
+            onSetAutoRelayout={(enabled) => dispatch({ type: 'SET_AUTO_RELAYOUT', enabled })}
+            onForceRelayout={() => dispatch({ type: 'FORCE_RELAYOUT' })}
+            nodeContentMode={nodeContentMode}
+            nodeSizingMode={nodeSizingMode}
+            edgeCurveMode={edgeCurveMode}
+            edgeLabelsOnHover={edgeLabelsOnHover}
+            fontSize={fontSize}
+            curveFactor={curveFactor}
+            wheelSensitivity={wheelSensitivity}
+            onSetNodeContentMode={(mode) => dispatch({ type: 'SET_NODE_CONTENT_MODE', mode })}
+            onSetNodeSizingMode={(mode) => dispatch({ type: 'SET_NODE_SIZING_MODE', mode })}
+            onSetEdgeCurveMode={(mode) => dispatch({ type: 'SET_EDGE_CURVE_MODE', mode })}
+            onSetEdgeLabelsOnHover={(onHover) => dispatch({ type: 'SET_EDGE_LABELS_ON_HOVER', onHover })}
+            onSetFontSize={(size) => dispatch({ type: 'SET_FONT_SIZE', fontSize: size })}
+            onSetCurveFactor={(factor) => dispatch({ type: 'SET_CURVE_FACTOR', curveFactor: factor })}
+            onSetWheelSensitivity={(sens) =>
+              dispatch({ type: 'SET_WHEEL_SENSITIVITY', wheelSensitivity: sens })
+            }
+            projectMapPresets={projectMapPresets}
+            onToggleProjectMapPreset={(preset) => dispatch({ type: 'TOGGLE_PM_PRESET', preset })}
             hideSingleConnectionDbs={hideSingleConnectionDbs}
             hideIsolatedNodes={hideIsolatedNodes}
             showTransitiveEdges={showTransitiveEdges}
-            counts={counts}
-            onUnhideNode={(id) => dispatch({ type: 'UNHIDE_NODE', id })}
-            onRestoreAll={() => dispatch({ type: 'RESTORE_ALL_HIDDEN' })}
-            onToggleType={(kind) => dispatch({ type: 'TOGGLE_TYPE_VISIBILITY', kind })}
             onToggleSingleConnectionDbs={() => dispatch({ type: 'TOGGLE_SINGLE_CONN_DBS' })}
             onToggleIsolatedNodes={() => dispatch({ type: 'TOGGLE_ISOLATED_NODES' })}
             onToggleTransitiveEdges={() => dispatch({ type: 'TOGGLE_TRANSITIVE_EDGES' })}
-            isCollapsed={false}
-            docked={true}
+            nodeDetailMap={nodeDetailMap}
+            echelonMap={echelonMap}
+            counts={counts}
+            hiddenNodeIds={hiddenNodeIds}
+            hiddenTypes={hiddenTypes}
+            onToggleType={(kind) => dispatch({ type: 'TOGGLE_TYPE_VISIBILITY', kind })}
+            onUnhideNode={(id) => dispatch({ type: 'UNHIDE_NODE', id })}
+            onRestoreAll={() => dispatch({ type: 'RESTORE_ALL_HIDDEN' })}
             groupedTypes={groupedTypes}
             onToggleTypeGrouping={(kind) => dispatch({ type: 'TOGGLE_TYPE_GROUPING', kind })}
             customGroups={customGroups}
             onCreateCustomGroup={(name, nodeIds) => dispatch({ type: 'CREATE_CUSTOM_GROUP', name, nodeIds })}
-            onToggleCustomGroupCollapse={(groupId) => dispatch({ type: 'TOGGLE_CUSTOM_GROUP_COLLAPSE', groupId })}
+            onToggleCustomGroupCollapse={(groupId) =>
+              dispatch({ type: 'TOGGLE_CUSTOM_GROUP_COLLAPSE', groupId })
+            }
             onDeleteCustomGroup={(groupId) => dispatch({ type: 'DELETE_CUSTOM_GROUP', groupId })}
             onSelectGroupNode={(groupId) => dispatch({ type: 'SELECT_NODE_BY_ID', id: groupId })}
-            customPresetsSlot={customPresetsSlot}
-            hasCustomAppearance={hasCustomAppearance}
-            appearanceSection={
-              !isMatrixMode ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                      {/* Node Content Mode */}
-                      <div className="display-setting-row" title="Choose what is displayed inside each node shape">
-                        <div className="setting-label-row">
-                          <span className="setting-icon">🎨</span>
-                          <span className="setting-name">Node Content</span>
-                        </div>
-                        <select
-                          value={nodeContentMode}
-                          onChange={(e) =>
-                            dispatch({ type: 'SET_NODE_CONTENT_MODE', mode: e.target.value as NodeContentMode })
-                          }
-                          title="Node Content: Clean Icon, Icon + 3-letter Code, or Metric"
-                          className="domain-layout-dropdown"
-                          style={{ width: '100%', marginTop: '3px' }}
-                        >
-                          <option value="icon">✨ Icon Only</option>
-                          <option value="icon-code">🏷️ Icon + Code</option>
-                          <option value="metric">📊 Icon + Metric</option>
-                        </select>
-                      </div>
-
-                      {/* Node Sizing Mode */}
-                      <div className="display-setting-row" title="Scale node size uniformly, by √Weight, or by degree">
-                        <div className="setting-label-row">
-                          <span className="setting-icon">📏</span>
-                          <span className="setting-name">Node Size</span>
-                        </div>
-                        <select
-                          value={nodeSizingMode}
-                          onChange={(e) =>
-                            dispatch({ type: 'SET_NODE_SIZING_MODE', mode: e.target.value as NodeSizingMode })
-                          }
-                          title="Node Size: Uniform, √Weight (Files/Projects), or Connections (Degree)"
-                          className="domain-layout-dropdown"
-                          style={{ width: '100%', marginTop: '3px' }}
-                        >
-                          <option value="uniform">⚪ Uniform</option>
-                          <option value="sqrt-weight">📐 √Weight</option>
-                          <option value="degree">🔗 Degree</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                      {/* Edge Curve Mode */}
-                      <div
-                        className="display-setting-row"
-                        title="Line Style: Straight, Bezier curve, or Bypass Inner Orbits"
-                      >
-                        <div className="setting-label-row">
-                          <span className="setting-icon">〰️</span>
-                          <span className="setting-name">Line Style</span>
-                        </div>
-                        <select
-                          value={edgeCurveMode}
-                          onChange={(e) =>
-                            dispatch({ type: 'SET_EDGE_CURVE_MODE', mode: e.target.value as EdgeCurveMode })
-                          }
-                          title="Line Style: Straight, Bezier curve, or Bypass Inner Orbits"
-                          className="domain-layout-dropdown"
-                          style={{ width: '100%', marginTop: '3px' }}
-                        >
-                          <option value="bezier">〰️ Bezier</option>
-                          <option value="straight">📏 Straight</option>
-                          <option value="avoid-inner">🛡️ Bypass Orbits</option>
-                        </select>
-                      </div>
-
-                      {/* Edge Labels Visibility */}
-                      <div
-                        className="display-setting-row"
-                        title="Control when edge text labels are shown: always or only on hover"
-                      >
-                        <div className="setting-label-row">
-                          <span className="setting-icon">🏷️</span>
-                          <span className="setting-name">Edge Labels</span>
-                        </div>
-                        <select
-                          value={edgeLabelsOnHover ? 'hover' : 'always'}
-                          onChange={(e) =>
-                            dispatch({ type: 'SET_EDGE_LABELS_ON_HOVER', onHover: e.target.value === 'hover' })
-                          }
-                          title="Edge Labels visibility"
-                          className="domain-layout-dropdown"
-                          style={{ width: '100%', marginTop: '3px' }}
-                        >
-                          <option value="always">Always Show</option>
-                          <option value="hover">On Hover Only</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Font Size Control */}
-                    <div className="display-setting-row" title="Adjust graph label font size (7px - 24px)">
-                      <div className="setting-label-row">
-                        <span className="setting-icon">🔤</span>
-                        <span className="setting-name">Font Size</span>
-                        <span
-                          className="domain-hud-value-badge"
-                          onClick={() => dispatch({ type: 'SET_FONT_SIZE', fontSize: 10 })}
-                          title="Click to reset font size to 10px"
-                        >
-                          {fontSize}px
-                        </span>
-                      </div>
-                      <div className="setting-slider-row">
-                        <button
-                          type="button"
-                          className="domain-hud-step-btn"
-                          onClick={() => dispatch({ type: 'SET_FONT_SIZE', fontSize: fontSize - 1 })}
-                          title="Decrease font size (-1px)"
-                        >
-                          −
-                        </button>
-                        <input
-                          type="range"
-                          min="7"
-                          max="24"
-                          step="1"
-                          value={fontSize}
-                          onChange={(e) => dispatch({ type: 'SET_FONT_SIZE', fontSize: parseInt(e.target.value, 10) })}
-                          className="domain-hud-slider"
-                        />
-                        <button
-                          type="button"
-                          className="domain-hud-step-btn"
-                          onClick={() => dispatch({ type: 'SET_FONT_SIZE', fontSize: fontSize + 1 })}
-                          title="Increase font size (+1px)"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Edge Curvature Control */}
-                    {edgeCurveMode !== 'straight' && (
-                      <div className="display-setting-row" title="Adjust edge curvature (-200px to +200px)">
-                        <div className="setting-label-row">
-                          <span className="setting-icon">〰️</span>
-                          <span className="setting-name">Edge Curvature</span>
-                          <span
-                            className="domain-hud-value-badge"
-                            onClick={() => dispatch({ type: 'SET_CURVE_FACTOR', curveFactor: 35 })}
-                            title="Click to reset curve to +35px"
-                          >
-                            {curveFactor > 0 ? `+${curveFactor}` : curveFactor}px
-                          </span>
-                        </div>
-                        <div className="setting-slider-row">
-                          <button
-                            type="button"
-                            className="domain-hud-step-btn"
-                            onClick={() =>
-                              dispatch({ type: 'SET_CURVE_FACTOR', curveFactor: Math.max(-200, curveFactor - 10) })
-                            }
-                            title="Decrease curve (-10px)"
-                          >
-                            −
-                          </button>
-                          <input
-                            type="range"
-                            min="-200"
-                            max="200"
-                            step="5"
-                            value={curveFactor}
-                            onChange={(e) =>
-                              dispatch({ type: 'SET_CURVE_FACTOR', curveFactor: parseInt(e.target.value, 10) })
-                            }
-                            className="domain-hud-slider"
-                          />
-                          <button
-                            type="button"
-                            className="domain-hud-step-btn"
-                            onClick={() =>
-                              dispatch({ type: 'SET_CURVE_FACTOR', curveFactor: Math.min(200, curveFactor + 10) })
-                            }
-                            title="Increase curve (+10px)"
-                          >
-                            +
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Mouse Wheel Zoom Sensitivity */}
-                    <div className="display-setting-row" title="Adjust mouse wheel zoom sensitivity">
-                      <div className="setting-label-row">
-                        <span className="setting-icon">🖱️</span>
-                        <span className="setting-name">Wheel Sensitivity</span>
-                        <span
-                          className="domain-hud-value-badge"
-                          onClick={() => dispatch({ type: 'SET_WHEEL_SENSITIVITY', wheelSensitivity: 1.0 })}
-                          title="Click to reset sensitivity to 1.0x"
-                        >
-                          {wheelSensitivity.toFixed(1)}x
-                        </span>
-                      </div>
-                      <div className="setting-slider-row">
-                        <button
-                          type="button"
-                          className="domain-hud-step-btn"
-                          onClick={() =>
-                            dispatch({
-                              type: 'SET_WHEEL_SENSITIVITY',
-                              wheelSensitivity: Math.max(0.2, +(wheelSensitivity - 0.2).toFixed(1)),
-                            })
-                          }
-                          title="Decrease sensitivity"
-                        >
-                          −
-                        </button>
-                        <input
-                          type="range"
-                          min="0.2"
-                          max="3.0"
-                          step="0.1"
-                          value={wheelSensitivity}
-                          onChange={(e) =>
-                            dispatch({ type: 'SET_WHEEL_SENSITIVITY', wheelSensitivity: parseFloat(e.target.value) })
-                          }
-                          className="domain-hud-slider"
-                        />
-                        <button
-                          type="button"
-                          className="domain-hud-step-btn"
-                          onClick={() =>
-                            dispatch({
-                              type: 'SET_WHEEL_SENSITIVITY',
-                              wheelSensitivity: Math.min(3.0, +(wheelSensitivity + 0.2).toFixed(1)),
-                            })
-                          }
-                          title="Increase sensitivity"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-              ) : undefined
+            hasOrbitLegend={hasOrbitLegend}
+            orbitLegendItems={orbitLegendItems}
+            orbitConfig={orbitConfig}
+            hiddenOrbitTiers={hiddenOrbitTiers}
+            onApplyOrbitConfig={(next, clearHiddenFor, resetHidden) =>
+              dispatch({
+                type: 'APPLY_ORBIT_CONFIG',
+                next,
+                clearHiddenFor: clearHiddenFor ? clearHiddenFor.map(Number) : [],
+                resetHidden,
+              })
             }
+            onToggleOrbitVisibility={(levelIndex) => dispatch({ type: 'TOGGLE_ORBIT_VISIBILITY', levelIndex })}
+            onHighlightOrbitNodes={(nodeIds) => dispatch({ type: 'HIGHLIGHT_ORBIT_NODES', nodeIds })}
+            onClearOrbitHighlight={() => dispatch({ type: 'CLEAR_ORBIT_HIGHLIGHT' })}
+            isMatrixMode={isMatrixMode}
           />
         )}
       </div>
@@ -1387,9 +477,24 @@ export const InspectorSidebarView: React.FC = () => {
         isOpen={overrideModalOpen}
         serviceName={overrideTargetService}
         currentDomain={selectedNode?.displayName}
-        availableDomains={availableDomains}
-        onSave={(svc, dom, ctx) => dispatch({ type: 'SET_DOMAIN_OVERRIDE', serviceName: svc, domain: dom, context: ctx, reset: false })}
-        onReset={(svc) => dispatch({ type: 'SET_DOMAIN_OVERRIDE', serviceName: svc, domain: '', reset: true })}
+        availableDomains={state.availableDomains}
+        onSave={(svc, dom, ctx) =>
+          dispatch({
+            type: 'SET_DOMAIN_OVERRIDE',
+            serviceName: svc,
+            domain: dom,
+            context: ctx,
+            reset: false,
+          })
+        }
+        onReset={(svc) =>
+          dispatch({
+            type: 'SET_DOMAIN_OVERRIDE',
+            serviceName: svc,
+            domain: '',
+            reset: true,
+          })
+        }
         onClose={() => setOverrideModalOpen(false)}
       />
     </div>

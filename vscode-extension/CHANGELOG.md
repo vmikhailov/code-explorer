@@ -5,6 +5,28 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.64.0] - 2026-10-27
+
+### Added
+- **Unified Settings Tab in Secondary Sidebar (`DomainSettingsPanel`)**:
+  - Merged options previously split across the "Orbits" and "Visibility" sidebar tabs into a single, comprehensive **"Settings"** tab (`DomainSettingsPanel.tsx`).
+  - Unified sections:
+    - **Layout & Spacing**: Node Air spacing slider, Orbit Distance (concentric only), Min Distance on Orbit (concentric only), and Auto-recalc toggle with Re-layout action.
+    - **Appearance & Styling**: Node Content mode (Icon, Code, Metric), Node Size mode (Uniform, √Weight, Degree), Line Style (Bezier, Straight, Bypass Orbits), Edge Labels on Hover, Font Size, Line Curvature, and Wheel Zoom Sensitivity sliders.
+    - **Architectural Presets**: Project Map presets (Cycles Only, Hide Utilities, Hide Resources) and global presets (Single-connection DBs, Isolated Nodes, Transitive Edges).
+    - **Entity Types & Filters**: Entity kind badges with count, click-to-hide/show toggles, and ⊞ one-click grouping into summary nodes.
+    - **Node Groups**: Category groups and custom summary group creator (+ New Group) with inline member filter and selection.
+    - **Orbits Hierarchy**: Center-to-Periphery concentric orbit cards with drag-and-drop reordering, move buttons (▲/▼), split, eye visibility toggles, and draggable kind chips.
+    - **Hidden Entities**: Live search and unhide list with reason tags and "Restore All" header action.
+
+### Changed
+- **HUD Graph Layout Selector**:
+  - Moved the Graph Layout algorithm dropdown (`<select className="domain-layout-dropdown">`) directly into the HUD toolbar (`domain-hud-primary-row`), providing 1-click access to all layout algorithms (`Concentric`, `Equispaced`, `Barycentric`, `Polar Force`, `Domain Sectors`, `Swimlanes`, `Domain Islands`, `Hive Plot`, `Force COSE`) without requiring sidebar navigation.
+- **Default Graph Layout**:
+  - Set default graph layout across both Architecture Map and Project Map to **`concentric` (Original Concentric)**, changing the Project Map default from `concentric-barycentric`.
+
+---
+
 ## [1.63.1] - 2026-10-27
 
 ### Fixed

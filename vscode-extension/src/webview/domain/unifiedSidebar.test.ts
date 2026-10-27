@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-export type SidebarTab = 'info' | 'orbits' | 'visibility' | 'gates' | 'hidden';
+export type SidebarTab = 'info' | 'settings' | 'orbits' | 'visibility' | 'gates' | 'hidden';
 
 export function resolveEffectiveSidebarTab(
   tab: SidebarTab,
@@ -34,6 +34,8 @@ export function handleSelectionChange(
 test('unifiedSidebar: resolveEffectiveSidebarTab falls back to info if orbits not active', () => {
   assert.equal(resolveEffectiveSidebarTab('info', false), 'info');
   assert.equal(resolveEffectiveSidebarTab('info', true), 'info');
+  assert.equal(resolveEffectiveSidebarTab('settings', false), 'settings');
+  assert.equal(resolveEffectiveSidebarTab('settings', true), 'settings');
   assert.equal(resolveEffectiveSidebarTab('visibility', false), 'visibility');
   assert.equal(resolveEffectiveSidebarTab('visibility', true), 'visibility');
   assert.equal(resolveEffectiveSidebarTab('hidden', false), 'hidden');
