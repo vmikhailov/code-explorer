@@ -5,6 +5,18 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.65.4] - 2026-10-27
+
+### Added
+- **Native Real Mermaid Flowchart View**:
+  - Implemented real Mermaid diagram rendering (`DomainMermaidView`) using `mermaid.render()` with full dark theme support, interactive pan & zoom, and SVG viewport.
+  - Automatically synthesizes clean, idiomatic Mermaid flowchart definitions (`flowchart TD`) from active graph nodes and edges, grouping them into clean architectural subgraphs (Endpoints & Ingress, Application & Domain Core, Foundation & Utilities, Databases & Storage, Message Brokers & Topics, External Services).
+  - Integrated interactive toolbar with Zoom in/out, Zoom percentage reset, Raw Mermaid Markdown viewer toggle (`{ } Code` / `👁️ Diagram`), and 1-click Copy Mermaid source action (`📋 Copy`).
+  - Added node selection on SVG element click to trigger deep inspection in the Info sidebar.
+  - Updated Project Map layout selector to feature real Mermaid alongside Default (Concentric), Swimlanes, and Force.
+
+---
+
 ## [1.65.3] - 2026-10-27
 
 ### Changed

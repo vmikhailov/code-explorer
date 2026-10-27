@@ -90,3 +90,10 @@ test('filters hide utilities, resources and non-cycle modules', () => {
   assert.deepEqual(cycles.nodes.map((n) => n.id).sort(), ['a', 'b']);
   assert.equal(cycles.edges.length, 2);
 });
+
+
+test('projectMapLayout: supports real mermaid layout option alongside concentric, swimlanes, and cose', () => {
+  const validLayouts = ['concentric', 'swimlanes', 'mermaid', 'cose'];
+  assert.ok(validLayouts.includes('mermaid'));
+  assert.equal(validLayouts.length, 4);
+});

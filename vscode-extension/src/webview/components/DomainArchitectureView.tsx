@@ -38,6 +38,7 @@ import { computeSwimlanesLayout, SwimlaneGuide } from '../layout/swimlanesLayout
 import { computeDomainIslandsLayout, IslandGuide } from '../layout/domainIslandsLayout';
 import { computeHivePlotLayout, HiveAxisGuide } from '../layout/hivePlotLayout';
 import { DomainMatrixView } from './DomainMatrixView';
+import { DomainMermaidView } from '../domain/components/DomainMermaidView';
 import { DomainOverrideModal } from './DomainOverrideModal';
 import { attachNormalizedCytoscapeWheel } from '../utils/wheelZoom';
 import { DomainInspector } from '../domain/components/DomainInspector';
@@ -106,7 +107,8 @@ export type DomainLayoutName =
   | 'hive'
   | 'matrix'
   | 'cose'
-  | 'dagre';
+  | 'dagre'
+  | 'mermaid';
 
 export type EdgeCurveMode = 'bezier' | 'straight' | 'avoid-inner';
 
@@ -3709,7 +3711,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         activeLayoutRef.current = null;
       }
 
-      if (layoutName === 'matrix') {
+      if (layoutName === 'matrix' || layoutName === 'mermaid') {
         setConcentricGuides([]);
         setOrbitLegendItems([]);
         setSwimlaneGuides([]);
@@ -4440,7 +4442,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     { id: 'swimlanes', label: '🏊 Swimlanes (Pipeline)' },
     { id: 'clusters', label: '🏝️ Domain Islands (Bounded Contexts)' },
     { id: 'hive', label: '🕸️ Hive Plot (Multi-Axis)' },
-    { id: 'dagre', label: '🧜 Mermaid Flow' },
+    { id: 'mermaid', label: '🧜 Mermaid' },
+    { id: 'dagre', label: '📊 Dagre Flow' },
     { id: 'cose', label: '⚡ Force (COSE)' },
   ];
 
@@ -5461,6 +5464,27 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             }
           }}
           onOpenFile={onOpenFile}
+        />
+      ) : layoutName === 'mermaid' ? (
+        <DomainMermaidView
+          nodes={visibleNodes.map((n) => rawGraph.detailMap.get(n.data.id as string)!).filter(Boolean)}
+          edges={visibleEdges.map((e) => ({
+            source: (e.data as any).source,
+            target: (e.data as any).target,
+            category: (e.data as any).category,
+            count: (e.data as any).count || 1,
+            label: (e.data as any).label,
+            kind: (e.data as any).kind,
+          }))}
+          selectedNodeId={selectedNode?.id}
+          onSelectNode={(nodeId) => {
+            const detail = rawGraph.detailMap.get(nodeId);
+            if (detail) {
+              setSelectedNode(detail);
+              setSelectedEdge(null);
+            }
+          }}
+          title={hudTitle || 'Architecture Mermaid Flowchart'}
         />
       ) : (
         <>

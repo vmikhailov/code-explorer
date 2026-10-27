@@ -23,7 +23,7 @@ function resolveBaseUrl(serverHttpUrl?: string): string | undefined {
 const PROJECT_MAP_LAYOUTS = [
   { id: 'concentric' as const, label: '🎯 Default' },
   { id: 'swimlanes' as const, label: '🏊 Swimlanes' },
-  { id: 'dagre' as const, label: '🧜 Mermaid Flow' },
+  { id: 'mermaid' as const, label: '🧜 Mermaid' },
   { id: 'cose' as const, label: '🌐 Force' },
 ];
 
