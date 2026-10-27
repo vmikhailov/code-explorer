@@ -1555,12 +1555,12 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   }, []);
 
   // Unified Right Side Panel State
-  const [rightSidebarTab, setRightSidebarTab] = useState<'info' | 'settings'>(() => {
+  const [rightSidebarTab, setRightSidebarTab] = useState<'info' | 'orbits' | 'visibility' | 'settings'>(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
         const saved = localStorage.getItem('ce_domain_sidebar_tab');
-        if (saved === 'info' || saved === 'settings') return saved;
-        if (saved === 'orbits' || saved === 'visibility' || saved === 'hidden') return 'settings';
+        if (saved === 'info' || saved === 'orbits' || saved === 'visibility' || saved === 'settings') return saved;
+        if (saved === 'hidden') return 'visibility';
       } catch {}
     }
     return 'info';
@@ -1575,7 +1575,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     return true;
   });
 
-  const handleSidebarTabChange = useCallback((tab: 'info' | 'settings') => {
+  const handleSidebarTabChange = useCallback((tab: 'info' | 'orbits' | 'visibility' | 'settings') => {
     setRightSidebarTab(tab);
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
@@ -3352,7 +3352,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   // Derived docked panels visibility and active tab selection
   const hasHiddenEntities = hiddenCount > 0;
   const hasOrbitLegend = !isMatrixMode;
-  const effectiveSidebarTab: 'info' | 'settings' = rightSidebarTab;
+  const effectiveSidebarTab: 'info' | 'orbits' | 'visibility' | 'settings' = rightSidebarTab;
 
 
   // Initialize Cytoscape Instance

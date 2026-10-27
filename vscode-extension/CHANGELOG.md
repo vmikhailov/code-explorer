@@ -5,6 +5,18 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.65.3] - 2026-10-27
+
+### Changed
+- **4 Dedicated Sidebar Tabs**:
+  - Restored clean 4-tab sidebar architecture:
+    1. **Info**: Inspect selected microservice, database, cloud resource, or interaction edge.
+    2. **Orbits**: Dedicated concentric orbit rings and hierarchy panel (`DomainOrbitsPanel`) with tier drag-and-drop reordering, merge, split, reset, and tier visibility toggles.
+    3. **Visibility**: Dedicated visibility and filtering panel (`DomainVisibilityPanel`) with architectural presets, entity type toggles, and node grouping.
+    4. **Settings**: Dedicated settings panel (`DomainSettingsPanel`) containing all layout/geometry parameters (Air/Spacing, Orbit Distance, Min Distance on Orbit, Auto-recalc, Re-layout) and appearance controls (Node Content, Node Sizing, Line Style, Edge Labels, Font Size, Line Curvature, Wheel Zoom Speed) previously housed under gear menus.
+
+---
+
 ## [1.65.2] - 2026-10-27
 
 ### Fixed

@@ -13,6 +13,8 @@ import {
 } from './DomainArchitectureView';
 import { CustomNodeGroup, NodeContentMode, NodeSizingMode } from '../domain/types';
 import { DomainInspector, RawEdgeInfo } from '../domain/components/DomainInspector';
+import { DomainOrbitsPanel } from '../domain/components/DomainOrbitsPanel';
+import { DomainVisibilityPanel } from '../domain/components/DomainVisibilityPanel';
 import {
   DomainSettingsPanel,
   ProjectMapPresetsState,
@@ -20,6 +22,8 @@ import {
 import { DomainOverrideModal } from './DomainOverrideModal';
 import {
   InfoIcon,
+  LayersIcon,
+  EyeIcon,
   SettingsIcon,
 } from './Icons';
 import { getVsCodeApi } from '../vscodeApi';
@@ -30,7 +34,7 @@ export interface InspectorSyncedState {
   hudLabel?: string;
   hudTitle?: string;
   isMatrixMode: boolean;
-  effectiveSidebarTab: 'info' | 'settings' | 'orbits' | 'visibility';
+  effectiveSidebarTab: 'info' | 'orbits' | 'visibility' | 'settings';
   hasOrbitLegend: boolean;
   orbitLegendItems: OrbitLegendItem[];
   hiddenCount: number;
@@ -42,7 +46,7 @@ export interface InspectorSyncedState {
   isInspectorCollapsed: boolean;
   isEdgeInspectorCollapsed: boolean;
   availableDomains: string[];
-  // Settings tab
+  // Settings & Geometry
   layoutName: DomainLayoutName;
   spacingFactor: number;
   orbitDistance: number;
@@ -85,7 +89,7 @@ export interface InspectorSyncedState {
 }
 
 export type InspectorAction =
-  | { type: 'SET_SIDEBAR_TAB'; tab: 'info' | 'settings' | 'orbits' | 'visibility' }
+  | { type: 'SET_SIDEBAR_TAB'; tab: 'info' | 'orbits' | 'visibility' | 'settings' }
   | { type: 'SET_INSPECTOR_COLLAPSED'; collapsed: boolean }
   | { type: 'SET_EDGE_INSPECTOR_COLLAPSED'; collapsed: boolean }
   | { type: 'SELECT_NODE'; node: SelectedNodeDetail | null }
@@ -139,10 +143,8 @@ export const InspectorSidebarView: React.FC = () => {
     setState((prev) => {
       if (!prev) return prev;
       switch (action.type) {
-        case 'SET_SIDEBAR_TAB': {
-          const tab = action.tab === 'orbits' || action.tab === 'visibility' ? 'settings' : action.tab;
-          return { ...prev, effectiveSidebarTab: tab };
-        }
+        case 'SET_SIDEBAR_TAB':
+          return { ...prev, effectiveSidebarTab: action.tab };
         case 'SET_LAYOUT':
           return { ...prev, layoutName: action.layoutName };
         case 'SET_SPACING':
@@ -292,9 +294,69 @@ export const InspectorSidebarView: React.FC = () => {
     projectMapPresets,
   } = state;
 
-  const currentTab = effectiveSidebarTab === 'orbits' || effectiveSidebarTab === 'visibility'
-    ? 'settings'
-    : effectiveSidebarTab;
+  const currentTab = effectiveSidebarTab || 'info';
+
+  const customPresetsSlot = projectMapPresets ? (
+    <>
+      {projectMapPresets.cyclesCount > 0 && (
+        <button
+          type="button"
+          className={`visibility-preset-item ${projectMapPresets.cyclesOnly ? 'is-active' : ''}`}
+          onClick={() => dispatch({ type: 'TOGGLE_PM_PRESET', preset: 'cyclesOnly' })}
+          title="Isolate only modules involved in dependency cycles"
+        >
+          <div className="visibility-preset-main">
+            <span className="visibility-preset-icon">⚠️</span>
+            <div className="visibility-preset-text">
+              <span className="visibility-preset-label">Cycles Only</span>
+              <span className="visibility-preset-desc">
+                {projectMapPresets.cyclesCount} dependency cycle{projectMapPresets.cyclesCount === 1 ? '' : 's'} detected
+              </span>
+            </div>
+          </div>
+          <div className={`visibility-preset-toggle ${projectMapPresets.cyclesOnly ? 'is-on' : ''}`}>
+            {projectMapPresets.cyclesOnly ? 'ON' : 'OFF'}
+          </div>
+        </button>
+      )}
+
+      <button
+        type="button"
+        className={`visibility-preset-item ${projectMapPresets.hideUtilities ? 'is-active' : ''}`}
+        onClick={() => dispatch({ type: 'TOGGLE_PM_PRESET', preset: 'hideUtilities' })}
+        title="Hide foundation/utility modules (Orbit 4)"
+      >
+        <div className="visibility-preset-main">
+          <span className="visibility-preset-icon">🧰</span>
+          <div className="visibility-preset-text">
+            <span className="visibility-preset-label">Hide Utilities</span>
+            <span className="visibility-preset-desc">Foundation & helper modules (Orbit 4)</span>
+          </div>
+        </div>
+        <div className={`visibility-preset-toggle ${projectMapPresets.hideUtilities ? 'is-on' : ''}`}>
+          {projectMapPresets.hideUtilities ? 'ON' : 'OFF'}
+        </div>
+      </button>
+
+      <button
+        type="button"
+        className={`visibility-preset-item ${projectMapPresets.hideResources ? 'is-active' : ''}`}
+        onClick={() => dispatch({ type: 'TOGGLE_PM_PRESET', preset: 'hideResources' })}
+        title="Hide database tables, procedures, topics, and external resources"
+      >
+        <div className="visibility-preset-main">
+          <span className="visibility-preset-icon">🗄️</span>
+          <div className="visibility-preset-text">
+            <span className="visibility-preset-label">Hide Resources</span>
+            <span className="visibility-preset-desc">Tables, procedures, topics & external APIs</span>
+          </div>
+        </div>
+        <div className={`visibility-preset-toggle ${projectMapPresets.hideResources ? 'is-on' : ''}`}>
+          {projectMapPresets.hideResources ? 'ON' : 'OFF'}
+        </div>
+      </button>
+    </>
+  ) : undefined;
 
   return (
     <div
@@ -341,7 +403,7 @@ export const InspectorSidebarView: React.FC = () => {
         </button>
       </div>
 
-      {/* Unified Tab Switcher Header: Info & Settings */}
+      {/* Unified Tab Switcher Header: Info, Orbits, Visibility, Settings */}
       <div className="domain-sidebar-tab-bar">
         <div className="domain-sidebar-tabs" style={{ width: '100%' }}>
           <button
@@ -353,15 +415,36 @@ export const InspectorSidebarView: React.FC = () => {
             <InfoIcon size={12} />
             <span>Info</span>
           </button>
+          {hasOrbitLegend && (
+            <button
+              type="button"
+              className={`domain-sidebar-tab ${currentTab === 'orbits' ? 'is-active' : ''}`}
+              onClick={() => dispatch({ type: 'SET_SIDEBAR_TAB', tab: 'orbits' })}
+              title="Concentric Orbits Hierarchy and Tier Arrangement"
+            >
+              <LayersIcon size={12} />
+              <span>Orbits</span>
+              {orbitLegendItems.length > 0 && <span className="tab-badge">{orbitLegendItems.length}</span>}
+            </button>
+          )}
+          <button
+            type="button"
+            className={`domain-sidebar-tab ${currentTab === 'visibility' ? 'is-active' : ''}`}
+            onClick={() => dispatch({ type: 'SET_SIDEBAR_TAB', tab: 'visibility' })}
+            title="Visibility Filters, Entity Toggles, and Grouping"
+          >
+            <EyeIcon size={12} />
+            <span>Visibility</span>
+            {hiddenCount > 0 && <span className="tab-badge">{hiddenCount}</span>}
+          </button>
           <button
             type="button"
             className={`domain-sidebar-tab ${currentTab === 'settings' ? 'is-active' : ''}`}
             onClick={() => dispatch({ type: 'SET_SIDEBAR_TAB', tab: 'settings' })}
-            title="Graph Settings, Orbits Hierarchy, Visibility Filters, and Appearance"
+            title="Graph Geometry, Layout Spacing, Node & Edge Appearance Settings"
           >
             <SettingsIcon size={12} />
             <span>Settings</span>
-            {hiddenCount > 0 && <span className="tab-badge">{hiddenCount}</span>}
           </button>
         </div>
       </div>
@@ -398,9 +481,63 @@ export const InspectorSidebarView: React.FC = () => {
             docked={true}
           />
         )}
+        {currentTab === 'orbits' && (
+          <DomainOrbitsPanel
+            hasOrbitLegend={hasOrbitLegend}
+            orbitLegendItems={orbitLegendItems}
+            orbitConfig={orbitConfig}
+            hiddenOrbitTiers={hiddenOrbitTiers}
+            layoutName={layoutName}
+            onApplyOrbitConfig={(next, clearHiddenFor, resetHidden) =>
+              dispatch({
+                type: 'APPLY_ORBIT_CONFIG',
+                next,
+                clearHiddenFor: clearHiddenFor ? clearHiddenFor.map(Number) : [],
+                resetHidden,
+              })
+            }
+            onToggleOrbitVisibility={(levelIndex) => dispatch({ type: 'TOGGLE_ORBIT_VISIBILITY', levelIndex })}
+            onHighlightOrbitNodes={(nodeIds) => dispatch({ type: 'HIGHLIGHT_ORBIT_NODES', nodeIds })}
+            onClearOrbitHighlight={() => dispatch({ type: 'CLEAR_ORBIT_HIGHLIGHT' })}
+            projectMapPresets={projectMapPresets}
+            isMatrixMode={isMatrixMode}
+          />
+        )}
+        {currentTab === 'visibility' && (
+          <DomainVisibilityPanel
+            nodeDetailMap={nodeDetailMap}
+            echelonMap={echelonMap}
+            hiddenNodeIds={hiddenNodeIds}
+            hiddenTypes={hiddenTypes}
+            hiddenOrbitTiers={hiddenOrbitTiers}
+            hideSingleConnectionDbs={hideSingleConnectionDbs}
+            hideIsolatedNodes={hideIsolatedNodes}
+            showTransitiveEdges={showTransitiveEdges}
+            counts={counts}
+            onUnhideNode={(id) => dispatch({ type: 'UNHIDE_NODE', id })}
+            onRestoreAll={() => dispatch({ type: 'RESTORE_ALL_HIDDEN' })}
+            onToggleType={(kind) => dispatch({ type: 'TOGGLE_TYPE_VISIBILITY', kind })}
+            onToggleSingleConnectionDbs={() => dispatch({ type: 'TOGGLE_SINGLE_CONN_DBS' })}
+            onToggleIsolatedNodes={() => dispatch({ type: 'TOGGLE_ISOLATED_NODES' })}
+            onToggleTransitiveEdges={() => dispatch({ type: 'TOGGLE_TRANSITIVE_EDGES' })}
+            isCollapsed={false}
+            docked={true}
+            groupedTypes={groupedTypes}
+            onToggleTypeGrouping={(kind) => dispatch({ type: 'TOGGLE_TYPE_GROUPING', kind })}
+            customGroups={customGroups}
+            onCreateCustomGroup={(name, nodeIds) => dispatch({ type: 'CREATE_CUSTOM_GROUP', name, nodeIds })}
+            onToggleCustomGroupCollapse={(groupId) =>
+              dispatch({ type: 'TOGGLE_CUSTOM_GROUP_COLLAPSE', groupId })
+            }
+            onDeleteCustomGroup={(groupId) => dispatch({ type: 'DELETE_CUSTOM_GROUP', groupId })}
+            onSelectGroupNode={(groupId) => dispatch({ type: 'SELECT_NODE_BY_ID', id: groupId })}
+            customPresetsSlot={customPresetsSlot}
+          />
+        )}
         {currentTab === 'settings' && (
           <DomainSettingsPanel
             layoutName={layoutName}
+            onSetLayout={(name) => dispatch({ type: 'SET_LAYOUT', layoutName: name })}
             spacingFactor={spacingFactor}
             orbitDistance={orbitDistance}
             minOrbitNodeDistance={minOrbitNodeDistance}
@@ -428,46 +565,6 @@ export const InspectorSidebarView: React.FC = () => {
             onSetWheelSensitivity={(sens) =>
               dispatch({ type: 'SET_WHEEL_SENSITIVITY', wheelSensitivity: sens })
             }
-            projectMapPresets={projectMapPresets}
-            onToggleProjectMapPreset={(preset) => dispatch({ type: 'TOGGLE_PM_PRESET', preset })}
-            hideSingleConnectionDbs={hideSingleConnectionDbs}
-            hideIsolatedNodes={hideIsolatedNodes}
-            showTransitiveEdges={showTransitiveEdges}
-            onToggleSingleConnectionDbs={() => dispatch({ type: 'TOGGLE_SINGLE_CONN_DBS' })}
-            onToggleIsolatedNodes={() => dispatch({ type: 'TOGGLE_ISOLATED_NODES' })}
-            onToggleTransitiveEdges={() => dispatch({ type: 'TOGGLE_TRANSITIVE_EDGES' })}
-            nodeDetailMap={nodeDetailMap}
-            echelonMap={echelonMap}
-            counts={counts}
-            hiddenNodeIds={hiddenNodeIds}
-            hiddenTypes={hiddenTypes}
-            onToggleType={(kind) => dispatch({ type: 'TOGGLE_TYPE_VISIBILITY', kind })}
-            onUnhideNode={(id) => dispatch({ type: 'UNHIDE_NODE', id })}
-            onRestoreAll={() => dispatch({ type: 'RESTORE_ALL_HIDDEN' })}
-            groupedTypes={groupedTypes}
-            onToggleTypeGrouping={(kind) => dispatch({ type: 'TOGGLE_TYPE_GROUPING', kind })}
-            customGroups={customGroups}
-            onCreateCustomGroup={(name, nodeIds) => dispatch({ type: 'CREATE_CUSTOM_GROUP', name, nodeIds })}
-            onToggleCustomGroupCollapse={(groupId) =>
-              dispatch({ type: 'TOGGLE_CUSTOM_GROUP_COLLAPSE', groupId })
-            }
-            onDeleteCustomGroup={(groupId) => dispatch({ type: 'DELETE_CUSTOM_GROUP', groupId })}
-            onSelectGroupNode={(groupId) => dispatch({ type: 'SELECT_NODE_BY_ID', id: groupId })}
-            hasOrbitLegend={hasOrbitLegend}
-            orbitLegendItems={orbitLegendItems}
-            orbitConfig={orbitConfig}
-            hiddenOrbitTiers={hiddenOrbitTiers}
-            onApplyOrbitConfig={(next, clearHiddenFor, resetHidden) =>
-              dispatch({
-                type: 'APPLY_ORBIT_CONFIG',
-                next,
-                clearHiddenFor: clearHiddenFor ? clearHiddenFor.map(Number) : [],
-                resetHidden,
-              })
-            }
-            onToggleOrbitVisibility={(levelIndex) => dispatch({ type: 'TOGGLE_ORBIT_VISIBILITY', levelIndex })}
-            onHighlightOrbitNodes={(nodeIds) => dispatch({ type: 'HIGHLIGHT_ORBIT_NODES', nodeIds })}
-            onClearOrbitHighlight={() => dispatch({ type: 'CLEAR_ORBIT_HIGHLIGHT' })}
             isMatrixMode={isMatrixMode}
           />
         )}

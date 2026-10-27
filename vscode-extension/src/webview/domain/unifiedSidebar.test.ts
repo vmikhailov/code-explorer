@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-export type SidebarTab = 'info' | 'settings' | 'orbits' | 'visibility' | 'gates' | 'hidden';
+export type SidebarTab = 'info' | 'orbits' | 'visibility' | 'settings' | 'gates' | 'hidden';
 
 export function resolveEffectiveSidebarTab(
   tab: SidebarTab,
@@ -80,4 +80,21 @@ test('unifiedSidebar: selection change auto-switches to info tab and opens sideb
   );
   assert.equal(state3.isOpen, true, 'Deselection preserves open state');
   assert.equal(state3.tab, 'info', 'Deselection preserves info tab so empty state renders');
+
+  // 4. Settings tab switches to info on selection and stays settings otherwise
+  const state4 = handleSelectionChange(
+    { id: 'service:api', displayName: 'ApiService' },
+    null,
+    'settings',
+    true
+  );
+  assert.equal(state4.tab, 'info');
+
+  const state5 = handleSelectionChange(
+    null,
+    null,
+    'settings',
+    true
+  );
+  assert.equal(state5.tab, 'settings');
 });
