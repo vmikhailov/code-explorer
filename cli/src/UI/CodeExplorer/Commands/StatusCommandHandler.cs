@@ -109,6 +109,8 @@ public static class StatusCommandHandler
                     schema_version = client.SchemaVersion,
                     current_schema_version = SqliteGraphClient.CurrentSchemaVersion,
                     is_schema_outdated = client.IsSchemaOutdated,
+                    was_migrated = client.WasMigratedOnOpen,
+                    migrated_from_version = client.MigratedFromVersion,
                     last_updated = lastUpdated.ToString("o"),
                     last_updated_human = lastUpdatedText,
                     total_nodes = nodeCount,
@@ -132,9 +134,13 @@ public static class StatusCommandHandler
             Console.ResetColor();
             Console.WriteLine($"  Root:      {ws.RootDirectory}");
             Console.WriteLine($"  Database:  {ws.DbPath} ({sizeMb:F1} MB)");
-            var schemaText = client.IsSchemaOutdated
-                ? $"v{client.SchemaVersion} (outdated, current is v{SqliteGraphClient.CurrentSchemaVersion} - run 'ce scan --clear' to upgrade)"
-                : $"v{client.SchemaVersion}";
+            var schemaText = client.SchemaVersion > SqliteGraphClient.CurrentSchemaVersion
+                ? $"v{client.SchemaVersion} (newer than CLI v{SqliteGraphClient.CurrentSchemaVersion} - consider upgrading CLI)"
+                : (client.IsSchemaOutdated
+                    ? $"v{client.SchemaVersion} (outdated, current is v{SqliteGraphClient.CurrentSchemaVersion} - run 'ce scan --clear' to upgrade)"
+                    : (client.WasMigratedOnOpen
+                        ? $"v{client.SchemaVersion} (upgraded from v{client.MigratedFromVersion})"
+                        : $"v{client.SchemaVersion}"));
             Console.WriteLine($"  Schema:    {schemaText}");
             Console.WriteLine($"  Updated:   {lastUpdatedText}");
             Console.WriteLine($"  Nodes:     {nodeCount:N0}");

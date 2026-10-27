@@ -66,12 +66,20 @@ public partial class SqliteGraphClient
         {
             if (TryRunSchemaMigrator(ver, CurrentSchemaVersion))
             {
+                WasMigratedOnOpen = true;
+                MigratedFromVersion = ver;
                 SchemaVersion = CurrentSchemaVersion;
             }
             else
             {
                 SchemaVersion = ver;
             }
+        }
+        else if (ver > CurrentSchemaVersion)
+        {
+            SchemaVersion = ver;
+            _logger.LogWarning("Database was created with a newer schema version (v{Ver} > v{Current}). Consider upgrading CodeExplorer CLI.", ver, CurrentSchemaVersion);
+            Console.Error.WriteLine($"[CodeExplorer] Warning: Database was created with a newer schema version (v{ver} > v{CurrentSchemaVersion}). Consider upgrading CodeExplorer CLI.");
         }
         else
         {
@@ -89,6 +97,9 @@ public partial class SqliteGraphClient
 
         try
         {
+            _logger.LogInformation("Upgrading database schema from v{From} to v{To}...", fromVersion, toVersion);
+            Console.Error.WriteLine($"[CodeExplorer] Upgrading database schema from v{fromVersion} to v{toVersion}...");
+
             using var migrateCmd = _conn.CreateCommand();
             var sb = new System.Text.StringBuilder();
 
@@ -143,12 +154,16 @@ public partial class SqliteGraphClient
             sb.AppendLine($"PRAGMA user_version = {toVersion};");
             migrateCmd.CommandText = sb.ToString();
             migrateCmd.ExecuteNonQuery();
+
+            _logger.LogInformation("Database schema successfully upgraded to v{To}.", toVersion);
+            Console.Error.WriteLine($"[CodeExplorer] Database schema successfully upgraded to v{toVersion}.");
             return true;
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Schema migration from v{From} to v{To} encountered an error (will trigger full rebuild): {Message}",
                 fromVersion, toVersion, ex.Message);
+            Console.Error.WriteLine($"[CodeExplorer] Warning: Database schema migration from v{fromVersion} to v{toVersion} failed: {ex.Message}. A clean rescan ('ce scan --clear') may be required.");
             return false;
         }
     }

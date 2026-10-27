@@ -38,6 +38,8 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
     public const int CurrentSchemaVersion = 4;
     public int SchemaVersion { get; private set; }
     public bool IsSchemaOutdated => SchemaVersion < CurrentSchemaVersion;
+    public bool WasMigratedOnOpen { get; private set; }
+    public int? MigratedFromVersion { get; private set; }
 
     public SqliteGraphClient(string connectionStringOrPath, ILogger<SqliteGraphClient>? logger = null)
     {

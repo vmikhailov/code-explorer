@@ -5,6 +5,17 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.65.5] - 2026-10-27
+
+### Added
+- **Database Schema Upgrade Progress & Visibility**:
+  - Added user-facing notifications during automatic on-the-fly database schema migrations (`TryRunSchemaMigrator`), outputting progress to stderr and logs when upgrading between schema versions (e.g. `v3 -> v4`).
+  - Added warning notification when a database was created by a newer CLI schema version (`v5 > v4`), advising the user to upgrade their CodeExplorer CLI.
+  - Added `WasMigratedOnOpen` and `MigratedFromVersion` tracking to `IGraphClient` and `SqliteGraphClient`.
+  - Enhanced `ce status` (human output and JSON) to reflect `(upgraded from vX)` and `(newer than CLI vX)`.
+
+---
+
 ## [1.65.4] - 2026-10-27
 
 ### Added

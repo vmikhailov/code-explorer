@@ -184,4 +184,29 @@ public class GraphContextIntegrationTests
         // Simulate unsupported future version -> migrator returns false so full rebuild is triggered
         _client.TryRunSchemaMigrator(3, 999).Should().BeFalse();
     }
+
+    [Test]
+    public async Task SchemaVersion_OpenLegacyDb_AutomaticallyUpgrades_AndSetsMigrationFlags()
+    {
+        var tempDb = Path.Combine(Path.GetTempPath(), $"ce_migration_test_{Guid.NewGuid():N}.db");
+        try
+        {
+            // 1. Create a legacy v3 database
+            await using (var seedClient = new SqliteGraphClient(tempDb))
+            {
+                await seedClient.ExecuteWriteAsync("UPDATE nodes SET properties = json(properties); PRAGMA user_version = 3;");
+            }
+
+            // 2. Open with a fresh SqliteGraphClient to trigger CheckSchemaVersion() on open
+            await using var upgradedClient = new SqliteGraphClient(tempDb);
+            upgradedClient.WasMigratedOnOpen.Should().BeTrue();
+            upgradedClient.MigratedFromVersion.Should().Be(3);
+            upgradedClient.SchemaVersion.Should().Be(SqliteGraphClient.CurrentSchemaVersion);
+            upgradedClient.IsSchemaOutdated.Should().BeFalse();
+        }
+        finally
+        {
+            if (File.Exists(tempDb)) File.Delete(tempDb);
+        }
+    }
 }

@@ -161,6 +161,8 @@ public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
     const int CurrentSchemaVersion = 4;
     int SchemaVersion => 0;
     bool IsSchemaOutdated => false;
+    bool WasMigratedOnOpen => false;
+    int? MigratedFromVersion => null;
     Task SetSchemaVersionAsync(int version) => Task.CompletedTask;
 
     Task<PostIndexGraphData> LoadPostIndexGraphDataAsync(string widPrefix) =>
