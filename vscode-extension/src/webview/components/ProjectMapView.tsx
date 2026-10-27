@@ -20,6 +20,13 @@ function resolveBaseUrl(serverHttpUrl?: string): string | undefined {
   return wsUrl?.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://').replace(/\/ws$/, '');
 }
 
+const PROJECT_MAP_LAYOUTS = [
+  { id: 'concentric' as const, label: '🎯 Default' },
+  { id: 'swimlanes' as const, label: '🏊 Swimlanes' },
+  { id: 'dagre' as const, label: '🧜 Mermaid Flow' },
+  { id: 'cose' as const, label: '🌐 Force' },
+];
+
 export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
   serverHttpUrl,
   project,
@@ -257,6 +264,7 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
           else if (preset === 'hideResources') setHideResources((v) => !v);
         }}
         defaultLayoutName="concentric"
+        allowedLayouts={PROJECT_MAP_LAYOUTS}
         defaultNodeSizingMode="sqrt-weight"
         defaultNodeContentMode="metric"
         defaultHiddenTypes={[]}

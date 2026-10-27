@@ -63,10 +63,28 @@ const LANE_DEFINITIONS: LaneDefinition[] = [
   { tier: 5, title: 'Databases & Storage', icon: '🗄️', color: '#c084fc', accentBg: 'rgba(192, 132, 252, 0.08)' },
 ];
 
+export const PROJECT_MAP_LANE_DEFINITIONS: LaneDefinition[] = [
+  { tier: 0, title: 'Endpoints & Ingress', icon: '🚀', color: '#38bdf8', accentBg: 'rgba(56, 189, 248, 0.08)' },
+  { tier: 1, title: 'Application Handlers', icon: '⚙️', color: '#4ade80', accentBg: 'rgba(74, 222, 128, 0.08)' },
+  { tier: 2, title: 'Domain Core', icon: '🏛️', color: '#818cf8', accentBg: 'rgba(129, 140, 248, 0.08)' },
+  { tier: 3, title: 'Repositories & Foundation', icon: '💾', color: '#fbbf24', accentBg: 'rgba(251, 191, 36, 0.08)' },
+  { tier: 4, title: 'Databases & Storage', icon: '🗄️', color: '#c084fc', accentBg: 'rgba(192, 132, 252, 0.08)' },
+];
+
+export function mapProjectMapTierToLane(tier: number): number {
+  if (tier <= 0) return 0;
+  if (tier === 1) return 1;
+  if (tier === 2) return 2;
+  if (tier === 3 || tier === 4) return 3;
+  if (tier >= 5) return 4;
+  return 2;
+}
+
 export function computeSwimlanesLayout(
   nodes: SwimlaneNodeInput[],
   edges: SwimlaneEdgeInput[],
-  air: number = 1.2
+  air: number = 1.2,
+  isProjectMap?: boolean
 ): SwimlanesLayoutResult {
   const positions = new Map<string, { x: number; y: number }>();
   if (nodes.length === 0) {
@@ -77,19 +95,26 @@ export function computeSwimlanesLayout(
     };
   }
 
-  // 1. Group nodes into lanes by echelonTier (0..5)
+  // 1. Group nodes into lanes
+  const laneDefs = isProjectMap ? PROJECT_MAP_LANE_DEFINITIONS : LANE_DEFINITIONS;
   const laneBuckets = new Map<number, string[]>();
-  for (let t = 0; t <= 5; t++) laneBuckets.set(t, []);
+  for (const def of laneDefs) laneBuckets.set(def.tier, []);
 
   for (const n of nodes) {
     let t = n.echelonTier;
-    if (t < 0 || t > 5 || isNaN(t)) t = 2; // Fallback to Domain Services
-    laneBuckets.get(t)!.push(n.id);
+    if (isProjectMap) {
+      t = mapProjectMapTierToLane(t);
+    } else {
+      if (t < 0 || t > 5 || isNaN(t)) t = 2; // Fallback to Domain Services
+    }
+    const bucket = laneBuckets.get(t);
+    if (bucket) bucket.push(n.id);
+    else (laneBuckets.get(2) || []).push(n.id);
   }
 
   // 2. Identify populated lanes
   const populatedLanes: Array<{ def: LaneDefinition; nodeIds: string[] }> = [];
-  for (const def of LANE_DEFINITIONS) {
+  for (const def of laneDefs) {
     const list = laneBuckets.get(def.tier) || [];
     if (list.length > 0) {
       populatedLanes.push({ def, nodeIds: list });

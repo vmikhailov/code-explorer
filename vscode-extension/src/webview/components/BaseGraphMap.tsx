@@ -18,6 +18,7 @@ export interface BaseGraphMapProps {
   };
   onToggleProjectMapPreset?: (preset: 'cyclesOnly' | 'hideUtilities' | 'hideResources') => void;
   defaultLayoutName?: DomainLayoutName;
+  allowedLayouts?: Array<{ id: DomainLayoutName; label: string }>;
   defaultNodeSizingMode?: NodeSizingMode;
   defaultNodeContentMode?: NodeContentMode;
   defaultHiddenTypes?: EntityKind[];
@@ -39,5 +40,5 @@ export interface BaseGraphMapProps {
  * `Orbits` legend, `Visibility` panel with grouping & transitive contraction, and `DeclarativeInspector`.
  */
 export const BaseGraphMap: React.FC<BaseGraphMapProps> = (props) => {
-  return <DomainArchitectureView mode="map" {...props} />;
+  return <DomainArchitectureView mode="map" isProjectMap={true} {...props} />;
 };

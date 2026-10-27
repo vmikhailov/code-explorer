@@ -54,6 +54,35 @@ test('computeSwimlanesLayout: computes non-overlapping vertical columns for all 
   }
 });
 
+test('computeSwimlanesLayout: uses 5 clean architectural lanes in Project Map mode', () => {
+  const pmNodes: SwimlaneNodeInput[] = [
+    { id: 'ep:1', name: 'UsersController', kind: 'Endpoint', echelonTier: 0 },
+    { id: 'mod:1', name: 'UserHandler', kind: 'Module', echelonTier: 1 },
+    { id: 'mod:2', name: 'UserService', kind: 'Module', echelonTier: 2 },
+    { id: 'mod:3', name: 'UserRepository', kind: 'Module', echelonTier: 3 },
+    { id: 'mod:4', name: 'UserEntity', kind: 'Module', echelonTier: 4 },
+    { id: 'res:1', name: 'UserQueue', kind: 'Topic', echelonTier: 5 },
+    { id: 'db:1', name: 'UserDb', kind: 'Database', echelonTier: 6 },
+  ];
+  const pmEdges: SwimlaneEdgeInput[] = [
+    { source: 'ep:1', target: 'mod:1' },
+    { source: 'mod:1', target: 'mod:2' },
+    { source: 'mod:2', target: 'mod:3' },
+    { source: 'mod:3', target: 'mod:4' },
+    { source: 'mod:3', target: 'db:1' },
+    { source: 'mod:2', target: 'res:1' },
+  ];
+
+  const result = computeSwimlanesLayout(pmNodes, pmEdges, 1.2, true);
+  assert.equal(result.positions.size, pmNodes.length);
+  assert.equal(result.lanes.length, 5, 'Must produce 5 clean architectural lanes');
+  assert.equal(result.lanes[0].title, 'Endpoints & Ingress');
+  assert.equal(result.lanes[1].title, 'Application Handlers');
+  assert.equal(result.lanes[2].title, 'Domain Core');
+  assert.equal(result.lanes[3].title, 'Repositories & Foundation');
+  assert.equal(result.lanes[4].title, 'Databases & Storage');
+});
+
 test('computeDomainIslandsLayout: groups services into islands and identifies shared core', () => {
   const result = computeDomainIslandsLayout(sampleNodes as IslandNodeInput[], sampleEdges as IslandEdgeInput[]);
 

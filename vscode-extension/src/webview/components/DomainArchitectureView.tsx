@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import cytoscape from 'cytoscape';
 import dagre from 'cytoscape-dagre';
+
+cytoscape.use(dagre);
 import { GraphData, GraphNode, GraphEdge, isProjectKind } from '../../../../proto/types';
 import {
   computeEchelonTiers,
@@ -103,7 +105,8 @@ export type DomainLayoutName =
   | 'clusters'
   | 'hive'
   | 'matrix'
-  | 'cose';
+  | 'cose'
+  | 'dagre';
 
 export type EdgeCurveMode = 'bezier' | 'straight' | 'avoid-inner';
 
@@ -122,6 +125,10 @@ export interface DomainArchitectureViewProps {
   onRefresh?: () => void;
   gateEditorRequest?: { gateId?: string; timestamp: number } | null;
   /** Optional custom HUD brand label (e.g., 'C3 Internal Structure'). */
+  /** Whether this view is in Project Map mode. */
+  isProjectMap?: boolean;
+  /** Allowed layout options. */
+  allowedLayouts?: Array<{ id: DomainLayoutName; label: string }>;
   hudLabel?: string;
   /** Optional custom HUD title (e.g., 'Project Map'). */
   hudTitle?: string;
@@ -968,6 +975,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   defaultNodeContentMode = 'icon',
   defaultHiddenTypes = ['ExternalService', 'Library'],
   storagePrefix = 'ce_domain_',
+  isProjectMap = false,
+  allowedLayouts,
 }) => {
   const isMatrixMode = mode === 'matrix';
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1004,8 +1013,15 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         saved === 'concentric-sectors' ||
         saved === 'swimlanes' ||
         saved === 'clusters' ||
-        saved === 'hive'
-      ) return saved as DomainLayoutName;
+        saved === 'hive' ||
+        saved === 'matrix' ||
+        saved === 'dagre'
+      ) {
+        if (allowedLayouts && allowedLayouts.length > 0 && !allowedLayouts.some((l: { id: DomainLayoutName }) => l.id === saved)) {
+          return allowedLayouts[0].id;
+        }
+        return saved as DomainLayoutName;
+      }
     } catch { }
     return defaultLayoutName;
   });
@@ -1658,20 +1674,62 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
   // Zoom & Node Spacing (Air) State
   const [currentZoom, setCurrentZoom] = useState<number>(1.0);
-  const [spacingFactor, setSpacingFactor] = useState<number>(1.0);
+
+  const loadSpacingForLayout = useCallback((prefix: string, layout: DomainLayoutName): number => {
+    try {
+      const saved = localStorage.getItem(`${prefix}spacing_${layout}`);
+      if (saved) {
+        const val = parseFloat(saved);
+        if (!isNaN(val) && val >= 0.4 && val <= 3.5) return val;
+      }
+    } catch { }
+    return 1.0;
+  }, []);
+
+  const loadOrbitDistanceForLayout = useCallback((prefix: string, layout: DomainLayoutName): number => {
+    try {
+      const saved = localStorage.getItem(`${prefix}orbit_distance_${layout}`);
+      if (saved) {
+        const val = parseInt(saved, 10);
+        if (!isNaN(val) && val >= 100 && val <= 900) return val;
+      }
+      if (layout.startsWith('concentric')) {
+        const legacy = localStorage.getItem('ce_orbit_distance');
+        if (legacy) {
+          const val = parseInt(legacy, 10);
+          if (!isNaN(val) && val >= 100 && val <= 900) return val;
+        }
+      }
+    } catch { }
+    return 280;
+  }, []);
+
+  const loadMinOrbitDistForLayout = useCallback((prefix: string, layout: DomainLayoutName): number => {
+    try {
+      const saved = localStorage.getItem(`${prefix}min_orbit_dist_${layout}`);
+      if (saved) {
+        const val = parseInt(saved, 10);
+        if (!isNaN(val) && val >= 50 && val <= 400) return val;
+      }
+      if (layout.startsWith('concentric')) {
+        const legacy = localStorage.getItem('ce_min_orbit_node_distance');
+        if (legacy) {
+          const val = parseInt(legacy, 10);
+          if (!isNaN(val) && val >= 50 && val <= 400) return val;
+        }
+      }
+    } catch { }
+    return 125;
+  }, []);
+  const [spacingFactor, setSpacingFactor] = useState<number>(() => {
+    return loadSpacingForLayout(storagePrefix, layoutName);
+  });
   const spacingFactorRef = useRef<number>(1.0);
   spacingFactorRef.current = spacingFactor;
 
   // Distance between concentric orbits (px)
   const [orbitDistance, setOrbitDistance] = useState<number>(() => {
-    try {
-      const saved = localStorage.getItem('ce_orbit_distance');
-      if (saved) {
-        const val = parseInt(saved, 10);
-        if (!isNaN(val) && val >= 100 && val <= 900) return val;
-      }
-    } catch { }
-    return 280;
+    return loadOrbitDistanceForLayout(storagePrefix, layoutName);
   });
   const orbitDistanceRef = useRef<number>(orbitDistance);
   orbitDistanceRef.current = orbitDistance;
@@ -1681,7 +1739,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     setOrbitDistance(clamped);
     orbitDistanceRef.current = clamped;
     try {
-      localStorage.setItem('ce_orbit_distance', String(clamped));
+      localStorage.setItem(`${storagePrefix}orbit_distance_${layoutName}`, String(clamped));
     } catch { }
     forceRelayoutRef.current = true;
     setRelayoutTrigger((prev) => prev + 1);
@@ -1689,14 +1747,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
   // Minimum distance between nodes on the same orbit (px)
   const [minOrbitNodeDistance, setMinOrbitNodeDistance] = useState<number>(() => {
-    try {
-      const saved = localStorage.getItem('ce_min_orbit_node_distance');
-      if (saved) {
-        const val = parseInt(saved, 10);
-        if (!isNaN(val) && val >= 50 && val <= 400) return val;
-      }
-    } catch { }
-    return 125;
+    return loadMinOrbitDistForLayout(storagePrefix, layoutName);
   });
   const minOrbitNodeDistanceRef = useRef<number>(minOrbitNodeDistance);
   minOrbitNodeDistanceRef.current = minOrbitNodeDistance;
@@ -1706,7 +1757,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     setMinOrbitNodeDistance(clamped);
     minOrbitNodeDistanceRef.current = clamped;
     try {
-      localStorage.setItem('ce_min_orbit_node_distance', String(clamped));
+      localStorage.setItem(`${storagePrefix}min_orbit_dist_${layoutName}`, String(clamped));
     } catch { }
     forceRelayoutRef.current = true;
     setRelayoutTrigger((prev) => prev + 1);
@@ -3811,7 +3862,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         baseIslandGuidesRef.current = [];
         baseHiveGuidesRef.current = [];
         baseSectorGuidesRef.current = [];
-        const layoutResult = computeSwimlanesLayout(visibleNodesInput, visibleEdgesInput, spacing);
+        const layoutResult = computeSwimlanesLayout(visibleNodesInput, visibleEdgesInput, spacing, isProjectMap);
         layoutConfig = {
           name: 'preset',
           positions: (node: any) => layoutResult.positions.get(node.id()) || { x: 0, y: 0 },
@@ -3879,6 +3930,29 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           length: g.length / effSpacing,
         }));
         setHiveGuides(layoutResult.axes);
+      } else if (layoutName === 'dagre') {
+        setConcentricGuides([]);
+        setOrbitLegendItems([]);
+        setSwimlaneGuides([]);
+        setIslandGuides([]);
+        setHiveGuides([]);
+        setSectorGuides([]);
+        baseConcentricGuidesRef.current = [];
+        baseSwimlaneGuidesRef.current = [];
+        baseIslandGuidesRef.current = [];
+        baseHiveGuidesRef.current = [];
+        baseSectorGuidesRef.current = [];
+        // Hierarchical DAG (Mermaid Flow - Top-Down)
+        layoutConfig = {
+          name: 'dagre',
+          rankDir: 'TB',
+          nodeSep: Math.round(50 * spacing),
+          rankSep: Math.round(80 * spacing),
+          edgeSep: Math.round(25 * spacing),
+          fit: true,
+          padding: 60,
+          animate: false,
+        };
       } else {
         setConcentricGuides([]);
         setOrbitLegendItems([]);
@@ -4003,6 +4077,9 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       const clamped = Math.max(0.4, Math.min(3.5, Math.round(newFactor * 10) / 10));
       setSpacingFactor(clamped);
       spacingFactorRef.current = clamped;
+      try {
+        localStorage.setItem(`${storagePrefix}spacing_${layoutName}`, String(clamped));
+      } catch { }
 
       const cy = cyRef.current;
       if (!cy) return;
@@ -4337,7 +4414,42 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     try {
       localStorage.setItem(`${storagePrefix}layout`, newLayout);
     } catch { }
-  }, [storagePrefix]);
+
+    const nextSpacing = loadSpacingForLayout(storagePrefix, newLayout);
+    setSpacingFactor(nextSpacing);
+    spacingFactorRef.current = nextSpacing;
+
+    const nextOrbitDist = loadOrbitDistanceForLayout(storagePrefix, newLayout);
+    setOrbitDistance(nextOrbitDist);
+    orbitDistanceRef.current = nextOrbitDist;
+
+    const nextMinOrbitDist = loadMinOrbitDistForLayout(storagePrefix, newLayout);
+    setMinOrbitNodeDistance(nextMinOrbitDist);
+    minOrbitNodeDistanceRef.current = nextMinOrbitDist;
+
+    forceRelayoutRef.current = true;
+    setRelayoutTrigger((prev) => prev + 1);
+  }, [storagePrefix, loadSpacingForLayout, loadOrbitDistanceForLayout, loadMinOrbitDistForLayout]);
+
+  const DEFAULT_LAYOUT_OPTIONS: Array<{ id: DomainLayoutName; label: string }> = [
+    { id: 'concentric', label: '🎯 Concentric (Original)' },
+    { id: 'concentric-equispaced', label: '🪐 Concentric: Equispaced' },
+    { id: 'concentric-barycentric', label: '🪐 Concentric: Barycentric' },
+    { id: 'concentric-polar-force', label: '🪐 Concentric: Polar Force' },
+    { id: 'concentric-sectors', label: '🪐 Concentric: Domain Sectors' },
+    { id: 'swimlanes', label: '🏊 Swimlanes (Pipeline)' },
+    { id: 'clusters', label: '🏝️ Domain Islands (Bounded Contexts)' },
+    { id: 'hive', label: '🕸️ Hive Plot (Multi-Axis)' },
+    { id: 'dagre', label: '🧜 Mermaid Flow' },
+    { id: 'cose', label: '⚡ Force (COSE)' },
+  ];
+
+  const layoutOptions: Array<{ id: DomainLayoutName; label: string }> = useMemo(() => {
+    if (allowedLayouts && allowedLayouts.length > 0) {
+      return allowedLayouts;
+    }
+    return DEFAULT_LAYOUT_OPTIONS;
+  }, [allowedLayouts]);
 
   const searchMatchCount = useMemo(() => {
     if (!searchQuery.trim()) return null;
@@ -4451,15 +4563,11 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               className="domain-layout-dropdown"
               style={{ width: '100%', marginTop: '4px' }}
             >
-              <option value="concentric">🎯 Concentric (Original)</option>
-              <option value="concentric-equispaced">🪐 Concentric: Equispaced</option>
-              <option value="concentric-barycentric">🪐 Concentric: Barycentric</option>
-              <option value="concentric-polar-force">🪐 Concentric: Polar Force</option>
-              <option value="concentric-sectors">🪐 Concentric: Domain Sectors</option>
-              <option value="swimlanes">🏊 Swimlanes (Pipeline)</option>
-              <option value="clusters">🏝️ Domain Islands (Bounded Contexts)</option>
-              <option value="hive">🕸️ Hive Plot (Multi-Axis)</option>
-              <option value="cose">⚡ Force (COSE)</option>
+              {layoutOptions.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.label}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -5181,15 +5289,11 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                   className="domain-layout-dropdown"
                   title="Graph Layout"
                 >
-                  <option value="concentric">🎯 Concentric (Original)</option>
-                  <option value="concentric-equispaced">🪐 Concentric: Equispaced</option>
-                  <option value="concentric-barycentric">🪐 Concentric: Barycentric</option>
-                  <option value="concentric-polar-force">🪐 Concentric: Polar Force</option>
-                  <option value="concentric-sectors">🪐 Concentric: Domain Sectors</option>
-                  <option value="swimlanes">🏊 Swimlanes (Pipeline)</option>
-                  <option value="clusters">🏝️ Domain Islands (Bounded Contexts)</option>
-                  <option value="hive">🕸️ Hive Plot (Multi-Axis)</option>
-                  <option value="cose">⚡ Force (COSE)</option>
+                  {layoutOptions.map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.label}
+                    </option>
+                  ))}
                 </select>
               </div>
             )}

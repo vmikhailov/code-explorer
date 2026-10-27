@@ -15,7 +15,8 @@ export type DomainLayoutName =
   | 'clusters'
   | 'hive'
   | 'matrix'
-  | 'cose';
+  | 'cose'
+  | 'dagre';
 
 export type EdgeCurveMode = 'bezier' | 'straight' | 'avoid-inner';
 

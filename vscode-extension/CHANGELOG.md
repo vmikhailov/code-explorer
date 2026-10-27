@@ -5,6 +5,30 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.65.0] - 2026-10-27
+
+### Added
+- **Project Map Diagram Layout Simplification & Mermaid Flow**:
+  - Streamlined layout options on the Project Map (C3 Internal Structure) to 4 focused diagram algorithms:
+    - **🎯 Default**: Original Concentric layout (`concentric`).
+    - **🏊 Swimlanes**: Pipeline layout (`swimlanes`) with dedicated 5-tier project map lanes.
+    - **🧜 Mermaid Flow**: Native Top-Down (TD) hierarchical directed acyclic graph layout powered by `cytoscape-dagre`.
+    - **🌐 Force**: Force-directed layout (`cose`).
+  - Retained the complete 10-layout suite for Architecture Map (C1/C2) via dynamic `allowedLayouts` configuration on `<BaseGraphMap />`.
+- **Project Map Architectural Swimlanes**:
+  - Replaced microservice echelon labels with 5 clean code-level architectural lanes for Project Map:
+    - Lane 0: 🚀 Endpoints & Ingress (Tier 0 — Controllers, API/CLI entrypoints)
+    - Lane 1: ⚙️ Application Handlers (Tier 1 — Handlers, orchestrators)
+    - Lane 2: 🏛️ Domain Core (Tier 2 — Domain services, core business logic)
+    - Lane 3: 💾 Repositories & Foundation (Tiers 3 & 4 — Repositories, engines, utility models)
+    - Lane 4: 🗄️ Databases & Storage (Tiers 5 & 6 — Tables, datasets, external message buses)
+- **Per-Diagram Settings & Metric Persistence**:
+  - Scoped node spacing (Node Air factor), concentric orbit distance, and minimum distance on orbit per individual diagram type:
+    - Persisted under `${storagePrefix}spacing_${layoutName}`, `${storagePrefix}orbit_distance_${layoutName}`, and `${storagePrefix}min_orbit_dist_${layoutName}`.
+    - Switching diagram layouts immediately restores each layout's own saved spacing and distances instead of overriding them globally.
+
+---
+
 ## [1.64.2] - 2026-10-27
 
 ### Added
