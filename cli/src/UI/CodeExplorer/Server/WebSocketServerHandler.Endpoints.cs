@@ -222,6 +222,30 @@ public partial class WebSocketServerHandler
                 var singleSuite = await engine.CheckSuiteAsync(targetGates, cancellationToken: cancellationToken);
                 var singleDto = MapGateSuiteToDto(singleSuite);
 
+                if (_cachedGateSuite == null)
+                {
+                    var allConfigured = await repo.GetAllGatesAsync(cancellationToken);
+                    if (allConfigured.Count == 0)
+                    {
+                        allConfigured = CodeExplorer.Core.Gates.Storage.BuiltInGateCatalog.GetDefaultGates().Concat(CodeExplorer.Core.Gates.Storage.BuiltInGateCatalog.GetExampleGates()).ToList();
+                    }
+                    _cachedGateSuite = new GateSuiteSummaryDto
+                    {
+                        TotalGates = allConfigured.Count,
+                        Gates = allConfigured.Select(g => new GateItemDto
+                        {
+                            Id = g.Id,
+                            Name = g.Name,
+                            Category = g.Category.ToString(),
+                            Platform = g.Platform.ToString(),
+                            Scope = g.Scope.ToString(),
+                            Severity = g.Severity.ToString(),
+                            Status = "Pending",
+                            Source = g.Source
+                        }).ToList()
+                    };
+                }
+
                 if (_cachedGateSuite != null && singleDto.Gates.Count > 0)
                 {
                     var updatedGate = singleDto.Gates[0];

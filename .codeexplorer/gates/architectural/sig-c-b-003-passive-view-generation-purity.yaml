@@ -24,3 +24,4 @@ query: >-
     'Passive view generation violation: view engine performs forbidden I/O or graph mutation operations' AS message
 ratchet:
   enabled: false
+

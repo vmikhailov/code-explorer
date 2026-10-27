@@ -233,8 +233,8 @@ export function buildGateRootItems(
 
     if (!hasViolations) {
       item.command = {
-        command: 'codeExplorer.openGateYaml',
-        title: 'Edit Gate YAML Definition',
+        command: 'codeExplorer.editGate',
+        title: 'Edit Gate in Visual Editor',
         arguments: [item],
       };
     }

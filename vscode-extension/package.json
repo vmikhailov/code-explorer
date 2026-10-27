@@ -305,11 +305,6 @@
           "group": "inline@3"
         },
         {
-          "command": "codeExplorer.openGateYaml",
-          "when": "viewItem == gate-item",
-          "group": "inline@4"
-        },
-        {
           "command": "codeExplorer.initGates",
           "when": "viewItem == root-gates",
           "group": "inline@4"

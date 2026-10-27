@@ -20,3 +20,4 @@ query: >-
     'View abstraction independence violation: ProjectMapView illegally delegates to DomainArchitectureView or BaseGraphMap' AS message
 ratchet:
   enabled: false
+
