@@ -5,6 +5,15 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.65.2] - 2026-10-27
+
+### Fixed
+- **VS Code Extension Secondary Side Bar Inspector Reveal**:
+  - Fixed `GraphInspectorViewProvider.reveal` and `FOCUS_INSPECTOR_VIEW` message handler so that clicking the canvas HUD **Inspector** button guarantees the view container (`workbench.view.extension.code-explorer-inspector`) and Secondary Side Bar (`workbench.action.focusAuxiliaryBar`) are activated and uncollapsed before focusing the webview pane (`codeExplorerInspectorView.focus`).
+  - Resolved issue where `codeExplorerInspectorView.focus` silently no-ops and bypasses error recovery when the Auxiliary Bar is collapsed or hidden.
+
+---
+
 ## [1.65.1] - 2026-10-27
 
 ### Fixed

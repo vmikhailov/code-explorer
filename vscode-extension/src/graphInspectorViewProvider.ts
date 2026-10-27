@@ -66,29 +66,33 @@ export class GraphInspectorViewProvider implements vscode.WebviewViewProvider {
   }
 
   public async reveal(preserveFocus = false): Promise<void> {
-    try {
-      if (preserveFocus) {
-        // Subtle background reveal (e.g. canvas selection): keep user focus in editor/canvas
-        try {
-          await vscode.commands.executeCommand('codeExplorerInspectorView.open', { preserveFocus: true });
-        } catch {
-          this.view?.show(true);
-        }
-      } else {
-        // Explicit user action (Inspector HUD button or command):
-        // Execute focus command to guarantee VS Code opens the hosting container
-        // (Secondary Side Bar / Auxiliary Bar, Primary Side Bar, or Bottom Panel) even if closed/collapsed,
-        // brings this view container forward, and expands the view pane.
-        await vscode.commands.executeCommand('codeExplorerInspectorView.focus');
+    if (preserveFocus) {
+      // Subtle background reveal (e.g. canvas selection): keep user focus in editor/canvas
+      try {
+        await vscode.commands.executeCommand('codeExplorerInspectorView.open', { preserveFocus: true });
+      } catch {
+        this.view?.show(true);
       }
-    } catch (err: any) {
-      this.outputChannel?.appendLine(`[InspectorView] 'codeExplorerInspectorView.focus' failed: ${err?.message || err}`);
+    } else {
+      // Explicit user action (Inspector HUD button or command):
+      // 1. Explicitly open and activate the view container (Secondary Side Bar or wherever docked)
       try {
         await vscode.commands.executeCommand('workbench.view.extension.code-explorer-inspector');
-      } catch {}
+      } catch (err: any) {
+        this.outputChannel?.appendLine(`[InspectorView] 'workbench.view.extension.code-explorer-inspector' failed: ${err?.message || err}`);
+      }
+
+      // 2. Ensure the Auxiliary Bar (Secondary Side Bar) is expanded/visible
       try {
         await vscode.commands.executeCommand('workbench.action.focusAuxiliaryBar');
       } catch {}
+
+      // 3. Focus the specific view inside the container
+      try {
+        await vscode.commands.executeCommand('codeExplorerInspectorView.focus');
+      } catch (err: any) {
+        this.outputChannel?.appendLine(`[InspectorView] 'codeExplorerInspectorView.focus' failed: ${err?.message || err}`);
+      }
     }
 
     if (this.view) {
