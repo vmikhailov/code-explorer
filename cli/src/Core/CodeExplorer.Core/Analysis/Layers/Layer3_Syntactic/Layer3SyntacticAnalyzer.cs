@@ -204,9 +204,9 @@ public partial class Layer3SyntacticParser
                 var fileParser = WorkspaceIndexer.GetParserForFile(fPath);
                 fileParser?.DiscoverDeclarations(fPath, content, pName, ctx);
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                // Graceful skip on concurrent file access or reading errors
+                ctx.RecordScanIssue("Layer3_Syntactic", "pre_scan_error", fPath, ex.Message, name: "RouteConfigPreScanError", exception: ex);
 
 
 
@@ -296,6 +296,7 @@ public partial class Layer3SyntacticParser
                     }
 
                     parsedResults[i] = (file, syntaxTree, parentNode);
+                    RecordDocumentDiagnostics(syntaxTree, file, ctx);
 
                     var completed = Interlocked.Increment(ref parsedFilesCount);
                     var nowTicks = Environment.TickCount64;
@@ -310,9 +311,10 @@ public partial class Layer3SyntacticParser
                         ctx.Log($"[Layer 3    ] Parsing syntax trees: {completed}/{totalFilesAcrossProjects} files ({completed * 100.0 / totalFilesAcrossProjects:F0}%) [{project.Name}]...");
                     }
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     ctx.LogWarning($"[Layer 3    ] Error parsing file '{file.Path}': {ex.Message}", ex);
+                    ctx.RecordScanIssue("Layer3_Syntactic", "parse_exception", file.Path, ex.Message, name: "ParseException", severity: "error", exception: ex, language: fileParser.LanguageName, parentNodeId: file.Id, isFileParent: true, logToConsole: false);
                 }
             });
 
@@ -368,9 +370,10 @@ public partial class Layer3SyntacticParser
                             }
                         }
                     }
-                    catch (Exception ex)
+                    catch (Exception ex) when (ex is not OperationCanceledException)
                     {
                         ctx.LogWarning($"[Layer 3    ] Error processing visitor for '{syntaxTree.FilePath}': {ex.Message}", ex);
+                        ctx.RecordScanIssue("Layer3_Visitor", "visitor_exception", file.Path, ex.Message, name: "VisitorException", severity: "error", exception: ex, language: syntaxTree.FileParser.LanguageName, parentNodeId: file.Id, isFileParent: true, logToConsole: false);
                     }
                 }
 
@@ -455,6 +458,10 @@ public partial class Layer3SyntacticParser
         }
 
         SyntaxValueEvaluator.EvaluateDocument(syntaxTree.Document, projectName);
+        if (ctx != null && syntaxTree.FileNode != null)
+        {
+            RecordDocumentDiagnostics(syntaxTree, syntaxTree.FileNode, ctx);
+        }
 
         var fileParser = syntaxTree.FileParser;
         if (!fileParser.UsesTreeSitter)
@@ -532,6 +539,36 @@ public partial class Layer3SyntacticParser
         SemanticPostProcessor?.Invoke(syntaxTree, ctx);
     }
 
+    private static void RecordDocumentDiagnostics(SyntaxTree syntaxTree, FileNode fileNode, ParsingContext ctx)
+    {
+        var diags = syntaxTree.Document?.Diagnostics;
+        if (diags == null || diags.Count == 0) return;
+
+        fileNode.SetExtension("has_parse_issues", "true");
+        fileNode.SetExtension("parse_issue_count", diags.Count.ToString());
+
+        var lang = syntaxTree.Document?.LanguageName ?? syntaxTree.FileParser.LanguageName;
+        for (var d = 0; d < diags.Count; d++)
+        {
+            var diag = diags[d];
+            ctx.RecordScanIssue(
+                stage: "Layer3_Syntactic",
+                category: diag.Kind,
+                relativeOrFullPath: fileNode.Path,
+                message: diag.Message,
+                name: "SyntaxError",
+                severity: "warning",
+                startLine: diag.Span.StartLine + 1,
+                endLine: diag.Span.EndLine + 1,
+                startCol: diag.Span.StartColumn + 1,
+                endCol: diag.Span.EndColumn + 1,
+                language: lang,
+                parentNodeId: fileNode.Id,
+                isFileParent: true,
+                logToConsole: d == 0);
+        }
+    }
+
     private static readonly Regex ConfigRegex = new(
         @"(?i)(config|settings?|cfg|\benv\b|db_?conn|\burl\b|\buri\b|\bport\b|\bhost\b|user(name)?|pass(word)?|token|secret|\bkey\b|auth|api_?key|connection_?string)",
         RegexOptions.Compiled
@@ -560,9 +597,12 @@ public partial class Layer3SyntacticParser
     {
         foreach (var rawVar in fileVariables)
         {
-            var isConfig = ConfigRegex.IsMatch(rawVar.Name) ||
-                           ConfigInitializerRegex.IsMatch(rawVar.InitializerText);
-            var isEtl = EtlRegex.IsMatch(rawVar.Name) || SqlQueryRegex.IsMatch(rawVar.InitializerText);
+            var isConfig = (rawVar.Name.Length >= 3 && ConfigRegex.IsMatch(rawVar.Name)) ||
+                           (rawVar.InitializerText.Length >= 6 && ConfigInitializerRegex.IsMatch(rawVar.InitializerText));
+            var isEtl = (rawVar.Name.Length >= 3 && EtlRegex.IsMatch(rawVar.Name)) ||
+                        (rawVar.InitializerText.Length >= 6 && SqlQueryRegex.IsMatch(rawVar.InitializerText));
+            // ConfigInitializerRegex and EtlRegex handled above
+            // SqlQueryRegex handled above
             var isConstant = rawVar.IsConstant;
             var isGlobal = rawVar.Scope == "global";
             var isProperty = rawVar.MemberKind == "property";

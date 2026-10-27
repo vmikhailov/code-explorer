@@ -268,7 +268,7 @@ public partial class SqliteGraphClient
         try
         {
             await using var cmd = _conn.CreateCommand();
-            cmd.CommandText = "ANALYZE; PRAGMA optimize;";
+            cmd.CommandText = "PRAGMA wal_checkpoint(PASSIVE); PRAGMA optimize;";
             await cmd.ExecuteNonQueryAsync();
         }
         catch (Exception ex)
@@ -499,6 +499,8 @@ public partial class SqliteGraphClient
                        OR id LIKE @wsPrefix || 'lit:' || @relPathColon
                        OR id LIKE @wsPrefix || 'catch:' || @relPathSlash
                        OR id LIKE @wsPrefix || 'catch:' || @relPathColon
+                       OR id LIKE @wsPrefix || 'issue:' || @relPathSlash
+                       OR id LIKE @wsPrefix || 'issue:' || @relPathColon
                        OR id LIKE @wsPrefix || 'p:' || @relPath || '%'
                        OR id LIKE @wsPrefix || 'project:' || @relPath || '%'
                        OR id LIKE @wsPrefix || 'git:' || @relPath
@@ -519,6 +521,8 @@ public partial class SqliteGraphClient
                        OR id LIKE '%:lit:' || @relPathColon
                        OR id LIKE '%:catch:' || @relPathSlash
                        OR id LIKE '%:catch:' || @relPathColon
+                       OR id LIKE '%:issue:' || @relPathSlash
+                       OR id LIKE '%:issue:' || @relPathColon
                        OR id LIKE '%:p:' || @relPath || '%'
                        OR id LIKE '%:project:' || @relPath || '%'
                        OR id LIKE '%:git:' || @relPath
@@ -532,7 +536,7 @@ public partial class SqliteGraphClient
                 -- Pass 2: Property matching for nodes that don't embed the relative path into their ID
                 INSERT INTO temp_del_subpath_nodes(id, is_container)
                 SELECT id, 1 FROM nodes
-                WHERE kind IN ('File', 'Folder', 'Project', 'Endpoint', 'EntryPoint')
+                WHERE kind IN ('File', 'Folder', 'Project', 'Endpoint', 'EntryPoint', 'ScanIssue')
                   AND (
                       lower(replace(json_extract(properties, '$.path'), '\', '/')) = @normPath
                       OR lower(replace(json_extract(properties, '$.full_path'), '\', '/')) = @normPath

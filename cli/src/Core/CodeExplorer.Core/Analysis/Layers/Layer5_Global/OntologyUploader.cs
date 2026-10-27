@@ -37,6 +37,9 @@ public static class OntologyUploader
             var chunk = collectedRelationships.GetRange(i, Math.Min(10000, collectedRelationships.Count - i));
             await ctx.EnqueueUploadRelationshipsAsync(chunk);
         }
+        await ctx.FlushScanIssuesAsync();
+        {
+        }
     }
 
     private static void CollectTreeElements(
@@ -181,7 +184,7 @@ public static class OntologyUploader
         }
 
         // Special: If CallLiteral, CatchClause, or EntryPoint, link it to File via DECLARED_IN
-        if (node.Kind is OntologyConstants.NodeLabels.CallLiteral or OntologyConstants.NodeLabels.CatchClause or OntologyConstants.NodeLabels.EntryPoint)
+        if (node.Kind is OntologyConstants.NodeLabels.CallLiteral or OntologyConstants.NodeLabels.CatchClause or OntologyConstants.NodeLabels.EntryPoint or OntologyConstants.NodeLabels.ScanIssue)
         {
             var filePath = node.Path;
             if (string.IsNullOrEmpty(filePath) && node is CallLiteralNode cln)

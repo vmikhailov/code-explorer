@@ -11,6 +11,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer1_Physical;
     order: 1,
     pluralLabel: "Files"
 )]
+[OntologyEdge<ScanIssueNode>(OntologyConstants.Relationships.Contains)]
 public record FileNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,

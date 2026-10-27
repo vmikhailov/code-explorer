@@ -610,6 +610,7 @@ public class Layer2ProjectParser
                     catch (Exception ex)
                     {
                         ctx.LogWarning($"[Layer 2    ] Sibling library scan error in '{libRoot}': {ex.Message}", ex);
+                        ctx.RecordScanIssue("Layer2_Boundaries", "manifest_error", libRoot, ex.Message, name: "SiblingLibraryScanError", exception: ex, isFileParent: false, logToConsole: false);
                     }
                 }
             }
@@ -820,6 +821,7 @@ public class Layer2ProjectParser
         catch (Exception ex)
         {
             ctx.LogWarning($"[Layer 2    ] Error parsing dependencies for {projectParser.ProjectType} in '{projectDir}': {ex.Message}", ex);
+            ctx.RecordScanIssue("Layer2_Boundaries", "manifest_error", projectDir, $"Error parsing dependencies for {projectParser.ProjectType}: {ex.Message}", name: "DependencyParseError", exception: ex, language: projectParser.ProjectType, isFileParent: false, logToConsole: false);
             return null;
         }
     }
@@ -945,6 +947,7 @@ public class Layer2ProjectParser
         catch (Exception ex)
         {
             ctx.LogWarning($"[Layer 2    ] Error getting produced package from {projectParser.ProjectType} parser in '{projectDir}': {ex.Message}", ex);
+            ctx.RecordScanIssue("Layer2_Boundaries", "manifest_error", projectDir, $"Error getting produced package for {projectParser.ProjectType}: {ex.Message}", name: "ProducedPackageParseError", exception: ex, language: projectParser.ProjectType, isFileParent: false, logToConsole: false);
         }
 
         if (!packageDetected)

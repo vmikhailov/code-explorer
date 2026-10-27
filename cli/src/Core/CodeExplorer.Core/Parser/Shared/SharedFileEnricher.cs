@@ -31,7 +31,7 @@ public static class SharedFileEnricher
             }
             catch (Exception ex)
             {
-                ctx.LogWarning($"[SharedFileEnricher] Failed to read '{file.FullPath}': {ex.Message}");
+                ctx.RecordScanIssue("Layer2_Boundaries", "config_parse_error", file.Path, ex.Message, name: "SharedFileEnrichError", exception: ex, parentNodeId: file.Id, isFileParent: true, logTag: "[Layer 2    ]");
             }
         });
 

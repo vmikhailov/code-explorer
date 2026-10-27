@@ -208,9 +208,9 @@ public class Layer1PhysicalParser
                 lineCount = CountLines(bytes);
                 contentHash = Incremental.HashUtility.ComputeSha256(bytes);
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                // Fallback for locked or unreadable files
+                ctx.RecordScanIssue("Layer1_Physical", "io_error", relativeFile, ex.Message, name: "FileReadError", severity: "warning", exception: ex, parentNodeId: fileId, isFileParent: true);
             }
             var fileNode = new FileNode(fileId, fileName, relativeFile, absoluteFilePath, false, null, null, lineCount, sizeBytes)
             {

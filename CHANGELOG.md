@@ -5,6 +5,28 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.63.0] - 2026-10-27
+
+### Added
+- **Physical Ontology `ScanIssue` Node (`ScanIssueNode`) & Unswallowed Pipeline Diagnostics**:
+  - Introduced `ScanIssue` (`ScanIssueNode`, prefix `issue`, `NodeKind.ScanIssue`) in `Layer 1: File Structure`, connected via `CONTAINS` from `File`, `Folder`, and `FilesStructure` and outbound `DECLARED_IN` to `File`.
+  - Captures top-level Tree-sitter CST syntax errors (`ERROR` nodes) into `SyntaxDocument.Diagnostics` during `TreeSitterSyntaxConverterBase.Parse` and records structured diagnostics (`stage`, `category`, `severity`, `message`, `start_line`, `end_line`, `start_col`, `end_col`, `exception_type`, `language`) across Layers 1–5 instead of silently swallowing exceptions.
+  - Queryable via OpenCypher (`MATCH (f:File)-[:CONTAINS]->(i:ScanIssue) RETURN f.name, i.stage, i.category, i.start_line, i.message`).
+
+### Fixed
+- **React `.tsx` Tree-Sitter Grammar Selection**:
+  - Fixed `TypeScriptParser.ParseDocument` passing the `"typescript"` grammar instead of `"tsx"` when parsing `.tsx` files, eliminating false-positive JSX syntax errors (`Syntax error in type_parameters near 'div'`) and uncovering 40,000+ previously unindexed AST call and member references in React/TSX components.
+
+### Changed
+- **Per-Language Tree-Sitter UAST Converters & Unified `LibraryRole.TestFramework`**:
+  - Extracted dedicated language-specific CST-to-UAST converters (`CSharpSyntaxConverter`, `TypeScriptSyntaxConverter`, `PythonSyntaxConverter`, `GoSyntaxConverter`, `JavaSyntaxConverter`, `RustSyntaxConverter`) inheriting from `TreeSitterSyntaxConverterBase`, and unified test framework detection via `LibraryRole.TestFramework`.
+- **Layer 3–5 & Post-Index Throughput Optimizations (~20% Faster End-to-End Clean Scan)**:
+  - Replaced 28,000 `json(n.properties)` + `JsonDocument.Parse` allocations in `IdentifierSearchEngine.RebuildIndexAsync` with direct SQLite `json_extract` on binary `JSONB`, parallelized `IdentifierVectorEncoder.Encode` via `Parallel.For`, and dropped/recreated `identifier_index` secondary indices around bulk population (**2x faster post-index phase**).
+  - Enqueued Layer 4 and Layer 5 relationship/node uploads onto the background persistence channel (`EnqueueUploadRelationshipsAsync` / `EnqueueUploadNodesAsync`) prior to `WaitForQueueDrainedAsync()`.
+  - Pre-grouped symbol references by `ScopeSymbolId` (`ToLookup`) in `WorkspaceIndexer.SyncFileRegistryAsync` and used a prepared `SqliteCommand` in `SaveFileRegistryEntriesAsync`.
+
+---
+
 ## [1.62.1] - 2026-10-27
 
 ### Changed

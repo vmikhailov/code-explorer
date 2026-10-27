@@ -37,7 +37,8 @@ public enum NodeKind
     Domain = 28,
     BoundedContext = 29,
     Ingress = 30,
-    PeerMesh = 31
+    PeerMesh = 31,
+    ScanIssue = 32
 }
 
 public enum RelationshipKind
@@ -129,6 +130,7 @@ public static class EnumExtensions
             "method" => NodeKind.Function,
             "field" or "property" => NodeKind.Member,
             "bounded_context" or "context" => NodeKind.BoundedContext,
+            "scan_issue" or "parse_issue" or "parseissue" => NodeKind.ScanIssue,
             _ => NodeKind.Unspecified
         };
     }

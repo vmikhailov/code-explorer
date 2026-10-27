@@ -127,7 +127,11 @@ public class TypeScriptParser : IProjectParser, IFileParser
     public bool UsesTreeSitter => true;
 
     public SyntaxDocument? ParseDocument(string sourceText, string filePath = "", string relativePath = "") =>
-        TypeScriptSyntaxConverter.Instance.Parse(sourceText, LanguageName, filePath, relativePath);
+        TypeScriptSyntaxConverter.Instance.Parse(
+            sourceText,
+            filePath.EndsWith(".tsx", StringComparison.OrdinalIgnoreCase) || relativePath.EndsWith(".tsx", StringComparison.OrdinalIgnoreCase) ? "tsx" : LanguageName,
+            filePath,
+            relativePath);
 
     public LanguageSyntaxProfile SyntaxProfile => TypeScriptSyntaxProfile.Instance;
 

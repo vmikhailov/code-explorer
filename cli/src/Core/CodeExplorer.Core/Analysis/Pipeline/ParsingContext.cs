@@ -270,7 +270,7 @@ public class ParsingContext
 
         try
         {
-            await DbClient.ExecuteWriteAsync("PRAGMA wal_checkpoint(PASSIVE); ANALYZE;", cancellationToken: CancellationToken)
+            await Task.CompletedTask // Defer ANALYZE and WAL checkpoint to CreateIndicesAsync at the end of the pipeline
                 .ConfigureAwait(false);
         }
         catch
@@ -367,5 +367,139 @@ public class ParsingContext
         }
 
         return null;
+    }
+
+    public System.Collections.Concurrent.ConcurrentDictionary<string, (ScanIssueNode Issue, string? ParentNodeId, bool IsFileParent)> ScanIssues { get; } = new(StringComparer.Ordinal);
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> _flushedScanIssueIds = new(StringComparer.Ordinal);
+
+    public string NormalizeRelativePath(string? relativeOrFullPath)
+    {
+        if (string.IsNullOrWhiteSpace(relativeOrFullPath)) return "";
+        var clean = relativeOrFullPath.Replace('\\', '/');
+        if (!string.IsNullOrEmpty(AbsoluteWorkspacePath) && Path.IsPathRooted(clean))
+        {
+            try
+            {
+                var rel = Path.GetRelativePath(AbsoluteWorkspacePath, clean).Replace('\\', '/');
+                return rel == "." ? "" : rel;
+            }
+            catch
+            {
+                return clean;
+            }
+        }
+        return clean == "." ? "" : clean.TrimStart('/');
+    }
+
+    public ScanIssueNode RecordScanIssue(
+        string stage,
+        string category,
+        string? relativeOrFullPath,
+        string message,
+        string? name = null,
+        string severity = "warning",
+        int? startLine = null,
+        int? endLine = null,
+        int? startCol = null,
+        int? endCol = null,
+        Exception? exception = null,
+        string? language = null,
+        string? parentNodeId = null,
+        bool isFileParent = true,
+        bool logToConsole = true,
+        string? logTag = null)
+    {
+        var relPath = NormalizeRelativePath(relativeOrFullPath);
+        var wsId = string.IsNullOrEmpty(WorkspaceId) ? "ws" : WorkspaceId;
+        var linePart = startLine ?? 0;
+        var colPart = startCol ?? 0;
+        var issueName = !string.IsNullOrWhiteSpace(name) ? name : category;
+        var issueId = $"{wsId}:{Common.OntologyConstants.IdPrefixes.ScanIssue}:{relPath}:{stage}:{category}:{linePart}:{colPart}";
+
+        var issue = new ScanIssueNode(
+            Id: issueId,
+            Name: issueName,
+            Path: relPath,
+            Stage: stage,
+            Category: category,
+            Severity: severity,
+            Message: message,
+            StartLine: startLine,
+            EndLine: endLine,
+            StartCol: startCol,
+            EndCol: endCol,
+            ExceptionType: exception?.GetType().Name,
+            Language: language);
+
+        var resolvedParentId = parentNodeId;
+        if (string.IsNullOrEmpty(resolvedParentId))
+        {
+            resolvedParentId = isFileParent && !string.IsNullOrEmpty(relPath)
+                ? $"{wsId}:{Common.OntologyConstants.IdPrefixes.File}:{relPath}"
+                : $"{wsId}:{Common.OntologyConstants.IdPrefixes.FilesStructure}";
+        }
+
+        if (ScanIssues.TryAdd(issueId, (issue, resolvedParentId, isFileParent)))
+        {
+            IncrementNodeKind(Common.OntologyConstants.NodeLabels.ScanIssue);
+            if (logToConsole)
+            {
+                var tag = logTag ?? (stage switch
+                {
+                    "Layer1_Physical" => "[Layer 1    ]",
+                    "Layer2_Boundaries" => "[Layer 2    ]",
+                    "Layer3_Syntactic" or "Layer3_Visitor" => "[Layer 3    ]",
+                    "Layer4_Semantic" => "[Layer 4    ]",
+                    "Layer5_Global" => "[Layer 5    ]",
+                    _ => "[ScanIssue  ]"
+                });
+                var locSuffix = startLine.HasValue ? $":{startLine.Value}{(startCol.HasValue ? $":{startCol.Value}" : "")}" : "";
+                var logMsg = $"{tag} [{category}] '{relPath}{locSuffix}': {message}";
+                if (string.Equals(severity, "error", StringComparison.OrdinalIgnoreCase))
+                    LogError(logMsg, exception);
+                else
+                    LogWarning(logMsg, exception);
+            }
+        }
+
+        return issue;
+    }
+
+    public async Task FlushScanIssuesAsync()
+    {
+        if (DbClient == null || ScanIssues.IsEmpty) return;
+
+        var nodesToUpload = new List<Node>();
+        var relsToUpload = new List<Relationship>();
+
+        foreach (var (id, entry) in ScanIssues)
+        {
+            if (!_flushedScanIssueIds.TryAdd(id, 0)) continue;
+
+            nodesToUpload.Add(Node.FromNode(entry.Issue));
+            if (!string.IsNullOrEmpty(entry.ParentNodeId))
+            {
+                var containsRel = new Relationship(entry.ParentNodeId, entry.Issue.Id, Common.OntologyConstants.Relationships.Contains);
+                relsToUpload.Add(containsRel);
+                TreeRelationships.Add(containsRel);
+                if (entry.IsFileParent)
+                {
+                    var declaredInRel = new Relationship(entry.Issue.Id, entry.ParentNodeId, Common.OntologyConstants.Relationships.DeclaredIn);
+                    relsToUpload.Add(declaredInRel);
+                    TreeRelationships.Add(declaredInRel);
+                }
+            }
+        }
+
+        if (nodesToUpload.Count > 0)
+        {
+            AddNodesCount(nodesToUpload.Count);
+            await EnqueueUploadNodesAsync(nodesToUpload).ConfigureAwait(false);
+        }
+        if (relsToUpload.Count > 0)
+        {
+            AddRelsCount(relsToUpload.Count);
+            await EnqueueUploadRelationshipsAsync(relsToUpload).ConfigureAwait(false);
+        }
     }
 }

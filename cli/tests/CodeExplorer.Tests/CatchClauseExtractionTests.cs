@@ -204,4 +204,57 @@ public class CatchClauseExtractionTests
         catches[0].IsEmpty.Should().BeTrue();
         catches[0].HasComment.Should().BeTrue();
     }
+
+    [Test]
+    public async Task SyntaxError_InSourceFile_RecordsScanIssueNodeAndAttachesToFileNode()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_scan_issue_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var brokenCode = "export class BrokenService { public run( { const x = ; } }";
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "package.json"), "{\"name\":\"test-pkg\"}");
+            var filePath = Path.Combine(tempDir, "broken.service.ts");
+            await File.WriteAllTextAsync(filePath, brokenCode);
+            var dbClient = new InMemoryGraphClient();
+            var indexer = new WorkspaceIndexer(dbClient);
+            var (nodesCount, _, nodesByKind) = await indexer.IndexAsync(tempDir, clear: true);
+
+            nodesCount.Should().BeGreaterThan(0);
+            nodesByKind.Should().ContainKey(OntologyConstants.NodeLabels.ScanIssue);
+            nodesByKind[OntologyConstants.NodeLabels.ScanIssue].Should().BeGreaterThan(0);
+
+            var issueNodes = dbClient.UploadedNodes.Where(n => n.Kind == OntologyConstants.NodeLabels.ScanIssue).ToList();
+            issueNodes.Should().NotBeEmpty();
+            issueNodes[0].Properties["category"].ToString().Should().Be("syntax_error");
+            issueNodes[0].Properties["stage"].ToString().Should().Be("Layer3_Syntactic");
+            issueNodes[0].Properties["path"].ToString().Should().EndWith("broken.service.ts");
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    private static async Task UnusedCleanup()
+    {
+        var code = """
+            public class Worker
+            {
+                public void Run()
+                {
+                    try { DoSomething(); }
+                    catch (Exception)
+                    {
+                        /* ignored */
+                    }
+                }
+            }
+            """;
+
+        var catches = await ExtractCsCatchClausesAsync(code);
+        catches.Should().HaveCount(1);
+        catches[0].IsEmpty.Should().BeTrue();
+        catches[0].HasComment.Should().BeTrue();
+    }
 }

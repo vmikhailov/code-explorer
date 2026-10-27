@@ -19,6 +19,7 @@ graph TD
         FilesStructure["FilesStructure"]
         Folder["Folder"]
         GitSettings["GitSettings"]
+        ScanIssue["ScanIssue"]
     end
 
     subgraph Layer2 ["Layer 2: Project Structure"]
@@ -128,11 +129,14 @@ graph TD
     EntryPoint -->|BELONGS_TO| Project
     ExternalService -->|CALLS_ENDPOINT| Endpoint
     ExternalService -->|CALLED_BY| Function
+    File -->|CONTAINS| ScanIssue
     FilesStructure -->|CONTAINS| Folder
     FilesStructure -->|CONTAINS| File
+    FilesStructure -->|CONTAINS| ScanIssue
     Folder -->|CONTAINS| Folder
     Folder -->|CONTAINS| File
     Folder -->|CONTAINS| GitSettings
+    Folder -->|CONTAINS| ScanIssue
     Function -->|DECLARED_IN| File
     Function -->|CALLS| Function
     Function -->|USES_TYPE| Type
@@ -179,6 +183,7 @@ graph TD
     Query -->|DEPENDS_ON| Table
     Query -->|ACCESSED_BY| Function
     Query -->|ACCESSED_BY| Type
+    ScanIssue -->|DECLARED_IN| File
     SemanticStructure -->|CONTAINS| App
     SemanticStructure -->|CONTAINS| Service
     SemanticStructure -->|CONTAINS| Worker
@@ -318,6 +323,12 @@ graph TD
 
 > Represents a source code file containing parsable content.
 
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `CONTAINS` | `ScanIssue` |
+
 **Incoming edges** *(derived from other nodes' declarations)*:
 
 | From | Relationship |
@@ -330,6 +341,7 @@ graph TD
 | `Function` | `DECLARED_IN` |
 | `Member` | `DECLARED_IN` |
 | `Project` | `CONTAINS` |
+| `ScanIssue` | `DECLARED_IN` |
 | `Type` | `DECLARED_IN` |
 
 **Properties:**
@@ -356,6 +368,7 @@ graph TD
 | :--- | :--- |
 | `CONTAINS` | `Folder` |
 | `CONTAINS` | `File` |
+| `CONTAINS` | `ScanIssue` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -383,6 +396,7 @@ graph TD
 | `CONTAINS` | `Folder` |
 | `CONTAINS` | `File` |
 | `CONTAINS` | `GitSettings` |
+| `CONTAINS` | `ScanIssue` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
 
@@ -427,6 +441,43 @@ graph TD
 | `UserName` | `string` | The git user name. |
 | `UserEmail` | `string` | The git user email address. |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
+
+---
+
+#### `ScanIssue`
+
+> Represents a file scanning, manifest, or AST parsing issue encountered during indexing so affected files can be inspected or reparsed.
+
+**Outbound edges:**
+
+| Relationship | To |
+| :--- | :--- |
+| `DECLARED_IN` | `File` |
+
+**Incoming edges** *(derived from other nodes' declarations)*:
+
+| From | Relationship |
+| :--- | :--- |
+| `File` | `CONTAINS` |
+| `FilesStructure` | `CONTAINS` |
+| `Folder` | `CONTAINS` |
+
+**Properties:**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `Name` | `string` | The short summary or title of the scanning/parsing issue. |
+| `Path` | `string` | The relative path of the file or folder where the issue occurred. |
+| `Stage` | `string` | The indexing pipeline stage where the issue occurred (e.g. Layer1_Physical, Layer2_Boundaries, Layer3_Syntactic, Layer3_Visitor, Layer4_Semantic, Layer5_Global). |
+| `Category` | `string` | The issue category (e.g. syntax_error, parse_exception, visitor_exception, manifest_error, io_error, reference_error). |
+| `Severity` | `string` | The severity of the issue (error or warning). |
+| `Message` | `string` | The detailed error message or syntax snippet. |
+| `StartLine` | `int?` | The 1-based starting line number of the issue, if known. |
+| `EndLine` | `int?` | The 1-based ending line number of the issue, if known. |
+| `StartCol` | `int?` | The 1-based starting column number of the issue, if known. |
+| `EndCol` | `int?` | The 1-based ending column number of the issue, if known. |
+| `ExceptionType` | `string?` | The CLR exception type name if thrown. |
+| `Language` | `string?` | The parser or language associated with the file. |
 
 ---
 
@@ -1623,6 +1674,7 @@ graph TD
 | Layer 1: File Structure | `FilesStructure` | `{workspaceId}:fs` |
 | Layer 1: File Structure | `Folder` | `{workspaceId}:dir:{relativeDirectoryPath}` |
 | Layer 1: File Structure | `GitSettings` | `{workspaceId}:git` |
+| Layer 1: File Structure | `ScanIssue` | `{workspaceId}:issue:{relativeFilePath}:{stage}:{line}:{col}` |
 | Layer 2: Project Structure | `EntryPoint` | `{workspaceId}:entry:{entryType}:{name}` |
 | Layer 2: Project Structure | `Package` | `{workspaceId}:pkg:{ecosystem}:{packageName}` |
 | Layer 2: Project Structure | `Project` | `{workspaceId}:p:{relativeProjectDir}:` |

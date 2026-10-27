@@ -89,6 +89,10 @@ public class IdentifierSearchEngine
             );
             DELETE FROM identifier_index;
             DELETE FROM identifier_fts;
+            DROP INDEX IF EXISTS idx_ididx_name;
+            DROP INDEX IF EXISTS idx_ididx_fullname;
+            DROP INDEX IF EXISTS idx_ididx_kind;
+            DELETE FROM identifier_fts;
             """;
         await initCmd.ExecuteNonQueryAsync(ct);
 
@@ -96,7 +100,10 @@ public class IdentifierSearchEngine
         // Use correlated subquery for owner_name to ensure SQLite uses primary key index lookup on nodes(id)
         // rather than full table scanning nodes across tens/hundreds of thousands of candidate rows.
         var candidateQuery = """
-            SELECT n.id, n.kind, json(n.properties) AS properties,
+            SELECT n.id, n.kind,
+                   COALESCE(json_extract(n.properties, '$.name'), json_extract(n.properties, '$.route_template'), json_extract(n.properties, '$.symbol'), n.id) AS name,
+                   COALESCE(json_extract(n.properties, '$.path'), json_extract(n.properties, '$.file_path')) AS path,
+                   COALESCE(CAST(json_extract(n.properties, '$.start_line') AS INTEGER), 0) AS start_line,
                    (SELECT json_extract(o.properties, '$.name') FROM nodes o WHERE o.id = e.from_id AND o.kind = 'Type') as owner_name
             FROM nodes n
             LEFT JOIN edges e ON (e.to_id = n.id AND e.kind IN ('HAS_METHOD', 'HAS_MEMBER'))
@@ -107,14 +114,21 @@ public class IdentifierSearchEngine
         selectCmd.CommandText = candidateQuery;
         await using var reader = await selectCmd.ExecuteReaderAsync(ct);
 
-        var entries = new List<(string NodeId, string Name, string FullName, string Kind, string? Path, int StartLine, byte[] Embedding)>();
+        var rawRows = new List<(string NodeId, string Name, string FullName, string Kind, string? Path, int StartLine)>();
 
         while (await reader.ReadAsync(ct))
         {
             var id = reader.GetString(0);
             var kind = reader.GetString(1);
-            var propsJson = reader.GetString(2);
-            var ownerName = reader.IsDBNull(3) ? null : reader.GetString(3);
+            var name = reader.IsDBNull(2) ? id : reader.GetString(2);
+            var path = reader.IsDBNull(3) ? null : reader.GetString(3);
+            var startLine = reader.IsDBNull(4) ? 0 : reader.GetInt32(4);
+            var ownerName = reader.IsDBNull(5) ? null : reader.GetString(5);
+            var fullName = !string.IsNullOrEmpty(ownerName) && !name.Contains('.') ? $"{ownerName}.{name}" : name;
+            rawRows.Add((id, name, fullName, kind, path, startLine));
+            if (false)
+            {
+            /*
 
             string name = id;
             string? path = null;
@@ -145,9 +159,18 @@ public class IdentifierSearchEngine
             // Combine name, full name, and path for vector representation
             var textToEmbed = $"{fullName} {name} {path ?? ""}";
             var vec = IdentifierVectorEncoder.Encode(textToEmbed);
-            var bytes = IdentifierVectorEncoder.ToBytes(vec);
+            */
 
-            entries.Add((id, name, fullName, kind, path, startLine, bytes));
+            }
+        }
+        var entries = new (string NodeId, string Name, string FullName, string Kind, string? Path, int StartLine, byte[] Embedding)[rawRows.Count];
+        Parallel.For(0, rawRows.Count, i =>
+        {
+            var r = rawRows[i];
+            var vec = IdentifierVectorEncoder.Encode($"{r.FullName} {r.Name} {r.Path ?? ""}");
+            entries[i] = (r.NodeId, r.Name, r.FullName, r.Kind, r.Path, r.StartLine, IdentifierVectorEncoder.ToBytes(vec));
+        });
+        {
         }
 
         // Batch insert into identifier_index using a single prepared statement
@@ -186,12 +209,15 @@ public class IdentifierSearchEngine
             INSERT INTO identifier_fts (name, full_name, path, node_id, kind)
             SELECT name, full_name, coalesce(path, ''), node_id, kind
             FROM identifier_index;
+            CREATE INDEX IF NOT EXISTS idx_ididx_name ON identifier_index(name);
+            CREATE INDEX IF NOT EXISTS idx_ididx_fullname ON identifier_index(full_name);
+            CREATE INDEX IF NOT EXISTS idx_ididx_kind ON identifier_index(kind);
             """;
         await ftsCmd.ExecuteNonQueryAsync(ct);
 
         await tx.CommitAsync(ct);
         sw.Stop();
-        _logger.LogDebug("[Database   ] Indexed {Count} identifiers into vector/trigram index in {ElapsedMs:F1}ms", entries.Count, sw.Elapsed.TotalMilliseconds);
+        _logger.LogDebug("[Database   ] Indexed {Count} identifiers into vector/trigram index in {ElapsedMs:F1}ms", entries.Length, sw.Elapsed.TotalMilliseconds);
     }
 
     public async Task<IReadOnlyList<IdentifierMatch>> SearchAsync(

@@ -46,7 +46,7 @@ public partial class Layer5AnalysisParser
         if (belongsToRels.Count > 0)
         {
             ctx.LogDebug($"[Layer 5    ] Uploading {belongsToRels.Count} project containment (BelongsTo) relationships...");
-            await ctx.DbClient.UploadRelationshipsAsync(belongsToRels);
+            await ctx.EnqueueUploadRelationshipsAsync(belongsToRels);
             ctx.TotalRelsCount += belongsToRels.Count;
         }
 
@@ -60,6 +60,7 @@ public partial class Layer5AnalysisParser
         var lateBoundRels = await PerformLateBindingAsync(l4Result, ctx, referenceRelationships);
 
         // 5. Run PostIndexAnalyzer
+        await ctx.FlushScanIssuesAsync();
         var postAnalyzer = new PostIndexAnalyzer(ctx.DbClient);
         if (ctx.IsSubtreeScan)
         {
@@ -92,7 +93,7 @@ public partial class Layer5AnalysisParser
         {
             ctx.Log(
                 $"[Layer 5    ] Uploading {ctx.GlobalProjectDependencies.Count} local project dependency relationships...");
-            await ctx.DbClient.UploadRelationshipsAsync(ctx.GlobalProjectDependencies);
+            await ctx.EnqueueUploadRelationshipsAsync(ctx.GlobalProjectDependencies);
             ctx.TotalRelsCount += ctx.GlobalProjectDependencies.Count;
         }
     }
@@ -162,7 +163,7 @@ public partial class Layer5AnalysisParser
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                ctx.LogDebug($"[Layer 5    ] Failed to resolve reference '{refItem.TargetName}': {ex.Message}");
+                ctx.RecordScanIssue("Layer5_Global", "reference_error", refItem.ScopeSymbolId, $"Failed to resolve reference '{refItem.TargetName}': {ex.Message}", name: "ReferenceResolutionError", exception: ex, isFileParent: false);
             }
         }
         
@@ -171,14 +172,14 @@ public partial class Layer5AnalysisParser
         if (newTopicNodes.Count > 0)
         {
             var nodes = newTopicNodes.Select(Node.FromNode).ToList();
-            await ctx.DbClient.UploadNodesAsync(nodes);
+            await ctx.EnqueueUploadNodesAsync(nodes);
             ctx.AddNodesCount(nodes.Count);
         }
 
         if (referenceRelationships.Count > 0)
         {
             ctx.LogDebug($"[Layer 5    ] Uploading {referenceRelationships.Count} resolved reference relationships...");
-            await ctx.DbClient.UploadRelationshipsAsync(referenceRelationships);
+            await ctx.EnqueueUploadRelationshipsAsync(referenceRelationships);
             ctx.TotalRelsCount += referenceRelationships.Count;
         }
 
@@ -576,7 +577,7 @@ public partial class Layer5AnalysisParser
         if (lateBoundRels.Count > 0)
         {
             ctx.LogDebug($"[Layer 5    ] Uploading {lateBoundRels.Count} late-bound relationships...");
-            await ctx.DbClient.UploadRelationshipsAsync(lateBoundRels);
+            await ctx.EnqueueUploadRelationshipsAsync(lateBoundRels);
             ctx.TotalRelsCount += lateBoundRels.Count;
         }
 

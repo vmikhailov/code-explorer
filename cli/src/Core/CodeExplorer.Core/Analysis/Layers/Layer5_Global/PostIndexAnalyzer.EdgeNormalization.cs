@@ -753,6 +753,13 @@ public partial class PostIndexAnalyzer
     {
         // When both modern :p: project nodes and legacy :project: / :project_semantic / :project_syntax nodes exist,
         // purge the legacy duplicates and their connected edges.
+        if (db is SqliteGraphClient sqliteClient)
+        {
+            await using var checkCmd = sqliteClient.Connection.CreateCommand();
+            checkCmd.CommandText = "SELECT 1 FROM nodes WHERE kind IN ('Project', 'ProjectSemantic', 'ProjectSyntax') AND (id LIKE '%:project:%' OR id LIKE '%:project') LIMIT 1;";
+            var hasLegacy = await checkCmd.ExecuteScalarAsync(cancellationToken);
+            if (hasLegacy == null || hasLegacy == DBNull.Value) return;
+        }
         await db.ExecuteWriteAsync("""
             DELETE FROM edges WHERE from_id IN (
                 SELECT p1.id FROM nodes p1

@@ -730,7 +730,25 @@ public partial class SqliteGraphClient
                                    snapshot_json = coalesce(excluded.snapshot_json, file_registry.snapshot_json);
                                """;
 
-            await _conn.ExecuteAsync(new CommandDefinition(sql, entryList, transaction: tx, cancellationToken: cancellationToken));
+            await using var cmd = _conn.CreateCommand();
+            cmd.Transaction = (SqliteTransaction)tx;
+            cmd.CommandText = sql;
+            var pRel = cmd.Parameters.Add("@relPath", SqliteType.Text);
+            var pHash = cmd.Parameters.Add("@hash", SqliteType.Text);
+            var pMod = cmd.Parameters.Add("@lastMod", SqliteType.Text);
+            var pProj = cmd.Parameters.Add("@projPath", SqliteType.Text);
+            var pSnap = cmd.Parameters.Add("@snapshotJson", SqliteType.Text);
+            cmd.Prepare();
+
+            foreach (var item in entryList)
+            {
+                pRel.Value = item.relPath;
+                pHash.Value = item.hash;
+                pMod.Value = item.lastMod;
+                pProj.Value = item.projPath;
+                pSnap.Value = (object?)item.snapshotJson ?? DBNull.Value;
+                cmd.ExecuteNonQuery();
+            }
             await tx.CommitAsync(cancellationToken);
         }
         finally

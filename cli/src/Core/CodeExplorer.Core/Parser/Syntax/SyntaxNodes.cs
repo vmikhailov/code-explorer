@@ -7,6 +7,13 @@ namespace CodeExplorer.Core.Parser.Syntax;
 /// </summary>
 public readonly record struct SyntaxPoint(int Row, int Column);
 
+public sealed record SyntaxDiagnostic(
+    string Kind,
+    string Message,
+    TextSpan Span,
+    string? ParentGrammarKind = null
+);
+
 /// <summary>
 /// Represents an exact character/byte span and 0-based line/column range in a <see cref="SyntaxDocument"/>.
 /// </summary>
@@ -406,6 +413,7 @@ public sealed class SyntaxDocument : SyntaxNode, IDisposable
     public IReadOnlyList<VariableDeclSyntax> AllVariables { get; set; } = [];
     public IReadOnlyList<CallExprSyntax> AllCalls { get; set; } = [];
     public IReadOnlyList<SqlStmtSyntax> AllSqlStatements { get; set; } = [];
+    public IReadOnlyList<SyntaxDiagnostic> Diagnostics { get; set; } = [];
 
     private Dictionary<string, FunctionDeclSyntax>? _functionsByName;
 

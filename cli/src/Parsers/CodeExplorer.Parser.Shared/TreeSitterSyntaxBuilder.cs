@@ -109,6 +109,7 @@ public abstract class TreeSitterSyntaxConverterBase
         var imports = new List<ImportDeclSyntax>();
         var declarations = new List<DeclarationSyntax>();
         var topStatements = new List<StatementSyntax>();
+        var diagnostics = new List<SyntaxDiagnostic>();
 
         SyntaxNode ConvertNode(Node tsNode, SyntaxNode parent, string? fieldRole)
         {
@@ -122,6 +123,20 @@ public abstract class TreeSitterSyntaxConverterBase
                 tsNode.EndPosition.Column
             );
             var rawKind = tsNode.Type;
+            if (rawKind == "ERROR" && parent.RawGrammarKind != "ERROR" && diagnostics.Count < 10)
+            {
+                var snippet = doc.GetText(span.StartByte, Math.Min(span.EndByte, span.StartByte + 80))
+                    .Replace('\r', ' ')
+                    .Replace('\n', ' ')
+                    .Trim();
+                diagnostics.Add(new SyntaxDiagnostic(
+                    "syntax_error",
+                    string.IsNullOrEmpty(snippet)
+                        ? $"Syntax error in {parent.RawGrammarKind}"
+                        : $"Syntax error in {parent.RawGrammarKind} near '{snippet}'",
+                    span,
+                    parent.RawGrammarKind));
+            }
             var isNamed = tsNode.IsNamed;
 
             SyntaxNode syntaxNode = isNamed
@@ -206,6 +221,7 @@ public abstract class TreeSitterSyntaxConverterBase
         doc.Imports = imports;
         doc.Declarations = declarations;
         doc.TopLevelStatements = topStatements;
+        doc.Diagnostics = diagnostics;
         doc.AllTypes = allTypes;
         doc.AllFunctions = allFunctions;
         doc.AllMembers = allMembers;

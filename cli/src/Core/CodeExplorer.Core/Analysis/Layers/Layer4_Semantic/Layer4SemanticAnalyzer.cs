@@ -558,7 +558,7 @@ public class Layer4SemanticParser
         if (semanticRelationships.Count > 0)
         {
             ctx.Log($"[Layer 4    ] Uploading {semanticRelationships.Count} semantic relationships...");
-            await ctx.DbClient.UploadRelationshipsAsync(semanticRelationships);
+            await ctx.EnqueueUploadRelationshipsAsync(semanticRelationships);
             ctx.TotalRelsCount += semanticRelationships.Count;
         }
 

@@ -275,6 +275,13 @@ public class WorkspaceIndexer
         await _dbClient.CreateIndicesAsync();
         ctx.ReportProgress(99, "Finalizing", "Invalidating view cache...", syntaxTrees.Count, indexedFiles.Count);
         Analysis.ArchitectureViewEngine.InvalidateCache();
+        if (!ctx.ScanIssues.IsEmpty)
+        {
+            var issuesList = ctx.ScanIssues.Values.Select(v => v.Issue).ToList();
+            var syntaxErrCount = issuesList.Count(i => i.Category == "syntax_error");
+            var otherErrCount = issuesList.Count - syntaxErrCount;
+            ctx.LogWarning($"[Indexer    ] Recorded {issuesList.Count} scan/parse issue(s) in graph ({syntaxErrCount} syntax error(s), {otherErrCount} runtime/manifest issue(s)). Query via: MATCH (i:ScanIssue) RETURN i");
+        }
     }
 
 
@@ -653,8 +660,10 @@ public class WorkspaceIndexer
     private static void CollectSymbols(
         IOntologyNode node,
         List<CodeExplorer.Common.Reference> references,
-        Dictionary<string, Incremental.SymbolFootprint> symbols)
+        Dictionary<string, Incremental.SymbolFootprint> symbols,
+        ILookup<string, CodeExplorer.Common.Reference>? refsByScope = null)
     {
+        refsByScope ??= references.ToLookup(r => r.ScopeSymbolId ?? string.Empty, StringComparer.Ordinal);
         foreach (var child in node.Children)
         {
             var (name, startLine, endLine, startCol, endCol) = child switch
@@ -665,7 +674,7 @@ public class WorkspaceIndexer
                 _ => (child.Id, 0, 0, 0, 0)
             };
 
-            var symbolRefs = child.References.Concat(references.Where(r => r.ScopeSymbolId == child.Id));
+            var symbolRefs = child.References.Concat(refsByScope[child.Id]);
 
             var calls = symbolRefs
                 .Where(r => r.Kind.Contains("CALL", StringComparison.OrdinalIgnoreCase))
@@ -701,7 +710,7 @@ public class WorkspaceIndexer
 
             if (child.Children.Count > 0)
             {
-                CollectSymbols(child, references, symbols);
+                CollectSymbols(child, references, symbols, refsByScope);
             }
         }
     }
