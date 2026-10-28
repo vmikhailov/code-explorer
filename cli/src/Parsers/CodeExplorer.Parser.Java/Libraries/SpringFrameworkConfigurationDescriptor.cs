@@ -1,6 +1,5 @@
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Database;
-using CodeExplorer.Core.Parser;
 
 namespace CodeExplorer.Parser.Java.Libraries;
 

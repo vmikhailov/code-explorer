@@ -1,5 +1,4 @@
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using NUnit.Framework;
 

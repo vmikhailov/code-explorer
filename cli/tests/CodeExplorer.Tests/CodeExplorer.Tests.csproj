@@ -10,6 +10,10 @@
 
   <ItemGroup>
     <Using Include="AwesomeAssertions" />
+    <Using Include="CodeExplorer.Core.Database" />
+    <Using Include="CodeExplorer.Core.Mcp" />
+    <Using Include="CodeExplorer.Core.Gates" />
+    <Using Include="CodeExplorer.Server" />
   </ItemGroup>
 
   <ItemGroup>
@@ -21,6 +25,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Core\CodeExplorer.Core\CodeExplorer.Core.csproj" />
+    <ProjectReference Include="..\..\src\Core\CodeExplorer.Gates\CodeExplorer.Gates.csproj" />
+    <ProjectReference Include="..\..\src\Core\CodeExplorer.Analysis\CodeExplorer.Analysis.csproj" />
+    <ProjectReference Include="..\..\src\Server\CodeExplorer.Server\CodeExplorer.Server.csproj" />
     <ProjectReference Include="..\..\src\UI\CodeExplorer\CodeExplorer.csproj" />
     <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parser.Kotlin\CodeExplorer.Parser.Kotlin.csproj" />
     <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parser.Android\CodeExplorer.Parser.Android.csproj" />

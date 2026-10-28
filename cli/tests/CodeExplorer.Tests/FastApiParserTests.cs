@@ -1,7 +1,6 @@
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Parser.Python.Components;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.Python;

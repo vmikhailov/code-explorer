@@ -7,7 +7,6 @@ using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Nodes.Layer5_Logical;
-using CodeExplorer.Core.Database;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -25,7 +24,7 @@ public class NodeFactoryTests
     private static Dictionary<string, object> LegacyFromNode(IOntologyNode node)
     {
         var json = JsonSerializer.Serialize(node, node.GetType(), LegacySerializerOptions);
-        var rawProperties = JsonSerializer.Deserialize<Dictionary<string, object>>(json, LegacySerializerOptions) 
+        var rawProperties = JsonSerializer.Deserialize<Dictionary<string, object>>(json, LegacySerializerOptions)
             ?? new Dictionary<string, object>();
 
         var properties = new Dictionary<string, object>();

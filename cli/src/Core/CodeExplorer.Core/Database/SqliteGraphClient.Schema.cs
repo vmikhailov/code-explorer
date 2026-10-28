@@ -318,7 +318,7 @@ public partial class SqliteGraphClient
                 throw;
             }
 
-            Analysis.ArchitectureViewEngine.InvalidateCache();
+            WorkspaceIndexer.OnIndexCompletedHook?.Invoke();
         }
         finally
         {
@@ -463,7 +463,7 @@ public partial class SqliteGraphClient
             throw;
         }
 
-        Analysis.ArchitectureViewEngine.InvalidateCache();
+        WorkspaceIndexer.OnIndexCompletedHook?.Invoke();
     }
 
     private async Task<bool> DeleteSubpathHierarchyAsync(string absPath, string? relPath, string? wsId = null)
@@ -630,7 +630,7 @@ public partial class SqliteGraphClient
             }
 
             tx.Commit();
-            Analysis.ArchitectureViewEngine.InvalidateCache();
+            WorkspaceIndexer.OnIndexCompletedHook?.Invoke();
             return true;
         }
         catch
@@ -699,7 +699,7 @@ public partial class SqliteGraphClient
         }
 
         await _conn.ExecuteAsync("DELETE FROM file_registry;");
-        Analysis.ArchitectureViewEngine.InvalidateCache();
+        WorkspaceIndexer.OnIndexCompletedHook?.Invoke();
     }
 
     public async Task RunIncrementalVacuumAsync(int pages = 500, CancellationToken cancellationToken = default)

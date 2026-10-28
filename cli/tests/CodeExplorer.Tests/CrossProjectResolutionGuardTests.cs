@@ -1,8 +1,4 @@
 using System.Threading.Channels;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Analysis;
-using CodeExplorer.Core.Database;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using NUnit.Framework;
 

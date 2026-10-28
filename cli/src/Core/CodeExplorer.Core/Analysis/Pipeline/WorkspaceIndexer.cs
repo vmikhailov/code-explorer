@@ -15,9 +15,11 @@ public class WorkspaceIndexer
 {
     static WorkspaceIndexer()
     {
-        Layer3SyntacticParser.SemanticPostProcessor = (tree, ctx) =>
-            Analysis.Layers.Layer4_Semantic.Analyzers.EndpointSemanticAnalyzer.Enrich(tree, null, ctx);
+        Layer3SyntacticParser.SemanticPostProcessor ??= (_, _) => { };
     }
+
+    public static Func<Layer3Result, ParsingContext, Task>? PostSyntacticPipelineHook { get; set; }
+    public static Action? OnIndexCompletedHook { get; set; }
 
     internal static readonly List<IProjectParser> _projectParsers = [];
     internal static readonly List<IFileParser> _fileParsers = [];
@@ -260,10 +262,10 @@ public class WorkspaceIndexer
             syntaxTrees = l3.SyntaxTrees;
             ctx.ReportProgress(52, "Layer 4: Semantic", $"Parsed {syntaxTrees.Count} syntax trees. Analyzing semantics...", syntaxTrees.Count, indexedFiles.Count);
 
-            var l4 = await new Layer4SemanticParser().ParseAsync(l3, ctx);
+            if (PostSyntacticPipelineHook != null) await PostSyntacticPipelineHook(l3, ctx);
             ctx.ReportProgress(68, "Layer 5: Global", "Semantic enrichment complete. Resolving global references...", syntaxTrees.Count, indexedFiles.Count);
 
-            await new Layer5AnalysisParser().ParseAsync(l4, ctx);
+            
             ctx.ReportProgress(86, "Finalizing", "Post-indexing analysis pass complete.", syntaxTrees.Count, indexedFiles.Count);
         }
 
@@ -274,7 +276,7 @@ public class WorkspaceIndexer
         await _dbClient.SetSchemaVersionAsync(IGraphClient.CurrentSchemaVersion);
         await _dbClient.CreateIndicesAsync();
         ctx.ReportProgress(99, "Finalizing", "Invalidating view cache...", syntaxTrees.Count, indexedFiles.Count);
-        Analysis.ArchitectureViewEngine.InvalidateCache();
+        OnIndexCompletedHook?.Invoke();
         if (!ctx.ScanIssues.IsEmpty)
         {
             var issuesList = ctx.ScanIssues.Values.Select(v => v.Issue).ToList();

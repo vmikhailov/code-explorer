@@ -1,5 +1,3 @@
-using CodeExplorer.Common;
-
 namespace CodeExplorer.Core.Parser.Syntax;
 
 /// <summary>

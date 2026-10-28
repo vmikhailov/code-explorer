@@ -1,5 +1,4 @@
 using System.Reflection;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Parser.Script;
 using NUnit.Framework;
 

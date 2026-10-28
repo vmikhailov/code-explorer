@@ -1,5 +1,4 @@
 using System.Xml.Linq;
-using CodeExplorer.Core.Parser;
 
 namespace CodeExplorer.Parser.CSharp;
 

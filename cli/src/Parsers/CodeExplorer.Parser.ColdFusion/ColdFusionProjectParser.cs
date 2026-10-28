@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Parser;
 
 [assembly: ParserAssembly]
 

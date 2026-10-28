@@ -1,7 +1,6 @@
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Cypher.Ast;
-using CodeExplorer.Cypher.Linq;
 
 namespace CodeExplorer.Core.Database;
 

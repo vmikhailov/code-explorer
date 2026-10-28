@@ -1,7 +1,4 @@
 using System.Text.Json;
-using CodeExplorer.Core.Analysis;
-using CodeExplorer.Core.Database;
-using CodeExplorer.Core.Mcp;
 using CodeExplorer.Options;
 
 namespace CodeExplorer.Commands;

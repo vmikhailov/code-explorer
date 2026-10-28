@@ -1,6 +1,4 @@
 using System.Diagnostics;
-using CodeExplorer.Core.Database;
-using CodeExplorer.Core.Mcp;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests.Benchmarks;

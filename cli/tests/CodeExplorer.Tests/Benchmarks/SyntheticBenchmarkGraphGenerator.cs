@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Text;
-using CodeExplorer.Core.Database;
 using Microsoft.Data.Sqlite;
 
 namespace CodeExplorer.Tests.Benchmarks;

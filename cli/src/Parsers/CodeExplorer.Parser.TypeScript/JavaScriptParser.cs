@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Syntax;
 
 namespace CodeExplorer.Parser.TypeScript;

@@ -1,6 +1,4 @@
 using System.Threading.Channels;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
@@ -264,7 +262,7 @@ public class ParsingContext
             tcs.SetResult();
             return Task.CompletedTask;
         }, CancellationToken).ConfigureAwait(false);
-        
+
         await tcs.Task;
         FlushPersistenceProgressReport();
 

@@ -1,4 +1,3 @@
-using CodeExplorer.Common;
 using CodeExplorer.Core.Parser.Syntax;
 
 namespace CodeExplorer.Core.Parser;

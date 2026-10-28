@@ -1,6 +1,5 @@
 using System.Text.Json;
 using CodeExplorer.Core.Analysis.Testing;
-using CodeExplorer.Core.Database;
 using CodeExplorer.Options;
 
 namespace CodeExplorer.Commands;

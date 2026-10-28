@@ -36,6 +36,10 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(MSBuildProjectName)' != 'CodeExplorer.Cypher' and '$(MSBuildProjectName)' != 'CodeExplorer.Cypher.Tests' and '$(MSBuildProjectName)' != 'OntologyGen' and !$(MSBuildProjectName.Contains('Sample'))">
+    <Using Include="CodeExplorer.Common" />
     <Using Include="CodeExplorer.Core.Common" />
+    <Using Include="CodeExplorer.Core.Parser" />
+    <Using Include="CodeExplorer.Core.Analysis" />
+    <Using Include="CodeExplorer.Cypher.Linq" />
   </ItemGroup>
 </Project>

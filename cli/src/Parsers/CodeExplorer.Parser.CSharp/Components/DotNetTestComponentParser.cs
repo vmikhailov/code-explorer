@@ -1,6 +1,5 @@
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Components;
 
 namespace CodeExplorer.Parser.CSharp.Components;
@@ -65,7 +64,7 @@ public class DotNetTestComponentParser : IComponentLibraryParser
                 {
                     foreach (var attr in al.FindChildrenOfType(TreeSitterSyntax.CSharp.Attribute))
                     {
-                        var nameNode = attr.FindChildOfType(TreeSitterSyntax.Common.Identifier) 
+                        var nameNode = attr.FindChildOfType(TreeSitterSyntax.Common.Identifier)
                                        ?? attr.Children.FirstOrDefault(c => c.IsValid());
                         if (nameNode.IsValid() && TestAttributeNames.Contains(nameNode.Text))
                         {

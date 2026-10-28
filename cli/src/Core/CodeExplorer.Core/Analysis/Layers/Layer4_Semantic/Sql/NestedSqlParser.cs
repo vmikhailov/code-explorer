@@ -1,6 +1,4 @@
 using System.Text.RegularExpressions;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using Microsoft.SqlServer.TransactSql.ScriptDom;
 
@@ -428,7 +426,7 @@ public static class NestedSqlParser
         var clean = part.Trim().Trim('`', '"', '\'', '[', ']');
         if (ConstantRegistry.TryResolve(null, clean, out var resolved) &&
             !string.IsNullOrWhiteSpace(resolved) &&
-            PostIndexAnalyzer.IsValidTableIdentifier(resolved))
+            ResourceReconciliationService.IsValidTableIdentifier(resolved))
         {
             return resolved;
         }
@@ -493,7 +491,7 @@ public static class NestedSqlParser
 
                 if (cteNames.Contains(table)) continue;
                 if (IsSqlKeyword(table)) continue;
-                if (!PostIndexAnalyzer.IsValidTableIdentifier(table)) continue;
+                if (!ResourceReconciliationService.IsValidTableIdentifier(table)) continue;
                 if (!string.IsNullOrEmpty(schema) && !string.Equals(schema, "default", StringComparison.OrdinalIgnoreCase) && IsSqlKeyword(schema)) continue;
 
                 if (IsUnresolvedVariable(table, rawText) || IsUnresolvedVariable(schema, rawText) ||
@@ -572,7 +570,7 @@ public static class NestedSqlParser
 
             if (cteNames.Contains(tableName)) continue;
             if (IsSqlKeyword(tableName) || IsSqlKeyword(rawTableName)) continue;
-            if (!PostIndexAnalyzer.IsValidTableIdentifier(tableName)) continue;
+            if (!ResourceReconciliationService.IsValidTableIdentifier(tableName)) continue;
             if (!string.IsNullOrEmpty(schemaName) && !string.Equals(schemaName, "default", StringComparison.OrdinalIgnoreCase) && IsSqlKeyword(schemaName)) continue;
             if (IsUnresolvedVariable(tableName, rawText) || IsUnresolvedVariable(schemaName, rawText) || IsUnresolvedVariable(dbName, rawText)) continue;
             tables.Add((string.IsNullOrEmpty(dbName) ? null : dbName, string.IsNullOrEmpty(schemaName) ? null : schemaName, tableName));
@@ -737,7 +735,7 @@ public static class NestedSqlParser
             var isImplicitSchema = string.IsNullOrEmpty(tableRef.Schema) && string.IsNullOrEmpty(concreteDbName);
             var schemaName = !string.IsNullOrEmpty(tableRef.Schema) ? tableRef.Schema : defaultSchema;
             var tableName = tableRef.Table;
-            if (!PostIndexAnalyzer.IsValidTableIdentifier(tableName)) continue;
+            if (!ResourceReconciliationService.IsValidTableIdentifier(tableName)) continue;
 
             var fullDbName = !string.IsNullOrEmpty(concreteDbName)
                 ? concreteDbName

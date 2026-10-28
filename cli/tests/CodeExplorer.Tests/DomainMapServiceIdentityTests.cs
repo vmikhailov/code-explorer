@@ -1,5 +1,3 @@
-using CodeExplorer.Core.Analysis;
-using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Protocol;
 using NUnit.Framework;
 

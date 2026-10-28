@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Analysis;
 using CodeExplorer.Options;
 
 namespace CodeExplorer.Commands;

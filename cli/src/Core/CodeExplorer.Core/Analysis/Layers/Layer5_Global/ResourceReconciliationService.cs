@@ -31,7 +31,7 @@ public record DatabaseUsageRecord(
 /// discovered across configuration manifests, Docker Compose, environment files, and code.
 /// Eliminates duplicate database nodes and maps ORM/driver usages to single canonical resources.
 /// </summary>
-public class ResourceReconciliationService
+public partial class ResourceReconciliationService
 {
     private readonly ConcurrentDictionary<string, CanonicalResource> _resourcesById = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, string> _aliasToResourceId = new(StringComparer.OrdinalIgnoreCase);

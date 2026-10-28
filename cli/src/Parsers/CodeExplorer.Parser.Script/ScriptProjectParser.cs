@@ -1,5 +1,3 @@
-using CodeExplorer.Core.Parser;
-
 [assembly: ParserAssembly]
 
 namespace CodeExplorer.Parser.Script;

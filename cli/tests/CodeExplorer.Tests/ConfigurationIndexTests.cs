@@ -1,6 +1,5 @@
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using NUnit.Framework;
 

@@ -1,0 +1,481 @@
+using CodeExplorer.Core.Diagrams;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Logging;
+
+namespace CodeExplorer.Server;
+
+public static class ServerRouteBuilderExtensions
+{
+    public static IEndpointRouteBuilder MapCodeExplorerApi(
+        this IEndpointRouteBuilder endpoints,
+        string wsRoot,
+        WebSocketServerHandler wsHandler,
+        ILogger logger)
+    {
+        endpoints.Map("/ws", async context =>
+        {
+            if (context.WebSockets.IsWebSocketRequest)
+            {
+                using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+
+                await wsHandler.HandleConnectionAsync(webSocket, context.RequestAborted);
+            }
+            else
+            {
+                logger.LogWarning("[HTTP] Non-WebSocket request rejected at /ws");
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                await context.Response.WriteAsync("WebSocket connection expected at /ws");
+            }
+        });
+
+        endpoints.MapGet("/", () =>
+        {
+            logger.LogInformation("[REST] GET / (metadata)");
+            return Results.Ok(new
+            {
+                service = "CodeExplorer API Server",
+                version = AppVersionProvider.GetAppVersion(),
+                wsEndpoint = "/ws",
+                workspace = wsRoot
+            });
+        });
+
+        endpoints.MapGet("/api/status", async (IGraphClient graphClient) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] GET /api/status");
+                var nodeCountJson = await graphClient.ExecuteQueryAsync("MATCH (n) RETURN count(n) AS cnt");
+                var edgeCountJson = await graphClient.ExecuteQueryAsync("MATCH ()-[r]->() RETURN count(r) AS cnt");
+                return Results.Ok(new
+                {
+                    status = "ok",
+                    version = AppVersionProvider.GetAppVersion(),
+                    workspace = wsRoot,
+                    nodes = nodeCountJson,
+                    edges = edgeCountJson
+                });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/status");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapGet("/api/view", async (IArchitectureQueryService archQueryService, string? view, string? scope, bool? includeLibraries) =>
+        {
+            try
+            {
+                var viewType = (view?.ToLowerInvariant()) switch
+                {
+                    "serviceflow" or "flow" or "c2" => ArchitectureViewType.ServiceFlow,
+                    "component" or "c3" => ArchitectureViewType.Component,
+                    "projectmap" or "project-map" or "project" or "modules" => ArchitectureViewType.ProjectMap,
+                    "domain" or "domainmap" or "domain-map" => ArchitectureViewType.DomainMap,
+                    "contexts" or "boundedcontexts" or "contextmap" or "context-map" or "boundedcontext" or "bounded-context" => ArchitectureViewType.BoundedContexts,
+                    "tiers" or "tiered" => ArchitectureViewType.Tiers,
+                    _ => ArchitectureViewType.SystemContext
+                };
+                var graph = await archQueryService.GetViewAsync(new ArchitectureViewRequest
+                {
+                    ViewType = viewType,
+                    Scope = scope,
+                    IncludeLibraries = includeLibraries ?? (viewType is ArchitectureViewType.Tiers)
+                });
+                return Results.Ok(graph);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/view");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapGet("/api/ontology/bounded-contexts", async (IArchitectureQueryService archQueryService, CancellationToken ct) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] GET /api/ontology/bounded-contexts");
+                var bcMap = await archQueryService.GetBoundedContextMapAsync(ct: ct);
+                return Results.Ok(bcMap);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/ontology/bounded-contexts");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapGet("/api/ontology/layers", async (IArchitectureQueryService archQueryService, CancellationToken ct) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] GET /api/ontology/layers");
+                var layers = await archQueryService.GetOntologyLayersAsync(ct);
+                return Results.Ok(layers);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/ontology/layers");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapGet("/api/ontology/services", async (IArchitectureQueryService archQueryService, CancellationToken ct) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] GET /api/ontology/services");
+                var services = await archQueryService.GetServicesOntologySummaryAsync(ct);
+                return Results.Ok(services);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/ontology/services");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapGet("/api/ontology/services/{serviceName}", async (IArchitectureQueryService archQueryService, string serviceName, CancellationToken ct) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] GET /api/ontology/services/{ServiceName}", serviceName);
+                var details = await archQueryService.GetServiceCapabilitiesAsync(serviceName, ct);
+                return Results.Ok(details);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/ontology/services/{ServiceName}", serviceName);
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapGet("/api/domain/architecture", async (IArchitectureQueryService archQueryService, bool? includeLibraries, CancellationToken ct) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] GET /api/domain/architecture");
+                var domain = await archQueryService.GetDomainArchitectureAsync(includeLibraries ?? false, ct);
+                return Results.Ok(domain);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/domain/architecture");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapGet("/api/contracts/{service}", async (IArchitectureQueryService archQueryService, string service, string? direction, CancellationToken ct) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] GET /api/contracts/{Service}", service);
+                var contract = await archQueryService.GetServiceContractsAsync(service, direction ?? "all", ct);
+                return Results.Ok(contract);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/contracts/{Service}", service);
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapGet("/api/trace/flow", async (IArchitectureQueryService archQueryService, string service, string? entryPoint, int? maxDepth, CancellationToken ct) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] GET /api/trace/flow (service: {Service}, entryPoint: {EntryPoint})", service, entryPoint ?? "none");
+                var flow = await archQueryService.TraceCrossServiceFlowAsync(service, entryPoint, maxDepth ?? 3, ct);
+                return Results.Ok(flow);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/trace/flow");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapGet("/api/architecture", async (IArchitectureQueryService archQueryService, string? project, bool? includeLibraries) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] GET /api/architecture (project: {Project})", project ?? "all");
+                var graph = await archQueryService.GetArchitectureGraphAsync(project, includeLibraries ?? false);
+                return Results.Ok(graph);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/architecture");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapGet("/api/projects", async (IArchitectureQueryService archQueryService) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] GET /api/projects");
+                var projects = await archQueryService.GetAllProjectsAsync();
+                return Results.Ok(projects);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/projects");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapGet("/api/dependencies", async (IArchitectureQueryService archQueryService, string? project) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] GET /api/dependencies (project: {Project})", project ?? "default");
+                var graph = await archQueryService.GetProjectNeighborhoodAsync(project);
+                return Results.Ok(graph);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/dependencies");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapGet("/api/metadata", async (IArchitectureQueryService archQueryService) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] GET /api/metadata");
+                var metadata = await archQueryService.GetMetadataAsync();
+                return Results.Ok(metadata);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/metadata");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapGet("/api/nodes", async (IArchitectureQueryService archQueryService, string? kind, int? offset, int? limit, string? search, string? service, CancellationToken ct) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] GET /api/nodes (kind: {Kind}, service: {Service}, offset: {Offset}, limit: {Limit})", kind ?? "all", service ?? "all", offset ?? 0, limit ?? 50);
+                var nodes = await archQueryService.GetNodesAsync(kind, offset ?? 0, limit ?? 50, search, service, ct);
+                return Results.Ok(nodes);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/nodes");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapGet("/api/nodes/usages", async (IArchitectureQueryService archQueryService, string? id, CancellationToken ct) =>
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    return Results.BadRequest(new { error = "Query parameter 'id' is required." });
+                }
+                logger.LogInformation("[REST] GET /api/nodes/usages (id: {Id})", id);
+                var usages = await archQueryService.GetNodeUsagesAsync(id, ct);
+                return Results.Ok(usages);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/nodes/usages");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapGet("/api/database/evidence", async (IArchitectureQueryService archQueryService, string? id, string? service, CancellationToken ct) =>
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    return Results.BadRequest(new { error = "Query parameter 'id' is required." });
+                }
+                logger.LogInformation("[REST] GET /api/database/evidence (id: {Id}, service: {Service})", id, service);
+                var evidence = await archQueryService.GetDatabaseEvidenceAsync(id, service, ct);
+                return Results.Ok(evidence);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/database/evidence");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapGet("/api/architecture/edge-evidence", async (IArchitectureQueryService archQueryService, string? sourceId, string? targetId, string? kind, string[]? sourceIds, string[]? targetIds, CancellationToken ct) =>
+        {
+            try
+            {
+                var sources = (sourceIds ?? []).Append(sourceId).OfType<string>().Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().ToList();
+                var targets = (targetIds ?? []).Append(targetId).OfType<string>().Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().ToList();
+                if (sources.Count == 0 || targets.Count == 0)
+                {
+                    return Results.BadRequest(new { error = "'sourceId'/'sourceIds' and 'targetId'/'targetIds' are required." });
+                }
+                logger.LogInformation("[REST] GET /api/architecture/edge-evidence ({Sources} -> {Targets}, kind: {Kind})", sources.Count, targets.Count, kind);
+                var evidence = await archQueryService.GetEdgeEvidenceAsync(sources, targets, kind, ct);
+                return Results.Ok(evidence);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/architecture/edge-evidence");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapGet("/api/architecture/node-evidence", async (IArchitectureQueryService archQueryService, string? id, string? kind, string[]? ids, CancellationToken ct) =>
+        {
+            try
+            {
+                var nodeIds = (ids ?? []).Append(id).OfType<string>().Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().ToList();
+                if (nodeIds.Count == 0)
+                {
+                    return Results.BadRequest(new { error = "'id' or 'ids' is required." });
+                }
+                logger.LogInformation("[REST] GET /api/architecture/node-evidence ({Count} nodes, kind: {Kind})", nodeIds.Count, kind);
+                var evidence = await archQueryService.GetNodeEvidenceAsync(nodeIds, kind, ct);
+                return Results.Ok(evidence);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/architecture/node-evidence");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapGet("/api/diagram", async (IGraphClient graphClient, string? type, string? format, string? project, bool? includeLibraries, CancellationToken ct) =>
+        {
+            try
+            {
+                var diagramType = type ?? "architecture";
+                var diagramFormat = format ?? "mermaid";
+                logger.LogInformation("[REST] GET /api/diagram (type: {Type}, format: {Format}, project: {Project})", diagramType, diagramFormat, project ?? "all");
+                var diagram = await DiagramExporter.ExportAsync(graphClient, diagramFormat, diagramType, project, includeLibraries ?? false, ct);
+                return Results.Text(diagram, "text/plain");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/diagram");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapGet("/api/gates", async (string? gateId, bool? evaluate, CancellationToken ct) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] GET /api/gates (gateId: {GateId}, evaluate: {Evaluate})", gateId ?? "all", evaluate);
+                if (string.IsNullOrWhiteSpace(gateId) && (evaluate == false || (evaluate != true && !wsHandler.HasCachedGateSuite)))
+                {
+                    var definitions = await wsHandler.GetGateDefinitionsAsync(ct);
+                    return Results.Ok(definitions);
+                }
+
+                var summary = await wsHandler.EvaluateGatesSuiteAsync(gateId, ct, force: false);
+                return Results.Ok(summary);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/gates");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapPost("/api/gates/check", async (Core.Protocol.EvaluateGatesRequestDto? req, CancellationToken ct) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] POST /api/gates/check (gateId: {GateId})", req?.GateId ?? "all");
+                var summary = await wsHandler.EvaluateGatesSuiteAsync(req?.GateId, ct, force: true);
+                return Results.Ok(summary);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/gates/check");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapPost("/api/gates/ratchet", async (Core.Protocol.RatchetGatesRequestDto? req, CancellationToken ct) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] POST /api/gates/ratchet (gateId: {GateId}, updateAll: {UpdateAll})", req?.GateId ?? "all", req?.UpdateAll ?? false);
+                var result = await wsHandler.RatchetGatesSuiteAsync(req?.GateId, req?.UpdateAll ?? false, ct);
+                return Results.Ok(result);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/gates/ratchet");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapPost("/api/gates/init", async (Core.Protocol.InitGatesRequestDto? req, CancellationToken ct) =>
+        {
+            try
+            {
+                logger.LogInformation("[REST] POST /api/gates/init (overwrite: {Overwrite})", req?.Overwrite ?? false);
+                var result = await wsHandler.InitStarterGatesAsync(req?.Overwrite ?? false, ct);
+                return Results.Ok(result);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/gates/init");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapPost("/api/gates/save", async (Core.Protocol.SaveGateRequestDto? req, CancellationToken ct) =>
+        {
+            try
+            {
+                if (req?.Gate == null)
+                {
+                    return Results.BadRequest(new { error = "Request payload must include 'gate'." });
+                }
+
+                logger.LogInformation("[REST] POST /api/gates/save (gateId: {GateId})", req.Gate.Id);
+                var result = await wsHandler.SaveGateAsync(req.Gate, req.TargetPath, ct);
+                return Results.Ok(result);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/gates/save");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        endpoints.MapPost("/api/gates/test", async (Core.Protocol.TestGateRequestDto? req, CancellationToken ct) =>
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(req?.Query))
+                {
+                    return Results.BadRequest(new { error = "Request payload must include 'query'." });
+                }
+
+                logger.LogInformation("[REST] POST /api/gates/test (query length: {Len})", req.Query.Length);
+                var result = await wsHandler.TestGateQueryAsync(req.Query, req.GateId, req.Parameters, ct);
+                return Results.Ok(result);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[REST] Failed /api/gates/test");
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
+
+        return endpoints;
+    }
+}

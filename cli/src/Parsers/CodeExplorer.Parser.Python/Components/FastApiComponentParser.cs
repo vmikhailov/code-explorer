@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Components;
 
 namespace CodeExplorer.Parser.Python.Components;

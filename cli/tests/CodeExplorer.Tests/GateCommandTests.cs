@@ -1,6 +1,5 @@
 using System.Text.Json;
 using CodeExplorer.Commands;
-using CodeExplorer.Core.Database;
 using CodeExplorer.Options;
 using NUnit.Framework;
 

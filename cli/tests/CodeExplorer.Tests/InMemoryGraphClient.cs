@@ -1,5 +1,3 @@
-using CodeExplorer.Core.Database;
-
 namespace CodeExplorer.Tests;
 
 public class InMemoryGraphClient : IGraphClient

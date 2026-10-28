@@ -2,10 +2,8 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Analysis;
 using CodeExplorer.Cypher.Ast;
 using CodeExplorer.Cypher.Compiler;
-using CodeExplorer.Cypher.Linq;
 using CodeExplorer.Cypher.Parser;
 using Dapper;
 using Microsoft.Data.Sqlite;
@@ -160,7 +158,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             sw.Stop();
 
             _logger.LogDebug("[Database   ] Uploaded {Count} nodes in {ElapsedMs:F0}ms", nodes.Count, sw.Elapsed.TotalMilliseconds);
-            Analysis.ArchitectureViewEngine.InvalidateCache();
+            WorkspaceIndexer.OnIndexCompletedHook?.Invoke();
         }
         finally
         {
@@ -217,7 +215,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             sw.Stop();
 
             _logger.LogDebug("[Database   ] Uploaded {Count} relationships in {ElapsedMs:F0}ms", rels.Count, sw.Elapsed.TotalMilliseconds);
-            Analysis.ArchitectureViewEngine.InvalidateCache();
+            WorkspaceIndexer.OnIndexCompletedHook?.Invoke();
         }
         finally
         {

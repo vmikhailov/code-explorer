@@ -1,5 +1,3 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Parser.TypeScript.Libraries;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
