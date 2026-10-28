@@ -202,7 +202,7 @@ jobs:
           cd /tmp/homebrew-tap
 
           mkdir -p Formula
-          cat <<EOF | sed -e 's/^          //' > Formula/ce.rb
+          cat <<EOF | sed 's/^          //' > Formula/ce.rb
           class Ce < Formula
             desc "Codebase intelligence CLI and knowledge graph engine"
             homepage "https://github.com/vmikhailov/code-explorer"
