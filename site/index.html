@@ -1218,9 +1218,9 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
       </ul>
 
       <div class="slab-actions">
-        <a href="/go/releases" target="_blank" rel="noopener" class="btn measured" id="heroReleaseBadge">v1.59.1</a>
-        <a href="/go/github" target="_blank" rel="noopener" class="btn">GitHub</a>
-        <a href="/go/vscode" target="_blank" rel="noopener" class="btn btn--primary">Install for VS Code</a>
+        <a href="https://github.com/vmikhailov/code-explorer/releases" target="_blank" rel="noopener" class="btn measured" id="heroReleaseBadge">v1.59.1</a>
+        <a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener" class="btn">GitHub</a>
+        <a href="https://marketplace.visualstudio.com/items?itemName=CodeExplorer.code-explorer" target="_blank" rel="noopener" class="btn btn--primary">Install for VS Code</a>
       </div>
     </nav>
   </header>
@@ -1236,8 +1236,8 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
               Live 5-layer polyglot architecture graphs for VS Code, MCP agents, and CI.
             </p>
             <div class="hero-controls">
-              <a href="/go/vscode" target="_blank" rel="noopener" class="btn btn--primary">Install VS Code Extension</a>
-              <a href="/go/github" target="_blank" rel="noopener" class="btn">Star on GitHub</a>
+              <a href="https://marketplace.visualstudio.com/items?itemName=CodeExplorer.code-explorer" target="_blank" rel="noopener" class="btn btn--primary">Install VS Code Extension</a>
+              <a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener" class="btn">Star on GitHub</a>
               <a href="/presentation.html" target="_blank" rel="noopener" class="btn">Interactive Deck</a>
               <button type="button" class="cmd-strip" onclick="copyText('brew install vmikhailov/tap/ce', 'Copied Homebrew command to clipboard!')" title="Click to copy Homebrew command">
                 <span class="cmd-prompt">$</span>
@@ -1567,7 +1567,7 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
     <span class="syn-kw">steps:</span>
       - <span class="syn-kw">uses:</span> actions/checkout@v4
       - <span class="syn-kw">name:</span> Install CodeExplorer CLI
-        <span class="syn-kw">run:</span> curl -fsSL https://code-explorer.app/install.sh | sh
+        <span class="syn-kw">run:</span> dotnet tool install -g codeexplorer.cli
       - <span class="syn-kw">name:</span> Build Graph &amp; Verify Invariant Gates
         <span class="syn-kw">run:</span> |
           ce scan
@@ -1759,24 +1759,24 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
               <code>ext install CodeExplorer.code-explorer</code>
               <div class="slab-actions">
                 <button type="button" class="btn" onclick="copyInstallCmd('ext install CodeExplorer.code-explorer')">Copy</button>
-                <a href="/go/vscode" target="_blank" rel="noopener" class="btn">Open Marketplace</a>
+                <a href="https://marketplace.visualstudio.com/items?itemName=CodeExplorer.code-explorer" target="_blank" rel="noopener" class="btn">Open Marketplace</a>
               </div>
             </div>
           </div>
 
           <div class="install-pane" id="tab-win">
-            <p class="panel-copy">Install the native <code>win-x64</code> binary with a single PowerShell command:</p>
+            <p class="panel-copy">Download and execute the standalone Windows installer in PowerShell:</p>
             <div class="install-cmd-row">
-              <code>irm https://code-explorer.app/install.ps1 | iex</code>
-              <button type="button" class="btn" onclick="copyInstallCmd('irm https://code-explorer.app/install.ps1 | iex')">Copy</button>
+              <code>Invoke-WebRequest -Uri https://code-explorer.app/install.ps1 -OutFile install.ps1; .\install.ps1</code>
+              <button type="button" class="btn" onclick="copyInstallCmd('Invoke-WebRequest -Uri https://code-explorer.app/install.ps1 -OutFile install.ps1; .\\install.ps1')">Copy</button>
             </div>
           </div>
 
           <div class="install-pane" id="tab-curl">
             <p class="panel-copy">Download and install the standalone binary directly to <code>~/.local/bin/ce</code>:</p>
             <div class="install-cmd-row">
-              <code>curl -fsSL https://code-explorer.app/install.sh | sh</code>
-              <button type="button" class="btn" onclick="copyInstallCmd('curl -fsSL https://code-explorer.app/install.sh | sh')">Copy</button>
+              <code>curl -fsSL -O https://code-explorer.app/install.sh &amp;&amp; sh install.sh</code>
+              <button type="button" class="btn" onclick="copyInstallCmd('curl -fsSL -O https://code-explorer.app/install.sh && sh install.sh')">Copy</button>
             </div>
           </div>
 
@@ -1849,10 +1849,10 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
         <div class="mast-col">
           <span class="mast-heading">Distribution</span>
           <ul class="mast-list">
-            <li><a href="/go/vscode" target="_blank" rel="noopener">VS Code Marketplace</a></li>
-            <li><a href="/go/openvsx" target="_blank" rel="noopener">Open VSX Registry</a></li>
-            <li><a href="/go/homebrew" target="_blank" rel="noopener">Homebrew Tap</a></li>
-            <li><a href="/go/nuget" target="_blank" rel="noopener">NuGet Global Tool</a></li>
+            <li><a href="https://marketplace.visualstudio.com/items?itemName=CodeExplorer.code-explorer" target="_blank" rel="noopener">VS Code Marketplace</a></li>
+            <li><a href="https://open-vsx.org/extension/vmikhailov/code-explorer-vscode" target="_blank" rel="noopener">Open VSX Registry</a></li>
+            <li><a href="https://github.com/vmikhailov/homebrew-tap" target="_blank" rel="noopener">Homebrew Tap</a></li>
+            <li><a href="https://www.nuget.org/packages/codeexplorer.cli" target="_blank" rel="noopener">NuGet Global Tool</a></li>
           </ul>
         </div>
 
@@ -1867,12 +1867,13 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
         </div>
 
         <div class="mast-col">
-          <span class="mast-heading">Project</span>
+          <span class="mast-heading">Project &amp; Legal</span>
           <ul class="mast-list">
-            <li><a href="/go/github" target="_blank" rel="noopener">GitHub Repository</a></li>
-            <li><a href="/go/releases" target="_blank" rel="noopener">Release Notes</a></li>
-            <li><a href="/go/issues" target="_blank" rel="noopener">Issue Tracker</a></li>
+            <li><a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener">GitHub Repository</a></li>
+            <li><a href="https://github.com/vmikhailov/code-explorer/releases" target="_blank" rel="noopener">Release Notes</a></li>
+            <li><a href="https://github.com/vmikhailov/code-explorer/issues" target="_blank" rel="noopener">Issue Tracker</a></li>
             <li><a href="https://github.com/vmikhailov/code-explorer/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a></li>
+            <li><a href="/privacy.html">Privacy Policy</a></li>
           </ul>
         </div>
       </div>

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy · CodeExplorer</title>
+  <meta name="description" content="CodeExplorer is a 100% local, privacy-first developer tool. Zero telemetry, zero cloud dependencies, zero source code transmission.">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <style>
+    :root {
+      --bg: #0b0d10;
+      --surface: #12161c;
+      --border: #212936;
+      --text: #e2e8f0;
+      --text-muted: #8b9bb4;
+      --accent: #38bdf8;
+      --accent-glow: rgba(56, 189, 248, 0.15);
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      line-height: 1.6;
+      padding: 2rem 1rem;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .container {
+      max-width: 800px;
+      width: 100%;
+    }
+    header {
+      margin-bottom: 2.5rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      text-decoration: none;
+      color: var(--text);
+      font-weight: 700;
+      font-size: 1.25rem;
+    }
+    .brand-mark {
+      width: 2rem;
+      height: 2rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 0.875rem;
+      color: var(--accent);
+    }
+    .back-link {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    .back-link:hover { text-decoration: underline; }
+    h1 {
+      font-size: 2.25rem;
+      font-weight: 800;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.02em;
+    }
+    .meta {
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      margin-bottom: 2rem;
+      font-family: var(--font-mono);
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.75rem;
+      margin-bottom: 1.5rem;
+    }
+    h2 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      color: #fff;
+    }
+    p { margin-bottom: 1rem; color: #cbd5e1; }
+    p:last-child { margin-bottom: 0; }
+    ul {
+      list-style-type: none;
+      margin-bottom: 1rem;
+      padding-left: 0;
+    }
+    li {
+      margin-bottom: 0.5rem;
+      color: #cbd5e1;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+    li::before {
+      content: "✓";
+      color: var(--accent);
+      font-weight: bold;
+    }
+    code {
+      background: #000000;
+      border: 1px solid var(--border);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 0.85em;
+      color: #93c5fd;
+    }
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      text-align: center;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <a href="/" class="brand">
+        <span class="brand-mark">ce</span>
+        <span>CodeExplorer</span>
+      </a>
+      <a href="/" class="back-link">&larr; Back to code-explorer.app</a>
+    </header>
+
+    <main>
+      <h1>Privacy Policy</h1>
+      <div class="meta">Effective Date: October 29, 2026 · Standalone Open Source Software</div>
+
+      <div class="card">
+        <h2>1. Summary &amp; Core Principles</h2>
+        <p>
+          CodeExplorer (CLI binary <code>ce</code> and the VS Code Extension <code>code-explorer-vscode</code>) is designed from the ground up as a <strong>100% local-first, privacy-by-design</strong> architecture intelligence engine.
+        </p>
+        <ul>
+          <li><strong>Zero Telemetry:</strong> CodeExplorer does not collect, record, or transmit usage statistics, crash dumps, or telemetry.</li>
+          <li><strong>Zero Code Transmission:</strong> Your source code, AST, tokens, git history, and architecture graphs never leave your local machine or your CI/CD runner.</li>
+          <li><strong>Local Database:</strong> All parsed architecture data is stored in a local SQLite database (<code>.codeexplorer/codeexplorer.db</code>) within your project repository.</li>
+          <li><strong>No User Accounts:</strong> We do not require registration, accounts, or authentication to use CodeExplorer.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>2. Website (code-explorer.app)</h2>
+        <p>
+          The website <code>code-explorer.app</code> is a static documentation and download portal hosted on an isolated server.
+        </p>
+        <p>
+          Standard web server access logs (client IP address, user-agent, requested URL, and timestamp) are processed strictly for operational security, DDOS mitigation, and anonymous aggregate visitor counts. No advertising cookies, third-party trackers, or personal tracking scripts are loaded on this website.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2>3. Local Architecture Engine Execution</h2>
+        <p>
+          When you execute <code>ce scan</code>, <code>ce map</code>, or <code>ce gate</code>, or when you interact with the VS Code extension or MCP server:
+        </p>
+        <ul>
+          <li>The analysis executes exclusively on your CPU using local Roslyn/Tree-sitter parsers.</li>
+          <li>No external network requests are made during scanning or invariant checking.</li>
+          <li>MCP agent interactions (Claude Code, Cursor, Copilot) are mediated locally via standard input/output (stdio) with your local client.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>4. Open Source Transparency &amp; License</h2>
+        <p>
+          CodeExplorer is free and open-source software released under the <a href="https://github.com/vmikhailov/code-explorer/blob/main/LICENSE" target="_blank" rel="noopener" style="color: var(--accent);">MIT License</a>. The entire source code is publicly inspectable and auditable on <a href="https://github.com/vmikhailov/code-explorer" target="_blank" rel="noopener" style="color: var(--accent);">GitHub</a>.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2>5. Contact</h2>
+        <p>
+          If you have questions regarding this privacy policy or security practices, you can open an issue on the official GitHub repository at <a href="https://github.com/vmikhailov/code-explorer/issues" target="_blank" rel="noopener" style="color: var(--accent);">github.com/vmikhailov/code-explorer/issues</a>.
+        </p>
+      </div>
+    </main>
+
+    <footer>
+      <span>CodeExplorer · Open Source MIT License · 100% Local Execution</span>
+    </footer>
+  </div>
+</body>
+</html>

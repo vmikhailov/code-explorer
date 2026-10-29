@@ -14,6 +14,9 @@ echo "🚀 Deploying CodeExplorer site to ${TARGET_USER}@${TARGET_HOST}:${TARGET
 tar -czf - \
   index.html \
   presentation.html \
+  privacy.html \
+  install.sh \
+  install.ps1 \
   favicon.svg \
   logo.svg \
   all_services.png \
