@@ -37,12 +37,16 @@ public class GitIgnoreMatcher
         _filter = fileFilter ?? WorkspaceFileFilter.Default;
         foreach (var dir in _filter.ActiveExcludedDirectoryNames)
         {
+            if (!_filter.IsExcludedDirectory(dir)) continue;
             AddPattern(dir + "/");
         }
 
-        foreach (var pattern in DefaultIgnoreFilePatterns)
+        if (!_filter.IncludeDistAndMinifiedArtifacts)
         {
-            AddPattern(pattern);
+            foreach (var pattern in DefaultIgnoreFilePatterns)
+            {
+                AddPattern(pattern);
+            }
         }
 
         foreach (var ignoreFileName in IgnoreFileNames)

@@ -21,10 +21,12 @@ public static class SyntaxValueEvaluator
             var member = doc.AllMembers[i];
             if (member.Initializer != null)
             {
-                if (AstValueResolver.TryResolveString(member.Initializer, contextKey, out var val) && !string.IsNullOrEmpty(val))
+                if (AstValueResolver.TryResolveStringWithDecoding(member.Initializer, contextKey, out var val, out var memDecoded) && !string.IsNullOrEmpty(val))
                 {
                     member.ResolvedValue = val;
                     member.Initializer.ResolvedValue = val;
+                    member.IsDecoded = memDecoded;
+                    member.Initializer.IsDecoded = memDecoded;
                 }
             }
         }
@@ -35,10 +37,12 @@ public static class SyntaxValueEvaluator
             var variable = doc.AllVariables[i];
             if (variable.Initializer != null)
             {
-                if (AstValueResolver.TryResolveString(variable.Initializer, contextKey, out var val) && !string.IsNullOrEmpty(val))
+                if (AstValueResolver.TryResolveStringWithDecoding(variable.Initializer, contextKey, out var val, out var varDecoded) && !string.IsNullOrEmpty(val))
                 {
                     variable.ResolvedValue = val;
                     variable.Initializer.ResolvedValue = val;
+                    variable.IsDecoded = varDecoded;
+                    variable.Initializer.IsDecoded = varDecoded;
                 }
             }
             else if (variable.ResolvedValue == null && AstValueResolver.TryResolveString(variable, contextKey, out var declVal) && !string.IsNullOrEmpty(declVal))
@@ -71,9 +75,10 @@ public static class SyntaxValueEvaluator
         {
             if (expr.ResolvedValue == null && ShouldPreEvaluateExpression(expr))
             {
-                if (AstValueResolver.TryResolveString(expr, contextKey, out var resolved) && !string.IsNullOrEmpty(resolved))
+                if (AstValueResolver.TryResolveStringWithDecoding(expr, contextKey, out var resolved, out var exprDecoded) && !string.IsNullOrEmpty(resolved))
                 {
                     expr.ResolvedValue = resolved;
+                    expr.IsDecoded = exprDecoded;
                 }
             }
 

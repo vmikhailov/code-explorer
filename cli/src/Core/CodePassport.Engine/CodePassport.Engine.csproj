@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>CodePassport.Engine</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CodePassport.Cli" />
+    <InternalsVisibleTo Include="CodeExplorer.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CodeExplorer.Core\CodeExplorer.Core.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.TypeScript\CodeExplorer.Parser.TypeScript.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Python\CodeExplorer.Parser.Python.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Rust\CodeExplorer.Parser.Rust.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Go\CodeExplorer.Parser.Go.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.CSharp\CodeExplorer.Parser.CSharp.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Java\CodeExplorer.Parser.Java.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Kotlin\CodeExplorer.Parser.Kotlin.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Script\CodeExplorer.Parser.Script.csproj" />
+    <ProjectReference Include="..\..\Parsers\CodeExplorer.Parser.Shared\CodeExplorer.Parser.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

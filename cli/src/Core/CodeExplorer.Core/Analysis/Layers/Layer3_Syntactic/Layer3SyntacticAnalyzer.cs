@@ -267,6 +267,7 @@ public partial class Layer3SyntacticParser
                     syntaxTree.FileNode.SizeBytes = file.SizeBytes;
                     syntaxTree.FileNode.ContentHash = file.ContentHash;
                     syntaxTree.FileNode.LastModifiedUtc = file.LastModifiedUtc;
+                    syntaxTree.FileNode.ArtifactRole = file.ArtifactRole;
                     if (syntaxTree.Tree != null)
                     {
                         AstConstantExtractor.ExtractAndRegister(syntaxTree, project.Name);
@@ -534,7 +535,450 @@ public partial class Layer3SyntacticParser
             PopulateMemberNodesFromRawVariables(syntaxTree.FileNode, rawVariables, workspaceId, relativePath);
         }
 
+        if (syntaxTree.FileNode != null && syntaxTree.Document != null)
+        {
+            EnrichSyntacticParametersPrototypesAndExports(
+                syntaxTree,
+                workspaceId,
+                relativePath,
+                effectiveIsTest,
+                effectiveProjectKind,
+                effectiveProjectName);
+        }
+
         SemanticPostProcessor?.Invoke(syntaxTree, ctx);
+    }
+
+    private static void EnrichSyntacticParametersPrototypesAndExports(
+        SyntaxTree syntaxTree,
+        string workspaceId,
+        string relativePath,
+        bool isTest,
+        string? projectKind,
+        string? projectName)
+    {
+        var doc = syntaxTree.Document;
+        var fileNode = syntaxTree.FileNode;
+        if (doc == null || fileNode == null) return;
+
+        var functionsByLineAndName = new Dictionary<(int Line, string Name), FunctionNode>();
+        var typesByName = new Dictionary<string, TypeNode>(StringComparer.Ordinal);
+
+        void IndexOntologyTree(IOntologyNode parent, TypeNode? enclosingType)
+        {
+            foreach (var child in parent.Children)
+            {
+                if (child is TypeNode tn)
+                {
+                    typesByName.TryAdd(tn.Name, tn);
+                    IndexOntologyTree(tn, tn);
+                }
+                else if (child is FunctionNode fn)
+                {
+                    if (enclosingType != null)
+                    {
+                        fn.SetExtension("enclosing_type", enclosingType.Name);
+                    }
+                    functionsByLineAndName.TryAdd((fn.StartLine, fn.Name), fn);
+                    IndexOntologyTree(fn, enclosingType);
+                }
+            }
+        }
+        IndexOntologyTree(fileNode, null);
+
+        // 1. Enrich all FunctionDeclSyntax nodes with formal parameter MemberNodes, export flags, and lexical nesting
+        foreach (var fnDecl in doc.AllFunctions.OrderBy(f => f.Span.StartLine))
+        {
+            var fnName = ExtractSyntaxFunctionName(fnDecl);
+            var startLine = fnDecl.Span.StartLine + 1;
+            var endLine = fnDecl.Span.EndLine + 1;
+
+            if (!functionsByLineAndName.TryGetValue((startLine, fnName), out var fnNode))
+            {
+                var fnId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Function:{fnName}@{startLine}";
+                fnNode = new FunctionNode(
+                    fnId,
+                    fnName,
+                    fnId,
+                    relativePath,
+                    relativePath,
+                    startLine,
+                    endLine,
+                    fnDecl.Span.StartColumn + 1,
+                    fnDecl.Span.EndColumn + 1,
+                    isTest,
+                    projectKind,
+                    projectName);
+
+                var parentFnDecl = FindEnclosingSyntaxFunction(fnDecl);
+                if (parentFnDecl != null &&
+                    functionsByLineAndName.TryGetValue((parentFnDecl.Span.StartLine + 1, ExtractSyntaxFunctionName(parentFnDecl)), out var parentFnOnt))
+                {
+                    parentFnOnt.Children.Add(fnNode);
+                }
+                else
+                {
+                    fileNode.Children.Add(fnNode);
+                }
+                functionsByLineAndName[(startLine, fnName)] = fnNode;
+            }
+
+            if (IsSyntaxFunctionExported(fnDecl, doc))
+            {
+                fnNode.SetExtension("is_exported", "true");
+            }
+
+            var parentDecl = FindEnclosingSyntaxFunction(fnDecl);
+            if (parentDecl != null &&
+                functionsByLineAndName.TryGetValue((parentDecl.Span.StartLine + 1, ExtractSyntaxFunctionName(parentDecl)), out var parentOnt) &&
+                parentOnt.Extensions?.GetValueOrDefault("is_exported") == "true")
+            {
+                fnNode.SetExtension("is_exported", "true");
+            }
+
+            var paramNames = ExtractSyntaxParameterNames(fnDecl);
+            // Include returned higher-order factory closure parameters (`function buildConnector(opts) { return function connect({ hostname }) { ... } }`)
+            CollectReturnedClosureParameters(fnDecl, paramNames);
+
+            AttachParameterMemberNodes(fnNode, paramNames, workspaceId, relativePath);
+        }
+
+        // 2. Support ES5 Prototype method assignments (`ClassName.prototype.methodName = function(...)`)
+        if (syntaxTree.RootNode != null)
+        {
+            foreach (var assignExpr in EnumerateSyntaxAssignments(syntaxTree.RootNode))
+            {
+                if (!TryParseSyntaxPrototypeMethod(assignExpr, out var protoClass, out var protoMethod, out var protoLambda))
+                {
+                    continue;
+                }
+
+                if (!typesByName.TryGetValue(protoClass, out var typeNode))
+                {
+                    var typeId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Type:{protoClass}";
+                    typeNode = new TypeNode(
+                        typeId,
+                        protoClass,
+                        typeId,
+                        relativePath,
+                        relativePath,
+                        protoLambda.Span.StartLine + 1,
+                        protoLambda.Span.EndLine + 1,
+                        1,
+                        1,
+                        "class",
+                        isTest,
+                        projectKind,
+                        projectName);
+                    typeNode.SetExtension("is_exported", "true");
+                    fileNode.Children.Add(typeNode);
+                    typesByName[protoClass] = typeNode;
+                }
+
+                var startLine = protoLambda.Span.StartLine + 1;
+                if (!functionsByLineAndName.TryGetValue((startLine, protoMethod), out var protoFnNode))
+                {
+                    var fnId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Function:{protoClass}.{protoMethod}";
+                    protoFnNode = new FunctionNode(
+                        fnId,
+                        protoMethod,
+                        fnId,
+                        relativePath,
+                        relativePath,
+                        startLine,
+                        protoLambda.Span.EndLine + 1,
+                        protoLambda.Span.StartColumn + 1,
+                        protoLambda.Span.EndColumn + 1,
+                        isTest,
+                        projectKind,
+                        projectName);
+                    typeNode.Children.Add(protoFnNode);
+                    functionsByLineAndName[(startLine, protoMethod)] = protoFnNode;
+                }
+
+                protoFnNode.SetExtension("enclosing_type", protoClass);
+                protoFnNode.SetExtension("is_exported", "true");
+                var protoParams = ExtractSyntaxParameterNames(protoLambda);
+                AttachParameterMemberNodes(protoFnNode, protoParams, workspaceId, relativePath);
+            }
+        }
+
+        // 3. Emit canonical `<module_init>` FunctionNode if top-level statements/calls exist
+        if (doc.AllCalls.Count > 0 && fileNode.Children.OfType<FunctionNode>().All(f => f.Name != "<module_init>"))
+        {
+            var modInitId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Function:<module_init>";
+            var modInitNode = new FunctionNode(
+                modInitId,
+                "<module_init>",
+                modInitId,
+                relativePath,
+                relativePath,
+                1,
+                Math.Max(1, fileNode.LineCount ?? 1),
+                1,
+                1,
+                isTest,
+                projectKind,
+                projectName);
+            modInitNode.SetExtension("is_module_init", "true");
+            fileNode.Children.Add(modInitNode);
+        }
+    }
+
+    private static void AttachParameterMemberNodes(
+        FunctionNode fnNode,
+        List<string> paramNames,
+        string workspaceId,
+        string relativePath)
+    {
+        for (var i = 0; i < paramNames.Count; i++)
+        {
+            var pName = paramNames[i];
+            if (string.IsNullOrEmpty(pName)) continue;
+            if (fnNode.Children.OfType<MemberNode>().Any(m => m.MemberKind == "parameter" && m.Name == pName))
+            {
+                continue;
+            }
+
+            var paramId = $"{fnNode.Id}:param:{i}:{pName}";
+            var paramNode = new MemberNode(
+                paramId,
+                pName,
+                paramId,
+                relativePath,
+                relativePath,
+                fnNode.StartLine,
+                fnNode.StartLine,
+                1,
+                1,
+                "parameter",
+                null,
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["parameter_index"] = i.ToString(),
+                    ["variable_type"] = "parameter"
+                });
+            fnNode.Children.Add(paramNode);
+        }
+    }
+
+    private static string ExtractSyntaxFunctionName(FunctionDeclSyntax fnDecl)
+    {
+        if (!string.IsNullOrWhiteSpace(fnDecl.Name)) return fnDecl.Name;
+        var nameNode = fnDecl.GetChildForField(SyntaxFields.Name) ??
+                       fnDecl.NamedChildren.FirstOrDefault(c => c is IdentifierExprSyntax);
+        return nameNode?.Text.Trim() ?? $"<anon_{fnDecl.Span.StartLine + 1}>";
+    }
+
+    private static FunctionDeclSyntax? FindEnclosingSyntaxFunction(SyntaxNode node)
+    {
+        var curr = node.Parent;
+        while (curr != null)
+        {
+            if (curr is FunctionDeclSyntax fn) return fn;
+            curr = curr.Parent;
+        }
+        return null;
+    }
+
+    private static List<string> ExtractSyntaxParameterNames(SyntaxNode fnOrLambda)
+    {
+        var names = new List<string>();
+        if (fnOrLambda is FunctionDeclSyntax { Parameters.Count: > 0 } fnDecl)
+        {
+            foreach (var p in fnDecl.Parameters)
+            {
+                if (!string.IsNullOrWhiteSpace(p.Name))
+                {
+                    names.Add(p.Name);
+                }
+                else
+                {
+                    CollectDestructuredParameterIdentifiers(p, names);
+                }
+            }
+            if (names.Count > 0) return names;
+        }
+
+        var paramsContainer = fnOrLambda.GetChildForField(SyntaxFields.Parameters) ??
+                              fnOrLambda.GetChildForField("parameter") ??
+                              fnOrLambda.NamedChildren.FirstOrDefault(c => c.RawGrammarKind is "formal_parameters" or "parameters" or "parameter_list");
+        if (paramsContainer != null)
+        {
+            if (paramsContainer is IdentifierExprSyntax singleId)
+            {
+                var t = singleId.Text.Trim();
+                if (!string.IsNullOrEmpty(t)) names.Add(t);
+                return names;
+            }
+            foreach (var p in paramsContainer.NamedChildren)
+            {
+                CollectDestructuredParameterIdentifiers(p, names);
+            }
+        }
+        return names;
+    }
+
+    private static void CollectDestructuredParameterIdentifiers(SyntaxNode node, List<string> names)
+    {
+        if (node is ParameterDeclSyntax { Name.Length: > 0 } pd)
+        {
+            if (!names.Contains(pd.Name, StringComparer.Ordinal)) names.Add(pd.Name);
+            return;
+        }
+        if (node is IdentifierExprSyntax or IdentifierPatternSyntax)
+        {
+            if (node.Parent?.RawGrammarKind == "pair_pattern" && ReferenceEquals(node.Parent.GetChildForField(SyntaxFields.Key), node))
+            {
+                return;
+            }
+            var txt = node.Text.Trim().TrimStart('.');
+            if (!string.IsNullOrEmpty(txt) && txt is not ("this" or "self") && !names.Contains(txt, StringComparer.Ordinal))
+            {
+                names.Add(txt);
+            }
+            return;
+        }
+        if (node.RawGrammarKind == "shorthand_property_identifier_pattern")
+        {
+            var txt = node.Text.Trim();
+            if (!string.IsNullOrEmpty(txt) && !names.Contains(txt, StringComparer.Ordinal))
+            {
+                names.Add(txt);
+            }
+            return;
+        }
+        if (node is AssignmentExprSyntax assignPat)
+        {
+            var left = assignPat.Left ?? assignPat.GetChildForField(SyntaxFields.Left) ?? assignPat.NamedChildren.FirstOrDefault();
+            if (left != null) CollectDestructuredParameterIdentifiers(left, names);
+            return;
+        }
+        foreach (var child in node.NamedChildren)
+        {
+            if (child is TypeRefSyntax) continue;
+            CollectDestructuredParameterIdentifiers(child, names);
+        }
+    }
+
+    private static void CollectReturnedClosureParameters(FunctionDeclSyntax fnDecl, List<string> paramNames)
+    {
+        var stack = new Stack<SyntaxNode>();
+        stack.Push(fnDecl);
+        while (stack.Count > 0)
+        {
+            var curr = stack.Pop();
+            if (curr is FunctionDeclSyntax && !ReferenceEquals(curr, fnDecl)) continue;
+            if (curr is ReturnOrYieldStmtSyntax retStmt)
+            {
+                var retVal = retStmt.Value ?? retStmt.GetChildForField(SyntaxFields.Value) ?? retStmt.NamedChildren.FirstOrDefault();
+                if (retVal is LambdaExprSyntax retLambda)
+                {
+                    foreach (var innerParam in ExtractSyntaxParameterNames(retLambda))
+                    {
+                        if (!string.IsNullOrEmpty(innerParam) && !paramNames.Contains(innerParam, StringComparer.Ordinal))
+                        {
+                            paramNames.Add(innerParam);
+                        }
+                    }
+                }
+            }
+            for (var i = curr.Children.Count - 1; i >= 0; i--)
+            {
+                stack.Push(curr.Children[i]);
+            }
+        }
+    }
+
+    private static IEnumerable<AssignmentExprSyntax> EnumerateSyntaxAssignments(SyntaxNode root)
+    {
+        var stack = new Stack<SyntaxNode>();
+        stack.Push(root);
+        while (stack.Count > 0)
+        {
+            var curr = stack.Pop();
+            if (curr is AssignmentExprSyntax assign) yield return assign;
+            for (var i = curr.Children.Count - 1; i >= 0; i--)
+            {
+                stack.Push(curr.Children[i]);
+            }
+        }
+    }
+
+    private static bool TryParseSyntaxPrototypeMethod(
+        AssignmentExprSyntax assignExpr,
+        out string className,
+        out string methodName,
+        out LambdaExprSyntax lambdaNode)
+    {
+        className = string.Empty;
+        methodName = string.Empty;
+        lambdaNode = null!;
+
+        var left = assignExpr.Left ?? assignExpr.GetChildForField(SyntaxFields.Left) ?? (assignExpr.NamedChildren.Count > 0 ? assignExpr.NamedChildren[0] : null);
+        var right = assignExpr.Right ?? assignExpr.GetChildForField(SyntaxFields.Right) ?? (assignExpr.NamedChildren.Count > 1 ? assignExpr.NamedChildren[1] : null);
+        if (left is not MemberAccessExprSyntax outerMem || right is not LambdaExprSyntax rhsLambda) return false;
+
+        var innerObj = outerMem.Object ?? outerMem.GetChildForField(SyntaxFields.Object) ?? (outerMem.NamedChildren.Count > 0 ? outerMem.NamedChildren[0] : null);
+        var outerProp = !string.IsNullOrEmpty(outerMem.MemberName)
+            ? outerMem.MemberName
+            : (outerMem.GetChildForField(SyntaxFields.Property) ?? (outerMem.NamedChildren.Count > 1 ? outerMem.NamedChildren[^1] : null))?.Text.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(outerProp) || innerObj is not MemberAccessExprSyntax innerMem) return false;
+
+        var innerProp = !string.IsNullOrEmpty(innerMem.MemberName)
+            ? innerMem.MemberName
+            : (innerMem.GetChildForField(SyntaxFields.Property) ?? (innerMem.NamedChildren.Count > 1 ? innerMem.NamedChildren[^1] : null))?.Text.Trim() ?? string.Empty;
+        if (innerProp != "prototype") return false;
+
+        var clsNode = innerMem.Object ?? innerMem.GetChildForField(SyntaxFields.Object) ?? (innerMem.NamedChildren.Count > 0 ? innerMem.NamedChildren[0] : null);
+        var clsName = clsNode?.Text.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(clsName)) return false;
+
+        className = clsName;
+        methodName = outerProp;
+        lambdaNode = rhsLambda;
+        return true;
+    }
+
+    private static bool IsSyntaxFunctionExported(FunctionDeclSyntax fnDecl, SyntaxDocument doc)
+    {
+        if ((fnDecl.Modifiers & SyntaxModifiers.Export) != 0 || (fnDecl.Modifiers & SyntaxModifiers.Public) != 0)
+        {
+            return true;
+        }
+
+        var curr = fnDecl.Parent;
+        while (curr != null)
+        {
+            if (curr.RawGrammarKind is "export_statement" or "export_declaration") return true;
+            if (curr is TypeDeclSyntax td)
+            {
+                if ((td.Modifiers & SyntaxModifiers.Export) != 0 || (td.Modifiers & SyntaxModifiers.Public) != 0) return true;
+                if (td.Parent?.RawGrammarKind is "export_statement" or "export_declaration") return true;
+                var typeName = !string.IsNullOrWhiteSpace(td.Name)
+                    ? td.Name
+                    : (td.GetChildForField(SyntaxFields.Name) ?? td.NamedChildren.FirstOrDefault(c => c is IdentifierExprSyntax))?.Text.Trim();
+                if (!string.IsNullOrEmpty(typeName) && doc.SourceText.Contains(typeName, StringComparison.Ordinal) &&
+                    (doc.SourceText.Contains("module.exports", StringComparison.Ordinal) || doc.SourceText.Contains("exports.", StringComparison.Ordinal)))
+                {
+                    return true;
+                }
+            }
+            curr = curr.Parent;
+        }
+
+        var fnName = ExtractSyntaxFunctionName(fnDecl);
+        if (!string.IsNullOrEmpty(fnName) && doc.SourceText.Contains(fnName, StringComparison.Ordinal))
+        {
+            if (doc.SourceText.Contains("module.exports", StringComparison.Ordinal) ||
+                doc.SourceText.Contains($"exports.{fnName}", StringComparison.Ordinal) ||
+                doc.SourceText.Contains("export {", StringComparison.Ordinal) ||
+                doc.SourceText.Contains($"export default {fnName}", StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void RecordDocumentDiagnostics(SyntaxTree syntaxTree, FileNode fileNode, ParsingContext ctx)

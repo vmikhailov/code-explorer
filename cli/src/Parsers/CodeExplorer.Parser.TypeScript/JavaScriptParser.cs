@@ -24,7 +24,9 @@ public class JavaScriptParser : IProjectParser, IFileParser
     public bool CanParse(string fileExtension)
     {
         return fileExtension.Equals(".js", StringComparison.OrdinalIgnoreCase) ||
-               fileExtension.Equals(".jsx", StringComparison.OrdinalIgnoreCase);
+               fileExtension.Equals(".jsx", StringComparison.OrdinalIgnoreCase) ||
+               fileExtension.Equals(".mjs", StringComparison.OrdinalIgnoreCase) ||
+               fileExtension.Equals(".cjs", StringComparison.OrdinalIgnoreCase);
     }
 
     public void ExtractDeclarations(CodeExplorer.Core.Parser.Syntax.SyntaxNode rootNode, Action<string, CodeExplorer.Core.Parser.Syntax.SyntaxNode?, string?> registerDeclaration)
@@ -200,7 +202,7 @@ public class JavaScriptParser : IProjectParser, IFileParser
                         }
 
                         // Treat as npm package reference
-                        externalPackages.Add(new ProducedPackageInfo(packageName, packageVersion, "npm"));
+                        externalPackages.Add(new ProducedPackageInfo(packageName, packageVersion, "npm", propName == "devDependencies" ? "dev" : "runtime"));
                     }
                 }
             }

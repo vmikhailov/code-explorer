@@ -24,6 +24,7 @@ public class WorkspaceFileFilter
     public IReadOnlySet<string> ActiveManifestExtensions => _manifestExtensions;
     public IReadOnlyList<IProjectParser> ConnectedProjectParsers => _projectParsers;
     public IReadOnlyList<IFileParser> ConnectedFileParsers => _fileParsers;
+    public bool IncludeDistAndMinifiedArtifacts { get; init; }
 
     public WorkspaceFileFilter(
         IEnumerable<IProjectParser>? projectParsers = null,
@@ -100,6 +101,18 @@ public class WorkspaceFileFilter
             return decision.Value;
         }
 
+        if (IncludeDistAndMinifiedArtifacts &&
+            (dirName.Equals("dist", StringComparison.OrdinalIgnoreCase) ||
+             dirName.Equals("build", StringComparison.OrdinalIgnoreCase) ||
+             dirName.Equals("out", StringComparison.OrdinalIgnoreCase) ||
+             dirName.Equals("umd", StringComparison.OrdinalIgnoreCase) ||
+             dirName.Equals("amd", StringComparison.OrdinalIgnoreCase) ||
+             dirName.Equals("esm", StringComparison.OrdinalIgnoreCase) ||
+             dirName.Equals("cjs", StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
         if (_excludedDirectoryNames.Contains(dirName))
         {
             return true;
@@ -126,6 +139,12 @@ public class WorkspaceFileFilter
     {
         foreach (var p in _projectParsers)
         {
+            if (IncludeDistAndMinifiedArtifacts)
+            {
+                var fn = fileName.ToLowerInvariant();
+                if (fn.EndsWith(".d.ts") || fn.EndsWith(".d.mts") || fn.EndsWith(".d.cts")) return true;
+                return IProjectParser.DefaultShouldSkipFileName(fileName);
+            }
             if (p.ShouldSkipFileName(fileName)) return true;
         }
 
@@ -155,14 +174,74 @@ public class WorkspaceFileFilter
 
         foreach (var p in _projectParsers)
         {
-            if (p.ShouldSkipFile(fileInfo)) return true;
+            if (p.ShouldSkipFile(fileInfo))
+            {
+                if (!IncludeDistAndMinifiedArtifacts) return true;
+            }
         }
 
         foreach (var f in _fileParsers)
         {
-            if (f.ShouldSkipFile(fileInfo)) return true;
+            if (f.ShouldSkipFile(fileInfo))
+            {
+                if (!IncludeDistAndMinifiedArtifacts) return true;
+            }
         }
 
+        return false;
+    }
+
+    public static string ClassifyArtifactRole(string relativePath, string fileName, ReadOnlySpan<byte> contentBytes = default)
+    {
+        var normPath = relativePath.Replace('\\', '/');
+        var lowerFile = fileName.ToLowerInvariant();
+        if (lowerFile.EndsWith(".d.ts") || lowerFile.EndsWith(".d.mts") || lowerFile.EndsWith(".d.cts"))
+        {
+            return "declaration";
+        }
+        if (lowerFile.Contains(".min.") || lowerFile.Contains(".bundle.") || IsMinifiedBytes(contentBytes))
+        {
+            return "minified";
+        }
+        var padded = "/" + normPath.TrimStart('/');
+        if (padded.Contains("/dist/", StringComparison.OrdinalIgnoreCase) ||
+            padded.Contains("/build/", StringComparison.OrdinalIgnoreCase) ||
+            padded.Contains("/out/", StringComparison.OrdinalIgnoreCase) ||
+            padded.Contains("/umd/", StringComparison.OrdinalIgnoreCase) ||
+            padded.Contains("/amd/", StringComparison.OrdinalIgnoreCase))
+        {
+            return "dist";
+        }
+        if (padded.Contains("/scripts/", StringComparison.OrdinalIgnoreCase) ||
+            padded.Contains("/tools/", StringComparison.OrdinalIgnoreCase) ||
+            lowerFile.EndsWith(".sh") || lowerFile.EndsWith(".ps1"))
+        {
+            return "script";
+        }
+        return "source";
+    }
+
+    public static bool IsMinifiedBytes(ReadOnlySpan<byte> bytes)
+    {
+        if (bytes.IsEmpty) return false;
+        var limit = Math.Min(bytes.Length, 8192);
+        var lineLen = 0;
+        var newlines = 0;
+        for (var i = 0; i < limit; i++)
+        {
+            if (bytes[i] == (byte)'\n')
+            {
+                newlines++;
+                lineLen = 0;
+            }
+            else
+            {
+                lineLen++;
+                if (lineLen > 500) return true;
+            }
+        }
+        if (lineLen > 500) return true;
+        if (limit >= 4096 && newlines <= 3) return true;
         return false;
     }
 

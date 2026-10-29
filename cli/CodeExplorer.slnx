@@ -8,6 +8,7 @@
     <Project Path="src/Core/CodeExplorer.Core/CodeExplorer.Core.csproj" />
     <Project Path="src/Core/CodeExplorer.Gates/CodeExplorer.Gates.csproj" />
     <Project Path="src/Core/CodeExplorer.Analysis/CodeExplorer.Analysis.csproj" />
+    <Project Path="src/Core/CodePassport.Engine/CodePassport.Engine.csproj" />
   </Folder>
   <Folder Name="/Server/">
     <Project Path="src/Server/CodeExplorer.Server/CodeExplorer.Server.csproj" />
@@ -39,5 +40,6 @@
   </Folder>
   <Folder Name="/UI/">
     <Project Path="src/UI/CodeExplorer/CodeExplorer.csproj" />
+    <Project Path="src/UI/CodePassport.Cli/CodePassport.Cli.csproj" />
   </Folder>
 </Solution>

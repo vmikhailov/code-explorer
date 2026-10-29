@@ -45,6 +45,9 @@ public record FileNode(
     [JsonPropertyName("size_bytes"), OntologyProperty("Size of the file in bytes.")]
     public long? SizeBytes { get; set; } = SizeBytes;
 
+    [JsonPropertyName("artifact_role"), OntologyProperty("The physical artifact role of the file (source, dist, minified, declaration, script).")]
+    public string? ArtifactRole { get; set; }
+
     [JsonIgnore]
     public string? ContentHash { get; set; }
 

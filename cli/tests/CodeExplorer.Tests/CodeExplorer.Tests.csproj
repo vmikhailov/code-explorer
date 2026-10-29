@@ -28,6 +28,7 @@
     <ProjectReference Include="..\..\src\Core\CodeExplorer.Core\CodeExplorer.Core.csproj" />
     <ProjectReference Include="..\..\src\Core\CodeExplorer.Gates\CodeExplorer.Gates.csproj" />
     <ProjectReference Include="..\..\src\Core\CodeExplorer.Analysis\CodeExplorer.Analysis.csproj" />
+    <ProjectReference Include="..\..\src\Core\CodePassport.Engine\CodePassport.Engine.csproj" />
     <ProjectReference Include="..\..\src\Server\CodeExplorer.Server\CodeExplorer.Server.csproj" />
     <ProjectReference Include="..\..\src\UI\CodeExplorer\CodeExplorer.csproj" />
     <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parser.Kotlin\CodeExplorer.Parser.Kotlin.csproj" />

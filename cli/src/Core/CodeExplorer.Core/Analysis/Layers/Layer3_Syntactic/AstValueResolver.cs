@@ -16,7 +16,18 @@ public static class AstValueResolver
     [ThreadStatic]
     private static Dictionary<string, string>? _localBindings;
 
+    [ThreadStatic]
+    private static bool _lastResolvedWasDecoded;
+
     internal static Dictionary<string, string>? LocalBindings => _localBindings;
+
+    public static bool TryResolveStringWithDecoding(Node? node, string? contextOrProject, out string result, out bool isDecoded)
+    {
+        _lastResolvedWasDecoded = false;
+        var ok = TryResolveStringInternal(node, contextOrProject, 0, null, out result);
+        isDecoded = ok && _lastResolvedWasDecoded;
+        return ok;
+    }
 
     public static string? ResolveString(Node? node, string? contextOrProject = null)
     {
@@ -51,6 +62,7 @@ public static class AstValueResolver
         if (node is ExprSyntax { ResolvedValue: { Length: > 0 } preResolved } &&
             (_localBindings == null || _localBindings.Count == 0))
         {
+            if (((ExprSyntax)node).IsDecoded) _lastResolvedWasDecoded = true;
             result = preResolved;
             return true;
         }
@@ -63,6 +75,10 @@ public static class AstValueResolver
             (node is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.Char or LiteralSyntaxKind.RawString } ||
              (node.Children.Count == 0 && IsQuoted(node.Text))))
         {
+            if (ContainsObfuscatedHexOrUnicodeEscapes(node.Text))
+            {
+                _lastResolvedWasDecoded = true;
+            }
             result = Unquote(node.Text);
             return true;
         }
@@ -537,6 +553,12 @@ public static class AstValueResolver
 
         var firstArg = argChildren.FirstOrDefault();
 
+        if (TryDecodeConstantCall(func, funcText, argChildren, contextOrProject, depth, visitedVars, out result))
+        {
+            _lastResolvedWasDecoded = true;
+            return true;
+        }
+
         // 0-arg calls
         if (argChildren.Count == 0)
         {
@@ -547,7 +569,7 @@ public static class AstValueResolver
                     ? funcMember.MemberName
                     : (func.GetChildForField(SyntaxFields.Field)?.Text ?? "");
 
-                if (mName is "to_string" or "to_owned" or "clone" or "as_str" or "into" or "as_ref" or "trim")
+                if (mName is "to_string" or "toString" or "to_owned" or "clone" or "as_str" or "into" or "as_ref" or "trim")
                 {
                     if (recv.IsValid() && TryResolveStringInternal(recv, contextOrProject, depth + 1, visitedVars, out result))
                     {
@@ -848,6 +870,153 @@ public static class AstValueResolver
         }
 
         return trimmed;
+    }
+
+    private static bool TryDecodeConstantCall(
+        Node? func,
+        string funcText,
+        List<Node> argChildren,
+        string? contextOrProject,
+        int depth,
+        HashSet<string>? visitedVars,
+        out string result)
+    {
+        result = string.Empty;
+        if (argChildren.Count == 0) return false;
+
+        // 1. `.toString(...)` on a resolved Buffer/string receiver (`Buffer.from(..., 'base64').toString('utf8')`)
+        if (func is MemberAccessExprSyntax funcMem)
+        {
+            var mName = !string.IsNullOrEmpty(funcMem.MemberName)
+                ? funcMem.MemberName
+                : (func.GetChildForField(SyntaxFields.Property) ?? func.GetChildForField(SyntaxFields.Field))?.Text ?? "";
+            if (mName == "toString")
+            {
+                var recv = funcMem.Object ?? func.GetChildForField(SyntaxFields.Object) ?? func.Children.FirstOrDefault();
+                if (recv.IsValid() && TryResolveStringInternal(recv, contextOrProject, depth + 1, visitedVars, out result))
+                {
+                    return true;
+                }
+            }
+        }
+
+        // 2. `atob(b64)`
+        if ((funcText == "atob" || funcText.EndsWith(".atob", StringComparison.Ordinal)) && argChildren.Count >= 1)
+        {
+            if (TryResolveStringInternal(argChildren[0], contextOrProject, depth + 1, visitedVars, out var b64) &&
+                TryDecodeBase64Utf8(b64, out result))
+            {
+                return true;
+            }
+        }
+
+        // 3. `Buffer.from(payload, 'base64' | 'hex')`
+        if (funcText is "Buffer.from" or "Buffer.alloc" && argChildren.Count >= 1)
+        {
+            if (TryResolveStringInternal(argChildren[0], contextOrProject, depth + 1, visitedVars, out var payload))
+            {
+                var encoding = "utf8";
+                if (argChildren.Count >= 2 && TryResolveStringInternal(argChildren[1], contextOrProject, depth + 1, visitedVars, out var encArg))
+                {
+                    encoding = encArg.Trim().ToLowerInvariant();
+                }
+
+                if (encoding is "base64" or "base64url" && TryDecodeBase64Utf8(payload, out result))
+                {
+                    return true;
+                }
+                if (encoding == "hex" && TryDecodeHexUtf8(payload, out result))
+                {
+                    return true;
+                }
+            }
+        }
+
+        // 4. `String.fromCharCode(c1, c2, ...)`
+        if (funcText == "String.fromCharCode" && argChildren.Count >= 1)
+        {
+            var sb = new System.Text.StringBuilder(argChildren.Count);
+            foreach (var arg in argChildren)
+            {
+                var raw = arg is ArgumentSyntax { Value: { } v } ? v.Text.Trim() : arg.Text.Trim();
+                if (int.TryParse(raw, out var code) && code is >= 0 and <= 0xFFFF)
+                {
+                    sb.Append((char)code);
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            if (sb.Length > 0)
+            {
+                result = sb.ToString();
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryDecodeBase64Utf8(string input, out string decoded)
+    {
+        decoded = string.Empty;
+        var clean = input.Trim();
+        if (clean.Length < 4) return false;
+        try
+        {
+            var bytes = Convert.FromBase64String(clean);
+            if (bytes.Length == 0) return false;
+            var str = System.Text.Encoding.UTF8.GetString(bytes);
+            if (str.Any(c => char.IsControl(c) && c is not ('\r' or '\n' or '\t')))
+            {
+                return false;
+            }
+            decoded = str;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool TryDecodeHexUtf8(string input, out string decoded)
+    {
+        decoded = string.Empty;
+        var clean = input.Trim();
+        if (clean.Length < 4 || clean.Length % 2 != 0) return false;
+        try
+        {
+            var bytes = Convert.FromHexString(clean);
+            if (bytes.Length == 0) return false;
+            var str = System.Text.Encoding.UTF8.GetString(bytes);
+            if (str.Any(c => char.IsControl(c) && c is not ('\r' or '\n' or '\t')))
+            {
+                return false;
+            }
+            decoded = str;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool ContainsObfuscatedHexOrUnicodeEscapes(string raw)
+    {
+        if (string.IsNullOrEmpty(raw) || raw.IndexOf('\\') < 0) return false;
+        var count = 0;
+        for (var i = 0; i < raw.Length - 3; i++)
+        {
+            if (raw[i] == '\\' && (raw[i + 1] == 'x' || raw[i + 1] == 'u'))
+            {
+                count++;
+                if (count >= 2) return true;
+            }
+        }
+        return false;
     }
 
     public static string UnescapeQuotedString(string inner)

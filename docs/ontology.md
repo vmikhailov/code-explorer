@@ -126,6 +126,7 @@ graph TD
     Endpoint -->|EXPOSED_BY| Function
     Endpoint -->|SUBSCRIBES_TO| Topic
     EntryPoint -->|DECLARED_IN| File
+    EntryPoint -->|TRIGGERS| File
     EntryPoint -->|BELONGS_TO| Project
     ExternalService -->|CALLS_ENDPOINT| Endpoint
     ExternalService -->|CALLED_BY| Function
@@ -336,6 +337,7 @@ graph TD
 | `CallLiteral` | `DECLARED_IN` |
 | `CatchClause` | `DECLARED_IN` |
 | `EntryPoint` | `DECLARED_IN` |
+| `EntryPoint` | `TRIGGERS` |
 | `FilesStructure` | `CONTAINS` |
 | `Folder` | `CONTAINS` |
 | `Function` | `DECLARED_IN` |
@@ -355,6 +357,7 @@ graph TD
 | `ProjectName` | `string?` | The name of the enclosing project. |
 | `LineCount` | `int?` | Total lines of code in this file. |
 | `SizeBytes` | `long?` | Size of the file in bytes. |
+| `ArtifactRole` | `string?` | The physical artifact role of the file (source, dist, minified, declaration, script). |
 
 ---
 
@@ -492,6 +495,7 @@ graph TD
 | Relationship | To |
 | :--- | :--- |
 | `DECLARED_IN` | `File` |
+| `TRIGGERS` | `File` |
 | `BELONGS_TO` | `Project` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
@@ -919,6 +923,9 @@ graph TD
 | :--- | :--- | :--- |
 | `Name` | `string` | The name of the entity. |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
+| `Capability` | `string?` | The canonical capability identifier (e.g. fs:read, net:http-client, proc:exec). |
+| `Dimension` | `string?` | The capability dimension (e.g. Filesystem, Network, Process, DynamicCode, Environment, Native, Crypto, Concurrency). |
+| `SemanticRole` | `string?` | The semantic security role of the API call (Sink, SensitiveSource, Transform, MonkeyPatch, Benign). |
 
 ---
 

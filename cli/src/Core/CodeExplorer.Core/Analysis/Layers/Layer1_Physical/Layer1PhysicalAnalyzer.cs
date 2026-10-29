@@ -200,12 +200,14 @@ public class Layer1PhysicalParser
             int? lineCount = null;
             string? contentHash = null;
             DateTime? lastModifiedUtc = null;
+            string? artifactRole = null;
             try
             {
                 lastModifiedUtc = fileInfo.LastWriteTimeUtc;
                 var bytes = await File.ReadAllBytesAsync(fileInfo.FullName, ctx.CancellationToken);
                 lineCount = CountLines(bytes);
                 contentHash = Incremental.HashUtility.ComputeSha256(bytes);
+                artifactRole = WorkspaceFileFilter.ClassifyArtifactRole(relativeFile, fileName, bytes);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -214,7 +216,8 @@ public class Layer1PhysicalParser
             var fileNode = new FileNode(fileId, fileName, relativeFile, absoluteFilePath, false, null, null, lineCount, sizeBytes)
             {
                 ContentHash = contentHash,
-                LastModifiedUtc = lastModifiedUtc
+                LastModifiedUtc = lastModifiedUtc,
+                ArtifactRole = artifactRole ?? WorkspaceFileFilter.ClassifyArtifactRole(relativeFile, fileName)
             };
 
             currentParentNode.Children.Add(fileNode);

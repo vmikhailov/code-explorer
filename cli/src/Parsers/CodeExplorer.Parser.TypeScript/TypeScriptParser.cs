@@ -137,7 +137,9 @@ public class TypeScriptParser : IProjectParser, IFileParser
     public bool CanParse(string fileExtension)
     {
         return fileExtension.Equals(".ts", StringComparison.OrdinalIgnoreCase) ||
-               fileExtension.Equals(".tsx", StringComparison.OrdinalIgnoreCase);
+               fileExtension.Equals(".tsx", StringComparison.OrdinalIgnoreCase) ||
+               fileExtension.Equals(".mts", StringComparison.OrdinalIgnoreCase) ||
+               fileExtension.Equals(".cts", StringComparison.OrdinalIgnoreCase);
     }
 
     public void ExtractDeclarations(Node rootNode, Action<string, Node?, string?> registerDeclaration)
@@ -1062,7 +1064,7 @@ public class TypeScriptParser : IProjectParser, IFileParser
                         }
 
                         // Treat as npm package reference
-                        externalPackages.Add(new ProducedPackageInfo(packageName, packageVersion, "npm"));
+                        externalPackages.Add(new ProducedPackageInfo(packageName, packageVersion, "npm", propName == "devDependencies" ? "dev" : "runtime"));
                     }
                 }
             }

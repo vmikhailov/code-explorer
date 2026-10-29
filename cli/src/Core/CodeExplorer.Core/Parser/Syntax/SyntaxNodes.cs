@@ -632,6 +632,7 @@ public sealed class MemberDeclSyntax : DeclarationSyntax
     public FunctionDeclSyntax? Setter { get; set; }
     public string? StructTag { get; set; }
     public string? ResolvedValue { get; set; }
+    public bool IsDecoded { get; set; }
 }
 
 public sealed class VariableDeclSyntax : DeclarationSyntax
@@ -643,6 +644,7 @@ public sealed class VariableDeclSyntax : DeclarationSyntax
     public bool IsMutable { get; set; } = true;
     public string Scope { get; set; } = "local";
     public string? ResolvedValue { get; set; }
+    public bool IsDecoded { get; set; }
 }
 
 public sealed class AnnotationSyntax : DeclarationSyntax
@@ -823,6 +825,7 @@ public abstract class ExprSyntax : SyntaxNode
     /// Pre-evaluated constant or intra-procedural dataflow value computed by <see cref="SyntaxValueEvaluator"/>.
     /// </summary>
     public string? ResolvedValue { get; set; }
+    public bool IsDecoded { get; set; }
 
     /// <summary>
     /// Declared or inferred type reference.
