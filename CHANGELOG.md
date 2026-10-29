@@ -5,6 +5,19 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.66.2] - 2026-10-29
+
+### Fixed
+- **Project Map Class Dependency Lifting & Sibling Interface Isolation**:
+  - Eliminated phantom dependency edges and false circular dependency cliques between sibling classes implementing the same interface (e.g. all 15 `ICommand` implementations in `commands.ts` forming an all-to-all bidirectional cycle).
+  - Ensured `IMPLEMENTS` relationships are strictly used to declare interface conformance and are excluded from generating class-to-class dependency edges.
+  - Enforced that interface implementation classes never resolve polymorphic interface references to sibling implementations of that same interface.
+  - Restricted `INHERITS_FROM` edge lifting to concrete base classes only, disallowing interface inheritance from resolving to sibling implementations.
+  - Prevented intra-file calls to unattached helper functions from falling back to an arbitrary primary class in multi-class files.
+  - Deduplicated raw type and symbol edges in `ProjectMapBuilder` to prevent duplicate edge counts and call sample accumulations.
+
+---
+
 ## [1.66.1] - 2026-10-28
 
 ### Fixed

@@ -566,14 +566,36 @@ public static class ProjectMapBuilder
             return null;
         }
 
-        IReadOnlyList<string> ResolveTargetClasses(string? symbol, string? file)
+        IReadOnlyList<string> ResolveTargetClasses(
+            string? symbol,
+            string? file,
+            string? srcClass = null,
+            bool allowInterfaces = true,
+            string? fromFile = null)
         {
             var clean = StripGenericArity(symbol ?? "");
             if (!string.IsNullOrEmpty(clean))
             {
                 if (classes.TryGetValue(clean, out var c) && (string.IsNullOrEmpty(file) || c.Files.Contains(file))) return [c.Name];
-                if (interfaceToImpls.TryGetValue(clean, out var impls) && impls.Count > 0) return impls;
+                if (allowInterfaces && interfaceToImpls.TryGetValue(clean, out var impls) && impls.Count > 0)
+                {
+                    // An implementing class of this interface should never resolve references to this interface into dependencies on sibling implementations
+                    if (srcClass != null && classes.TryGetValue(srcClass, out var sc) && sc.ImplementedInterfaces.Contains(clean))
+                    {
+                        return [];
+                    }
+
+                    if (srcClass == null) return impls;
+                    return impls.Where(tgt => !string.Equals(tgt, srcClass, StringComparison.OrdinalIgnoreCase)).ToList();
+                }
             }
+
+            // Intra-file calls to unattached helper symbols must not fall back to an arbitrary class in the same file
+            if (!string.IsNullOrEmpty(fromFile) && !string.IsNullOrEmpty(file) && fromFile.Equals(file, StringComparison.OrdinalIgnoreCase))
+            {
+                return [];
+            }
+
             if (!string.IsNullOrEmpty(file) && fileToPrimaryClass.TryGetValue(file, out var primary) && classes.TryGetValue(primary, out var pc))
             {
                 return [pc.Name];
@@ -624,6 +646,8 @@ public static class ProjectMapBuilder
             }
         }
 
+        var seenRawEdges = new HashSet<(string FromFile, string? ToFile, string? FromSym, string? ToSym, string Kind, int? Line)>();
+
         foreach (var te in input.TypeEdges)
         {
             if (te.IsExternalCaller)
@@ -635,9 +659,22 @@ public static class ProjectMapBuilder
                 continue;
             }
 
+            // IMPLEMENTS is purely a declaration that a class implements an interface.
+            // Interfaces are not rendered as class nodes, and implementing an interface
+            // must NEVER generate dependency edges between sibling implementations of that interface.
+            if (te.Kind.Equals("IMPLEMENTS", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            seenRawEdges.Add((te.FromFile, te.ToFile, te.FromSymbol, te.ToSymbol, te.Kind, te.Line));
+
             var src = ResolveSourceClass(te.FromSymbol, te.FromFile);
             if (src == null) continue;
-            foreach (var tgt in ResolveTargetClasses(te.ToSymbol, te.ToFile))
+
+            // Inheritance must only target concrete/base classes, never resolve an interface to sibling implementations.
+            var isInheritance = te.Kind.Equals("INHERITS_FROM", StringComparison.OrdinalIgnoreCase);
+            foreach (var tgt in ResolveTargetClasses(te.ToSymbol, te.ToFile, srcClass: src, allowInterfaces: !isInheritance, fromFile: te.FromFile))
             {
                 AddClassEdge(src, tgt, te.Kind, te.FromFile, te.ToFile, te.FromSymbol, te.ToSymbol, te.Line);
             }
@@ -645,9 +682,21 @@ public static class ProjectMapBuilder
 
         foreach (var se in input.SymbolEdges)
         {
+            if (se.Kind.Equals("IMPLEMENTS", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (!seenRawEdges.Add((se.FromFile, se.ToFile, se.FromSymbol, se.ToSymbol, se.Kind, se.FromLine)))
+            {
+                continue;
+            }
+
             var src = ResolveSourceClass(se.FromSymbol, se.FromFile);
             if (src == null) continue;
-            foreach (var tgt in ResolveTargetClasses(se.ToSymbol, se.ToFile))
+
+            var isInheritance = se.Kind.Equals("INHERITS_FROM", StringComparison.OrdinalIgnoreCase);
+            foreach (var tgt in ResolveTargetClasses(se.ToSymbol, se.ToFile, srcClass: src, allowInterfaces: !isInheritance, fromFile: se.FromFile))
             {
                 AddClassEdge(src, tgt, se.Kind, se.FromFile, se.ToFile, se.FromSymbol, se.ToSymbol, se.FromLine);
             }
