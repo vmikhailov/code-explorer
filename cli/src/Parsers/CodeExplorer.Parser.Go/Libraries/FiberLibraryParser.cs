@@ -1,14 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
 public class FiberLibraryParser : ISemanticExtension
 {
-    public string Type => "framework";
+    public SemanticExtensionType Type => SemanticExtensionType.Framework;
     public string Name => "Fiber";
     public string Id => "fiber";
     public IReadOnlyList<string> SupportedPatterns => ["github.com/gofiber/fiber*"];

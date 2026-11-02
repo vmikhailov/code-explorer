@@ -1,7 +1,3 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
@@ -10,7 +6,7 @@ public partial class AspNetCoreLibraryParser : ISemanticExtension
 {
     public string Name => "ASP.NET Core";
     public string Id => "aspnetcore";
-    public string Type => "framework";
+    public SemanticExtensionType Type => SemanticExtensionType.Framework;
     public IReadOnlyList<string> SupportedPatterns => ["Microsoft.AspNetCore", "Microsoft.AspNetCore.*", "Microsoft.AspNetCore.Mvc", "Microsoft.AspNetCore.Mvc.*"];
     public bool IsImplemented => true;
     public bool IsBuiltIn => true;

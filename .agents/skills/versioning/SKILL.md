@@ -5,6 +5,7 @@ description: Semantic Versioning (SemVer) and unified release lifecycle skill fo
 
 # Semantic Versioning (SemVer) & Release Lifecycle
 
+
 This skill defines the strict versioning and release lifecycle for CodeExplorer (CLI and VS Code Extension).
 
 Both the CLI and VS Code Extension share a **single, unified version number** and are released together via a unified GitHub Actions workflow.
@@ -42,7 +43,6 @@ Versions strictly follow the format: `MAJOR.MINOR.PATCH` (e.g. `1.44.0`).
   - Breaking changes to public APIs, CLI flags/output schemas, or MCP tool contracts.
   - Complete overhaul of the graph ontology schema requiring migration.
 - **CRITICAL CONSTRAINT**:
-  > [!IMPORTANT]
   > **MAJOR version increments are STRICTLY PROHIBITED without explicit prior user consent/approval.**
   > The agent must NEVER bump the MAJOR version autonomously. Always propose the major bump to the user, explain why the paradigm shift requires it, and wait for explicit confirmation before changing the major version.
 - **Action** (upon user approval): Increment the first digit (`MAJOR`), reset `MINOR` to `0`, and reset `PATCH` to `0`.

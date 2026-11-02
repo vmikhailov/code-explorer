@@ -1,14 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public class BullMqLibraryParser : ISemanticExtension
 {
-    public string Type => "cloud";
+    public SemanticExtensionType Type => SemanticExtensionType.Cloud;
     public string Name => "BullMQ";
     public string Id => "bullmq";
     public IReadOnlyList<string> SupportedPatterns => ["bullmq", "bull"];

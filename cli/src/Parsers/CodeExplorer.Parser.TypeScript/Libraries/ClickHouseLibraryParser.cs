@@ -1,15 +1,11 @@
 using System.Text.RegularExpressions;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public class ClickHouseLibraryParser : ISemanticExtension
 {
-    public string Type => OntologyConstants.LibraryTypes.AnalyticsDb;
+    public SemanticExtensionType Type => SemanticExtensionType.AnalyticsDb;
     public string Name => "ClickHouse";
     public string Id => "clickhouse";
     public IReadOnlyList<string> SupportedPatterns => ["@clickhouse/client", "@clickhouse/client-web", "clickhouse"];

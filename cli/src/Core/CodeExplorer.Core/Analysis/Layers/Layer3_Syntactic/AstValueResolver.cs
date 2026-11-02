@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
@@ -10,14 +9,25 @@ namespace CodeExplorer.Core.Parser;
 /// Replaces heuristic regex searches with AST-driven resolution of literals, binary concatenations,
 /// template strings, configuration readers, and local reaching definitions.
 /// </summary>
-public static class AstValueResolver
+public static partial class AstValueResolver
 {
     private const int MaxRecursionDepth = 15;
 
     [ThreadStatic]
     private static Dictionary<string, string>? _localBindings;
 
+    [ThreadStatic]
+    private static bool _lastResolvedWasDecoded;
+
     internal static Dictionary<string, string>? LocalBindings => _localBindings;
+
+    public static bool TryResolveStringWithDecoding(Node? node, string? contextOrProject, out string result, out bool isDecoded)
+    {
+        _lastResolvedWasDecoded = false;
+        var ok = TryResolveStringInternal(node, contextOrProject, 0, null, out result);
+        isDecoded = ok && _lastResolvedWasDecoded;
+        return ok;
+    }
 
     public static string? ResolveString(Node? node, string? contextOrProject = null)
     {
@@ -52,6 +62,7 @@ public static class AstValueResolver
         if (node is ExprSyntax { ResolvedValue: { Length: > 0 } preResolved } &&
             (_localBindings == null || _localBindings.Count == 0))
         {
+            if (((ExprSyntax)node).IsDecoded) _lastResolvedWasDecoded = true;
             result = preResolved;
             return true;
         }
@@ -64,6 +75,10 @@ public static class AstValueResolver
             (node is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.Char or LiteralSyntaxKind.RawString } ||
              (node.Children.Count == 0 && IsQuoted(node.Text))))
         {
+            if (ContainsObfuscatedHexOrUnicodeEscapes(node.Text))
+            {
+                _lastResolvedWasDecoded = true;
+            }
             result = Unquote(node.Text);
             return true;
         }
@@ -538,6 +553,12 @@ public static class AstValueResolver
 
         var firstArg = argChildren.FirstOrDefault();
 
+        if (TryDecodeConstantCall(func, funcText, argChildren, contextOrProject, depth, visitedVars, out result))
+        {
+            _lastResolvedWasDecoded = true;
+            return true;
+        }
+
         // 0-arg calls
         if (argChildren.Count == 0)
         {
@@ -548,7 +569,7 @@ public static class AstValueResolver
                     ? funcMember.MemberName
                     : (func.GetChildForField(SyntaxFields.Field)?.Text ?? "");
 
-                if (mName is "to_string" or "to_owned" or "clone" or "as_str" or "into" or "as_ref" or "trim")
+                if (mName is "to_string" or "toString" or "to_owned" or "clone" or "as_str" or "into" or "as_ref" or "trim")
                 {
                     if (recv.IsValid() && TryResolveStringInternal(recv, contextOrProject, depth + 1, visitedVars, out result))
                     {
@@ -759,145 +780,4 @@ public static class AstValueResolver
         return false;
     }
 
-    public static bool TryResolveTopicOrQueue(Node? node, string? contextOrProject, out string result)
-    {
-        result = string.Empty;
-        if (!node.IsValid()) return false;
-
-        if (TryResolveString(node, contextOrProject, out var resolved) &&
-            IsValidTopicOrQueueLiteral(resolved))
-        {
-            result = resolved;
-            return true;
-        }
-
-        if (node is MemberAccessExprSyntax or IdentifierExprSyntax)
-        {
-            var propName = node is IdentifierExprSyntax
-                ? node.Text
-                : ((node as MemberAccessExprSyntax)?.MemberName ??
-                   node.GetChildForField(SyntaxFields.Property)?.Text ??
-                   node.GetChildForField(SyntaxFields.Name)?.Text ?? "");
-
-            if (ConstantRegistry.TryDeriveTopicOrQueueFromConstantName(propName, out var derived))
-            {
-                result = derived;
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    public static bool IsValidTopicOrQueueLiteral(string? s)
-    {
-        return WorkspaceConventions.IsValidTopicOrQueueName(s);
-    }
-
-    public static Node? FindVariableDeclarationInScope(Node node, string varName) =>
-        AstScopeResolver.FindVariableDeclarationInScope(node, varName);
-
-    public static Node? FindClassFieldInitializer(Node node, string fieldName) =>
-        AstScopeResolver.FindClassFieldInitializer(node, fieldName);
-
-    public static bool IsQuoted(string text)
-    {
-        if (string.IsNullOrEmpty(text) || text.Length < 2) return false;
-        var first = text[0];
-        var last = text[^1];
-        return (first == '"' && last == '"') ||
-               (first == '\'' && last == '\'') ||
-               (first == '`' && last == '`');
-    }
-
-    public static string Unquote(string raw)
-    {
-        if (string.IsNullOrEmpty(raw)) return raw;
-        var trimmed = raw.Trim();
-
-        if (trimmed.StartsWith("@\"") && trimmed.EndsWith("\"") && trimmed.Length >= 3)
-        {
-            return trimmed[2..^1].Replace("\"\"", "\"");
-        }
-
-        if (trimmed.StartsWith("\"\"\"") && trimmed.EndsWith("\"\"\"") && trimmed.Length >= 6)
-        {
-            return trimmed[3..^3].Trim('\r', '\n');
-        }
-
-        if (trimmed.StartsWith("r#\"") && trimmed.EndsWith("\"#") && trimmed.Length >= 5)
-        {
-            return trimmed[3..^2];
-        }
-
-        if (trimmed.StartsWith("r\"") && trimmed.EndsWith("\"") && trimmed.Length >= 3)
-        {
-            return trimmed[2..^1];
-        }
-
-        if (trimmed.StartsWith('`') && trimmed.EndsWith('`') && trimmed.Length >= 2)
-        {
-            return trimmed[1..^1].Replace("\r", "");
-        }
-
-        if (trimmed.Length >= 2 &&
-            ((trimmed[0] == '"' && trimmed[^1] == '"') ||
-             (trimmed[0] == '\'' && trimmed[^1] == '\'')))
-        {
-            var inner = trimmed[1..^1];
-            return UnescapeQuotedString(inner);
-        }
-
-        return trimmed;
-    }
-
-    public static string UnescapeQuotedString(string inner)
-    {
-        if (string.IsNullOrEmpty(inner) || inner.IndexOf('\\') < 0)
-        {
-            return inner;
-        }
-
-        var sb = new System.Text.StringBuilder(inner.Length);
-        for (var i = 0; i < inner.Length; i++)
-        {
-            var c = inner[i];
-            if (c == '\\' && i + 1 < inner.Length)
-            {
-                var next = inner[i + 1];
-                switch (next)
-                {
-                    case 'n': sb.Append('\n'); i++; break;
-                    case 'r': sb.Append('\r'); i++; break;
-                    case 't': sb.Append('\t'); i++; break;
-                    case '"': sb.Append('"'); i++; break;
-                    case '\'': sb.Append('\''); i++; break;
-                    case '\\': sb.Append('\\'); i++; break;
-                    case '0': sb.Append('\0'); i++; break;
-                    case 'a': sb.Append('\a'); i++; break;
-                    case 'b': sb.Append('\b'); i++; break;
-                    case 'f': sb.Append('\f'); i++; break;
-                    case 'v': sb.Append('\v'); i++; break;
-                    case 'u' when i + 5 < inner.Length && int.TryParse(inner.AsSpan(i + 2, 4), System.Globalization.NumberStyles.HexNumber, null, out var u):
-                        sb.Append((char)u);
-                        i += 5;
-                        break;
-                    case 'x' when i + 3 < inner.Length && byte.TryParse(inner.AsSpan(i + 2, 2), System.Globalization.NumberStyles.HexNumber, null, out var b):
-                        sb.Append((char)b);
-                        i += 3;
-                        break;
-                    default:
-                        sb.Append('\\');
-                        sb.Append(next);
-                        i++;
-                        break;
-                }
-            }
-            else
-            {
-                sb.Append(c);
-            }
-        }
-        return sb.ToString();
-    }
 }

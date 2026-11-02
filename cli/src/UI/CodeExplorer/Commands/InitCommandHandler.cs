@@ -1,5 +1,3 @@
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Database;
 using CodeExplorer.Options;
 
 namespace CodeExplorer.Commands;

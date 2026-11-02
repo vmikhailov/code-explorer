@@ -1,5 +1,3 @@
-using System.Collections.Frozen;
-
 namespace CodeExplorer.Core.Parser.Syntax;
 
 /// <summary>
@@ -270,6 +268,29 @@ public abstract class SyntaxNode
     public int StartIndex => Span.StartByte;
     public int EndIndex => Span.EndByte;
 
+    public IEnumerable<SyntaxNode> DescendantsAndSelf()
+    {
+        yield return this;
+        for (int i = 0; i < Children.Count; i++)
+        {
+            foreach (var descendant in Children[i].DescendantsAndSelf())
+            {
+                yield return descendant;
+            }
+        }
+    }
+
+    public IEnumerable<SyntaxNode> Descendants()
+    {
+        for (int i = 0; i < Children.Count; i++)
+        {
+            foreach (var descendant in Children[i].DescendantsAndSelf())
+            {
+                yield return descendant;
+            }
+        }
+    }
+
     public string? ExplicitText { get; init; }
 
     /// <summary>
@@ -386,6 +407,15 @@ public static class SyntaxFields
     public const string Subscript = "subscript";
     public const string ModuleName = "module_name";
     public const string Tag = "tag";
+    public const string Condition = "condition";
+    public const string Consequence = "consequence";
+    public const string Alternative = "alternative";
+    public const string Initializer = "initializer";
+    public const string Increment = "increment";
+    public const string Update = "update";
+    public const string Finalizer = "finalizer";
+    public const string Argument = "argument";
+    public const string Receiver = "receiver";
 }
 
 /// <summary>
@@ -451,7 +481,18 @@ public sealed class SyntaxDocument : SyntaxNode, IDisposable
 
     public void Dispose()
     {
-        // Managed syntax tree is eligible for GC when references are released after Layer 4.
+        Children = [];
+        Imports = [];
+        Declarations = [];
+        TopLevelStatements = [];
+        AllTypes = [];
+        AllFunctions = [];
+        AllMembers = [];
+        AllVariables = [];
+        AllCalls = [];
+        AllSqlStatements = [];
+        Diagnostics = [];
+        _functionsByName = null;
     }
 
     /// <summary>
@@ -612,6 +653,7 @@ public sealed class FunctionDeclSyntax : DeclarationSyntax
     public IReadOnlyList<TypeRefSyntax> ThrowsTypes { get; set; } = [];
     public BlockStmtSyntax? Body { get; set; }
     public ExprSyntax? ExpressionBody { get; set; }
+    public CodeExplorer.Core.Analysis.Dataflow.FunctionDataflowSummary? DataflowSummary { get; set; }
     public bool IsAsync => Modifiers.HasFlag(SyntaxModifiers.Async);
     public bool IsGenerator { get; set; }
 }
@@ -634,6 +676,7 @@ public sealed class MemberDeclSyntax : DeclarationSyntax
     public FunctionDeclSyntax? Setter { get; set; }
     public string? StructTag { get; set; }
     public string? ResolvedValue { get; set; }
+    public bool IsDecoded { get; set; }
 }
 
 public sealed class VariableDeclSyntax : DeclarationSyntax
@@ -645,6 +688,7 @@ public sealed class VariableDeclSyntax : DeclarationSyntax
     public bool IsMutable { get; set; } = true;
     public string Scope { get; set; } = "local";
     public string? ResolvedValue { get; set; }
+    public bool IsDecoded { get; set; }
 }
 
 public sealed class AnnotationSyntax : DeclarationSyntax
@@ -825,6 +869,7 @@ public abstract class ExprSyntax : SyntaxNode
     /// Pre-evaluated constant or intra-procedural dataflow value computed by <see cref="SyntaxValueEvaluator"/>.
     /// </summary>
     public string? ResolvedValue { get; set; }
+    public bool IsDecoded { get; set; }
 
     /// <summary>
     /// Declared or inferred type reference.

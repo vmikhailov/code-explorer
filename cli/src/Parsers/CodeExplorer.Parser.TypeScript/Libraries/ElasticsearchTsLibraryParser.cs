@@ -1,14 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public class ElasticsearchTsLibraryParser : ISemanticExtension
 {
-    public string Type => "db:search";
+    public SemanticExtensionType Type => SemanticExtensionType.SearchDb;
     public string Name => "Elasticsearch";
     public string Id => "elasticsearch";
     public IReadOnlyList<string> SupportedPatterns => ["@elastic/elasticsearch"];

@@ -1,15 +1,11 @@
 using System.Text.RegularExpressions;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public class StripeLibraryParser : ISemanticExtension
 {
-    public string Type => OntologyConstants.LibraryTypes.Cloud;
+    public SemanticExtensionType Type => SemanticExtensionType.Cloud;
     public string Name => "Stripe";
     public string Id => "stripe";
     public IReadOnlyList<string> SupportedPatterns => ["stripe", "@stripe/*"];

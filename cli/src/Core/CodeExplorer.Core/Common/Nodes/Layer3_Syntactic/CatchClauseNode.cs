@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 
@@ -24,7 +25,7 @@ public record CatchClauseNode(
     bool HasComment,
     int StatementCount,
     bool IsTest,
-    string? ProjectKind = null,
+    ProjectEntityKind? ProjectKind = null,
     string? ProjectName = null,
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
@@ -47,13 +48,13 @@ public record CatchClauseNode(
     public bool IsTest { get; set; } = IsTest;
 
     [JsonPropertyName("project_kind"), OntologyProperty("The architectural kind of the enclosing project.")]
-    public string? ProjectKind { get; set; } = ProjectKind;
+    public ProjectEntityKind? ProjectKind { get; set; } = ProjectKind;
 
     [JsonPropertyName("project_name"), OntologyProperty("The name of the enclosing project.")]
     public string? ProjectName { get; set; } = ProjectName;
 
     [JsonIgnore]
-    public override string Kind => OntologyConstants.NodeLabels.CatchClause;
+    public override NodeKind Kind => NodeKind.CatchClause;
 
     [JsonIgnore]
     public override string Path { get; init; } = FilePath;

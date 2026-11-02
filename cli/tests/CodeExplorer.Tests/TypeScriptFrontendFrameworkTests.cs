@@ -1,11 +1,10 @@
+using CodeExplorer.Core.Database;
 using System.Threading.Channels;
-using CodeExplorer.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.TypeScript;
 using NUnit.Framework;
@@ -41,7 +40,7 @@ public class TypeScriptFrontendFrameworkTests
 
             var parser = new TypeScriptParser();
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            var client = new InMemoryGraphClient();
+            var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
             var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -114,6 +113,26 @@ root.render(React.createElement(App, null));
         // Lazy import should produce a reference to ./UserModal
         var allRefs = FindAllReferences(ws.FileNode);
         allRefs.Any(r => r.TargetName == "./UserModal" && r.Kind == "DEPENDS_ON").Should().BeTrue();
+    }
+
+    [Test]
+    public async Task Test_Jsx_Component_Calls_Extracted()
+    {
+        var code = """
+import React from 'react';
+import { Toolbar } from './Toolbar';
+export function App() {
+  return (
+    <div>
+      <Toolbar />
+    </div>
+  );
+}
+""";
+        using var ws = await TestWorkspace.CreateAsync(code, "App.tsx");
+        var appFunc = FindNodes<FunctionNode>(ws.FileNode.Children).FirstOrDefault(f => f.Name == "App");
+        appFunc.Should().NotBeNull();
+        appFunc!.References.Any(r => r.TargetName == "Toolbar" && r.Kind == "CALLS").Should().BeTrue();
     }
 
     [Test]
@@ -253,5 +272,24 @@ const routes: Routes = [
         {
             ConstantRegistry.Clear();
         }
+    }
+
+    [Test]
+    public async Task VsCodeWebviewInstantiation_EmitsInstantiatesReference()
+    {
+        var code = """
+import * as vscode from 'vscode';
+
+export class GraphPanel {
+    private updateHtml(webview: vscode.Webview, extensionUri: vscode.Uri) {
+        const scriptUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(extensionUri, 'dist', 'webview.js')
+        );
+    }
+}
+""";
+        using var ws = await TestWorkspace.CreateAsync(code, "graphPanel.ts");
+        var references = FindAllReferences(ws.FileNode);
+        references.Should().Contain(r => r.Kind == OntologyConstants.Relationships.Instantiates && r.TargetName == "dist/webview.js");
     }
 }

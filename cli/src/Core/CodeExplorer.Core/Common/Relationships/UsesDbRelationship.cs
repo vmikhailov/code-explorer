@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes;
 
@@ -11,5 +12,5 @@ public record UsesDbRelationship(
 ) : IOntologyRelationship
 {
     [JsonIgnore]
-    public string Kind => OntologyConstants.Relationships.UsesDb;
+    public RelationshipKind Kind => RelationshipKind.UsesDb;
 }

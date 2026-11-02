@@ -1,7 +1,3 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
@@ -10,7 +6,7 @@ public class KafkaFlowLibraryParser : ISemanticExtension
 {
     public string Name => "KafkaFlow";
     public string Id => "kafkaflow";
-    public string Type => OntologyConstants.LibraryTypes.Queue;
+    public SemanticExtensionType Type => SemanticExtensionType.Queue;
     public IReadOnlyList<string> SupportedPatterns => ["KafkaFlow", "KafkaFlow.*"];
     public bool IsImplemented => true;
     public LibraryRole LibraryRole => LibraryRole.MessageBroker;

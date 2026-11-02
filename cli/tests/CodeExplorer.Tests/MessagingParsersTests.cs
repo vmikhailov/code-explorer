@@ -1,10 +1,9 @@
+using CodeExplorer.Core.Database;
 using System.Threading.Channels;
-using CodeExplorer.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.CSharp;
 using CodeExplorer.Parser.Go;
@@ -103,7 +102,7 @@ public class SubmitOrderConsumer : IConsumer<SubmitOrder>
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
 
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
 
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
@@ -185,7 +184,7 @@ public class UserCreatedNotificationHandler : INotificationHandler<UserCreatedEv
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
 
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
 
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
@@ -257,7 +256,7 @@ public class OrderDirectiveHandler : IMessageHandler<OrderDirectiveMessage>
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
 
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
 
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
@@ -318,7 +317,7 @@ func consumeRabbit(ctx context.Context, ch *amqp.Channel, q string, h any) {}
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
 
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
 
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
@@ -391,7 +390,7 @@ func RunPubSub(ctx context.Context, client *pubsub.Client) {
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
 
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
 
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
@@ -455,7 +454,7 @@ func EnsureSubscription(ctx context.Context, client *pubsub.Client) {
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
 
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
 
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
@@ -514,7 +513,7 @@ export async function sendPartner() {
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
 
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
 
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
@@ -576,7 +575,7 @@ export class AppService {
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
 
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
 
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
@@ -646,7 +645,7 @@ export class RuleTreeService {
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
 
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
 
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
@@ -714,7 +713,7 @@ export class LegacyQueueService {
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
 
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
 
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
@@ -770,7 +769,7 @@ export class HelperService {
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
 
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
 
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
@@ -828,7 +827,7 @@ export class OrderPublisher {
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
 
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
 
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
@@ -901,7 +900,7 @@ public class OrderStartedIntegrationEventHandler : IIntegrationEventHandler<Orde
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
 
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
 
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
@@ -1032,7 +1031,7 @@ public class OrderStatusChangedToStockConfirmedIntegrationEventHandler : IIntegr
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
             using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId,

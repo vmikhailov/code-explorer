@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes;
 
@@ -11,5 +12,5 @@ public record ExposedByRelationship(
 ) : IOntologyRelationship
 {
     [JsonIgnore]
-    public string Kind => OntologyConstants.Relationships.ExposedBy;
+    public RelationshipKind Kind => RelationshipKind.ExposedBy;
 }

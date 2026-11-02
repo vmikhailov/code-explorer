@@ -1,5 +1,5 @@
 using System.Text.Json.Serialization;
-using CodeExplorer.Common;
+using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Common.Nodes;
 
@@ -12,7 +12,10 @@ public abstract record CompositeNode(
     public Dictionary<string, string>? Extensions { get; set; } = Extensions;
 
     [JsonIgnore]
-    public abstract string Kind { get; }
+    public abstract NodeKind Kind { get; }
+
+    [JsonIgnore]
+    public virtual NodeKind NodeKind => Kind;
 
     [JsonIgnore]
     public abstract string Path { get; init; }

@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Parser;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
@@ -12,7 +11,7 @@ public sealed class GoTestLibraryParser : ISemanticExtension
 
     public string Id => "go-test";
     public string Name => "Go Test Frameworks";
-    public string Type => "library";
+    public SemanticExtensionType Type => SemanticExtensionType.Library;
     public LibraryRole LibraryRole => LibraryRole.TestFramework;
 
     public IReadOnlyList<string> SupportedPatterns =>

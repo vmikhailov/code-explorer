@@ -18,7 +18,7 @@ C# development checklist:
 - Nullable reference types enabled and respected (no redundant null checks on non-nullable types)
 - Code analysis with .editorconfig
 - You must respect .editorconfig and csharp-coding-standards skill rules
-- Namespace shortening: eliminate redundant namespace specifications and qualifiers
+- Namespace shortening: eliminate redundant namespace specifications and inline qualifiers (never write `Core.Analysis.ArchitectureQueryService` or `Parser.WorkspaceIndexer` in code; always import via `using` or global `<Using>` and use short type names)
 - GlobalUsings discipline: do not include namespaces already provided by global/implicit usings
 - StyleCop and analyzer compliance
 - Test coverage exceeding 80%

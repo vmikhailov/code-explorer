@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes;
 
@@ -11,5 +12,5 @@ public record HasMethodRelationship(
 ) : IOntologyRelationship
 {
     [JsonIgnore]
-    public string Kind => OntologyConstants.Relationships.HasMethod;
+    public RelationshipKind Kind => RelationshipKind.HasMethod;
 }

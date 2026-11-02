@@ -1,15 +1,11 @@
 using System.Text.RegularExpressions;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
 public class PubSubGoLibraryParser : ISemanticExtension
 {
-    public string Type => OntologyConstants.LibraryTypes.Queue;
+    public SemanticExtensionType Type => SemanticExtensionType.Queue;
     public string Name => "PubSub";
     public string Id => "pubsub";
     public IReadOnlyList<string> SupportedPatterns =>

@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
 
 namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -33,5 +34,5 @@ public record SemanticStructureNode(
 ) : CompositeNode(Id, Extensions)
 {
     [JsonIgnore]
-    public override string Kind => OntologyConstants.NodeLabels.SemanticStructure;
+    public override NodeKind Kind => NodeKind.SemanticStructure;
 }

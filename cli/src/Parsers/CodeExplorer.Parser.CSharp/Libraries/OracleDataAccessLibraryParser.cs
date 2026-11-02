@@ -1,14 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
 public class OracleDataAccessLibraryParser : ISemanticExtension
 {
-    public string Type => "db:relational";
+    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
     public string Name => "Oracle";
     public string Id => "oracle";
     public IReadOnlyList<string> SupportedPatterns => ["Oracle.ManagedDataAccess", "Oracle.ManagedDataAccess.*", "Oracle.DataAccess", "Oracle.DataAccess.*"];

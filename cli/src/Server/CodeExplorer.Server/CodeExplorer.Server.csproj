@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>CodeExplorer.Server</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <InternalsVisibleTo Include="CodeExplorer" />
+    <InternalsVisibleTo Include="CodeExplorer.Tests" />
+    <Using Include="CodeExplorer.Core.Database" />
+    <Using Include="CodeExplorer.Core.Mcp" />
+    <Using Include="CodeExplorer.Core.Gates.Engine" />
+    <Using Include="CodeExplorer.Core.Gates.Models" />
+    <Using Include="CodeExplorer.Core.Gates.Storage" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="JetBrains.Annotations" Version="2025.2.4" />
+    <PackageReference Include="ModelContextProtocol" Version="1.3.0" />
+    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\CodeExplorer.Core\CodeExplorer.Core.csproj" />
+    <ProjectReference Include="..\..\Core\CodeExplorer.Gates\CodeExplorer.Gates.csproj" />
+    <ProjectReference Include="..\..\Core\CodeExplorer.Analysis\CodeExplorer.Analysis.csproj" />
+  </ItemGroup>
+
+</Project>

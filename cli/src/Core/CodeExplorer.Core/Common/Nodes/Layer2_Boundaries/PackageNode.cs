@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
 
 namespace CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
@@ -20,14 +21,13 @@ public record PackageNode(
     [property: OntologyProperty("Whether this package is produced internally by a workspace project.")] bool IsInternal,
     [property: OntologyProperty("The package ecosystem (e.g. nuget, npm, maven, pip, go).")] string Ecosystem,
     [property: OntologyProperty("The path of the folder or file relative to its parent container.")] string Path = "",
+    [property: OntologyProperty("The architectural archetype of the package (e.g. PureUtility, ClientUi, CliTool, Framework, BackendService, DatabaseDriver, NativeAddon).")] string Archetype = "Unclassified",
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {
     [JsonIgnore]
-    public override string Kind => OntologyConstants.NodeLabels.Package;
+    public override NodeKind Kind => NodeKind.Package;
 
     [property: OntologyProperty("Whether this package is an external third-party dependency.")]
     public bool IsExternal => !IsInternal;
-
-    public string Type => Ecosystem;
 }

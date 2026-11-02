@@ -1,7 +1,3 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
@@ -10,7 +6,7 @@ public class ViteLibraryParser : ISemanticExtension
 {
     public string Id => "vite";
     public string Name => "Vite";
-    public string Type => "framework";
+    public SemanticExtensionType Type => SemanticExtensionType.Framework;
     public LibraryRole LibraryRole => LibraryRole.FrontendFramework;
     public IReadOnlyList<string> SupportedPatterns => ["vite"];
     public bool IsImplemented => true;

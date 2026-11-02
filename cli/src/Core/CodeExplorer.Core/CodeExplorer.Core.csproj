@@ -7,29 +7,25 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <InternalsVisibleTo Include="CodeExplorer.Gates" />
+    <InternalsVisibleTo Include="CodeExplorer.Analysis" />
+    <InternalsVisibleTo Include="CodeExplorer.Server" />
+    <InternalsVisibleTo Include="CodeExplorer" />
     <InternalsVisibleTo Include="CodeExplorer.Tests" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="JetBrains.Annotations" Version="2025.2.4" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.2" />
     <PackageReference Include="Microsoft.SqlServer.TransactSql.ScriptDom" Version="180.18.1" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.2" />
     <PackageReference Include="Dapper" Version="2.1.66" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.13" />
-    <PackageReference Include="ModelContextProtocol" Version="1.3.0" />
-    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.3.0" />
-    <PackageReference Include="LLamaSharp" Version="0.27.0" />
-    <PackageReference Include="LLamaSharp.Backend.Cpu" Version="0.27.0" />
-    <PackageReference Include="LLamaSharp.Backend.Vulkan" Version="0.27.0" />
     <PackageReference Include="YamlDotNet" Version="18.1.0" />
   </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\Cypher\CodeExplorer.Cypher\CodeExplorer.Cypher.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <EmbeddedResource Include="Resources\**\*.cypher" />
-    <EmbeddedResource Include="Resources\**\*.json" />
   </ItemGroup>
 
   <Target Name="GenerateOntologyDocs" AfterTargets="Build">

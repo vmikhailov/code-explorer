@@ -27,6 +27,24 @@ public abstract class TreeSitterSyntaxConverterBase
     /// </summary>
     protected virtual void PopulateSyntaxNode(SyntaxNode node, SyntaxDocument doc)
     {
+        if (node is DeclarationSyntax decl)
+        {
+            var nameChild = decl.GetChildForField(SyntaxFields.Name) ??
+                            decl.Children.FirstOrDefault(static c => c is IdentifierExprSyntax);
+            if (nameChild != null)
+            {
+                decl.Name = nameChild.Text;
+            }
+            else if (string.IsNullOrEmpty(decl.Name) && !string.IsNullOrEmpty(decl.Text) && decl.Children.Count == 0)
+            {
+                decl.Name = decl.Text;
+            }
+            if (decl is NamespaceDeclSyntax ns && !string.IsNullOrEmpty(ns.Name) && string.IsNullOrEmpty(doc.PackageOrNamespace))
+            {
+                doc.PackageOrNamespace = ns.Name;
+            }
+        }
+
         switch (node)
         {
             case IdentifierExprSyntax idExpr:
@@ -43,27 +61,180 @@ public abstract class TreeSitterSyntaxConverterBase
                 }
                 break;
 
-            case DeclarationSyntax decl:
-                var nameChild = decl.GetChildForField(SyntaxFields.Name) ??
-                                decl.Children.FirstOrDefault(static c => c is IdentifierExprSyntax);
-                if (nameChild != null)
-                {
-                    decl.Name = nameChild.Text;
-                }
-                if (decl is NamespaceDeclSyntax ns && !string.IsNullOrEmpty(ns.Name) && string.IsNullOrEmpty(doc.PackageOrNamespace))
-                {
-                    doc.PackageOrNamespace = ns.Name;
-                }
-                break;
-
             case BinaryExprSyntax binExpr:
                 if (binExpr.GetChildForField(SyntaxFields.Left) is ExprSyntax leftExpr) binExpr.Left = leftExpr;
                 if (binExpr.GetChildForField(SyntaxFields.Right) is ExprSyntax rightExpr) binExpr.Right = rightExpr;
                 var opNode = binExpr.GetChildForField(SyntaxFields.Operator);
                 if (opNode != null) binExpr.Operator = opNode.Text;
                 break;
+
+            case FunctionDeclSyntax fn:
+                var paramsContainer = fn.GetChildForField(SyntaxFields.Parameters);
+                if (paramsContainer != null)
+                {
+                    fn.Parameters = paramsContainer.Children.Select(c => c switch
+                    {
+                        ParameterDeclSyntax p => p,
+                        IdentifierExprSyntax id => new ParameterDeclSyntax
+                        {
+                            Name = id.Name,
+                            Span = id.Span,
+                            Document = id.Document,
+                            Parent = fn,
+                            RawGrammarKind = id.RawGrammarKind
+                        },
+                        _ => null
+                    }).Where(static p => p != null).ToList()!;
+                }
+                else
+                {
+                    var directParams = fn.Children.OfType<ParameterDeclSyntax>().ToList();
+                    if (directParams.Count > 0) fn.Parameters = directParams;
+                }
+                fn.Body = fn.GetChildForField(SyntaxFields.Body) as BlockStmtSyntax ?? fn.Children.OfType<BlockStmtSyntax>().FirstOrDefault();
+                fn.ExpressionBody = fn.Children.OfType<ExprSyntax>().FirstOrDefault(static e => e is not IdentifierExprSyntax);
+                CodeExplorer.Core.Analysis.Dataflow.FunctionDataflowAnalyzer.Analyze(fn);
+                break;
+
+            case CallExprSyntax call:
+                var argsContainer = call.GetChildForField(SyntaxFields.Arguments) ??
+                                    call.Children.FirstOrDefault(static c => c.RawGrammarKind is "argument_list" or "arguments" or "tuple_expression");
+                if (argsContainer != null)
+                {
+                    var args = new List<ArgumentSyntax>();
+                    foreach (var child in argsContainer.Children)
+                    {
+                        if (child is ArgumentSyntax arg)
+                        {
+                            args.Add(arg);
+                        }
+                        else if (child is ExprSyntax expr && expr.RawGrammarKind is not "(" and not ")" and not ",")
+                        {
+                            args.Add(new ArgumentSyntax
+                            {
+                                Value = expr,
+                                Span = expr.Span,
+                                Parent = call,
+                                Document = call.Document,
+                                RawGrammarKind = "argument"
+                            });
+                        }
+                    }
+                    if (args.Count > 0) call.Arguments = args;
+                }
+                else
+                {
+                    var directArgs = call.Children.OfType<ArgumentSyntax>().ToList();
+                    if (directArgs.Count > 0) call.Arguments = directArgs;
+                }
+                break;
+
+            case ArgumentSyntax argSyntax:
+                argSyntax.Value = argSyntax.GetChildForField(SyntaxFields.Value) as ExprSyntax ??
+                                  argSyntax.Children.OfType<ExprSyntax>().FirstOrDefault();
+                var argName = argSyntax.GetChildForField(SyntaxFields.Name);
+                if (argName != null) argSyntax.Name = argName.Text;
+                break;
+
+            case AssignmentExprSyntax assign:
+                assign.Left = assign.GetChildForField(SyntaxFields.Left) ?? assign.Children.FirstOrDefault();
+                assign.Right = assign.GetChildForField(SyntaxFields.Right) as ExprSyntax ?? assign.Children.OfType<ExprSyntax>().LastOrDefault();
+                var assignOp = assign.GetChildForField(SyntaxFields.Operator);
+                if (assignOp != null) assign.Operator = assignOp.Text;
+                break;
+
+            case ConditionalExprSyntax cond:
+                cond.Condition = cond.GetChildForField(SyntaxFields.Condition) as ExprSyntax ?? cond.Children.OfType<ExprSyntax>().ElementAtOrDefault(0);
+                cond.WhenTrue = cond.GetChildForField(SyntaxFields.Consequence) as ExprSyntax ?? cond.Children.OfType<ExprSyntax>().ElementAtOrDefault(1);
+                cond.WhenFalse = cond.GetChildForField(SyntaxFields.Alternative) as ExprSyntax ?? cond.Children.OfType<ExprSyntax>().ElementAtOrDefault(2);
+                break;
+
+            case UnaryExprSyntax unary:
+                unary.Operand = unary.GetChildForField(SyntaxFields.Operand) as ExprSyntax ??
+                                unary.GetChildForField(SyntaxFields.Argument) as ExprSyntax ??
+                                unary.Children.OfType<ExprSyntax>().FirstOrDefault();
+                var unaryOp = unary.GetChildForField(SyntaxFields.Operator);
+                if (unaryOp != null) unary.Operator = unaryOp.Text;
+                break;
+
+            case BlockStmtSyntax block:
+                block.Statements = block.Children.Select(AsStatementOrWrap).Where(static s => s != null).ToList()!;
+                break;
+
+            case ExprStmtSyntax exprStmt:
+                exprStmt.Expression = exprStmt.Children.OfType<ExprSyntax>().FirstOrDefault();
+                break;
+
+            case IfStmtSyntax ifStmt:
+                ifStmt.Condition = ifStmt.GetChildForField(SyntaxFields.Condition) as ExprSyntax ??
+                                   ifStmt.Children.OfType<ExprSyntax>().FirstOrDefault() ??
+                                   ifStmt.Children.FirstOrDefault(static c => c.FieldRole == "condition")?.Children.OfType<ExprSyntax>().FirstOrDefault();
+                ifStmt.ThenBranch = AsStatementOrWrap(ifStmt.GetChildForField(SyntaxFields.Consequence) ?? ifStmt.Children.OfType<StatementSyntax>().FirstOrDefault());
+                ifStmt.ElseBranch = AsStatementOrWrap(ifStmt.GetChildForField(SyntaxFields.Alternative) ?? ifStmt.Children.OfType<StatementSyntax>().Skip(1).FirstOrDefault());
+                break;
+
+            case LoopStmtSyntax loop:
+                loop.Condition = loop.GetChildForField(SyntaxFields.Condition) as ExprSyntax ??
+                                 loop.Children.OfType<ExprSyntax>().FirstOrDefault() ??
+                                 loop.Children.FirstOrDefault(static c => c.FieldRole == "condition")?.Children.OfType<ExprSyntax>().FirstOrDefault();
+                loop.Body = AsStatementOrWrap(loop.GetChildForField(SyntaxFields.Body) ?? loop.Children.OfType<StatementSyntax>().LastOrDefault());
+                loop.Collection = loop.GetChildForField(SyntaxFields.Right) as ExprSyntax ?? loop.GetChildForField(SyntaxFields.Value) as ExprSyntax;
+                break;
+
+            case TryStmtSyntax tryStmt:
+                tryStmt.Body = tryStmt.GetChildForField(SyntaxFields.Body) as BlockStmtSyntax ??
+                               tryStmt.Children.OfType<BlockStmtSyntax>().FirstOrDefault();
+                tryStmt.Catches = tryStmt.Children.OfType<CatchClauseSyntax>().ToList();
+                tryStmt.FinallyBody = tryStmt.GetChildForField(SyntaxFields.Finalizer) as BlockStmtSyntax ??
+                                      tryStmt.Children.FirstOrDefault(static c => c.FieldRole is "finalizer" or "finally_clause" || c.RawGrammarKind is "finally_clause") as BlockStmtSyntax ??
+                                      tryStmt.Children.FirstOrDefault(static c => c.FieldRole is "finalizer" or "finally_clause" || c.RawGrammarKind is "finally_clause")?.Children.OfType<BlockStmtSyntax>().FirstOrDefault();
+                break;
+
+            case CatchClauseSyntax catchClause:
+                catchClause.Body = catchClause.Children.OfType<BlockStmtSyntax>().FirstOrDefault();
+                break;
+
+            case ReturnOrYieldStmtSyntax ret:
+                ret.Value = ret.Children.OfType<ExprSyntax>().FirstOrDefault();
+                break;
+
+            case ThrowStmtSyntax thr:
+                thr.Exception = thr.Children.OfType<ExprSyntax>().FirstOrDefault();
+                break;
+
+            case VariableDeclSyntax varDecl:
+                varDecl.Initializer = varDecl.GetChildForField(SyntaxFields.Value) as ExprSyntax ??
+                                      varDecl.Children.OfType<ExprSyntax>().LastOrDefault();
+                break;
+
+            case MemberDeclSyntax memDecl:
+                memDecl.Initializer = memDecl.GetChildForField(SyntaxFields.Value) as ExprSyntax ??
+                                      memDecl.Children.OfType<ExprSyntax>().LastOrDefault();
+                break;
+
+            case LockStmtSyntax lockStmt:
+                lockStmt.Body = lockStmt.Children.OfType<BlockStmtSyntax>().FirstOrDefault();
+                break;
+
+            case UsingOrWithStmtSyntax usingStmt:
+                usingStmt.Body = usingStmt.Children.OfType<StatementSyntax>().LastOrDefault();
+                break;
+
+            case AwaitOrTryExprSyntax awaitExpr:
+                awaitExpr.Operand = awaitExpr.Children.OfType<ExprSyntax>().FirstOrDefault();
+                break;
         }
     }
+
+    protected static StatementSyntax? AsStatementOrWrap(SyntaxNode? node) =>
+        node switch
+        {
+            null => null,
+            StatementSyntax stmt => stmt,
+            DeclarationSyntax decl => new DeclStmtSyntax { Span = decl.Span, RawGrammarKind = decl.RawGrammarKind, Parent = decl.Parent, Document = decl.Document, Declarations = [decl] },
+            ExprSyntax expr => new ExprStmtSyntax { Span = expr.Span, RawGrammarKind = expr.RawGrammarKind, Parent = expr.Parent, Document = expr.Document, Expression = expr },
+            _ => null
+        };
 
     protected virtual bool HasInterpolationChild(LiteralExprSyntax litExpr) => false;
 

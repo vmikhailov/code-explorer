@@ -8,11 +8,42 @@ public record PackageDescriptor(
     string Id,
     string Name,
     LibraryRole Role = LibraryRole.General,
-    string Type = "library",
+    SemanticExtensionType Type = SemanticExtensionType.Library,
     IReadOnlyList<string>? SupportedPatterns = null,
     Func<ProjectContext, bool>? CustomMatch = null
 )
 {
+    public PackageDescriptor(
+        string id,
+        string name,
+        LibraryRole role,
+        string type,
+        IReadOnlyList<string>? supportedPatterns = null,
+        Func<ProjectContext, bool>? customMatch = null)
+        : this(id, name, role, ParseExtensionType(type), supportedPatterns, customMatch)
+    {
+    }
+
+    private static SemanticExtensionType ParseExtensionType(string? type) => type?.ToLowerInvariant() switch
+    {
+        "framework" => SemanticExtensionType.Framework,
+        "db:relational" or "relational" or "orm" => SemanticExtensionType.RelationalDb,
+        "db:document" or "document" => SemanticExtensionType.DocumentDb,
+        "db:keyvalue" or "keyvalue" => SemanticExtensionType.KeyValueDb,
+        "db:analytics" or "analytics" => SemanticExtensionType.AnalyticsDb,
+        "db:search" or "search" => SemanticExtensionType.SearchDb,
+        "db:vector" or "vector" => SemanticExtensionType.VectorDb,
+        "db:graph" or "graph" => SemanticExtensionType.GraphDb,
+        "db:timeseries" or "timeseries" => SemanticExtensionType.TimeSeriesDb,
+        "queue" or "messaging" => SemanticExtensionType.Queue,
+        "cloud" => SemanticExtensionType.Cloud,
+        "http-client" => SemanticExtensionType.HttpClient,
+        "api" or "api:client" => SemanticExtensionType.ApiClient,
+        "framework:grpc" => SemanticExtensionType.GrpcFramework,
+        "framework:graphql" => SemanticExtensionType.GraphqlFramework,
+        _ => SemanticExtensionType.Library
+    };
+
     public IReadOnlyList<string> SupportedPatterns { get; init; } = SupportedPatterns ?? [];
 
     /// <summary>

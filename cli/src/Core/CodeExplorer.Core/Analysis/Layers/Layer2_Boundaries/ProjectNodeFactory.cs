@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 
 namespace CodeExplorer.Core.Analysis;
@@ -31,8 +30,8 @@ public static class ProjectNodeFactory
             externalPackages,
             extensions);
 
-        var kindStr = classification.Kind != ProjectEntityKind.Unknown 
-            ? classification.Kind.ToString() 
+        var kindStr = classification.Kind != ProjectEntityKind.Unknown
+            ? classification.Kind.ToString()
             : role.ToString();
 
         var entityType = classification.Kind switch
@@ -54,6 +53,7 @@ public static class ProjectNodeFactory
             }
         };
 
+        extensions["name"] = projectName;
         extensions["role"] = role.ToString();
         extensions["is_library"] = isLibrary ? "true" : "false";
         extensions["entity_type"] = entityType;

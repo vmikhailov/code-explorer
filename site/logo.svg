@@ -1,27 +1,106 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none">
-  <!-- Dark theme: luminous silver and crisp white vertices for dark IDE backgrounds -->
-  <g stroke="#E2E8F0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Graph Connections -->
-    <path d="M12 4.5 L18.5 8.25 V15.75 L12 19.5 L5.5 15.75 V8.25 Z" opacity="0.45" />
-    <path d="M12 4.5 V9" opacity="0.65" />
-    <path d="M12 15 V19.5" opacity="0.65" />
-    <path d="M5.5 8.25 L9.5 10.5" opacity="0.65" />
-    <path d="M18.5 8.25 L14.5 10.5" opacity="0.65" />
-    <path d="M5.5 15.75 L9.5 13.5" opacity="0.65" />
-    <path d="M18.5 15.75 L14.5 13.5" opacity="0.65" />
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+  <defs>
+    <!-- Full-bleed background: deep warm graphite -->
+    <radialGradient id="bgGrad" cx="50%" cy="45%" r="72%">
+      <stop offset="0%" stop-color="#1C222E"/>
+      <stop offset="60%" stop-color="#12161E"/>
+      <stop offset="100%" stop-color="#0D1016"/>
+    </radialGradient>
 
-  <!-- Peripheral graph vertices -->
-  <g fill="#FFFFFF">
-    <circle cx="12" cy="4.5" r="1.25" />
-    <circle cx="18.5" cy="8.25" r="1.25" />
-    <circle cx="18.5" cy="15.75" r="1.25" />
-    <circle cx="12" cy="19.5" r="1.25" />
-    <circle cx="5.5" cy="15.75" r="1.25" />
-    <circle cx="5.5" cy="8.25" r="1.25" />
-  </g>
+    <!-- Subtle ambient core glow -->
+    <radialGradient id="coreGlow" cx="50%" cy="50%" r="45%">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.22"/>
+      <stop offset="50%" stop-color="#F0A830" stop-opacity="0.09"/>
+      <stop offset="100%" stop-color="#0D1016" stop-opacity="0"/>
+    </radialGradient>
 
-  <!-- Central core: Lens / Ontology / Target hub -->
-  <circle cx="12" cy="12" r="3.25" stroke="#FFFFFF" stroke-width="1.5" fill="none" />
-  <circle cx="12" cy="12" r="1.25" fill="#FFFFFF" />
+    <!-- Cyan-to-Amber edge gradient -->
+    <linearGradient id="edgeGrad" gradientUnits="userSpaceOnUse" x1="80" y1="80" x2="432" y2="432">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="55%" stop-color="#7DD3FC"/>
+      <stop offset="100%" stop-color="#F0A830"/>
+    </linearGradient>
+
+    <!-- Soft neon glow filter -->
+    <filter id="glow" filterUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Seamless Full-Bleed Background (no outer border to clip in link previews) -->
+  <rect x="0" y="0" width="512" height="512" fill="url(#bgGrad)"/>
+  <circle cx="256" cy="256" r="220" fill="url(#coreGlow)"/>
+
+  <!-- Scaled Emblem (0.78x around center 256,256 for generous top/bottom safe zone in Teams/Slack) -->
+  <g transform="translate(256, 256) scale(0.78) translate(-256, -256)">
+    <!-- Concentric Orbital Rings (5-Layer Architecture Ontology) -->
+    <circle cx="256" cy="256" r="168" stroke="#334155" stroke-width="1.6" stroke-dasharray="6 8" opacity="0.65"/>
+    <circle cx="256" cy="256" r="122" stroke="#475569" stroke-width="1.6" opacity="0.45"/>
+
+    <!-- Crosshair Axis Ticks -->
+    <g stroke="#475569" stroke-width="2.2" stroke-linecap="round" opacity="0.5">
+      <line x1="256" y1="64" x2="256" y2="78"/>
+      <line x1="256" y1="434" x2="256" y2="448"/>
+      <line x1="64" y1="256" x2="78" y2="256"/>
+      <line x1="434" y1="256" x2="448" y2="256"/>
+    </g>
+
+    <!-- Outer Hexagonal Service Constellation Polygon -->
+    <polygon points="256,96 394.5,176 394.5,336 256,416 117.5,336 117.5,176"
+             stroke="url(#edgeGrad)" stroke-width="3.8" stroke-linejoin="round" opacity="0.55"/>
+
+    <!-- Spokes connecting Central Hub to Service Nodes -->
+    <g stroke="url(#edgeGrad)" stroke-width="4.2" stroke-linecap="round" opacity="0.85">
+      <line x1="256" y1="96" x2="256" y2="188"/>
+      <line x1="394.5" y1="176" x2="315" y2="222"/>
+      <line x1="394.5" y1="336" x2="315" y2="290"/>
+      <line x1="256" y1="416" x2="256" y2="324"/>
+      <line x1="117.5" y1="336" x2="197" y2="290"/>
+      <line x1="117.5" y1="176" x2="197" y2="222"/>
+    </g>
+
+    <!-- Secondary Cross-Service Mesh Links -->
+    <g stroke="#38BDF8" stroke-width="2.2" stroke-dasharray="4 6" opacity="0.45">
+      <line x1="256" y1="96" x2="394.5" y2="336"/>
+      <line x1="117.5" y1="176" x2="394.5" y2="176"/>
+      <line x1="117.5" y1="336" x2="256" y2="96"/>
+    </g>
+
+    <!-- Central Architecture Hub Hexagon -->
+    <polygon points="256,184 318.3,220 318.3,292 256,328 193.7,292 193.7,220"
+             fill="#131822" stroke="url(#edgeGrad)" stroke-width="5.5" filter="url(#glow)"/>
+
+    <!-- Inner Core Code Brackets / 'ce' Monogram -->
+    <g stroke="#F8FAFC" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M244 234 H226 C217 234 212 241 212 256 C212 271 217 278 226 278 H244"/>
+      <path d="M264 256 H298 C298 241 291 234 280 234 C269 234 263 242 263 256 C263 270 270 278 282 278 H296"/>
+    </g>
+
+    <!-- Outer Satellite Service Nodes -->
+    <g filter="url(#glow)">
+      <circle cx="256" cy="96" r="18" fill="#131822" stroke="#F0A830" stroke-width="5"/>
+      <circle cx="256" cy="96" r="6.5" fill="#F0A830"/>
+    </g>
+    <g filter="url(#glow)">
+      <circle cx="394.5" cy="176" r="16" fill="#131822" stroke="#38BDF8" stroke-width="4.5"/>
+      <circle cx="394.5" cy="176" r="5.5" fill="#38BDF8"/>
+    </g>
+    <g filter="url(#glow)">
+      <circle cx="394.5" cy="336" r="16" fill="#131822" stroke="#F0A830" stroke-width="4.5"/>
+      <circle cx="394.5" cy="336" r="5.5" fill="#F0A830"/>
+    </g>
+    <g filter="url(#glow)">
+      <circle cx="256" cy="416" r="16" fill="#131822" stroke="#38BDF8" stroke-width="4.5"/>
+      <circle cx="256" cy="416" r="5.5" fill="#38BDF8"/>
+    </g>
+    <g filter="url(#glow)">
+      <circle cx="117.5" cy="336" r="16" fill="#131822" stroke="#38BDF8" stroke-width="4.5"/>
+      <circle cx="117.5" cy="336" r="5.5" fill="#38BDF8"/>
+    </g>
+    <g filter="url(#glow)">
+      <circle cx="117.5" cy="176" r="16" fill="#131822" stroke="#F0A830" stroke-width="4.5"/>
+      <circle cx="117.5" cy="176" r="5.5" fill="#F0A830"/>
+    </g>
+  </g>
 </svg>

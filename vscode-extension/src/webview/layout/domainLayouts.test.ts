@@ -94,6 +94,24 @@ test('computeSwimlanesLayout: uses 5 clean architectural lanes in Project Map mo
   assert.equal(result.lanes[4].title, 'Databases & Storage');
 });
 
+test('computeSwimlanesLayout: accepts generic TierDefinition[] without isProjectMap boolean flag', () => {
+  const customTiers = [
+    { tier: 0, title: 'Edge Ingress', icon: '🌐' },
+    { tier: 1, title: 'Compute', icon: '⚙️' },
+    { tier: 2, title: 'Persistence', icon: '💾' },
+  ];
+  const customNodes: SwimlaneNodeInput[] = [
+    { id: 'n0', name: 'n0', kind: 'service', echelonTier: 0 },
+    { id: 'n1', name: 'n1', kind: 'service', echelonTier: 1 },
+    { id: 'n2', name: 'n2', kind: 'service', echelonTier: 2 },
+  ];
+  const result = computeSwimlanesLayout(customNodes, [], 1.2, customTiers);
+  assert.equal(result.lanes.length, 3);
+  assert.equal(result.lanes[0].title, 'Edge Ingress');
+  assert.equal(result.lanes[1].title, 'Compute');
+  assert.equal(result.lanes[2].title, 'Persistence');
+});
+
 test('computeDomainIslandsLayout: groups services into islands and identifies shared core', () => {
   const result = computeDomainIslandsLayout(sampleNodes as IslandNodeInput[], sampleEdges as IslandEdgeInput[]);
 

@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Parser.Syntax;
 
@@ -8,7 +7,7 @@ public class SyntaxTree : IDisposable
 {
     public string FilePath { get; }
     public string RelativePath { get; }
-    public SyntaxDocument? Document { get; }
+    public SyntaxDocument? Document { get; private set; }
     public SyntaxDocument? Tree => Document;
     public SyntaxNode? RootNode => Document?.RootNode;
     public FileNode FileNode { get; }
@@ -56,6 +55,10 @@ public class SyntaxTree : IDisposable
 
     public void Dispose()
     {
+        Document?.Dispose();
+        Document = null;
+        RootSymbol = null;
+        SemanticSymbols.Clear();
     }
 
     public static SyntaxDocument? ParseText(

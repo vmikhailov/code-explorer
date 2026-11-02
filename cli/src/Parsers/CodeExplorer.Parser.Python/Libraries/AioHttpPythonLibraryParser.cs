@@ -1,7 +1,3 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Python.Libraries;
@@ -10,7 +6,7 @@ public class AioHttpPythonLibraryParser : ISemanticExtension
 {
     public string Id => "aiohttp";
     public string Name => "aiohttp";
-    public string Type => "api:client";
+    public SemanticExtensionType Type => SemanticExtensionType.ApiClient;
     public IReadOnlyList<string> SupportedPatterns => ["aiohttp*"];
     public bool IsImplemented => true;
     public LibraryRole LibraryRole => LibraryRole.General;

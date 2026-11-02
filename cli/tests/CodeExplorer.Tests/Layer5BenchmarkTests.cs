@@ -1,9 +1,6 @@
+using CodeExplorer.Core.Database;
 using System.Diagnostics;
 using System.Threading.Channels;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Database;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using Microsoft.Extensions.Logging.Abstractions;
 using NUnit.Framework;
@@ -16,7 +13,7 @@ public class Layer5BenchmarkTests
     [Test]
     public async Task Benchmark_ResolveGlobalReferences_100K()
     {
-        var dbClient = new InMemoryGraphClient();
+        var dbClient = new InMemoryGraphRepository();
         var channel = Channel.CreateUnbounded<Func<Task>>();
         var ctx = new ParsingContext(
             absoluteWorkspacePath: "C:/mock/workspace",

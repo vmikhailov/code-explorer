@@ -1,14 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
 public class CouchDbPythonLibraryParser : ISemanticExtension
 {
-    public string Type => OntologyConstants.LibraryTypes.DocumentDb;
+    public SemanticExtensionType Type => SemanticExtensionType.DocumentDb;
     public string Name => "CouchDB";
     public string Id => "couchdb";
     public IReadOnlyList<string> SupportedPatterns => ["couchdb", "couchdb.*"];

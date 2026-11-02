@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 
@@ -23,7 +24,7 @@ public record CallLiteralNode(
     [property: OntologyProperty("The 1-indexed line number of the argument.")] int Line,
     [property: OntologyProperty("The 1-indexed column number of the argument.")] int Column,
     bool IsTest,
-    string? ProjectKind = null,
+    ProjectEntityKind? ProjectKind = null,
     string? ProjectName = null,
     string Role = "Business",
     bool IsDecorator = false,
@@ -39,7 +40,7 @@ public record CallLiteralNode(
     public bool IsTest { get; set; } = IsTest;
 
     [JsonPropertyName("project_kind"), OntologyProperty("The architectural kind of the enclosing project.")]
-    public string? ProjectKind { get; set; } = ProjectKind;
+    public ProjectEntityKind? ProjectKind { get; set; } = ProjectKind;
 
     [JsonPropertyName("project_name"), OntologyProperty("The name of the enclosing project.")]
     public string? ProjectName { get; set; } = ProjectName;
@@ -51,7 +52,7 @@ public record CallLiteralNode(
     public bool IsDecorator { get; set; } = IsDecorator;
 
     [JsonIgnore]
-    public override string Kind => OntologyConstants.NodeLabels.CallLiteral;
+    public override NodeKind Kind => NodeKind.CallLiteral;
 
     [JsonIgnore]
     public override string Path { get; init; } = FilePath;

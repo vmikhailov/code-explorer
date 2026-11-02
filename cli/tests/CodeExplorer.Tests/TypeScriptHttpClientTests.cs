@@ -1,9 +1,8 @@
+using CodeExplorer.Core.Database;
 using System.Threading.Channels;
-using CodeExplorer.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.TypeScript;
 using NUnit.Framework;
@@ -38,7 +37,7 @@ public class TypeScriptHttpClientTests
 
             var parser = new TypeScriptParser();
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            var client = new InMemoryGraphClient();
+            var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
             var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);

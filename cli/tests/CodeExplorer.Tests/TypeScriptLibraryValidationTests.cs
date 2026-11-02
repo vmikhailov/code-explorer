@@ -1,12 +1,9 @@
+using CodeExplorer.Core.Database;
 using System.Threading.Channels;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Database;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.TypeScript;
 using NUnit.Framework;
@@ -57,7 +54,7 @@ public class TypeScriptLibraryValidationTests
 
             var parser = new TypeScriptParser();
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            var client = new InMemoryGraphClient();
+            var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
             var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -815,7 +812,7 @@ export class SmartCpaController {
 
             var parser = new TypeScriptParser();
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            var client = new InMemoryGraphClient();
+            var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
             var syntaxTree = await parser.ParseAsync(controllerFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -917,7 +914,7 @@ export class SmartCpaController {
 
             var parser = new TypeScriptParser();
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            var client = new InMemoryGraphClient();
+            var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
             // Register global prefix for the project
@@ -1361,7 +1358,7 @@ export async function fetchTrafficBacks(baseUrl: string) {
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
 
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
 
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
             WorkspaceIndexer.AutoRegisterParsers();
@@ -1413,7 +1410,7 @@ export class IdHelperService {
 
             var parser = new TypeScriptParser();
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            var client = new InMemoryGraphClient();
+            var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
             var tree = await parser.ParseAsync(serviceFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -1463,7 +1460,7 @@ export class IdHelperService {
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            var client = new InMemoryGraphClient();
+            var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
             // Add raw type binding with empty ScopeId (e.g. from ColdFusion or anonymous scope)
@@ -1474,7 +1471,7 @@ export class IdHelperService {
 
             var l5Parser = new Layer5AnalysisParser();
             var resolveMethod = typeof(Layer5AnalysisParser).GetMethod("ResolveAndUploadGlobalReferencesAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-            
+
             // Must complete without throwing ArgumentNullException (value cannot be null in String.IndexOf)
             Assert.DoesNotThrowAsync(async () =>
             {
@@ -1518,7 +1515,7 @@ export class IdHelperService {
 
             var repo = new Core.Mcp.CodeExplorerRepository(client);
             var result = await repo.GetCallChainAsync("getWeightedPayoutToPostbackLinks", "getPostbackLink", format: "json");
-            
+
             result.Should().Contain("getWeightedPayoutToPostbackLinks");
             result.Should().Contain("getPostbackLink");
             result.Should().NotContain("No call chain found");
@@ -1568,7 +1565,7 @@ export class CampaignsController {
             WorkspaceIndexer.AutoRegisterParsers();
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            var client = new InMemoryGraphClient();
+            var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
             var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
@@ -1604,7 +1601,7 @@ export class CampaignsController {
             WorkspaceIndexer.AutoRegisterParsers();
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            var client = new InMemoryGraphClient();
+            var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
 
             var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
@@ -1658,7 +1655,7 @@ export class CampaignsController {
             WorkspaceIndexer.AutoRegisterParsers();
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            var client = new InMemoryGraphClient();
+            var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
 
             var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
@@ -1722,7 +1719,7 @@ export class CampaignsController {
             WorkspaceIndexer.AutoRegisterParsers();
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            var client = new InMemoryGraphClient();
+            var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
 
             var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
@@ -1782,7 +1779,7 @@ export class CampaignsController {
             WorkspaceIndexer.AutoRegisterParsers();
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            var client = new InMemoryGraphClient();
+            var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
 
             var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);

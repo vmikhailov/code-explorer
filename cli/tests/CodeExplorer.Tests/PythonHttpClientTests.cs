@@ -1,7 +1,7 @@
+using CodeExplorer.Core.Database;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.Python;
 using NUnit.Framework;
@@ -49,7 +49,7 @@ def fetch_data():
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
             var parser = new PythonParser();
 
@@ -96,7 +96,7 @@ async def async_httpx():
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
             var parser = new PythonParser();
 
@@ -140,7 +140,7 @@ async def run_aio():
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
             var parser = new PythonParser();
 

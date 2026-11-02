@@ -1,8 +1,5 @@
-using System.Text.Json;
-using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Database;
-using CodeExplorer.Core.Mcp;
-using CodeExplorer.Core.Parser;
+using System.Text.Json;
 using CodeExplorer.Cypher.Common;
 using CodeExplorer.Parser.CSharp;
 using CodeExplorer.Parser.Java;
@@ -576,7 +573,7 @@ public class MyEntity { public int Id { get; set; } }
 
             var channel = System.Threading.Channels.Channel.CreateUnbounded<Func<Task>>();
 
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
 
             var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
 

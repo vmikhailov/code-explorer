@@ -1,14 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
 public class RestyLibraryParser : ISemanticExtension
 {
-    public string Type => "api:client";
+    public SemanticExtensionType Type => SemanticExtensionType.ApiClient;
     public string Name => "Resty";
     public string Id => "resty";
     public IReadOnlyList<string> SupportedPatterns => ["github.com/go-resty/resty*"];

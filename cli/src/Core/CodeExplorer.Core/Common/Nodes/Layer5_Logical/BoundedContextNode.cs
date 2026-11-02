@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -36,5 +37,5 @@ public record BoundedContextNode(
 ) : CompositeNode(Id, Extensions)
 {
     [JsonIgnore]
-    public override string Kind => OntologyConstants.NodeLabels.BoundedContext;
+    public override NodeKind Kind => NodeKind.BoundedContext;
 }

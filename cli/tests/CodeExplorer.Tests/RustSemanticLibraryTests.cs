@@ -1,9 +1,8 @@
+using CodeExplorer.Core.Database;
 using System.Threading.Channels;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.Rust;
 using NUnit.Framework;
@@ -21,7 +20,7 @@ public class RustSemanticLibraryTests
         await File.WriteAllTextAsync(filePath, code);
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
-        await using var client = new InMemoryGraphClient();
+        await using var client = new InMemoryGraphRepository();
         var ctx = new ParsingContext(tempDir, tempDir, client, channel);
         var parser = new RustParser();
 
@@ -488,7 +487,7 @@ public class RustSemanticLibraryTests
                     .connect(url)
                     .await
                     .unwrap();
-                
+
                 sqlx::query_as::<_, User>("SELECT id, name FROM users WHERE id = $1")
                     .bind(1)
                     .fetch_one(&pool)

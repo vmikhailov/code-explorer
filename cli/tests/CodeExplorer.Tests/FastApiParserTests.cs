@@ -1,8 +1,7 @@
+using CodeExplorer.Core.Database;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
-using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Parser.Python.Components;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.Python;
@@ -42,7 +41,7 @@ public class FastApiParserTests
             await File.WriteAllTextAsync(filePath, code);
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            var client = new InMemoryGraphClient();
+            var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);

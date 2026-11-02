@@ -1,3 +1,5 @@
+using CodeExplorer.Cypher.Common;
+
 namespace CodeExplorer.Core.Parser.Incremental;
 
 /// <summary>
@@ -7,7 +9,7 @@ namespace CodeExplorer.Core.Parser.Incremental;
 public record SymbolFootprint(
     string SymbolId,
     string QualifiedName,
-    string Kind,
+    NodeKind Kind,
     string SignatureHash,
     string BodyHash,
     HashSet<string> OutgoingCalls,

@@ -1,5 +1,5 @@
+using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using NUnit.Framework;
 
@@ -79,7 +79,7 @@ public class GitSettingsTests
         var ctx = new ParsingContext(
             absoluteWorkspacePath: _tempDir,
             hostWorkspacePath: _tempDir,
-            dbClient: new InMemoryGraphClient(),
+            dbClient: new InMemoryGraphRepository(),
             sharedChannel: System.Threading.Channels.Channel.CreateUnbounded<Func<Task>>(),
             clear: false)
         {
@@ -118,7 +118,7 @@ public class GitSettingsTests
         File.WriteAllText(Path.Combine(backendDir, ".git", "HEAD"), "ref: refs/heads/release/1.0\n");
         File.WriteAllText(Path.Combine(backendDir, ".git", "config"), "[remote \"origin\"]\n\turl = https://git.company.com/backend.git\n");
 
-        var memClient = new InMemoryGraphClient();
+        var memClient = new InMemoryGraphRepository();
         var ctx = new ParsingContext(
             absoluteWorkspacePath: _tempDir,
             hostWorkspacePath: _tempDir,

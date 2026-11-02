@@ -1,7 +1,3 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
@@ -10,7 +6,7 @@ public class PlaywrightLibraryParser : ISemanticExtension
 {
     public string Id => "playwright";
     public string Name => "Playwright";
-    public string Type => "library";
+    public SemanticExtensionType Type => SemanticExtensionType.Library;
     public LibraryRole LibraryRole => LibraryRole.TestFramework;
     public IReadOnlyList<string> SupportedPatterns => ["@playwright/test", "playwright"];
     public bool IsImplemented => true;

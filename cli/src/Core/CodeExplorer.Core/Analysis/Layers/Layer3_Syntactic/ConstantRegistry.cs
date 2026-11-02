@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Common;
 
 namespace CodeExplorer.Core.Parser;
 
@@ -76,7 +75,7 @@ public static class ConstantRegistry
                 _projectConstants[$"{domain}:{cleanKey}"] = cleanVal;
             }
 
-            var stripped = Analysis.EndpointScoringEngine.StripCommonAffixes(projectName);
+            var stripped = EndpointScoringEngine.StripCommonAffixes(projectName);
             if (!string.IsNullOrWhiteSpace(stripped) && !stripped.Equals(projectName.Trim(), StringComparison.OrdinalIgnoreCase))
             {
                 _projectConstants[$"{stripped}:{cleanKey}"] = cleanVal;
@@ -141,7 +140,7 @@ public static class ConstantRegistry
             value = dVal;
             return true;
         }
-        var stripped = Analysis.EndpointScoringEngine.StripCommonAffixes(projectName);
+        var stripped = EndpointScoringEngine.StripCommonAffixes(projectName);
         if (!string.IsNullOrWhiteSpace(stripped))
         {
             if (_projectConstants.TryGetValue($"{stripped}:{cleanKey}", out var sVal))

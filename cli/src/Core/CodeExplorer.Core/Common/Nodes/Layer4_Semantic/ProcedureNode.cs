@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
 
 namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -20,5 +21,5 @@ public record ProcedureNode(
 ) : CompositeNode(Id, Extensions)
 {
     [JsonIgnore]
-    public override string Kind => OntologyConstants.NodeLabels.Procedure;
+    public override NodeKind Kind => NodeKind.Procedure;
 }

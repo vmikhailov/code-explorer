@@ -41,9 +41,10 @@ scratch/
 /scripts/*
 !/scripts/update-local.ps1
 # --- CodeExplorer local databases & locks ---
-**/.codeexplorer/*.db
-**/.codeexplorer/*.db-*
-**/.codeexplorer/*.lock
+.codeexplorer/*.db
+.codeexplorer/*.db-*
+.codeexplorer/*.lock
+
 
 # --- Node.js & VS Code Extension ---
 node_modules/
@@ -59,3 +60,6 @@ site/presentation.html
 *.orig
 .stats_auth
 .hallmark/salt
+deploy/
+publish/
+

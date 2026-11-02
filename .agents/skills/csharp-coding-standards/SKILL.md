@@ -32,7 +32,7 @@ Use this skill when:
 6. **API Design** - Accept abstractions, return appropriately specific types
 7. **Composition Over Inheritance** - Avoid abstract base classes, prefer composition
 8. **Value Objects as Structs** - Use `readonly record struct` for value objects
-9. **Namespace Hygiene** - Shorten namespaces, avoid redundant type qualification, and leverage global/implicit usings. Ensure that namespaces reflect the logical structure of the project.
+9. **Namespace Hygiene & Short Type Names** - Shorten namespaces, **never use inline qualified type names** (e.g., never write `Core.Analysis.ArchitectureQueryService`, `Parser.WorkspaceIndexer`, or `CodeExplorer.Server.CodeExplorerServerHost` in code body; always use the short type name `ArchitectureQueryService` and import the namespace via `using` or global `<Using>`), and leverage global/implicit usings. Ensure that namespaces reflect the logical structure of the project.
 10. **Consistent Naming** - Follow .NET naming conventions for types, methods, and properties
 11. **Consistent Formatting** - Follow consistent code formatting and indentation rules
 
@@ -305,7 +305,7 @@ public readonly record struct OrderError(string Code, string Message);
 - Don't create deep inheritance hierarchies
 - Don't ignore nullable reference type warnings
 - Don't add unnecessary null checks on non-nullable symbols
-- Don't specify fully qualified namespace paths when types can be imported cleanly
+- Don't specify fully qualified or partially qualified namespace prefixes inline on types (e.g., `Core.Analysis.ArchitectureQueryService` or `Parser.WorkspaceIndexer`); always import the namespace via `using` / `<Using>` and reference the short type name (`ArchitectureQueryService`)
 - Don't re-declare imports already provided by global or implicit usings
 - Don't block on async code (`.Result`, `.Wait()`)
 - Don't use `byte[]` when `Span<byte>` suffices

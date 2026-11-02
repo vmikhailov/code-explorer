@@ -1,14 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public class PrismaLibraryParser : ISemanticExtension
 {
-    public string Type => "db:relational";
+    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
     public string Name => "Prisma";
     public string Id => "prisma";
     public IReadOnlyList<string> SupportedPatterns => ["@prisma/client", "prisma"];

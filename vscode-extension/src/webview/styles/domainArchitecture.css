@@ -116,6 +116,8 @@
 .domain-hud-primary-row {
   padding: 5px 12px;
   gap: 12px;
+  row-gap: 6px;
+  flex-wrap: wrap;
   background: rgba(15, 23, 42, 0.6);
   border-bottom: none;
 }
@@ -124,7 +126,18 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: nowrap;
+  row-gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.domain-hud-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  row-gap: 6px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
   min-width: 0;
 }
 
@@ -300,16 +313,19 @@
 }
 
 .domain-layout-dropdown {
+  height: 26px;
+  box-sizing: border-box;
   background: rgba(255, 255, 255, 0.06);
   color: #cbd5e1;
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 4px;
-  padding: 2.5px 6px;
-  font-size: 10.5px;
+  padding: 0 8px;
+  font-size: 11px;
   font-weight: 500;
   outline: none;
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;
+  flex-shrink: 0;
 }
 
 .domain-layout-dropdown:hover,
@@ -378,22 +394,25 @@
 
 .domain-hud-btn,
 .domain-hud-step-btn {
+  box-sizing: border-box;
   background: rgba(255, 255, 255, 0.08);
   color: #cbd5e1;
   border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 3px;
-  min-width: 22px;
-  height: 22px;
-  padding: 0 6px;
+  border-radius: 4px;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 8px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 4px;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
   user-select: none;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .domain-hud-btn:hover,
@@ -484,15 +503,18 @@
 }
 
 .domain-search-input {
+  height: 26px;
+  box-sizing: border-box;
   background: rgba(255, 255, 255, 0.05);
   color: var(--input-fg, #ffffff);
   border: 1px solid var(--input-border, rgba(255, 255, 255, 0.15));
   border-radius: 4px;
-  padding: 3px 22px 3px 8px;
+  padding: 0 24px 0 8px;
   font-size: 11px;
   width: 170px;
   outline: none;
   transition: border-color 0.15s ease, width 0.2s ease;
+  flex-shrink: 0;
 }
 
 .domain-search-input:focus {
@@ -503,15 +525,19 @@
 .domain-search-clear {
   position: absolute;
   right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
   background: transparent;
   border: none;
   color: #94a3b8;
   cursor: pointer;
-  font-size: 10px;
+  font-size: 11px;
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 16px;
+  height: 16px;
 }
 
 .domain-search-clear:hover {
@@ -520,7 +546,9 @@
 
 .domain-search-count {
   position: absolute;
-  right: 22px;
+  right: 24px;
+  top: 50%;
+  transform: translateY(-50%);
   font-size: 10px;
   font-weight: 600;
   color: #38bdf8;
@@ -529,7 +557,8 @@
   border-radius: 9px;
   padding: 0 5px;
   cursor: pointer;
-  line-height: 15px;
+  line-height: 16px;
+  height: 16px;
   transition: all 0.15s ease;
 }
 

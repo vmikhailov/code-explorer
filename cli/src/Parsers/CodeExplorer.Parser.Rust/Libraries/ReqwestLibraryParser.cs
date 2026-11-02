@@ -1,7 +1,3 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Rust.Libraries;
@@ -15,7 +11,7 @@ public class ReqwestLibraryParser : ISemanticExtension
 {
     public string Id => "reqwest";
     public string Name => "Reqwest";
-    public string Type => "http-client";
+    public SemanticExtensionType Type => SemanticExtensionType.HttpClient;
     public bool IsImplemented => true;
     public LibraryRole LibraryRole => LibraryRole.General;
     public IReadOnlyList<string> SupportedPatterns => ["reqwest*"];

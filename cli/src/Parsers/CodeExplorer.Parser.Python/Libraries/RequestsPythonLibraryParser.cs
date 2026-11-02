@@ -1,7 +1,3 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Python.Libraries;
@@ -10,7 +6,7 @@ public class RequestsPythonLibraryParser : ISemanticExtension
 {
     public string Id => "requests";
     public string Name => "requests";
-    public string Type => "api:client";
+    public SemanticExtensionType Type => SemanticExtensionType.ApiClient;
     public IReadOnlyList<string> SupportedPatterns => ["requests*"];
     public bool IsImplemented => true;
     public LibraryRole LibraryRole => LibraryRole.General;

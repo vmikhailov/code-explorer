@@ -1,14 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public class TypeOrmLibraryParser : ISemanticExtension
 {
-    public string Type => "db:relational";
+    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
     public string Name => "TypeORM";
     public string Id => "typeorm";
     public IReadOnlyList<string> SupportedPatterns => ["typeorm", "typeorm/*"];

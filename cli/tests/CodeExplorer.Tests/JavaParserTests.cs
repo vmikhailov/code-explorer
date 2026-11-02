@@ -1,9 +1,9 @@
+using CodeExplorer.Core.Database;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.Java;
 using CodeExplorer.Tests.Shared;
@@ -30,7 +30,7 @@ public class JavaParserTests
         producedPkg.Should().NotBeNull();
         producedPkg!.Name.Should().Be("com.example:demo-service");
         producedPkg.Version.Should().Be("1.0.0-SNAPSHOT");
-        producedPkg.Type.Should().Be("maven");
+        producedPkg.Ecosystem.Should().Be("maven");
 
         var deps = await parser.ParseDependenciesAsync(dir);
         deps.Should().NotBeNull();
@@ -56,7 +56,7 @@ public class JavaParserTests
         producedPkg.Should().NotBeNull();
         producedPkg!.Name.Should().Contain("com.example.gradle");
         producedPkg.Version.Should().Be("2.1.0");
-        producedPkg.Type.Should().Be("gradle");
+        producedPkg.Ecosystem.Should().Be("gradle");
 
         var deps = await parser.ParseDependenciesAsync(dir);
         deps.Should().NotBeNull();
@@ -77,7 +77,7 @@ public class JavaParserTests
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
 
-        await using var client = new InMemoryGraphClient();
+        await using var client = new InMemoryGraphRepository();
 
         var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
@@ -120,7 +120,7 @@ public class JavaParserTests
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
 
-        await using var client = new InMemoryGraphClient();
+        await using var client = new InMemoryGraphRepository();
 
         var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
@@ -160,7 +160,7 @@ public class JavaParserTests
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
 
-        await using var client = new InMemoryGraphClient();
+        await using var client = new InMemoryGraphRepository();
 
         var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 

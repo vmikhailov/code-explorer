@@ -1,14 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public class AzureSdkLibraryParser : ISemanticExtension
 {
-    public string Type => OntologyConstants.LibraryTypes.Cloud;
+    public SemanticExtensionType Type => SemanticExtensionType.Cloud;
     public string Name => "Azure";
     public string Id => "azure";
     public IReadOnlyList<string> SupportedPatterns => ["@azure/*", "@azure/service-bus", "@azure/storage-blob", "@azure/cosmos"];

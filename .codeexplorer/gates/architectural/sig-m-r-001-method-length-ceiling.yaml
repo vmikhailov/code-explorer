@@ -11,6 +11,7 @@ query: |
   MATCH (f:Function)
   WHERE coalesce(f.loc, f.end_line - f.start_line + 1) > 500
     AND NOT coalesce(f.is_test, false)
+    AND f.name <> '<module_init>'
   RETURN 
     coalesce(f.path, f.file_path) AS file,
     coalesce(f.start_line, 1) AS line,

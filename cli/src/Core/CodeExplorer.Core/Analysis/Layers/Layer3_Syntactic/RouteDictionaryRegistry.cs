@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Common;
 
 namespace CodeExplorer.Core.Parser;
 

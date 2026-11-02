@@ -54,13 +54,15 @@ export interface SwimlanesLayoutResult {
   bounds: { minX: number; maxX: number; minY: number; maxY: number };
 }
 
-interface LaneDefinition {
+export interface TierDefinition {
   tier: number;
   title: string;
-  icon: string;
-  color: string;
-  accentBg: string;
+  icon?: string;
+  color?: string;
+  accentBg?: string;
 }
+
+export type LaneDefinition = TierDefinition;
 
 const LANE_DEFINITIONS: LaneDefinition[] = [
   { tier: 0, title: 'Clients & Ingress', icon: '🚀', color: '#38bdf8', accentBg: 'rgba(56, 189, 248, 0.08)' },
@@ -109,7 +111,7 @@ export function computeSwimlanesLayout(
   nodes: SwimlaneNodeInput[],
   edges: SwimlaneEdgeInput[],
   air: number = 1.2,
-  isProjectMap?: boolean,
+  tierDefinitionsOrIsProjectMap?: TierDefinition[] | boolean,
   laneOrder?: number[],
   baseIconSize?: number
 ): SwimlanesLayoutResult {
@@ -124,20 +126,29 @@ export function computeSwimlanesLayout(
   }
 
   // 1. Group nodes into lanes
-  const laneDefs = isProjectMap ? PROJECT_MAP_LANE_DEFINITIONS : LANE_DEFINITIONS;
+  const isCustomDefs = Array.isArray(tierDefinitionsOrIsProjectMap);
+  const isProjectMap = tierDefinitionsOrIsProjectMap === true;
+  const laneDefs = isCustomDefs
+    ? (tierDefinitionsOrIsProjectMap as TierDefinition[])
+    : (isProjectMap ? PROJECT_MAP_LANE_DEFINITIONS : LANE_DEFINITIONS);
+
   const laneBuckets = new Map<number, string[]>();
   for (const def of laneDefs) laneBuckets.set(def.tier, []);
 
+  const fallbackTier = laneDefs.length > 0 ? laneDefs[Math.min(2, laneDefs.length - 1)].tier : 0;
+
   for (const n of nodes) {
     let t = n.echelonTier;
-    if (isProjectMap) {
+    if (isCustomDefs) {
+      if (!laneBuckets.has(t)) t = fallbackTier;
+    } else if (isProjectMap) {
       t = mapProjectMapTierToLane(t);
     } else {
       if (t < 0 || t > 5 || isNaN(t)) t = 2; // Fallback to Domain Services
     }
     const bucket = laneBuckets.get(t);
     if (bucket) bucket.push(n.id);
-    else (laneBuckets.get(2) || []).push(n.id);
+    else (laneBuckets.get(fallbackTier) || []).push(n.id);
   }
 
   // 2. Identify populated lanes (in configured or natural tier order)
@@ -310,13 +321,13 @@ export function computeSwimlanesLayout(
     return {
       id: `swimlane:${lane.def.tier}`,
       title: lane.def.title,
-      icon: lane.def.icon,
+      icon: lane.def.icon ?? '🏛️',
       count: lane.nodeIds.length,
       x: Math.round(cx - w / 2),
       y: laneBoxY,
       width: Math.round(w),
       height: Math.round(h),
-      color: lane.def.color,
+      color: lane.def.color ?? '#818cf8',
     };
   });
 
@@ -326,7 +337,7 @@ export function computeSwimlanesLayout(
     populatedLanes: populatedLanes.map((l) => ({
       levelIndex: l.def.tier,
       title: l.def.title,
-      icon: l.def.icon,
+      icon: l.def.icon ?? '🏛️',
       nodeIds: l.nodeIds,
     })),
     bounds: {

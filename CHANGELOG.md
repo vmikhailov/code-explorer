@@ -5,6 +5,101 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.68.0] - 2026-11-02
+
+### Added
+- **Architectural Archetypes for Packages & Projects**:
+  - Implemented automated archetype classification into 7 distinct architectural roles: \PureUtility\, \ClientUi\, \CliTool\, \Framework\, \BackendService\, \DatabaseDriver\, and \NativeAddon\.
+  - Archetype-aware behavioral risk evaluation preventing false-positive flags on CLI tools, build frameworks, and backend services.
+  - Added \rchetype\ property to \PackageNode\ and \ProjectNode\ in ontology schema.
+- **Backward Provenance Slicing & Symbolic De-obfuscation**:
+  - Added inter-procedural AST backward dataflow slicer (\AstBackwardProvenanceSlicer\) to trace argument origin through parameter chains and caller invocations.
+  - Distinguished verified caller-driven parameter propagation from hardcoded, tainted, or obfuscated execution sinks.
+  - Implemented symbolic evaluation and de-obfuscation for Base64, Hex, and concatenated string payloads in dynamic execution sinks (\val\, \child_process.exec\).
+- **Compound Threat & Toxic Combination Detection**:
+  - Formalized multi-capability toxic threat patterns:
+    - \TOXIC-001 (Credential Harvester)\: Environment secret reading combined with outbound network egress.
+    - \TOXIC-002 (Steganographic Dropper)\: Decoded/obfuscated payload combined with dynamic code execution or subprocess spawning.
+    - \TOXIC-003 (Install-Time Trojan)\: Lifecycle install hook (\postinstall\) invoking subprocesses with network egress.
+    - \TOXIC-004 (Key Exfiltrator)\: Host credential access (\~/.ssh\, \~/.aws\, \.env\) paired with network sinks.
+- **Cross-Version Baseline Consistency & Range Resolution**:
+  - Historical behavioral drift calibration comparing candidate packages against known historical baselines to eliminate false positives on established libraries.
+  - Two-stage npm version resolution supporting semver ranges (\^22\, \~1.0\), partial versions, and dist-tags (\latest\).
+  - Real-time scan progress streaming via WebSocket hub (\PassportWebSocketHub\) and reactive UI updates.
+  - Redesigned Operational Reach with neutral monospace micro-tags (\.reach-tag\), isolating alert colors strictly to the Safety Verdict column.
+  - Direct report inspection links and resolved version indicators in scan catalog.
+
+---
+
+## [1.67.0] - 2026-10-31
+
+### Added
+  - Implemented Hallmark design system and Vercel React best practices with zero sloplint violations.
+  - Added dedicated Scanning Queue and Crawler monitor with live status updates, job retries, and crawler start/stop controls.
+  - Added SQLite store aggregation metrics (`CleanCount`, `ReviewCount`, `ThreatCount`) surfaced via `/api/passports/stats`.
+  - Implemented `cp serve` background scheduler with configurable worker pool (`--workers`).
+  - Added `cp queue` command to inspect, clear, and retry background scan jobs.
+  - Added `cp crawl` command to schedule transitive dependency crawling.
+
+### Changed
+- **Catalog Search & Filter Toolbar Overhaul**:
+  - Relieved toolbar tightness with a spacious two-tier layout separating search input and verdict filters.
+  - Added dynamic total quantity counters inside all selection filters: `All (8,346)`, `Threat Detected (404)`, `Review Required (1,739)`, `Clean (6,203)`.
+  - Removed redundant `Safety Verdict:` title and trailing `package(s)` suffix from the results indicator (`Showing 100 of 8,346`).
+  - Replaced decorative dots with clean accessible typography and active state pills.
+
+---
+
+## [1.66.2] - 2026-10-29
+
+### Fixed
+- **Project Map Class Dependency Lifting & Sibling Interface Isolation**:
+  - Eliminated phantom dependency edges and false circular dependency cliques between sibling classes implementing the same interface (e.g. all 15 `ICommand` implementations in `commands.ts` forming an all-to-all bidirectional cycle).
+  - Ensured `IMPLEMENTS` relationships are strictly used to declare interface conformance and are excluded from generating class-to-class dependency edges.
+  - Enforced that interface implementation classes never resolve polymorphic interface references to sibling implementations of that same interface.
+  - Restricted `INHERITS_FROM` edge lifting to concrete base classes only, disallowing interface inheritance from resolving to sibling implementations.
+  - Prevented intra-file calls to unattached helper functions from falling back to an arbitrary primary class in multi-class files.
+  - Deduplicated raw type and symbol edges in `ProjectMapBuilder` to prevent duplicate edge counts and call sample accumulations.
+
+---
+
+## [1.66.1] - 2026-10-28
+
+### Fixed
+- **HUD Control Heights Unification & Overlap Prevention**:
+  - Unified all HUD controls (buttons, dropdown selects, search inputs, slider groups) across `ProjectMapView`, `DomainArchitectureView`, `BoundedContextMapView`, and `C1SystemContextView` to a standard uniform height of `26px` with `box-sizing: border-box`.
+  - Added responsive `flex-wrap: wrap` and row gaps (`6px` - `8px`) to parent toolbar rows and child control containers, preventing horizontal overflow, clipping, and collisions in split editor and narrow pane layouts.
+  - Centered search input action buttons (`✕` clear button and match count badge) with dynamic input right-padding to strictly prevent text overlap.
+  - Added `flex-shrink: 0` and `white-space: nowrap` across buttons and badges, plus ellipsis text truncation on project selector to protect toolbars against runaway layout expansion.
+- **Tree View Gate Evaluation State Isolation**:
+  - Fixed single-gate evaluation in `GateStateManager` by matching returned gate results strictly by `gateId`, resolving a bug where evaluating an individual gate caused the first gate in the suite (`SIG-A-B-001`) to overwrite the clicked gate item in place in the tree.
+  - Ensured backend CLI endpoint `/api/gates/check` preloads configured gates when evaluating a single target, preserving full suite context.
+- **Redundant Gate Edit Action Removal**:
+  - Removed duplicate raw YAML/JSON edit button (`codeExplorer.openGateYaml`) from the tree item inline menu, leaving the primary Visual Gate Editor (`codeExplorer.editGate`) inline while retaining YAML editing in the context menu.
+
+---
+
+## [1.66.0] - 2026-10-28
+
+### Added
+- **Semantic Invariant Gates `SIG-C-B-003` & `SIG-P-B-010`**:
+  - `SIG-C-B-003` (Passive View Generation Purity): Strictly disallows view engines (`ArchitectureViewEngine`, `ProjectMapBuilder`) from performing ambient disk I/O or synthesizing ad-hoc runtime graph mutations.
+  - `SIG-P-B-010` (C2 / C3 Architecture View Independence): Prohibits `ProjectMapView` (C3 internal module map) from delegating to, embedding, or wrapping `DomainArchitectureView` (C2 cross-service domain map) or `BaseGraphMap`.
+- **AST-Driven UI Host Boundary Resolution**:
+  - Integrated `VsCodeLibraryParser` and `Layer5GlobalAnalyzer.HostBoundaries` to discover webview entrypoints, resolving assets like `dist/webview.js` to source components and emitting formal `INSTANTIATES` relationships.
+
+### Fixed
+- **Canvas View Lifecycle & Empty View Recovery (Mermaid â Cytoscape)**:
+  - Fixed vanishing nodes and NaN zoom when switching back from Mermaid flowchart to Default/Concentric or COSE layout.
+  - Added non-zero DOM container dimension polling and explicit `cy.resize()` + `cy.fit()` checks before executing layout, preventing viewport collapse against 0×0 unmounted dimensions.
+- **Dedicated C3 Project Map Architecture**:
+  - Decoupled `ProjectMapView` into an independent canvas component with its own Cytoscape instance, SVG concentric tier rings, swimlane guides, and right-docked element inspector.
+  - Removed transitional wrapper `BaseGraphMap.tsx`.
+- **Backend Edge Preservation & Query Determinism**:
+  - Enhanced `ArchitectureViewEngine.ProjectMap.cs` to prevent silent edge drops on non-empty relative symbol file paths.
+
+---
+
 ## [1.65.11] - 2026-10-27
 
 ### Fixed

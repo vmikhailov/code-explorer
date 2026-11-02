@@ -4,6 +4,7 @@ trigger: always_on
 
 # Versioning & Publishing Instructions (CLI & VS Code Extension)
 
+
 Whenever fixes or features are made to CodeExplorer (CLI or VS Code Extension):
 
 1. **Increment Version via SemVer (Skill: `versioning`)**:

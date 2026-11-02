@@ -202,11 +202,15 @@ export class GateStateManager implements vscode.Disposable {
         );
 
         if (res && Array.isArray(res.gates)) {
-          if (gateId && this._suite && Array.isArray(this._suite.gates)) {
-            // Update individual gate in existing suite
-            const updatedGate = res.gates[0];
+          if (res.gates.length > 1) {
+            // Backend returned full updated suite containing all gates
+            this._suite = res;
+          } else if (gateId && this._suite && Array.isArray(this._suite.gates)) {
+            // Backend returned single updated gate: match by ID to avoid overwriting with the first gate
+            const targetId = gateId.trim().toLowerCase();
+            const updatedGate = res.gates.find((g) => g.id.trim().toLowerCase() === targetId) || res.gates[0];
             const nextGates = [...this._suite.gates];
-            const idx = nextGates.findIndex((g) => g.id === gateId);
+            const idx = nextGates.findIndex((g) => g.id.trim().toLowerCase() === targetId);
             if (idx >= 0 && updatedGate) {
               nextGates[idx] = updatedGate;
             } else if (updatedGate) {

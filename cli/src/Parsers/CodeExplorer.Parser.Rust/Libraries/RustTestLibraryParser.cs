@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Parser;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Rust.Libraries;
@@ -12,7 +11,7 @@ public sealed class RustTestLibraryParser : ISemanticExtension
 
     public string Id => "rust-test";
     public string Name => "Rust Test Frameworks";
-    public string Type => "library";
+    public SemanticExtensionType Type => SemanticExtensionType.Library;
     public LibraryRole LibraryRole => LibraryRole.TestFramework;
 
     public IReadOnlyList<string> SupportedPatterns =>

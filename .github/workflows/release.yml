@@ -143,19 +143,41 @@ jobs:
           path: ./dist
           merge-multiple: true
 
-      - name: Build NuGet Dotnet Tool Package
+      - name: Build NuGet Tool & SDK Packages
         run: |
           VERSION="${{ needs.resolve-tag.outputs.version }}"
           if [ -z "$VERSION" ] || [ "$VERSION" = "main" ]; then VERSION="1.0.0"; fi
-          echo "Packing NuGet tool version: $VERSION"
-          dotnet pack cli/src/UI/CodeExplorer/CodeExplorer.csproj \
-            -c Release \
+          echo "Building and packing NuGet packages version: $VERSION"
+          mkdir -p cli/.Build/doc_Release
+          dotnet build cli/CodeExplorer.slnx -c Release -m:1 \
             -p:Version="$VERSION" \
             -p:PackageVersion="$VERSION" \
             -p:AssemblyVersion="$VERSION" \
             -p:FileVersion="$VERSION" \
-            -p:InformationalVersion="$VERSION" \
-            -o ./dist
+            -p:InformationalVersion="$VERSION"
+          for proj in \
+            cli/src/UI/CodeExplorer/CodeExplorer.csproj \
+            cli/src/Cypher/CodeExplorer.Cypher/CodeExplorer.Cypher.csproj \
+            cli/src/Core/CodeExplorer.Core/CodeExplorer.Core.csproj \
+            cli/src/Core/CodeExplorer.Gates/CodeExplorer.Gates.csproj \
+            cli/src/Core/CodeExplorer.Analysis/CodeExplorer.Analysis.csproj \
+            cli/src/Parsers/CodeExplorer.Parser.Shared/CodeExplorer.Parser.Shared.csproj \
+            cli/src/Parsers/CodeExplorer.Parser.TypeScript/CodeExplorer.Parser.TypeScript.csproj \
+            cli/src/Parsers/CodeExplorer.Parser.Python/CodeExplorer.Parser.Python.csproj \
+            cli/src/Parsers/CodeExplorer.Parser.Rust/CodeExplorer.Parser.Rust.csproj \
+            cli/src/Parsers/CodeExplorer.Parser.Go/CodeExplorer.Parser.Go.csproj \
+            cli/src/Parsers/CodeExplorer.Parser.CSharp/CodeExplorer.Parser.CSharp.csproj \
+            cli/src/Parsers/CodeExplorer.Parser.Java/CodeExplorer.Parser.Java.csproj \
+            cli/src/Parsers/CodeExplorer.Parser.Kotlin/CodeExplorer.Parser.Kotlin.csproj \
+            cli/src/Parsers/CodeExplorer.Parser.Script/CodeExplorer.Parser.Script.csproj \
+            cli/src/Parsers/CodeExplorer.Parser.SQL/CodeExplorer.Parser.SQL.csproj \
+            cli/src/Parsers/CodeExplorer.Parser.Android/CodeExplorer.Parser.Android.csproj \
+            cli/src/Parsers/CodeExplorer.Parser.ColdFusion/CodeExplorer.Parser.ColdFusion.csproj; do
+            dotnet pack "$proj" -c Release --no-build \
+              -p:Version="$VERSION" \
+              -p:PackageVersion="$VERSION" \
+              -o ./dist
+          done
 
       - name: Generate Checksums
         run: |
@@ -202,28 +224,28 @@ jobs:
           cd /tmp/homebrew-tap
 
           mkdir -p Formula
-          cat <<EOF > Formula/ce.rb
-class Ce < Formula
-  desc "Codebase intelligence CLI and knowledge graph engine"
-  homepage "https://github.com/vmikhailov/code-explorer"
-  version "${VERSION}"
-  license "MIT"
+          cat <<EOF | sed 's/^          //' > Formula/ce.rb
+          class Ce < Formula
+            desc "Codebase intelligence CLI and knowledge graph engine"
+            homepage "https://github.com/vmikhailov/code-explorer"
+            version "${VERSION}"
+            license "MIT"
 
-  depends_on :macos
-  depends_on arch: :arm64
+            depends_on :macos
+            depends_on arch: :arm64
 
-  url "https://github.com/vmikhailov/code-explorer/releases/download/v${VERSION}/ce-osx-arm64.tar.gz"
-  sha256 "${SHA256_ARM64}"
+            url "https://github.com/vmikhailov/code-explorer/releases/download/v${VERSION}/ce-osx-arm64.tar.gz"
+            sha256 "${SHA256_ARM64}"
 
-  def install
-    bin.install "ce"
-  end
+            def install
+              bin.install "ce"
+            end
 
-  test do
-    assert_match "ce", shell_output("#{bin}/ce --version", 2) rescue nil
-  end
-end
-EOF
+            test do
+              assert_match "ce", shell_output("#{bin}/ce --version", 2) rescue nil
+            end
+          end
+          EOF
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

@@ -1,11 +1,18 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { GraphData } from '../../../../proto/types';
 import {
   filterProjectMap,
   parseProjectMapGraph,
+  ProjectMapModel,
+  TIER_COLORS,
 } from '../projectMap/projectMapModel';
+import { TierDefinition } from '../layout/swimlanesLayout';
 import { useServerTransport } from '../services/webviewTransport';
-import { BaseGraphMap } from './BaseGraphMap';
+import {
+  UniversalGraphMap,
+  InspectorPresetDefinition,
+  InspectorOverviewModel,
+} from './UniversalGraphMap';
 
 export interface ProjectMapViewProps {
   serverHttpUrl?: string;
@@ -16,16 +23,9 @@ export interface ProjectMapViewProps {
 
 function resolveBaseUrl(serverHttpUrl?: string): string | undefined {
   if (serverHttpUrl) return serverHttpUrl;
-  const wsUrl = typeof window !== 'undefined' ? window.__CE_CONFIG__?.wsUrl : undefined;
+  const wsUrl = typeof window !== 'undefined' ? (window as any).__CE_CONFIG__?.wsUrl : undefined;
   return wsUrl?.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://').replace(/\/ws$/, '');
 }
-
-const PROJECT_MAP_LAYOUTS = [
-  { id: 'concentric' as const, label: '🎯 Default' },
-  { id: 'swimlanes' as const, label: '🏊 Swimlanes' },
-  { id: 'mermaid' as const, label: '🧜 Mermaid' },
-  { id: 'cose' as const, label: '🌐 Force' },
-];
 
 export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
   serverHttpUrl,
@@ -38,10 +38,13 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
+
+  // Filters state
   const [hideUtilities, setHideUtilities] = useState(false);
   const [hideResources, setHideResources] = useState(false);
   const [cyclesOnly, setCyclesOnly] = useState(false);
 
+  // Fetch project map data
   useEffect(() => {
     const baseUrl = serverHttpUrl || transportHttpUrl || resolveBaseUrl(serverHttpUrl);
     if (!baseUrl) {
@@ -85,13 +88,13 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
     };
   }, [serverHttpUrl, transportHttpUrl, connectionState === 'connected', project, reloadToken]);
 
-  const model = useMemo(() => parseProjectMapGraph(graph), [graph]);
+  const model: ProjectMapModel = useMemo(() => parseProjectMapGraph(graph), [graph]);
   const visible = useMemo(
     () => filterProjectMap(model, { hideUtilities, hideResources, cyclesOnly }),
     [model, hideUtilities, hideResources, cyclesOnly]
   );
 
-  // Build filtered GraphData for BaseGraphMap
+  // Filtered graph for UniversalGraphMap
   const filteredGraph = useMemo<GraphData | null>(() => {
     if (!graph) return null;
     if (!hideUtilities && !hideResources && !cyclesOnly) return graph;
@@ -107,148 +110,114 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
     };
   }, [graph, visible, hideUtilities, hideResources, cyclesOnly]);
 
-  const entryPointNodeCount = model.nodes.filter((n) => n.kind === 'Endpoint' || n.kind === 'EntryPoint').length;
-  const moduleCount = model.nodes.filter((n) => !n.isResource && n.kind !== 'Endpoint' && n.kind !== 'EntryPoint').length;
-  const resourceCount = model.nodes.filter((n) => n.isResource).length;
-  const depCount = model.edges.filter((e) => !e.isResourceLink).length;
+  const tierDefinitions = useMemo<TierDefinition[]>(() => {
+    return model.tiers.map((t) => ({
+      tier: t.tier,
+      title: t.label,
+      color: TIER_COLORS[t.tier] || '#475569',
+    }));
+  }, [model.tiers]);
 
-  const currentProjectFiles = model.projects.find((p) => p.name === (model.projectName || project))?.files;
-
-  const headerControls = (
-    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-      <select
-        className="domain-layout-dropdown"
-        style={{ minWidth: 180, height: 26, fontSize: 11 }}
-        value={model.projectName || project || ''}
-        onChange={(e) => onProjectChange?.(e.target.value)}
-        title="Select project to inspect"
-      >
-        {model.projects.length === 0 && (
-          <option value={project ?? ''}>{project || '(largest project)'}</option>
-        )}
-        {model.projects.map((p) => (
-          <option key={p.id} value={p.name} title={p.path}>
-            {p.name} ({p.files} files)
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-
-  const projectMapPresets = (
-    <>
-      {model.cycles.length > 0 && (
-        <button
-          type="button"
-          className={`visibility-preset-item ${cyclesOnly ? 'is-active' : ''}`}
-          onClick={() => setCyclesOnly((v) => !v)}
-          title="Isolate only modules involved in dependency cycles"
-        >
-          <div className="visibility-preset-main">
-            <span className="visibility-preset-icon">⚠️</span>
-            <div className="visibility-preset-text">
-              <span className="visibility-preset-label">Cycles Only</span>
-              <span className="visibility-preset-desc">
-                {model.cycles.length} dependency cycle{model.cycles.length === 1 ? '' : 's'} detected
-              </span>
-            </div>
-          </div>
-          <div className={`visibility-preset-toggle ${cyclesOnly ? 'is-on' : ''}`}>
-            {cyclesOnly ? 'ON' : 'OFF'}
-          </div>
-        </button>
+  const projectSelector = (
+    <select
+      className="project-map-project-dropdown"
+      style={{
+        height: 26,
+        boxSizing: 'border-box',
+        fontSize: 11,
+        maxWidth: 240,
+        background: 'var(--vscode-dropdown-background, #1e293b)',
+        color: 'var(--vscode-dropdown-foreground, #f8fafc)',
+        border: '1px solid var(--vscode-dropdown-border, #334155)',
+        borderRadius: 4,
+        padding: '0 6px',
+        textOverflow: 'ellipsis',
+        overflow: 'hidden',
+        flexShrink: 0,
+      }}
+      value={model.projectName || project || ''}
+      onChange={(e) => onProjectChange?.(e.target.value)}
+      title="Select project to inspect"
+    >
+      {model.projects.length === 0 && (
+        <option value={project ?? ''}>{project || '(current workspace)'}</option>
       )}
-
-      <button
-        type="button"
-        className={`visibility-preset-item ${hideUtilities ? 'is-active' : ''}`}
-        onClick={() => setHideUtilities((v) => !v)}
-        title="Hide foundation/utility modules (Orbit 4)"
-      >
-        <div className="visibility-preset-main">
-          <span className="visibility-preset-icon">🧰</span>
-          <div className="visibility-preset-text">
-            <span className="visibility-preset-label">Hide Utilities</span>
-            <span className="visibility-preset-desc">Foundation & helper modules (Orbit 4)</span>
-          </div>
-        </div>
-        <div className={`visibility-preset-toggle ${hideUtilities ? 'is-on' : ''}`}>
-          {hideUtilities ? 'ON' : 'OFF'}
-        </div>
-      </button>
-
-      <button
-        type="button"
-        className={`visibility-preset-item ${hideResources ? 'is-active' : ''}`}
-        onClick={() => setHideResources((v) => !v)}
-        title="Hide database tables, procedures, topics, and external resources"
-      >
-        <div className="visibility-preset-main">
-          <span className="visibility-preset-icon">🗄️</span>
-          <div className="visibility-preset-text">
-            <span className="visibility-preset-label">Hide Resources</span>
-            <span className="visibility-preset-desc">Tables, procedures, topics & external APIs</span>
-          </div>
-        </div>
-        <div className={`visibility-preset-toggle ${hideResources ? 'is-on' : ''}`}>
-          {hideResources ? 'ON' : 'OFF'}
-        </div>
-      </button>
-    </>
+      {model.projects.map((p) => (
+        <option key={p.id} value={p.name} title={p.path}>
+          {p.name} ({p.files} files)
+        </option>
+      ))}
+    </select>
   );
+
+  const inspectorOverviewSlot = useMemo<InspectorOverviewModel>(() => {
+    const totalFiles = model.nodes.reduce((acc, n) => acc + (n.fileCount || 0), 0);
+    const entryPoints = model.nodes.reduce((acc, n) => acc + (n.entryPoints || 0), 0);
+    const classes = model.nodes.filter((n) => !n.isResource).length;
+    const resources = model.nodes.filter((n) => n.isResource).length;
+
+    return {
+      title: model.projectName || 'Project Overview',
+      subtitle: `${totalFiles} source files`,
+      metrics: [
+        { label: 'EntryPoints', value: entryPoints },
+        { label: 'Classes', value: classes },
+        { label: 'Dependencies', value: model.edges.length },
+        { label: 'Resources', value: resources },
+      ],
+      actionBanner: model.cycles.length > 0 ? {
+        text: `⚠️ ${model.cycles.length} dependency cycle(s) detected`,
+        actionLabel: cyclesOnly ? 'ISOLATING' : 'ISOLATE',
+        isActive: cyclesOnly,
+        onAction: () => setCyclesOnly((v) => !v),
+      } : undefined,
+    };
+  }, [model, cyclesOnly]);
+
+  const visibilityPresetsSlot = useMemo<InspectorPresetDefinition[]>(() => [
+    ...(model.cycles.length > 0 ? [{
+      id: 'cyclesOnly',
+      label: 'Cycles Only',
+      icon: '⚠️',
+      isActive: cyclesOnly,
+      onToggle: () => setCyclesOnly((v) => !v),
+      badge: model.cycles.length,
+    }] : []),
+    {
+      id: 'hideUtilities',
+      label: 'Hide Utilities',
+      icon: '🧰',
+      isActive: hideUtilities,
+      onToggle: () => setHideUtilities((v) => !v),
+    },
+    {
+      id: 'hideResources',
+      label: 'Hide Resources',
+      icon: '🗄️',
+      isActive: hideResources,
+      onToggle: () => setHideResources((v) => !v),
+    },
+  ], [model.cycles.length, cyclesOnly, hideUtilities, hideResources]);
+
+  const handleRefresh = useCallback(() => {
+    setReloadToken((t) => t + 1);
+  }, []);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', position: 'relative' }}>
-      {loading && (
-        <div className="view-loading-overlay" style={{ zIndex: 1000 }}>
-          <div className="view-loading-card">
-            <div className="view-loading-spinner" />
-            <div className="view-loading-content">
-              <span className="view-loading-title">Project Map</span>
-              <span className="view-loading-subtitle">Loading project modules and resources…</span>
-            </div>
-          </div>
-        </div>
-      )}
-      {!loading && (error || model.error) && (
-        <div className="pm-overlay pm-error" style={{ zIndex: 900 }}>
-          {error || model.error}
-        </div>
-      )}
-      <BaseGraphMap
-        graph={filteredGraph}
-        serverHttpUrl={serverHttpUrl}
-        hudLabel="C3 Internal Structure"
-        hudTitle={`Project Map${model.projectName ? `: ${model.projectName}` : ''}`}
-        headerSlot={headerControls}
-        customPresetsSlot={projectMapPresets}
-        projectMapPresets={{
-          cyclesCount: model.cycles.length,
-          cyclesOnly,
-          hideUtilities,
-          hideResources,
-          projectName: model.projectName || project || '',
-          filesCount: currentProjectFiles,
-          entryPointCount: entryPointNodeCount,
-          moduleCount,
-          granularity: (model.granularity as any) || 'class',
-          depCount,
-          resourceCount,
-        }}
-        onToggleProjectMapPreset={(preset) => {
-          if (preset === 'cyclesOnly') setCyclesOnly((v) => !v);
-          else if (preset === 'hideUtilities') setHideUtilities((v) => !v);
-          else if (preset === 'hideResources') setHideResources((v) => !v);
-        }}
-        defaultLayoutName="concentric"
-        allowedLayouts={PROJECT_MAP_LAYOUTS}
-        defaultNodeSizingMode="sqrt-weight"
-        defaultNodeContentMode="metric"
-        defaultHiddenTypes={[]}
-        storagePrefix="ce_pm_v3_"
-        onOpenFile={onOpenFile}
-        onRefresh={() => setReloadToken((t) => t + 1)}
-      />
-    </div>
+    <UniversalGraphMap
+      graph={filteredGraph}
+      serverHttpUrl={serverHttpUrl}
+      loading={loading}
+      error={error || model.error || null}
+      hudLabel="C3 Internal Structure"
+      hudTitle={`Project Map${model.projectName ? `: ${model.projectName}` : ''}`}
+      headerControlsSlot={projectSelector}
+      tierDefinitions={tierDefinitions}
+      storagePrefix="ce_pm_v3_"
+      inspectorOverviewSlot={inspectorOverviewSlot}
+      visibilityPresetsSlot={visibilityPresetsSlot}
+      onOpenFile={onOpenFile}
+      onRefresh={handleRefresh}
+    />
   );
 };

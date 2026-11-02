@@ -1,14 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Java.Libraries;
 
 public class GrpcJavaLibraryParser : ISemanticExtension
 {
-    public string Type => "framework:grpc";
+    public SemanticExtensionType Type => SemanticExtensionType.GrpcFramework;
     public string Name => "gRPC Java";
     public string Id => "grpc-java";
 

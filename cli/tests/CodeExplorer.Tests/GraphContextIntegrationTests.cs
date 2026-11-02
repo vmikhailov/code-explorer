@@ -1,6 +1,4 @@
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Database;
-using CodeExplorer.Cypher.Linq;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;

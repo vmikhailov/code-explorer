@@ -1,5 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-using CodeExplorer.Core.Common;
 
 namespace CodeExplorer.Commands;
 

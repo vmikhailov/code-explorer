@@ -1,14 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
 public class PineconeLibraryParser : ISemanticExtension
 {
-    public string Type => "db:vector";
+    public SemanticExtensionType Type => SemanticExtensionType.VectorDb;
     public string Name => "Pinecone";
     public string Id => "pinecone";
     public IReadOnlyList<string> SupportedPatterns => ["pinecone", "pinecone.*", "pinecone-client", "pinecone_client"];

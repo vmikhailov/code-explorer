@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Common;
 
 namespace CodeExplorer.Core.Parser;
 
@@ -38,24 +37,28 @@ public class GitIgnoreMatcher
         _filter = fileFilter ?? WorkspaceFileFilter.Default;
         foreach (var dir in _filter.ActiveExcludedDirectoryNames)
         {
+            if (!_filter.IsExcludedDirectory(dir)) continue;
             AddPattern(dir + "/");
         }
 
-        foreach (var pattern in DefaultIgnoreFilePatterns)
+        if (!_filter.IncludeDistAndMinifiedArtifacts)
         {
-            AddPattern(pattern);
-        }
+            foreach (var pattern in DefaultIgnoreFilePatterns)
+            {
+                AddPattern(pattern);
+            }
 
-        foreach (var ignoreFileName in IgnoreFileNames)
-        {
-            LoadFile(Path.Combine(workspaceRoot, ignoreFileName));
+            foreach (var ignoreFileName in IgnoreFileNames)
+            {
+                LoadFile(Path.Combine(workspaceRoot, ignoreFileName));
+            }
+            LoadWorkspaceSettings(workspaceRoot);
         }
-        LoadWorkspaceSettings(workspaceRoot);
     }
 
     public void LoadScopedDirectory(string currentDir, string relativeDir)
     {
-        if (string.IsNullOrEmpty(relativeDir)) return;
+        if (string.IsNullOrEmpty(relativeDir) || _filter.IncludeDistAndMinifiedArtifacts) return;
 
         foreach (var ignoreFileName in IgnoreFileNames)
         {

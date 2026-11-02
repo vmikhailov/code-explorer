@@ -9,6 +9,7 @@
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Relationships;
+using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Tests.OntologyGen.Fixtures;
 
@@ -21,7 +22,7 @@ public record OwnsRelationship(
     [property: JsonIgnore] Dictionary<string, string>? Extensions = null
 ) : IOntologyRelationship
 {
-    [JsonIgnore] public string Kind => "OWNS";
+    [JsonIgnore] public RelationshipKind Kind => RelationshipKind.Unspecified;
 }
 
 [OntologyRelationship("LIVES_IN", "Links an Animal to the Habitat it lives in.")]
@@ -31,7 +32,7 @@ public record LivesInRelationship(
     [property: JsonIgnore] Dictionary<string, string>? Extensions = null
 ) : IOntologyRelationship
 {
-    [JsonIgnore] public string Kind => "LIVES_IN";
+    [JsonIgnore] public RelationshipKind Kind => RelationshipKind.Unspecified;
 }
 
 // ── Test node records ────────────────────────────────────────────────────────
@@ -48,7 +49,7 @@ public record ZooNode(
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {
-    [JsonIgnore] public override string Kind => "Zoo";
+    [JsonIgnore] public override NodeKind Kind => NodeKind.Unspecified;
 }
 
 [OntologyNode(
@@ -64,7 +65,7 @@ public record AnimalNode(
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {
-    [JsonIgnore] public override string Kind => "Animal";
+    [JsonIgnore] public override NodeKind Kind => NodeKind.Unspecified;
 }
 
 // Pure leaf — receives edges, declares none
@@ -80,5 +81,5 @@ public record HabitatNode(
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {
-    [JsonIgnore] public override string Kind => "Habitat";
+    [JsonIgnore] public override NodeKind Kind => NodeKind.Unspecified;
 }

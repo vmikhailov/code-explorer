@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 
@@ -13,6 +14,7 @@ namespace CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
     pluralLabel: "Entry Points"
 )]
 [OntologyEdge<FileNode>(OntologyConstants.Relationships.DeclaredIn)]
+[OntologyEdge<FileNode>(OntologyConstants.Relationships.Triggers)]
 [OntologyEdge<ProjectNode>(OntologyConstants.Relationships.BelongsTo)]
 public record EntryPointNode(
     string Id,
@@ -23,5 +25,5 @@ public record EntryPointNode(
 ) : CompositeNode(Id, Extensions)
 {
     [JsonIgnore]
-    public override string Kind => OntologyConstants.NodeLabels.EntryPoint;
+    public override NodeKind Kind => NodeKind.EntryPoint;
 }

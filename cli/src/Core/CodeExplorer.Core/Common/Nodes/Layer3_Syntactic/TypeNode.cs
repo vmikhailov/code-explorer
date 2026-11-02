@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 
@@ -31,7 +32,7 @@ public record TypeNode(
     [property: OntologyProperty("The ending column number of the declaration.")] int EndCol,
     [property: JsonPropertyName("kind"), OntologyProperty("The specific type kind (class, interface, struct, record, enum).")] string TypeKind,
     bool IsTest,
-    string? ProjectKind = null,
+    ProjectEntityKind? ProjectKind = null,
     string? ProjectName = null,
     int? StageOrder = null,
     int? Loc = null,
@@ -47,7 +48,7 @@ public record TypeNode(
     public bool IsTest { get; set; } = IsTest;
 
     [JsonPropertyName("project_kind"), OntologyProperty("The architectural kind of the enclosing project.")]
-    public string? ProjectKind { get; set; } = ProjectKind;
+    public ProjectEntityKind? ProjectKind { get; set; } = ProjectKind;
 
     [JsonPropertyName("project_name"), OntologyProperty("The name of the enclosing project.")]
     public string? ProjectName { get; set; } = ProjectName;
@@ -59,5 +60,5 @@ public record TypeNode(
     public int? Loc { get; set; } = Loc ?? Math.Max(1, EndLine - StartLine + 1);
 
     [JsonIgnore]
-    public override string Kind => OntologyConstants.NodeLabels.Type;
+    public override NodeKind Kind => NodeKind.Type;
 }

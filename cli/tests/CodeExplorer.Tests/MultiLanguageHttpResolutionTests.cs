@@ -1,8 +1,8 @@
+using CodeExplorer.Core.Database;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.CSharp;
 using CodeExplorer.Parser.Go;
@@ -46,7 +46,7 @@ public class MultiLanguageHttpResolutionTests
             await File.WriteAllTextAsync(filePath, code);
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            var client = new InMemoryGraphClient();
+            var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
             using var syntaxTree =

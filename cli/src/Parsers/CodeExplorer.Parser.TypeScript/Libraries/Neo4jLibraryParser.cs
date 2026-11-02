@@ -1,14 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public class Neo4jLibraryParser : ISemanticExtension
 {
-    public string Type => "db:graph";
+    public SemanticExtensionType Type => SemanticExtensionType.GraphDb;
     public string Name => "Neo4j";
     public string Id => "neo4j";
     public IReadOnlyList<string> SupportedPatterns => ["neo4j-driver"];

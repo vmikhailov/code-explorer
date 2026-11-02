@@ -1,6 +1,4 @@
 using System.Text.Json;
-using CodeExplorer.Core.Database;
-using CodeExplorer.Core.Mcp;
 using CodeExplorer.Core.Mcp.Models;
 using NUnit.Framework;
 

@@ -1,14 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public class UrllibLibraryParser : ISemanticExtension
 {
-    public string Type => "api";
+    public SemanticExtensionType Type => SemanticExtensionType.ApiClient;
     public string Name => "urllib";
     public string Id => "urllib";
     public IReadOnlyList<string> SupportedPatterns => ["urllib"];

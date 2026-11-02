@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Parser;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -25,6 +24,7 @@ public class TestAssemblySetup
         }
 
         WorkspaceIndexer.AutoRegisterParsers();
+        CodeExplorer.Core.Analysis.AnalysisPipelineInitializer.EnsureRegistered();
     }
 
     [OneTimeTearDown]

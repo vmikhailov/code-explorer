@@ -1,13 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
 public class StripeLibraryParser : ISemanticExtension
 {
-    public string Type => "cloud";
+    public SemanticExtensionType Type => SemanticExtensionType.Cloud;
     public string Name => "Stripe";
     public string Id => "stripe";
     public IReadOnlyList<string> SupportedPatterns => ["Stripe", "Stripe.*", "Stripe.net"];

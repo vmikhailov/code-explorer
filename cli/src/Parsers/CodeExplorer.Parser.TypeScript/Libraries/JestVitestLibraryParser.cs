@@ -1,7 +1,3 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
@@ -10,7 +6,7 @@ public class JestVitestLibraryParser : ISemanticExtension
 {
     public string Id => "jest";
     public string Name => "Jest / Vitest";
-    public string Type => "library";
+    public SemanticExtensionType Type => SemanticExtensionType.Library;
     public LibraryRole LibraryRole => LibraryRole.TestFramework;
     public IReadOnlyList<string> SupportedPatterns => ["jest", "@types/jest", "ts-jest", "babel-jest", "@jest/globals", "vitest", "@vitest/*"];
     public bool IsImplemented => true;

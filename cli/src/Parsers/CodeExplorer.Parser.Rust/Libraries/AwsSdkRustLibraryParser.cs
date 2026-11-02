@@ -1,8 +1,4 @@
 using System.Text.RegularExpressions;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Rust.Libraries;
@@ -17,7 +13,7 @@ public class AwsSdkRustLibraryParser : ISemanticExtension
 {
     public string Id => "aws-sdk-rust";
     public string Name => "AWS SDK for Rust";
-    public string Type => "cloud";
+    public SemanticExtensionType Type => SemanticExtensionType.Cloud;
     public bool IsImplemented => true;
     public LibraryRole LibraryRole => LibraryRole.MessageBroker;
     public IReadOnlyList<string> SupportedPatterns => ["aws-sdk-*", "aws_sdk_*", "aws-config*"];

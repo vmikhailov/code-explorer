@@ -1,7 +1,3 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Rust.Libraries;
@@ -15,7 +11,7 @@ public class RdKafkaRustLibraryParser : ISemanticExtension
 {
     public string Id => "rdkafka";
     public string Name => "rdkafka (Kafka)";
-    public string Type => "queue";
+    public SemanticExtensionType Type => SemanticExtensionType.Queue;
     public bool IsImplemented => true;
     public LibraryRole LibraryRole => LibraryRole.MessageBroker;
     public IReadOnlyList<string> SupportedPatterns => ["rdkafka*"];

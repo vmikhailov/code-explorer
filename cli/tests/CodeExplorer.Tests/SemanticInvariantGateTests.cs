@@ -1,5 +1,3 @@
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Gates.Engine;
 using CodeExplorer.Core.Gates.Models;
 using CodeExplorer.Core.Gates.Storage;
@@ -1247,7 +1245,7 @@ public class SemanticInvariantGateTests
     }
 
     [Test]
-    public void RatchetService_ErrorOnlyThreshold_DoesNotTriggerImplicitWarningAt1()
+    public void RatchetService_ErrorOnlyThreshold_TriggersImplicitWarning()
     {
         var gate = new SemanticGate
         {
@@ -1269,7 +1267,7 @@ public class SemanticInvariantGateTests
         };
 
         var res = RatchetService.Evaluate(gate, violations3, null);
-        res.Status.Should().Be(GateCheckStatus.Passed);
+        res.Status.Should().Be(GateCheckStatus.Warning);
     }
 
     [Test]

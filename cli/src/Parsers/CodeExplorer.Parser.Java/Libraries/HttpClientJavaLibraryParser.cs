@@ -1,6 +1,4 @@
 using System.Collections.Frozen;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Parser;
 
 namespace CodeExplorer.Parser.Java.Libraries;
 
@@ -10,7 +8,7 @@ public class HttpClientJavaLibraryParser : DeclarativeSemanticExtension
     {
         Id = "java-http";
         Name = "Java HTTP Clients (HttpClient / RestTemplate / WebClient / OkHttp / Feign)";
-        Type = "api:client";
+        Type = SemanticExtensionType.ApiClient;
         LibraryRole = LibraryRole.General;
         SupportedPatterns =
         [

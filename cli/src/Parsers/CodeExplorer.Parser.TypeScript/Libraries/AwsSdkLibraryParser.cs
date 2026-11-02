@@ -1,14 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public class AwsSdkLibraryParser : ISemanticExtension
 {
-    public string Type => OntologyConstants.LibraryTypes.Cloud;
+    public SemanticExtensionType Type => SemanticExtensionType.Cloud;
     public string Name => "AWS";
     public string Id => "aws";
     public IReadOnlyList<string> SupportedPatterns => ["aws-sdk", "@aws-sdk/*"];

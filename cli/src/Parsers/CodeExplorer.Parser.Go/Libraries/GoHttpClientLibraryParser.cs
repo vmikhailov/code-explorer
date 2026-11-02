@@ -1,14 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
 public class GoHttpClientLibraryParser : ISemanticExtension
 {
-    public string Type => "api:client";
+    public SemanticExtensionType Type => SemanticExtensionType.ApiClient;
     public string Name => "Go HTTP Client";
     public string Id => "net-http";
     public IReadOnlyList<string> SupportedPatterns => ["net/http*"];

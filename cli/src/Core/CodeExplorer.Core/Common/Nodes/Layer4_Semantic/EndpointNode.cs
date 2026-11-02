@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
@@ -33,5 +34,5 @@ public record EndpointNode(
 ) : CompositeNode(Id, Extensions)
 {
     [JsonIgnore]
-    public override string Kind => OntologyConstants.NodeLabels.Endpoint;
+    public override NodeKind Kind => NodeKind.Endpoint;
 }

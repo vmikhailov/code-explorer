@@ -1,4 +1,4 @@
-using CodeExplorer.Core.Analysis;
+using CodeExplorer.Cypher.Common;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using NUnit.Framework;
 
@@ -20,7 +20,7 @@ public class ProjectNodeFactoryTests
         );
 
         node.Should().BeOfType<ProjectNode>();
-        node.Kind.Should().Be("Project");
+        node.Kind.Should().Be(NodeKind.Project);
         node.Role.Should().Be("Service");
         node.IsLibrary.Should().BeFalse();
         node.Extensions?["role"].Should().Be("Service");
@@ -41,7 +41,7 @@ public class ProjectNodeFactoryTests
         );
 
         node.Should().BeOfType<ProjectNode>();
-        node.Kind.Should().Be("Project");
+        node.Kind.Should().Be(NodeKind.Project);
         node.Role.Should().Be("FrontendApp");
         node.IsLibrary.Should().BeFalse();
     }
@@ -59,7 +59,7 @@ public class ProjectNodeFactoryTests
         );
 
         node.Should().BeOfType<ProjectNode>();
-        node.Kind.Should().Be("Project");
+        node.Kind.Should().Be(NodeKind.Project);
         node.Role.Should().Be("SharedLibrary");
         node.IsLibrary.Should().BeTrue();
         node.Extensions?["entity_type"].Should().Be("library");
@@ -78,7 +78,7 @@ public class ProjectNodeFactoryTests
         );
 
         node.Should().BeOfType<ProjectNode>();
-        node.Kind.Should().Be("Project");
+        node.Kind.Should().Be(NodeKind.Project);
         node.Role.Should().Be("Worker");
         node.IsLibrary.Should().BeFalse();
     }
@@ -96,7 +96,7 @@ public class ProjectNodeFactoryTests
         );
 
         node.Should().BeOfType<ProjectNode>();
-        node.Kind.Should().Be("Project");
+        node.Kind.Should().Be(NodeKind.Project);
         node.Role.Should().Be("CliTool");
         node.IsLibrary.Should().BeFalse();
     }

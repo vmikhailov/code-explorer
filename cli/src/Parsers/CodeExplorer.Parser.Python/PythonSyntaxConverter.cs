@@ -18,6 +18,7 @@ public sealed class PythonSyntaxConverter : TreeSitterSyntaxConverterBase
             "class_definition" => new TypeDeclSyntax { Span = span, RawGrammarKind = rawKind, Kind = TypeSyntaxKind.Class },
             "function_definition" => new FunctionDeclSyntax { Span = span, RawGrammarKind = rawKind, Kind = FunctionSyntaxKind.Function },
 
+            "identifier" when parentRawKind is "parameters" => new ParameterDeclSyntax { Span = span, RawGrammarKind = rawKind },
             "default_parameter" or "typed_parameter" or "typed_default_parameter" or "list_splat_pattern" or "dictionary_splat_pattern" =>
                 new ParameterDeclSyntax { Span = span, RawGrammarKind = rawKind },
 

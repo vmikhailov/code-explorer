@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json.Nodes;
 using CodeExplorer.Configuration;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Options;
 
 namespace CodeExplorer.Commands;

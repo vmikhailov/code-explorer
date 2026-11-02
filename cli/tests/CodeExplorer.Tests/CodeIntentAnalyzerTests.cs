@@ -1,7 +1,3 @@
-using CodeExplorer.Core.Analysis;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Database;
-using CodeExplorer.Core.Parser;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;

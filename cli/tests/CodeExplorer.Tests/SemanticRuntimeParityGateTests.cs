@@ -1,14 +1,10 @@
-using CodeExplorer.Core.Analysis;
-using CodeExplorer.Core.Common;
+using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
-using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Gates.Engine;
 using CodeExplorer.Core.Gates.Storage;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Cypher.Common;
 using CodeExplorer.Parser.CSharp;
@@ -441,7 +437,7 @@ public class SemanticRuntimeParityGateTests
                 """);
 
             var channel = System.Threading.Channels.Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
             ctx.SemanticStructure = new CodeExplorer.Core.Common.Nodes.Layer4_Semantic.SemanticStructureNode("ws:semantic_structure", "root", tempWorkspace);
 
@@ -471,7 +467,7 @@ public class SemanticRuntimeParityGateTests
         Directory.CreateDirectory(tempWorkspace);
         try
         {
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
             var channel = System.Threading.Channels.Channel.CreateUnbounded<Func<Task>>();
             var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
 

@@ -1,14 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
 public class PeeweeLibraryParser : ISemanticExtension
 {
-    public string Type => OntologyConstants.LibraryTypes.RelationalDb;
+    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
     public string Name => "Peewee";
     public string Id => "peewee";
     public IReadOnlyList<string> SupportedPatterns => ["peewee", "peewee.*"];

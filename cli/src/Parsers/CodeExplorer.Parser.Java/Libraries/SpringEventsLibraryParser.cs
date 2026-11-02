@@ -1,7 +1,4 @@
 using System.Collections.Frozen;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
 
 namespace CodeExplorer.Parser.Java.Libraries;
 
@@ -11,7 +8,7 @@ public class SpringEventsLibraryParser : DeclarativeSemanticExtension
     {
         Id = "spring-events";
         Name = "Spring Events";
-        Type = OntologyConstants.LibraryTypes.Queue;
+        Type = SemanticExtensionType.Queue;
         LibraryRole = LibraryRole.MessageBroker;
         SupportedPatterns = ["org.springframework.context.event.*", "org.springframework.context.ApplicationEventPublisher"];
         MessagingBrokerRules =

@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
 
 namespace CodeExplorer.Core.Common.Nodes;
@@ -18,5 +19,5 @@ public record CounterNode(
 ) : CompositeNode(Id, Extensions)
 {
     [JsonIgnore]
-    public override string Kind => OntologyConstants.NodeLabels.Counter;
+    public override NodeKind Kind => NodeKind.Counter;
 }

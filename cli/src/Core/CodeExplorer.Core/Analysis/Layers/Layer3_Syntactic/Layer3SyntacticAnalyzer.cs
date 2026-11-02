@@ -1,6 +1,4 @@
 using System.Text.RegularExpressions;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
@@ -117,7 +115,7 @@ public partial class Layer3SyntacticParser
                 var primaryMatch = bestMatches[0];
                 var isTest = primaryMatch.IsTest || WorkspaceConventions.IsTestFilePath(file.Path);
                 file.IsTest = isTest;
-                file.ProjectKind = primaryMatch.KindValue;
+                file.ProjectKind = primaryMatch.EntityKind != ProjectEntityKind.Unknown ? primaryMatch.EntityKind : null;
                 file.ProjectName = primaryMatch.Name;
                 if (!string.IsNullOrEmpty(file.Path))
                 {
@@ -171,50 +169,47 @@ public partial class Layer3SyntacticParser
         ctx.LogDebug($"[ConfigurationIndex] Registered {ConfigurationIndex.GetDiscoveredUrls().Count} service endpoints and configuration keys into ConstantRegistry.");
 
         // Phase 0b: RouteDictionaryRegistry and early constants pre-scanning across all candidate files
-        var allCandidateFiles = new List<(string FullPath, string? ProjectName)>();
-        foreach (var wfile in workspaceRootFiles)
+        if (!ctx.LightweightAstScanMode)
         {
-            if (IsRouteOrConfigCandidate(wfile.Path) && !SharedFileParserRegistry.CanParse(wfile.Name)) allCandidateFiles.Add((wfile.FullPath, null));
-        }
-
-        foreach (var project in l2Result.Projects)
-        {
-            if (filesByProjectId.TryGetValue(project.Id, out var pFiles))
+            var allCandidateFiles = new List<(string FullPath, string? ProjectName)>();
+            foreach (var wfile in workspaceRootFiles)
             {
-                foreach (var pfile in pFiles)
+                if (IsRouteOrConfigCandidate(wfile.Path) && !SharedFileParserRegistry.CanParse(wfile.Name)) allCandidateFiles.Add((wfile.FullPath, null));
+            }
+
+            foreach (var project in l2Result.Projects)
+            {
+                if (filesByProjectId.TryGetValue(project.Id, out var pFiles))
                 {
-                    if (IsRouteOrConfigCandidate(pfile.Path) && !SharedFileParserRegistry.CanParse(pfile.Name)) allCandidateFiles.Add((pfile.FullPath, project.Name));
+                    foreach (var pfile in pFiles)
+                    {
+                        if (IsRouteOrConfigCandidate(pfile.Path) && !SharedFileParserRegistry.CanParse(pfile.Name)) allCandidateFiles.Add((pfile.FullPath, project.Name));
+                    }
                 }
             }
+
+            Parallel.ForEach(allCandidateFiles, new ParallelOptions { CancellationToken = ctx.CancellationToken }, item =>
+            {
+                var (fPath, pName) = item;
+                try
+                {
+                    var fi = new FileInfo(fPath);
+                    if (!fi.Exists || fi.Length > 1024 * 1024) return;
+
+                    var content = File.ReadAllText(fPath);
+                    RouteDictionaryRegistry.ScanServiceDomains(content);
+                    RouteDictionaryRegistry.ScanAndRegister(content);
+                    ConstantRegistry.ScanAndRegister(fPath, content, pName);
+
+                    var fileParser = WorkspaceIndexer.GetParserForFile(fPath);
+                    fileParser?.DiscoverDeclarations(fPath, content, pName, ctx);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    ctx.RecordScanIssue("Layer3_Syntactic", "pre_scan_error", fPath, ex.Message, name: "RouteConfigPreScanError", exception: ex);
+                }
+            });
         }
-
-        Parallel.ForEach(allCandidateFiles, new ParallelOptions { CancellationToken = ctx.CancellationToken }, item =>
-        {
-            var (fPath, pName) = item;
-            try
-            {
-                var fi = new FileInfo(fPath);
-                if (!fi.Exists || fi.Length > 1024 * 1024) return;
-
-                var content = File.ReadAllText(fPath);
-                RouteDictionaryRegistry.ScanServiceDomains(content);
-                RouteDictionaryRegistry.ScanAndRegister(content);
-                ConstantRegistry.ScanAndRegister(fPath, content, pName);
-
-                var fileParser = WorkspaceIndexer.GetParserForFile(fPath);
-                fileParser?.DiscoverDeclarations(fPath, content, pName, ctx);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                ctx.RecordScanIssue("Layer3_Syntactic", "pre_scan_error", fPath, ex.Message, name: "RouteConfigPreScanError", exception: ex);
-
-
-
-
-
-
-            }
-        });
 
 
         foreach (var project in l2Result.Projects)
@@ -241,10 +236,21 @@ public partial class Layer3SyntacticParser
                 continue;
             }
 
+            if (ctx.CustomProjectFileFilter != null)
+            {
+                projectFiles = ctx.CustomProjectFileFilter(projectFiles, project, l2Result).ToList();
+                if (projectFiles.Count == 0)
+                {
+                    continue;
+                }
+            }
+
             var parallelOptions = new ParallelOptions
             {
                 CancellationToken = ctx.CancellationToken,
-                MaxDegreeOfParallelism = Environment.ProcessorCount
+                MaxDegreeOfParallelism = ctx.LightweightAstScanMode
+                    ? Math.Min(Environment.ProcessorCount, 2)
+                    : Environment.ProcessorCount
             };
 
             var parsedResults = new (FileNode File, SyntaxTree SyntaxTree, IOntologyNode ParentNode)?[projectFiles.Count];
@@ -269,7 +275,8 @@ public partial class Layer3SyntacticParser
                     syntaxTree.FileNode.SizeBytes = file.SizeBytes;
                     syntaxTree.FileNode.ContentHash = file.ContentHash;
                     syntaxTree.FileNode.LastModifiedUtc = file.LastModifiedUtc;
-                    if (syntaxTree.Tree != null)
+                    syntaxTree.FileNode.ArtifactRole = file.ArtifactRole;
+                    if (syntaxTree.Tree != null && !ctx.LightweightAstScanMode)
                     {
                         AstConstantExtractor.ExtractAndRegister(syntaxTree, project.Name);
 
@@ -296,7 +303,10 @@ public partial class Layer3SyntacticParser
                     }
 
                     parsedResults[i] = (file, syntaxTree, parentNode);
-                    RecordDocumentDiagnostics(syntaxTree, file, ctx);
+                    if (!ctx.LightweightAstScanMode)
+                    {
+                        RecordDocumentDiagnostics(syntaxTree, file, ctx);
+                    }
 
                     var completed = Interlocked.Increment(ref parsedFilesCount);
                     var nowTicks = Environment.TickCount64;
@@ -335,7 +345,9 @@ public partial class Layer3SyntacticParser
                         .Distinct(StringComparer.OrdinalIgnoreCase)
                 ],
                 project.Extensions ?? new Dictionary<string, string>());
-            var componentParsers = Components.ComponentLibraryParserRegistry.GetParsers(projectContext);
+            var componentParsers = ctx.LightweightAstScanMode
+                ? []
+                : Components.ComponentLibraryParserRegistry.GetParsers(projectContext);
 
             await Parallel.ForAsync(0, projectFiles.Count, parallelOptions, (i, ct) =>
             {
@@ -360,7 +372,7 @@ public partial class Layer3SyntacticParser
                             syntaxTree.FileNode.IsTest = true;
                         }
 
-                        ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, ctx, project.Name, isTestFile, project.KindValue);
+                        ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, ctx, project.Name, isTestFile, project.EntityKind != ProjectEntityKind.Unknown ? project.EntityKind : null);
 
                         if (componentParsers.Count > 0)
                         {
@@ -447,20 +459,23 @@ public partial class Layer3SyntacticParser
         ParsingContext? ctx = null,
         string? projectName = null,
         bool isTest = false,
-        string? projectKind = null)
+        ProjectEntityKind? projectKind = null)
     {
         if (syntaxTree.Tree == null) return;
 
         if (syntaxTree.FileNode != null)
         {
             if (!string.IsNullOrEmpty(projectName)) syntaxTree.FileNode.ProjectName = projectName;
-            if (!string.IsNullOrEmpty(projectKind)) syntaxTree.FileNode.ProjectKind = projectKind;
+            if (projectKind.HasValue) syntaxTree.FileNode.ProjectKind = projectKind.Value;
         }
 
-        SyntaxValueEvaluator.EvaluateDocument(syntaxTree.Document, projectName);
-        if (ctx != null && syntaxTree.FileNode != null)
+        if (ctx?.LightweightAstScanMode != true)
         {
-            RecordDocumentDiagnostics(syntaxTree, syntaxTree.FileNode, ctx);
+            SyntaxValueEvaluator.EvaluateDocument(syntaxTree.Document, projectName);
+            if (ctx != null && syntaxTree.FileNode != null)
+            {
+                RecordDocumentDiagnostics(syntaxTree, syntaxTree.FileNode, ctx);
+            }
         }
 
         var fileParser = syntaxTree.FileParser;
@@ -479,7 +494,32 @@ public partial class Layer3SyntacticParser
             return (active, reg);
         });
 
-        var activeSemanticExtensions = new List<ISemanticExtension>(cachedActive);
+        if (ctx?.LightweightAstScanMode == true && (syntaxTree.FileNode?.SizeBytes ?? 0) > 256 * 1024)
+        {
+            if (syntaxTree.Document != null)
+            {
+                foreach (var call in syntaxTree.Document.AllCalls)
+                {
+                    if (call.MethodName == "require" &&
+                        call.Arguments.Count > 0 &&
+                        call.Arguments[0].Value is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String } strArg &&
+                        !string.IsNullOrWhiteSpace(strArg.ValueText))
+                    {
+                        var importPath = strArg.ValueText;
+                        syntaxTree.RawImports.Add(new RawImport(
+                            importPath,
+                            relativePath,
+                            fileParser.ResolveImportType(importPath, relativePath, absoluteWorkspacePath)));
+                    }
+                }
+            }
+            SemanticPostProcessor?.Invoke(syntaxTree, ctx);
+            return;
+        }
+
+        var activeSemanticExtensions = ctx?.LightweightAstScanMode == true
+            ? []
+            : new List<ISemanticExtension>(cachedActive);
 
         var mainVisitor = fileParser.CreateVisitor(syntaxTree.Tree.RootNode, activeSemanticExtensions, relativePath,
             absoluteWorkspacePath, fileParser, registry);
@@ -496,6 +536,25 @@ public partial class Layer3SyntacticParser
 
         var fileNode = syntaxTree.FileNode;
         if (fileNode == null) return;
+
+        var rawImports = mainVisitor.RawImports.Select(ri => ri with
+        {
+            FilePath = relativePath,
+            Type = fileParser.ResolveImportType(ri.Path, relativePath, absoluteWorkspacePath)
+        }).ToList();
+
+        var rawVariables = mainVisitor.RawVariables.Select(rv => rv with { FilePath = relativePath }).ToList();
+        var rawTypeBindings = mainVisitor.RawTypeBindings.Select(rt => rt with { FilePath = relativePath }).ToList();
+
+        syntaxTree.RawImports.AddRange(rawImports);
+        syntaxTree.RawVariables.AddRange(rawVariables);
+        syntaxTree.RawTypeBindings.AddRange(rawTypeBindings);
+
+        if (ctx?.LightweightAstScanMode == true)
+        {
+            SemanticPostProcessor?.Invoke(syntaxTree, ctx);
+            return;
+        }
 
         var fileSymbolCounts = new Dictionary<(string Kind, string Name), int>();
         foreach (var childSyntactic in mainVisitor.RootSymbol.Children)
@@ -518,467 +577,411 @@ public partial class Layer3SyntacticParser
             fileNode.References.Add(reference with { ScopeSymbolId = fileNode.Id });
         }
 
-        var rawImports = mainVisitor.RawImports.Select(ri => ri with
-        {
-            FilePath = relativePath,
-            Type = fileParser.ResolveImportType(ri.Path, relativePath, absoluteWorkspacePath)
-        }).ToList();
-
-        var rawVariables = mainVisitor.RawVariables.Select(rv => rv with { FilePath = relativePath }).ToList();
-        var rawTypeBindings = mainVisitor.RawTypeBindings.Select(rt => rt with { FilePath = relativePath }).ToList();
-
-        syntaxTree.RawImports.AddRange(rawImports);
-        syntaxTree.RawVariables.AddRange(rawVariables);
-        syntaxTree.RawTypeBindings.AddRange(rawTypeBindings);
-
         if (syntaxTree.FileNode != null && rawVariables.Count > 0)
         {
             PopulateMemberNodesFromRawVariables(syntaxTree.FileNode, rawVariables, workspaceId, relativePath);
         }
 
+        if (syntaxTree.FileNode != null && syntaxTree.Document != null)
+        {
+            EnrichSyntacticParametersPrototypesAndExports(
+                syntaxTree,
+                workspaceId,
+                relativePath,
+                effectiveIsTest,
+                effectiveProjectKind,
+                effectiveProjectName);
+        }
+
         SemanticPostProcessor?.Invoke(syntaxTree, ctx);
     }
 
-    private static void RecordDocumentDiagnostics(SyntaxTree syntaxTree, FileNode fileNode, ParsingContext ctx)
-    {
-        var diags = syntaxTree.Document?.Diagnostics;
-        if (diags == null || diags.Count == 0) return;
-
-        fileNode.SetExtension("has_parse_issues", "true");
-        fileNode.SetExtension("parse_issue_count", diags.Count.ToString());
-
-        var lang = syntaxTree.Document?.LanguageName ?? syntaxTree.FileParser.LanguageName;
-        for (var d = 0; d < diags.Count; d++)
-        {
-            var diag = diags[d];
-            ctx.RecordScanIssue(
-                stage: "Layer3_Syntactic",
-                category: diag.Kind,
-                relativeOrFullPath: fileNode.Path,
-                message: diag.Message,
-                name: "SyntaxError",
-                severity: "warning",
-                startLine: diag.Span.StartLine + 1,
-                endLine: diag.Span.EndLine + 1,
-                startCol: diag.Span.StartColumn + 1,
-                endCol: diag.Span.EndColumn + 1,
-                language: lang,
-                parentNodeId: fileNode.Id,
-                isFileParent: true,
-                logToConsole: d == 0);
-        }
-    }
-
-    private static readonly Regex ConfigRegex = new(
-        @"(?i)(config|settings?|cfg|\benv\b|db_?conn|\burl\b|\buri\b|\bport\b|\bhost\b|user(name)?|pass(word)?|token|secret|\bkey\b|auth|api_?key|connection_?string)",
-        RegexOptions.Compiled
-    );
-
-    private static readonly Regex ConfigInitializerRegex = new(
-        @"(?i)(process\.env|Configuration\[|Environment\.GetEnvironmentVariable|System\.Environment|import\.meta\.env|dotenv|require\(['""]dotenv['""]\))",
-        RegexOptions.Compiled
-    );
-
-    private static readonly Regex EtlRegex = new(
-        @"(?i)(\betl\b|\bsql\b|\bquery\b|\bselect\b|\binsert\b|\bupsert\b|\bschema\b|\btable\b|\bcolumn\b|\bdatabase\b|\bmigration\b|\bextract\b|\btransform\b|\bload\b)",
-        RegexOptions.Compiled
-    );
-
-    private static readonly Regex SqlQueryRegex = new(
-        @"(?i)^[\s@$""'\`]*\s*(select|insert|update|delete|create\s+table|drop\s+table|merge|alter\s+table)\b",
-        RegexOptions.Compiled
-    );
-
-    private static void PopulateMemberNodesFromRawVariables(
-        FileNode fileNode,
-        IReadOnlyList<RawVariable> fileVariables,
+    private static void EnrichSyntacticParametersPrototypesAndExports(
+        SyntaxTree syntaxTree,
         string workspaceId,
-        string relativePath)
-    {
-        foreach (var rawVar in fileVariables)
-        {
-            var isConfig = (rawVar.Name.Length >= 3 && ConfigRegex.IsMatch(rawVar.Name)) ||
-                           (rawVar.InitializerText.Length >= 6 && ConfigInitializerRegex.IsMatch(rawVar.InitializerText));
-            var isEtl = (rawVar.Name.Length >= 3 && EtlRegex.IsMatch(rawVar.Name)) ||
-                        (rawVar.InitializerText.Length >= 6 && SqlQueryRegex.IsMatch(rawVar.InitializerText));
-            // ConfigInitializerRegex and EtlRegex handled above
-            // SqlQueryRegex handled above
-            var isConstant = rawVar.IsConstant;
-            var isGlobal = rawVar.Scope == "global";
-            var isProperty = rawVar.MemberKind == "property";
-            var isField = rawVar.MemberKind == "field";
-
-            if (isConfig || isEtl || isConstant || isGlobal || isProperty || isField)
-            {
-                var varTypeStr = new List<string>();
-                if (isConfig) varTypeStr.Add("config");
-                if (isEtl) varTypeStr.Add("etl");
-                if (isConstant) varTypeStr.Add("constant");
-                if (isGlobal) varTypeStr.Add("global");
-                if (isProperty) varTypeStr.Add("property");
-                if (isField) varTypeStr.Add("field");
-
-                var varType = string.Join(",", varTypeStr);
-                var varId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Member:{rawVar.Name}";
-
-                var ext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["variable_type"] = varType,
-                    ["initializer_expression"] = rawVar.InitializerText,
-                    ["is_constant"] = isConstant ? "true" : "false"
-                };
-                if (!string.IsNullOrEmpty(rawVar.TypeName))
-                {
-                    ext["data_type"] = rawVar.TypeName;
-                }
-
-                var varNode = new MemberNode(
-                    varId,
-                    rawVar.Name,
-                    varId,
-                    fileNode.FullPath,
-                    varId,
-                    rawVar.StartLine,
-                    rawVar.EndLine,
-                    rawVar.StartCol,
-                    rawVar.EndCol,
-                    rawVar.MemberKind ?? "variable",
-                    rawVar.TypeName,
-                    ext
-                );
-
-                TryInsertVariable(fileNode, varNode, rawVar.StartLine);
-            }
-        }
-    }
-
-    private static bool TryInsertVariable(IOntologyNode parentNode, MemberNode varNode, int line)
-    {
-        foreach (var child in parentNode.Children)
-        {
-            if (child is TypeNode cn && line >= cn.StartLine && line <= cn.EndLine)
-            {
-                if (TryInsertVariable(cn, varNode, line)) return true;
-            }
-
-            if (child is FunctionNode fn && line >= fn.StartLine && line <= fn.EndLine)
-            {
-                if (TryInsertVariable(fn, varNode, line)) return true;
-            }
-        }
-
-        if (parentNode.Children.All(c => c.Id != varNode.Id && !(c is MemberNode existingMember && existingMember.Name == varNode.Name)))
-        {
-            parentNode.Children.Add(varNode);
-        }
-        return true;
-    }
-
-    private static IOntologyNode? MapSyntacticSymbolToOntology(
-        SyntacticSymbol syntactic,
-        string fileName,
         string relativePath,
-        string workspaceId,
-        string parentScopeId,
-        ParsingContext? ctx = null,
-        int overloadIndex = 0,
-        string? projectName = null,
-        bool isTest = false,
-        string? projectKind = null,
-        SyntaxTree? syntaxTree = null,
-        Dictionary<(string Kind, string Name), int>? fileSymbolCounts = null)
-    {
-        var node = syntactic.Node;
-        var kind = syntactic.Kind;
-        var name = syntactic.Name;
-
-        var symbolIsTest = isTest ||
-            (syntactic.Properties.TryGetValue(OntologyConstants.PropertyNames.IsTest, out var propIsTest) && bool.TryParse(propIsTest, out var b) && b);
-        var stageOrder = syntactic.Properties.TryGetValue("stage_order", out var so) && int.TryParse(so, out var parsedOrder) ? parsedOrder : (int?)null;
-
-        var isType = kind is "Class" or "Interface" or "Struct" or "Enum" or OntologyConstants.NodeLabels.Type;
-        var mappedKind = isType ? "Type" : kind;
-        var idSuffix = overloadIndex > 1 ? $"#{overloadIndex}" : "";
-        var symbolId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:{mappedKind}:{name}{idSuffix}";
-
-        IOntologyNode? typedNode = null;
-        if (kind is "Class" or "Struct" or "Enum" || kind == OntologyConstants.NodeLabels.Type)
-        {
-            var typeKind = syntactic.Properties.TryGetValue("type_kind", out var tk)
-                ? tk
-                : (kind == OntologyConstants.NodeLabels.Type ? "class" : kind.ToLowerInvariant());
-            typedNode = new TypeNode(symbolId, name, symbolId, relativePath, relativePath,
-                node.StartPosition.Row + 1, node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1, typeKind,
-                symbolIsTest, projectKind, projectName, stageOrder);
-        }
-        else if (kind == "Interface")
-        {
-            typedNode = new TypeNode(symbolId, name, symbolId, relativePath, relativePath,
-                node.StartPosition.Row + 1, node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1, "interface",
-                symbolIsTest, projectKind, projectName, stageOrder);
-        }
-        else if (kind == OntologyConstants.NodeLabels.Function)
-        {
-            typedNode = new FunctionNode(symbolId, name, symbolId, relativePath, relativePath,
-                node.StartPosition.Row + 1, node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1,
-                symbolIsTest, projectKind, projectName, stageOrder);
-        }
-        else if (kind == "Member" || kind == OntologyConstants.NodeLabels.Member)
-        {
-            var memberKind = syntactic.Properties.TryGetValue("member_kind", out var mk) ? mk : "field";
-            var dataType = syntactic.Properties.TryGetValue("data_type", out var dt) ? dt : null;
-            typedNode = new MemberNode(symbolId, name, symbolId, relativePath, relativePath,
-                node.StartPosition.Row + 1, node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1,
-                memberKind, dataType);
-        }
-        else if (kind == OntologyConstants.NodeLabels.CallLiteral)
-        {
-            typedNode = CreateCallLiteralNode(name, node, relativePath, workspaceId, syntactic, symbolIsTest, projectKind, projectName);
-        }
-        else if (kind == OntologyConstants.NodeLabels.CatchClause)
-        {
-            typedNode = CreateCatchClauseNode(name, node, relativePath, workspaceId, syntactic, symbolIsTest, projectKind, projectName);
-        }
-        else
-        {
-            // Semantic symbols (EntryPoint, ExternalService, Table, Topic, Query)
-            // are collected on the syntaxTree for Layer 4 Semantic Analysis
-            syntactic.ParentScopeId = parentScopeId;
-            syntaxTree?.SemanticSymbols.Add(syntactic);
-            return null;
-        }
-
-        if (typedNode == null) return null;
-
-        var childCounts = fileSymbolCounts ?? new Dictionary<(string Kind, string Name), int>();
-        foreach (var childSyntactic in syntactic.Children)
-        {
-            if (syntactic.Properties.TryGetValue("graphql_field", out var parentGqlField))
-            {
-                childSyntactic.Properties.TryAdd("graphql_field", parentGqlField);
-            }
-            if (syntactic.Properties.TryGetValue("graphql_schema", out var parentGqlSchema))
-            {
-                childSyntactic.Properties.TryAdd("graphql_schema", parentGqlSchema);
-            }
-
-            var key = (childSyntactic.Kind, childSyntactic.Name);
-            childCounts.TryGetValue(key, out var count);
-            count++;
-            childCounts[key] = count;
-
-            var childNode = MapSyntacticSymbolToOntology(childSyntactic, fileName, relativePath, workspaceId, symbolId, ctx, count > 1 ? count : 0, projectName, symbolIsTest, projectKind, syntaxTree, childCounts);
-            if (childNode != null)
-            {
-                typedNode.Children.Add(childNode);
-            }
-        }
-
-        foreach (var reference in syntactic.References)
-        {
-            var target = reference.TargetName;
-            var resolvedScopeId = string.IsNullOrEmpty(reference.ScopeSymbolId) ? typedNode.Id : reference.ScopeSymbolId;
-            typedNode.References.Add(reference with { ScopeSymbolId = resolvedScopeId, TargetName = target });
-        }
-
-        foreach (var (k, v) in syntactic.Properties)
-        {
-            typedNode.SetExtension(k, v);
-        }
-
-        return typedNode;
-    }
-
-    private static CallLiteralNode CreateCallLiteralNode(
-        string name,
-        SyntaxNode node,
-        string relativePath,
-        string workspaceId,
-        SyntacticSymbol syntactic,
-        bool symbolIsTest,
-        string? projectKind,
+        bool isTest,
+        ProjectEntityKind? projectKind,
         string? projectName)
     {
-        var val = syntactic.Properties.GetValueOrDefault("value") ?? syntactic.Name;
-        var callee = syntactic.Properties.GetValueOrDefault("callee") ?? "";
-        var argIdx = int.TryParse(syntactic.Properties.GetValueOrDefault("arg_index"), out var ai) ? ai : 0;
-        var line = int.TryParse(syntactic.Properties.GetValueOrDefault("line"), out var ln) ? ln : node.StartPosition.Row + 1;
-        var col = int.TryParse(syntactic.Properties.GetValueOrDefault("column"), out var cl) ? cl : node.StartPosition.Column + 1;
-        var role = syntactic.Properties.GetValueOrDefault("role") ?? "business";
-        var isDecorator = bool.TryParse(syntactic.Properties.GetValueOrDefault("is_decorator"), out var isDec) && isDec;
-        var litId = $"{workspaceId}:{OntologyConstants.IdPrefixes.CallLiteral}:{relativePath}:{line}:{col}";
+        var doc = syntaxTree.Document;
+        var fileNode = syntaxTree.FileNode;
+        if (doc == null || fileNode == null) return;
 
-        return new CallLiteralNode(litId, name, val, callee, argIdx, relativePath, line, col, symbolIsTest, projectKind, projectName, role, isDecorator);
-    }
+        var functionsByLineAndName = new Dictionary<(int Line, string Name), FunctionNode>();
+        var typesByName = new Dictionary<string, TypeNode>(StringComparer.Ordinal);
 
-    private static CatchClauseNode CreateCatchClauseNode(
-        string name,
-        SyntaxNode node,
-        string relativePath,
-        string workspaceId,
-        SyntacticSymbol syntactic,
-        bool symbolIsTest,
-        string? projectKind,
-        string? projectName)
-    {
-        var exType = syntactic.Properties.GetValueOrDefault("exception_type") ?? "";
-        var isEmpty = bool.TryParse(syntactic.Properties.GetValueOrDefault("is_empty"), out var ie) && ie;
-        var hasComment = bool.TryParse(syntactic.Properties.GetValueOrDefault("has_comment"), out var hc) && hc;
-        var stmtCount = int.TryParse(syntactic.Properties.GetValueOrDefault("statement_count"), out var sc) ? sc : 0;
-        var line = int.TryParse(syntactic.Properties.GetValueOrDefault("line"), out var ln) ? ln : node.StartPosition.Row + 1;
-        var col = int.TryParse(syntactic.Properties.GetValueOrDefault("column"), out var cl) ? cl : node.StartPosition.Column + 1;
-        var catchId = $"{workspaceId}:{OntologyConstants.IdPrefixes.CatchClause}:{relativePath}:{line}:{col}";
-
-        return new CatchClauseNode(catchId, name, exType, relativePath, line, col, isEmpty, hasComment, stmtCount, symbolIsTest, projectKind, projectName);
-    }
-
-    public static bool IsRouteOrConfigCandidate(string path)
-    {
-        if (string.IsNullOrWhiteSpace(path)) return false;
-        var normalized = path.Replace('\\', '/').ToLowerInvariant();
-        var ext = Path.GetExtension(normalized);
-        if (ext is not (".ts" or ".js" or ".cs" or ".go" or ".py" or ".json"))
-            return false;
-
-        var fileName = Path.GetFileName(normalized);
-        if (fileName.Contains("route") || fileName.Contains("const") || fileName.Contains("config") ||
-            fileName.Contains("api") || fileName.Contains("endpoint") || fileName.Contains("url") ||
-            fileName.Contains("env") || fileName.Contains("client") || fileName.Contains("service") ||
-            fileName.Contains("importer") || fileName.Contains("catalog") || fileName.Contains("gateway") ||
-            fileName.Contains("http") || fileName.StartsWith("main.") || fileName.StartsWith("app.") ||
-            fileName.StartsWith("bootstrap.") || fileName.StartsWith("index.") ||
-            fileName.StartsWith("program.") || fileName.StartsWith("startup."))
+        void IndexOntologyTree(IOntologyNode parent, TypeNode? enclosingType)
         {
-            return true;
-        }
-
-        // Dedicated route / configuration / constants directory segments
-        return normalized.Contains("/routes/") || normalized.Contains("/route/") ||
-               normalized.Contains("/config/") || normalized.Contains("/configs/") ||
-               normalized.Contains("/constants/") || normalized.Contains("/endpoints/") ||
-               normalized.Contains("/gateways/");
-    }
-
-    private static List<Relationship> ResolveCrossProjectSharedFileContains(
-        IReadOnlyList<RawImport> rawImports,
-        Dictionary<string, ProjectNode> primaryOwnerByFilePath,
-        Dictionary<string, FileNode> fileNodeByPath,
-        List<Relationship> existingProjectRels)
-    {
-        var newRels = new List<Relationship>();
-        if (rawImports.Count == 0 || fileNodeByPath.Count == 0) return newRels;
-
-        var localImportEdges = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-        foreach (var imp in rawImports)
-        {
-            if (string.IsNullOrWhiteSpace(imp.FilePath) || string.IsNullOrWhiteSpace(imp.Path)) continue;
-            if (!imp.Path.StartsWith('.')) continue;
-
-            var fromNorm = imp.FilePath.Replace('\\', '/').Trim('/');
-            var resolvedTarget = TryResolveRelativeFileImport(fromNorm, imp.Path, fileNodeByPath);
-            if (resolvedTarget == null) continue;
-
-            if (!localImportEdges.TryGetValue(fromNorm, out var targets))
+            foreach (var child in parent.Children)
             {
-                targets = [];
-                localImportEdges[fromNorm] = targets;
-            }
-            if (!targets.Contains(resolvedTarget, StringComparer.OrdinalIgnoreCase))
-            {
-                targets.Add(resolvedTarget);
-            }
-        }
-
-        if (localImportEdges.Count == 0) return newRels;
-
-        var existingContainsSet = new HashSet<(string ProjId, string FileId)>(
-            existingProjectRels.Where(r => r.Kind == OntologyConstants.Relationships.Contains)
-                               .Select(r => (r.From, r.To)));
-
-        foreach (var (fromFile, directTargets) in localImportEdges)
-        {
-            if (!primaryOwnerByFilePath.TryGetValue(fromFile, out var consumerProj) || consumerProj.IsLibrary)
-            {
-                continue;
-            }
-
-            var queue = new Queue<string>();
-            foreach (var dt in directTargets)
-            {
-                if (primaryOwnerByFilePath.TryGetValue(dt, out var targetOwner) &&
-                    !string.Equals(targetOwner.Id, consumerProj.Id, StringComparison.OrdinalIgnoreCase) &&
-                    !targetOwner.IsLibrary)
+                if (child is TypeNode tn)
                 {
-                    queue.Enqueue(dt);
+                    typesByName.TryAdd(tn.Name, tn);
+                    IndexOntologyTree(tn, tn);
                 }
-            }
-
-            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            while (queue.Count > 0)
-            {
-                var currentPath = queue.Dequeue();
-                if (!visited.Add(currentPath)) continue;
-                if (!fileNodeByPath.TryGetValue(currentPath, out var targetFileNode)) continue;
-
-                if (existingContainsSet.Add((consumerProj.Id, targetFileNode.Id)))
+                else if (child is FunctionNode fn)
                 {
-                    var rel = new Relationship(consumerProj.Id, targetFileNode.Id, OntologyConstants.Relationships.Contains);
-                    newRels.Add(rel);
-                    existingProjectRels.Add(rel);
-                }
-
-                if (localImportEdges.TryGetValue(currentPath, out var nestedTargets))
-                {
-                    foreach (var nt in nestedTargets)
+                    if (enclosingType != null)
                     {
-                        if (!visited.Contains(nt) &&
-                            primaryOwnerByFilePath.TryGetValue(nt, out var nestedOwner) &&
-                            !nestedOwner.IsLibrary)
+                        fn.SetExtension("enclosing_type", enclosingType.Name);
+                    }
+                    functionsByLineAndName.TryAdd((fn.StartLine, fn.Name), fn);
+                    IndexOntologyTree(fn, enclosingType);
+                }
+            }
+        }
+        IndexOntologyTree(fileNode, null);
+
+        // 1. Enrich all FunctionDeclSyntax nodes with formal parameter MemberNodes, export flags, and lexical nesting
+        foreach (var fnDecl in doc.AllFunctions.OrderBy(f => f.Span.StartLine))
+        {
+            var fnName = ExtractSyntaxFunctionName(fnDecl);
+            var startLine = fnDecl.Span.StartLine + 1;
+            var endLine = fnDecl.Span.EndLine + 1;
+
+            if (!functionsByLineAndName.TryGetValue((startLine, fnName), out var fnNode))
+            {
+                var fnId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Function:{fnName}@{startLine}";
+                fnNode = new FunctionNode(
+                    fnId,
+                    fnName,
+                    fnId,
+                    relativePath,
+                    relativePath,
+                    startLine,
+                    endLine,
+                    fnDecl.Span.StartColumn + 1,
+                    fnDecl.Span.EndColumn + 1,
+                    isTest,
+                    projectKind,
+                    projectName);
+
+                var parentFnDecl = FindEnclosingSyntaxFunction(fnDecl);
+                if (parentFnDecl != null &&
+                    functionsByLineAndName.TryGetValue((parentFnDecl.Span.StartLine + 1, ExtractSyntaxFunctionName(parentFnDecl)), out var parentFnOnt))
+                {
+                    parentFnOnt.Children.Add(fnNode);
+                }
+                else
+                {
+                    fileNode.Children.Add(fnNode);
+                }
+                functionsByLineAndName[(startLine, fnName)] = fnNode;
+            }
+
+            if (IsSyntaxFunctionExported(fnDecl, doc))
+            {
+                fnNode.SetExtension("is_exported", "true");
+            }
+
+            var parentDecl = FindEnclosingSyntaxFunction(fnDecl);
+            if (parentDecl != null &&
+                functionsByLineAndName.TryGetValue((parentDecl.Span.StartLine + 1, ExtractSyntaxFunctionName(parentDecl)), out var parentOnt) &&
+                parentOnt.Extensions?.GetValueOrDefault("is_exported") == "true")
+            {
+                fnNode.SetExtension("is_exported", "true");
+            }
+
+            var paramNames = ExtractSyntaxParameterNames(fnDecl);
+            // Include returned higher-order factory closure parameters (`function buildConnector(opts) { return function connect({ hostname }) { ... } }`)
+            CollectReturnedClosureParameters(fnDecl, paramNames);
+
+            AttachParameterMemberNodes(fnNode, paramNames, workspaceId, relativePath);
+
+            if (fnDecl.DataflowSummary != null)
+            {
+                if (fnDecl.DataflowSummary.ReturnOrigins.Count > 0)
+                {
+                    fnNode.SetExtension("df_return", string.Join(",", fnDecl.DataflowSummary.ReturnOrigins.Select(o => o.ToString()).Distinct()));
+                }
+                if (fnDecl.DataflowSummary.FieldWrites.Count > 0)
+                {
+                    var writes = fnDecl.DataflowSummary.FieldWrites
+                        .Select(kv => $"{kv.Key}<-{string.Join(",", kv.Value.Select(o => o.ToString()).Distinct())}");
+                    fnNode.SetExtension("df_writes", string.Join(";", writes));
+                }
+                var summaryStr = fnDecl.DataflowSummary.ToCompactString();
+                if (!string.IsNullOrEmpty(summaryStr))
+                {
+                    fnNode.SetExtension("df_summary", summaryStr);
+                }
+            }
+        }
+
+        // 2. Support ES5 Prototype method assignments (`ClassName.prototype.methodName = function(...)`)
+        if (syntaxTree.RootNode != null)
+        {
+            foreach (var assignExpr in EnumerateSyntaxAssignments(syntaxTree.RootNode))
+            {
+                if (!TryParseSyntaxPrototypeMethod(assignExpr, out var protoClass, out var protoMethod, out var protoLambda))
+                {
+                    continue;
+                }
+
+                if (!typesByName.TryGetValue(protoClass, out var typeNode))
+                {
+                    var typeId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Type:{protoClass}";
+                    typeNode = new TypeNode(
+                        typeId,
+                        protoClass,
+                        typeId,
+                        relativePath,
+                        relativePath,
+                        protoLambda.Span.StartLine + 1,
+                        protoLambda.Span.EndLine + 1,
+                        1,
+                        1,
+                        "class",
+                        isTest,
+                        projectKind,
+                        projectName);
+                    typeNode.SetExtension("is_exported", "true");
+                    fileNode.Children.Add(typeNode);
+                    typesByName[protoClass] = typeNode;
+                }
+
+                var startLine = protoLambda.Span.StartLine + 1;
+                if (!functionsByLineAndName.TryGetValue((startLine, protoMethod), out var protoFnNode))
+                {
+                    var fnId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Function:{protoClass}.{protoMethod}";
+                    protoFnNode = new FunctionNode(
+                        fnId,
+                        protoMethod,
+                        fnId,
+                        relativePath,
+                        relativePath,
+                        startLine,
+                        protoLambda.Span.EndLine + 1,
+                        protoLambda.Span.StartColumn + 1,
+                        protoLambda.Span.EndColumn + 1,
+                        isTest,
+                        projectKind,
+                        projectName);
+                    typeNode.Children.Add(protoFnNode);
+                    functionsByLineAndName[(startLine, protoMethod)] = protoFnNode;
+                }
+
+                protoFnNode.SetExtension("enclosing_type", protoClass);
+                protoFnNode.SetExtension("is_exported", "true");
+                var protoParams = ExtractSyntaxParameterNames(protoLambda);
+                AttachParameterMemberNodes(protoFnNode, protoParams, workspaceId, relativePath);
+            }
+
+            foreach (var (lambdaName, lambdaNode) in EnumerateNamedLambdaFunctions(syntaxTree.RootNode))
+            {
+                var startLine = lambdaNode.Span.StartLine + 1;
+                if (!functionsByLineAndName.TryGetValue((startLine, lambdaName), out var lambdaFnNode))
+                {
+                    var fnId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Function:{lambdaName}@{startLine}";
+                    lambdaFnNode = new FunctionNode(
+                        fnId,
+                        lambdaName,
+                        fnId,
+                        relativePath,
+                        relativePath,
+                        startLine,
+                        lambdaNode.Span.EndLine + 1,
+                        lambdaNode.Span.StartColumn + 1,
+                        lambdaNode.Span.EndColumn + 1,
+                        isTest,
+                        projectKind,
+                        projectName);
+                    fileNode.Children.Add(lambdaFnNode);
+                    functionsByLineAndName[(startLine, lambdaName)] = lambdaFnNode;
+                }
+
+                lambdaFnNode.SetExtension("is_exported", "true");
+                var lambdaParams = ExtractSyntaxParameterNames(lambdaNode);
+                AttachParameterMemberNodes(lambdaFnNode, lambdaParams, workspaceId, relativePath);
+            }
+        }
+
+        // 3. Emit canonical `<module_init>` FunctionNode if top-level statements/calls exist
+        if (HasTopLevelCallsOrStatements(doc) && fileNode.Children.OfType<FunctionNode>().All(f => f.Name != "<module_init>"))
+        {
+            var modInitId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Function:<module_init>";
+            var modInitNode = new FunctionNode(
+                modInitId,
+                "<module_init>",
+                modInitId,
+                relativePath,
+                relativePath,
+                1,
+                Math.Max(1, fileNode.LineCount ?? 1),
+                1,
+                1,
+                isTest,
+                projectKind,
+                projectName);
+            modInitNode.SetExtension("is_module_init", "true");
+            fileNode.Children.Add(modInitNode);
+        }
+
+        EnrichReferencesWithCallContextAndFlow(fileNode, doc);
+    }
+
+    private static void EnrichReferencesWithCallContextAndFlow(
+        IOntologyNode rootNode,
+        SyntaxDocument doc)
+    {
+        var callsByLineAndName = new Dictionary<(int Line, string MethodName), CallExprSyntax>();
+        var callsByLine = new Dictionary<int, List<CallExprSyntax>>();
+
+        foreach (var call in doc.DescendantsAndSelf().OfType<CallExprSyntax>())
+        {
+            var line = call.Span.StartLine + 1;
+            if (!string.IsNullOrEmpty(call.MethodName))
+            {
+                callsByLineAndName.TryAdd((line, call.MethodName), call);
+            }
+            if (!callsByLine.TryGetValue(line, out var list))
+            {
+                list = [];
+                callsByLine[line] = list;
+            }
+            list.Add(call);
+        }
+
+        if (callsByLine.Count == 0) return;
+
+        void WalkAndEnrich(IOntologyNode node)
+        {
+            if (node.References.Count > 0)
+            {
+                for (int i = 0; i < node.References.Count; i++)
+                {
+                    var r = node.References[i];
+                    if (r.Line <= 0) continue;
+
+                    var targetMethod = r.TargetName;
+                    if (targetMethod.Contains('.'))
+                    {
+                        targetMethod = targetMethod[(targetMethod.LastIndexOf('.') + 1)..];
+                    }
+
+                    CallExprSyntax? matchedCall = null;
+                    if (!string.IsNullOrEmpty(targetMethod) && callsByLineAndName.TryGetValue((r.Line, targetMethod), out var namedCall))
+                    {
+                        matchedCall = namedCall;
+                    }
+                    else if (callsByLine.TryGetValue(r.Line, out var list) && list.Count > 0)
+                    {
+                        matchedCall = list.FirstOrDefault(c => c.MethodName == targetMethod) ?? list[0];
+                    }
+
+                    if (matchedCall != null)
+                    {
+                        var context = CallSiteContextExtractor.Extract(matchedCall);
+                        string? argFlow = null;
+
+                        SyntaxNode? curr = matchedCall.Parent;
+                        while (curr != null && curr is not FunctionDeclSyntax)
                         {
-                            queue.Enqueue(nt);
+                            curr = curr.Parent;
                         }
+
+                        if (curr is FunctionDeclSyntax fnDecl && fnDecl.DataflowSummary != null)
+                        {
+                            var callKey = (matchedCall.MethodName, matchedCall.Span.StartLine + 1);
+                            if (fnDecl.DataflowSummary.CallArgFlows.TryGetValue(callKey, out var argMap) && argMap.Count > 0)
+                            {
+                                argFlow = string.Join(";", argMap.Select(kv => $"{kv.Key}<-{string.Join(",", kv.Value.Select(o => o.ToString()))}"));
+                            }
+                        }
+
+                        node.References[i] = r with { Context = context, ArgFlow = argFlow };
                     }
                 }
             }
+
+            foreach (var child in node.Children)
+            {
+                WalkAndEnrich(child);
+            }
         }
 
-        return newRels;
+        WalkAndEnrich(rootNode);
     }
 
-    private static string? TryResolveRelativeFileImport(
-        string importerRelativePath,
-        string rawImportSpec,
-        Dictionary<string, FileNode> fileNodeByPath)
+    private static IEnumerable<(string Name, LambdaExprSyntax Lambda)> EnumerateNamedLambdaFunctions(SyntaxNode? root)
     {
-        var lastSlash = importerRelativePath.LastIndexOf('/');
-        var baseDir = lastSlash >= 0 ? importerRelativePath[..lastSlash] : "";
-        var combined = string.IsNullOrEmpty(baseDir)
-            ? rawImportSpec.Replace('\\', '/')
-            : baseDir + "/" + rawImportSpec.Replace('\\', '/');
-
-        var stack = new List<string>();
-        foreach (var seg in combined.Split('/', StringSplitOptions.RemoveEmptyEntries))
+        if (root == null) yield break;
+        var queue = new Queue<SyntaxNode>();
+        queue.Enqueue(root);
+        while (queue.Count > 0)
         {
-            if (seg == ".") continue;
-            if (seg == "..")
+            var curr = queue.Dequeue();
+            if (curr is LambdaExprSyntax lambda)
             {
-                if (stack.Count > 0) stack.RemoveAt(stack.Count - 1);
-                continue;
+                yield return (InferLambdaName(lambda), lambda);
             }
-            stack.Add(seg);
+            foreach (var child in curr.Children)
+            {
+                queue.Enqueue(child);
+            }
         }
+    }
 
-        if (stack.Count == 0) return null;
-        var normalizedCandidate = string.Join('/', stack);
-
-        if (fileNodeByPath.ContainsKey(normalizedCandidate)) return normalizedCandidate;
-
-        foreach (var ext in new[] { ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", "/index.ts", "/index.tsx", "/index.js", "/index.jsx" })
+    private static string InferLambdaName(LambdaExprSyntax lambda)
+    {
+        var nameNode = lambda.GetChildForField(SyntaxFields.Name) ??
+                       lambda.NamedChildren.FirstOrDefault(c => c is IdentifierExprSyntax && c != lambda.Body);
+        if (nameNode is IdentifierExprSyntax id && !string.IsNullOrWhiteSpace(id.Text))
         {
-            var withExt = normalizedCandidate + ext;
-            if (fileNodeByPath.ContainsKey(withExt)) return withExt;
+            return id.Text.Trim();
         }
 
-        return null;
+        var curr = lambda.Parent;
+        while (curr is BinaryExprSyntax or ConditionalExprSyntax)
+        {
+            curr = curr.Parent;
+        }
+
+        if (curr is VariableDeclSyntax varDecl)
+        {
+            var lhs = varDecl.GetChildForField(SyntaxFields.Name) ?? varDecl.GetChildForField(SyntaxFields.Pattern);
+            var name = !string.IsNullOrEmpty(varDecl.Name) ? varDecl.Name : (lhs is IdentifierExprSyntax varId ? varId.Text.Trim() : null);
+            if (!string.IsNullOrEmpty(name)) return name;
+        }
+        else if (curr is AssignmentExprSyntax assign)
+        {
+            var left = assign.Left ?? assign.GetChildForField(SyntaxFields.Left) ?? (assign.NamedChildren.Count > 0 ? assign.NamedChildren[0] : null);
+            if (left != null)
+            {
+                var leftText = left.Text.Trim();
+                if (leftText is "module.exports" or "exports")
+                {
+                    return "default";
+                }
+                if (left is MemberAccessExprSyntax mem)
+                {
+                    var prop = !string.IsNullOrEmpty(mem.MemberName)
+                        ? mem.MemberName
+                        : (mem.GetChildForField(SyntaxFields.Property) ?? (mem.NamedChildren.Count > 1 ? mem.NamedChildren[^1] : null))?.Text.Trim();
+                    if (!string.IsNullOrEmpty(prop)) return prop;
+                }
+                else if (left is IdentifierExprSyntax leftId)
+                {
+                    var idName = !string.IsNullOrEmpty(leftId.Name) ? leftId.Name : leftId.Text.Trim();
+                    if (!string.IsNullOrEmpty(idName)) return idName;
+                }
+            }
+        }
+        else if (curr?.RawGrammarKind == "export_statement")
+        {
+            return "default";
+        }
+        else if (curr?.RawGrammarKind == "pair")
+        {
+            var keyNode = curr.GetChildForField(SyntaxFields.Key) ?? (curr.NamedChildren.Count > 0 ? curr.NamedChildren[0] : null);
+            if (keyNode != null)
+            {
+                var keyName = keyNode.Text.Trim().Trim('"', '\'', '`');
+                if (!string.IsNullOrEmpty(keyName)) return keyName;
+            }
+        }
+
+        return $"<anon_{lambda.Span.StartLine + 1}>";
     }
 }

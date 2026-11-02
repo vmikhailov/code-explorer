@@ -126,6 +126,7 @@ graph TD
     Endpoint -->|EXPOSED_BY| Function
     Endpoint -->|SUBSCRIBES_TO| Topic
     EntryPoint -->|DECLARED_IN| File
+    EntryPoint -->|TRIGGERS| File
     EntryPoint -->|BELONGS_TO| Project
     ExternalService -->|CALLS_ENDPOINT| Endpoint
     ExternalService -->|CALLED_BY| Function
@@ -336,6 +337,7 @@ graph TD
 | `CallLiteral` | `DECLARED_IN` |
 | `CatchClause` | `DECLARED_IN` |
 | `EntryPoint` | `DECLARED_IN` |
+| `EntryPoint` | `TRIGGERS` |
 | `FilesStructure` | `CONTAINS` |
 | `Folder` | `CONTAINS` |
 | `Function` | `DECLARED_IN` |
@@ -351,10 +353,11 @@ graph TD
 | `Name` | `string` | The name of the entity. |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
 | `IsTest` | `bool` | Indicates whether the file is part of a test suite or test project. |
-| `ProjectKind` | `string?` | The architectural kind of the enclosing project. |
+| `ProjectKind` | `ProjectEntityKind?` | The architectural kind of the enclosing project. |
 | `ProjectName` | `string?` | The name of the enclosing project. |
 | `LineCount` | `int?` | Total lines of code in this file. |
 | `SizeBytes` | `long?` | Size of the file in bytes. |
+| `ArtifactRole` | `string?` | The physical artifact role of the file (source, dist, minified, declaration, script). |
 
 ---
 
@@ -492,6 +495,7 @@ graph TD
 | Relationship | To |
 | :--- | :--- |
 | `DECLARED_IN` | `File` |
+| `TRIGGERS` | `File` |
 | `BELONGS_TO` | `Project` |
 
 **Incoming edges** *(derived from other nodes' declarations)*:
@@ -546,6 +550,7 @@ graph TD
 | `IsInternal` | `bool` | Whether this package is produced internally by a workspace project. |
 | `Ecosystem` | `string` | The package ecosystem (e.g. nuget, npm, maven, pip, go). |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
+| `Archetype` | `string` | The architectural archetype of the package (e.g. PureUtility, ClientUi, CliTool, Framework, BackendService, DatabaseDriver, NativeAddon). |
 | `IsExternal` | `bool` | Whether this package is an external third-party dependency. |
 
 ---
@@ -596,6 +601,7 @@ graph TD
 | `Language` | `string` | The programming language (e.g. 'csharp', 'go', 'python', 'typescript'). |
 | `KindValue` | `string` | The physical entity classification kind (e.g. Service, App, Worker, FunctionApp, Library, DatabaseMigration, Test). |
 | `Role` | `string` | Architectural role of the project (e.g. Service, SharedLibrary, FrontendApp, Worker, CliTool, Test). |
+| `Archetype` | `string` | Architectural archetype of the project (e.g. PureUtility, ClientUi, CliTool, Framework, BackendService, DatabaseDriver, NativeAddon). |
 | `PrimaryRole` | `string?` | Primary architectural role of the project (e.g. WebService, Scheduler, WorkerService, SharedLibrary, FrontendFramework, CliFramework, TestFramework). |
 | `SecondaryRoles` | `string?` | Secondary architectural roles detected in the project (e.g. ['Scheduler', 'QueueWorker']). |
 | `AllRoles` | `string?` | All architectural roles detected in the project. |
@@ -603,7 +609,7 @@ graph TD
 | `EntityKind` | `ProjectEntityKind` | The physical entity classification (e.g. Service, App, Worker, FunctionApp, Library, DatabaseMigration, Test). |
 | `SubKind` | `ProjectEntitySubKind` | Sub-classification for apps (e.g. None, Web, Mobile, Desktop, Cli). |
 | `IsTest` | `bool` | Indicates whether this project is a test project. |
-| `ProjectKind` | `string` | The physical entity classification kind. |
+| `ProjectKind` | `ProjectEntityKind` | The physical entity classification kind. |
 
 ---
 
@@ -657,7 +663,7 @@ graph TD
 | `Line` | `int` | The 1-indexed line number of the argument. |
 | `Column` | `int` | The 1-indexed column number of the argument. |
 | `IsTest` | `bool` | Indicates whether the call occurs within test code. |
-| `ProjectKind` | `string?` | The architectural kind of the enclosing project. |
+| `ProjectKind` | `ProjectEntityKind?` | The architectural kind of the enclosing project. |
 | `ProjectName` | `string?` | The name of the enclosing project. |
 | `Role` | `string` | The semantic role of the literal argument (e.g. Business, Routing, ParamBinding, Config, Logging, QueryBuilder, DI). |
 | `IsDecorator` | `bool` | Indicates whether the literal argument occurs within a decorator or attribute. |
@@ -687,7 +693,7 @@ graph TD
 | `HasComment` | `bool` | Indicates whether an empty catch block contains an explanatory comment. |
 | `StatementCount` | `int` | The number of executable statements inside the catch body. |
 | `IsTest` | `bool` | Indicates whether the catch clause occurs within test code. |
-| `ProjectKind` | `string?` | The architectural kind of the enclosing project. |
+| `ProjectKind` | `ProjectEntityKind?` | The architectural kind of the enclosing project. |
 | `ProjectName` | `string?` | The name of the enclosing project. |
 
 ---
@@ -737,7 +743,7 @@ graph TD
 | `StartCol` | `int` | The starting column number of the declaration. |
 | `EndCol` | `int` | The ending column number of the declaration. |
 | `IsTest` | `bool` | Indicates whether the function is declared within test code. |
-| `ProjectKind` | `string?` | The architectural kind of the enclosing project. |
+| `ProjectKind` | `ProjectEntityKind?` | The architectural kind of the enclosing project. |
 | `ProjectName` | `string?` | The name of the enclosing project. |
 | `StageOrder` | `int?` | Strict pipeline stage ordering index (e.g. 1=Layer1, 2=Layer2, 3=Layer3, 4=Layer4, 5=Layer5, 6=PostIndex). |
 | `Loc` | `int?` | Lines of code span for this function. |
@@ -880,7 +886,7 @@ graph TD
 | `EndCol` | `int` | The ending column number of the declaration. |
 | `TypeKind` | `string` | The specific type kind (class, interface, struct, record, enum). |
 | `IsTest` | `bool` | Indicates whether the type is declared within test code. |
-| `ProjectKind` | `string?` | The architectural kind of the enclosing project. |
+| `ProjectKind` | `ProjectEntityKind?` | The architectural kind of the enclosing project. |
 | `ProjectName` | `string?` | The name of the enclosing project. |
 | `StageOrder` | `int?` | Strict pipeline stage ordering index (e.g. 1=Layer1, 2=Layer2, 3=Layer3, 4=Layer4, 5=Layer5, 6=PostIndex). |
 | `Loc` | `int?` | Lines of code span for this type declaration. |
@@ -919,6 +925,9 @@ graph TD
 | :--- | :--- | :--- |
 | `Name` | `string` | The name of the entity. |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
+| `Capability` | `string?` | The canonical capability identifier (e.g. fs:read, net:http-client, proc:exec). |
+| `Dimension` | `string?` | The capability dimension (e.g. Filesystem, Network, Process, DynamicCode, Environment, Native, Crypto, Concurrency). |
+| `SemanticRole` | `string?` | The semantic security role of the API call (Sink, SensitiveSource, Transform, MonkeyPatch, Benign). |
 
 ---
 
@@ -1047,7 +1056,7 @@ graph TD
 | Property | Type | Description |
 | :--- | :--- | :--- |
 | `Name` | `string` | The name of the entity. |
-| `Type` | `string` | The package type or entity type. |
+| `ResourceType` | `string` | The cloud service resource type (e.g. S3Bucket, DynamoDb, CloudService). |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
 
 ---
@@ -1638,6 +1647,7 @@ graph TD
 | `IMPLEMENTED_BY` | Links a library package to the project that implements or encapsulates it. |
 | `IMPLEMENTS` | Links a class/struct declaration to the interface it implements. |
 | `INHERITS_FROM` | Links a class/interface to its base class or inherited interface. |
+| `INSTANTIATES` | Links a host component to a runtime UI or subsystem component it instantiates. |
 | `LOCATED_IN` | Links a project to the physical folder or files structure where it is located. |
 | `OF_TYPE` | Links a member variable or field to its declared type. |
 | `PASSES_LITERAL` | Links a calling function or scope to a literal argument passed directly into an invocation. |

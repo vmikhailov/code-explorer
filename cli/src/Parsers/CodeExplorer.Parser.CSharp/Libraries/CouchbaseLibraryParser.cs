@@ -1,14 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
 public class CouchbaseLibraryParser : ISemanticExtension
 {
-    public string Type => "db:document";
+    public SemanticExtensionType Type => SemanticExtensionType.DocumentDb;
     public string Name => "Couchbase";
     public string Id => "couchbase";
     public IReadOnlyList<string> SupportedPatterns => ["Couchbase", "Couchbase.NetClient", "Couchbase.*"];

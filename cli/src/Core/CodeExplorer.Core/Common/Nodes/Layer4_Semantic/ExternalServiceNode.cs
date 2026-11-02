@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
@@ -24,5 +25,5 @@ public record ExternalServiceNode(
 ) : CompositeNode(Id, Extensions)
 {
     [JsonIgnore]
-    public override string Kind => OntologyConstants.NodeLabels.ExternalService;
+    public override NodeKind Kind => NodeKind.ExternalService;
 }

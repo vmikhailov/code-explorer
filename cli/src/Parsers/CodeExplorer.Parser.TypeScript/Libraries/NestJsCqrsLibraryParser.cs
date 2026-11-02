@@ -1,7 +1,3 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
@@ -10,7 +6,7 @@ public class NestJsCqrsLibraryParser : ISemanticExtension
 {
     public string Name => "NestJS CQRS";
     public string Id => "nestjs-cqrs";
-    public string Type => OntologyConstants.LibraryTypes.Queue;
+    public SemanticExtensionType Type => SemanticExtensionType.Queue;
     public IReadOnlyList<string> SupportedPatterns => ["@nestjs/cqrs"];
     public bool IsImplemented => true;
 

@@ -1,5 +1,4 @@
 using System.Collections.Frozen;
-using CodeExplorer.Core.Parser;
 
 namespace CodeExplorer.Parser.Python;
 

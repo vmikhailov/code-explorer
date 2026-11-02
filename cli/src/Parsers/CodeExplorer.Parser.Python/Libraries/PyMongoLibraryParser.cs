@@ -1,14 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
 public class PyMongoLibraryParser : ISemanticExtension
 {
-    public string Type => OntologyConstants.LibraryTypes.DocumentDb;
+    public SemanticExtensionType Type => SemanticExtensionType.DocumentDb;
     public string Name => "MongoDB";
     public string Id => "mongodb";
     public IReadOnlyList<string> SupportedPatterns => ["pymongo", "pymongo.*", "motor", "motor.*"];

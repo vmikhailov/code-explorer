@@ -1,5 +1,3 @@
-using CodeExplorer.Core.Common;
-
 namespace CodeExplorer.Common;
 
 public static class HelpDisplay
@@ -80,6 +78,7 @@ public static class HelpDisplay
         Console.WriteLine("  model                   Manage local LLM models (status, download)");
         Console.WriteLine("  test                    Test Impact Analysis (TIA): find exact test methods affected by changes");
         Console.WriteLine("  coverage                Analyze static test reachability coverage");
+
         Console.WriteLine();
 
         Console.ForegroundColor = ConsoleColor.White;

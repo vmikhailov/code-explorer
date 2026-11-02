@@ -1,14 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public class BigQueryLibraryParser : ISemanticExtension
 {
-    public string Type => OntologyConstants.LibraryTypes.AnalyticsDb;
+    public SemanticExtensionType Type => SemanticExtensionType.AnalyticsDb;
     public string Name => "BigQuery";
     public string Id => "bigquery";
     public IReadOnlyList<string> SupportedPatterns => ["@google-cloud/bigquery", "bigquery"];

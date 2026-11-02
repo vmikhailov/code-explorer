@@ -19,7 +19,7 @@
     <PublishDir Condition="'$(PublishDir)' == '' and '$(RuntimeIdentifier)' == ''">$(SolutionDir).Build\publish_$(Configuration)\$(MSBuildProjectName)\</PublishDir>
 
     <!-- Versioning -->
-    <Version Condition="'$(Version)' == ''">1.65.11</Version>
+    <Version Condition="'$(Version)' == ''">1.68.0</Version>
     <PackageVersion Condition="'$(PackageVersion)' == ''">$(Version)</PackageVersion>
     <AssemblyVersion Condition="'$(AssemblyVersion)' == ''">$(Version)</AssemblyVersion>
     <FileVersion Condition="'$(FileVersion)' == ''">$(Version)</FileVersion>
@@ -27,6 +27,12 @@
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
 
     <!-- NuGet packages generation -->
+    <Authors Condition="'$(Authors)' == ''">Slava Mikhailov</Authors>
+    <PackageLicenseExpression Condition="'$(PackageLicenseExpression)' == ''">MIT</PackageLicenseExpression>
+    <RepositoryUrl Condition="'$(RepositoryUrl)' == ''">https://github.com/vmikhailov/code-explorer</RepositoryUrl>
+    <PackageProjectUrl Condition="'$(PackageProjectUrl)' == ''">https://code-explorer.mikhailov.cc</PackageProjectUrl>
+    <RepositoryType Condition="'$(RepositoryType)' == ''">git</RepositoryType>
+    <Description Condition="'$(Description)' == ''">CodeExplorer SDK library ($(MSBuildProjectName)) — polyglot AST, code ontology graph, and OpenCypher engine.</Description>
     <PackageOutputPath>$(SolutionDir).Packages</PackageOutputPath>
     <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
@@ -36,6 +42,10 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(MSBuildProjectName)' != 'CodeExplorer.Cypher' and '$(MSBuildProjectName)' != 'CodeExplorer.Cypher.Tests' and '$(MSBuildProjectName)' != 'OntologyGen' and !$(MSBuildProjectName.Contains('Sample'))">
+    <Using Include="CodeExplorer.Common" />
     <Using Include="CodeExplorer.Core.Common" />
+    <Using Include="CodeExplorer.Core.Parser" />
+    <Using Include="CodeExplorer.Core.Analysis" />
+    <Using Include="CodeExplorer.Cypher.Linq" />
   </ItemGroup>
 </Project>

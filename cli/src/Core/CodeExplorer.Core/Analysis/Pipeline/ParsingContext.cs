@@ -1,11 +1,12 @@
 using System.Threading.Channels;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
+using CodeExplorer.Core.Common.Relationships;
 using CodeExplorer.Core.Database;
+using CodeExplorer.Core.Parser.Layers;
+using CodeExplorer.Cypher.Common;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -18,9 +19,16 @@ public class ParsingContext
     public string ScanPath { get; }
     public bool IsSubtreeScan => !string.Equals(ScanPath, AbsoluteWorkspacePath, StringComparison.OrdinalIgnoreCase);
     public IGraphClient DbClient { get; }
+    public IGraphRepository Repository { get; }
     public Channel<Func<Task>> SharedChannel { get; }
     public bool Clear { get; }
     public bool EnableIntentAnalysis { get; set; }
+    public bool LightweightAstScanMode { get; set; }
+    public Func<string, string, bool>? CustomFileExclusionPredicate { get; set; }
+    public Func<IReadOnlyList<FileNode>, ProjectNode, Layer2Result, IReadOnlyList<FileNode>>? CustomProjectFileFilter { get; set; }
+    public Action<Layer3Result, SemanticStructureNode, List<Relationship>, ParsingContext>? CustomLayer4Enricher { get; set; }
+    public Func<Layer4Result, ParsingContext, Task>? CustomLayer5Analyzer { get; set; }
+    public Dictionary<string, object> PipelineState { get; } = new(StringComparer.OrdinalIgnoreCase);
     public CancellationToken CancellationToken { get; }
     public string WorkspaceId { get; set; } = string.Empty;
     public ProjectsStructureNode? ProjectsStructure { get; set; }
@@ -65,6 +73,7 @@ public class ParsingContext
     }
 
     public Dictionary<(string Kind, string Name), string> GlobalSymbols { get; }
+    public Dictionary<SymbolKey, string> GlobalSymbolKeys { get; } = new();
     public Dictionary<(string FilePath, string Kind, string Name), string> FileScopedSymbols { get; } = new();
     public List<Reference> GlobalReferences { get; }
     public List<Relationship> GlobalProjectDependencies { get; }
@@ -112,6 +121,19 @@ public class ParsingContext
     public void AddGlobalSymbol(string kind, string name, string id)
     {
         GlobalSymbols[(kind, name)] = id;
+        GlobalSymbolKeys[new SymbolKey(kind, name)] = id;
+    }
+
+    public void AddGlobalSymbol(NodeKind kind, string name, string id)
+    {
+        GlobalSymbols[(kind.ToCypherLabel(), name)] = id;
+        GlobalSymbolKeys[new SymbolKey(kind, name)] = id;
+    }
+
+    public void AddGlobalSymbol(SymbolKey key, string id)
+    {
+        GlobalSymbols[(key.Kind.ToCypherLabel(), key.Name)] = id;
+        GlobalSymbolKeys[key] = id;
     }
 
     public void AddFileScopedSymbol(string filePath, string kind, string name, string id)
@@ -204,8 +226,8 @@ public class ParsingContext
         }
     }
 
-    public int GetTotalNodesPersisted() => _nodesPersisted;
-    public int GetTotalRelsPersisted() => _relsPersisted;
+    public int TotalNodesPersisted => _nodesPersisted;
+    public int TotalRelsPersisted => _relsPersisted;
 
     public void TriggerProgressReport()
     {
@@ -240,7 +262,14 @@ public class ParsingContext
         var copy = new List<Node>(nodes);
         await SharedChannel.Writer.WriteAsync(async () =>
         {
-            await DbClient.UploadNodesAsync(copy);
+            if (Repository != null)
+            {
+                await Repository.UpsertNodesAsync(copy, CancellationToken);
+            }
+            else if (DbClient != null)
+            {
+                await DbClient.UploadNodesAsync(copy);
+            }
             RecordNodesPersisted(copy.Count);
         }, CancellationToken).ConfigureAwait(false);
     }
@@ -251,7 +280,14 @@ public class ParsingContext
         var copy = new List<Relationship>(rels);
         await SharedChannel.Writer.WriteAsync(async () =>
         {
-            await DbClient.UploadRelationshipsAsync(copy);
+            if (Repository != null)
+            {
+                await Repository.UpsertRelationshipsAsync(copy, CancellationToken);
+            }
+            else if (DbClient != null)
+            {
+                await DbClient.UploadRelationshipsAsync(copy);
+            }
             RecordRelationshipsPersisted(copy.Count);
         }, CancellationToken);
     }
@@ -264,7 +300,7 @@ public class ParsingContext
             tcs.SetResult();
             return Task.CompletedTask;
         }, CancellationToken).ConfigureAwait(false);
-        
+
         await tcs.Task;
         FlushPersistenceProgressReport();
 
@@ -283,7 +319,7 @@ public class ParsingContext
         string absoluteWorkspacePath,
         string hostWorkspacePath,
         ResourceReconciliationService? resourceRegistry = null)
-        : this(absoluteWorkspacePath, hostWorkspacePath, null!, Channel.CreateUnbounded<Func<Task>>())
+        : this(absoluteWorkspacePath, hostWorkspacePath, (IGraphClient)null!, Channel.CreateUnbounded<Func<Task>>())
     {
         if (resourceRegistry != null)
         {
@@ -310,6 +346,12 @@ public class ParsingContext
         HostWorkspacePath = hostWorkspacePath;
         ScanPath = string.IsNullOrWhiteSpace(scanPath) ? AbsoluteWorkspacePath : scanPath.Replace('\\', '/');
         DbClient = dbClient;
+        Repository = dbClient switch
+        {
+            IGraphRepository repo => repo,
+            null => new InMemoryGraphRepository(),
+            _ => new PersistedGraphRepository(dbClient)
+        };
         SharedChannel = sharedChannel;
         Clear = clear;
         EnableIntentAnalysis = enableIntentAnalysis;

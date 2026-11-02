@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
 
 namespace CodeExplorer.Core.Common.Nodes.Layer1_Physical;
@@ -23,7 +24,7 @@ public record FolderNode(
 ) : CompositeNode(Id, Extensions)
 {
     [JsonIgnore]
-    public override string Kind => OntologyConstants.NodeLabels.Folder;
+    public override NodeKind Kind => NodeKind.Folder;
 
     [JsonIgnore]
     [OntologyProperty("The path to the folder.")]

@@ -1,5 +1,3 @@
-using CodeExplorer.Core.Common;
-
 namespace CodeExplorer.Core.Parser;
 
 /// <summary>
@@ -306,7 +304,7 @@ public interface IProjectParser
     public static ProjectClassification? DefaultClassifyProject(IProjectParser parser, ProjectContext context)
     {
         // 1. Dialect Manifest Evidence
-        
+
         var manifestType = context.ManifestProperties.GetValueOrDefault("manifest_type")?.ToLowerInvariant();
         if (manifestType == "test" || context.ManifestProperties.GetValueOrDefault("is_test_project") == "true") return ProjectClassification.Test;
         if (manifestType == "library") return ProjectClassification.Library;
@@ -324,7 +322,7 @@ public interface IProjectParser
         if (frameworkType == "cli") return ProjectClassification.CliApp;
         if (frameworkType == "worker") return ProjectClassification.Worker;
         if (frameworkType == "web" || frameworkType == "api") return ProjectClassification.Service;
-        
+
 
         // 2. Inversion of Control: Query dialect's test framework packages FIRST!
         var testPackages = parser.Packages.Where(p => p.Role == LibraryRole.TestFramework);

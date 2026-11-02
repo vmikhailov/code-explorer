@@ -1,5 +1,3 @@
-using CodeExplorer.Core.Parser;
-
 namespace CodeExplorer.Parser.Rust;
 
 /// <summary>

@@ -1,14 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Java.Libraries;
 
 public class SpringGraphQlLibraryParser : ISemanticExtension
 {
-    public string Type => "framework:graphql";
+    public SemanticExtensionType Type => SemanticExtensionType.GraphqlFramework;
     public string Name => "Spring GraphQL";
     public string Id => "spring-graphql";
 

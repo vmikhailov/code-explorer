@@ -1,8 +1,4 @@
 using System.Text.RegularExpressions;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Rust.Libraries;
@@ -15,7 +11,7 @@ public class RocketLibraryParser : ISemanticExtension
 {
     public string Id => "rocket";
     public string Name => "Rocket";
-    public string Type => "framework";
+    public SemanticExtensionType Type => SemanticExtensionType.Framework;
     public bool IsImplemented => true;
     public LibraryRole LibraryRole => LibraryRole.WebService;
     public IReadOnlyList<string> SupportedPatterns => ["rocket*"];

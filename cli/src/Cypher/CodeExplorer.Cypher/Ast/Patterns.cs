@@ -1,3 +1,5 @@
+using CodeExplorer.Cypher.Common;
+
 namespace CodeExplorer.Cypher.Ast;
 
 public readonly record struct RangeLength(int? Min, int? Max);
@@ -6,7 +8,11 @@ public record NodePattern(
     string? Variable,
     List<string> Labels,
     Dictionary<string, Expression>? Properties
-);
+)
+{
+    public IReadOnlyList<NodeKind> NodeKinds =>
+        Labels.Select(EnumExtensions.ParseNodeKind).ToList();
+}
 
 public record RelationshipPattern(
     string? Variable,
@@ -14,7 +20,11 @@ public record RelationshipPattern(
     RangeLength? Range,
     Direction Direction,
     Dictionary<string, Expression>? Properties
-);
+)
+{
+    public IReadOnlyList<RelationshipKind> RelationshipKinds =>
+        Types.Select(EnumExtensions.ParseRelationshipKind).ToList();
+}
 
 public record PathElement(RelationshipPattern Relationship, NodePattern Target);
 

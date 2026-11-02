@@ -1,7 +1,3 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
@@ -10,7 +6,7 @@ public class FetchLibraryParser : ISemanticExtension
 {
     public string Name => "Fetch";
     public string Id => "fetch";
-    public string Type => "api";
+    public SemanticExtensionType Type => SemanticExtensionType.ApiClient;
     // fetch is built-in; node-fetch/got/superagent are npm packages
     public IReadOnlyList<string> SupportedPatterns => ["node-fetch", "got", "superagent", "cross-fetch", "isomorphic-fetch"];
     public bool IsImplemented => true;

@@ -1,14 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
 public class StackExchangeRedisLibraryParser : ISemanticExtension
 {
-    public string Type => "db:keyvalue";
+    public SemanticExtensionType Type => SemanticExtensionType.KeyValueDb;
     public string Name => "Redis";
     public string Id => "redis";
     public IReadOnlyList<string> SupportedPatterns => ["StackExchange.Redis", "StackExchange.Redis.*"];

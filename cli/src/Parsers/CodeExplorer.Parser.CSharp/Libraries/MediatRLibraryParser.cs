@@ -1,7 +1,3 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
@@ -10,7 +6,7 @@ public class MediatRLibraryParser : ISemanticExtension
 {
     public string Name => "MediatR";
     public string Id => "mediatr";
-    public string Type => OntologyConstants.LibraryTypes.Framework;
+    public SemanticExtensionType Type => SemanticExtensionType.Framework;
     public IReadOnlyList<string> SupportedPatterns => ["MediatR", "MediatR.*", "*Mediator*"];
     public bool IsImplemented => true;
     public bool IsBuiltIn => true;

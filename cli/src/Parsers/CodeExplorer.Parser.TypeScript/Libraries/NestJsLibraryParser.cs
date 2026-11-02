@@ -1,8 +1,4 @@
 using System.Text.RegularExpressions;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
@@ -11,7 +7,7 @@ public class NestJsLibraryParser : ISemanticExtension
 {
     public string Name => "NestJS";
     public string Id => "nestjs";
-    public string Type => "framework";
+    public SemanticExtensionType Type => SemanticExtensionType.Framework;
     public IReadOnlyList<string> SupportedPatterns => ["@nestjs/common", "@nestjs/core", "@nestjs/microservices", "@nestjs/websockets", "@nestjs/graphql"];
     public bool IsImplemented => true;
     public LibraryRole LibraryRole => LibraryRole.WebService;

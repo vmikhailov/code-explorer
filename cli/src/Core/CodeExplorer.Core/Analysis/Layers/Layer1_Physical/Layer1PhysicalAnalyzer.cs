@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 
@@ -58,14 +57,17 @@ public class Layer1PhysicalParser
         var filesStructureNode = new FilesStructureNode(filesNodeId, "FilesStructure", hostPath);
         workspaceNode.Children.Add(filesStructureNode);
 
-        var rootRepoDir = GitSettingsParser.FindRepoRoot(ctx.AbsoluteWorkspacePath);
-        if (rootRepoDir != null)
+        if (!ctx.LightweightAstScanMode)
         {
-            var gitSettingsNode = GitSettingsParser.Parse(wsId, ctx.AbsoluteWorkspacePath, rootRepoDir);
-            if (gitSettingsNode != null)
+            var rootRepoDir = GitSettingsParser.FindRepoRoot(ctx.AbsoluteWorkspacePath);
+            if (rootRepoDir != null)
             {
-                filesStructureNode.Children.Add(gitSettingsNode);
-                ctx.RegisterGitRepository(rootRepoDir, gitSettingsNode);
+                var gitSettingsNode = GitSettingsParser.Parse(wsId, ctx.AbsoluteWorkspacePath, rootRepoDir);
+                if (gitSettingsNode != null)
+                {
+                    filesStructureNode.Children.Add(gitSettingsNode);
+                    ctx.RegisterGitRepository(rootRepoDir, gitSettingsNode);
+                }
             }
         }
 
@@ -184,6 +186,12 @@ public class Layer1PhysicalParser
                 continue;
             }
 
+            if (ctx.CustomFileExclusionPredicate?.Invoke(fileInfo.Name, relativeFile) == true)
+            {
+                continue;
+            }
+
+
             if (!ctx.FileFilter.IsSupportedSourceOrConfigFile(fileInfo.Name))
             {
                 continue;
@@ -201,12 +209,17 @@ public class Layer1PhysicalParser
             int? lineCount = null;
             string? contentHash = null;
             DateTime? lastModifiedUtc = null;
+            string? artifactRole = null;
             try
             {
                 lastModifiedUtc = fileInfo.LastWriteTimeUtc;
                 var bytes = await File.ReadAllBytesAsync(fileInfo.FullName, ctx.CancellationToken);
                 lineCount = CountLines(bytes);
-                contentHash = Incremental.HashUtility.ComputeSha256(bytes);
+                if (!ctx.LightweightAstScanMode)
+                {
+                    contentHash = Incremental.HashUtility.ComputeSha256(bytes);
+                }
+                artifactRole = WorkspaceFileFilter.ClassifyArtifactRole(relativeFile, fileName, bytes);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -215,7 +228,8 @@ public class Layer1PhysicalParser
             var fileNode = new FileNode(fileId, fileName, relativeFile, absoluteFilePath, false, null, null, lineCount, sizeBytes)
             {
                 ContentHash = contentHash,
-                LastModifiedUtc = lastModifiedUtc
+                LastModifiedUtc = lastModifiedUtc,
+                ArtifactRole = artifactRole ?? WorkspaceFileFilter.ClassifyArtifactRole(relativeFile, fileName)
             };
 
             currentParentNode.Children.Add(fileNode);
@@ -235,5 +249,5 @@ public class Layer1PhysicalParser
     public static bool IsSupportedFile(string fileName) => WorkspaceFileFilter.Default.IsSupportedSourceOrConfigFile(fileName);
     public static bool ShouldSkipFileName(string fileName) => WorkspaceFileFilter.Default.ShouldSkipFileName(fileName);
     public static bool ShouldSkipFile(FileInfo fileInfo) => WorkspaceFileFilter.Default.ShouldSkipFile(fileInfo);
-    public static bool IsMinifiedContent(string filePath) => WorkspaceFileFilter.IsMinifiedContent(filePath);
-}
+    public static bool IsMinifiedContent(string filePath) => WorkspaceFileFilter.IsMinifiedContent(filePath);
+}

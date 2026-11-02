@@ -1,9 +1,7 @@
+using CodeExplorer.Core.Database;
 using System.Threading.Channels;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.Go;
 using NUnit.Framework;
@@ -75,7 +73,7 @@ func queryDatabase(ctx context.Context, pool *pgxpool.Pool) {
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
             var parser = new GoParser();
 
@@ -127,7 +125,7 @@ func makeCalls(client *resty.Client) {
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
             var parser = new GoParser();
 
@@ -177,7 +175,7 @@ func sendRequests() {
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
             var parser = new GoParser();
 
@@ -233,7 +231,7 @@ func (r *Repo) Init(ctx context.Context) error {
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
             var parser = new GoParser();
 
@@ -297,7 +295,7 @@ func (r *BqRepo) QueryData(ctx context.Context) error {
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
             var parser = new GoParser();
 
@@ -371,7 +369,7 @@ func StartIngest(ctx context.Context) {
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
             var parser = new GoParser();
 

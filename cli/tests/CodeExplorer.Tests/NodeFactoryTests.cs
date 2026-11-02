@@ -7,7 +7,7 @@ using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Nodes.Layer5_Logical;
-using CodeExplorer.Core.Database;
+using CodeExplorer.Cypher.Common;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -25,7 +25,7 @@ public class NodeFactoryTests
     private static Dictionary<string, object> LegacyFromNode(IOntologyNode node)
     {
         var json = JsonSerializer.Serialize(node, node.GetType(), LegacySerializerOptions);
-        var rawProperties = JsonSerializer.Deserialize<Dictionary<string, object>>(json, LegacySerializerOptions) 
+        var rawProperties = JsonSerializer.Deserialize<Dictionary<string, object>>(json, LegacySerializerOptions)
             ?? new Dictionary<string, object>();
 
         var properties = new Dictionary<string, object>();
@@ -71,9 +71,9 @@ public class NodeFactoryTests
         var testNodes = new List<IOntologyNode>
         {
             new TableNode("tbl:1", "users", "src/models/user.cs", new Dictionary<string, string> { ["line"] = "42", ["is_test"] = "true" }),
-            new TypeNode("type:1", "UserService", "App.UserService", "src/user.cs", "user.cs", 10, 50, 1, 1, "class", false, "Service", "App.Core", 1, 40, new Dictionary<string, string> { ["custom_key"] = "custom_val" }),
-            new FunctionNode("fn:1", "GetUser", "App.UserService.GetUser", "src/user.cs", "user.cs", 15, 25, 5, 1, false, "Service", "App.Core", 1, 10),
-            new FileNode("f:1", "user.cs", "src/user.cs", "/workspace/src/user.cs", false, "Service", "App.Core", 100, 2048L),
+            new TypeNode("type:1", "UserService", "App.UserService", "src/user.cs", "user.cs", 10, 50, 1, 1, "class", false, ProjectEntityKind.Service, "App.Core", 1, 40, new Dictionary<string, string> { ["custom_key"] = "custom_val" }),
+            new FunctionNode("fn:1", "GetUser", "App.UserService.GetUser", "src/user.cs", "user.cs", 15, 25, 5, 1, false, ProjectEntityKind.Service, "App.Core", 1, 10),
+            new FileNode("f:1", "user.cs", "src/user.cs", "/workspace/src/user.cs", false, ProjectEntityKind.Service, "App.Core", 100, 2048L),
             new EndpointNode("ep:1", "GET /api/users", "src/user.cs", "GET", "/api/users"),
             new ProjectNode("p:1", "App.Core", "src/App.Core.csproj", "CSharp", "Service"),
             new DomainNode("dom:1", "UserManagement", "User Management", "Core", "Manages users and auth", "user", "src/domains/user"),
@@ -90,7 +90,7 @@ public class NodeFactoryTests
             var modernProps = modernNode.Properties;
 
             modernNode.Id.Should().Be(node.Id);
-            modernNode.Kind.Should().Be(node.Kind);
+            modernNode.Kind.Should().Be(node.Kind.ToCypherLabel());
 
             var legacyKeys = legacyProps.Keys.OrderBy(k => k).ToList();
             var modernKeys = modernProps.Keys.OrderBy(k => k).ToList();
@@ -112,7 +112,7 @@ public class NodeFactoryTests
         var sampleNode = new TypeNode(
             "type:sample", "OrderProcessor", "App.OrderProcessor",
             "src/orders/processor.cs", "processor.cs", 10, 120, 1, 1,
-            "class", false, "Service", "App.Orders", 2, 95,
+            "class", false, ProjectEntityKind.Service, "App.Orders", 2, 95,
             new Dictionary<string, string> { ["line"] = "10", ["is_test"] = "false", ["custom_tag"] = "important" }
         );
 

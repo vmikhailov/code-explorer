@@ -1,14 +1,13 @@
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Cypher.Ast;
-using CodeExplorer.Cypher.Linq;
 
 namespace CodeExplorer.Core.Database;
 
 public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
 {
     GraphContext Graph => new(this);
+    IGraphRepository AsRepository() => this is IGraphRepository repo ? repo : new PersistedGraphRepository(this);
 
     Task CreateIndicesAsync();
     Task ClearDatabaseAsync();

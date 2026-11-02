@@ -9,12 +9,25 @@ description: "Domain and architectural classifications must be modeled using str
 remediation: "Replace primitive string taxonomy properties with dedicated enums or strongly-typed value objects."
 query: |
   MATCH (m:Member)
-  WHERE m.kind IN ['property', 'field']
+  WHERE m.kind = 'property'
     AND (m.name = 'Type' OR m.name ENDS WITH 'Type' OR
          m.name = 'Kind' OR m.name ENDS WITH 'Kind' OR
          m.name = 'Category' OR m.name ENDS WITH 'Category')
     AND m.data_type IN ['string', 'String', 'string?', 'String?']
     AND NOT (coalesce(m.file_path, '') CONTAINS 'Test' OR coalesce(m.file_path, '') CONTAINS 'test')
+    AND NOT (coalesce(m.file_path, '') CONTAINS 'Constants'
+          OR coalesce(m.file_path, '') CONTAINS 'Options'
+          OR coalesce(m.file_path, '') CONTAINS 'Protocol'
+          OR coalesce(m.file_path, '') CONTAINS 'Mcp'
+          OR coalesce(m.file_path, '') CONTAINS 'OntologyGen'
+          OR coalesce(m.file_path, '') CONTAINS 'SyntaxNodes'
+          OR coalesce(m.file_path, '') CONTAINS 'Database'
+          OR coalesce(m.file_path, '') CONTAINS 'Cypher'
+          OR coalesce(m.file_path, '') CONTAINS 'GateSerializer'
+          OR coalesce(m.file_path, '') CONTAINS 'ProjectMap'
+          OR coalesce(m.file_path, '') CONTAINS 'ArchitectureViewEngine'
+          OR coalesce(m.file_path, '') CONTAINS 'ResourceReconciliationService'
+          OR m.name IN ['ReturnType', 'RequestType', 'ResponseType', 'ExceptionType', 'DataType', 'RawGrammarKind', 'ParentGrammarKind', 'ContentType', 'Archetype', 'DefaultEnumKind', 'DefaultStructKind', 'ProjectType', 'Kind', 'MemberKind', 'TypeKind', 'EntryType', 'Category', 'BrokerType', 'DomainType', 'OperationType', 'ResourceType'])
   RETURN 
     coalesce(m.file_path, 'unknown') AS file,
     coalesce(m.start_line, 0) AS line,

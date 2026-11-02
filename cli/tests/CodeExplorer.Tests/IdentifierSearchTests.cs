@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Analysis;
 using Microsoft.Data.Sqlite;
 using NUnit.Framework;
 
@@ -56,13 +55,13 @@ public class IdentifierSearchTests
                     kind TEXT NOT NULL,
                     properties JSON NOT NULL
                 );
-                INSERT INTO nodes VALUES 
+                INSERT INTO nodes VALUES
                   ('t1', 'Type', '{"name":"GateCommandHandler","path":"cli/Commands/GateCommandHandler.cs","start_line":10}'),
                   ('f1', 'Function', '{"name":"HandleAsync","path":"cli/Commands/GateCommandHandler.cs","start_line":17}'),
                   ('ep1', 'Endpoint', '{"name":"POST:/api/gates/check","route_template":"/api/gates/check","path":"Server.cs","start_line":330}'),
                   ('m1', 'Member', '{"name":"GetGatesRequest","path":"Protocol.cs","start_line":26}');
 
-                INSERT INTO edges VALUES 
+                INSERT INTO edges VALUES
                   ('t1', 'f1', 'HAS_METHOD', '{}'),
                   ('t1', 'm1', 'HAS_MEMBER', '{}');
                 """;

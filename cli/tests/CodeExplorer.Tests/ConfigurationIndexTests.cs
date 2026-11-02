@@ -1,6 +1,6 @@
+using CodeExplorer.Core.Database;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using NUnit.Framework;
 
@@ -168,7 +168,7 @@ public class ConfigurationIndexTests
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
 
-        await using var client = new InMemoryGraphClient();
+        await using var client = new InMemoryGraphRepository();
 
         var ctx = new ParsingContext(_tempDir, _tempDir, client, channel);
 

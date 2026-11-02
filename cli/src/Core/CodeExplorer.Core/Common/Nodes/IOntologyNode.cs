@@ -1,11 +1,12 @@
-using CodeExplorer.Common;
+using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Common.Nodes;
 
 public interface IOntologyNode
 {
     string Id { get; }
-    string Kind { get; }
+    NodeKind Kind { get; }
+    NodeKind NodeKind => Kind;
     string Path { get; }
     Dictionary<string, string>? Extensions { get; set; }
     List<IOntologyNode> Children { get; }

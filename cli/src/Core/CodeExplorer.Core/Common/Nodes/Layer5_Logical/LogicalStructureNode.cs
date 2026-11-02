@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
 
 namespace CodeExplorer.Core.Common.Nodes.Layer5_Logical;
@@ -18,5 +19,5 @@ public record LogicalStructureNode(
 ) : CompositeNode(Id, Extensions)
 {
     [JsonIgnore]
-    public override string Kind => OntologyConstants.NodeLabels.LogicalStructure;
+    public override NodeKind Kind => NodeKind.LogicalStructure;
 }

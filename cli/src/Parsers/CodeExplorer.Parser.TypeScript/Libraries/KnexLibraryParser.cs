@@ -1,14 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public class KnexLibraryParser : ISemanticExtension
 {
-    public string Type => "db:relational";
+    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
     public string Name => "Knex";
     public string Id => "knex";
     public IReadOnlyList<string> SupportedPatterns => ["knex", "@types/knex"];

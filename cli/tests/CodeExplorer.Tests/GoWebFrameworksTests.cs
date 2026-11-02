@@ -1,7 +1,7 @@
+using CodeExplorer.Core.Database;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.Go;
 using NUnit.Framework;
@@ -56,7 +56,7 @@ func setupRouter() {
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
             var parser = new GoParser();
 
@@ -120,7 +120,7 @@ func setupApp() {
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
             var parser = new GoParser();
 
@@ -184,7 +184,7 @@ func setupEcho() {
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
             var parser = new GoParser();
 

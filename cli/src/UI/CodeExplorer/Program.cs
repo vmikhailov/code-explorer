@@ -1,7 +1,4 @@
 using CodeExplorer.Commands;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Database;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Options;
 using CommandLine;
 using Microsoft.AspNetCore.Builder;
@@ -11,7 +8,11 @@ namespace CodeExplorer;
 
 public class Program
 {
-    public static WebApplication? App { get; set; }
+    public static WebApplication? App
+    {
+        get => CodeExplorerServerHost.ActiveApp;
+        set => CodeExplorerServerHost.ActiveApp = value;
+    }
 
     public static async Task<int> Main(string[] args)
     {
@@ -28,6 +29,7 @@ public class Program
             return 0;
         }
 
+        AnalysisPipelineInitializer.EnsureRegistered();
         WorkspaceIndexer.AutoRegisterParsers();
 
         using var parser = new CommandLineParser(settings =>

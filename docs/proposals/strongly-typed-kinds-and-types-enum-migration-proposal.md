@@ -1,8 +1,8 @@
 # Strongly-Typed `*Kind` and `*Type` Enum Migration Proposal 🛡️
 ## Transitioning CodeExplorer from Stringly-Typed Kinds to Strongly-Typed Domain Enums
 
-- **Document Version:** 1.0.0
-- **Status:** Proposal
+- **Document Version:** 1.1.0
+- **Status:** Implemented (Finalized)
 - **Target Audience:** Core Maintainers, Systems Architects, Compiler/Parser Engineers
 - **Target Subsystems:** `Core/Common`, `Analysis/Pipeline`, `Analysis/Layers (1–5)`, `Database/SqliteGraphClient`, `Cypher`, `SIG/Gates`, `ProjectMap`
 
@@ -246,4 +246,21 @@ flowchart LR
 | **Rel Equality Check** | 3x string reference / Ordinal comparison | 2x string reference + 1x byte comparison | **3.8x faster** |
 | **Pipeline GC Allocations** | Millions of ephemeral tuple & string instances | Near-zero GC allocations for keys | **Significant GC reduction** |
 | **Static Safety** | Runtime string matching errors | Compile-time exhaustive checking | **100% static safety** |
+
+---
+
+## 6. Implementation & Finalization Report (v1.66.2)
+
+- **Canonical Enums**: Consolidated `NodeKind`, `RelationshipKind`, `ProjectEntityKind`, and introduced `SemanticExtensionType` with full domain categorization helpers (`IsDatabase()`, `ToLegacyCategoryString()`).
+- **Core Ontology Models**:
+  - `IOntologyNode.Kind` and `IOntologyRelationship.Kind` expose canonical enums.
+  - Concrete ontology nodes expose static strongly-typed `NodeKind`.
+  - `ISemanticExtension.Type` and `PackageDescriptor.Type` use `SemanticExtensionType` across all 136 library parsers.
+  - Domain nodes (`FileNode`, `TypeNode`, `FunctionNode`, `CallLiteralNode`, `CatchClauseNode`, `ProjectNode`) strongly-type `ProjectKind` with `ProjectEntityKind?`.
+  - `CloudServiceNode` renamed stringly-typed property to `ResourceType`.
+- **Pipeline Structs**: `SymbolKey` and `RelationshipKey` implemented in `CodeExplorer.Core.Common`.
+- **Architectural Gate Verification**:
+  - `SIG-C-C-001` (*Disallow Stringly-Typed Taxonomies and Classifications*) passes untolerated (`[PASS] 0 violations`) with baseline reset to `allowedViolations: 0, entries: []`.
+  - All 29 Architectural and Platform gates pass cleanly with 0 failures and 0 warnings.
+
 

@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Parser;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Python.Libraries;
@@ -12,7 +11,7 @@ public sealed class PythonTestLibraryParser : ISemanticExtension
 
     public string Id => "python-test";
     public string Name => "Python Test Frameworks";
-    public string Type => "library";
+    public SemanticExtensionType Type => SemanticExtensionType.Library;
     public LibraryRole LibraryRole => LibraryRole.TestFramework;
 
     public IReadOnlyList<string> SupportedPatterns =>

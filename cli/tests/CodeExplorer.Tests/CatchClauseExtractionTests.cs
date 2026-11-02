@@ -1,8 +1,7 @@
+using CodeExplorer.Core.Database;
 using System.Threading.Channels;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Parser.TypeScript.Components;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.CSharp;
@@ -23,7 +22,7 @@ public class CatchClauseExtractionTests
             var filePath = Path.Combine(tempDir, fileName);
             await File.WriteAllTextAsync(filePath, code);
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            var ctx = new ParsingContext(tempDir, tempDir, new InMemoryGraphClient(), channel);
+            var ctx = new ParsingContext(tempDir, tempDir, new InMemoryGraphRepository(), channel);
             using var syntaxTree = await new TypeScriptParser().ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var isTest = WorkspaceConventions.IsTestFilePath(filePath) || new JavaScriptTestRunnerComponentParser().IsTestSource(syntaxTree);
             syntaxTree.FileNode!.IsTest = isTest;
@@ -45,7 +44,7 @@ public class CatchClauseExtractionTests
             var filePath = Path.Combine(tempDir, fileName);
             await File.WriteAllTextAsync(filePath, code);
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            var ctx = new ParsingContext(tempDir, tempDir, new InMemoryGraphClient(), channel);
+            var ctx = new ParsingContext(tempDir, tempDir, new InMemoryGraphRepository(), channel);
             using var syntaxTree = await new CSharpParser().ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var isTest = WorkspaceConventions.IsTestFilePath(filePath);
             syntaxTree.FileNode!.IsTest = isTest;
@@ -216,7 +215,7 @@ public class CatchClauseExtractionTests
             await File.WriteAllTextAsync(Path.Combine(tempDir, "package.json"), "{\"name\":\"test-pkg\"}");
             var filePath = Path.Combine(tempDir, "broken.service.ts");
             await File.WriteAllTextAsync(filePath, brokenCode);
-            var dbClient = new InMemoryGraphClient();
+            var dbClient = new InMemoryGraphRepository();
             var indexer = new WorkspaceIndexer(dbClient);
             var (nodesCount, _, nodesByKind) = await indexer.IndexAsync(tempDir, clear: true);
 

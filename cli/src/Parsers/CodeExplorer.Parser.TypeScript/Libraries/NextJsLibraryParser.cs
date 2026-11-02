@@ -1,7 +1,3 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
@@ -10,7 +6,7 @@ public class NextJsLibraryParser : ISemanticExtension
 {
     public string Name => "Next.js";
     public string Id => "nextjs";
-    public string Type => "framework";
+    public SemanticExtensionType Type => SemanticExtensionType.Framework;
     public IReadOnlyList<string> SupportedPatterns => ["next", "next/*"];
     public bool IsImplemented => true;
     public LibraryRole LibraryRole => LibraryRole.FrontendFramework;

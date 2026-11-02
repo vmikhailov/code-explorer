@@ -1,14 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
 public class ElasticsearchPythonLibraryParser : ISemanticExtension
 {
-    public string Type => OntologyConstants.LibraryTypes.AnalyticsDb;
+    public SemanticExtensionType Type => SemanticExtensionType.AnalyticsDb;
     public string Name => "Elasticsearch";
     public string Id => "elasticsearch";
     public IReadOnlyList<string> SupportedPatterns => ["elasticsearch", "elasticsearch.*"];

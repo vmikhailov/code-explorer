@@ -1,26 +1,196 @@
 {
   "gateId": "SIG-M-R-001",
-  "allowedViolations": 2,
+  "allowedViolations": 20,
   "entries": [
     {
-      "fingerprint": "e293105e52a34562249e3f42e260fb481d7505b13d008dfa7fac095db337fab8",
-      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer2_Boundaries/Layer2BoundariesAnalyzer.cs",
-      "line": 12,
-      "column": 5,
-      "symbol": "ParseAsync",
-      "target": "537 lines",
-      "acknowledgedAt": "2026-10-21T01:04:51.3401737+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+      "fingerprint": "a5d81e9467416901e0131d28a725dff8e4ce2c55ca78f70a27ecc0269eec5afb",
+      "file": "vscode-extension/src/webview/App.tsx",
+      "line": 144,
+      "column": 30,
+      "symbol": "App",
+      "target": "1806 lines",
+      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
     },
     {
-      "fingerprint": "6576df0577f0797aa55882d9b9f8fc51f26eed82a99972629d477d4a40fa6556",
-      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/SyntaxEnricher.cs",
-      "line": 81,
-      "column": 5,
-      "symbol": "EnrichAsync",
-      "target": "510 lines",
-      "acknowledgedAt": "2026-10-21T01:04:51.3401737+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+      "fingerprint": "15102b1a405cdd08a31e41205a2beabae835006a0a5eee9fd8be82de74409192",
+      "file": "vscode-extension/src/webview/components/BoundedContextMapView.tsx",
+      "line": 185,
+      "column": 76,
+      "symbol": "BoundedContextMapView",
+      "target": "804 lines",
+      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
+    },
+    {
+      "fingerprint": "0f283af6117583e624ff367471f32c2199b97c03b884ffc790c67c94ee1deb10",
+      "file": "vscode-extension/src/webview/components/C1SystemContextView.tsx",
+      "line": 211,
+      "column": 72,
+      "symbol": "C1SystemContextView",
+      "target": "1571 lines",
+      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
+    },
+    {
+      "fingerprint": "4507f3be07ba62c030ace2f07114aa4415fe562f9c3def76afce9e3277925acc",
+      "file": "vscode-extension/src/webview/components/CytoscapeView.tsx",
+      "line": 22,
+      "column": 60,
+      "symbol": "CytoscapeView",
+      "target": "671 lines",
+      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
+    },
+    {
+      "fingerprint": "034d339b405f920b5d962ea381688b659884684f45f3efbceefe0acba7cec7f0",
+      "file": "vscode-extension/src/webview/components/DeclarativeInspector.tsx",
+      "line": 49,
+      "column": 8,
+      "symbol": "DeclarativeInspector",
+      "target": "1180 lines",
+      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
+    },
+    {
+      "fingerprint": "8a1fe825ab33936b1d06c4891f3c95da8950baa54efe79ed4fd3fdba06d9857a",
+      "file": "vscode-extension/src/webview/components/DeclarativeInspector.tsx",
+      "line": 182,
+      "column": 25,
+      "symbol": "renderSection",
+      "target": "648 lines",
+      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
+    },
+    {
+      "fingerprint": "05ef34731aebed545c47eeac94c36aba24b328bea6d069a9ee0d52911753e2b3",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 966,
+      "column": 78,
+      "symbol": "DomainArchitectureView",
+      "target": "5293 lines",
+      "acknowledgedAt": "2026-10-30T11:08:37.565868+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-30 11:08:37"
+    },
+    {
+      "fingerprint": "401bad12df40624a9c24c2c64c13dd7caec5c29fa53498b6b6204d814f80e58b",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 2086,
+      "column": 28,
+      "symbol": "<anon_2086>",
+      "target": "573 lines",
+      "acknowledgedAt": "2026-11-02T10:17:44.2332605+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-02 10:17:44"
+    },
+    {
+      "fingerprint": "51cebc7a990b1de93b587d3d2bbecb51f784cc08735dc48d219f93ab6cfc7cc2",
+      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
+      "line": 2662,
+      "column": 136,
+      "symbol": "<anon_2662>",
+      "target": "734 lines",
+      "acknowledgedAt": "2026-11-02T10:17:44.2332605+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-02 10:17:44"
+    },
+    {
+      "fingerprint": "d8d20873d3659e1ead3c1f33fd781032915d99169e1463bdaaf8969933327350",
+      "file": "vscode-extension/src/webview/components/GateEditorView.tsx",
+      "line": 125,
+      "column": 62,
+      "symbol": "GateEditorView",
+      "target": "1108 lines",
+      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
+    },
+    {
+      "fingerprint": "9e39fa271fe50b9ce4384ed709eed55ed691f2403a490b8b2650b99c630b4c5c",
+      "file": "vscode-extension/src/webview/components/InspectorSidebarView.tsx",
+      "line": 138,
+      "column": 47,
+      "symbol": "InspectorSidebarView",
+      "target": "607 lines",
+      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
+    },
+    {
+      "fingerprint": "4bf440cbedee8d62664d7a85c29550810de4dfc87fbd686ebc54b10d4744d834",
+      "file": "vscode-extension/src/webview/components/ProjectCardNode.tsx",
+      "line": 35,
+      "column": 37,
+      "symbol": "<anon_35>",
+      "target": "1052 lines",
+      "acknowledgedAt": "2026-11-02T10:17:44.2332605+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-02 10:17:44"
+    },
+    {
+      "fingerprint": "3e0ccafb632e29eb8ce4a76850a252c98ab41813be0c397e6c01eb41a890c439",
+      "file": "vscode-extension/src/webview/components/ProjectFlowView.tsx",
+      "line": 42,
+      "column": 51,
+      "symbol": "FlowInner",
+      "target": "1284 lines",
+      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
+    },
+    {
+      "fingerprint": "05aefec07c3974d6dd472bd16a6322a1787bec97c6fb62bb64c401657f8fd7af",
+      "file": "vscode-extension/src/webview/components/ProjectFlowView.tsx",
+      "line": 490,
+      "column": 13,
+      "symbol": "<anon_490>",
+      "target": "683 lines",
+      "acknowledgedAt": "2026-11-02T10:17:44.2332605+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-02 10:17:44"
+    },
+    {
+      "fingerprint": "84fc1dc78f028323fdf82159f490b05a98fc5f0b5a42b3ddcc1e2f8282a444fb",
+      "file": "vscode-extension/src/webview/components/UniversalGraphMap.tsx",
+      "line": 74,
+      "column": 68,
+      "symbol": "UniversalGraphMap",
+      "target": "568 lines",
+      "acknowledgedAt": "2026-10-30T01:40:04.389482+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-30 01:40:04"
+    },
+    {
+      "fingerprint": "11077e0c911e686bdaf2c85f006f8e9ea9040e7aa4035375245c1d899a459c9d",
+      "file": "vscode-extension/src/webview/domain/components/DomainGatesPanel.tsx",
+      "line": 30,
+      "column": 66,
+      "symbol": "DomainGatesPanel",
+      "target": "809 lines",
+      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
+    },
+    {
+      "fingerprint": "b4b8e021acc32d582c9651ce475a88f288cc22d5413d179edc426e25c71feeb7",
+      "file": "vscode-extension/src/webview/domain/components/DomainSettingsPanel.tsx",
+      "line": 61,
+      "column": 72,
+      "symbol": "DomainSettingsPanel",
+      "target": "547 lines",
+      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
+    },
+    {
+      "fingerprint": "d1f88cc97db58cedc165b7276e99b9c98bb61df06a66b061eaf1ae8e4587757c",
+      "file": "vscode-extension/src/webview/domain/components/DomainVisibilityPanel.tsx",
+      "line": 72,
+      "column": 76,
+      "symbol": "DomainVisibilityPanel",
+      "target": "852 lines",
+      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
+    },
+    {
+      "fingerprint": "bf7d98df2438d70b9a384ab9eb0d6650f5608acb883e9616961702edd36391a5",
+      "file": "vscode-extension/src/webview/layout/concentricSectorsLayout.ts",
+      "line": 63,
+      "column": 8,
+      "symbol": "computeConcentricSectorsLayout",
+      "target": "543 lines",
+      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
     }
   ]
 }

@@ -1,8 +1,7 @@
+using CodeExplorer.Core.Database;
 using System.Threading.Channels;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Parser.TypeScript.Components;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.TypeScript;
@@ -35,7 +34,7 @@ public class SpecFileCallLiteralExclusionTests
             var filePath = Path.Combine(dir, fileName);
             await File.WriteAllTextAsync(filePath, code ?? Code);
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            var ctx = new ParsingContext(tempDir, tempDir, new InMemoryGraphClient(), channel);
+            var ctx = new ParsingContext(tempDir, tempDir, new InMemoryGraphRepository(), channel);
             using var syntaxTree = await new TypeScriptParser().ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var isTest = WorkspaceConventions.IsTestFilePath(filePath) || new JavaScriptTestRunnerComponentParser().IsTestSource(syntaxTree);
             syntaxTree.FileNode!.IsTest = isTest;

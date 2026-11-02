@@ -1,7 +1,3 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Rust.Libraries;
@@ -14,7 +10,7 @@ public class HyperLibraryParser : ISemanticExtension
 {
     public string Id => "hyper";
     public string Name => "Hyper";
-    public string Type => "http-client";
+    public SemanticExtensionType Type => SemanticExtensionType.HttpClient;
     public bool IsImplemented => true;
     public LibraryRole LibraryRole => LibraryRole.General;
     public IReadOnlyList<string> SupportedPatterns => ["hyper*"];

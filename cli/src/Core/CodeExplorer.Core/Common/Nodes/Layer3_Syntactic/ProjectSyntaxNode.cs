@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 
@@ -21,5 +22,5 @@ public record ProjectSyntaxNode(
 ) : CompositeNode(Id, Extensions)
 {
     [JsonIgnore]
-    public override string Kind => OntologyConstants.NodeLabels.ProjectSyntax;
+    public override NodeKind Kind => NodeKind.ProjectSyntax;
 }

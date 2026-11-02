@@ -6,6 +6,11 @@
   </Configurations>
   <Folder Name="/Core/">
     <Project Path="src/Core/CodeExplorer.Core/CodeExplorer.Core.csproj" />
+    <Project Path="src/Core/CodeExplorer.Gates/CodeExplorer.Gates.csproj" />
+    <Project Path="src/Core/CodeExplorer.Analysis/CodeExplorer.Analysis.csproj" />
+  </Folder>
+  <Folder Name="/Server/">
+    <Project Path="src/Server/CodeExplorer.Server/CodeExplorer.Server.csproj" />
   </Folder>
   <Folder Name="/Parsers/">
     <Project Path="src/Parsers/CodeExplorer.Parser.Android/CodeExplorer.Parser.Android.csproj" />

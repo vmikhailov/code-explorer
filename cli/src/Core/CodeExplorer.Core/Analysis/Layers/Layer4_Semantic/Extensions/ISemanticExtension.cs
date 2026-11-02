@@ -1,6 +1,4 @@
 using System.Collections.Immutable;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Core.Parser;
@@ -22,9 +20,9 @@ public interface ISemanticExtension
     string Name { get; }
 
     /// <summary>
-    /// The type of the extension (e.g., "framework", "db:relational", "messaging", "cloud").
+    /// The type of the extension (e.g. Framework, RelationalDb, Queue, Cloud, HttpClient).
     /// </summary>
-    string Type => "framework";
+    SemanticExtensionType Type => SemanticExtensionType.Framework;
 
     /// <summary>
     /// The architectural role of this extension when present in code.

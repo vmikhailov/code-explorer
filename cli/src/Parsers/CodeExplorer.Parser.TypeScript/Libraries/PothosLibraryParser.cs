@@ -1,7 +1,3 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
@@ -20,7 +16,7 @@ public class PothosLibraryParser : ISemanticExtension
 {
     public string Id => "pothos-graphql";
     public string Name => "Pothos GraphQL";
-    public string Type => "framework";
+    public SemanticExtensionType Type => SemanticExtensionType.Framework;
     public LibraryRole LibraryRole => LibraryRole.WebService;
     public IReadOnlyList<string> SupportedPatterns => ["@pothos/core"];
     public bool IsBuiltIn => true;

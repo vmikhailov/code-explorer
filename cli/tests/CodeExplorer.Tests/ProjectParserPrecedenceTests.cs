@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Parser.CSharp;
 using CodeExplorer.Parser.TypeScript;
 using NUnit.Framework;

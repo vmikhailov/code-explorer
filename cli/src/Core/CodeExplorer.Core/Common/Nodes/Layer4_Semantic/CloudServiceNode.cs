@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 
@@ -17,11 +18,11 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 public record CloudServiceNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,
-    [property: OntologyProperty("The package type or entity type.")] string Type,
+    [property: OntologyProperty("The cloud service resource type (e.g. S3Bucket, DynamoDb, CloudService).")] string ResourceType,
     [property: OntologyProperty("The path of the folder or file relative to its parent container.")] string Path,
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {
     [JsonIgnore]
-    public override string Kind => OntologyConstants.NodeLabels.CloudService;
+    public override NodeKind Kind => NodeKind.CloudService;
 }

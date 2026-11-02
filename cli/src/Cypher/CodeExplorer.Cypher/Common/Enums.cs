@@ -1,10 +1,11 @@
+using System.Collections.Frozen;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace CodeExplorer.Cypher.Common;
 
 [JsonConverter(typeof(NodeKindJsonConverter))]
-public enum NodeKind
+public enum NodeKind : byte
 {
     Unspecified = 0,
     Service = 1,
@@ -38,10 +39,21 @@ public enum NodeKind
     BoundedContext = 29,
     Ingress = 30,
     PeerMesh = 31,
-    ScanIssue = 32
+    ScanIssue = 32,
+    FilesStructure = 33,
+    ProjectsStructure = 34,
+    SyntaxStructure = 35,
+    ProjectSyntax = 36,
+    SemanticStructure = 37,
+    ProjectSemantic = 38,
+    LogicalStructure = 39,
+    CallLiteral = 40,
+    CatchClause = 41,
+    Counter = 42,
+    GitSettings = 43
 }
 
-public enum RelationshipKind
+public enum RelationshipKind : byte
 {
     Unspecified = 0,
     Calls = 1,
@@ -58,7 +70,135 @@ public enum RelationshipKind
     Exposes = 12,
     AttributedTo = 13,
     Configures = 14,
-    CoordinatesWith = 15
+    CoordinatesWith = 15,
+    PublishesTo = 16,
+    SubscribedBy = 17,
+    ImplementedBy = 18,
+    ExposedBy = 19,
+    HasMember = 20,
+    HasMethod = 21,
+    HasVariable = 22,
+    HasEntrypoint = 23,
+    DeclaresType = 24,
+    UsesType = 25,
+    OfType = 26,
+    QueriedBy = 27,
+    PersistedIn = 28,
+    TransformsTo = 29,
+    LocatedIn = 30,
+    UsesCloud = 31,
+    UsesGit = 32,
+    Triggers = 33,
+    Tests = 34,
+    UsesApi = 35,
+    TransitivelyCalls = 36,
+    Defines = 37,
+    Declares = 38,
+    PassesLiteral = 39,
+    Instantiates = 40,
+    IntegratesWith = 41,
+    DeclaredIn = 42,
+    QueriesDb = 43,
+    SubscribesTo = 44,
+    AccessedBy = 45,
+    CalledBy = 46,
+    PublishedBy = 47,
+    BelongsTo = 48,
+    Deploys = 49,
+    DeployedBy = 50,
+    BelongsToDomain = 51,
+    ExposesDomain = 52,
+    SubdomainOf = 53,
+    Handles = 54,
+    InheritsFrom = 55,
+    PotentialType = 56
+}
+
+/// <summary>
+/// High-performance, zero-allocation pre-compiled FrozenDictionary lookup maps
+/// for bidirectional mapping between string labels/types and strongly-typed 1-byte enums.
+/// </summary>
+public static class OntologyEnumMaps
+{
+    public static readonly FrozenDictionary<string, NodeKind> NodeKindByName;
+    public static readonly FrozenDictionary<NodeKind, string> NameByNodeKind;
+    public static readonly FrozenDictionary<string, RelationshipKind> RelKindByName;
+    public static readonly FrozenDictionary<RelationshipKind, string> NameByRelKind;
+
+    static OntologyEnumMaps()
+    {
+        var nodeByName = new Dictionary<string, NodeKind>(StringComparer.OrdinalIgnoreCase);
+        var nameByNode = new Dictionary<NodeKind, string>();
+
+        foreach (var val in Enum.GetValues<NodeKind>())
+        {
+            var name = val.ToString();
+            nodeByName[name] = val;
+            if (val != NodeKind.Unspecified && !nameByNode.ContainsKey(val))
+            {
+                nameByNode[val] = name;
+            }
+        }
+
+        // Aliases
+        nodeByName["frontendapp"] = NodeKind.App;
+        nodeByName["cli"] = NodeKind.CliTool;
+        nodeByName["db"] = NodeKind.Database;
+        nodeByName["queue"] = NodeKind.Topic;
+        nodeByName["broker"] = NodeKind.Topic;
+        nodeByName["external"] = NodeKind.ExternalService;
+        nodeByName["class"] = NodeKind.Type;
+        nodeByName["interface"] = NodeKind.Type;
+        nodeByName["method"] = NodeKind.Function;
+        nodeByName["field"] = NodeKind.Member;
+        nodeByName["property"] = NodeKind.Member;
+        nodeByName["context"] = NodeKind.BoundedContext;
+        nodeByName["bounded_context"] = NodeKind.BoundedContext;
+        nodeByName["scan_issue"] = NodeKind.ScanIssue;
+        nodeByName["parse_issue"] = NodeKind.ScanIssue;
+        nodeByName["parseissue"] = NodeKind.ScanIssue;
+
+        NodeKindByName = nodeByName.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+        NameByNodeKind = nameByNode.ToFrozenDictionary();
+
+        var relByName = new Dictionary<string, RelationshipKind>(StringComparer.OrdinalIgnoreCase);
+        var nameByRel = new Dictionary<RelationshipKind, string>();
+
+        foreach (var val in Enum.GetValues<RelationshipKind>())
+        {
+            var rawName = val.ToString();
+            var cypherName = ToUpperUnderscore(rawName);
+            relByName[rawName] = val;
+            relByName[cypherName] = val;
+            relByName[rawName.ToLowerInvariant()] = val;
+            relByName[cypherName.ToLowerInvariant()] = val;
+            relByName[cypherName.Replace("_", "")] = val;
+
+            if (val != RelationshipKind.Unspecified && !nameByRel.ContainsKey(val))
+            {
+                nameByRel[val] = cypherName;
+            }
+        }
+
+        RelKindByName = relByName.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+        NameByRelKind = nameByRel.ToFrozenDictionary();
+    }
+
+    private static string ToUpperUnderscore(string camelOrPascal)
+    {
+        if (string.IsNullOrEmpty(camelOrPascal)) return "";
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < camelOrPascal.Length; i++)
+        {
+            var c = camelOrPascal[i];
+            if (char.IsUpper(c) && i > 0 && !char.IsUpper(camelOrPascal[i - 1]))
+            {
+                sb.Append('_');
+            }
+            sb.Append(char.ToUpperInvariant(c));
+        }
+        return sb.ToString();
+    }
 }
 
 public enum ProjectRole
@@ -111,55 +251,26 @@ public enum ArchitectureViewType
 
 public static class EnumExtensions
 {
-    public static string ToCypherLabel(this NodeKind kind) => kind.ToString();
+    public static string ToCypherLabel(this NodeKind kind) =>
+        OntologyEnumMaps.NameByNodeKind.GetValueOrDefault(kind, kind.ToString());
 
     public static NodeKind ParseNodeKind(string? label)
     {
         if (string.IsNullOrWhiteSpace(label)) return NodeKind.Unspecified;
-        if (Enum.TryParse<NodeKind>(label, ignoreCase: true, out var kind))
-            return kind;
-        
-        return label.ToLowerInvariant() switch
-        {
-            "frontendapp" => NodeKind.App,
-            "cli" => NodeKind.CliTool,
-            "db" => NodeKind.Database,
-            "queue" or "broker" => NodeKind.Topic,
-            "external" => NodeKind.ExternalService,
-            "class" or "interface" => NodeKind.Type,
-            "method" => NodeKind.Function,
-            "field" or "property" => NodeKind.Member,
-            "bounded_context" or "context" => NodeKind.BoundedContext,
-            "scan_issue" or "parse_issue" or "parseissue" => NodeKind.ScanIssue,
-            _ => NodeKind.Unspecified
-        };
+        return OntologyEnumMaps.NodeKindByName.GetValueOrDefault(label.Trim(), NodeKind.Unspecified);
     }
 
-    public static string ToCypherType(this RelationshipKind kind) => kind switch
-    {
-        RelationshipKind.Calls => "CALLS",
-        RelationshipKind.DependsOn => "DEPENDS_ON",
-        RelationshipKind.ServiceCall => "SERVICE_CALL",
-        RelationshipKind.UsesDb => "USES_DB",
-        RelationshipKind.Produces => "PRODUCES",
-        RelationshipKind.Consumes => "CONSUMES",
-        RelationshipKind.CallsEndpoint => "CALLS_ENDPOINT",
-        RelationshipKind.Contains => "CONTAINS",
-        RelationshipKind.Implements => "IMPLEMENTS",
-        RelationshipKind.WritesTo => "WRITES_TO",
-        RelationshipKind.ReadsFrom => "READS_FROM",
-        RelationshipKind.Exposes => "EXPOSES",
-        RelationshipKind.AttributedTo => "ATTRIBUTED_TO",
-        RelationshipKind.Configures => "CONFIGURES",
-        _ => kind.ToString().ToUpperInvariant()
-    };
+    public static string ToCypherType(this RelationshipKind kind) =>
+        OntologyEnumMaps.NameByRelKind.GetValueOrDefault(kind, kind.ToString().ToUpperInvariant());
 
     public static RelationshipKind ParseRelationshipKind(string? relType)
     {
         if (string.IsNullOrWhiteSpace(relType)) return RelationshipKind.Unspecified;
-        return Enum.TryParse<RelationshipKind>(relType.Replace("_", ""), ignoreCase: true, out var kind)
-            ? kind
-            : RelationshipKind.Unspecified;
+        var trimmed = relType.Trim();
+        if (OntologyEnumMaps.RelKindByName.TryGetValue(trimmed, out var kind))
+            return kind;
+        var normalized = trimmed.Replace("_", "");
+        return OntologyEnumMaps.RelKindByName.GetValueOrDefault(normalized, RelationshipKind.Unspecified);
     }
 
     public static ProjectRole ParseProjectRole(string? role)

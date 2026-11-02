@@ -1,7 +1,3 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
@@ -10,7 +6,7 @@ public class GrpcCSharpLibraryParser : ISemanticExtension
 {
     public string Name => "gRPC";
     public string Id => "grpc";
-    public string Type => "framework";
+    public SemanticExtensionType Type => SemanticExtensionType.Framework;
     public IReadOnlyList<string> SupportedPatterns =>
     [
         "Grpc", "Grpc.*", "Grpc.Core", "Grpc.Net.Client", "Grpc.AspNetCore",
@@ -51,7 +47,9 @@ public class GrpcCSharpLibraryParser : ISemanticExtension
             var target = ExtractClientTarget(node);
             if (!string.IsNullOrEmpty(target))
             {
-                references.Add(new Reference(scopeSymbolId, target, "CALLS"));
+                references.Add(new Reference(scopeSymbolId, target, "CALLS",
+                    (int)node.StartPosition.Row + 1,
+                    (int)node.StartPosition.Column + 1));
             }
         }
     }

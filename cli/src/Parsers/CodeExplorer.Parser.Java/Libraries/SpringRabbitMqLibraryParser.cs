@@ -1,7 +1,4 @@
 using System.Collections.Frozen;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
 
 namespace CodeExplorer.Parser.Java.Libraries;
 
@@ -11,8 +8,8 @@ public class SpringRabbitMqLibraryParser : DeclarativeSemanticExtension
     {
         Id = "rabbitmq";
         Name = "RabbitMQ";
-        Type = OntologyConstants.LibraryTypes.Queue;
-        PackageDescriptorTypeOverride = "library";
+        Type = SemanticExtensionType.Queue;
+        PackageDescriptorTypeOverride = SemanticExtensionType.Library;
         LibraryRole = LibraryRole.MessageBroker;
         SupportedPatterns = ["org.springframework.amqp.*", "com.rabbitmq.*"];
         MessagingBrokerRules =

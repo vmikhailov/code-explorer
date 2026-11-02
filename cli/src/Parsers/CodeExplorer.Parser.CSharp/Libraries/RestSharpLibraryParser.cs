@@ -1,7 +1,3 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
@@ -10,7 +6,7 @@ public class RestSharpLibraryParser : ISemanticExtension
 {
     public string Name => "RestSharp";
     public string Id => "restsharp";
-    public string Type => "api";
+    public SemanticExtensionType Type => SemanticExtensionType.ApiClient;
     public IReadOnlyList<string> SupportedPatterns => ["RestSharp", "RestSharp.*"];
     public bool IsImplemented => true;
     public LibraryRole LibraryRole => LibraryRole.General;

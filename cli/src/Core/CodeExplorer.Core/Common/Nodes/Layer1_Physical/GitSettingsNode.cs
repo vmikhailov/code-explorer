@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
 
 namespace CodeExplorer.Core.Common.Nodes.Layer1_Physical;
@@ -23,5 +24,5 @@ public record GitSettingsNode(
 ) : CompositeNode(Id, Extensions)
 {
     [JsonIgnore]
-    public override string Kind => OntologyConstants.NodeLabels.GitSettings;
+    public override NodeKind Kind => NodeKind.GitSettings;
 }

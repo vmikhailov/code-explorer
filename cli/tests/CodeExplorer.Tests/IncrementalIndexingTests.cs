@@ -1,4 +1,4 @@
-using CodeExplorer.Core.Parser;
+using CodeExplorer.Cypher.Common;
 using CodeExplorer.Core.Parser.Incremental;
 using CodeExplorer.Options;
 using CommandLine;
@@ -29,7 +29,7 @@ public class IncrementalIndexingTests
         var oldSymbol = new SymbolFootprint(
             SymbolId: "ws:sym:test.cs:Function:Calculate",
             QualifiedName: "Calculator.Calculate",
-            Kind: "Function",
+            Kind: NodeKind.Function,
             SignatureHash: "sig_hash_int_calculate_int_a",
             BodyHash: "body_hash_1_plus_1",
             OutgoingCalls: ["Logger.Log"],
@@ -42,7 +42,7 @@ public class IncrementalIndexingTests
         var newSymbol = new SymbolFootprint(
             SymbolId: "ws:sym:test.cs:Function:Calculate",
             QualifiedName: "Calculator.Calculate",
-            Kind: "Function",
+            Kind: NodeKind.Function,
             SignatureHash: "sig_hash_int_calculate_int_a",
             BodyHash: "body_hash_2_plus_2",
             OutgoingCalls: ["Logger.Log"],
@@ -75,7 +75,7 @@ public class IncrementalIndexingTests
         var oldSymbol = new SymbolFootprint(
             SymbolId: "ws:sym:test.cs:Function:Submit",
             QualifiedName: "OrderService.Submit",
-            Kind: "Function",
+            Kind: NodeKind.Function,
             SignatureHash: "sig_submit",
             BodyHash: "body_submit_v1",
             OutgoingCalls: ["_repo.Save"],
@@ -88,7 +88,7 @@ public class IncrementalIndexingTests
         var newSymbol = new SymbolFootprint(
             SymbolId: "ws:sym:test.cs:Function:Submit",
             QualifiedName: "OrderService.Submit",
-            Kind: "Function",
+            Kind: NodeKind.Function,
             SignatureHash: "sig_submit",
             BodyHash: "body_submit_v2",
             OutgoingCalls: ["_repo.Save", "_emailSender.SendNotification"],
@@ -121,7 +121,7 @@ public class IncrementalIndexingTests
         var oldSymbol = new SymbolFootprint(
             SymbolId: "ws:sym:test.cs:Function:Foo",
             QualifiedName: "FooClass.Foo",
-            Kind: "Function",
+            Kind: NodeKind.Function,
             SignatureHash: "sig_foo",
             BodyHash: "body_foo",
             OutgoingCalls: [],
@@ -134,7 +134,7 @@ public class IncrementalIndexingTests
         var newSymbol = new SymbolFootprint(
             SymbolId: "ws:sym:test.cs:Function:Foo",
             QualifiedName: "FooClass.Foo",
-            Kind: "Function",
+            Kind: NodeKind.Function,
             SignatureHash: "sig_foo",
             BodyHash: "body_foo",
             OutgoingCalls: [],
@@ -275,7 +275,7 @@ public class IncrementalIndexingTests
 
             var methodSym = snapshot.Symbols.Values.FirstOrDefault(s => s.QualifiedName == "Process");
             methodSym.Should().NotBeNull();
-            methodSym!.Kind.Should().Be("Function");
+            methodSym!.Kind.Should().Be(NodeKind.Function);
             methodSym.StartLine.Should().BeGreaterThan(0);
             methodSym.OutgoingCalls.Any(c => c is "System.Console.WriteLine" or "Console.WriteLine").Should().BeTrue();
         }

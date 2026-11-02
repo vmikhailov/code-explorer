@@ -1,7 +1,6 @@
+using CodeExplorer.Core.Database;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -62,7 +61,7 @@ public class Layer1Layer2MatrixBaselineTests
         var expectedAnswers = JsonSerializer.Deserialize<Dictionary<string, ExpectedProjectAnswer>>(json, jsonOptions);
         expectedAnswers.Should().NotBeNull("Failed to deserialize expected.json");
 
-        await using var client = new InMemoryGraphClient();
+        await using var client = new InMemoryGraphRepository();
         var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_sampleProjectsRoot, clear: false);
 

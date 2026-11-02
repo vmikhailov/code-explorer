@@ -131,7 +131,21 @@ public sealed class CSharpSyntaxConverter : TreeSitterSyntaxConverterBase
             case MemberAccessExprSyntax memExpr:
                 var objNode = memExpr.GetChildForField("expression") ?? memExpr.GetChildForField("qualifier");
                 var propNode = memExpr.GetChildForField("name");
-                if (objNode is ExprSyntax objExpr) memExpr.Object = objExpr;
+                if (objNode is ExprSyntax objExpr)
+                {
+                    memExpr.Object = objExpr;
+                }
+                else if (objNode != null)
+                {
+                    memExpr.Object = new IdentifierExprSyntax
+                    {
+                        Name = objNode.Text,
+                        Span = objNode.Span,
+                        Document = objNode.Document,
+                        Parent = memExpr,
+                        RawGrammarKind = objNode.RawGrammarKind
+                    };
+                }
                 if (propNode != null) memExpr.MemberName = propNode.Text;
                 break;
         }

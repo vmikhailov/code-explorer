@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Parser;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
@@ -12,7 +11,7 @@ public sealed class DotNetTestLibraryParser : ISemanticExtension
 
     public string Id => "dotnet-test";
     public string Name => ".NET Test Frameworks";
-    public string Type => "library";
+    public SemanticExtensionType Type => SemanticExtensionType.Library;
     public LibraryRole LibraryRole => LibraryRole.TestFramework;
 
     public IReadOnlyList<string> SupportedPatterns =>

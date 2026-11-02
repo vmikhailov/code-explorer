@@ -1,7 +1,3 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Python.Libraries;
@@ -10,7 +6,7 @@ public class FlaskLibraryParser : ISemanticExtension
 {
     public string Name => "Flask";
     public string Id => "flask";
-    public string Type => "framework";
+    public SemanticExtensionType Type => SemanticExtensionType.Framework;
     public IReadOnlyList<string> SupportedPatterns => ["flask", "flask.*"];
     public bool IsImplemented => true;
     public LibraryRole LibraryRole => LibraryRole.WebService;

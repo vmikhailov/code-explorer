@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Parser;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Java.Libraries;
@@ -12,7 +11,7 @@ public sealed class JavaTestLibraryParser : ISemanticExtension
 
     public string Id => "java-test";
     public string Name => "Java Test Frameworks";
-    public string Type => "library";
+    public SemanticExtensionType Type => SemanticExtensionType.Library;
     public LibraryRole LibraryRole => LibraryRole.TestFramework;
 
     public IReadOnlyList<string> SupportedPatterns =>

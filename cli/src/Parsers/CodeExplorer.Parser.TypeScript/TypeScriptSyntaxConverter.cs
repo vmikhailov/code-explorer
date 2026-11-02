@@ -113,7 +113,7 @@ public sealed class TypeScriptSyntaxConverter : TreeSitterSyntaxConverterBase
                     callExpr.Receiver = memberCallee.Object;
                     callExpr.MethodName = memberCallee.MemberName;
                 }
-                else if (fnNode != null)
+                else if (fnNode != null && (fnNode.Span.EndByte - fnNode.Span.StartByte) <= 128)
                 {
                     callExpr.MethodName = fnNode.Text;
                 }

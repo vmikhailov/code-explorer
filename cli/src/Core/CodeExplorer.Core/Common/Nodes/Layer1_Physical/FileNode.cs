@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
 
 namespace CodeExplorer.Core.Common.Nodes.Layer1_Physical;
@@ -18,7 +19,7 @@ public record FileNode(
     [property: OntologyProperty("The path of the folder or file relative to its parent container.")] string Path,
     string FullPath,
     bool IsTest,
-    string? ProjectKind = null,
+    ProjectEntityKind? ProjectKind = null,
     string? ProjectName = null,
     int? LineCount = null,
     long? SizeBytes = null,
@@ -34,7 +35,7 @@ public record FileNode(
     public bool IsTest { get; set; } = IsTest;
 
     [JsonPropertyName("project_kind"), OntologyProperty("The architectural kind of the enclosing project.")]
-    public string? ProjectKind { get; set; } = ProjectKind;
+    public ProjectEntityKind? ProjectKind { get; set; } = ProjectKind;
 
     [JsonPropertyName("project_name"), OntologyProperty("The name of the enclosing project.")]
     public string? ProjectName { get; set; } = ProjectName;
@@ -45,6 +46,9 @@ public record FileNode(
     [JsonPropertyName("size_bytes"), OntologyProperty("Size of the file in bytes.")]
     public long? SizeBytes { get; set; } = SizeBytes;
 
+    [JsonPropertyName("artifact_role"), OntologyProperty("The physical artifact role of the file (source, dist, minified, declaration, script).")]
+    public string? ArtifactRole { get; set; }
+
     [JsonIgnore]
     public string? ContentHash { get; set; }
 
@@ -52,5 +56,5 @@ public record FileNode(
     public DateTime? LastModifiedUtc { get; set; }
 
     [JsonIgnore]
-    public override string Kind => OntologyConstants.NodeLabels.File;
+    public override NodeKind Kind => NodeKind.File;
 }

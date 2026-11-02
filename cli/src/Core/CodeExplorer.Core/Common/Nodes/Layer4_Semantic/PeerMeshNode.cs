@@ -1,5 +1,5 @@
+using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
-using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 
 namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 
@@ -22,5 +22,5 @@ public record PeerMeshNode(
 ) : CompositeNode(Id, Extensions)
 {
     [JsonIgnore]
-    public override string Kind => OntologyConstants.NodeLabels.PeerMesh;
+    public override NodeKind Kind => NodeKind.PeerMesh;
 }

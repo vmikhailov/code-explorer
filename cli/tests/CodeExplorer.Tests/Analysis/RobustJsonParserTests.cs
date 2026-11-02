@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Analysis;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests.Analysis;

@@ -49,7 +49,18 @@ var outputDir = Path.GetDirectoryName(outputPath);
 if (!string.IsNullOrEmpty(outputDir))
     Directory.CreateDirectory(outputDir);
 
-await File.WriteAllTextAsync(outputPath, markdown);
+var existingMarkdown = File.Exists(outputPath) ? await File.ReadAllTextAsync(outputPath) : null;
+if (!string.Equals(existingMarkdown, markdown, StringComparison.Ordinal))
+{
+    try
+    {
+        await File.WriteAllTextAsync(outputPath, markdown);
+    }
+    catch (IOException)
+    {
+        // Ignore transient file lock when IDE or another MSBuild worker has docs/ontology.md memory-mapped
+    }
+}
 
 Console.WriteLine($"[OntologyGen] Written {nodeInfos.Count} nodes, {relInfos.Count} relationships → {outputPath}");
 return 0;

@@ -157,7 +157,7 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
 
   const [hiddenSearchQuery, setHiddenSearchQuery] = useState('');
 
-  const isProjectMapMode = Boolean(props.customPresetsSlot);
+  const hasCustomPresets = Boolean(props.customPresetsSlot);
 
   // Derive entity types directly from the ontological node kinds present in the graph (no view-side mapping)
   const entityTypes: EntityTypeItem[] = useMemo(() => {
@@ -687,7 +687,7 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
         <div className="visibility-presets-list">
           {props.customPresetsSlot}
           {/* Hide 1:1 Databases (C1/C2 only) */}
-          {!isProjectMapMode && (
+          {!hasCustomPresets && (
             <button
               type="button"
               className={`visibility-preset-item ${hideSingleConnectionDbs ? 'is-active' : ''}`}
@@ -731,7 +731,7 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
           </button>
 
           {/* Transitive Messaging Calls (C1/C2 only) */}
-          {!isProjectMapMode && (
+          {!hasCustomPresets && (
             <button
               type="button"
               className={`visibility-preset-item ${showTransitiveEdges ? 'is-active' : ''}`}

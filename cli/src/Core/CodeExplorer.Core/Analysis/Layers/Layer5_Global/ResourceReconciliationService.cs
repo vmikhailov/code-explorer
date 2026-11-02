@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Common;
 
 namespace CodeExplorer.Core.Analysis;
 
@@ -32,7 +31,7 @@ public record DatabaseUsageRecord(
 /// discovered across configuration manifests, Docker Compose, environment files, and code.
 /// Eliminates duplicate database nodes and maps ORM/driver usages to single canonical resources.
 /// </summary>
-public class ResourceReconciliationService
+public partial class ResourceReconciliationService
 {
     private readonly ConcurrentDictionary<string, CanonicalResource> _resourcesById = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, string> _aliasToResourceId = new(StringComparer.OrdinalIgnoreCase);
@@ -41,27 +40,14 @@ public class ResourceReconciliationService
 
     public IReadOnlyCollection<CanonicalResource> AllResources => [.. _resourcesById.Values];
 
-    public static string BuildCanonicalDatabaseId(string workspaceId, string dbType, string canonicalName)
-    {
-        var cleanType = string.IsNullOrWhiteSpace(dbType) ? "relational" : dbType.ToLowerInvariant().Trim();
-        var cleanName = Regex.Replace((canonicalName ?? "database").ToLowerInvariant().Trim(), @"[^a-z0-9_-]", "_").Trim('_');
-        if (string.IsNullOrEmpty(cleanName)) cleanName = "default";
-        return $"{workspaceId}:res:db:{cleanType}:{cleanName}";
-    }
+    public static string BuildCanonicalDatabaseId(string workspaceId, string dbType, string canonicalName) =>
+        ResourceNamingHelper.BuildCanonicalDatabaseId(workspaceId, dbType, canonicalName);
 
-    public static string BuildCanonicalTopicId(string workspaceId, string brokerType, string topicName)
-    {
-        var cleanName = Regex.Replace((topicName ?? "topic").ToLowerInvariant().Trim(), @"[^a-z0-9_.-]", "_").Trim('_');
-        var cleanBroker = string.IsNullOrWhiteSpace(brokerType) ? "broker" : brokerType.ToLowerInvariant().Trim();
-        return $"{workspaceId}:res:topic:{cleanBroker}:{cleanName}";
-    }
+    public static string BuildCanonicalTopicId(string workspaceId, string brokerType, string topicName) =>
+        ResourceNamingHelper.BuildCanonicalTopicId(workspaceId, brokerType, topicName);
 
-    public static string BuildCanonicalServiceId(string workspaceId, string scope, string host)
-    {
-        var cleanHost = WorkspaceConventions.NormalizeServiceName(host);
-        if (string.IsNullOrEmpty(cleanHost)) cleanHost = (host ?? "service").ToLowerInvariant().Trim();
-        return $"{workspaceId}:res:service:{scope}:{cleanHost}";
-    }
+    public static string BuildCanonicalServiceId(string workspaceId, string scope, string host) =>
+        ResourceNamingHelper.BuildCanonicalServiceId(workspaceId, scope, host);
 
     /// <summary>
     /// Registers or updates a canonical resource discovered from infrastructure/configuration.
@@ -405,7 +391,7 @@ public class ResourceReconciliationService
                              IsKnownDatabaseEngine(aliasOrName) ||
                              aliasOrName.EndsWith("_client", StringComparison.OrdinalIgnoreCase) ||
                              aliasOrName.EndsWith("-client", StringComparison.OrdinalIgnoreCase) ||
-                             (!string.IsNullOrWhiteSpace(expectedEngine) && 
+                             (!string.IsNullOrWhiteSpace(expectedEngine) &&
                               (aliasOrName.Equals(expectedEngine, StringComparison.OrdinalIgnoreCase) ||
                                aliasOrName.StartWithIC($"{expectedEngine}_")));
 
@@ -518,121 +504,24 @@ public class ResourceReconciliationService
         return trimmed;
     }
 
-    public static bool IsEngineDbName(string lower)
-    {
-        return lower is "mongodb" or "cosmosdb" or "dynamodb" or "couchdb" or "mariadb" or 
-                        "influxdb" or "duckdb" or "leveldb" or "rocksdb" or "alloydb" or "tidb";
-    }
+    public static bool IsEngineDbName(string lower) =>
+        ResourceNamingHelper.IsEngineDbName(lower);
 
-    public static string StripDatabaseSuffix(string name)
-    {
-        if (string.IsNullOrWhiteSpace(name)) return name;
-        var trimmed = name.Trim();
-        var lower = trimmed.ToLowerInvariant();
+    public static string StripDatabaseSuffix(string name) =>
+        ResourceNamingHelper.StripDatabaseSuffix(name);
 
-        if (IsEngineDbName(lower))
-        {
-            return trimmed;
-        }
+    public static string NormalizeEngineName(string? engine) =>
+        ResourceNamingHelper.NormalizeEngineName(engine);
 
-        if (lower.EndsWith("_database") && trimmed.Length > 9 && (trimmed.Length - 9) >= 3)
-        {
-            trimmed = trimmed[..^9].TrimEnd('_', '-');
-        }
-        else if (lower.EndsWith("database") && trimmed.Length > 8 && (trimmed.Length - 8) >= 3)
-        {
-            trimmed = trimmed[..^8].TrimEnd('_', '-');
-        }
-        else if (lower.EndsWith("_db") && trimmed.Length > 3 && (trimmed.Length - 3) >= 3)
-        {
-            trimmed = trimmed[..^3].TrimEnd('_', '-');
-        }
-        else if (lower.EndsWith("-db") && trimmed.Length > 3 && (trimmed.Length - 3) >= 3)
-        {
-            trimmed = trimmed[..^3].TrimEnd('_', '-');
-        }
-        else if (lower.EndsWith("db") && trimmed.Length > 2 && (trimmed.Length - 2) >= 3)
-        {
-            if (!IsEngineDbName(lower))
-            {
-                trimmed = trimmed[..^2].TrimEnd('_', '-');
-            }
-        }
+    public static bool IsGenericConfigKey(string key) =>
+        ResourceNamingHelper.IsGenericConfigKey(key);
 
-        return trimmed;
-    }
+    public static string NormalizeAlias(string raw) =>
+        ResourceNamingHelper.NormalizeAlias(raw);
 
-    public static string NormalizeEngineName(string? engine)
-    {
-        var lower = (engine ?? "").Trim().ToLowerInvariant();
-        return lower switch
-        {
-            "postgres" or "postgresql" or "npgsql" or "pg" => "PostgreSQL",
-            "mysql" or "mysql2" => "MySQL",
-            "mariadb" => "MariaDB",
-            "sqlite" or "sqlite3" => "SQLite",
-            "mssql" or "sqlserver" or "sql server" or "tedious" => "SQL Server",
-            "oracle" or "oracledb" => "Oracle",
-            "mongodb" or "mongo" => "MongoDB",
-            "redis" or "ioredis" => "Redis",
-            "clickhouse" => "ClickHouse",
-            "bigquery" => "BigQuery",
-            "cassandra" => "Cassandra",
-            "elasticsearch" => "Elasticsearch",
-            "neo4j" => "Neo4j",
-            _ => string.IsNullOrWhiteSpace(engine) || IsGenericConfigKey(lower) ? "PostgreSQL" : engine.Trim()
-        };
-    }
+    public static bool IsKnownDatabaseEngine(string? engine) =>
+        ResourceNamingHelper.IsKnownDatabaseEngine(engine);
 
-    public static bool IsGenericConfigKey(string key)
-    {
-        var lower = (key ?? "").Trim().ToLowerInvariant();
-        return lower is "defaultconnection" or "connectionstring" or "connectionstrings" or
-               "database" or "db" or "datasource" or "main" or "default" or
-               "relational" or "keyvalue" or "document" or
-               "spring.datasource.url" or "spring-datasource" or "database_url" or
-               "typeorm" or "ef-core" or "efcore" or "ef core" or "microsoft.entityframeworkcore" or "dapper" or
-               "prisma" or "sequelize" or "drizzle" or "hibernate" or "sqlalchemy" or
-               "peewee" or "gorm" or "jpa" or "jdbctemplate" or "knex" ||
-               lower.Contains("jpa") || lower.Contains("hibernate") || lower.Contains("spring data");
-    }
-
-    public static string NormalizeAlias(string raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw)) return "";
-        var clean = raw.Trim().ToLowerInvariant();
-        // Strip common URL prefixes
-        if (clean.StartsWith("postgresql://") || clean.StartsWith("postgres://"))
-            clean = clean[(clean.IndexOf("://") + 3)..];
-        else if (clean.StartsWith("mysql://") || clean.StartsWith("redis://") || clean.StartsWith("mongodb://") || clean.StartsWith("amqp://"))
-            clean = clean[(clean.IndexOf("://") + 3)..];
-
-        return clean;
-    }
-
-    public static bool IsKnownDatabaseEngine(string? engine)
-    {
-        var lower = (engine ?? "").Trim().ToLowerInvariant();
-        return lower is "postgres" or "postgresql" or "npgsql" or "pg" or
-               "mysql" or "mysql2" or "mariadb" or
-               "sqlite" or "sqlite3" or
-               "mssql" or "sqlserver" or "sql server" or "tedious" or
-               "oracle" or "oracledb" or
-               "mongodb" or "mongo" or
-               "redis" or "ioredis" or
-               "clickhouse" or "bigquery" or "cassandra" or "elasticsearch" or "neo4j";
-    }
-
-    public static bool IsDisallowedDatabaseAlias(string alias)
-    {
-        if (string.IsNullOrWhiteSpace(alias)) return true;
-        var lower = alias.Trim().ToLowerInvariant();
-        return IsKnownDatabaseEngine(lower) ||
-               lower is "typeorm" or "ef-core" or "microsoft.entityframeworkcore" or "dapper" or
-               "prisma" or "sequelize" or "drizzle" or "hibernate" or "sqlalchemy" or
-               "peewee" or "gorm" or "jpa" or "jdbctemplate" or "knex" or
-               "database" or "db" or "datasource" or "relational" or "keyvalue" or "document" or
-               "public" or "dbo" or "main" or "default" ||
-               lower.Contains("jpa") || lower.Contains("hibernate") || lower.Contains("spring data");
-    }
+    public static bool IsDisallowedDatabaseAlias(string alias) =>
+        ResourceNamingHelper.IsDisallowedDatabaseAlias(alias);
 }

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
+using CodeExplorer.Core.Parser.Syntax;
 
 namespace CodeExplorer.Core.Analysis;
 
@@ -133,17 +134,60 @@ public static class EvidenceProvenanceHelper
         return fallback;
     }
 
-    public static Dictionary<string, string>? BuildCallSiteExtensions(int line, int column)
+    public static Dictionary<string, string>? BuildCallSiteExtensions(
+        int line,
+        int column,
+        CallSiteExecutionContext context = default,
+        string? argFlow = null)
     {
         if (line <= 0) return null;
         var col = Math.Max(1, column);
-        return new Dictionary<string, string>
+        var dict = new Dictionary<string, string>
         {
             ["line"] = line.ToString(),
             ["column"] = col.ToString(),
             ["call_sites"] = $"[\"{line}:{col}\"]",
             ["call_count"] = "1"
         };
+
+        if (context.Flags.HasFlag(CallExecutionFlags.InLoop))
+        {
+            dict["in_loop"] = "true";
+        }
+        if (context.LoopDepth > 0)
+        {
+            dict["loop_depth"] = context.LoopDepth.ToString();
+        }
+        if (context.Flags.HasFlag(CallExecutionFlags.IsConditional))
+        {
+            dict["is_conditional"] = "true";
+        }
+        if (context.Flags.HasFlag(CallExecutionFlags.InTryBlock))
+        {
+            dict["in_try"] = "true";
+        }
+        if (context.Flags.HasFlag(CallExecutionFlags.InCatchBlock))
+        {
+            dict["in_catch"] = "true";
+        }
+        if (context.Flags.HasFlag(CallExecutionFlags.InFinallyBlock))
+        {
+            dict["in_finally"] = "true";
+        }
+        if (context.Flags.HasFlag(CallExecutionFlags.InLockBlock))
+        {
+            dict["in_lock"] = "true";
+        }
+        if (context.Flags.HasFlag(CallExecutionFlags.IsAwaited))
+        {
+            dict["is_awaited"] = "true";
+        }
+        if (!string.IsNullOrEmpty(argFlow))
+        {
+            dict["arg_flow"] = argFlow;
+        }
+
+        return dict;
     }
 
     public static List<string> ParseCallSites(IReadOnlyDictionary<string, object>? properties)

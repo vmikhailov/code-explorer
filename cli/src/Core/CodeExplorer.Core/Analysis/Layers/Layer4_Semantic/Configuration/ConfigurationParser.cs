@@ -1,6 +1,4 @@
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Analysis;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -226,9 +224,9 @@ public static class ConfigurationParser
              leaf.Equals("spring.datasource.url", StringComparison.OrdinalIgnoreCase) ||
              leaf.Equals("db", StringComparison.OrdinalIgnoreCase) ||
              leaf.Equals(engine, StringComparison.OrdinalIgnoreCase) ||
-             PostIndexAnalyzer.AbstractEngineNames.Contains(leaf) ||
-             PostIndexAnalyzer.KnownDbEnginesAndNames.Contains(leaf) ||
-             ResourceReconciliationService.IsGenericConfigKey(leaf));
+             ResourceNamingHelper.AbstractEngineNames.Contains(leaf) ||
+             ResourceNamingHelper.KnownDbEnginesAndNames.Contains(leaf) ||
+             ResourceNamingHelper.IsGenericConfigKey(leaf));
 
         string? dbName = null;
         if (!string.IsNullOrWhiteSpace(catalog))
@@ -243,8 +241,8 @@ public static class ConfigurationParser
                 cleanCustom = cleanCustom[..^"Options".Length];
             }
             if (!cleanCustom.Equals(engine, StringComparison.OrdinalIgnoreCase) &&
-                !PostIndexAnalyzer.AbstractEngineNames.Contains(cleanCustom) &&
-                !ResourceReconciliationService.IsGenericConfigKey(cleanCustom))
+                !ResourceNamingHelper.AbstractEngineNames.Contains(cleanCustom) &&
+                !ResourceNamingHelper.IsGenericConfigKey(cleanCustom))
             {
                 dbName = cleanCustom;
             }
@@ -266,7 +264,7 @@ public static class ConfigurationParser
             if (isCache)
             {
                 var domain = (containerNode is ProjectNode or ServiceNode or AppNode or WorkerNode or CliToolNode or LibraryNode or TestSuiteNode)
-                    ? ResourceSemanticAnalyzer.CleanProjectNameToDomain(rawProjName)
+                    ? ResourceNamingHelper.CleanProjectNameToDomain(rawProjName)
                     : "";
                 if (!string.IsNullOrEmpty(domain))
                 {
@@ -282,7 +280,7 @@ public static class ConfigurationParser
             {
                 if ((containerNode is ProjectNode or ServiceNode or AppNode or WorkerNode or CliToolNode) && !isLibContainer && !isTstContainer)
                 {
-                    var domain = ResourceSemanticAnalyzer.CleanProjectNameToDomain(rawProjName);
+                    var domain = ResourceNamingHelper.CleanProjectNameToDomain(rawProjName);
                     if (!string.IsNullOrWhiteSpace(domain))
                     {
                         dbName = WorkspaceConventions.NormalizeServiceName(domain);
@@ -299,7 +297,7 @@ public static class ConfigurationParser
         if (!isCache)
         {
             if (string.Equals(dbName, engine, StringComparison.OrdinalIgnoreCase) ||
-                PostIndexAnalyzer.IsAbstractEngineOnlyDatabase(dbName, catalog, dbType, null))
+                ResourceNamingHelper.IsAbstractEngineOnlyDatabase(dbName, catalog, dbType, null))
             {
                 return;
             }

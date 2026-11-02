@@ -1,5 +1,6 @@
 using System.Text;
 using CodeExplorer.Cypher.Ast;
+using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Cypher.Compiler;
 
@@ -366,13 +367,16 @@ public partial class SqliteCompiler
     private void AddRelKindConditions(RelationshipPattern rel, string relVar, List<string> conditions)
     {
         var rVar = EscapeVar(relVar);
-        if (rel.Types.Count == 1)
+        if (rel.RelationshipKinds.Count == 1)
         {
-            conditions.Add($"{rVar}.kind = '{rel.Types[0]}'");
+            var kind = rel.RelationshipKinds[0];
+            var typeName = kind != RelationshipKind.Unspecified ? kind.ToCypherType() : rel.Types[0];
+            conditions.Add($"{rVar}.kind = '{typeName}'");
         }
-        else if (rel.Types.Count > 1)
+        else if (rel.RelationshipKinds.Count > 1)
         {
-            var kinds = string.Join(", ", rel.Types.Select(t => $"'{t}'"));
+            var kinds = string.Join(", ", rel.RelationshipKinds.Select((k, idx) =>
+                $"'{((k != RelationshipKind.Unspecified) ? k.ToCypherType() : rel.Types[idx])}'"));
             conditions.Add($"{rVar}.kind IN ({kinds})");
         }
 
@@ -388,13 +392,16 @@ public partial class SqliteCompiler
     private void AddNodeFiltersToConditions(NodePattern node, string nodeVar, List<string> conditions)
     {
         var nVar = EscapeVar(nodeVar);
-        if (node.Labels.Count == 1)
+        if (node.NodeKinds.Count == 1)
         {
-            conditions.Add($"{nVar}.kind = '{node.Labels[0]}'");
+            var kind = node.NodeKinds[0];
+            var labelName = kind != NodeKind.Unspecified ? kind.ToCypherLabel() : node.Labels[0];
+            conditions.Add($"{nVar}.kind = '{labelName}'");
         }
-        else if (node.Labels.Count > 1)
+        else if (node.NodeKinds.Count > 1)
         {
-            var kinds = string.Join(", ", node.Labels.Select(l => $"'{l}'"));
+            var kinds = string.Join(", ", node.NodeKinds.Select((k, idx) =>
+                $"'{((k != NodeKind.Unspecified) ? k.ToCypherLabel() : node.Labels[idx])}'"));
             conditions.Add($"{nVar}.kind IN ({kinds})");
         }
 

@@ -1,10 +1,7 @@
+using CodeExplorer.Core.Database;
 using System.Threading.Channels;
-using AwesomeAssertions;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
-using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.Rust;
 using NUnit.Framework;
@@ -117,7 +114,7 @@ public class RustIrisMpcTests
 
         var parser = new RustParser();
         var channel = Channel.CreateUnbounded<Func<Task>>();
-        await using var client = new InMemoryGraphClient();
+        await using var client = new InMemoryGraphRepository();
         var ctx = new ParsingContext(IrisMpcWorkspacePath, IrisMpcWorkspacePath, client, channel);
 
         using var syntaxTree = await parser.ParseAsync(libFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -216,13 +213,13 @@ public class RustIrisMpcTests
         if (File.Exists(storePath))
         {
             using var storeTree = await parser.ParseAsync(storePath, "parent", "ws", IrisMpcWorkspacePath);
-            Layer3SyntacticParser.ProcessVisitor(storeTree, "ws", IrisMpcWorkspacePath, null, "iris-mpc-store", false, "Library");
+            Layer3SyntacticParser.ProcessVisitor(storeTree, "ws", IrisMpcWorkspacePath, null, "iris-mpc-store", false, ProjectEntityKind.Library);
             var schemas = ResourceSemanticAnalyzer.DetectDeclaredSchemas(null, storeTree.FileNode, storeTree, "relational");
             TestContext.Out.WriteLine($"iris-mpc-store schemas: {string.Join(", ", schemas)}");
             schemas.Should().BeEmpty();
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(IrisMpcWorkspacePath, IrisMpcWorkspacePath, client, channel);
             ctx.SemanticStructure = new SemanticStructureNode("ws:sem", "sem", IrisMpcWorkspacePath);
             var projNode = new ProjectNode("proj:iris-mpc-store", "iris-mpc-store", "iris-mpc-store", "rust", "Library", true, new Dictionary<string, string> { ["role"] = "Library", ["is_library"] = "true" });

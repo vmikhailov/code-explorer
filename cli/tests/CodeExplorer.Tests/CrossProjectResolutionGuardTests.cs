@@ -1,14 +1,5 @@
-using System.Threading.Channels;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Analysis;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Common.Nodes;
-using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
-using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
-using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Common.Relationships;
 using CodeExplorer.Core.Database;
-using CodeExplorer.Core.Parser;
+using System.Threading.Channels;
 using CodeExplorer.Core.Parser.Layers;
 using NUnit.Framework;
 
@@ -41,7 +32,7 @@ public class CrossProjectResolutionGuardTests
         // bundle-update-adapter defines function "get".
         // fe has no dependency on bundle-update-adapter.
         var channel = Channel.CreateUnbounded<Func<Task>>();
-        var client = new InMemoryGraphClient();
+        var client = new InMemoryGraphRepository();
         var ctx = new ParsingContext("c:/work", "c:/work", client, channel);
         ctx.WorkspaceId = "ws";
 
@@ -76,7 +67,7 @@ public class CrossProjectResolutionGuardTests
         // HttpClient is an external Angular class (not in TypeSymbols).
         // Calling this.http.get('/bundles') must NOT strip 'HttpClient.' and fallback to bare 'get' in fe or bundle-update-adapter.
         var channel = Channel.CreateUnbounded<Func<Task>>();
-        var client = new InMemoryGraphClient();
+        var client = new InMemoryGraphRepository();
         var ctx = new ParsingContext("c:/work", "c:/work", client, channel);
         ctx.WorkspaceId = "ws";
 
@@ -124,7 +115,7 @@ public class CrossProjectResolutionGuardTests
         // bff has an endpoint GET /bundles that triggers getBundles
         // bundle-update-adapter ALSO has a function named getBundles
         var channel = Channel.CreateUnbounded<Func<Task>>();
-        var client = new InMemoryGraphClient();
+        var client = new InMemoryGraphRepository();
         var ctx = new ParsingContext("c:/work", "c:/work", client, channel);
         ctx.WorkspaceId = "ws";
 

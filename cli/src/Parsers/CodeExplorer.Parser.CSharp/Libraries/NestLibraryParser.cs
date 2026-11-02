@@ -1,14 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
 public class NestLibraryParser : ISemanticExtension
 {
-    public string Type => "db:search";
+    public SemanticExtensionType Type => SemanticExtensionType.SearchDb;
     public string Name => "Elasticsearch (NEST)";
     public string Id => "elasticsearch-nest";
     public IReadOnlyList<string> SupportedPatterns => ["Nest", "Nest.*", "Elastic.Clients.Elasticsearch", "Elastic.Clients.Elasticsearch.*"];

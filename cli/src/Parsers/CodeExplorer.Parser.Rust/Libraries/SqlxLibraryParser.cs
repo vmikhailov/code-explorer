@@ -1,7 +1,3 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Rust.Libraries;
@@ -16,7 +12,7 @@ public class SqlxLibraryParser : ISemanticExtension
 {
     public string Id => "sqlx";
     public string Name => "SQLx";
-    public string Type => "db:relational";
+    public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
     public bool IsImplemented => true;
     public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
     public IReadOnlyList<string> SupportedPatterns => ["sqlx*"];

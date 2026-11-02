@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
 
 namespace CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
@@ -18,5 +19,5 @@ public record SyntaxStructureNode(
 ) : CompositeNode(Id, Extensions)
 {
     [JsonIgnore]
-    public override string Kind => OntologyConstants.NodeLabels.SyntaxStructure;
+    public override NodeKind Kind => NodeKind.SyntaxStructure;
 }

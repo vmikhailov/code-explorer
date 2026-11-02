@@ -1,14 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Go.Libraries;
 
 public class GoRedisLibraryParser : ISemanticExtension
 {
-    public string Type => "db:keyvalue";
+    public SemanticExtensionType Type => SemanticExtensionType.KeyValueDb;
     public string Name => "Redis (go-redis)";
     public string Id => "go-redis";
     public IReadOnlyList<string> SupportedPatterns => ["github.com/redis/go-redis/v9*", "github.com/redis/go-redis*"];

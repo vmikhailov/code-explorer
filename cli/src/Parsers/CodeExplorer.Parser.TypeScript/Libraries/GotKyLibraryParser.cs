@@ -1,14 +1,10 @@
-﻿using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
-using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+﻿using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public class GotKyLibraryParser : ISemanticExtension
 {
-    public string Type => "api";
+    public SemanticExtensionType Type => SemanticExtensionType.ApiClient;
     public string Name => "Got / Ky HTTP Clients";
     public string Id => "got-ky";
     public IReadOnlyList<string> SupportedPatterns => ["got", "ky", "ky-universal", "superagent", "needle"];

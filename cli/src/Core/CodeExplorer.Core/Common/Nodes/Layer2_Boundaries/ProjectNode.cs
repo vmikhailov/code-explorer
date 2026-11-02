@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 
@@ -58,6 +59,9 @@ public record ProjectNode(
     [JsonPropertyName("role"), OntologyProperty("Architectural role of the project (e.g. Service, SharedLibrary, FrontendApp, Worker, CliTool, Test).")]
     public string Role { get; set; } = Role;
 
+    [JsonPropertyName("archetype"), OntologyProperty("Architectural archetype of the project (e.g. PureUtility, ClientUi, CliTool, Framework, BackendService, DatabaseDriver, NativeAddon).")]
+    public string Archetype => Extensions?.GetValueOrDefault("archetype") ?? Role;
+
     [JsonPropertyName("primary_role"), OntologyProperty("Primary architectural role of the project (e.g. WebService, Scheduler, WorkerService, SharedLibrary, FrontendFramework, CliFramework, TestFramework).")]
     public string? PrimaryRole => Extensions?.GetValueOrDefault("primary_role") ?? Role;
 
@@ -80,10 +84,10 @@ public record ProjectNode(
     public bool IsTest => EntityKind == ProjectEntityKind.Test || Role.Equals(OntologyConstants.ProjectRoles.Test, StringComparison.OrdinalIgnoreCase) || WorkspaceConventions.IsTestFilePath(Path);
 
     [JsonPropertyName("project_kind"), OntologyProperty("The physical entity classification kind.")]
-    public string ProjectKind => KindValue;
+    public ProjectEntityKind ProjectKind => EntityKind;
 
     [JsonIgnore]
-    public override string Kind => OntologyConstants.NodeLabels.Project;
+    public override NodeKind Kind => NodeKind.Project;
 
     /// <summary>
     /// Information extracted by shared file parsers (environment files, application settings, ...).

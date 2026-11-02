@@ -621,7 +621,7 @@ public partial class SqliteGraphClient
 
             try
             {
-                var searchEngine = new Analysis.IdentifierSearchEngine(_logger);
+                var searchEngine = new IdentifierSearchEngine(_logger);
                 await searchEngine.RebuildIndexAsync(_conn);
             }
             catch (Exception ex)

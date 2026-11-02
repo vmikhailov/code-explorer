@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
 
 namespace CodeExplorer.Core.Common.Nodes.Layer1_Physical;
@@ -20,5 +21,5 @@ public record FilesStructureNode(
 ) : CompositeNode(Id, Extensions)
 {
     [JsonIgnore]
-    public override string Kind => OntologyConstants.NodeLabels.FilesStructure;
+    public override NodeKind Kind => NodeKind.FilesStructure;
 }

@@ -1,14 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 
 public class KafkaJsLibraryParser : ISemanticExtension
 {
-    public string Type => "cloud";
+    public SemanticExtensionType Type => SemanticExtensionType.Cloud;
     public string Name => "KafkaJS";
     public string Id => "kafkajs";
     public IReadOnlyList<string> SupportedPatterns => ["kafkajs"];

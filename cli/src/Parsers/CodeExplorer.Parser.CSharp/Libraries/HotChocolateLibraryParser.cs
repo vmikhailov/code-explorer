@@ -1,7 +1,3 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
@@ -10,7 +6,7 @@ public class HotChocolateLibraryParser : ISemanticExtension
 {
     public string Name => "HotChocolate GraphQL";
     public string Id => "hotchocolate";
-    public string Type => "framework";
+    public SemanticExtensionType Type => SemanticExtensionType.Framework;
     public IReadOnlyList<string> SupportedPatterns => ["HotChocolate", "HotChocolate.*", "HotChocolate.Types", "HotChocolate.AspNetCore"];
     public bool IsImplemented => true;
     public bool IsBuiltIn => true;

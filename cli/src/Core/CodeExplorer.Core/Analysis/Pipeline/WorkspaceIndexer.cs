@@ -6,6 +6,7 @@ using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser.Layers;
+using CodeExplorer.Cypher.Common;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -15,52 +16,58 @@ public class WorkspaceIndexer
 {
     static WorkspaceIndexer()
     {
-        Layer3SyntacticParser.SemanticPostProcessor = (tree, ctx) =>
-            Analysis.Layers.Layer4_Semantic.Analyzers.EndpointSemanticAnalyzer.Enrich(tree, null, ctx);
+        Layer3SyntacticParser.SemanticPostProcessor ??= (_, _) => { };
     }
+
+    public static Func<Layer3Result, ParsingContext, Task>? PostSyntacticPipelineHook { get; set; }
+    public static Action? OnIndexCompletedHook { get; set; }
 
     internal static readonly List<IProjectParser> _projectParsers = [];
     internal static readonly List<IFileParser> _fileParsers = [];
+    private static readonly object _registrationLock = new();
 
     public static void Register(object parser)
     {
-        if (parser is IProjectParser projectParser)
+        lock (_registrationLock)
         {
-            if (_projectParsers.All(p => p.GetType() != projectParser.GetType()))
+            if (parser is IProjectParser projectParser)
             {
-                var ordered = ProjectParserPrecedence.Order([.. _projectParsers, projectParser]);
-                _projectParsers.Clear();
-                _projectParsers.AddRange(ordered);
+                if (_projectParsers.All(p => p.GetType() != projectParser.GetType()))
+                {
+                    var ordered = ProjectParserPrecedence.Order([.. _projectParsers, projectParser]);
+                    _projectParsers.Clear();
+                    _projectParsers.AddRange(ordered);
+                }
+
+                foreach (var desc in projectParser.ConfigurationDescriptors)
+                {
+                    LibraryConfigurationRegistry.Register(desc);
+                }
             }
 
-            foreach (var desc in projectParser.ConfigurationDescriptors)
+            if (parser is IFileParser fileParser)
             {
-                LibraryConfigurationRegistry.Register(desc);
+                if (_fileParsers.All(p => p.GetType() != fileParser.GetType()))
+                    _fileParsers.Add(fileParser);
             }
-        }
 
-        if (parser is IFileParser fileParser)
-        {
-            if (_fileParsers.All(p => p.GetType() != fileParser.GetType()))
-                _fileParsers.Add(fileParser);
-        }
+            if (parser is ISharedFileParser sharedParser)
+            {
+                SharedFileParserRegistry.Register(sharedParser);
+            }
 
-        if (parser is ISharedFileParser sharedParser)
-        {
-            SharedFileParserRegistry.Register(sharedParser);
-        }
+            if (parser is ILibraryConfigurationDescriptor configDesc)
+            {
+                LibraryConfigurationRegistry.Register(configDesc);
+            }
 
-        if (parser is ILibraryConfigurationDescriptor configDesc)
-        {
-            LibraryConfigurationRegistry.Register(configDesc);
-        }
+            if (parser is Components.IComponentLibraryParser componentParser)
+            {
+                Components.ComponentLibraryParserRegistry.Register(componentParser);
+            }
 
-        if (parser is Components.IComponentLibraryParser componentParser)
-        {
-            Components.ComponentLibraryParserRegistry.Register(componentParser);
+            WorkspaceFileFilter.ResetDefault();
         }
-
-        WorkspaceFileFilter.ResetDefault();
     }
 
     /// <summary>
@@ -260,10 +267,10 @@ public class WorkspaceIndexer
             syntaxTrees = l3.SyntaxTrees;
             ctx.ReportProgress(52, "Layer 4: Semantic", $"Parsed {syntaxTrees.Count} syntax trees. Analyzing semantics...", syntaxTrees.Count, indexedFiles.Count);
 
-            var l4 = await new Layer4SemanticParser().ParseAsync(l3, ctx);
+            if (PostSyntacticPipelineHook != null) await PostSyntacticPipelineHook(l3, ctx);
             ctx.ReportProgress(68, "Layer 5: Global", "Semantic enrichment complete. Resolving global references...", syntaxTrees.Count, indexedFiles.Count);
 
-            await new Layer5AnalysisParser().ParseAsync(l4, ctx);
+            
             ctx.ReportProgress(86, "Finalizing", "Post-indexing analysis pass complete.", syntaxTrees.Count, indexedFiles.Count);
         }
 
@@ -274,7 +281,7 @@ public class WorkspaceIndexer
         await _dbClient.SetSchemaVersionAsync(IGraphClient.CurrentSchemaVersion);
         await _dbClient.CreateIndicesAsync();
         ctx.ReportProgress(99, "Finalizing", "Invalidating view cache...", syntaxTrees.Count, indexedFiles.Count);
-        Analysis.ArchitectureViewEngine.InvalidateCache();
+        OnIndexCompletedHook?.Invoke();
         if (!ctx.ScanIssues.IsEmpty)
         {
             var issuesList = ctx.ScanIssues.Values.Select(v => v.Issue).ToList();
@@ -686,7 +693,7 @@ public class WorkspaceIndexer
                 .Select(r => r.TargetName)
                 .ToHashSet();
 
-            var sig = $"{child.Kind}:{name}";
+            var sig = $"{child.Kind.ToCypherLabel()}:{name}";
             var sigHash = Incremental.HashUtility.ComputeSha256(sig);
 
             var bodySummary = string.Join(";", calls.OrderBy(x => x).Concat(types.OrderBy(x => x)));
@@ -729,6 +736,6 @@ public class WorkspaceIndexer
     private void LogPersistenceSummary(ParsingContext ctx)
     {
         ctx.LogDebug(
-            $"[Database   ] All background channel persistence writes completed! Total persisted: {ctx.GetTotalNodesPersisted()} nodes, {ctx.GetTotalRelsPersisted()} relationships.");
+            $"[Database   ] All background channel persistence writes completed! Total persisted: {ctx.TotalNodesPersisted} nodes, {ctx.TotalRelsPersisted} relationships.");
     }
 }

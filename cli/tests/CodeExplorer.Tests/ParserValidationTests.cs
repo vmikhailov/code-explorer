@@ -1,12 +1,10 @@
+using CodeExplorer.Core.Database;
 using System.Threading.Channels;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.CSharp;
 using CodeExplorer.Parser.Go;
@@ -39,7 +37,7 @@ public class ParserValidationTests
             var workspacePath = tempFile.DirectoryPath;
             var channel = Channel.CreateUnbounded<Func<Task>>();
 
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
 
             var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
@@ -64,7 +62,7 @@ public class ParserValidationTests
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
 
-        await using var client = new InMemoryGraphClient();
+        await using var client = new InMemoryGraphRepository();
 
         var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
@@ -102,7 +100,7 @@ public class ParserValidationTests
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
 
-        await using var client = new InMemoryGraphClient();
+        await using var client = new InMemoryGraphRepository();
 
         var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
@@ -135,7 +133,7 @@ public class ParserValidationTests
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
 
-        await using var client = new InMemoryGraphClient();
+        await using var client = new InMemoryGraphRepository();
 
         var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
@@ -168,7 +166,7 @@ public class ParserValidationTests
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
 
-        await using var client = new InMemoryGraphClient();
+        await using var client = new InMemoryGraphRepository();
 
         var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
@@ -229,7 +227,7 @@ public class ParserValidationTests
     {
         var rawSql = "SELECT DISTINCT _TABLE_SUFFIX AS suffix FROM `calculation_history.expect_site_cpm_*`";
         var queryNode = NestedSqlParser.ParseNestedSql(rawSql, "ws:query:1", "bq-routes-calculation/src/repository/history.repository.ts");
-        
+
         queryNode.Should().NotBeNull();
         var dbNode = queryNode!.Children.OfType<DatabaseNode>().FirstOrDefault();
         dbNode.Should().NotBeNull();
@@ -359,7 +357,7 @@ public class ParserValidationTests
 
         // "EXTERNAL_QUERY" should NEVER be recognized as a TableNode
         allTables.Any(t => t.Name.Equals("EXTERNAL_QUERY", StringComparison.OrdinalIgnoreCase)).Should().BeFalse("EXTERNAL_QUERY must not be recognized as a table!");
-        
+
         // "sources" and "cost_loss_all_sources" should be recognized
         (allTables.Any(t => t.Name == "cost_loss_all_sources")).Should().BeTrue("Table 'cost_loss_all_sources' should be recognized");
         (allTables.Any(t => t.Name == "sources")).Should().BeTrue("Table 'sources' should be recognized");
@@ -376,7 +374,7 @@ public class ParserValidationTests
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
 
-        await using var client = new InMemoryGraphClient();
+        await using var client = new InMemoryGraphRepository();
 
         var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
@@ -473,7 +471,7 @@ public class ParserValidationTests
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
 
-        await using var client = new InMemoryGraphClient();
+        await using var client = new InMemoryGraphRepository();
 
         var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
@@ -507,7 +505,7 @@ public class ParserValidationTests
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
 
-        await using var client = new InMemoryGraphClient();
+        await using var client = new InMemoryGraphRepository();
 
         var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
@@ -550,7 +548,7 @@ public class ParserValidationTests
         // Setup parsing context
         var channel = Channel.CreateUnbounded<Func<Task>>();
 
-        await using var client = new InMemoryGraphClient();
+        await using var client = new InMemoryGraphRepository();
 
         var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
         ctx.WorkspaceId = "1";
@@ -682,7 +680,7 @@ public class ParserValidationTests
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
 
-        await using var client = new InMemoryGraphClient();
+        await using var client = new InMemoryGraphRepository();
 
         var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
         ctx.WorkspaceId = "1";
@@ -777,7 +775,7 @@ public class ParserValidationTests
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
 
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
 
             var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
             ctx.WorkspaceId = "1";
@@ -902,7 +900,7 @@ public class ParserValidationTests
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
 
-        await using var client = new InMemoryGraphClient();
+        await using var client = new InMemoryGraphRepository();
 
         var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
         ctx.WorkspaceId = "1";
@@ -1038,7 +1036,7 @@ public class ParserValidationTests
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
 
-        await using var client = new InMemoryGraphClient();
+        await using var client = new InMemoryGraphRepository();
 
         var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
@@ -1170,7 +1168,7 @@ public class MyHub {}
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
 
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
 
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
@@ -1242,7 +1240,7 @@ public class DicomClient {
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
 
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
 
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
@@ -1335,7 +1333,7 @@ public static class StartupExtensions
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
             using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -1395,7 +1393,7 @@ public class RestService {
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
 
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
 
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
@@ -1450,7 +1448,7 @@ func registerRoutes() {
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
 
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
 
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
@@ -1521,7 +1519,7 @@ public interface IUsersApi
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
 
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
 
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 

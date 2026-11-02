@@ -1,6 +1,4 @@
 using System.Collections.Frozen;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Parser;
 
 namespace CodeExplorer.Parser.Java.Libraries;
 
@@ -10,7 +8,7 @@ public class SpringMvcLibraryParser : DeclarativeSemanticExtension
     {
         Id = "spring-web";
         Name = "Spring Web / MVC";
-        Type = "framework:web";
+        Type = SemanticExtensionType.Framework;
         LibraryRole = LibraryRole.WebService;
         SupportedPatterns =
         [

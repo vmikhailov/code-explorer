@@ -1,8 +1,4 @@
 using System.Text.RegularExpressions;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
@@ -11,7 +7,7 @@ public class RoutingControllersLibraryParser : ISemanticExtension
 {
     public string Name => "RoutingControllers";
     public string Id => "routing-controllers";
-    public string Type => "framework";
+    public SemanticExtensionType Type => SemanticExtensionType.Framework;
     public IReadOnlyList<string> SupportedPatterns => ["routing-controllers"];
     public bool IsImplemented => true;
     public LibraryRole LibraryRole => LibraryRole.WebService;

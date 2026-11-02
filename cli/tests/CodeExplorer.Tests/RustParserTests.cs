@@ -1,10 +1,9 @@
+using CodeExplorer.Core.Database;
 using System.Text.Json;
 using System.Threading.Channels;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parser.Rust;
 using CodeExplorer.Parser.Rust.Libraries;
@@ -84,7 +83,7 @@ public class RustParserTests
         var produced = await parser.GetProducedPackageAsync(domainDir);
         produced.Should().NotBeNull();
         produced!.Name.Should().Be("domain-models");
-        produced.Type.Should().Be("rust");
+        produced.Ecosystem.Should().Be("rust");
 
         var authDir = GetFixturePath("microservices-workspace/crates/auth-service");
         var authDeps = await parser.ParseDependenciesAsync(authDir);
@@ -376,7 +375,7 @@ public class RustParserTests
 
         var workspacePath = GetFixturePath("microservices-workspace");
         var channel = Channel.CreateUnbounded<Func<Task>>();
-        await using var client = new InMemoryGraphClient();
+        await using var client = new InMemoryGraphRepository();
         var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
         using var syntaxTree = await parser.ParseAsync(domainFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -412,7 +411,7 @@ public class RustParserTests
 
         var workspacePath = GetFixturePath("microservices-workspace");
         var channel = Channel.CreateUnbounded<Func<Task>>();
-        await using var client = new InMemoryGraphClient();
+        await using var client = new InMemoryGraphRepository();
         var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
 
         using var syntaxTree = await parser.ParseAsync(authMain, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -487,7 +486,7 @@ public class RustParserTests
         {
             var parser = new RustParser();
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel);
 
             using var syntaxTree = await parser.ParseAsync(testFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);

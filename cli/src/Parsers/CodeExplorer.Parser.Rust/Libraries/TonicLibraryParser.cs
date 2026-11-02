@@ -1,7 +1,3 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Rust.Libraries;
@@ -15,7 +11,7 @@ public class TonicLibraryParser : ISemanticExtension
 {
     public string Id => "tonic";
     public string Name => "Tonic (gRPC)";
-    public string Type => "framework";
+    public SemanticExtensionType Type => SemanticExtensionType.Framework;
     public bool IsImplemented => true;
     public LibraryRole LibraryRole => LibraryRole.WebService;
     public IReadOnlyList<string> SupportedPatterns => ["tonic*"];

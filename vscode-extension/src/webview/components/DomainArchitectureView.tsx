@@ -18,7 +18,6 @@ import {
 import {
   OrbitConfig,
   DEFAULT_ORBIT_CONFIG,
-  DEFAULT_PROJECT_MAP_ORBIT_CONFIG,
   sanitizeOrbitConfig,
   isDefaultOrbitConfig,
   effectiveOrbitTier,
@@ -38,7 +37,6 @@ import {
   computeSwimlanesLayout,
   SwimlaneGuide,
   SWIMLANE_TITLES,
-  PROJECT_MAP_SWIMLANE_TITLES,
 } from '../layout/swimlanesLayout';
 import { computeDomainIslandsLayout, IslandGuide } from '../layout/domainIslandsLayout';
 import { computeHivePlotLayout, HiveAxisGuide } from '../layout/hivePlotLayout';
@@ -131,9 +129,6 @@ export interface DomainArchitectureViewProps {
   availableDomains?: string[];
   onRefresh?: () => void;
   gateEditorRequest?: { gateId?: string; timestamp: number } | null;
-  /** Optional custom HUD brand label (e.g., 'C3 Internal Structure'). */
-  /** Whether this view is in Project Map mode. */
-  isProjectMap?: boolean;
   /** Allowed layout options. */
   allowedLayouts?: Array<{ id: DomainLayoutName; label: string }>;
   hudLabel?: string;
@@ -991,7 +986,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   defaultNodeContentMode = 'icon',
   defaultHiddenTypes = ['ExternalService', 'Library'],
   storagePrefix = 'ce_domain_',
-  isProjectMap = false,
   allowedLayouts,
 }) => {
   const isMatrixMode = mode === 'matrix';
@@ -1144,7 +1138,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     }
   }, []);
 
-  const isProjectMapGraph = graph?.metadata?.graphType === 'projectmap' || storagePrefix.startsWith('ce_pm_');
   const customOrbitTitles = useMemo<Record<number, string> | undefined>(() => {
     const rawTiers = graph?.metadata?.tiers;
     if (!rawTiers) return undefined;
@@ -1168,20 +1161,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const [concentricGuides, setConcentricGuides] = useState<ConcentricOrbitGuide[]>([]);
   const [orbitLegendItems, setOrbitLegendItems] = useState<OrbitLegendItem[]>([]);
   const [isOrbitLegendOpen, setIsOrbitLegendOpen] = useState(true);
-  const [orbitConfig, setOrbitConfigState] = useState<OrbitConfig>(() =>
-    isProjectMapGraph ? DEFAULT_PROJECT_MAP_ORBIT_CONFIG : DEFAULT_ORBIT_CONFIG
-  );
+  const [orbitConfig, setOrbitConfigState] = useState<OrbitConfig>(() => DEFAULT_ORBIT_CONFIG);
   const orbitConfigRef = useRef<OrbitConfig>(orbitConfig);
   orbitConfigRef.current = orbitConfig;
   const [selectedOrbitRows, setSelectedOrbitRows] = useState<number[]>([]);
   const lastSelectedOrbitRowRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (isProjectMapGraph) {
-      orbitConfigRef.current = DEFAULT_PROJECT_MAP_ORBIT_CONFIG;
-      setOrbitConfigState(DEFAULT_PROJECT_MAP_ORBIT_CONFIG);
-      return;
-    }
     const onMessage = (event: MessageEvent) => {
       const msg = event.data;
       if (msg?.type === 'ORBIT_CONFIG') {
@@ -1194,7 +1180,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     window.addEventListener('message', onMessage);
     getVsCodeApi()?.postMessage({ type: 'GET_ORBIT_CONFIG' });
     return () => window.removeEventListener('message', onMessage);
-  }, [isProjectMapGraph]);
+  }, []);
 
   const [draggedOrbitIndex, setDraggedOrbitIndex] = useState<number | null>(null);
   const draggedKindRef = useRef<string | null>(null);
@@ -3728,6 +3714,26 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         if (cancelled) return;
       }
 
+      // Ensure container has non-zero DOM dimensions and Cytoscape is resized before laying out (e.g. after returning from Mermaid)
+      if (containerRef.current) {
+        if (containerRef.current.clientWidth === 0 || containerRef.current.clientHeight === 0) {
+          await new Promise<void>((resolve) => {
+            let attempts = 0;
+            const checkDimensions = () => {
+              if (cancelled || attempts++ > 30) return resolve();
+              if (containerRef.current && containerRef.current.clientWidth > 0 && containerRef.current.clientHeight > 0) {
+                resolve();
+              } else {
+                requestAnimationFrame(checkDimensions);
+              }
+            };
+            requestAnimationFrame(checkDimensions);
+          });
+          if (cancelled) return;
+        }
+        cy.resize();
+      }
+
       cy.batch(() => {
         cy.elements().remove();
         cy.add(elements);
@@ -3927,7 +3933,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           visibleNodesInput,
           visibleEdgesInput,
           spacing,
-          isProjectMap,
+          false,
           effectiveOrder,
           baseIconSizeRef.current
         );
@@ -3961,7 +3967,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             orbitCfg,
             customOrbitTitlesRef.current,
             'Lane',
-            isProjectMap ? PROJECT_MAP_SWIMLANE_TITLES : SWIMLANE_TITLES
+            SWIMLANE_TITLES
           )
         );
       } else if (layoutName === 'clusters') {
@@ -4074,6 +4080,11 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           ...layoutConfig,
           stop: () => {
             if (!cancelled) {
+              cy.resize();
+              const validZ = cy.zoom();
+              if (!Number.isFinite(validZ) || validZ <= 0) {
+                cy.fit(undefined, 60);
+              }
               recordBasePositions(cy);
               const factor = spacingFactorRef.current;
               if (factor !== 1.0) {
@@ -4441,8 +4452,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   const handleResetOrbitOrder = useCallback(() => {
     setHiddenOrbitTiers(new Set());
     setForcedVisibleNodeIds(new Set());
-    applyOrbitConfig(Boolean(customPresetsSlot) ? DEFAULT_PROJECT_MAP_ORBIT_CONFIG : DEFAULT_ORBIT_CONFIG);
-  }, [applyOrbitConfig, customPresetsSlot]);
+    applyOrbitConfig(DEFAULT_ORBIT_CONFIG);
+  }, [applyOrbitConfig]);
 
   // Wheel sensitivity change handler
   const handleWheelSensitivityChange = useCallback((val: number) => {
@@ -5458,13 +5469,16 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           </div>
 
           {/* Search & Sidebar Controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="domain-hud-controls-right">
             <div className="domain-hud-search">
               <input
                 type="text"
                 className="domain-search-input"
                 placeholder="Search domain or service..."
                 value={searchQuery}
+                style={{
+                  paddingRight: searchMatchCount !== null && searchQuery ? 54 : (searchMatchCount !== null || searchQuery ? 28 : 8)
+                }}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
@@ -5570,29 +5584,31 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           }}
           onOpenFile={onOpenFile}
         />
-      ) : layoutName === 'mermaid' ? (
-        <DomainMermaidView
-          nodes={visibleNodes.map((n) => rawGraph.detailMap.get(n.data.id as string)!).filter(Boolean)}
-          edges={visibleEdges.map((e) => ({
-            source: (e.data as any).source,
-            target: (e.data as any).target,
-            category: (e.data as any).category,
-            count: (e.data as any).count || 1,
-            label: (e.data as any).label,
-            kind: (e.data as any).kind,
-          }))}
-          selectedNodeId={selectedNode?.id}
-          onSelectNode={(nodeId) => {
-            const detail = rawGraph.detailMap.get(nodeId);
-            if (detail) {
-              setSelectedNode(detail);
-              setSelectedEdge(null);
-            }
-          }}
-          title={hudTitle || 'Architecture Mermaid Flowchart'}
-        />
       ) : (
         <>
+          {layoutName === 'mermaid' ? (
+            <DomainMermaidView
+              nodes={visibleNodes.map((n) => rawGraph.detailMap.get(n.data.id as string)!).filter(Boolean)}
+              edges={visibleEdges.map((e) => ({
+                source: (e.data as any).source,
+                target: (e.data as any).target,
+                category: (e.data as any).category,
+                count: (e.data as any).count || 1,
+                label: (e.data as any).label,
+                kind: (e.data as any).kind,
+              }))}
+              selectedNodeId={selectedNode?.id}
+              onSelectNode={(nodeId) => {
+                const detail = rawGraph.detailMap.get(nodeId);
+                if (detail) {
+                  setSelectedNode(detail);
+                  setSelectedEdge(null);
+                }
+              }}
+              title={hudTitle || 'Architecture Mermaid Flowchart'}
+            />
+          ) : (
+            <>
           {/* SVG Overlay Guides for Concentric, Swimlanes, Domain Islands, and Hive Plot */}
           {((layoutName.startsWith('concentric') && (concentricGuides.length > 0 || sectorGuides.length > 0)) ||
             (layoutName === 'swimlanes' && swimlaneGuides.length > 0) ||
@@ -5966,7 +5982,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               </g>
             </svg>
           )}
-          <div ref={containerRef} className="domain-cytoscape-container" />
+            </>
+          )}
+          <div
+            ref={containerRef}
+            className="domain-cytoscape-container"
+            style={{ display: layoutName === 'mermaid' ? 'none' : 'block' }}
+          />
         </>
       )}
 

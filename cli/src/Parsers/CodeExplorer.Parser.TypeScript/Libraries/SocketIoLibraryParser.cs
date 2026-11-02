@@ -1,7 +1,3 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
@@ -10,7 +6,7 @@ public class SocketIoLibraryParser : ISemanticExtension
 {
     public string Name => "Socket.io";
     public string Id => "socketio";
-    public string Type => "api";
+    public SemanticExtensionType Type => SemanticExtensionType.ApiClient;
     public IReadOnlyList<string> SupportedPatterns => ["socket.io", "socket.io-client"];
     public bool IsImplemented => true;
 

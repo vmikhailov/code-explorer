@@ -445,4 +445,115 @@ public class ProjectMapBuilderTests
         // Verify edge from controller to repo
         result.Edges.Should().Contain(e => e.SourceId == ctrlCamp.Id && e.TargetId == repo.Id);
     }
+
+    [Test]
+    public void Build_MultipleClassesInSameFile_ImplementingSameInterface_DoNotHavePhantomDependenciesBetweenEachOther()
+    {
+        var input = new ProjectMapInput
+        {
+            ProjectId = "ws:p:vscode-ext:",
+            ProjectName = "vscode-ext",
+            ProjectPath = "src",
+            Files =
+            [
+                F("src/webview/commands/commands.ts"),
+                F("src/webview/commands/types.ts"),
+                F("src/webview/commands/CommandManager.ts")
+            ],
+            Types =
+            [
+                new ProjectMapTypeNode("t:cmd1", "ChangeViewModeCommand", "class", "src/webview/commands/commands.ts", 10, 20, false, ["execute", "undo", "description"]),
+                new ProjectMapTypeNode("t:cmd2", "HideNodeCommand", "class", "src/webview/commands/commands.ts", 35, 20, false, ["execute", "undo", "description"]),
+                new ProjectMapTypeNode("t:cmd3", "ToggleLayerCollapseCommand", "class", "src/webview/commands/commands.ts", 60, 20, false, ["execute", "undo", "description"]),
+                new ProjectMapTypeNode("t:icmd", "ICommand", "interface", "src/webview/commands/types.ts", 5, 10, false, ["execute", "undo", "description"]),
+                new ProjectMapTypeNode("t:mgr", "CommandManager", "class", "src/webview/commands/CommandManager.ts", 5, 50, false, ["executeCommand"])
+            ],
+            Functions =
+            [
+                new ProjectMapFunctionNode("fn:helper", "getViewModeLabel", "src/webview/commands/commands.ts", 7, 5, false)
+            ],
+            TypeEdges =
+            [
+                new ProjectMapTypeEdge("ChangeViewModeCommand", "src/webview/commands/commands.ts", "ICommand", "src/webview/commands/types.ts", "IMPLEMENTS", 10),
+                new ProjectMapTypeEdge("HideNodeCommand", "src/webview/commands/commands.ts", "ICommand", "src/webview/commands/types.ts", "IMPLEMENTS", 35),
+                new ProjectMapTypeEdge("ToggleLayerCollapseCommand", "src/webview/commands/commands.ts", "ICommand", "src/webview/commands/types.ts", "IMPLEMENTS", 60),
+                new ProjectMapTypeEdge("ChangeViewModeCommand", "src/webview/commands/commands.ts", "getViewModeLabel", "src/webview/commands/commands.ts", "CALLS", 15),
+                new ProjectMapTypeEdge("HideNodeCommand", "src/webview/commands/commands.ts", "getViewModeLabel", "src/webview/commands/commands.ts", "CALLS", 40),
+                new ProjectMapTypeEdge("CommandManager", "src/webview/commands/CommandManager.ts", "ICommand", "src/webview/commands/types.ts", "CALLS", 15)
+            ],
+            SymbolEdges =
+            [
+                new ProjectMapSymbolEdge("src/webview/commands/commands.ts", "src/webview/commands/types.ts", "IMPLEMENTS", "ChangeViewModeCommand", "ICommand", 10),
+                new ProjectMapSymbolEdge("src/webview/commands/commands.ts", "src/webview/commands/types.ts", "IMPLEMENTS", "HideNodeCommand", "ICommand", 35),
+                new ProjectMapSymbolEdge("src/webview/commands/commands.ts", "src/webview/commands/types.ts", "IMPLEMENTS", "ToggleLayerCollapseCommand", "ICommand", 60),
+                new ProjectMapSymbolEdge("src/webview/commands/CommandManager.ts", "src/webview/commands/types.ts", "CALLS", "CommandManager", "ICommand", 15)
+            ]
+        };
+
+        var result = ProjectMapBuilder.Build(input);
+
+        result.Granularity.Should().Be(ProjectMapGranularity.Class);
+
+        var cmd1 = result.Modules.Single(m => m.Name == "ChangeViewModeCommand");
+        var cmd2 = result.Modules.Single(m => m.Name == "HideNodeCommand");
+        var cmd3 = result.Modules.Single(m => m.Name == "ToggleLayerCollapseCommand");
+        var mgr = result.Modules.Single(m => m.Name == "CommandManager");
+
+        // CommandManager should call the commands via ICommand polymorphic resolution
+        result.Edges.Should().Contain(e => e.SourceId == mgr.Id && e.TargetId == cmd1.Id);
+        result.Edges.Should().Contain(e => e.SourceId == mgr.Id && e.TargetId == cmd2.Id);
+        result.Edges.Should().Contain(e => e.SourceId == mgr.Id && e.TargetId == cmd3.Id);
+
+        // Implementing ICommand must NEVER produce dependency edges between the command implementations,
+        // and calling an unattached helper function in the same file must not create inter-command edges.
+        var commandIds = new HashSet<string> { cmd1.Id, cmd2.Id, cmd3.Id };
+        var interCommandEdges = result.Edges.Where(e => commandIds.Contains(e.SourceId) && commandIds.Contains(e.TargetId)).ToList();
+        interCommandEdges.Should().BeEmpty("Sibling implementations of an interface must not depend on each other");
+
+        // No cycles should be formed between the commands
+        result.Cycles.Should().BeEmpty();
+    }
+
+    [Test]
+    public void Build_ClassesInheritingFromBaseClass_DoNotDependOnSiblingDerivedClasses()
+    {
+        var input = new ProjectMapInput
+        {
+            ProjectId = "ws:p:base-test:",
+            ProjectName = "base-test",
+            ProjectPath = "src",
+            Files =
+            [
+                F("src/Base.cs"),
+                F("src/DerivedA.cs"),
+                F("src/DerivedB.cs")
+            ],
+            Types =
+            [
+                new ProjectMapTypeNode("t:base", "BaseService", "class", "src/Base.cs", 5, 20, false, ["Execute"]),
+                new ProjectMapTypeNode("t:derA", "DerivedServiceA", "class", "src/DerivedA.cs", 5, 20, false, ["Execute"]),
+                new ProjectMapTypeNode("t:derB", "DerivedServiceB", "class", "src/DerivedB.cs", 5, 20, false, ["Execute"])
+            ],
+            TypeEdges =
+            [
+                new ProjectMapTypeEdge("DerivedServiceA", "src/DerivedA.cs", "BaseService", "src/Base.cs", "INHERITS_FROM", 5),
+                new ProjectMapTypeEdge("DerivedServiceB", "src/DerivedB.cs", "BaseService", "src/Base.cs", "INHERITS_FROM", 5)
+            ]
+        };
+
+        var result = ProjectMapBuilder.Build(input);
+
+        var derA = result.Modules.Single(m => m.Name == "DerivedServiceA");
+        var derB = result.Modules.Single(m => m.Name == "DerivedServiceB");
+        var b = result.Modules.Single(m => m.Name == "BaseService");
+
+        // Both derived classes should inherit from BaseService
+        result.Edges.Should().Contain(e => e.SourceId == derA.Id && e.TargetId == b.Id);
+        result.Edges.Should().Contain(e => e.SourceId == derB.Id && e.TargetId == b.Id);
+
+        // But they must NOT have dependency edges between each other
+        result.Edges.Should().NotContain(e => e.SourceId == derA.Id && e.TargetId == derB.Id);
+        result.Edges.Should().NotContain(e => e.SourceId == derB.Id && e.TargetId == derA.Id);
+        result.Cycles.Should().BeEmpty();
+    }
 }

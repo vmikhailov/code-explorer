@@ -1,14 +1,10 @@
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.CSharp.Libraries;
 
 public class FlurlLibraryParser : ISemanticExtension
 {
-    public string Type => "api";
+    public SemanticExtensionType Type => SemanticExtensionType.ApiClient;
 
     public string Name => "Flurl";
 

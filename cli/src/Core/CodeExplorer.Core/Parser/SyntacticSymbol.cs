@@ -1,4 +1,3 @@
-using CodeExplorer.Common;
 using CodeExplorer.Core.Parser.Syntax;
 
 namespace CodeExplorer.Core.Parser;
@@ -10,7 +9,12 @@ public class SyntacticSymbol(string kind, string name, SyntaxNode node)
     public SyntaxNode Node { get; } = node;
     public List<SyntacticSymbol> Children { get; } = [];
     public List<Reference> References { get; } = [];
-    public string? Text { get; set; }
+    private string? _text;
+    public string? Text
+    {
+        get => _text ?? (Node.Span.EndByte - Node.Span.StartByte <= 65536 ? Node.Text : string.Empty);
+        set => _text = value;
+    }
     public string? Protocol { get; set; }
     public bool IsAnonymous { get; set; }
     public string? RequiredRoles { get; set; }

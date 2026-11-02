@@ -1,8 +1,4 @@
 using System.Text.RegularExpressions;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Rust.Libraries;
@@ -16,7 +12,7 @@ public class ActixWebLibraryParser : ISemanticExtension
 {
     public string Id => "actix-web";
     public string Name => "Actix-Web";
-    public string Type => "framework";
+    public SemanticExtensionType Type => SemanticExtensionType.Framework;
     public bool IsImplemented => true;
     public LibraryRole LibraryRole => LibraryRole.WebService;
     public IReadOnlyList<string> SupportedPatterns => ["actix-web*", "actix_web*"];

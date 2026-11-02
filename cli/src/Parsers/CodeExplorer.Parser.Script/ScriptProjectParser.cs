@@ -1,6 +1,3 @@
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
-
 [assembly: ParserAssembly]
 
 namespace CodeExplorer.Parser.Script;
@@ -32,7 +29,13 @@ public class ScriptProjectParser : IProjectParser
     public string GetProjectName(string directoryPath, string[] filesInDirectory)
     {
         var name = Path.GetFileName(directoryPath.TrimEnd('/', '\\'));
-        return string.IsNullOrEmpty(name) ? "ScriptProject" : name;
+        if (string.IsNullOrEmpty(name)) return "ScriptProject";
+        if (name.EndsWith("scripts", StringComparison.OrdinalIgnoreCase) ||
+            name.EndsWith("script", StringComparison.OrdinalIgnoreCase))
+        {
+            return name;
+        }
+        return $"{name}.Scripts";
     }
 
     public Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory) => Task.FromResult<ProducedPackageInfo?>(null);

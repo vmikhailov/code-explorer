@@ -1,5 +1,6 @@
 using System.Text;
 using CodeExplorer.Cypher.Ast;
+using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Cypher.Compiler;
 
@@ -194,13 +195,16 @@ public partial class SqliteCompiler
         bool needsPathNodes = false)
     {
         var edgeKindPred = "1=1";
-        if (rel.Types.Count == 1)
+        if (rel.RelationshipKinds.Count == 1)
         {
-            edgeKindPred = $"e.kind = '{rel.Types[0]}'";
+            var kind = rel.RelationshipKinds[0];
+            var typeName = kind != RelationshipKind.Unspecified ? kind.ToCypherType() : rel.Types[0];
+            edgeKindPred = $"e.kind = '{typeName}'";
         }
-        else if (rel.Types.Count > 1)
+        else if (rel.RelationshipKinds.Count > 1)
         {
-            var kinds = string.Join(", ", rel.Types.Select(t => $"'{t}'"));
+            var kinds = string.Join(", ", rel.RelationshipKinds.Select((k, idx) =>
+                $"'{((k != RelationshipKind.Unspecified) ? k.ToCypherType() : rel.Types[idx])}'"));
             edgeKindPred = $"e.kind IN ({kinds})";
         }
 

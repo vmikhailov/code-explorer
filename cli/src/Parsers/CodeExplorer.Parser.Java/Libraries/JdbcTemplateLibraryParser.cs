@@ -1,6 +1,4 @@
 using System.Collections.Frozen;
-using CodeExplorer.Common;
-using CodeExplorer.Core.Parser;
 
 namespace CodeExplorer.Parser.Java.Libraries;
 
@@ -10,7 +8,7 @@ public class JdbcTemplateLibraryParser : DeclarativeSemanticExtension
     {
         Id = "jdbc";
         Name = "Spring JdbcTemplate / JDBC";
-        Type = "db:relational";
+        Type = SemanticExtensionType.RelationalDb;
         LibraryRole = LibraryRole.OrmOrDatabase;
         SupportedPatterns =
         [

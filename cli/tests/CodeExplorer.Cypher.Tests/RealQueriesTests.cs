@@ -21,7 +21,7 @@ public class RealQueriesTests
         }
 
         dir.Should().NotBeNull("Could not find solution root");
-        _queriesDir = Path.Combine(dir!.FullName, "src", "Core", "CodeExplorer.Core", "Resources", "Queries");
+        _queriesDir = Path.Combine(dir!.FullName, "src", "Core", "CodeExplorer.Analysis", "Resources", "Queries");
         Directory.Exists(_queriesDir).Should().BeTrue($"Queries directory not found: {_queriesDir}");
     }
 
@@ -35,7 +35,7 @@ public class RealQueriesTests
         }
 
         if (dir == null) yield break;
-        var queriesDir = Path.Combine(dir.FullName, "src", "Core", "CodeExplorer.Core", "Resources", "Queries");
+        var queriesDir = Path.Combine(dir.FullName, "src", "Core", "CodeExplorer.Analysis", "Resources", "Queries");
         if (!Directory.Exists(queriesDir)) yield break;
 
         foreach (var file in Directory.GetFiles(queriesDir, "*.cypher"))
