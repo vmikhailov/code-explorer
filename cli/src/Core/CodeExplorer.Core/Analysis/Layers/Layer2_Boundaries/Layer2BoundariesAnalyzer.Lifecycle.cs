@@ -227,31 +227,6 @@ public partial class Layer2ProjectParser
         return null;
     }
 
-    private const string PropName = "name";
-    private const string PropVersion = "version";
-    private const string PropPublisher = "publisher";
-    private const string PropMain = "main";
-    private const string PropModule = "module";
-    private const string PropDescription = "description";
-    private const string PropBin = "bin";
-    private const string PropContributes = "contributes";
-    private const string PropEngines = "engines";
-    private const string PropVsCode = "vscode";
-    private const string PropKeywords = "keywords";
-    private const string PropActivationEvents = "activationEvents";
-    private const string ExtHasVsCodeEngine = "has_vscode_engine";
-    private const string PropTasks = "tasks";
-    private const string PropRunOptions = "runOptions";
-    private const string PropRunOn = "runOn";
-    private const string PropLabel = "label";
-    private const string PropCommand = "command";
-    private const string TasksJsonRelPath = ".vscode/tasks.json";
-    private const string FolderOpenTaskType = "vscode-task-folder-open";
-    private const string AttrId = "id";
-    private const string AttrVersion = "version";
-    private const string NuGetEcosystem = "nuget";
-    private const string PropCompilerOptions = "compilerOptions";
-    private const string PropPaths = "paths";
     private static readonly char[] PathWildcardTrimChars = ['*', '/'];
 
     private static void PopulatePackageJsonProjectExtensions(ProjectNode project, JsonElement root)
@@ -260,26 +235,26 @@ public partial class Layer2ProjectParser
         var ext = project.Extensions;
 
         string? pkgName = null;
-        if (root.TryGetProperty(PropName, out var nameProp) && nameProp.ValueKind == JsonValueKind.String)
+        if (root.TryGetProperty(OntologyConstants.ManifestFields.Name, out var nameProp) && nameProp.ValueKind == JsonValueKind.String)
         {
             pkgName = nameProp.GetString();
             if (!string.IsNullOrWhiteSpace(pkgName))
             {
-                ext["package_name"] = pkgName;
+                ext[OntologyConstants.ExtensionKeys.PackageName] = pkgName;
             }
         }
 
-        if (root.TryGetProperty(PropVersion, out var verProp) && verProp.ValueKind == JsonValueKind.String)
+        if (root.TryGetProperty(OntologyConstants.ManifestFields.Version, out var verProp) && verProp.ValueKind == JsonValueKind.String)
         {
             var ver = verProp.GetString();
             if (!string.IsNullOrWhiteSpace(ver))
             {
-                ext["package_version"] = ver;
+                ext[OntologyConstants.ExtensionKeys.PackageVersion] = ver;
             }
         }
 
         string? publisher = null;
-        if (root.TryGetProperty(PropPublisher, out var pubProp) && pubProp.ValueKind == JsonValueKind.String)
+        if (root.TryGetProperty(OntologyConstants.ManifestFields.Publisher, out var pubProp) && pubProp.ValueKind == JsonValueKind.String)
         {
             publisher = pubProp.GetString();
         }
@@ -289,55 +264,55 @@ public partial class Layer2ProjectParser
         }
         if (!string.IsNullOrWhiteSpace(publisher))
         {
-            ext["publisher"] = publisher;
+            ext[OntologyConstants.ExtensionKeys.Publisher] = publisher;
         }
 
-        if (root.TryGetProperty(PropMain, out var mainProp) && mainProp.ValueKind == JsonValueKind.String)
+        if (root.TryGetProperty(OntologyConstants.ManifestFields.Main, out var mainProp) && mainProp.ValueKind == JsonValueKind.String)
         {
             var mainVal = mainProp.GetString();
             if (!string.IsNullOrWhiteSpace(mainVal))
             {
-                ext["main_file"] = mainVal;
+                ext[OntologyConstants.ExtensionKeys.MainFile] = mainVal;
             }
         }
 
-        if (root.TryGetProperty(PropModule, out var modProp) && modProp.ValueKind == JsonValueKind.String)
+        if (root.TryGetProperty(OntologyConstants.ManifestFields.Module, out var modProp) && modProp.ValueKind == JsonValueKind.String)
         {
             var modVal = modProp.GetString();
             if (!string.IsNullOrWhiteSpace(modVal))
             {
-                ext["module_file"] = modVal;
+                ext[OntologyConstants.ExtensionKeys.ModuleFile] = modVal;
             }
         }
 
-        if (root.TryGetProperty(PropDescription, out var descProp) && descProp.ValueKind == JsonValueKind.String)
+        if (root.TryGetProperty(OntologyConstants.ManifestFields.Description, out var descProp) && descProp.ValueKind == JsonValueKind.String)
         {
             var desc = descProp.GetString();
             if (!string.IsNullOrWhiteSpace(desc))
             {
-                ext["description"] = desc;
+                ext[OntologyConstants.ExtensionKeys.Description] = desc;
             }
         }
 
-        if (root.TryGetProperty(PropBin, out var binProp) &&
+        if (root.TryGetProperty(OntologyConstants.ManifestFields.Bin, out var binProp) &&
             ((binProp.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(binProp.GetString())) ||
              (binProp.ValueKind == JsonValueKind.Object && binProp.EnumerateObject().Any())))
         {
-            ext["has_bin"] = "true";
+            ext[OntologyConstants.ExtensionKeys.HasBin] = OntologyConstants.ExtensionKeys.TrueValue;
         }
 
-        if (root.TryGetProperty(PropContributes, out var contribProp) && contribProp.ValueKind == JsonValueKind.Object)
+        if (root.TryGetProperty(OntologyConstants.ManifestFields.Contributes, out var contribProp) && contribProp.ValueKind == JsonValueKind.Object)
         {
-            ext["has_contributes"] = "true";
+            ext[OntologyConstants.ExtensionKeys.HasContributes] = OntologyConstants.ExtensionKeys.TrueValue;
         }
 
-        if (root.TryGetProperty(PropEngines, out var engProp) && engProp.ValueKind == JsonValueKind.Object &&
-            engProp.TryGetProperty(PropVsCode, out _))
+        if (root.TryGetProperty(OntologyConstants.ManifestFields.Engines, out var engProp) && engProp.ValueKind == JsonValueKind.Object &&
+            engProp.TryGetProperty(OntologyConstants.ManifestFields.VsCode, out _))
         {
-            ext[ExtHasVsCodeEngine] = "true";
+            ext[OntologyConstants.ExtensionKeys.HasVsCodeEngine] = OntologyConstants.ExtensionKeys.TrueValue;
         }
 
-        if (root.TryGetProperty(PropKeywords, out var kwProp) && kwProp.ValueKind == JsonValueKind.Array)
+        if (root.TryGetProperty(OntologyConstants.ManifestFields.Keywords, out var kwProp) && kwProp.ValueKind == JsonValueKind.Array)
         {
             var kws = kwProp.EnumerateArray()
                 .Where(e => e.ValueKind == JsonValueKind.String)
@@ -346,7 +321,7 @@ public partial class Layer2ProjectParser
                 .ToArray();
             if (kws.Length > 0)
             {
-                ext["keywords_json"] = JsonSerializer.Serialize(kws);
+                ext[OntologyConstants.ExtensionKeys.KeywordsJson] = JsonSerializer.Serialize(kws);
             }
         }
 
@@ -371,7 +346,7 @@ public partial class Layer2ProjectParser
         }
 
         string? activationJoined = null;
-        if (root.TryGetProperty(PropActivationEvents, out var actProp) && actProp.ValueKind == JsonValueKind.Array)
+        if (root.TryGetProperty(OntologyConstants.ManifestFields.ActivationEvents, out var actProp) && actProp.ValueKind == JsonValueKind.Array)
         {
             var acts = actProp.EnumerateArray()
                 .Where(e => e.ValueKind == JsonValueKind.String)
@@ -388,8 +363,8 @@ public partial class Layer2ProjectParser
         foreach (var pkgNode in project.Children.OfType<PackageNode>().Where(p => p.IsInternal))
         {
             pkgNode.Extensions ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            if (!string.IsNullOrWhiteSpace(publisher)) pkgNode.Extensions["publisher"] = publisher;
-            if (ext.TryGetValue(ExtHasVsCodeEngine, out var vsc)) pkgNode.Extensions[ExtHasVsCodeEngine] = vsc;
+            if (!string.IsNullOrWhiteSpace(publisher)) pkgNode.Extensions[OntologyConstants.ExtensionKeys.Publisher] = publisher;
+            if (ext.TryGetValue(OntologyConstants.ExtensionKeys.HasVsCodeEngine, out var vsc)) pkgNode.Extensions[OntologyConstants.ExtensionKeys.HasVsCodeEngine] = vsc;
             if (!string.IsNullOrWhiteSpace(activationJoined)) pkgNode.Extensions["activation_events"] = activationJoined;
         }
     }
@@ -416,17 +391,17 @@ public partial class Layer2ProjectParser
             {
                 using var doc = JsonDocument.Parse(rootPkgText, new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
                 var root = doc.RootElement;
-                if (root.TryGetProperty(PropName, out var n) && n.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(n.GetString()))
-                    wsExt["package_name"] = n.GetString()!;
-                if (root.TryGetProperty(PropVersion, out var v) && v.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(v.GetString()))
-                    wsExt["package_version"] = v.GetString()!;
-                if (root.TryGetProperty(PropPublisher, out var pub) && pub.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(pub.GetString()))
-                    wsExt["publisher"] = pub.GetString()!;
-                if (root.TryGetProperty(PropEngines, out var eng) && eng.ValueKind == JsonValueKind.Object && eng.TryGetProperty(PropVsCode, out _))
-                    wsExt[ExtHasVsCodeEngine] = "true";
-                if (root.TryGetProperty(PropContributes, out var contrib) && contrib.ValueKind == JsonValueKind.Object)
-                    wsExt["has_contributes"] = "true";
-                if (root.TryGetProperty(PropActivationEvents, out var act) && act.ValueKind == JsonValueKind.Array)
+                if (root.TryGetProperty(OntologyConstants.ManifestFields.Name, out var n) && n.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(n.GetString()))
+                    wsExt[OntologyConstants.ExtensionKeys.PackageName] = n.GetString()!;
+                if (root.TryGetProperty(OntologyConstants.ManifestFields.Version, out var v) && v.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(v.GetString()))
+                    wsExt[OntologyConstants.ExtensionKeys.PackageVersion] = v.GetString()!;
+                if (root.TryGetProperty(OntologyConstants.ManifestFields.Publisher, out var pub) && pub.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(pub.GetString()))
+                    wsExt[OntologyConstants.ExtensionKeys.Publisher] = pub.GetString()!;
+                if (root.TryGetProperty(OntologyConstants.ManifestFields.Engines, out var eng) && eng.ValueKind == JsonValueKind.Object && eng.TryGetProperty(OntologyConstants.ManifestFields.VsCode, out _))
+                    wsExt[OntologyConstants.ExtensionKeys.HasVsCodeEngine] = OntologyConstants.ExtensionKeys.TrueValue;
+                if (root.TryGetProperty(OntologyConstants.ManifestFields.Contributes, out var contrib) && contrib.ValueKind == JsonValueKind.Object)
+                    wsExt[OntologyConstants.ExtensionKeys.HasContributes] = OntologyConstants.ExtensionKeys.TrueValue;
+                if (root.TryGetProperty(OntologyConstants.ManifestFields.ActivationEvents, out var act) && act.ValueKind == JsonValueKind.Array)
                 {
                     var acts = act.EnumerateArray().Where(e => e.ValueKind == JsonValueKind.String).Select(e => e.GetString()!).Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
                     if (acts.Length > 0) wsExt["activation_events"] = string.Join(",", acts);
@@ -446,22 +421,22 @@ public partial class Layer2ProjectParser
             try
             {
                 using var tDoc = JsonDocument.Parse(tasksText, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
-                if (tDoc.RootElement.TryGetProperty(PropTasks, out var tasksArr) && tasksArr.ValueKind == JsonValueKind.Array)
+                if (tDoc.RootElement.TryGetProperty(OntologyConstants.ManifestFields.Tasks, out var tasksArr) && tasksArr.ValueKind == JsonValueKind.Array)
                 {
                     var rootProj = projects.FirstOrDefault(p => string.IsNullOrEmpty(p.Path)) ?? projects.FirstOrDefault();
                     var folderOpenTasks = new List<Dictionary<string, string>>();
                     foreach (var task in tasksArr.EnumerateArray())
                     {
                         if (task.ValueKind != JsonValueKind.Object) continue;
-                        var isFolderOpen = task.TryGetProperty(PropRunOptions, out var ro) &&
+                        var isFolderOpen = task.TryGetProperty(OntologyConstants.ManifestFields.RunOptions, out var ro) &&
                                            ro.ValueKind == JsonValueKind.Object &&
-                                           ro.TryGetProperty(PropRunOn, out var runOn) &&
+                                           ro.TryGetProperty(OntologyConstants.ManifestFields.RunOn, out var runOn) &&
                                            string.Equals(runOn.GetString(), "folderOpen", StringComparison.OrdinalIgnoreCase);
                         if (!isFolderOpen) continue;
 
-                        var label = task.TryGetProperty(PropLabel, out var lbl) ? lbl.GetString() ?? "folderOpen" : "folderOpen";
-                        var cmd = task.TryGetProperty(PropCommand, out var c) ? c.GetString() ?? "" : "";
-                        folderOpenTasks.Add(new Dictionary<string, string> { ["label"] = label, ["command"] = cmd });
+                        var label = task.TryGetProperty(OntologyConstants.ManifestFields.Label, out var lbl) ? lbl.GetString() ?? "folderOpen" : "folderOpen";
+                        var cmd = task.TryGetProperty(OntologyConstants.ManifestFields.Command, out var c) ? c.GetString() ?? "" : "";
+                        folderOpenTasks.Add(new Dictionary<string, string> { [OntologyConstants.ManifestFields.Label] = label, [OntologyConstants.ManifestFields.Command] = cmd });
 
                         if (rootProj != null)
                         {
@@ -469,11 +444,11 @@ public partial class Layer2ProjectParser
                             var entryNode = new EntryPointNode(
                                 Id: entryId,
                                 Name: $"vscode.tasks.folderOpen:{label}",
-                                Path: TasksJsonRelPath,
-                                EntryType: FolderOpenTaskType,
+                                Path: OntologyConstants.ManifestFields.TasksJsonRelPath,
+                                EntryType: OntologyConstants.ManifestFields.FolderOpenTaskType,
                                 Extensions: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                                 {
-                                    ["command"] = cmd,
+                                    [OntologyConstants.ManifestFields.Command] = cmd,
                                     ["hook_kind"] = "install",
                                     ["task_label"] = label
                                 });
@@ -514,8 +489,8 @@ public partial class Layer2ProjectParser
                 var ownerProj = projects.FirstOrDefault(p => string.IsNullOrEmpty(p.Path)) ?? projects.FirstOrDefault();
                 foreach (var depElem in xdoc.Descendants().Where(e => e.Name.LocalName.Equals("dependency", StringComparison.OrdinalIgnoreCase)))
                 {
-                    var depId = depElem.Attribute(AttrId)?.Value?.Trim();
-                    var depVer = depElem.Attribute(AttrVersion)?.Value?.Trim() ?? "*";
+                    var depId = depElem.Attribute(OntologyConstants.ManifestFields.Id)?.Value?.Trim();
+                    var depVer = depElem.Attribute(OntologyConstants.ManifestFields.Version)?.Value?.Trim() ?? "*";
                     if (string.IsNullOrWhiteSpace(depId)) continue;
 
                     var pkgNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:nuget:{depId.ToLowerInvariant()}";
@@ -526,7 +501,7 @@ public partial class Layer2ProjectParser
                             Name: depId,
                             Version: depVer,
                             IsInternal: false,
-                            Ecosystem: NuGetEcosystem,
+                            Ecosystem: OntologyConstants.ManifestFields.NuGetEcosystem,
                             Path: string.Empty,
                             Archetype: OntologyConstants.Archetypes.PureUtility,
                             Extensions: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -560,9 +535,9 @@ public partial class Layer2ProjectParser
             try
             {
                 using var doc = JsonDocument.Parse(tsConfigText, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
-                if (doc.RootElement.TryGetProperty(PropCompilerOptions, out var compOpts) &&
+                if (doc.RootElement.TryGetProperty(OntologyConstants.ManifestFields.CompilerOptions, out var compOpts) &&
                     compOpts.ValueKind == JsonValueKind.Object &&
-                    compOpts.TryGetProperty(PropPaths, out var pathsProp) &&
+                    compOpts.TryGetProperty(OntologyConstants.ManifestFields.Paths, out var pathsProp) &&
                     pathsProp.ValueKind == JsonValueKind.Object)
                 {
                     foreach (var p in pathsProp.EnumerateObject())

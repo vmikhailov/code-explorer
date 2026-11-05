@@ -114,6 +114,8 @@ public class CypherExpressionVisitor
         if (entityType == typeof(ExternalServiceEntity)) return NodeKind.ExternalService.ToCypherLabel();
         if (entityType == typeof(LibraryEntity)) return NodeKind.Library.ToCypherLabel();
         if (entityType == typeof(EndpointEntity)) return NodeKind.Endpoint.ToCypherLabel();
+        if (entityType == typeof(WorkspaceEntity)) return NodeKind.Workspace.ToCypherLabel();
+        if (entityType == typeof(ProjectEntity)) return NodeKind.Project.ToCypherLabel();
         return null;
     }
 

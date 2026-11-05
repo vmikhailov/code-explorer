@@ -20,7 +20,12 @@ public partial class TypeScriptParser : IProjectParser, IFileParser
         ".turbo", ".cache", ".output", "out", "coverage", "bower_components"
     ];
 
-    public IReadOnlyCollection<string> ManifestFileNames => ["package.json", "wrangler.toml", "wrangler.jsonc", "wrangler.json", "angular.json", "nest-cli.json"];
+    public IReadOnlyCollection<string> ManifestFileNames =>
+    [
+        "package.json", "tsconfig.json", "tsconfig.base.json", "jsconfig.json",
+        "project.json", "ng-package.json", "wrangler.toml", "wrangler.jsonc",
+        "wrangler.json", "angular.json", "nest-cli.json"
+    ];
     public IReadOnlyCollection<string> ManifestExtensions => [];
 
     public bool ShouldSkipFileName(string fileName)

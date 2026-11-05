@@ -143,17 +143,13 @@ public static class UniversalCypherEdgeLifter
         var json = await db.ExecuteQueryAsync(query, null, ct);
         using var doc = JsonDocument.Parse(json);
 
-                const string PropSource = "source";
-        const string PropTarget = "target";
-        const string PropKind = "kind";
-        const string PropWeight = "weight";
         var list = new List<GraphEdgeDto>();
         foreach (var elem in doc.RootElement.EnumerateArray())
         {
-            var src = elem.GetStringProp(PropSource);
-            var tgt = elem.GetStringProp(PropTarget);
-            var kind = elem.GetStringProp(PropKind);
-            var weight = elem.GetNullableIntProp(PropWeight) ?? 1;
+            var src = elem.GetStringProp(OntologyConstants.PropertyNames.Source);
+            var tgt = elem.GetStringProp(OntologyConstants.PropertyNames.Target);
+            var kind = elem.GetStringProp(OntologyConstants.PropertyNames.Kind);
+            var weight = elem.GetNullableIntProp(OntologyConstants.PropertyNames.Weight) ?? 1;
 
             if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
 
@@ -165,9 +161,9 @@ public static class UniversalCypherEdgeLifter
                 Kind = kind,
                 Properties = new Dictionary<string, string>
                 {
-                    ["count"] = weight.ToString(),
-                    ["label"] = kind,
-                    ["kind"] = kind
+                    [OntologyConstants.PropertyNames.Count] = weight.ToString(),
+                    [OntologyConstants.PropertyNames.Label] = kind,
+                    [OntologyConstants.PropertyNames.Kind] = kind
                 }
             });
         }

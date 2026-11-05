@@ -155,28 +155,15 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
         var json = await db.ExecuteQueryAsync(typesQuery, paramsDict, ct);
         using var doc = JsonDocument.Parse(json);
 
-                const string PropId = "id";
-        const string PropName = "name";
-        const string PropSubKind = "sub_kind";
-        const string DefaultSubKind = "class";
-        const string PropPath = "path";
-        const string PropIsTest = "is_test";
-        const string PropFnId = "fn_id";
-        const string PropTypeName = "type_name";
-        const string PropImplName = "impl_name";
-        const string PropIfaceName = "iface_name";
-        const string PropRoute = "route";
-        const string PropMethod = "method";
-        const string PropKind = "kind";
         var classesByName = new Dictionary<string, GraphNodeDto>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var elem in doc.RootElement.EnumerateArray())
         {
-            var id = elem.GetStringProp(PropId);
-            var name = elem.GetStringProp(PropName);
-            var subKind = elem.GetStringProp(PropSubKind, DefaultSubKind);
-            var path = elem.GetStringProp(PropPath);
-            var isTest = elem.GetBoolProp(PropIsTest);
+            var id = elem.GetStringProp(OntologyConstants.PropertyNames.Id);
+            var name = elem.GetStringProp(OntologyConstants.PropertyNames.Name);
+            var subKind = elem.GetStringProp(OntologyConstants.PropertyNames.SubKind, OntologyConstants.PropertyNames.DefaultSubKind);
+            var path = elem.GetStringProp(OntologyConstants.PropertyNames.Path);
+            var isTest = elem.GetBoolProp(OntologyConstants.PropertyNames.IsTest);
 
             if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(name)) continue;
             if (excludeTests && isTest) continue;
@@ -199,9 +186,9 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
                     FilePath = path,
                     Properties = new Dictionary<string, string>
                     {
-                        ["sub_kind"] = subKind,
-                        ["path"] = path,
-                        ["is_test"] = isTest ? "true" : "false"
+                        [OntologyConstants.PropertyNames.SubKind] = subKind,
+                        [OntologyConstants.PropertyNames.Path] = path,
+                        [OntologyConstants.PropertyNames.IsTest] = isTest ? "true" : "false"
                     }
                 };
                 classesByName[cleanName] = nodeDto;
@@ -225,8 +212,8 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
             using var funcDoc = JsonDocument.Parse(funcJson);
             foreach (var elem in funcDoc.RootElement.EnumerateArray())
             {
-                var fnId = elem.GetStringProp(PropFnId);
-                var typeName = elem.GetStringProp(PropTypeName);
+                var fnId = elem.GetStringProp(OntologyConstants.PropertyNames.FnId);
+                var typeName = elem.GetStringProp(OntologyConstants.PropertyNames.TypeName);
                 if (!string.IsNullOrEmpty(fnId) && !string.IsNullOrEmpty(typeName))
                 {
                     var clean = typeName;
@@ -253,8 +240,8 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
             using var implDoc = JsonDocument.Parse(implJson);
             foreach (var elem in implDoc.RootElement.EnumerateArray())
             {
-                var implName = elem.GetStringProp(PropImplName);
-                var ifaceName = elem.GetStringProp(PropIfaceName);
+                var implName = elem.GetStringProp(OntologyConstants.PropertyNames.ImplName);
+                var ifaceName = elem.GetStringProp(OntologyConstants.PropertyNames.IfaceName);
                 if (!string.IsNullOrEmpty(implName) && !string.IsNullOrEmpty(ifaceName))
                 {
                     interfaceImplementors[$"type:{ifaceName}"] = $"type:{implName}";
@@ -278,11 +265,11 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
             using var epDoc = JsonDocument.Parse(epJson);
             foreach (var elem in epDoc.RootElement.EnumerateArray())
             {
-                var id = elem.GetStringProp(PropId);
-                var name = elem.GetStringProp(PropName);
-                var route = elem.GetStringProp(PropRoute);
-                var method = elem.GetStringProp(PropMethod);
-                var path = elem.GetStringProp(PropPath);
+                var id = elem.GetStringProp(OntologyConstants.PropertyNames.Id);
+                var name = elem.GetStringProp(OntologyConstants.PropertyNames.Name);
+                var route = elem.GetStringProp(OntologyConstants.PropertyNames.Route);
+                var method = elem.GetStringProp(OntologyConstants.PropertyNames.Method);
+                var path = elem.GetStringProp(OntologyConstants.PropertyNames.Path);
 
                 if (string.IsNullOrEmpty(id)) continue;
                 var epLabel = !string.IsNullOrEmpty(route) ? $"{method} {route}".Trim() : name;
@@ -296,10 +283,10 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
                     FilePath = path,
                     Properties = new Dictionary<string, string>
                     {
-                        ["route"] = route,
-                        ["method"] = method,
-                        ["tier"] = "0",
-                        ["tier_label"] = TopologyAndCycleAnalyzer.GetTierLabel(ArchitecturalTier.Ingress)
+                        [OntologyConstants.PropertyNames.Route] = route,
+                        [OntologyConstants.PropertyNames.Method] = method,
+                        [OntologyConstants.PropertyNames.Tier] = "0",
+                        [OntologyConstants.PropertyNames.TierLabel] = TopologyAndCycleAnalyzer.GetTierLabel(ArchitecturalTier.Ingress)
                     }
                 });
 
@@ -323,9 +310,9 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
             using var resDoc = JsonDocument.Parse(resJson);
             foreach (var elem in resDoc.RootElement.EnumerateArray())
             {
-                var id = elem.GetStringProp(PropId);
-                var kindStr = elem.GetStringProp(PropKind);
-                var name = elem.GetStringProp(PropName);
+                var id = elem.GetStringProp(OntologyConstants.PropertyNames.Id);
+                var kindStr = elem.GetStringProp(OntologyConstants.PropertyNames.Kind);
+                var name = elem.GetStringProp(OntologyConstants.PropertyNames.Name);
 
                 if (string.IsNullOrEmpty(id)) continue;
                 var kind = EnumExtensions.ParseNodeKind(kindStr);
@@ -340,7 +327,7 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
                         Kind = kind,
                         Properties = new Dictionary<string, string>
                         {
-                            ["resource_kind"] = kindStr
+                            [OntologyConstants.PropertyNames.ResourceKind] = kindStr
                         }
                     });
 
@@ -359,12 +346,6 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
     private async Task<List<(string Source, string Target, string Kind, string? SourceFile, string? TargetFile, int? Line)>>
         ExtractRawComponentEdgesAsync(string? projectScope, CancellationToken ct)
     {
-                const string PropSource = "source";
-        const string PropTarget = "target";
-        const string PropKind = "kind";
-        const string PropSrcPath = "src_path";
-        const string PropTgtPath = "tgt_path";
-        const string PropLine = "line";
         var rawEdges = new List<(string Source, string Target, string Kind, string? SourceFile, string? TargetFile, int? Line)>();
 
         var scopeClause = !string.IsNullOrWhiteSpace(projectScope)
@@ -389,12 +370,12 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
             using var doc = JsonDocument.Parse(json);
             foreach (var elem in doc.RootElement.EnumerateArray())
             {
-                var src = elem.GetStringProp(PropSource);
-                var tgt = elem.GetStringProp(PropTarget);
-                var kind = elem.GetStringProp(PropKind);
-                var srcFile = elem.GetStringProp(PropSrcPath);
-                var tgtFile = elem.GetStringProp(PropTgtPath);
-                var line = elem.GetNullableIntProp(PropLine);
+                var src = elem.GetStringProp(OntologyConstants.PropertyNames.Source);
+                var tgt = elem.GetStringProp(OntologyConstants.PropertyNames.Target);
+                var kind = elem.GetStringProp(OntologyConstants.PropertyNames.Kind);
+                var srcFile = elem.GetStringProp(OntologyConstants.PropertyNames.SrcPath);
+                var tgtFile = elem.GetStringProp(OntologyConstants.PropertyNames.TgtPath);
+                var line = elem.GetNullableIntProp(OntologyConstants.PropertyNames.Line);
 
                 if (!string.IsNullOrEmpty(src) && !string.IsNullOrEmpty(tgt))
                 {
@@ -416,9 +397,9 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
                 using var sDoc = JsonDocument.Parse(sJson);
                 foreach (var elem in sDoc.RootElement.EnumerateArray())
                 {
-                    var src = elem.GetStringProp(PropSource);
-                    var tgt = elem.GetStringProp(PropTarget);
-                    var kind = elem.GetStringProp(PropKind);
+                    var src = elem.GetStringProp(OntologyConstants.PropertyNames.Source);
+                    var tgt = elem.GetStringProp(OntologyConstants.PropertyNames.Target);
+                    var kind = elem.GetStringProp(OntologyConstants.PropertyNames.Kind);
                     if (!string.IsNullOrEmpty(src) && !string.IsNullOrEmpty(tgt))
                     {
                         rawEdges.Add((src, tgt, kind, null, null, null));

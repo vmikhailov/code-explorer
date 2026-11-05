@@ -1,4 +1,7 @@
 using System.Text.Json;
+using CodeExplorer.Core.Common;
+using CodeExplorer.Core.Database;
+using CodeExplorer.Cypher.Linq;
 using CodeExplorer.Options;
 
 namespace CodeExplorer.Commands;
@@ -26,22 +29,18 @@ public static class StatusCommandHandler
             string wsName = new DirectoryInfo(ws.RootDirectory).Name;
             DateTime? lastIndexedAt = null;
 
-            var wsResult = await client.ExecuteQueryAsync(
-                "MATCH (w:Workspace) RETURN w.name AS name, w.path AS path, w.indexed_at AS indexed_at LIMIT 1");
-
-            using var wsDoc = JsonDocument.Parse(wsResult);
-
-            if (wsDoc.RootElement.ValueKind == JsonValueKind.Array && wsDoc.RootElement.GetArrayLength() > 0)
+            var repo = client.AsRepository();
+            var wsNode = await repo.GetWorkspaceAsync();
+            if (wsNode != null)
             {
-                var row = wsDoc.RootElement[0];
-
-                if (row.TryGetProperty("name", out var np) && np.ValueKind == JsonValueKind.String)
+                if (!string.IsNullOrWhiteSpace(wsNode.Name))
                 {
-                    wsName = np.GetString() ?? wsName;
+                    wsName = wsNode.Name;
                 }
 
-                if (row.TryGetProperty("indexed_at", out var ip) && ip.ValueKind == JsonValueKind.String &&
-                    DateTime.TryParse(ip.GetString(), out var dt))
+                if (wsNode.Extensions != null &&
+                    wsNode.Extensions.TryGetValue(OntologyConstants.ExtensionKeys.IndexedAt, out var indexedAtStr) &&
+                    DateTime.TryParse(indexedAtStr, out var dt))
                 {
                     lastIndexedAt = dt.ToLocalTime();
                 }
@@ -51,43 +50,19 @@ public static class StatusCommandHandler
             var lastUpdatedText = FormatRelativeTime(lastUpdated);
 
             // Projects info
-            var projResult = await client.ExecuteQueryAsync(
-                "MATCH (p:Project) RETURN p.name AS name, p.project_type AS language, p.layer AS layer, p.role AS role ORDER BY p.name");
-
-            using var projDoc = JsonDocument.Parse(projResult);
-
-            var projects = new List<(string Name, string Language, string Layer, string Role)>();
-
-            if (projDoc.RootElement.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var row in projDoc.RootElement.EnumerateArray())
-                {
-                    var pName = row.TryGetProperty("name", out var n)
-                        ? n.GetString() ?? "unknown"
-                        : "unknown";
-
-                    var pLang = row.TryGetProperty("language", out var l)
-                        ? l.GetString() ?? "unknown"
-                        : "unknown";
-                    var pLayer = row.TryGetProperty("layer", out var lyr) ? lyr.GetString() ?? "" : "";
-                    var pRole = row.TryGetProperty("role", out var r) ? r.GetString() ?? "" : "";
-                    projects.Add((pName, pLang, pLayer, pRole));
-                }
-            }
+            var projectEntities = await client.Graph.Projects.ToListAsync();
+            var projects = projectEntities
+                .OrderBy(p => p.Name, StringComparer.Ordinal)
+                .Select(p => (
+                    Name: !string.IsNullOrEmpty(p.Name) ? p.Name : "unknown",
+                    Language: !string.IsNullOrEmpty(p.Language) ? p.Language : "unknown",
+                    Layer: p.Layer ?? string.Empty,
+                    Role: p.Role ?? string.Empty))
+                .ToList();
 
             // Node count
-            var countResult = await client.ExecuteQueryAsync("MATCH (n) RETURN count(n) AS nodeCount");
-            long nodeCount = 0;
-
-            using var countDoc = JsonDocument.Parse(countResult);
-
-            if (countDoc.RootElement.ValueKind == JsonValueKind.Array &&
-                countDoc.RootElement.GetArrayLength() > 0)
-            {
-                if (countDoc.RootElement[0].TryGetProperty("nodeCount", out var nc) &&
-                    nc.TryGetInt64(out var cnt))
-                    nodeCount = cnt;
-            }
+            var (totalNodes, _) = await client.GetGraphCountsAsync();
+            long nodeCount = totalNodes;
 
             // Queries info
             var queryManager = new ProjectQueryManager();

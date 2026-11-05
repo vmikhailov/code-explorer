@@ -1,7 +1,9 @@
 using System.Text.Json;
+using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Cypher.Common;
+using CodeExplorer.Cypher.Linq;
 
 namespace CodeExplorer.Core.Database;
 
@@ -13,6 +15,28 @@ public class PersistedGraphRepository(IGraphClient client) : IGraphRepository
     private readonly IGraphClient _client = client ?? throw new ArgumentNullException(nameof(client));
 
     public IGraphClient Client => _client;
+
+    public async ValueTask<WorkspaceNode?> GetWorkspaceAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            var wsEntity = await _client.Graph.Workspaces.FirstOrDefaultAsync(ct);
+            if (wsEntity is not null && !string.IsNullOrEmpty(wsEntity.Id))
+            {
+                var ext = !string.IsNullOrEmpty(wsEntity.IndexedAt)
+                    ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { [OntologyConstants.ExtensionKeys.IndexedAt] = wsEntity.IndexedAt }
+                    : null;
+                return new WorkspaceNode(wsEntity.Id, wsEntity.Name, wsEntity.FilePath ?? string.Empty, ext);
+            }
+        }
+        catch (NotSupportedException)
+        {
+            // Fallback for custom IGraphClient implementations that do not implement ICypherQueryExecutor
+        }
+
+        var nodes = await GetNodesByKindAsync(NodeKind.Workspace, ct);
+        return nodes.Count > 0 ? NodeFactory.ToWorkspaceNode(nodes[0]) : null;
+    }
 
     public async ValueTask<Node?> GetNodeByIdAsync(string id, CancellationToken ct = default)
     {

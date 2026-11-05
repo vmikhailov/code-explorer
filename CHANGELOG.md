@@ -5,6 +5,19 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.70.1] - 2026-11-05
+
+### Changed
+- **Typed Graph Repository & LINQ-to-Cypher Workspace/Project Queries**:
+  - Added `WorkspaceEntity` and `ProjectEntity` to LINQ-to-Cypher (`GraphContext.Workspaces` and `GraphContext.Projects`) with zero-allocation SQLite JSONB property readers.
+  - Added `IGraphRepository.GetWorkspaceAsync` (`PersistedGraphRepository`, `InMemoryGraphRepository`, and `NodeFactory.ToWorkspaceNode`) and replaced raw `ExecuteQueryAsync` + `JsonDocument.Parse` calls in `Layer1PhysicalAnalyzer`, `CodeExplorerRepository`, and `StatusCommandHandler`.
+- **Centralized Ontology & Extension Constants**:
+  - Consolidated local `Prop*` and `Ext*` string constants across analysis and projection engines (`GraphProjectionEngine`, `UniversalCypherEdgeLifter`, `EndpointSemanticAnalyzer`, `Layer1PhysicalAnalyzer`, `Layer2BoundariesAnalyzer`, `Layer3SyntacticAnalyzer`, `Layer5GlobalAnalyzer`, `TreeSitterSyntaxBuilder`) into `OntologyConstants.PropertyNames`, `OntologyConstants.ExtensionKeys`, `OntologyConstants.ManifestFields`, and `SyntaxFields`.
+- **Parser-Owned Manifest Detection**:
+  - Removed hardcoded `IsAuxiliaryMetadataFile` from `Layer1PhysicalAnalyzer` and delegated auxiliary manifest ownership (`tsconfig.json`, `tsconfig.base.json`, `jsconfig.json`, `project.json`, `ng-package.json`, `.nuspec`, `Directory.Packages.props`) to `TypeScriptParser` and `CSharpParser`.
+
+---
+
 ## [1.70.0] - 2026-11-05
 
 ### Added

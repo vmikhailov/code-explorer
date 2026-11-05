@@ -294,3 +294,49 @@ public class EndpointEntity : GraphEntity
         return base.TryReadJsonbProperty(propName, valType, valSpan);
     }
 }
+
+public class WorkspaceEntity : GraphEntity
+{
+    private static ReadOnlySpan<byte> PropIndexedAtUtf8 => "indexed_at"u8;
+    private static ReadOnlySpan<byte> PropIndexedAtCamelUtf8 => "indexedAt"u8;
+
+    public override NodeKind Kind => NodeKind.Workspace;
+    public string? IndexedAt { get; set; }
+
+    public override bool TryReadJsonbProperty(ReadOnlySpan<byte> propName, int valType, ReadOnlySpan<byte> valSpan)
+    {
+        if (propName.SequenceEqual(PropIndexedAtUtf8) || propName.SequenceEqual(PropIndexedAtCamelUtf8)) { IndexedAt = ReadString(valSpan); return true; }
+        return base.TryReadJsonbProperty(propName, valType, valSpan);
+    }
+}
+
+public class ProjectEntity : GraphEntity
+{
+    private static ReadOnlySpan<byte> PropLanguageUtf8 => "language"u8;
+    private static ReadOnlySpan<byte> PropProjectTypeUtf8 => "project_type"u8;
+    private static ReadOnlySpan<byte> PropLayerUtf8 => "layer"u8;
+    private static ReadOnlySpan<byte> PropRoleUtf8 => "role"u8;
+
+    private string? _language;
+    private string? _projectType;
+
+    public override NodeKind Kind => NodeKind.Project;
+
+    public string? Language
+    {
+        get => _language ?? _projectType;
+        set => _language = value;
+    }
+
+    public string? Layer { get; set; }
+    public string? Role { get; set; }
+
+    public override bool TryReadJsonbProperty(ReadOnlySpan<byte> propName, int valType, ReadOnlySpan<byte> valSpan)
+    {
+        if (propName.SequenceEqual(PropLanguageUtf8)) { _language = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual(PropProjectTypeUtf8)) { _projectType = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual(PropLayerUtf8)) { Layer = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual(PropRoleUtf8)) { Role = ReadString(valSpan); return true; }
+        return base.TryReadJsonbProperty(propName, valType, valSpan);
+    }
+}

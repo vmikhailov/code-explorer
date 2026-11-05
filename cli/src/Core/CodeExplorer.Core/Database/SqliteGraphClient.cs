@@ -26,11 +26,13 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
     }
 
     private GraphContext? _graph;
+    private IGraphRepository? _repository;
 
     public int CommandTimeoutSeconds { get; set; } = 15;
     public string DbPath => _conn.DataSource;
     public SqliteConnection Connection => _conn;
     public GraphContext Graph => _graph ??= new(this);
+    public IGraphRepository AsRepository() => _repository ??= new PersistedGraphRepository(this);
 
     public const int CurrentSchemaVersion = 4;
     public int SchemaVersion { get; private set; }

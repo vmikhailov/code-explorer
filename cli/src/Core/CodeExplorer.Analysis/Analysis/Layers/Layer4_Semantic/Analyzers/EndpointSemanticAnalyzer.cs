@@ -14,23 +14,6 @@ namespace CodeExplorer.Core.Analysis.Layers.Layer4_Semantic.Analyzers;
 /// </summary>
 public static class EndpointSemanticAnalyzer
 {
-    private const string PropBrokerType = "broker_type";
-    private const string PropStageOrder = "stage_order";
-    private const string PropTypeKind = "type_kind";
-    private const string PropMemberKind = "member_kind";
-    private const string PropDataType = "data_type";
-    private const string PropValue = "value";
-    private const string PropCallee = "callee";
-    private const string PropArgIndex = "arg_index";
-    private const string PropLine = "line";
-    private const string PropColumn = "column";
-    private const string PropRole = "role";
-    private const string PropIsDecorator = "is_decorator";
-    private const string PropExceptionType = "exception_type";
-    private const string PropIsEmpty = "is_empty";
-    private const string PropHasComment = "has_comment";
-    private const string PropStatementCount = "statement_count";
-    private const string PropGraphqlSchema = "graphql_schema";
     public static void Enrich(
         SyntaxTree syntaxTree,
         ProjectNode? project = null,
@@ -231,7 +214,7 @@ public static class EndpointSemanticAnalyzer
         }
         else if (kind == OntologyConstants.NodeLabels.Topic)
         {
-            var broker = syntactic.GetPropertyOrDefault(PropBrokerType) ?? "event";
+            var broker = syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.BrokerType) ?? "event";
             var topicId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Topic}:{broker}:{name}";
             var startLine = (int)node.StartPosition.Row + 1;
             var endLine = (int)node.EndPosition.Row + 1;
@@ -268,56 +251,56 @@ public static class EndpointSemanticAnalyzer
         }
         else if (kind == OntologyConstants.NodeLabels.Function)
         {
-            var stageOrder = syntactic.TryGetProperty(PropStageOrder, out var so) && int.TryParse(so, out var parsedOrder) ? parsedOrder : (int?)null;
+            var stageOrder = syntactic.TryGetProperty(OntologyConstants.PropertyNames.StageOrder, out var so) && int.TryParse(so, out var parsedOrder) ? parsedOrder : (int?)null;
             typedNode = new FunctionNode(symbolId, name, symbolId, relativePath, relativePath,
                 node.StartPosition.Row + 1, node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1,
                 symbolIsTest, projectKind, projectName, stageOrder);
         }
         else if (kind is "Class" or "Struct" or "Enum" || kind == OntologyConstants.NodeLabels.Type)
         {
-            var typeKind = syntactic.TryGetProperty(PropTypeKind, out var tk)
+            var typeKind = syntactic.TryGetProperty(OntologyConstants.PropertyNames.TypeKind, out var tk)
                 ? tk
                 : (kind == OntologyConstants.NodeLabels.Type ? "class" : kind.ToLowerInvariant());
-            var stageOrder = syntactic.TryGetProperty(PropStageOrder, out var so) && int.TryParse(so, out var parsedOrder) ? parsedOrder : (int?)null;
+            var stageOrder = syntactic.TryGetProperty(OntologyConstants.PropertyNames.StageOrder, out var so) && int.TryParse(so, out var parsedOrder) ? parsedOrder : (int?)null;
             typedNode = new TypeNode(symbolId, name, symbolId, relativePath, relativePath,
                 node.StartPosition.Row + 1, node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1, typeKind,
                 symbolIsTest, projectKind, projectName, stageOrder);
         }
         else if (kind == "Interface")
         {
-            var stageOrder = syntactic.TryGetProperty(PropStageOrder, out var so) && int.TryParse(so, out var parsedOrder) ? parsedOrder : (int?)null;
+            var stageOrder = syntactic.TryGetProperty(OntologyConstants.PropertyNames.StageOrder, out var so) && int.TryParse(so, out var parsedOrder) ? parsedOrder : (int?)null;
             typedNode = new TypeNode(symbolId, name, symbolId, relativePath, relativePath,
                 node.StartPosition.Row + 1, node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1, "interface",
                 symbolIsTest, projectKind, projectName, stageOrder);
         }
         else if (kind == OntologyConstants.NodeLabels.Member)
         {
-            var memberKind = syntactic.TryGetProperty(PropMemberKind, out var mk) ? mk : "field";
-            var dataType = syntactic.TryGetProperty(PropDataType, out var dt) ? dt : null;
+            var memberKind = syntactic.TryGetProperty(OntologyConstants.PropertyNames.MemberKind, out var mk) ? mk : "field";
+            var dataType = syntactic.TryGetProperty(OntologyConstants.PropertyNames.DataType, out var dt) ? dt : null;
             typedNode = new MemberNode(symbolId, name, symbolId, relativePath, relativePath,
                 node.StartPosition.Row + 1, node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1,
                 memberKind, dataType);
         }
         else if (kind == OntologyConstants.NodeLabels.CallLiteral)
         {
-            var val = syntactic.Text ?? syntactic.GetPropertyOrDefault(PropValue) ?? syntactic.Name;
-            var callee = syntactic.Callee ?? syntactic.GetPropertyOrDefault(PropCallee) ?? "";
-            var argIdx = syntactic.ArgIndex != 0 ? syntactic.ArgIndex : (int.TryParse(syntactic.GetPropertyOrDefault(PropArgIndex), out var ai) ? ai : 0);
-            var line = int.TryParse(syntactic.GetPropertyOrDefault(PropLine), out var ln) ? ln : (int)node.StartPosition.Row + 1;
-            var col = int.TryParse(syntactic.GetPropertyOrDefault(PropColumn), out var cl) ? cl : (int)node.StartPosition.Column + 1;
-            var role = syntactic.Role ?? syntactic.GetPropertyOrDefault(PropRole) ?? "business";
-            var isDecorator = syntactic.IsDecorator || (bool.TryParse(syntactic.GetPropertyOrDefault(PropIsDecorator), out var isDec) && isDec);
+            var val = syntactic.Text ?? syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.Value) ?? syntactic.Name;
+            var callee = syntactic.Callee ?? syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.Callee) ?? "";
+            var argIdx = syntactic.ArgIndex != 0 ? syntactic.ArgIndex : (int.TryParse(syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.ArgIndex), out var ai) ? ai : 0);
+            var line = int.TryParse(syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.Line), out var ln) ? ln : (int)node.StartPosition.Row + 1;
+            var col = int.TryParse(syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.Column), out var cl) ? cl : (int)node.StartPosition.Column + 1;
+            var role = syntactic.Role ?? syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.Role) ?? "business";
+            var isDecorator = syntactic.IsDecorator || (bool.TryParse(syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.IsDecorator), out var isDec) && isDec);
             var litId = $"{workspaceId}:{OntologyConstants.IdPrefixes.CallLiteral}:{relativePath}:{line}:{col}";
             typedNode = new CallLiteralNode(litId, name, val, callee, argIdx, relativePath, line, col, symbolIsTest, projectKind, projectName, role, isDecorator);
         }
         else if (kind == OntologyConstants.NodeLabels.CatchClause)
         {
-            var exType = syntactic.RequestType ?? syntactic.GetPropertyOrDefault(PropExceptionType) ?? "";
-            var isEmpty = syntactic.IsEmptyCatch || (bool.TryParse(syntactic.GetPropertyOrDefault(PropIsEmpty), out var ie) && ie);
-            var hasComment = syntactic.HasCatchComment || (bool.TryParse(syntactic.GetPropertyOrDefault(PropHasComment), out var hc) && hc);
-            var stmtCount = syntactic.ArgIndex != 0 ? syntactic.ArgIndex : (int.TryParse(syntactic.GetPropertyOrDefault(PropStatementCount), out var sc) ? sc : 0);
-            var line = int.TryParse(syntactic.GetPropertyOrDefault(PropLine), out var ln) ? ln : (int)node.StartPosition.Row + 1;
-            var col = int.TryParse(syntactic.GetPropertyOrDefault(PropColumn), out var cl) ? cl : (int)node.StartPosition.Column + 1;
+            var exType = syntactic.RequestType ?? syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.ExceptionType) ?? "";
+            var isEmpty = syntactic.IsEmptyCatch || (bool.TryParse(syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.IsEmpty), out var ie) && ie);
+            var hasComment = syntactic.HasCatchComment || (bool.TryParse(syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.HasComment), out var hc) && hc);
+            var stmtCount = syntactic.ArgIndex != 0 ? syntactic.ArgIndex : (int.TryParse(syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.StatementCount), out var sc) ? sc : 0);
+            var line = int.TryParse(syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.Line), out var ln) ? ln : (int)node.StartPosition.Row + 1;
+            var col = int.TryParse(syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.Column), out var cl) ? cl : (int)node.StartPosition.Column + 1;
             var catchId = $"{workspaceId}:{OntologyConstants.IdPrefixes.CatchClause}:{relativePath}:{line}:{col}";
             typedNode = new CatchClauseNode(catchId, name, exType, relativePath, line, col, isEmpty, hasComment, stmtCount, symbolIsTest, projectKind, projectName);
         }
@@ -442,7 +425,7 @@ public static class EndpointSemanticAnalyzer
 
         var projPart = (!string.IsNullOrEmpty(resolvedProj) && resolvedProj != "default") ? $"{resolvedProj}:" : "";
         var schemaPart = syntactic != null &&
-                         syntactic.TryGetProperty(PropGraphqlSchema, out var gqlSchema) &&
+                         syntactic.TryGetProperty(OntologyConstants.PropertyNames.GraphqlSchema, out var gqlSchema) &&
                          !string.IsNullOrEmpty(gqlSchema)
             ? $"{gqlSchema}:"
             : "";

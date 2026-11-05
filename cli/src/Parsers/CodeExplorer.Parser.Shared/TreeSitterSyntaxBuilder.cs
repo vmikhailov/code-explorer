@@ -251,8 +251,7 @@ public abstract class TreeSitterSyntaxConverterBase
                 break;
 
             case ImplDeclSyntax implDecl:
-                const string TraitFieldName = "trait";
-                implDecl.ImplementedTrait = implDecl.GetChildForField(TraitFieldName) as TypeRefSyntax;
+                implDecl.ImplementedTrait = implDecl.GetChildForField(SyntaxFields.Trait) as TypeRefSyntax;
                 implDecl.TargetType = implDecl.GetChildForField(SyntaxFields.Type) as TypeRefSyntax;
                 if (implDecl.TargetType == null && implDecl.Children.Count > 0)
                 {

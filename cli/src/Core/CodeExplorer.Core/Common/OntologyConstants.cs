@@ -214,19 +214,60 @@ public static class OntologyConstants
 
     public static class PropertyNames
     {
+        public const string Id = "id";
+        public const string Name = "name";
+        public const string Kind = "kind";
+        public const string SubKind = "sub_kind";
+        public const string DefaultSubKind = "class";
+        public const string Path = "path";
+        public const string FilePath = "file_path";
+        public const string SrcPath = "src_path";
+        public const string TgtPath = "tgt_path";
+        public const string Source = "source";
+        public const string Target = "target";
+        public const string Weight = "weight";
+        public const string Count = "count";
+        public const string Label = "label";
         public const string IsTest = "is_test";
+        public const string FnId = "fn_id";
+        public const string TypeName = "type_name";
+        public const string ImplName = "impl_name";
+        public const string IfaceName = "iface_name";
+        public const string Route = "route";
+        public const string Method = "method";
+        public const string Tier = "tier";
+        public const string TierLabel = "tier_label";
+        public const string TierReason = "tier_reason";
+        public const string CycleGroup = "cycle_group";
+        public const string IsCircular = "is_circular";
+        public const string ResourceKind = "resource_kind";
         public const string ProjectKind = "project_kind";
         public const string ProjectName = "project_name";
         public const string StageOrder = "stage_order";
-        public const string FilePath = "file_path";
         public const string Line = "line";
         public const string LineEnd = "line_end";
+        public const string Column = "column";
         public const string Operation = "operation";
         public const string EvidenceKind = "evidence_kind";
         public const string EvidenceIds = "evidence_ids";
         public const string EvidenceCount = "evidence_count";
         public const string EvidenceTruncated = "evidence_truncated";
         public const string MessagingDirection = "messaging_direction";
+        public const string BrokerType = "broker_type";
+        public const string TypeKind = "type_kind";
+        public const string MemberKind = "member_kind";
+        public const string DataType = "data_type";
+        public const string GraphqlField = "graphql_field";
+        public const string GraphqlSchema = "graphql_schema";
+        public const string Value = "value";
+        public const string Callee = "callee";
+        public const string ArgIndex = "arg_index";
+        public const string Role = "role";
+        public const string IsDecorator = "is_decorator";
+        public const string ExceptionType = "exception_type";
+        public const string IsEmpty = "is_empty";
+        public const string HasComment = "has_comment";
+        public const string StatementCount = "statement_count";
 
         /// <summary>
         /// JSON object on a workload project mapping a dependency project directory (workspace-relative) to the
@@ -234,6 +275,54 @@ public static class OntologyConstants
         /// Dependencies absent from the map are treated as fully reachable.
         /// </summary>
         public const string SourceReachability = "source_reachability";
+    }
+
+    public static class ExtensionKeys
+    {
+        public const string PackageName = "package_name";
+        public const string PackageVersion = "package_version";
+        public const string Publisher = "publisher";
+        public const string MainFile = "main_file";
+        public const string ModuleFile = "module_file";
+        public const string Description = "description";
+        public const string HasBin = "has_bin";
+        public const string HasContributes = "has_contributes";
+        public const string HasVsCodeEngine = "has_vscode_engine";
+        public const string KeywordsJson = "keywords_json";
+        public const string ActivationEventsJson = "activation_events_json";
+        public const string HasNativeNode = "has_native_node";
+        public const string HasNativeAddon = "has_native_addon";
+        public const string HasDotNetDll = "has_dotnet_dll";
+        public const string IndexedAt = "indexed_at";
+        public const string TrueValue = "true";
+    }
+
+    public static class ManifestFields
+    {
+        public const string Id = "id";
+        public const string Name = "name";
+        public const string Version = "version";
+        public const string Publisher = "publisher";
+        public const string Main = "main";
+        public const string Module = "module";
+        public const string Description = "description";
+        public const string Bin = "bin";
+        public const string Contributes = "contributes";
+        public const string Engines = "engines";
+        public const string VsCode = "vscode";
+        public const string Keywords = "keywords";
+        public const string ActivationEvents = "activationEvents";
+        public const string Tasks = "tasks";
+        public const string RunOptions = "runOptions";
+        public const string RunOn = "runOn";
+        public const string Label = "label";
+        public const string Command = "command";
+        public const string CompilerOptions = "compilerOptions";
+        public const string Paths = "paths";
+        public const string TasksJsonFileName = "tasks.json";
+        public const string TasksJsonRelPath = ".vscode/tasks.json";
+        public const string FolderOpenTaskType = "vscode-task-folder-open";
+        public const string NuGetEcosystem = "nuget";
     }
 
     public static class Archetypes

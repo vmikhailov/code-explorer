@@ -24,6 +24,8 @@ public class GraphContext
     public IQueryable<ExternalServiceEntity> ExternalServices => Set<ExternalServiceEntity>();
     public IQueryable<LibraryEntity> Libraries => Set<LibraryEntity>();
     public IQueryable<EndpointEntity> Endpoints => Set<EndpointEntity>();
+    public IQueryable<WorkspaceEntity> Workspaces => Set<WorkspaceEntity>();
+    public IQueryable<ProjectEntity> Projects => Set<ProjectEntity>();
     public IQueryable<GraphEntity> Nodes => Set<GraphEntity>();
 
     public IQueryable<TEntity> Set<TEntity>() where TEntity : GraphEntity, new()

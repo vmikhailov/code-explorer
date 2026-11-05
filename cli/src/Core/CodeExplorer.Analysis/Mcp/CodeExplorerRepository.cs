@@ -471,19 +471,10 @@ public partial class CodeExplorerRepository
 
         try
         {
-            var allResult = await _defaultDbClient.ExecuteQueryAsync("MATCH (w:Workspace) RETURN w.path AS path LIMIT 1;");
-
-            using var allDoc = JsonDocument.Parse(allResult);
-
-            if (allDoc.RootElement.ValueKind == JsonValueKind.Array && allDoc.RootElement.GetArrayLength() > 0)
+            var ws = await _defaultDbClient.AsRepository().GetWorkspaceAsync();
+            if (!string.IsNullOrEmpty(ws?.Path))
             {
-                var row = allDoc.RootElement[0];
-
-                if (row.TryGetProperty("path", out var pathProp) && pathProp.ValueKind == JsonValueKind.String)
-                {
-                    var p = pathProp.GetString();
-                    if (!string.IsNullOrEmpty(p)) return Path.GetFullPath(p);
-                }
+                return Path.GetFullPath(ws.Path);
             }
         }
         catch

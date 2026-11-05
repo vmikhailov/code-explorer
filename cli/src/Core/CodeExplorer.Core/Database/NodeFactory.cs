@@ -143,5 +143,27 @@ public static class NodeFactory
         var body = Expression.Block(new[] { typedVar }, statements);
         return Expression.Lambda<Action<IOntologyNode, Dictionary<string, object>>>(body, nodeParam, dictParam).Compile();
     }
+
+    public static WorkspaceNode ToWorkspaceNode(Node node)
+    {
+        var props = node.Properties;
+        var name = props != null && props.TryGetValue(OntologyConstants.PropertyNames.Name, out var n) ? n?.ToString() ?? string.Empty : string.Empty;
+        var path = props != null && props.TryGetValue(OntologyConstants.PropertyNames.Path, out var p) ? p?.ToString() ?? string.Empty : string.Empty;
+        Dictionary<string, string>? ext = null;
+        if (props != null)
+        {
+            foreach (var (k, v) in props)
+            {
+                if (k is OntologyConstants.PropertyNames.Id or OntologyConstants.PropertyNames.Name or OntologyConstants.PropertyNames.Path or OntologyConstants.PropertyNames.Kind)
+                    continue;
+                if (v != null)
+                {
+                    ext ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    ext[k] = v.ToString() ?? string.Empty;
+                }
+            }
+        }
+        return new WorkspaceNode(node.Id, name, path, ext);
+    }
 }
 

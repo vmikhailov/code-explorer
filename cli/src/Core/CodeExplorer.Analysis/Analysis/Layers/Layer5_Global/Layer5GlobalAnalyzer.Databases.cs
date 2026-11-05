@@ -597,13 +597,10 @@ public partial class Layer5AnalysisParser
         var inMemoryProjects = l4Result?.Prev.Prev.Projects ?? ctx.ProjectsStructure?.Children.OfType<CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode>().ToList();
         if (inMemoryProjects != null && inMemoryProjects.Count > 0)
         {
-            const string ExtPkgName = "package_name";
-            const string ExtMainFile = "main_file";
-            const string ExtModFile = "module_file";
             foreach (var proj in inMemoryProjects)
             {
-                var pkgName = proj.Extensions?.GetValueOrDefault(ExtPkgName);
-                var mainFile = proj.Extensions?.GetValueOrDefault(ExtMainFile) ?? proj.Extensions?.GetValueOrDefault(ExtModFile);
+                var pkgName = proj.Extensions?.GetValueOrDefault(OntologyConstants.ExtensionKeys.PackageName);
+                var mainFile = proj.Extensions?.GetValueOrDefault(OntologyConstants.ExtensionKeys.MainFile) ?? proj.Extensions?.GetValueOrDefault(OntologyConstants.ExtensionKeys.ModuleFile);
                 var normProjPath = proj.Path.Replace('\\', '/');
                 if (!string.IsNullOrEmpty(pkgName))
                 {

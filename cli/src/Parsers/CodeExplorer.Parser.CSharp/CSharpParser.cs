@@ -16,8 +16,8 @@ public partial class CSharpParser : IProjectParser, IFileParser
     public string ProjectType => "csharp";
 
     public IReadOnlyCollection<string> ExcludedFolders => ["bin", "obj", ".vs"];
-    public IReadOnlyCollection<string> ManifestExtensions => [".csproj", ".fsproj", ".vbproj"];
-    public IReadOnlyCollection<string> ManifestFileNames => ["Directory.Build.props", "Directory.Build.targets", "packages.config"];
+    public IReadOnlyCollection<string> ManifestExtensions => [".csproj", ".fsproj", ".vbproj", ".nuspec"];
+    public IReadOnlyCollection<string> ManifestFileNames => ["Directory.Build.props", "Directory.Build.targets", "Directory.Packages.props", "packages.config"];
 
     public bool? CheckDirectoryExclusion(string dirName, string? fullPath = null)
     {

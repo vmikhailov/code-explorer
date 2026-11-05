@@ -436,6 +436,7 @@ public static class SyntaxFields
     public const string Finalizer = "finalizer";
     public const string Argument = "argument";
     public const string Receiver = "receiver";
+    public const string Trait = "trait";
 }
 
 /// <summary>

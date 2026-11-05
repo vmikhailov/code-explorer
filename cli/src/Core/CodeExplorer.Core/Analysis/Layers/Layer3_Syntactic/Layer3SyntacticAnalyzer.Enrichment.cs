@@ -11,23 +11,6 @@ namespace CodeExplorer.Core.Parser.Layers;
 
 public partial class Layer3SyntacticParser
 {
-    private const string PropStageOrder = "stage_order";
-    private const string PropTypeKind = "type_kind";
-    private const string PropMemberKind = "member_kind";
-    private const string PropDataType = "data_type";
-    private const string PropGraphqlField = "graphql_field";
-    private const string PropGraphqlSchema = "graphql_schema";
-    private const string PropValue = "value";
-    private const string PropCallee = "callee";
-    private const string PropArgIndex = "arg_index";
-    private const string PropLine = "line";
-    private const string PropColumn = "column";
-    private const string PropRole = "role";
-    private const string PropIsDecorator = "is_decorator";
-    private const string PropExceptionType = "exception_type";
-    private const string PropIsEmpty = "is_empty";
-    private const string PropHasComment = "has_comment";
-    private const string PropStatementCount = "statement_count";
     private static bool HasTopLevelCallsOrStatements(SyntaxDocument doc)
     {
         if (doc.TopLevelStatements.Count > 0) return true;
@@ -460,7 +443,7 @@ public partial class Layer3SyntacticParser
 
         var symbolIsTest = isTest ||
             (syntactic.TryGetProperty(OntologyConstants.PropertyNames.IsTest, out var propIsTest) && bool.TryParse(propIsTest, out var b) && b);
-        var stageOrder = syntactic.TryGetProperty(PropStageOrder, out var so) && int.TryParse(so, out var parsedOrder) ? parsedOrder : (int?)null;
+        var stageOrder = syntactic.TryGetProperty(OntologyConstants.PropertyNames.StageOrder, out var so) && int.TryParse(so, out var parsedOrder) ? parsedOrder : (int?)null;
 
         var isType = kind is "Class" or "Interface" or "Struct" or "Enum" or OntologyConstants.NodeLabels.Type;
         var mappedKind = isType ? "Type" : kind;
@@ -470,7 +453,7 @@ public partial class Layer3SyntacticParser
         IOntologyNode? typedNode = null;
         if (kind is "Class" or "Struct" or "Enum" || kind == OntologyConstants.NodeLabels.Type)
         {
-            var typeKind = syntactic.TryGetProperty(PropTypeKind, out var tk)
+            var typeKind = syntactic.TryGetProperty(OntologyConstants.PropertyNames.TypeKind, out var tk)
                 ? tk
                 : (kind == OntologyConstants.NodeLabels.Type ? "class" : kind.ToLowerInvariant());
             typedNode = new TypeNode(symbolId, name, symbolId, relativePath, relativePath,
@@ -491,8 +474,8 @@ public partial class Layer3SyntacticParser
         }
         else if (kind == "Member" || kind == OntologyConstants.NodeLabels.Member)
         {
-            var memberKind = syntactic.TryGetProperty(PropMemberKind, out var mk) ? mk : "field";
-            var dataType = syntactic.TryGetProperty(PropDataType, out var dt) ? dt : null;
+            var memberKind = syntactic.TryGetProperty(OntologyConstants.PropertyNames.MemberKind, out var mk) ? mk : "field";
+            var dataType = syntactic.TryGetProperty(OntologyConstants.PropertyNames.DataType, out var dt) ? dt : null;
             typedNode = new MemberNode(symbolId, name, symbolId, relativePath, relativePath,
                 node.StartPosition.Row + 1, node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1,
                 memberKind, dataType);
@@ -519,13 +502,13 @@ public partial class Layer3SyntacticParser
         var childCounts = fileSymbolCounts ?? new Dictionary<(CodeExplorer.Cypher.Common.SyntacticSymbolKind Kind, string Name), int>();
         foreach (var childSyntactic in syntactic.Children)
         {
-            if (syntactic.TryGetProperty(PropGraphqlField, out var parentGqlField))
+            if (syntactic.TryGetProperty(OntologyConstants.PropertyNames.GraphqlField, out var parentGqlField))
             {
-                childSyntactic.Properties.TryAdd(PropGraphqlField, parentGqlField);
+                childSyntactic.Properties.TryAdd(OntologyConstants.PropertyNames.GraphqlField, parentGqlField);
             }
-            if (syntactic.TryGetProperty(PropGraphqlSchema, out var parentGqlSchema))
+            if (syntactic.TryGetProperty(OntologyConstants.PropertyNames.GraphqlSchema, out var parentGqlSchema))
             {
-                childSyntactic.Properties.TryAdd(PropGraphqlSchema, parentGqlSchema);
+                childSyntactic.Properties.TryAdd(OntologyConstants.PropertyNames.GraphqlSchema, parentGqlSchema);
             }
 
             var key = (childSyntactic.Kind, childSyntactic.Name);
@@ -574,13 +557,13 @@ public partial class Layer3SyntacticParser
         ProjectEntityKind? projectKind,
         string? projectName)
     {
-        var val = syntactic.Text ?? syntactic.GetPropertyOrDefault(PropValue) ?? syntactic.Name;
-        var callee = syntactic.Callee ?? syntactic.GetPropertyOrDefault(PropCallee) ?? "";
-        var argIdx = syntactic.ArgIndex != 0 ? syntactic.ArgIndex : (int.TryParse(syntactic.GetPropertyOrDefault(PropArgIndex), out var ai) ? ai : 0);
-        var line = int.TryParse(syntactic.GetPropertyOrDefault(PropLine), out var ln) ? ln : node.StartPosition.Row + 1;
-        var col = int.TryParse(syntactic.GetPropertyOrDefault(PropColumn), out var cl) ? cl : node.StartPosition.Column + 1;
-        var role = syntactic.Role ?? syntactic.GetPropertyOrDefault(PropRole) ?? "business";
-        var isDecorator = syntactic.IsDecorator || (bool.TryParse(syntactic.GetPropertyOrDefault(PropIsDecorator), out var isDec) && isDec);
+        var val = syntactic.Text ?? syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.Value) ?? syntactic.Name;
+        var callee = syntactic.Callee ?? syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.Callee) ?? "";
+        var argIdx = syntactic.ArgIndex != 0 ? syntactic.ArgIndex : (int.TryParse(syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.ArgIndex), out var ai) ? ai : 0);
+        var line = int.TryParse(syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.Line), out var ln) ? ln : node.StartPosition.Row + 1;
+        var col = int.TryParse(syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.Column), out var cl) ? cl : node.StartPosition.Column + 1;
+        var role = syntactic.Role ?? syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.Role) ?? "business";
+        var isDecorator = syntactic.IsDecorator || (bool.TryParse(syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.IsDecorator), out var isDec) && isDec);
         var litId = $"{workspaceId}:{OntologyConstants.IdPrefixes.CallLiteral}:{relativePath}:{line}:{col}";
 
         return new CallLiteralNode(litId, name, val, callee, argIdx, relativePath, line, col, symbolIsTest, projectKind, projectName, role, isDecorator);
@@ -596,12 +579,12 @@ public partial class Layer3SyntacticParser
         ProjectEntityKind? projectKind,
         string? projectName)
     {
-        var exType = syntactic.RequestType ?? syntactic.GetPropertyOrDefault(PropExceptionType) ?? "";
-        var isEmpty = syntactic.IsEmptyCatch || (bool.TryParse(syntactic.GetPropertyOrDefault(PropIsEmpty), out var ie) && ie);
-        var hasComment = syntactic.HasCatchComment || (bool.TryParse(syntactic.GetPropertyOrDefault(PropHasComment), out var hc) && hc);
-        var stmtCount = syntactic.ArgIndex != 0 ? syntactic.ArgIndex : (int.TryParse(syntactic.GetPropertyOrDefault(PropStatementCount), out var sc) ? sc : 0);
-        var line = int.TryParse(syntactic.GetPropertyOrDefault(PropLine), out var ln) ? ln : node.StartPosition.Row + 1;
-        var col = int.TryParse(syntactic.GetPropertyOrDefault(PropColumn), out var cl) ? cl : node.StartPosition.Column + 1;
+        var exType = syntactic.RequestType ?? syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.ExceptionType) ?? "";
+        var isEmpty = syntactic.IsEmptyCatch || (bool.TryParse(syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.IsEmpty), out var ie) && ie);
+        var hasComment = syntactic.HasCatchComment || (bool.TryParse(syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.HasComment), out var hc) && hc);
+        var stmtCount = syntactic.ArgIndex != 0 ? syntactic.ArgIndex : (int.TryParse(syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.StatementCount), out var sc) ? sc : 0);
+        var line = int.TryParse(syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.Line), out var ln) ? ln : node.StartPosition.Row + 1;
+        var col = int.TryParse(syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.Column), out var cl) ? cl : node.StartPosition.Column + 1;
         var catchId = $"{workspaceId}:{OntologyConstants.IdPrefixes.CatchClause}:{relativePath}:{line}:{col}";
 
         return new CatchClauseNode(catchId, name, exType, relativePath, line, col, isEmpty, hasComment, stmtCount, symbolIsTest, projectKind, projectName);
