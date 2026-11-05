@@ -117,11 +117,20 @@ public class RustFileVisitor : BaseParserVisitor
     {
         if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function)
         {
-            var isAsync = node.Children.Any(c => c.Text == "async");
-            var isUnsafe = node.Children.Any(c => c.Text == "unsafe");
+            var decl = node as CodeExplorer.Core.Parser.Syntax.DeclarationSyntax;
+            var isAsync = (decl != null && decl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Async)) ||
+                          node.Children.Any(c => c.Text == "async");
+            var isUnsafe = (decl != null && decl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Unsafe)) ||
+                           node.Children.Any(c => c.Text == "unsafe");
 
             var visNode = node.FindChildOfType(TreeSitterSyntax.Rust.VisibilityModifier);
-            var visibility = visNode.IsValid() ? visNode.Text : "private";
+            var visibility = visNode.IsValid()
+                ? visNode.Text
+                : (decl != null && decl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Public)
+                    ? "pub"
+                    : decl != null && decl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Internal)
+                        ? "pub(crate)"
+                        : "private");
 
             symbolNode.Properties["is_async"] = isAsync ? "true" : "false";
             symbolNode.Properties["is_unsafe"] = isUnsafe ? "true" : "false";

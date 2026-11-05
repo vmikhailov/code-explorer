@@ -1,3 +1,4 @@
+global using CodeExplorer.Core.Common.Nodes;
 using System.Runtime.CompilerServices;
 using CodeExplorer.Core.Analysis.Layers.Layer4_Semantic.Analyzers;
 using CodeExplorer.Core.Parser.Layers;

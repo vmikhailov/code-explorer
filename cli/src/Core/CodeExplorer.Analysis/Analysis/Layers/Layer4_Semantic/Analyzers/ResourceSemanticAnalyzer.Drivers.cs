@@ -15,10 +15,11 @@ public partial class ResourceSemanticAnalyzer
         var cacheKey = $"{ctx.AbsoluteWorkspacePath}|{projectNode.Id}";
         if (_projectDriverCache.TryGetValue(cacheKey, out var cached)) return cached;
 
-        if (!string.IsNullOrEmpty(projectNode.DbDriverEngine))
+        var projSignals = projectNode.TryGetSignals();
+        if (!string.IsNullOrEmpty(projSignals?.DbDriverEngine))
         {
-            var extType = projectNode.DbDriverFamily ?? "relational";
-            var res = (projectNode.DbDriverEngine, extType);
+            var extType = projSignals.DbDriverFamily ?? "relational";
+            var res = (projSignals.DbDriverEngine, extType);
             _projectDriverCache[cacheKey] = res;
             return res;
         }
@@ -30,7 +31,7 @@ public partial class ResourceSemanticAnalyzer
             _projectDriverCache[cacheKey] = res;
             return res;
         }
-        if (projectNode.DbDriverChecked == true || projectNode.TryGetExtension(Layers.Layer3FileSignalEnricher.ExtDbDriverChecked, out _))
+        if (projSignals?.DbDriverChecked == true || projectNode.TryGetExtension(Layers.Layer3FileSignalEnricher.ExtDbDriverChecked, out _))
         {
             if (ctx.ResourceRegistry != null)
             {

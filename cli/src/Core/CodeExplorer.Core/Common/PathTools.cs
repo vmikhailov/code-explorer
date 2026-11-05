@@ -16,8 +16,8 @@ public static class PathTools
             return filePath;
         }
 
-        var normalizedFilePath = filePath.Replace('\\', '/');
-        var normalizedHostPath = hostWorkspacePath?.Replace('\\', '/') ?? string.Empty;
+        var normalizedFilePath = filePath.NormalizeSlashes();
+        var normalizedHostPath = hostWorkspacePath.NormalizeSlashes();
 
         if (!string.IsNullOrEmpty(normalizedHostPath) && normalizedFilePath.StartWithIC(normalizedHostPath))
         {

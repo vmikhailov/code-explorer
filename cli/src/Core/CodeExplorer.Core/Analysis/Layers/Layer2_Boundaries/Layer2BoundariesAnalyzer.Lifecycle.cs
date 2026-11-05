@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Relationships;
@@ -589,8 +590,7 @@ public partial class Layer2ProjectParser
                     }
                     if (participants.Count > 0)
                     {
-                        file.Extensions ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                        file.Extensions["compose_participants"] = string.Join(" ", participants);
+                        file.Signals().ComposeParticipants = string.Join(" ", participants);
                     }
                 }
             }
@@ -615,14 +615,13 @@ public partial class Layer2ProjectParser
 
         foreach (var project in projects)
         {
-            project.Extensions ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            project.Extensions["db_driver_checked"] = "true";
+            var projSignals = project.Signals();
+            projSignals.DbDriverChecked = true;
             var (engine, dbType) = DetectDriverForProjectInLayer2(project, projectById, dependencies, ctx, []);
             if (!string.IsNullOrEmpty(engine) && !string.IsNullOrEmpty(dbType))
             {
-                project.Extensions ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                project.Extensions["db_driver_engine"] = engine;
-                project.Extensions["db_driver_type"] = dbType;
+                projSignals.DbDriverEngine = engine;
+                projSignals.DbDriverFamily = dbType;
             }
         }
     }

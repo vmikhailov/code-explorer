@@ -786,7 +786,8 @@ public partial class PostIndexAnalyzer(IGraphClient db)
 
     private static Dictionary<string, HashSet<string>>? ParseSourceReachability(ProjectNode project)
     {
-        var json = project.Extensions?.GetValueOrDefault(OntologyConstants.PropertyNames.SourceReachability);
+        var json = project.TryGetSignals()?.SourceReachability ??
+                   project.Extensions?.GetValueOrDefault(OntologyConstants.PropertyNames.SourceReachability);
         if (string.IsNullOrWhiteSpace(json))
         {
             return null;

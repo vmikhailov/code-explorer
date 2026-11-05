@@ -37,6 +37,10 @@ public class SyntaxTree : IDisposable
         RawVariables = rawVariables;
         RawTypeBindings = rawTypeBindings;
         CodeExplorer.Core.Parser.Layers.Layer3FileSignalEnricher.EnrichFileDatabaseSignals(fileNode, document?.SourceText, filePath);
+        if (!string.IsNullOrEmpty(document?.SourceText))
+        {
+            fileParser?.EnrichFileSignals(fileNode, this, null, document.SourceText, null);
+        }
     }
 
     public SyntaxTree(

@@ -208,7 +208,8 @@ public partial class PostIndexAnalyzer
 
             var schemaToUse = cName.Contains('.') ? cName.Split('.', 2)[1] : (rawSchema ?? "");
 
-            var isRawImplicit = db.Extensions != null && db.Extensions.TryGetValue("is_implicit_schema", out var imp) && imp == "true";
+            var isRawImplicit = db.IsImplicitSchema == true || db.Flags.HasFlag(SymbolFlags.IsImplicitSchema) ||
+                                (db.Extensions != null && db.Extensions.TryGetValue("is_implicit_schema", out var imp) && imp == "true");
             var isRawExplicit = db.Extensions != null && ((db.Extensions.TryGetValue("is_explicit_schema", out var exp) && exp == "true") || (db.Extensions.TryGetValue("from_config", out var fc) && fc == "true"));
             if (isRawImplicit && !isRawExplicit)
             {
@@ -249,8 +250,8 @@ public partial class PostIndexAnalyzer
                 );
                 if (isRawImplicit && !isRawExplicit)
                 {
-                    canonicalNode.Extensions ??= new Dictionary<string, string>();
-                    canonicalNode.Extensions["is_implicit_schema"] = "true";
+                    canonicalNode.IsImplicitSchema = true;
+                    canonicalNode.Flags |= SymbolFlags.IsImplicitSchema;
                 }
                 else
                 {
@@ -263,6 +264,8 @@ public partial class PostIndexAnalyzer
             var targetCanonical = canonicalDbNodes[canonicalId];
             if ((!isRawImplicit || isRawExplicit) && targetCanonical.Extensions != null)
             {
+                targetCanonical.IsImplicitSchema = null;
+                targetCanonical.Flags &= ~SymbolFlags.IsImplicitSchema;
                 targetCanonical.Extensions.Remove("is_implicit_schema");
                 targetCanonical.Extensions["is_explicit_schema"] = "true";
             }

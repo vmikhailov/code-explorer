@@ -1,6 +1,7 @@
 using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Analysis.Dataflow;
 using CodeExplorer.Core.Common;
+using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Parser;
@@ -355,16 +356,17 @@ public class UastCompletionAndFlowAnalysisTests
 
         enrichMethod.Invoke(null, [syntaxTree, "ws", "PaymentHandler.cs", false, null, null]);
 
-        // 1. Verify FunctionNode has df_summary, df_return, and df_writes
+        // 1. Verify FunctionNode transient signals have df_summary, df_return, and df_writes
         var fnNode = fileNode.Children.OfType<FunctionNode>().FirstOrDefault(f => f.Name == "Handle");
         Assert.That(fnNode, Is.Not.Null);
-        Assert.That(fnNode!.DataflowSummary, Is.Not.Null);
-        Assert.That(fnNode.DataflowSummary, Is.Not.Empty);
-        Assert.That(fnNode.DataflowSummary, Does.Contain("ret:p0"));
-        Assert.That(fnNode.DataflowReturn, Is.Not.Null);
-        Assert.That(fnNode.DataflowReturn, Is.EqualTo("p0"));
-        Assert.That(fnNode.DataflowWrites, Is.Not.Null);
-        Assert.That(fnNode.DataflowWrites, Does.Contain("_status<-p0"));
+        var fnSignals = fnNode!.Signals();
+        Assert.That(fnSignals.DataflowSummary, Is.Not.Null);
+        Assert.That(fnSignals.DataflowSummary, Is.Not.Empty);
+        Assert.That(fnSignals.DataflowSummary, Does.Contain("ret:p0"));
+        Assert.That(fnSignals.DataflowReturn, Is.Not.Null);
+        Assert.That(fnSignals.DataflowReturn, Is.EqualTo("p0"));
+        Assert.That(fnSignals.DataflowWrites, Is.Not.Null);
+        Assert.That(fnSignals.DataflowWrites, Does.Contain("_status<-p0"));
 
         // 2. Verify reference was enriched with context and arg_flow
         var enrichedRef = fileNode.References.FirstOrDefault(r => r.TargetName == "Dispatch");

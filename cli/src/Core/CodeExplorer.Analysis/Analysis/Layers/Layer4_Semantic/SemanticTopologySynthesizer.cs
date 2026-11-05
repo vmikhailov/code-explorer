@@ -25,70 +25,6 @@ internal static class SemanticTopologySynthesizer
         }.Count(hasEvidence => hasEvidence) >= 2;
     }
 
-    private sealed record CloudResourceDefinition(
-        string IdSuffix,
-        string Name,
-        CodeExplorer.Cypher.Common.CloudResourceType ResourceType,
-        string Role,
-        Regex FieldPattern,
-        Regex ReadPattern,
-        Regex WritePattern,
-        string PackageName)
-    {
-        public CloudResourceDefinition(
-            string IdSuffix,
-            string Name,
-            string ResourceType,
-            string Role,
-            Regex FieldPattern,
-            Regex ReadPattern,
-            Regex WritePattern,
-            string PackageName)
-            : this(IdSuffix, Name, CodeExplorer.Cypher.Common.TaxonomyEnumExtensions.ParseCloudResourceType(ResourceType), Role, FieldPattern, ReadPattern, WritePattern, PackageName)
-        {
-        }
-    }
-
-    private static readonly CloudResourceDefinition[] AwsResources =
-    [
-        new(
-            "aws:s3:encrypted-shares",
-            "AWS S3: Encrypted Shares Bucket",
-            "S3Bucket",
-            "encrypted_shares",
-            new Regex(@"\b(?:encrypted_)?shares?_bucket(?:_name)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
-            new Regex(@"\b(?:get_object|head_object|list_objects(?:_v2)?)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
-            new Regex(@"\b(?:put_object|upload_part|complete_multipart_upload)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
-            "aws-sdk-s3"),
-        new(
-            "aws:s3:database-chunks",
-            "AWS S3: Database Chunks & WAL Bucket",
-            "S3Bucket",
-            "database_chunks",
-            new Regex(@"\b(?:(?:db|database)_)?(?:chunks?|wal|parquet)_bucket(?:_name)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
-            new Regex(@"\b(?:get_object|head_object|list_objects(?:_v2)?)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
-            new Regex(@"\b(?:put_object|upload_part|complete_multipart_upload)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
-            "aws-sdk-s3"),
-        new(
-            "aws:s3:graph-checkpoints",
-            "AWS S3: HNSW Graph Checkpoint Bucket",
-            "S3Bucket",
-            "graph_checkpoints",
-            new Regex(@"\b(?:graph_)?checkpoint_(?:s3_client|bucket(?:_name)?)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
-            new Regex(@"\b(?:get_object|head_object|list_objects(?:_v2)?|download_graph_checkpoint\w*)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
-            new Regex(@"\b(?:put_object|upload_part|complete_multipart_upload|upload_graph_checkpoint\w*)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
-            "aws-sdk-s3"),
-        new(
-            "aws:kms:share-encryption-keys",
-            "AWS KMS: Share Encryption Keys",
-            "KmsKeySet",
-            "share_encryption_keys",
-            new Regex(@"\b(?:kms_.*key|key_.*kms|kms_key_arns?)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
-            new Regex(@"\b(?:decrypt|describe_key|get_public_key)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
-            new Regex(@"\b(?:encrypt|generate_data_key|create_key)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
-            "aws-sdk-kms")
-    ];
-
     private static readonly Regex PeerConfigurationPattern = new(
         @"\b(?:party_id|node_id|peer_id|node_hostnames|service_ports|service_outbound_ports)\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -114,14 +50,6 @@ internal static class SemanticTopologySynthesizer
     private static readonly Regex DeclarationLinePattern = new(
         @"^[ \t]*(?:#\[.*|(?:pub(?:\([^)]*\))?[ \t]+)?[A-Za-z_][A-Za-z0-9_]*[ \t]*(?::[^:].*|,[ \t]*(?://.*)?\r?)|(?:pub(?:\([^)]*\))?[ \t]+)?(?:async[ \t]+)?fn[ \t]+.*)$",
         RegexOptions.Multiline | RegexOptions.Compiled);
-
-    internal static IReadOnlyList<string> DetectAwsResourceRoles(
-        string source,
-        IReadOnlySet<string> packageNames) =>
-        AwsResources
-            .Where(resource => packageNames.Contains(resource.PackageName) && resource.FieldPattern.IsMatch(source))
-            .Select(resource => resource.Role)
-            .ToArray();
 
     internal static PeerMeshEvidence EvaluatePeerMeshEvidence(
         string rustSource,
@@ -195,7 +123,7 @@ internal static class SemanticTopologySynthesizer
         var projectPackageNames = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         var fileByFullPath = workspaceFiles
             .Where(f => !string.IsNullOrEmpty(f.FullPath))
-            .GroupBy(f => Path.GetFullPath(f.FullPath).Replace('\\', '/'), StringComparer.OrdinalIgnoreCase)
+            .GroupBy(f => f.FullPath.NormalizeFullPath(), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
         var sourceCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -203,9 +131,9 @@ internal static class SemanticTopologySynthesizer
         {
             if (!sourceCache.TryGetValue(fullPath, out var text))
             {
-                var normFull = Path.GetFullPath(fullPath).Replace('\\', '/');
+                var normFull = fullPath.NormalizeFullPath();
                 text = fileByFullPath.TryGetValue(normFull, out var fn)
-                    ? (fn.Extensions?.GetValueOrDefault(CodeExplorer.Core.Parser.Layers.Layer3FileSignalEnricher.ExtRustTopologySummary) ?? string.Empty)
+                    ? (fn.TryGetSignals()?.RustTopologySummary ?? string.Empty)
                     : string.Empty;
                 sourceCache[fullPath] = text;
             }
@@ -260,9 +188,9 @@ internal static class SemanticTopologySynthesizer
             var reachableSources = string.Join('\n', reachableFiles
                 .Select(file =>
                 {
-                    var normFull = Path.GetFullPath(file).Replace('\\', '/');
+                    var normFull = file.NormalizeFullPath();
                     return fileByFullPath.TryGetValue(normFull, out var fn)
-                        ? (fn.Extensions?.GetValueOrDefault(CodeExplorer.Core.Parser.Layers.Layer3FileSignalEnricher.ExtRustTopologyBodySummary) ?? string.Empty)
+                        ? (fn.TryGetSignals()?.RustTopologyBodySummary ?? string.Empty)
                         : DeclarationLinePattern.Replace(GetTopologySummary(file), string.Empty);
                 }));
             var effectiveSource = reachableSources.Length == 0 ? source : source + "\n" + reachableSources;
@@ -276,15 +204,23 @@ internal static class SemanticTopologySynthesizer
             var packageNames = CollectEffectivePackageNames(project.Id, directPackageNames, localDependencyIds);
             projectPackageNames[project.Id] = packageNames;
 
-            SynthesizeAwsResources(
-                project,
-                effectiveSource,
-                packageNames,
-                workloadByProjectId,
-                semanticStructureNode,
-                semanticRelationships,
-                existingRelKeys,
-                ctx);
+            var langParser = WorkspaceIndexer.GetParserByLanguage(project.ProjectType.ToCanonicalString());
+            if (langParser != null)
+            {
+                workloadByProjectId.TryGetValue(project.Id, out var projWorkloadId);
+                for (int e = 0; e < langParser.SemanticExtensions.Count; e++)
+                {
+                    langParser.SemanticExtensions[e].SynthesizeCloudResources(
+                        project,
+                        effectiveSource,
+                        packageNames,
+                        projWorkloadId,
+                        semanticStructureNode,
+                        semanticRelationships,
+                        existingRelKeys,
+                        ctx);
+                }
+            }
         }
 
         SynthesizePeerMesh(
@@ -299,86 +235,6 @@ internal static class SemanticTopologySynthesizer
             semanticRelationships,
             existingRelKeys,
             ctx);
-    }
-
-    private static void SynthesizeAwsResources(
-        ProjectNode project,
-        string source,
-        HashSet<string> packageNames,
-        IReadOnlyDictionary<string, string> workloadByProjectId,
-        SemanticStructureNode semanticStructureNode,
-        List<Relationship> semanticRelationships,
-        HashSet<(string From, string To, string Kind)> existingRelKeys,
-        ParsingContext ctx)
-    {
-        var detectedRoles = DetectAwsResourceRoles(source, packageNames);
-        foreach (var resource in AwsResources.Where(resource => detectedRoles.Contains(resource.Role, StringComparer.OrdinalIgnoreCase)))
-        {
-            var resourceId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.CloudService}:{resource.IdSuffix}";
-            if (!semanticStructureNode.Children.Any(child => child.Id.Equals(resourceId, StringComparison.OrdinalIgnoreCase)))
-            {
-                var extensions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["provider"] = "AWS",
-                    ["resource_type"] = resource.ResourceType.ToCanonicalString(),
-                    ["resource_role"] = resource.Role,
-                    ["is_semantic_entity"] = "true"
-                };
-                semanticStructureNode.Children.Add(new CloudServiceNode(
-                    resourceId,
-                    resource.Name,
-                    resource.ResourceType,
-                    project.Path,
-                    extensions));
-                ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.CloudService, resource.Name, resourceId);
-            }
-
-            if (!workloadByProjectId.TryGetValue(project.Id, out var sourceId))
-            {
-                continue;
-            }
-            AddRelationship(
-                new Relationship(sourceId, resourceId, OntologyConstants.Relationships.UsesCloud,
-                    new Dictionary<string, object>
-                    {
-                        ["category"] = "external_resource",
-                        ["dependency_type"] = "cloud_resource",
-                        ["resource_role"] = resource.Role,
-                        ["is_semantic"] = "true"
-                    }),
-                semanticRelationships,
-                existingRelKeys);
-
-            if (resource.ReadPattern.IsMatch(source))
-            {
-                AddRelationship(
-                    new Relationship(sourceId, resourceId, OntologyConstants.Relationships.ReadsFrom,
-                        new Dictionary<string, object>
-                        {
-                            ["category"] = "external_resource",
-                            ["dependency_type"] = "cloud_resource",
-                            ["resource_role"] = resource.Role,
-                            ["is_semantic"] = "true"
-                        }),
-                    semanticRelationships,
-                    existingRelKeys);
-            }
-
-            if (resource.WritePattern.IsMatch(source))
-            {
-                AddRelationship(
-                    new Relationship(sourceId, resourceId, OntologyConstants.Relationships.WritesTo,
-                        new Dictionary<string, object>
-                        {
-                            ["category"] = "external_resource",
-                            ["dependency_type"] = "cloud_resource",
-                            ["resource_role"] = resource.Role,
-                            ["is_semantic"] = "true"
-                        }),
-                    semanticRelationships,
-                    existingRelKeys);
-            }
-        }
     }
 
     private static void SynthesizePeerMesh(
@@ -399,7 +255,7 @@ internal static class SemanticTopologySynthesizer
             .Where(file => IsComposeFile(file.Path) && !file.Name.Contains(".test.", StringComparison.OrdinalIgnoreCase))
             .ToArray();
         var composeSource = string.Join('\n', composeFiles.Select(file =>
-            file.Extensions?.GetValueOrDefault("compose_participants") ?? string.Empty));
+            file.TryGetSignals()?.ComposeParticipants ?? string.Empty));
         var collectiveCompute = projects.Any(project =>
             projectSource.TryGetValue(project.Id, out var source) &&
             source.Contains("nccl", StringComparison.OrdinalIgnoreCase) &&
@@ -505,7 +361,8 @@ internal static class SemanticTopologySynthesizer
 
     private static IReadOnlyList<string> GetReachableDependencyFiles(ProjectNode project, string workspaceRoot)
     {
-        var json = project.Extensions?.GetValueOrDefault(OntologyConstants.PropertyNames.SourceReachability);
+        var json = project.TryGetSignals()?.SourceReachability ??
+                   project.Extensions?.GetValueOrDefault(OntologyConstants.PropertyNames.SourceReachability);
         if (string.IsNullOrWhiteSpace(json))
         {
             return [];

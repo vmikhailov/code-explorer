@@ -910,8 +910,52 @@ public abstract class StatementSyntax : SyntaxNode;
 
 public sealed class BlockStmtSyntax : StatementSyntax
 {
-    public IReadOnlyList<StatementSyntax> Statements { get; set; } = [];
+    private IReadOnlyList<StatementSyntax>? _statements;
+
+    public IReadOnlyList<StatementSyntax> Statements
+    {
+        get => _statements ??= BuildStatements();
+        set => _statements = value;
+    }
+
     public bool IsUnsafe { get; set; }
+
+    private IReadOnlyList<StatementSyntax> BuildStatements()
+    {
+        if (Children.Count == 0) return [];
+        var stmts = new List<StatementSyntax>(Children.Count);
+        for (int i = 0; i < Children.Count; i++)
+        {
+            var child = Children[i];
+            if (child is StatementSyntax stmt)
+            {
+                stmts.Add(stmt);
+            }
+            else if (child is DeclarationSyntax decl)
+            {
+                stmts.Add(new DeclStmtSyntax
+                {
+                    Span = decl.Span,
+                    RawGrammarKind = decl.RawGrammarKind,
+                    Parent = decl.Parent,
+                    Document = decl.Document,
+                    Declarations = [decl]
+                });
+            }
+            else if (child is ExprSyntax expr)
+            {
+                stmts.Add(new ExprStmtSyntax
+                {
+                    Span = expr.Span,
+                    RawGrammarKind = expr.RawGrammarKind,
+                    Parent = expr.Parent,
+                    Document = expr.Document,
+                    Expression = expr
+                });
+            }
+        }
+        return stmts;
+    }
 }
 
 public sealed class ExprStmtSyntax : StatementSyntax

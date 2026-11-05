@@ -88,6 +88,11 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
     protected bool HasProfileConstantModifier(Node node)
     {
+        if (node is DeclarationSyntax decl &&
+            (decl.Modifiers & (SyntaxModifiers.Const | SyntaxModifiers.ReadOnly)) != 0)
+        {
+            return true;
+        }
         if (Profile.ConstantModifierKeywords.Count == 0) return false;
         foreach (var child in node.Children)
         {

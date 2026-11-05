@@ -14,7 +14,7 @@ public partial class ResourceSemanticAnalyzer
     private static bool HasEntityOrTableDeclaration(FileNode? fileNode)
     {
         if (fileNode == null) return false;
-        if (fileNode.HasEntityOrTable == true) return true;
+        if (fileNode.Flags.HasFlag(SymbolFlags.HasEntityOrTable) || fileNode.TryGetSignals()?.HasEntityOrTable == true) return true;
         if (HasEntityOrTableNode(fileNode)) return true;
         return fileNode.TryGetExtension(Layers.Layer3FileSignalEnricher.ExtHasEntityOrTable, out var val) &&
                val == "true";
@@ -28,8 +28,9 @@ public partial class ResourceSemanticAnalyzer
             var list = new List<(string ClassName, string ContextStem, string? ConnectionKey)>();
             if (fileNode == null) return list;
 
+            var signals = fileNode.TryGetSignals();
             string? baseConnKey = null;
-            var bc = fileNode.DbContextBaseConn;
+            var bc = signals?.DbContextBaseConn;
             if (string.IsNullOrWhiteSpace(bc))
             {
                 fileNode.TryGetExtension(Layers.Layer3FileSignalEnricher.ExtDbContextBaseConn, out bc);
@@ -54,7 +55,7 @@ public partial class ResourceSemanticAnalyzer
 
             if (list.Count == 0)
             {
-                var classesRaw = fileNode.DbContextClasses;
+                var classesRaw = signals?.DbContextClasses;
                 if (string.IsNullOrWhiteSpace(classesRaw))
                 {
                     fileNode.TryGetExtension(Layers.Layer3FileSignalEnricher.ExtDbContextClasses, out classesRaw);
@@ -117,8 +118,9 @@ public partial class ResourceSemanticAnalyzer
 
     private static bool HasEntityOrTableNode(IOntologyNode node)
     {
-        if (node is DatabaseNode dbNode && dbNode.Extensions != null &&
-            dbNode.Extensions.TryGetValue("is_implicit_schema", out var imp) && imp == "true")
+        if (node is DatabaseNode dbNode &&
+            (dbNode.IsImplicitSchema == true || dbNode.Flags.HasFlag(SymbolFlags.IsImplicitSchema) ||
+             (dbNode.Extensions != null && dbNode.Extensions.TryGetValue("is_implicit_schema", out var imp) && imp == "true")))
         {
             return false;
         }
@@ -147,7 +149,7 @@ public partial class ResourceSemanticAnalyzer
             {
                 if (line > 0 && fileNode != null)
                 {
-                    fileNode.SetExtension($"schema_line:{clean}", line.ToString());
+                    fileNode.Signals().SetSchemaLine(clean, line);
                 }
                 if (seen.Add(clean))
                 {
@@ -384,7 +386,7 @@ public partial class ResourceSemanticAnalyzer
     private static string? ResolveDeclaredSchemaFromFileExtensions(FileNode? fileNode, string filePath)
     {
         if (fileNode == null) return null;
-        var val = fileNode.DeclaredSchemaRaw;
+        var val = fileNode.TryGetSignals()?.DeclaredSchemaRaw;
         if (string.IsNullOrWhiteSpace(val))
         {
             fileNode.TryGetExtension(Layers.Layer3FileSignalEnricher.ExtDeclaredSchemaRaw, out val);

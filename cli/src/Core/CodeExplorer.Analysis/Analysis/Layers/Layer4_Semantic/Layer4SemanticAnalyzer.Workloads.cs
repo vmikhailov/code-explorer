@@ -220,9 +220,10 @@ public partial class Layer4SemanticParser
                     projectsProcessed % 10 == 0 || (now - lastLogTicks) >= 3000)
                 {
                     var pct = totalProjects > 0 ? (double)projectsProcessed / totalProjects * 100.0 : 100.0;
+                    var pctInt = (int)Math.Round(pct);
                     var globalPct = 52 + (int)(16.0 * projectsProcessed / Math.Max(1, totalProjects));
-                    ctx.ReportProgress(globalPct, "Layer 4: Semantic", $"Enriched {projectsProcessed}/{totalProjects} projects ({pct:F0}%) - {project.Name}");
-                    ctx.Log($"[Layer 4    ] Enriched {projectsProcessed}/{totalProjects} projects ({pct:F0}%) - {project.Name}...");
+                    ctx.ReportProgress(globalPct, "Layer 4: Semantic", $"Enriched {projectsProcessed}/{totalProjects} projects ({pctInt}%) - {project.Name}");
+                    ctx.Layer4Log.EnrichingProgress(projectsProcessed, totalProjects, pctInt, project.Name);
                     lastLogTicks = now;
                     ctx.TriggerProgressReport();
                 }
@@ -241,9 +242,8 @@ public partial class Layer4SemanticParser
             {
                 var projectDirectory = project.Extensions?.GetValueOrDefault("cargo_manifest_dir");
                 var projectAbsDir = !string.IsNullOrWhiteSpace(projectDirectory)
-                    ? Path.GetFullPath(projectDirectory)
-                    : Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, project.Path));
-                projectAbsDir = projectAbsDir.Replace('\\', '/');
+                    ? projectDirectory.NormalizeFullPath()
+                    : Path.Combine(ctx.AbsoluteWorkspacePath, project.Path).NormalizeFullPath();
                 var filesInDir = projectFiles.Select(f => f.FullPath).ToArray();
                 matchingParsers = WorkspaceIndexer._projectParsers
                     .Where(p => p.IsProjectDirectory(projectAbsDir, filesInDir))

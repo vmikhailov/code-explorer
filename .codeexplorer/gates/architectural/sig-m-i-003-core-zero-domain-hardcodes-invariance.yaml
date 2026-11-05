@@ -14,7 +14,14 @@ query: >-
     AND (toLower(lit.value) CONTAINS 'dynadot' 
       OR toLower(lit.value) CONTAINS 'rtb' 
       OR toLower(lit.value) CONTAINS 'antifraud' 
-      OR toLower(lit.value) CONTAINS 'google-pub-sub-network')
+      OR toLower(lit.value) CONTAINS 'google-pub-sub-network'
+      OR toLower(lit.value) CONTAINS 'aws-sdk-'
+      OR toLower(lit.value) CONTAINS 'encrypted-shares'
+      OR toLower(lit.value) CONTAINS 'database-chunks'
+      OR toLower(lit.value) CONTAINS 'graph-checkpoints'
+      OR toLower(lit.value) CONTAINS '.d.ts'
+      OR toLower(lit.value) CONTAINS '.d.mts'
+      OR toLower(lit.value) CONTAINS '.d.cts')
   RETURN 
     coalesce(lit.path, lit.file_path) AS file,
     coalesce(lit.start_line, 0) AS line,

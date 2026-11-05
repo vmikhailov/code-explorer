@@ -9,7 +9,7 @@ public partial class Layer2ProjectParser
 {
     public async Task<Layer2Result> ParseAsync(Layer1Result l1Result, ParsingContext ctx)
     {
-        ctx.Log("[Layer 2    ] Starting project boundary detection and dependency scan...");
+        ctx.Layer2Log.ScanStarted();
 
         var projectsStructureNode = new ProjectsStructureNode(
             $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.ProjectsStructure}",
@@ -90,25 +90,25 @@ public partial class Layer2ProjectParser
         {
             await ctx.EnqueueUploadRelationshipsAsync(dependencies);
             ctx.AddRelsCount(dependencies.Count);
-            ctx.Log($"[Layer 2    ] Resolved and enqueued {dependencies.Count} project dependencies.");
+            ctx.Layer2Log.DependenciesEnqueued(dependencies.Count);
         }
 
         SharedFileEnricher.Enrich(l1Result.Files, projects, ctx);
 
-        ctx.Log($"[Layer 2    ] Project detection scan complete. Found {projects.Count} projects, {packages.Count} package nodes.");
+        ctx.Layer2Log.ScanCompleted(projects.Count, packages.Count);
         return new Layer2Result(l1Result, projectsStructureNode, projects, packages, dependencies);
     }
 
     public static ProjectNode? FindProjectForFilePath(string filePath, IEnumerable<ProjectNode> projects)
     {
         if (string.IsNullOrEmpty(filePath)) return null;
-        var cleanPath = filePath.Replace('\\', '/').Trim('/');
+        var cleanPath = filePath.NormalizeSlashes().Trim('/');
         ProjectNode? bestMatch = null;
         var bestMatchLength = -1;
 
         foreach (var p in projects)
         {
-            var pPath = p.Path.Replace('\\', '/').Trim('/');
+            var pPath = p.Path.NormalizeSlashes().Trim('/');
             if (pPath == "")
             {
                 if (bestMatchLength < 0)

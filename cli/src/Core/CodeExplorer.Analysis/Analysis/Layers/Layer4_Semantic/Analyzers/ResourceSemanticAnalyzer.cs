@@ -624,9 +624,7 @@ public partial class ResourceSemanticAnalyzer
     private static int FindDatabaseUsageLine(FileNode fileNode, string? schema, string parserId)
     {
         if (!string.IsNullOrWhiteSpace(schema) &&
-            fileNode.Extensions != null &&
-            fileNode.Extensions.TryGetValue($"schema_line:{schema}", out var sl) &&
-            int.TryParse(sl, out var parsedLine) &&
+            fileNode.TryGetSignals()?.TryGetSchemaLine(schema, out var parsedLine) == true &&
             parsedLine > 0)
         {
             return parsedLine;

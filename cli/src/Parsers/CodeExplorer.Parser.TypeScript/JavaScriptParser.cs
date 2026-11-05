@@ -93,7 +93,21 @@ public class JavaScriptParser : IProjectParser, IFileParser
 
     public IReadOnlyCollection<string> ManifestFileNames => _tsParser.ManifestFileNames;
     public IReadOnlyCollection<string> ManifestExtensions => _tsParser.ManifestExtensions;
+    public bool IsDistOutputDirectory(string dirName) => _tsParser.IsDistOutputDirectory(dirName);
+    public void InspectDirectoryFiles(string directoryPath, FileInfo[] files, CodeExplorer.Core.Common.Nodes.WorkspaceNode workspace) =>
+        _tsParser.InspectDirectoryFiles(directoryPath, files, workspace);
     public bool ShouldSkipFileName(string fileName) => _tsParser.ShouldSkipFileName(fileName);
+    public bool ShouldSkipFileBytes(string fileName, ReadOnlySpan<byte> contentBytes) => _tsParser.ShouldSkipFileBytes(fileName, contentBytes);
+    public bool ShouldSkipFile(FileInfo fileInfo) => _tsParser.ShouldSkipFile(fileInfo);
+    public string ClassifyArtifactRole(string relativePath, string fileName, ReadOnlySpan<byte> contentBytes = default) =>
+        _tsParser.ClassifyArtifactRole(relativePath, fileName, contentBytes);
+    public void EnrichFileSignals(
+        CodeExplorer.Core.Common.Nodes.Layer1_Physical.FileNode fileNode,
+        SyntaxTree syntaxTree,
+        CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode? project,
+        string sourceText,
+        ParsingContext? ctx) =>
+        _tsParser.EnrichFileSignals(fileNode, syntaxTree, project, sourceText, ctx);
 
     public string GetProjectName(string directoryPath, string[] filesInDirectory)
     {

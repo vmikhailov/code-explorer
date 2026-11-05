@@ -13,6 +13,7 @@ public class WorkspaceFileFilter
     /// </summary>
     public static IReadOnlySet<string> UniversalExcludedDirectoryNames => WorkspaceSettings.DefaultExcludedDirectories;
 
+    private readonly HashSet<string> _universalExcludedDirectoryNames = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _excludedDirectoryNames = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _manifestFileNames = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _manifestExtensions = new(StringComparer.OrdinalIgnoreCase);
@@ -42,7 +43,9 @@ public class WorkspaceFileFilter
         {
             if (!string.IsNullOrWhiteSpace(dir))
             {
-                _excludedDirectoryNames.Add(dir.Trim());
+                var trimmed = dir.Trim();
+                _universalExcludedDirectoryNames.Add(trimmed);
+                _excludedDirectoryNames.Add(trimmed);
             }
         }
 
@@ -79,11 +82,54 @@ public class WorkspaceFileFilter
         }
     }
 
-    public bool? CheckDirectoryExclusion(string dirName, string? fullPath = null)
+    public IFileParser? GetFileParser(string fileName)
     {
-        foreach (var parser in _projectParsers)
+        var ext = Path.GetExtension(fileName);
+        for (int i = 0; i < _fileParsers.Count; i++)
         {
-            var decision = parser.CheckDirectoryExclusion(dirName, fullPath);
+            var fp = _fileParsers[i];
+            if ((!string.IsNullOrEmpty(ext) && fp.CanParse(ext)) || fp.CanParseFile(fileName))
+            {
+                return fp;
+            }
+        }
+        return null;
+    }
+
+    public IReadOnlyList<IProjectParser>? ResolveDirectoryProjectParsers(
+        string currentDir,
+        IReadOnlyList<FileInfo> dirFiles,
+        IReadOnlyList<IProjectParser>? inheritedParsers)
+    {
+        List<IProjectParser>? matched = null;
+        for (int p = 0; p < _projectParsers.Count; p++)
+        {
+            var parser = _projectParsers[p];
+            for (int f = 0; f < dirFiles.Count; f++)
+            {
+                if (parser.IsManifestFile(dirFiles[f].Name))
+                {
+                    matched ??= [];
+                    matched.Add(parser);
+                    break;
+                }
+            }
+        }
+
+        if (matched is { Count: > 0 })
+        {
+            return matched;
+        }
+
+        return inheritedParsers;
+    }
+
+    public bool? CheckDirectoryExclusion(string dirName, string? fullPath = null, IReadOnlyList<IProjectParser>? activeParsers = null)
+    {
+        var parsers = activeParsers is { Count: > 0 } ? activeParsers : _projectParsers;
+        for (int i = 0; i < parsers.Count; i++)
+        {
+            var decision = parsers[i].CheckDirectoryExclusion(dirName, fullPath);
             if (decision.HasValue)
             {
                 return decision.Value;
@@ -93,32 +139,45 @@ public class WorkspaceFileFilter
         return null;
     }
 
-    public bool IsExcludedDirectory(string dirName, string? fullPath = null)
+    public bool IsExcludedDirectory(string dirName, string? fullPath = null, IReadOnlyList<IProjectParser>? activeParsers = null)
     {
-        var decision = CheckDirectoryExclusion(dirName, fullPath);
+        if (_universalExcludedDirectoryNames.Contains(dirName))
+        {
+            return true;
+        }
+
+        var parsers = activeParsers is { Count: > 0 } ? activeParsers : _projectParsers;
+
+        var decision = CheckDirectoryExclusion(dirName, fullPath, parsers);
         if (decision.HasValue)
         {
             return decision.Value;
         }
 
-        if (IncludeDistAndMinifiedArtifacts &&
-            (dirName.Equals("dist", StringComparison.OrdinalIgnoreCase) ||
-             dirName.Equals("build", StringComparison.OrdinalIgnoreCase) ||
-             dirName.Equals("out", StringComparison.OrdinalIgnoreCase) ||
-             dirName.Equals("umd", StringComparison.OrdinalIgnoreCase) ||
-             dirName.Equals("amd", StringComparison.OrdinalIgnoreCase) ||
-             dirName.Equals("esm", StringComparison.OrdinalIgnoreCase) ||
-             dirName.Equals("cjs", StringComparison.OrdinalIgnoreCase)))
+        if (IncludeDistAndMinifiedArtifacts)
         {
+            for (int i = 0; i < parsers.Count; i++)
+            {
+                if (parsers[i].IsDistOutputDirectory(dirName))
+                {
+                    return false;
+                }
+            }
+        }
+
+        if (activeParsers is { Count: > 0 })
+        {
+            for (int i = 0; i < activeParsers.Count; i++)
+            {
+                if (activeParsers[i].ExcludedFolders.Contains(dirName, StringComparer.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
             return false;
         }
 
-        if (_excludedDirectoryNames.Contains(dirName))
-        {
-            return true;
-        }
-
-        return false;
+        return _excludedDirectoryNames.Contains(dirName);
     }
 
     public bool IsManifestFile(string fileName)
@@ -137,23 +196,24 @@ public class WorkspaceFileFilter
 
     public bool ShouldSkipFileName(string fileName)
     {
-        foreach (var p in _projectParsers)
+        var fileParser = GetFileParser(fileName);
+        if (fileParser != null)
         {
             if (IncludeDistAndMinifiedArtifacts)
             {
-                var fn = fileName.ToLowerInvariant();
-                if (fn.EndsWith(".d.ts") || fn.EndsWith(".d.mts") || fn.EndsWith(".d.cts")) return true;
+                var lower = fileName.ToLowerInvariant();
+                if (!lower.Contains(".min.", StringComparison.Ordinal) &&
+                    !lower.Contains(".bundle.", StringComparison.Ordinal) &&
+                    fileParser.ShouldSkipFileName(fileName))
+                {
+                    return true;
+                }
                 return IProjectParser.DefaultShouldSkipFileName(fileName);
             }
-            if (p.ShouldSkipFileName(fileName)) return true;
+            return fileParser.ShouldSkipFileName(fileName);
         }
 
-        foreach (var f in _fileParsers)
-        {
-            if (f.ShouldSkipFileName(fileName)) return true;
-        }
-
-        return false;
+        return IProjectParser.DefaultShouldSkipFileName(fileName);
     }
 
     public bool ShouldSkipFileMetadata(FileInfo fileInfo)
@@ -180,18 +240,8 @@ public class WorkspaceFileFilter
     {
         if (IncludeDistAndMinifiedArtifacts) return false;
 
-        var ext = Path.GetExtension(fileName);
-        if (ext.Equals(".js", StringComparison.OrdinalIgnoreCase) ||
-            ext.Equals(".ts", StringComparison.OrdinalIgnoreCase) ||
-            ext.Equals(".css", StringComparison.OrdinalIgnoreCase))
-        {
-            if (IsMinifiedContentBytes(contentBytes))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        var fileParser = GetFileParser(fileName);
+        return fileParser != null && fileParser.ShouldSkipFileBytes(fileName, contentBytes);
     }
 
     public bool ShouldSkipFile(FileInfo fileInfo)
@@ -199,80 +249,42 @@ public class WorkspaceFileFilter
         if (ShouldSkipFileMetadata(fileInfo)) return true;
         if (IncludeDistAndMinifiedArtifacts) return false;
 
-        foreach (var p in _projectParsers)
-        {
-            if (p.ShouldSkipFile(fileInfo))
-            {
-                return true;
-            }
-        }
-
-        foreach (var f in _fileParsers)
-        {
-            if (f.ShouldSkipFile(fileInfo))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        var fileParser = GetFileParser(fileInfo.Name);
+        return fileParser != null && fileParser.ShouldSkipFile(fileInfo);
     }
 
-    public static bool IsMinifiedContentBytes(ReadOnlySpan<byte> bytes)
+    public string ClassifyFileArtifactRole(string relativePath, string fileName, ReadOnlySpan<byte> contentBytes = default)
     {
-        if (bytes.IsEmpty) return false;
-        var limit = Math.Min(bytes.Length, 8192);
-        var lineLen = 0;
-        var newlines = 0;
-        for (var i = 0; i < limit; i++)
+        var fileParser = GetFileParser(fileName);
+        if (fileParser != null)
         {
-            if (bytes[i] == (byte)'\n')
+            var role = fileParser.ClassifyArtifactRole(relativePath, fileName, contentBytes);
+            if (!string.Equals(role, "source", StringComparison.Ordinal))
             {
-                newlines++;
-                lineLen = 0;
-            }
-            else
-            {
-                lineLen++;
-                if (lineLen > 1000) return true;
+                return role;
             }
         }
-        if (lineLen > 1000) return true;
-        if (limit >= 4096 && newlines <= 3) return true;
-        return false;
-    }
 
-    public static string ClassifyArtifactRole(string relativePath, string fileName, ReadOnlySpan<byte> contentBytes = default)
-    {
-        var normPath = relativePath.Replace('\\', '/');
-        var lowerFile = fileName.ToLowerInvariant();
-        if (lowerFile.EndsWith(".d.ts") || lowerFile.EndsWith(".d.mts") || lowerFile.EndsWith(".d.cts"))
-        {
-            return "declaration";
-        }
-        if (lowerFile.Contains(".min.") || lowerFile.Contains(".bundle.") || IsMinifiedBytes(contentBytes))
-        {
-            return "minified";
-        }
+        var normPath = relativePath.NormalizeSlashes();
         var padded = "/" + normPath.TrimStart('/');
         if (padded.Contains("/dist/", StringComparison.OrdinalIgnoreCase) ||
             padded.Contains("/build/", StringComparison.OrdinalIgnoreCase) ||
-            padded.Contains("/out/", StringComparison.OrdinalIgnoreCase) ||
-            padded.Contains("/umd/", StringComparison.OrdinalIgnoreCase) ||
-            padded.Contains("/amd/", StringComparison.OrdinalIgnoreCase))
+            padded.Contains("/out/", StringComparison.OrdinalIgnoreCase))
         {
             return "dist";
         }
         if (padded.Contains("/scripts/", StringComparison.OrdinalIgnoreCase) ||
-            padded.Contains("/tools/", StringComparison.OrdinalIgnoreCase) ||
-            lowerFile.EndsWith(".sh") || lowerFile.EndsWith(".ps1"))
+            padded.Contains("/tools/", StringComparison.OrdinalIgnoreCase))
         {
             return "script";
         }
         return "source";
     }
 
-    public static bool IsMinifiedBytes(ReadOnlySpan<byte> bytes)
+    public static string ClassifyArtifactRole(string relativePath, string fileName, ReadOnlySpan<byte> contentBytes = default) =>
+        Default.ClassifyFileArtifactRole(relativePath, fileName, contentBytes);
+
+    public static bool IsMinifiedBytes(ReadOnlySpan<byte> bytes, int maxLineLength = 500)
     {
         if (bytes.IsEmpty) return false;
         var limit = Math.Min(bytes.Length, 8192);
@@ -288,10 +300,34 @@ public class WorkspaceFileFilter
             else
             {
                 lineLen++;
-                if (lineLen > 500) return true;
+                if (lineLen > maxLineLength) return true;
             }
         }
-        if (lineLen > 500) return true;
+        if (lineLen > maxLineLength) return true;
+        if (limit >= 4096 && newlines <= 3) return true;
+        return false;
+    }
+
+    public static bool IsMinifiedText(ReadOnlySpan<char> text, int maxLineLength = 1000)
+    {
+        if (text.IsEmpty) return false;
+        var limit = Math.Min(text.Length, 8192);
+        var lineLen = 0;
+        var newlines = 0;
+        for (var i = 0; i < limit; i++)
+        {
+            if (text[i] == '\n')
+            {
+                newlines++;
+                lineLen = 0;
+            }
+            else
+            {
+                lineLen++;
+                if (lineLen > maxLineLength) return true;
+            }
+        }
+        if (lineLen > maxLineLength) return true;
         if (limit >= 4096 && newlines <= 3) return true;
         return false;
     }
@@ -300,26 +336,7 @@ public class WorkspaceFileFilter
     {
         if (PhysicalFileStore.TryGetFileText(filePath, out var cachedText))
         {
-            if (string.IsNullOrEmpty(cachedText)) return false;
-            var limit = Math.Min(cachedText.Length, 8192);
-            var lineLen = 0;
-            var newlines = 0;
-            for (var i = 0; i < limit; i++)
-            {
-                if (cachedText[i] == '\n')
-                {
-                    newlines++;
-                    lineLen = 0;
-                }
-                else
-                {
-                    lineLen++;
-                    if (lineLen > 1000) return true;
-                }
-            }
-            if (lineLen > 1000) return true;
-            if (limit >= 4096 && newlines <= 3) return true;
-            return false;
+            return !string.IsNullOrEmpty(cachedText) && IsMinifiedText(cachedText.AsSpan(), maxLineLength: 1000);
         }
 
         try
@@ -329,36 +346,12 @@ public class WorkspaceFileFilter
 
             var buffer = new char[8192];
             var read = reader.Read(buffer, 0, buffer.Length);
-            if (read <= 0) return false;
-
-            var lineLen = 0;
-            var newlines = 0;
-
-            for (int i = 0; i < read; i++)
-            {
-                if (buffer[i] == '\n')
-                {
-                    newlines++;
-                    lineLen = 0;
-                }
-                else
-                {
-                    lineLen++;
-                    if (lineLen > 1000)
-                    {
-                        return true;
-                    }
-                }
-            }
-
-            if (lineLen > 1000) return true;
-            if (read >= 4096 && newlines <= 3) return true;
+            return read > 0 && IsMinifiedText(buffer.AsSpan(0, read), maxLineLength: 1000);
         }
         catch
         {
-            // Fall through if file unreadable
+            return false;
         }
-        return false;
     }
 
     public bool IsSupportedSourceOrConfigFile(string fileName)
@@ -378,7 +371,7 @@ public class WorkspaceFileFilter
 
     public bool IsCandidateSourceFile(string fullPath)
     {
-        var normalized = fullPath.Replace('\\', '/');
+        var normalized = fullPath.NormalizeSlashes();
         var parts = normalized.Split('/');
         for (var i = 0; i < parts.Length - 1; i++)
         {
@@ -402,19 +395,19 @@ public class WorkspaceFileFilter
         var result = new List<string>();
         if (!Directory.Exists(targetPath)) return result;
 
-        var stack = new Stack<string>();
-        stack.Push(targetPath);
+        var stack = new Stack<(string Dir, IReadOnlyList<IProjectParser>? ActiveParsers)>();
+        stack.Push((targetPath, null));
 
         while (stack.Count > 0)
         {
-            var currentDir = stack.Pop();
+            var (currentDir, inheritedParsers) = stack.Pop();
             var isRoot = string.Equals(currentDir, workspaceRoot, StringComparison.OrdinalIgnoreCase);
-            var relativeDir = isRoot ? string.Empty : Path.GetRelativePath(workspaceRoot, currentDir).Replace('\\', '/');
+            var relativeDir = isRoot ? string.Empty : currentDir.GetNormalizedRelativePath(workspaceRoot);
 
             var dirName = Path.GetFileName(currentDir);
             if (string.IsNullOrEmpty(dirName)) dirName = currentDir;
 
-            if (IsExcludedDirectory(dirName, currentDir))
+            if (IsExcludedDirectory(dirName, currentDir, inheritedParsers))
             {
                 continue;
             }
@@ -429,11 +422,6 @@ public class WorkspaceFileFilter
                 continue;
             }
 
-            foreach (var parser in _projectParsers)
-            {
-                parser.OnDirectoryScan(currentDir, relativeDir, gitignore, log);
-            }
-
             DirectoryInfo dirInfo;
             try
             {
@@ -442,6 +430,23 @@ public class WorkspaceFileFilter
             catch
             {
                 continue;
+            }
+
+            FileInfo[] files;
+            try
+            {
+                files = dirInfo.GetFiles();
+            }
+            catch
+            {
+                files = [];
+            }
+
+            var activeParsers = ResolveDirectoryProjectParsers(currentDir, files, inheritedParsers);
+            var parsersToNotify = activeParsers is { Count: > 0 } ? activeParsers : _projectParsers;
+            for (int i = 0; i < parsersToNotify.Count; i++)
+            {
+                parsersToNotify[i].OnDirectoryScan(currentDir, relativeDir, gitignore, log);
             }
 
             // Enqueue subdirectories
@@ -457,23 +462,13 @@ public class WorkspaceFileFilter
 
             foreach (var subDir in subDirs)
             {
-                stack.Push(subDir.FullName);
+                stack.Push((subDir.FullName, activeParsers));
             }
 
             // Process files
-            FileInfo[] files;
-            try
-            {
-                files = dirInfo.GetFiles();
-            }
-            catch
-            {
-                files = [];
-            }
-
             foreach (var fileInfo in files)
             {
-                var relativeFile = Path.GetRelativePath(workspaceRoot, fileInfo.FullName).Replace('\\', '/');
+                var relativeFile = fileInfo.FullName.GetNormalizedRelativePath(workspaceRoot);
 
                 if (gitignore.IsIgnored(relativeFile, false))
                 {
@@ -542,7 +537,7 @@ public class WorkspaceFileFilter
 
             foreach (var f in files)
             {
-                yield return f.Replace('\\', '/');
+                yield return f.NormalizeSlashes();
             }
         }
     }
@@ -565,7 +560,7 @@ public class WorkspaceFileFilter
 
             if (currentDir != rootDir)
             {
-                yield return currentDir.Replace('\\', '/');
+                yield return currentDir.NormalizeSlashes();
             }
 
             string[] subDirs;

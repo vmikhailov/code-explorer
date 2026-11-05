@@ -19,6 +19,9 @@ public partial class CSharpParser : IProjectParser, IFileParser
     public IReadOnlyCollection<string> ManifestExtensions => [".csproj", ".fsproj", ".vbproj", ".nuspec"];
     public IReadOnlyCollection<string> ManifestFileNames => ["Directory.Build.props", "Directory.Build.targets", "Directory.Packages.props", "packages.config"];
 
+    private static readonly Regex CSharpDbContextClassRegex = new(@"class\s+([A-Za-z0-9_]+)\s*:\s*(?:[A-Za-z0-9_.]+\.)?(?:Identity)?DbContext\b", RegexOptions.Compiled);
+    private static readonly Regex CSharpBaseConnectionNameRegex = new(@":\s*base\s*\(\s*@?[""'](?:name\s*=\s*)?([A-Za-z0-9_.\-:]+)[""']\s*\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     public bool? CheckDirectoryExclusion(string dirName, string? fullPath = null)
     {
         if (dirName.Equals("bin", StringComparison.OrdinalIgnoreCase))
@@ -41,7 +44,7 @@ public partial class CSharpParser : IProjectParser, IFileParser
 
         try
         {
-            var norm = fullPath.Replace('\\', '/');
+            var norm = fullPath.NormalizeSlashes();
             var binIdx = norm.IndexOf("/bin/", StringComparison.OrdinalIgnoreCase);
             var binDir = fullPath;
             if (binIdx >= 0)
@@ -60,18 +63,42 @@ public partial class CSharpParser : IProjectParser, IFileParser
                 if (parentName.Equals("src", StringComparison.OrdinalIgnoreCase))
                     return false;
 
-                if (File.Exists(Path.Combine(parent, "Cargo.toml")) || File.Exists(Path.Combine(parent, "package.json")))
+                if (Directory.Exists(parent))
+                {
+                    var hasDotNetManifest = Directory.EnumerateFiles(parent)
+                        .Any(f =>
+                        {
+                            var ext = Path.GetExtension(f);
+                            var name = Path.GetFileName(f);
+                            return ext.Equals(".csproj", StringComparison.OrdinalIgnoreCase) ||
+                                   ext.Equals(".fsproj", StringComparison.OrdinalIgnoreCase) ||
+                                   ext.Equals(".vbproj", StringComparison.OrdinalIgnoreCase) ||
+                                   ext.Equals(".sln", StringComparison.OrdinalIgnoreCase) ||
+                                   ext.Equals(".slnx", StringComparison.OrdinalIgnoreCase) ||
+                                   name.Equals("Directory.Build.props", StringComparison.OrdinalIgnoreCase);
+                        });
+                    if (hasDotNetManifest)
+                        return true;
+                }
+            }
+
+            if (Directory.Exists(binDir))
+            {
+                const string PatternDll = "*.dll";
+                const string PatternPdb = "*.pdb";
+                const string PatternAny = "*";
+                if (Directory.Exists(Path.Combine(binDir, "Debug")) ||
+                    Directory.Exists(Path.Combine(binDir, "Release")) ||
+                    Directory.EnumerateFiles(binDir, PatternDll, SearchOption.TopDirectoryOnly).Any() ||
+                    Directory.EnumerateFiles(binDir, PatternPdb, SearchOption.TopDirectoryOnly).Any())
+                {
+                    return true;
+                }
+
+                if (Directory.EnumerateFiles(binDir, PatternAny, SearchOption.AllDirectories).Any())
+                {
                     return false;
-            }
-
-            if (Directory.Exists(binDir) && Directory.EnumerateFiles(binDir, "*.rs", SearchOption.AllDirectories).Any())
-            {
-                return false;
-            }
-
-            if (fullPath.EndsWith(".rs", StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
+                }
             }
         }
         catch
@@ -86,22 +113,10 @@ public partial class CSharpParser : IProjectParser, IFileParser
     {
         try
         {
-            // If it contains JS/TS workspace configuration, it is never a NuGet cache
-            if (File.Exists(Path.Combine(fullPath, "package.json")))
-                return false;
-
-            var parent = Path.GetDirectoryName(fullPath);
-            if (parent != null &&
-                (File.Exists(Path.Combine(parent, "pnpm-workspace.yaml")) ||
-                 File.Exists(Path.Combine(parent, "lerna.json")) ||
-                 File.Exists(Path.Combine(parent, "turbo.json"))))
-            {
-                return false;
-            }
-
             if (File.Exists(Path.Combine(fullPath, "repositories.config")))
                 return true;
 
+            var parent = Path.GetDirectoryName(fullPath);
             if (parent != null && File.Exists(Path.Combine(parent, "packages.config")))
                 return true;
 
@@ -110,10 +125,77 @@ public partial class CSharpParser : IProjectParser, IFileParser
         }
         catch
         {
-            // Best effort
+            // Ignore directory access failure
         }
 
         return false;
+    }
+
+    public void InspectDirectoryFiles(string directoryPath, FileInfo[] files, CodeExplorer.Core.Common.Nodes.WorkspaceNode workspace)
+    {
+        foreach (var file in files)
+        {
+            if (file.Extension.Equals(".dll", StringComparison.OrdinalIgnoreCase))
+            {
+                CodeExplorer.Core.Common.Nodes.AnalysisSignalStore.Signals(workspace).HasDotNetDll = true;
+                break;
+            }
+        }
+    }
+
+    public void EnrichFileSignals(
+        CodeExplorer.Core.Common.Nodes.Layer1_Physical.FileNode fileNode,
+        SyntaxTree syntaxTree,
+        CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode? project,
+        string sourceText,
+        ParsingContext? ctx)
+    {
+        if (project != null &&
+            ctx is { LightweightAstScanMode: false } &&
+            sourceText.Length <= 1024 * 1024 &&
+            sourceText.Contains("const string", StringComparison.Ordinal))
+        {
+            ConstantRegistry.ScanAndRegisterCSharp(sourceText, project.Name);
+        }
+
+        if (sourceText.Contains("DbContext", StringComparison.Ordinal))
+        {
+            EnrichDbContextSignals(fileNode, sourceText);
+            if (!ReferenceEquals(fileNode, syntaxTree.FileNode))
+            {
+                EnrichDbContextSignals(syntaxTree.FileNode, sourceText);
+            }
+        }
+    }
+
+    private static void EnrichDbContextSignals(CodeExplorer.Core.Common.Nodes.Layer1_Physical.FileNode targetFile, string sourceText)
+    {
+        var signals = CodeExplorer.Core.Common.Nodes.AnalysisSignalStore.Signals(targetFile);
+        var baseMatch = CSharpBaseConnectionNameRegex.Match(sourceText);
+        if (baseMatch.Success)
+        {
+            signals.DbContextBaseConn = baseMatch.Groups[1].Value.Trim();
+        }
+
+        var ctxMatches = CSharpDbContextClassRegex.Matches(sourceText);
+        if (ctxMatches.Count > 0)
+        {
+            var classes = new List<string>(ctxMatches.Count);
+            foreach (Match m in ctxMatches)
+            {
+                var className = m.Groups[1].Value.Trim();
+                if (!string.IsNullOrEmpty(className) &&
+                    !className.Equals("DbContext", StringComparison.OrdinalIgnoreCase) &&
+                    !className.Equals("IdentityDbContext", StringComparison.OrdinalIgnoreCase))
+                {
+                    classes.Add(className);
+                }
+            }
+            if (classes.Count > 0)
+            {
+                signals.DbContextClasses = string.Join(",", classes);
+            }
+        }
     }
 
     public void OnDirectoryScan(string directoryPath, string relativeDir, GitIgnoreMatcher gitignore, Action<string>? log = null)

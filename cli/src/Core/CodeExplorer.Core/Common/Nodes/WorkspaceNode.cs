@@ -29,15 +29,6 @@ public record WorkspaceNode(
     [JsonPropertyName("indexed_at"), OntologyProperty("Timestamp when the workspace was indexed (ISO 8601 UTC).")]
     public string? IndexedAt { get; set; }
 
-    [JsonPropertyName("has_native_node"), OntologyProperty("Indicates whether native .node binary addons were discovered in the workspace.")]
-    public bool? HasNativeNode { get; set; }
-
-    [JsonPropertyName("has_native_addon"), OntologyProperty("Indicates whether native binary addons (.node, .wasm, .dylib, .so) were discovered in the workspace.")]
-    public bool? HasNativeAddon { get; set; }
-
-    [JsonPropertyName("has_dotnet_dll"), OntologyProperty("Indicates whether compiled .NET .dll artifacts were discovered in the workspace.")]
-    public bool? HasDotNetDll { get; set; }
-
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Workspace;
 }

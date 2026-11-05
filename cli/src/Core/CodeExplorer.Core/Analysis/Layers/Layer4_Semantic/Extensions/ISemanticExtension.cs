@@ -117,4 +117,20 @@ public interface ISemanticExtension
     /// Optional AST-level discovery hook called during Pass 1 AST traversal.
     /// </summary>
     void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, ParsingContext? ctx) { }
+
+    /// <summary>
+    /// Optional Layer 4 project-level cloud resource synthesis hook allowing cloud SDK extensions
+    /// to emit CloudService nodes and USES_CLOUD / READS_FROM / WRITES_TO relationships.
+    /// </summary>
+    void SynthesizeCloudResources(
+        CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode project,
+        string effectiveSource,
+        IReadOnlySet<string> packageNames,
+        string? workloadId,
+        CodeExplorer.Core.Common.Nodes.Layer4_Semantic.SemanticStructureNode semanticStructureNode,
+        List<CodeExplorer.Core.Database.Relationship> semanticRelationships,
+        HashSet<(string From, string To, string Kind)> existingRelKeys,
+        ParsingContext ctx)
+    {
+    }
 }

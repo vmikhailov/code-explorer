@@ -1,4 +1,5 @@
 using CodeExplorer.Core.Parser.Layers;
+using CodeExplorer.Parser.Rust.Libraries;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -16,10 +17,10 @@ public class SemanticTopologySynthesizerTests
             "aws-sdk-kms"
         };
 
-        SemanticTopologySynthesizer.DetectAwsResourceRoles(source, packages)
+        AwsSdkRustLibraryParser.DetectAwsResourceRoles(source, packages)
             .Should().BeEquivalentTo("encrypted_shares", "database_chunks", "share_encryption_keys");
 
-        SemanticTopologySynthesizer.DetectAwsResourceRoles(source, new HashSet<string>())
+        AwsSdkRustLibraryParser.DetectAwsResourceRoles(source, new HashSet<string>())
             .Should().BeEmpty();
     }
 
@@ -29,7 +30,7 @@ public class SemanticTopologySynthesizerTests
         var source = "download_graph_checkpoint(&aws_clients.checkpoint_s3_client, &config.graph_checkpoint_bucket_name)";
         var packages = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "aws-sdk-s3" };
 
-        SemanticTopologySynthesizer.DetectAwsResourceRoles(source, packages)
+        AwsSdkRustLibraryParser.DetectAwsResourceRoles(source, packages)
             .Should().BeEquivalentTo("graph_checkpoints");
     }
 

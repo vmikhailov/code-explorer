@@ -411,7 +411,7 @@ public partial class PostIndexAnalyzer
             p.Id,
             p.Name,
             p.Path,
-            p.Extensions?.TryGetValue("git_repo", out var gr) == true ? gr : null,
+            p.TryGetSignals()?.GitRepo,
             p.IsLibrary)).ToList();
 
         var match = EndpointScoringEngine.MatchCall(cleanKey, null, null, candidates);

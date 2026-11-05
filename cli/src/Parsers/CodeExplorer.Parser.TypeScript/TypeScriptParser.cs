@@ -28,10 +28,39 @@ public partial class TypeScriptParser : IProjectParser, IFileParser
     ];
     public IReadOnlyCollection<string> ManifestExtensions => [];
 
+    public bool IsDistOutputDirectory(string dirName) =>
+        dirName.Equals("dist", StringComparison.OrdinalIgnoreCase) ||
+        dirName.Equals("build", StringComparison.OrdinalIgnoreCase) ||
+        dirName.Equals("out", StringComparison.OrdinalIgnoreCase) ||
+        dirName.Equals("umd", StringComparison.OrdinalIgnoreCase) ||
+        dirName.Equals("amd", StringComparison.OrdinalIgnoreCase) ||
+        dirName.Equals("esm", StringComparison.OrdinalIgnoreCase) ||
+        dirName.Equals("cjs", StringComparison.OrdinalIgnoreCase);
+
+    public void InspectDirectoryFiles(string directoryPath, FileInfo[] files, CodeExplorer.Core.Common.Nodes.WorkspaceNode workspace)
+    {
+        foreach (var file in files)
+        {
+            var ext = file.Extension;
+            if (ext.Equals(".node", StringComparison.OrdinalIgnoreCase))
+            {
+                var sig = CodeExplorer.Core.Common.Nodes.AnalysisSignalStore.Signals(workspace);
+                sig.HasNativeNode = true;
+                sig.HasNativeAddon = true;
+            }
+            else if (ext.Equals(".wasm", StringComparison.OrdinalIgnoreCase) ||
+                     ext.Equals(".dylib", StringComparison.OrdinalIgnoreCase) ||
+                     ext.Equals(".so", StringComparison.OrdinalIgnoreCase))
+            {
+                CodeExplorer.Core.Common.Nodes.AnalysisSignalStore.Signals(workspace).HasNativeAddon = true;
+            }
+        }
+    }
+
     public bool ShouldSkipFileName(string fileName)
     {
         var fn = fileName.ToLowerInvariant();
-        if (fn.EndsWith(".d.ts") ||
+        if (fn.EndsWith(".d.ts") || fn.EndsWith(".d.mts") || fn.EndsWith(".d.cts") ||
             fn.EndsWith(".min.js") || fn.EndsWith(".min.mjs") || fn.EndsWith(".min.cjs") ||
             fn.EndsWith(".bundle.js") || fn.EndsWith(".bundle.min.js") ||
             fn.Contains(".min.") ||
@@ -43,20 +72,79 @@ public partial class TypeScriptParser : IProjectParser, IFileParser
         return IProjectParser.DefaultShouldSkipFileName(fileName);
     }
 
+    public bool ShouldSkipFileBytes(string fileName, ReadOnlySpan<byte> contentBytes) =>
+        WorkspaceFileFilter.IsMinifiedBytes(contentBytes, maxLineLength: 1000);
+
     public bool ShouldSkipFile(FileInfo fileInfo)
     {
-        var ext = fileInfo.Extension;
-        if (ext.Equals(".js", StringComparison.OrdinalIgnoreCase) ||
-            ext.Equals(".ts", StringComparison.OrdinalIgnoreCase) ||
-            ext.Equals(".css", StringComparison.OrdinalIgnoreCase))
+        if (PhysicalFileStore.TryGetFileText(fileInfo.FullName, out var cachedText))
         {
-            if (WorkspaceFileFilter.IsMinifiedContent(fileInfo.FullName))
-            {
-                return true;
-            }
+            return WorkspaceFileFilter.IsMinifiedText(cachedText, maxLineLength: 1000);
+        }
+        return false;
+    }
+
+    public string ClassifyArtifactRole(string relativePath, string fileName, ReadOnlySpan<byte> contentBytes = default)
+    {
+        var normPath = relativePath.NormalizeSlashes();
+        var lowerFile = fileName.ToLowerInvariant();
+        if (lowerFile.EndsWith(".d.ts") || lowerFile.EndsWith(".d.mts") || lowerFile.EndsWith(".d.cts"))
+        {
+            return "declaration";
+        }
+        if (lowerFile.Contains(".min.") || lowerFile.Contains(".bundle.") || WorkspaceFileFilter.IsMinifiedBytes(contentBytes, maxLineLength: 500))
+        {
+            return "minified";
+        }
+        var padded = "/" + normPath.TrimStart('/');
+        if (padded.Contains("/dist/", StringComparison.OrdinalIgnoreCase) ||
+            padded.Contains("/build/", StringComparison.OrdinalIgnoreCase) ||
+            padded.Contains("/out/", StringComparison.OrdinalIgnoreCase) ||
+            padded.Contains("/umd/", StringComparison.OrdinalIgnoreCase) ||
+            padded.Contains("/amd/", StringComparison.OrdinalIgnoreCase))
+        {
+            return "dist";
+        }
+        return "source";
+    }
+
+    public void EnrichFileSignals(
+        CodeExplorer.Core.Common.Nodes.Layer1_Physical.FileNode fileNode,
+        SyntaxTree syntaxTree,
+        CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode? project,
+        string sourceText,
+        ParsingContext? ctx)
+    {
+        if (project == null ||
+            (!fileNode.Name.Contains("config", StringComparison.OrdinalIgnoreCase) &&
+             !fileNode.Name.Contains("datasource", StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
         }
 
-        return false;
+        const string FamilyRelational = "relational";
+        var projSignals = CodeExplorer.Core.Common.Nodes.AnalysisSignalStore.Signals(project);
+        if (!string.IsNullOrEmpty(projSignals.DbDriverEngine)) return;
+
+        var lower = sourceText.ToLowerInvariant();
+        if (lower.Contains("type: 'postgres'") || lower.Contains("type: \"postgres\"") ||
+            lower.Contains("dialect: 'postgres'") || lower.Contains("dialect: \"postgres\""))
+        {
+            projSignals.DbDriverEngine = "PostgreSQL";
+            projSignals.DbDriverFamily = FamilyRelational;
+        }
+        else if (lower.Contains("type: 'mysql'") || lower.Contains("type: \"mysql\"") ||
+                 lower.Contains("dialect: 'mysql'") || lower.Contains("dialect: \"mysql\""))
+        {
+            projSignals.DbDriverEngine = "MySQL";
+            projSignals.DbDriverFamily = FamilyRelational;
+        }
+        else if (lower.Contains("type: 'sqlite'") || lower.Contains("type: \"sqlite\"") ||
+                 lower.Contains("dialect: 'sqlite'") || lower.Contains("dialect: \"sqlite\""))
+        {
+            projSignals.DbDriverEngine = "SQLite";
+            projSignals.DbDriverFamily = FamilyRelational;
+        }
     }
 
     public bool IsConfigurationFile(string fileName)

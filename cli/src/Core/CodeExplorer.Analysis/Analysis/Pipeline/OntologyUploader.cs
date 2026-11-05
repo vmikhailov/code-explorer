@@ -220,16 +220,17 @@ public static class OntologyUploader
                 ctx.AddRelsCount(1);
 
                 var projNode = (ProjectNode)node;
+                var projSignals = projNode.Signals();
                 if (!string.IsNullOrEmpty(gitSettings.Branch))
-                    projNode.GitBranch = gitSettings.Branch;
+                    projSignals.GitBranch = gitSettings.Branch;
                 if (!string.IsNullOrEmpty(gitSettings.OriginUrl))
-                    projNode.GitOrigin = gitSettings.OriginUrl;
+                    projSignals.GitOrigin = gitSettings.OriginUrl;
                 if (!string.IsNullOrEmpty(gitSettings.UserName))
-                    projNode.GitUser = gitSettings.UserName;
-                if (gitSettings.TryGetExtension("commit_hash", out var commit) && !string.IsNullOrEmpty(commit))
-                    projNode.GitCommit = commit;
-                if (gitSettings.TryGetExtension("repo_name", out var repo) && !string.IsNullOrEmpty(repo))
-                    projNode.GitRepo = repo;
+                    projSignals.GitUser = gitSettings.UserName;
+                if (!string.IsNullOrEmpty(gitSettings.CommitHash))
+                    projSignals.GitCommit = gitSettings.CommitHash;
+                if (!string.IsNullOrEmpty(gitSettings.RepoName))
+                    projSignals.GitRepo = gitSettings.RepoName;
             }
 
             // Emit LOCATED_IN relationship to Folder or Workspace

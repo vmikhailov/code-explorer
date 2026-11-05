@@ -56,35 +56,11 @@ public record FunctionNode(
     [JsonPropertyName("loc"), OntologyProperty("Lines of code span for this function.")]
     public int? Loc { get; set; } = Loc ?? Math.Max(1, EndLine - StartLine + 1);
 
-    [JsonPropertyName("enclosing_type"), OntologyProperty("The name of the enclosing class, struct, or interface.")]
-    public string? EnclosingType { get; set; }
-
     [JsonPropertyName("is_exported"), OntologyProperty("Indicates whether the function is publicly exported from its module.")]
     public bool? IsExported { get; set; }
 
     [JsonPropertyName("is_module_init"), OntologyProperty("Indicates whether this node represents top-level module initialization code.")]
     public bool? IsModuleInit { get; set; }
-
-    [JsonPropertyName("df_return"), OntologyProperty("Intra-procedural dataflow return origins.")]
-    public string? DataflowReturn { get; set; }
-
-    [JsonPropertyName("df_writes"), OntologyProperty("Intra-procedural dataflow field writes.")]
-    public string? DataflowWrites { get; set; }
-
-    [JsonPropertyName("df_summary"), OntologyProperty("Compact intra-procedural dataflow summary.")]
-    public string? DataflowSummary { get; set; }
-
-    [JsonPropertyName("graphql_field"), OntologyProperty("Associated GraphQL field name resolved by this function.")]
-    public string? GraphqlField { get; set; }
-
-    [JsonPropertyName("graphql_schema"), OntologyProperty("Associated GraphQL parent type/schema name.")]
-    public string? GraphqlSchema { get; set; }
-
-    [JsonPropertyName("graphql_aliases"), OntologyProperty("Comma-separated GraphQL field aliases.")]
-    public string? GraphqlAliases { get; set; }
-
-    [JsonPropertyName("messaging_direction"), OntologyProperty("Messaging role direction (publish or subscribe).")]
-    public string? MessagingDirection { get; set; }
 
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Function;

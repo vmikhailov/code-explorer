@@ -191,6 +191,17 @@ public interface IProjectParser
     void OnDirectoryScan(string directoryPath, string relativeDir, GitIgnoreMatcher gitignore, Action<string>? log = null) { }
 
     /// <summary>
+    /// Inspects files discovered in a directory to record dialect-specific binary/native artifacts on the workspace node.
+    /// </summary>
+    void InspectDirectoryFiles(string directoryPath, FileInfo[] files, CodeExplorer.Core.Common.Nodes.WorkspaceNode workspace) { }
+
+    /// <summary>
+    /// Indicates whether a directory name represents a bundled/compiled distribution directory for this dialect
+    /// that should be included when <see cref="WorkspaceFileFilter.IncludeDistAndMinifiedArtifacts"/> is enabled.
+    /// </summary>
+    bool IsDistOutputDirectory(string dirName) => false;
+
+    /// <summary>
     /// Checks if the given directory contains a project for this language, based on files in it.
     /// </summary>
     bool IsProjectDirectory(string directoryPath, string[] filesInDirectory);

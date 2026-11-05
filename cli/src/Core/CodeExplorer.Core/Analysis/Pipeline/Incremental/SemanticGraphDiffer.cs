@@ -18,11 +18,14 @@ public class GraphPatch
         RelativePath = relativePath;
     }
 
+    public bool StructuralHashMismatch { get; set; }
+
     /// <summary>
     /// Indicates whether any graph relationships or nodes were added or removed.
     /// Returns false if changes are purely inner-logic (e.g. 2+2) or line shifts.
     /// </summary>
     public bool HasGraphStructuralChanges =>
+        StructuralHashMismatch ||
         AddedSymbols.Count > 0 ||
         RemovedSymbols.Count > 0 ||
         OutgoingCallDiffs.Count > 0 ||
@@ -38,6 +41,16 @@ public static class SemanticGraphDiffer
     public static GraphPatch ComputeDiff(FileGraphSnapshot oldSnapshot, FileGraphSnapshot newSnapshot)
     {
         var patch = new GraphPatch(newSnapshot.RelativePath);
+
+        if (!string.IsNullOrEmpty(oldSnapshot.PrecomputedStructuralHash) && oldSnapshot.Symbols.Count == 0)
+        {
+            var newStructuralHash = newSnapshot.ComputeStructuralHash();
+            if (!string.Equals(oldSnapshot.PrecomputedStructuralHash, newStructuralHash, StringComparison.OrdinalIgnoreCase))
+            {
+                patch.StructuralHashMismatch = true;
+            }
+            return patch;
+        }
 
         var oldSymbols = oldSnapshot.Symbols;
         var newSymbols = newSnapshot.Symbols;

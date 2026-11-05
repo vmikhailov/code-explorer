@@ -158,8 +158,8 @@ public class WorkspaceIndexer
         }
         else
         {
-            var fullTarget = Path.GetFullPath(targetPath).Replace('\\', '/');
-            var fullRoot = Path.GetFullPath(workspaceRoot).Replace('\\', '/');
+            var fullTarget = targetPath.NormalizeFullPath();
+            var fullRoot = workspaceRoot.NormalizeFullPath();
 
             if (string.Equals(fullTarget, fullRoot, StringComparison.OrdinalIgnoreCase))
             {
@@ -185,8 +185,7 @@ public class WorkspaceIndexer
         await RunParsingPipelineAsync(ctx);
 
         ctx.ReportProgress(100, "Completed", "Indexing process completed successfully.", ctx.TotalNodesCount, ctx.TotalNodesCount);
-        ctx.Log(
-            $"[Indexer    ] Indexing process completed successfully! Total Nodes: {ctx.TotalNodesCount:N0}, Total Relationships: {ctx.TotalRelsCount:N0}.");
+        ctx.PipelineLog.IndexingCompleted(ctx.TotalNodesCount, ctx.TotalRelsCount);
 
         return (ctx.TotalNodesCount, ctx.TotalRelsCount, ctx.NodesByKind);
     }
@@ -209,13 +208,13 @@ public class WorkspaceIndexer
             throw new DirectoryNotFoundException($"Scan path '{scanPath}' does not exist.");
         }
 
-        var absoluteWorkspacePath = Path.GetFullPath(workspacePath).Replace('\\', '/');
+        var absoluteWorkspacePath = workspacePath.NormalizeFullPath();
         string? normalizedScanPath = null;
 
         if (!string.IsNullOrWhiteSpace(scanPath))
         {
-            normalizedScanPath = Path.GetFullPath(scanPath).Replace('\\', '/');
-            var rel = Path.GetRelativePath(absoluteWorkspacePath, normalizedScanPath).Replace('\\', '/');
+            normalizedScanPath = scanPath.NormalizeFullPath();
+            var rel = normalizedScanPath.GetNormalizedRelativePath(absoluteWorkspacePath);
             if (rel.StartsWith("..") || Path.IsPathRooted(rel))
             {
                 throw new ArgumentException($"Target scan path '{scanPath}' must be inside workspace root '{workspacePath}'.");
@@ -247,6 +246,7 @@ public class WorkspaceIndexer
         ConfigurationIndex.Clear();
         ConstantRegistry.Clear();
         RouteDictionaryRegistry.Clear();
+        AnalysisSignalStore.Clear();
 
         List<FileNode> indexedFiles;
         IReadOnlyList<ProjectNode> projects;
@@ -287,7 +287,7 @@ public class WorkspaceIndexer
             var issuesList = ctx.ScanIssues.Values.Select(v => v.Issue).ToList();
             var syntaxErrCount = issuesList.Count(i => i.Category == CodeExplorer.Cypher.Common.ScanIssueCategory.SyntaxError);
             var otherErrCount = issuesList.Count - syntaxErrCount;
-            ctx.LogWarning($"[Indexer    ] Recorded {issuesList.Count} scan/parse issue(s) in graph ({syntaxErrCount} syntax error(s), {otherErrCount} runtime/manifest issue(s)). Query via: MATCH (i:ScanIssue) RETURN i");
+            ctx.PipelineLog.RecordedScanIssues(issuesList.Count, syntaxErrCount, otherErrCount);
         }
     }
 
@@ -298,7 +298,7 @@ public class WorkspaceIndexer
         IReadOnlyList<SyntaxTree> syntaxTrees,
         ParsingContext ctx)
     {
-        ctx.Log($"[Database   ] Synchronizing file registry and caching AST snapshots for {files.Count} files in parallel...");
+        ctx.PipelineLog.SyncingFileRegistry(files.Count);
 
         var parallelOptions = new ParallelOptions
         {
@@ -307,7 +307,7 @@ public class WorkspaceIndexer
         };
 
         var treesByFullPath = syntaxTrees
-            .GroupBy(t => t.FilePath.Replace('\\', '/'), StringComparer.OrdinalIgnoreCase)
+            .GroupBy(t => t.FilePath.NormalizeSlashes(), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
         var entries = new System.Collections.Concurrent.ConcurrentBag<(string RelativePath, string ContentHash, DateTime LastModifiedUtc, long SizeBytes, string ProjectPath, string? SnapshotJson)>();
@@ -342,14 +342,7 @@ public class WorkspaceIndexer
                 var symbols = new Dictionary<string, Incremental.SymbolFootprint>(StringComparer.Ordinal);
                 CollectSymbols(syntaxTree.FileNode, syntaxTree.FileNode.References, symbols);
                 snapshot = new Incremental.FileGraphSnapshot(file.Path, hash, lastMod, symbols);
-                try
-                {
-                    snapshotJson = System.Text.Json.JsonSerializer.Serialize(snapshot);
-                }
-                catch
-                {
-                    // Ignore serialization failure
-                }
+                snapshotJson = snapshot.ComputeStructuralHash();
             }
 
             _fileRegistry.UpdateEntry(file.Path, hash, lastMod, file.Path, snapshot, sizeBytes);
@@ -396,14 +389,14 @@ public class WorkspaceIndexer
             entries.Add((relPath, hash, lastMod, manifestSize, relPath, null));
         }
 
-        ctx.Log($"[Incremental] Persisting {entries.Count} file registry metadata and snapshot entries to SQLite...");
+        ctx.PipelineLog.PersistingFileRegistry(entries.Count);
         await _dbClient.SaveFileRegistryEntriesAsync(entries, ctx.CancellationToken);
 
         // Prune stale entries that were deleted or are now ignored/excluded
         var staleKeys = _fileRegistry.Entries.Select(e => e.Key).Where(k => !seen.ContainsKey(k)).ToList();
         if (staleKeys.Count > 0)
         {
-            ctx.Log($"[Incremental] Pruning {staleKeys.Count} obsolete file registry entries from SQLite...");
+            ctx.PipelineLog.PruningFileRegistry(staleKeys.Count);
             foreach (var k in staleKeys)
             {
                 _fileRegistry.RemoveEntry(k);
@@ -566,7 +559,7 @@ public class WorkspaceIndexer
                     if (initialSnapshot != null)
                     {
                         _fileRegistry.UpdateEntry(relPath, newHash, lastMod, "", initialSnapshot, sizeBytes);
-                        var snapJson = System.Text.Json.JsonSerializer.Serialize(initialSnapshot);
+                        var snapJson = initialSnapshot.ComputeStructuralHash();
                         filesToUpdateRegistry.Add((relPath, newHash, lastMod, sizeBytes, "", snapJson));
                         _logger.LogInformation("[Incremental:Decision] Seeded initial AST snapshot for '{File}' without full rescan.", relPath);
                         continue;
@@ -600,7 +593,7 @@ public class WorkspaceIndexer
                         "[Incremental:Decision] Logic-only change in '{File}' ({LogicCount} logic edits, {ShiftCount} line shifts, 0 graph modifications). Preserving graph.",
                         relPath, logicCount, shiftCount);
                     _fileRegistry.UpdateEntry(relPath, newHash, lastMod, "", newSnapshot, sizeBytes);
-                    var snapJson = System.Text.Json.JsonSerializer.Serialize(newSnapshot);
+                    var snapJson = newSnapshot.ComputeStructuralHash();
                     filesToUpdateRegistry.Add((relPath, newHash, lastMod, sizeBytes, "", snapJson));
                     continue;
                 }
@@ -724,6 +717,24 @@ public class WorkspaceIndexer
         refsByScope ??= references.ToLookup(r => r.ScopeSymbolId ?? string.Empty, StringComparer.Ordinal);
         foreach (var child in node.Children)
         {
+            if (child is not (FunctionNode or TypeNode or MemberNode { MemberKind: CodeExplorer.Cypher.Common.MemberKind.Field or CodeExplorer.Cypher.Common.MemberKind.Property or CodeExplorer.Cypher.Common.MemberKind.Event or CodeExplorer.Cypher.Common.MemberKind.Constant or CodeExplorer.Cypher.Common.MemberKind.EnumMember }))
+            {
+                if (child.Children.Count > 0)
+                {
+                    CollectSymbols(child, references, symbols, refsByScope);
+                }
+                continue;
+            }
+
+            if (child is FunctionNode { Name: var fnName } && fnName.StartsWith("<anon_", StringComparison.Ordinal))
+            {
+                if (child.Children.Count > 0)
+                {
+                    CollectSymbols(child, references, symbols, refsByScope);
+                }
+                continue;
+            }
+
             var (name, startLine, endLine, startCol, endCol) = child switch
             {
                 FunctionNode fn => (fn.Name, fn.StartLine, fn.EndLine, fn.StartCol, fn.EndCol),
@@ -732,6 +743,7 @@ public class WorkspaceIndexer
                 _ => (child.Id, 0, 0, 0, 0)
             };
 
+            var symbolKey = StripLineSuffix(child.Id);
             var symbolRefs = child.References.Concat(refsByScope[child.Id]);
 
             var calls = symbolRefs
@@ -751,7 +763,7 @@ public class WorkspaceIndexer
             var bodyHash = Incremental.HashUtility.ComputeSha256(bodySummary);
 
             var footprint = new Incremental.SymbolFootprint(
-                child.Id,
+                symbolKey,
                 name,
                 child.Kind,
                 sigHash,
@@ -764,7 +776,7 @@ public class WorkspaceIndexer
                 endCol
             );
 
-            symbols[child.Id] = footprint;
+            symbols[symbolKey] = footprint;
 
             if (child.Children.Count > 0)
             {
@@ -773,13 +785,24 @@ public class WorkspaceIndexer
         }
     }
 
+    private static string StripLineSuffix(string symbolId)
+    {
+        var atIdx = symbolId.LastIndexOf('@');
+        if (atIdx <= 0) return symbolId;
+        for (var i = atIdx + 1; i < symbolId.Length; i++)
+        {
+            if (!char.IsDigit(symbolId[i])) return symbolId;
+        }
+        return symbolId[..atIdx];
+    }
+
 
     private async Task PrepareDatabaseAsync(ParsingContext ctx)
     {
         if (ctx.Clear)
         {
             var clearTarget = ctx.IsSubtreeScan ? ctx.ScanPath : ctx.HostWorkspacePath;
-            ctx.Log($"[Database   ] Clearing previous data for '{clearTarget}'...");
+            ctx.PipelineLog.ClearingWorkspaceData(clearTarget);
             await _dbClient.ClearWorkspaceAsync(clearTarget);
         }
     }
@@ -886,7 +909,6 @@ public class WorkspaceIndexer
 
     private void LogPersistenceSummary(ParsingContext ctx)
     {
-        ctx.LogDebug(
-            $"[Database   ] All background channel persistence writes completed! Total persisted: {ctx.TotalNodesPersisted} nodes, {ctx.TotalRelsPersisted} relationships.");
+        ctx.PipelineLog.PersistenceSummary(ctx.TotalNodesPersisted, ctx.TotalRelsPersisted);
     }
 }

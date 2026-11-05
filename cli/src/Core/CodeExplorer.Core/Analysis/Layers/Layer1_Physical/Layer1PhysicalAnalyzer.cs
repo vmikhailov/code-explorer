@@ -7,7 +7,7 @@ public class Layer1PhysicalParser
 {
     public async Task<Layer1Result> ParseAsync(ParsingContext ctx)
     {
-        ctx.Log("[Layer 1    ] Starting physical scan of directory topology...");
+        ctx.Layer1Log.ScanStarted();
 
         // 0. Get or create Workspace ID from database (auto-incremented)
         var wsId = ctx.PersistToGraphDb && ctx.DbClient != null
@@ -22,7 +22,7 @@ public class Layer1PhysicalParser
             ctx.CancellationToken.ThrowIfCancellationRequested();
         }
 
-        var normalizedHostPath = ctx.HostWorkspacePath.Replace('\\', '/').TrimEnd('/');
+        var normalizedHostPath = ctx.HostWorkspacePath.NormalizePath();
         var folderName = Path.GetFileName(normalizedHostPath);
         if (string.IsNullOrEmpty(folderName)) folderName = normalizedHostPath;
 
@@ -37,9 +37,9 @@ public class Layer1PhysicalParser
                     workspaceName = existingWs.Name;
                 }
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                // Fallback to folderName
+                ctx.Layer1Log.FileReadFailed(normalizedHostPath, ex);
             }
         }
 
@@ -74,11 +74,11 @@ public class Layer1PhysicalParser
 
         if (!ctx.IsSubtreeScan)
         {
-            await ScanDirectoryAsync(ctx.AbsoluteWorkspacePath, filesStructureNode, files, folders, gitignore, ctx);
+            await ScanDirectoryAsync(ctx.AbsoluteWorkspacePath, filesStructureNode, workspaceNode, files, folders, gitignore, null, ctx);
         }
         else
         {
-            var relativeSubtree = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, ctx.ScanPath).Replace('\\', '/');
+            var relativeSubtree = ctx.ScanPath.GetNormalizedRelativePath(ctx.AbsoluteWorkspacePath);
             var segments = relativeSubtree.Split('/', StringSplitOptions.RemoveEmptyEntries);
 
             IOntologyNode currentParent = filesStructureNode;
@@ -87,7 +87,7 @@ public class Layer1PhysicalParser
             // Build intermediate folders up to the parent of ctx.ScanPath
             for (int i = 0; i < segments.Length - 1; i++)
             {
-                currentPath = Path.Combine(currentPath, segments[i]).Replace('\\', '/');
+                currentPath = Path.Combine(currentPath, segments[i]).NormalizeSlashes();
                 var folderId = $"{wsId}:{OntologyConstants.IdPrefixes.Folder}:{currentPath}";
                 var intermediateFolder = new FolderNode(folderId, segments[i], currentPath);
 
@@ -96,59 +96,33 @@ public class Layer1PhysicalParser
                 currentParent = intermediateFolder;
             }
 
-            await ScanDirectoryAsync(ctx.ScanPath, currentParent, files, folders, gitignore, ctx);
+            await ScanDirectoryAsync(ctx.ScanPath, currentParent, workspaceNode, files, folders, gitignore, null, ctx);
         }
 
-        if (!ctx.DiscoveredBinaryArtifacts.IsEmpty)
-        {
-            var hasNode = false;
-            var hasNativeAddon = false;
-            var hasDotNetDll = false;
-            foreach (var (_, _, ext) in ctx.DiscoveredBinaryArtifacts)
-            {
-                if (ext.Equals(".node", StringComparison.OrdinalIgnoreCase))
-                {
-                    hasNode = true;
-                    hasNativeAddon = true;
-                }
-                else if (ext.Equals(".wasm", StringComparison.OrdinalIgnoreCase) ||
-                         ext.Equals(".dylib", StringComparison.OrdinalIgnoreCase) ||
-                         ext.Equals(".so", StringComparison.OrdinalIgnoreCase))
-                {
-                    hasNativeAddon = true;
-                }
-                else if (ext.Equals(".dll", StringComparison.OrdinalIgnoreCase))
-                {
-                    hasDotNetDll = true;
-                }
-            }
-            if (hasNode) workspaceNode.HasNativeNode = true;
-            if (hasNativeAddon) workspaceNode.HasNativeAddon = true;
-            if (hasDotNetDll) workspaceNode.HasDotNetDll = true;
-        }
-
-        ctx.Log($"[Layer 1    ] Physical topology scan complete. Found {files.Count} files, {folders.Count} folders.");
+        ctx.Layer1Log.ScanCompleted(files.Count, folders.Count);
         return new Layer1Result(workspaceNode, filesStructureNode, files, folders);
     }
 
     private async Task ScanDirectoryAsync(
         string currentDir,
         IOntologyNode parentNode,
+        WorkspaceNode workspaceNode,
         List<FileNode> files,
         List<FolderNode> folders,
         GitIgnoreMatcher gitignore,
+        IReadOnlyList<IProjectParser>? inheritedParsers,
         ParsingContext ctx)
     {
         ctx.CancellationToken.ThrowIfCancellationRequested();
         var dirName = Path.GetFileName(currentDir);
         if (string.IsNullOrEmpty(dirName)) dirName = currentDir;
 
-        var relativeDir = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, currentDir).Replace('\\', '/');
-        if (relativeDir == ".") relativeDir = "";
+        var relativeDir = currentDir.GetNormalizedRelativePath(ctx.AbsoluteWorkspacePath);
+        if (relativeDir == ".") relativeDir = string.Empty;
 
-        if (currentDir != ctx.AbsoluteWorkspacePath && ctx.FileFilter.IsExcludedDirectory(dirName, currentDir))
+        if (currentDir != ctx.AbsoluteWorkspacePath && ctx.FileFilter.IsExcludedDirectory(dirName, currentDir, inheritedParsers))
         {
-            ctx.LogDebug($"[Layer 1    ] Skipping excluded directory: '{relativeDir}'");
+            ctx.Layer1Log.SkippingExcludedDirectory(relativeDir);
             return;
         }
 
@@ -159,20 +133,26 @@ public class Layer1PhysicalParser
 
         if (!string.IsNullOrEmpty(relativeDir) && gitignore.IsIgnored(relativeDir, true))
         {
-            ctx.LogDebug($"[Layer 1    ] GitIgnore: Skipping ignored directory: '{relativeDir}'");
+            ctx.Layer1Log.SkippingGitIgnoredDirectory(relativeDir);
             return;
         }
 
-        foreach (var parser in ctx.FileFilter.ConnectedProjectParsers)
+        var dirInfo = new DirectoryInfo(currentDir);
+        var dirFiles = dirInfo.GetFiles();
+        var activeParsers = ctx.FileFilter.ResolveDirectoryProjectParsers(currentDir, dirFiles, inheritedParsers);
+        var parsersToNotify = activeParsers is { Count: > 0 } ? activeParsers : ctx.FileFilter.ConnectedProjectParsers;
+
+        for (int i = 0; i < parsersToNotify.Count; i++)
         {
-            parser.OnDirectoryScan(currentDir, relativeDir, gitignore, ctx.LogDebug);
+            parsersToNotify[i].OnDirectoryScan(currentDir, relativeDir, gitignore, ctx.LogDebug);
+            parsersToNotify[i].InspectDirectoryFiles(currentDir, dirFiles, workspaceNode);
         }
 
         var currentParentNode = parentNode;
 
         if (currentDir != ctx.AbsoluteWorkspacePath)
         {
-            var absoluteFolderPath = Path.GetFullPath(currentDir).Replace('\\', '/');
+            var absoluteFolderPath = currentDir.NormalizeFullPath();
             var folderId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Folder}:{absoluteFolderPath}";
             var folderNode = new FolderNode(folderId, dirName, absoluteFolderPath);
 
@@ -192,134 +172,161 @@ public class Layer1PhysicalParser
             }
         }
 
-        var vscodeTasksPath = Path.Combine(currentDir, ".vscode", "tasks.json");
-        if (File.Exists(vscodeTasksPath))
-        {
-            try
-            {
-                var relTasks = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, vscodeTasksPath).Replace('\\', '/');
-                var absTasks = Path.GetFullPath(vscodeTasksPath).Replace('\\', '/');
-                var tasksInfo = new FileInfo(vscodeTasksPath);
-                var streamedTasks = await PhysicalFileStore.StreamAndAnalyzeFileAsync(absTasks, relTasks, OntologyConstants.ManifestFields.TasksJsonFileName, tasksInfo.Length, isManifest: true, isSupportedSourceOrConfig: false, ctx.FileFilter, ctx.CancellationToken);
-                if (streamedTasks.ContentHash != null) ctx.DiscoveredManifestFiles[relTasks] = (absTasks, streamedTasks.ContentHash, tasksInfo.LastWriteTimeUtc, tasksInfo.Length);
-                // tasksHash handled by StreamAndAnalyzeFileAsync
-                // tasksText handled by StreamAndAnalyzeFileAsync
-                // SetFileText handled by StreamAndAnalyzeFileAsync
-                // DiscoveredManifestFiles handled by StreamAndAnalyzeFileAsync
-            }
-            catch
-            {
-                // Best effort
-            }
-        }
+        await TryStreamVscodeTasksAsync(currentDir, ctx);
 
-        var dirInfo = new DirectoryInfo(currentDir);
-
-        // Recurse subdirectories
+        // Recurse subdirectories with scoped active project parsers
         foreach (var subDir in dirInfo.GetDirectories())
         {
-            await ScanDirectoryAsync(subDir.FullName, currentParentNode, files, folders, gitignore, ctx);
+            await ScanDirectoryAsync(subDir.FullName, currentParentNode, workspaceNode, files, folders, gitignore, activeParsers, ctx);
         }
 
         // Process files
-        var dirFiles = dirInfo.GetFiles();
         PhysicalFileStore.SetDirectoryFiles(currentDir, dirFiles.Select(f => f.FullName).ToArray());
 
         foreach (var fileInfo in dirFiles)
         {
-            var file = fileInfo.FullName;
-            var relativeFile = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, file).Replace('\\', '/');
-
-            if (gitignore.IsIgnored(relativeFile, false))
-            {
-                continue;
-            }
-
-            var ext = fileInfo.Extension;
-            if (ext.Equals(".node", StringComparison.OrdinalIgnoreCase) ||
-                ext.Equals(".wasm", StringComparison.OrdinalIgnoreCase) ||
-                ext.Equals(".dll", StringComparison.OrdinalIgnoreCase) ||
-                ext.Equals(".so", StringComparison.OrdinalIgnoreCase) ||
-                ext.Equals(".dylib", StringComparison.OrdinalIgnoreCase))
-            {
-                ctx.DiscoveredBinaryArtifacts.Add((relativeFile, file.Replace('\\', '/'), ext));
-            }
-
-            if (ctx.CustomFileExclusionPredicate?.Invoke(fileInfo.Name, relativeFile) == true)
-            {
-                continue;
-            }
-
-            var fileName = fileInfo.Name;
-            var isManifest = ctx.FileFilter.IsManifestFile(fileName);
-            var isSupportedSourceOrConfig = ctx.FileFilter.IsSupportedSourceOrConfigFile(fileName);
-
-            if (!isSupportedSourceOrConfig && !isManifest)
-            {
-                continue;
-            }
-
-            if (isSupportedSourceOrConfig && ctx.FileFilter.ShouldSkipFileMetadata(fileInfo))
-            {
-                if (!isManifest) continue;
-                isSupportedSourceOrConfig = false;
-            }
-
-            var absoluteFilePath = fileInfo.FullName.Replace('\\', '/');
-            var fileId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.File}:{relativeFile}";
-            var sizeBytes = fileInfo.Length;
-            int? lineCount = null;
-            string? contentHash = null;
-            DateTime? lastModifiedUtc = null;
-            string? artifactRole = null;
-            string? decodedText = null;
-            var skipByContent = false;
-            try
-            {
-                lastModifiedUtc = fileInfo.LastWriteTimeUtc;
-                var streamed = await PhysicalFileStore.StreamAndAnalyzeFileAsync(
-                    absoluteFilePath,
-                    relativeFile,
-                    fileName,
-                    sizeBytes,
-                    isManifest,
-                    isSupportedSourceOrConfig,
-                    ctx.FileFilter,
-                    ctx.CancellationToken);
-                skipByContent = streamed.SkipByContent;
-                contentHash = streamed.ContentHash;
-                lineCount = streamed.LineCount;
-                artifactRole = streamed.ArtifactRole;
-                decodedText = streamed.DecodedText;
-                if (isManifest && contentHash != null && lastModifiedUtc.HasValue)
-                {
-                    ctx.DiscoveredManifestFiles[relativeFile] = (absoluteFilePath, contentHash, lastModifiedUtc.Value, sizeBytes);
-                }
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                if (isSupportedSourceOrConfig)
-                {
-                    ctx.RecordScanIssue("Layer1_Physical", "io_error", relativeFile, ex.Message, name: "FileReadError", severity: "warning", exception: ex, parentNodeId: fileId, isFileParent: true);
-                }
-            }
-
-            if (!isSupportedSourceOrConfig || skipByContent)
-            {
-                continue;
-            }
-
-            var fileNode = new FileNode(fileId, fileName, relativeFile, absoluteFilePath, false, null, null, lineCount, sizeBytes)
-            {
-                ContentHash = contentHash,
-                LastModifiedUtc = lastModifiedUtc,
-                ArtifactRole = artifactRole ?? WorkspaceFileFilter.ClassifyArtifactRole(relativeFile, fileName),
-                PreloadedContent = decodedText
-            };
-
-            currentParentNode.Children.Add(fileNode);
-            files.Add(fileNode);
+            await ProcessDirectoryFileAsync(fileInfo, currentParentNode, files, gitignore, ctx);
         }
+    }
+
+    private const string Layer1Stage = "Layer1_Physical";
+    private const string IssueCategoryIoError = "io_error";
+    private const string SeverityWarning = "warning";
+    private const string IssueTasksJsonReadError = "TasksJsonReadError";
+    private const string IssueManifestReadError = "ManifestReadError";
+    private const string IssueFileReadError = "FileReadError";
+
+    private static async Task TryStreamVscodeTasksAsync(string currentDir, ParsingContext ctx)
+    {
+        var vscodeTasksPath = Path.Combine(currentDir, ".vscode", "tasks.json");
+        if (!File.Exists(vscodeTasksPath)) return;
+
+        var relTasks = vscodeTasksPath.GetNormalizedRelativePath(ctx.AbsoluteWorkspacePath);
+        try
+        {
+            var absTasks = vscodeTasksPath.NormalizeFullPath();
+            var tasksInfo = new FileInfo(vscodeTasksPath);
+            var streamedTasks = await PhysicalFileStore.StreamAndAnalyzeFileAsync(
+                absTasks,
+                relTasks,
+                OntologyConstants.ManifestFields.TasksJsonFileName,
+                tasksInfo.Length,
+                isManifest: true,
+                isSupportedSourceOrConfig: false,
+                ctx.FileFilter,
+                ctx.CancellationToken);
+            if (streamedTasks.ContentHash != null)
+            {
+                ctx.DiscoveredManifestFiles[relTasks] = (absTasks, streamedTasks.ContentHash, tasksInfo.LastWriteTimeUtc, tasksInfo.Length);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            ctx.Layer1Log.FileReadFailed(relTasks, ex);
+            ctx.RecordScanIssue(Layer1Stage, IssueCategoryIoError, relTasks, ex.Message, name: IssueTasksJsonReadError, severity: SeverityWarning, exception: ex);
+        }
+    }
+
+    private static async Task ProcessDirectoryFileAsync(
+        FileInfo fileInfo,
+        IOntologyNode currentParentNode,
+        List<FileNode> files,
+        GitIgnoreMatcher gitignore,
+        ParsingContext ctx)
+    {
+        var file = fileInfo.FullName;
+        var relativeFile = file.GetNormalizedRelativePath(ctx.AbsoluteWorkspacePath);
+
+        if (gitignore.IsIgnored(relativeFile, false))
+        {
+            return;
+        }
+
+        if (ctx.CustomFileExclusionPredicate?.Invoke(fileInfo.Name, relativeFile) == true)
+        {
+            return;
+        }
+
+        var fileName = fileInfo.Name;
+        var isManifest = ctx.FileFilter.IsManifestFile(fileName);
+        var isSupportedSourceOrConfig = ctx.FileFilter.IsSupportedSourceOrConfigFile(fileName);
+
+        if (!isSupportedSourceOrConfig && !isManifest)
+        {
+            return;
+        }
+
+        if (isSupportedSourceOrConfig && ctx.FileFilter.ShouldSkipFileMetadata(fileInfo))
+        {
+            if (!isManifest) return;
+            isSupportedSourceOrConfig = false;
+        }
+
+        var absoluteFilePath = file.NormalizeSlashes();
+        var fileId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.File}:{relativeFile}";
+        var sizeBytes = fileInfo.Length;
+        int? lineCount = null;
+        string? contentHash = null;
+        DateTime? lastModifiedUtc = null;
+        string? artifactRole = null;
+        string? decodedText = null;
+        var skipByContent = false;
+        try
+        {
+            lastModifiedUtc = fileInfo.LastWriteTimeUtc;
+            var streamed = await PhysicalFileStore.StreamAndAnalyzeFileAsync(
+                absoluteFilePath,
+                relativeFile,
+                fileName,
+                sizeBytes,
+                isManifest,
+                isSupportedSourceOrConfig,
+                ctx.FileFilter,
+                ctx.CancellationToken);
+            skipByContent = streamed.SkipByContent;
+            contentHash = streamed.ContentHash;
+            lineCount = streamed.LineCount;
+            artifactRole = streamed.ArtifactRole;
+            decodedText = streamed.DecodedText;
+            if (isManifest && contentHash != null && lastModifiedUtc.HasValue)
+            {
+                ctx.DiscoveredManifestFiles[relativeFile] = (absoluteFilePath, contentHash, lastModifiedUtc.Value, sizeBytes);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            ctx.Layer1Log.FileReadFailed(relativeFile, ex);
+            if (isSupportedSourceOrConfig || isManifest)
+            {
+                var issueName = isManifest ? IssueManifestReadError : IssueFileReadError;
+                ctx.RecordScanIssue(
+                    Layer1Stage,
+                    IssueCategoryIoError,
+                    relativeFile,
+                    ex.Message,
+                    name: issueName,
+                    severity: SeverityWarning,
+                    exception: ex,
+                    parentNodeId: isSupportedSourceOrConfig ? fileId : null,
+                    isFileParent: isSupportedSourceOrConfig);
+            }
+        }
+
+        if (!isSupportedSourceOrConfig || skipByContent)
+        {
+            return;
+        }
+
+        var fileNode = new FileNode(fileId, fileName, relativeFile, absoluteFilePath, false, null, null, lineCount, sizeBytes)
+        {
+            ContentHash = contentHash,
+            LastModifiedUtc = lastModifiedUtc,
+            ArtifactRole = artifactRole ?? ctx.FileFilter.ClassifyFileArtifactRole(relativeFile, fileName),
+            PreloadedContent = decodedText
+        };
+
+        currentParentNode.Children.Add(fileNode);
+        files.Add(fileNode);
     }
 
     public static HashSet<string> ExcludedDirectoryNames => new(WorkspaceFileFilter.ExcludedDirectoryNames, StringComparer.OrdinalIgnoreCase);

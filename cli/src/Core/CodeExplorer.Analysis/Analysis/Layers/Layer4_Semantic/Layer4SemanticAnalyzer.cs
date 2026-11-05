@@ -12,7 +12,7 @@ public partial class Layer4SemanticParser
 {
     public async Task<Layer4Result> ParseAsync(Layer3Result l3Result, ParsingContext ctx)
     {
-        ctx.Log("[Layer 4    ] Starting semantic enrichment pass...");
+        ctx.Layer4Log.ScanStarted();
 
         var semanticNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.SemanticStructure}";
         var semanticStructureNode = new SemanticStructureNode(semanticNodeId, "SemanticStructure", l3Result.Prev.Prev.Workspace.Path);
@@ -70,7 +70,7 @@ public partial class Layer4SemanticParser
         }
 
         var totalProjects = allProjects.Count;
-        ctx.Log($"[Layer 4    ] Enriching {totalProjects} projects ({allTrees.Count} syntax trees) with semantic information...");
+        ctx.Layer4Log.EnrichingProjects(totalProjects, allTrees.Count);
 
         var existingRelKeys = new HashSet<(string From, string To, string Kind)>();
         foreach (var r in semanticRelationships)
@@ -79,7 +79,7 @@ public partial class Layer4SemanticParser
         }
 
         // Materialize first-class semantic workload nodes under SemanticStructure before per-project enrichment
-        ctx.Log($"[Layer 4    ] Materializing semantic workload hierarchy ({allProjects.Count} projects)...");
+        ctx.Layer4Log.MaterializingWorkloads(allProjects.Count);
         var workloadByProjectId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var workloadNodeByProjectId = new Dictionary<string, IOntologyNode>(StringComparer.OrdinalIgnoreCase);
         var semanticStructureChildIds = new HashSet<string>(semanticStructureNode.Children.Select(c => c.Id), StringComparer.Ordinal);
@@ -140,14 +140,14 @@ public partial class Layer4SemanticParser
 
         if (semanticRelationships.Count > 0)
         {
-            ctx.Log($"[Layer 4    ] Uploading {semanticRelationships.Count} semantic relationships...");
+            ctx.Layer4Log.UploadingSemanticRelationships(semanticRelationships.Count);
             await ctx.EnqueueUploadRelationshipsAsync(semanticRelationships);
             ctx.TotalRelsCount += semanticRelationships.Count;
         }
 
         // 3. Upload the entire Workspace Node tree using OntologyUploader
         ctx.CancellationToken.ThrowIfCancellationRequested();
-        ctx.LogDebug("[Layer 4    ] Queuing workspace ontology tree for database persistence...");
+        ctx.Layer4Log.QueuingOntologyTree();
         await OntologyUploader.UploadNodeTreeAsync(l3Result.Prev.Prev.Workspace, null, ctx);
 
         // Free any remaining native TreeSitter memory after Layer 4 (unless Layer 5 provenance slicing is enabled)
@@ -159,7 +159,7 @@ public partial class Layer4SemanticParser
             }
         }
 
-        ctx.Log($"[Layer 4    ] Semantic enrichment pass complete. Identified {semanticNodes.Count} semantic nodes.");
+        ctx.Layer4Log.ScanCompleted(semanticNodes.Count);
         return new Layer4Result(l3Result, semanticStructureNode, semanticNodes, semanticRelationships);
     }
 

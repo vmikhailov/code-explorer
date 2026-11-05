@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using CodeExplorer.Cypher.Common;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Rust.Libraries;
@@ -400,5 +401,172 @@ public class AwsSdkRustLibraryParser : ISemanticExtension
         }
 
         return clean;
+    }
+
+    private sealed record CloudResourceRule(
+        string IdSuffix,
+        string Name,
+        CodeExplorer.Cypher.Common.CloudResourceType ResourceType,
+        string Role,
+        Regex FieldPattern,
+        Regex ReadPattern,
+        Regex WritePattern,
+        string PackageName);
+
+    private static readonly Regex EncryptedSharesFieldRegex = new(@"\b(?:encrypted_)?shares?_bucket(?:_name)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex DbChunksFieldRegex = new(@"\b(?:(?:db|database)_)?(?:chunks?|wal|parquet)_bucket(?:_name)?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex GraphCheckpointFieldRegex = new(@"\b(?:graph_)?checkpoint_(?:s3_client|bucket(?:_name)?)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex KmsFieldRegex = new(@"\b(?:kms_.*key|key_.*kms|kms_key_arns?)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex S3ReadRegex = new(@"\b(?:get_object|head_object|list_objects(?:_v2)?|download_graph_checkpoint\w*)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex S3WriteRegex = new(@"\b(?:put_object|upload_part|complete_multipart_upload|upload_graph_checkpoint\w*)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex KmsReadRegex = new(@"\b(?:decrypt|describe_key|get_public_key)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex KmsWriteRegex = new(@"\b(?:encrypt|generate_data_key|create_key)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly CloudResourceRule[] CloudResourceRules =
+    [
+        new(
+            "aws:s3:encrypted-shares",
+            "AWS S3: Encrypted Shares Bucket",
+            CodeExplorer.Cypher.Common.CloudResourceType.S3Bucket,
+            "encrypted_shares",
+            EncryptedSharesFieldRegex,
+            S3ReadRegex,
+            S3WriteRegex,
+            "aws-sdk-s3"),
+        new(
+            "aws:s3:database-chunks",
+            "AWS S3: Database Chunks & WAL Bucket",
+            CodeExplorer.Cypher.Common.CloudResourceType.S3Bucket,
+            "database_chunks",
+            DbChunksFieldRegex,
+            S3ReadRegex,
+            S3WriteRegex,
+            "aws-sdk-s3"),
+        new(
+            "aws:s3:graph-checkpoints",
+            "AWS S3: HNSW Graph Checkpoint Bucket",
+            CodeExplorer.Cypher.Common.CloudResourceType.S3Bucket,
+            "graph_checkpoints",
+            GraphCheckpointFieldRegex,
+            S3ReadRegex,
+            S3WriteRegex,
+            "aws-sdk-s3"),
+        new(
+            "aws:kms:share-encryption-keys",
+            "AWS KMS: Share Encryption Keys",
+            CodeExplorer.Cypher.Common.CloudResourceType.KmsKeySet,
+            "share_encryption_keys",
+            KmsFieldRegex,
+            KmsReadRegex,
+            KmsWriteRegex,
+            "aws-sdk-kms")
+    ];
+
+    public static IReadOnlyList<string> DetectAwsResourceRoles(
+        string source,
+        IReadOnlySet<string> packageNames) =>
+        CloudResourceRules
+            .Where(resource => packageNames.Contains(resource.PackageName) && resource.FieldPattern.IsMatch(source))
+            .Select(resource => resource.Role)
+            .ToArray();
+
+    public void SynthesizeCloudResources(
+        CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode project,
+        string effectiveSource,
+        IReadOnlySet<string> packageNames,
+        string? workloadId,
+        CodeExplorer.Core.Common.Nodes.Layer4_Semantic.SemanticStructureNode semanticStructureNode,
+        List<CodeExplorer.Core.Database.Relationship> semanticRelationships,
+        HashSet<(string From, string To, string Kind)> existingRelKeys,
+        ParsingContext ctx)
+    {
+        const string KeyResourceRole = "resource_role";
+        const string ValTrue = "true";
+        const string KeyCategory = "category";
+        const string ValExternalResource = "external_resource";
+        const string KeyDepType = "dependency_type";
+        const string ValCloudResource = "cloud_resource";
+        const string KeyIsSemantic = "is_semantic";
+
+        var detectedRoles = DetectAwsResourceRoles(effectiveSource, packageNames);
+        foreach (var resource in CloudResourceRules.Where(r => detectedRoles.Contains(r.Role, StringComparer.OrdinalIgnoreCase)))
+        {
+            var resourceId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.CloudService}:{resource.IdSuffix}";
+            if (!semanticStructureNode.Children.Any(child => child.Id.Equals(resourceId, StringComparison.OrdinalIgnoreCase)))
+            {
+                var extensions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["provider"] = "AWS",
+                    ["resource_type"] = CodeExplorer.Cypher.Common.TaxonomyEnumExtensions.ToCanonicalString(resource.ResourceType),
+                    [KeyResourceRole] = resource.Role,
+                    ["is_semantic_entity"] = ValTrue
+                };
+                semanticStructureNode.Children.Add(new CodeExplorer.Core.Common.Nodes.Layer4_Semantic.CloudServiceNode(
+                    resourceId,
+                    resource.Name,
+                    resource.ResourceType,
+                    project.Path,
+                    extensions));
+                ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.CloudService, resource.Name, resourceId);
+            }
+
+            if (string.IsNullOrEmpty(workloadId))
+            {
+                continue;
+            }
+
+            AddCloudRelationship(
+                new CodeExplorer.Core.Database.Relationship(workloadId, resourceId, OntologyConstants.Relationships.UsesCloud,
+                    new Dictionary<string, object>
+                    {
+                        [KeyCategory] = ValExternalResource,
+                        [KeyDepType] = ValCloudResource,
+                        [KeyResourceRole] = resource.Role,
+                        [KeyIsSemantic] = ValTrue
+                    }),
+                semanticRelationships,
+                existingRelKeys);
+
+            if (resource.ReadPattern.IsMatch(effectiveSource))
+            {
+                AddCloudRelationship(
+                    new CodeExplorer.Core.Database.Relationship(workloadId, resourceId, OntologyConstants.Relationships.ReadsFrom,
+                        new Dictionary<string, object>
+                        {
+                            [KeyCategory] = ValExternalResource,
+                            [KeyDepType] = ValCloudResource,
+                            [KeyResourceRole] = resource.Role,
+                            [KeyIsSemantic] = ValTrue
+                        }),
+                    semanticRelationships,
+                    existingRelKeys);
+            }
+
+            if (resource.WritePattern.IsMatch(effectiveSource))
+            {
+                AddCloudRelationship(
+                    new CodeExplorer.Core.Database.Relationship(workloadId, resourceId, OntologyConstants.Relationships.WritesTo,
+                        new Dictionary<string, object>
+                        {
+                            [KeyCategory] = ValExternalResource,
+                            [KeyDepType] = ValCloudResource,
+                            [KeyResourceRole] = resource.Role,
+                            [KeyIsSemantic] = ValTrue
+                        }),
+                    semanticRelationships,
+                    existingRelKeys);
+            }
+        }
+    }
+
+    private static void AddCloudRelationship(
+        CodeExplorer.Core.Database.Relationship relationship,
+        List<CodeExplorer.Core.Database.Relationship> semanticRelationships,
+        HashSet<(string From, string To, string Kind)> existingRelKeys)
+    {
+        if (existingRelKeys.Add((relationship.From, relationship.To, relationship.Kind)))
+        {
+            semanticRelationships.Add(relationship);
+        }
     }
 }

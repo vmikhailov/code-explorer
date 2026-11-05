@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
@@ -29,6 +30,7 @@ public class ParsingContext
     public Func<IReadOnlyList<FileNode>, ProjectNode, Layer2Result, IReadOnlyList<FileNode>>? CustomProjectFileFilter { get; set; }
     public CancellationToken CancellationToken { get; }
     public string WorkspaceId { get; set; } = string.Empty;
+    public WorkspaceNode? Workspace { get; set; }
     public ProjectsStructureNode? ProjectsStructure { get; set; }
     public SyntaxStructureNode? SyntaxStructure { get; set; }
     public SemanticStructureNode? SemanticStructure { get; set; }
@@ -42,9 +44,6 @@ public class ParsingContext
     public System.Collections.Concurrent.ConcurrentDictionary<string, (string FullPath, string ContentHash, DateTime LastModifiedUtc, long SizeBytes)> DiscoveredManifestFiles { get; } =
         new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Binary and native addon artifacts (.node, .wasm, .dll, .so, .dylib) discovered during the Layer 1 physical scan.</summary>
-    public System.Collections.Concurrent.ConcurrentBag<(string RelativePath, string FullPath, string Extension)> DiscoveredBinaryArtifacts { get; } = [];
-
     /// <summary>TypeScript path aliases (compilerOptions.paths) extracted in Layer 2.</summary>
     public Dictionary<string, string> TsConfigPaths { get; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -53,6 +52,12 @@ public class ParsingContext
     private readonly ILogger _logger;
 
     public ILogger Logger => _logger;
+    public Layer1Logger Layer1Log => new(_logger);
+    public Layer2Logger Layer2Log => new(_logger);
+    public Layer3Logger Layer3Log => new(_logger);
+    public Layer4Logger Layer4Log => new(_logger);
+    public Layer5Logger Layer5Log => new(_logger);
+    public PipelineLogger PipelineLog => new(_logger);
 
     public void Log(string message)
     {

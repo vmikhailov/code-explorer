@@ -283,19 +283,6 @@ public abstract class TreeSitterSyntaxConverterBase
                 if (unaryOp != null) unary.Operator = InternOperator(unaryOp.AsSpan());
                 break;
 
-            case BlockStmtSyntax block:
-                if (block.Children.Count > 0)
-                {
-                    var stmts = new List<StatementSyntax>(block.Children.Count);
-                    for (int i = 0; i < block.Children.Count; i++)
-                    {
-                        var s = AsStatementOrWrap(block.Children[i]);
-                        if (s != null) stmts.Add(s);
-                    }
-                    if (stmts.Count > 0) block.Statements = stmts;
-                }
-                break;
-
             case ExprStmtSyntax exprStmt:
                 exprStmt.Expression = exprStmt.FirstChildOfType<ExprSyntax>();
                 break;
@@ -397,15 +384,11 @@ public abstract class TreeSitterSyntaxConverterBase
                         varDecl.Modifiers |= SyntaxModifiers.Const;
                     }
                 }
-                if (varDecl.IsConstant)
+                for (int i = 0; i < varDecl.Children.Count; i++)
                 {
-                    for (int i = 0; i < varDecl.Children.Count; i++)
+                    if (varDecl.Children[i] is VariableDeclSyntax childVd)
                     {
-                        if (varDecl.Children[i] is VariableDeclSyntax childVd)
-                        {
-                            childVd.IsConstant = true;
-                            childVd.Modifiers |= varDecl.Modifiers & (SyntaxModifiers.Const | SyntaxModifiers.ReadOnly | SyntaxModifiers.Static);
-                        }
+                        PropagateVariableDeclMetadata(varDecl, childVd);
                     }
                 }
                 break;
@@ -632,14 +615,28 @@ public abstract class TreeSitterSyntaxConverterBase
                 {
                     var childField = cur.CurrentFieldName;
                     var childTsNode = cur.CurrentNode;
+                    var childType = childTsNode.Type;
                     if (!childTsNode.IsNamed)
                     {
-                        var childType = childTsNode.Type;
                         if (childType is not ("this" or "base" or "self" or "super"))
                         {
                             ApplyUnnamedTokenMetadata(syntaxNode, childType, childField);
                             continue;
                         }
+                    }
+                    else if (childType is "comment" or "line_comment" or "block_comment" or "interpolation_brace")
+                    {
+                        continue;
+                    }
+                    else if (childType is "modifier" or "visibility_modifier" or "accessibility_modifier")
+                    {
+                        int modStart = childTsNode.StartIndex;
+                        int modEnd = Math.Min(sourceText.Length, childTsNode.EndIndex);
+                        if (modEnd > modStart)
+                        {
+                            ApplyNamedModifierSpan(syntaxNode, sourceText.AsSpan(modStart, modEnd - modStart).Trim());
+                        }
+                        continue;
                     }
 
                     var convertedChild = ConvertNode(cur, syntaxNode, childField);
@@ -706,7 +703,10 @@ public abstract class TreeSitterSyntaxConverterBase
                     allMembers.Add(md);
                     break;
                 case VariableDeclSyntax vd:
-                    allVariables.Add(vd);
+                    if (!HasVariableDeclChild(vd))
+                    {
+                        allVariables.Add(vd);
+                    }
                     break;
                 case CallExprSyntax ce:
                     allCalls.Add(ce);
@@ -725,7 +725,8 @@ public abstract class TreeSitterSyntaxConverterBase
             do
             {
                 var childField = cursor.CurrentFieldName;
-                if (!cursor.CurrentNode.IsNamed)
+                var topNode = cursor.CurrentNode;
+                if (!topNode.IsNamed || topNode.Type is "comment" or "line_comment" or "block_comment")
                 {
                     continue;
                 }
@@ -756,6 +757,97 @@ public abstract class TreeSitterSyntaxConverterBase
         doc.AllCalls = allCalls;
 
         return doc;
+    }
+
+    private static bool HasVariableDeclChild(VariableDeclSyntax vd)
+    {
+        for (int i = 0; i < vd.Children.Count; i++)
+        {
+            if (vd.Children[i] is VariableDeclSyntax)
+                return true;
+        }
+        return false;
+    }
+
+    private static void PropagateVariableDeclMetadata(VariableDeclSyntax parent, VariableDeclSyntax child)
+    {
+        if (parent.IsConstant)
+        {
+            child.IsConstant = true;
+        }
+        child.Modifiers |= parent.Modifiers;
+        child.VariableType ??= parent.VariableType;
+        for (int i = 0; i < child.Children.Count; i++)
+        {
+            if (child.Children[i] is VariableDeclSyntax grandChild)
+            {
+                PropagateVariableDeclMetadata(child, grandChild);
+            }
+        }
+    }
+
+    private static void ApplyNamedModifierSpan(SyntaxNode parent, ReadOnlySpan<char> modSpan)
+    {
+        if (parent is not DeclarationSyntax decl) return;
+        switch (modSpan)
+        {
+            case "const":
+                decl.Modifiers |= SyntaxModifiers.Const;
+                if (decl is VariableDeclSyntax vdConst) vdConst.IsConstant = true;
+                break;
+            case "readonly":
+                decl.Modifiers |= SyntaxModifiers.ReadOnly;
+                if (decl is VariableDeclSyntax vdRo) vdRo.IsConstant = true;
+                break;
+            case "static":
+                decl.Modifiers |= SyntaxModifiers.Static;
+                break;
+            case "public" or "pub":
+                decl.Modifiers |= SyntaxModifiers.Public;
+                break;
+            case var s when s.StartsWith("pub(", StringComparison.Ordinal):
+                decl.Modifiers |= SyntaxModifiers.Internal;
+                break;
+            case "private":
+                decl.Modifiers |= SyntaxModifiers.Private;
+                break;
+            case "protected":
+                decl.Modifiers |= SyntaxModifiers.Protected;
+                break;
+            case "internal":
+                decl.Modifiers |= SyntaxModifiers.Internal;
+                break;
+            case "async":
+                decl.Modifiers |= SyntaxModifiers.Async;
+                break;
+            case "abstract":
+                decl.Modifiers |= SyntaxModifiers.Abstract;
+                break;
+            case "virtual":
+                decl.Modifiers |= SyntaxModifiers.Virtual;
+                break;
+            case "override":
+                decl.Modifiers |= SyntaxModifiers.Override;
+                break;
+            case "sealed" or "final":
+                decl.Modifiers |= SyntaxModifiers.Sealed;
+                break;
+            case "partial":
+                decl.Modifiers |= SyntaxModifiers.Partial;
+                break;
+            case "extern":
+                decl.Modifiers |= SyntaxModifiers.Extern;
+                break;
+            case "unsafe":
+                decl.Modifiers |= SyntaxModifiers.Unsafe;
+                break;
+            case "export":
+                decl.Modifiers |= SyntaxModifiers.Export;
+                break;
+            case "default":
+                decl.Modifiers |= SyntaxModifiers.Default;
+                break;
+        }
     }
 
     private static void ApplyUnnamedTokenMetadata(SyntaxNode parent, string tokenKind, string? fieldRole)

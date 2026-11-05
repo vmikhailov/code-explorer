@@ -199,14 +199,14 @@ public partial class PostIndexAnalyzer
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var implicitSchemaIds = canonicalDbNodes.Values
-            .Where(n => n.Extensions?.GetValueOrDefault("is_implicit_schema") == "true")
+            .Where(n => n.IsImplicitSchema == true || n.Flags.HasFlag(SymbolFlags.IsImplicitSchema) || n.Extensions?.GetValueOrDefault("is_implicit_schema") == "true")
             .Select(n => n.Id)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var concreteEnginesCount = canonicalDbNodes.Values
             .Where(n => {
                 var s = n.Extensions?.GetValueOrDefault("schema") ?? (n.Name.Contains('.') ? n.Name.Split('.', 2)[1] : "");
-                var isImplicit = n.Extensions?.GetValueOrDefault("is_implicit_schema") == "true";
+                var isImplicit = n.IsImplicitSchema == true || n.Flags.HasFlag(SymbolFlags.IsImplicitSchema) || n.Extensions?.GetValueOrDefault("is_implicit_schema") == "true";
                 var isMultiDomainLibDb = multiDomainSharedLibDbIds.Contains(n.Id);
                 return !string.IsNullOrWhiteSpace(s) &&
                        !s.Equals("default", StringComparison.OrdinalIgnoreCase) &&

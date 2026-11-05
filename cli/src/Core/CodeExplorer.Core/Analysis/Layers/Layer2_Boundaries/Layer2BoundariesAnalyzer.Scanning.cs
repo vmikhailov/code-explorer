@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CodeExplorer.Core.Common;
+using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Relationships;
@@ -26,7 +27,7 @@ public partial class Layer2ProjectParser
         {
             ctx.CancellationToken.ThrowIfCancellationRequested();
 
-            var normCurrentDir = Path.GetFullPath(dir).Replace('\\', '/').TrimEnd('/');
+            var normCurrentDir = dir.NormalizeFullPath(trimTrailingSlash: true);
             ProjectNode? absorbingOwner = null;
             foreach (var (absPath, ownerNode) in absorbedDirectoryOwners)
             {
@@ -658,17 +659,10 @@ public partial class Layer2ProjectParser
                         property => property.Key,
                         property => property.Value,
                         StringComparer.OrdinalIgnoreCase);
-                    if (extensions.TryGetValue(OntologyConstants.PropertyNames.SourceReachability, out var reachabilityJson))
+                    string? relativeReachability = null;
+                    if (extensions.Remove(OntologyConstants.PropertyNames.SourceReachability, out var reachabilityJson))
                     {
-                        var relativeReachability = RelativizeSourceReachability(reachabilityJson, ctx.AbsoluteWorkspacePath);
-                        if (relativeReachability != null)
-                        {
-                            extensions[OntologyConstants.PropertyNames.SourceReachability] = relativeReachability;
-                        }
-                        else
-                        {
-                            extensions.Remove(OntologyConstants.PropertyNames.SourceReachability);
-                        }
+                        relativeReachability = RelativizeSourceReachability(reachabilityJson, ctx.AbsoluteWorkspacePath);
                     }
 
                     var projectNode = ProjectNodeFactory.Create(
@@ -679,6 +673,10 @@ public partial class Layer2ProjectParser
                         manifestDirectory,
                         [entryPoint],
                         extensions: extensions);
+                    if (!string.IsNullOrEmpty(relativeReachability))
+                    {
+                        projectNode.Signals().SourceReachability = relativeReachability;
+                    }
 
                     projectsStructureNode.Children.Add(projectNode);
                     projects.Add(projectNode);
@@ -779,10 +777,7 @@ public partial class Layer2ProjectParser
 
             if (bestParent != null)
             {
-                if (childProj.Extensions != null)
-                {
-                    childProj.Extensions["parent_project_id"] = bestParent.Id;
-                }
+                childProj.Signals().ParentProjectId = bestParent.Id;
                 var containsProjRel = new Relationship(bestParent.Id, childProj.Id, OntologyConstants.Relationships.Contains);
                 if (!dependencies.Any(d => d.From == bestParent.Id && d.To == childProj.Id && d.Kind == OntologyConstants.Relationships.Contains))
                 {
@@ -827,9 +822,9 @@ public partial class Layer2ProjectParser
         {
             return await projectParser.ParseDependenciesAsync(projectDir);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            ctx.LogWarning($"[Layer 2    ] Error parsing dependencies for {projectParser.ProjectType} in '{projectDir}': {ex.Message}", ex);
+            ctx.Layer2Log.DependencyParseFailed(projectParser.ProjectType, projectDir, ex.Message, ex);
             ctx.RecordScanIssue("Layer2_Boundaries", "manifest_error", projectDir, $"Error parsing dependencies for {projectParser.ProjectType}: {ex.Message}", name: "DependencyParseError", exception: ex, language: projectParser.ProjectType, isFileParent: false, logToConsole: false);
             return null;
         }
@@ -846,7 +841,7 @@ public partial class Layer2ProjectParser
             }
 
             string ToRelative(string path) =>
-                Path.GetRelativePath(workspaceRoot, path).Replace('\\', '/').TrimEnd('/');
+                path.GetNormalizedRelativePath(workspaceRoot).TrimEnd('/');
 
             var relative = absolute.ToDictionary(
                 entry => ToRelative(entry.Key),
@@ -955,9 +950,9 @@ public partial class Layer2ProjectParser
                 resultName = producedPackage.Name;
             }
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            ctx.LogWarning($"[Layer 2    ] Error getting produced package from {projectParser.ProjectType} parser in '{projectDir}': {ex.Message}", ex);
+            ctx.Layer2Log.ProducedPackageParseFailed(projectParser.ProjectType, projectDir, ex.Message, ex);
             ctx.RecordScanIssue("Layer2_Boundaries", "manifest_error", projectDir, $"Error getting produced package for {projectParser.ProjectType}: {ex.Message}", name: "ProducedPackageParseError", exception: ex, language: projectParser.ProjectType, isFileParent: false, logToConsole: false);
         }
 

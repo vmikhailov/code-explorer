@@ -32,6 +32,28 @@ public interface IFileParser
     bool ShouldSkipFile(FileInfo fileInfo) => false;
 
     /// <summary>
+    /// Checks whether a file should be skipped based on the initial streamed bytes (e.g. minified bundles).
+    /// </summary>
+    bool ShouldSkipFileBytes(string fileName, ReadOnlySpan<byte> contentBytes) => false;
+
+    /// <summary>
+    /// Classifies the physical artifact role of the file for this dialect (e.g. "source", "declaration", "minified", "dist", "script").
+    /// </summary>
+    string ClassifyArtifactRole(string relativePath, string fileName, ReadOnlySpan<byte> contentBytes = default) => "source";
+
+    /// <summary>
+    /// Enriches file-level and project-level semantic signals from the in-memory source text during Layer 3.
+    /// </summary>
+    void EnrichFileSignals(
+        CodeExplorer.Core.Common.Nodes.Layer1_Physical.FileNode fileNode,
+        SyntaxTree syntaxTree,
+        CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode? project,
+        string sourceText,
+        ParsingContext? ctx)
+    {
+    }
+
+    /// <summary>
     /// Indicates whether this parser uses Tree-Sitter for AST-level parsing.
     /// </summary>
     bool UsesTreeSitter { get; }

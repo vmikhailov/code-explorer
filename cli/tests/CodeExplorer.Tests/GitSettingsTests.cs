@@ -1,4 +1,5 @@
 using CodeExplorer.Core.Database;
+using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Parser.Layers;
 using NUnit.Framework;
@@ -152,11 +153,10 @@ public class GitSettingsTests
         // 3. Upload via OntologyUploader
         await OntologyUploader.UploadNodeTreeAsync(projNode, null, ctx);
 
-        // Verify git properties were populated on the project node
-        // Verify git properties were populated on the project node
-        projNode.GitBranch.Should().Be("release/1.0");
-        projNode.GitOrigin.Should().Be("https://git.company.com/backend.git");
-        projNode.GitRepo.Should().Be("Backend");
+        // Verify git signals were recorded in transient ProjectAnalysisSignals
+        projNode.Signals().GitBranch.Should().Be("release/1.0");
+        projNode.Signals().GitOrigin.Should().Be("https://git.company.com/backend.git");
+        projNode.Signals().GitRepo.Should().Be("Backend");
 
         // Verify USES_GIT relationship exists in ctx.TreeRelationships
         var usesGitRels = ctx.TreeRelationships.Where(r => r.Kind == "USES_GIT").ToList();

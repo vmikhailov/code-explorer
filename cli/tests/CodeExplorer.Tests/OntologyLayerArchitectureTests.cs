@@ -247,6 +247,41 @@ public class OntologyLayerArchitectureTests
         }
     }
 
+    [Test]
+    public void OntologyModels_NoCrossLayerOrRelationshipAsFieldProperties()
+    {
+        var forbiddenByNode = new (Type NodeType, string[] ForbiddenProperties)[]
+        {
+            (typeof(WorkspaceNode), ["HasNativeNode", "HasNativeAddon", "HasDotNetDll"]),
+            (typeof(CodeExplorer.Core.Common.Nodes.Layer1_Physical.FileNode), [
+                "HasEntityOrTable", "DbContextBaseConn", "DbContextClasses",
+                "DeclaredSchemaRaw", "VerifiedDbSignals", "RustTopologySummary",
+                "RustTopologyBodySummary", "HasParseIssues", "ParseIssueCount"
+            ]),
+            (typeof(CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode), [
+                "GitBranch", "GitOrigin", "GitUser", "GitCommit", "GitRepo",
+                "DbDriverEngine", "DbDriverFamily", "DbDriverChecked"
+            ]),
+            (typeof(CodeExplorer.Core.Common.Nodes.Layer3_Syntactic.FunctionNode), [
+                "EnclosingType", "DataflowReturn", "DataflowWrites", "DataflowSummary",
+                "GraphqlField", "GraphqlSchema", "GraphqlAliases", "MessagingDirection"
+            ])
+        };
+
+        foreach (var (nodeType, forbiddenProps) in forbiddenByNode)
+        {
+            var declaredProps = nodeType.GetProperties()
+                .Select(p => p.Name)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var forbidden in forbiddenProps)
+            {
+                declaredProps.Should().NotContain(forbidden,
+                    $"Ontology node '{nodeType.Name}' must not declare cross-layer or relationship-as-field property '{forbidden}'. Use AnalysisSignalStore or graph relationships instead.");
+            }
+        }
+    }
+
     private static string? FindWorkspaceRoot()
     {
         var current = AppContext.BaseDirectory;

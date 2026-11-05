@@ -49,33 +49,6 @@ public record FileNode(
     [JsonPropertyName("artifact_role"), OntologyProperty("The physical artifact role of the file (source, dist, minified, declaration, script).")]
     public string? ArtifactRole { get; set; }
 
-    [JsonPropertyName("has_parse_issues"), OntologyProperty("Indicates whether syntax diagnostics were recorded while parsing this file.")]
-    public bool? HasParseIssues { get; set; }
-
-    [JsonPropertyName("parse_issue_count"), OntologyProperty("Number of syntax diagnostics recorded for this file.")]
-    public int? ParseIssueCount { get; set; }
-
-    [JsonPropertyName("has_entity_or_table"), OntologyProperty("Indicates whether the file declares ORM entities, tables, or DbContext mappings.")]
-    public bool? HasEntityOrTable { get; set; }
-
-    [JsonPropertyName("dbcontext_base_conn"), OntologyProperty("Connection string name passed to DbContext base constructor.")]
-    public string? DbContextBaseConn { get; set; }
-
-    [JsonPropertyName("dbcontext_classes"), OntologyProperty("Comma-separated DbContext class names declared in this file.")]
-    public string? DbContextClasses { get; set; }
-
-    [JsonPropertyName("declared_schema_raw"), OntologyProperty("Database schema name explicitly declared in this file.")]
-    public string? DeclaredSchemaRaw { get; set; }
-
-    [JsonPropertyName("verified_db_signals"), OntologyProperty("Comma-separated database driver signals detected in this file.")]
-    public string? VerifiedDbSignals { get; set; }
-
-    [JsonPropertyName("rust_topology_summary"), OntologyProperty("Pre-computed Rust cloud/peer topology tokens.")]
-    public string? RustTopologySummary { get; set; }
-
-    [JsonPropertyName("rust_topology_body_summary"), OntologyProperty("Pre-computed Rust body-level cloud/peer topology tokens.")]
-    public string? RustTopologyBodySummary { get; set; }
-
     [JsonIgnore]
     public string? ContentHash { get; set; }
 

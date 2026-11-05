@@ -114,9 +114,25 @@ public static class FunctionDataflowAnalyzer
 
     private static void ScanBlock(BlockStmtSyntax block, Dictionary<string, List<DataflowOrigin>> varOrigins, FunctionDataflowSummary summary)
     {
-        foreach (var stmt in block.Statements)
+        for (int i = 0; i < block.Children.Count; i++)
         {
-            ScanStatement(stmt, varOrigins, summary);
+            var child = block.Children[i];
+            if (child is StatementSyntax stmt)
+            {
+                ScanStatement(stmt, varOrigins, summary);
+            }
+            else if (child is DeclarationSyntax decl)
+            {
+                ProcessDeclaration(decl, varOrigins, summary);
+            }
+            else if (child is AssignmentExprSyntax assign)
+            {
+                HandleAssignment(assign, varOrigins, summary);
+            }
+            else if (child is ExprSyntax expr)
+            {
+                ScanExprCalls(expr, varOrigins, summary);
+            }
         }
     }
 

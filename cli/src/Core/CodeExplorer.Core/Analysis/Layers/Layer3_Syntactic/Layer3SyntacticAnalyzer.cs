@@ -13,7 +13,7 @@ public partial class Layer3SyntacticParser
 {
     public async Task<Layer3Result> ParseAsync(Layer2Result l2Result, ParsingContext ctx)
     {
-        ctx.Log("[Layer 3    ] Starting tree-sitter AST syntactic parsing pass...");
+        ctx.Layer3Log.ScanStarted();
 
         WorkspaceConventions.LoadFromWorkspace(l2Result.Prev.Workspace.Path);
 
@@ -55,7 +55,7 @@ public partial class Layer3SyntacticParser
         {
             if (!string.IsNullOrEmpty(file.Path))
             {
-                fileNodeByPath[file.Path.Replace('\\', '/').Trim('/')] = file;
+                fileNodeByPath[file.Path.NormalizeSlashes().Trim('/')] = file;
             }
 
             int bestMatchLength = -1;
@@ -77,7 +77,7 @@ public partial class Layer3SyntacticParser
                     continue;
                 }
 
-                var normProjPath = p.Path.Replace('\\', '/').Trim('/');
+                var normProjPath = p.Path.NormalizeSlashes().Trim('/');
                 if (file.Path.Equals(normProjPath, StringComparison.OrdinalIgnoreCase))
                 {
                     var exactLen = normProjPath.Length + 1;
@@ -119,7 +119,7 @@ public partial class Layer3SyntacticParser
                 file.ProjectName = primaryMatch.Name;
                 if (!string.IsNullOrEmpty(file.Path))
                 {
-                    primaryOwnerByFilePath[file.Path.Replace('\\', '/').Trim('/')] = primaryMatch;
+                    primaryOwnerByFilePath[file.Path.NormalizeSlashes().Trim('/')] = primaryMatch;
                 }
 
                 if (!filesByProjectId.TryGetValue(primaryMatch.Id, out var primaryList))
@@ -167,7 +167,7 @@ public partial class Layer3SyntacticParser
                 ConfigurationIndex.Register(enrichment, project.Name);
             }
         }
-        ctx.LogDebug($"[ConfigurationIndex] Registered {ConfigurationIndex.GetDiscoveredUrls().Count} service endpoints and configuration keys into ConstantRegistry.");
+        ctx.Layer3Log.ConfigurationIndexRegistered(ConfigurationIndex.GetDiscoveredUrls().Count);
 
         var projectPass1List = new List<(ProjectNode Project, ProjectSyntaxNode ProjectSyntaxNode, List<FileNode> ProjectFiles, (FileNode File, SyntaxTree SyntaxTree, IOntologyNode ParentNode)?[] ParsedResults)>();
         // Phase 0b: RouteDictionaryRegistry and early constants pre-scanning across all candidate files
@@ -227,7 +227,7 @@ public partial class Layer3SyntacticParser
             }
             ctx.CancellationToken.ThrowIfCancellationRequested();
 
-            ctx.LogDebug($"[Layer 3    ] Parsing project {nProject} of {l2Result.Projects.Count} at: '{project.Path}'...");
+            ctx.Layer3Log.ParsingProject(nProject, l2Result.Projects.Count, project.Path);
 
             var projectSyntaxId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Project}:{project.Path}:syntax";
             var projectSyntaxNode = new ProjectSyntaxNode(projectSyntaxId, "ProjectSyntax", project.Path);
@@ -325,13 +325,14 @@ public partial class Layer3SyntacticParser
                     {
                         lastFileReportTicks = nowTicks;
                         var pct = 14 + (int)(38.0 * completed / totalFilesAcrossProjects);
-                        ctx.ReportProgress(pct, "Layer 3: Syntactic", $"Parsing syntax trees: {completed}/{totalFilesAcrossProjects} files ({completed * 100.0 / totalFilesAcrossProjects:F0}%) [{project.Name}]", completed, totalFilesAcrossProjects);
-                        ctx.Log($"[Layer 3    ] Parsing syntax trees: {completed}/{totalFilesAcrossProjects} files ({completed * 100.0 / totalFilesAcrossProjects:F0}%) [{project.Name}]...");
+                        var pctDone = (int)Math.Round(completed * 100.0 / totalFilesAcrossProjects);
+                        ctx.ReportProgress(pct, "Layer 3: Syntactic", $"Parsing syntax trees: {completed}/{totalFilesAcrossProjects} files ({pctDone}%) [{project.Name}]", completed, totalFilesAcrossProjects);
+                        ctx.Layer3Log.ParsingProgress(completed, totalFilesAcrossProjects, pctDone, project.Name);
                     }
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    ctx.LogWarning($"[Layer 3    ] Error parsing file '{file.Path}': {ex.Message}", ex);
+                    ctx.Layer3Log.FileParseFailed(file.Path, ex.Message, ex);
                     ctx.RecordScanIssue("Layer3_Syntactic", "parse_exception", file.Path, ex.Message, name: "ParseException", severity: "error", exception: ex, language: fileParser.LanguageName, parentNodeId: file.Id, isFileParent: true, logToConsole: false);
                 }
             });
@@ -351,7 +352,7 @@ public partial class Layer3SyntacticParser
         {
             var parallelOptions = parallelOptionsPass2;
             // Pass 2: Traverse ASTs with language visitors and component parsers (now that all constants and symbols are registered)
-            var projectAbsDir = Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, project.Path)).Replace('\\', '/');
+            var projectAbsDir = Path.Combine(ctx.AbsoluteWorkspacePath, project.Path).NormalizeFullPath();
             var filesInProjectDir = PhysicalFileStore.GetDirectoryFiles(projectAbsDir);
             var projectContext = new ProjectContext(
                 projectAbsDir,
@@ -405,7 +406,7 @@ public partial class Layer3SyntacticParser
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
-                        ctx.LogWarning($"[Layer 3    ] Error processing visitor for '{syntaxTree.FilePath}': {ex.Message}", ex);
+                        ctx.Layer3Log.VisitorFailed(syntaxTree.FilePath, ex.Message, ex);
                         ctx.RecordScanIssue("Layer3_Visitor", "visitor_exception", file.Path, ex.Message, name: "VisitorException", severity: "error", exception: ex, language: syntaxTree.FileParser.LanguageName, parentNodeId: file.Id, isFileParent: true, logToConsole: false);
                     }
                 }
@@ -457,7 +458,7 @@ public partial class Layer3SyntacticParser
         }
 
         PhysicalFileStore.ClearWorkspace(ctx.AbsoluteWorkspacePath);
-        ctx.Log($"[Layer 3    ] Syntactic parsing pass complete. Parsed {syntaxTrees.Count} files.");
+        ctx.Layer3Log.ScanCompleted(syntaxTrees.Count);
         return new Layer3Result(
             l2Result,
             syntaxStructureNode,
@@ -646,7 +647,7 @@ public partial class Layer3SyntacticParser
                 {
                     if (enclosingType != null)
                     {
-                        fn.EnclosingType = enclosingType.Name;
+                        fn.Signals().EnclosingTypeName = enclosingType.Name;
                     }
                     functionsByLineAndName.TryAdd((fn.StartLine, fn.Name), fn);
                     IndexOntologyTree(fn, enclosingType);
@@ -655,10 +656,20 @@ public partial class Layer3SyntacticParser
         }
         IndexOntologyTree(fileNode, null);
 
-        // 1. Enrich all FunctionDeclSyntax nodes with formal parameter MemberNodes, export flags, and lexical nesting
+        // 1. Enrich all FunctionDeclSyntax nodes with export flags and dataflow signals
         foreach (var fnDecl in doc.AllFunctions.OrderBy(f => f.Span.StartLine))
         {
+            if (fnDecl.Kind == FunctionSyntaxKind.Accessor)
+            {
+                continue;
+            }
+
             var fnName = ExtractSyntaxFunctionName(fnDecl);
+            if (fnName.StartsWith("<anon_", StringComparison.Ordinal) || fnName is "get;" or "set;" or "init;")
+            {
+                continue;
+            }
+
             var startLine = fnDecl.Span.StartLine + 1;
             var endLine = fnDecl.Span.EndLine + 1;
 
@@ -707,28 +718,23 @@ public partial class Layer3SyntacticParser
                 fnNode.Flags |= SymbolFlags.IsExported;
             }
 
-            var paramNames = ExtractSyntaxParameterNames(fnDecl);
-            // Include returned higher-order factory closure parameters (`function buildConnector(opts) { return function connect({ hostname }) { ... } }`)
-            CollectReturnedClosureParameters(fnDecl, paramNames);
-
-            AttachParameterMemberNodes(fnNode, paramNames, workspaceId, relativePath);
-
             if (fnDecl.DataflowSummary != null)
             {
+                var fnSignals = fnNode.Signals();
                 if (fnDecl.DataflowSummary.ReturnOrigins.Count > 0)
                 {
-                    fnNode.DataflowReturn = string.Join(",", fnDecl.DataflowSummary.ReturnOrigins.Select(o => o.ToString()).Distinct());
+                    fnSignals.DataflowReturn = string.Join(",", fnDecl.DataflowSummary.ReturnOrigins.Select(o => o.ToString()).Distinct());
                 }
                 if (fnDecl.DataflowSummary.FieldWrites.Count > 0)
                 {
                     var writes = fnDecl.DataflowSummary.FieldWrites
                         .Select(kv => $"{kv.Key}<-{string.Join(",", kv.Value.Select(o => o.ToString()).Distinct())}");
-                    fnNode.DataflowWrites = string.Join(";", writes);
+                    fnSignals.DataflowWrites = string.Join(";", writes);
                 }
                 var summaryStr = fnDecl.DataflowSummary.ToCompactString();
                 if (!string.IsNullOrEmpty(summaryStr))
                 {
-                    fnNode.DataflowSummary = summaryStr;
+                    fnSignals.DataflowSummary = summaryStr;
                 }
             }
         }
@@ -789,15 +795,23 @@ public partial class Layer3SyntacticParser
                     functionsByLineAndName[(startLine, protoMethod)] = protoFnNode;
                 }
 
-                protoFnNode.EnclosingType = protoClass;
+                if (!typeNode.Children.Contains(protoFnNode))
+                {
+                    fileNode.Children.Remove(protoFnNode);
+                    typeNode.Children.Add(protoFnNode);
+                }
+                protoFnNode.Signals().EnclosingTypeName = protoClass;
                 protoFnNode.IsExported = true;
                 protoFnNode.Flags |= SymbolFlags.IsExported;
-                var protoParams = ExtractSyntaxParameterNames(protoLambda);
-                AttachParameterMemberNodes(protoFnNode, protoParams, workspaceId, relativePath);
             }
 
             foreach (var (lambdaName, lambdaNode) in EnumerateNamedLambdaFunctions(syntaxTree.RootNode))
             {
+                if (lambdaName.StartsWith("<anon_", StringComparison.Ordinal) || FindEnclosingSyntaxFunction(lambdaNode) != null)
+                {
+                    continue;
+                }
+
                 var startLine = lambdaNode.Span.StartLine + 1;
                 if (!functionsByLineAndName.TryGetValue((startLine, lambdaName), out var lambdaFnNode))
                 {
@@ -821,8 +835,6 @@ public partial class Layer3SyntacticParser
 
                 lambdaFnNode.IsExported = true;
                 lambdaFnNode.Flags |= SymbolFlags.IsExported;
-                var lambdaParams = ExtractSyntaxParameterNames(lambdaNode);
-                AttachParameterMemberNodes(lambdaFnNode, lambdaParams, workspaceId, relativePath);
             }
         }
 

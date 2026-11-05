@@ -110,7 +110,7 @@ public partial class Layer5AnalysisParser
         // 1. Direct matching: check if project name, directory name, or repo matches full host or subdomain
         var pName = proj.Name.ToLowerInvariant();
         var pFolder = Path.GetFileName(proj.Path.TrimEnd('/', '\\')).ToLowerInvariant();
-        var gitRepo = proj.Extensions?.TryGetValue("git_repo", out var gr) == true ? gr.ToLowerInvariant() : "";
+        var gitRepo = (proj.TryGetSignals()?.GitRepo ?? string.Empty).ToLowerInvariant();
 
         var cand = new ProjectMatchCandidate(proj.Id, proj.Name, proj.Path, gitRepo, proj.IsLibrary);
         var score = EndpointScoringEngine.ScoreProjectMatch(d, cand);

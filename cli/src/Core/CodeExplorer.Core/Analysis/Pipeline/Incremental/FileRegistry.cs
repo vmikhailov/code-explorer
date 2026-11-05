@@ -38,17 +38,28 @@ public class FileRegistry
             _entries[path] = (entry.ContentHash, entry.LastModifiedUtc, entry.SizeBytes, entry.ProjectPath);
             if (!string.IsNullOrEmpty(entry.SnapshotJson))
             {
-                try
+                if (!entry.SnapshotJson.StartsWith('{'))
                 {
-                    var snapshot = System.Text.Json.JsonSerializer.Deserialize<FileGraphSnapshot>(entry.SnapshotJson);
-                    if (snapshot != null)
-                    {
-                        _snapshots[path] = snapshot;
-                    }
+                    _snapshots[path] = FileGraphSnapshot.FromStructuralHash(
+                        path,
+                        entry.ContentHash,
+                        entry.LastModifiedUtc,
+                        entry.SnapshotJson);
                 }
-                catch
+                else
                 {
-                    // Ignore corrupted snapshots
+                    try
+                    {
+                        var snapshot = System.Text.Json.JsonSerializer.Deserialize<FileGraphSnapshot>(entry.SnapshotJson);
+                        if (snapshot != null)
+                        {
+                            _snapshots[path] = snapshot;
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore corrupted snapshots
+                    }
                 }
             }
         }
@@ -172,13 +183,7 @@ public class FileRegistry
             string? snapshotJson = null;
             if (_snapshots.TryGetValue(kv.Key, out var snapshot))
             {
-                try
-                {
-                    snapshotJson = System.Text.Json.JsonSerializer.Serialize(snapshot);
-                }
-                catch
-                {
-                }
+                snapshotJson = snapshot.ComputeStructuralHash();
             }
 
             return (

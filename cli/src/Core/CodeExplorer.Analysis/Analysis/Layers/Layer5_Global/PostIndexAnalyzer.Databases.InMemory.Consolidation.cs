@@ -159,7 +159,8 @@ public partial class PostIndexAnalyzer
                         ? cf.Path
                         : Path.Combine(ctx.AbsoluteWorkspacePath, cf.Path);
 
-                    if (cf.Extensions != null && cf.Extensions.TryGetValue(CodeExplorer.Core.Parser.Layers.Layer3FileSignalEnricher.ExtVerifiedDbSignals, out var dbSigStr) && !string.IsNullOrEmpty(dbSigStr))
+                    var dbSigStr = cf.TryGetSignals()?.VerifiedDbSignals;
+                    if (!string.IsNullOrEmpty(dbSigStr))
                     {
                         foreach (var sig in dbSigStr.Split(',', StringSplitOptions.RemoveEmptyEntries))
                         {

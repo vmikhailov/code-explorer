@@ -15,7 +15,7 @@ public partial class Layer5AnalysisParser
     {
         _currentL4Result = l4Result;
         ctx.ReportProgress(68, "Layer 5: Global", "Starting late binding, cross-references & post-indexing analysis...");
-        ctx.Log("[Layer 5    ] Starting Layer 5 (Late Binding, Cross-References & Post-Indexing Analysis)...");
+        ctx.Layer5Log.ScanStarted();
 
         // 1. Upload the early enqueued relationships after all nodes are created
         var belongsToRels = new List<Relationship>();
@@ -42,7 +42,7 @@ public partial class Layer5AnalysisParser
 
         if (belongsToRels.Count > 0)
         {
-            ctx.LogDebug($"[Layer 5    ] Uploading {belongsToRels.Count} project containment (BelongsTo) relationships...");
+            ctx.Layer5Log.UploadingBelongsToRelationships(belongsToRels.Count);
             await ctx.EnqueueUploadRelationshipsAsync(belongsToRels);
             ctx.TotalRelsCount += belongsToRels.Count;
         }
@@ -63,14 +63,14 @@ public partial class Layer5AnalysisParser
         {
             await ctx.WaitForQueueDrainedAsync();
             ctx.ReportProgress(84, "Layer 5: Global", "Running post-indexing analysis...");
-            ctx.Log("[Layer 5    ] Running global post-indexing analysis via PostIndexAnalyzer across workspace...");
+            ctx.Layer5Log.RunningGlobalPostIndexAnalysis();
             await postAnalyzer.RunAsync(ctx.WorkspaceId, ctx);
         }
         else
         {
             await ctx.WaitForQueueDrainedAsync();
             ctx.ReportProgress(84, "Layer 5: Global", "Running in-memory post-indexing analysis...");
-            ctx.Log("[Layer 5    ] Running in-memory post-indexing analysis via PostIndexAnalyzer...");
+            ctx.Layer5Log.RunningInMemoryPostIndexAnalysis();
             await postAnalyzer.RunInMemoryAsync(ctx, l4Result, referenceRelationships, lateBoundRels);
         }
 
@@ -80,7 +80,7 @@ public partial class Layer5AnalysisParser
         // 7. Run CodeIntentAnalyzer (if model / code-intent-distill is available)
         await CodeIntentAnalyzer.EnrichAsync(ctx);
 
-        ctx.Log("[Layer 5    ] Late binding and post-indexing analysis pass complete.");
+        ctx.Layer5Log.ScanCompleted();
         return new Layer5Result(l4Result, lateBoundRels);
     }
 
@@ -88,8 +88,7 @@ public partial class Layer5AnalysisParser
     {
         if (ctx.GlobalProjectDependencies.Count > 0)
         {
-            ctx.Log(
-                $"[Layer 5    ] Uploading {ctx.GlobalProjectDependencies.Count} local project dependency relationships...");
+            ctx.Layer5Log.UploadingProjectDependencies(ctx.GlobalProjectDependencies.Count);
             await ctx.EnqueueUploadRelationshipsAsync(ctx.GlobalProjectDependencies);
             ctx.TotalRelsCount += ctx.GlobalProjectDependencies.Count;
         }
@@ -99,7 +98,7 @@ public partial class Layer5AnalysisParser
     {
         var totalReferences = ctx.GlobalReferences.Count;
         ctx.ReportProgress(71, "Layer 5: Global", $"Resolving {totalReferences} global cross-references...");
-        ctx.Log($"[Layer 5    ] Resolving {totalReferences} global cross-references...");
+        ctx.Layer5Log.ResolvingCrossReferences(totalReferences);
         var referenceRelationships = new List<Relationship>(totalReferences > 0 ? Math.Min(totalReferences, 2000000) : 0);
         var inheritanceRels = new HashSet<(string From, string To)>();
         var interfaceToImplementors = new Dictionary<string, List<string>>(StringComparer.Ordinal);
@@ -125,9 +124,10 @@ public partial class Layer5AnalysisParser
             {
                 lastRefReport = Stopwatch.GetTimestamp();
                 var pct = totalReferences > 0 ? (double)resolvedCount / totalReferences * 100.0 : 100.0;
+                var pctInt = (int)Math.Round(pct);
                 var globalPct = totalReferences > 0 ? 71 + (int)(6.0 * resolvedCount / totalReferences) : 77;
-                ctx.Log($"[Layer 5    ] Resolving global cross-references: {resolvedCount}/{totalReferences} ({pct:F0}%)...");
-                ctx.ReportProgress(globalPct, "Layer 5: Global", $"Resolving cross-references: {resolvedCount}/{totalReferences} ({pct:F0}%)...");
+                ctx.Layer5Log.CrossReferenceProgress(resolvedCount, totalReferences, pctInt);
+                ctx.ReportProgress(globalPct, "Layer 5: Global", $"Resolving cross-references: {resolvedCount}/{totalReferences} ({pctInt}%)...");
             }
 
             if (refItem.Kind == OntologyConstants.Relationships.Implements ||
@@ -170,7 +170,7 @@ public partial class Layer5AnalysisParser
             }
         }
 
-        ctx.Log($"[Layer 5    ] Resolved {resolvedCount}/{totalReferences} global cross-references ({referenceRelationships.Count} edges).");
+        ctx.Layer5Log.CrossReferencesResolved(resolvedCount, totalReferences, referenceRelationships.Count);
 
         if (newTopicNodes.Count > 0)
         {
@@ -181,7 +181,7 @@ public partial class Layer5AnalysisParser
 
         if (referenceRelationships.Count > 0)
         {
-            ctx.LogDebug($"[Layer 5    ] Uploading {referenceRelationships.Count} resolved reference relationships...");
+            ctx.Layer5Log.UploadingReferenceRelationships(referenceRelationships.Count);
             await ctx.EnqueueUploadRelationshipsAsync(referenceRelationships);
             ctx.TotalRelsCount += referenceRelationships.Count;
         }
@@ -366,7 +366,7 @@ public partial class Layer5AnalysisParser
         }
 
         ctx.ReportProgress(77, "Layer 5: Global", $"Late-binding {prepExtServices.Count} external service calls...");
-        ctx.Log($"[Layer 5    ] Late-binding {prepExtServices.Count} external service calls against {prepEndpoints.Count} endpoints and {prepEntryPoints.Count} entry points...");
+        ctx.Layer5Log.LateBindingStarted(prepExtServices.Count, prepEndpoints.Count, prepEntryPoints.Count);
 
         var lateBoundRels = new List<Relationship>();
         var addedProjectDeps = new HashSet<(string From, string To)>();
@@ -412,7 +412,7 @@ public partial class Layer5AnalysisParser
 
             foreach (var entryPoint in candidateEntryPoints)
             {
-                ctx.LogDebug($"[Layer 5    ] Binding ExternalService '{extService.Service.Id}' to EntryPoint '{entryPoint.EntryPoint.Id}'");
+                ctx.Layer5Log.BindingToEntryPoint(extService.Service.Id, entryPoint.EntryPoint.Id);
                 var rel = Relationship.FromRelationship(new CallsRelationship(extService.Service.Id, entryPoint.EntryPoint.Id));
                 lateBoundRels.Add(rel);
                 matchedEndpoint = true;
@@ -424,7 +424,7 @@ public partial class Layer5AnalysisParser
                 {
                     if (addedProjectDeps.Add((callerProj.Id, targetProj.Id)))
                     {
-                        ctx.LogDebug($"[Layer 5    ] Synthesized dependency: Project '{callerProj.Name}' -> Project '{targetProj.Name}' via entrypoint '{entryPoint.EntryPoint.Name}'");
+                        ctx.Layer5Log.SynthesizedDependencyViaEntryPoint(callerProj.Name, targetProj.Name, entryPoint.EntryPoint.Name);
                         lateBoundRels.Add(Relationship.FromRelationship(new DependsOnRelationship(callerProj.Id, targetProj.Id, new() { ["dependency_type"] = "service_call" })));
                     }
                 }
@@ -448,7 +448,7 @@ public partial class Layer5AnalysisParser
 
             foreach (var endpoint in candidateEndpoints)
             {
-                ctx.LogDebug($"[Layer 5    ] Binding ExternalService '{extService.Service.Id}' to Endpoint '{endpoint.Endpoint.Id}'");
+                ctx.Layer5Log.BindingToEndpoint(extService.Service.Id, endpoint.Endpoint.Id);
                 var epProtocol = endpoint.Endpoint.Protocol ?? "REST";
                 var evKind = epProtocol.Equals("gRPC", StringComparison.OrdinalIgnoreCase) ? OntologyConstants.EvidenceKinds.GrpcCall
                            : epProtocol.Equals("WCF", StringComparison.OrdinalIgnoreCase) ? OntologyConstants.EvidenceKinds.WcfCall
@@ -501,7 +501,7 @@ public partial class Layer5AnalysisParser
                     var contribRel = rel;
                     if (addedProjectDeps.Add((callerProj.Id, targetProj.Id)))
                     {
-                        ctx.LogDebug($"[Layer 5    ] Synthesized dependency: Project '{callerProj.Name}' -> Project '{targetProj.Name}' via endpoint '{endpoint.Endpoint.RouteTemplate}'");
+                        ctx.Layer5Log.SynthesizedDependencyViaEndpoint(callerProj.Name, targetProj.Name, endpoint.Endpoint.RouteTemplate);
                         var projDep = Relationship.FromRelationship(new DependsOnRelationship(callerProj.Id, targetProj.Id, new() { ["dependency_type"] = "service_call" }));
                         EvidenceProvenanceHelper.RecordContributingEdge(projDep, contribRel);
                         lateBoundRels.Add(projDep);
@@ -551,7 +551,7 @@ public partial class Layer5AnalysisParser
                                 {
                                     if (addedProjectDeps.Add((callerProj.Id, proj.Id)))
                                     {
-                                        ctx.LogDebug($"[Layer 5    ] Inferred project dependency: Project '{callerProj.Name}' -> Project '{proj.Name}' via service domain '{extService.Service.DomainOrService}'");
+                                        ctx.Layer5Log.InferredDependencyViaDomain(callerProj.Name, proj.Name, extService.Service.DomainOrService);
                                         lateBoundRels.Add(Relationship.FromRelationship(new DependsOnRelationship(callerProj.Id, proj.Id, new() { ["dependency_type"] = "service_call" })));
                                     }
                                 }
@@ -566,20 +566,21 @@ public partial class Layer5AnalysisParser
             {
                 lastReport = Stopwatch.GetTimestamp();
                 var pct = (double)processedExt / totalExt * 100.0;
+                var pctInt = (int)Math.Round(pct);
                 var globalPct = totalExt > 0 ? 77 + (int)(7.0 * processedExt / totalExt) : 84;
-                ctx.Log($"[Layer 5    ] Late-binding progress: {processedExt}/{totalExt} external services ({pct:F0}%)...");
-                ctx.ReportProgress(globalPct, "Layer 5: Global", $"Late-binding external services: {processedExt}/{totalExt} ({pct:F0}%)...");
+                ctx.Layer5Log.LateBindingProgress(processedExt, totalExt, pctInt);
+                ctx.ReportProgress(globalPct, "Layer 5: Global", $"Late-binding external services: {processedExt}/{totalExt} ({pctInt}%)...");
             }
         }
 
         if (boundServicesCount > 0)
         {
-            ctx.Log($"[Layer 5    ] Successfully bound {boundServicesCount} ExternalService call(s) to endpoints/entrypoints.");
+            ctx.Layer5Log.LateBindingCompleted(boundServicesCount);
         }
 
         if (lateBoundRels.Count > 0)
         {
-            ctx.LogDebug($"[Layer 5    ] Uploading {lateBoundRels.Count} late-bound relationships...");
+            ctx.Layer5Log.UploadingLateBoundRelationships(lateBoundRels.Count);
             await ctx.EnqueueUploadRelationshipsAsync(lateBoundRels);
             ctx.TotalRelsCount += lateBoundRels.Count;
         }
@@ -824,15 +825,8 @@ public partial class Layer5AnalysisParser
             domainIdByKey[domainKey] = domainId;
             bcIdByKey[domainKey] = bcId;
 
-            var domainNode = new DomainNode(domainId, domainKey, domainKey, "Core", Path: ".", Extensions: new Dictionary<string, string>
-            {
-                ["workload_count"] = memberWorkloads.Count.ToString()
-            });
-            var bcNode = new BoundedContextNode(bcId, $"{domainKey} Context", $"{domainKey} Context", domainId, Path: ".", Extensions: new Dictionary<string, string>
-            {
-                ["domain"] = domainKey,
-                ["workload_count"] = memberWorkloads.Count.ToString()
-            });
+            var domainNode = new DomainNode(domainId, domainKey, domainKey, "Core", Path: ".");
+            var bcNode = new BoundedContextNode(bcId, $"{domainKey} Context", $"{domainKey} Context", domainId, Path: ".");
 
             nodesToUpload.Add(Node.FromNode(domainNode));
             nodesToUpload.Add(Node.FromNode(bcNode));

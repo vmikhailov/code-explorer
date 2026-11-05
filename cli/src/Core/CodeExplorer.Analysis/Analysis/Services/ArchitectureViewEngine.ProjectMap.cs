@@ -309,7 +309,7 @@ public partial class ArchitectureViewEngine
 
         const string funcsQuery =
             "MATCH (fn:Function) WHERE fn.file_path STARTS WITH $prefix OR fn.file_path CONTAINS $slashPrefix OR fn.path STARTS WITH $prefix OR fn.path CONTAINS $slashPrefix " +
-            "RETURN fn.id AS id, fn.name AS name, coalesce(fn.file_path, fn.path) AS file, fn.path AS alt_path, fn.start_line AS start_line, coalesce(fn.line_count, fn.loc) AS loc, fn.is_test AS is_test, fn.enclosing_type AS enclosing_type";
+            "RETURN fn.id AS id, fn.name AS name, coalesce(fn.file_path, fn.path) AS file, fn.path AS alt_path, fn.start_line AS start_line, coalesce(fn.line_count, fn.loc) AS loc, fn.is_test AS is_test";
         var funcRows = await QueryProjectMapRowsAsync(funcsQuery, prefix, "project function declarations", warnings, ct);
         var functions = new List<ProjectMapFunctionNode>(funcRows.Count);
         foreach (var fr in funcRows)
@@ -318,7 +318,7 @@ public partial class ArchitectureViewEngine
             var fnName = fr.GetStringProp("name");
             var fnFile = ResolveSymbolFilePath(fr.GetStringProp("file"), fr.GetStringProp("alt_path"), prefix, projectFileSet);
             if (fnName.Length == 0 || fnFile.Length == 0) continue;
-            var encType = funcIdToTypeName.GetValueOrDefault(fnId) ?? StripGenericArity(fr.GetStringProp("enclosing_type"));
+            var encType = funcIdToTypeName.GetValueOrDefault(fnId);
             if (!string.IsNullOrEmpty(encType) && fnId.Length > 0)
             {
                 funcIdToTypeName.TryAdd(fnId, encType);

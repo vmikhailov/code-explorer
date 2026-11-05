@@ -32,42 +32,6 @@ public partial class Layer3SyntacticParser
         return false;
     }
 
-    private static void AttachParameterMemberNodes(
-        FunctionNode fnNode,
-        List<string> paramNames,
-        string workspaceId,
-        string relativePath)
-    {
-        for (var i = 0; i < paramNames.Count; i++)
-        {
-            var pName = paramNames[i];
-            if (string.IsNullOrEmpty(pName)) continue;
-            if (fnNode.Children.OfType<MemberNode>().Any(m => m.MemberKind == CodeExplorer.Cypher.Common.MemberKind.Parameter && m.Name == pName))
-            {
-                continue;
-            }
-
-            var paramId = $"{fnNode.Id}:param:{i}:{pName}";
-            var paramNode = new MemberNode(
-                paramId,
-                pName,
-                paramId,
-                relativePath,
-                relativePath,
-                fnNode.StartLine,
-                fnNode.StartLine,
-                1,
-                1,
-                CodeExplorer.Cypher.Common.MemberKind.Parameter,
-                null)
-            {
-                ParameterIndex = i,
-                VariableClassification = "parameter"
-            };
-            fnNode.Children.Add(paramNode);
-        }
-    }
-
     private static string ExtractSyntaxFunctionName(FunctionDeclSyntax fnDecl)
     {
         if (!string.IsNullOrWhiteSpace(fnDecl.Name)) return fnDecl.Name;
@@ -90,124 +54,6 @@ public partial class Layer3SyntacticParser
             curr = curr.Parent;
         }
         return null;
-    }
-
-    private static List<string> ExtractSyntaxParameterNames(SyntaxNode fnOrLambda)
-    {
-        var names = new List<string>();
-        if (fnOrLambda is FunctionDeclSyntax { Parameters.Count: > 0 } fnDecl)
-        {
-            foreach (var p in fnDecl.Parameters)
-            {
-                if (!string.IsNullOrWhiteSpace(p.Name))
-                {
-                    names.Add(p.Name);
-                }
-                else
-                {
-                    CollectDestructuredParameterIdentifiers(p, names);
-                }
-            }
-            if (names.Count > 0) return names;
-        }
-
-        var paramsContainer = fnOrLambda.GetChildForField(SyntaxFields.Parameters) ??
-                              fnOrLambda.GetChildForField("parameter") ??
-                              fnOrLambda.NamedChildren.FirstOrDefault(c => c.RawGrammarKind is "formal_parameters" or "parameters" or "parameter_list");
-        if (paramsContainer != null)
-        {
-            if (paramsContainer is IdentifierExprSyntax singleId)
-            {
-                var t = singleId.Text.Trim();
-                if (!string.IsNullOrEmpty(t)) names.Add(t);
-                return names;
-            }
-            foreach (var p in paramsContainer.NamedChildren)
-            {
-                CollectDestructuredParameterIdentifiers(p, names);
-            }
-        }
-        return names;
-    }
-
-    private static void CollectDestructuredParameterIdentifiers(SyntaxNode node, List<string> names)
-    {
-        if (node is ParameterDeclSyntax { Name.Length: > 0 } pd)
-        {
-            if (!names.Contains(pd.Name, StringComparer.Ordinal)) names.Add(pd.Name);
-            return;
-        }
-        if (node is IdentifierExprSyntax or IdentifierPatternSyntax)
-        {
-            if (node.Parent?.RawGrammarKind == "pair_pattern" && ReferenceEquals(node.Parent.GetChildForField(SyntaxFields.Key), node))
-            {
-                return;
-            }
-            var span = node.AsSpan().Trim().TrimStart('.');
-            if (!span.IsEmpty && span is not ("this" or "self"))
-            {
-                var txt = SyntaxStringPool.Intern(span);
-                if (!names.Contains(txt, StringComparer.Ordinal))
-                {
-                    names.Add(txt);
-                }
-            }
-            return;
-        }
-        if (node.RawGrammarKind == "shorthand_property_identifier_pattern")
-        {
-            var span = node.AsSpan().Trim();
-            if (!span.IsEmpty)
-            {
-                var txt = SyntaxStringPool.Intern(span);
-                if (!names.Contains(txt, StringComparer.Ordinal))
-                {
-                    names.Add(txt);
-                }
-            }
-            return;
-        }
-        if (node is AssignmentExprSyntax assignPat)
-        {
-            var left = assignPat.Left ?? assignPat.GetChildForField(SyntaxFields.Left) ?? (assignPat.NamedChildren.Count > 0 ? assignPat.NamedChildren[0] : null);
-            if (left != null) CollectDestructuredParameterIdentifiers(left, names);
-            return;
-        }
-        for (var i = 0; i < node.NamedChildren.Count; i++)
-        {
-            var child = node.NamedChildren[i];
-            if (child is TypeRefSyntax) continue;
-            CollectDestructuredParameterIdentifiers(child, names);
-        }
-    }
-
-    private static void CollectReturnedClosureParameters(FunctionDeclSyntax fnDecl, List<string> paramNames)
-    {
-        var stack = new Stack<SyntaxNode>();
-        stack.Push(fnDecl);
-        while (stack.Count > 0)
-        {
-            var curr = stack.Pop();
-            if (curr is FunctionDeclSyntax && !ReferenceEquals(curr, fnDecl)) continue;
-            if (curr is ReturnOrYieldStmtSyntax retStmt)
-            {
-                var retVal = retStmt.Value ?? retStmt.GetChildForField(SyntaxFields.Value) ?? retStmt.NamedChildren.FirstOrDefault();
-                if (retVal is LambdaExprSyntax retLambda)
-                {
-                    foreach (var innerParam in ExtractSyntaxParameterNames(retLambda))
-                    {
-                        if (!string.IsNullOrEmpty(innerParam) && !paramNames.Contains(innerParam, StringComparer.Ordinal))
-                        {
-                            paramNames.Add(innerParam);
-                        }
-                    }
-                }
-            }
-            for (var i = curr.Children.Count - 1; i >= 0; i--)
-            {
-                stack.Push(curr.Children[i]);
-            }
-        }
     }
 
     private static IEnumerable<AssignmentExprSyntax> EnumerateSyntaxAssignments(SyntaxNode root)
@@ -309,8 +155,6 @@ public partial class Layer3SyntacticParser
         var diags = syntaxTree.Document?.Diagnostics;
         if (diags == null || diags.Count == 0) return;
 
-        fileNode.HasParseIssues = true;
-        fileNode.ParseIssueCount = diags.Count;
         fileNode.Flags |= SymbolFlags.HasParseIssues;
 
         var lang = syntaxTree.Document?.LanguageName ?? syntaxTree.FileParser.LanguageName;

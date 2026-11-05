@@ -60,6 +60,8 @@ public sealed class CSharpSyntaxConverter : TreeSitterSyntaxConverterBase
             "null_literal" => new LiteralExprSyntax { Span = span, RawGrammarKind = rawKind, LiteralKind = LiteralSyntaxKind.Null },
 
             "identifier" or "this" or "base" => new IdentifierExprSyntax { Span = span, RawGrammarKind = rawKind },
+            "predefined_type" when parentRawKind is "member_access_expression" =>
+                new IdentifierExprSyntax { Span = span, RawGrammarKind = rawKind },
 
             "member_access_expression" or "qualified_name" => new MemberAccessExprSyntax { Span = span, RawGrammarKind = rawKind },
             "element_access_expression" => new IndexOrSliceExprSyntax { Span = span, RawGrammarKind = rawKind },

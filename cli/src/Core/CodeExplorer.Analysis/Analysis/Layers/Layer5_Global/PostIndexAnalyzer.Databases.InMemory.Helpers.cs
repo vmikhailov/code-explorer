@@ -23,7 +23,8 @@ public partial class PostIndexAnalyzer
         if (node == null) return true;
         var eng = node.Extensions?.GetValueOrDefault("engine") ?? (node.Name.Contains('.') ? node.Name.Split('.', 2)[0] : node.Name);
         var sch = node.Extensions?.GetValueOrDefault("schema") ?? (node.Name.Contains('.') ? node.Name.Split('.', 2)[1] : "");
-        var isImplicit = node.Extensions?.GetValueOrDefault("is_implicit_schema") == "true";
+        var isImplicit = node.IsImplicitSchema == true || node.Flags.HasFlag(SymbolFlags.IsImplicitSchema) ||
+                         node.Extensions?.GetValueOrDefault("is_implicit_schema") == "true";
         var isMultiDomainLibDb = multiDomainSharedLibDbIds.Contains(targetId);
         return string.IsNullOrWhiteSpace(sch) ||
                sch.Equals("default", StringComparison.OrdinalIgnoreCase) ||

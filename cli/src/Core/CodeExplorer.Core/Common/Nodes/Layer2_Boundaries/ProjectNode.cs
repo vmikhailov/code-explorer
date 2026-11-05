@@ -104,30 +104,6 @@ public record ProjectNode(
     [JsonPropertyName("framework"), OntologyProperty("Detected primary framework of the project.")]
     public string? Framework { get; set; }
 
-    [JsonPropertyName("git_branch"), OntologyProperty("Checked-out Git branch for this project.")]
-    public string? GitBranch { get; set; }
-
-    [JsonPropertyName("git_origin"), OntologyProperty("Remote Git origin URL for this project.")]
-    public string? GitOrigin { get; set; }
-
-    [JsonPropertyName("git_user"), OntologyProperty("Git user name associated with this project.")]
-    public string? GitUser { get; set; }
-
-    [JsonPropertyName("git_commit"), OntologyProperty("Current Git HEAD commit hash.")]
-    public string? GitCommit { get; set; }
-
-    [JsonPropertyName("git_repo"), OntologyProperty("Git repository name.")]
-    public string? GitRepo { get; set; }
-
-    [JsonPropertyName("db_driver_engine"), OntologyProperty("Inferred database driver engine for the project.")]
-    public string? DbDriverEngine { get; set; }
-
-    [JsonPropertyName("db_driver_type"), OntologyProperty("Inferred database driver category for the project.")]
-    public string? DbDriverFamily { get; set; }
-
-    [JsonPropertyName("db_driver_checked"), OntologyProperty("Indicates whether database driver resolution was already performed for this project.")]
-    public bool? DbDriverChecked { get; set; }
-
     [JsonPropertyName("is_library"), OntologyProperty("Indicates whether the project is a shared library rather than an executable application.")]
     public bool IsLibrary { get; set; } = IsLibrary;
 

@@ -19,18 +19,7 @@ public static class PhysicalFileStore
     private static readonly ConcurrentDictionary<string, string[]> _directoryFiles =
         new(StringComparer.OrdinalIgnoreCase);
 
-    public static string NormalizePath(string path)
-    {
-        if (string.IsNullOrWhiteSpace(path)) return string.Empty;
-        try
-        {
-            return Path.GetFullPath(path).Replace('\\', '/').TrimEnd('/');
-        }
-        catch
-        {
-            return path.Replace('\\', '/').TrimEnd('/');
-        }
-    }
+    public static string NormalizePath(string path) => path.NormalizeFullPath(trimTrailingSlash: true);
 
     public static string DecodeUtf8(ReadOnlySpan<byte> bytes)
     {
@@ -101,7 +90,7 @@ public static class PhysicalFileStore
             }
 
             var artifactRole = isSupportedSourceOrConfig && !skipByContent
-                ? WorkspaceFileFilter.ClassifyArtifactRole(relativeFile, fileName, firstSpan)
+                ? fileFilter.ClassifyFileArtifactRole(relativeFile, fileName, firstSpan)
                 : null;
 
             using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);

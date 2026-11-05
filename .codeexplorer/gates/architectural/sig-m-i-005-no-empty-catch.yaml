@@ -9,7 +9,7 @@ description: Catches must not silently suppress exceptions without at least an e
 remediation: 'Log or handle the exception appropriately, rethrow it, or add an explanatory comment (e.g. `// ignored: expected transient condition`) explaining why it is safe to swallow.'
 query: >-
   MATCH (c:CatchClause)
-  WHERE c.is_empty = true AND c.has_comment = false AND NOT coalesce(c.is_test, false)
+  WHERE c.is_empty = true AND (c.has_comment = false OR c.file_path CONTAINS 'Layer1PhysicalAnalyzer.cs') AND NOT coalesce(c.is_test, false)
     AND NOT c.file_path CONTAINS '/tests/' AND NOT c.file_path CONTAINS '/node_modules/'
   RETURN
     c.file_path AS file,

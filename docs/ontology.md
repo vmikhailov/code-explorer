@@ -302,9 +302,6 @@ graph TD
 | `Name` | `string` | The name of the entity. |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
 | `IndexedAt` | `string?` | Timestamp when the workspace was indexed (ISO 8601 UTC). |
-| `HasNativeNode` | `bool?` | Indicates whether native .node binary addons were discovered in the workspace. |
-| `HasNativeAddon` | `bool?` | Indicates whether native binary addons (.node, .wasm, .dylib, .so) were discovered in the workspace. |
-| `HasDotNetDll` | `bool?` | Indicates whether compiled .NET .dll artifacts were discovered in the workspace. |
 
 ---
 
@@ -362,15 +359,6 @@ graph TD
 | `LineCount` | `int?` | Total lines of code in this file. |
 | `SizeBytes` | `long?` | Size of the file in bytes. |
 | `ArtifactRole` | `string?` | The physical artifact role of the file (source, dist, minified, declaration, script). |
-| `HasParseIssues` | `bool?` | Indicates whether syntax diagnostics were recorded while parsing this file. |
-| `ParseIssueCount` | `int?` | Number of syntax diagnostics recorded for this file. |
-| `HasEntityOrTable` | `bool?` | Indicates whether the file declares ORM entities, tables, or DbContext mappings. |
-| `DbContextBaseConn` | `string?` | Connection string name passed to DbContext base constructor. |
-| `DbContextClasses` | `string?` | Comma-separated DbContext class names declared in this file. |
-| `DeclaredSchemaRaw` | `string?` | Database schema name explicitly declared in this file. |
-| `VerifiedDbSignals` | `string?` | Comma-separated database driver signals detected in this file. |
-| `RustTopologySummary` | `string?` | Pre-computed Rust cloud/peer topology tokens. |
-| `RustTopologyBodySummary` | `string?` | Pre-computed Rust body-level cloud/peer topology tokens. |
 
 ---
 
@@ -622,14 +610,6 @@ graph TD
 | `SecondaryRoles` | `string?` | Secondary architectural roles detected in the project (e.g. ['Scheduler', 'QueueWorker']). |
 | `AllRoles` | `string?` | All architectural roles detected in the project. |
 | `Framework` | `string?` | Detected primary framework of the project. |
-| `GitBranch` | `string?` | Checked-out Git branch for this project. |
-| `GitOrigin` | `string?` | Remote Git origin URL for this project. |
-| `GitUser` | `string?` | Git user name associated with this project. |
-| `GitCommit` | `string?` | Current Git HEAD commit hash. |
-| `GitRepo` | `string?` | Git repository name. |
-| `DbDriverEngine` | `string?` | Inferred database driver engine for the project. |
-| `DbDriverFamily` | `string?` | Inferred database driver category for the project. |
-| `DbDriverChecked` | `bool?` | Indicates whether database driver resolution was already performed for this project. |
 | `IsLibrary` | `bool` | Indicates whether the project is a shared library rather than an executable application. |
 | `EntityKind` | `ProjectEntityKind` | The physical entity classification (e.g. Service, App, Worker, FunctionApp, Library, DatabaseMigration, Test). |
 | `SubKind` | `ProjectEntitySubKind` | Sub-classification for apps (e.g. None, Web, Mobile, Desktop, Cli). |
@@ -772,16 +752,8 @@ graph TD
 | `ProjectName` | `string?` | The name of the enclosing project. |
 | `StageOrder` | `int?` | Strict pipeline stage ordering index (e.g. 1=Layer1, 2=Layer2, 3=Layer3, 4=Layer4, 5=Layer5, 6=PostIndex). |
 | `Loc` | `int?` | Lines of code span for this function. |
-| `EnclosingType` | `string?` | The name of the enclosing class, struct, or interface. |
 | `IsExported` | `bool?` | Indicates whether the function is publicly exported from its module. |
 | `IsModuleInit` | `bool?` | Indicates whether this node represents top-level module initialization code. |
-| `DataflowReturn` | `string?` | Intra-procedural dataflow return origins. |
-| `DataflowWrites` | `string?` | Intra-procedural dataflow field writes. |
-| `DataflowSummary` | `string?` | Compact intra-procedural dataflow summary. |
-| `GraphqlField` | `string?` | Associated GraphQL field name resolved by this function. |
-| `GraphqlSchema` | `string?` | Associated GraphQL parent type/schema name. |
-| `GraphqlAliases` | `string?` | Comma-separated GraphQL field aliases. |
-| `MessagingDirection` | `string?` | Messaging role direction (publish or subscribe). |
 
 ---
 
