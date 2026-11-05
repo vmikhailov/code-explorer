@@ -34,25 +34,30 @@ public class CSharpFileVisitor : BaseParserVisitor
         if (node.Is(TreeSitterSyntax.CSharp.Attribute))
         {
             var nameNode = node.FindChildOfType(TreeSitterSyntax.Common.Identifier);
-            if (nameNode.IsValid() && (nameNode.Text is "Route" or "RoutePrefix" || nameNode.Text.StartsWith("Http") || nameNode.Text is "Get" or "Post" or "Put" or "Delete" or "Patch" or "Head" or "Options"))
+            if (nameNode.IsValid())
             {
-                var parentDecl = node.Parent?.Parent;
-                if (parentDecl.IsValid() && parentDecl.IsAny(TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.StructDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration))
+                var nameSpan = nameNode.AsSpan();
+                if (nameSpan is "Route" or "RoutePrefix" or "Get" or "Post" or "Put" or "Delete" or "Patch" or "Head" or "Options" ||
+                    nameSpan.StartsWith("Http", StringComparison.Ordinal))
                 {
-                    return null;
-                }
-                var current = parentDecl?.Parent;
-                while (current.IsValid())
-                {
-                    if (current.Is(TreeSitterSyntax.CSharp.InterfaceDeclaration))
+                    var parentDecl = node.Parent?.Parent;
+                    if (parentDecl.IsValid() && parentDecl.IsAny(TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.StructDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration))
                     {
-                        return OntologyConstants.NodeLabels.ExternalService;
+                        return null;
                     }
-                    if (current.IsAny(TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.StructDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration))
-                        break;
-                    current = current.Parent;
+                    var current = parentDecl?.Parent;
+                    while (current.IsValid())
+                    {
+                        if (current.Is(TreeSitterSyntax.CSharp.InterfaceDeclaration))
+                        {
+                            return OntologyConstants.NodeLabels.ExternalService;
+                        }
+                        if (current.IsAny(TreeSitterSyntax.CSharp.ClassDeclaration, TreeSitterSyntax.CSharp.StructDeclaration, TreeSitterSyntax.CSharp.RecordDeclaration))
+                            break;
+                        current = current.Parent;
+                    }
+                    return OntologyConstants.NodeLabels.EntryPoint;
                 }
-                return OntologyConstants.NodeLabels.EntryPoint;
             }
         }
 
@@ -71,12 +76,15 @@ public class CSharpFileVisitor : BaseParserVisitor
             return null;
         }
 
-        if (node.Type.Contains("string") || IsInterpolatedStringExpression(node))
+        if (node.Type.Contains("string", StringComparison.Ordinal) || IsInterpolatedStringExpression(node))
         {
-            var sqlCandidate = ExtractFullStringText(node);
-            if (NestedSqlParser.TryParseSql(sqlCandidate, out _, out _))
+            if (NestedSqlParser.FastCheckSqlCandidate(node.AsSpan()))
             {
-                return OntologyConstants.NodeLabels.Query;
+                var sqlCandidate = ExtractFullStringText(node);
+                if (NestedSqlParser.TryParseSql(sqlCandidate, out _, out _))
+                {
+                    return OntologyConstants.NodeLabels.Query;
+                }
             }
         }
 
@@ -125,12 +133,15 @@ public class CSharpFileVisitor : BaseParserVisitor
             return null;
         }
 
-        if (node.Type.Contains("string") || IsInterpolatedStringExpression(node))
+        if (node.Type.Contains("string", StringComparison.Ordinal) || IsInterpolatedStringExpression(node))
         {
-            var sqlCandidate = ExtractFullStringText(node);
-            if (NestedSqlParser.TryParseSql(sqlCandidate, out var firstWord, out _))
+            if (NestedSqlParser.FastCheckSqlCandidate(node.AsSpan()))
             {
-                return $"{firstWord} Query";
+                var sqlCandidate = ExtractFullStringText(node);
+                if (NestedSqlParser.TryParseSql(sqlCandidate, out var firstWord, out _))
+                {
+                    return $"{firstWord} Query";
+                }
             }
         }
 
@@ -155,7 +166,8 @@ public class CSharpFileVisitor : BaseParserVisitor
         if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function &&
             symbolNode.Name == "Main" &&
             !WorkspaceConventions.IsTestFilePath(RelativePath) &&
-            node.Children.Any(c => c.Text == "static"))
+            ((node is CodeExplorer.Core.Parser.Syntax.DeclarationSyntax declMain && declMain.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Static)) ||
+             node.Children.Any(static c => c.AsSpan() is "static")))
         {
             symbolNode.Children.Add(new SyntacticSymbol(CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint, "main-method:Main", node) { Text = node.Text });
         }

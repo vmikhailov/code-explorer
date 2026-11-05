@@ -646,7 +646,7 @@ public partial class Layer3SyntacticParser
                 {
                     if (enclosingType != null)
                     {
-                        fn.SetExtension("enclosing_type", enclosingType.Name);
+                        fn.EnclosingType = enclosingType.Name;
                     }
                     functionsByLineAndName.TryAdd((fn.StartLine, fn.Name), fn);
                     IndexOntologyTree(fn, enclosingType);
@@ -694,15 +694,17 @@ public partial class Layer3SyntacticParser
 
             if (IsSyntaxFunctionExported(fnDecl, doc))
             {
-                fnNode.SetExtension("is_exported", "true");
+                fnNode.IsExported = true;
+                fnNode.Flags |= SymbolFlags.IsExported;
             }
 
             var parentDecl = FindEnclosingSyntaxFunction(fnDecl);
             if (parentDecl != null &&
                 functionsByLineAndName.TryGetValue((parentDecl.Span.StartLine + 1, ExtractSyntaxFunctionName(parentDecl)), out var parentOnt) &&
-                parentOnt.Extensions?.GetValueOrDefault("is_exported") == "true")
+                (parentOnt.IsExported == true || parentOnt.Flags.HasFlag(SymbolFlags.IsExported)))
             {
-                fnNode.SetExtension("is_exported", "true");
+                fnNode.IsExported = true;
+                fnNode.Flags |= SymbolFlags.IsExported;
             }
 
             var paramNames = ExtractSyntaxParameterNames(fnDecl);
@@ -715,18 +717,18 @@ public partial class Layer3SyntacticParser
             {
                 if (fnDecl.DataflowSummary.ReturnOrigins.Count > 0)
                 {
-                    fnNode.SetExtension("df_return", string.Join(",", fnDecl.DataflowSummary.ReturnOrigins.Select(o => o.ToString()).Distinct()));
+                    fnNode.DataflowReturn = string.Join(",", fnDecl.DataflowSummary.ReturnOrigins.Select(o => o.ToString()).Distinct());
                 }
                 if (fnDecl.DataflowSummary.FieldWrites.Count > 0)
                 {
                     var writes = fnDecl.DataflowSummary.FieldWrites
                         .Select(kv => $"{kv.Key}<-{string.Join(",", kv.Value.Select(o => o.ToString()).Distinct())}");
-                    fnNode.SetExtension("df_writes", string.Join(";", writes));
+                    fnNode.DataflowWrites = string.Join(";", writes);
                 }
                 var summaryStr = fnDecl.DataflowSummary.ToCompactString();
                 if (!string.IsNullOrEmpty(summaryStr))
                 {
-                    fnNode.SetExtension("df_summary", summaryStr);
+                    fnNode.DataflowSummary = summaryStr;
                 }
             }
         }
@@ -757,8 +759,11 @@ public partial class Layer3SyntacticParser
                         "class",
                         isTest,
                         projectKind,
-                        projectName);
-                    typeNode.SetExtension("is_exported", "true");
+                        projectName)
+                    {
+                        IsExported = true,
+                        Flags = SymbolFlags.IsExported
+                    };
                     fileNode.Children.Add(typeNode);
                     typesByName[protoClass] = typeNode;
                 }
@@ -784,8 +789,9 @@ public partial class Layer3SyntacticParser
                     functionsByLineAndName[(startLine, protoMethod)] = protoFnNode;
                 }
 
-                protoFnNode.SetExtension("enclosing_type", protoClass);
-                protoFnNode.SetExtension("is_exported", "true");
+                protoFnNode.EnclosingType = protoClass;
+                protoFnNode.IsExported = true;
+                protoFnNode.Flags |= SymbolFlags.IsExported;
                 var protoParams = ExtractSyntaxParameterNames(protoLambda);
                 AttachParameterMemberNodes(protoFnNode, protoParams, workspaceId, relativePath);
             }
@@ -813,7 +819,8 @@ public partial class Layer3SyntacticParser
                     functionsByLineAndName[(startLine, lambdaName)] = lambdaFnNode;
                 }
 
-                lambdaFnNode.SetExtension("is_exported", "true");
+                lambdaFnNode.IsExported = true;
+                lambdaFnNode.Flags |= SymbolFlags.IsExported;
                 var lambdaParams = ExtractSyntaxParameterNames(lambdaNode);
                 AttachParameterMemberNodes(lambdaFnNode, lambdaParams, workspaceId, relativePath);
             }
@@ -835,8 +842,11 @@ public partial class Layer3SyntacticParser
                 1,
                 isTest,
                 projectKind,
-                projectName);
-            modInitNode.SetExtension("is_module_init", "true");
+                projectName)
+            {
+                IsModuleInit = true,
+                Flags = SymbolFlags.IsModuleInit
+            };
             fileNode.Children.Add(modInitNode);
         }
 
@@ -925,86 +935,4 @@ public partial class Layer3SyntacticParser
 
         WalkAndEnrich(rootNode);
     }
-
-    private static IEnumerable<(string Name, LambdaExprSyntax Lambda)> EnumerateNamedLambdaFunctions(SyntaxNode? root)
-    {
-        if (root == null) yield break;
-        var queue = new Queue<SyntaxNode>();
-        queue.Enqueue(root);
-        while (queue.Count > 0)
-        {
-            var curr = queue.Dequeue();
-            if (curr is LambdaExprSyntax lambda)
-            {
-                yield return (InferLambdaName(lambda), lambda);
-            }
-            foreach (var child in curr.Children)
-            {
-                queue.Enqueue(child);
-            }
-        }
-    }
-
-    private static string InferLambdaName(LambdaExprSyntax lambda)
-    {
-        var nameNode = lambda.GetChildForField(SyntaxFields.Name) ??
-                       lambda.NamedChildren.FirstOrDefault(c => c is IdentifierExprSyntax && c != lambda.Body);
-        if (nameNode is IdentifierExprSyntax id && !string.IsNullOrWhiteSpace(id.Text))
-        {
-            return id.Text.Trim();
-        }
-
-        var curr = lambda.Parent;
-        while (curr is BinaryExprSyntax or ConditionalExprSyntax)
-        {
-            curr = curr.Parent;
-        }
-
-        if (curr is VariableDeclSyntax varDecl)
-        {
-            var lhs = varDecl.GetChildForField(SyntaxFields.Name) ?? varDecl.GetChildForField(SyntaxFields.Pattern);
-            var name = !string.IsNullOrEmpty(varDecl.Name) ? varDecl.Name : (lhs is IdentifierExprSyntax varId ? varId.Text.Trim() : null);
-            if (!string.IsNullOrEmpty(name)) return name;
-        }
-        else if (curr is AssignmentExprSyntax assign)
-        {
-            var left = assign.Left ?? assign.GetChildForField(SyntaxFields.Left) ?? (assign.NamedChildren.Count > 0 ? assign.NamedChildren[0] : null);
-            if (left != null)
-            {
-                var leftText = left.Text.Trim();
-                if (leftText is "module.exports" or "exports")
-                {
-                    return "default";
-                }
-                if (left is MemberAccessExprSyntax mem)
-                {
-                    var prop = !string.IsNullOrEmpty(mem.MemberName)
-                        ? mem.MemberName
-                        : (mem.GetChildForField(SyntaxFields.Property) ?? (mem.NamedChildren.Count > 1 ? mem.NamedChildren[^1] : null))?.Text.Trim();
-                    if (!string.IsNullOrEmpty(prop)) return prop;
-                }
-                else if (left is IdentifierExprSyntax leftId)
-                {
-                    var idName = !string.IsNullOrEmpty(leftId.Name) ? leftId.Name : leftId.Text.Trim();
-                    if (!string.IsNullOrEmpty(idName)) return idName;
-                }
-            }
-        }
-        else if (curr?.RawGrammarKind == "export_statement")
-        {
-            return "default";
-        }
-        else if (curr?.RawGrammarKind == "pair")
-        {
-            var keyNode = curr.GetChildForField(SyntaxFields.Key) ?? (curr.NamedChildren.Count > 0 ? curr.NamedChildren[0] : null);
-            if (keyNode != null)
-            {
-                var keyName = keyNode.Text.Trim().Trim('"', '\'', '`');
-                if (!string.IsNullOrEmpty(keyName)) return keyName;
-            }
-        }
-
-        return $"<anon_{lambda.Span.StartLine + 1}>";
-    }
-
 }

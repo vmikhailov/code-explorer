@@ -309,7 +309,8 @@ public class InMemoryGraphRepository : IGraphRepository, IGraphClient
 
                 if (node.Kind is "Type" or "Function" or "Procedure" or "Table" or "EntryPoint" or "Endpoint")
                 {
-                    if (node.Properties.TryGetValue("name", out var rawName) && rawName is string name && targetNames.Contains(name))
+                    var name = node.GetName();
+                    if (!string.IsNullOrEmpty(name) && targetNames.Contains(name))
                     {
                         result[(node.Kind, name)] = node.Id;
                     }
@@ -335,17 +336,18 @@ public class InMemoryGraphRepository : IGraphRepository, IGraphClient
             {
                 if (rel.Kind is "IMPLEMENTS" or "INHERITS_FROM")
                 {
-                    if (NodesById.TryGetValue(rel.To, out var targetNode) &&
-                        targetNode.Properties.TryGetValue("name", out var targetNameObj) &&
-                        targetNameObj is string targetName &&
-                        targetTypes.Contains(targetName))
+                    if (NodesById.TryGetValue(rel.To, out var targetNode))
                     {
-                        if (!result.TryGetValue(targetName, out var impls))
+                        var targetName = targetNode.GetName();
+                        if (!string.IsNullOrEmpty(targetName) && targetTypes.Contains(targetName))
                         {
-                            impls = [];
-                            result[targetName] = impls;
+                            if (!result.TryGetValue(targetName, out var impls))
+                            {
+                                impls = [];
+                                result[targetName] = impls;
+                            }
+                            impls.Add(rel.From);
                         }
-                        impls.Add(rel.From);
                     }
                 }
             }
@@ -377,6 +379,25 @@ public class InMemoryGraphRepository : IGraphRepository, IGraphClient
             foreach (var node in NodesById.Values)
             {
                 if (widPrefix.Length > 0 && !node.Id.StartsWith(widPrefix, StringComparison.Ordinal)) continue;
+
+                if (node.OntologyNode != null)
+                {
+                    switch (node.OntologyNode)
+                    {
+                        case EndpointNode ep when needEndpoints:
+                            endpoints.Add(ep);
+                            continue;
+                        case EntryPointNode entry when needEndpoints:
+                            entryPoints.Add(entry);
+                            continue;
+                        case ExternalServiceNode ext when needExternalServices:
+                            externalServices.Add(ext);
+                            continue;
+                        case ProjectNode proj:
+                            projects.Add(proj);
+                            continue;
+                    }
+                }
 
                 if (node.Kind == "Endpoint" && needEndpoints)
                 {

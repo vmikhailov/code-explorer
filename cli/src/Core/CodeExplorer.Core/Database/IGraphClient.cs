@@ -185,16 +185,21 @@ public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
         var tcRels = result.TransitivelyCalls.Select(tc => new Relationship(
             tc.From,
             tc.To,
-            OntologyConstants.Relationships.TransitivelyCalls,
-            new Dictionary<string, object> { ["hops"] = tc.Hops }
-        )).ToList();
+            OntologyConstants.Relationships.TransitivelyCalls
+        )
+        {
+            Hops = tc.Hops
+        }).ToList();
 
         var attrRels = result.AttributedTo.Select(attr => new Relationship(
             attr.EpId,
             attr.SinkId,
-            OntologyConstants.Relationships.AttributedTo,
-            new Dictionary<string, object> { ["hops"] = attr.Hops, ["sink_kind"] = attr.SinkKind }
-        )).ToList();
+            OntologyConstants.Relationships.AttributedTo
+        )
+        {
+            Hops = attr.Hops,
+            TargetSinkClassification = attr.SinkKind
+        }).ToList();
 
         var tasks = new List<Task>();
         if (tcRels.Count > 0) tasks.Add(UploadRelationshipsAsync(tcRels));

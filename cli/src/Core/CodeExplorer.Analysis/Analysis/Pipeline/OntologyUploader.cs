@@ -116,7 +116,8 @@ public static class OntologyUploader
             NodeKind.Endpoint or
             NodeKind.ExternalService)
         {
-            if (dbNode.Properties.TryGetValue("name", out var nameVal) && nameVal is string nameStr)
+            var nameStr = node.GetName();
+            if (!string.IsNullOrEmpty(nameStr))
             {
                 ctx.AddGlobalSymbol(node.Kind, nameStr, node.Id);
                 var filePath = node.Path ?? (node as FunctionNode)?.FilePath ?? (node as TypeNode)?.FilePath;
@@ -138,8 +139,7 @@ public static class OntologyUploader
                     }
                 }
                 if (node.Kind == NodeKind.Function &&
-                    node.Extensions != null &&
-                    node.Extensions.TryGetValue("graphql_field", out var gqlFieldAlias) &&
+                    node.TryGetExtension("graphql_field", out var gqlFieldAlias) &&
                     !string.IsNullOrEmpty(gqlFieldAlias))
                 {
                     ctx.AddGlobalSymbol(node.Kind, gqlFieldAlias, node.Id);
@@ -149,8 +149,7 @@ public static class OntologyUploader
                     }
                 }
                 if (node.Kind == NodeKind.Function &&
-                    node.Extensions != null &&
-                    node.Extensions.TryGetValue("graphql_aliases", out var gqlAliases) &&
+                    node.TryGetExtension("graphql_aliases", out var gqlAliases) &&
                     !string.IsNullOrEmpty(gqlAliases))
                 {
                     foreach (var alias in gqlAliases.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
@@ -169,7 +168,7 @@ public static class OntologyUploader
                 if (node.Kind == NodeKind.Function && parentNode != null &&
                     parentNode.Kind == NodeKind.Type)
                 {
-                    var parentName = parentNode.GetType().GetProperty("Name")?.GetValue(parentNode) as string;
+                    var parentName = parentNode.GetName();
                     if (!string.IsNullOrEmpty(parentName))
                     {
                         ctx.AddGlobalSymbol(node.Kind, $"{parentName}.{nameStr}", node.Id);
@@ -220,16 +219,17 @@ public static class OntologyUploader
                 collectedRelationships.Add(usesGitRel);
                 ctx.AddRelsCount(1);
 
+                var projNode = (ProjectNode)node;
                 if (!string.IsNullOrEmpty(gitSettings.Branch))
-                    node.SetExtension("git_branch", gitSettings.Branch);
+                    projNode.GitBranch = gitSettings.Branch;
                 if (!string.IsNullOrEmpty(gitSettings.OriginUrl))
-                    node.SetExtension("git_origin", gitSettings.OriginUrl);
+                    projNode.GitOrigin = gitSettings.OriginUrl;
                 if (!string.IsNullOrEmpty(gitSettings.UserName))
-                    node.SetExtension("git_user", gitSettings.UserName);
-                if (gitSettings.Extensions?.TryGetValue("commit_hash", out var commit) == true && !string.IsNullOrEmpty(commit))
-                    node.SetExtension("git_commit", commit);
-                if (gitSettings.Extensions?.TryGetValue("repo_name", out var repo) == true && !string.IsNullOrEmpty(repo))
-                    node.SetExtension("git_repo", repo);
+                    projNode.GitUser = gitSettings.UserName;
+                if (gitSettings.TryGetExtension("commit_hash", out var commit) && !string.IsNullOrEmpty(commit))
+                    projNode.GitCommit = commit;
+                if (gitSettings.TryGetExtension("repo_name", out var repo) && !string.IsNullOrEmpty(repo))
+                    projNode.GitRepo = repo;
             }
 
             // Emit LOCATED_IN relationship to Folder or Workspace

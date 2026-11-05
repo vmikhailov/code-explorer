@@ -1,6 +1,45 @@
+using System.Collections.Concurrent;
 using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser.Syntax;
+
+/// <summary>
+/// Thread-safe string pool using .NET 10 <see cref="ConcurrentDictionary{TKey,TValue}.GetAlternateLookup{TAlternateKey}"/>
+/// to deduplicate identifier, grammar kind, and operator strings from <see cref="ReadOnlySpan{T}"/> without intermediate allocations.
+/// </summary>
+public static class SyntaxStringPool
+{
+    private const int MaxPooledLength = 64;
+    private const int MaxPoolCapacity = 32768;
+    private static readonly ConcurrentDictionary<string, string> Pool = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, string>.AlternateLookup<ReadOnlySpan<char>> SpanLookup =
+        Pool.GetAlternateLookup<ReadOnlySpan<char>>();
+
+    public static string Intern(ReadOnlySpan<char> span)
+    {
+        if (span.IsEmpty) return string.Empty;
+        if (span.Length > MaxPooledLength) return span.ToString();
+        if (SpanLookup.TryGetValue(span, out var existing)) return existing;
+        var str = span.ToString();
+        if (Pool.Count < MaxPoolCapacity)
+        {
+            SpanLookup.TryAdd(span, str);
+        }
+        return str;
+    }
+
+    public static string Intern(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return string.Empty;
+        if (value.Length > MaxPooledLength) return value;
+        if (Pool.TryGetValue(value, out var existing)) return existing;
+        if (Pool.Count < MaxPoolCapacity)
+        {
+            Pool.TryAdd(value, value);
+        }
+        return value;
+    }
+}
 
 /// <summary>
 /// Represents a 0-based line and column coordinate in source text.
@@ -342,6 +381,55 @@ public abstract class SyntaxNode
     public bool SpanEquals(ReadOnlySpan<char> other, StringComparison comparison = StringComparison.Ordinal) =>
         AsSpan().Equals(other, comparison);
 
+    public bool SpanStartsWith(ReadOnlySpan<char> prefix, StringComparison comparison = StringComparison.Ordinal) =>
+        AsSpan().StartsWith(prefix, comparison);
+
+    public bool SpanContains(ReadOnlySpan<char> value, StringComparison comparison = StringComparison.Ordinal) =>
+        AsSpan().Contains(value, comparison);
+
+    /// <summary>
+    /// Zero-allocation lookup for the first child of type <typeparamref name="T"/>.
+    /// Replaces <c>Children.OfType&lt;T&gt;().FirstOrDefault()</c> to avoid LINQ iterator allocations.
+    /// </summary>
+    public T? FirstChildOfType<T>() where T : SyntaxNode
+    {
+        for (int i = 0; i < Children.Count; i++)
+        {
+            if (Children[i] is T match) return match;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Zero-allocation lookup for the last child of type <typeparamref name="T"/>.
+    /// Replaces <c>Children.OfType&lt;T&gt;().LastOrDefault()</c> to avoid LINQ iterator allocations.
+    /// </summary>
+    public T? LastChildOfType<T>() where T : SyntaxNode
+    {
+        for (int i = Children.Count - 1; i >= 0; i--)
+        {
+            if (Children[i] is T match) return match;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Zero-allocation lookup for the N-th (0-based) child of type <typeparamref name="T"/>.
+    /// </summary>
+    public T? NthChildOfType<T>(int index) where T : SyntaxNode
+    {
+        int seen = 0;
+        for (int i = 0; i < Children.Count; i++)
+        {
+            if (Children[i] is T match)
+            {
+                if (seen == index) return match;
+                seen++;
+            }
+        }
+        return null;
+    }
+
     /// <summary>
     /// Returns the initializer text only when it is a bounded non-lambda expression (or SQL candidate),
     /// inspecting <see cref="AsSpan"/> first to avoid allocating large multi-line fragments.
@@ -468,26 +556,36 @@ public sealed class SyntaxDocument : SyntaxNode, IDisposable
 
     private Dictionary<string, FunctionDeclSyntax>? _functionsByName;
 
+    private Dictionary<string, FunctionDeclSyntax> EnsureFunctionsByName()
+    {
+        if (_functionsByName != null) return _functionsByName;
+        var dict = new Dictionary<string, FunctionDeclSyntax>(AllFunctions.Count, StringComparer.Ordinal);
+        for (int i = 0; i < AllFunctions.Count; i++)
+        {
+            var fn = AllFunctions[i];
+            var fnName = !string.IsNullOrEmpty(fn.Name)
+                ? fn.Name
+                : (fn.GetChildForField(SyntaxFields.Name) ?? fn.FirstChildOfType<IdentifierExprSyntax>())?.Text;
+            if (!string.IsNullOrEmpty(fnName) && !dict.ContainsKey(fnName))
+            {
+                dict[fnName] = fn;
+            }
+        }
+        _functionsByName = dict;
+        return dict;
+    }
+
     public FunctionDeclSyntax? FindFunctionByName(string name)
     {
         if (string.IsNullOrEmpty(name)) return null;
-        if (_functionsByName == null)
-        {
-            var dict = new Dictionary<string, FunctionDeclSyntax>(AllFunctions.Count, StringComparer.Ordinal);
-            for (int i = 0; i < AllFunctions.Count; i++)
-            {
-                var fn = AllFunctions[i];
-                var fnName = !string.IsNullOrEmpty(fn.Name)
-                    ? fn.Name
-                    : (fn.GetChildForField(SyntaxFields.Name) ?? fn.Children.FirstOrDefault(c => c is IdentifierExprSyntax))?.Text;
-                if (!string.IsNullOrEmpty(fnName) && !dict.ContainsKey(fnName))
-                {
-                    dict[fnName] = fn;
-                }
-            }
-            _functionsByName = dict;
-        }
-        return _functionsByName.TryGetValue(name, out var found) ? found : null;
+        return EnsureFunctionsByName().TryGetValue(name, out var found) ? found : null;
+    }
+
+    public FunctionDeclSyntax? FindFunctionByName(ReadOnlySpan<char> name)
+    {
+        if (name.IsEmpty) return null;
+        var lookup = EnsureFunctionsByName().GetAlternateLookup<ReadOnlySpan<char>>();
+        return lookup.TryGetValue(name, out var found) ? found : null;
     }
 
     public ReadOnlySpan<char> Slice(TextSpan span) =>
@@ -502,7 +600,7 @@ public sealed class SyntaxDocument : SyntaxNode, IDisposable
 
     public string GetText(SourceSlice slice) =>
         slice.Start >= 0 && slice.Length > 0 && slice.Start + slice.Length <= SourceText.Length
-            ? SourceText.Substring(slice.Start, slice.Length)
+            ? SyntaxStringPool.Intern(SourceText.AsSpan(slice.Start, slice.Length))
             : string.Empty;
 
     public string GetText(int startIndex, int endIndex) =>

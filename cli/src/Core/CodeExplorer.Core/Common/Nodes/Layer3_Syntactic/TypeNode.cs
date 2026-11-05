@@ -69,6 +69,9 @@ public record TypeNode(
     [JsonPropertyName("loc"), OntologyProperty("Lines of code span for this type declaration.")]
     public int? Loc { get; set; } = Loc ?? Math.Max(1, EndLine - StartLine + 1);
 
+    [JsonPropertyName("is_exported"), OntologyProperty("Indicates whether the type is publicly exported from its module.")]
+    public bool? IsExported { get; set; }
+
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Type;
 }

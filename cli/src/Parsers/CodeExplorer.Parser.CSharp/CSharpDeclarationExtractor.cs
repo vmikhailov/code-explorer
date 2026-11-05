@@ -129,7 +129,16 @@ public static class CSharpDeclarationExtractor
     private static bool HasAnyModifier(Node node, params string[] modifiers)
     {
         if (node is CodeExplorer.Core.Parser.Syntax.DeclarationSyntax decl && ((modifiers.Contains("const") && decl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Const)) || (modifiers.Contains("readonly") && decl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.ReadOnly)) || (modifiers.Contains("static") && decl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Static)))) return true;
-        return node.Children.Any(c => modifiers.Contains(c.Text) || modifiers.Contains(c.Type)) ||
-               node.FindDescendantsOfType(TreeSitterSyntax.CSharp.Modifier).Any(m => modifiers.Contains(m.Text));
+        for (int i = 0; i < node.Children.Count; i++)
+        {
+            var c = node.Children[i];
+            if (modifiers.Contains(c.Type)) return true;
+            var span = c.AsSpan();
+            for (int m = 0; m < modifiers.Length; m++)
+            {
+                if (span.Equals(modifiers[m], StringComparison.Ordinal)) return true;
+            }
+        }
+        return false;
     }
 }

@@ -46,6 +46,9 @@ public record DatabaseNode(
         return EnumExtensions.ParseDatabaseType(dbType);
     }
 
+    [JsonPropertyName("is_implicit_schema"), OntologyProperty("Indicates whether the database node was synthesized from an implicit default schema.")]
+    public bool? IsImplicitSchema { get; set; }
+
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Database;
 }

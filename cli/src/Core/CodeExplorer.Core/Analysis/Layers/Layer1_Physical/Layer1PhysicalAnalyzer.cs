@@ -44,11 +44,10 @@ public class Layer1PhysicalParser
         }
 
         var hostPath = PathTools.NormalizeToHostPath(ctx.HostWorkspacePath);
-        var wsExtensions = new Dictionary<string, string>
+        var workspaceNode = new WorkspaceNode(wsId, workspaceName, hostPath)
         {
-            [OntologyConstants.ExtensionKeys.IndexedAt] = DateTime.UtcNow.ToString("o")
+            IndexedAt = DateTime.UtcNow.ToString("o")
         };
-        var workspaceNode = new WorkspaceNode(wsId, workspaceName, hostPath, wsExtensions);
 
         var filesNodeId = $"{wsId}:{OntologyConstants.IdPrefixes.FilesStructure}";
         var filesStructureNode = new FilesStructureNode(filesNodeId, "FilesStructure", hostPath);
@@ -123,9 +122,9 @@ public class Layer1PhysicalParser
                     hasDotNetDll = true;
                 }
             }
-            if (hasNode) workspaceNode.SetExtension(OntologyConstants.ExtensionKeys.HasNativeNode, OntologyConstants.ExtensionKeys.TrueValue);
-            if (hasNativeAddon) workspaceNode.SetExtension(OntologyConstants.ExtensionKeys.HasNativeAddon, OntologyConstants.ExtensionKeys.TrueValue);
-            if (hasDotNetDll) workspaceNode.SetExtension(OntologyConstants.ExtensionKeys.HasDotNetDll, OntologyConstants.ExtensionKeys.TrueValue);
+            if (hasNode) workspaceNode.HasNativeNode = true;
+            if (hasNativeAddon) workspaceNode.HasNativeAddon = true;
+            if (hasDotNetDll) workspaceNode.HasDotNetDll = true;
         }
 
         ctx.Log($"[Layer 1    ] Physical topology scan complete. Found {files.Count} files, {folders.Count} folders.");

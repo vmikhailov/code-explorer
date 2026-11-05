@@ -503,7 +503,7 @@ public partial class Layer5AnalysisParser
                     {
                         ctx.LogDebug($"[Layer 5    ] Synthesized dependency: Project '{callerProj.Name}' -> Project '{targetProj.Name}' via endpoint '{endpoint.Endpoint.RouteTemplate}'");
                         var projDep = Relationship.FromRelationship(new DependsOnRelationship(callerProj.Id, targetProj.Id, new() { ["dependency_type"] = "service_call" }));
-                        EvidenceProvenanceHelper.RecordContributingEdge(projDep.Properties, contribRel);
+                        EvidenceProvenanceHelper.RecordContributingEdge(projDep, contribRel);
                         lateBoundRels.Add(projDep);
                     }
                     else
@@ -512,7 +512,7 @@ public partial class Layer5AnalysisParser
                             r.From == callerProj.Id && r.To == targetProj.Id && r.Kind == OntologyConstants.Relationships.DependsOn);
                         if (existingProjDep != null)
                         {
-                            EvidenceProvenanceHelper.RecordContributingEdge(existingProjDep.Properties, contribRel);
+                            EvidenceProvenanceHelper.RecordContributingEdge(existingProjDep, contribRel);
                         }
                     }
                 }

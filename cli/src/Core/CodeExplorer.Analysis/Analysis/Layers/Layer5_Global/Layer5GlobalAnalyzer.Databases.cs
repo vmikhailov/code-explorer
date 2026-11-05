@@ -707,10 +707,14 @@ public partial class Layer5AnalysisParser
         var targetName = refItem.TargetName;
         if (symbols.TypeSymbols.TryGetValue(targetName, out var targetTypeId) && refItem.ScopeSymbolId != targetTypeId)
         {
-            referenceRelationships.Add(Relationship.FromRelationship(new UsesTypeRelationship(
+            referenceRelationships.Add(Relationship.CreateWithCallSite(
                 refItem.ScopeSymbolId,
                 targetTypeId,
-                EvidenceProvenanceHelper.BuildCallSiteExtensions(refItem.Line, refItem.Column, refItem.Context, refItem.ArgFlow))));
+                CodeExplorer.Cypher.Common.RelationshipKind.UsesType,
+                refItem.Line,
+                refItem.Column,
+                refItem.Context,
+                refItem.ArgFlow));
             return;
         }
 
@@ -720,10 +724,14 @@ public partial class Layer5AnalysisParser
             var shortName = targetName[(dotIdx + 1)..];
             if (symbols.TypeSymbols.TryGetValue(shortName, out var shortTypeId) && refItem.ScopeSymbolId != shortTypeId)
             {
-                referenceRelationships.Add(Relationship.FromRelationship(new UsesTypeRelationship(
+                referenceRelationships.Add(Relationship.CreateWithCallSite(
                     refItem.ScopeSymbolId,
                     shortTypeId,
-                    EvidenceProvenanceHelper.BuildCallSiteExtensions(refItem.Line, refItem.Column, refItem.Context, refItem.ArgFlow))));
+                    CodeExplorer.Cypher.Common.RelationshipKind.UsesType,
+                    refItem.Line,
+                    refItem.Column,
+                    refItem.Context,
+                    refItem.ArgFlow));
             }
         }
     }

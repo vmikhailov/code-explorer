@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
+using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 
 namespace CodeExplorer.Core.Parser;
@@ -14,35 +15,39 @@ public partial class ResourceSemanticAnalyzer
         var cacheKey = $"{ctx.AbsoluteWorkspacePath}|{projectNode.Id}";
         if (_projectDriverCache.TryGetValue(cacheKey, out var cached)) return cached;
 
-        if (projectNode.Extensions != null)
+        if (!string.IsNullOrEmpty(projectNode.DbDriverEngine))
         {
-            if (projectNode.Extensions.TryGetValue(Layers.Layer3FileSignalEnricher.ExtDbDriverEngine, out var extEngine) &&
-                !string.IsNullOrEmpty(extEngine))
+            var extType = projectNode.DbDriverFamily ?? "relational";
+            var res = (projectNode.DbDriverEngine, extType);
+            _projectDriverCache[cacheKey] = res;
+            return res;
+        }
+        if (projectNode.TryGetExtension(Layers.Layer3FileSignalEnricher.ExtDbDriverEngine, out var extEngineVal) &&
+            !string.IsNullOrEmpty(extEngineVal))
+        {
+            projectNode.TryGetExtension(Layers.Layer3FileSignalEnricher.ExtDbDriverType, out var extTypeVal);
+            var res = (extEngineVal, extTypeVal ?? "relational");
+            _projectDriverCache[cacheKey] = res;
+            return res;
+        }
+        if (projectNode.DbDriverChecked == true || projectNode.TryGetExtension(Layers.Layer3FileSignalEnricher.ExtDbDriverChecked, out _))
+        {
+            if (ctx.ResourceRegistry != null)
             {
-                var extType = projectNode.Extensions.GetValueOrDefault(Layers.Layer3FileSignalEnricher.ExtDbDriverType) ?? "relational";
-                var res = (extEngine, extType);
-                _projectDriverCache[cacheKey] = res;
-                return res;
-            }
-            if (projectNode.Extensions.ContainsKey(Layers.Layer3FileSignalEnricher.ExtDbDriverChecked))
-            {
-                if (ctx.ResourceRegistry != null)
+                var thisProjRel = ctx.ResourceRegistry.AllResources
+                    .FirstOrDefault(r => r.BelongsToProject(projectNode.Id) &&
+                                         r.DbType == CodeExplorer.Cypher.Common.DatabaseType.Relational &&
+                                         !ResourceNamingHelper.IsGenericConfigKey(r.Engine) &&
+                                         !string.Equals(r.Name, "Database", StringComparison.OrdinalIgnoreCase));
+                if (thisProjRel != null && !string.IsNullOrEmpty(thisProjRel.Engine))
                 {
-                    var thisProjRel = ctx.ResourceRegistry.AllResources
-                        .FirstOrDefault(r => r.BelongsToProject(projectNode.Id) &&
-                                             r.DbType == CodeExplorer.Cypher.Common.DatabaseType.Relational &&
-                                             !ResourceNamingHelper.IsGenericConfigKey(r.Engine) &&
-                                             !string.Equals(r.Name, "Database", StringComparison.OrdinalIgnoreCase));
-                    if (thisProjRel != null && !string.IsNullOrEmpty(thisProjRel.Engine))
-                    {
-                        var res = (thisProjRel.Engine, "relational");
-                        _projectDriverCache[cacheKey] = res;
-                        return res;
-                    }
+                    var res = (thisProjRel.Engine, "relational");
+                    _projectDriverCache[cacheKey] = res;
+                    return res;
                 }
-                _projectDriverCache[cacheKey] = (null, null);
-                return (null, null);
             }
+            _projectDriverCache[cacheKey] = (null, null);
+            return (null, null);
         }
         // Fast path: check in-memory PackageNodes parsed in Layer 2 before hitting the filesystem
         foreach (var pkg in projectNode.Children.OfType<PackageNode>())
@@ -116,12 +121,12 @@ public partial class ResourceSemanticAnalyzer
         CodeExplorer.Core.Common.Nodes.Layer1_Physical.FileNode? fileNode,
         SyntaxTree? syntaxTree)
     {
-        if (fileNode?.Extensions != null &&
-            fileNode.Extensions.TryGetValue(Layers.Layer3FileSignalEnricher.ExtDbDriverEngine, out var extEngine) &&
+        if (fileNode != null &&
+            fileNode.TryGetExtension(Layers.Layer3FileSignalEnricher.ExtDbDriverEngine, out var extEngine) &&
             !string.IsNullOrEmpty(extEngine))
         {
-            var extType = fileNode.Extensions.GetValueOrDefault(Layers.Layer3FileSignalEnricher.ExtDbDriverType) ?? "relational";
-            return (extEngine, extType);
+            fileNode.TryGetExtension(Layers.Layer3FileSignalEnricher.ExtDbDriverType, out var extType);
+            return (extEngine, extType ?? "relational");
         }
 
         if (fileNode != null)

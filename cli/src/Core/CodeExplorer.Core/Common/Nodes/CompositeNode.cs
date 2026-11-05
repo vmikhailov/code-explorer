@@ -9,6 +9,9 @@ public abstract record CompositeNode(
 ) : IOntologyNode
 {
     [JsonIgnore]
+    public SymbolFlags Flags { get; set; }
+
+    [JsonIgnore]
     public Dictionary<string, string>? Extensions { get; set; } = Extensions;
 
     [JsonIgnore]

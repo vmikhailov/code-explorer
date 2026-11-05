@@ -10,9 +10,27 @@ namespace CodeExplorer.Core.Database;
 
 public static class NodeFactory
 {
+    private const string IdPropName = "id";
+    private const string NodeParamName = "node";
+    private const string WriterParamName = "writer";
+    private const string DictParamName = "dict";
+    private const string TypedVarName = "typedNode";
+    private const string HasValuePropName = "HasValue";
+    private const string ValuePropName = "Value";
+    private const string ItemPropName = "Item";
+    private const string LineSuffix = "_line";
+    private const string ColSuffix = "_col";
+
     private static readonly ConcurrentDictionary<Type, Action<IOntologyNode, Dictionary<string, object>>> Converters = new();
+    private static readonly ConcurrentDictionary<Type, Action<IOntologyNode, Utf8JsonWriter>> JsonWriters = new();
 
     public static Node Create(IOntologyNode node)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        return new Node(node);
+    }
+
+    public static Dictionary<string, object> MaterializeProperties(IOntologyNode node)
     {
         ArgumentNullException.ThrowIfNull(node);
 
@@ -22,7 +40,158 @@ public static class NodeFactory
 
         ApplyExtensions(node, properties);
 
-        return new Node(node.Id, node.Kind, properties);
+        return properties;
+    }
+
+    public static void WriteJsonProperties(Node dbNode, Utf8JsonWriter writer)
+    {
+        if (dbNode.OntologyNode != null && !dbNode.HasMaterializedProperties)
+        {
+            var ont = dbNode.OntologyNode;
+            writer.WriteStartObject();
+            writer.WriteString(IdPropName, ont.Id);
+
+            var jsonWriter = JsonWriters.GetOrAdd(ont.GetType(), CreateJsonWriter);
+            jsonWriter(ont, writer);
+
+            WriteJsonExtensions(ont, writer);
+            writer.WriteEndObject();
+            return;
+        }
+
+        var props = dbNode.Properties;
+        props[IdPropName] = dbNode.Id;
+        JsonSerializer.Serialize(writer, props);
+    }
+
+    private static void WriteJsonExtensions(IOntologyNode node, Utf8JsonWriter writer)
+    {
+        if (node.Extensions == null || node.Extensions.Count == 0) return;
+
+        foreach (var kvp in node.Extensions)
+        {
+            if (int.TryParse(kvp.Value, out var intVal) &&
+                (kvp.Key.EndsWith(LineSuffix, StringComparison.Ordinal) || kvp.Key.EndsWith(ColSuffix, StringComparison.Ordinal) || kvp.Key is "line" or "column" or "arg_index" or "start_line" or "end_line" or "stage_order" or "loc" or "line_count" or "statement_count"))
+            {
+                writer.WriteNumber(kvp.Key, intVal);
+            }
+            else if (long.TryParse(kvp.Value, out var longVal) && kvp.Key is "size_bytes")
+            {
+                writer.WriteNumber(kvp.Key, longVal);
+            }
+            else if (bool.TryParse(kvp.Value, out var boolVal) && kvp.Key is "is_test" or "is_library" or "is_empty" or "has_comment" or "is_decorator" or "is_internal" or "is_unsafe" or "is_async")
+            {
+                writer.WriteBoolean(kvp.Key, boolVal);
+            }
+            else
+            {
+                writer.WriteString(kvp.Key, kvp.Value);
+            }
+        }
+    }
+
+    private static Action<IOntologyNode, Utf8JsonWriter> CreateJsonWriter(Type type)
+    {
+        var nodeParam = Expression.Parameter(typeof(IOntologyNode), NodeParamName);
+        var writerParam = Expression.Parameter(typeof(Utf8JsonWriter), WriterParamName);
+
+        var typedVar = Expression.Variable(type, TypedVarName);
+        var assignTyped = Expression.Assign(typedVar, Expression.Convert(nodeParam, type));
+        var statements = new List<Expression> { assignTyped };
+
+        var writeStringMethod = typeof(Utf8JsonWriter).GetMethod(nameof(Utf8JsonWriter.WriteString), [typeof(string), typeof(string)])!;
+        var writeIntMethod = typeof(Utf8JsonWriter).GetMethod(nameof(Utf8JsonWriter.WriteNumber), [typeof(string), typeof(int)])!;
+        var writeLongMethod = typeof(Utf8JsonWriter).GetMethod(nameof(Utf8JsonWriter.WriteNumber), [typeof(string), typeof(long)])!;
+        var writeDoubleMethod = typeof(Utf8JsonWriter).GetMethod(nameof(Utf8JsonWriter.WriteNumber), [typeof(string), typeof(double)])!;
+        var writeBoolMethod = typeof(Utf8JsonWriter).GetMethod(nameof(Utf8JsonWriter.WriteBoolean), [typeof(string), typeof(bool)])!;
+
+        var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(p => p.CanRead && p.GetIndexParameters().Length == 0);
+
+        foreach (var prop in props)
+        {
+            if (prop.GetCustomAttribute<JsonIgnoreAttribute>(inherit: false) != null)
+                continue;
+
+            string key;
+            var jsonPropAttr = prop.GetCustomAttribute<JsonPropertyNameAttribute>();
+            if (jsonPropAttr != null && !string.IsNullOrEmpty(jsonPropAttr.Name))
+            {
+                key = jsonPropAttr.Name;
+            }
+            else
+            {
+                key = JsonNamingPolicy.SnakeCaseLower.ConvertName(prop.Name);
+            }
+
+            if (key == IdPropName) continue;
+
+            var keyConst = Expression.Constant(key);
+            var propAccess = Expression.Property(typedVar, prop);
+            var propType = prop.PropertyType;
+
+            if (propType == typeof(string))
+            {
+                var notNull = Expression.NotEqual(propAccess, Expression.Constant(null, typeof(string)));
+                var callWrite = Expression.Call(writerParam, writeStringMethod, keyConst, propAccess);
+                statements.Add(Expression.IfThen(notNull, callWrite));
+            }
+            else if (propType == typeof(int))
+            {
+                statements.Add(Expression.Call(writerParam, writeIntMethod, keyConst, propAccess));
+            }
+            else if (propType == typeof(long))
+            {
+                statements.Add(Expression.Call(writerParam, writeLongMethod, keyConst, propAccess));
+            }
+            else if (propType == typeof(double))
+            {
+                statements.Add(Expression.Call(writerParam, writeDoubleMethod, keyConst, propAccess));
+            }
+            else if (propType == typeof(bool))
+            {
+                statements.Add(Expression.Call(writerParam, writeBoolMethod, keyConst, propAccess));
+            }
+            else if (propType.IsEnum)
+            {
+                var formatMethod = typeof(TaxonomyViewEnumExtensions)
+                    .GetMethod(nameof(TaxonomyViewEnumExtensions.FormatEnumValue))!
+                    .MakeGenericMethod(propType);
+                var formattedStr = Expression.Call(formatMethod, propAccess);
+                statements.Add(Expression.Call(writerParam, writeStringMethod, keyConst, formattedStr));
+            }
+            else if (Nullable.GetUnderlyingType(propType) is { } underlyingType)
+            {
+                var hasValue = Expression.Property(propAccess, HasValuePropName);
+                var valueAccess = Expression.Property(propAccess, ValuePropName);
+
+                Expression? writeCall = null;
+                if (underlyingType == typeof(int))
+                    writeCall = Expression.Call(writerParam, writeIntMethod, keyConst, valueAccess);
+                else if (underlyingType == typeof(long))
+                    writeCall = Expression.Call(writerParam, writeLongMethod, keyConst, valueAccess);
+                else if (underlyingType == typeof(double))
+                    writeCall = Expression.Call(writerParam, writeDoubleMethod, keyConst, valueAccess);
+                else if (underlyingType == typeof(bool))
+                    writeCall = Expression.Call(writerParam, writeBoolMethod, keyConst, valueAccess);
+                else if (underlyingType.IsEnum)
+                {
+                    var formatMethod = typeof(TaxonomyViewEnumExtensions)
+                        .GetMethod(nameof(TaxonomyViewEnumExtensions.FormatEnumValue))!
+                        .MakeGenericMethod(underlyingType);
+                    var formattedStr = Expression.Call(formatMethod, valueAccess);
+                    writeCall = Expression.Call(writerParam, writeStringMethod, keyConst, formattedStr);
+                }
+
+                if (writeCall != null)
+                {
+                    statements.Add(Expression.IfThen(hasValue, writeCall));
+                }
+            }
+        }
+
+        var body = Expression.Block([typedVar], statements);
+        return Expression.Lambda<Action<IOntologyNode, Utf8JsonWriter>>(body, nodeParam, writerParam).Compile();
     }
 
     public static void ApplyExtensions(IOntologyNode node, Dictionary<string, object> properties)

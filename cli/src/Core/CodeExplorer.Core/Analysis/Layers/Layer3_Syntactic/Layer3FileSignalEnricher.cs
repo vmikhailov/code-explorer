@@ -83,7 +83,8 @@ public static class Layer3FileSignalEnricher
 
         if (EntityOrTableDeclRegex.IsMatch(sourceText))
         {
-            fileNode.SetExtension(ExtHasEntityOrTable, TrueValue);
+            fileNode.HasEntityOrTable = true;
+            fileNode.Flags |= SymbolFlags.HasEntityOrTable;
         }
 
         if (sourceText.Contains("DbContext", StringComparison.Ordinal))
@@ -91,7 +92,7 @@ public static class Layer3FileSignalEnricher
             var baseMatch = CSharpBaseConnectionNameRegex.Match(sourceText);
             if (baseMatch.Success)
             {
-                fileNode.SetExtension(ExtDbContextBaseConn, baseMatch.Groups[1].Value.Trim());
+                fileNode.DbContextBaseConn = baseMatch.Groups[1].Value.Trim();
             }
 
             var ctxMatches = CSharpDbContextClassRegex.Matches(sourceText);
@@ -110,7 +111,7 @@ public static class Layer3FileSignalEnricher
                 }
                 if (classes.Count > 0)
                 {
-                    fileNode.SetExtension(ExtDbContextClasses, string.Join(",", classes));
+                    fileNode.DbContextClasses = string.Join(",", classes);
                 }
             }
         }
@@ -118,7 +119,7 @@ public static class Layer3FileSignalEnricher
         var rawSchema = ExtractRawSchemaToken(sourceText, filePath);
         if (!string.IsNullOrEmpty(rawSchema))
         {
-            fileNode.SetExtension(ExtDeclaredSchemaRaw, rawSchema);
+            fileNode.DeclaredSchemaRaw = rawSchema;
         }
     }
 
@@ -223,37 +224,34 @@ public static class Layer3FileSignalEnricher
         if (dbSignals.Count > 0)
         {
             var joined = string.Join(",", dbSignals);
-            l1File.Extensions ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            syntaxTree.FileNode.Extensions ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            l1File.Extensions[ExtVerifiedDbSignals] = joined;
-            syntaxTree.FileNode.Extensions[ExtVerifiedDbSignals] = joined;
+            l1File.VerifiedDbSignals = joined;
+            syntaxTree.FileNode.VerifiedDbSignals = joined;
         }
 
         // 3. TypeScript config/datasource driver hint for Layer 4 ResourceSemanticAnalyzer.Drivers
         if (l1File.Name.EndsWith(".ts", StringComparison.OrdinalIgnoreCase) &&
             (l1File.Name.Contains("config", StringComparison.OrdinalIgnoreCase) || l1File.Name.Contains("datasource", StringComparison.OrdinalIgnoreCase)))
         {
-            project.Extensions ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            if (!project.Extensions.ContainsKey(ExtDbDriverEngine))
+            if (string.IsNullOrEmpty(project.DbDriverEngine))
             {
                 var lower = sourceText.ToLowerInvariant();
                 if (lower.Contains("type: 'postgres'") || lower.Contains("type: \"postgres\"") ||
                     lower.Contains("dialect: 'postgres'") || lower.Contains("dialect: \"postgres\""))
                 {
-                    project.Extensions[ExtDbDriverEngine] = "PostgreSQL";
-                    project.Extensions[ExtDbDriverType] = "relational";
+                    project.DbDriverEngine = "PostgreSQL";
+                    project.DbDriverFamily = "relational";
                 }
                 else if (lower.Contains("type: 'mysql'") || lower.Contains("type: \"mysql\"") ||
                          lower.Contains("dialect: 'mysql'") || lower.Contains("dialect: \"mysql\""))
                 {
-                    project.Extensions[ExtDbDriverEngine] = "MySQL";
-                    project.Extensions[ExtDbDriverType] = "relational";
+                    project.DbDriverEngine = "MySQL";
+                    project.DbDriverFamily = "relational";
                 }
                 else if (lower.Contains("type: 'sqlite'") || lower.Contains("type: \"sqlite\"") ||
                          lower.Contains("dialect: 'sqlite'") || lower.Contains("dialect: \"sqlite\""))
                 {
-                    project.Extensions[ExtDbDriverEngine] = "SQLite";
-                    project.Extensions[ExtDbDriverType] = "relational";
+                    project.DbDriverEngine = "SQLite";
+                    project.DbDriverFamily = "relational";
                 }
             }
         }
@@ -264,16 +262,14 @@ public static class Layer3FileSignalEnricher
             var fullSummary = BuildRustTopologySummary(sourceText);
             if (!string.IsNullOrEmpty(fullSummary))
             {
-                l1File.Extensions ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                syntaxTree.FileNode.Extensions ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                l1File.Extensions[ExtRustTopologySummary] = fullSummary;
-                syntaxTree.FileNode.Extensions[ExtRustTopologySummary] = fullSummary;
+                l1File.RustTopologySummary = fullSummary;
+                syntaxTree.FileNode.RustTopologySummary = fullSummary;
                 var bodyOnly = RustDeclarationLinePattern.Replace(sourceText, string.Empty);
                 var bodySummary = BuildRustTopologySummary(bodyOnly);
                 if (!string.IsNullOrEmpty(bodySummary))
                 {
-                    l1File.Extensions[ExtRustTopologyBodySummary] = bodySummary;
-                    syntaxTree.FileNode.Extensions[ExtRustTopologyBodySummary] = bodySummary;
+                    l1File.RustTopologyBodySummary = bodySummary;
+                    syntaxTree.FileNode.RustTopologyBodySummary = bodySummary;
                 }
             }
         }

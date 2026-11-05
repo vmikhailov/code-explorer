@@ -239,17 +239,6 @@ public static class GitSettingsParser
             ? "Git Settings"
             : $"Git Settings ({repoName})";
 
-        var extensions = new Dictionary<string, string>();
-        if (!string.IsNullOrEmpty(commitHash))
-        {
-            extensions["commit_hash"] = commitHash;
-            extensions["head_commit"] = commitHash;
-        }
-        if (!string.IsNullOrEmpty(repoName))
-        {
-            extensions["repo_name"] = repoName;
-        }
-
         return new GitSettingsNode(
             id,
             name,
@@ -257,9 +246,12 @@ public static class GitSettingsParser
             originUrl,
             userName,
             userEmail,
-            relPath,
-            extensions
-        );
+            relPath
+        )
+        {
+            CommitHash = string.IsNullOrEmpty(commitHash) ? null : commitHash,
+            RepoName = string.IsNullOrEmpty(repoName) ? null : repoName
+        };
     }
 
     public static string? FindRepoRoot(string startPath)

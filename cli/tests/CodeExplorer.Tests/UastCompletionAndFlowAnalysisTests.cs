@@ -358,13 +358,13 @@ public class UastCompletionAndFlowAnalysisTests
         // 1. Verify FunctionNode has df_summary, df_return, and df_writes
         var fnNode = fileNode.Children.OfType<FunctionNode>().FirstOrDefault(f => f.Name == "Handle");
         Assert.That(fnNode, Is.Not.Null);
-        Assert.That(fnNode!.Extensions, Is.Not.Null);
-        Assert.That(fnNode.Extensions!.ContainsKey("df_summary"), Is.True);
-        Assert.That(fnNode.Extensions["df_summary"], Does.Contain("ret:p0"));
-        Assert.That(fnNode.Extensions.ContainsKey("df_return"), Is.True);
-        Assert.That(fnNode.Extensions["df_return"], Is.EqualTo("p0"));
-        Assert.That(fnNode.Extensions.ContainsKey("df_writes"), Is.True);
-        Assert.That(fnNode.Extensions["df_writes"], Does.Contain("_status<-p0"));
+        Assert.That(fnNode!.DataflowSummary, Is.Not.Null);
+        Assert.That(fnNode.DataflowSummary, Is.Not.Empty);
+        Assert.That(fnNode.DataflowSummary, Does.Contain("ret:p0"));
+        Assert.That(fnNode.DataflowReturn, Is.Not.Null);
+        Assert.That(fnNode.DataflowReturn, Is.EqualTo("p0"));
+        Assert.That(fnNode.DataflowWrites, Is.Not.Null);
+        Assert.That(fnNode.DataflowWrites, Does.Contain("_status<-p0"));
 
         // 2. Verify reference was enriched with context and arg_flow
         var enrichedRef = fileNode.References.FirstOrDefault(r => r.TargetName == "Dispatch");

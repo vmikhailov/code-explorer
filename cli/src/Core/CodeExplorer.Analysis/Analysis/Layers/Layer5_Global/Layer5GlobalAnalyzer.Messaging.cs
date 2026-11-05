@@ -7,10 +7,14 @@ namespace CodeExplorer.Core.Parser.Layers;
 public partial class Layer5AnalysisParser
 {
     private static Relationship CreateCallRel(Reference refItem, string targetId) =>
-        Relationship.FromRelationship(new CallsRelationship(
+        Relationship.CreateWithCallSite(
             refItem.ScopeSymbolId,
             targetId,
-            EvidenceProvenanceHelper.BuildCallSiteExtensions(refItem.Line, refItem.Column, refItem.Context, refItem.ArgFlow)));
+            CodeExplorer.Cypher.Common.RelationshipKind.Calls,
+            refItem.Line,
+            refItem.Column,
+            refItem.Context,
+            refItem.ArgFlow);
 
     private static void ResolveCallsReference(
         Reference refItem,
@@ -174,10 +178,14 @@ public partial class Layer5AnalysisParser
         // 5. Procedure symbols fallback
         else if (symbols.ProcedureSymbols.TryGetValue(targetName, out var targetProcId))
         {
-            referenceRelationships.Add(Relationship.FromRelationship(new CalledByRelationship(
+            referenceRelationships.Add(Relationship.CreateWithCallSite(
                 targetProcId,
                 refItem.ScopeSymbolId,
-                EvidenceProvenanceHelper.BuildCallSiteExtensions(refItem.Line, refItem.Column, refItem.Context, refItem.ArgFlow))));
+                CodeExplorer.Cypher.Common.RelationshipKind.CalledBy,
+                refItem.Line,
+                refItem.Column,
+                refItem.Context,
+                refItem.ArgFlow));
             callAdded = true;
         }
 

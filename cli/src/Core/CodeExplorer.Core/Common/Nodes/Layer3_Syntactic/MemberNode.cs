@@ -47,6 +47,18 @@ public record MemberNode(
     {
     }
 
+    [JsonPropertyName("parameter_index"), OntologyProperty("0-based formal parameter index when the member is a function parameter.")]
+    public int? ParameterIndex { get; set; }
+
+    [JsonPropertyName("variable_type"), OntologyProperty("Variable classification tags (e.g. parameter, config, etl, constant, global, property, field).")]
+    public string? VariableClassification { get; set; }
+
+    [JsonPropertyName("initializer_expression"), OntologyProperty("Bounded initializer expression text.")]
+    public string? InitializerExpression { get; set; }
+
+    [JsonPropertyName("is_constant"), OntologyProperty("Indicates whether the member is a compile-time or immutable constant.")]
+    public bool? IsConstant { get; set; }
+
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Member;
 }

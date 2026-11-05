@@ -14,9 +14,9 @@ public partial class ResourceSemanticAnalyzer
     private static bool HasEntityOrTableDeclaration(FileNode? fileNode)
     {
         if (fileNode == null) return false;
+        if (fileNode.HasEntityOrTable == true) return true;
         if (HasEntityOrTableNode(fileNode)) return true;
-        return fileNode.Extensions != null &&
-               fileNode.Extensions.TryGetValue(Layers.Layer3FileSignalEnricher.ExtHasEntityOrTable, out var val) &&
+        return fileNode.TryGetExtension(Layers.Layer3FileSignalEnricher.ExtHasEntityOrTable, out var val) &&
                val == "true";
     }
 
@@ -29,9 +29,12 @@ public partial class ResourceSemanticAnalyzer
             if (fileNode == null) return list;
 
             string? baseConnKey = null;
-            if (fileNode.Extensions != null &&
-                fileNode.Extensions.TryGetValue(Layers.Layer3FileSignalEnricher.ExtDbContextBaseConn, out var bc) &&
-                !string.IsNullOrWhiteSpace(bc))
+            var bc = fileNode.DbContextBaseConn;
+            if (string.IsNullOrWhiteSpace(bc))
+            {
+                fileNode.TryGetExtension(Layers.Layer3FileSignalEnricher.ExtDbContextBaseConn, out bc);
+            }
+            if (!string.IsNullOrWhiteSpace(bc))
             {
                 baseConnKey = bc.Trim();
             }
@@ -49,14 +52,19 @@ public partial class ResourceSemanticAnalyzer
                 AddDbContextClass(list, typeNode.Name, baseConnKey);
             }
 
-            if (list.Count == 0 &&
-                fileNode.Extensions != null &&
-                fileNode.Extensions.TryGetValue(Layers.Layer3FileSignalEnricher.ExtDbContextClasses, out var classesRaw) &&
-                !string.IsNullOrWhiteSpace(classesRaw))
+            if (list.Count == 0)
             {
-                foreach (var className in classesRaw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                var classesRaw = fileNode.DbContextClasses;
+                if (string.IsNullOrWhiteSpace(classesRaw))
                 {
-                    AddDbContextClass(list, className, baseConnKey);
+                    fileNode.TryGetExtension(Layers.Layer3FileSignalEnricher.ExtDbContextClasses, out classesRaw);
+                }
+                if (!string.IsNullOrWhiteSpace(classesRaw))
+                {
+                    foreach (var className in classesRaw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    {
+                        AddDbContextClass(list, className, baseConnKey);
+                    }
                 }
             }
 
@@ -367,6 +375,7 @@ public partial class ResourceSemanticAnalyzer
         }
         catch (ObjectDisposedException)
         {
+            // ignored: syntax tree document may already be disposed during concurrent tear-down
         }
 
         return results;
@@ -374,9 +383,13 @@ public partial class ResourceSemanticAnalyzer
 
     private static string? ResolveDeclaredSchemaFromFileExtensions(FileNode? fileNode, string filePath)
     {
-        if (fileNode?.Extensions == null ||
-            !fileNode.Extensions.TryGetValue(Layers.Layer3FileSignalEnricher.ExtDeclaredSchemaRaw, out var val) ||
-            string.IsNullOrWhiteSpace(val))
+        if (fileNode == null) return null;
+        var val = fileNode.DeclaredSchemaRaw;
+        if (string.IsNullOrWhiteSpace(val))
+        {
+            fileNode.TryGetExtension(Layers.Layer3FileSignalEnricher.ExtDeclaredSchemaRaw, out val);
+        }
+        if (string.IsNullOrWhiteSpace(val))
         {
             return null;
         }
@@ -433,7 +446,7 @@ public partial class ResourceSemanticAnalyzer
     {
         if (node.Extensions != null && node.Extensions.TryGetValue("schema", out var s) && !string.IsNullOrWhiteSpace(s))
         {
-            if (node.Extensions.TryGetValue("is_implicit_schema", out var isImp) && isImp == "true")
+            if (node.TryGetExtension("is_implicit_schema", out var isImp) && isImp == "true")
             {
             }
             else
@@ -453,7 +466,7 @@ public partial class ResourceSemanticAnalyzer
     {
         if (node.Extensions != null && node.Extensions.TryGetValue("schema", out var s) && !string.IsNullOrWhiteSpace(s))
         {
-            if (node.Extensions.TryGetValue("is_implicit_schema", out var isImp) && isImp == "true")
+            if (node.TryGetExtension("is_implicit_schema", out var isImp) && isImp == "true")
             {
                 return s;
             }

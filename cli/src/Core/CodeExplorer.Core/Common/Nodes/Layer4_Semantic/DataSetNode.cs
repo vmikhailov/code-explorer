@@ -20,6 +20,9 @@ public record DataSetNode(
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {
+    [JsonPropertyName("is_implicit_schema"), OntologyProperty("Indicates whether the dataset node uses an implicit default schema.")]
+    public bool? IsImplicitSchema { get; set; }
+
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.DataSet;
 }

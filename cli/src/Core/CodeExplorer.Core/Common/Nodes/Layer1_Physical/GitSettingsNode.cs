@@ -23,6 +23,15 @@ public record GitSettingsNode(
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {
+    [JsonPropertyName("commit_hash"), OntologyProperty("Current Git HEAD commit hash.")]
+    public string? CommitHash { get; set; }
+
+    [JsonPropertyName("head_commit"), OntologyProperty("Current Git HEAD commit hash alias.")]
+    public string? HeadCommit => CommitHash;
+
+    [JsonPropertyName("repo_name"), OntologyProperty("Git repository name.")]
+    public string? RepoName { get; set; }
+
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.GitSettings;
 }

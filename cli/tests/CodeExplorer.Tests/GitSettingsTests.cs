@@ -153,10 +153,10 @@ public class GitSettingsTests
         await OntologyUploader.UploadNodeTreeAsync(projNode, null, ctx);
 
         // Verify git properties were populated on the project node
-        projNode.Extensions.Should().NotBeNull();
-        projNode.Extensions!.GetValueOrDefault("git_branch").Should().Be("release/1.0");
-        projNode.Extensions!.GetValueOrDefault("git_origin").Should().Be("https://git.company.com/backend.git");
-        projNode.Extensions!.GetValueOrDefault("git_repo").Should().Be("Backend");
+        // Verify git properties were populated on the project node
+        projNode.GitBranch.Should().Be("release/1.0");
+        projNode.GitOrigin.Should().Be("https://git.company.com/backend.git");
+        projNode.GitRepo.Should().Be("Backend");
 
         // Verify USES_GIT relationship exists in ctx.TreeRelationships
         var usesGitRels = ctx.TreeRelationships.Where(r => r.Kind == "USES_GIT").ToList();

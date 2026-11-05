@@ -1,5 +1,7 @@
+using System.Buffers;
 using System.Diagnostics;
 using System.Reflection;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using CodeExplorer.Cypher.Ast;
@@ -136,14 +138,21 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             var pProps = cmd.Parameters.Add("@p", SqliteType.Text);
             cmd.Prepare();
 
+            var bufferWriter = new ArrayBufferWriter<byte>(1024);
+            using var jsonWriter = new Utf8JsonWriter(bufferWriter);
+
             var lastReport = Stopwatch.GetTimestamp();
             for (var i = 0; i < distinctNodes.Count; i++)
             {
                 var node = distinctNodes[i];
-                node.Properties["id"] = node.Id;
+                bufferWriter.Clear();
+                jsonWriter.Reset(bufferWriter);
+                NodeFactory.WriteJsonProperties(node, jsonWriter);
+                jsonWriter.Flush();
+
                 pId.Value = node.Id;
                 pKind.Value = node.Kind;
-                pProps.Value = JsonSerializer.Serialize(node.Properties);
+                pProps.Value = Encoding.UTF8.GetString(bufferWriter.WrittenSpan);
                 cmd.ExecuteNonQuery();
 
                 if (distinctNodes.Count >= 10000 && ((i + 1) % 2000 == 0 || i + 1 == distinctNodes.Count) &&
@@ -190,6 +199,9 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
             var pProps = cmd.Parameters.Add("@p", SqliteType.Text);
             cmd.Prepare();
 
+            var bufferWriter = new ArrayBufferWriter<byte>(512);
+            using var jsonWriter = new Utf8JsonWriter(bufferWriter);
+
             var lastReport = Stopwatch.GetTimestamp();
 
             for (var i = 0; i < distinctRels.Count; i++)
@@ -198,9 +210,18 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                 pFrom.Value = rel.From;
                 pTo.Value = rel.To;
                 pKind.Value = rel.Kind;
-                pProps.Value = rel.Properties == null || rel.Properties.Count == 0
-                    ? emptyPropsJson
-                    : JsonSerializer.Serialize(rel.Properties);
+                if (!rel.HasTelemetry)
+                {
+                    pProps.Value = emptyPropsJson;
+                }
+                else
+                {
+                    bufferWriter.Clear();
+                    jsonWriter.Reset(bufferWriter);
+                    rel.WriteJsonProperties(jsonWriter);
+                    jsonWriter.Flush();
+                    pProps.Value = Encoding.UTF8.GetString(bufferWriter.WrittenSpan);
+                }
                 cmd.ExecuteNonQuery();
 
                 if (distinctRels.Count >= 10000 && ((i + 1) % 2000 == 0 || i + 1 == distinctRels.Count) &&
@@ -239,9 +260,9 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                 byKey[key] = rel;
                 unique.Add(rel);
             }
-            else if (rel.Properties is { Count: > 0 })
+            else if (rel.HasTelemetry)
             {
-                EvidenceProvenanceHelper.MergeEdgeProperties(existing.Properties, rel.Properties);
+                EvidenceProvenanceHelper.MergeRelationships(existing, rel);
             }
         }
 

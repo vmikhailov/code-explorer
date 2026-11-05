@@ -69,17 +69,64 @@ public record ProjectNode(
     [JsonPropertyName("role"), OntologyProperty("Architectural role of the project (e.g. Service, SharedLibrary, FrontendApp, Worker, CliTool, Test).")]
     public string Role { get; set; } = Role;
 
+    private ProjectArchetype? _archetype;
     [JsonPropertyName("archetype"), OntologyProperty("Architectural archetype of the project (e.g. PureUtility, ClientUi, CliTool, Framework, BackendService, DatabaseDriver, NativeAddon).")]
-    public ProjectArchetype Archetype => TaxonomyEnumExtendedExtensions.ParseProjectArchetype(Extensions?.GetValueOrDefault("archetype") ?? Role);
+    public ProjectArchetype Archetype
+    {
+        get => _archetype ?? TaxonomyEnumExtendedExtensions.ParseProjectArchetype(Extensions?.GetValueOrDefault("archetype") ?? Role);
+        set => _archetype = value;
+    }
 
+    private string? _primaryRole;
     [JsonPropertyName("primary_role"), OntologyProperty("Primary architectural role of the project (e.g. WebService, Scheduler, WorkerService, SharedLibrary, FrontendFramework, CliFramework, TestFramework).")]
-    public string? PrimaryRole => Extensions?.GetValueOrDefault("primary_role") ?? Role;
+    public string? PrimaryRole
+    {
+        get => _primaryRole ?? Extensions?.GetValueOrDefault("primary_role") ?? Role;
+        set => _primaryRole = value;
+    }
 
+    private string? _secondaryRoles;
     [JsonPropertyName("secondary_roles"), OntologyProperty("Secondary architectural roles detected in the project (e.g. ['Scheduler', 'QueueWorker']).")]
-    public string? SecondaryRoles => Extensions?.GetValueOrDefault("secondary_roles") ?? "[]";
+    public string? SecondaryRoles
+    {
+        get => _secondaryRoles ?? Extensions?.GetValueOrDefault("secondary_roles") ?? "[]";
+        set => _secondaryRoles = value;
+    }
 
+    private string? _allRoles;
     [JsonPropertyName("all_roles"), OntologyProperty("All architectural roles detected in the project.")]
-    public string? AllRoles => Extensions?.GetValueOrDefault("all_roles");
+    public string? AllRoles
+    {
+        get => _allRoles ?? Extensions?.GetValueOrDefault("all_roles");
+        set => _allRoles = value;
+    }
+
+    [JsonPropertyName("framework"), OntologyProperty("Detected primary framework of the project.")]
+    public string? Framework { get; set; }
+
+    [JsonPropertyName("git_branch"), OntologyProperty("Checked-out Git branch for this project.")]
+    public string? GitBranch { get; set; }
+
+    [JsonPropertyName("git_origin"), OntologyProperty("Remote Git origin URL for this project.")]
+    public string? GitOrigin { get; set; }
+
+    [JsonPropertyName("git_user"), OntologyProperty("Git user name associated with this project.")]
+    public string? GitUser { get; set; }
+
+    [JsonPropertyName("git_commit"), OntologyProperty("Current Git HEAD commit hash.")]
+    public string? GitCommit { get; set; }
+
+    [JsonPropertyName("git_repo"), OntologyProperty("Git repository name.")]
+    public string? GitRepo { get; set; }
+
+    [JsonPropertyName("db_driver_engine"), OntologyProperty("Inferred database driver engine for the project.")]
+    public string? DbDriverEngine { get; set; }
+
+    [JsonPropertyName("db_driver_type"), OntologyProperty("Inferred database driver category for the project.")]
+    public string? DbDriverFamily { get; set; }
+
+    [JsonPropertyName("db_driver_checked"), OntologyProperty("Indicates whether database driver resolution was already performed for this project.")]
+    public bool? DbDriverChecked { get; set; }
 
     [JsonPropertyName("is_library"), OntologyProperty("Indicates whether the project is a shared library rather than an executable application.")]
     public bool IsLibrary { get; set; } = IsLibrary;

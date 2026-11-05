@@ -594,9 +594,7 @@ public class ParserValidationTests
         folderA.Should().BeNull();
 
         // Verify project framework detection
-        projectA.Extensions.Should().NotBeNull();
-        projectA.Extensions.ContainsKey("framework").Should().BeTrue();
-        projectA.Extensions["framework"].Should().Be("ASP.NET Core");
+        projectA.Framework.Should().Be("ASP.NET Core");
 
         // Verify SemanticStructure node grouping
         var semanticNode = workspaceNode.Children.OfType<SemanticStructureNode>().FirstOrDefault();
@@ -666,9 +664,9 @@ public class ParserValidationTests
         (variables.Any(v => v.Name == "timeoutSeconds")).Should().BeFalse(); // local non-config is ignored
 
         var connStrVar = variables.First(v => v.Name == "CONNECTION_STRING_URL");
-        connStrVar.Extensions.Should().NotBeNull();
-        connStrVar.Extensions["variable_type"].Should().Contain("config");
-        connStrVar.Extensions["variable_type"].Should().Contain("constant");
+        connStrVar.VariableClassification.Should().NotBeNull();
+        connStrVar.VariableClassification.Should().Contain("config");
+        connStrVar.VariableClassification.Should().Contain("constant");
     }
 
     [Test]

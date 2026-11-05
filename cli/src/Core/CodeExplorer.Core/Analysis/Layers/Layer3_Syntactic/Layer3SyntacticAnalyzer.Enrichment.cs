@@ -58,13 +58,12 @@ public partial class Layer3SyntacticParser
                 fnNode.StartLine,
                 1,
                 1,
-                "parameter",
-                null,
-                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["parameter_index"] = i.ToString(),
-                    ["variable_type"] = "parameter"
-                });
+                CodeExplorer.Cypher.Common.MemberKind.Parameter,
+                null)
+            {
+                ParameterIndex = i,
+                VariableClassification = "parameter"
+            };
             fnNode.Children.Add(paramNode);
         }
     }
@@ -73,8 +72,13 @@ public partial class Layer3SyntacticParser
     {
         if (!string.IsNullOrWhiteSpace(fnDecl.Name)) return fnDecl.Name;
         var nameNode = fnDecl.GetChildForField(SyntaxFields.Name) ??
-                       fnDecl.NamedChildren.FirstOrDefault(c => c is IdentifierExprSyntax);
-        return nameNode?.Text.Trim() ?? $"<anon_{fnDecl.Span.StartLine + 1}>";
+                       fnDecl.FirstChildOfType<IdentifierExprSyntax>();
+        if (nameNode != null)
+        {
+            var span = nameNode.AsSpan().Trim();
+            if (!span.IsEmpty) return SyntaxStringPool.Intern(span);
+        }
+        return $"<anon_{fnDecl.Span.StartLine + 1}>";
     }
 
     private static FunctionDeclSyntax? FindEnclosingSyntaxFunction(SyntaxNode node)
@@ -139,30 +143,39 @@ public partial class Layer3SyntacticParser
             {
                 return;
             }
-            var txt = node.Text.Trim().TrimStart('.');
-            if (!string.IsNullOrEmpty(txt) && txt is not ("this" or "self") && !names.Contains(txt, StringComparer.Ordinal))
+            var span = node.AsSpan().Trim().TrimStart('.');
+            if (!span.IsEmpty && span is not ("this" or "self"))
             {
-                names.Add(txt);
+                var txt = SyntaxStringPool.Intern(span);
+                if (!names.Contains(txt, StringComparer.Ordinal))
+                {
+                    names.Add(txt);
+                }
             }
             return;
         }
         if (node.RawGrammarKind == "shorthand_property_identifier_pattern")
         {
-            var txt = node.Text.Trim();
-            if (!string.IsNullOrEmpty(txt) && !names.Contains(txt, StringComparer.Ordinal))
+            var span = node.AsSpan().Trim();
+            if (!span.IsEmpty)
             {
-                names.Add(txt);
+                var txt = SyntaxStringPool.Intern(span);
+                if (!names.Contains(txt, StringComparer.Ordinal))
+                {
+                    names.Add(txt);
+                }
             }
             return;
         }
         if (node is AssignmentExprSyntax assignPat)
         {
-            var left = assignPat.Left ?? assignPat.GetChildForField(SyntaxFields.Left) ?? assignPat.NamedChildren.FirstOrDefault();
+            var left = assignPat.Left ?? assignPat.GetChildForField(SyntaxFields.Left) ?? (assignPat.NamedChildren.Count > 0 ? assignPat.NamedChildren[0] : null);
             if (left != null) CollectDestructuredParameterIdentifiers(left, names);
             return;
         }
-        foreach (var child in node.NamedChildren)
+        for (var i = 0; i < node.NamedChildren.Count; i++)
         {
+            var child = node.NamedChildren[i];
             if (child is TypeRefSyntax) continue;
             CollectDestructuredParameterIdentifiers(child, names);
         }
@@ -227,22 +240,25 @@ public partial class Layer3SyntacticParser
         if (left is not MemberAccessExprSyntax outerMem || right is not LambdaExprSyntax rhsLambda) return false;
 
         var innerObj = outerMem.Object ?? outerMem.GetChildForField(SyntaxFields.Object) ?? (outerMem.NamedChildren.Count > 0 ? outerMem.NamedChildren[0] : null);
-        var outerProp = !string.IsNullOrEmpty(outerMem.MemberName)
-            ? outerMem.MemberName
-            : (outerMem.GetChildForField(SyntaxFields.Property) ?? (outerMem.NamedChildren.Count > 1 ? outerMem.NamedChildren[^1] : null))?.Text.Trim() ?? string.Empty;
-        if (string.IsNullOrEmpty(outerProp) || innerObj is not MemberAccessExprSyntax innerMem) return false;
+        if (innerObj is not MemberAccessExprSyntax innerMem) return false;
 
-        var innerProp = !string.IsNullOrEmpty(innerMem.MemberName)
-            ? innerMem.MemberName
-            : (innerMem.GetChildForField(SyntaxFields.Property) ?? (innerMem.NamedChildren.Count > 1 ? innerMem.NamedChildren[^1] : null))?.Text.Trim() ?? string.Empty;
-        if (innerProp != "prototype") return false;
+        var innerPropSpan = !innerMem.MemberNameSpan.IsEmpty
+            ? innerMem.MemberNameSpan
+            : (innerMem.GetChildForField(SyntaxFields.Property) ?? (innerMem.NamedChildren.Count > 1 ? innerMem.NamedChildren[^1] : null)) is { } ipNode ? ipNode.AsSpan().Trim() : ReadOnlySpan<char>.Empty;
+        if (innerPropSpan is not "prototype") return false;
+
+        var outerPropSpan = !outerMem.MemberNameSpan.IsEmpty
+            ? outerMem.MemberNameSpan
+            : (outerMem.GetChildForField(SyntaxFields.Property) ?? (outerMem.NamedChildren.Count > 1 ? outerMem.NamedChildren[^1] : null)) is { } opNode ? opNode.AsSpan().Trim() : ReadOnlySpan<char>.Empty;
+        if (outerPropSpan.IsEmpty) return false;
 
         var clsNode = innerMem.Object ?? innerMem.GetChildForField(SyntaxFields.Object) ?? (innerMem.NamedChildren.Count > 0 ? innerMem.NamedChildren[0] : null);
-        var clsName = clsNode?.Text.Trim() ?? string.Empty;
-        if (string.IsNullOrEmpty(clsName)) return false;
+        if (clsNode == null) return false;
+        var clsSpan = clsNode.AsSpan().Trim();
+        if (clsSpan.IsEmpty) return false;
 
-        className = clsName;
-        methodName = outerProp;
+        className = SyntaxStringPool.Intern(clsSpan);
+        methodName = SyntaxStringPool.Intern(outerPropSpan);
         lambdaNode = rhsLambda;
         return true;
     }
@@ -293,8 +309,9 @@ public partial class Layer3SyntacticParser
         var diags = syntaxTree.Document?.Diagnostics;
         if (diags == null || diags.Count == 0) return;
 
-        fileNode.SetExtension("has_parse_issues", "true");
-        fileNode.SetExtension("parse_issue_count", diags.Count.ToString());
+        fileNode.HasParseIssues = true;
+        fileNode.ParseIssueCount = diags.Count;
+        fileNode.Flags |= SymbolFlags.HasParseIssues;
 
         var lang = syntaxTree.Document?.LanguageName ?? syntaxTree.FileParser.LanguageName;
         for (var d = 0; d < diags.Count; d++)
@@ -370,17 +387,6 @@ public partial class Layer3SyntacticParser
                 var varType = string.Join(",", varTypeStr);
                 var varId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Member:{rawVar.Name}";
 
-                var ext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["variable_type"] = varType,
-                    ["initializer_expression"] = rawVar.InitializerText,
-                    ["is_constant"] = isConstant ? "true" : "false"
-                };
-                if (!string.IsNullOrEmpty(rawVar.TypeName))
-                {
-                    ext["data_type"] = rawVar.TypeName;
-                }
-
                 var varNode = new MemberNode(
                     varId,
                     rawVar.Name,
@@ -392,9 +398,13 @@ public partial class Layer3SyntacticParser
                     rawVar.StartCol,
                     rawVar.EndCol,
                     rawVar.MemberKind ?? CodeExplorer.Cypher.Common.MemberKind.Variable,
-                    rawVar.TypeName,
-                    ext
-                );
+                    string.IsNullOrEmpty(rawVar.TypeName) ? null : rawVar.TypeName
+                )
+                {
+                    VariableClassification = varType,
+                    InitializerExpression = rawVar.InitializerText,
+                    IsConstant = isConstant
+                };
 
                 TryInsertVariable(fileNode, varNode, rawVar.StartLine);
             }
@@ -738,5 +748,86 @@ public partial class Layer3SyntacticParser
         }
 
         return null;
+    }
+
+    private static IEnumerable<(string Name, LambdaExprSyntax Lambda)> EnumerateNamedLambdaFunctions(SyntaxNode? root)
+    {
+        if (root == null) yield break;
+        var queue = new Queue<SyntaxNode>();
+        queue.Enqueue(root);
+        while (queue.Count > 0)
+        {
+            var curr = queue.Dequeue();
+            if (curr is LambdaExprSyntax lambda)
+            {
+                yield return (InferLambdaName(lambda), lambda);
+            }
+            foreach (var child in curr.Children)
+            {
+                queue.Enqueue(child);
+            }
+        }
+    }
+
+    private static string InferLambdaName(LambdaExprSyntax lambda)
+    {
+        var nameNode = lambda.GetChildForField(SyntaxFields.Name) ??
+                       lambda.NamedChildren.FirstOrDefault(c => c is IdentifierExprSyntax && c != lambda.Body);
+        if (nameNode is IdentifierExprSyntax id && !string.IsNullOrWhiteSpace(id.Text))
+        {
+            return id.Text.Trim();
+        }
+
+        var curr = lambda.Parent;
+        while (curr is BinaryExprSyntax or ConditionalExprSyntax)
+        {
+            curr = curr.Parent;
+        }
+
+        if (curr is VariableDeclSyntax varDecl)
+        {
+            var lhs = varDecl.GetChildForField(SyntaxFields.Name) ?? varDecl.GetChildForField(SyntaxFields.Pattern);
+            var name = !string.IsNullOrEmpty(varDecl.Name) ? varDecl.Name : (lhs is IdentifierExprSyntax varId ? varId.Text.Trim() : null);
+            if (!string.IsNullOrEmpty(name)) return name;
+        }
+        else if (curr is AssignmentExprSyntax assign)
+        {
+            var left = assign.Left ?? assign.GetChildForField(SyntaxFields.Left) ?? (assign.NamedChildren.Count > 0 ? assign.NamedChildren[0] : null);
+            if (left != null)
+            {
+                var leftText = left.Text.Trim();
+                if (leftText is "module.exports" or "exports")
+                {
+                    return "default";
+                }
+                if (left is MemberAccessExprSyntax mem)
+                {
+                    var prop = !string.IsNullOrEmpty(mem.MemberName)
+                        ? mem.MemberName
+                        : (mem.GetChildForField(SyntaxFields.Property) ?? (mem.NamedChildren.Count > 1 ? mem.NamedChildren[^1] : null))?.Text.Trim();
+                    if (!string.IsNullOrEmpty(prop)) return prop;
+                }
+                else if (left is IdentifierExprSyntax leftId)
+                {
+                    var idName = !string.IsNullOrEmpty(leftId.Name) ? leftId.Name : leftId.Text.Trim();
+                    if (!string.IsNullOrEmpty(idName)) return idName;
+                }
+            }
+        }
+        else if (curr?.RawGrammarKind == "export_statement")
+        {
+            return "default";
+        }
+        else if (curr?.RawGrammarKind == "pair")
+        {
+            var keyNode = curr.GetChildForField(SyntaxFields.Key) ?? (curr.NamedChildren.Count > 0 ? curr.NamedChildren[0] : null);
+            if (keyNode != null)
+            {
+                var keyName = keyNode.Text.Trim().Trim('"', '\'', '`');
+                if (!string.IsNullOrEmpty(keyName)) return keyName;
+            }
+        }
+
+        return $"<anon_{lambda.Span.StartLine + 1}>";
     }
 }

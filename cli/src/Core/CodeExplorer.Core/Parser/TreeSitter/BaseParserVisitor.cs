@@ -81,7 +81,8 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
         if (Profile.StringLiterals.Contains(type) && !WorkspaceConventions.IsFrontendFilePath(RelativePath))
         {
-            if (NestedSqlParser.TryParseSql(CleanStringLiteral(node.Text), out _, out _))
+            if (NestedSqlParser.FastCheckSqlCandidate(node.AsSpan()) &&
+                NestedSqlParser.TryParseSql(CleanStringLiteral(node.Text), out _, out _))
             {
                 return OntologyConstants.NodeLabels.Query;
             }
@@ -119,7 +120,8 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
     {
         if (Profile.StringLiterals.Contains(node.Type) && !WorkspaceConventions.IsFrontendFilePath(RelativePath))
         {
-            if (NestedSqlParser.TryParseSql(CleanStringLiteral(node.Text), out var firstWord, out _))
+            if (NestedSqlParser.FastCheckSqlCandidate(node.AsSpan()) &&
+                NestedSqlParser.TryParseSql(CleanStringLiteral(node.Text), out var firstWord, out _))
             {
                 return $"{firstWord} Query";
             }

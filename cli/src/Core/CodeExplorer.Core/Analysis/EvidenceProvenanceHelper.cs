@@ -26,6 +26,50 @@ public static class EvidenceProvenanceHelper
     }
 
     public static void RecordContributingEdge(
+        Relationship targetRel,
+        Relationship contributingRel,
+        int cap = DefaultEvidenceCap) =>
+        RecordContributingEdge(targetRel, contributingRel.From, contributingRel.Kind, contributingRel.To, cap);
+
+    public static void RecordContributingEdge(
+        Relationship targetRel,
+        string fromId,
+        string kind,
+        string toId,
+        int cap = DefaultEvidenceCap)
+    {
+        if (string.IsNullOrWhiteSpace(fromId) || string.IsNullOrWhiteSpace(kind) || string.IsNullOrWhiteSpace(toId))
+        {
+            return;
+        }
+
+        if (targetRel.HasMaterializedProperties)
+        {
+            RecordContributingEdge(targetRel.Properties, fromId, kind, toId, cap);
+            return;
+        }
+
+        var edgeIdentity = FormatEdgeIdentity(fromId, kind, toId);
+        targetRel.EvidenceIds ??= new List<string>(4);
+        if (targetRel.EvidenceIds.Contains(edgeIdentity, StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var totalCount = Math.Max(targetRel.EvidenceIds.Count, targetRel.EvidenceCount) + 1;
+        if (targetRel.EvidenceIds.Count < cap)
+        {
+            targetRel.EvidenceIds.Add(edgeIdentity);
+        }
+
+        targetRel.EvidenceCount = totalCount;
+        if (totalCount > cap)
+        {
+            targetRel.EvidenceTruncated = true;
+        }
+    }
+
+    public static void RecordContributingEdge(
         Dictionary<string, object> properties,
         Relationship contributingRel,
         int cap = DefaultEvidenceCap) =>
@@ -217,6 +261,96 @@ public static class EvidenceProvenanceHelper
         }
 
         return [];
+    }
+
+    public static void MergeRelationships(Relationship target, Relationship source, int cap = DefaultEvidenceCap)
+    {
+        if (!source.HasTelemetry) return;
+
+        // Fast-path when neither side has materialized a raw Dictionary<string, object>
+        if (!target.HasMaterializedProperties && !source.HasMaterializedProperties)
+        {
+            // 1. Merge Call Sites
+            if (source.Line > 0)
+            {
+                if (target.Line <= 0)
+                {
+                    target.Line = source.Line;
+                    target.Column = source.Column;
+                    target.CallCount = Math.Max(1, source.CallCount);
+                    target.CallContext = source.CallContext;
+                    target.ArgFlow ??= source.ArgFlow;
+                    if (source.AdditionalCallSites is { Count: > 0 })
+                    {
+                        target.AdditionalCallSites = [.. source.AdditionalCallSites];
+                    }
+                }
+                else
+                {
+                    AddCallSiteCoord(target, source.Line, Math.Max(1, source.Column), cap);
+                    if (source.AdditionalCallSites != null)
+                    {
+                        foreach (var (l, c) in source.AdditionalCallSites)
+                        {
+                            AddCallSiteCoord(target, l, c, cap);
+                        }
+                    }
+                    target.CallContext = new CallSiteExecutionContext(
+                        target.CallContext.Flags | source.CallContext.Flags,
+                        Math.Max(target.CallContext.LoopDepth, source.CallContext.LoopDepth));
+                    target.ArgFlow ??= source.ArgFlow;
+                }
+            }
+
+            // 2. Merge Evidence IDs
+            if (source.EvidenceIds is { Count: > 0 })
+            {
+                target.EvidenceIds ??= new List<string>(source.EvidenceIds.Count);
+                var added = 0;
+                foreach (var id in source.EvidenceIds)
+                {
+                    if (target.EvidenceIds.Contains(id, StringComparer.OrdinalIgnoreCase)) continue;
+                    added++;
+                    if (target.EvidenceIds.Count < cap)
+                    {
+                        target.EvidenceIds.Add(id);
+                    }
+                }
+                target.EvidenceCount = Math.Max(target.EvidenceIds.Count, target.EvidenceCount + added);
+                if (target.EvidenceCount > cap || source.EvidenceTruncated)
+                {
+                    target.EvidenceTruncated = true;
+                }
+            }
+
+            if (target.Hops == 0 && source.Hops > 0) target.Hops = source.Hops;
+            target.TargetSinkClassification ??= source.TargetSinkClassification;
+            return;
+        }
+
+        MergeEdgeProperties(target.Properties, source.Properties, cap);
+    }
+
+    private static void AddCallSiteCoord(Relationship target, int line, int col, int cap)
+    {
+        var tCol = Math.Max(1, target.Column);
+        if (target.Line == line && tCol == col) return;
+        if (target.AdditionalCallSites != null)
+        {
+            for (var i = 0; i < target.AdditionalCallSites.Count; i++)
+            {
+                if (target.AdditionalCallSites[i].Line == line && target.AdditionalCallSites[i].Column == col)
+                    return;
+            }
+        }
+
+        target.CallCount = Math.Max(1, target.CallCount) + 1;
+        var currentTotalSites = 1 + (target.AdditionalCallSites?.Count ?? 0);
+        if (currentTotalSites < cap)
+        {
+            target.AdditionalCallSites ??= new List<(int Line, int Column)>(4);
+            target.AdditionalCallSites.Add((line, col));
+        }
     }
 
     public static void MergeEdgeProperties(
