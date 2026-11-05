@@ -5,6 +5,8 @@ import { GraphData, GraphNode, GraphEdge } from '../../../../proto/types';
 import { attachNormalizedCytoscapeWheel } from '../utils/wheelZoom';
 import { computeSwimlanesLayout, SwimlaneGuide, TierDefinition } from '../layout/swimlanesLayout';
 import { MermaidDiagramView } from './MermaidDiagramView';
+import { getVsCodeApi } from '../vscodeApi';
+import { SelectedNodeDetail } from '../domain/types';
 
 try {
   cytoscape.use(dagre);
@@ -110,7 +112,6 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
   const [swimlanes, setSwimlanes] = useState<SwimlaneGuide[]>([]);
   const [concentricRings, setConcentricRings] = useState<Array<{ tier: number; radius: number; label: string; count: number }>>([]);
 
-  // Update layout and persist
   const handleLayoutChange = useCallback(
     (newLayout: string) => {
       setLayoutType(newLayout);
@@ -120,6 +121,208 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
     },
     [storagePrefix]
   );
+
+  const [baseIconSize, setBaseIconSize] = useState<number>(() => {
+    if (typeof localStorage !== 'undefined') {
+      const val = Number(localStorage.getItem(`${storagePrefix}baseIconSize`));
+      if (Number.isFinite(val) && val >= 24 && val <= 96) return val;
+    }
+    return 42;
+  });
+
+  const handleBaseIconSizeChange = useCallback(
+    (size: number) => {
+      setBaseIconSize(size);
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(`${storagePrefix}baseIconSize`, String(size));
+      }
+    },
+    [storagePrefix]
+  );
+
+  // InspectorSidebarView state synchronization
+  useEffect(() => {
+    const vscode = getVsCodeApi();
+    if (!vscode) return;
+
+    const nodeDetailEntries: Array<[string, SelectedNodeDetail]> = (graph?.nodes ?? []).map((n) => [
+      n.id,
+      {
+        id: n.id,
+        name: n.name || n.id,
+        displayName: n.displayName || n.name || n.id,
+        kind: (n.kind as any) || 'Type',
+        displayTag: n.properties?.sub_kind || n.kind || 'Type',
+        bgColor: n.properties?.color || n.properties?.bgColor || '#3b82f6',
+        borderColor: n.properties?.borderColor || '#1e293b',
+        primaryFilePath: n.filePath || n.properties?.path,
+        properties: n.properties || {},
+        tier: Number(n.properties?.tier ?? 2),
+        tierLabel: n.properties?.tier_label,
+        tierReason: n.properties?.tier_reason,
+        inboundCallsCount: Number(n.properties?.fan_in || 0),
+        outboundCallsCount: Number(n.properties?.fan_out || 0),
+        dbCount: Number(n.properties?.data_file_count || 0),
+        messagingCount: 0,
+        fileCount: Number(n.properties?.file_count || 1),
+        projects: [],
+      },
+    ]);
+
+    const selectedNodeDetail: SelectedNodeDetail | null = selectedNode
+      ? {
+          id: selectedNode.id,
+          name: selectedNode.name || selectedNode.id,
+          displayName: selectedNode.displayName || selectedNode.name || selectedNode.id,
+          kind: (selectedNode.kind as any) || 'Type',
+          displayTag: selectedNode.properties?.sub_kind || selectedNode.kind || 'Type',
+          bgColor: selectedNode.properties?.color || selectedNode.properties?.bgColor || '#3b82f6',
+          borderColor: selectedNode.properties?.borderColor || '#1e293b',
+          primaryFilePath: selectedNode.filePath || selectedNode.properties?.path,
+          properties: selectedNode.properties || {},
+          tier: Number(selectedNode.properties?.tier ?? 2),
+          tierLabel: selectedNode.properties?.tier_label,
+          tierReason: selectedNode.properties?.tier_reason,
+          inboundCallsCount: Number(selectedNode.properties?.fan_in || 0),
+          outboundCallsCount: Number(selectedNode.properties?.fan_out || 0),
+          dbCount: Number(selectedNode.properties?.data_file_count || 0),
+          messagingCount: 0,
+          fileCount: Number(selectedNode.properties?.file_count || 1),
+          projects: [],
+        }
+      : null;
+
+    const orbitLegendItems = (tierDefinitions ?? []).map((td) => ({
+      tier: td.tier,
+      title: td.title,
+      count: (graph?.nodes ?? []).filter((n) => Number(n.properties?.tier) === td.tier).length,
+      color: td.color || '#475569',
+    }));
+
+    const projectMapPresets = inspectorOverviewSlot
+      ? {
+          projectName: inspectorOverviewSlot.title,
+          filesCount: Number(inspectorOverviewSlot.subtitle?.replace(/\D/g, '') || 0),
+          entryPointCount: Number(inspectorOverviewSlot.metrics.find((m) => m.label === 'EntryPoints')?.value || 0),
+          moduleCount: Number(inspectorOverviewSlot.metrics.find((m) => m.label === 'Classes')?.value || 0),
+          depCount: Number(inspectorOverviewSlot.metrics.find((m) => m.label === 'Dependencies')?.value || 0),
+          resourceCount: Number(inspectorOverviewSlot.metrics.find((m) => m.label === 'Resources')?.value || 0),
+          cyclesCount: Number(visibilityPresetsSlot?.find((p) => p.id === 'cyclesOnly')?.badge || 0),
+          cyclesOnly: Boolean(visibilityPresetsSlot?.find((p) => p.id === 'cyclesOnly')?.isActive),
+          hideUtilities: Boolean(visibilityPresetsSlot?.find((p) => p.id === 'hideUtilities')?.isActive),
+          hideResources: Boolean(visibilityPresetsSlot?.find((p) => p.id === 'hideResources')?.isActive),
+        }
+      : undefined;
+
+    const syncedState = {
+      hudLabel,
+      hudTitle,
+      isMatrixMode: false,
+      effectiveSidebarTab: 'info',
+      hasOrbitLegend: orbitLegendItems.length > 0,
+      orbitLegendItems,
+      hiddenCount: 0,
+      selectedNode: selectedNodeDetail,
+      selectedEdge: null,
+      nodeDetailEntries,
+      rawEdges: [],
+      isInspectorCollapsed: false,
+      isEdgeInspectorCollapsed: false,
+      availableDomains: [],
+      layoutName: layoutType,
+      spacingFactor: 1.0,
+      orbitDistance: 120,
+      minOrbitNodeDistance: 40,
+      autoRelayoutOnFilter: false,
+      orbitConfig: {} as any,
+      hiddenOrbitTiers: [],
+      echelonEntries: [],
+      hiddenNodeIds: [],
+      hiddenTypes: [],
+      hideSingleConnectionDbs: false,
+      hideIsolatedNodes: false,
+      showTransitiveEdges: false,
+      counts: {
+        totalNodes: graph?.nodes?.length ?? 0,
+        totalEdges: graph?.edges?.length ?? 0,
+      },
+      groupedTypes: [],
+      customGroups: [],
+      nodeContentMode: 'icon',
+      nodeSizingMode: 'fixed',
+      edgeCurveMode: 'bezier',
+      edgeLabelsOnHover: true,
+      baseIconSize,
+      fontSize: 11,
+      curveFactor: 0.5,
+      wheelSensitivity: 0.2,
+      projectMapPresets,
+    };
+
+    vscode.postMessage({
+      type: 'SYNC_INSPECTOR_STATE',
+      state: syncedState,
+    });
+  }, [
+    graph,
+    selectedNode,
+    layoutType,
+    hudLabel,
+    hudTitle,
+    tierDefinitions,
+    baseIconSize,
+    inspectorOverviewSlot,
+    visibilityPresetsSlot,
+  ]);
+
+  // Handle actions received from InspectorSidebarView
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      const msg = event.data;
+      if (msg?.type === 'INSPECTOR_ACTION' && msg.action) {
+        const action = msg.action;
+        switch (action.type) {
+          case 'SET_LAYOUT':
+            if (action.layoutName) handleLayoutChange(action.layoutName);
+            break;
+          case 'SET_BASE_ICON_SIZE':
+            if (action.size) handleBaseIconSizeChange(action.size);
+            break;
+          case 'TOGGLE_PROJECT_MAP_PRESET':
+            if (action.preset) {
+              const presetDef = visibilityPresetsSlot?.find((p) => p.id === action.preset);
+              presetDef?.onToggle();
+            }
+            break;
+          case 'SELECT_NODE':
+            if (action.nodeId) {
+              const cy = cyRef.current;
+              const cyNode = cy?.getElementById(action.nodeId);
+              if (cyNode) {
+                cy?.elements().unselect();
+                cyNode.select();
+                const original = graph?.nodes?.find((n) => n.id === action.nodeId) ?? null;
+                setSelectedNode(original);
+                onSelectNode?.(original);
+              }
+            }
+            break;
+          case 'CLEAR_SELECTION':
+            cyRef.current?.elements().unselect();
+            setSelectedNode(null);
+            onSelectNode?.(null);
+            break;
+          case 'OPEN_FILE':
+            if (action.filePath) {
+              onOpenFile?.(action.filePath, action.lineStart);
+            }
+            break;
+        }
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [graph, visibilityPresetsSlot, handleLayoutChange, handleBaseIconSizeChange, onOpenFile, onSelectNode]);
 
   // Initialize Cytoscape
   useEffect(() => {
@@ -232,6 +435,16 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
       onSelectNode?.(null);
     });
 
+    cy.on('dblclick', 'node', (evt: EventObject) => {
+      const node = evt.target;
+      const originalNode = graph?.nodes?.find((n) => n.id === node.id());
+      const filePath = originalNode?.filePath || originalNode?.properties?.path;
+      if (filePath) {
+        onOpenFile?.(filePath);
+        getVsCodeApi()?.postMessage({ type: 'OPEN_FILE', filePath });
+      }
+    });
+
     return () => {
       detachWheel();
       cy.destroy();
@@ -259,7 +472,7 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
           id: n.id,
           label: n.name ?? n.id,
           echelonTier: tier,
-          size: Number(n.properties?.size ?? 42),
+          size: Math.round(baseIconSize * (Number(n.properties?.size ?? 42) / 42)),
           bgColor: n.properties?.color ?? n.properties?.bgColor ?? '#3b82f6',
           borderColor: n.properties?.borderColor ?? '#1e293b',
           borderWidth: Number(n.properties?.borderWidth ?? 2),
@@ -463,6 +676,27 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
               🔄
             </button>
           )}
+
+          <button
+            onClick={() => {
+              getVsCodeApi()?.postMessage({ type: 'FOCUS_INSPECTOR_VIEW', preserveFocus: false });
+            }}
+            title="Open Inspector in Sidebar"
+            style={{
+              background: 'var(--vscode-button-secondaryBackground, #1e293b)',
+              border: '1px solid var(--vscode-widget-border, #334155)',
+              color: 'var(--vscode-button-secondaryForeground, #f8fafc)',
+              borderRadius: '4px',
+              padding: '4px 8px',
+              fontSize: '11px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            🔍 Inspector
+          </button>
         </div>
       </div>
 

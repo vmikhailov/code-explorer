@@ -21,6 +21,17 @@ public static class JsonElementExtensions
         return null;
     }
 
+    public static bool GetBoolProp(this JsonElement elem, string propName, bool fallback = false)
+    {
+        if (elem.TryGetProperty(propName, out var v))
+        {
+            if (v.ValueKind == JsonValueKind.True) return true;
+            if (v.ValueKind == JsonValueKind.False) return false;
+            if (v.ValueKind == JsonValueKind.String && bool.TryParse(v.GetString(), out var parsed)) return parsed;
+        }
+        return fallback;
+    }
+
     public static Dictionary<string, string> ExtractProperties(this JsonElement elem, string propName = "properties")
     {
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

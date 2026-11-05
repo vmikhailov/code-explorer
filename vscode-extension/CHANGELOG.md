@@ -5,6 +5,21 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.69.0] - 2026-11-05
+
+### Added
+- **Unified Graph Projection Pipeline (C#)**:
+  - Implemented 4-stage graph projection pipeline (`IGraphProjectionEngine`, `GraphProjectionRequest`, `UniversalCypherEdgeLifter`, `TopologyAndCycleAnalyzer`, `GraphProjectionEngine`).
+  - Lifts leaf symbol invocations, type bindings, and resource access queries up to target containers (`Project` for C2, `Type/Class` for C3).
+  - Integrated Tarjan SCC cycle detection and BFS topological tier classification (Tiers 0..6: Ingress, Application, Core, DataAccess, Foundation, Transports/Libraries, Databases/Storage).
+- **Universal Graph Map & Native Secondary Sidebar Synchronization (React / VS Code)**:
+  - Full two-way state synchronization between `<UniversalGraphMap />` and the native VS Code 4-tab `InspectorSidebarView` (`Info`, `Orbits / Lanes`, `Visibility`, `Settings`).
+  - Declarative slots for `inspectorOverviewSlot` (metrics, cycle banners, isolate action) and `visibilityPresetsSlot` (`Cycles Only`, `Hide Utilities`, `Hide Resources`).
+  - Double-click node navigation directly to source files in the editor.
+  - Retained strict architectural independence between `ProjectMapView` and `DomainArchitectureView` conforming to `SIG-P-B-010`.
+
+---
+
 ## [1.68.0] - 2026-11-02
 
 ### Added
@@ -28,25 +43,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Real-time scan progress streaming via WebSocket hub (\PassportWebSocketHub\) and reactive UI updates.
   - Redesigned Operational Reach with neutral monospace micro-tags (\.reach-tag\), isolating alert colors strictly to the Safety Verdict column.
   - Direct report inspection links and resolved version indicators in scan catalog.
-
----
-
-## [1.67.0] - 2026-10-31
-
-### Added
-  - Implemented Hallmark design system and Vercel React best practices with zero sloplint violations.
-  - Added dedicated Scanning Queue and Crawler monitor with live status updates, job retries, and crawler start/stop controls.
-  - Added SQLite store aggregation metrics (`CleanCount`, `ReviewCount`, `ThreatCount`) surfaced via `/api/passports/stats`.
-  - Implemented `cp serve` background scheduler with configurable worker pool (`--workers`).
-  - Added `cp queue` command to inspect, clear, and retry background scan jobs.
-  - Added `cp crawl` command to schedule transitive dependency crawling.
-
-### Changed
-- **Catalog Search & Filter Toolbar Overhaul**:
-  - Relieved toolbar tightness with a spacious two-tier layout separating search input and verdict filters.
-  - Added dynamic total quantity counters inside all selection filters: `All (8,346)`, `Threat Detected (404)`, `Review Required (1,739)`, `Clean (6,203)`.
-  - Removed redundant `Safety Verdict:` title and trailing `package(s)` suffix from the results indicator (`Showing 100 of 8,346`).
-  - Replaced decorative dots with clean accessible typography and active state pills.
 
 ---
 
