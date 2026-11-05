@@ -50,7 +50,7 @@ public class ColdFusionProjectParser : IProjectParser
         {
             try
             {
-                var text = File.ReadAllText(appCfcPath);
+                var text = PhysicalFileStore.ReadAllText(appCfcPath);
                 var match = Regex.Match(text, @"(?:this\s*\.\s*name\s*=\s*|applicationName\s*=\s*)['""]([^'""]+)['""]", RegexOptions.IgnoreCase);
                 if (match.Success)
                 {
@@ -79,7 +79,7 @@ public class ColdFusionProjectParser : IProjectParser
         {
             try
             {
-                var text = File.ReadAllText(appCfmPath);
+                var text = PhysicalFileStore.ReadAllText(appCfmPath);
                 var match = Regex.Match(text, @"<\s*cfapplication\b[^>]*\bname\s*=\s*['""]([^'""]+)['""]", RegexOptions.IgnoreCase);
                 if (match.Success && !string.IsNullOrWhiteSpace(match.Groups[1].Value))
                 {
@@ -98,7 +98,7 @@ public class ColdFusionProjectParser : IProjectParser
         {
             try
             {
-                var text = File.ReadAllText(boxJsonPath);
+                var text = PhysicalFileStore.ReadAllText(boxJsonPath);
                 var match = Regex.Match(text, @"""name""\s*:\s*""([^""]+)""", RegexOptions.IgnoreCase);
                 if (match.Success && !string.IsNullOrWhiteSpace(match.Groups[1].Value))
                 {
@@ -123,7 +123,7 @@ public class ColdFusionProjectParser : IProjectParser
         {
             try
             {
-                var text = File.ReadAllText(appCfcPath);
+                var text = PhysicalFileStore.ReadAllText(appCfcPath);
                 // Look for this.datasource = '...' or Application.DSN = '...' or Application.datasource = '...'
                 var match = Regex.Match(text, @"(?:this\s*\.\s*datasource|Application\s*\.\s*(?:DSN|datasource))\s*=\s*(?:this\s*\.\s*datasource|['""]([^'""]+)['""])", RegexOptions.IgnoreCase);
                 if (match.Success)

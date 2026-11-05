@@ -270,7 +270,7 @@ public class LinqTests
                 {
                     Id = "ws:db:main",
                     Name = "main_postgres",
-                    DbType = "relational",
+                    DbType = DatabaseType.Relational,
                     Engine = "postgresql"
                 }
             }
@@ -282,7 +282,7 @@ public class LinqTests
         db.Should().NotBeNull();
         db!.Id.Should().Be("ws:db:main");
         db.Name.Should().Be("main_postgres");
-        db.DbType.Should().Be("relational");
+        db.DbType.Should().Be(DatabaseType.Relational);
         db.Engine.Should().Be("postgresql");
         fake.LastQuery!.Limit!.Count.Should().Be(1);
     }
@@ -530,13 +530,13 @@ public class LinqTests
         var graph = new GraphContext(fake);
 
         // Apps
-        var appAst = graph.Apps.Where(a => a.AppType == "spa" && a.Port == 3000).ToCypherAst();
+        var appAst = graph.Apps.Where(a => a.AppType == AppType.Spa && a.Port == 3000).ToCypherAst();
         var appSql = SqliteCompiler.Compile(appAst).Sql;
         appSql.Should().Contain("app_type");
         appSql.Should().Contain("port");
 
         // Workers
-        var workerAst = graph.Workers.Where(w => w.QueueType == "rabbitmq").ToCypherAst();
+        var workerAst = graph.Workers.Where(w => w.QueueType == BrokerType.RabbitMq).ToCypherAst();
         var workerSql = SqliteCompiler.Compile(workerAst).Sql;
         workerSql.Should().Contain("queue_type");
 
@@ -546,20 +546,20 @@ public class LinqTests
         cliSql.Should().Contain("command_name");
 
         // Databases
-        var dbAst = graph.Databases.Where(d => d.DbType == "relational" && d.Engine == "postgres" && d.Port == 5432).ToCypherAst();
+        var dbAst = graph.Databases.Where(d => d.DbType == DatabaseType.Relational && d.Engine == "postgres" && d.Port == 5432).ToCypherAst();
         var dbSql = SqliteCompiler.Compile(dbAst).Sql;
         dbSql.Should().Contain("db_type");
         dbSql.Should().Contain("engine");
         dbSql.Should().Contain("port");
 
         // Topics
-        var topicAst = graph.Topics.Where(t => t.BrokerType == "kafka" && t.PartitionCount == 12).ToCypherAst();
+        var topicAst = graph.Topics.Where(t => t.BrokerType == BrokerType.Kafka && t.PartitionCount == 12).ToCypherAst();
         var topicSql = SqliteCompiler.Compile(topicAst).Sql;
         topicSql.Should().Contain("broker_type");
         topicSql.Should().Contain("partition_count");
 
         // ExternalServices
-        var extAst = graph.ExternalServices.Where(e => e.Protocol == "https" && e.BaseUrl == "https://api.stripe.com" && e.Category == "Payment").ToCypherAst();
+        var extAst = graph.ExternalServices.Where(e => e.Protocol == "https" && e.BaseUrl == "https://api.stripe.com" && e.Category == ExternalServiceCategory.Payment).ToCypherAst();
         var extSql = SqliteCompiler.Compile(extAst).Sql;
         extSql.Should().Contain("protocol");
         extSql.Should().Contain("base_url");

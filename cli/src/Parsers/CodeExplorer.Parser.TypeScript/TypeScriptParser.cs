@@ -251,7 +251,7 @@ public partial class TypeScriptParser : IProjectParser, IFileParser
                 var parentPkgJson = Path.Combine(parentDir, "package.json");
                 if (File.Exists(parentPkgJson))
                 {
-                    var content = File.ReadAllText(parentPkgJson);
+                    var content = PhysicalFileStore.ReadAllText(parentPkgJson);
                     using var doc = System.Text.Json.JsonDocument.Parse(content);
                     if (!doc.RootElement.TryGetProperty("workspaces", out _))
                     {
@@ -304,7 +304,7 @@ public partial class TypeScriptParser : IProjectParser, IFileParser
 
         try
         {
-            var content = File.ReadAllText(packageJsonPath);
+            var content = PhysicalFileStore.ReadAllText(packageJsonPath);
             using var doc = System.Text.Json.JsonDocument.Parse(content);
             var root = doc.RootElement;
             if (root.ValueKind != System.Text.Json.JsonValueKind.Object || !root.EnumerateObject().Any())
@@ -352,7 +352,7 @@ public partial class TypeScriptParser : IProjectParser, IFileParser
         {
             try
             {
-                var content = File.ReadAllText(packageJsonPath);
+                var content = PhysicalFileStore.ReadAllText(packageJsonPath);
 
                 using var doc = System.Text.Json.JsonDocument.Parse(content);
 
@@ -493,7 +493,7 @@ public partial class TypeScriptParser : IProjectParser, IFileParser
 
         try
         {
-            var content = await File.ReadAllTextAsync(packageJsonPath);
+            var content = await PhysicalFileStore.ReadAllTextAsync(packageJsonPath);
 
             using var doc = System.Text.Json.JsonDocument.Parse(content);
 
@@ -537,7 +537,7 @@ public partial class TypeScriptParser : IProjectParser, IFileParser
 
         try
         {
-            var content = await File.ReadAllTextAsync(packageJsonPath);
+            var content = await PhysicalFileStore.ReadAllTextAsync(packageJsonPath);
 
             using var doc = System.Text.Json.JsonDocument.Parse(content);
 
@@ -702,7 +702,7 @@ public partial class TypeScriptParser : IProjectParser, IFileParser
 
         try
         {
-            var content = File.ReadAllText(path);
+            var content = PhysicalFileStore.ReadAllText(path);
 
             using var doc = System.Text.Json.JsonDocument.Parse(content);
 

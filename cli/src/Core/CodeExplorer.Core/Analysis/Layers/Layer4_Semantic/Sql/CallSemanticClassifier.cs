@@ -105,6 +105,12 @@ public static class CallSemanticClassifier
         "setGlobalPrefix", "listen", "enableCors", "provide", "inject", "useClass", "useValue", "useFactory"
     };
 
+    private static readonly HashSet<string> RoutingMethodNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "MapGet", "MapPost", "MapPut", "MapDelete", "MapPatch", "MapMethods", "MapGroup",
+        "MapHub", "MapGrpcService", "MapHealthChecks", "MapControllers", "MapFallback"
+    };
+
     public static (string Role, bool IsDecorator) Classify(Node callNode, string? callName)
     {
         // 1. Check if node is inside a decorator or attribute
@@ -193,6 +199,11 @@ public static class CallSemanticClassifier
         if (DiMethodNames.Contains(methodName))
         {
             return (CallSemanticRole.DependencyInjection, false);
+        }
+
+        if (RoutingMethodNames.Contains(methodName))
+        {
+            return (CallSemanticRole.Routing, false);
         }
 
         // 9. Event calls

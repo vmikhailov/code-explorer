@@ -46,7 +46,7 @@ public static class CSharpDeclarationExtractor
                     {
                         var memName = memNameNode.Text;
                         var eq = child.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause);
-                        Node? valNode = eq.IsValid() && eq.Children.Count > 1 ? eq.Children[1] : null;
+                        Node? valNode = eq.IsValid() && eq.Children.Count > 0 ? eq.Children[^1] : null;
 
                         var keyWithScope = $"{enumName}.{memName}";
                         register(keyWithScope, valNode, valNode == null ? memName : null);
@@ -128,6 +128,7 @@ public static class CSharpDeclarationExtractor
 
     private static bool HasAnyModifier(Node node, params string[] modifiers)
     {
+        if (node is CodeExplorer.Core.Parser.Syntax.DeclarationSyntax decl && ((modifiers.Contains("const") && decl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Const)) || (modifiers.Contains("readonly") && decl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.ReadOnly)) || (modifiers.Contains("static") && decl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Static)))) return true;
         return node.Children.Any(c => modifiers.Contains(c.Text) || modifiers.Contains(c.Type)) ||
                node.FindDescendantsOfType(TreeSitterSyntax.CSharp.Modifier).Any(m => modifiers.Contains(m.Text));
     }

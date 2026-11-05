@@ -160,15 +160,16 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
       title: model.projectName || 'Project Overview',
       subtitle: `${totalFiles} source files`,
       metrics: [
-        { label: 'EntryPoints', value: entryPoints },
-        { label: 'Classes', value: classes },
-        { label: 'Dependencies', value: model.edges.length },
-        { label: 'Resources', value: resources },
+        { label: 'EntryPoints', value: entryPoints, color: '#38bdf8' },
+        { label: model.granularity === 'class' ? 'Classes' : model.granularity === 'file' ? 'Files' : 'Modules', value: classes, color: '#a78bfa' },
+        { label: 'Dependencies', value: model.edges.length, color: '#34d399' },
+        { label: 'Resources', value: resources, color: '#f472b6' },
       ],
       actionBanner: model.cycles.length > 0 ? {
-        text: `⚠️ ${model.cycles.length} dependency cycle(s) detected`,
+        text: `⚠️ ${model.cycles.length} dependency cycle${model.cycles.length === 1 ? '' : 's'} detected`,
         actionLabel: cyclesOnly ? 'ISOLATING' : 'ISOLATE',
         isActive: cyclesOnly,
+        presetId: 'cyclesOnly',
         onAction: () => setCyclesOnly((v) => !v),
       } : undefined,
     };
@@ -178,6 +179,7 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
     ...(model.cycles.length > 0 ? [{
       id: 'cyclesOnly',
       label: 'Cycles Only',
+      description: `${model.cycles.length} dependency cycle${model.cycles.length === 1 ? '' : 's'} detected`,
       icon: '⚠️',
       isActive: cyclesOnly,
       onToggle: () => setCyclesOnly((v) => !v),
@@ -186,6 +188,7 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
     {
       id: 'hideUtilities',
       label: 'Hide Utilities',
+      description: 'Foundation & helper modules (Orbit 4)',
       icon: '🧰',
       isActive: hideUtilities,
       onToggle: () => setHideUtilities((v) => !v),
@@ -193,6 +196,7 @@ export const ProjectMapView: React.FC<ProjectMapViewProps> = ({
     {
       id: 'hideResources',
       label: 'Hide Resources',
+      description: 'Tables, procedures, topics & external APIs',
       icon: '🗄️',
       isActive: hideResources,
       onToggle: () => setHideResources((v) => !v),

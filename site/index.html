@@ -2,25 +2,25 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CodeExplorer (ce): Make AI Coding Agents Production-Safe</title>
-  <meta name="description" content="AI agents see files, not architecture. CodeExplorer gives your agents and engineers a live cross-service map of every API, queue, and database in VS Code and MCP, plus hard architectural guardrails in CI.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>CodeExplorer (ce): Understand, Query &amp; Guard Your Codebase Architecture</title>
+  <meta name="description" content="Compile your polyglot codebase into a fast local SQLite graph. Get always-accurate architecture maps in VS Code, instant architectural memory for AI agents (MCP), and automated architectural guardrails in CI.">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
   <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="CodeExplorer (ce)">
   <meta property="og:url" content="https://code-explorer.app/">
-  <meta property="og:title" content="CodeExplorer (ce): Make AI Coding Agents Production-Safe">
-  <meta property="og:description" content="AI agents see files, not architecture. Give your agents and engineers a live cross-service map of every API, queue, and database in VS Code and MCP, plus hard architectural guardrails in CI.">
+  <meta property="og:title" content="CodeExplorer (ce): Understand, Query &amp; Guard Your Codebase Architecture">
+  <meta property="og:description" content="Always-accurate architecture diagrams from real code, instant MCP memory for AI coding agents, and automated Semantic Invariant Gates in CI, powered by a local SQLite graph.">
   <meta property="og:image" content="https://code-explorer.app/og-image.png?v=2">
   <meta property="og:image:type" content="image/png">
   <meta property="og:image:width" content="512">
   <meta property="og:image:height" content="512">
-  <meta property="og:image:alt" content="CodeExplorer (ce) — 5-Layer Architecture Intelligence Graph">
+  <meta property="og:image:alt" content="CodeExplorer (ce): Polyglot Code Graph &amp; Architecture Intelligence">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="CodeExplorer (ce): Make AI Coding Agents Production-Safe">
-  <meta name="twitter:description" content="AI agents see files, not architecture. Give your agents and engineers a live cross-service map of every API, queue, and database in VS Code and MCP, plus hard architectural guardrails in CI.">
+  <meta name="twitter:title" content="CodeExplorer (ce): Understand, Query &amp; Guard Your Codebase Architecture">
+  <meta name="twitter:description" content="Always-accurate architecture diagrams from real code, instant MCP memory for AI coding agents, and automated Semantic Invariant Gates in CI, powered by a local SQLite graph.">
   <meta name="twitter:image" content="https://code-explorer.app/og-image.png?v=2">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -653,6 +653,12 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
   gap: var(--space-sm);
 }
 
+.panel-head code {
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .panel-title {
   font-size: var(--text-title);
   font-weight: 500;
@@ -1097,8 +1103,25 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
   transform: translateY(0);
 }
 
-/* Responsive Breakpoints */
-@media (max-width: 1024px) {
+/* Responsive Breakpoints (Hallmark responsive.md: 60rem & 40rem + pointer: coarse) */
+@media (pointer: coarse) {
+  .btn,
+  .tab-btn,
+  .preset-btn,
+  .cmd-strip {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 60rem) {
+  :root {
+    --gutter: 24px;
+    --section-gap: 80px;
+    --section-gap-s: 56px;
+  }
+  .slab-links {
+    display: none;
+  }
   .hero-top,
   .band-head,
   .diff-layout,
@@ -1121,9 +1144,39 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
   }
 }
 
-@media (max-width: 680px) {
-  .slab-links {
+@media (max-width: 40rem) {
+  :root {
+    --gutter: max(16px, env(safe-area-inset-left));
+    --section-gap: 56px;
+    --section-gap-s: 40px;
+    --gap-columns: 16px;
+  }
+  .slab-bar {
+    grid-template-columns: auto auto;
+    justify-content: space-between;
+  }
+  .slab-actions .btn--primary {
     display: none;
+  }
+  .workbench-bar {
+    padding: var(--space-sm);
+  }
+  #cockpit .workbench-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    gap: var(--space-2xs);
+  }
+  #cockpit .workbench-tabs .tab-btn {
+    justify-content: center;
+    padding-inline: var(--space-xs);
+  }
+  .workbench-readout {
+    display: none;
+  }
+  .cmd-strip {
+    max-width: 100%;
+    overflow-x: auto;
   }
   .panels--3,
   .panels--2,
@@ -1150,29 +1203,7 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
   <link rel="canonical" href="https://code-explorer.app/">
 
   <!-- Favicons & App Manifest -->
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link rel="apple-touch-icon" href="/icon-512.png">
   <link rel="manifest" href="/site.webmanifest">
-
-  <!-- Open Graph / Facebook / LinkedIn / Slack / Discord -->
-  <meta property="og:type" content="website">
-  <meta property="og:site_name" content="CodeExplorer (ce)">
-  <meta property="og:url" content="https://code-explorer.app/">
-  <meta property="og:title" content="CodeExplorer (ce): Make AI Coding Agents Production-Safe">
-  <meta property="og:description" content="AI agents see files, not architecture. Give your agents and engineers a live cross-service map of every API, queue, and database in VS Code and MCP, plus hard architectural guardrails in CI.">
-  <meta property="og:image" content="https://code-explorer.app/og-image.png?v=2">
-  <meta property="og:image:width" content="512">
-  <meta property="og:image:height" content="512">
-  <meta property="og:image:alt" content="CodeExplorer Interactive Architecture Cockpit in VS Code">
-  <meta property="og:locale" content="en_US">
-
-  <!-- Twitter / X Card -->
-  <meta name="twitter:card" content="summary">
-  <meta name="twitter:url" content="https://code-explorer.app/">
-  <meta name="twitter:title" content="CodeExplorer (ce): Make AI Coding Agents Production-Safe">
-  <meta name="twitter:description" content="AI agents see files, not architecture. Give your agents and engineers a live cross-service map of every API, queue, and database in VS Code and MCP, plus hard architectural guardrails in CI.">
-  <meta name="twitter:image" content="https://code-explorer.app/og-image.png?v=2">
-  <meta name="twitter:image:alt" content="CodeExplorer Interactive Architecture Cockpit in VS Code">
 
   <!-- Structured Data (Schema.org SoftwareApplication for Google Rich Results) -->
   <script type="application/ld+json">
@@ -1184,7 +1215,7 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
     "url": "https://code-explorer.app/",
     "image": "https://code-explorer.app/og-image.png?v=2",
     "screenshot": "https://code-explorer.app/all_services.png",
-    "description": "Make AI coding agents production-safe. CodeExplorer builds a live 5-layer cross-service architecture graph in SQLite, giving engineers and AI agents (via MCP) instant blast-radius discovery in VS Code and hard Semantic Invariant Gates in CI/CD.",
+    "description": "Understand, query, and guard your codebase architecture. CodeExplorer compiles polyglot repositories into a local SQLite graph, giving engineers and AI agents (via MCP) always-accurate architecture maps in VS Code and Semantic Invariant Gates in CI/CD.",
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "Windows, macOS, Linux",
     "softwareVersion": "1.59.1",
@@ -1224,13 +1255,13 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
       </a>
 
       <ul class="slab-links">
-        <li><a href="#cockpit">Cockpit</a></li>
-        <li><a href="#benchmark">Benchmark</a></li>
+        <li><a href="#cockpit">Architecture Map</a></li>
         <li><a href="#playground">OpenCypher</a></li>
-        <li><a href="#gates">Invariant Gates</a></li>
         <li><a href="#ai-mcp">Terminal &amp; MCP</a></li>
-        <li><a href="#ontology">Ontology</a></li>
+        <li><a href="#gates">Invariant Gates</a></li>
+        <li><a href="#benchmark">Benchmark</a></li>
         <li><a href="#install">Install</a></li>
+        <li><a href="https://passport.code-explorer.app" target="_blank" rel="noopener" class="tone-accent">CodePassport</a></li>
       </ul>
 
       <div class="slab-actions">
@@ -1246,10 +1277,15 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
     <section class="hero-stage" id="cockpit">
       <div class="wrap">
         <div class="hero-top">
-          <h1 class="hero-title">Make AI coding agents production-safe.</h1>
+          <div>
+            <span class="measured tone-accent" style="display: inline-block; font-size: var(--text-xs); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: var(--space-sm);">
+              Codebase Graph &amp; Guardrails · For You and Your Agent
+            </span>
+            <h1 class="hero-title">Understand, query, and guard your architecture — <span class="tone-accent">for you and your agent.</span></h1>
+          </div>
           <div class="hero-aside">
             <p class="hero-lede">
-              Live 5-layer polyglot architecture graphs for VS Code, MCP agents, and CI.
+              CodeExplorer compiles your repositories (C#, Java, Kotlin, TS/JS, Python, Go, Rust, SQL) into one fast local SQLite graph: giving you live architecture diagrams that never go stale, deterministic memory for your AI coding agents (MCP), and automated architectural rules in CI.
             </p>
             <div class="hero-controls">
               <a href="https://marketplace.visualstudio.com/items?itemName=CodeExplorer.code-explorer" target="_blank" rel="noopener" class="btn btn--primary">Install VS Code Extension</a>
@@ -1263,13 +1299,44 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
           </div>
         </div>
 
+        <!-- 3 Clear Questions / Pillars Strip -->
+        <div class="panels panels--3" style="margin-bottom: var(--space-xl);">
+          <div class="panel">
+            <div class="panel-head">
+              <h2 class="panel-title">1. Understand It Yourself</h2>
+              <code class="tone-accent">VS Code</code>
+            </div>
+            <p class="panel-copy">
+              Always-real diagrams of microservices, REST/gRPC APIs, message queues, and SQL tables built straight from code. Never redraw stale schemas by hand when code changes.
+            </p>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h2 class="panel-title">2. Give Memory to Your AI</h2>
+              <code class="tone-cool">MCP Server</code>
+            </div>
+            <p class="panel-copy">
+              Attach <code>ce mcp</code> to Claude Code or Cursor. Your AI agent queries exact call chains and blast radius in milliseconds instead of burning tokens on blind <code>grep</code>.
+            </p>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h2 class="panel-title">3. Guard Architecture in CI</h2>
+              <code class="tone-ok">SIG + Ratchet</code>
+            </div>
+            <p class="panel-copy">
+              Enforce custom and built-in architectural rules on every PR. Freeze existing legacy tech debt as a baseline ratchet (<code>ce gate ratchet</code>) so CI stays green while blocking new violations.
+            </p>
+          </div>
+        </div>
+
         <!-- Interactive VS Code Architecture Cockpit Workbench -->
         <div class="workbench">
           <div class="workbench-bar">
             <div class="workbench-tabs" role="tablist" aria-label="Architecture Cockpit views">
-              <button type="button" class="tab-btn active" onclick="switchShowcase(0, this)">Concentric Orbits (All Services)</button>
-              <button type="button" class="tab-btn" onclick="switchShowcase(1, this)">Transitive Contraction (Focused Slice)</button>
-              <button type="button" class="tab-btn" onclick="switchShowcase(2, this)">Project Flow &amp; C1 Context</button>
+              <button type="button" class="tab-btn active" onclick="switchShowcase(0, this)">1. System Map</button>
+              <button type="button" class="tab-btn" onclick="switchShowcase(1, this)">2. Blast Radius</button>
+              <button type="button" class="tab-btn" onclick="switchShowcase(2, this)">3. Call Flows</button>
             </div>
             <span class="workbench-readout">VS Code Webview · <code id="showcasePathLabel">all_services.png</code></span>
           </div>
@@ -1280,74 +1347,12 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
 
           <div class="cockpit-footer">
             <p class="cockpit-caption" id="showcaseDescription">
-              <strong>Concentric Orbits &amp; Cross-Language Topology:</strong> Every microservice, REST/gRPC endpoint, RabbitMQ exchange, and database table rendered in real time. Double-click any service to drill into internal call chains.
+              <strong>Full System Architecture Map:</strong> Every microservice, REST/gRPC endpoint, RabbitMQ/Kafka topic, and database table rendered automatically from your code. Double-click any service to drill into internal call chains.
             </p>
             <div class="cockpit-metrics" id="showcasePills">
-              <span class="metric-chip metric-chip--accent">5 Ontology Layers</span>
+              <span class="metric-chip metric-chip--accent">Always Synced With Code</span>
               <span class="metric-chip metric-chip--ok">Sub-10ms SQLite Queries</span>
               <span class="metric-chip">Click image to enlarge</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Section 1: Enterprise Benchmark Diff & Core Capabilities -->
-    <section class="band" id="benchmark">
-      <div class="wrap">
-        <div class="band-head">
-          <h2 class="band-title">Measured on a 324-service enterprise platform (450 modules).</h2>
-          <p class="band-lede">
-            When an AI agent audits a distributed microservices system with text grep, it burns millions of cumulative tokens reading files and writing ad-hoc scripts, yet still misses indirect service and broker calls. With CodeExplorer, deterministic graph queries resolve the complete blast radius in minutes.
-          </p>
-        </div>
-
-        <div class="diff-layout">
-          <div class="diff-surface" role="region" aria-label="Enterprise benchmark comparison">
-            <div class="diff-head">
-              <span>Task: 4-part cross-service architectural audit across 324 microservices (13,782 files)</span>
-              <span class="measured">A/B Paired Eval</span>
-            </div>
-            <div class="diff-row diff-row--minus">
-              <span class="diff-sign">-</span>
-              <span>Plain AI Agent (<code>ripgrep</code> + 114 file reads + 14 scripts)</span>
-              <span class="diff-val">29m 52s, 284 tool calls, 17.2M tokens</span>
-            </div>
-            <div class="diff-row diff-row--plus">
-              <span class="diff-sign">+</span>
-              <span>AI Agent + CodeExplorer (<code>ce callers</code> &amp; <code>ce query</code>)</span>
-              <span class="diff-val">3m 56s, 19 tool calls, 393K tokens</span>
-            </div>
-            <div class="diff-row diff-row--minus">
-              <span class="diff-sign">-</span>
-              <span>Downstream services &amp; async Pub/Sub callers discovered (baseline)</span>
-              <span class="diff-val">~82% recall (missed 9 services &amp; 15+ callers)</span>
-            </div>
-            <div class="diff-row diff-row--plus">
-              <span class="diff-sign">+</span>
-              <span>Downstream services &amp; async Pub/Sub callers discovered (CodeExplorer)</span>
-              <span class="diff-val">100% recall (0 missed services or callers)</span>
-            </div>
-          </div>
-
-          <div class="panels panels--3">
-            <div class="panel panel--sunken">
-              <span class="reading tone-accent">8×</span>
-              <h3 class="panel-title">Wall-clock speedup</h3>
-              <p class="panel-copy">Cut end-to-end architectural audit time from 29m 52s down to 3m 56s.</p>
-              <code class="panel-code">29m 52s to 3m 56s</code>
-            </div>
-            <div class="panel panel--sunken">
-              <span class="reading tone-ok">44×</span>
-              <h3 class="panel-title">Token compression</h3>
-              <p class="panel-copy">Reduced cumulative input tokens from 17.2M to 393K with zero context compactions.</p>
-              <code class="panel-code">17.2M to 393K tokens</code>
-            </div>
-            <div class="panel panel--sunken">
-              <span class="reading">100%</span>
-              <h3 class="panel-title">Edges resolved</h3>
-              <p class="panel-copy">Resolves HTTP/RPC clients, Pub/Sub &amp; RabbitMQ topics, and SQL tables in one graph.</p>
-              <code class="panel-code">L1 AST to L5 Topology</code>
             </div>
           </div>
         </div>
@@ -1423,7 +1428,7 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
       </div>
     </section>
 
-    <!-- Section 2: Interactive OpenCypher Query Playground -->
+    <!-- Section 1: Interactive OpenCypher Query Playground -->
     <section class="band" id="playground">
       <div class="wrap">
         <div class="band-head">
@@ -1469,11 +1474,63 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
       </div>
     </section>
 
+    <!-- Section 2: Native CLI & Model Context Protocol (MCP) Server -->
+    <section class="band" id="ai-mcp">
+      <div class="wrap">
+        <div class="band-head">
+          <h2 class="band-title">One graph for engineers and AI agents.</h2>
+          <p class="band-lede">
+            CodeExplorer indexes your repository and stores the graph locally. Use the fast native CLI in your terminal, or attach the built-in MCP server to Claude Code, Cursor, Windsurf, or Antigravity.
+          </p>
+        </div>
+
+        <div class="panels panels--2">
+          <div class="panel panel--sunken">
+            <div class="panel-head">
+              <h3 class="panel-title">Terminal CLI Workflow</h3>
+              <code class="tone-accent">ce scan, ce query, ce gate</code>
+            </div>
+            <p class="panel-copy">
+              Incremental file-hash caching re-parses only modified files in milliseconds. Output clean tables for humans or compact JSON/SARIF for automation.
+            </p>
+            <pre class="code-view" style="margin-top: var(--space-sm);"><span class="syn-cmt"># 1. Initialize and index polyglot workspace</span>
+<span class="tone-accent">$</span> ce init &amp;&amp; ce scan
+<span class="tone-ok">Indexed 452 modules, 18,420 types, 142,810 edges in 3.4s</span>
+
+<span class="syn-cmt"># 2. Inspect cross-service blast radius</span>
+<span class="tone-accent">$</span> ce impact OrdersController.CreateOrder --depth 4
+
+<span class="syn-cmt"># 3. Enforce Semantic Invariant Gates</span>
+<span class="tone-accent">$</span> ce gate check --ratchet
+<span class="tone-ok">PASS: 14 gates verified (0 net-new violations)</span></pre>
+          </div>
+
+          <div class="panel panel--sunken">
+            <div class="panel-head">
+              <h3 class="panel-title">Model Context Protocol (MCP) Server</h3>
+              <button type="button" class="btn" onclick="copyMCPConfig()">Copy MCP JSON</button>
+            </div>
+            <p class="panel-copy">
+              Add CodeExplorer to your agent’s <code>mcpServers</code> configuration. Gives agents <code>get_architecture_map</code>, <code>find_symbol</code>, <code>get_call_chain</code>, <code>analyze_code_impact</code>, and <code>inspect_data_lineage</code>.
+            </p>
+            <pre class="code-view" id="mcpConfigSnippet" style="margin-top: var(--space-sm);">{
+  <span class="syn-kw">"mcpServers"</span>: {
+    <span class="syn-fn">"code-explorer"</span>: {
+      <span class="syn-kw">"command"</span>: <span class="syn-str">"ce"</span>,
+      <span class="syn-kw">"args"</span>: [<span class="syn-str">"mcp"</span>]
+    }
+  }
+}</pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Section 3: Semantic Invariant Gates (SIG) & Baseline Ratchet -->
     <section class="band" id="gates">
       <div class="wrap">
         <div class="band-head">
-          <h2 class="band-title">Semantic Invariant Gates: compiler-grade guardrails for AI agents.</h2>
+          <h2 class="band-title">Semantic Invariant Gates: deterministic guardrails for AI agents.</h2>
           <p class="band-lede">
             Linters check syntax inside a single file. Semantic Invariant Gates (SIG) verify architectural invariants across your entire 5-layer graph, accompanied by a cryptographic baseline ratchet so legacy debt only moves downward.
           </p>
@@ -1594,59 +1651,7 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
       </div>
     </section>
 
-    <!-- Section 4: Native CLI & Model Context Protocol (MCP) Server -->
-    <section class="band" id="ai-mcp">
-      <div class="wrap">
-        <div class="band-head">
-          <h2 class="band-title">One SQLite graph for engineers and AI agents.</h2>
-          <p class="band-lede">
-            CodeExplorer indexes your repository into <code>.codeexplorer/graph.db</code>. Use the fast native CLI in your terminal, or attach the built-in MCP server to Claude Code, Cursor, Windsurf, or Antigravity.
-          </p>
-        </div>
-
-        <div class="panels panels--2">
-          <div class="panel panel--sunken">
-            <div class="panel-head">
-              <h3 class="panel-title">Terminal CLI Workflow</h3>
-              <code class="tone-accent">ce scan, ce query, ce gate</code>
-            </div>
-            <p class="panel-copy">
-              Incremental file-hash caching re-parses only modified files in milliseconds. Output clean tables for humans or compact JSON/SARIF for automation.
-            </p>
-            <pre class="code-view" style="margin-top: var(--space-sm);"><span class="syn-cmt"># 1. Initialize and index polyglot workspace</span>
-<span class="tone-accent">$</span> ce init &amp;&amp; ce scan
-<span class="tone-ok">Indexed 452 modules, 18,420 types, 142,810 edges in 3.4s</span>
-
-<span class="syn-cmt"># 2. Inspect cross-service blast radius</span>
-<span class="tone-accent">$</span> ce impact OrdersController.CreateOrder --depth 4
-
-<span class="syn-cmt"># 3. Enforce Semantic Invariant Gates</span>
-<span class="tone-accent">$</span> ce gate check --ratchet
-<span class="tone-ok">PASS: 14 gates verified (0 net-new violations)</span></pre>
-          </div>
-
-          <div class="panel panel--sunken">
-            <div class="panel-head">
-              <h3 class="panel-title">Model Context Protocol (MCP) Server</h3>
-              <button type="button" class="btn" onclick="copyMCPConfig()">Copy MCP JSON</button>
-            </div>
-            <p class="panel-copy">
-              Add CodeExplorer to your agent’s <code>mcpServers</code> configuration. Gives agents <code>get_architecture_map</code>, <code>find_symbol</code>, <code>get_call_chain</code>, <code>analyze_code_impact</code>, and <code>inspect_data_lineage</code>.
-            </p>
-            <pre class="code-view" id="mcpConfigSnippet" style="margin-top: var(--space-sm);">{
-  <span class="syn-kw">"mcpServers"</span>: {
-    <span class="syn-fn">"code-explorer"</span>: {
-      <span class="syn-kw">"command"</span>: <span class="syn-str">"ce"</span>,
-      <span class="syn-kw">"args"</span>: [<span class="syn-str">"mcp"</span>]
-    }
-  }
-}</pre>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Section 5: 5-Layer Graph Ontology Trail & Polyglot AST Matrix -->
+    <!-- Section 4: 5-Layer Graph Ontology Trail & Polyglot AST Matrix -->
     <section class="band" id="ontology">
       <div class="wrap">
         <div class="band-head">
@@ -1734,6 +1739,68 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
             <span class="lang-code">SQL</span>
             <span class="lang-name">Database Schemas</span>
             <span class="lang-detail">Tables, Views, Stored Procedures, Foreign Keys</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 5: Enterprise Benchmark Diff -->
+    <section class="band" id="benchmark">
+      <div class="wrap">
+        <div class="band-head">
+          <h2 class="band-title">Measured on a 324-service enterprise platform (450 modules).</h2>
+          <p class="band-lede">
+            When an AI agent audits a distributed microservices system with text grep, it burns millions of cumulative tokens reading files and writing ad-hoc scripts, yet still misses indirect service and broker calls. With CodeExplorer, deterministic graph queries resolve the complete blast radius in minutes.
+          </p>
+        </div>
+
+        <div class="diff-layout">
+          <div class="diff-surface" role="region" aria-label="Enterprise benchmark comparison">
+            <div class="diff-head">
+              <span>Task: 4-part cross-service architectural audit across 324 microservices (13,782 files)</span>
+              <span class="measured">A/B Paired Eval</span>
+            </div>
+            <div class="diff-row diff-row--minus">
+              <span class="diff-sign">-</span>
+              <span>Plain AI Agent (<code>ripgrep</code> + 114 file reads + 14 scripts)</span>
+              <span class="diff-val">29m 52s, 284 tool calls, 17.2M tokens</span>
+            </div>
+            <div class="diff-row diff-row--plus">
+              <span class="diff-sign">+</span>
+              <span>AI Agent + CodeExplorer (<code>ce callers</code> &amp; <code>ce query</code>)</span>
+              <span class="diff-val">3m 56s, 19 tool calls, 393K tokens</span>
+            </div>
+            <div class="diff-row diff-row--minus">
+              <span class="diff-sign">-</span>
+              <span>Downstream services &amp; async Pub/Sub callers discovered (baseline)</span>
+              <span class="diff-val">~82% recall (missed 9 services &amp; 15+ callers)</span>
+            </div>
+            <div class="diff-row diff-row--plus">
+              <span class="diff-sign">+</span>
+              <span>Downstream services &amp; async Pub/Sub callers discovered (CodeExplorer)</span>
+              <span class="diff-val">100% recall (0 missed services or callers)</span>
+            </div>
+          </div>
+
+          <div class="panels panels--3">
+            <div class="panel panel--sunken">
+              <span class="reading tone-accent">8×</span>
+              <h3 class="panel-title">Wall-clock speedup</h3>
+              <p class="panel-copy">Cut end-to-end architectural audit time from 29m 52s down to 3m 56s.</p>
+              <code class="panel-code">29m 52s to 3m 56s</code>
+            </div>
+            <div class="panel panel--sunken">
+              <span class="reading tone-ok">44×</span>
+              <h3 class="panel-title">Token compression</h3>
+              <p class="panel-copy">Reduced cumulative input tokens from 17.2M to 393K with zero context compactions.</p>
+              <code class="panel-code">17.2M to 393K tokens</code>
+            </div>
+            <div class="panel panel--sunken">
+              <span class="reading">100%</span>
+              <h3 class="panel-title">Edges resolved</h3>
+              <p class="panel-copy">Resolves HTTP/RPC clients, Pub/Sub &amp; RabbitMQ topics, and SQL tables in one graph.</p>
+              <code class="panel-code">L1 AST to L5 Topology</code>
+            </div>
           </div>
         </div>
       </div>
@@ -1914,25 +1981,25 @@ button:disabled, input:disabled, select:disabled, textarea:disabled,
     const showcaseSlides = [
       {
         src: 'all_services.png',
-        description: '<strong>Concentric Orbits &amp; Cross-Language Topology:</strong> Every microservice, REST/gRPC endpoint, RabbitMQ exchange, and database table rendered in real time. Double-click any service to drill into internal call chains.',
+        description: '<strong>Full System Architecture Map:</strong> Every microservice, REST/gRPC endpoint, RabbitMQ/Kafka topic, and database table rendered automatically from your code. Double-click any service to drill into internal call chains.',
         pills: [
-          '<span class="metric-chip metric-chip--accent">5 Ontology Layers</span>',
+          '<span class="metric-chip metric-chip--accent">Always Synced With Code</span>',
           '<span class="metric-chip metric-chip--ok">Sub-10ms SQLite Queries</span>',
           '<span class="metric-chip">Click image to enlarge</span>'
         ]
       },
       {
         src: 'selected_services.png',
-        description: '<strong>Transitive Contraction (Focused Slice):</strong> Select the services relevant to your task and hide the rest. CodeExplorer contracts intermediate hops into dashed transitive edges so you never lose indirect dependencies.',
+        description: '<strong>Focused Dependency Slice (Blast Radius):</strong> Pick only the services relevant to your task and hide the rest. CodeExplorer collapses intermediate hops into dashed indirect edges so you see the exact blast radius without visual clutter.',
         pills: [
-          '<span class="metric-chip metric-chip--accent">Transitive Edge Contraction</span>',
+          '<span class="metric-chip metric-chip--accent">Blast Radius View</span>',
           '<span class="metric-chip metric-chip--ok">Zero Noise Focus</span>',
           '<span class="metric-chip">Click image to enlarge</span>'
         ]
       },
       {
         src: 'project_flow.png',
-        description: '<strong>Project Flow &amp; C1 Context:</strong> Trace synchronous HTTP/gRPC calls, asynchronous message broker publications, and SQL table reads/writes across project boundaries before modifying a single line of code.',
+        description: '<strong>Cross-Service Call Flows (API → Queue → DB):</strong> Trace synchronous HTTP/gRPC calls, asynchronous message broker publications, and SQL table reads/writes across project boundaries before modifying a single line of code.',
         pills: [
           '<span class="metric-chip metric-chip--accent">End-to-End Call Chains</span>',
           '<span class="metric-chip metric-chip--ok">SQL &amp; Broker Lineage</span>',

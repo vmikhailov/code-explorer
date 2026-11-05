@@ -73,20 +73,30 @@ public static partial class AstValueResolver
 
         if (!hasInterpolationChildren &&
             (node is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.Char or LiteralSyntaxKind.RawString } ||
-             (node.Children.Count == 0 && IsQuoted(node.Text))))
+             (node.Children.Count == 0 && IsQuoted(node.AsSpan()))))
         {
-            if (ContainsObfuscatedHexOrUnicodeEscapes(node.Text))
+            if (node is LiteralExprSyntax litNode)
+            {
+                if (litNode.IsDecoded)
+                {
+                    _lastResolvedWasDecoded = true;
+                }
+                result = litNode.ValueText;
+                return true;
+            }
+            var rawSpan = node.AsSpan();
+            if (ContainsObfuscatedHexOrUnicodeEscapes(rawSpan))
             {
                 _lastResolvedWasDecoded = true;
             }
-            result = Unquote(node.Text);
+            result = Unquote(rawSpan);
             return true;
         }
 
         // 2. Numeric and Boolean Literals
-        if (node is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.Integer or LiteralSyntaxKind.Float or LiteralSyntaxKind.Boolean })
+        if (node is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.Integer or LiteralSyntaxKind.Float or LiteralSyntaxKind.Boolean } numLit)
         {
-            result = node.Text.Trim();
+            result = numLit.ValueText;
             return true;
         }
 

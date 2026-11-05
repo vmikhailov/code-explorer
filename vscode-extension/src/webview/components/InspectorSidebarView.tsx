@@ -15,10 +15,7 @@ import { CustomNodeGroup, NodeContentMode, NodeSizingMode } from '../domain/type
 import { DomainInspector, RawEdgeInfo } from '../domain/components/DomainInspector';
 import { DomainOrbitsPanel } from '../domain/components/DomainOrbitsPanel';
 import { DomainVisibilityPanel } from '../domain/components/DomainVisibilityPanel';
-import {
-  DomainSettingsPanel,
-  ProjectMapPresetsState,
-} from '../domain/components/DomainSettingsPanel';
+import { DomainSettingsPanel } from '../domain/components/DomainSettingsPanel';
 import { DomainOverrideModal } from './DomainOverrideModal';
 import {
   InfoIcon,
@@ -28,7 +25,33 @@ import {
 } from './Icons';
 import { getVsCodeApi } from '../vscodeApi';
 
-export type { ProjectMapPresetsState };
+export interface InspectorOverviewMetric {
+  label: string;
+  value: string | number;
+  color?: string;
+}
+
+export interface InspectorOverviewState {
+  title: string;
+  subtitle?: string;
+  icon?: string;
+  metrics: InspectorOverviewMetric[];
+  actionBanner?: {
+    text: string;
+    actionLabel: string;
+    isActive: boolean;
+    presetId?: string;
+  };
+}
+
+export interface InspectorVisibilityPresetState {
+  id: string;
+  label: string;
+  description?: string;
+  icon?: string;
+  isActive: boolean;
+  badge?: string | number;
+}
 
 export interface InspectorSyncedState {
   hudLabel?: string;
@@ -86,7 +109,9 @@ export interface InspectorSyncedState {
   fontSize: number;
   curveFactor: number;
   wheelSensitivity: number;
-  projectMapPresets?: ProjectMapPresetsState;
+  defaultOrbitConfig?: OrbitConfig;
+  inspectorOverview?: InspectorOverviewState;
+  customVisibilityPresets?: InspectorVisibilityPresetState[];
 }
 
 export type InspectorAction =
@@ -133,7 +158,87 @@ export type InspectorAction =
   | { type: 'SET_FONT_SIZE'; fontSize: number }
   | { type: 'SET_CURVE_FACTOR'; curveFactor: number }
   | { type: 'SET_WHEEL_SENSITIVITY'; wheelSensitivity: number }
-  | { type: 'TOGGLE_PM_PRESET'; preset: 'cyclesOnly' | 'hideUtilities' | 'hideResources' };
+  | { type: 'TOGGLE_CUSTOM_PRESET'; presetId: string }
+  | { type: 'TRIGGER_OVERVIEW_BANNER'; presetId?: string };
+
+function applyOptimisticInspectorAction(
+  prev: InspectorSyncedState | null,
+  action: InspectorAction
+): InspectorSyncedState | null {
+  if (!prev) return prev;
+  switch (action.type) {
+    case 'SET_SIDEBAR_TAB':
+      return { ...prev, effectiveSidebarTab: action.tab };
+    case 'SET_LAYOUT':
+      return { ...prev, layoutName: action.layoutName };
+    case 'SET_SPACING':
+      return { ...prev, spacingFactor: action.spacingFactor };
+    case 'SET_ORBIT_DISTANCE':
+      return { ...prev, orbitDistance: action.orbitDistance };
+    case 'SET_MIN_ORBIT_NODE_DISTANCE':
+      return { ...prev, minOrbitNodeDistance: action.minOrbitNodeDistance };
+    case 'SET_AUTO_RELAYOUT':
+      return { ...prev, autoRelayoutOnFilter: action.enabled };
+    case 'SET_NODE_CONTENT_MODE':
+      return { ...prev, nodeContentMode: action.mode };
+    case 'SET_NODE_SIZING_MODE':
+      return { ...prev, nodeSizingMode: action.mode };
+    case 'SET_EDGE_CURVE_MODE':
+      return { ...prev, edgeCurveMode: action.mode };
+    case 'SET_EDGE_LABELS_ON_HOVER':
+      return { ...prev, edgeLabelsOnHover: action.onHover };
+    case 'SET_FONT_SIZE':
+      return { ...prev, fontSize: action.fontSize };
+    case 'SET_CURVE_FACTOR':
+      return { ...prev, curveFactor: action.curveFactor };
+    case 'SET_WHEEL_SENSITIVITY':
+      return { ...prev, wheelSensitivity: action.wheelSensitivity };
+    default:
+      return prev;
+  }
+}
+
+const InspectorEmptyState: React.FC = () => (
+  <div
+    style={{
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      height: '100vh',
+      padding: '24px 16px',
+      textAlign: 'center',
+      color: 'var(--vscode-sideBar-foreground, #94a3b8)',
+      background: 'var(--vscode-sideBar-background, #181818)',
+      gap: '12px',
+    }}
+  >
+    <div style={{ fontSize: '28px', opacity: 0.75 }}>🪐</div>
+    <div style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0' }}>
+      Graph Inspector & Settings
+    </div>
+    <div style={{ fontSize: '11.5px', lineHeight: 1.5, maxWidth: '240px' }}>
+      Open an Architecture Map or Project Map tab to inspect nodes, configure orbits, and adjust settings here.
+    </div>
+    <button
+      type="button"
+      className="domain-hud-btn"
+      style={{ marginTop: '4px', padding: '6px 12px', fontSize: '11.5px' }}
+      onClick={() => getVsCodeApi()?.postMessage({ type: 'OPEN_VIEW', viewMode: 'semantic' })}
+    >
+      Open Architecture Map
+    </button>
+    <button
+      type="button"
+      className="domain-hud-btn"
+      style={{ padding: '4px 10px', fontSize: '10.5px', opacity: 0.8 }}
+      onClick={() => getVsCodeApi()?.postMessage({ type: 'MOVE_INSPECTOR_VIEW' })}
+      title="Move this panel to the Secondary Side Bar (Right, next to AI Chat) or Primary Side Bar"
+    >
+      ⇄ Move Panel Location...
+    </button>
+  </div>
+);
 
 export const InspectorSidebarView: React.FC = () => {
   const [state, setState] = useState<InspectorSyncedState | null>(null);
@@ -141,41 +246,7 @@ export const InspectorSidebarView: React.FC = () => {
   const [overrideTargetService, setOverrideTargetService] = useState('');
 
   const dispatch = useCallback((action: InspectorAction) => {
-    // Optimistically update local state for immediate slider/tab feedback
-    setState((prev) => {
-      if (!prev) return prev;
-      switch (action.type) {
-        case 'SET_SIDEBAR_TAB':
-          return { ...prev, effectiveSidebarTab: action.tab };
-        case 'SET_LAYOUT':
-          return { ...prev, layoutName: action.layoutName };
-        case 'SET_SPACING':
-          return { ...prev, spacingFactor: action.spacingFactor };
-        case 'SET_ORBIT_DISTANCE':
-          return { ...prev, orbitDistance: action.orbitDistance };
-        case 'SET_MIN_ORBIT_NODE_DISTANCE':
-          return { ...prev, minOrbitNodeDistance: action.minOrbitNodeDistance };
-        case 'SET_AUTO_RELAYOUT':
-          return { ...prev, autoRelayoutOnFilter: action.enabled };
-        case 'SET_NODE_CONTENT_MODE':
-          return { ...prev, nodeContentMode: action.mode };
-        case 'SET_NODE_SIZING_MODE':
-          return { ...prev, nodeSizingMode: action.mode };
-        case 'SET_EDGE_CURVE_MODE':
-          return { ...prev, edgeCurveMode: action.mode };
-        case 'SET_EDGE_LABELS_ON_HOVER':
-          return { ...prev, edgeLabelsOnHover: action.onHover };
-        case 'SET_FONT_SIZE':
-          return { ...prev, fontSize: action.fontSize };
-        case 'SET_CURVE_FACTOR':
-          return { ...prev, curveFactor: action.curveFactor };
-        case 'SET_WHEEL_SENSITIVITY':
-          return { ...prev, wheelSensitivity: action.wheelSensitivity };
-        default:
-          return prev;
-      }
-    });
-
+    setState((prev) => applyOptimisticInspectorAction(prev, action));
     getVsCodeApi()?.postMessage({
       type: 'INSPECTOR_ACTION',
       action,
@@ -223,47 +294,7 @@ export const InspectorSidebarView: React.FC = () => {
   const orbitConfig = state?.orbitConfig || DEFAULT_ORBIT_CONFIG;
 
   if (!state) {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100vh',
-          padding: '24px 16px',
-          textAlign: 'center',
-          color: 'var(--vscode-sideBar-foreground, #94a3b8)',
-          background: 'var(--vscode-sideBar-background, #181818)',
-          gap: '12px',
-        }}
-      >
-        <div style={{ fontSize: '28px', opacity: 0.75 }}>🪐</div>
-        <div style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0' }}>
-          Graph Inspector & Settings
-        </div>
-        <div style={{ fontSize: '11.5px', lineHeight: 1.5, maxWidth: '240px' }}>
-          Open an Architecture Map or Project Map tab to inspect nodes, configure orbits, and adjust settings here.
-        </div>
-        <button
-          type="button"
-          className="domain-hud-btn"
-          style={{ marginTop: '4px', padding: '6px 12px', fontSize: '11.5px' }}
-          onClick={() => getVsCodeApi()?.postMessage({ type: 'OPEN_VIEW', viewMode: 'semantic' })}
-        >
-          Open Architecture Map
-        </button>
-        <button
-          type="button"
-          className="domain-hud-btn"
-          style={{ padding: '4px 10px', fontSize: '10.5px', opacity: 0.8 }}
-          onClick={() => getVsCodeApi()?.postMessage({ type: 'MOVE_INSPECTOR_VIEW' })}
-          title="Move this panel to the Secondary Side Bar (Right, next to AI Chat) or Primary Side Bar"
-        >
-          ⇄ Move Panel Location...
-        </button>
-      </div>
-    );
+    return <InspectorEmptyState />;
   }
 
   const {
@@ -294,73 +325,39 @@ export const InspectorSidebarView: React.FC = () => {
     curveFactor,
     wheelSensitivity,
     isMatrixMode,
-    projectMapPresets,
+    defaultOrbitConfig,
+    inspectorOverview,
+    customVisibilityPresets,
   } = state;
 
   const currentTab = effectiveSidebarTab || 'info';
   const isSwimlanes = layoutName === 'swimlanes';
-  const unitName = isSwimlanes ? 'Lane' : 'Orbit';
   const unitsName = isSwimlanes ? 'Lanes' : 'Orbits';
 
-  const customPresetsSlot = projectMapPresets ? (
+  const customPresetsSlot = customVisibilityPresets && customVisibilityPresets.length > 0 ? (
     <>
-      {projectMapPresets.cyclesCount > 0 && (
+      {customVisibilityPresets.map((preset) => (
         <button
+          key={preset.id}
           type="button"
-          className={`visibility-preset-item ${projectMapPresets.cyclesOnly ? 'is-active' : ''}`}
-          onClick={() => dispatch({ type: 'TOGGLE_PM_PRESET', preset: 'cyclesOnly' })}
-          title="Isolate only modules involved in dependency cycles"
+          className={`visibility-preset-item ${preset.isActive ? 'is-active' : ''}`}
+          onClick={() => dispatch({ type: 'TOGGLE_CUSTOM_PRESET', presetId: preset.id })}
+          title={preset.description || preset.label}
         >
           <div className="visibility-preset-main">
-            <span className="visibility-preset-icon">⚠️</span>
+            {preset.icon && <span className="visibility-preset-icon">{preset.icon}</span>}
             <div className="visibility-preset-text">
-              <span className="visibility-preset-label">Cycles Only</span>
-              <span className="visibility-preset-desc">
-                {projectMapPresets.cyclesCount} dependency cycle{projectMapPresets.cyclesCount === 1 ? '' : 's'} detected
-              </span>
+              <span className="visibility-preset-label">{preset.label}</span>
+              {preset.description && (
+                <span className="visibility-preset-desc">{preset.description}</span>
+              )}
             </div>
           </div>
-          <div className={`visibility-preset-toggle ${projectMapPresets.cyclesOnly ? 'is-on' : ''}`}>
-            {projectMapPresets.cyclesOnly ? 'ON' : 'OFF'}
+          <div className={`visibility-preset-toggle ${preset.isActive ? 'is-on' : ''}`}>
+            {preset.isActive ? 'ON' : 'OFF'}
           </div>
         </button>
-      )}
-
-      <button
-        type="button"
-        className={`visibility-preset-item ${projectMapPresets.hideUtilities ? 'is-active' : ''}`}
-        onClick={() => dispatch({ type: 'TOGGLE_PM_PRESET', preset: 'hideUtilities' })}
-        title={`Hide foundation/utility modules (${unitName} 4)`}
-      >
-        <div className="visibility-preset-main">
-          <span className="visibility-preset-icon">🧰</span>
-          <div className="visibility-preset-text">
-            <span className="visibility-preset-label">Hide Utilities</span>
-            <span className="visibility-preset-desc">Foundation & helper modules ({unitName} 4)</span>
-          </div>
-        </div>
-        <div className={`visibility-preset-toggle ${projectMapPresets.hideUtilities ? 'is-on' : ''}`}>
-          {projectMapPresets.hideUtilities ? 'ON' : 'OFF'}
-        </div>
-      </button>
-
-      <button
-        type="button"
-        className={`visibility-preset-item ${projectMapPresets.hideResources ? 'is-active' : ''}`}
-        onClick={() => dispatch({ type: 'TOGGLE_PM_PRESET', preset: 'hideResources' })}
-        title="Hide database tables, procedures, topics, and external resources"
-      >
-        <div className="visibility-preset-main">
-          <span className="visibility-preset-icon">🗄️</span>
-          <div className="visibility-preset-text">
-            <span className="visibility-preset-label">Hide Resources</span>
-            <span className="visibility-preset-desc">Tables, procedures, topics & external APIs</span>
-          </div>
-        </div>
-        <div className={`visibility-preset-toggle ${projectMapPresets.hideResources ? 'is-on' : ''}`}>
-          {projectMapPresets.hideResources ? 'ON' : 'OFF'}
-        </div>
-      </button>
+      ))}
     </>
   ) : undefined;
 
@@ -463,95 +460,78 @@ export const InspectorSidebarView: React.FC = () => {
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         {currentTab === 'info' && (
           <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-            {/* If Project Map stats exist, render the stats strip at the top of the Info tab */}
-            {projectMapPresets && (projectMapPresets.entryPointCount !== undefined || projectMapPresets.moduleCount !== undefined) && (
+            {/* If declarative overview metrics exist, render the stats strip at the top of the Info tab */}
+            {inspectorOverview && inspectorOverview.metrics.length > 0 && (
               <div className="inspector-project-stat-strip">
-                {projectMapPresets.entryPointCount !== undefined && projectMapPresets.entryPointCount > 0 && (
-                  <span className="pm-chip" title="EntryPoints & Endpoints in Orbit 0">
-                    {projectMapPresets.entryPointCount} {projectMapPresets.entryPointCount === 1 ? 'entrypoint' : 'entrypoints'}
+                {inspectorOverview.metrics.map((m) => (
+                  <span key={m.label} className="pm-chip" title={m.label}>
+                    {m.value} {m.label.toLowerCase()}
                   </span>
-                )}
-                {projectMapPresets.moduleCount !== undefined && (
-                  <span className="pm-chip" title="Classes / modules in this project">
-                    {projectMapPresets.moduleCount} {projectMapPresets.granularity === 'class' ? 'classes' : projectMapPresets.granularity === 'file' ? 'files' : 'modules'}
-                  </span>
-                )}
-                {projectMapPresets.depCount !== undefined && (
-                  <span className="pm-chip" title="Internal call & dependency links">
-                    {projectMapPresets.depCount} deps
-                  </span>
-                )}
-                {projectMapPresets.resourceCount !== undefined && projectMapPresets.resourceCount > 0 && (
-                  <span className="pm-chip" title="Transports, buses, libraries, databases, and tables">
-                    {projectMapPresets.resourceCount} resources
-                  </span>
-                )}
-                {projectMapPresets.cyclesCount !== undefined && projectMapPresets.cyclesCount > 0 && (
+                ))}
+                {inspectorOverview.actionBanner && (
                   <button
                     type="button"
-                    className={`pm-chip pm-chip-warning ${projectMapPresets.cyclesOnly ? 'is-active' : ''}`}
-                    onClick={() => dispatch({ type: 'TOGGLE_PM_PRESET', preset: 'cyclesOnly' })}
-                    title="Show only modules involved in dependency cycles"
+                    className={`pm-chip pm-chip-warning ${inspectorOverview.actionBanner.isActive ? 'is-active' : ''}`}
+                    onClick={() =>
+                      dispatch({
+                        type: 'TRIGGER_OVERVIEW_BANNER',
+                        presetId: inspectorOverview.actionBanner?.presetId,
+                      })
+                    }
+                    title={inspectorOverview.actionBanner.text}
                   >
-                    ⚠️ {projectMapPresets.cyclesCount} cycle{projectMapPresets.cyclesCount === 1 ? '' : 's'}
+                    {inspectorOverview.actionBanner.text}
                   </button>
                 )}
               </div>
             )}
 
-            {/* If no node or edge is selected and project map stats exist, render the full Project Overview card */}
-            {!selectedNode && !selectedEdge && projectMapPresets && (projectMapPresets.entryPointCount !== undefined || projectMapPresets.moduleCount !== undefined) ? (
+            {/* If no node or edge is selected and overview exists, render the declarative Overview card */}
+            {!selectedNode && !selectedEdge && inspectorOverview ? (
               <div className="inspector-project-overview">
                 <div className="inspector-project-card">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 22 }}>📁</span>
+                    <span style={{ fontSize: 22 }}>{inspectorOverview.icon || '📁'}</span>
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <h4 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--vscode-sideBar-foreground, #f1f5f9)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {projectMapPresets.projectName || state.hudTitle || 'Project Overview'}
+                        {inspectorOverview.title || state.hudTitle || 'Overview'}
                       </h4>
-                      {projectMapPresets.filesCount !== undefined && (
+                      {inspectorOverview.subtitle && (
                         <span style={{ fontSize: 11, color: 'var(--vscode-descriptionForeground, #94a3b8)' }}>
-                          {projectMapPresets.filesCount} source files
+                          {inspectorOverview.subtitle}
                         </span>
                       )}
                     </div>
                   </div>
 
-                  {/* Metrics 4-quadrant grid */}
-                  <div className="inspector-stat-grid">
-                    <div className="inspector-stat-cell">
-                      <span className="inspector-stat-val" style={{ color: '#38bdf8' }}>
-                        {projectMapPresets.entryPointCount ?? 0}
-                      </span>
-                      <span className="inspector-stat-lbl">EntryPoints</span>
+                  {/* Metrics quadrant grid */}
+                  {inspectorOverview.metrics.length > 0 && (
+                    <div className="inspector-stat-grid">
+                      {inspectorOverview.metrics.map((m, idx) => {
+                        const defaultColors = ['#38bdf8', '#a78bfa', '#34d399', '#f472b6'];
+                        const color = m.color || defaultColors[idx % defaultColors.length];
+                        return (
+                          <div key={m.label} className="inspector-stat-cell">
+                            <span className="inspector-stat-val" style={{ color }}>
+                              {m.value}
+                            </span>
+                            <span className="inspector-stat-lbl">{m.label}</span>
+                          </div>
+                        );
+                      })}
                     </div>
-                    <div className="inspector-stat-cell">
-                      <span className="inspector-stat-val" style={{ color: '#a78bfa' }}>
-                        {projectMapPresets.moduleCount ?? 0}
-                      </span>
-                      <span className="inspector-stat-lbl">
-                        {projectMapPresets.granularity === 'class' ? 'Classes' : projectMapPresets.granularity === 'file' ? 'Files' : 'Modules'}
-                      </span>
-                    </div>
-                    <div className="inspector-stat-cell">
-                      <span className="inspector-stat-val" style={{ color: '#34d399' }}>
-                        {projectMapPresets.depCount ?? 0}
-                      </span>
-                      <span className="inspector-stat-lbl">Dependencies</span>
-                    </div>
-                    <div className="inspector-stat-cell">
-                      <span className="inspector-stat-val" style={{ color: '#f472b6' }}>
-                        {projectMapPresets.resourceCount ?? 0}
-                      </span>
-                      <span className="inspector-stat-lbl">Resources</span>
-                    </div>
-                  </div>
+                  )}
 
-                  {/* Cycles Alert & Isolation Toggle */}
-                  {projectMapPresets.cyclesCount !== undefined && projectMapPresets.cyclesCount > 0 && (
+                  {/* Action Banner */}
+                  {inspectorOverview.actionBanner && (
                     <button
                       type="button"
-                      onClick={() => dispatch({ type: 'TOGGLE_PM_PRESET', preset: 'cyclesOnly' })}
+                      onClick={() =>
+                        dispatch({
+                          type: 'TRIGGER_OVERVIEW_BANNER',
+                          presetId: inspectorOverview.actionBanner?.presetId,
+                        })
+                      }
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -559,18 +539,18 @@ export const InspectorSidebarView: React.FC = () => {
                         padding: '8px 10px',
                         borderRadius: 6,
                         border: '1px solid',
-                        borderColor: projectMapPresets.cyclesOnly ? '#f59e0b' : 'rgba(245, 158, 11, 0.35)',
-                        background: projectMapPresets.cyclesOnly ? 'rgba(245, 158, 11, 0.2)' : 'rgba(245, 158, 11, 0.06)',
+                        borderColor: inspectorOverview.actionBanner.isActive ? '#f59e0b' : 'rgba(245, 158, 11, 0.35)',
+                        background: inspectorOverview.actionBanner.isActive ? 'rgba(245, 158, 11, 0.2)' : 'rgba(245, 158, 11, 0.06)',
                         cursor: 'pointer',
                         color: '#fbbf24',
                         width: '100%',
                         textAlign: 'left',
                         boxSizing: 'border-box',
                       }}
-                      title="Isolate only modules involved in dependency cycles"
+                      title={inspectorOverview.actionBanner.text}
                     >
                       <span style={{ fontSize: 11, fontWeight: 600 }}>
-                        ⚠️ {projectMapPresets.cyclesCount} dependency cycle{projectMapPresets.cyclesCount === 1 ? '' : 's'}
+                        {inspectorOverview.actionBanner.text}
                       </span>
                       <span
                         style={{
@@ -578,11 +558,11 @@ export const InspectorSidebarView: React.FC = () => {
                           fontWeight: 700,
                           padding: '2px 6px',
                           borderRadius: 3,
-                          background: projectMapPresets.cyclesOnly ? '#f59e0b' : 'rgba(255, 255, 255, 0.1)',
-                          color: projectMapPresets.cyclesOnly ? '#1e1e1e' : '#fbbf24',
+                          background: inspectorOverview.actionBanner.isActive ? '#f59e0b' : 'rgba(255, 255, 255, 0.1)',
+                          color: inspectorOverview.actionBanner.isActive ? '#1e1e1e' : '#fbbf24',
                         }}
                       >
-                        {projectMapPresets.cyclesOnly ? 'ISOLATING' : 'ISOLATE'}
+                        {inspectorOverview.actionBanner.actionLabel}
                       </span>
                     </button>
                   )}
@@ -629,6 +609,7 @@ export const InspectorSidebarView: React.FC = () => {
             hasOrbitLegend={hasOrbitLegend}
             orbitLegendItems={orbitLegendItems}
             orbitConfig={orbitConfig}
+            defaultOrbitConfig={defaultOrbitConfig}
             hiddenOrbitTiers={hiddenOrbitTiers}
             layoutName={layoutName}
             onApplyOrbitConfig={(next, clearHiddenFor, resetHidden) =>
@@ -642,7 +623,6 @@ export const InspectorSidebarView: React.FC = () => {
             onToggleOrbitVisibility={(levelIndex) => dispatch({ type: 'TOGGLE_ORBIT_VISIBILITY', levelIndex })}
             onHighlightOrbitNodes={(nodeIds) => dispatch({ type: 'HIGHLIGHT_ORBIT_NODES', nodeIds })}
             onClearOrbitHighlight={() => dispatch({ type: 'CLEAR_ORBIT_HIGHLIGHT' })}
-            projectMapPresets={projectMapPresets}
             isMatrixMode={isMatrixMode}
           />
         )}

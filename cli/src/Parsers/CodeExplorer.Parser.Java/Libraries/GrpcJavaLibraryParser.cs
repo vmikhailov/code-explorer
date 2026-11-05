@@ -45,7 +45,7 @@ public class GrpcJavaLibraryParser : ISemanticExtension
         if (!IsGrpcJavaMethod(node)) return;
 
         symbol.Protocol = "gRPC";
-        symbol.OperationType = "Unary";
+        symbol.OperationType = CodeExplorer.Cypher.Common.OperationType.Unary;
 
         var paramList = node.GetField(TreeSitterSyntax.Fields.Parameters);
         if (paramList.IsValid())
@@ -88,10 +88,10 @@ public class GrpcJavaLibraryParser : ISemanticExtension
                 symbol.RequestType = ExtractStreamObserverGenericType(typeNode.Text);
             }
 
-            if (hasClientStream && hasServerStream) symbol.OperationType = "BidirectionalStreaming";
-            else if (hasClientStream) symbol.OperationType = "ClientStreaming";
-            else if (hasServerStream) symbol.OperationType = "ServerStreaming";
-            else symbol.OperationType = "Unary";
+            if (hasClientStream && hasServerStream) symbol.OperationType = CodeExplorer.Cypher.Common.OperationType.BidirectionalStreaming;
+            else if (hasClientStream) symbol.OperationType = CodeExplorer.Cypher.Common.OperationType.ClientStreaming;
+            else if (hasServerStream) symbol.OperationType = CodeExplorer.Cypher.Common.OperationType.ServerStreaming;
+            else symbol.OperationType = CodeExplorer.Cypher.Common.OperationType.Unary;
         }
     }
 

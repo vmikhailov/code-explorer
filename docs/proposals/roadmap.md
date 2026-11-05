@@ -18,6 +18,7 @@ This document consolidates all **8 architectural proposals** in [`docs/proposals
 | **6** | [`semantic-archetypes-and-yaml-projections-proposal.md`](./semantic-archetypes-and-yaml-projections-proposal.md) | 🟡 **~15% Complete** (Initial `DeclarativeSemanticExtension` exists) | Build `YamlSemanticProjectionEngine` ($O(1)$ `FrozenDictionary` dispatch), migrate 16 Host Component parsers (Bucket A) and 106 Library parsers (Bucket B) to YAML packs, and extract shared `RoutePrefixResolver` (Bucket C). |
 | **7** | [`universal-parser-proposal.md`](./universal-parser-proposal.md) | ⚪ Scoped PoC | Implement `UniversalAstVisitor` + `LanguageSyntaxProfile` + `ILanguageHooks`. Track A: 100% parity harness on Java; Track B: new `CodeExplorer.Parser.Swift` assembly. |
 | **8** | [`ontology-visualization-and-cypher-intellisense-proposal.md`](./ontology-visualization-and-cypher-intellisense-proposal.md) | ⚪ Draft | Emit `ontology-schema.json` in `CodeExplorer.OntologyGen`, expose `/api/ontology` with Schema Drift detection, build 5-layer swimlane Ontology View, and add context-aware OpenCypher + SIG IntelliSense. |
+| **9** | [`partial-layer-and-in-memory-scanning-proposal.md`](./partial-layer-and-in-memory-scanning-proposal.md) | ⚪ Proposed | First-class partial-layer (`MaxLayer = Layer1..Layer5`) and zero-overhead pure in-memory scanning API (`WorkspaceIndexer.ScanInMemoryAsync`) in `CodeExplorer.Core`, removing Passport-specific hooks from `ParsingContext`. |
 
 ---
 

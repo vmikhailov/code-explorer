@@ -57,9 +57,9 @@ public class SocketIoLibraryParser : ISemanticExtension
         if (isOn || isEmit)
         {
             var argList = node.GetChildForField("arguments");
-            if (argList != null && argList.Children.Count > 1)
+            if (argList != null && argList.Children.Count > 0)
             {
-                var firstArg = argList.Children[1];
+                var firstArg = argList.Children[0].Type == "(" && argList.Children.Count > 1 ? argList.Children[1] : argList.Children[0];
                 var eventName = AstHelper.ResolveStringOrTemplate(firstArg);
                 if (!string.IsNullOrEmpty(eventName))
                 {

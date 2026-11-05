@@ -405,6 +405,10 @@ export function getEntityBadgeMeta(kind: EntityKind | string): EntityBadgeMeta {
       return ENTITY_BADGES.Type;
     case 'Module':
     case 'ProjectModule':
+    case 'Folder':
+    case 'File':
+    case 'folder':
+    case 'file':
     case 'module':
     case 'MOD':
       return ENTITY_BADGES.Module;

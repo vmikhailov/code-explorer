@@ -192,7 +192,7 @@ public class SqliteIndicesTests
         entryPoints[0].Id.Should().Be("ws:entry:cron:cleanup");
         entryPoints[0].Name.Should().Be("cleanup");
         entryPoints[0].Path.Should().Be("cron.ts");
-        entryPoints[0].EntryType.Should().Be("cron");
+        entryPoints[0].EntryType.Should().Be(EntryPointType.Cron);
 
         externalServices.Should().HaveCount(1);
         externalServices[0].Id.Should().Be("ws:es:http:bundle-service");

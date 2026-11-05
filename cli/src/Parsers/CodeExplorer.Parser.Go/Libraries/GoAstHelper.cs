@@ -164,7 +164,7 @@ public static class GoAstHelper
         if (argNode.Type is TreeSitterSyntax.Common.BinaryExpression)
         {
             var right = argNode.GetField(TreeSitterSyntax.Fields.Right) ??
-                        (argNode.Children.Count >= 3 ? argNode.Children[2] : null);
+                        (argNode.Children.Count >= 2 ? argNode.Children[^1] : null);
 
             if (right.IsValid())
             {
@@ -188,7 +188,7 @@ public static class GoAstHelper
         // 5. Index expression / Map lookup: routes["GET_USER"]
         if (argNode.Type is TreeSitterSyntax.Common.IndexExpression)
         {
-            var indexNode = argNode.GetField(TreeSitterSyntax.Fields.Index) ?? (argNode.Children.Count >= 3 ? argNode.Children[2] : null);
+            var indexNode = argNode.GetField(TreeSitterSyntax.Fields.Index) ?? (argNode.Children.Count >= 2 ? argNode.Children[^1] : null);
 
             if (indexNode.IsValid())
             {
@@ -247,7 +247,7 @@ public static class GoAstHelper
                                        (child.Children.Count > 0 ? child.Children[0] : null);
 
                         var rightList = child.GetField(TreeSitterSyntax.Fields.Right) ??
-                                        (child.Children.Count > 2 ? child.Children[2] : null);
+                                        (child.Children.Count >= 2 ? child.Children[^1] : null);
 
                         if (leftList.IsValid() && rightList.IsValid())
                         {
@@ -301,7 +301,7 @@ public static class GoAstHelper
                             if (nameNode.IsValid() && nameNode.Text == varName)
                             {
                                 var valNode = spec.GetField(TreeSitterSyntax.Fields.Value) ??
-                                              (spec.Children.Count >= 3 ? spec.Children[^1] : null);
+                                              (spec.Children.Count >= 2 ? spec.Children[^1] : null);
 
                                 if (valNode.IsValid())
                                 {
@@ -393,7 +393,7 @@ public static class GoAstHelper
                 break;
 
             var args = initCall.FindChildOfType(TreeSitterSyntax.Go.ArgumentList);
-            if (args.IsValid() && args.Children.Count > 1)
+            if (args.IsValid() && args.Children.Count > 0)
             {
                 var firstArg = args.Children.FirstOrDefault(c =>
                     c.IsAny(TreeSitterSyntax.Go.InterpretedStringLiteral,

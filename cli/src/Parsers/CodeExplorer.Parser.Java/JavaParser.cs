@@ -161,7 +161,7 @@ public class JavaParser : IProjectParser, IFileParser
         {
             try
             {
-                var match = Regex.Match(File.ReadAllText(settingsFile), @"rootProject\.name\s*=\s*['""]([^'""]+)['""]");
+                var match = Regex.Match(PhysicalFileStore.ReadAllText(settingsFile), @"rootProject\.name\s*=\s*['""]([^'""]+)['""]");
                 if (match.Success && !string.IsNullOrWhiteSpace(match.Groups[1].Value))
                 {
                     return match.Groups[1].Value.Trim();
@@ -181,7 +181,7 @@ public class JavaParser : IProjectParser, IFileParser
         {
             try
             {
-                var text = File.ReadAllText(gradleFile);
+                var text = PhysicalFileStore.ReadAllText(gradleFile);
                 var baseNameMatch = Regex.Match(text, @"(?:archivesBaseName|base\.archivesName)\s*=\s*['""]([^'""]+)['""]");
                 if (baseNameMatch.Success && !string.IsNullOrWhiteSpace(baseNameMatch.Groups[1].Value))
                 {
@@ -228,7 +228,7 @@ public class JavaParser : IProjectParser, IFileParser
         {
             try
             {
-                var content = File.ReadAllText(gradleFile);
+                var content = PhysicalFileStore.ReadAllText(gradleFile);
 
                 var hasAppPlugin = content.Contains("id 'application'") ||
                                    content.Contains("id \"application\"") ||
@@ -283,7 +283,7 @@ public class JavaParser : IProjectParser, IFileParser
         {
             try
             {
-                var content = File.ReadAllText(settingsFile);
+                var content = PhysicalFileStore.ReadAllText(settingsFile);
                 if (content.Contains("dev.flutter.flutter-plugin-loader", StringComparison.OrdinalIgnoreCase) ||
                     content.Contains("com.android.application", StringComparison.OrdinalIgnoreCase))
                 {
@@ -302,7 +302,7 @@ public class JavaParser : IProjectParser, IFileParser
         {
             try
             {
-                var content = File.ReadAllText(pomPath);
+                var content = PhysicalFileStore.ReadAllText(pomPath);
                 var isWebService = content.Contains("spring-boot-starter-web", StringComparison.OrdinalIgnoreCase) ||
                                   content.Contains("spring-boot-maven-plugin", StringComparison.OrdinalIgnoreCase) ||
                                   content.Contains("io.quarkus", StringComparison.OrdinalIgnoreCase) ||
@@ -368,7 +368,7 @@ public class JavaParser : IProjectParser, IFileParser
         {
             try
             {
-                var text = File.ReadAllText(gradleFile);
+                var text = PhysicalFileStore.ReadAllText(gradleFile);
                 var groupMatch = Regex.Match(text, @"group\s*=\s*['""]([^'""]+)['""]");
                 var versionMatch = Regex.Match(text, @"version\s*=\s*['""]([^'""]+)['""]");
 
@@ -457,7 +457,7 @@ public class JavaParser : IProjectParser, IFileParser
         {
             try
             {
-                var settingsContent = File.ReadAllText(settingsFile);
+                var settingsContent = PhysicalFileStore.ReadAllText(settingsFile);
                 var includeMatches = Regex.Matches(settingsContent, @"include\s+['"":]([a-zA-Z0-9_-]+)['""]");
                 foreach (Match match in includeMatches)
                 {
@@ -479,7 +479,7 @@ public class JavaParser : IProjectParser, IFileParser
         {
             try
             {
-                var content = File.ReadAllText(gradleFile);
+                var content = PhysicalFileStore.ReadAllText(gradleFile);
 
                 // Project dependencies: project(':subproject') or project(":subproject")
                 var projectDepMatches = Regex.Matches(content, @"project\s*\(\s*['""]:?([a-zA-Z0-9_-]+)['""]\s*\)");

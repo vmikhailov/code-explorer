@@ -60,14 +60,14 @@ public class GrpcCSharpLibraryParser : ISemanticExtension
 
         var nameNode = node.GetField(TreeSitterSyntax.Fields.Name);
         var methodName = nameNode.IsValid() ? nameNode.Text : "anonymous";
-        if (!symbol.Children.Any(c => c.Kind == OntologyConstants.NodeLabels.Function && c.Name == methodName))
+        if (!symbol.Children.Any(c => c.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function && c.Name == methodName))
         {
-            var fnSymbol = new SyntacticSymbol(OntologyConstants.NodeLabels.Function, methodName, node) { Text = node.Text };
+            var fnSymbol = new SyntacticSymbol(CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function, methodName, node) { Text = node.Text };
             symbol.Children.Add(fnSymbol);
         }
 
         symbol.Protocol = "gRPC";
-        symbol.OperationType = "Unary";
+        symbol.OperationType = CodeExplorer.Cypher.Common.OperationType.Unary;
 
         // Response type from method return type
         var typeNode = node.GetField(TreeSitterSyntax.Fields.Returns)
@@ -120,9 +120,9 @@ public class GrpcCSharpLibraryParser : ISemanticExtension
                 }
             }
 
-            if (hasClientStream && hasServerStream) symbol.OperationType = "BidirectionalStreaming";
-            else if (hasClientStream) symbol.OperationType = "ClientStreaming";
-            else if (hasServerStream) symbol.OperationType = "ServerStreaming";
+            if (hasClientStream && hasServerStream) symbol.OperationType = CodeExplorer.Cypher.Common.OperationType.BidirectionalStreaming;
+            else if (hasClientStream) symbol.OperationType = CodeExplorer.Cypher.Common.OperationType.ClientStreaming;
+            else if (hasServerStream) symbol.OperationType = CodeExplorer.Cypher.Common.OperationType.ServerStreaming;
         }
     }
 

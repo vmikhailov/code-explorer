@@ -60,82 +60,75 @@ public partial class Layer4SemanticParser
             }
         }
 
-        if (ctx.CustomLayer4Enricher != null)
+        // 1. Parse workspace-level configuration files (e.g. root .env) first
+        foreach (var wfile in workspaceRootFiles)
         {
-            ctx.CustomLayer4Enricher(l3Result, semanticStructureNode, semanticRelationships, ctx);
+            if (ConfigurationParser.IsConfigurationFile(wfile.Name))
+            {
+                ConfigurationParser.ParseAndEnrich(wfile.FullPath, wfile.Path, ctx.WorkspaceId, semanticStructureNode, semanticRelationships, ctx);
+            }
         }
-        else
+
+        var totalProjects = allProjects.Count;
+        ctx.Log($"[Layer 4    ] Enriching {totalProjects} projects ({allTrees.Count} syntax trees) with semantic information...");
+
+        var existingRelKeys = new HashSet<(string From, string To, string Kind)>();
+        foreach (var r in semanticRelationships)
         {
-            // 1. Parse workspace-level configuration files (e.g. root .env) first
-            foreach (var wfile in workspaceRootFiles)
-            {
-                if (ConfigurationParser.IsConfigurationFile(wfile.Name))
-                {
-                    ConfigurationParser.ParseAndEnrich(wfile.FullPath, wfile.Path, ctx.WorkspaceId, semanticStructureNode, semanticRelationships, ctx);
-                }
-            }
-
-            var totalProjects = allProjects.Count;
-            ctx.Log($"[Layer 4    ] Enriching {totalProjects} projects ({allTrees.Count} syntax trees) with semantic information...");
-
-            var existingRelKeys = new HashSet<(string From, string To, string Kind)>();
-            foreach (var r in semanticRelationships)
-            {
-                existingRelKeys.Add((r.From, r.To, r.Kind));
-            }
-
-            // Materialize first-class semantic workload nodes under SemanticStructure before per-project enrichment
-            ctx.Log($"[Layer 4    ] Materializing semantic workload hierarchy ({allProjects.Count} projects)...");
-            var workloadByProjectId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            var workloadNodeByProjectId = new Dictionary<string, IOntologyNode>(StringComparer.OrdinalIgnoreCase);
-            var semanticStructureChildIds = new HashSet<string>(semanticStructureNode.Children.Select(c => c.Id), StringComparer.Ordinal);
-            var workloadChildIdsByWorkload = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
-
-            InitializeWorkloadsForProjects(
-                allProjects,
-                l3Result,
-                ctx,
-                semanticStructureNode,
-                semanticNodes,
-                semanticRelationships,
-                semanticStructureChildIds,
-                workloadChildIdsByWorkload,
-                existingRelKeys,
-                workloadByProjectId,
-                workloadNodeByProjectId);
-
-            await EnrichProjectsSemanticsAsync(
-                allProjects,
-                filesByProjectId,
-                treesByProjectId,
-                workloadNodeByProjectId,
-                workloadChildIdsByWorkload,
-                semanticStructureNode,
-                semanticStructureChildIds,
-                semanticNodes,
-                semanticRelationships,
-                existingRelKeys,
-                ctx);
-
-            SemanticTopologySynthesizer.Synthesize(
-                allProjects,
-                filesByProjectId,
-                l3Result.Prev.ProjectDependencies,
-                l3Result.Prev.Packages,
-                workloadByProjectId,
-                allFiles,
-                semanticStructureNode,
-                semanticRelationships,
-                existingRelKeys,
-                ctx);
-
-            MaterializeWorkloadDependencies(
-                l3Result,
-                workloadByProjectId,
-                semanticStructureNode,
-                existingRelKeys,
-                semanticRelationships);
+            existingRelKeys.Add((r.From, r.To, r.Kind));
         }
+
+        // Materialize first-class semantic workload nodes under SemanticStructure before per-project enrichment
+        ctx.Log($"[Layer 4    ] Materializing semantic workload hierarchy ({allProjects.Count} projects)...");
+        var workloadByProjectId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var workloadNodeByProjectId = new Dictionary<string, IOntologyNode>(StringComparer.OrdinalIgnoreCase);
+        var semanticStructureChildIds = new HashSet<string>(semanticStructureNode.Children.Select(c => c.Id), StringComparer.Ordinal);
+        var workloadChildIdsByWorkload = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+
+        InitializeWorkloadsForProjects(
+            allProjects,
+            l3Result,
+            ctx,
+            semanticStructureNode,
+            semanticNodes,
+            semanticRelationships,
+            semanticStructureChildIds,
+            workloadChildIdsByWorkload,
+            existingRelKeys,
+            workloadByProjectId,
+            workloadNodeByProjectId);
+
+        await EnrichProjectsSemanticsAsync(
+            allProjects,
+            filesByProjectId,
+            treesByProjectId,
+            workloadNodeByProjectId,
+            workloadChildIdsByWorkload,
+            semanticStructureNode,
+            semanticStructureChildIds,
+            semanticNodes,
+            semanticRelationships,
+            existingRelKeys,
+            ctx);
+
+        SemanticTopologySynthesizer.Synthesize(
+            allProjects,
+            filesByProjectId,
+            l3Result.Prev.ProjectDependencies,
+            l3Result.Prev.Packages,
+            workloadByProjectId,
+            allFiles,
+            semanticStructureNode,
+            semanticRelationships,
+            existingRelKeys,
+            ctx);
+
+        MaterializeWorkloadDependencies(
+            l3Result,
+            workloadByProjectId,
+            semanticStructureNode,
+            existingRelKeys,
+            semanticRelationships);
 
         // Collect all semantic nodes from projects and semanticStructureNode
         foreach (var project in allProjects)
@@ -208,7 +201,7 @@ public partial class Layer4SemanticParser
         {
             foreach (var ep in entryPoints.DistinctBy(e => e.Id))
             {
-                if (project.IsLibrary && ep.EntryType is "main-method" or "top-level" or "script-main")
+                if (project.IsLibrary && ep.EntryType is CodeExplorer.Cypher.Common.EntryPointType.MainMethod or CodeExplorer.Cypher.Common.EntryPointType.TopLevel or CodeExplorer.Cypher.Common.EntryPointType.ScriptMain)
                 {
                     continue;
                 }

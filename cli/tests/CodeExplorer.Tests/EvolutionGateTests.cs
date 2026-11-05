@@ -150,4 +150,28 @@ public class EvolutionGateTests
         bad.Status.Should().Be(GateCheckStatus.FailedNew);
         bad.Violations.Should().ContainSingle();
     }
+
+    [Test]
+    public async Task NoFileReadAboveLayer3_Layer4Or5ReadingFile_FailsZeroTolerance()
+    {
+        const string store = "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer1_Physical/PhysicalFileStore.cs";
+        const string l5 = "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.cs";
+        var nodes = new[]
+        {
+            Fn("read", "ReadAllText", store),
+            Fn("l3Caller", "Parse", L3),
+            Fn("l4Caller", "EnrichAsync", L4),
+            Fn("l5Caller", "Consolidate", l5)
+        };
+
+        var gate = BuiltInGateCatalog.NoFileReadAboveLayer3Gate;
+        gate.Ratchet.Enabled.Should().BeFalse("SIG-P-B-011 must have zero tolerance (no ratchet baseline)");
+
+        var ok = await RunAsync(gate, nodes, [Calls("l3Caller", "read")]);
+        ok.Status.Should().Be(GateCheckStatus.Passed);
+
+        var bad = await RunAsync(gate, nodes, [Calls("l3Caller", "read"), Calls("l4Caller", "read"), Calls("l5Caller", "read")]);
+        bad.Status.Should().Be(GateCheckStatus.FailedNew);
+        bad.Violations.Should().HaveCount(2);
+    }
 }

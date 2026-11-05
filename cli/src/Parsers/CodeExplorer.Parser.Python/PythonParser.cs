@@ -111,7 +111,7 @@ public class PythonParser : IProjectParser, IFileParser
             {
                 try
                 {
-                    allText.AppendLine(File.ReadAllText(file));
+                    allText.AppendLine(PhysicalFileStore.ReadAllText(file));
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
@@ -178,7 +178,7 @@ public class PythonParser : IProjectParser, IFileParser
         {
             try
             {
-                var lines = await File.ReadAllLinesAsync(pyprojectPath);
+                var lines = PhysicalFileStore.ReadLines(pyprojectPath);
                 string? name = null;
                 var version = "1.0.0";
 
@@ -234,7 +234,7 @@ public class PythonParser : IProjectParser, IFileParser
         {
             try
             {
-                var content = await File.ReadAllTextAsync(setupPyPath);
+                var content = await PhysicalFileStore.ReadAllTextAsync(setupPyPath);
                 var nameMatch = Regex.Match(content, @"name\s*=\s*['""]([^'""]+)['""]");
                 if (nameMatch.Success)
                 {
@@ -265,7 +265,7 @@ public class PythonParser : IProjectParser, IFileParser
         {
             try
             {
-                var lines = await File.ReadAllLinesAsync(pyprojectPath);
+                var lines = PhysicalFileStore.ReadLines(pyprojectPath);
                 var inDependencies = false;
                 foreach (var rawLine in lines)
                 {
@@ -310,7 +310,7 @@ public class PythonParser : IProjectParser, IFileParser
             {
                 try
                 {
-                    var lines = await File.ReadAllLinesAsync(reqPath);
+                    var lines = PhysicalFileStore.ReadLines(reqPath);
                     foreach (var rawLine in lines)
                     {
                         var line = rawLine.Trim();

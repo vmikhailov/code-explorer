@@ -62,20 +62,20 @@ public class GoFileVisitor : BaseParserVisitor
 
     protected override void CollectCustomReferencesForSymbol(Node node, SyntacticSymbol symbolNode, SyntacticSymbol parentNode)
     {
-        if (symbolNode.Kind == OntologyConstants.NodeLabels.Function &&
+        if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function &&
             symbolNode.Name == "main" &&
             !WorkspaceConventions.IsTestFilePath(RelativePath))
         {
-            symbolNode.Children.Add(new SyntacticSymbol(OntologyConstants.NodeLabels.EntryPoint, "main-method:main", node) { Text = node.Text });
+            symbolNode.Children.Add(new SyntacticSymbol(CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint, "main-method:main", node) { Text = node.Text });
         }
 
-        if (symbolNode.Kind == OntologyConstants.NodeLabels.EntryPoint)
+        if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint)
         {
             var routeVal = ExtractGoEntryPointRoute(node);
             if (!string.IsNullOrEmpty(routeVal))
             {
                 var args = node.FindChildOfType(TreeSitterSyntax.Go.ArgumentList);
-                if (args.IsValid() && args.Children.Count > 1)
+                if (args.IsValid() && args.Children.Count > 0)
                 {
                     var handlerArg = args.Children.Skip(1).FirstOrDefault(c => c.IsAny(TreeSitterSyntax.Go.Identifier, TreeSitterSyntax.Go.SelectorExpression));
                     if (handlerArg.IsValid())
@@ -129,7 +129,7 @@ public class GoFileVisitor : BaseParserVisitor
             for (var i = 0; i < identifiers.Count; i++)
             {
                 var name = identifiers[i].Text;
-                var initializerText = i < values.Count ? values[i].Text : "";
+                var initializerText = i < values.Count ? values[i].GetBoundedInitializerText() : "";
 
                 RawVariables.Add(new RawVariable(
                     name,
@@ -269,7 +269,7 @@ public class GoFileVisitor : BaseParserVisitor
 
         var args = callNode.FindChildOfType(TreeSitterSyntax.Go.ArgumentList);
         var routeVal = "/";
-        if (args.IsValid() && args.Children.Count > 1)
+        if (args.IsValid() && args.Children.Count > 0)
         {
             var firstArg = args.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.Go.InterpretedStringLiteral, TreeSitterSyntax.Go.StringLiteral, TreeSitterSyntax.Go.RawStringLiteral, TreeSitterSyntax.Go.Identifier));
             if (firstArg.IsValid())

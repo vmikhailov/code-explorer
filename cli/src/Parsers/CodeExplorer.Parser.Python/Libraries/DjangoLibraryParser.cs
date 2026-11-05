@@ -63,7 +63,7 @@ public class DjangoLibraryParser : ISemanticExtension
     public static string ExtractDjangoRoute(Node callNode)
     {
         var args = callNode.FindChildOfType(TreeSitterSyntax.Python.ArgumentList);
-        if (args.IsValid() && args.Children.Count > 1)
+        if (args.IsValid() && args.Children.Count > 0)
         {
             var firstArg = args.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Python.String));
             if (firstArg.IsValid())
@@ -80,7 +80,7 @@ public class DjangoLibraryParser : ISemanticExtension
     public static string? ExtractHandlerName(Node callNode)
     {
         var args = callNode.FindChildOfType(TreeSitterSyntax.Python.ArgumentList);
-        if (!args.IsValid() || args.Children.Count < 3) return null;
+        if (!args.IsValid() || args.Children.Count < 2) return null;
 
         var argNodes = args.Children.Where(c => !c.Type.Equals("(") && !c.Type.Equals(")") && !c.Type.Equals(",")).ToList();
         if (argNodes.Count < 2) return null;

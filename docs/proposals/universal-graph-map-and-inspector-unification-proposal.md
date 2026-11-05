@@ -1,8 +1,8 @@
 # Proposal: Universal Graph Map Engine & Declarative Inspector Architecture
 ## Eliminating Leaky Map Flags (`isProjectMap`) via Domain-Agnostic Component Composition
 
-- **Document Version:** 1.0.0
-- **Status:** Proposal
+- **Document Version:** 1.1.0
+- **Status:** Implemented (v1.69.x)
 - **Target Subsystems:** `vscode-extension/src/webview/components/`, `vscode-extension/src/webview/layout/`, `vscode-extension/src/webview/domain/`, `.codeexplorer/gates/architectural/`
 
 ---

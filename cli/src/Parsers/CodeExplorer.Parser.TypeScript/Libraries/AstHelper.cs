@@ -368,7 +368,11 @@ public static partial class AstHelper
                                 if (nameNode.IsValid())
                                 {
                                     var valNode = decl.GetField(TreeSitterSyntax.Fields.Value) ?? decl.GetChildForField(TreeSitterSyntax.Fields.Value);
-                                    if (!valNode.IsValid() && decl.Children.Count >= 3 && decl.Children[1].Type == "=")
+                                    if (!valNode.IsValid() && decl.Children.Count >= 2 && decl.Children[^1] != nameNode && !decl.Children[^1].Is(TreeSitterSyntax.TypeScript.TypeAnnotation))
+                                    {
+                                        valNode = decl.Children[^1];
+                                    }
+                                    else if (!valNode.IsValid() && decl.Children.Count >= 3 && decl.Children[1].Type == "=")
                                     {
                                         valNode = decl.Children[2];
                                     }

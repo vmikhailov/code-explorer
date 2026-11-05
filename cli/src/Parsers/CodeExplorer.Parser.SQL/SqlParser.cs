@@ -75,7 +75,7 @@ public class SqlParser : IProjectParser, IFileParser
         var fileNodeId = $"{workspaceId}:file:{relativePath}";
 
         var fileNode = new FileNode(fileNodeId, Path.GetFileName(filePath), relativePath, filePath);
-        var sqlText = await File.ReadAllTextAsync(filePath);
+        var sqlText = await PhysicalFileStore.ConsumeFileTextAsync(filePath);
 
         // 1. Clean SQL comments to avoid false matches
         var withoutBlockComments = Regex.Replace(sqlText, @"/\*.*?\*/", "", RegexOptions.Singleline);

@@ -134,7 +134,7 @@ public class CypressLibraryParser : ISemanticExtension
         {
             var args = node.GetChildForField(TreeSitterSyntax.Fields.Arguments) ??
                        node.FindChildOfType(TreeSitterSyntax.TypeScript.Arguments);
-            if (args.IsValid() && args.Children.Count > 1)
+            if (args.IsValid() && args.Children.Count > 0)
             {
                 var candidate = args.Children.FirstOrDefault(c =>
                     c.IsValid() && (c.IsAny(TreeSitterSyntax.TypeScript.String, TreeSitterSyntax.TypeScript.TemplateString) || c.Type.Contains("string")));
@@ -164,7 +164,7 @@ public class CypressLibraryParser : ISemanticExtension
         {
             var args = node.GetChildForField(TreeSitterSyntax.Fields.Arguments) ??
                        node.FindChildOfType(TreeSitterSyntax.TypeScript.Arguments);
-            if (!args.IsValid() || args.Children.Count <= 1) return false;
+            if (!args.IsValid() || args.Children.Count == 0) return false;
 
             // Handle: cy.request(url), cy.request(method, url), or cy.request({ url: '...' })
             foreach (var child in args.Children)

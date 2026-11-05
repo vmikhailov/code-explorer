@@ -286,30 +286,9 @@ public partial class ResourceSemanticAnalyzer
                         ? DetectProjectDatabaseDriver(projectNode, ctx)
                         : (null, null);
 
-                    if (parser.Id.Equals("sqlx", StringComparison.OrdinalIgnoreCase) && string.IsNullOrEmpty(detectedEngine))
+                    if (isOrm && string.IsNullOrEmpty(detectedEngine))
                     {
-                        var fileText = _syntaxTree.Document?.SourceText
-                            ?? (_syntaxTree.FileNode?.FullPath != null && File.Exists(_syntaxTree.FileNode.FullPath)
-                                ? File.ReadAllText(_syntaxTree.FileNode.FullPath)
-                                : string.Empty);
-                        if (fileText.Contains("PgPool", StringComparison.OrdinalIgnoreCase) ||
-                            fileText.Contains("postgres", StringComparison.OrdinalIgnoreCase))
-                        {
-                            detectedEngine = "PostgreSQL";
-                            detectedType = "relational";
-                        }
-                        else if (fileText.Contains("MySqlPool", StringComparison.OrdinalIgnoreCase) ||
-                                 fileText.Contains("mysql", StringComparison.OrdinalIgnoreCase))
-                        {
-                            detectedEngine = "MySQL";
-                            detectedType = "relational";
-                        }
-                        else if (fileText.Contains("SqlitePool", StringComparison.OrdinalIgnoreCase) ||
-                                 fileText.Contains("sqlite", StringComparison.OrdinalIgnoreCase))
-                        {
-                            detectedEngine = "SQLite";
-                            detectedType = "relational";
-                        }
+                        (detectedEngine, detectedType) = DetectFileDatabaseDriver(fileNode, _syntaxTree);
                     }
 
                     var targetEngine = !string.IsNullOrEmpty(detectedEngine)
@@ -333,29 +312,11 @@ public partial class ResourceSemanticAnalyzer
                     if (declaredSchemas.Count == 0 && ctx.ResourceRegistry != null)
                     {
                         var projRes = ctx.ResourceRegistry.AllResources
-                            .FirstOrDefault(r => r.Kind == OntologyConstants.NodeLabels.Database &&
+                            .FirstOrDefault(r => r.Kind == CodeExplorer.Cypher.Common.NodeKind.Database &&
                                                  (string.IsNullOrEmpty(targetEngine) || string.Equals(r.Engine, targetEngine, StringComparison.OrdinalIgnoreCase)) &&
-                                                 r.ProjectId != null && string.Equals(r.ProjectId, projectNode.Id, StringComparison.OrdinalIgnoreCase) &&
+                                                 r.BelongsToProject(projectNode.Id) &&
                                                  !r.Name.Equals(targetEngine, StringComparison.OrdinalIgnoreCase) &&
                                                  !ResourceNamingHelper.IsGenericConfigKey(r.Name));
-
-                        if (projRes == null && !string.IsNullOrEmpty(projectNode.Path))
-                        {
-                            var projPath = projectNode.Path.Replace('\\', '/').TrimEnd('/');
-                            var projDir = Path.HasExtension(projPath) && projPath.EndsWith("proj", StringComparison.OrdinalIgnoreCase)
-                                ? Path.GetDirectoryName(projPath)?.Replace('\\', '/').TrimEnd('/')
-                                : projPath;
-                            if (!string.IsNullOrEmpty(projDir))
-                            {
-                                projRes = ctx.ResourceRegistry.AllResources
-                                    .FirstOrDefault(r => r.Kind == OntologyConstants.NodeLabels.Database &&
-                                                         (string.IsNullOrEmpty(targetEngine) || string.Equals(r.Engine, targetEngine, StringComparison.OrdinalIgnoreCase)) &&
-                                                         !r.Name.Equals(targetEngine, StringComparison.OrdinalIgnoreCase) &&
-                                                         !ResourceNamingHelper.IsGenericConfigKey(r.Name) &&
-                                                         r.DeclaringFilePath != null &&
-                                                         r.DeclaringFilePath.Replace('\\', '/').StartWithIC(projDir + "/"));
-                            }
-                        }
 
                         if (projRes != null)
                         {
@@ -388,7 +349,7 @@ public partial class ResourceSemanticAnalyzer
                     // Step B.2: Check for explicit DbContext declarations (and base("name=...") connection keys) in C# files
                     if (isRelational && declaredSchemas.Count == 0 && canonicalRes == null)
                     {
-                        var dbContexts = DetectDeclaredDbContextInfos(fileNode, _syntaxTree);
+                        var dbContexts = DetectDeclaredDbContextInfos(fileNode);
                         foreach (var (ctxClass, ctxStem, connKey) in dbContexts)
                         {
                             CanonicalResource? matchedCtxRes = null;
@@ -436,7 +397,7 @@ public partial class ResourceSemanticAnalyzer
                         declaredSchema = "main";
                     }
 
-                    if (isRelational && declaredSchemas.Count == 0 && canonicalRes == null && !projectNode.IsLibrary && HasEntityOrTableDeclaration(fileNode, _syntaxTree))
+                    if (isRelational && declaredSchemas.Count == 0 && canonicalRes == null && !projectNode.IsLibrary && HasEntityOrTableDeclaration(fileNode))
                     {
                         var domain = CleanProjectNameToDomain(projectNode.Name);
                         if (!string.IsNullOrEmpty(domain) && IsValidSchemaName(domain))
@@ -596,7 +557,7 @@ public partial class ResourceSemanticAnalyzer
                             ? OntologyConstants.EvidenceKinds.Orm
                             : OntologyConstants.EvidenceKinds.Query;
 
-                        var usageLine = FindDatabaseUsageLine(fileNode, _syntaxTree, currentSchema, parser.Id);
+                        var usageLine = FindDatabaseUsageLine(fileNode, currentSchema, parser.Id);
                         if (usageLine > 0)
                         {
                             relExt[OntologyConstants.PropertyNames.Line] = usageLine.ToString();
@@ -660,59 +621,34 @@ public partial class ResourceSemanticAnalyzer
         await Task.CompletedTask;
     }
 
-    private static int FindDatabaseUsageLine(FileNode fileNode, SyntaxTree syntaxTree, string? schema, string parserId)
+    private static int FindDatabaseUsageLine(FileNode fileNode, string? schema, string parserId)
     {
-        try
+        if (!string.IsNullOrWhiteSpace(schema) &&
+            fileNode.Extensions != null &&
+            fileNode.Extensions.TryGetValue($"schema_line:{schema}", out var sl) &&
+            int.TryParse(sl, out var parsedLine) &&
+            parsedLine > 0)
         {
-            var sourceText = syntaxTree.Document?.SourceText;
-            if (string.IsNullOrEmpty(sourceText) && !string.IsNullOrEmpty(fileNode.FullPath) && File.Exists(fileNode.FullPath))
-            {
-                sourceText = File.ReadAllText(fileNode.FullPath);
-            }
-
-            if (string.IsNullOrEmpty(sourceText)) return 0;
-            var hasSpecificSchema = !string.IsNullOrWhiteSpace(schema) &&
-                                    !schema.Equals("public", StringComparison.OrdinalIgnoreCase) &&
-                                    !schema.Equals("dbo", StringComparison.OrdinalIgnoreCase) &&
-                                    !schema.Equals("default", StringComparison.OrdinalIgnoreCase);
-
-            var clientCallLine = 0;
-            var importLine = 0;
-            var lineNo = 0;
-
-            foreach (var line in sourceText.AsSpan().EnumerateLines())
-            {
-                lineNo++;
-                if (hasSpecificSchema && schema != null && line.Contains(schema.AsSpan(), StringComparison.OrdinalIgnoreCase))
-                {
-                    return lineNo;
-                }
-
-                if (clientCallLine == 0 &&
-                    (line.Contains("PostgresClient::new".AsSpan(), StringComparison.Ordinal) ||
-                     line.Contains("AnonStatsPgClient::new".AsSpan(), StringComparison.Ordinal) ||
-                     line.Contains("PgPool".AsSpan(), StringComparison.Ordinal) ||
-                     line.Contains("DbContext".AsSpan(), StringComparison.Ordinal) ||
-                     line.Contains("get_cpu_db_schema".AsSpan(), StringComparison.Ordinal) ||
-                     line.Contains("get_gpu_db_schema".AsSpan(), StringComparison.Ordinal) ||
-                     line.Contains("get_anon_stats_db_schema".AsSpan(), StringComparison.Ordinal)))
-                {
-                    clientCallLine = lineNo;
-                }
-
-                if (importLine == 0 && !string.IsNullOrWhiteSpace(parserId) &&
-                    line.Contains(parserId.AsSpan(), StringComparison.OrdinalIgnoreCase))
-                {
-                    importLine = lineNo;
-                }
-            }
-
-            return clientCallLine > 0 ? clientCallLine : importLine;
+            return parsedLine;
         }
-        catch
+
+        foreach (var r in fileNode.References)
         {
-            return 0;
+            if (r.Line > 0 &&
+                (r.Kind == "USES_DB" ||
+                 (!string.IsNullOrWhiteSpace(parserId) && r.TargetName.Contains(parserId, StringComparison.OrdinalIgnoreCase))))
+            {
+                return r.Line;
+            }
         }
+
+        foreach (var child in fileNode.Children)
+        {
+            if (child is TypeNode tn && tn.StartLine > 0) return tn.StartLine;
+            if (child is FunctionNode fn && fn.StartLine > 0) return fn.StartLine;
+        }
+
+        return 0;
     }
 
     public static bool IsOrmLibrary(string parserId)
@@ -792,19 +728,17 @@ public partial class ResourceSemanticAnalyzer
             }
         }
 
-        if (syntaxTree != null && (!string.IsNullOrEmpty(syntaxTree.Document?.SourceText) || (!string.IsNullOrEmpty(syntaxTree.FilePath) && File.Exists(syntaxTree.FilePath))))
+        var filePath = fileNode?.FullPath ?? fileNode?.Path ?? syntaxTree?.FilePath ?? string.Empty;
+        var fileSchema = ResolveDeclaredSchemaFromFileExtensions(fileNode ?? syntaxTree?.FileNode, filePath);
+        if (!string.IsNullOrEmpty(fileSchema))
         {
-            var fileSchema = ScanFileTextForSchema(syntaxTree.FilePath, syntaxTree.Document?.SourceText);
-            if (!string.IsNullOrEmpty(fileSchema))
+            if (ConstantRegistry.TryResolve(projectNode?.Name ?? filePath, fileSchema, out var resolved))
             {
-                if (ConstantRegistry.TryResolve(projectNode?.Name ?? syntaxTree.FilePath, fileSchema, out var resolved))
-                {
-                    fileSchema = resolved;
-                }
-                if (IsValidSchemaName(fileSchema))
-                {
-                    return fileSchema;
-                }
+                fileSchema = resolved;
+            }
+            if (IsValidSchemaName(fileSchema))
+            {
+                return fileSchema;
             }
         }
 

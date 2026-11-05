@@ -14,7 +14,7 @@ public class PythonTestComponentParser : IComponentLibraryParser
 
     public bool CanHandle(ProjectContext context)
     {
-        return context.ProjectType.Equals("python", StringComparison.OrdinalIgnoreCase) &&
+        return context.ProjectType == CodeExplorer.Cypher.Common.ProjectLanguage.Python &&
                (Libraries.PythonTestLibraryParser.Instance.GetPackageDescriptors().Any(p => p.Matches(context)) ||
                 context.FilesInDirectory.Any(f => Path.GetFileName(f).StartsWith("test_") || Path.GetFileName(f).EndsWith("_test.py")) ||
                 context.ManifestProperties.GetValueOrDefault("manifest_type") == "test" ||

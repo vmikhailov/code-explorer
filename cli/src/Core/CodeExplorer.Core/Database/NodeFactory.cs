@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes;
+using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Database;
 
@@ -101,8 +102,10 @@ public static class NodeFactory
                 Expression valueExpr;
                 if (underlyingType.IsEnum)
                 {
-                    var toStringMethod = typeof(object).GetMethod("ToString", Type.EmptyTypes)!;
-                    valueExpr = Expression.Call(Expression.Convert(valueAccess, typeof(object)), toStringMethod);
+                    var formatMethod = typeof(TaxonomyViewEnumExtensions)
+                        .GetMethod(nameof(TaxonomyViewEnumExtensions.FormatEnumValue))!
+                        .MakeGenericMethod(underlyingType);
+                    valueExpr = Expression.Convert(Expression.Call(formatMethod, valueAccess), typeof(object));
                 }
                 else
                 {
@@ -117,8 +120,10 @@ public static class NodeFactory
             }
             else if (propType.IsEnum)
             {
-                var toStringMethod = typeof(object).GetMethod("ToString", Type.EmptyTypes)!;
-                var valueExpr = Expression.Call(Expression.Convert(propAccess, typeof(object)), toStringMethod);
+                var formatMethod = typeof(TaxonomyViewEnumExtensions)
+                    .GetMethod(nameof(TaxonomyViewEnumExtensions.FormatEnumValue))!
+                    .MakeGenericMethod(propType);
+                var valueExpr = Expression.Convert(Expression.Call(formatMethod, propAccess), typeof(object));
                 var assign = Expression.Assign(
                     Expression.Property(dictParam, dictIndexer, keyConst),
                     valueExpr

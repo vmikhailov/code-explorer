@@ -34,10 +34,15 @@ public record WorkerNode(
     string Id,
     [property: OntologyProperty("The worker name.")] string Name,
     [property: OntologyProperty("The path of the worker directory relative to the workspace.")] string Path,
-    [property: OntologyProperty("The project type or language.")] string ProjectType,
+    [property: OntologyProperty("The project type or language.")] ProjectLanguage ProjectType,
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {
+    public WorkerNode(string Id, string Name, string Path, string ProjectType, Dictionary<string, string>? Extensions = null)
+        : this(Id, Name, Path, TaxonomyEnumExtendedExtensions.ParseProjectLanguage(ProjectType), Extensions)
+    {
+    }
+
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Worker;
 }

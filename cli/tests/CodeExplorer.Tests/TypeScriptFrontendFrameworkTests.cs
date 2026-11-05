@@ -104,7 +104,7 @@ root.render(React.createElement(App, null));
         using var ws = await TestWorkspace.CreateAsync(code, "index.tsx");
 
         var entryPoints = FindNodes<EntryPointNode>(ws.FileNode.Children);
-        var reactRoot = entryPoints.FirstOrDefault(e => e.EntryType == "React" && e.Name == "Root");
+        var reactRoot = entryPoints.FirstOrDefault(e => e.EntryType == EntryPointType.React && e.Name == "Root");
         reactRoot.Should().NotBeNull("Expected React:Root EntryPoint to be detected");
 
         // App should be referenced by the root mount
@@ -152,7 +152,7 @@ createApp(App).mount('#app');
         using var ws = await TestWorkspace.CreateAsync(code, "main.ts");
 
         var entryPoints = FindNodes<EntryPointNode>(ws.FileNode.Children);
-        var vueRoot = entryPoints.FirstOrDefault(e => e.EntryType == "Vue" && e.Name == "Root");
+        var vueRoot = entryPoints.FirstOrDefault(e => e.EntryType == EntryPointType.Vue && e.Name == "Root");
         vueRoot.Should().NotBeNull("Expected Vue:Root EntryPoint to be detected");
 
         vueRoot!.References.Any(r => r.TargetName == "App" && r.Kind == "DEPENDS_ON").Should().BeTrue();
@@ -178,7 +178,7 @@ bootstrapApplication(AppComponent);
         using var ws = await TestWorkspace.CreateAsync(code, "main.ts");
 
         var entryPoints = FindNodes<EntryPointNode>(ws.FileNode.Children);
-        var angularBootstrap = entryPoints.FirstOrDefault(e => e.EntryType == "Angular" && e.Name == "Bootstrap");
+        var angularBootstrap = entryPoints.FirstOrDefault(e => e.EntryType == EntryPointType.Angular && e.Name == "Bootstrap");
         angularBootstrap.Should().NotBeNull("Expected Angular:Bootstrap EntryPoint");
         angularBootstrap!.References.Any(r => r.TargetName == "AppComponent" && r.Kind == "DEPENDS_ON").Should().BeTrue();
 
@@ -203,7 +203,7 @@ mount(AppRoot, {
         using var ws = await TestWorkspace.CreateAsync(code, "main.ts");
 
         var entryPoints = FindNodes<EntryPointNode>(ws.FileNode.Children);
-        var svelteMount = entryPoints.FirstOrDefault(e => e.EntryType == "Svelte" && e.Name == "Mount");
+        var svelteMount = entryPoints.FirstOrDefault(e => e.EntryType == EntryPointType.Svelte && e.Name == "Mount");
         svelteMount.Should().NotBeNull("Expected Svelte:Mount EntryPoint");
         svelteMount!.References.Any(r => r.TargetName == "AppRoot" && r.Kind == "DEPENDS_ON").Should().BeTrue();
     }
@@ -224,7 +224,7 @@ export default defineConfig({
         using var ws = await TestWorkspace.CreateAsync(code, "vite.config.ts");
 
         var entryPoints = FindNodes<EntryPointNode>(ws.FileNode.Children);
-        var viteConfig = entryPoints.FirstOrDefault(e => e.EntryType == "Vite" && e.Name == "Config");
+        var viteConfig = entryPoints.FirstOrDefault(e => e.EntryType == EntryPointType.Vite && e.Name == "Config");
         viteConfig.Should().NotBeNull("Expected Vite:Config EntryPoint");
         viteConfig!.References.Any(r => r.TargetName == "reactPlugin" && r.Kind == "DEPENDS_ON").Should().BeTrue();
         viteConfig!.References.Any(r => r.TargetName == "vuePlugin" && r.Kind == "DEPENDS_ON").Should().BeTrue();

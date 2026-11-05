@@ -215,6 +215,7 @@ public partial class SqliteGraphClient
                               relative_path TEXT PRIMARY KEY,
                               content_hash TEXT NOT NULL,
                               last_modified_utc TEXT NOT NULL,
+                              size_bytes INTEGER NOT NULL DEFAULT -1,
                               project_path TEXT NOT NULL,
                               snapshot_json TEXT
                           );
@@ -274,6 +275,14 @@ public partial class SqliteGraphClient
                           CREATE INDEX IF NOT EXISTS idx_intents_errors ON intents(error_count);
                           """;
         cmd.ExecuteNonQuery();
+
+        using var colCmd = _conn.CreateCommand();
+        colCmd.CommandText = "SELECT COUNT(*) FROM pragma_table_info('file_registry') WHERE name = 'size_bytes';";
+        if (Convert.ToInt32(colCmd.ExecuteScalar()) == 0)
+        {
+            colCmd.CommandText = "ALTER TABLE file_registry ADD COLUMN size_bytes INTEGER NOT NULL DEFAULT -1;";
+            colCmd.ExecuteNonQuery();
+        }
     }
 
     public async Task CreateIndicesAsync()

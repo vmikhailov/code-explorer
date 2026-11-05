@@ -89,12 +89,12 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
         if (Profile.StructDeclarations.Contains(type))
         {
-            return Profile.DefaultStructKind;
+            return CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ToCanonicalString(Profile.DefaultStructKind);
         }
 
         if (Profile.EnumDeclarations.Contains(type))
         {
-            return Profile.DefaultEnumKind;
+            return CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ToCanonicalString(Profile.DefaultEnumKind);
         }
 
         if (Profile.ClassDeclarations.Contains(type))
@@ -275,7 +275,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
     protected virtual void CollectProfileSymbolMetadata(Node node, SyntacticSymbol symbolNode)
     {
         // 1. If EntryPoint from an annotation/attribute, connect to the enclosing method/class
-        if (symbolNode.Kind == OntologyConstants.NodeLabels.EntryPoint && Profile.AnnotationNodeTypes.Contains(node.Type))
+        if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint && Profile.AnnotationNodeTypes.Contains(node.Type))
         {
             var enclosing = FindEnclosingDeclaration(node);
             if (enclosing.IsValid())
@@ -292,7 +292,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         }
 
         // 2. Class/Interface/Struct inheritance, implemented interfaces, and annotations
-        if (symbolNode.Kind is "Class" or "Interface" or "Struct")
+        if (symbolNode.Kind is CodeExplorer.Cypher.Common.SyntacticSymbolKind.Class or CodeExplorer.Cypher.Common.SyntacticSymbolKind.Interface or CodeExplorer.Cypher.Common.SyntacticSymbolKind.Struct)
         {
             if (Profile.SuperclassClauseNodeTypes.Count > 0)
             {
@@ -333,7 +333,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         }
 
         // 3. Function/Method annotations
-        if (symbolNode.Kind == OntologyConstants.NodeLabels.Function)
+        if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function)
         {
             ExtractProfileAnnotations(node, symbolNode);
         }
@@ -407,7 +407,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
     protected override void VisitNode(Node node, int depth)
     {
-        if (node is TokenSyntax) return;
+        // TokenSyntax removed: all visited nodes are named AST nodes
 
         if (Profile.PackageDeclarationNodeTypes.Contains(node.Type))
         {
@@ -428,7 +428,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
             // 1. General reference collection
             var currentScope = SymbolStack.Peek();
 
-            if (currentScope.Kind != "file")
+            if (currentScope.Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.File)
             {
                 if (node is IdentifierExprSyntax || node.IsAny("identifier", "type_identifier"))
                 {
@@ -445,9 +445,9 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
                 foreach (var libParser in LibraryParsers)
                 {
                     libParser.CollectReferences(node, "", currentScope.References, Context!);
-                    if (currentScope.Kind == OntologyConstants.NodeLabels.Query)
+                    if (currentScope.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Query)
                     {
-                        var enclosingFunc = SymbolStack.FirstOrDefault(s => s.Kind == OntologyConstants.NodeLabels.Function);
+                        var enclosingFunc = SymbolStack.FirstOrDefault(s => s.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function);
                         if (enclosingFunc != null)
                         {
                             libParser.CollectReferences(node, "", enclosingFunc.References, Context!);
@@ -684,7 +684,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         if (kind == OntologyConstants.NodeLabels.Query)
         {
             NestedSqlParser.TryDetectSqlDependencies(syntacticNode.Text ?? node.Text, "", syntacticNode.References);
-            if (parent.Kind == OntologyConstants.NodeLabels.Function)
+            if (parent.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function)
             {
                 foreach (var r in syntacticNode.References)
                 {

@@ -577,6 +577,10 @@ public class MyEntity { public int Id { get; set; } }
 
             var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
 
+            var l1Result = await new Core.Parser.Layers.Layer1PhysicalParser().ParseAsync(ctx);
+            var l2Result = await new Core.Parser.Layers.Layer2ProjectParser().ParseAsync(l1Result, ctx);
+            var projectNode = l2Result.Projects.First(p => p.Name.Equals("MyApp", StringComparison.OrdinalIgnoreCase));
+
             var csharpParser = new CSharpParser();
 
             using var syntaxTree = await csharpParser.ParseAsync(entityFile, "parent-id", ctx.WorkspaceId,
@@ -585,8 +589,6 @@ public class MyEntity { public int Id { get; set; } }
             Core.Parser.Layers.Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId,
                 ctx.AbsoluteWorkspacePath);
 
-            var projectNode = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
-                "workspace:project:MyApp", "MyApp", appDir, "csharp", new Dictionary<string, string>());
             await ResourceSemanticAnalyzer.EnrichAsync(syntaxTree, projectNode, csharpParser, ctx);
 
             var resources = ctx.ResourceRegistry.AllResources.ToList();
@@ -594,7 +596,7 @@ public class MyEntity { public int Id { get; set; } }
 
             resources[0].Name.Should().Be("PostgreSQL.myapp");
             resources[0].Engine.Should().Be("PostgreSQL");
-            resources[0].DbType.Should().Be("relational");
+            resources[0].DbType.Should().Be(DatabaseType.Relational);
         }
         finally
         {

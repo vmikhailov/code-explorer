@@ -1,0 +1,19 @@
+# CodeExplorer.Parser.ColdFusion
+
+ColdFusion (CFML / CFC / CFM) parser plug-in for [CodeExplorer](https://github.com/vmikhailov/code-explorer).
+
+## Overview
+
+`CodeExplorer.Parser.ColdFusion` parses ColdFusion components (`.cfc`) and templates (`.cfm`), extracting components, functions, `<cfquery>` SQL statements, HTTP invocations, and datasource dependencies into the CodeExplorer ontology graph.
+
+## Installation
+
+```bash
+dotnet add package CodeExplorer.Parser.ColdFusion
+```
+
+## Links
+
+- **Documentation & Website**: https://code-explorer.mikhailov.cc
+- **Source Repository**: https://github.com/vmikhailov/code-explorer
+- **License**: MIT

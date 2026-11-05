@@ -34,10 +34,15 @@ public record CliToolNode(
     string Id,
     [property: OntologyProperty("The CLI tool name.")] string Name,
     [property: OntologyProperty("The path of the tool directory relative to the workspace.")] string Path,
-    [property: OntologyProperty("The project type or language.")] string ProjectType,
+    [property: OntologyProperty("The project type or language.")] ProjectLanguage ProjectType,
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {
+    public CliToolNode(string Id, string Name, string Path, string ProjectType, Dictionary<string, string>? Extensions = null)
+        : this(Id, Name, Path, TaxonomyEnumExtendedExtensions.ParseProjectLanguage(ProjectType), Extensions)
+    {
+    }
+
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.CliTool;
 }

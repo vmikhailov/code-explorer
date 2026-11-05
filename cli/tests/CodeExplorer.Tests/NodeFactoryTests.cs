@@ -18,8 +18,7 @@ public class NodeFactoryTests
     private static readonly JsonSerializerOptions LegacySerializerOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        Converters = { new JsonStringEnumConverter() }
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
     private static Dictionary<string, object> LegacyFromNode(IOntologyNode node)

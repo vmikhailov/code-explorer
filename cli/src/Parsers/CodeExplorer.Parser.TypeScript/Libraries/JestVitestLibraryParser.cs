@@ -71,7 +71,7 @@ public class JestVitestLibraryParser : ISemanticExtension
                 {
                     var args = node.GetChildForField(TreeSitterSyntax.Fields.Arguments) ??
                                node.FindChildOfType(TreeSitterSyntax.TypeScript.Arguments);
-                    if (args.IsValid() && args.Children.Count > 1)
+                    if (args.IsValid() && args.Children.Count > 0)
                     {
                         var firstArg = args.Children.FirstOrDefault(c =>
                             c.IsValid() && (c.IsAny(TreeSitterSyntax.TypeScript.String, TreeSitterSyntax.TypeScript.TemplateString) || c.Type.Contains("string")));

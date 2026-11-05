@@ -29,12 +29,26 @@ public partial class ArchitectureViewEngine
         string DisplayName,
         string DomainId,
         string DomainName,
-        string DomainType,
+        DomainType DomainType,
         string Summary,
         string BgColor,
         string BorderColor
     )
     {
+        public BoundedContextCategory(
+            string CanonicalKey,
+            string CanonicalName,
+            string DisplayName,
+            string DomainId,
+            string DomainName,
+            string DomainType,
+            string Summary,
+            string BgColor,
+            string BorderColor)
+            : this(CanonicalKey, CanonicalName, DisplayName, DomainId, DomainName, TaxonomyEnumExtensions.ParseDomainType(DomainType), Summary, BgColor, BorderColor)
+        {
+        }
+
         public void Deconstruct(out string canonicalKey, out string canonicalName, out string displayName, out string summary, out string bgColor, out string borderColor)
         {
             canonicalKey = CanonicalKey;
@@ -354,8 +368,11 @@ public partial class ArchitectureViewEngine
                     layers[r.Layer] = layers.GetValueOrDefault(r.Layer) + 1;
                 if (!string.IsNullOrEmpty(r.Pattern))
                     patterns[r.Pattern] = patterns.GetValueOrDefault(r.Pattern) + 1;
-                if (!string.IsNullOrEmpty(r.OperationType))
-                    operations[r.OperationType] = operations.GetValueOrDefault(r.OperationType) + 1;
+                if (r.OperationType.HasValue && r.OperationType.Value != OperationType.Unspecified)
+                {
+                    var opStr = r.OperationType.Value.ToCanonicalString();
+                    operations[opStr] = operations.GetValueOrDefault(opStr) + 1;
+                }
 
                 if (r.TargetEntities != null)
                 {
@@ -451,7 +468,7 @@ public partial class ArchitectureViewEngine
                     Id = c.DomainId,
                     Name = c.DomainName.Replace(" ", ""),
                     DisplayName = c.DomainName,
-                    DomainType = "",
+                    DomainType = DomainType.Unspecified,
                     Icon = icon,
                     Description = $"Domain encompassing {c.DomainName} capabilities and bounded contexts.",
                     BoundedContextIds = [],
@@ -482,7 +499,7 @@ public partial class ArchitectureViewEngine
             var tgt = CategorizeBoundedContext(c.TargetDomain).CanonicalKey;
             if (!src.Equals(tgt, StringComparison.OrdinalIgnoreCase))
             {
-                macroCalls.Add((src, tgt, c.EdgeKind, c.InteractionCount));
+                macroCalls.Add((src, tgt, c.EdgeKind.ToCypherType(), c.InteractionCount));
             }
         }
 
@@ -499,9 +516,9 @@ public partial class ArchitectureViewEngine
             var primaryItem = group.OrderByDescending(x => x.Count).First();
             var cat = (primaryItem.EdgeKind.ToUpperInvariant()) switch
             {
-                "PUBLISHES" or "SUBSCRIBES" or "TRIGGERS" or "CONSUMES" => "messaging",
-                "USES_DB" or "ACCESSES_TABLE" => "database",
-                _ => "service_call"
+                "PUBLISHES" or "SUBSCRIBES" or "TRIGGERS" or "CONSUMES" => BoundedContextInteractionType.Messaging,
+                "USES_DB" or "ACCESSES_TABLE" => BoundedContextInteractionType.Database,
+                _ => BoundedContextInteractionType.ServiceCall
             };
 
             interactions.Add(new BoundedContextInteractionDto
@@ -646,7 +663,7 @@ public partial class ArchitectureViewEngine
                     Id = c.DomainId,
                     Name = c.DomainName.Replace(" ", ""),
                     DisplayName = c.DomainName,
-                    DomainType = "",
+                    DomainType = DomainType.Unspecified,
                     Icon = icon,
                     Description = $"Domain encompassing {c.DomainName} capabilities and bounded contexts.",
                     BoundedContextIds = [],
@@ -674,7 +691,7 @@ public partial class ArchitectureViewEngine
             var tgt = CategorizeBoundedContext(c.TargetDomain).CanonicalKey;
             if (!src.Equals(tgt, StringComparison.OrdinalIgnoreCase))
             {
-                macroCalls.Add((src, tgt, c.EdgeKind, c.InteractionCount));
+                macroCalls.Add((src, tgt, c.EdgeKind.ToCypherType(), c.InteractionCount));
             }
         }
 
@@ -689,9 +706,9 @@ public partial class ArchitectureViewEngine
             var primaryItem = group.OrderByDescending(x => x.Count).First();
             var cat = (primaryItem.EdgeKind.ToUpperInvariant()) switch
             {
-                "PUBLISHES" or "SUBSCRIBES" or "TRIGGERS" or "CONSUMES" => "messaging",
-                "USES_DB" or "ACCESSES_TABLE" => "database",
-                _ => "service_call"
+                "PUBLISHES" or "SUBSCRIBES" or "TRIGGERS" or "CONSUMES" => BoundedContextInteractionType.Messaging,
+                "USES_DB" or "ACCESSES_TABLE" => BoundedContextInteractionType.Database,
+                _ => BoundedContextInteractionType.ServiceCall
             };
 
             interactions.Add(new BoundedContextInteractionDto
@@ -744,7 +761,7 @@ public partial class ArchitectureViewEngine
                     ["displayName"] = c.DisplayName,
                     ["domainId"] = c.DomainId,
                     ["domainName"] = c.DomainName,
-                    ["domainType"] = c.DomainType,
+                    ["domainType"] = c.DomainType.ToCanonicalString(),
                     ["summary"] = c.Summary ?? "",
                     ["fileCount"] = c.FileCount.ToString(),
                     ["pureCount"] = c.PureDomainCount.ToString(),
@@ -774,12 +791,12 @@ public partial class ArchitectureViewEngine
                 Source = edge.Source,
                 Target = edge.Target,
                 Kind = edge.Label,
-                Category = edge.InteractionType,
+                Category = edge.InteractionType.ToCanonicalString(),
                 Properties = new Dictionary<string, string>
                 {
                     ["count"] = edge.Count.ToString(),
                     ["label"] = edge.Label,
-                    ["category"] = edge.InteractionType,
+                    ["category"] = edge.InteractionType.ToCanonicalString(),
                     ["details"] = JsonSerializer.Serialize(edge.Details)
                 }
             });

@@ -606,7 +606,7 @@ public class ArchitectureViewEngineTests
         callEdge.Should().NotBeNull();
         if (callEdge != null)
         {
-            callEdge.InteractionType.Should().Be("service_call");
+            callEdge.InteractionType.Should().Be(CodeExplorer.Cypher.Common.BoundedContextInteractionType.ServiceCall);
         }
 
         // 4. Verify Graph Projection (GraphDataDto)

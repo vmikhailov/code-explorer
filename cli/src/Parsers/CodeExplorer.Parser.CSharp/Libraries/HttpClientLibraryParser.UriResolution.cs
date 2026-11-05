@@ -202,9 +202,9 @@ public partial class HttpClientLibraryParser
                         else
                         {
                             var eqClause = decl.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause);
-                            if (eqClause.IsValid() && eqClause.Children.Count > 1)
+                            if (eqClause.IsValid() && eqClause.Children.Count > 0)
                             {
-                                valueNode = eqClause.Children[1];
+                                valueNode = eqClause.Children[^1];
                             }
                             else if (decl.Children.Count >= 3 && decl.Children[1].Text == "=")
                             {
@@ -227,15 +227,15 @@ public partial class HttpClientLibraryParser
                 if (nameNode.IsValid() && nameNode.Text == targetVar)
                 {
                     var arrow = child.FindChildOfType(TreeSitterSyntax.CSharp.ArrowExpressionClause);
-                    if (arrow.IsValid() && arrow.Children.Count > 1)
+                    if (arrow.IsValid() && arrow.Children.Count > 0)
                     {
-                        var uri = ExtractUriFromExpression(arrow.Children[1], scopeNode, depth + 1, visited);
+                        var uri = ExtractUriFromExpression(arrow.Children[^1], scopeNode, depth + 1, visited);
                         if (!string.IsNullOrEmpty(uri)) return uri;
                     }
                     var eq = child.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause);
-                    if (eq.IsValid() && eq.Children.Count > 1)
+                    if (eq.IsValid() && eq.Children.Count > 0)
                     {
-                        var uri = ExtractUriFromExpression(eq.Children[1], scopeNode, depth + 1, visited);
+                        var uri = ExtractUriFromExpression(eq.Children[^1], scopeNode, depth + 1, visited);
                         if (!string.IsNullOrEmpty(uri)) return uri;
                     }
                 }
@@ -610,9 +610,9 @@ public partial class HttpClientLibraryParser
                                 else
                                 {
                                     var eqClause = decl.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause);
-                                    if (eqClause.IsValid() && eqClause.Children.Count > 1)
+                                    if (eqClause.IsValid() && eqClause.Children.Count > 0)
                                     {
-                                        valueNode = eqClause.Children[1];
+                                        valueNode = eqClause.Children[^1];
                                     }
                                 }
                                 if (valueNode.IsValid()) return valueNode;

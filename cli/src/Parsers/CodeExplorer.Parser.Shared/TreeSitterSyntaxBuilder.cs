@@ -33,13 +33,13 @@ public abstract class TreeSitterSyntaxConverterBase
                             decl.Children.FirstOrDefault(static c => c is IdentifierExprSyntax);
             if (nameChild != null)
             {
-                decl.Name = nameChild.Text;
+                decl.NameSlice = new SourceSlice(nameChild.Span.StartByte, nameChild.Span.Length);
             }
-            else if (string.IsNullOrEmpty(decl.Name) && !string.IsNullOrEmpty(decl.Text) && decl.Children.Count == 0)
+            else if (!decl.HasName && decl.Children.Count == 0 && !decl.Span.IsEmpty)
             {
-                decl.Name = decl.Text;
+                decl.NameSlice = new SourceSlice(decl.Span.StartByte, decl.Span.Length);
             }
-            if (decl is NamespaceDeclSyntax ns && !string.IsNullOrEmpty(ns.Name) && string.IsNullOrEmpty(doc.PackageOrNamespace))
+            if (decl is NamespaceDeclSyntax ns && ns.HasName && string.IsNullOrEmpty(doc.PackageOrNamespace))
             {
                 doc.PackageOrNamespace = ns.Name;
             }
@@ -47,25 +47,38 @@ public abstract class TreeSitterSyntaxConverterBase
 
         switch (node)
         {
-            case IdentifierExprSyntax idExpr:
-                idExpr.Name = idExpr.Text;
+            case IdentifierExprSyntax:
                 break;
 
             case LiteralExprSyntax litExpr:
-                litExpr.ValueText = litExpr.LiteralKind is LiteralSyntaxKind.String or LiteralSyntaxKind.RawString or LiteralSyntaxKind.Char
-                    ? AstValueResolver.Unquote(litExpr.Text)
-                    : litExpr.Text;
-                if (!HasInterpolationChild(litExpr))
+                if (litExpr.LiteralKind is LiteralSyntaxKind.String or LiteralSyntaxKind.RawString or LiteralSyntaxKind.Char)
                 {
-                    litExpr.ResolvedValue = litExpr.ValueText;
+                    litExpr.ValueSlice = AstValueResolver.ComputeLiteralValueSlice(
+                        doc.Slice(litExpr.Span),
+                        litExpr.Span.StartByte,
+                        out var hasEscapes,
+                        out var hasObfuscatedEscapes);
+                    litExpr.HasEscapeSequences = hasEscapes;
+                    if (hasObfuscatedEscapes && !HasInterpolationChild(litExpr))
+                    {
+                        litExpr.IsDecoded = true;
+                    }
+                }
+                else
+                {
+                    litExpr.ValueSlice = new SourceSlice(litExpr.Span.StartByte, litExpr.Span.Length);
                 }
                 break;
 
             case BinaryExprSyntax binExpr:
-                if (binExpr.GetChildForField(SyntaxFields.Left) is ExprSyntax leftExpr) binExpr.Left = leftExpr;
-                if (binExpr.GetChildForField(SyntaxFields.Right) is ExprSyntax rightExpr) binExpr.Right = rightExpr;
+                binExpr.Left = binExpr.GetChildForField(SyntaxFields.Left) as ExprSyntax ?? (binExpr.Children.Count > 0 ? binExpr.Children[0] as ExprSyntax : null);
+                binExpr.Right = binExpr.GetChildForField(SyntaxFields.Right) as ExprSyntax ?? (binExpr.Children.Count > 1 ? binExpr.Children[^1] as ExprSyntax : null);
                 var opNode = binExpr.GetChildForField(SyntaxFields.Operator);
                 if (opNode != null) binExpr.Operator = opNode.Text;
+                else if (string.IsNullOrEmpty(binExpr.Operator) && binExpr.Left != null && binExpr.Right != null && binExpr.Right.Span.StartByte > binExpr.Left.Span.EndByte)
+                {
+                    binExpr.Operator = doc.GetText(binExpr.Left.Span.EndByte, binExpr.Right.Span.StartByte).Trim();
+                }
                 break;
 
             case FunctionDeclSyntax fn:
@@ -77,7 +90,7 @@ public abstract class TreeSitterSyntaxConverterBase
                         ParameterDeclSyntax p => p,
                         IdentifierExprSyntax id => new ParameterDeclSyntax
                         {
-                            Name = id.Name,
+                            NameSlice = new SourceSlice(id.Span.StartByte, id.Span.Length),
                             Span = id.Span,
                             Document = id.Document,
                             Parent = fn,
@@ -133,7 +146,7 @@ public abstract class TreeSitterSyntaxConverterBase
                 argSyntax.Value = argSyntax.GetChildForField(SyntaxFields.Value) as ExprSyntax ??
                                   argSyntax.Children.OfType<ExprSyntax>().FirstOrDefault();
                 var argName = argSyntax.GetChildForField(SyntaxFields.Name);
-                if (argName != null) argSyntax.Name = argName.Text;
+                if (argName != null) argSyntax.NameSlice = new SourceSlice(argName.Span.StartByte, argName.Span.Length);
                 break;
 
             case AssignmentExprSyntax assign:
@@ -203,15 +216,105 @@ public abstract class TreeSitterSyntaxConverterBase
                 break;
 
             case VariableDeclSyntax varDecl:
-                varDecl.Initializer = varDecl.GetChildForField(SyntaxFields.Value) as ExprSyntax ??
-                                      varDecl.Children.OfType<ExprSyntax>().LastOrDefault();
+                var varInitNode = varDecl.GetChildForField(SyntaxFields.Value) ??
+                                  varDecl.GetChildForField(SyntaxFields.Right) ??
+                                  varDecl.Children.FirstOrDefault(static c => c.RawGrammarKind is "equals_value_clause");
+                if (varInitNode is { RawGrammarKind: "equals_value_clause" } && varInitNode.Children.Count > 0)
+                {
+                    varInitNode = varInitNode.Children[^1];
+                }
+                varDecl.Initializer = varInitNode as ExprSyntax ??
+                                      (varDecl.Children.Count >= 2 ? varDecl.Children.OfType<ExprSyntax>().LastOrDefault(c => c != varDecl.Children[0] && c.FieldRole is not (SyntaxFields.Name or SyntaxFields.Type or SyntaxFields.Pattern or SyntaxFields.Left) && !c.AsSpan().Equals(varDecl.NameSpan, StringComparison.Ordinal)) : null);
+                if (varDecl.Modifiers.HasFlag(SyntaxModifiers.Const) || varDecl.Modifiers.HasFlag(SyntaxModifiers.ReadOnly))
+                {
+                    varDecl.IsConstant = true;
+                }
+                for (int i = 0; i < varDecl.Children.Count; i++)
+                {
+                    if (varDecl.Children[i].RawGrammarKind == "modifier" && varDecl.Children[i].AsSpan() is "const" or "readonly")
+                    {
+                        varDecl.IsConstant = true;
+                        varDecl.Modifiers |= SyntaxModifiers.Const;
+                    }
+                }
+                if (varDecl.IsConstant)
+                {
+                    for (int i = 0; i < varDecl.Children.Count; i++)
+                    {
+                        if (varDecl.Children[i] is VariableDeclSyntax childVd)
+                        {
+                            childVd.IsConstant = true;
+                            childVd.Modifiers |= varDecl.Modifiers & (SyntaxModifiers.Const | SyntaxModifiers.ReadOnly | SyntaxModifiers.Static);
+                        }
+                    }
+                }
+                break;
+
+            case ImplDeclSyntax implDecl:
+                const string TraitFieldName = "trait";
+                implDecl.ImplementedTrait = implDecl.GetChildForField(TraitFieldName) as TypeRefSyntax;
+                implDecl.TargetType = implDecl.GetChildForField(SyntaxFields.Type) as TypeRefSyntax;
+                if (implDecl.TargetType == null && implDecl.Children.Count > 0)
+                {
+                    var typeRefs = implDecl.Children.OfType<TypeRefSyntax>().ToList();
+                    if (typeRefs.Count >= 2)
+                    {
+                        implDecl.ImplementedTrait ??= typeRefs[0];
+                        implDecl.TargetType = typeRefs[1];
+                    }
+                    else if (typeRefs.Count == 1)
+                    {
+                        implDecl.TargetType = typeRefs[0];
+                    }
+                }
                 break;
 
             case MemberDeclSyntax memDecl:
+                var memInitNode = memDecl.GetChildForField(SyntaxFields.Value) ??
+                                  memDecl.Children.FirstOrDefault(static c => c.RawGrammarKind is "equals_value_clause" or "arrow_expression_clause");
+                if (memInitNode is { RawGrammarKind: "equals_value_clause" or "arrow_expression_clause" } && memInitNode.Children.Count > 0)
+                {
+                    memInitNode = memInitNode.Children[^1];
+                }
+                memDecl.Initializer = memInitNode as ExprSyntax ??
+                                      (memDecl.Children.Count >= 2 ? memDecl.Children.OfType<ExprSyntax>().LastOrDefault(c => c != memDecl.Children[0] && c.FieldRole is not (SyntaxFields.Name or SyntaxFields.Type or SyntaxFields.Pattern or SyntaxFields.Left) && !c.AsSpan().Equals(memDecl.NameSpan, StringComparison.Ordinal)) : null);
+                for (int i = 0; i < memDecl.Children.Count; i++)
+                {
+                    if (memDecl.Children[i].RawGrammarKind == "modifier")
+                    {
+                        var modSpan = memDecl.Children[i].AsSpan();
+                        if (modSpan is "const") memDecl.Modifiers |= SyntaxModifiers.Const;
+                        else if (modSpan is "readonly") memDecl.Modifiers |= SyntaxModifiers.ReadOnly;
+                        else if (modSpan is "static") memDecl.Modifiers |= SyntaxModifiers.Static;
+                    }
+                }
+                if (memDecl.Modifiers.HasFlag(SyntaxModifiers.Const) || memDecl.Modifiers.HasFlag(SyntaxModifiers.ReadOnly))
+                {
+                    for (int i = 0; i < memDecl.Children.Count; i++)
+                    {
+                        if (memDecl.Children[i] is VariableDeclSyntax childVd)
+                        {
+                            childVd.IsConstant = true;
+                            childVd.Modifiers |= memDecl.Modifiers & (SyntaxModifiers.Const | SyntaxModifiers.ReadOnly | SyntaxModifiers.Static);
+                            for (int j = 0; j < childVd.Children.Count; j++)
+                            {
+                                if (childVd.Children[j] is VariableDeclSyntax subVd)
+                                {
+                                    subVd.IsConstant = true;
+                                    subVd.Modifiers |= memDecl.Modifiers & (SyntaxModifiers.Const | SyntaxModifiers.ReadOnly | SyntaxModifiers.Static);
+                                }
+                            }
+                        }
+                    }
+                }
+                break;
+
+#if FALSE
                 memDecl.Initializer = memDecl.GetChildForField(SyntaxFields.Value) as ExprSyntax ??
                                       memDecl.Children.OfType<ExprSyntax>().LastOrDefault();
                 break;
 
+#endif
             case LockStmtSyntax lockStmt:
                 lockStmt.Body = lockStmt.Children.OfType<BlockStmtSyntax>().FirstOrDefault();
                 break;
@@ -282,9 +385,12 @@ public abstract class TreeSitterSyntaxConverterBase
         var topStatements = new List<StatementSyntax>();
         var diagnostics = new List<SyntaxDiagnostic>();
 
-        SyntaxNode ConvertNode(Node tsNode, SyntaxNode parent, string? fieldRole)
+        using var cursor = tree.RootNode.Walk();
+
+        SyntaxNode ConvertNode(TreeSitter.TreeCursor cur, SyntaxNode parent, string? fieldRole)
         {
             var id = nextNodeId++;
+            var tsNode = cur.CurrentNode;
             var span = new TextSpan(
                 tsNode.StartIndex,
                 tsNode.EndIndex,
@@ -308,7 +414,7 @@ public abstract class TreeSitterSyntaxConverterBase
                 if (!isBenign)
                 {
                     diagnostics.Add(new SyntaxDiagnostic(
-                        "syntax_error",
+                        CodeExplorer.Cypher.Common.SyntaxDiagnosticKind.SyntaxError,
                         string.IsNullOrEmpty(snippet)
                             ? $"Syntax error in {parent.RawGrammarKind}"
                             : $"Syntax error in {parent.RawGrammarKind} near '{snippet}'",
@@ -316,31 +422,34 @@ public abstract class TreeSitterSyntaxConverterBase
                         parent.RawGrammarKind));
                 }
             }
-            var isNamed = tsNode.IsNamed;
+            // tsNode is guaranteed named here
 
-            SyntaxNode syntaxNode = isNamed
-                ? CreateSyntaxNode(rawKind, span, parent.RawGrammarKind)
-                : new TokenSyntax { Span = span, RawGrammarKind = rawKind, IsNamed = false };
+            SyntaxNode syntaxNode = CreateSyntaxNode(rawKind, span, parent.RawGrammarKind);
+            // Only named AST nodes are materialized; TokenSyntax is never allocated.
+            // Unnamed punctuation/keyword tokens are handled inline via ApplyUnnamedTokenMetadata.
 
             syntaxNode.NodeId = id;
             syntaxNode.FieldRole = fieldRole;
             syntaxNode.Document = doc;
             syntaxNode.Parent = parent;
 
-            var tsChildren = tsNode.Children;
-            var childCount = tsChildren.Count;
-            if (childCount > 0)
+            if (cur.GotoFirstChild())
             {
-                var convertedChildren = new List<SyntaxNode>(childCount);
-                for (int i = 0; i < childCount; i++)
+                var convertedChildren = new List<SyntaxNode>();
+                do
                 {
-                    var tsChild = tsChildren[i];
-                    if (tsChild.Id == IntPtr.Zero) continue;
-                    var childField = tsNode.GetFieldNameForChild(i);
-                    var convertedChild = ConvertNode(tsChild, syntaxNode, childField);
+                    var childField = cur.CurrentFieldName;
+                    var childTsNode = cur.CurrentNode;
+                    if (!childTsNode.IsNamed && childTsNode.Type is not ("this" or "base" or "self" or "super"))
+                    {
+                        ApplyUnnamedTokenMetadata(syntaxNode, childTsNode.Type, childField);
+                        continue;
+                    }
+                    var convertedChild = ConvertNode(cur, syntaxNode, childField);
                     convertedChild.ChildIndex = convertedChildren.Count;
                     convertedChildren.Add(convertedChild);
-                }
+                } while (cur.GotoNextSibling());
+                cur.GotoParent();
                 syntaxNode.Children = convertedChildren;
             }
 
@@ -371,17 +480,17 @@ public abstract class TreeSitterSyntaxConverterBase
             return syntaxNode;
         }
 
-        var rootTsNode = tree.RootNode;
-        var rootChildren = rootTsNode.Children;
-        if (rootChildren.Count > 0)
+        if (cursor.GotoFirstChild())
         {
-            var docChildren = new List<SyntaxNode>(rootChildren.Count);
-            for (int i = 0; i < rootChildren.Count; i++)
+            var docChildren = new List<SyntaxNode>();
+            do
             {
-                var tsChild = rootChildren[i];
-                if (tsChild.Id == IntPtr.Zero) continue;
-                var childField = rootTsNode.GetFieldNameForChild(i);
-                var childSyntax = ConvertNode(tsChild, doc, childField);
+                var childField = cursor.CurrentFieldName;
+                if (!cursor.CurrentNode.IsNamed)
+                {
+                    continue;
+                }
+                var childSyntax = ConvertNode(cursor, doc, childField);
                 childSyntax.ChildIndex = docChildren.Count;
                 docChildren.Add(childSyntax);
 
@@ -393,7 +502,7 @@ public abstract class TreeSitterSyntaxConverterBase
                 {
                     topStatements.Add(stmt);
                 }
-            }
+            } while (cursor.GotoNextSibling());
             doc.Children = docChildren;
         }
 
@@ -408,6 +517,65 @@ public abstract class TreeSitterSyntaxConverterBase
         doc.AllCalls = allCalls;
 
         return doc;
+    }
+
+    private static void ApplyUnnamedTokenMetadata(SyntaxNode parent, string tokenKind, string? fieldRole)
+    {
+        switch (parent)
+        {
+            case BinaryExprSyntax bin when string.IsNullOrEmpty(bin.Operator) &&
+                (fieldRole == SyntaxFields.Operator || tokenKind is not "(" and not ")" and not "," and not ";"):
+                bin.Operator = tokenKind;
+                break;
+            case AssignmentExprSyntax assign when string.IsNullOrEmpty(assign.Operator) &&
+                (fieldRole == SyntaxFields.Operator || tokenKind.Contains('=') || tokenKind is ":="):
+                assign.Operator = tokenKind;
+                break;
+            case UnaryExprSyntax unary when string.IsNullOrEmpty(unary.Operator) &&
+                (fieldRole == SyntaxFields.Operator || tokenKind is not "(" and not ")" and not "," and not ";"):
+                unary.Operator = tokenKind;
+                break;
+            case ImportDeclSyntax imp when tokenKind == "*":
+                imp.IsWildcard = true;
+                break;
+            case DeclarationSyntax decl:
+                switch (tokenKind)
+                {
+                    case "const":
+                        decl.Modifiers |= SyntaxModifiers.Const;
+                        if (decl is VariableDeclSyntax vdConst) vdConst.IsConstant = true;
+                        break;
+                    case "readonly":
+                        decl.Modifiers |= SyntaxModifiers.ReadOnly;
+                        if (decl is VariableDeclSyntax vdRo) vdRo.IsConstant = true;
+                        break;
+                    case "static":
+                        decl.Modifiers |= SyntaxModifiers.Static;
+                        break;
+                    case "public" or "pub":
+                        decl.Modifiers |= SyntaxModifiers.Public;
+                        break;
+                    case "private":
+                        decl.Modifiers |= SyntaxModifiers.Private;
+                        break;
+                    case "protected":
+                        decl.Modifiers |= SyntaxModifiers.Protected;
+                        break;
+                    case "internal":
+                        decl.Modifiers |= SyntaxModifiers.Internal;
+                        break;
+                    case "async":
+                        decl.Modifiers |= SyntaxModifiers.Async;
+                        break;
+                    case "export":
+                        decl.Modifiers |= SyntaxModifiers.Export;
+                        break;
+                    case "default":
+                        decl.Modifiers |= SyntaxModifiers.Default;
+                        break;
+                }
+                break;
+        }
     }
 
     private static TextSpan ComputeFullSpan(string sourceText, Node? rootNode)

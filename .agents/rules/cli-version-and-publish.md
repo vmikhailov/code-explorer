@@ -22,7 +22,10 @@ Whenever fixes or features are made to CodeExplorer (CLI or VS Code Extension):
      pwsh .agents/skills/versioning/scripts/bump-version.ps1 -Type patch # or -Type minor
      ```
 
-2. **Verify Build and Test Suites**:
+2. **Verify Build, Test Suites, and Semantic Invariant Gates**:
+   - **Semantic Invariant Gates (Mandatory Zero-Failed-Gates Policy)**:
+     - Always run ce scan and ce gate check after making changes.
+     - **All gates MUST pass (Failed: 0)**. Never finish a task or publish a release while any gate is in [FAIL] state — always fix all failed gates first.
    - **CLI**:
      - Run `dotnet build cli/CodeExplorer.slnx -c Release` (compiles with 0 warnings and 0 errors; `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>` is enforced globally via [Directory.Build.props](../../cli/Directory.Build.props)).
      - Run `dotnet test cli/tests/CodeExplorer.Tests/CodeExplorer.Tests.csproj`.

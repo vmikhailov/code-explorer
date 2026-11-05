@@ -39,7 +39,7 @@ public class Layer1Layer2MatrixBaselineTests
     }
 
     public record ExpectedProjectAnswer(
-        [property: JsonPropertyName("projectType")] string ProjectType,
+        [property: JsonPropertyName("projectType")] ProjectLanguage ProjectType,
         [property: JsonPropertyName("entityKind")] ProjectEntityKind EntityKind,
         [property: JsonPropertyName("isLibrary")] bool IsLibrary
     );
@@ -119,7 +119,7 @@ public class Layer1Layer2MatrixBaselineTests
             Enum.TryParse<ProjectEntityKind>(actualKindStr, true, out var actualKind);
             var actualIsLib = bool.TryParse(node.Properties.GetValueOrDefault("is_library")?.ToString(), out var b) && b;
 
-            actualType.Should().Be(expected.ProjectType, $"Project '{path}' projectType mismatch");
+            actualType.Should().Be(CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ToCanonicalString(expected.ProjectType), $"Project '{path}' projectType mismatch");
             actualKind.Should().Be(expected.EntityKind, $"Project '{path}' entityKind mismatch");
             actualIsLib.Should().Be(expected.IsLibrary, $"Project '{path}' isLibrary mismatch");
         }
@@ -156,7 +156,7 @@ public class Layer1Layer2MatrixBaselineTests
         var expectedAnswers = JsonSerializer.Deserialize<Dictionary<string, ExpectedProjectAnswer>>(json, jsonOptions)!;
 
         var testedProjectTypes = expectedAnswers.Values
-            .Select(a => a.ProjectType.ToLowerInvariant())
+            .Select(a => CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ToCanonicalString(a.ProjectType).ToLowerInvariant())
             .Distinct()
             .ToHashSet();
 

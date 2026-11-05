@@ -83,7 +83,7 @@ public class JavaScriptParser : IProjectParser, IFileParser
 
         result = tsResult with
         {
-            Project = tsResult.Project with { ProjectType = ProjectType }
+            Project = tsResult.Project with { ProjectType = CodeExplorer.Cypher.Common.ProjectLanguage.JavaScript }
         };
         return true;
     }
@@ -109,7 +109,7 @@ public class JavaScriptParser : IProjectParser, IFileParser
 
         try
         {
-            var content = await File.ReadAllTextAsync(packageJsonPath);
+            var content = await PhysicalFileStore.ReadAllTextAsync(packageJsonPath);
 
             using var doc = System.Text.Json.JsonDocument.Parse(content);
 
@@ -153,7 +153,7 @@ public class JavaScriptParser : IProjectParser, IFileParser
 
         try
         {
-            var content = await File.ReadAllTextAsync(packageJsonPath);
+            var content = await PhysicalFileStore.ReadAllTextAsync(packageJsonPath);
 
             using var doc = System.Text.Json.JsonDocument.Parse(content);
 

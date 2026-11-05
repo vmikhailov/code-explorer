@@ -108,7 +108,7 @@ public class FlaskLibraryParser : ISemanticExtension
 
         var routeVal = "/";
         var callArgs = call.FindChildOfType(TreeSitterSyntax.Python.ArgumentList);
-        if (callArgs.IsValid() && callArgs.Children.Count > 1)
+        if (callArgs.IsValid() && callArgs.Children.Count > 0)
         {
             var firstArg = callArgs.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Python.String));
             if (firstArg.IsValid())

@@ -12,7 +12,7 @@ public class DotNetLibraryComponentParser : IComponentLibraryParser
 
     public bool CanHandle(ProjectContext context)
     {
-        if (!context.ProjectType.Equals("csharp", StringComparison.OrdinalIgnoreCase)) return false;
+        if (context.ProjectType != CodeExplorer.Cypher.Common.ProjectLanguage.CSharp) return false;
 
         var sdk = context.ManifestProperties.GetValueOrDefault("sdk");
         if (sdk?.Equals("Microsoft.NET.Sdk.Web", StringComparison.OrdinalIgnoreCase) == true) return false;

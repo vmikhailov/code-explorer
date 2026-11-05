@@ -77,6 +77,35 @@ public sealed class WorkspaceConventionProfile : IWorkspaceConventions
     public bool IsTestFilePath(string? path) => SourcePathClassifier.IsTestFilePath(path);
     public bool IsFrontendFilePath(string? path) => SourcePathClassifier.IsFrontendFilePath(path);
 
+    public static string? LoadDomainsConfigJson(string? workspaceRoot)
+    {
+        if (string.IsNullOrWhiteSpace(workspaceRoot) || !Directory.Exists(workspaceRoot))
+            return null;
+
+        var candidates = new[]
+        {
+            Path.Combine(workspaceRoot, ".codeexplorer", "domains.json"),
+            Path.Combine(workspaceRoot, "domains.json")
+        };
+
+        foreach (var path in candidates)
+        {
+            if (File.Exists(path))
+            {
+                try
+                {
+                    return File.ReadAllText(path);
+                }
+                catch
+                {
+                    // Ignore read errors
+                }
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// Loads a workspace convention profile from .codeexplorer/conventions.json and .codeexplorer/domains.json.
     /// </summary>

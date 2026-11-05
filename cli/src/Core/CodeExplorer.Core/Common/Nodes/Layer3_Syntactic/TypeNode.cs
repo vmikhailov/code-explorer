@@ -30,7 +30,7 @@ public record TypeNode(
     [property: OntologyProperty("The ending line number (1-indexed) of the declaration.")] int EndLine,
     [property: OntologyProperty("The starting column number of the declaration.")] int StartCol,
     [property: OntologyProperty("The ending column number of the declaration.")] int EndCol,
-    [property: JsonPropertyName("kind"), OntologyProperty("The specific type kind (class, interface, struct, record, enum).")] string TypeKind,
+    [property: JsonPropertyName("kind"), OntologyProperty("The specific type kind (class, interface, struct, record, enum).")] TypeKind TypeKind,
     bool IsTest,
     ProjectEntityKind? ProjectKind = null,
     string? ProjectName = null,
@@ -39,8 +39,18 @@ public record TypeNode(
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {
-    public TypeNode(string id, string name, string symbol, string filePath, string path, int startLine, int endLine, int startCol, int endCol, string typeKind, Dictionary<string, string>? extensions = null)
-        : this(id, name, symbol, filePath, path, startLine, endLine, startCol, endCol, typeKind, false, null, null, null, null, extensions)
+    public TypeNode(string Id, string Name, string Symbol, string FilePath, string Path, int StartLine, int EndLine, int StartCol, int EndCol, TypeKind TypeKind, Dictionary<string, string>? Extensions = null)
+        : this(Id, Name, Symbol, FilePath, Path, StartLine, EndLine, StartCol, EndCol, TypeKind, false, null, null, null, null, Extensions)
+    {
+    }
+
+    public TypeNode(string Id, string Name, string Symbol, string FilePath, string Path, int StartLine, int EndLine, int StartCol, int EndCol, string TypeKind, bool IsTest, ProjectEntityKind? ProjectKind = null, string? ProjectName = null, int? StageOrder = null, int? Loc = null, Dictionary<string, string>? Extensions = null)
+        : this(Id, Name, Symbol, FilePath, Path, StartLine, EndLine, StartCol, EndCol, TaxonomyEnumExtensions.ParseTypeKind(TypeKind), IsTest, ProjectKind, ProjectName, StageOrder, Loc, Extensions)
+    {
+    }
+
+    public TypeNode(string Id, string Name, string Symbol, string FilePath, string Path, int StartLine, int EndLine, int StartCol, int EndCol, string TypeKind, Dictionary<string, string>? Extensions = null)
+        : this(Id, Name, Symbol, FilePath, Path, StartLine, EndLine, StartCol, EndCol, TaxonomyEnumExtensions.ParseTypeKind(TypeKind), false, null, null, null, null, Extensions)
     {
     }
 

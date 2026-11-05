@@ -248,7 +248,7 @@ public class ExpressLibraryParser : ISemanticExtension
 
     public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
-        if (symbol.Kind != OntologyConstants.NodeLabels.EntryPoint) return;
+        if (symbol.Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint) return;
         if (!IsExpressRouteCall(node)) return;
 
         var args = AstHelper.GetCallArguments(node);

@@ -68,9 +68,9 @@ public class HotChocolateLibraryParser : ISemanticExtension
             var attrName = GetAttributeName(node);
             symbol.OperationType = attrName switch
             {
-                "Mutation" or "MutationAttribute" => "Mutation",
-                "Subscription" or "SubscriptionAttribute" => "Subscription",
-                _ => "Query"
+                "Mutation" or "MutationAttribute" => CodeExplorer.Cypher.Common.OperationType.Mutation,
+                "Subscription" or "SubscriptionAttribute" => CodeExplorer.Cypher.Common.OperationType.Subscription,
+                _ => CodeExplorer.Cypher.Common.OperationType.Query
             };
         }
         else if (IsGraphQlMethodDeclaration(node))
@@ -79,9 +79,9 @@ public class HotChocolateLibraryParser : ISemanticExtension
             var op = GetGraphQlOperationTypeFromClass(node);
             symbol.OperationType = op switch
             {
-                "MUTATION" => "Mutation",
-                "SUBSCRIPTION" => "Subscription",
-                _ => "Query"
+                "MUTATION" => CodeExplorer.Cypher.Common.OperationType.Mutation,
+                "SUBSCRIPTION" => CodeExplorer.Cypher.Common.OperationType.Subscription,
+                _ => CodeExplorer.Cypher.Common.OperationType.Query
             };
         }
         else

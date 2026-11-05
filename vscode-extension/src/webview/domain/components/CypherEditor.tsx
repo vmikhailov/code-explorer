@@ -29,6 +29,7 @@ export function highlightCypher(code: string): string {
 
   // Single pass over the raw text: each token is escaped and wrapped exactly once,
   // so later rules can never match inside already-generated span markup.
+  const REGEX_FLAGS_GI = 'gi';
   const tokenRegex = new RegExp(
     [
       '(?<comment>//[^\\n]*)',
@@ -40,7 +41,7 @@ export function highlightCypher(code: string): string {
       '(?<func>\\b(?:coalesce|count|labels|keys|json_extract|toString|toLower|toUpper|trim|split|length|size|exists|head|tail|last|nodes|relationships|id)\\b)',
       '(?<number>\\b\\d+(?:\\.\\d+)?\\b)',
     ].join('|'),
-    'gi'
+    REGEX_FLAGS_GI
   );
 
   const styles: Record<string, string> = {

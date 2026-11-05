@@ -353,7 +353,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                 Id = p.Id,
                 Name = p.Name,
                 FilePath = p.Path,
-                Framework = p.Extensions?.GetValueOrDefault("framework") ?? p.ProjectType,
+                Framework = p.Extensions?.GetValueOrDefault("framework") ?? p.ProjectType.ToCanonicalString(),
                 Role = p.Role,
                 IsLibrary = p.IsLibrary,
                 EndpointsCount = endpointsCount,
@@ -396,8 +396,8 @@ public partial class PostIndexAnalyzer(IGraphClient db)
             p.Extensions["entity_kind"] = p.EntityKind.ToString();
             p.Extensions["sub_kind"] = p.SubKind.ToString();
             p.Extensions["kind"] = p.EntityKind != ProjectEntityKind.Unknown ? p.EntityKind.ToString() : p.Role;
-            p.Extensions["language"] = p.ProjectType;
-            p.Extensions["project_type"] = p.ProjectType;
+            p.Extensions["language"] = p.ProjectType.ToCanonicalString();
+            p.Extensions["project_type"] = p.ProjectType.ToCanonicalString();
 
             if (!p.Extensions.ContainsKey("primary_role") || p.Extensions["primary_role"] == "General")
             {

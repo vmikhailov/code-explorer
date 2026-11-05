@@ -76,7 +76,7 @@ public class KotlinFileParser : IFileParser
         var fileNodeId = $"{workspaceId}:{OntologyConstants.IdPrefixes.File}:{relativePath}";
 
         var fileNode = new FileNode(fileNodeId, fileName, relativePath, filePath);
-        var content = await File.ReadAllTextAsync(filePath);
+        var content = await PhysicalFileStore.ConsumeFileTextAsync(filePath);
 
         var rawImports = new List<RawImport>();
         var rawVariables = new List<RawVariable>();

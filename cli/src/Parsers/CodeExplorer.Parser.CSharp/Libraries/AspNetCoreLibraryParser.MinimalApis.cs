@@ -447,9 +447,9 @@ public partial class AspNetCoreLibraryParser
                         if (!valueNode.IsValid())
                         {
                             var eqClause = decl.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause);
-                            if (eqClause.IsValid() && eqClause.Children.Count > 1)
+                            if (eqClause.IsValid() && eqClause.Children.Count > 0)
                             {
-                                valueNode = eqClause.Children[1];
+                                valueNode = eqClause.Children[^1];
                             }
                             else if (decl.Children.Count >= 3 && decl.Children[1].Text == "=")
                             {

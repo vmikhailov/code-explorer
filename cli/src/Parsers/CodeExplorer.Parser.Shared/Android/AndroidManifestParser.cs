@@ -12,7 +12,7 @@ public static class AndroidManifestParser
 
         try
         {
-            var content = File.ReadAllText(manifestPath);
+            var content = PhysicalFileStore.ReadAllText(manifestPath);
             return ParseContent(content, Path.GetDirectoryName(manifestPath));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException)

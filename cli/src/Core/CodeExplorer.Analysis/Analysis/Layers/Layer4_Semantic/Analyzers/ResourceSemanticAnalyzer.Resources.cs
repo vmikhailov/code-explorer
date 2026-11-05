@@ -11,101 +11,53 @@ namespace CodeExplorer.Core.Parser;
 
 public partial class ResourceSemanticAnalyzer
 {
-    private static readonly Regex SchemaCallRegex = new(@"HasDefaultSchema\s*\(\s*[""']?([^""'\)]+)[""']?\s*\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex SchemaConstRegex = new(@"(?:Schema_?Name|Default_?Schema_?Name|Default_?Schema)\s*(?::\s*[^=]+)?=\s*[""']?([^""';]+)[""']?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex TypeOrmSchemaRegex = new(@"@(?:Entity|ViewEntity|Table)\s*\(\s*\{[^}]*schema\s*:\s*[""']?([A-Za-z0-9_.]+)[""']?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex ToTableSchemaRegex = new(@"ToTable\s*\(\s*[^,]+\s*,\s*(?:schema:\s*)?[""']?([A-Za-z0-9_.]+)[""']?\s*\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly Regex DataSourceSchemaRegex = new(@"\b(?:schema|defaultSchema)\s*:\s*[""']([A-Za-z0-9_-]+)[""']", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
-    private static bool HasEntityOrTableDeclaration(FileNode? fileNode, SyntaxTree? syntaxTree)
+    private static bool HasEntityOrTableDeclaration(FileNode? fileNode)
     {
-        if (fileNode != null && HasEntityOrTableNode(fileNode))
-        {
-            return true;
-        }
-
-        if (syntaxTree != null)
-        {
-            try
-            {
-                var text = syntaxTree.Document?.SourceText
-                           ?? (!string.IsNullOrEmpty(syntaxTree.FilePath) && File.Exists(syntaxTree.FilePath)
-                               ? File.ReadAllText(syntaxTree.FilePath)
-                               : null);
-                if (!string.IsNullOrEmpty(text) &&
-                    Regex.IsMatch(text, @"(?::\s*(?:[A-Za-z0-9_.]+\.)?(?:Identity)?DbContext\b|\bI?DbSet\s*<|\b__tablename__\b|@(?:Entity|Table|ViewEntity)\b|\[\s*Table\s*\(|\bdeclarative_base\b|\bmodelBuilder\.Entity\b)", RegexOptions.IgnoreCase))
-                {
-                    return true;
-                }
-            }
-            catch { }
-        }
-
-        return false;
+        if (fileNode == null) return false;
+        if (HasEntityOrTableNode(fileNode)) return true;
+        return fileNode.Extensions != null &&
+               fileNode.Extensions.TryGetValue(Layers.Layer3FileSignalEnricher.ExtHasEntityOrTable, out var val) &&
+               val == "true";
     }
 
-    private static readonly Regex CSharpDbContextClassRegex = new(
-        @"class\s+([A-Za-z0-9_]+)\s*:\s*(?:[A-Za-z0-9_.]+\.)?(?:Identity)?DbContext\b",
-        RegexOptions.Compiled);
-
-    private static readonly Regex CSharpBaseConnectionNameRegex = new(
-        @":\s*base\s*\(\s*@?[""'](?:name\s*=\s*)?([A-Za-z0-9_.\-:]+)[""']\s*\)",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
     internal static IReadOnlyList<(string ClassName, string ContextStem, string? ConnectionKey)> DetectDeclaredDbContextInfos(
-        FileNode? fileNode,
-        SyntaxTree? syntaxTree)
+        FileNode? fileNode)
     {
-        var filePath = syntaxTree?.FilePath ?? fileNode?.FullPath;
-        if (string.IsNullOrEmpty(filePath) || !filePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
-        {
-            return [];
-        }
-
         try
         {
-            var text = syntaxTree?.Document?.SourceText
-                       ?? (File.Exists(filePath) ? File.ReadAllText(filePath) : null);
-            if (string.IsNullOrEmpty(text) || !text.Contains("DbContext", StringComparison.Ordinal))
-            {
-                return [];
-            }
-
-            var matches = CSharpDbContextClassRegex.Matches(text);
-            if (matches.Count == 0)
-            {
-                return [];
-            }
+            var list = new List<(string ClassName, string ContextStem, string? ConnectionKey)>();
+            if (fileNode == null) return list;
 
             string? baseConnKey = null;
-            var baseMatch = CSharpBaseConnectionNameRegex.Match(text);
-            if (baseMatch.Success)
+            if (fileNode.Extensions != null &&
+                fileNode.Extensions.TryGetValue(Layers.Layer3FileSignalEnricher.ExtDbContextBaseConn, out var bc) &&
+                !string.IsNullOrWhiteSpace(bc))
             {
-                baseConnKey = baseMatch.Groups[1].Value.Trim();
+                baseConnKey = bc.Trim();
             }
 
-            var list = new List<(string ClassName, string ContextStem, string? ConnectionKey)>();
-            foreach (Match m in matches)
+            foreach (var typeNode in fileNode.Children.OfType<CodeExplorer.Core.Common.Nodes.Layer3_Syntactic.TypeNode>())
             {
-                var className = m.Groups[1].Value.Trim();
-                if (string.IsNullOrEmpty(className) ||
-                    className.Equals("DbContext", StringComparison.OrdinalIgnoreCase) ||
-                    className.Equals("IdentityDbContext", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
+                var isDbCtx = typeNode.References.Any(r =>
+                    r.Kind == "INHERITS_FROM" &&
+                    (r.TargetName.Equals("DbContext", StringComparison.OrdinalIgnoreCase) ||
+                     r.TargetName.Equals("IdentityDbContext", StringComparison.OrdinalIgnoreCase) ||
+                     r.TargetName.EndsWith(".DbContext", StringComparison.OrdinalIgnoreCase) ||
+                     r.TargetName.EndsWith(".IdentityDbContext", StringComparison.OrdinalIgnoreCase)));
+                if (!isDbCtx) continue;
 
-                var stem = className;
-                if (stem.EndsWith("DbContext", StringComparison.OrdinalIgnoreCase) && stem.Length > "DbContext".Length)
-                {
-                    stem = stem[..^"DbContext".Length];
-                }
-                else if (stem.EndsWith("Context", StringComparison.OrdinalIgnoreCase) && stem.Length > "Context".Length)
-                {
-                    stem = stem[..^"Context".Length];
-                }
+                AddDbContextClass(list, typeNode.Name, baseConnKey);
+            }
 
-                list.Add((className, stem, baseConnKey));
+            if (list.Count == 0 &&
+                fileNode.Extensions != null &&
+                fileNode.Extensions.TryGetValue(Layers.Layer3FileSignalEnricher.ExtDbContextClasses, out var classesRaw) &&
+                !string.IsNullOrWhiteSpace(classesRaw))
+            {
+                foreach (var className in classesRaw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    AddDbContextClass(list, className, baseConnKey);
+                }
             }
 
             return list;
@@ -114,6 +66,31 @@ public partial class ResourceSemanticAnalyzer
         {
             return [];
         }
+    }
+
+    private static void AddDbContextClass(
+        List<(string ClassName, string ContextStem, string? ConnectionKey)> list,
+        string? className,
+        string? baseConnKey)
+    {
+        if (string.IsNullOrWhiteSpace(className) ||
+            className.Equals("DbContext", StringComparison.OrdinalIgnoreCase) ||
+            className.Equals("IdentityDbContext", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var stem = className;
+        if (stem.EndsWith("DbContext", StringComparison.OrdinalIgnoreCase) && stem.Length > "DbContext".Length)
+        {
+            stem = stem[..^"DbContext".Length];
+        }
+        else if (stem.EndsWith("Context", StringComparison.OrdinalIgnoreCase) && stem.Length > "Context".Length)
+        {
+            stem = stem[..^"Context".Length];
+        }
+
+        list.Add((className, stem, baseConnKey));
     }
 
     internal static bool IsGenericDbContextStem(string? stem)
@@ -154,13 +131,20 @@ public partial class ResourceSemanticAnalyzer
         var results = new List<string>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        void AddCandidate(string? cand)
+        void AddCandidate(string? cand, int line = 0)
         {
             if (string.IsNullOrWhiteSpace(cand)) return;
             var clean = cand.Trim();
-            if (IsValidSchemaName(clean) && seen.Add(clean))
+            if (IsValidSchemaName(clean))
             {
-                results.Add(clean);
+                if (line > 0 && fileNode != null)
+                {
+                    fileNode.SetExtension($"schema_line:{clean}", line.ToString());
+                }
+                if (seen.Add(clean))
+                {
+                    results.Add(clean);
+                }
             }
         }
 
@@ -168,15 +152,10 @@ public partial class ResourceSemanticAnalyzer
         var directSchema = DetectDeclaredSchema(projectNode, fileNode, syntaxTree, dbType);
         AddCandidate(directSchema);
 
-        // 2. Walk AST if available (only if source text actually mentions schema or client constructors)
+        // 2. Walk AST if available
         try
         {
-            var docText = syntaxTree?.Document?.SourceText;
-            var shouldWalkAst = string.IsNullOrEmpty(docText) ||
-                                docText.Contains("schema", StringComparison.OrdinalIgnoreCase) ||
-                                docText.Contains("PgClient", StringComparison.OrdinalIgnoreCase) ||
-                                docText.Contains("PostgresClient", StringComparison.OrdinalIgnoreCase);
-            if (shouldWalkAst && syntaxTree?.Tree != null)
+            if (syntaxTree?.Tree != null)
             {
                 var root = syntaxTree.Tree.RootNode;
                 if (root.IsValid())
@@ -189,11 +168,6 @@ public partial class ResourceSemanticAnalyzer
                                lower == "schemaname" || lower.EndsWith("_schemaname") ||
                                lower == "schema_name" || lower.EndsWith("_schema_name");
                     }
-
-                    var clientConstructors = new[]
-                    {
-                        "PostgresClient::new", "AnonStatsPgClient::new", "PgClient::new"
-                    };
 
                     var isNonTestFile = (fileNode == null || !fileNode.IsTest) &&
                                         !WorkspaceConventions.IsTestFilePath(fileNode?.Path ?? syntaxTree?.FilePath);
@@ -273,7 +247,13 @@ public partial class ResourceSemanticAnalyzer
                                         break;
                                     }
                                 }
-                                if (colonIdx > 0 && colonIdx + 1 < node.Children.Count)
+                                if (colonIdx < 0 && node.Children.Count >= 2)
+                                {
+                                    varName = node.Children[0].Text.Trim();
+                                    valNode = node.Children[^1];
+                                    if (valNode.Type == "literal_element" && valNode.Children.Count > 0) valNode = valNode.Children[0];
+                                }
+                                else if (colonIdx > 0 && colonIdx + 1 < node.Children.Count)
                                 {
                                     varName = node.Children[0].Text.Trim();
                                     valNode = node.Children[colonIdx + 1];
@@ -288,7 +268,7 @@ public partial class ResourceSemanticAnalyzer
                             {
                                 if (AstValueResolver.TryResolveString(valNode, projectNode?.Name, out var s))
                                 {
-                                    AddCandidate(s);
+                                    AddCandidate(s, node.StartPosition.Row + 1);
                                 }
                             }
                         }
@@ -313,7 +293,7 @@ public partial class ResourceSemanticAnalyzer
                                     {
                                         if (AstValueResolver.TryResolveString(effectiveAttr, projectNode?.Name ?? fileNode?.Path ?? syntaxTree?.FilePath, out var s))
                                         {
-                                            AddCandidate(s);
+                                            AddCandidate(s, child.StartPosition.Row + 1);
                                         }
                                     }
                                     lastAttr = null;
@@ -333,11 +313,12 @@ public partial class ResourceSemanticAnalyzer
                             {
                                 if (AstValueResolver.TryResolveString(node, projectNode?.Name, out var s))
                                 {
-                                    AddCandidate(s);
+                                    AddCandidate(s, node.StartPosition.Row + 1);
                                 }
                             }
 
-                            if (clientConstructors.Any(c => funcText.EndsWith(c, StringComparison.OrdinalIgnoreCase)))
+                            if (funcText.EndsWith("::new", StringComparison.OrdinalIgnoreCase) ||
+                                funcText.Contains("Client", StringComparison.OrdinalIgnoreCase))
                             {
                                 var argsList = node.GetField(SyntaxFields.Arguments) ??
                                                node.FindChildOfType("argument_list") ??
@@ -351,7 +332,7 @@ public partial class ResourceSemanticAnalyzer
                                         {
                                             if (AstValueResolver.TryResolveString(arg, projectNode?.Name ?? fileNode?.Path ?? syntaxTree?.FilePath, out var s))
                                             {
-                                                AddCandidate(s);
+                                                AddCandidate(s, node.StartPosition.Row + 1);
                                             }
                                         }
                                     }
@@ -391,128 +372,59 @@ public partial class ResourceSemanticAnalyzer
         return results;
     }
 
-    private static string? ScanFileTextForSchema(string filePath, string? sourceText = null)
+    private static string? ResolveDeclaredSchemaFromFileExtensions(FileNode? fileNode, string filePath)
     {
-        try
+        if (fileNode?.Extensions == null ||
+            !fileNode.Extensions.TryGetValue(Layers.Layer3FileSignalEnricher.ExtDeclaredSchemaRaw, out var val) ||
+            string.IsNullOrWhiteSpace(val))
         {
-            var text = sourceText ?? (File.Exists(filePath) ? File.ReadAllText(filePath) : null);
-            if (string.IsNullOrEmpty(text)) return null;
-            if (!text.Contains("schema", StringComparison.OrdinalIgnoreCase) &&
-                !text.Contains("ToTable", StringComparison.OrdinalIgnoreCase))
+            return null;
+        }
+
+        val = val.Trim().Trim('\'', '"');
+        if (ConstantRegistry.TryResolve(filePath, val, out var resolved) && IsValidSchemaName(resolved))
+        {
+            return resolved;
+        }
+
+        if (val.Contains('.'))
+        {
+            var memberName = val.Split('.').Last();
+            if (ConstantRegistry.TryResolve(filePath, memberName, out var resMember) && IsValidSchemaName(resMember))
             {
-                return null;
-            }
-            var m1 = SchemaCallRegex.Match(text);
-            if (m1.Success)
-            {
-                var val = m1.Groups[1].Value.Trim().Trim('\'', '"');
-                if (ConstantRegistry.TryResolve(filePath, val, out var resolved) && IsValidSchemaName(resolved)) return resolved;
-                if (IsValidSchemaName(val)) return val;
+                return resMember;
             }
 
-            var m2 = SchemaConstRegex.Match(text);
-            if (m2.Success)
+            if (memberName.Equals("DefaultSchema", StringComparison.OrdinalIgnoreCase) ||
+                memberName.Equals("SchemaName", StringComparison.OrdinalIgnoreCase) ||
+                memberName.Equals("DefaultSchemaName", StringComparison.OrdinalIgnoreCase))
             {
-                var val = m2.Groups[1].Value.Trim().Trim('\'', '"');
-                if (ConstantRegistry.TryResolve(filePath, val, out var resolved) && IsValidSchemaName(resolved)) return resolved;
-                if (IsValidSchemaName(val)) return val;
-            }
-
-            var m3 = TypeOrmSchemaRegex.Match(text);
-            if (m3.Success)
-            {
-                var val = m3.Groups[1].Value.Trim().Trim('\'', '"');
-                if (ConstantRegistry.TryResolve(filePath, val, out var resolved) && IsValidSchemaName(resolved)) return resolved;
-                if (IsValidSchemaName(val)) return val;
-            }
-
-            var m4 = ToTableSchemaRegex.Match(text);
-            if (m4.Success)
-            {
-                var val = m4.Groups[1].Value.Trim().Trim('\'', '"');
-                if (ConstantRegistry.TryResolve(filePath, val, out var resolved) && IsValidSchemaName(resolved)) return resolved;
-                if (val.Contains('.'))
+                var typeName = val.Split('.')[0];
+                var resolvedFromFile = FindConstantInProjectOrDirectory(filePath, memberName, typeName);
+                if (!string.IsNullOrEmpty(resolvedFromFile) && IsValidSchemaName(resolvedFromFile))
                 {
-                    var memberName = val.Split('.').Last();
-                    if (ConstantRegistry.TryResolve(filePath, memberName, out var resMember) && IsValidSchemaName(resMember)) return resMember;
-
-                    if (memberName.Equals("DefaultSchema", StringComparison.OrdinalIgnoreCase) ||
-                        memberName.Equals("SchemaName", StringComparison.OrdinalIgnoreCase) ||
-                        memberName.Equals("DefaultSchemaName", StringComparison.OrdinalIgnoreCase))
-                    {
-                        var typeName = val.Split('.')[0];
-                        var resolvedFromFile = FindConstantInProjectOrDirectory(filePath, memberName, typeName);
-                        if (!string.IsNullOrEmpty(resolvedFromFile) && IsValidSchemaName(resolvedFromFile))
-                        {
-                            ConstantRegistry.Register(filePath, val, resolvedFromFile);
-                            ConstantRegistry.Register(filePath, memberName, resolvedFromFile);
-                            return resolvedFromFile;
-                        }
-                    }
-                }
-                if (IsValidSchemaName(val)) return val;
-            }
-
-            var m5 = DataSourceSchemaRegex.Match(text);
-            if (m5.Success)
-            {
-                var val = m5.Groups[1].Value.Trim().Trim('\'', '"');
-                if (!val.Equals("true", StringComparison.OrdinalIgnoreCase) && !val.Equals("false", StringComparison.OrdinalIgnoreCase))
-                {
-                    if (ConstantRegistry.TryResolve(filePath, val, out var resolved) && IsValidSchemaName(resolved)) return resolved;
-                    if (IsValidSchemaName(val)) return val;
+                    ConstantRegistry.Register(filePath, val, resolvedFromFile);
+                    ConstantRegistry.Register(filePath, memberName, resolvedFromFile);
+                    return resolvedFromFile;
                 }
             }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-        }
-        return null;
+
+        return IsValidSchemaName(val) ? val : null;
     }
 
     private static string? FindConstantInProjectOrDirectory(string filePath, string memberName, string? typeName = null)
     {
-        try
+        if (!string.IsNullOrWhiteSpace(typeName) &&
+            ConstantRegistry.TryResolve(filePath, $"{typeName}.{memberName}", out var qualified) &&
+            !string.IsNullOrWhiteSpace(qualified))
         {
-            var rx = new Regex(@"(?:const\s+string\s+|string\s+)?" + Regex.Escape(memberName) + @"\s*=\s*[""']([^""']+)[""']", RegexOptions.IgnoreCase);
-            var dir = Path.GetDirectoryName(filePath);
-            if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return null;
-
-            foreach (var f in Directory.EnumerateFiles(dir, "*.cs"))
-            {
-                var match = rx.Match(File.ReadAllText(f));
-                if (match.Success) return match.Groups[1].Value.Trim().Trim('\'', '"');
-            }
-
-            var projDir = dir;
-            while (projDir != null && !Directory.EnumerateFiles(projDir, "*.csproj").Any())
-            {
-                var parent = Directory.GetParent(projDir);
-                if (parent == null || parent.FullName == projDir) break;
-                projDir = parent.FullName;
-            }
-
-            if (projDir != null && Directory.Exists(projDir))
-            {
-                if (!string.IsNullOrWhiteSpace(typeName))
-                {
-                    var candidateFile = Directory.EnumerateFiles(projDir, $"{typeName}.cs", SearchOption.AllDirectories).FirstOrDefault();
-                    if (candidateFile != null && File.Exists(candidateFile))
-                    {
-                        var match = rx.Match(File.ReadAllText(candidateFile));
-                        if (match.Success) return match.Groups[1].Value.Trim().Trim('\'', '"');
-                    }
-                }
-
-                foreach (var f in Directory.EnumerateFiles(projDir, "*.cs", SearchOption.AllDirectories))
-                {
-                    var match = rx.Match(File.ReadAllText(f));
-                    if (match.Success) return match.Groups[1].Value.Trim().Trim('\'', '"');
-                }
-            }
+            return qualified.Trim().Trim('\'', '"');
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        if (ConstantRegistry.TryResolve(filePath, memberName, out var simple) &&
+            !string.IsNullOrWhiteSpace(simple))
         {
+            return simple.Trim().Trim('\'', '"');
         }
         return null;
     }

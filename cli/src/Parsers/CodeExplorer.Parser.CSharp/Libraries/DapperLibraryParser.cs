@@ -76,7 +76,7 @@ public class DapperLibraryParser : ISemanticExtension
     private static string? ExtractSqlArgument(Node node)
     {
         var argList = node.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
-        if (argList.IsValid() && argList.Children.Count > 1)
+        if (argList.IsValid() && argList.Children.Count > 0)
         {
             // First argument contains the SQL string
             var arg = argList.FindChildOfType(TreeSitterSyntax.CSharp.Argument);

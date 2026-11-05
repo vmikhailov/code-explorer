@@ -22,10 +22,30 @@ public record DatabaseNode(
     string Id,
     [property: OntologyProperty("The database engine or catalog name.")] string Name,
     [property: OntologyProperty("The path of the folder or file relative to its parent container.")] string Path,
-    [property: JsonPropertyName("db_type"), OntologyProperty("The database system type (sqlserver, postgres, sqlite, mongodb, neo4j).")] string DbType,
+    [property: JsonPropertyName("db_type"), OntologyProperty("The database system type (sqlserver, postgres, sqlite, mongodb, neo4j).")] DatabaseType DbType,
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {
+    private static readonly HashSet<string> AllowedTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "relational", "document", "keyvalue", "search", "cache", "vector", "graph",
+        "analytics", "timeseries", "columnar", "multimodel"
+    };
+
+    public DatabaseNode(string Id, string Name, string Path, string DbType, Dictionary<string, string>? Extensions = null)
+        : this(Id, Name, Path, ValidateDbType(DbType), Extensions)
+    {
+    }
+
+    private static DatabaseType ValidateDbType(string dbType)
+    {
+        if (!AllowedTypes.Contains(dbType))
+        {
+            throw new ArgumentException($"Unsupported DatabaseNode type: {dbType}. Allowed types are: {string.Join(", ", AllowedTypes)}");
+        }
+        return EnumExtensions.ParseDatabaseType(dbType);
+    }
+
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Database;
 }

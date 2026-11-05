@@ -194,7 +194,7 @@ public class ParserValidationTests
             .FirstOrDefault(d => d.Name.Equals(expectedDb, StringComparison.OrdinalIgnoreCase) ||
                                 (expectedDb.Equals("default", StringComparison.OrdinalIgnoreCase) && d.Name.EndsWith("." + expectedSchema, StringComparison.OrdinalIgnoreCase)));
         dbNode.Should().NotBeNull($"Should contain DB node: {expectedDb}");
-        dbNode.DbType.Should().Be("relational");
+        dbNode.DbType.Should().Be(DatabaseType.Relational);
 
         var schemaNode = dbNode.Children.OfType<DataSetNode>()
             .FirstOrDefault(s => s.Name.Equals(expectedSchema, StringComparison.OrdinalIgnoreCase));
@@ -232,7 +232,7 @@ public class ParserValidationTests
         var dbNode = queryNode!.Children.OfType<DatabaseNode>().FirstOrDefault();
         dbNode.Should().NotBeNull();
         dbNode!.Name.Should().Be("BigQuery.calculation_history");
-        dbNode.DbType.Should().Be("analytics");
+        dbNode.DbType.Should().Be(DatabaseType.Analytics);
         dbNode.Extensions!["engine"].Should().Be("BigQuery");
         dbNode.Extensions!["schema"].Should().Be("calculation_history");
         dbNode.Name.Contains('[').Should().BeFalse("DatabaseNode name must not contain bracket '['");
@@ -634,7 +634,7 @@ public class ParserValidationTests
         var dbNode = semanticNode.Children.OfType<DatabaseNode>().FirstOrDefault();
         dbNode.Should().NotBeNull();
         dbNode.Name.Should().StartWith("PostgreSQL");
-        dbNode.DbType.Should().Be("relational");
+        dbNode.DbType.Should().Be(DatabaseType.Relational);
 
         // Check if CloudServiceNode child was added at the project level (under SemanticStructureNode)
         var cloudNode = semanticNode.Children.OfType<CloudServiceNode>().FirstOrDefault();
@@ -745,7 +745,7 @@ public class ParserValidationTests
         // Schema and DB hierarchy check
         var dbNode = sqlNode.Children.OfType<DatabaseNode>().FirstOrDefault();
         dbNode.Should().NotBeNull();
-        dbNode.DbType.Should().Be("relational");
+        dbNode.DbType.Should().Be(DatabaseType.Relational);
 
         var schemaNode = dbNode.Children.OfType<DataSetNode>()
             .FirstOrDefault(s => s.Name == "my_schema");
@@ -789,23 +789,26 @@ public class ParserValidationTests
             Directory.CreateDirectory(csProjDir);
             await File.WriteAllTextAsync(Path.Combine(csProjDir, "cs_project.csproj"), "<Project><ItemGroup><PackageReference Include=\"Npgsql.EntityFrameworkCore.PostgreSQL\" Version=\"8.0\" /></ItemGroup></Project>");
 
+            var csCode = "using Microsoft.EntityFrameworkCore; class MyContext : DbContext { protected override void OnModelCreating(ModelBuilder b) => b.HasDefaultSchema(\"catalog\"); }";
             var csFile = new FileNode("cs_file", "Repository.cs", "Repository.cs", Path.Combine(csProjDir, "Repository.cs"));
-            await File.WriteAllTextAsync(csFile.FullPath, "using Microsoft.EntityFrameworkCore; class MyContext : DbContext { protected override void OnModelCreating(ModelBuilder b) => b.HasDefaultSchema(\"catalog\"); }");
+            await File.WriteAllTextAsync(csFile.FullPath, csCode);
             var csProj = new ProjectNode("cs_project", "cs_project", csProjDir, "csharp");
+            csProj.Children.Add(new PackageNode("pkg:npgsql", "Npgsql.EntityFrameworkCore.PostgreSQL", "8.0", false, "nuget"));
             csProj.Children.Add(csFile);
             var csParser = new CSharpParser();
+            using var parsedTree = await csParser.ParseAsync(csFile.FullPath, csProj.Id, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 
-            var csSyntaxTree = new SyntaxTree(csFile.FullPath, csFile.Path, null, null, null, csFile, csParser,
+            var csSyntaxTree = new SyntaxTree(csFile.FullPath, csFile.Path, parsedTree.Document, csFile, csParser,
                 [new RawImport("Microsoft.EntityFrameworkCore", "Repository.cs") { Type = ImportType.External }],
                 [], []);
             await ResourceSemanticAnalyzer.EnrichAsync(csSyntaxTree, csProj, csParser, ctx);
 
             var csDbGroup = ctx.SemanticStructure;
             csDbGroup.Should().NotBeNull();
-            var csDbNode = csDbGroup.Children.OfType<DatabaseNode>().FirstOrDefault(d => d.DbType == "relational");
+            var csDbNode = csDbGroup.Children.OfType<DatabaseNode>().FirstOrDefault(d => d.DbType == DatabaseType.Relational);
             csDbNode.Should().NotBeNull();
             csDbNode.Name.Should().StartWith("PostgreSQL");
-            csDbNode.DbType.Should().Be("relational");
+            csDbNode.DbType.Should().Be(DatabaseType.Relational);
 
             (ctx.GlobalProjectDependencies.Any(r =>
                     r.From == csDbNode.Id && r.To == csFile.Id && r.Kind == "DECLARED_IN")).Should().BeTrue();
@@ -831,7 +834,7 @@ public class ParserValidationTests
                 .FirstOrDefault(d => d.Name == "Neo4j");
             csGraphDbNode.Should().NotBeNull();
             csGraphDbNode.Name.Should().Be("Neo4j");
-            csGraphDbNode.DbType.Should().Be("graph");
+            csGraphDbNode.DbType.Should().Be(DatabaseType.Graph);
 
             (ctx.GlobalProjectDependencies.Any(r =>
                     r.From == csGraphDbNode.Id && r.To == csGraphFile.Id && r.Kind == "DECLARED_IN")).Should().BeTrue();
@@ -853,7 +856,7 @@ public class ParserValidationTests
             var tsDbNode = tsDbGroup.Children.OfType<DatabaseNode>().FirstOrDefault(d => d.Name == "MongoDB");
             tsDbNode.Should().NotBeNull();
             tsDbNode.Name.Should().Be("MongoDB");
-            tsDbNode.DbType.Should().Be("document");
+            tsDbNode.DbType.Should().Be(DatabaseType.Document);
 
             (ctx.GlobalProjectDependencies.Any(r =>
                     r.From == tsDbNode.Id && r.To == tsFile.Id && r.Kind == "DECLARED_IN")).Should().BeTrue();
@@ -875,7 +878,7 @@ public class ParserValidationTests
             var pyDbNode = pyDbGroup.Children.OfType<DatabaseNode>().FirstOrDefault(d => d.Name == "Redis");
             pyDbNode.Should().NotBeNull();
             pyDbNode.Name.Should().Be("Redis");
-            pyDbNode.DbType.Should().Be("keyvalue");
+            pyDbNode.DbType.Should().Be(DatabaseType.KeyValue);
 
             (ctx.GlobalProjectDependencies.Any(r =>
                     r.From == pyDbNode.Id && r.To == pyFile.Id && r.Kind == "DECLARED_IN")).Should().BeTrue();
@@ -952,18 +955,18 @@ public class ParserValidationTests
         redisNode.Should().NotBeNull();
     }
 
-    private record TestSemanticExtension(string Id, string Name, string Type, IReadOnlyList<string> SupportedPatterns) : ISemanticExtension;
+    private record TestSemanticExtension(string Id, string Name, SemanticExtensionType Type, IReadOnlyList<string> SupportedPatterns) : ISemanticExtension;
 
     [Test]
     public void Test_SemanticExtensionRegistry_Matching()
     {
-        var parserNest = new TestSemanticExtension("nestjs", "NestJS", "framework", ["@nestjs/*"]);
-        var parserFirebaseGeneric = new TestSemanticExtension("firebase", "Firebase", "cloud", ["firebase*"]);
+        var parserNest = new TestSemanticExtension("nestjs", "NestJS", SemanticExtensionType.Framework, ["@nestjs/*"]);
+        var parserFirebaseGeneric = new TestSemanticExtension("firebase", "Firebase", SemanticExtensionType.Cloud, ["firebase*"]);
 
         var parserFirebaseSpecific =
-            new TestSemanticExtension("firebaseadmin", "FirebaseAdmin", "cloud", ["firebase-admin"]);
-        var parserSql = new TestSemanticExtension("sqlclient", "SqlClient", "db", ["System.Data"]);
-        var parserGoogleCloud = new TestSemanticExtension("gcp", "GCP", "cloud", ["Google.Cloud."]);
+            new TestSemanticExtension("firebaseadmin", "FirebaseAdmin", SemanticExtensionType.Cloud, ["firebase-admin"]);
+        var parserSql = new TestSemanticExtension("sqlclient", "SqlClient", SemanticExtensionType.RelationalDb, ["System.Data"]);
+        var parserGoogleCloud = new TestSemanticExtension("gcp", "GCP", SemanticExtensionType.Cloud, ["Google.Cloud."]);
 
         var registry = new SemanticExtensionRegistry([
             parserNest,
@@ -992,9 +995,9 @@ public class ParserValidationTests
     [Test]
     public void Test_SemanticExtensionRegistry_WildcardsAndRelativeImports()
     {
-        var rabbitExt = new TestSemanticExtension("rabbitmq", "RabbitMQ", "queue", ["amqplib", "*rabbit*", "*Rabbit*"]);
-        var pubsubExt = new TestSemanticExtension("pubsub", "PubSub", "queue", ["cloud.google.com/go/pubsub", "*pubsub*", "*pub-sub*"]);
-        var eventBusExt = new TestSemanticExtension("eventbus", "EventBus", "queue", ["*EventBus*"]);
+        var rabbitExt = new TestSemanticExtension("rabbitmq", "RabbitMQ", SemanticExtensionType.Queue, ["amqplib", "*rabbit*", "*Rabbit*"]);
+        var pubsubExt = new TestSemanticExtension("pubsub", "PubSub", SemanticExtensionType.Queue, ["cloud.google.com/go/pubsub", "*pubsub*", "*pub-sub*"]);
+        var eventBusExt = new TestSemanticExtension("eventbus", "EventBus", SemanticExtensionType.Queue, ["*EventBus*"]);
 
         var registry = new SemanticExtensionRegistry([rabbitExt, pubsubExt, eventBusExt]);
 

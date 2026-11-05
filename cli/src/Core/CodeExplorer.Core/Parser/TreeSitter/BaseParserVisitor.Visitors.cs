@@ -54,7 +54,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         var isConstant = Profile.ConstantDeclarations.Contains(node.Type) || HasProfileConstantModifier(node);
         var scope = SymbolStack.Peek().Kind switch
         {
-            "Class" or "Interface" or "Struct" => "class",
+            CodeExplorer.Cypher.Common.SyntacticSymbolKind.Class or CodeExplorer.Cypher.Common.SyntacticSymbolKind.Interface or CodeExplorer.Cypher.Common.SyntacticSymbolKind.Struct => "class",
             _ => "local"
         };
 
@@ -66,7 +66,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
                 if (!string.IsNullOrEmpty(varName))
                 {
                     var valNode = declarator.GetField(SyntaxFields.Value);
-                    var initText = valNode.IsValid() && (valNode.EndIndex - valNode.StartIndex) <= 1024 ? valNode.Text : "";
+                    var initText = valNode.IsValid() ? valNode.GetBoundedInitializerText() : "";
 
                     RawVariables.Add(new RawVariable(
                         varName,
@@ -157,7 +157,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
     protected override void VisitInheritanceClause(Node node, int depth)
     {
         var currentScope = SymbolStack.Peek();
-        if (currentScope.Kind != "file")
+        if (currentScope.Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.File)
         {
             foreach (var child in node.Children)
             {
@@ -204,7 +204,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
     protected override void VisitStringLiteral(Node node, int depth)
     {
         var currentScope = SymbolStack.Peek();
-        if (currentScope.Kind == OntologyConstants.NodeLabels.Query)
+        if (currentScope.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Query)
         {
             var cleanedLiteral = CleanStringLiteral(node.Text);
             if ((string.IsNullOrEmpty(currentScope.Text) || !NestedSqlParser.TryParseSql(currentScope.Text, out _, out _)) &&
@@ -215,7 +215,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
             if (!WorkspaceConventions.IsFrontendFilePath(RelativePath))
             {
                 NestedSqlParser.TryDetectSqlDependencies(cleanedLiteral, "", currentScope.References);
-                var enclosingFunc = SymbolStack.FirstOrDefault(s => s.Kind == OntologyConstants.NodeLabels.Function);
+                var enclosingFunc = SymbolStack.FirstOrDefault(s => s.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function);
                 if (enclosingFunc != null)
                 {
                     foreach (var r in currentScope.References)
@@ -245,7 +245,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         }
         else
         {
-            if (currentScope.Kind != "file" && !WorkspaceConventions.IsFrontendFilePath(RelativePath))
+            if (currentScope.Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.File && !WorkspaceConventions.IsFrontendFilePath(RelativePath))
             {
                 NestedSqlParser.TryDetectSqlDependencies(node.Text, "", currentScope.References);
             }
@@ -267,7 +267,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
             var callName = FindCallName(node);
 
-            if (!string.IsNullOrEmpty(callName) && currentScope.Kind != "file")
+            if (!string.IsNullOrEmpty(callName) && currentScope.Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.File)
             {
                 currentScope.References.Add(new Reference("", callName, "CALLS",
                     node.StartPosition.Row + 1,
@@ -328,22 +328,16 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
                 if (!string.IsNullOrWhiteSpace(cleaned) &&
                     !NestedSqlParser.TryParseSql(cleaned, out _, out _))
                 {
-                    var line = exprNode.StartPosition.Row + 1;
-                    var col = exprNode.StartPosition.Column + 1;
                     var displayName = cleaned.Length > 80 ? cleaned[..77] + "..." : cleaned;
 
-                    var literalSymbol = new SyntacticSymbol(OntologyConstants.NodeLabels.CallLiteral, displayName, exprNode)
+                    var literalSymbol = new SyntacticSymbol(CodeExplorer.Cypher.Common.SyntacticSymbolKind.CallLiteral, displayName, exprNode)
                     {
-                        Text = cleaned
+                        Text = cleaned,
+                        Callee = callName ?? "",
+                        ArgIndex = argIndex,
+                        Role = role,
+                        IsDecorator = isDecorator
                     };
-                    literalSymbol.Properties["value"] = cleaned;
-                    literalSymbol.Properties["callee"] = callName ?? "";
-                    literalSymbol.Properties["arg_index"] = argIndex.ToString();
-                    literalSymbol.Properties["file_path"] = RelativePath;
-                    literalSymbol.Properties["line"] = line.ToString();
-                    literalSymbol.Properties["column"] = col.ToString();
-                    literalSymbol.Properties["role"] = role;
-                    literalSymbol.Properties["is_decorator"] = isDecorator ? "true" : "false";
 
                     currentScope.Children.Add(literalSymbol);
                 }
@@ -441,13 +435,13 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
         var isEmpty = statementCount == 0;
         var currentScope = SymbolStack.Peek();
-        var catchSymbol = new SyntacticSymbol(OntologyConstants.NodeLabels.CatchClause, exType ?? "catch", node);
-        catchSymbol.Properties["exception_type"] = exType ?? "";
-        catchSymbol.Properties["is_empty"] = isEmpty.ToString().ToLowerInvariant();
-        catchSymbol.Properties["has_comment"] = hasComment.ToString().ToLowerInvariant();
-        catchSymbol.Properties["statement_count"] = statementCount.ToString();
-        catchSymbol.Properties["line"] = (node.StartPosition.Row + 1).ToString();
-        catchSymbol.Properties["column"] = (node.StartPosition.Column + 1).ToString();
+        var catchSymbol = new SyntacticSymbol(CodeExplorer.Cypher.Common.SyntacticSymbolKind.CatchClause, exType ?? "catch", node)
+        {
+            RequestType = exType ?? "",
+            IsEmptyCatch = isEmpty,
+            HasCatchComment = hasComment,
+            ArgIndex = statementCount
+        };
 
         currentScope.Children.Add(catchSymbol);
 

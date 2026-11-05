@@ -674,18 +674,18 @@ public partial class SqliteGraphClient
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            const string sql = "SELECT relative_path AS RelativePath, content_hash AS ContentHash, last_modified_utc AS LastModifiedUtcStr, project_path AS ProjectPath, snapshot_json AS SnapshotJson FROM file_registry;";
-            var rows = await _conn.QueryAsync<(string RelativePath, string ContentHash, string LastModifiedUtcStr, string ProjectPath, string? SnapshotJson)>(
+            const string sql = "SELECT relative_path AS RelativePath, content_hash AS ContentHash, last_modified_utc AS LastModifiedUtcStr, size_bytes AS SizeBytes, project_path AS ProjectPath, snapshot_json AS SnapshotJson FROM file_registry;";
+            var rows = await _conn.QueryAsync<(string RelativePath, string ContentHash, string LastModifiedUtcStr, long SizeBytes, string ProjectPath, string? SnapshotJson)>(
                 new CommandDefinition(sql, cancellationToken: cancellationToken));
 
             var result = new Dictionary<string, FileRegistryEntry>(StringComparer.OrdinalIgnoreCase);
-            foreach (var (relPath, hash, lastModStr, projPath, snapshotJson) in rows)
+            foreach (var (relPath, hash, lastModStr, sizeBytes, projPath, snapshotJson) in rows)
             {
                 var lastMod = DateTime.TryParse(lastModStr, null,
                     System.Globalization.DateTimeStyles.RoundtripKind, out var dt)
                     ? dt
                     : DateTime.MinValue;
-                result[relPath] = new FileRegistryEntry(hash, lastMod, projPath, snapshotJson);
+                result[relPath] = new FileRegistryEntry(hash, lastMod, projPath, snapshotJson, sizeBytes);
             }
 
             return result;
@@ -699,10 +699,15 @@ public partial class SqliteGraphClient
     public Task SaveFileRegistryEntriesAsync(
         IEnumerable<(string RelativePath, string ContentHash, DateTime LastModifiedUtc, string ProjectPath)> entries,
         CancellationToken cancellationToken = default) =>
-        SaveFileRegistryEntriesAsync(entries.Select(e => (e.RelativePath, e.ContentHash, e.LastModifiedUtc, e.ProjectPath, (string?)null)), cancellationToken);
+        SaveFileRegistryEntriesAsync(entries.Select(e => (e.RelativePath, e.ContentHash, e.LastModifiedUtc, -1L, e.ProjectPath, (string?)null)), cancellationToken);
+
+    public Task SaveFileRegistryEntriesAsync(
+        IEnumerable<(string RelativePath, string ContentHash, DateTime LastModifiedUtc, string ProjectPath, string? SnapshotJson)> entries,
+        CancellationToken cancellationToken = default) =>
+        SaveFileRegistryEntriesAsync(entries.Select(e => (e.RelativePath, e.ContentHash, e.LastModifiedUtc, -1L, e.ProjectPath, e.SnapshotJson)), cancellationToken);
 
     public async Task SaveFileRegistryEntriesAsync(
-        IEnumerable<(string RelativePath, string ContentHash, DateTime LastModifiedUtc, string ProjectPath, string? SnapshotJson)> entries,
+        IEnumerable<(string RelativePath, string ContentHash, DateTime LastModifiedUtc, long SizeBytes, string ProjectPath, string? SnapshotJson)> entries,
         CancellationToken cancellationToken = default)
     {
         var entryList = entries.Select(e => new
@@ -710,6 +715,7 @@ public partial class SqliteGraphClient
             relPath = e.RelativePath,
             hash = e.ContentHash,
             lastMod = e.LastModifiedUtc.ToString("o"),
+            sizeBytes = e.SizeBytes,
             projPath = e.ProjectPath,
             snapshotJson = e.SnapshotJson
         }).ToList();
@@ -721,11 +727,12 @@ public partial class SqliteGraphClient
             await using var tx = await _conn.BeginTransactionAsync(cancellationToken);
 
             const string sql = """
-                               INSERT INTO file_registry (relative_path, content_hash, last_modified_utc, project_path, snapshot_json)
-                               VALUES (@relPath, @hash, @lastMod, @projPath, @snapshotJson)
+                               INSERT INTO file_registry (relative_path, content_hash, last_modified_utc, size_bytes, project_path, snapshot_json)
+                               VALUES (@relPath, @hash, @lastMod, @sizeBytes, @projPath, @snapshotJson)
                                ON CONFLICT(relative_path) DO UPDATE SET
                                    content_hash = excluded.content_hash,
                                    last_modified_utc = excluded.last_modified_utc,
+                                   size_bytes = CASE WHEN excluded.size_bytes >= 0 THEN excluded.size_bytes ELSE file_registry.size_bytes END,
                                    project_path = excluded.project_path,
                                    snapshot_json = coalesce(excluded.snapshot_json, file_registry.snapshot_json);
                                """;
@@ -736,8 +743,10 @@ public partial class SqliteGraphClient
             var pRel = cmd.Parameters.Add("@relPath", SqliteType.Text);
             var pHash = cmd.Parameters.Add("@hash", SqliteType.Text);
             var pMod = cmd.Parameters.Add("@lastMod", SqliteType.Text);
+            var pSize = cmd.Parameters.Add("@sizeBytes", SqliteType.Integer);
             var pProj = cmd.Parameters.Add("@projPath", SqliteType.Text);
-            var pSnap = cmd.Parameters.Add("@snapshotJson", SqliteType.Text);
+            const string ParamSnapJson = "@snapshotJson";
+            var pSnap = cmd.Parameters.Add(ParamSnapJson, SqliteType.Text);
             cmd.Prepare();
 
             foreach (var item in entryList)
@@ -745,6 +754,7 @@ public partial class SqliteGraphClient
                 pRel.Value = item.relPath;
                 pHash.Value = item.hash;
                 pMod.Value = item.lastMod;
+                pSize.Value = item.sizeBytes;
                 pProj.Value = item.projPath;
                 pSnap.Value = (object?)item.snapshotJson ?? DBNull.Value;
                 cmd.ExecuteNonQuery();

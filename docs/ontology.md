@@ -472,7 +472,7 @@ graph TD
 | `Name` | `string` | The short summary or title of the scanning/parsing issue. |
 | `Path` | `string` | The relative path of the file or folder where the issue occurred. |
 | `Stage` | `string` | The indexing pipeline stage where the issue occurred (e.g. Layer1_Physical, Layer2_Boundaries, Layer3_Syntactic, Layer3_Visitor, Layer4_Semantic, Layer5_Global). |
-| `Category` | `string` | The issue category (e.g. syntax_error, parse_exception, visitor_exception, manifest_error, io_error, reference_error). |
+| `Category` | `ScanIssueCategory` | The issue category (e.g. syntax_error, parse_exception, visitor_exception, manifest_error, io_error, reference_error). |
 | `Severity` | `string` | The severity of the issue (error or warning). |
 | `Message` | `string` | The detailed error message or syntax snippet. |
 | `StartLine` | `int?` | The 1-based starting line number of the issue, if known. |
@@ -513,7 +513,7 @@ graph TD
 | :--- | :--- | :--- |
 | `Name` | `string` | The name of the binary or process entry point. |
 | `Path` | `string` | The path of the entry point file relative to its parent container. |
-| `EntryType` | `string` | The kind of binary/process entry point (e.g. main-method, top-level, script-main, bundle-entry). |
+| `EntryType` | `EntryPointType` | The kind of binary/process entry point (e.g. main-method, top-level, script-main, bundle-entry). |
 
 ---
 
@@ -550,7 +550,7 @@ graph TD
 | `IsInternal` | `bool` | Whether this package is produced internally by a workspace project. |
 | `Ecosystem` | `string` | The package ecosystem (e.g. nuget, npm, maven, pip, go). |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
-| `Archetype` | `string` | The architectural archetype of the package (e.g. PureUtility, ClientUi, CliTool, Framework, BackendService, DatabaseDriver, NativeAddon). |
+| `Archetype` | `ProjectArchetype` | The architectural archetype of the package (e.g. PureUtility, ClientUi, CliTool, Framework, BackendService, DatabaseDriver, NativeAddon). |
 | `IsExternal` | `bool` | Whether this package is an external third-party dependency. |
 
 ---
@@ -597,11 +597,11 @@ graph TD
 | :--- | :--- | :--- |
 | `Name` | `string` | The name of the entity. |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
-| `ProjectType` | `string` | The language/signature identifier (e.g. 'csharp', 'go', 'python', 'typescript'). |
+| `ProjectType` | `ProjectLanguage` | The language/signature identifier (e.g. 'csharp', 'go', 'python', 'typescript'). |
 | `Language` | `string` | The programming language (e.g. 'csharp', 'go', 'python', 'typescript'). |
 | `KindValue` | `string` | The physical entity classification kind (e.g. Service, App, Worker, FunctionApp, Library, DatabaseMigration, Test). |
 | `Role` | `string` | Architectural role of the project (e.g. Service, SharedLibrary, FrontendApp, Worker, CliTool, Test). |
-| `Archetype` | `string` | Architectural archetype of the project (e.g. PureUtility, ClientUi, CliTool, Framework, BackendService, DatabaseDriver, NativeAddon). |
+| `Archetype` | `ProjectArchetype` | Architectural archetype of the project (e.g. PureUtility, ClientUi, CliTool, Framework, BackendService, DatabaseDriver, NativeAddon). |
 | `PrimaryRole` | `string?` | Primary architectural role of the project (e.g. WebService, Scheduler, WorkerService, SharedLibrary, FrontendFramework, CliFramework, TestFramework). |
 | `SecondaryRoles` | `string?` | Secondary architectural roles detected in the project (e.g. ['Scheduler', 'QueueWorker']). |
 | `AllRoles` | `string?` | All architectural roles detected in the project. |
@@ -779,7 +779,7 @@ graph TD
 | `EndLine` | `int` | The ending line number (1-indexed) of the declaration. |
 | `StartCol` | `int` | The starting column number of the declaration. |
 | `EndCol` | `int` | The ending column number of the declaration. |
-| `MemberKind` | `string` | The specific member kind (field, property, parameter, variable). |
+| `MemberKind` | `MemberKind` | The specific member kind (field, property, parameter, variable). |
 | `DataType` | `string?` | The declared data type of the member. |
 
 ---
@@ -884,7 +884,7 @@ graph TD
 | `EndLine` | `int` | The ending line number (1-indexed) of the declaration. |
 | `StartCol` | `int` | The starting column number of the declaration. |
 | `EndCol` | `int` | The ending column number of the declaration. |
-| `TypeKind` | `string` | The specific type kind (class, interface, struct, record, enum). |
+| `TypeKind` | `TypeKind` | The specific type kind (class, interface, struct, record, enum). |
 | `IsTest` | `bool` | Indicates whether the type is declared within test code. |
 | `ProjectKind` | `ProjectEntityKind?` | The architectural kind of the enclosing project. |
 | `ProjectName` | `string?` | The name of the enclosing project. |
@@ -971,7 +971,7 @@ graph TD
 | :--- | :--- | :--- |
 | `Name` | `string` | The application name. |
 | `Path` | `string` | The path of the application directory relative to the workspace. |
-| `ProjectType` | `string` | The project type or language. |
+| `ProjectType` | `ProjectLanguage` | The project type or language. |
 
 ---
 
@@ -1014,7 +1014,7 @@ graph TD
 | :--- | :--- | :--- |
 | `Name` | `string` | The CLI tool name. |
 | `Path` | `string` | The path of the tool directory relative to the workspace. |
-| `ProjectType` | `string` | The project type or language. |
+| `ProjectType` | `ProjectLanguage` | The project type or language. |
 
 ---
 
@@ -1056,7 +1056,7 @@ graph TD
 | Property | Type | Description |
 | :--- | :--- | :--- |
 | `Name` | `string` | The name of the entity. |
-| `ResourceType` | `string` | The cloud service resource type (e.g. S3Bucket, DynamoDb, CloudService). |
+| `ResourceType` | `CloudResourceType` | The cloud service resource type (e.g. S3Bucket, DynamoDb, CloudService). |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
 
 ---
@@ -1093,7 +1093,7 @@ graph TD
 | :--- | :--- | :--- |
 | `Name` | `string` | The database engine or catalog name. |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
-| `DbType` | `string` | The database system type (sqlserver, postgres, sqlite, mongodb, neo4j). |
+| `DbType` | `DatabaseType` | The database system type (sqlserver, postgres, sqlite, mongodb, neo4j). |
 
 ---
 
@@ -1147,7 +1147,7 @@ graph TD
 | `Policies` | `string?` | Authorization policies guarding the endpoint. |
 | `RequestType` | `string?` | The request payload type (e.g. StartRideRequest, CreateOrderDto). |
 | `ResponseType` | `string?` | The response payload type (e.g. RideDto, OrderResponse). |
-| `OperationType` | `string?` | The operation type for GraphQL (Query, Mutation, Subscription) or gRPC (Unary, Streaming). |
+| `OperationType` | `OperationType?` | The operation type for GraphQL (Query, Mutation, Subscription) or gRPC (Unary, Streaming). |
 
 ---
 
@@ -1220,7 +1220,7 @@ graph TD
 | :--- | :--- | :--- |
 | `Name` | `string` | The library name. |
 | `Path` | `string` | The path of the library directory relative to the workspace. |
-| `ProjectType` | `string` | The project type or language. |
+| `ProjectType` | `ProjectLanguage` | The project type or language. |
 
 ---
 
@@ -1379,7 +1379,7 @@ graph TD
 | :--- | :--- | :--- |
 | `Name` | `string` | The service name. |
 | `Path` | `string` | The path of the service directory relative to the workspace. |
-| `ProjectType` | `string` | The project type or language. |
+| `ProjectType` | `ProjectLanguage` | The project type or language. |
 
 ---
 
@@ -1437,7 +1437,7 @@ graph TD
 | :--- | :--- | :--- |
 | `Name` | `string` | The test suite name. |
 | `Path` | `string` | The path of the test suite directory relative to the workspace. |
-| `ProjectType` | `string` | The project type or language. |
+| `ProjectType` | `ProjectLanguage` | The project type or language. |
 
 ---
 
@@ -1476,7 +1476,7 @@ graph TD
 | :--- | :--- | :--- |
 | `Name` | `string` | The name of the topic or exchange. |
 | `Path` | `string` | The path of the folder or file relative to its parent container. |
-| `BrokerType` | `string` | The broker system type (rabbitmq, kafka, sqs, in-memory). |
+| `BrokerType` | `BrokerType` | The broker system type (rabbitmq, kafka, sqs, in-memory). |
 
 ---
 
@@ -1519,7 +1519,7 @@ graph TD
 | :--- | :--- | :--- |
 | `Name` | `string` | The worker name. |
 | `Path` | `string` | The path of the worker directory relative to the workspace. |
-| `ProjectType` | `string` | The project type or language. |
+| `ProjectType` | `ProjectLanguage` | The project type or language. |
 
 ---
 
@@ -1587,7 +1587,7 @@ graph TD
 | :--- | :--- | :--- |
 | `Name` | `string` | The canonical domain name. |
 | `DisplayName` | `string` | The human-readable display name of the domain. |
-| `DomainType` | `string` | The DDD classification of the domain (Core, Supporting, Generic, Shared). |
+| `DomainType` | `DomainType` | The DDD classification of the domain (Core, Supporting, Generic, Shared). |
 | `Summary` | `string?` | A concise summary of the domain's business responsibility. |
 | `Icon` | `string?` | Representative icon for the domain. |
 | `Path` | `string` | Primary path associated with the domain. |

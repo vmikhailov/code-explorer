@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
@@ -74,7 +75,7 @@ public class GraphQLClientLibraryParser : ISemanticExtension
             inlineOps[0].RootFields.Count > 0)
         {
             var op = inlineOps[0];
-            return $"graphql:{op.OperationType.ToUpperInvariant()}:{op.RootFields[0]}";
+            return $"graphql:{op.OperationType.ToCanonicalString().ToUpperInvariant()}:{op.RootFields[0]}";
         }
 
         if (IsGraphQLTarget(node))
@@ -111,7 +112,7 @@ public class GraphQLClientLibraryParser : ISemanticExtension
 
     public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
-        if (symbol.Kind == OntologyConstants.NodeLabels.Function &&
+        if (symbol.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function &&
             node.Is(TreeSitterSyntax.TypeScript.VariableDeclarator) &&
             TryExtractDocumentOperationsFromDeclarator(node, out var ops) &&
             ops.Count > 0)
@@ -124,9 +125,10 @@ public class GraphQLClientLibraryParser : ISemanticExtension
                 if (!string.IsNullOrEmpty(op.OperationName))
                 {
                     symbol.Properties.TryAdd("graphql_operation", op.OperationName);
-                    aliases.AddRange(GraphQLFileParser.BuildCodegenAliases(op.OperationName, op.OperationType));
+                    aliases.AddRange(GraphQLFileParser.BuildCodegenAliases(op.OperationName, op.OperationType.ToCanonicalString()));
                 }
-                symbol.Properties.TryAdd("operation_type", op.OperationType);
+                symbol.OperationType = op.OperationType;
+                symbol.Properties.TryAdd("operation_type", op.OperationType.ToCanonicalString());
 
                 foreach (var rf in op.RootFields)
                 {
@@ -135,7 +137,7 @@ public class GraphQLClientLibraryParser : ISemanticExtension
                         allRootFields.Add(rf);
                     }
 
-                    var extIdentifier = $"graphql:{op.OperationType.ToUpperInvariant()}:{rf}";
+                    var extIdentifier = $"graphql:{op.OperationType.ToCanonicalString().ToUpperInvariant()}:{rf}";
                     symbol.Children.Add(new SyntacticSymbol(
                         OntologyConstants.NodeLabels.ExternalService,
                         extIdentifier,

@@ -463,7 +463,7 @@ public class TestIntelligenceService
 
                 if (isTestFile && !IsLifecycleOrHelperName(sym.Name))
                 {
-                    if (sym.Kind == "Function")
+                    if (sym.Kind == NodeKind.Function)
                     {
                         affectedTestMap[sym.Name] = new AffectedTestMethod(
                             sym.Name,

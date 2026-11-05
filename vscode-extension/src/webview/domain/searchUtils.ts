@@ -71,10 +71,12 @@ export function matchesSearchPattern(
     }
   }
 
+  const REGEX_FLAGS_I = 'i';
+
   // 2. Wildcard pattern containing '*' or '?'
   if (q.includes('*') || q.includes('?')) {
     try {
-      const re = new RegExp(wildcardToRegExpString(q), 'i');
+      const re = new RegExp(wildcardToRegExpString(q), REGEX_FLAGS_I);
       return candidates.some((t) => re.test(t)) || re.test(combined);
     } catch {
       // Fall through
@@ -84,7 +86,7 @@ export function matchesSearchPattern(
   // 3. Implicit RegExp patterns containing regex syntax characters
   if (/[\^$|()[\]{}\\]/.test(q)) {
     try {
-      const re = new RegExp(q, 'i');
+      const re = new RegExp(q, REGEX_FLAGS_I);
       return candidates.some((t) => re.test(t)) || re.test(combined);
     } catch {
       // Incomplete/invalid regex while typing; fall through to token match

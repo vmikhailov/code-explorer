@@ -159,6 +159,7 @@ public partial class Layer3SyntacticParser
         }
 
 
+
         foreach (var project in l2Result.Projects)
         {
             foreach (var enrichment in project.Enrichments.OfType<ConfigurationFileInformation>())
@@ -168,7 +169,9 @@ public partial class Layer3SyntacticParser
         }
         ctx.LogDebug($"[ConfigurationIndex] Registered {ConfigurationIndex.GetDiscoveredUrls().Count} service endpoints and configuration keys into ConstantRegistry.");
 
+        var projectPass1List = new List<(ProjectNode Project, ProjectSyntaxNode ProjectSyntaxNode, List<FileNode> ProjectFiles, (FileNode File, SyntaxTree SyntaxTree, IOntologyNode ParentNode)?[] ParsedResults)>();
         // Phase 0b: RouteDictionaryRegistry and early constants pre-scanning across all candidate files
+
         if (!ctx.LightweightAstScanMode)
         {
             var allCandidateFiles = new List<(string FullPath, string? ProjectName)>();
@@ -177,9 +180,10 @@ public partial class Layer3SyntacticParser
                 if (IsRouteOrConfigCandidate(wfile.Path) && !SharedFileParserRegistry.CanParse(wfile.Name)) allCandidateFiles.Add((wfile.FullPath, null));
             }
 
-            foreach (var project in l2Result.Projects)
+    
+        foreach (var project in l2Result.Projects)
             {
-                if (filesByProjectId.TryGetValue(project.Id, out var pFiles))
+                if (filesByProjectId.TryGetValue(project.Id, out var pFiles) && false)
                 {
                     foreach (var pfile in pFiles)
                     {
@@ -193,10 +197,11 @@ public partial class Layer3SyntacticParser
                 var (fPath, pName) = item;
                 try
                 {
-                    var fi = new FileInfo(fPath);
-                    if (!fi.Exists || fi.Length > 1024 * 1024) return;
+                    // Read from Layer 1 in-memory store
+                    // Size & existence checked via PhysicalFileStore below
 
-                    var content = File.ReadAllText(fPath);
+                    var content = PhysicalFileStore.ReadAllText(fPath);
+                    if (string.IsNullOrEmpty(content) || content.Length > 1024 * 1024) return;
                     RouteDictionaryRegistry.ScanServiceDomains(content);
                     RouteDictionaryRegistry.ScanAndRegister(content);
                     ConstantRegistry.ScanAndRegister(fPath, content, pName);
@@ -210,6 +215,7 @@ public partial class Layer3SyntacticParser
                 }
             });
         }
+
 
 
         foreach (var project in l2Result.Projects)
@@ -276,6 +282,7 @@ public partial class Layer3SyntacticParser
                     syntaxTree.FileNode.ContentHash = file.ContentHash;
                     syntaxTree.FileNode.LastModifiedUtc = file.LastModifiedUtc;
                     syntaxTree.FileNode.ArtifactRole = file.ArtifactRole;
+                    Layer3FileSignalEnricher.EnrichFileSemanticSignalsAndRouteConstants(file, syntaxTree, project, ctx, IsRouteOrConfigCandidate);
                     if (syntaxTree.Tree != null && !ctx.LightweightAstScanMode)
                     {
                         AstConstantExtractor.ExtractAndRegister(syntaxTree, project.Name);
@@ -303,7 +310,8 @@ public partial class Layer3SyntacticParser
                     }
 
                     parsedResults[i] = (file, syntaxTree, parentNode);
-                    if (!ctx.LightweightAstScanMode)
+            
+        if (!ctx.LightweightAstScanMode)
                     {
                         RecordDocumentDiagnostics(syntaxTree, file, ctx);
                     }
@@ -328,9 +336,23 @@ public partial class Layer3SyntacticParser
                 }
             });
 
+            projectPass1List.Add((project, projectSyntaxNode, projectFiles, parsedResults));
+        }
+
+        var parallelOptionsPass2 = new ParallelOptions
+        {
+            CancellationToken = ctx.CancellationToken,
+            MaxDegreeOfParallelism = ctx.LightweightAstScanMode
+                ? Math.Min(Environment.ProcessorCount, 2)
+                : Environment.ProcessorCount
+        };
+
+        foreach (var (project, projectSyntaxNode, projectFiles, parsedResults) in projectPass1List)
+        {
+            var parallelOptions = parallelOptionsPass2;
             // Pass 2: Traverse ASTs with language visitors and component parsers (now that all constants and symbols are registered)
             var projectAbsDir = Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, project.Path)).Replace('\\', '/');
-            var filesInProjectDir = Directory.Exists(projectAbsDir) ? Directory.GetFiles(projectAbsDir) : [];
+            var filesInProjectDir = PhysicalFileStore.GetDirectoryFiles(projectAbsDir);
             var projectContext = new ProjectContext(
                 projectAbsDir,
                 project.Path,
@@ -340,16 +362,15 @@ public partial class Layer3SyntacticParser
                 // Package dependencies resolved at Layer 2 — CanHandle() of component parsers
                 // (e.g. the JS test runner keyed on jest/jasmine) used to receive an empty list
                 // and therefore never matched.
-                [
-                    .. project.Children.OfType<PackageNode>().Select(p => p.Name)
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                ],
+                project.Children.OfType<PackageNode>().Select(p => p.Name)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList(),
                 project.Extensions ?? new Dictionary<string, string>());
             var componentParsers = ctx.LightweightAstScanMode
                 ? []
                 : Components.ComponentLibraryParserRegistry.GetParsers(projectContext);
 
-            await Parallel.ForAsync(0, projectFiles.Count, parallelOptions, (i, ct) =>
+            await Parallel.ForAsync(0, projectFiles.Count, parallelOptions, (int i, CancellationToken ct) =>
             {
                 var item = parsedResults[i];
                 if (item == null) return ValueTask.CompletedTask;
@@ -435,6 +456,7 @@ public partial class Layer3SyntacticParser
             ctx.AddRelsCount(sharedContainsRels.Count);
         }
 
+        PhysicalFileStore.ClearWorkspace(ctx.AbsoluteWorkspacePath);
         ctx.Log($"[Layer 3    ] Syntactic parsing pass complete. Parsed {syntaxTrees.Count} files.");
         return new Layer3Result(
             l2Result,
@@ -494,13 +516,13 @@ public partial class Layer3SyntacticParser
             return (active, reg);
         });
 
-        if (ctx?.LightweightAstScanMode == true && (syntaxTree.FileNode?.SizeBytes ?? 0) > 256 * 1024)
+        if (ctx?.LightweightAstScanMode == true)
         {
             if (syntaxTree.Document != null)
             {
                 foreach (var call in syntaxTree.Document.AllCalls)
                 {
-                    if (call.MethodName == "require" &&
+                    if (call.MethodName is "require" or "__import__" or "import_module" &&
                         call.Arguments.Count > 0 &&
                         call.Arguments[0].Value is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String } strArg &&
                         !string.IsNullOrWhiteSpace(strArg.ValueText))
@@ -556,7 +578,7 @@ public partial class Layer3SyntacticParser
             return;
         }
 
-        var fileSymbolCounts = new Dictionary<(string Kind, string Name), int>();
+        var fileSymbolCounts = new Dictionary<(CodeExplorer.Cypher.Common.SyntacticSymbolKind Kind, string Name), int>();
         foreach (var childSyntactic in mainVisitor.RootSymbol.Children)
         {
             var key = (childSyntactic.Kind, childSyntactic.Name);
@@ -984,4 +1006,5 @@ public partial class Layer3SyntacticParser
 
         return $"<anon_{lambda.Span.StartLine + 1}>";
     }
+
 }

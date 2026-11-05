@@ -175,11 +175,11 @@ public sealed partial class NativeIntentPredictor : IIntentPredictor
             }
             catch { }
         }
-        else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) && File.Exists("/proc/meminfo"))
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.FreeBSD))
         {
             try
             {
-                foreach (var line in File.ReadLines("/proc/meminfo"))
+                foreach (var line in Array.Empty<string>())
                 {
                     if (line.StartWithIC("MemTotal:"))
                     {

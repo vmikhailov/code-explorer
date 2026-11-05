@@ -5,22 +5,44 @@ using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser.Syntax;
+using CodeExplorer.Cypher.Common;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript;
 
 public sealed record GraphQLParsedOperation(
-    string OperationType,
+    OperationType OperationType,
     string? OperationName,
     IReadOnlyList<string> RootFields,
     int StartLine,
-    int EndLine);
+    int EndLine)
+{
+    public GraphQLParsedOperation(
+        string OperationType,
+        string? OperationName,
+        IReadOnlyList<string> RootFields,
+        int StartLine,
+        int EndLine)
+        : this(TaxonomyEnumExtendedExtensions.ParseOperationType(OperationType), OperationName, RootFields, StartLine, EndLine)
+    {
+    }
+}
 
 public sealed record GraphQLParsedSdlField(
-    string OperationType,
+    OperationType OperationType,
     string FieldName,
     string? ReturnType,
-    int Line);
+    int Line)
+{
+    public GraphQLParsedSdlField(
+        string OperationType,
+        string FieldName,
+        string? ReturnType,
+        int Line)
+        : this(TaxonomyEnumExtendedExtensions.ParseOperationType(OperationType), FieldName, ReturnType, Line)
+    {
+    }
+}
 
 /// <summary>
 /// Dedicated file parser for GraphQL documents (.graphql, .gql).
@@ -65,7 +87,7 @@ public class GraphQLFileParser : IFileParser
         var fileId = $"{workspaceId}:{OntologyConstants.IdPrefixes.File}:{relativePath}";
         var fileNode = new FileNode(fileId, fileName, relativePath, filePath);
 
-        var content = File.Exists(filePath) ? await File.ReadAllTextAsync(filePath) : string.Empty;
+        var content = await PhysicalFileStore.ConsumeFileTextAsync(filePath);
         var doc = SyntaxDocument.Create(content, LanguageName, filePath, relativePath);
         if (string.IsNullOrWhiteSpace(content))
         {
@@ -78,13 +100,14 @@ public class GraphQLFileParser : IFileParser
         {
             if (op.RootFields.Count == 0) continue;
 
+            var opTypeStr = op.OperationType.ToCanonicalString();
             var opName = !string.IsNullOrEmpty(op.OperationName)
                 ? op.OperationName
-                : $"Anonymous{op.OperationType}_{op.StartLine}";
+                : $"Anonymous{opTypeStr}_{op.StartLine}";
 
             var pascalOp = ToPascalCase(opName);
             var primaryHookName = !string.IsNullOrEmpty(op.OperationName)
-                ? $"use{pascalOp}{op.OperationType}"
+                ? $"use{pascalOp}{opTypeStr}"
                 : opName;
 
             var symbolId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:fn:{primaryHookName}";
@@ -100,7 +123,7 @@ public class GraphQLFileParser : IFileParser
                 1);
 
             funcNode.SetExtension("graphql_operation", opName);
-            funcNode.SetExtension("operation_type", op.OperationType);
+            funcNode.SetExtension("operation_type", opTypeStr);
             funcNode.SetExtension("graphql_fields", string.Join(",", op.RootFields));
             if (op.RootFields.Count == 1)
             {
@@ -109,21 +132,21 @@ public class GraphQLFileParser : IFileParser
 
             if (!string.IsNullOrEmpty(op.OperationName))
             {
-                var aliases = BuildCodegenAliases(op.OperationName, op.OperationType);
+                var aliases = BuildCodegenAliases(op.OperationName, opTypeStr);
                 funcNode.SetExtension("graphql_aliases", string.Join(",", aliases));
             }
 
             foreach (var rootField in op.RootFields)
             {
                 var gqlPath = "/" + rootField.TrimStart('/');
-                var extId = $"{workspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:graphql:{op.OperationType}:{rootField}:{symbolId}";
+                var extId = $"{workspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:graphql:{opTypeStr}:{rootField}:{symbolId}";
                 var extProps = new Dictionary<string, string>
                 {
                     ["file_path"] = relativePath,
                     ["start_line"] = op.StartLine.ToString(),
                     ["start_col"] = "1",
                     ["graphql_field"] = rootField,
-                    ["operation_type"] = op.OperationType,
+                    ["operation_type"] = opTypeStr,
                     ["caller_symbol_id"] = symbolId,
                     ["is_internal"] = "true",
                     ["url"] = gqlPath
@@ -140,7 +163,7 @@ public class GraphQLFileParser : IFileParser
 
         foreach (var sdl in sdlFields)
         {
-            var method = sdl.OperationType.ToUpperInvariant();
+            var method = sdl.OperationType.ToCanonicalString().ToUpperInvariant();
             var epName = $"{method}:{sdl.FieldName}";
             var epId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Endpoint}:{projPart}sdl:{method}:{sdl.FieldName}";
             var epNode = new EndpointNode(

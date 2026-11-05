@@ -5,7 +5,13 @@ using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Mcp;
 
-public record NodeMetadataInfo(string Kind, Type NodeType, OntologyNodeAttribute Attribute);
+public record NodeMetadataInfo(NodeKind Kind, Type NodeType, OntologyNodeAttribute Attribute)
+{
+    public NodeMetadataInfo(string Kind, Type NodeType, OntologyNodeAttribute Attribute)
+        : this(EnumExtensions.ParseNodeKind(Kind), NodeType, Attribute)
+    {
+    }
+}
 
 public static class OntologyRegistry
 {
@@ -18,13 +24,13 @@ public static class OntologyRegistry
                 if (attr == null) return null;
 
                 var instance = (IOntologyNode)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(t);
-                return new NodeMetadataInfo(instance.Kind.ToCypherLabel(), t, attr);
+                return new NodeMetadataInfo(instance.Kind, t, attr);
             }).OfType<NodeMetadataInfo>()
     ];
 
     public static readonly HashSet<string> SystemKinds = AllNodes
         .Where(x => x.Attribute.IsSystemNode)
-        .Select(x => x.Kind)
+        .Select(x => x.Kind.ToCypherLabel())
         .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     public static bool IsSystemNode(string? kind)
@@ -37,8 +43,8 @@ public static class OntologyRegistry
 
     public static readonly Dictionary<string, (string CapitalizedKind, Type NodeType)> KindMapping = 
         AllNodes.ToDictionary(
-            x => x.Kind, 
-            x => (x.Kind, x.NodeType), 
+            x => x.Kind.ToCypherLabel(), 
+            x => (x.Kind.ToCypherLabel(), x.NodeType), 
             StringComparer.OrdinalIgnoreCase
         );
 

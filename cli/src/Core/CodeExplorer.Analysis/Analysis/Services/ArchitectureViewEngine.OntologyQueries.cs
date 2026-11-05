@@ -210,12 +210,13 @@ public partial class ArchitectureViewEngine
 
                 foreach (var node in Mcp.OntologyRegistry.AllNodes)
                 {
-                    if (node.Attribute.IsSystemNode || Mcp.OntologyRegistry.IsSystemNode(node.Kind))
+                    var kindStr = node.Kind.ToCypherLabel();
+                    if (node.Attribute.IsSystemNode || Mcp.OntologyRegistry.IsSystemNode(kindStr))
                     {
                         continue;
                     }
 
-                    var count = result.NodeCounts.GetValueOrDefault(node.Kind, 0);
+                    var count = result.NodeCounts.GetValueOrDefault(kindStr, 0);
                     if (count > 0)
                     {
                         var layerId = node.Attribute.Layer switch
@@ -388,11 +389,12 @@ public partial class ArchitectureViewEngine
         // 3. Dynamically compute LayerCounts from registered ontology node definitions
         foreach (var node in Mcp.OntologyRegistry.AllNodes)
         {
-            if (node.Attribute.IsSystemNode || Mcp.OntologyRegistry.IsSystemNode(node.Kind))
+            var kindStr = node.Kind.ToCypherLabel();
+            if (node.Attribute.IsSystemNode || Mcp.OntologyRegistry.IsSystemNode(kindStr))
             {
                 continue;
             }
-            var cnt = result.NodeCounts.GetValueOrDefault(node.Kind, 0);
+            var cnt = result.NodeCounts.GetValueOrDefault(kindStr, 0);
             if (cnt <= 0) continue;
             var layerId = node.Attribute.Layer switch
             {

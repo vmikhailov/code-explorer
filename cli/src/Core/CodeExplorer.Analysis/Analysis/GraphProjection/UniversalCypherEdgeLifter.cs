@@ -14,7 +14,19 @@ public sealed record LiftedEdgeEvidence(
     string? SourceFile,
     string? TargetFile,
     int? Line,
-    string Kind);
+    RelationshipKind Kind)
+{
+    public LiftedEdgeEvidence(
+        string SourceSymbol,
+        string TargetSymbol,
+        string? SourceFile,
+        string? TargetFile,
+        int? Line,
+        string Kind)
+        : this(SourceSymbol, TargetSymbol, SourceFile, TargetFile, Line, EnumExtensions.ParseRelationshipKind(Kind))
+    {
+    }
+}
 
 /// <summary>
 /// Result of edge lifting between target containers.
@@ -23,7 +35,7 @@ public sealed class LiftedEdgeResult
 {
     public required string SourceId { get; init; }
     public required string TargetId { get; init; }
-    public required string Kind { get; init; }
+    public required RelationshipKind Kind { get; init; }
     public int Weight { get; set; } = 0;
     public HashSet<string> SourceFiles { get; } = new(StringComparer.OrdinalIgnoreCase);
     public List<LiftedEdgeEvidence> Samples { get; } = [];
@@ -63,7 +75,7 @@ public static class UniversalCypherEdgeLifter
                 {
                     SourceId = srcContainer,
                     TargetId = tgtContainer,
-                    Kind = kind
+                    Kind = EnumExtensions.ParseRelationshipKind(kind)
                 };
                 aggregated[key] = item;
             }
@@ -131,13 +143,17 @@ public static class UniversalCypherEdgeLifter
         var json = await db.ExecuteQueryAsync(query, null, ct);
         using var doc = JsonDocument.Parse(json);
 
+                const string PropSource = "source";
+        const string PropTarget = "target";
+        const string PropKind = "kind";
+        const string PropWeight = "weight";
         var list = new List<GraphEdgeDto>();
         foreach (var elem in doc.RootElement.EnumerateArray())
         {
-            var src = elem.GetStringProp("source");
-            var tgt = elem.GetStringProp("target");
-            var kind = elem.GetStringProp("kind");
-            var weight = elem.GetNullableIntProp("weight") ?? 1;
+            var src = elem.GetStringProp(PropSource);
+            var tgt = elem.GetStringProp(PropTarget);
+            var kind = elem.GetStringProp(PropKind);
+            var weight = elem.GetNullableIntProp(PropWeight) ?? 1;
 
             if (string.IsNullOrEmpty(src) || string.IsNullOrEmpty(tgt)) continue;
 

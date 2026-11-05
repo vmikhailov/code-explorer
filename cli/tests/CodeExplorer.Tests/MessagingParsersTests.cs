@@ -936,7 +936,7 @@ public class OrderStartedIntegrationEventHandler : IIntegrationEventHandler<Orde
             newTopicNodes.Should().ContainSingle();
             var topic = newTopicNodes[0];
             topic.Name.Should().Be("OrderStartedIntegrationEvent");
-            topic.BrokerType.Should().Be("eventbus");
+            topic.BrokerType.Should().Be(BrokerType.EventBus);
         }
         finally
         {

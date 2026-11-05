@@ -152,15 +152,15 @@ public class CSharpFileVisitor : BaseParserVisitor
         SyntacticSymbol symbolNode,
         SyntacticSymbol parentNode)
     {
-        if (symbolNode.Kind == OntologyConstants.NodeLabels.Function &&
+        if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function &&
             symbolNode.Name == "Main" &&
             !WorkspaceConventions.IsTestFilePath(RelativePath) &&
             node.Children.Any(c => c.Text == "static"))
         {
-            symbolNode.Children.Add(new SyntacticSymbol(OntologyConstants.NodeLabels.EntryPoint, "main-method:Main", node) { Text = node.Text });
+            symbolNode.Children.Add(new SyntacticSymbol(CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint, "main-method:Main", node) { Text = node.Text });
         }
 
-        if (symbolNode.Kind == OntologyConstants.NodeLabels.EntryPoint)
+        if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint)
         {
             var curr = node.IsAny(
                 TreeSitterSyntax.CSharp.MethodDeclaration,
@@ -305,7 +305,7 @@ public class CSharpFileVisitor : BaseParserVisitor
                         {
                             var valueNode = declarator.GetField(TreeSitterSyntax.Fields.Value) ?? declarator
                                 .FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause)?.Children
-                                .ElementAtOrDefault(1);
+                                .LastOrDefault();
 
                             if (!valueNode.IsValid())
                             {
@@ -487,7 +487,7 @@ public class CSharpFileVisitor : BaseParserVisitor
     protected override void VisitInheritanceClause(Node node, int depth)
     {
         var currentScope = SymbolStack.Peek();
-        if (currentScope.Kind != "file")
+        if (currentScope.Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.File)
         {
             foreach (var child in node.Children)
             {
@@ -518,12 +518,12 @@ public class CSharpFileVisitor : BaseParserVisitor
             if (!valueNode.IsValid())
             {
                 var eqClause = node.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause);
-                if (eqClause.IsValid() && eqClause.Children.Count > 1)
+                if (eqClause.IsValid() && eqClause.Children.Count > 0)
                 {
-                    valueNode = eqClause.Children[1];
+                    valueNode = eqClause.Children[^1];
                 }
             }
-            var initializerText = valueNode.IsValid() ? valueNode.Text : "";
+            var initializerText = valueNode.IsValid() ? valueNode.GetBoundedInitializerText() : "";
             var isConstant = IsCSharpConstant(node);
             var scope = DetermineCSharpScope(node);
 
@@ -592,6 +592,7 @@ public class CSharpFileVisitor : BaseParserVisitor
         var curr = node;
         while (curr.IsValid())
         {
+            if (curr is CodeExplorer.Core.Parser.Syntax.VariableDeclSyntax { IsConstant: true } || (curr is CodeExplorer.Core.Parser.Syntax.DeclarationSyntax d && (d.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Const) || d.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.ReadOnly)))) return true;
             if (curr.IsAny(TreeSitterSyntax.CSharp.FieldDeclaration, TreeSitterSyntax.CSharp.LocalDeclarationStatement))
             {
                 foreach (var child in curr.Children)

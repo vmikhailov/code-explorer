@@ -115,7 +115,7 @@ public class RustFileVisitor : BaseParserVisitor
         SyntacticSymbol symbolNode,
         SyntacticSymbol parentNode)
     {
-        if (symbolNode.Kind == OntologyConstants.NodeLabels.Function)
+        if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function)
         {
             var isAsync = node.Children.Any(c => c.Text == "async");
             var isUnsafe = node.Children.Any(c => c.Text == "unsafe");
@@ -127,7 +127,7 @@ public class RustFileVisitor : BaseParserVisitor
             symbolNode.Properties["is_unsafe"] = isUnsafe ? "true" : "false";
             symbolNode.Properties["visibility"] = visibility;
         }
-        else if (symbolNode.Kind is "Struct" or "Enum" or "Interface")
+        else if (symbolNode.Kind is CodeExplorer.Cypher.Common.SyntacticSymbolKind.Struct or CodeExplorer.Cypher.Common.SyntacticSymbolKind.Enum or CodeExplorer.Cypher.Common.SyntacticSymbolKind.Interface)
         {
             _typesByName[symbolNode.Name] = symbolNode;
         }
@@ -183,10 +183,10 @@ public class RustFileVisitor : BaseParserVisitor
 
         if (!_typesByName.TryGetValue(targetTypeName, out var targetSymbol))
         {
-            targetSymbol = RootSymbol.Children.FirstOrDefault(c => c.Kind is "Struct" or "Enum" or "Class" && c.Name == targetTypeName);
+            targetSymbol = RootSymbol.Children.FirstOrDefault(c => c.Kind is CodeExplorer.Cypher.Common.SyntacticSymbolKind.Struct or CodeExplorer.Cypher.Common.SyntacticSymbolKind.Enum or CodeExplorer.Cypher.Common.SyntacticSymbolKind.Class && c.Name == targetTypeName);
             if (targetSymbol == null)
             {
-                targetSymbol = new SyntacticSymbol("Struct", targetTypeName, node);
+                targetSymbol = new SyntacticSymbol(CodeExplorer.Cypher.Common.SyntacticSymbolKind.Struct, targetTypeName, node);
                 targetSymbol.Properties["type_kind"] = "struct";
                 RootSymbol.Children.Add(targetSymbol);
             }
@@ -396,7 +396,7 @@ public class RustFileVisitor : BaseParserVisitor
 
             if (!string.IsNullOrEmpty(tableName))
             {
-                var enclosingFunc = SymbolStack.FirstOrDefault(s => s.Kind == OntologyConstants.NodeLabels.Function);
+                var enclosingFunc = SymbolStack.FirstOrDefault(s => s.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function);
                 if (enclosingFunc != null)
                 {
                     enclosingFunc.References.Add(new Reference("", tableName, OntologyConstants.Relationships.QueriesDb));
@@ -437,7 +437,7 @@ public class RustFileVisitor : BaseParserVisitor
             if (patternNode.IsValid())
             {
                 var name = patternNode.Text;
-                var initText = valNode.IsValid() ? valNode.Text : "";
+                var initText = valNode.IsValid() ? valNode.GetBoundedInitializerText() : "";
                 RawVariables.Add(new RawVariable(
                     name,
                     initText,

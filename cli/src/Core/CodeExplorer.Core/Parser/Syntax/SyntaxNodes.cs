@@ -1,3 +1,5 @@
+using CodeExplorer.Cypher.Common;
+
 namespace CodeExplorer.Core.Parser.Syntax;
 
 /// <summary>
@@ -6,7 +8,7 @@ namespace CodeExplorer.Core.Parser.Syntax;
 public readonly record struct SyntaxPoint(int Row, int Column);
 
 public sealed record SyntaxDiagnostic(
-    string Kind,
+    SyntaxDiagnosticKind Kind,
     string Message,
     TextSpan Span,
     string? ParentGrammarKind = null
@@ -27,6 +29,16 @@ public readonly record struct TextSpan(
     public static readonly TextSpan Empty = new(0, 0, 0, 0, 0, 0);
     public int Length => EndByte > StartByte ? EndByte - StartByte : 0;
     public bool IsEmpty => EndByte <= StartByte;
+}
+
+/// <summary>
+/// Zero-allocation character offset and length slice into <see cref="SyntaxDocument.SourceText"/> (8 bytes).
+/// Eliminates duplicate string fragment allocations on AST nodes.
+/// </summary>
+public readonly record struct SourceSlice(int Start, int Length)
+{
+    public static readonly SourceSlice Empty = new(0, 0);
+    public bool IsEmpty => Length <= 0;
 }
 
 [Flags]
@@ -54,7 +66,7 @@ public enum SyntaxModifiers
     Data = 1 << 18
 }
 
-public enum TypeSyntaxKind
+public enum TypeSyntaxKind : byte
 {
     Class,
     Interface,
@@ -70,7 +82,7 @@ public enum TypeSyntaxKind
     GraphQlType
 }
 
-public enum FunctionSyntaxKind
+public enum FunctionSyntaxKind : byte
 {
     Function,
     Method,
@@ -81,7 +93,7 @@ public enum FunctionSyntaxKind
     Macro
 }
 
-public enum MemberSyntaxKind
+public enum MemberSyntaxKind : byte
 {
     Field,
     Property,
@@ -90,7 +102,7 @@ public enum MemberSyntaxKind
     EnumMember
 }
 
-public enum ParameterPassingMode
+public enum ParameterPassingMode : byte
 {
     Value,
     Ref,
@@ -103,7 +115,7 @@ public enum ParameterPassingMode
     Receiver
 }
 
-public enum TypeRefKind
+public enum TypeRefKind : byte
 {
     Named,
     Generic,
@@ -119,7 +131,7 @@ public enum TypeRefKind
     Channel
 }
 
-public enum LiteralSyntaxKind
+public enum LiteralSyntaxKind : byte
 {
     String,
     RawString,
@@ -131,7 +143,7 @@ public enum LiteralSyntaxKind
     Regex
 }
 
-public enum CallSyntaxKind
+public enum CallSyntaxKind : byte
 {
     Function,
     Method,
@@ -141,7 +153,7 @@ public enum CallSyntaxKind
     ThisConstructor
 }
 
-public enum ArgumentModifier
+public enum ArgumentModifier : byte
 {
     None,
     Ref,
@@ -151,7 +163,7 @@ public enum ArgumentModifier
     KeywordSpread
 }
 
-public enum CollectionSyntaxKind
+public enum CollectionSyntaxKind : byte
 {
     Array,
     ObjectOrMap,
@@ -160,7 +172,7 @@ public enum CollectionSyntaxKind
     StructInit
 }
 
-public enum SqlOperationKind
+public enum SqlOperationKind : byte
 {
     Select,
     Insert,
@@ -185,9 +197,6 @@ public enum SqlOperationKind
 /// </summary>
 public abstract class SyntaxNode
 {
-    private string? _cachedText;
-    private IReadOnlyList<SyntaxNode>? _namedChildren;
-
     /// <summary>
     /// Unique non-zero node identifier within the owning <see cref="SyntaxDocument"/>.
     /// </summary>
@@ -248,20 +257,25 @@ public abstract class SyntaxNode
     public IReadOnlyList<AnnotationSyntax> Annotations { get; set; } = [];
     public IReadOnlyList<SyntaxNode> Children { get; set; } = [];
 
-    public IReadOnlyList<SyntaxNode> NamedChildren
-    {
-        get
+    public IReadOnlyList<SyntaxNode> NamedChildren => Children;
+
+    public SyntaxNode? ResolveSyntheticField(string fieldName) =>
+        fieldName switch
         {
-            if (_namedChildren != null) return _namedChildren;
-            if (Children.Count == 0) return _namedChildren = [];
-            var list = new List<SyntaxNode>(Children.Count);
-            for (int i = 0; i < Children.Count; i++)
-            {
-                if (Children[i].IsNamed) list.Add(Children[i]);
-            }
-            return _namedChildren = list;
-        }
-    }
+            SyntaxFields.Value when this is VariableDeclSyntax { Initializer: { } varInit } => varInit,
+            SyntaxFields.Value when this is MemberDeclSyntax { Initializer: { } memInit } => memInit,
+            SyntaxFields.Value when this is ArgumentSyntax { Value: { } argVal } => argVal,
+            SyntaxFields.Value when RawGrammarKind is "equals_value_clause" or "arrow_expression_clause" && Children.Count > 0 => Children[^1],
+            SyntaxFields.Right when this is AssignmentExprSyntax { Right: { } assignRight } => assignRight,
+            SyntaxFields.Left when this is AssignmentExprSyntax { Left: { } assignLeft } => assignLeft,
+            SyntaxFields.Right when this is BinaryExprSyntax { Right: { } binRight } => binRight,
+            SyntaxFields.Left when this is BinaryExprSyntax { Left: { } binLeft } => binLeft,
+            SyntaxFields.Condition when this is IfStmtSyntax { Condition: { } ifCond } => ifCond,
+            SyntaxFields.Condition when this is LoopStmtSyntax { Condition: { } loopCond } => loopCond,
+            "trait" when this is ImplDeclSyntax { ImplementedTrait: { } implTrait } => implTrait,
+            SyntaxFields.Type when this is ImplDeclSyntax { TargetType: { } implTarget } => implTarget,
+            _ => null
+        };
 
     public SyntaxPoint StartPosition => new(Span.StartLine, Span.StartColumn);
     public SyntaxPoint EndPosition => new(Span.EndLine, Span.EndColumn);
@@ -294,23 +308,19 @@ public abstract class SyntaxNode
     public string? ExplicitText { get; init; }
 
     /// <summary>
-    /// Gets the exact source code slice corresponding to this syntax node.
+    /// Gets the source code slice corresponding to this syntax node without caching duplicate fragments on the node.
+    /// Prefer <see cref="AsSpan"/> or <see cref="TextSpan"/> for zero-allocation inspection.
     /// </summary>
     public string Text
     {
         get
         {
-            if (_cachedText != null) return _cachedText;
-            if (ExplicitText != null) return _cachedText = ExplicitText;
+            if (ExplicitText != null) return ExplicitText;
             if (Document != null)
             {
-                var src = Document.SourceText;
-                if (Span.StartByte >= 0 && Span.EndByte <= src.Length && Span.EndByte >= Span.StartByte)
-                {
-                    return _cachedText = src.Substring(Span.StartByte, Span.EndByte - Span.StartByte);
-                }
+                return Document.GetText(Span.StartByte, Span.EndByte);
             }
-            return _cachedText = string.Empty;
+            return string.Empty;
         }
     }
 
@@ -322,21 +332,31 @@ public abstract class SyntaxNode
         if (ExplicitText != null) return ExplicitText.AsSpan();
         if (Document != null)
         {
-            var src = Document.SourceText;
-            if (Span.StartByte >= 0 && Span.EndByte <= src.Length && Span.EndByte >= Span.StartByte)
-            {
-                return src.AsSpan(Span.StartByte, Span.EndByte - Span.StartByte);
-            }
+            return Document.Slice(Span);
         }
         return ReadOnlySpan<char>.Empty;
     }
 
-    public string ToFullString() => Text;
+    public ReadOnlySpan<char> TextSpan => AsSpan();
 
-    public string? OntologyNodeId { get; set; }
-    public string? SemanticKind { get; set; }
-    public string? SemanticIdentifier { get; set; }
-    public Dictionary<string, string>? SemanticMetadata { get; set; }
+    public bool SpanEquals(ReadOnlySpan<char> other, StringComparison comparison = StringComparison.Ordinal) =>
+        AsSpan().Equals(other, comparison);
+
+    /// <summary>
+    /// Returns the initializer text only when it is a bounded non-lambda expression (or SQL candidate),
+    /// inspecting <see cref="AsSpan"/> first to avoid allocating large multi-line fragments.
+    /// </summary>
+    public string GetBoundedInitializerText(int maxLength = 512)
+    {
+        if (this is LambdaExprSyntax) return string.Empty;
+        var span = AsSpan().Trim();
+        if (span.IsEmpty) return string.Empty;
+        if (span.Length <= maxLength) return span.ToString();
+        if (span.Length <= 2048 && NestedSqlParser.FastCheckSqlCandidate(span)) return span.ToString();
+        return string.Empty;
+    }
+
+    public string ToFullString() => Text;
 
     /// <summary>
     /// Retrieves the first child node assigned to the specified grammar field role (e.g. "name", "function", "arguments", "value").
@@ -351,7 +371,7 @@ public abstract class SyntaxNode
                 return c;
             }
         }
-        return null;
+        return ResolveSyntheticField(fieldName);
     }
 
     /// <summary>
@@ -473,6 +493,16 @@ public sealed class SyntaxDocument : SyntaxNode, IDisposable
         span.StartByte >= 0 && span.EndByte <= SourceText.Length && span.EndByte >= span.StartByte
             ? SourceText.AsSpan(span.StartByte, span.EndByte - span.StartByte)
             : ReadOnlySpan<char>.Empty;
+
+    public ReadOnlySpan<char> AsSpan(SourceSlice slice) =>
+        slice.Start >= 0 && slice.Length > 0 && slice.Start + slice.Length <= SourceText.Length
+            ? SourceText.AsSpan(slice.Start, slice.Length)
+            : ReadOnlySpan<char>.Empty;
+
+    public string GetText(SourceSlice slice) =>
+        slice.Start >= 0 && slice.Length > 0 && slice.Start + slice.Length <= SourceText.Length
+            ? SourceText.Substring(slice.Start, slice.Length)
+            : string.Empty;
 
     public string GetText(int startIndex, int endIndex) =>
         startIndex >= 0 && endIndex <= SourceText.Length && endIndex >= startIndex
@@ -600,7 +630,21 @@ public sealed class SyntaxDocument : SyntaxNode, IDisposable
 
 public abstract class DeclarationSyntax : SyntaxNode
 {
-    public string Name { get; set; } = string.Empty;
+    private string? _explicitName;
+    public SourceSlice NameSlice { get; set; }
+    public bool HasName => _explicitName is { Length: > 0 } || NameSlice.Length > 0;
+
+    public ReadOnlySpan<char> NameSpan =>
+        _explicitName != null
+            ? _explicitName.AsSpan()
+            : (Document != null ? Document.AsSpan(NameSlice) : ReadOnlySpan<char>.Empty);
+
+    public string Name
+    {
+        get => _explicitName ?? (NameSlice.Length > 0 && Document != null ? Document.GetText(NameSlice) : string.Empty);
+        set => _explicitName = value;
+    }
+
     public SyntaxModifiers Modifiers { get; set; }
 }
 
@@ -703,7 +747,20 @@ public sealed class AnnotationSyntax : DeclarationSyntax
 
 public sealed class TypeRefSyntax : SyntaxNode
 {
-    public string Name { get; set; } = string.Empty;
+    private string? _explicitName;
+    public SourceSlice NameSlice { get; set; }
+
+    public ReadOnlySpan<char> NameSpan =>
+        _explicitName != null
+            ? _explicitName.AsSpan()
+            : (NameSlice.Length > 0 && Document != null ? Document.AsSpan(NameSlice) : AsSpan());
+
+    public string Name
+    {
+        get => _explicitName ?? (NameSlice.Length > 0 && Document != null ? Document.GetText(NameSlice) : Text);
+        set => _explicitName = value;
+    }
+
     public string? Qualifier { get; set; }
     public TypeRefKind RefKind { get; set; } = TypeRefKind.Named;
     public IReadOnlyList<TypeRefSyntax> TypeArguments { get; set; } = [];
@@ -716,7 +773,19 @@ public abstract class BindingPatternSyntax : SyntaxNode;
 
 public sealed class IdentifierPatternSyntax : BindingPatternSyntax
 {
-    public string Name { get; set; } = string.Empty;
+    private string? _explicitName;
+    public SourceSlice NameSlice { get; set; }
+
+    public ReadOnlySpan<char> NameSpan =>
+        _explicitName != null
+            ? _explicitName.AsSpan()
+            : (NameSlice.Length > 0 && Document != null ? Document.AsSpan(NameSlice) : AsSpan());
+
+    public string Name
+    {
+        get => _explicitName ?? (NameSlice.Length > 0 && Document != null ? Document.GetText(NameSlice) : Text);
+        set => _explicitName = value;
+    }
 }
 
 public sealed class ObjectDestructuringPatternSyntax : BindingPatternSyntax
@@ -832,7 +901,7 @@ public sealed class ThrowStmtSyntax : StatementSyntax
 
 public sealed class BranchStmtSyntax : StatementSyntax
 {
-    public string BranchKind { get; set; } = string.Empty;
+    public BranchKind BranchKind { get; set; }
     public string? Label { get; set; }
 }
 
@@ -884,8 +953,35 @@ public abstract class ExprSyntax : SyntaxNode
 
 public sealed class LiteralExprSyntax : ExprSyntax
 {
+    private string? _explicitValueText;
     public LiteralSyntaxKind LiteralKind { get; set; } = LiteralSyntaxKind.String;
-    public string ValueText { get; set; } = string.Empty;
+    public SourceSlice ValueSlice { get; set; }
+    public bool HasEscapeSequences { get; set; }
+
+    public ReadOnlySpan<char> ValueSpan =>
+        _explicitValueText != null
+            ? _explicitValueText.AsSpan()
+            : (ValueSlice.Length > 0 && Document != null ? Document.AsSpan(ValueSlice) : AsSpan());
+
+    public string ValueText
+    {
+        get
+        {
+            if (_explicitValueText != null) return _explicitValueText;
+            if (HasEscapeSequences)
+            {
+                return AstValueResolver.Unquote(AsSpan());
+            }
+            if (ValueSlice.Length > 0 && Document != null)
+            {
+                return Document.GetText(ValueSlice);
+            }
+            return LiteralKind is LiteralSyntaxKind.String or LiteralSyntaxKind.RawString or LiteralSyntaxKind.Char
+                ? AstValueResolver.Unquote(AsSpan())
+                : Text;
+        }
+        set => _explicitValueText = value;
+    }
 }
 
 public sealed record InterpolationPartSyntax(
@@ -902,14 +998,38 @@ public sealed class InterpolatedStringExprSyntax : ExprSyntax
 
 public sealed class IdentifierExprSyntax : ExprSyntax
 {
-    public string Name { get; set; } = string.Empty;
+    private string? _explicitName;
+
+    public ReadOnlySpan<char> NameSpan =>
+        _explicitName != null ? _explicitName.AsSpan() : AsSpan();
+
+    public string Name
+    {
+        get => _explicitName ?? Text;
+        set => _explicitName = value;
+    }
+
     public DeclarationSyntax? TargetDeclaration { get; set; }
 }
 
 public sealed class MemberAccessExprSyntax : ExprSyntax
 {
+    private string? _explicitMemberName;
     public ExprSyntax? Object { get; set; }
-    public string MemberName { get; set; } = string.Empty;
+    public SourceSlice MemberNameSlice { get; set; }
+    public bool HasExplicitMemberName => _explicitMemberName != null;
+
+    public ReadOnlySpan<char> MemberNameSpan =>
+        _explicitMemberName != null
+            ? _explicitMemberName.AsSpan()
+            : (Document != null ? Document.AsSpan(MemberNameSlice) : ReadOnlySpan<char>.Empty);
+
+    public string MemberName
+    {
+        get => _explicitMemberName ?? (MemberNameSlice.Length > 0 && Document != null ? Document.GetText(MemberNameSlice) : string.Empty);
+        set => _explicitMemberName = value;
+    }
+
     public string Operator { get; set; } = ".";
 }
 
@@ -924,17 +1044,43 @@ public sealed class IndexOrSliceExprSyntax : ExprSyntax
 
 public sealed class ArgumentSyntax : ExprSyntax
 {
-    public string? Name { get; set; }
+    private string? _explicitName;
+    public SourceSlice NameSlice { get; set; }
+
+    public ReadOnlySpan<char> NameSpan =>
+        _explicitName != null
+            ? _explicitName.AsSpan()
+            : (Document != null ? Document.AsSpan(NameSlice) : ReadOnlySpan<char>.Empty);
+
+    public string? Name
+    {
+        get => _explicitName ?? (NameSlice.Length > 0 && Document != null ? Document.GetText(NameSlice) : null);
+        set => _explicitName = value;
+    }
+
     public ExprSyntax? Value { get; set; }
     public ArgumentModifier Modifier { get; set; } = ArgumentModifier.None;
 }
 
 public sealed class CallExprSyntax : ExprSyntax
 {
+    private string? _explicitMethodName;
     public CallSyntaxKind CallKind { get; set; } = CallSyntaxKind.Method;
     public ExprSyntax? Callee { get; set; }
     public ExprSyntax? Receiver { get; set; }
-    public string MethodName { get; set; } = string.Empty;
+    public SourceSlice MethodNameSlice { get; set; }
+
+    public ReadOnlySpan<char> MethodNameSpan =>
+        _explicitMethodName != null
+            ? _explicitMethodName.AsSpan()
+            : (Document != null ? Document.AsSpan(MethodNameSlice) : ReadOnlySpan<char>.Empty);
+
+    public string MethodName
+    {
+        get => _explicitMethodName ?? (MethodNameSlice.Length > 0 && Document != null ? Document.GetText(MethodNameSlice) : string.Empty);
+        set => _explicitMethodName = value;
+    }
+
     public IReadOnlyList<TypeRefSyntax> TypeArguments { get; set; } = [];
     public IReadOnlyList<ArgumentSyntax> Arguments { get; set; } = [];
 }
@@ -1029,13 +1175,14 @@ public sealed class RangeOrSpreadExprSyntax : ExprSyntax
 }
 
 // ============================================================================
-// TOKENS & UNMAPPED NODES (100% LOSSLESS UNION FALLBACKS)
+// UNMAPPED NODES
+#if FALSE
 // ============================================================================
 
 /// <summary>
-/// Represents an unnamed token node (punctuation, operator, keyword, or trivia).
+// Represents an unnamed token node (removed — only named UAST nodes are materialized).
 /// </summary>
-public sealed class TokenSyntax : SyntaxNode;
+#endif
 
 /// <summary>
 /// Zero-loss fallback for any named grammar node not matched by a more specific *Syntax class.

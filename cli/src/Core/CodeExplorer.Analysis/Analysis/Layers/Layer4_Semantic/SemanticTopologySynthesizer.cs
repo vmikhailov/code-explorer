@@ -28,12 +28,26 @@ internal static class SemanticTopologySynthesizer
     private sealed record CloudResourceDefinition(
         string IdSuffix,
         string Name,
-        string ResourceType,
+        CodeExplorer.Cypher.Common.CloudResourceType ResourceType,
         string Role,
         Regex FieldPattern,
         Regex ReadPattern,
         Regex WritePattern,
-        string PackageName);
+        string PackageName)
+    {
+        public CloudResourceDefinition(
+            string IdSuffix,
+            string Name,
+            string ResourceType,
+            string Role,
+            Regex FieldPattern,
+            Regex ReadPattern,
+            Regex WritePattern,
+            string PackageName)
+            : this(IdSuffix, Name, CodeExplorer.Cypher.Common.TaxonomyEnumExtensions.ParseCloudResourceType(ResourceType), Role, FieldPattern, ReadPattern, WritePattern, PackageName)
+        {
+        }
+    }
 
     private static readonly CloudResourceDefinition[] AwsResources =
     [
@@ -162,7 +176,7 @@ internal static class SemanticTopologySynthesizer
         ParsingContext ctx)
     {
         var nonTestRustProjects = projects
-            .Where(project => project.ProjectType.Equals("rust", StringComparison.OrdinalIgnoreCase) && !project.IsTest)
+            .Where(project => project.ProjectType == CodeExplorer.Cypher.Common.ProjectLanguage.Rust && !project.IsTest)
             .ToList();
         if (nonTestRustProjects.Count == 0)
         {
@@ -179,13 +193,20 @@ internal static class SemanticTopologySynthesizer
         var projectEffectiveSource = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var projectPeerAddressingFiles = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         var projectPackageNames = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var fileByFullPath = workspaceFiles
+            .Where(f => !string.IsNullOrEmpty(f.FullPath))
+            .GroupBy(f => Path.GetFullPath(f.FullPath).Replace('\\', '/'), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
         var sourceCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        string ReadSource(string fullPath)
+        string GetTopologySummary(string fullPath)
         {
             if (!sourceCache.TryGetValue(fullPath, out var text))
             {
-                text = File.Exists(fullPath) ? File.ReadAllText(fullPath) : string.Empty;
+                var normFull = Path.GetFullPath(fullPath).Replace('\\', '/');
+                text = fileByFullPath.TryGetValue(normFull, out var fn)
+                    ? (fn.Extensions?.GetValueOrDefault(CodeExplorer.Core.Parser.Layers.Layer3FileSignalEnricher.ExtRustTopologySummary) ?? string.Empty)
+                    : string.Empty;
                 sourceCache[fullPath] = text;
             }
             return text;
@@ -224,7 +245,7 @@ internal static class SemanticTopologySynthesizer
                               !WorkspaceConventions.IsTestFilePath(file.Path))
                 .Select(file => file.FullPath)
                 .ToList();
-            var source = string.Join('\n', ownFiles.Select(ReadSource));
+            var source = string.Join('\n', ownFiles.Select(GetTopologySummary));
             projectSource[project.Id] = source;
 
             // Only long-running workloads inherit evidence from reachable dependency code; for CLIs the import-level
@@ -237,11 +258,17 @@ internal static class SemanticTopologySynthesizer
                 ? GetReachableDependencyFiles(project, ctx.AbsoluteWorkspacePath)
                 : [];
             var reachableSources = string.Join('\n', reachableFiles
-                .Select(file => DeclarationLinePattern.Replace(ReadSource(file), string.Empty)));
+                .Select(file =>
+                {
+                    var normFull = Path.GetFullPath(file).Replace('\\', '/');
+                    return fileByFullPath.TryGetValue(normFull, out var fn)
+                        ? (fn.Extensions?.GetValueOrDefault(CodeExplorer.Core.Parser.Layers.Layer3FileSignalEnricher.ExtRustTopologyBodySummary) ?? string.Empty)
+                        : DeclarationLinePattern.Replace(GetTopologySummary(file), string.Empty);
+                }));
             var effectiveSource = reachableSources.Length == 0 ? source : source + "\n" + reachableSources;
             projectEffectiveSource[project.Id] = effectiveSource;
             projectPeerAddressingFiles[project.Id] = ownFiles.Concat(reachableFiles)
-                .Where(file => PeerAddressingUsagePattern.IsMatch(ReadSource(file)))
+                .Where(file => PeerAddressingUsagePattern.IsMatch(GetTopologySummary(file)))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             // Packages reachable through local workspace dependencies count too: a crate that only calls
@@ -293,7 +320,7 @@ internal static class SemanticTopologySynthesizer
                 var extensions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 {
                     ["provider"] = "AWS",
-                    ["resource_type"] = resource.ResourceType,
+                    ["resource_type"] = resource.ResourceType.ToCanonicalString(),
                     ["resource_role"] = resource.Role,
                     ["is_semantic_entity"] = "true"
                 };
@@ -371,7 +398,8 @@ internal static class SemanticTopologySynthesizer
         var composeFiles = workspaceFiles
             .Where(file => IsComposeFile(file.Path) && !file.Name.Contains(".test.", StringComparison.OrdinalIgnoreCase))
             .ToArray();
-        var composeSource = string.Join('\n', composeFiles.Select(file => File.ReadAllText(file.FullPath)));
+        var composeSource = string.Join('\n', composeFiles.Select(file =>
+            file.Extensions?.GetValueOrDefault("compose_participants") ?? string.Empty));
         var collectiveCompute = projects.Any(project =>
             projectSource.TryGetValue(project.Id, out var source) &&
             source.Contains("nccl", StringComparison.OrdinalIgnoreCase) &&
@@ -430,8 +458,9 @@ internal static class SemanticTopologySynthesizer
 
                 var peerConfiguration = PeerConfigurationPattern.IsMatch(source);
                 var bidirectionalTransport = PeerListenerPattern.IsMatch(source) && PeerConnectorPattern.IsMatch(source);
+                const string CudarcPkg = "cudarc";
                 var collective = source.Contains("nccl", StringComparison.OrdinalIgnoreCase) &&
-                                projectPackageNames.GetValueOrDefault(project.Id)?.Contains("cudarc") == true;
+                                projectPackageNames.GetValueOrDefault(project.Id)?.Contains(CudarcPkg) == true;
                 var independentCodeSignals = new[] { peerConfiguration, bidirectionalTransport, collective }
                     .Count(hasSignal => hasSignal);
                 if (independentCodeSignals >= 1)
@@ -451,7 +480,7 @@ internal static class SemanticTopologySynthesizer
         peerProjectIds.UnionWith(FindSharedNetworkingPeers(peerProjectIds, candidateProjectIds, projectPeerAddressingFiles));
 
         foreach (var project in projects.Where(project =>
-                     project.ProjectType.Equals("rust", StringComparison.OrdinalIgnoreCase) && !project.IsTest))
+                     project.ProjectType == CodeExplorer.Cypher.Common.ProjectLanguage.Rust && !project.IsTest))
         {
             if (!peerProjectIds.Contains(project.Id) ||
                 !workloadByProjectId.TryGetValue(project.Id, out var sourceId))

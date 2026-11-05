@@ -80,7 +80,7 @@ public sealed class JavaSyntaxConverter : TreeSitterSyntaxConverterBase
             "yield_statement" => new ReturnOrYieldStmtSyntax { Span = span, RawGrammarKind = rawKind, IsYield = true },
             "throw_statement" => new ThrowStmtSyntax { Span = span, RawGrammarKind = rawKind },
             "break_statement" or "continue_statement" =>
-                new BranchStmtSyntax { Span = span, RawGrammarKind = rawKind, BranchKind = rawKind },
+                new BranchStmtSyntax { Span = span, RawGrammarKind = rawKind, BranchKind = CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ParseBranchKind(rawKind) },
             "synchronized_statement" => new LockStmtSyntax { Span = span, RawGrammarKind = rawKind },
 
             "generic_type" or "array_type" or "scoped_type_identifier" or "integral_type" or "floating_point_type" or "boolean_type" =>
@@ -102,14 +102,14 @@ public sealed class JavaSyntaxConverter : TreeSitterSyntaxConverterBase
                 var fnNode = callExpr.GetChildForField("name") ?? callExpr.GetChildForField("type");
                 if (objNode is ExprSyntax recvExpr) callExpr.Receiver = recvExpr;
                 if (fnNode is ExprSyntax fnExpr) callExpr.Callee = fnExpr;
-                if (fnNode != null) callExpr.MethodName = fnNode.Text;
+                if (fnNode != null) callExpr.MethodNameSlice = new SourceSlice(fnNode.Span.StartByte, fnNode.Span.Length);
                 break;
 
             case MemberAccessExprSyntax memExpr:
                 var targetNode = memExpr.GetChildForField("object") ?? memExpr.GetChildForField("scope");
                 var fieldNode = memExpr.GetChildForField("field") ?? memExpr.GetChildForField("name");
                 if (targetNode is ExprSyntax targetExpr) memExpr.Object = targetExpr;
-                if (fieldNode != null) memExpr.MemberName = fieldNode.Text;
+                if (fieldNode != null) memExpr.MemberNameSlice = new SourceSlice(fieldNode.Span.StartByte, fieldNode.Span.Length);
                 break;
         }
     }

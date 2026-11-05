@@ -197,6 +197,61 @@ public class IncrementalIndexingTests
     }
 
     [Test]
+    public void Test_FileRegistry_ComputeChangeset_ComparesTimeAndSizeBeforeStreamingChecksum()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_reg_size_test_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var unchangedFile = Path.Combine(tempDir, "unchanged.cs");
+            var sizeChangedSameTimeFile = Path.Combine(tempDir, "size_changed_same_time.cs");
+            var touchedSameSizeFile = Path.Combine(tempDir, "touched_same_size.cs");
+            var editedSameSizeFile = Path.Combine(tempDir, "edited_same_size.cs");
+
+            File.WriteAllText(unchangedFile, "return 100;");
+            File.WriteAllText(sizeChangedSameTimeFile, "return 100;");
+            File.WriteAllText(touchedSameSizeFile, "return 100;");
+            File.WriteAllText(editedSameSizeFile, "return 100;");
+
+            var registry = new FileRegistry();
+            foreach (var name in new[] { "unchanged.cs", "size_changed_same_time.cs", "touched_same_size.cs", "edited_same_size.cs" })
+            {
+                var full = Path.Combine(tempDir, name);
+                var fi = new FileInfo(full);
+                registry.UpdateEntry(name, HashUtility.ComputeSha256FromFile(full), fi.LastWriteTimeUtc, "", sizeBytes: fi.Length);
+            }
+
+            // 1. size_changed_same_time.cs: change size, restore original LastWriteTimeUtc
+            var origTime = File.GetLastWriteTimeUtc(sizeChangedSameTimeFile);
+            File.WriteAllText(sizeChangedSameTimeFile, "return 100000;");
+            File.SetLastWriteTimeUtc(sizeChangedSameTimeFile, origTime);
+
+            // 2. touched_same_size.cs: shift LastWriteTimeUtc, keep exact same content & size
+            var touchedNewTime = File.GetLastWriteTimeUtc(touchedSameSizeFile).AddSeconds(5);
+            File.SetLastWriteTimeUtc(touchedSameSizeFile, touchedNewTime);
+
+            // 3. edited_same_size.cs: shift LastWriteTimeUtc, change content with exact same byte length (11 bytes)
+            File.WriteAllText(editedSameSizeFile, "return 200;");
+            File.SetLastWriteTimeUtc(editedSameSizeFile, File.GetLastWriteTimeUtc(editedSameSizeFile).AddSeconds(5));
+
+            var currentFiles = new[] { "unchanged.cs", "size_changed_same_time.cs", "touched_same_size.cs", "edited_same_size.cs" };
+            var changeset = registry.ComputeChangeset(tempDir, currentFiles);
+
+            changeset.Modified.Should().NotContain("unchanged.cs");
+            changeset.Modified.Should().Contain("size_changed_same_time.cs", "Size mismatch must immediately flag file as modified");
+            changeset.Modified.Should().NotContain("touched_same_size.cs", "Same size + matching streamed SHA-256 must skip modification");
+            changeset.Modified.Should().Contain("edited_same_size.cs", "Same size + differing streamed SHA-256 must flag file as modified");
+
+            registry.TryGetEntryWithSize("touched_same_size.cs", out var touchedEntry).Should().BeTrue();
+            touchedEntry.LastModifiedUtc.Should().Be(touchedNewTime);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
     public async Task Test_FileWatcher_DebouncesMultipleRapidEvents()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_watch_test_" + Guid.NewGuid().ToString("N"));

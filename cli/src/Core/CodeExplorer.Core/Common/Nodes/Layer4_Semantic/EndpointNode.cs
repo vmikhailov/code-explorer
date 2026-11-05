@@ -29,10 +29,28 @@ public record EndpointNode(
     [property: JsonPropertyName("policies"), OntologyProperty("Authorization policies guarding the endpoint.")] string? Policies = null,
     [property: JsonPropertyName("request_type"), OntologyProperty("The request payload type (e.g. StartRideRequest, CreateOrderDto).")] string? RequestType = null,
     [property: JsonPropertyName("response_type"), OntologyProperty("The response payload type (e.g. RideDto, OrderResponse).")] string? ResponseType = null,
-    [property: JsonPropertyName("operation_type"), OntologyProperty("The operation type for GraphQL (Query, Mutation, Subscription) or gRPC (Unary, Streaming).")] string? OperationType = null,
+    [property: JsonPropertyName("operation_type"), OntologyProperty("The operation type for GraphQL (Query, Mutation, Subscription) or gRPC (Unary, Streaming).")] OperationType? OperationType = null,
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {
+    public EndpointNode(
+        string Id,
+        string Name,
+        string Path,
+        string HttpMethod,
+        string RouteTemplate,
+        string Protocol,
+        bool IsAnonymous,
+        string? RequiredRoles,
+        string? Policies,
+        string? RequestType,
+        string? ResponseType,
+        string? OperationType,
+        Dictionary<string, string>? Extensions = null)
+        : this(Id, Name, Path, HttpMethod, RouteTemplate, Protocol, IsAnonymous, RequiredRoles, Policies, RequestType, ResponseType, TaxonomyEnumExtendedExtensions.ParseNullableOperationType(OperationType), Extensions)
+    {
+    }
+
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Endpoint;
 }

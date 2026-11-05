@@ -109,7 +109,7 @@ public class OrleansLibraryParser : ISemanticExtension
         if (IsGrainClass(node))
         {
             symbol.Protocol = "Orleans";
-            symbol.OperationType = "Grain";
+            symbol.OperationType = CodeExplorer.Cypher.Common.OperationType.Grain;
         }
     }
 

@@ -62,12 +62,15 @@ public sealed class OpenAiIntentPredictor : IIntentPredictor
             var response = await _httpClient.PostAsync(url, jsonContent, cancellationToken);
             response.EnsureSuccessStatusCode();
 
+            const string propChoices = "choices";
+            const string propMessage = "message";
+            const string propContent = "content";
             var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
             using var doc = JsonDocument.Parse(responseJson);
             var content = doc.RootElement
-                .GetProperty("choices")[0]
-                .GetProperty("message")
-                .GetProperty("content")
+                .GetProperty(propChoices)[0]
+                .GetProperty(propMessage)
+                .GetProperty(propContent)
                 .GetString();
 
             return content ?? string.Empty;

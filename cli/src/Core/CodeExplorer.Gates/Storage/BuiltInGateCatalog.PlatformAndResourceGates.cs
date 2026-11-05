@@ -142,17 +142,15 @@ public static partial class BuiltInGateCatalog
               AND NOT (coalesce(m.file_path, '') CONTAINS 'Test' OR coalesce(m.file_path, '') CONTAINS 'test')
               AND NOT (coalesce(m.file_path, '') CONTAINS 'Constants'
                     OR coalesce(m.file_path, '') CONTAINS 'Options'
-                    OR coalesce(m.file_path, '') CONTAINS 'Protocol'
-                    OR coalesce(m.file_path, '') CONTAINS 'Mcp'
+                    OR coalesce(m.file_path, '') CONTAINS 'WebSocketProtocol'
                     OR coalesce(m.file_path, '') CONTAINS 'OntologyGen'
                     OR coalesce(m.file_path, '') CONTAINS 'SyntaxNodes'
-                    OR coalesce(m.file_path, '') CONTAINS 'Database'
-                    OR coalesce(m.file_path, '') CONTAINS 'Cypher'
-                    OR coalesce(m.file_path, '') CONTAINS 'GateSerializer'
-                    OR coalesce(m.file_path, '') CONTAINS 'ProjectMap'
-                    OR coalesce(m.file_path, '') CONTAINS 'ArchitectureViewEngine'
-                    OR coalesce(m.file_path, '') CONTAINS 'ResourceReconciliationService'
-                    OR m.name IN ['ReturnType', 'RequestType', 'ResponseType', 'ExceptionType', 'DataType', 'RawGrammarKind', 'ParentGrammarKind', 'ContentType', 'Archetype', 'DefaultEnumKind', 'DefaultStructKind', 'ProjectType', 'Kind', 'MemberKind', 'TypeKind', 'EntryType', 'Category', 'BrokerType', 'DomainType', 'OperationType', 'ResourceType'])
+                    OR coalesce(m.file_path, '') CONTAINS 'Parser.cs'
+                    OR coalesce(m.file_path, '') CONTAINS 'Reference.cs'
+                    OR coalesce(m.file_path, '') CONTAINS 'Urn.cs'
+                    OR coalesce(m.file_path, '') CONTAINS 'Node.cs'
+                    OR coalesce(m.file_path, '') CONTAINS 'Relationship.cs'
+                    OR m.name IN ['ReturnType', 'RequestType', 'ResponseType', 'ExceptionType', 'DataType', 'RawGrammarKind', 'ParentGrammarKind', 'ContentType'])
             RETURN m
             """,
         Ratchet = new GateRatchetSettings

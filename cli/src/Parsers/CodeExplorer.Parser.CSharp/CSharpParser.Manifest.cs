@@ -15,7 +15,7 @@ public partial class CSharpParser
 
         try
         {
-            var content = File.ReadAllText(csprojFile);
+            var content = PhysicalFileStore.ReadAllText(csprojFile);
             var projName = Path.GetFileNameWithoutExtension(csprojFile);
             var normalizedDir = directoryPath.Replace('\\', '/').Trim('/');
 
@@ -283,7 +283,7 @@ public partial class CSharpParser
                             fileName.EndsWith("Consumer.cs", StringComparison.OrdinalIgnoreCase) ||
                             fileName.EndsWith("Handler.cs", StringComparison.OrdinalIgnoreCase))
                         {
-                            var fileText = File.ReadAllText(file);
+                            var fileText = PhysicalFileStore.ReadAllText(file);
                             if (fileText.Contains("AddRazorComponents") || fileText.Contains("MapRazorComponents"))
                             {
                                 hasAppCapability = true;
@@ -423,7 +423,7 @@ public partial class CSharpParser
             {
                 try
                 {
-                    CollectPackagesFromXmlText(File.ReadAllText(buildProps), packages);
+                    CollectPackagesFromXmlText(PhysicalFileStore.ReadAllText(buildProps), packages);
                 }
                 catch
                 {

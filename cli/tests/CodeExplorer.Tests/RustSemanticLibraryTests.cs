@@ -292,7 +292,7 @@ public class RustSemanticLibraryTests
         topics.Should().NotBeEmpty();
         var orderEvents = topics.FirstOrDefault(t => t.Name == "order-events");
         orderEvents.Should().NotBeNull();
-        orderEvents!.BrokerType.Should().Be("kafka");
+        orderEvents!.BrokerType.Should().Be(BrokerType.Kafka);
     }
 
     [Test]
@@ -316,7 +316,7 @@ public class RustSemanticLibraryTests
         topics.Should().NotBeEmpty();
         var topic = topics.FirstOrDefault(t => t.Name == "orders.created");
         topic.Should().NotBeNull();
-        topic!.BrokerType.Should().Be("rabbitmq");
+        topic!.BrokerType.Should().Be(BrokerType.RabbitMq);
     }
 
     [Test]
@@ -334,7 +334,7 @@ public class RustSemanticLibraryTests
         topics.Should().NotBeEmpty();
         var topic = topics.FirstOrDefault(t => t.Name == "telemetry.v1");
         topic.Should().NotBeNull();
-        topic!.BrokerType.Should().Be("nats");
+        topic!.BrokerType.Should().Be(BrokerType.Nats);
     }
 
     [Test]
@@ -357,7 +357,7 @@ public class RustSemanticLibraryTests
         var topics = FindNodes<TopicNode>(root.Children);
 
         topics.Should().NotBeEmpty();
-        var topic = topics.FirstOrDefault(t => t.BrokerType == "sqs");
+        var topic = topics.FirstOrDefault(t => t.BrokerType == BrokerType.Sqs);
         topic.Should().NotBeNull();
         topic!.Name.Should().Be("requests-queue");
         topic.Extensions![OntologyConstants.PropertyNames.MessagingDirection].Should().Be(OntologyConstants.EvidenceKinds.Subscribe);
@@ -404,7 +404,7 @@ public class RustSemanticLibraryTests
         var topics = FindNodes<TopicNode>(root.Children);
 
         topics.Should().ContainSingle();
-        topics[0].BrokerType.Should().Be("sns");
+        topics[0].BrokerType.Should().Be(BrokerType.Sns);
         topics[0].Name.Should().Be("results-topic");
         topics[0].Extensions![OntologyConstants.PropertyNames.MessagingDirection].Should().Be(OntologyConstants.EvidenceKinds.Publish);
     }
@@ -468,7 +468,7 @@ public class RustSemanticLibraryTests
         var topics = FindNodes<TopicNode>(root.Children);
 
         topics.Should().NotBeEmpty();
-        var topic = topics.FirstOrDefault(t => t.BrokerType == "sns");
+        var topic = topics.FirstOrDefault(t => t.BrokerType == BrokerType.Sns);
         topic.Should().NotBeNull();
 
         var allRefs = root.References.Concat(FindNodes<FunctionNode>(root.Children).SelectMany(f => f.References)).ToList();

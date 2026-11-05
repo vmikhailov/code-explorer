@@ -44,7 +44,7 @@ scratch/
 .codeexplorer/*.db
 .codeexplorer/*.db-*
 .codeexplorer/*.lock
-
+.codepassport/
 
 # --- Node.js & VS Code Extension ---
 node_modules/

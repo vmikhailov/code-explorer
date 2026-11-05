@@ -69,7 +69,7 @@ public static class PythonAstHelper
             var left = argNode.GetField(TreeSitterSyntax.Fields.Left) ??
                        (argNode.Children.Count > 0 ? argNode.Children[0] : null);
             var right = argNode.GetField(TreeSitterSyntax.Fields.Right) ??
-                        (argNode.Children.Count >= 3 ? argNode.Children[2] : null);
+                        (argNode.Children.Count >= 2 ? argNode.Children[^1] : null);
 
             var leftResolved = left.IsValid() ? ResolveSqlStringOrVariable(left, depth + 1, visitedVars) : null;
             var rightResolved = right.IsValid() ? ResolveSqlStringOrVariable(right, depth + 1, visitedVars) : null;
@@ -127,7 +127,7 @@ public static class PythonAstHelper
                             if (left.IsValid() && left.Text == varName)
                             {
                                 var right = assign.GetField(TreeSitterSyntax.Fields.Right);
-                                if (!right.IsValid())
+                                if (!right.IsValid() && assign.Children.Count >= 2 && assign.Children[^1] != left) { right = assign.Children[^1]; } else if (!right.IsValid())
                                 {
                                     for (var i = 0; i < assign.Children.Count - 1; i++)
                                     {
@@ -225,7 +225,7 @@ public static class PythonAstHelper
         if (argNode.IsAny(TreeSitterSyntax.Python.BinaryOperator, TreeSitterSyntax.Common.BinaryExpression))
         {
             var right = argNode.GetField(TreeSitterSyntax.Fields.Right) ??
-                        (argNode.Children.Count >= 3 ? argNode.Children[2] : null);
+                        (argNode.Children.Count >= 2 ? argNode.Children[^1] : null);
             if (right.IsValid())
             {
                 var rightResolved = ResolveStringOrVariable(right, depth + 1, visitedVars);
@@ -246,7 +246,7 @@ public static class PythonAstHelper
         if (argNode.Is(TreeSitterSyntax.Python.Subscript))
         {
             var subscriptNode = argNode.GetField("subscript") ??
-                                (argNode.Children.Count >= 3 ? argNode.Children[2] : null);
+                                (argNode.Children.Count >= 2 ? argNode.Children[^1] : null);
             if (subscriptNode.IsValid())
             {
                 var key = subscriptNode.Text.Trim('\'', '"');
@@ -309,7 +309,7 @@ public static class PythonAstHelper
                             if (left.IsValid() && left.Text == varName)
                             {
                                 var right = assign.GetField(TreeSitterSyntax.Fields.Right);
-                                if (!right.IsValid())
+                                if (!right.IsValid() && assign.Children.Count >= 2 && assign.Children[^1] != left) { right = assign.Children[^1]; } else if (!right.IsValid())
                                 {
                                     var eqIdx = -1;
                                     for (var i = 0; i < assign.Children.Count; i++)
@@ -398,7 +398,7 @@ public static class PythonAstHelper
                 var nameNode = child.GetField(TreeSitterSyntax.Fields.Name) ?? (child.Children.Count > 0 ? child.Children[0] : null);
                 if (nameNode.IsValid() && nameNode.Text == argName)
                 {
-                    return child.GetField(TreeSitterSyntax.Fields.Value) ?? (child.Children.Count > 2 ? child.Children[2] : null);
+                    return child.GetField(TreeSitterSyntax.Fields.Value) ?? (child.Children.Count >= 2 ? child.Children[^1] : null);
                 }
             }
         }
@@ -423,7 +423,7 @@ public static class PythonAstHelper
             var arg = args[positionalIndex];
             if (arg.Type == TreeSitterSyntax.Python.KeywordArgument)
             {
-                var valNode = arg.GetField(TreeSitterSyntax.Fields.Value) ?? (arg.Children.Count > 2 ? arg.Children[2] : null);
+                var valNode = arg.GetField(TreeSitterSyntax.Fields.Value) ?? (arg.Children.Count >= 2 ? arg.Children[^1] : null);
                 var resolved = ResolveStringOrVariable(valNode);
                 if (!string.IsNullOrEmpty(resolved)) return resolved;
                 return valNode?.Text.Trim('\'', '"');

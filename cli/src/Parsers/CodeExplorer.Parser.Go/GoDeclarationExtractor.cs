@@ -40,7 +40,7 @@ public static class GoDeclarationExtractor
             return;
         }
 
-        if (type == "keyed_element" && node.Children.Count >= 3)
+        if (type == "keyed_element" && node.Children.Count >= 2)
         {
             var keyChild = node.Children[0];
             if (keyChild.IsValid() && keyChild.Type == "literal_element" && keyChild.Children.Count > 0)

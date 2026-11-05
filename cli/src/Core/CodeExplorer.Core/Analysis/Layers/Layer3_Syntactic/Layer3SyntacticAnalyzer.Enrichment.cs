@@ -11,6 +11,23 @@ namespace CodeExplorer.Core.Parser.Layers;
 
 public partial class Layer3SyntacticParser
 {
+    private const string PropStageOrder = "stage_order";
+    private const string PropTypeKind = "type_kind";
+    private const string PropMemberKind = "member_kind";
+    private const string PropDataType = "data_type";
+    private const string PropGraphqlField = "graphql_field";
+    private const string PropGraphqlSchema = "graphql_schema";
+    private const string PropValue = "value";
+    private const string PropCallee = "callee";
+    private const string PropArgIndex = "arg_index";
+    private const string PropLine = "line";
+    private const string PropColumn = "column";
+    private const string PropRole = "role";
+    private const string PropIsDecorator = "is_decorator";
+    private const string PropExceptionType = "exception_type";
+    private const string PropIsEmpty = "is_empty";
+    private const string PropHasComment = "has_comment";
+    private const string PropStatementCount = "statement_count";
     private static bool HasTopLevelCallsOrStatements(SyntaxDocument doc)
     {
         if (doc.TopLevelStatements.Count > 0) return true;
@@ -42,7 +59,7 @@ public partial class Layer3SyntacticParser
         {
             var pName = paramNames[i];
             if (string.IsNullOrEmpty(pName)) continue;
-            if (fnNode.Children.OfType<MemberNode>().Any(m => m.MemberKind == "parameter" && m.Name == pName))
+            if (fnNode.Children.OfType<MemberNode>().Any(m => m.MemberKind == CodeExplorer.Cypher.Common.MemberKind.Parameter && m.Name == pName))
             {
                 continue;
             }
@@ -302,7 +319,7 @@ public partial class Layer3SyntacticParser
             var diag = diags[d];
             ctx.RecordScanIssue(
                 stage: "Layer3_Syntactic",
-                category: diag.Kind,
+                category: CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ToCanonicalString(diag.Kind),
                 relativeOrFullPath: fileNode.Path,
                 message: diag.Message,
                 name: "SyntaxError",
@@ -354,8 +371,8 @@ public partial class Layer3SyntacticParser
             // SqlQueryRegex handled above
             var isConstant = rawVar.IsConstant;
             var isGlobal = rawVar.Scope == "global";
-            var isProperty = rawVar.MemberKind == "property";
-            var isField = rawVar.MemberKind == "field";
+            var isProperty = rawVar.MemberKind == CodeExplorer.Cypher.Common.MemberKind.Property;
+            var isField = rawVar.MemberKind == CodeExplorer.Cypher.Common.MemberKind.Field;
 
             if (isConfig || isEtl || isConstant || isGlobal || isProperty || isField)
             {
@@ -391,7 +408,7 @@ public partial class Layer3SyntacticParser
                     rawVar.EndLine,
                     rawVar.StartCol,
                     rawVar.EndCol,
-                    rawVar.MemberKind ?? "variable",
+                    rawVar.MemberKind ?? CodeExplorer.Cypher.Common.MemberKind.Variable,
                     rawVar.TypeName,
                     ext
                 );
@@ -435,15 +452,15 @@ public partial class Layer3SyntacticParser
         bool isTest = false,
         ProjectEntityKind? projectKind = null,
         SyntaxTree? syntaxTree = null,
-        Dictionary<(string Kind, string Name), int>? fileSymbolCounts = null)
+        Dictionary<(CodeExplorer.Cypher.Common.SyntacticSymbolKind Kind, string Name), int>? fileSymbolCounts = null)
     {
         var node = syntactic.Node;
-        var kind = syntactic.Kind;
+        var kind = CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ToCanonicalString(syntactic.Kind);
         var name = syntactic.Name;
 
         var symbolIsTest = isTest ||
-            (syntactic.Properties.TryGetValue(OntologyConstants.PropertyNames.IsTest, out var propIsTest) && bool.TryParse(propIsTest, out var b) && b);
-        var stageOrder = syntactic.Properties.TryGetValue("stage_order", out var so) && int.TryParse(so, out var parsedOrder) ? parsedOrder : (int?)null;
+            (syntactic.TryGetProperty(OntologyConstants.PropertyNames.IsTest, out var propIsTest) && bool.TryParse(propIsTest, out var b) && b);
+        var stageOrder = syntactic.TryGetProperty(PropStageOrder, out var so) && int.TryParse(so, out var parsedOrder) ? parsedOrder : (int?)null;
 
         var isType = kind is "Class" or "Interface" or "Struct" or "Enum" or OntologyConstants.NodeLabels.Type;
         var mappedKind = isType ? "Type" : kind;
@@ -453,7 +470,7 @@ public partial class Layer3SyntacticParser
         IOntologyNode? typedNode = null;
         if (kind is "Class" or "Struct" or "Enum" || kind == OntologyConstants.NodeLabels.Type)
         {
-            var typeKind = syntactic.Properties.TryGetValue("type_kind", out var tk)
+            var typeKind = syntactic.TryGetProperty(PropTypeKind, out var tk)
                 ? tk
                 : (kind == OntologyConstants.NodeLabels.Type ? "class" : kind.ToLowerInvariant());
             typedNode = new TypeNode(symbolId, name, symbolId, relativePath, relativePath,
@@ -474,8 +491,8 @@ public partial class Layer3SyntacticParser
         }
         else if (kind == "Member" || kind == OntologyConstants.NodeLabels.Member)
         {
-            var memberKind = syntactic.Properties.TryGetValue("member_kind", out var mk) ? mk : "field";
-            var dataType = syntactic.Properties.TryGetValue("data_type", out var dt) ? dt : null;
+            var memberKind = syntactic.TryGetProperty(PropMemberKind, out var mk) ? mk : "field";
+            var dataType = syntactic.TryGetProperty(PropDataType, out var dt) ? dt : null;
             typedNode = new MemberNode(symbolId, name, symbolId, relativePath, relativePath,
                 node.StartPosition.Row + 1, node.EndPosition.Row + 1, node.StartPosition.Column + 1, node.EndPosition.Column + 1,
                 memberKind, dataType);
@@ -499,16 +516,16 @@ public partial class Layer3SyntacticParser
 
         if (typedNode == null) return null;
 
-        var childCounts = fileSymbolCounts ?? new Dictionary<(string Kind, string Name), int>();
+        var childCounts = fileSymbolCounts ?? new Dictionary<(CodeExplorer.Cypher.Common.SyntacticSymbolKind Kind, string Name), int>();
         foreach (var childSyntactic in syntactic.Children)
         {
-            if (syntactic.Properties.TryGetValue("graphql_field", out var parentGqlField))
+            if (syntactic.TryGetProperty(PropGraphqlField, out var parentGqlField))
             {
-                childSyntactic.Properties.TryAdd("graphql_field", parentGqlField);
+                childSyntactic.Properties.TryAdd(PropGraphqlField, parentGqlField);
             }
-            if (syntactic.Properties.TryGetValue("graphql_schema", out var parentGqlSchema))
+            if (syntactic.TryGetProperty(PropGraphqlSchema, out var parentGqlSchema))
             {
-                childSyntactic.Properties.TryAdd("graphql_schema", parentGqlSchema);
+                childSyntactic.Properties.TryAdd(PropGraphqlSchema, parentGqlSchema);
             }
 
             var key = (childSyntactic.Kind, childSyntactic.Name);
@@ -530,9 +547,18 @@ public partial class Layer3SyntacticParser
             typedNode.References.Add(reference with { ScopeSymbolId = resolvedScopeId, TargetName = target });
         }
 
-        foreach (var (k, v) in syntactic.Properties)
+        if (syntactic.HasProperties)
         {
-            typedNode.SetExtension(k, v);
+            foreach (var (k, v) in syntactic.Properties)
+            {
+                if (k is "value" or "callee" or "arg_index" or "file_path" or "line" or "column" or "role" or "is_decorator"
+                    or "exception_type" or "is_empty" or "has_comment" or "statement_count"
+                    or "member_kind" or "data_type" or "type_kind" or "stage_order")
+                {
+                    continue;
+                }
+                typedNode.SetExtension(k, v);
+            }
         }
 
         return typedNode;
@@ -548,13 +574,13 @@ public partial class Layer3SyntacticParser
         ProjectEntityKind? projectKind,
         string? projectName)
     {
-        var val = syntactic.Properties.GetValueOrDefault("value") ?? syntactic.Name;
-        var callee = syntactic.Properties.GetValueOrDefault("callee") ?? "";
-        var argIdx = int.TryParse(syntactic.Properties.GetValueOrDefault("arg_index"), out var ai) ? ai : 0;
-        var line = int.TryParse(syntactic.Properties.GetValueOrDefault("line"), out var ln) ? ln : node.StartPosition.Row + 1;
-        var col = int.TryParse(syntactic.Properties.GetValueOrDefault("column"), out var cl) ? cl : node.StartPosition.Column + 1;
-        var role = syntactic.Properties.GetValueOrDefault("role") ?? "business";
-        var isDecorator = bool.TryParse(syntactic.Properties.GetValueOrDefault("is_decorator"), out var isDec) && isDec;
+        var val = syntactic.Text ?? syntactic.GetPropertyOrDefault(PropValue) ?? syntactic.Name;
+        var callee = syntactic.Callee ?? syntactic.GetPropertyOrDefault(PropCallee) ?? "";
+        var argIdx = syntactic.ArgIndex != 0 ? syntactic.ArgIndex : (int.TryParse(syntactic.GetPropertyOrDefault(PropArgIndex), out var ai) ? ai : 0);
+        var line = int.TryParse(syntactic.GetPropertyOrDefault(PropLine), out var ln) ? ln : node.StartPosition.Row + 1;
+        var col = int.TryParse(syntactic.GetPropertyOrDefault(PropColumn), out var cl) ? cl : node.StartPosition.Column + 1;
+        var role = syntactic.Role ?? syntactic.GetPropertyOrDefault(PropRole) ?? "business";
+        var isDecorator = syntactic.IsDecorator || (bool.TryParse(syntactic.GetPropertyOrDefault(PropIsDecorator), out var isDec) && isDec);
         var litId = $"{workspaceId}:{OntologyConstants.IdPrefixes.CallLiteral}:{relativePath}:{line}:{col}";
 
         return new CallLiteralNode(litId, name, val, callee, argIdx, relativePath, line, col, symbolIsTest, projectKind, projectName, role, isDecorator);
@@ -570,12 +596,12 @@ public partial class Layer3SyntacticParser
         ProjectEntityKind? projectKind,
         string? projectName)
     {
-        var exType = syntactic.Properties.GetValueOrDefault("exception_type") ?? "";
-        var isEmpty = bool.TryParse(syntactic.Properties.GetValueOrDefault("is_empty"), out var ie) && ie;
-        var hasComment = bool.TryParse(syntactic.Properties.GetValueOrDefault("has_comment"), out var hc) && hc;
-        var stmtCount = int.TryParse(syntactic.Properties.GetValueOrDefault("statement_count"), out var sc) ? sc : 0;
-        var line = int.TryParse(syntactic.Properties.GetValueOrDefault("line"), out var ln) ? ln : node.StartPosition.Row + 1;
-        var col = int.TryParse(syntactic.Properties.GetValueOrDefault("column"), out var cl) ? cl : node.StartPosition.Column + 1;
+        var exType = syntactic.RequestType ?? syntactic.GetPropertyOrDefault(PropExceptionType) ?? "";
+        var isEmpty = syntactic.IsEmptyCatch || (bool.TryParse(syntactic.GetPropertyOrDefault(PropIsEmpty), out var ie) && ie);
+        var hasComment = syntactic.HasCatchComment || (bool.TryParse(syntactic.GetPropertyOrDefault(PropHasComment), out var hc) && hc);
+        var stmtCount = syntactic.ArgIndex != 0 ? syntactic.ArgIndex : (int.TryParse(syntactic.GetPropertyOrDefault(PropStatementCount), out var sc) ? sc : 0);
+        var line = int.TryParse(syntactic.GetPropertyOrDefault(PropLine), out var ln) ? ln : node.StartPosition.Row + 1;
+        var col = int.TryParse(syntactic.GetPropertyOrDefault(PropColumn), out var cl) ? cl : node.StartPosition.Column + 1;
         var catchId = $"{workspaceId}:{OntologyConstants.IdPrefixes.CatchClause}:{relativePath}:{line}:{col}";
 
         return new CatchClauseNode(catchId, name, exType, relativePath, line, col, isEmpty, hasComment, stmtCount, symbolIsTest, projectKind, projectName);

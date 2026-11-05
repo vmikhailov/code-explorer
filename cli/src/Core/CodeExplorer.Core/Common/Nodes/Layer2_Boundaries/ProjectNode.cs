@@ -26,14 +26,24 @@ public record ProjectNode(
     string Id,
     string Name,
     string Path,
-    string ProjectType,
+    ProjectLanguage ProjectType,
     string Role = "Service",
     bool IsLibrary = false,
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {
-    public ProjectNode(string id, string name, string path, string projectType, Dictionary<string, string>? extensions)
-        : this(id, name, path, projectType, "Service", false, extensions)
+    public ProjectNode(string Id, string Name, string Path, ProjectLanguage ProjectType, Dictionary<string, string>? Extensions)
+        : this(Id, Name, Path, ProjectType, "Service", false, Extensions)
+    {
+    }
+
+    public ProjectNode(string Id, string Name, string Path, string ProjectType, string Role = "Service", bool IsLibrary = false, Dictionary<string, string>? Extensions = null)
+        : this(Id, Name, Path, TaxonomyEnumExtendedExtensions.ParseProjectLanguage(ProjectType), Role, IsLibrary, Extensions)
+    {
+    }
+
+    public ProjectNode(string Id, string Name, string Path, string ProjectType, Dictionary<string, string>? Extensions)
+        : this(Id, Name, Path, TaxonomyEnumExtendedExtensions.ParseProjectLanguage(ProjectType), "Service", false, Extensions)
     {
     }
 
@@ -44,13 +54,13 @@ public record ProjectNode(
     public override string Path { get; init; } = Path;
 
     [JsonPropertyName("project_type"), OntologyProperty("The language/signature identifier (e.g. 'csharp', 'go', 'python', 'typescript').")]
-    public string ProjectType { get; set; } = ProjectType;
+    public ProjectLanguage ProjectType { get; set; } = ProjectType;
 
     [JsonPropertyName("language"), OntologyProperty("The programming language (e.g. 'csharp', 'go', 'python', 'typescript').")]
     public string Language
     {
-        get => ProjectType;
-        set => ProjectType = value;
+        get => ProjectType.ToCanonicalString();
+        set => ProjectType = TaxonomyEnumExtendedExtensions.ParseProjectLanguage(value);
     }
 
     [JsonPropertyName("kind"), OntologyProperty("The physical entity classification kind (e.g. Service, App, Worker, FunctionApp, Library, DatabaseMigration, Test).")]
@@ -60,7 +70,7 @@ public record ProjectNode(
     public string Role { get; set; } = Role;
 
     [JsonPropertyName("archetype"), OntologyProperty("Architectural archetype of the project (e.g. PureUtility, ClientUi, CliTool, Framework, BackendService, DatabaseDriver, NativeAddon).")]
-    public string Archetype => Extensions?.GetValueOrDefault("archetype") ?? Role;
+    public ProjectArchetype Archetype => TaxonomyEnumExtendedExtensions.ParseProjectArchetype(Extensions?.GetValueOrDefault("archetype") ?? Role);
 
     [JsonPropertyName("primary_role"), OntologyProperty("Primary architectural role of the project (e.g. WebService, Scheduler, WorkerService, SharedLibrary, FrontendFramework, CliFramework, TestFramework).")]
     public string? PrimaryRole => Extensions?.GetValueOrDefault("primary_role") ?? Role;

@@ -113,7 +113,7 @@ public class AppEntity : GraphEntity
         set => _language = value;
     }
 
-    public string? AppType { get; set; }
+    public AppType? AppType { get; set; }
     public int? Port { get; set; }
 
     public override bool TryReadJsonbProperty(ReadOnlySpan<byte> propName, int valType, ReadOnlySpan<byte> valSpan)
@@ -121,7 +121,7 @@ public class AppEntity : GraphEntity
         if (propName.SequenceEqual("framework"u8)) { Framework = ReadString(valSpan); return true; }
         if (propName.SequenceEqual("language"u8)) { _language = ReadString(valSpan); return true; }
         if (propName.SequenceEqual("project_type"u8)) { _projectType = ReadString(valSpan); return true; }
-        if (propName.SequenceEqual("app_type"u8) || propName.SequenceEqual("appType"u8)) { AppType = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("app_type"u8) || propName.SequenceEqual("appType"u8)) { AppType = valSpan.IsEmpty ? null : TaxonomyViewEnumExtensions.ParseAppType(ReadString(valSpan)); return true; }
         if (propName.SequenceEqual("port"u8)) { Port = ReadNullableInt32(valSpan); return true; }
         return base.TryReadJsonbProperty(propName, valType, valSpan);
     }
@@ -141,14 +141,14 @@ public class WorkerEntity : GraphEntity
         set => _language = value;
     }
 
-    public string? QueueType { get; set; }
+    public BrokerType? QueueType { get; set; }
 
     public override bool TryReadJsonbProperty(ReadOnlySpan<byte> propName, int valType, ReadOnlySpan<byte> valSpan)
     {
         if (propName.SequenceEqual("framework"u8)) { Framework = ReadString(valSpan); return true; }
         if (propName.SequenceEqual("language"u8)) { _language = ReadString(valSpan); return true; }
         if (propName.SequenceEqual("project_type"u8)) { _projectType = ReadString(valSpan); return true; }
-        if (propName.SequenceEqual("queue_type"u8) || propName.SequenceEqual("queueType"u8)) { QueueType = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("queue_type"u8) || propName.SequenceEqual("queueType"u8)) { QueueType = valSpan.IsEmpty ? null : TaxonomyEnumExtensions.ParseBrokerType(ReadString(valSpan)); return true; }
         return base.TryReadJsonbProperty(propName, valType, valSpan);
     }
 }
@@ -179,13 +179,13 @@ public class CliToolEntity : GraphEntity
 public class DatabaseEntity : GraphEntity
 {
     public override NodeKind Kind => NodeKind.Database;
-    public string? DbType { get; set; }
+    public DatabaseType? DbType { get; set; }
     public string? Engine { get; set; }
     public int? Port { get; set; }
 
     public override bool TryReadJsonbProperty(ReadOnlySpan<byte> propName, int valType, ReadOnlySpan<byte> valSpan)
     {
-        if (propName.SequenceEqual("db_type"u8) || propName.SequenceEqual("dbType"u8)) { DbType = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("db_type"u8) || propName.SequenceEqual("dbType"u8)) { DbType = valSpan.IsEmpty ? null : EnumExtensions.ParseDatabaseType(ReadString(valSpan)); return true; }
         if (propName.SequenceEqual("engine"u8)) { Engine = ReadString(valSpan); return true; }
         if (propName.SequenceEqual("port"u8)) { Port = ReadNullableInt32(valSpan); return true; }
         return base.TryReadJsonbProperty(propName, valType, valSpan);
@@ -195,12 +195,12 @@ public class DatabaseEntity : GraphEntity
 public class TopicEntity : GraphEntity
 {
     public override NodeKind Kind => NodeKind.Topic;
-    public string? BrokerType { get; set; }
+    public BrokerType? BrokerType { get; set; }
     public int? PartitionCount { get; set; }
 
     public override bool TryReadJsonbProperty(ReadOnlySpan<byte> propName, int valType, ReadOnlySpan<byte> valSpan)
     {
-        if (propName.SequenceEqual("broker_type"u8) || propName.SequenceEqual("brokerType"u8)) { BrokerType = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("broker_type"u8) || propName.SequenceEqual("brokerType"u8)) { BrokerType = valSpan.IsEmpty ? null : TaxonomyEnumExtensions.ParseBrokerType(ReadString(valSpan)); return true; }
         if (propName.SequenceEqual("partition_count"u8) || propName.SequenceEqual("partitionCount"u8)) { PartitionCount = ReadNullableInt32(valSpan); return true; }
         return base.TryReadJsonbProperty(propName, valType, valSpan);
     }
@@ -220,14 +220,14 @@ public class ExternalServiceEntity : GraphEntity
         set => _baseUrl = value;
     }
 
-    public string? Category { get; set; }
+    public ExternalServiceCategory? Category { get; set; }
 
     public override bool TryReadJsonbProperty(ReadOnlySpan<byte> propName, int valType, ReadOnlySpan<byte> valSpan)
     {
         if (propName.SequenceEqual("protocol"u8)) { Protocol = ReadString(valSpan); return true; }
         if (propName.SequenceEqual("base_url"u8) || propName.SequenceEqual("baseUrl"u8)) { _baseUrl = ReadString(valSpan); return true; }
         if (propName.SequenceEqual("domain_or_service"u8)) { _domainOrService = ReadString(valSpan); return true; }
-        if (propName.SequenceEqual("category"u8)) { Category = ReadString(valSpan); return true; }
+        if (propName.SequenceEqual("category"u8)) { Category = valSpan.IsEmpty ? null : TaxonomyViewEnumExtensions.ParseExternalServiceCategory(ReadString(valSpan)); return true; }
         return base.TryReadJsonbProperty(propName, valType, valSpan);
     }
 }

@@ -74,7 +74,7 @@ public sealed class RustSyntaxConverter : TreeSitterSyntaxConverterBase
                 new LoopStmtSyntax { Span = span, RawGrammarKind = rawKind },
             "return_expression" => new ReturnOrYieldStmtSyntax { Span = span, RawGrammarKind = rawKind },
             "break_expression" or "continue_expression" =>
-                new BranchStmtSyntax { Span = span, RawGrammarKind = rawKind, BranchKind = rawKind },
+                new BranchStmtSyntax { Span = span, RawGrammarKind = rawKind, BranchKind = CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ParseBranchKind(rawKind) },
 
             "generic_type" or "reference_type" or "pointer_type" or "tuple_type" or "array_type" or "function_type" or "scoped_type_identifier" or "primitive_type" =>
                 new TypeRefSyntax { Span = span, RawGrammarKind = rawKind },
@@ -96,11 +96,12 @@ public sealed class RustSyntaxConverter : TreeSitterSyntaxConverterBase
                 if (fnNode is MemberAccessExprSyntax memberCallee)
                 {
                     callExpr.Receiver = memberCallee.Object;
-                    callExpr.MethodName = memberCallee.MemberName;
+                    callExpr.MethodNameSlice = memberCallee.MemberNameSlice;
+                    if (memberCallee.HasExplicitMemberName) callExpr.MethodName = memberCallee.MemberName;
                 }
                 else if (fnNode != null)
                 {
-                    callExpr.MethodName = fnNode.Text;
+                    callExpr.MethodNameSlice = new SourceSlice(fnNode.Span.StartByte, fnNode.Span.Length);
                 }
                 break;
 
@@ -108,7 +109,7 @@ public sealed class RustSyntaxConverter : TreeSitterSyntaxConverterBase
                 var objNode = memExpr.GetChildForField("value") ?? memExpr.GetChildForField("path");
                 var propNode = memExpr.GetChildForField("field") ?? memExpr.GetChildForField("name");
                 if (objNode is ExprSyntax objExpr) memExpr.Object = objExpr;
-                if (propNode != null) memExpr.MemberName = propNode.Text;
+                if (propNode != null) memExpr.MemberNameSlice = new SourceSlice(propNode.Span.StartByte, propNode.Span.Length);
                 break;
         }
     }

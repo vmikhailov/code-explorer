@@ -138,22 +138,6 @@ export interface DomainArchitectureViewProps {
   headerSlot?: React.ReactNode;
   /** Optional custom architectural preset toggles injected into the Visibility sidebar tab. */
   customPresetsSlot?: React.ReactNode;
-  /** Serializable Project Map preset state synced to the native VS Code Inspector sidebar. */
-  projectMapPresets?: {
-    cyclesCount: number;
-    cyclesOnly: boolean;
-    hideUtilities: boolean;
-    hideResources: boolean;
-    projectName?: string;
-    filesCount?: number;
-    entryPointCount?: number;
-    moduleCount?: number;
-    granularity?: 'class' | 'file' | 'module';
-    depCount?: number;
-    resourceCount?: number;
-  };
-  /** Handler for toggling Project Map presets from the native VS Code Inspector sidebar. */
-  onToggleProjectMapPreset?: (preset: 'cyclesOnly' | 'hideUtilities' | 'hideResources') => void;
   /** Default layout algorithm when none is saved under storagePrefix. */
   defaultLayoutName?: DomainLayoutName;
   /** Default node sizing mode when none is saved under storagePrefix. */
@@ -979,8 +963,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   hudTitle,
   headerSlot,
   customPresetsSlot,
-  projectMapPresets,
-  onToggleProjectMapPreset,
   defaultLayoutName = 'concentric',
   defaultNodeSizingMode = 'uniform',
   defaultNodeContentMode = 'icon',
@@ -1547,11 +1529,14 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       localStorage.setItem('ce_domain_font_size', String(clamped));
     } catch { }
     if (cyRef.current) {
+      const selNode = 'node';
+      const selEdge = 'edge';
+      const propFontSize = 'font-size';
       cyRef.current.style()
-        .selector('node')
-        .style('font-size', `${clamped}px`)
-        .selector('edge')
-        .style('font-size', `${Math.max(6, Math.round(clamped * 0.82))}px`)
+        .selector(selNode)
+        .style(propFontSize, `${clamped}px`)
+        .selector(selEdge)
+        .style(propFontSize, `${Math.max(6, Math.round(clamped * 0.82))}px`)
         .update();
     }
   }, []);
@@ -3587,11 +3572,14 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
     cyRef.current = cy;
     setIsCyReady(true);
+    const selNode = 'node';
+    const selEdge = 'edge';
+    const propFontSize = 'font-size';
     cy.style()
-      .selector('node')
-      .style('font-size', `${fontSizeRef.current}px`)
-      .selector('edge')
-      .style('font-size', `${Math.max(6, Math.round(fontSizeRef.current * 0.82))}px`)
+      .selector(selNode)
+      .style(propFontSize, `${fontSizeRef.current}px`)
+      .selector(selEdge)
+      .style(propFontSize, `${Math.max(6, Math.round(fontSizeRef.current * 0.82))}px`)
       .update();
     applyEdgeLabelVisibility(cy, edgeLabelsOnHoverRef.current);
 
@@ -3628,11 +3616,14 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   // Keep Cytoscape node and edge font sizes synchronized with fontSize state
   useEffect(() => {
     if (cyRef.current) {
+      const selNode = 'node';
+      const selEdge = 'edge';
+      const propFontSize = 'font-size';
       cyRef.current.style()
-        .selector('node')
-        .style('font-size', `${fontSize}px`)
-        .selector('edge')
-        .style('font-size', `${Math.max(6, Math.round(fontSize * 0.82))}px`)
+        .selector(selNode)
+        .style(propFontSize, `${fontSize}px`)
+        .selector(selEdge)
+        .style(propFontSize, `${Math.max(6, Math.round(fontSize * 0.82))}px`)
         .update();
     }
   }, [fontSize]);
@@ -3933,7 +3924,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           visibleNodesInput,
           visibleEdgesInput,
           spacing,
-          false,
+          undefined,
           effectiveOrder,
           baseIconSizeRef.current
         );
@@ -5056,7 +5047,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       fontSize,
       curveFactor,
       wheelSensitivity,
-      projectMapPresets,
     };
   }, [
     hudLabel,
@@ -5098,7 +5088,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     fontSize,
     curveFactor,
     wheelSensitivity,
-    projectMapPresets,
   ]);
 
   const buildInspectorSyncedStateRef = useRef(buildInspectorSyncedState);
@@ -5151,7 +5140,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     handleFontSizeChange,
     handleCurveFactorChange,
     handleWheelSensitivityChange,
-    onToggleProjectMapPreset,
   });
   inspectorActionsRef.current = {
     handleSidebarTabChange,
@@ -5193,7 +5181,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     handleFontSizeChange,
     handleCurveFactorChange,
     handleWheelSensitivityChange,
-    onToggleProjectMapPreset,
   };
 
   useEffect(() => {
@@ -5358,9 +5345,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             break;
           case 'SET_WHEEL_SENSITIVITY':
             h.handleWheelSensitivityChange(act.wheelSensitivity);
-            break;
-          case 'TOGGLE_PM_PRESET':
-            h.onToggleProjectMapPreset?.(act.preset);
             break;
         }
       }

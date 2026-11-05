@@ -1,46 +1,5 @@
 {
   "gateId": "SIG-C-R-001",
-  "allowedViolations": 6,
-  "entries": [
-    {
-      "fingerprint": "84c87c739d396fe6f9ae6205d2a24d57390aa13a85dc878449488a65f717faa4",
-      "file": "cli/src/Core/CodeExplorer.Core/Common/Capabilities/AstBackwardProvenanceSlicer.cs",
-      "line": 31,
-      "column": 1,
-      "symbol": "AstBackwardProvenanceSlicer",
-      "target": "GodClass",
-      "acknowledgedAt": "2026-11-02T10:17:44.1689451+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-02 10:17:44"
-    },
-    {
-      "fingerprint": "d8fd7a986e5607836dd5fdfae24b3f68baf52cc5e6fc2112678bbf30d6567a43",
-      "file": "cli/src/Core/CodeExplorer.Core/Common/Capabilities/AstCapabilityAnalyzer.cs",
-      "line": 20,
-      "column": 1,
-      "symbol": "AstCapabilityAnalyzer",
-      "target": "GodClass",
-      "acknowledgedAt": "2026-11-02T10:17:44.1689451+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-02 10:17:44"
-    },
-    {
-      "fingerprint": "0a9dfecf438aad42b920f6ac9ab321d93eb5686953773703ba0e3c564dc482b9",
-      "file": "cli/src/Core/CodeExplorer.Core/Common/Capabilities/AstFunctionScopeCollector.cs",
-      "line": 24,
-      "column": 1,
-      "symbol": "AstFunctionScopeCollector",
-      "target": "GodClass",
-      "acknowledgedAt": "2026-11-02T10:17:44.1689451+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-02 10:17:44"
-    },
-    {
-      "fingerprint": "30db549d1289bf828e8d0cf2d1c6cb1cfacfa28c622f5eb590159754e7654c20",
-      "file": "cli/src/Core/CodeExplorer.Core/Common/Capabilities/AstSymbolicEvaluator.cs",
-      "line": 44,
-      "column": 1,
-      "symbol": "AstSymbolicEvaluator",
-      "target": "GodClass",
-      "acknowledgedAt": "2026-11-02T10:17:44.1689451+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-02 10:17:44"
-    }
-  ]
+  "allowedViolations": 0,
+  "entries": []
 }

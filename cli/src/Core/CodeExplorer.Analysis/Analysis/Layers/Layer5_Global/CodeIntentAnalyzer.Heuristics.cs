@@ -8,39 +8,27 @@ public static partial class CodeIntentAnalyzer
 {
     public static WorkspaceDomainsConfig? LoadWorkspaceDomainsConfig(string? workspacePath)
     {
-        if (string.IsNullOrWhiteSpace(workspacePath) || !Directory.Exists(workspacePath))
+        var json = WorkspaceConventions.LoadDomainsConfigJson(workspacePath);
+        if (string.IsNullOrWhiteSpace(json))
             return null;
 
-        var candidates = new[]
+        try
         {
-            Path.Combine(workspacePath, ".codeexplorer", "domains.json"),
-            Path.Combine(workspacePath, "domains.json")
-        };
-
-        foreach (var path in candidates)
-        {
-            if (File.Exists(path))
+            var options = new JsonSerializerOptions
             {
-                try
-                {
-                    var json = File.ReadAllText(path);
-                    var options = new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true,
-                        ReadCommentHandling = JsonCommentHandling.Skip,
-                        AllowTrailingCommas = true
-                    };
-                    var config = JsonSerializer.Deserialize<WorkspaceDomainsConfig>(json, options);
-                    if (config?.Domains != null && config.Domains.Count > 0)
-                    {
-                        return config;
-                    }
-                }
-                catch
-                {
-                    // Ignore parse errors and fall through
-                }
+                PropertyNameCaseInsensitive = true,
+                ReadCommentHandling = JsonCommentHandling.Skip,
+                AllowTrailingCommas = true
+            };
+            var config = JsonSerializer.Deserialize<WorkspaceDomainsConfig>(json, options);
+            if (config?.Domains != null && config.Domains.Count > 0)
+            {
+                return config;
             }
+        }
+        catch
+        {
+            // Ignore parse errors
         }
 
         return null;

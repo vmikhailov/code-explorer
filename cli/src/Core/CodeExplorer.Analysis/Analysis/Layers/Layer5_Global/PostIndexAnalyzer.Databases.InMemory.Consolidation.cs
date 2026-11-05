@@ -94,9 +94,9 @@ public partial class PostIndexAnalyzer
                     {
                         vEngines.Add(ResourceReconciliationService.NormalizeEngineName(eng));
                     }
-                    if (!string.IsNullOrWhiteSpace(targetDb.DbType))
+                    if (targetDb.DbType != CodeExplorer.Cypher.Common.DatabaseType.Unknown)
                     {
-                        vDbTypes.Add(targetDb.DbType);
+                        vDbTypes.Add(targetDb.DbType.ToCanonicalString());
                     }
                 }
             }
@@ -159,53 +159,48 @@ public partial class PostIndexAnalyzer
                         ? cf.Path
                         : Path.Combine(ctx.AbsoluteWorkspacePath, cf.Path);
 
-                    if (File.Exists(absPath))
+                    if (cf.Extensions != null && cf.Extensions.TryGetValue(CodeExplorer.Core.Parser.Layers.Layer3FileSignalEnricher.ExtVerifiedDbSignals, out var dbSigStr) && !string.IsNullOrEmpty(dbSigStr))
                     {
-                        try
+                        foreach (var sig in dbSigStr.Split(',', StringSplitOptions.RemoveEmptyEntries))
                         {
-                            var text = File.ReadAllText(absPath);
-                            if (text.Contains("PostgresOptions", StringComparison.OrdinalIgnoreCase) || text.Contains("Npgsql", StringComparison.OrdinalIgnoreCase))
+                            switch (sig)
                             {
-                                vKeys.Add("PostgresOptions");
-                                vEngines.Add("PostgreSQL");
-                                vDbTypes.Add("relational");
-                            }
-                            if (text.Contains("MongoOptions", StringComparison.OrdinalIgnoreCase) || text.Contains("MongoDB", StringComparison.OrdinalIgnoreCase) || text.Contains("MongoDbContext", StringComparison.OrdinalIgnoreCase))
-                            {
-                                vKeys.Add("MongoOptions");
-                                vEngines.Add("MongoDB");
-                                vDbTypes.Add("document");
-                            }
-                            if (text.Contains("RedisOptions", StringComparison.OrdinalIgnoreCase) || text.Contains("StackExchange.Redis", StringComparison.OrdinalIgnoreCase) || text.Contains("ConnectionMultiplexer", StringComparison.OrdinalIgnoreCase))
-                            {
-                                vKeys.Add("RedisOptions");
-                                vEngines.Add("Redis");
-                                vDbTypes.Add("cache");
-                            }
-                            if (text.Contains("MySqlOptions", StringComparison.OrdinalIgnoreCase) || text.Contains("MySql", StringComparison.OrdinalIgnoreCase))
-                            {
-                                vKeys.Add("MySqlOptions");
-                                vEngines.Add("MySQL");
-                                vDbTypes.Add("relational");
-                            }
-                            if (text.Contains("SqliteOptions", StringComparison.OrdinalIgnoreCase) || text.Contains("Sqlite", StringComparison.OrdinalIgnoreCase))
-                            {
-                                vKeys.Add("SqliteOptions");
-                                vEngines.Add("SQLite");
-                                vDbTypes.Add("relational");
-                            }
-                            if (text.Contains("SqlServerOptions", StringComparison.OrdinalIgnoreCase) || text.Contains("SqlClient", StringComparison.OrdinalIgnoreCase))
-                            {
-                                vKeys.Add("SqlServerOptions");
-                                vEngines.Add("SQL Server");
-                                vDbTypes.Add("relational");
-                            }
-                            if (text.Contains("ConnectionStrings", StringComparison.OrdinalIgnoreCase) || text.Contains("GetConnectionString", StringComparison.OrdinalIgnoreCase))
-                            {
-                                vKeys.Add("ConnectionStrings");
+                                case "pg":
+                                    vKeys.Add("PostgresOptions");
+                                    vEngines.Add("PostgreSQL");
+                                    vDbTypes.Add("relational");
+                                    break;
+                                case "mongo":
+                                    vKeys.Add("MongoOptions");
+                                    vEngines.Add("MongoDB");
+                                    vDbTypes.Add("document");
+                                    break;
+                                case "redis":
+                                    vKeys.Add("RedisOptions");
+                                    vEngines.Add("Redis");
+                                    vDbTypes.Add("cache");
+                                    break;
+                                case "mysql":
+                                    vKeys.Add("MySqlOptions");
+                                    vEngines.Add("MySQL");
+                                    vDbTypes.Add("relational");
+                                    break;
+                                case "sqlite":
+                                    vKeys.Add("SqliteOptions");
+                                    vEngines.Add("SQLite");
+                                    vDbTypes.Add("relational");
+                                    break;
+                                case "sqlserver":
+                                    vKeys.Add("SqlServerOptions");
+                                    vEngines.Add("SQL Server");
+                                    vDbTypes.Add("relational");
+                                    break;
+                                case "connstr":
+                                    vKeys.Add("ConnectionStrings");
+                                    break;
                             }
                         }
-                        catch { }
+                        continue;
                     }
                 }
             }
@@ -245,7 +240,7 @@ public partial class PostIndexAnalyzer
 
             var isVerified = vEngines.Contains(normEng) ||
                              (!string.IsNullOrEmpty(key) && (vKeys.Contains(key) || key.Split([':', '.']).Any(part => vKeys.Contains(part)))) ||
-                             (targetDb.DbType.Equals("relational", StringComparison.OrdinalIgnoreCase) && vDbTypes.Contains("relational"));
+                             (targetDb.DbType == CodeExplorer.Cypher.Common.DatabaseType.Relational && vDbTypes.Contains("relational"));
 
             if (!isVerified)
             {
@@ -459,7 +454,7 @@ public partial class PostIndexAnalyzer
             {
                 var loserNode = canonicalDbNodes.GetValueOrDefault(loser);
                 var loserEng = loserNode?.Extensions?.GetValueOrDefault("engine") ?? (loserNode?.Name.Contains('.') == true ? loserNode.Name.Split('.', 2)[0] : loserNode?.Name ?? "");
-                var isLoserGeneric = IsGenericOrLibraryDbId(loser) || IsAbstractEngineOnlyDatabase(loserNode?.Name, loserNode?.Extensions?.GetValueOrDefault("schema"), loserNode?.DbType, loser);
+                var isLoserGeneric = IsGenericOrLibraryDbId(loser) || IsAbstractEngineOnlyDatabase(loserNode?.Name, loserNode?.Extensions?.GetValueOrDefault("schema"), loserNode?.DbType.ToCanonicalString(), loser);
 
                 if (isLoserGeneric)
                 {
@@ -522,7 +517,7 @@ public partial class PostIndexAnalyzer
         foreach (var k in globalConsolidationRemap.Keys.ToList())
         {
             var node = canonicalDbNodes.GetValueOrDefault(k);
-            if (IsGenericOrLibraryDbId(k) || IsAbstractEngineOnlyDatabase(node?.Name, node?.Extensions?.GetValueOrDefault("schema"), node?.DbType, k))
+            if (IsGenericOrLibraryDbId(k) || IsAbstractEngineOnlyDatabase(node?.Name, node?.Extensions?.GetValueOrDefault("schema"), node?.DbType.ToCanonicalString(), k))
             {
                 globalConsolidationRemap.Remove(k);
             }

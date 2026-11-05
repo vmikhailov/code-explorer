@@ -46,9 +46,11 @@ public static class ServerRouteBuilderExtensions
         {
             try
             {
+                const string countNodesQuery = "MATCH (n) RETURN count(n) AS cnt";
+                const string countEdgesQuery = "MATCH ()-[r]->() RETURN count(r) AS cnt";
                 logger.LogInformation("[REST] GET /api/status");
-                var nodeCountJson = await graphClient.ExecuteQueryAsync("MATCH (n) RETURN count(n) AS cnt");
-                var edgeCountJson = await graphClient.ExecuteQueryAsync("MATCH ()-[r]->() RETURN count(r) AS cnt");
+                var nodeCountJson = await graphClient.ExecuteQueryAsync(countNodesQuery);
+                var edgeCountJson = await graphClient.ExecuteQueryAsync(countEdgesQuery);
                 return Results.Ok(new
                 {
                     status = "ok",
@@ -360,8 +362,9 @@ public static class ServerRouteBuilderExtensions
                 var diagramType = type ?? "architecture";
                 var diagramFormat = format ?? "mermaid";
                 logger.LogInformation("[REST] GET /api/diagram (type: {Type}, format: {Format}, project: {Project})", diagramType, diagramFormat, project ?? "all");
+                const string plainTextContentType = "text/plain";
                 var diagram = await DiagramExporter.ExportAsync(graphClient, diagramFormat, diagramType, project, includeLibraries ?? false, ct);
-                return Results.Text(diagram, "text/plain");
+                return Results.Text(diagram, plainTextContentType);
             }
             catch (Exception ex)
             {

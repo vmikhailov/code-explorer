@@ -73,14 +73,6 @@ const LANE_DEFINITIONS: LaneDefinition[] = [
   { tier: 5, title: 'Databases & Storage', icon: '🗄️', color: '#c084fc', accentBg: 'rgba(192, 132, 252, 0.08)' },
 ];
 
-export const PROJECT_MAP_LANE_DEFINITIONS: LaneDefinition[] = [
-  { tier: 0, title: 'Endpoints & Ingress', icon: '🚀', color: '#38bdf8', accentBg: 'rgba(56, 189, 248, 0.08)' },
-  { tier: 1, title: 'Application Handlers', icon: '⚙️', color: '#4ade80', accentBg: 'rgba(74, 222, 128, 0.08)' },
-  { tier: 2, title: 'Domain Core', icon: '🏛️', color: '#818cf8', accentBg: 'rgba(129, 140, 248, 0.08)' },
-  { tier: 3, title: 'Repositories & Foundation', icon: '💾', color: '#fbbf24', accentBg: 'rgba(251, 191, 36, 0.08)' },
-  { tier: 4, title: 'Databases & Storage', icon: '🗄️', color: '#c084fc', accentBg: 'rgba(192, 132, 252, 0.08)' },
-];
-
 export const SWIMLANE_TITLES: Record<number, string> = {
   0: 'Clients & Ingress',
   1: 'Primary Services',
@@ -90,28 +82,11 @@ export const SWIMLANE_TITLES: Record<number, string> = {
   5: 'Databases & Storage',
 };
 
-export const PROJECT_MAP_SWIMLANE_TITLES: Record<number, string> = {
-  0: 'Endpoints & Ingress',
-  1: 'Application Handlers',
-  2: 'Domain Core',
-  3: 'Repositories & Foundation',
-  4: 'Databases & Storage',
-};
-
-export function mapProjectMapTierToLane(tier: number): number {
-  if (tier <= 0) return 0;
-  if (tier === 1) return 1;
-  if (tier === 2) return 2;
-  if (tier === 3 || tier === 4) return 3;
-  if (tier >= 5) return 4;
-  return 2;
-}
-
 export function computeSwimlanesLayout(
   nodes: SwimlaneNodeInput[],
   edges: SwimlaneEdgeInput[],
   air: number = 1.2,
-  tierDefinitionsOrIsProjectMap?: TierDefinition[] | boolean,
+  tierDefinitions?: TierDefinition[],
   laneOrder?: number[],
   baseIconSize?: number
 ): SwimlanesLayoutResult {
@@ -126,11 +101,8 @@ export function computeSwimlanesLayout(
   }
 
   // 1. Group nodes into lanes
-  const isCustomDefs = Array.isArray(tierDefinitionsOrIsProjectMap);
-  const isProjectMap = tierDefinitionsOrIsProjectMap === true;
-  const laneDefs = isCustomDefs
-    ? (tierDefinitionsOrIsProjectMap as TierDefinition[])
-    : (isProjectMap ? PROJECT_MAP_LANE_DEFINITIONS : LANE_DEFINITIONS);
+  const isCustomDefs = Array.isArray(tierDefinitions);
+  const laneDefs = isCustomDefs ? tierDefinitions : LANE_DEFINITIONS;
 
   const laneBuckets = new Map<number, string[]>();
   for (const def of laneDefs) laneBuckets.set(def.tier, []);
@@ -141,8 +113,6 @@ export function computeSwimlanesLayout(
     let t = n.echelonTier;
     if (isCustomDefs) {
       if (!laneBuckets.has(t)) t = fallbackTier;
-    } else if (isProjectMap) {
-      t = mapProjectMapTierToLane(t);
     } else {
       if (t < 0 || t > 5 || isNaN(t)) t = 2; // Fallback to Domain Services
     }

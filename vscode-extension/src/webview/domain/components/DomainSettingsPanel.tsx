@@ -10,20 +10,6 @@ import {
   ChevronRightIcon,
 } from '../../components/Icons';
 
-export interface ProjectMapPresetsState {
-  cyclesCount: number;
-  cyclesOnly: boolean;
-  hideUtilities: boolean;
-  hideResources: boolean;
-  projectName?: string;
-  filesCount?: number;
-  entryPointCount?: number;
-  moduleCount?: number;
-  granularity?: 'class' | 'file' | 'module';
-  depCount?: number;
-  resourceCount?: number;
-}
-
 export interface DomainSettingsPanelProps {
   layoutName: DomainLayoutName;
   onSetLayout?: (layoutName: DomainLayoutName) => void;

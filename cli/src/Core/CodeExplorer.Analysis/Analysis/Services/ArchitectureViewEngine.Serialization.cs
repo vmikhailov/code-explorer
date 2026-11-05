@@ -435,7 +435,7 @@ public partial class ArchitectureViewEngine
         {
             if (idMap.TryGetValue(edge.Source, out var src) && idMap.TryGetValue(edge.Target, out var tgt))
             {
-                var arrow = edge.InteractionType == "messaging" ? "-.->|" : "-->|";
+                var arrow = edge.InteractionType == BoundedContextInteractionType.Messaging ? "-.->|" : "-->|";
                 sb.AppendLine($"  {src} {arrow}{edge.Label} ({edge.Count})| {tgt}");
             }
         }

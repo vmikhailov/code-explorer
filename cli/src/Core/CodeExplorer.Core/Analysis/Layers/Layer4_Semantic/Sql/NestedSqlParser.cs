@@ -104,9 +104,9 @@ public static class NestedSqlParser
         "CREATE", "ALTER", "DROP", "TRUNCATE", "WITH"
     };
 
-    private static bool FastCheckSqlCandidate(string text)
+    public static bool FastCheckSqlCandidate(ReadOnlySpan<char> text)
     {
-        if (string.IsNullOrEmpty(text)) return false;
+        if (text.Length < 6) return false;
         int i = 0;
         while (i < text.Length)
         {
@@ -131,8 +131,42 @@ public static class NestedSqlParser
         }
         if (i >= text.Length) return false;
         char c = char.ToUpperInvariant(text[i]);
-        return c is 'S' or 'I' or 'U' or 'D' or 'M' or 'C' or 'A' or 'T' or 'W';
+        if (c is not ('S' or 'I' or 'U' or 'D' or 'M' or 'R' or 'C' or 'A' or 'T' or 'W' or 'E'))
+        {
+            return false;
+        }
+
+        int wordStart = i;
+        while (i < text.Length && char.IsLetter(text[i]))
+        {
+            i++;
+        }
+        if (i >= text.Length) return false; // Must have something after the keyword
+        var nextCh = text[i];
+        if (!char.IsWhiteSpace(nextCh) && nextCh is not ('/' or '-' or '*' or '(' or '[' or '"' or '`'))
+        {
+            return false;
+        }
+
+        var word = text.Slice(wordStart, i - wordStart);
+        return word.Equals("SELECT", StringComparison.OrdinalIgnoreCase) ||
+               word.Equals("INSERT", StringComparison.OrdinalIgnoreCase) ||
+               word.Equals("UPDATE", StringComparison.OrdinalIgnoreCase) ||
+               word.Equals("DELETE", StringComparison.OrdinalIgnoreCase) ||
+               word.Equals("MERGE", StringComparison.OrdinalIgnoreCase) ||
+               word.Equals("REPLACE", StringComparison.OrdinalIgnoreCase) ||
+               word.Equals("CREATE", StringComparison.OrdinalIgnoreCase) ||
+               word.Equals("ALTER", StringComparison.OrdinalIgnoreCase) ||
+               word.Equals("DROP", StringComparison.OrdinalIgnoreCase) ||
+               word.Equals("TRUNCATE", StringComparison.OrdinalIgnoreCase) ||
+               word.Equals("WITH", StringComparison.OrdinalIgnoreCase) ||
+               word.Equals("EXEC", StringComparison.OrdinalIgnoreCase) ||
+               word.Equals("EXECUTE", StringComparison.OrdinalIgnoreCase) ||
+               word.Equals("CALL", StringComparison.OrdinalIgnoreCase);
     }
+
+    private static bool FastCheckSqlCandidate(string text) =>
+        !string.IsNullOrEmpty(text) && FastCheckSqlCandidate(text.AsSpan());
 
     public static string StripSqlComments(string sql)
     {
@@ -686,7 +720,7 @@ public static class NestedSqlParser
                     concreteDbName = canonical.Name;
                 }
             }
-            else if (ctx?.ResourceRegistry.AllResources.FirstOrDefault(r => r.Kind == "Database" && (r.DbType == "relational" || r.DbType == "analytics")) is { } anyDb)
+            else if (ctx?.ResourceRegistry.AllResources.FirstOrDefault(r => r.Kind == CodeExplorer.Cypher.Common.NodeKind.Database && (r.DbType == CodeExplorer.Cypher.Common.DatabaseType.Relational || r.DbType == CodeExplorer.Cypher.Common.DatabaseType.Analytics)) is { } anyDb)
             {
                 engine = !string.IsNullOrEmpty(anyDb.Engine) && !anyDb.Engine.Equals("Database", StringComparison.OrdinalIgnoreCase)
                     ? anyDb.Engine

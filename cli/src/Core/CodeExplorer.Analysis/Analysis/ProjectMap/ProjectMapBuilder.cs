@@ -12,15 +12,15 @@ public static partial class ProjectMapBuilder
     public const int MaxClasses = 80;
     public const int MaxEntryPointNodes = 64;
 
-    private static readonly HashSet<string> DataResourceKinds = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "Table", "Database", "Query", "DataSet", "Procedure"
-    };
+    private static readonly HashSet<NodeKind> DataResourceKinds =
+    [
+        NodeKind.Table, NodeKind.Database, NodeKind.Query, NodeKind.DataSet, NodeKind.Procedure
+    ];
 
-    private static readonly HashSet<string> IgnoredTypeSubKinds = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "enum", "delegate", "namespace"
-    };
+    private static readonly HashSet<TypeKind> IgnoredTypeSubKinds =
+    [
+        TypeKind.Enum, TypeKind.Delegate, TypeKind.Namespace
+    ];
 
     public static ProjectMapResult Build(ProjectMapInput input)
     {
@@ -91,7 +91,7 @@ public static partial class ProjectMapBuilder
                 IsSubProject = true,
                 SubProjectId = sub.ProjectId,
                 SubProjectKind = sub.Kind,
-                NodeKindOverride = string.IsNullOrEmpty(sub.Kind) ? "Service" : sub.Kind,
+                NodeKindOverride = sub.Kind == NodeKind.Unspecified ? NodeKind.Service : sub.Kind,
                 LineCount = subNonTest.Sum(f => f.LineCount ?? 0)
             };
             foreach (var sf in subNonTest)
@@ -217,6 +217,15 @@ public static partial class ProjectMapBuilder
                 module.EntryPointCount += count;
             }
         }
+    }
+
+    private static void Accumulate(ProjectMapEdge edge, RelationshipKind kind, string fromFile, string? toFile)
+    {
+        edge.Count++;
+        edge.Files.Add(fromFile);
+        if (toFile != null) edge.Files.Add(toFile);
+        var k = kind == RelationshipKind.Unspecified ? "RELATED" : kind.ToCypherType();
+        edge.Kinds[k] = edge.Kinds.GetValueOrDefault(k) + 1;
     }
 
     private static void Accumulate(ProjectMapEdge edge, string kind, string fromFile, string? toFile)

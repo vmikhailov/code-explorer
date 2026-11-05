@@ -132,7 +132,7 @@ public partial class PostIndexAnalyzer
 
         // Remove any abstract engine-only database nodes
         var abstractDbsToPurge = canonicalDbNodes.Values
-            .Where(n => IsAbstractEngineOnlyDatabase(n.Name, n.Extensions?.GetValueOrDefault("schema"), n.DbType, n.Id))
+            .Where(n => IsAbstractEngineOnlyDatabase(n.Name, n.Extensions?.GetValueOrDefault("schema"), n.DbType.ToCanonicalString(), n.Id))
             .ToList();
 
         foreach (var purgeNode in abstractDbsToPurge)

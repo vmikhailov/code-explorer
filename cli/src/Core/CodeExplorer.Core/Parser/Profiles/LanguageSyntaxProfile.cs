@@ -64,8 +64,8 @@ public class LanguageSyntaxProfile
     public FrozenSet<string> ExcludedStringInterpolations { get; init; } = FrozenSet<string>.Empty;
 
     // Declarative Layer 3 Extraction Descriptors
-    public string DefaultEnumKind { get; init; } = "Class";
-    public string DefaultStructKind { get; init; } = "Struct";
+    public CodeExplorer.Cypher.Common.SyntacticSymbolKind DefaultEnumKind { get; init; } = CodeExplorer.Cypher.Common.SyntacticSymbolKind.Class;
+    public CodeExplorer.Cypher.Common.SyntacticSymbolKind DefaultStructKind { get; init; } = CodeExplorer.Cypher.Common.SyntacticSymbolKind.Struct;
 
     public IReadOnlyList<string> IdentifierFieldNames { get; init; } = ["name"];
     public FrozenSet<string> IdentifierChildTypes { get; init; } = DefaultIdentifierChildTypeSet;

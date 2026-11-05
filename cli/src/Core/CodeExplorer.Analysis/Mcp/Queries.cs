@@ -39,7 +39,13 @@ public static class Queries
         });
     }
 
-    public record BuiltInQueryInfo(string Name, string Description, string Category);
+    public record BuiltInQueryInfo(string Name, string Description, CodeExplorer.Cypher.Common.BuiltInQueryCategory Category)
+    {
+        public BuiltInQueryInfo(string Name, string Description, string Category)
+            : this(Name, Description, CodeExplorer.Cypher.Common.TaxonomyViewEnumExtensions.ParseBuiltInQueryCategory(Category))
+        {
+        }
+    }
 
     private static readonly Dictionary<string, (string Description, string Category)> KnownMetadata = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -105,7 +111,7 @@ public static class Queries
             }
             else
             {
-                list.Add(new BuiltInQueryInfo(n, $"Built-in Cypher query: {n}", "General"));
+                list.Add(new BuiltInQueryInfo(n, $"Built-in Cypher query: {n}", CodeExplorer.Cypher.Common.BuiltInQueryCategory.General));
             }
         }
         return list;

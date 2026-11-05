@@ -66,13 +66,13 @@ public class ConfigurationMappingTests
         var databases = l4.SemanticNodes.OfType<DatabaseNode>().ToList();
 
         (databases.Any(d =>
-                d.DbType == "relational" && (d.Name.Contains("DefaultConnection") || d.Name.Contains("orders_db")))).Should().BeTrue("Postgres DefaultConnection / orders_db should be extracted");
+                d.DbType == DatabaseType.Relational && (d.Name.Contains("DefaultConnection") || d.Name.Contains("orders_db")))).Should().BeTrue("Postgres DefaultConnection / orders_db should be extracted");
 
-        (databases.Any(d => d.DbType == "cache" && d.Name.Contains("Redis"))).Should().BeTrue("Redis database should be extracted");
+        (databases.Any(d => d.DbType == DatabaseType.Cache && d.Name.Contains("Redis"))).Should().BeTrue("Redis database should be extracted");
 
         var topics = l4.SemanticNodes.OfType<TopicNode>().ToList();
 
-        (topics.Any(t => t.BrokerType == "rabbitmq")).Should().BeTrue("RabbitMQ topic/broker should be extracted");
+        (topics.Any(t => t.BrokerType == BrokerType.RabbitMq)).Should().BeTrue("RabbitMQ topic/broker should be extracted");
 
         var cloud = l4.SemanticNodes.OfType<CloudServiceNode>().ToList();
         (cloud.Any(c => c.Name == "Stripe")).Should().BeTrue("Stripe cloud service should be extracted");
@@ -145,8 +145,8 @@ public class ConfigurationMappingTests
 
         var databases = l4.SemanticNodes.OfType<DatabaseNode>().ToList();
 
-        (databases.Any(d => d.DbType == "relational")).Should().BeTrue("Postgres DATABASE_URL in .env should be extracted");
-        (databases.Any(d => d.DbType == "cache")).Should().BeTrue("REDIS_URL in .env should be extracted");
+        (databases.Any(d => d.DbType == DatabaseType.Relational)).Should().BeTrue("Postgres DATABASE_URL in .env should be extracted");
+        (databases.Any(d => d.DbType == DatabaseType.Cache)).Should().BeTrue("REDIS_URL in .env should be extracted");
 
         var cloud = l4.SemanticNodes.OfType<CloudServiceNode>().ToList();
         (cloud.Any(c => c.Name == "Stripe")).Should().BeTrue("Stripe in .env should be extracted");

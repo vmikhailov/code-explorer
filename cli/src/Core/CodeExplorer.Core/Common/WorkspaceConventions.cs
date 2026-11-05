@@ -28,6 +28,9 @@ public static class WorkspaceConventions
         _current = WorkspaceConventionProfile.Load(workspaceRoot);
     }
 
+    public static string? LoadDomainsConfigJson(string? workspaceRoot) =>
+        WorkspaceConventionProfile.LoadDomainsConfigJson(workspaceRoot);
+
     /// <summary>
     /// Resets all loaded conventions to default profile.
     /// </summary>

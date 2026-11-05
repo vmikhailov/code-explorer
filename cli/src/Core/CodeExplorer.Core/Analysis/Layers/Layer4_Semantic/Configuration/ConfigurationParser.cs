@@ -19,7 +19,7 @@ public static class ConfigurationParser
         List<Relationship> relationships,
         ParsingContext ctx)
     {
-        if (!File.Exists(filePath)) return;
+        if (string.IsNullOrEmpty(filePath)) return;
 
         var fileName = Path.GetFileName(relativePath).ToLowerInvariant();
         if (fileName.Contains("docker-compose") || fileName.StartsWith("compose.") || fileName.StartsWith("compose-") ||

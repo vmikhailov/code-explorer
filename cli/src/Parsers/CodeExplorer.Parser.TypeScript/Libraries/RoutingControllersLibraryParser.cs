@@ -17,12 +17,14 @@ public class RoutingControllersLibraryParser : ISemanticExtension
         "Get", "Post", "Put", "Delete", "Patch", "Head", "Options", "All"
     };
 
+    private const string ActionDecoratorPattern = "Get|Post|Put|Delete|Patch|Head|Options|All";
+
     private static readonly NodeSelector _decoratorEntryPointSelector = NodeSelector.New()
         .HasType(TreeSitterSyntax.TypeScript.Decorator)
         .FirstChild
         .HasType(TreeSitterSyntax.TypeScript.CallExpression)
         .GetChildForField(TreeSitterSyntax.Fields.Function)
-        .Text("Get|Post|Put|Delete|Patch|Head|Options|All");
+        .Text(ActionDecoratorPattern);
 
     public IReadOnlyDictionary<string, NodeSelector> Selectors => new Dictionary<string, NodeSelector>
     {

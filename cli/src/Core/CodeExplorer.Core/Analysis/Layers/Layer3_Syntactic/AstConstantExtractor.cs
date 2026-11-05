@@ -101,10 +101,10 @@ public static class AstConstantExtractor
 
             if (item.ValueNode.IsValid())
             {
-                var text = item.ValueNode.Text.Trim();
-                if (AstValueResolver.IsQuoted(text) && !text.Contains('\n') && text.Length is > 0 and < 300)
+                var span = item.ValueNode.AsSpan().Trim();
+                if (span.Length is > 0 and < 300 && AstValueResolver.IsQuoted(span) && span.IndexOf('\n') < 0)
                 {
-                    var unquoted = AstValueResolver.Unquote(text);
+                    var unquoted = AstValueResolver.Unquote(span);
                     if (!string.IsNullOrWhiteSpace(unquoted))
                     {
                         ConstantRegistry.Register(projectName, item.Key, unquoted);

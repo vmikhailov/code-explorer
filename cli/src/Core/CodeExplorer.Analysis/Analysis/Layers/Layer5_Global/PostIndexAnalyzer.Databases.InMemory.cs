@@ -161,7 +161,7 @@ public partial class PostIndexAnalyzer
                 var hasNonTest = (!isExplicitTest && isDeclaredInProduction) ||
                                  nonTestAccessedTargets.Contains(d.Id) ||
                                  d.Children.Any(c => nonTestAccessedTargets.Contains(c.Id));
-                return hasNonTest && (string.IsNullOrEmpty(d.DbType) || d.DbType.Equals("relational", StringComparison.OrdinalIgnoreCase));
+                return hasNonTest && (d.DbType is CodeExplorer.Cypher.Common.DatabaseType.Unknown or CodeExplorer.Cypher.Common.DatabaseType.Relational);
             })
             .Select(d => {
                 if (d.Extensions != null && d.Extensions.TryGetValue("engine", out var eng) && !string.IsNullOrWhiteSpace(eng))
@@ -197,7 +197,7 @@ public partial class PostIndexAnalyzer
             var rawSchema = (db.Extensions != null && db.Extensions.TryGetValue("schema", out var sch) && !string.IsNullOrWhiteSpace(sch))
                 ? sch
                 : null;
-            var (cName, cType, cKey) = CanonicalizeDatabase(db.Name, db.DbType, rawEngine, rawSchema, primaryRelationalEngine);
+            var (cName, cType, cKey) = CanonicalizeDatabase(db.Name, db.DbType.ToCanonicalString(), rawEngine, rawSchema, primaryRelationalEngine);
             var canonicalId = BuildCanonicalDatabaseId(db.Id, cType, cKey, ctx.WorkspaceId);
             rawToCanonical[db.Id] = canonicalId;
             nonTestAccessedTargets.Add(canonicalId);
@@ -288,7 +288,7 @@ public partial class PostIndexAnalyzer
             // Also map child DataSetNodes (representing schemas in SQL) to their canonical database nodes
             foreach (var ds in db.Children.OfType<DataSetNode>())
             {
-                var (dsCName, dsCType, dsCKey) = CanonicalizeDatabase(db.Name, db.DbType, rawEngine, ds.Name, primaryRelationalEngine);
+                var (dsCName, dsCType, dsCKey) = CanonicalizeDatabase(db.Name, db.DbType.ToCanonicalString(), rawEngine, ds.Name, primaryRelationalEngine);
                 var dsCanonicalId = BuildCanonicalDatabaseId(ds.Id, dsCType, dsCKey, ctx.WorkspaceId);
                 rawToCanonical[ds.Id] = dsCanonicalId;
                 if (isRawImplicit && !isRawExplicit &&

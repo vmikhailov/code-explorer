@@ -235,4 +235,16 @@ public static class OntologyConstants
         /// </summary>
         public const string SourceReachability = "source_reachability";
     }
+
+    public static class Archetypes
+    {
+        public const string Unclassified = "Unclassified";
+        public const string PureUtility = "PureUtility";
+        public const string ClientUi = "ClientUi";
+        public const string CliTool = "CliTool";
+        public const string Framework = "Framework";
+        public const string BackendService = "BackendService";
+        public const string DatabaseDriver = "DatabaseDriver";
+        public const string NativeAddon = "NativeAddon";
+    }
 }

@@ -35,7 +35,7 @@ public static class GradleBuildScriptParser
         {
             try
             {
-                var settingsText = File.ReadAllText(settingsFile);
+                var settingsText = PhysicalFileStore.ReadAllText(settingsFile);
                 var rootMatch = Regex.Match(settingsText, @"rootProject\.name\s*=\s*['""]([^'""]+)['""]");
                 if (rootMatch.Success)
                 {
@@ -83,7 +83,7 @@ public static class GradleBuildScriptParser
         {
             try
             {
-                var buildText = File.ReadAllText(buildFile);
+                var buildText = PhysicalFileStore.ReadAllText(buildFile);
 
                 isApp = isAndroidApp ||
                         buildText.Contains("id 'application'") ||

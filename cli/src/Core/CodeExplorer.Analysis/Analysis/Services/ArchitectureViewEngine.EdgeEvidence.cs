@@ -33,7 +33,7 @@ public partial class ArchitectureViewEngine
         {
             SourceId = sourceIds.FirstOrDefault() ?? string.Empty,
             TargetId = targetIds.FirstOrDefault() ?? string.Empty,
-            EdgeKind = edgeKind ?? string.Empty
+            EdgeKind = EnumExtensions.ParseRelationshipKind(edgeKind)
         };
 
         var warnings = new List<string>();

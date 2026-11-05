@@ -56,5 +56,8 @@ public record FileNode(
     public DateTime? LastModifiedUtc { get; set; }
 
     [JsonIgnore]
+    public string? PreloadedContent { get; set; }
+
+    [JsonIgnore]
     public override NodeKind Kind => NodeKind.File;
 }

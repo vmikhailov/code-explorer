@@ -2,8 +2,6 @@ import React, { useState, useMemo, useRef, useCallback } from 'react';
 import {
   OrbitConfig,
   DEFAULT_ORBIT_CONFIG,
-  DEFAULT_PROJECT_MAP_ORBIT_CONFIG,
-  isDefaultOrbitConfig,
   mergeOrbits,
   splitOrbit,
   moveOrbit,
@@ -15,7 +13,6 @@ import {
   EntityKind,
 } from '../../components/DomainArchitectureView';
 import { getEntityBadgeMeta } from '../entityBadges';
-import { ProjectMapPresetsState } from './DomainSettingsPanel';
 import {
   LayersIcon,
   RotateCcwIcon,
@@ -29,13 +26,13 @@ export interface DomainOrbitsPanelProps {
   hasOrbitLegend: boolean;
   orbitLegendItems: OrbitLegendItem[];
   orbitConfig: OrbitConfig;
+  defaultOrbitConfig?: OrbitConfig;
   hiddenOrbitTiers: number[] | Set<number>;
   layoutName?: DomainLayoutName;
   onApplyOrbitConfig: (next: OrbitConfig, clearHiddenFor?: number[], resetHidden?: boolean) => void;
   onToggleOrbitVisibility: (levelIndex: number) => void;
   onHighlightOrbitNodes?: (nodeIds: string[]) => void;
   onClearOrbitHighlight?: () => void;
-  projectMapPresets?: ProjectMapPresetsState;
   isMatrixMode?: boolean;
 }
 
@@ -43,13 +40,13 @@ export const DomainOrbitsPanel: React.FC<DomainOrbitsPanelProps> = ({
   hasOrbitLegend,
   orbitLegendItems,
   orbitConfig,
+  defaultOrbitConfig = DEFAULT_ORBIT_CONFIG,
   hiddenOrbitTiers: hiddenOrbitTiersProp,
   layoutName = 'concentric',
   onApplyOrbitConfig,
   onToggleOrbitVisibility,
   onHighlightOrbitNodes,
   onClearOrbitHighlight,
-  projectMapPresets,
   isMatrixMode = false,
 }) => {
   const hiddenOrbitTiers = useMemo(
@@ -192,9 +189,13 @@ export const DomainOrbitsPanel: React.FC<DomainOrbitsPanelProps> = ({
   );
 
   const handleResetOrbitOrder = useCallback(() => {
-    const defaultCfg = projectMapPresets ? DEFAULT_PROJECT_MAP_ORBIT_CONFIG : DEFAULT_ORBIT_CONFIG;
-    applyOrbitCfg(defaultCfg, [], true);
-  }, [applyOrbitCfg, projectMapPresets]);
+    applyOrbitCfg(defaultOrbitConfig, [], true);
+  }, [applyOrbitCfg, defaultOrbitConfig]);
+
+  const isDefaultCfg = useMemo(
+    () => JSON.stringify(orbitConfig) === JSON.stringify(defaultOrbitConfig),
+    [orbitConfig, defaultOrbitConfig]
+  );
 
   if (!hasOrbitLegend || isMatrixMode) {
     return (
@@ -261,7 +262,7 @@ export const DomainOrbitsPanel: React.FC<DomainOrbitsPanelProps> = ({
             </button>
           )}
 
-          {(!isDefaultOrbitConfig(orbitConfig) || hiddenOrbitTiers.size > 0) && (
+          {(!isDefaultCfg || hiddenOrbitTiers.size > 0) && (
             <button
               type="button"
               className="floating-dock-btn action-btn"

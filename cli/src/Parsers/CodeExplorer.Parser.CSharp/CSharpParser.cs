@@ -133,7 +133,7 @@ public partial class CSharpParser : IProjectParser, IFileParser
     {
         try
         {
-            var content = File.ReadAllText(libmanPath);
+            var content = PhysicalFileStore.ReadAllText(libmanPath);
             using var doc = JsonDocument.Parse(content);
             if (doc.RootElement.TryGetProperty("libraries", out var libs) &&
                 libs.ValueKind == JsonValueKind.Array)
@@ -369,7 +369,7 @@ public partial class CSharpParser : IProjectParser, IFileParser
         var csprojFile = csprojFiles[0];
         try
         {
-            var content = await File.ReadAllTextAsync(csprojFile);
+            var content = await PhysicalFileStore.ReadAllTextAsync(csprojFile);
             var doc = System.Xml.Linq.XDocument.Parse(content);
 
             var propChildren = doc.Root?.Elements()
@@ -425,7 +425,7 @@ public partial class CSharpParser : IProjectParser, IFileParser
         {
             try
             {
-                var pkgContent = await File.ReadAllTextAsync(packagesConfigFile);
+                var pkgContent = await PhysicalFileStore.ReadAllTextAsync(packagesConfigFile);
                 var pkgDoc = System.Xml.Linq.XDocument.Parse(pkgContent);
                 foreach (var pkg in pkgDoc.Descendants().Where(e => e.Name.LocalName == "package"))
                 {
@@ -448,7 +448,7 @@ public partial class CSharpParser : IProjectParser, IFileParser
         {
             try
             {
-                var content = await File.ReadAllTextAsync(csprojFile);
+                var content = await PhysicalFileStore.ReadAllTextAsync(csprojFile);
                 var doc = System.Xml.Linq.XDocument.Parse(content);
 
                 // Extract local project references (use LocalName to support legacy MSBuild XML namespaces)
@@ -692,12 +692,12 @@ public partial class CSharpParser : IProjectParser, IFileParser
                 if (!valueNode.IsValid())
                 {
                     var eqClause = node.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause);
-                    if (eqClause.IsValid() && eqClause.Children.Count > 1)
+                    if (eqClause.IsValid() && eqClause.Children.Count > 0)
                     {
-                        valueNode = eqClause.Children[1];
+                        valueNode = eqClause.Children[^1];
                     }
                 }
-                var initializerText = valueNode.IsValid() ? valueNode.Text : "";
+                var initializerText = valueNode.IsValid() ? valueNode.GetBoundedInitializerText() : "";
                 var isConstant = IsCSharpConstant(node);
                 var scope = DetermineCSharpScope(node);
 
@@ -788,6 +788,7 @@ public partial class CSharpParser : IProjectParser, IFileParser
         var curr = node;
         while (curr.IsValid())
         {
+            if (curr is VariableDeclSyntax { IsConstant: true } || (curr is DeclarationSyntax d && (d.Modifiers.HasFlag(SyntaxModifiers.Const) || d.Modifiers.HasFlag(SyntaxModifiers.ReadOnly)))) return true;
             if (curr.IsAny(TreeSitterSyntax.CSharp.FieldDeclaration, TreeSitterSyntax.CSharp.LocalDeclarationStatement))
             {
                 foreach (var child in curr.Children)

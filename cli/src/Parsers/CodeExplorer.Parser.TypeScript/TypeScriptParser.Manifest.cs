@@ -15,7 +15,7 @@ public partial class TypeScriptParser
         {
             try
             {
-                foreach (var rawLine in File.ReadLines(wranglerToml))
+                foreach (var rawLine in PhysicalFileStore.ReadLines(wranglerToml))
                 {
                     var line = rawLine.Trim();
                     if (line.StartsWith('#') || line.StartsWith('[')) continue;
@@ -65,7 +65,7 @@ public partial class TypeScriptParser
         {
             try
             {
-                var content = File.ReadAllText(wranglerToml);
+                var content = PhysicalFileStore.ReadAllText(wranglerToml);
                 foreach (var rawLine in content.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
                 {
                     var line = rawLine.Trim();
@@ -158,7 +158,7 @@ public partial class TypeScriptParser
 
         try
         {
-            var content = File.ReadAllText(packageJsonPath);
+            var content = PhysicalFileStore.ReadAllText(packageJsonPath);
             using var doc = System.Text.Json.JsonDocument.Parse(content);
             var root = doc.RootElement;
 
@@ -220,7 +220,7 @@ public partial class TypeScriptParser
         {
             try
             {
-                var content = File.ReadAllText(projectJsonPath);
+                var content = PhysicalFileStore.ReadAllText(projectJsonPath);
 
                 using var doc = System.Text.Json.JsonDocument.Parse(content);
 
@@ -254,7 +254,7 @@ public partial class TypeScriptParser
         {
             try
             {
-                var content = File.ReadAllText(packageJsonPath);
+                var content = PhysicalFileStore.ReadAllText(packageJsonPath);
 
                 using var doc = System.Text.Json.JsonDocument.Parse(content);
 

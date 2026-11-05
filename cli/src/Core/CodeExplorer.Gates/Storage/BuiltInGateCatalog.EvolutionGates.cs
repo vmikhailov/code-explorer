@@ -131,6 +131,46 @@ public static partial class BuiltInGateCatalog
         Source = "BuiltIn"
     };
 
+    public static readonly SemanticGate NoFileReadAboveLayer3Gate = new()
+    {
+        Id = "SIG-P-B-011",
+        Category = GateCategory.Architectural,
+        Platform = "agnostic",
+        Scope = InvariantScope.Module,
+        Dimension = InvariantDimension.Boundaries,
+        Name = "Pipeline IO Boundary: No File Reads Above Layer 3",
+        Severity = GateSeverity.Error,
+        Description = "All source, manifest, and configuration files must be read and parsed in Layers 1-3 (Physical, Boundaries, Syntactic). Layers 4 (Semantic) and 5 (Global / PostIndex) must operate strictly on the in-memory ontology graph, AST, and enrichments without reading files or enumerating directories.",
+        Remediation = "Extract the required metadata, symbols, or enrichments in Layer 1, Layer 2, or Layer 3 and attach them to FileNode, ProjectNode, SyntaxTree, or ParsingContext instead of reading files in Layer 4 or Layer 5.",
+        Message = "Layer 4/5 function '{caller.name}' performs prohibited file/store read via '{target.name}' ({target.path})",
+        Query = """
+            MATCH (caller:Function)-[r:CALLS]->(target:Function)
+            WHERE (caller.path CONTAINS 'Layer4_' OR caller.path CONTAINS 'Layer5_')
+              AND NOT coalesce(caller.is_test, false)
+              AND (
+                target.path CONTAINS 'PhysicalFileStore'
+                OR target.path CONTAINS 'WorkspaceFileFilter'
+                OR target.path CONTAINS 'SharedFileParserRegistry'
+                OR target.name IN [
+                  'ReadAllText', 'ReadAllTextAsync',
+                  'ReadAllBytes', 'ReadAllBytesAsync',
+                  'ReadAllLines', 'ReadAllLinesAsync',
+                  'ReadLines', 'OpenRead', 'ReadSource',
+                  'ScanSourceTextForSchema',
+                  'StreamAndAnalyzeFileAsync',
+                  'EnumerateFiles', 'EnumerateCandidateFiles',
+                  'GetFiles', 'ParseFile'
+                ]
+              )
+            RETURN caller, r, target
+            """,
+        Ratchet = new GateRatchetSettings
+        {
+            Enabled = false
+        },
+        Source = "BuiltIn"
+    };
+
     public static readonly SemanticGate ModuleCycleProhibitionGate = new()
     {
         Id = "SIG-C-B-004",

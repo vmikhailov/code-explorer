@@ -58,7 +58,7 @@ public class PothosLibraryParser : ISemanticExtension
 
     public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
-        if (symbol.Kind != OntologyConstants.NodeLabels.EntryPoint) return;
+        if (symbol.Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint) return;
 
         if (node.Is(TreeSitterSyntax.TypeScript.CallExpression) &&
             TryExtractSingleRootField(node, out var builderName, out var opPrefix, out var fieldName))
@@ -120,9 +120,9 @@ public class PothosLibraryParser : ISemanticExtension
         symbol.Protocol = "GraphQL";
         symbol.OperationType = opPrefix switch
         {
-            "MUTATION" => "Mutation",
-            "SUBSCRIPTION" => "Subscription",
-            _ => "Query"
+            "MUTATION" => CodeExplorer.Cypher.Common.OperationType.Mutation,
+            "SUBSCRIPTION" => CodeExplorer.Cypher.Common.OperationType.Subscription,
+            _ => CodeExplorer.Cypher.Common.OperationType.Query
         };
         symbol.Properties["graphql_field"] = fieldName;
         if (!string.IsNullOrEmpty(builderName))

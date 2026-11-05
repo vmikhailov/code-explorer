@@ -39,7 +39,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
             var callNode = path[^1];
             var argList = callNode.GetField(TreeSitterSyntax.Fields.Arguments);
 
-            if (argList.IsValid() && argList.Children.Count > 1)
+            if (argList.IsValid() && argList.Children.Count > 0)
             {
                 var firstArg = argList.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.String));
 
@@ -125,7 +125,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
         SyntacticSymbol parentNode)
     {
         // If this is a decorator (EntryPoint) on a method, link it to the next method sibling via TRIGGERS
-        if (node.Is(TreeSitterSyntax.TypeScript.Decorator) && symbolNode.Kind == OntologyConstants.NodeLabels.EntryPoint)
+        if (node.Is(TreeSitterSyntax.TypeScript.Decorator) && symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint)
         {
             var nextNode = GetNextNamedSibling(node);
 
@@ -139,7 +139,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
                 }
             }
         }
-        else if (node.Is(TreeSitterSyntax.TypeScript.CallExpression) && symbolNode.Kind == OntologyConstants.NodeLabels.EntryPoint)
+        else if (node.Is(TreeSitterSyntax.TypeScript.CallExpression) && symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint)
         {
             ExtractExpressRouteReferences(node, symbolNode, parentNode);
         }
@@ -567,7 +567,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
     {
         var scopeSymbol = SymbolStack.Peek();
 
-        if (scopeSymbol.Kind != "file")
+        if (scopeSymbol.Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.File)
         {
             var kind = node.Is(TreeSitterSyntax.TypeScript.ImplementsClause) ? "IMPLEMENTS" : "INHERITS_FROM";
 
@@ -619,7 +619,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
         var col = (int)nameNode.StartPosition.Column + 1;
         var currentScope = SymbolStack.Peek();
 
-        if (currentScope.Kind == OntologyConstants.NodeLabels.EntryPoint)
+        if (currentScope.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint)
         {
             if (!currentScope.References.Any(r => r.TargetName == tagName && r.Kind == OntologyConstants.Relationships.Triggers))
             {
@@ -760,7 +760,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
         }
 
         // 4. export * from './b'
-        if (node.Children.Any(c => c.Type == "*"))
+        if (node is CodeExplorer.Core.Parser.Syntax.ImportDeclSyntax { IsWildcard: true } || node.Children.Any(c => c.Type == "*"))
         {
             specifiers.Add(new ImportSpecifier("*", "*", IsNamespace: true));
         }
@@ -779,7 +779,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
             if (!string.IsNullOrEmpty(name))
             {
                 var valueNode = node.GetField(TreeSitterSyntax.Fields.Value);
-                var initializerText = valueNode.IsValid() ? valueNode.Text : "";
+                var initializerText = valueNode.IsValid() ? valueNode.GetBoundedInitializerText() : "";
                 var isConstant = IsTypeScriptConstant(node);
                 var scope = DetermineTypeScriptScope(node);
 
@@ -816,7 +816,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
             if (!string.IsNullOrEmpty(name))
             {
                 var valueNode = node.GetField(TreeSitterSyntax.Fields.Value);
-                var initializerText = valueNode.IsValid() ? valueNode.Text : "";
+                var initializerText = valueNode.IsValid() ? valueNode.GetBoundedInitializerText() : "";
                 var isConstant = false;
                 var scope = "class";
 

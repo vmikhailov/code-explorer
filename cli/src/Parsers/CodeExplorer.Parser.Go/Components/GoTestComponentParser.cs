@@ -14,7 +14,7 @@ public class GoTestComponentParser : IComponentLibraryParser
 
     public bool CanHandle(ProjectContext context)
     {
-        return context.ProjectType.Equals("go", StringComparison.OrdinalIgnoreCase) &&
+        return context.ProjectType == CodeExplorer.Cypher.Common.ProjectLanguage.Go &&
                (Libraries.GoTestLibraryParser.Instance.GetPackageDescriptors().Any(p => p.Matches(context)) ||
                 context.FilesInDirectory.Any(f => f.EndsWith("_test.go")) ||
                 context.ManifestProperties.GetValueOrDefault("manifest_type") == "test" ||

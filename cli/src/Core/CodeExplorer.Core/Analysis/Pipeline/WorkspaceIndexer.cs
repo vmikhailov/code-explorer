@@ -285,7 +285,7 @@ public class WorkspaceIndexer
         if (!ctx.ScanIssues.IsEmpty)
         {
             var issuesList = ctx.ScanIssues.Values.Select(v => v.Issue).ToList();
-            var syntaxErrCount = issuesList.Count(i => i.Category == "syntax_error");
+            var syntaxErrCount = issuesList.Count(i => i.Category == CodeExplorer.Cypher.Common.ScanIssueCategory.SyntaxError);
             var otherErrCount = issuesList.Count - syntaxErrCount;
             ctx.LogWarning($"[Indexer    ] Recorded {issuesList.Count} scan/parse issue(s) in graph ({syntaxErrCount} syntax error(s), {otherErrCount} runtime/manifest issue(s)). Query via: MATCH (i:ScanIssue) RETURN i");
         }
@@ -310,13 +310,14 @@ public class WorkspaceIndexer
             .GroupBy(t => t.FilePath.Replace('\\', '/'), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
-        var entries = new System.Collections.Concurrent.ConcurrentBag<(string RelativePath, string ContentHash, DateTime LastModifiedUtc, string ProjectPath, string? SnapshotJson)>();
+        var entries = new System.Collections.Concurrent.ConcurrentBag<(string RelativePath, string ContentHash, DateTime LastModifiedUtc, long SizeBytes, string ProjectPath, string? SnapshotJson)>();
         var seen = new System.Collections.Concurrent.ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
 
         await Parallel.ForEachAsync(files, parallelOptions, async (file, ct) =>
         {
             string hash;
             DateTime lastMod;
+            long sizeBytes = file.SizeBytes ?? -1L;
             if (!string.IsNullOrEmpty(file.ContentHash) && file.LastModifiedUtc.HasValue)
             {
                 hash = file.ContentHash;
@@ -324,10 +325,11 @@ public class WorkspaceIndexer
             }
             else
             {
-                if (!File.Exists(file.FullPath)) return;
-                lastMod = File.GetLastWriteTimeUtc(file.FullPath);
-                var bytes = await File.ReadAllBytesAsync(file.FullPath, ct);
-                hash = Incremental.HashUtility.ComputeSha256(bytes);
+                var fi = new FileInfo(file.FullPath);
+                if (!fi.Exists) return;
+                lastMod = fi.LastWriteTimeUtc;
+                sizeBytes = fi.Length;
+                hash = await Incremental.HashUtility.ComputeSha256FromFileAsync(file.FullPath, ct);
             }
             seen.TryAdd(file.Path, 0);
 
@@ -350,13 +352,17 @@ public class WorkspaceIndexer
                 }
             }
 
-            _fileRegistry.UpdateEntry(file.Path, hash, lastMod, file.Path, snapshot);
-            entries.Add((file.Path, hash, lastMod, file.Path, snapshotJson));
+            _fileRegistry.UpdateEntry(file.Path, hash, lastMod, file.Path, snapshot, sizeBytes);
+            entries.Add((file.Path, hash, lastMod, sizeBytes, file.Path, snapshotJson));
         });
 
         // Register all project manifests across the workspace
         var gitignore = new GitIgnoreMatcher(ctx.AbsoluteWorkspacePath, ctx.FileFilter);
-        var candidateManifests = ctx.FileFilter.EnumerateCandidateFiles(ctx.AbsoluteWorkspacePath, ctx.AbsoluteWorkspacePath, gitignore)
+        // Register all project manifests discovered in Layer 1 without re-scanning disk
+        var fileByRelPath = files.GroupBy(f => f.Path, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+        var candidateManifests = ctx.DiscoveredManifestFiles.Count > 0
+            ? ctx.DiscoveredManifestFiles.Keys.Where(f => ctx.FileFilter.IsManifestFile(Path.GetFileName(f)))
+            : ctx.FileFilter.EnumerateCandidateFiles(ctx.AbsoluteWorkspacePath, ctx.AbsoluteWorkspacePath, gitignore)
             .Where(f => ctx.FileFilter.IsManifestFile(Path.GetFileName(f)));
 
         foreach (var relPath in candidateManifests)
@@ -364,14 +370,30 @@ public class WorkspaceIndexer
             if (seen.ContainsKey(relPath)) continue;
             seen.TryAdd(relPath, 0);
 
+            if (ctx.DiscoveredManifestFiles.TryGetValue(relPath, out var discManifest))
+            {
+                _fileRegistry.UpdateEntry(relPath, discManifest.ContentHash, discManifest.LastModifiedUtc, relPath, sizeBytes: discManifest.SizeBytes);
+                entries.Add((relPath, discManifest.ContentHash, discManifest.LastModifiedUtc, discManifest.SizeBytes, relPath, null));
+                continue;
+            }
+            if (fileByRelPath.TryGetValue(relPath, out var existingFileNode) &&
+                !string.IsNullOrEmpty(existingFileNode.ContentHash) &&
+                existingFileNode.LastModifiedUtc.HasValue)
+            {
+                var sz = existingFileNode.SizeBytes ?? -1L;
+                _fileRegistry.UpdateEntry(relPath, existingFileNode.ContentHash, existingFileNode.LastModifiedUtc.Value, relPath, sizeBytes: sz);
+                entries.Add((relPath, existingFileNode.ContentHash, existingFileNode.LastModifiedUtc.Value, sz, relPath, null));
+                continue;
+            }
             var manifestPath = Path.Combine(ctx.AbsoluteWorkspacePath, relPath);
-            if (!File.Exists(manifestPath)) continue;
+            var manifestInfo = new FileInfo(manifestPath);
+            if (!manifestInfo.Exists) continue;
 
-            var lastMod = File.GetLastWriteTimeUtc(manifestPath);
-            var bytes = await File.ReadAllBytesAsync(manifestPath, ctx.CancellationToken);
-            var hash = Incremental.HashUtility.ComputeSha256(bytes);
-            _fileRegistry.UpdateEntry(relPath, hash, lastMod, relPath);
-            entries.Add((relPath, hash, lastMod, relPath, null));
+            var lastMod = manifestInfo.LastWriteTimeUtc;
+            var manifestSize = manifestInfo.Length;
+            var hash = await Incremental.HashUtility.ComputeSha256FromFileAsync(manifestPath, ctx.CancellationToken);
+            _fileRegistry.UpdateEntry(relPath, hash, lastMod, relPath, sizeBytes: manifestSize);
+            entries.Add((relPath, hash, lastMod, manifestSize, relPath, null));
         }
 
         ctx.Log($"[Incremental] Persisting {entries.Count} file registry metadata and snapshot entries to SQLite...");
@@ -490,7 +512,7 @@ public class WorkspaceIndexer
         }
 
         var workspaceId = await _dbClient.GetOrCreateWorkspaceIdAsync(absoluteWorkspacePath);
-        var filesToUpdateRegistry = new List<(string RelativePath, string ContentHash, DateTime LastModifiedUtc, string ProjectPath, string? SnapshotJson)>();
+        var filesToUpdateRegistry = new List<(string RelativePath, string ContentHash, DateTime LastModifiedUtc, long SizeBytes, string ProjectPath, string? SnapshotJson)>();
         var structuralReasons = new List<string>();
         var modifiedWithStructuralChanges = new List<string>();
 
@@ -507,95 +529,124 @@ public class WorkspaceIndexer
         foreach (var relPath in changeset.Modified)
         {
             var fullPath = Path.Combine(absoluteWorkspacePath, relPath);
-            if (!File.Exists(fullPath)) continue;
+            var fileInfo = new FileInfo(fullPath);
+            if (!fileInfo.Exists) continue;
 
-            var bytes = await File.ReadAllBytesAsync(fullPath, cancellationToken);
-            var newHash = Incremental.HashUtility.ComputeSha256(bytes);
-            var lastMod = File.GetLastWriteTimeUtc(fullPath);
+            var normalizedFullPath = fileInfo.FullName.Replace('\\', '/');
+            var lastMod = fileInfo.LastWriteTimeUtc;
+            var sizeBytes = fileInfo.Length;
 
-            if (!_fileRegistry.TryGetSnapshot(relPath, out var oldSnapshot))
+            try
             {
-                // Cold snapshot fallback: build initial snapshot for this file and persist it without forcing full rescan
-                var initialSnapshot = await TryBuildSnapshotAsync(fullPath, relPath, workspaceId, absoluteWorkspacePath, newHash, lastMod, cancellationToken);
-                if (initialSnapshot != null)
+                var streamed = await PhysicalFileStore.StreamAndAnalyzeFileAsync(
+                    normalizedFullPath,
+                    relPath,
+                    fileInfo.Name,
+                    sizeBytes,
+                    isManifest: false,
+                    isSupportedSourceOrConfig: true,
+                    filter,
+                    cancellationToken);
+
+                var newHash = streamed.ContentHash ?? await Incremental.HashUtility.ComputeSha256FromFileAsync(fullPath, cancellationToken);
+
+                if (_fileRegistry.TryGetEntry(relPath, out var existingEntry) &&
+                    string.Equals(existingEntry.ContentHash, newHash, StringComparison.OrdinalIgnoreCase))
                 {
-                    _fileRegistry.SetSnapshot(relPath, initialSnapshot);
-                    var snapJson = System.Text.Json.JsonSerializer.Serialize(initialSnapshot);
-                    filesToUpdateRegistry.Add((relPath, newHash, lastMod, "", snapJson));
-                    _logger.LogInformation("[Incremental:Decision] Seeded initial AST snapshot for '{File}' without full rescan.", relPath);
+                    // Size changed solely due to CRLF <-> LF normalization; content is identical
+                    _fileRegistry.UpdateEntry(relPath, newHash, lastMod, existingEntry.ProjectPath, sizeBytes: sizeBytes);
+                    filesToUpdateRegistry.Add((relPath, newHash, lastMod, sizeBytes, existingEntry.ProjectPath, null));
                     continue;
                 }
 
-                var reason = $"No prior AST snapshot in database for '{relPath}' and AST parsing failed.";
-                _logger.LogInformation("[Incremental:Decision] Structural change in '{File}'.", relPath);
-                _logger.LogDebug("[Incremental:Decision] Structural details for '{File}': {Reason}", relPath, reason);
-                structuralReasons.Add(reason);
-                modifiedWithStructuralChanges.Add(relPath);
-                continue;
-            }
-
-            var newSnapshot = await TryBuildSnapshotAsync(fullPath, relPath, workspaceId, absoluteWorkspacePath, newHash, lastMod, cancellationToken);
-            if (newSnapshot == null)
-            {
-                var reason = $"No AST parser available or syntax parsing failed for '{relPath}'.";
-                _logger.LogInformation("[Incremental:Decision] Structural change in '{File}'.", relPath);
-                _logger.LogDebug("[Incremental:Decision] Structural details for '{File}': {Reason}", relPath, reason);
-                structuralReasons.Add(reason);
-                modifiedWithStructuralChanges.Add(relPath);
-                continue;
-            }
-
-            var patch = Incremental.SemanticGraphDiffer.ComputeDiff(oldSnapshot, newSnapshot);
-            if (!patch.HasGraphStructuralChanges)
-            {
-                var logicCount = patch.LogicOnlyChangedSymbols.Count;
-                var shiftCount = patch.LineShiftedSymbols.Count;
-                _logger.LogInformation(
-                    "[Incremental:Decision] Logic-only change in '{File}' ({LogicCount} logic edits, {ShiftCount} line shifts, 0 graph modifications). Preserving graph.",
-                    relPath, logicCount, shiftCount);
-                _fileRegistry.UpdateEntry(relPath, newHash, lastMod, "", newSnapshot);
-                var snapJson = System.Text.Json.JsonSerializer.Serialize(newSnapshot);
-                filesToUpdateRegistry.Add((relPath, newHash, lastMod, "", snapJson));
-                continue;
-            }
-
-            var fileChangeReasons = new List<string>();
-            if (patch.AddedSymbols.Count > 0)
-            {
-                var addedDesc = string.Join(", ", patch.AddedSymbols.Select(s => $"{s.Kind} '{s.QualifiedName}'"));
-                fileChangeReasons.Add($"Added symbols: [{addedDesc}]");
-            }
-            if (patch.RemovedSymbols.Count > 0)
-            {
-                var removedDesc = string.Join(", ", patch.RemovedSymbols.Select(s => $"{s.Kind} '{s.QualifiedName}'"));
-                fileChangeReasons.Add($"Removed symbols: [{removedDesc}]");
-            }
-            if (patch.OutgoingCallDiffs.Count > 0)
-            {
-                var callDesc = string.Join("; ", patch.OutgoingCallDiffs.Select(kv =>
+                if (!_fileRegistry.TryGetSnapshot(relPath, out var oldSnapshot))
                 {
-                    var addedStr = kv.Value.Added.Count > 0 ? $"+[{string.Join(", ", kv.Value.Added)}]" : "";
-                    var remStr = kv.Value.Removed.Count > 0 ? $"-[{string.Join(", ", kv.Value.Removed)}]" : "";
-                    return $"{kv.Key} ({string.Join(" ", new[] { addedStr, remStr }.Where(s => !string.IsNullOrEmpty(s)))})";
-                }));
-                fileChangeReasons.Add($"Call changes: [{callDesc}]");
-            }
-            if (patch.OutgoingTypeDiffs.Count > 0)
-            {
-                var typeDesc = string.Join("; ", patch.OutgoingTypeDiffs.Select(kv =>
-                {
-                    var addedStr = kv.Value.Added.Count > 0 ? $"+[{string.Join(", ", kv.Value.Added)}]" : "";
-                    var remStr = kv.Value.Removed.Count > 0 ? $"-[{string.Join(", ", kv.Value.Removed)}]" : "";
-                    return $"{kv.Key} ({string.Join(" ", new[] { addedStr, remStr }.Where(s => !string.IsNullOrEmpty(s)))})";
-                }));
-                fileChangeReasons.Add($"Type changes: [{typeDesc}]");
-            }
+                    // Cold snapshot fallback: build initial snapshot for this file and persist it without forcing full rescan
+                    var initialSnapshot = await TryBuildSnapshotAsync(normalizedFullPath, relPath, workspaceId, absoluteWorkspacePath, newHash, lastMod, cancellationToken);
+                    if (initialSnapshot != null)
+                    {
+                        _fileRegistry.UpdateEntry(relPath, newHash, lastMod, "", initialSnapshot, sizeBytes);
+                        var snapJson = System.Text.Json.JsonSerializer.Serialize(initialSnapshot);
+                        filesToUpdateRegistry.Add((relPath, newHash, lastMod, sizeBytes, "", snapJson));
+                        _logger.LogInformation("[Incremental:Decision] Seeded initial AST snapshot for '{File}' without full rescan.", relPath);
+                        continue;
+                    }
 
-            var fullReason = $"Structural changes in '{relPath}': {string.Join(" | ", fileChangeReasons)}";
-            _logger.LogInformation("[Incremental:Decision] Structural change in '{File}'.", relPath);
-            _logger.LogDebug("[Incremental:Decision] Structural details for '{File}': {Reason}", relPath, fullReason);
-            structuralReasons.Add(fullReason);
-            modifiedWithStructuralChanges.Add(relPath);
+                    var reason = $"No prior AST snapshot in database for '{relPath}' and AST parsing failed.";
+                    _logger.LogInformation("[Incremental:Decision] Structural change in '{File}'.", relPath);
+                    _logger.LogDebug("[Incremental:Decision] Structural details for '{File}': {Reason}", relPath, reason);
+                    structuralReasons.Add(reason);
+                    modifiedWithStructuralChanges.Add(relPath);
+                    continue;
+                }
+
+                var newSnapshot = await TryBuildSnapshotAsync(normalizedFullPath, relPath, workspaceId, absoluteWorkspacePath, newHash, lastMod, cancellationToken);
+                if (newSnapshot == null)
+                {
+                    var reason = $"No AST parser available or syntax parsing failed for '{relPath}'.";
+                    _logger.LogInformation("[Incremental:Decision] Structural change in '{File}'.", relPath);
+                    _logger.LogDebug("[Incremental:Decision] Structural details for '{File}': {Reason}", relPath, reason);
+                    structuralReasons.Add(reason);
+                    modifiedWithStructuralChanges.Add(relPath);
+                    continue;
+                }
+
+                var patch = Incremental.SemanticGraphDiffer.ComputeDiff(oldSnapshot, newSnapshot);
+                if (!patch.HasGraphStructuralChanges)
+                {
+                    var logicCount = patch.LogicOnlyChangedSymbols.Count;
+                    var shiftCount = patch.LineShiftedSymbols.Count;
+                    _logger.LogInformation(
+                        "[Incremental:Decision] Logic-only change in '{File}' ({LogicCount} logic edits, {ShiftCount} line shifts, 0 graph modifications). Preserving graph.",
+                        relPath, logicCount, shiftCount);
+                    _fileRegistry.UpdateEntry(relPath, newHash, lastMod, "", newSnapshot, sizeBytes);
+                    var snapJson = System.Text.Json.JsonSerializer.Serialize(newSnapshot);
+                    filesToUpdateRegistry.Add((relPath, newHash, lastMod, sizeBytes, "", snapJson));
+                    continue;
+                }
+
+                var fileChangeReasons = new List<string>();
+                if (patch.AddedSymbols.Count > 0)
+                {
+                    var addedDesc = string.Join(", ", patch.AddedSymbols.Select(s => $"{s.Kind} '{s.QualifiedName}'"));
+                    fileChangeReasons.Add($"Added symbols: [{addedDesc}]");
+                }
+                if (patch.RemovedSymbols.Count > 0)
+                {
+                    var removedDesc = string.Join(", ", patch.RemovedSymbols.Select(s => $"{s.Kind} '{s.QualifiedName}'"));
+                    fileChangeReasons.Add($"Removed symbols: [{removedDesc}]");
+                }
+                if (patch.OutgoingCallDiffs.Count > 0)
+                {
+                    var callDesc = string.Join("; ", patch.OutgoingCallDiffs.Select(kv =>
+                    {
+                        var addedStr = kv.Value.Added.Count > 0 ? $"+[{string.Join(", ", kv.Value.Added)}]" : "";
+                        var remStr = kv.Value.Removed.Count > 0 ? $"-[{string.Join(", ", kv.Value.Removed)}]" : "";
+                        return $"{kv.Key} ({string.Join(" ", new[] { addedStr, remStr }.Where(s => !string.IsNullOrEmpty(s)))})";
+                    }));
+                    fileChangeReasons.Add($"Call changes: [{callDesc}]");
+                }
+                if (patch.OutgoingTypeDiffs.Count > 0)
+                {
+                    var typeDesc = string.Join("; ", patch.OutgoingTypeDiffs.Select(kv =>
+                    {
+                        var addedStr = kv.Value.Added.Count > 0 ? $"+[{string.Join(", ", kv.Value.Added)}]" : "";
+                        var remStr = kv.Value.Removed.Count > 0 ? $"-[{string.Join(", ", kv.Value.Removed)}]" : "";
+                        return $"{kv.Key} ({string.Join(" ", new[] { addedStr, remStr }.Where(s => !string.IsNullOrEmpty(s)))})";
+                    }));
+                    fileChangeReasons.Add($"Type changes: [{typeDesc}]");
+                }
+
+                var fullReason = $"Structural changes in '{relPath}': {string.Join(" | ", fileChangeReasons)}";
+                _logger.LogInformation("[Incremental:Decision] Structural change in '{File}'.", relPath);
+                _logger.LogDebug("[Incremental:Decision] Structural details for '{File}': {Reason}", relPath, fullReason);
+                structuralReasons.Add(fullReason);
+                modifiedWithStructuralChanges.Add(relPath);
+            }
+            finally
+            {
+                PhysicalFileStore.EvictFileText(normalizedFullPath);
+            }
         }
 
         if (filesToUpdateRegistry.Count > 0)
@@ -731,6 +782,106 @@ public class WorkspaceIndexer
             ctx.Log($"[Database   ] Clearing previous data for '{clearTarget}'...");
             await _dbClient.ClearWorkspaceAsync(clearTarget);
         }
+    }
+
+    public static async Task<WorkspaceScanResult> ScanInMemoryAsync(
+        string workspacePath,
+        WorkspaceScanOptions? options = null,
+        CancellationToken cancellationToken = default,
+        IProgress<IndexingProgress>? progress = null,
+        ILogger? logger = null)
+    {
+        options ??= new WorkspaceScanOptions();
+        if (_fileParsers.Count == 0 || _projectParsers.Count == 0)
+        {
+            AutoRegisterParsers();
+        }
+
+        var fullDir = Path.GetFullPath(workspacePath).Replace('\\', '/');
+        if (!Directory.Exists(fullDir))
+        {
+            throw new DirectoryNotFoundException($"Directory '{fullDir}' does not exist.");
+        }
+
+        var fileFilter = new WorkspaceFileFilter(
+            _projectParsers,
+            _fileParsers,
+            options.ExcludedDirectories)
+        {
+            IncludeDistAndMinifiedArtifacts = options.IncludeDistAndMinifiedArtifacts
+        };
+
+        var ctx = new ParsingContext(
+            absoluteWorkspacePath: fullDir,
+            hostWorkspacePath: fullDir,
+            dbClient: null!,
+            sharedChannel: null!,
+            clear: true,
+            cancellationToken: cancellationToken,
+            progress: progress,
+            logger: logger)
+        {
+            PersistToGraphDb = false,
+            LightweightAstScanMode = options.LightweightAstMode,
+            CustomFileExclusionPredicate = options.FileExclusionPredicate,
+            CustomProjectFileFilter = options.ProjectFileFilter,
+            FileFilter = fileFilter
+        };
+
+        var prevDataflow = CodeExplorer.Core.Analysis.Dataflow.FunctionDataflowAnalyzer.Enabled;
+        if (options.LightweightAstMode)
+        {
+            CodeExplorer.Core.Analysis.Dataflow.FunctionDataflowAnalyzer.Enabled = false;
+        }
+
+        var totalSw = System.Diagnostics.Stopwatch.StartNew();
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
+        Layer1Result l1Result;
+        Layer2Result? l2Result = null;
+        Layer3Result? l3Result = null;
+        long l1Ms = 0, l2Ms = 0, l3Ms = 0;
+
+        try
+        {
+            l1Result = await new Layer1PhysicalParser().ParseAsync(ctx);
+            l1Ms = sw.ElapsedMilliseconds;
+
+            if (options.MaxLayer >= AnalysisLayer.Layer2_Boundaries)
+            {
+                sw.Restart();
+                l2Result = await new Layer2ProjectParser().ParseAsync(l1Result, ctx);
+                l2Ms = sw.ElapsedMilliseconds;
+            }
+
+            if (options.MaxLayer >= AnalysisLayer.Layer3_Syntactic && l2Result != null)
+            {
+                sw.Restart();
+                l3Result = await new Layer3SyntacticParser().ParseAsync(l2Result, ctx);
+                l3Ms = sw.ElapsedMilliseconds;
+            }
+        }
+        finally
+        {
+            CodeExplorer.Core.Analysis.Dataflow.FunctionDataflowAnalyzer.Enabled = prevDataflow;
+        }
+
+        totalSw.Stop();
+        return new WorkspaceScanResult
+        {
+            Layer1 = l1Result,
+            Layer2 = l2Result,
+            Layer3 = l3Result,
+            Timings = new LayerScanTimings(
+                L1Ms: l1Ms,
+                L2Ms: l2Ms,
+                L3Ms: l3Ms,
+                L4Ms: 0,
+                L5Ms: 0,
+                TotalMs: totalSw.ElapsedMilliseconds,
+                NodeCount: ctx.TotalNodesCount,
+                RelationshipCount: ctx.TotalRelsCount)
+        };
     }
 
     private void LogPersistenceSummary(ParsingContext ctx)

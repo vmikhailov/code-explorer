@@ -48,9 +48,12 @@ public static partial class AstValueResolver
     public static Node? FindClassFieldInitializer(Node node, string fieldName) =>
         AstScopeResolver.FindClassFieldInitializer(node, fieldName);
 
-    public static bool IsQuoted(string text)
+    public static bool IsQuoted(string text) =>
+        !string.IsNullOrEmpty(text) && IsQuoted(text.AsSpan());
+
+    public static bool IsQuoted(ReadOnlySpan<char> text)
     {
-        if (string.IsNullOrEmpty(text) || text.Length < 2) return false;
+        if (text.Length < 2) return false;
         var first = text[0];
         var last = text[^1];
         return (first == '"' && last == '"') ||
@@ -58,34 +61,110 @@ public static partial class AstValueResolver
                (first == '`' && last == '`');
     }
 
-    public static string Unquote(string raw)
+    /// <summary>
+    /// Computes the exact character offset and length (<see cref="SourceSlice"/>) of an unquoted literal
+    /// directly inside <see cref="SyntaxDocument.SourceText"/> with zero string allocations.
+    /// Sets <paramref name="hasEscapeSequences"/> when the inner text contains escape sequences that require transformation.
+    /// </summary>
+    public static SourceSlice ComputeLiteralValueSlice(
+        ReadOnlySpan<char> raw,
+        int baseOffset,
+        out bool hasEscapeSequences,
+        out bool hasObfuscatedEscapes)
     {
-        if (string.IsNullOrEmpty(raw)) return raw;
+        hasEscapeSequences = false;
+        hasObfuscatedEscapes = false;
+        if (raw.IsEmpty) return SourceSlice.Empty;
+
+        int start = 0;
+        int end = raw.Length;
+        while (start < end && char.IsWhiteSpace(raw[start])) start++;
+        while (end > start && char.IsWhiteSpace(raw[end - 1])) end--;
+        var trimmed = raw.Slice(start, end - start);
+        if (trimmed.IsEmpty) return SourceSlice.Empty;
+
+        if (trimmed.StartsWith("@\"", StringComparison.Ordinal) && trimmed.EndsWith("\"", StringComparison.Ordinal) && trimmed.Length >= 3)
+        {
+            var inner = trimmed.Slice(2, trimmed.Length - 3);
+            hasEscapeSequences = inner.Contains("\"\"", StringComparison.Ordinal);
+            return new SourceSlice(baseOffset + start + 2, trimmed.Length - 3);
+        }
+
+        if (trimmed.StartsWith("\"\"\"", StringComparison.Ordinal) && trimmed.EndsWith("\"\"\"", StringComparison.Ordinal) && trimmed.Length >= 6)
+        {
+            int innerStart = start + 3;
+            int innerEnd = end - 3;
+            while (innerStart < innerEnd && raw[innerStart] is '\r' or '\n') innerStart++;
+            while (innerEnd > innerStart && raw[innerEnd - 1] is '\r' or '\n') innerEnd--;
+            return new SourceSlice(baseOffset + innerStart, innerEnd - innerStart);
+        }
+
+        if (trimmed.StartsWith("r#\"", StringComparison.Ordinal) && trimmed.EndsWith("\"#", StringComparison.Ordinal) && trimmed.Length >= 5)
+        {
+            return new SourceSlice(baseOffset + start + 3, trimmed.Length - 5);
+        }
+
+        if (trimmed.StartsWith("r\"", StringComparison.Ordinal) && trimmed.EndsWith("\"", StringComparison.Ordinal) && trimmed.Length >= 3)
+        {
+            return new SourceSlice(baseOffset + start + 2, trimmed.Length - 3);
+        }
+
+        if (trimmed.Length >= 2 && trimmed[0] == '`' && trimmed[^1] == '`')
+        {
+            var inner = trimmed.Slice(1, trimmed.Length - 2);
+            hasEscapeSequences = inner.IndexOf('\r') >= 0;
+            return new SourceSlice(baseOffset + start + 1, trimmed.Length - 2);
+        }
+
+        if (trimmed.Length >= 2 &&
+            ((trimmed[0] == '"' && trimmed[^1] == '"') ||
+             (trimmed[0] == '\'' && trimmed[^1] == '\'')))
+        {
+            var inner = trimmed.Slice(1, trimmed.Length - 2);
+            hasEscapeSequences = inner.IndexOf('\\') >= 0;
+            if (hasEscapeSequences)
+            {
+                hasObfuscatedEscapes = ContainsObfuscatedHexOrUnicodeEscapes(inner);
+            }
+            return new SourceSlice(baseOffset + start + 1, trimmed.Length - 2);
+        }
+
+        return new SourceSlice(baseOffset + start, trimmed.Length);
+    }
+
+    public static string Unquote(string raw) =>
+        string.IsNullOrEmpty(raw) ? raw : Unquote(raw.AsSpan());
+
+    public static string Unquote(ReadOnlySpan<char> raw)
+    {
+        if (raw.IsEmpty) return string.Empty;
         var trimmed = raw.Trim();
 
-        if (trimmed.StartsWith("@\"") && trimmed.EndsWith("\"") && trimmed.Length >= 3)
+        if (trimmed.StartsWith("@\"", StringComparison.Ordinal) && trimmed.EndsWith("\"", StringComparison.Ordinal) && trimmed.Length >= 3)
         {
-            return trimmed[2..^1].Replace("\"\"", "\"");
+            var inner = trimmed[2..^1];
+            return inner.Contains("\"\"", StringComparison.Ordinal) ? inner.ToString().Replace("\"\"", "\"") : inner.ToString();
         }
 
-        if (trimmed.StartsWith("\"\"\"") && trimmed.EndsWith("\"\"\"") && trimmed.Length >= 6)
+        if (trimmed.StartsWith("\"\"\"", StringComparison.Ordinal) && trimmed.EndsWith("\"\"\"", StringComparison.Ordinal) && trimmed.Length >= 6)
         {
-            return trimmed[3..^3].Trim('\r', '\n');
+            return trimmed[3..^3].Trim(['\r', '\n']).ToString();
         }
 
-        if (trimmed.StartsWith("r#\"") && trimmed.EndsWith("\"#") && trimmed.Length >= 5)
+        if (trimmed.StartsWith("r#\"", StringComparison.Ordinal) && trimmed.EndsWith("\"#", StringComparison.Ordinal) && trimmed.Length >= 5)
         {
-            return trimmed[3..^2];
+            return trimmed[3..^2].ToString();
         }
 
-        if (trimmed.StartsWith("r\"") && trimmed.EndsWith("\"") && trimmed.Length >= 3)
+        if (trimmed.StartsWith("r\"", StringComparison.Ordinal) && trimmed.EndsWith("\"", StringComparison.Ordinal) && trimmed.Length >= 3)
         {
-            return trimmed[2..^1];
+            return trimmed[2..^1].ToString();
         }
 
-        if (trimmed.StartsWith('`') && trimmed.EndsWith('`') && trimmed.Length >= 2)
+        if (trimmed.Length >= 2 && trimmed[0] == '`' && trimmed[^1] == '`')
         {
-            return trimmed[1..^1].Replace("\r", "");
+            var inner = trimmed[1..^1];
+            return inner.IndexOf('\r') >= 0 ? inner.ToString().Replace("\r", "") : inner.ToString();
         }
 
         if (trimmed.Length >= 2 &&
@@ -96,7 +175,7 @@ public static partial class AstValueResolver
             return UnescapeQuotedString(inner);
         }
 
-        return trimmed;
+        return trimmed.ToString();
     }
 
     private static bool TryDecodeConstantCall(
@@ -231,9 +310,9 @@ public static partial class AstValueResolver
         }
     }
 
-    private static bool ContainsObfuscatedHexOrUnicodeEscapes(string raw)
+    internal static bool ContainsObfuscatedHexOrUnicodeEscapes(ReadOnlySpan<char> raw)
     {
-        if (string.IsNullOrEmpty(raw) || raw.IndexOf('\\') < 0) return false;
+        if (raw.Length < 4 || raw.IndexOf('\\') < 0) return false;
         var count = 0;
         for (var i = 0; i < raw.Length - 3; i++)
         {
@@ -246,11 +325,15 @@ public static partial class AstValueResolver
         return false;
     }
 
-    public static string UnescapeQuotedString(string inner)
+    public static string UnescapeQuotedString(string inner) =>
+        string.IsNullOrEmpty(inner) ? inner : UnescapeQuotedString(inner.AsSpan());
+
+    public static string UnescapeQuotedString(ReadOnlySpan<char> inner)
     {
-        if (string.IsNullOrEmpty(inner) || inner.IndexOf('\\') < 0)
+        if (inner.IsEmpty) return string.Empty;
+        if (inner.IndexOf('\\') < 0)
         {
-            return inner;
+            return inner.ToString();
         }
 
         var sb = new System.Text.StringBuilder(inner.Length);
@@ -273,11 +356,11 @@ public static partial class AstValueResolver
                     case 'b': sb.Append('\b'); i++; break;
                     case 'f': sb.Append('\f'); i++; break;
                     case 'v': sb.Append('\v'); i++; break;
-                    case 'u' when i + 5 < inner.Length && int.TryParse(inner.AsSpan(i + 2, 4), System.Globalization.NumberStyles.HexNumber, null, out var u):
+                    case 'u' when i + 5 < inner.Length && int.TryParse(inner.Slice(i + 2, 4), System.Globalization.NumberStyles.HexNumber, null, out var u):
                         sb.Append((char)u);
                         i += 5;
                         break;
-                    case 'x' when i + 3 < inner.Length && byte.TryParse(inner.AsSpan(i + 2, 2), System.Globalization.NumberStyles.HexNumber, null, out var b):
+                    case 'x' when i + 3 < inner.Length && byte.TryParse(inner.Slice(i + 2, 2), System.Globalization.NumberStyles.HexNumber, null, out var b):
                         sb.Append((char)b);
                         i += 3;
                         break;

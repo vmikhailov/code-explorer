@@ -481,10 +481,7 @@ public partial class Layer2ProjectParser
                 : Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, proj.Path));
             var folderName = Path.GetFileName(fullProjPath.TrimEnd('/', '\\'));
             if (string.IsNullOrEmpty(folderName) ||
-                string.Equals(proj.ProjectType, "script", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(proj.ProjectType, "batch", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(proj.ProjectType, "shell", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(proj.ProjectType, "powershell", StringComparison.OrdinalIgnoreCase) ||
+                proj.ProjectType is CodeExplorer.Cypher.Common.ProjectLanguage.Script or CodeExplorer.Cypher.Common.ProjectLanguage.Batch or CodeExplorer.Cypher.Common.ProjectLanguage.Shell or CodeExplorer.Cypher.Common.ProjectLanguage.PowerShell ||
                 proj.Name.EndsWith(".Scripts", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(folderName, proj.Name, StringComparison.OrdinalIgnoreCase) ||
                 projects.Any(p => p != proj && string.Equals(p.Name, folderName, StringComparison.OrdinalIgnoreCase)))
@@ -905,7 +902,7 @@ public partial class Layer2ProjectParser
                     IsInternal: false,
                     Ecosystem: ecosystem,
                     Path: string.Empty,
-                    Archetype: "pure_utility",
+                    Archetype: OntologyConstants.Archetypes.PureUtility,
                     Extensions: BuildExternalPackageExtensions(extPack));
                 projectNode.Children.Add(packageNode);
                 packages.Add(packageNode);

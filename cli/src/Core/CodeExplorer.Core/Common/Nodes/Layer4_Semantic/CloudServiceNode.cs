@@ -18,11 +18,16 @@ namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 public record CloudServiceNode(
     string Id,
     [property: OntologyProperty("The name of the entity.")] string Name,
-    [property: OntologyProperty("The cloud service resource type (e.g. S3Bucket, DynamoDb, CloudService).")] string ResourceType,
+    [property: OntologyProperty("The cloud service resource type (e.g. S3Bucket, DynamoDb, CloudService).")] CloudResourceType ResourceType,
     [property: OntologyProperty("The path of the folder or file relative to its parent container.")] string Path,
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {
+    public CloudServiceNode(string Id, string Name, string ResourceType, string Path, Dictionary<string, string>? Extensions = null)
+        : this(Id, Name, TaxonomyEnumExtensions.ParseCloudResourceType(ResourceType), Path, Extensions)
+    {
+    }
+
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.CloudService;
 }

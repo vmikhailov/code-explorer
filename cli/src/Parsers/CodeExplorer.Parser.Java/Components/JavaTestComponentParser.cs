@@ -14,7 +14,7 @@ public class JavaTestComponentParser : IComponentLibraryParser
 
     public bool CanHandle(ProjectContext context)
     {
-        return context.ProjectType.Equals("java", StringComparison.OrdinalIgnoreCase) &&
+        return context.ProjectType == CodeExplorer.Cypher.Common.ProjectLanguage.Java &&
                (Libraries.JavaTestLibraryParser.Instance.GetPackageDescriptors().Any(p => p.Matches(context)) ||
                 context.FilesInDirectory.Any(f => f.EndsWith("Test.java") || f.EndsWith("Tests.java")) ||
                 context.ManifestProperties.GetValueOrDefault("manifest_type") == "test" ||

@@ -45,7 +45,7 @@ public class ColdFusionFileParser : IFileParser
         var fileNodeId = $"{workspaceId}:file:{relativePath}";
 
         var fileNode = new FileNode(fileNodeId, fileName, relativePath, filePath);
-        var content = await File.ReadAllTextAsync(filePath);
+        var content = await PhysicalFileStore.ConsumeFileTextAsync(filePath);
 
         var isCfc = filePath.EndsWith(".cfc", StringComparison.OrdinalIgnoreCase);
         var defaultDs = ColdFusionProjectParser.GetDefaultDatasource(Path.GetDirectoryName(filePath) ?? "") ?? "default";

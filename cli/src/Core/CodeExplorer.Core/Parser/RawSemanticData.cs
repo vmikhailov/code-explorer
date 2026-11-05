@@ -1,6 +1,8 @@
+using CodeExplorer.Cypher.Common;
+
 namespace CodeExplorer.Core.Parser;
 
-public enum ImportType
+public enum ImportType : byte
 {
     External,
     Internal
@@ -31,8 +33,25 @@ public record RawVariable(
     int StartCol,
     int EndCol,
     string? TypeName = null,
-    string? MemberKind = null // "property", "field", "variable", "parameter"
-);
+    MemberKind? MemberKind = null
+)
+{
+    public RawVariable(
+        string Name,
+        string InitializerText,
+        string Scope,
+        bool IsConstant,
+        string FilePath,
+        int StartLine,
+        int EndLine,
+        int StartCol,
+        int EndCol,
+        string? TypeName,
+        string? MemberKind)
+        : this(Name, InitializerText, Scope, IsConstant, FilePath, StartLine, EndLine, StartCol, EndCol, TypeName, string.IsNullOrEmpty(MemberKind) ? null : TaxonomyEnumExtensions.ParseMemberKind(MemberKind))
+    {
+    }
+}
 
 public record RawTypeBinding(
     string VariableName,

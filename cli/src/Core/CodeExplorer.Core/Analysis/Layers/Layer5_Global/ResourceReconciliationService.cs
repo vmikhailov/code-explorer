@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
+using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Analysis;
 
@@ -7,13 +8,36 @@ public record CanonicalResource(
     string Id,
     string Name,
     string Engine,
-    string DbType,
-    string Kind,
+    DatabaseType DbType,
+    NodeKind Kind,
     HashSet<string> Aliases,
     Dictionary<string, string> Properties,
     string? DeclaringFilePath = null,
-    string? ProjectId = null
-);
+    string? ProjectId = null,
+    HashSet<string>? ProjectIds = null
+)
+{
+    public CanonicalResource(
+        string id,
+        string name,
+        string engine,
+        string dbType,
+        string kind,
+        HashSet<string> aliases,
+        Dictionary<string, string> properties,
+        string? declaringFilePath = null,
+        string? projectId = null)
+        : this(id, name, engine, EnumExtensions.ParseDatabaseType(dbType), EnumExtensions.ParseNodeKind(kind), aliases, properties, declaringFilePath, projectId)
+    {
+    }
+
+    public bool BelongsToProject(string? projectId)
+    {
+        if (string.IsNullOrEmpty(projectId)) return false;
+        if (string.Equals(ProjectId, projectId, StringComparison.OrdinalIgnoreCase)) return true;
+        return ProjectIds != null && ProjectIds.Contains(projectId);
+    }
+}
 
 public record DatabaseUsageRecord(
     string ProjectId,
@@ -21,10 +45,24 @@ public record DatabaseUsageRecord(
     string CallerSymbolId,
     string ProviderOrOrm,
     string EngineHint,
-    string DbType,
+    DatabaseType DbType,
     bool IsOrm,
     string? TargetAliasOrName = null
-);
+)
+{
+    public DatabaseUsageRecord(
+        string projectId,
+        string fileId,
+        string callerSymbolId,
+        string providerOrOrm,
+        string engineHint,
+        string dbType,
+        bool isOrm,
+        string? targetAliasOrName = null)
+        : this(projectId, fileId, callerSymbolId, providerOrOrm, engineHint, EnumExtensions.ParseDatabaseType(dbType), isOrm, targetAliasOrName)
+    {
+    }
+}
 
 /// <summary>
 /// Reconciles and unifies external resources (databases, message brokers, external services)
@@ -74,6 +112,10 @@ public partial class ResourceReconciliationService
 
             if (_resourcesById.TryGetValue(id, out var existing))
             {
+                if (!string.IsNullOrEmpty(projectId))
+                {
+                    existing.ProjectIds?.Add(projectId);
+                }
                 if (aliases != null)
                 {
                     foreach (var a in aliases)
@@ -162,13 +204,15 @@ public partial class ResourceReconciliationService
 
             // If this is a concrete database engine, retire and transfer any previous generic "Database" placeholders of the same dbType
             // ONLY within the same project (or unattached). Do not collapse placeholders across different projects!
+            var parsedDbType = EnumExtensions.ParseDatabaseType(dbType);
+            var parsedKind = EnumExtensions.ParseNodeKind(kind);
             var isConcrete = !IsGenericConfigKey(engine) && !string.Equals(engine, "Database", StringComparison.OrdinalIgnoreCase);
             if (isConcrete)
             {
                 var genericPlaceholders = _resourcesById.Values
-                    .Where(r => string.Equals(r.DbType, dbType, StringComparison.OrdinalIgnoreCase) &&
+                    .Where(r => r.DbType == parsedDbType &&
                                 (IsGenericConfigKey(r.Engine) || string.Equals(r.Name, "Database", StringComparison.OrdinalIgnoreCase)) &&
-                                (projectId == null || r.ProjectId == null || string.Equals(r.ProjectId, projectId, StringComparison.OrdinalIgnoreCase)))
+                                (projectId == null || r.ProjectId == null || r.BelongsToProject(projectId)))
                     .ToList();
 
                 foreach (var placeholder in genericPlaceholders)
@@ -190,16 +234,23 @@ public partial class ResourceReconciliationService
             resProps["engine"] = engine;
             resProps["db_type"] = dbType;
 
+            var projIdSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (!string.IsNullOrEmpty(projectId))
+            {
+                projIdSet.Add(projectId);
+            }
+
             var resource = new CanonicalResource(
                 id,
                 canonicalName,
                 engine,
-                dbType,
-                kind,
+                parsedDbType,
+                parsedKind,
                 aliasSet,
                 resProps,
                 declaringFilePath,
-                projectId
+                projectId,
+                projIdSet
             );
 
             _resourcesById[id] = resource;
@@ -259,11 +310,15 @@ public partial class ResourceReconciliationService
     /// </summary>
     public CanonicalResource? ResolveResource(string? aliasOrName, string? expectedDbType = null, string? expectedEngine = null)
     {
+        var expectedDbTypeEnum = string.IsNullOrWhiteSpace(expectedDbType)
+            ? (DatabaseType?)null
+            : EnumExtensions.ParseDatabaseType(expectedDbType);
+
         if (!string.IsNullOrWhiteSpace(aliasOrName))
         {
             if (_resourcesById.TryGetValue(aliasOrName, out var directById))
             {
-                if (expectedDbType == null || string.Equals(directById.DbType, expectedDbType, StringComparison.OrdinalIgnoreCase))
+                if (expectedDbTypeEnum == null || directById.DbType == expectedDbTypeEnum.Value)
                     return directById;
             }
 
@@ -278,7 +333,7 @@ public partial class ResourceReconciliationService
                 if (_aliasToResourceId.TryGetValue(variant, out var vId) && _resourcesById.TryGetValue(vId, out var vFound))
                 {
                     if ((expectedEngine == null || string.Equals(NormalizeEngineName(vFound.Engine), NormalizeEngineName(expectedEngine), StringComparison.OrdinalIgnoreCase)) &&
-                        (expectedDbType == null || string.Equals(vFound.DbType, expectedDbType, StringComparison.OrdinalIgnoreCase)))
+                        (expectedDbTypeEnum == null || vFound.DbType == expectedDbTypeEnum.Value))
                         return vFound;
                 }
             }
@@ -327,7 +382,7 @@ public partial class ResourceReconciliationService
             {
                 if (_aliasToResourceId.TryGetValue(strippedNorm, out var nStrId) && _resourcesById.TryGetValue(nStrId, out var nStrFound))
                 {
-                    if (expectedDbType == null || string.Equals(nStrFound.DbType, expectedDbType, StringComparison.OrdinalIgnoreCase))
+                    if (expectedDbTypeEnum == null || nStrFound.DbType == expectedDbTypeEnum.Value)
                         return nStrFound;
                 }
                 foreach (var variant in GetPluralSingularVariants(strippedNorm))
@@ -335,7 +390,7 @@ public partial class ResourceReconciliationService
                     if (_aliasToResourceId.TryGetValue(variant, out var vnStrId) && _resourcesById.TryGetValue(vnStrId, out var vnStrFound))
                     {
                         if ((expectedEngine == null || string.Equals(NormalizeEngineName(vnStrFound.Engine), NormalizeEngineName(expectedEngine), StringComparison.OrdinalIgnoreCase)) &&
-                            (expectedDbType == null || string.Equals(vnStrFound.DbType, expectedDbType, StringComparison.OrdinalIgnoreCase)))
+                            (expectedDbTypeEnum == null || vnStrFound.DbType == expectedDbTypeEnum.Value))
                             return vnStrFound;
                     }
                 }
@@ -363,7 +418,7 @@ public partial class ResourceReconciliationService
                 if (res.Aliases.Contains(norm) ||
                     string.Equals(res.Name, aliasOrName, StringComparison.OrdinalIgnoreCase))
                 {
-                    if (expectedDbType != null && !string.Equals(res.DbType, expectedDbType, StringComparison.OrdinalIgnoreCase))
+                    if (expectedDbTypeEnum != null && res.DbType != expectedDbTypeEnum.Value)
                         continue;
                     return res;
                 }
@@ -375,7 +430,7 @@ public partial class ResourceReconciliationService
                         string.Equals(res.Name, variant, StringComparison.OrdinalIgnoreCase) ||
                         string.Equals(schPart, variant, StringComparison.OrdinalIgnoreCase))
                     {
-                        if (expectedDbType != null && !string.Equals(res.DbType, expectedDbType, StringComparison.OrdinalIgnoreCase))
+                        if (expectedDbTypeEnum != null && res.DbType != expectedDbTypeEnum.Value)
                             continue;
                         if (expectedEngine != null && !string.Equals(NormalizeEngineName(res.Engine), NormalizeEngineName(expectedEngine), StringComparison.OrdinalIgnoreCase))
                             continue;
@@ -407,9 +462,9 @@ public partial class ResourceReconciliationService
         }
 
         // If no engine was specified (e.g. raw anonymous SQL), and only 1 resource matches dbType
-        if (string.IsNullOrWhiteSpace(aliasOrName) && !string.IsNullOrWhiteSpace(expectedDbType))
+        if (string.IsNullOrWhiteSpace(aliasOrName) && expectedDbTypeEnum != null)
         {
-            var matchingType = _resourcesById.Values.Where(r => string.Equals(r.DbType, expectedDbType, StringComparison.OrdinalIgnoreCase)).ToList();
+            var matchingType = _resourcesById.Values.Where(r => r.DbType == expectedDbTypeEnum.Value).ToList();
             var concrete = matchingType.Where(r => !IsGenericConfigKey(r.Engine) && !string.Equals(r.Name, "Database", StringComparison.OrdinalIgnoreCase)).ToList();
             if (concrete.Count == 1) return concrete[0];
             if (matchingType.Count == 1) return matchingType[0];

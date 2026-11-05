@@ -93,14 +93,19 @@ public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
         Task.FromResult(new Dictionary<string, FileRegistryEntry>(StringComparer.OrdinalIgnoreCase));
 
     Task SaveFileRegistryEntriesAsync(
-        IEnumerable<(string RelativePath, string ContentHash, DateTime LastModifiedUtc, string ProjectPath, string? SnapshotJson)> entries,
+        IEnumerable<(string RelativePath, string ContentHash, DateTime LastModifiedUtc, long SizeBytes, string ProjectPath, string? SnapshotJson)> entries,
         CancellationToken cancellationToken = default) =>
         Task.CompletedTask;
 
     Task SaveFileRegistryEntriesAsync(
+        IEnumerable<(string RelativePath, string ContentHash, DateTime LastModifiedUtc, string ProjectPath, string? SnapshotJson)> entries,
+        CancellationToken cancellationToken = default) =>
+        SaveFileRegistryEntriesAsync(entries.Select(e => (e.RelativePath, e.ContentHash, e.LastModifiedUtc, -1L, e.ProjectPath, e.SnapshotJson)), cancellationToken);
+
+    Task SaveFileRegistryEntriesAsync(
         IEnumerable<(string RelativePath, string ContentHash, DateTime LastModifiedUtc, string ProjectPath)> entries,
         CancellationToken cancellationToken = default) =>
-        SaveFileRegistryEntriesAsync(entries.Select(e => (e.RelativePath, e.ContentHash, e.LastModifiedUtc, e.ProjectPath, (string?)null)), cancellationToken);
+        SaveFileRegistryEntriesAsync(entries.Select(e => (e.RelativePath, e.ContentHash, e.LastModifiedUtc, -1L, e.ProjectPath, (string?)null)), cancellationToken);
 
     Task DeleteFileRegistryEntriesAsync(
         IEnumerable<string> relativePaths,
@@ -220,7 +225,13 @@ public record ProjectSignature(
     List<string>? OutboundCalls = null
 );
 
-public record IntentCandidate(string Id, string Kind, string Name, string RelativePath, string? FullPath);
+public record IntentCandidate(string Id, CodeExplorer.Cypher.Common.NodeKind Kind, string Name, string RelativePath, string? FullPath)
+{
+    public IntentCandidate(string Id, string Kind, string Name, string RelativePath, string? FullPath)
+        : this(Id, CodeExplorer.Cypher.Common.EnumExtensions.ParseNodeKind(Kind), Name, RelativePath, FullPath)
+    {
+    }
+}
 
 public record CodeIntentPredictionResult(
     string Id,
@@ -228,13 +239,30 @@ public record CodeIntentPredictionResult(
     string? Domain,
     string? Layer,
     string? Pattern,
-    string? OperationType,
+    CodeExplorer.Cypher.Common.OperationType? OperationType,
     string? CapabilityTag,
     string? IntentSummary,
     bool? IsPureDomain,
     List<string>? TargetEntities,
     List<string>? EmittedEvents
-);
+)
+{
+    public CodeIntentPredictionResult(
+        string Id,
+        string? FilePath,
+        string? Domain,
+        string? Layer,
+        string? Pattern,
+        string? OperationType,
+        string? CapabilityTag,
+        string? IntentSummary,
+        bool? IsPureDomain,
+        List<string>? TargetEntities,
+        List<string>? EmittedEvents)
+        : this(Id, FilePath, Domain, Layer, Pattern, CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ParseNullableOperationType(OperationType), CapabilityTag, IntentSummary, IsPureDomain, TargetEntities, EmittedEvents)
+    {
+    }
+}
 
 public record IntentRecord(
     string FilePath,
@@ -245,7 +273,7 @@ public record IntentRecord(
     string? Domain,
     string? Layer,
     string? Pattern,
-    string? OperationType,
+    CodeExplorer.Cypher.Common.OperationType? OperationType,
     string? CapabilityTag,
     string? IntentSummary,
     List<string>? TargetEntities,
@@ -254,27 +282,72 @@ public record IntentRecord(
     int ErrorCount,
     string? LastError,
     DateTime? AnalyzedAtUtc
-);
+)
+{
+    public IntentRecord(
+        string FilePath,
+        string WorkspaceId,
+        string FileId,
+        string ContentHash,
+        DateTime LastModifiedUtc,
+        string? Domain,
+        string? Layer,
+        string? Pattern,
+        string? OperationType,
+        string? CapabilityTag,
+        string? IntentSummary,
+        List<string>? TargetEntities,
+        List<string>? EmittedEvents,
+        bool? IsPureDomain,
+        int ErrorCount,
+        string? LastError,
+        DateTime? AnalyzedAtUtc)
+        : this(FilePath, WorkspaceId, FileId, ContentHash, LastModifiedUtc, Domain, Layer, Pattern, CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ParseNullableOperationType(OperationType), CapabilityTag, IntentSummary, TargetEntities, EmittedEvents, IsPureDomain, ErrorCount, LastError, AnalyzedAtUtc)
+    {
+    }
+}
 
 public record CrossDomainInteractionRecord(
     string SourceDomain,
     string TargetDomain,
-    string EdgeKind,
+    CodeExplorer.Cypher.Common.RelationshipKind EdgeKind,
     int InteractionCount
-);
+)
+{
+    public CrossDomainInteractionRecord(
+        string SourceDomain,
+        string TargetDomain,
+        string EdgeKind,
+        int InteractionCount)
+        : this(SourceDomain, TargetDomain, CodeExplorer.Cypher.Common.EnumExtensions.ParseRelationshipKind(EdgeKind), InteractionCount)
+    {
+    }
+}
 
 public record DomainInfrastructureLinkRecord(
     string Domain,
     string InfraId,
     string InfraName,
-    string InfraKind,
-    string EdgeKind
-);
+    CodeExplorer.Cypher.Common.NodeKind InfraKind,
+    CodeExplorer.Cypher.Common.RelationshipKind EdgeKind
+)
+{
+    public DomainInfrastructureLinkRecord(
+        string Domain,
+        string InfraId,
+        string InfraName,
+        string InfraKind,
+        string EdgeKind)
+        : this(Domain, InfraId, InfraName, CodeExplorer.Cypher.Common.EnumExtensions.ParseNodeKind(InfraKind), CodeExplorer.Cypher.Common.EnumExtensions.ParseRelationshipKind(EdgeKind))
+    {
+    }
+}
 
 public record FileRegistryEntry(
     string ContentHash,
     DateTime LastModifiedUtc,
     string ProjectPath,
-    string? SnapshotJson = null
+    string? SnapshotJson = null,
+    long SizeBytes = -1
 );
 

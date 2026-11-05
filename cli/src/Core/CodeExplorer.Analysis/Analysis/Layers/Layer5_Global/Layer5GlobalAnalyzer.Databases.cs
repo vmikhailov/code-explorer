@@ -594,150 +594,35 @@ public partial class Layer5AnalysisParser
         }
 
         var workspacePackages = new Dictionary<string, PackageTargetInfo>(StringComparer.OrdinalIgnoreCase);
-        if (l4Result != null)
+        var inMemoryProjects = l4Result?.Prev.Prev.Projects ?? ctx.ProjectsStructure?.Children.OfType<CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode>().ToList();
+        if (inMemoryProjects != null && inMemoryProjects.Count > 0)
         {
-            foreach (var proj in l4Result.Prev.Prev.Projects)
+            const string ExtPkgName = "package_name";
+            const string ExtMainFile = "main_file";
+            const string ExtModFile = "module_file";
+            foreach (var proj in inMemoryProjects)
             {
-                var pkgJsonPath = Path.Combine(ctx.AbsoluteWorkspacePath, proj.Path, "package.json");
-                if (File.Exists(pkgJsonPath))
+                var pkgName = proj.Extensions?.GetValueOrDefault(ExtPkgName);
+                var mainFile = proj.Extensions?.GetValueOrDefault(ExtMainFile) ?? proj.Extensions?.GetValueOrDefault(ExtModFile);
+                var normProjPath = proj.Path.Replace('\\', '/');
+                if (!string.IsNullOrEmpty(pkgName))
                 {
-                    try
+                    workspacePackages[pkgName] = new PackageTargetInfo(normProjPath, mainFile);
+                    if (pkgName.StartsWith('@') && pkgName.Contains('/'))
                     {
-                        var content = File.ReadAllText(pkgJsonPath);
-                        using var doc = JsonDocument.Parse(content, PkgJsonOptions);
-                        if (doc.RootElement.TryGetProperty("name", out var nameProp) &&
-                            nameProp.ValueKind == JsonValueKind.String)
-                        {
-                            var pkgName = nameProp.GetString();
-                            if (!string.IsNullOrEmpty(pkgName))
-                            {
-                                string? mainFile = null;
-                                if (doc.RootElement.TryGetProperty("main", out var mainProp) &&
-                                    mainProp.ValueKind == JsonValueKind.String)
-                                {
-                                    mainFile = mainProp.GetString();
-                                }
-                                else if (doc.RootElement.TryGetProperty("module", out var modProp) &&
-                                         modProp.ValueKind == JsonValueKind.String)
-                                {
-                                    mainFile = modProp.GetString();
-                                }
-
-                                var normProjPath = proj.Path.Replace('\\', '/');
-                                workspacePackages[pkgName] = new PackageTargetInfo(normProjPath, mainFile);
-
-                                if (pkgName.StartsWith('@') && pkgName.Contains('/'))
-                                {
-                                    var unqualified = pkgName[(pkgName.IndexOf('/') + 1)..];
-                                    workspacePackages.TryAdd(unqualified, new PackageTargetInfo(normProjPath, mainFile));
-                                }
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        // Ignore parse errors
+                        var unqualified = pkgName[(pkgName.IndexOf('/') + 1)..];
+                        workspacePackages.TryAdd(unqualified, new PackageTargetInfo(normProjPath, mainFile));
                     }
                 }
-
                 if (!string.IsNullOrEmpty(proj.Name))
                 {
-                    workspacePackages.TryAdd(proj.Name, new PackageTargetInfo(proj.Path.Replace('\\', '/'), null));
+                    workspacePackages.TryAdd(proj.Name, new PackageTargetInfo(normProjPath, mainFile));
                 }
-            }
-        }
-        else if (!string.IsNullOrEmpty(ctx.AbsoluteWorkspacePath) && Directory.Exists(ctx.AbsoluteWorkspacePath))
-        {
-            try
-            {
-                var pkgJsons = Directory.EnumerateFiles(ctx.AbsoluteWorkspacePath, "package.json", SearchOption.AllDirectories)
-                    .Where(p => !p.Contains("node_modules") && !p.Contains(".Build") && !p.Contains("bin") && !p.Contains("obj"));
-                foreach (var pkgJsonPath in pkgJsons)
-                {
-                    try
-                    {
-                        var content = File.ReadAllText(pkgJsonPath);
-                        using var doc = JsonDocument.Parse(content, PkgJsonOptions);
-                        if (doc.RootElement.TryGetProperty("name", out var nameProp) &&
-                            nameProp.ValueKind == JsonValueKind.String)
-                        {
-                            var pkgName = nameProp.GetString();
-                            if (!string.IsNullOrEmpty(pkgName))
-                            {
-                                string? mainFile = null;
-                                if (doc.RootElement.TryGetProperty("main", out var mainProp) &&
-                                    mainProp.ValueKind == JsonValueKind.String)
-                                {
-                                    mainFile = mainProp.GetString();
-                                }
-                                else if (doc.RootElement.TryGetProperty("module", out var modProp) &&
-                                         modProp.ValueKind == JsonValueKind.String)
-                                {
-                                    mainFile = modProp.GetString();
-                                }
-
-                                var dir = Path.GetDirectoryName(pkgJsonPath) ?? string.Empty;
-                                var relDir = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, dir).Replace('\\', '/');
-                                if (relDir == ".") relDir = "";
-                                workspacePackages[pkgName] = new PackageTargetInfo(relDir, mainFile);
-
-                                if (pkgName.StartsWith('@') && pkgName.Contains('/'))
-                                {
-                                    var unqualified = pkgName[(pkgName.IndexOf('/') + 1)..];
-                                    workspacePackages.TryAdd(unqualified, new PackageTargetInfo(relDir, mainFile));
-                                }
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        // Ignore parse errors
-                    }
-                }
-            }
-            catch
-            {
-                // Ignore filesystem errors
             }
         }
 
         var tsConfigPaths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var tsConfigCandidates = new[]
-        {
-            Path.Combine(ctx.AbsoluteWorkspacePath, "tsconfig.json"),
-            Path.Combine(ctx.AbsoluteWorkspacePath, "tsconfig.base.json")
-        };
-        foreach (var tsConfigCandidate in tsConfigCandidates)
-        {
-            if (File.Exists(tsConfigCandidate))
-            {
-                try
-                {
-                    var content = File.ReadAllText(tsConfigCandidate);
-                    using var doc = JsonDocument.Parse(content, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
-                    if (doc.RootElement.TryGetProperty("compilerOptions", out var compOpts) &&
-                        compOpts.TryGetProperty("paths", out var pathsObj) &&
-                        pathsObj.ValueKind == JsonValueKind.Object)
-                    {
-                        foreach (var prop in pathsObj.EnumerateObject())
-                        {
-                            if (prop.Value.ValueKind == JsonValueKind.Array && prop.Value.GetArrayLength() > 0)
-                            {
-                                var target = prop.Value[0].GetString();
-                                if (!string.IsNullOrEmpty(target))
-                                {
-                                    tsConfigPaths[prop.Name] = target.Replace('\\', '/');
-                                }
-                            }
-                        }
-                    }
-                }
-                catch
-                {
-                    // Best effort
-                }
-            }
-        }
+        foreach (var (k, v) in ctx.TsConfigPaths) tsConfigPaths[k] = v;
 
         return new ImportLookups(fileImports, starImportsByFile, workspacePackages, tsConfigPaths);
     }

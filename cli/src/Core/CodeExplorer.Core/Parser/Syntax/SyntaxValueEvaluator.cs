@@ -85,9 +85,11 @@ public static class SyntaxValueEvaluator
             if (!isFrontend && expr.EmbeddedSyntax == null)
             {
                 var candidateSql = expr.ResolvedValue;
-                if (string.IsNullOrEmpty(candidateSql) && expr is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.RawString })
+                if (string.IsNullOrEmpty(candidateSql) &&
+                    expr is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.RawString } sqlLit &&
+                    NestedSqlParser.FastCheckSqlCandidate(sqlLit.ValueSpan))
                 {
-                    candidateSql = AstValueResolver.Unquote(expr.Text);
+                    candidateSql = sqlLit.ValueText;
                 }
 
                 if (!string.IsNullOrEmpty(candidateSql) && NestedSqlParser.TryParseSql(candidateSql, out var firstWord, out _))
@@ -107,7 +109,8 @@ public static class SyntaxValueEvaluator
     }
 
     private static bool ShouldPreEvaluateExpression(ExprSyntax expr) =>
-        expr is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.RawString }
+        expr is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.RawString, IsDecoded: true }
+            or LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String or LiteralSyntaxKind.RawString, Children.Count: > 0 }
             or InterpolatedStringExprSyntax
             or BinaryExprSyntax
             or CallExprSyntax;

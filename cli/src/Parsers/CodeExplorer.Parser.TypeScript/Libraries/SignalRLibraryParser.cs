@@ -1,4 +1,4 @@
-﻿using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
+using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.TypeScript.Libraries;
 

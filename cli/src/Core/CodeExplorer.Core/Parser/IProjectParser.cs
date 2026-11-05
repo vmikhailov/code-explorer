@@ -36,7 +36,7 @@ public sealed record ProjectParseContext(
 public sealed record ParsedProjectDescriptor(
     string Name,
     string DirectoryPath,
-    string ProjectType,
+    CodeExplorer.Cypher.Common.ProjectLanguage ProjectType,
     IReadOnlyDictionary<string, string> ManifestProperties,
     IReadOnlyList<string>? SourceRoots = null,
     IReadOnlyList<string>? AbsorbedSubpaths = null,
@@ -44,7 +44,24 @@ public sealed record ParsedProjectDescriptor(
     IReadOnlyList<string>? EntryPointPaths = null,
     IReadOnlyList<ParsedProjectDescriptor>? SubProjects = null,
     IReadOnlyCollection<string>? LocalDependencyPaths = null,
-    string? RelativeIdPathOverride = null);
+    string? RelativeIdPathOverride = null)
+{
+    public ParsedProjectDescriptor(
+        string Name,
+        string DirectoryPath,
+        string ProjectType,
+        IReadOnlyDictionary<string, string> ManifestProperties,
+        IReadOnlyList<string>? SourceRoots = null,
+        IReadOnlyList<string>? AbsorbedSubpaths = null,
+        IReadOnlyList<string>? ExcludedSubpaths = null,
+        IReadOnlyList<string>? EntryPointPaths = null,
+        IReadOnlyList<ParsedProjectDescriptor>? SubProjects = null,
+        IReadOnlyCollection<string>? LocalDependencyPaths = null,
+        string? RelativeIdPathOverride = null)
+        : this(Name, DirectoryPath, CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ParseProjectLanguage(ProjectType), ManifestProperties, SourceRoots, AbsorbedSubpaths, ExcludedSubpaths, EntryPointPaths, SubProjects, LocalDependencyPaths, RelativeIdPathOverride)
+    {
+    }
+}
 
 /// <summary>
 /// Result of <see cref="IProjectParser.TryParse"/> returning the primary project in the directory,

@@ -23,10 +23,11 @@ public static class SharedFileEnricher
         {
             try
             {
-                var info = new FileInfo(file.FullPath);
-                if (!info.Exists || info.Length > SharedFileParserRegistry.MaxFileSizeBytes) return;
+                if (file.SizeBytes <= 0 || file.SizeBytes > SharedFileParserRegistry.MaxFileSizeBytes) return;
+                var fileText = file.PreloadedContent ?? PhysicalFileStore.ReadAllText(file.FullPath);
+                if (string.IsNullOrEmpty(fileText)) return;
 
-                var results = SharedFileParserRegistry.Parse(file.FullPath, File.ReadAllText(file.FullPath));
+                var results = SharedFileParserRegistry.Parse(file.FullPath, fileText);
                 if (results.Count > 0) parsed.Add((file, results));
             }
             catch (Exception ex)

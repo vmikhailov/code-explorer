@@ -50,12 +50,6 @@ public partial class Layer5AnalysisParser
         // 2. Upload project dependencies
         await UploadProjectDependenciesAsync(ctx);
 
-        if (ctx.CustomLayer5Analyzer != null)
-        {
-            await ctx.CustomLayer5Analyzer(l4Result, ctx);
-            return new Layer5Result(l4Result, []);
-        }
-
         // 3. Resolve and upload global cross-references (like function CALLS)
         var referenceRelationships = await ResolveAndUploadGlobalReferencesAsync(ctx);
 
@@ -351,7 +345,7 @@ public partial class Layer5AnalysisParser
         var prepEntryPoints = new List<PreparedEntryPoint>(entryPoints.Count);
         foreach (var entry in entryPoints)
         {
-            if (IsNonServiceEntryPoint(entry.EntryType))
+            if (IsNonServiceEntryPoint(entry.EntryType.ToCanonicalString()))
             {
                 continue;
             }

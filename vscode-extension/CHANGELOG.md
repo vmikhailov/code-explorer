@@ -5,6 +5,29 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.70.0] - 2026-11-05
+
+### Added
+- **Strongly-Typed 1-Byte Taxonomy Enums (`SIG-C-C-001` Enforcement)**:
+  - Migrated stringly-typed classification properties (`*Type`, `*Kind`, `*Category`, `Role`, `Direction`, `Action`, `Visibility`, `Status`, `Format`, `Target`, `Scope`) across all 17 `OntologyNode` classes, AST (`SyntaxNode`), `SyntacticSymbol`, core analysis models (`ProjectMap`, `GraphEntity`), and MCP/WebSocket DTOs to 1-byte `: byte` `enum` types (`TypeKind`, `MemberKind`, `EndpointType`, `DatabaseType`, `BrokerType`, `TransportType`, `ExternalType`, `ConfigurationType`, `SemanticResourceKind`, `SyntaxNodeKind`, `SyntacticSymbolKind`, `CallSemanticRole`, `AstSymbolKind`, `PackageSourceKind`, etc.).
+  - Implemented zero-allocation static lookup tables (`TaxonomyEnumMaps`) and custom JSON/YAML converters preserving full backward compatibility with OpenCypher string queries and wire protocols.
+  - Enforced gate `SIG-C-C-001` (*Disallow Stringly-Typed Taxonomies and Classifications*) with zero file or property exemptions across all production layers.
+- **Pipeline IO Boundary Gate (`SIG-P-B-011`) & Layer 3 File Signal Enricher**:
+  - Added architectural gate `SIG-P-B-011` (*Pipeline IO Boundary: No File Reads Above Layer 3*) with zero tolerance, prohibiting direct filesystem reads (`File.ReadAllText*`, `File.ReadAllLines*`, `File.ReadLines*`, `File.ReadAllBytes*`, `File.Open*`, `StreamReader`) above Layer 3.
+  - Introduced `Layer3FileSignalEnricher` to extract database driver/pool/ORM/schema signals (`db_engine`, `db_type`, `db_orm`, `db_declared_schema`, `sql_dialect`) once during Layer 3 analysis using already in-memory file content.
+- **Multi-Project Resource Reconciliation**:
+  - Extended `CanonicalResource` with multi-project ownership (`ProjectIds` and `BelongsToProject(projectId)`), eliminating fragile file-path prefix matching in `ResourceSemanticAnalyzer` when projects share configuration files or connection strings.
+
+### Changed
+- **AST & Symbol Memory Footprint Optimization**:
+  - Removed 4 unused reference fields (`Name`, `ReturnType`, `Parameters`, `BaseTypes`) from `SyntaxNode`, saving 32 bytes per AST node across millions of nodes.
+  - Replaced eager `Dictionary<string, object>` allocations on `SyntacticSymbol` (`CallLiteral` and `CatchClause`) with compact scalar fields (`Text`, `Callee`, `ArgIndex`, `Role`, `IsDecorator`, `RequestType`, `IsEmptyCatch`, `HasCatchComment`) and lazy dictionary initialization.
+  - Added zero-copy `ReadOnlySpan<char>` string deduplication in `StringPool` and `SyntaxToken` using `GetAlternateLookup<ReadOnlySpan<char>>()`.
+- **NuGet Package Metadata**:
+  - Added `<PackageReadmeFile>README.md</PackageReadmeFile>` and bundled `README.md` across all `CodeExplorer.*` packages to eliminate missing readme warnings during packing.
+
+---
+
 ## [1.69.0] - 2026-11-05
 
 ### Added

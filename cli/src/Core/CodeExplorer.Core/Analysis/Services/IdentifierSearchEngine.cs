@@ -8,10 +8,23 @@ public record IdentifierMatch(
     string NodeId,
     string Name,
     string FullName,
-    string Kind,
+    CodeExplorer.Cypher.Common.NodeKind Kind,
     string? Path,
     int StartLine,
-    float Score);
+    float Score)
+{
+    public IdentifierMatch(
+        string NodeId,
+        string Name,
+        string FullName,
+        string Kind,
+        string? Path,
+        int StartLine,
+        float Score)
+        : this(NodeId, Name, FullName, CodeExplorer.Cypher.Common.EnumExtensions.ParseNodeKind(Kind), Path, StartLine, Score)
+    {
+    }
+}
 
 public class IdentifierSearchEngine
 {

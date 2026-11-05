@@ -33,7 +33,7 @@ public static class TypeScriptDeclarationExtractor
                         if (prop.IsValid())
                         {
                             var valNode = child.GetChildForField(TreeSitterSyntax.Fields.Value) ??
-                                          (child.Children.Count > 2 ? child.Children[2] : null);
+                                          (child.Children.Count >= 2 ? child.Children[^1] : null);
 
                             var keyWithScope = $"{enumName}.{prop.Text}";
                             register(keyWithScope, valNode, valNode == null ? prop.Text : null);

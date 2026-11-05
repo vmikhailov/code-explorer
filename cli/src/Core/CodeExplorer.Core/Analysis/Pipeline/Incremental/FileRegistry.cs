@@ -14,7 +14,7 @@ public record FileChangeset(
 
 public class FileRegistry
 {
-    private readonly ConcurrentDictionary<string, (string ContentHash, DateTime LastModifiedUtc, string ProjectPath)> _entries =
+    private readonly ConcurrentDictionary<string, (string ContentHash, DateTime LastModifiedUtc, long SizeBytes, string ProjectPath)> _entries =
         new(StringComparer.OrdinalIgnoreCase);
 
     private readonly ConcurrentDictionary<string, FileGraphSnapshot> _snapshots =
@@ -23,7 +23,9 @@ public class FileRegistry
     public int Count => _entries.Count;
     public int SnapshotCount => _snapshots.Count;
 
-    public IEnumerable<KeyValuePair<string, (string ContentHash, DateTime LastModifiedUtc, string ProjectPath)>> Entries => _entries;
+    public IEnumerable<KeyValuePair<string, (string ContentHash, DateTime LastModifiedUtc, string ProjectPath)>> Entries =>
+        _entries.Select(kv => new KeyValuePair<string, (string ContentHash, DateTime LastModifiedUtc, string ProjectPath)>(
+            kv.Key, (kv.Value.ContentHash, kv.Value.LastModifiedUtc, kv.Value.ProjectPath)));
 
 
     public async Task LoadAsync(IGraphClient dbClient, CancellationToken cancellationToken = default)
@@ -33,7 +35,7 @@ public class FileRegistry
         _snapshots.Clear();
         foreach (var (path, entry) in dbEntries)
         {
-            _entries[path] = (entry.ContentHash, entry.LastModifiedUtc, entry.ProjectPath);
+            _entries[path] = (entry.ContentHash, entry.LastModifiedUtc, entry.SizeBytes, entry.ProjectPath);
             if (!string.IsNullOrEmpty(entry.SnapshotJson))
             {
                 try
@@ -62,26 +64,35 @@ public class FileRegistry
         {
             seenOnDisk.Add(relPath);
             var fullPath = Path.Combine(workspaceRoot, relPath);
-            if (!File.Exists(fullPath)) continue;
+            var fileInfo = new FileInfo(fullPath);
+            if (!fileInfo.Exists) continue;
 
-            var lastMod = File.GetLastWriteTimeUtc(fullPath);
+            var lastMod = fileInfo.LastWriteTimeUtc;
+            var sizeBytes = fileInfo.Length;
 
             if (_entries.TryGetValue(relPath, out var existing))
             {
-                // Fast path 1: If LastWriteTimeUtc matches exactly, file did not change
-                if (existing.LastModifiedUtc == lastMod)
+                // Fast path 1: Both LastWriteTimeUtc and SizeBytes match -> file did not change (0 disk reads)
+                if (existing.LastModifiedUtc == lastMod && (existing.SizeBytes < 0 || existing.SizeBytes == sizeBytes))
                 {
                     continue;
                 }
 
-                // Fast path 2: Timestamp shifted, check SHA-256
-                var bytes = File.ReadAllBytes(fullPath);
-                var hash = HashUtility.ComputeSha256(bytes);
+                // Fast path 2: SizeBytes differs -> file is guaranteed modified without reading/hashing here
+                if (existing.SizeBytes >= 0 && existing.SizeBytes != sizeBytes)
+                {
+                    modified.Add(relPath);
+                    continue;
+                }
+
+                // Path 3: Timestamp shifted while SizeBytes matches (or legacy entry without SizeBytes) ->
+                // stream-read file and compute SHA-256 to check if content actually changed
+                var hash = HashUtility.ComputeSha256FromFile(fullPath);
 
                 if (string.Equals(existing.ContentHash, hash, StringComparison.OrdinalIgnoreCase))
                 {
                     // Only timestamp touched, content is identical
-                    _entries[relPath] = (hash, lastMod, existing.ProjectPath);
+                    _entries[relPath] = (hash, lastMod, sizeBytes, existing.ProjectPath);
                     continue;
                 }
 
@@ -110,7 +121,19 @@ public class FileRegistry
         return new FileChangeset(added, modified, deleted);
     }
 
-    public bool TryGetEntry(string relativePath, out (string ContentHash, DateTime LastModifiedUtc, string ProjectPath) entry) =>
+    public bool TryGetEntry(string relativePath, out (string ContentHash, DateTime LastModifiedUtc, string ProjectPath) entry)
+    {
+        if (_entries.TryGetValue(relativePath, out var raw))
+        {
+            entry = (raw.ContentHash, raw.LastModifiedUtc, raw.ProjectPath);
+            return true;
+        }
+
+        entry = default;
+        return false;
+    }
+
+    public bool TryGetEntryWithSize(string relativePath, out (string ContentHash, DateTime LastModifiedUtc, long SizeBytes, string ProjectPath) entry) =>
         _entries.TryGetValue(relativePath, out entry);
 
     public bool TryGetSnapshot(string relativePath, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out FileGraphSnapshot? snapshot) =>
@@ -121,9 +144,15 @@ public class FileRegistry
         _snapshots[relativePath] = snapshot;
     }
 
-    public void UpdateEntry(string relativePath, string contentHash, DateTime lastModifiedUtc, string projectPath, FileGraphSnapshot? snapshot = null)
+    public void UpdateEntry(string relativePath, string contentHash, DateTime lastModifiedUtc, string projectPath, FileGraphSnapshot? snapshot = null, long sizeBytes = -1)
     {
-        _entries[relativePath] = (contentHash, lastModifiedUtc, projectPath);
+        if (sizeBytes < 0 && _entries.TryGetValue(relativePath, out var prev) &&
+            string.Equals(prev.ContentHash, contentHash, StringComparison.OrdinalIgnoreCase))
+        {
+            sizeBytes = prev.SizeBytes;
+        }
+
+        _entries[relativePath] = (contentHash, lastModifiedUtc, sizeBytes, projectPath);
         if (snapshot != null)
         {
             _snapshots[relativePath] = snapshot;
@@ -156,6 +185,7 @@ public class FileRegistry
                 RelativePath: kv.Key,
                 ContentHash: kv.Value.ContentHash,
                 LastModifiedUtc: kv.Value.LastModifiedUtc,
+                SizeBytes: kv.Value.SizeBytes,
                 ProjectPath: kv.Value.ProjectPath,
                 SnapshotJson: snapshotJson
             );

@@ -423,8 +423,15 @@ public static class ConstantRegistry
 
         var ext = Path.GetExtension(filePath).ToLowerInvariant();
 
-        // 1. Run universal TreeSitter AST extraction with topological resolution
         AstConstantExtractor.ExtractAndRegister(filePath, content, projectName);
+        ScanAndRegisterRegexOnly(filePath, content, projectName);
+    }
+
+    public static void ScanAndRegisterRegexOnly(string filePath, string content, string? projectName = null)
+    {
+        if (string.IsNullOrWhiteSpace(content)) return;
+        var ext = Path.GetExtension(filePath).ToLowerInvariant();
+        // (AST extraction handled in ScanAndRegister or directly via SyntaxTree in Layer 3)
 
         // 2. Run regex scanner for any non-AST / comment / fallback definitions
         switch (ext)

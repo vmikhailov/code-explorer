@@ -75,7 +75,7 @@ public static class AdoNetCommandHelper
     public static string? ExtractSqlFromArguments(Node node)
     {
         var argList = node.FindChildOfType(TreeSitterSyntax.Common.ArgumentList);
-        if (argList.IsValid() && argList.Children.Count > 1)
+        if (argList.IsValid() && argList.Children.Count > 0)
         {
             var arg = argList.FindChildOfType(TreeSitterSyntax.CSharp.Argument);
             if (arg.IsValid())

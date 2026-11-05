@@ -57,21 +57,28 @@ test('computeSwimlanesLayout: computes non-overlapping vertical columns for all 
 });
 
 test('computeSwimlanesLayout: scales vertical slot heights when baseIconSize is customized', () => {
-  const defaultRes = computeSwimlanesLayout(sampleNodes as SwimlaneNodeInput[], sampleEdges as SwimlaneEdgeInput[], 1.0, false, undefined, 52);
-  const largeRes = computeSwimlanesLayout(sampleNodes as SwimlaneNodeInput[], sampleEdges as SwimlaneEdgeInput[], 1.0, false, undefined, 80);
+  const defaultRes = computeSwimlanesLayout(sampleNodes as SwimlaneNodeInput[], sampleEdges as SwimlaneEdgeInput[], 1.0, undefined, undefined, 52);
+  const largeRes = computeSwimlanesLayout(sampleNodes as SwimlaneNodeInput[], sampleEdges as SwimlaneEdgeInput[], 1.0, undefined, undefined, 80);
 
   assert.ok(largeRes.lanes[0].height >= defaultRes.lanes[0].height, 'Lane guide height scales with icon size');
 });
 
-test('computeSwimlanesLayout: uses 5 clean architectural lanes in Project Map mode', () => {
+test('computeSwimlanesLayout: uses 5 clean architectural lanes when declarative TierDefinition[] is provided', () => {
+  const pmTiers = [
+    { tier: 0, title: 'Endpoints & Ingress', icon: '🚀' },
+    { tier: 1, title: 'Application Handlers', icon: '⚙️' },
+    { tier: 2, title: 'Domain Core', icon: '🏛️' },
+    { tier: 3, title: 'Repositories & Foundation', icon: '💾' },
+    { tier: 4, title: 'Databases & Storage', icon: '🗄️' },
+  ];
   const pmNodes: SwimlaneNodeInput[] = [
     { id: 'ep:1', name: 'UsersController', kind: 'Endpoint', echelonTier: 0 },
     { id: 'mod:1', name: 'UserHandler', kind: 'Module', echelonTier: 1 },
     { id: 'mod:2', name: 'UserService', kind: 'Module', echelonTier: 2 },
     { id: 'mod:3', name: 'UserRepository', kind: 'Module', echelonTier: 3 },
-    { id: 'mod:4', name: 'UserEntity', kind: 'Module', echelonTier: 4 },
-    { id: 'res:1', name: 'UserQueue', kind: 'Topic', echelonTier: 5 },
-    { id: 'db:1', name: 'UserDb', kind: 'Database', echelonTier: 6 },
+    { id: 'mod:4', name: 'UserEntity', kind: 'Module', echelonTier: 3 },
+    { id: 'res:1', name: 'UserQueue', kind: 'Topic', echelonTier: 4 },
+    { id: 'db:1', name: 'UserDb', kind: 'Database', echelonTier: 4 },
   ];
   const pmEdges: SwimlaneEdgeInput[] = [
     { source: 'ep:1', target: 'mod:1' },
@@ -82,7 +89,7 @@ test('computeSwimlanesLayout: uses 5 clean architectural lanes in Project Map mo
     { source: 'mod:2', target: 'res:1' },
   ];
 
-  const result = computeSwimlanesLayout(pmNodes, pmEdges, 1.2, true);
+  const result = computeSwimlanesLayout(pmNodes, pmEdges, 1.2, pmTiers);
   assert.equal(result.positions.size, pmNodes.length);
   assert.equal(result.lanes.length, 5, 'Must produce 5 clean architectural lanes');
   assert.equal(result.populatedLanes.length, 5, 'Must produce 5 populated lane entries');

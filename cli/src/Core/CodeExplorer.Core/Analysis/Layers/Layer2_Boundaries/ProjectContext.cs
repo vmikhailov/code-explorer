@@ -1,3 +1,5 @@
+using CodeExplorer.Cypher.Common;
+
 namespace CodeExplorer.Core.Parser;
 
 /// <summary>
@@ -8,8 +10,21 @@ public sealed record ProjectContext(
     string DirectoryPath,
     string RelativeProjectDir,
     string ProjectName,
-    string ProjectType,
+    ProjectLanguage ProjectType,
     IReadOnlyList<string> FilesInDirectory,
     IReadOnlyList<string> Dependencies,
     IReadOnlyDictionary<string, string> ManifestProperties
-);
+)
+{
+    public ProjectContext(
+        string DirectoryPath,
+        string RelativeProjectDir,
+        string ProjectName,
+        string ProjectType,
+        IReadOnlyList<string> FilesInDirectory,
+        IReadOnlyList<string> Dependencies,
+        IReadOnlyDictionary<string, string> ManifestProperties)
+        : this(DirectoryPath, RelativeProjectDir, ProjectName, TaxonomyEnumExtendedExtensions.ParseProjectLanguage(ProjectType), FilesInDirectory, Dependencies, ManifestProperties)
+    {
+    }
+}

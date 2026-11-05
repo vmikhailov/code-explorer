@@ -18,7 +18,7 @@ public record ScanIssueNode(
     [property: OntologyProperty("The short summary or title of the scanning/parsing issue.")] string Name,
     [property: OntologyProperty("The relative path of the file or folder where the issue occurred.")] string Path,
     [property: OntologyProperty("The indexing pipeline stage where the issue occurred (e.g. Layer1_Physical, Layer2_Boundaries, Layer3_Syntactic, Layer3_Visitor, Layer4_Semantic, Layer5_Global).")] string Stage,
-    [property: OntologyProperty("The issue category (e.g. syntax_error, parse_exception, visitor_exception, manifest_error, io_error, reference_error).")] string Category,
+    [property: OntologyProperty("The issue category (e.g. syntax_error, parse_exception, visitor_exception, manifest_error, io_error, reference_error).")] ScanIssueCategory Category,
     [property: OntologyProperty("The severity of the issue (error or warning).")] string Severity,
     [property: OntologyProperty("The detailed error message or syntax snippet.")] string Message,
     [property: OntologyProperty("The 1-based starting line number of the issue, if known.")] int? StartLine = null,
@@ -30,6 +30,25 @@ public record ScanIssueNode(
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {
+    public ScanIssueNode(
+        string Id,
+        string Name,
+        string Path,
+        string Stage,
+        string Category,
+        string Severity,
+        string Message,
+        int? StartLine = null,
+        int? EndLine = null,
+        int? StartCol = null,
+        int? EndCol = null,
+        string? ExceptionType = null,
+        string? Language = null,
+        Dictionary<string, string>? Extensions = null)
+        : this(Id, Name, Path, Stage, TaxonomyEnumExtendedExtensions.ParseScanIssueCategory(Category), Severity, Message, StartLine, EndLine, StartCol, EndCol, ExceptionType, Language, Extensions)
+    {
+    }
+
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.ScanIssue;
 }

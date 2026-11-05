@@ -109,7 +109,7 @@ public class GoParser : IProjectParser, IFileParser
 
         try
         {
-            var lines = await File.ReadAllLinesAsync(goModPath);
+            var lines = PhysicalFileStore.ReadLines(goModPath);
             var moduleLine = lines.FirstOrDefault(l => l.Trim().StartsWith("module ", StringComparison.Ordinal));
             if (moduleLine != null)
             {
@@ -120,7 +120,7 @@ public class GoParser : IProjectParser, IFileParser
                     var versionFilePath = Path.Combine(projectDirectory, "VERSION");
                     if (File.Exists(versionFilePath))
                     {
-                        version = (await File.ReadAllTextAsync(versionFilePath)).Trim();
+                        version = (await PhysicalFileStore.ReadAllTextAsync(versionFilePath)).Trim();
                     }
                     return new ProducedPackageInfo(modName, version, "go");
                 }
@@ -173,7 +173,7 @@ public class GoParser : IProjectParser, IFileParser
         {
             try
             {
-                var content = File.ReadAllText(goModPath);
+                var content = PhysicalFileStore.ReadAllText(goModPath);
                 if (content.Contains("github.com/spf13/cobra") ||
                     content.Contains("github.com/urfave/cli") ||
                     content.Contains("github.com/spf13/pflag"))
@@ -249,7 +249,7 @@ public class GoParser : IProjectParser, IFileParser
 
         try
         {
-            var lines = await File.ReadAllLinesAsync(goModPath);
+            var lines = PhysicalFileStore.ReadLines(goModPath);
             var inRequireBlock = false;
             var inReplaceBlock = false;
 
@@ -388,7 +388,7 @@ public class GoParser : IProjectParser, IFileParser
     {
         try
         {
-            var lines = File.ReadLines(goModFile);
+            var lines = PhysicalFileStore.ReadLines(goModFile);
             foreach (var line in lines)
             {
                 var trimmed = line.Trim();

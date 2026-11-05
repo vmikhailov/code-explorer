@@ -19,10 +19,15 @@ public record TopicNode(
     string Id,
     [property: OntologyProperty("The name of the topic or exchange.")] string Name,
     [property: OntologyProperty("The path of the folder or file relative to its parent container.")] string Path,
-    [property: JsonPropertyName("broker_type"), OntologyProperty("The broker system type (rabbitmq, kafka, sqs, in-memory).")] string BrokerType,
+    [property: JsonPropertyName("broker_type"), OntologyProperty("The broker system type (rabbitmq, kafka, sqs, in-memory).")] BrokerType BrokerType,
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {
+    public TopicNode(string Id, string Name, string Path, string BrokerType, Dictionary<string, string>? Extensions = null)
+        : this(Id, Name, Path, TaxonomyEnumExtensions.ParseBrokerType(BrokerType), Extensions)
+    {
+    }
+
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Topic;
 }

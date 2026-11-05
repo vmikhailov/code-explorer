@@ -11,10 +11,22 @@ public sealed record ProjectMapFile(string Path, bool IsTest, int? LineCount = n
 public sealed record ProjectMapSymbolEdge(
     string FromFile,
     string ToFile,
-    string Kind,
+    RelationshipKind Kind,
     string? FromSymbol = null,
     string? ToSymbol = null,
-    int? FromLine = null);
+    int? FromLine = null)
+{
+    public ProjectMapSymbolEdge(
+        string FromFile,
+        string ToFile,
+        string Kind,
+        string? FromSymbol = null,
+        string? ToSymbol = null,
+        int? FromLine = null)
+        : this(FromFile, ToFile, EnumExtensions.ParseRelationshipKind(Kind), FromSymbol, ToSymbol, FromLine)
+    {
+    }
+}
 
 /// <summary>
 /// A link between a symbol declared in a project file and a Layer 4 resource node (Table, Topic, ExternalService, ...).
@@ -22,11 +34,24 @@ public sealed record ProjectMapSymbolEdge(
 public sealed record ProjectMapResourceLink(
     string File,
     string ResourceId,
-    string ResourceKind,
+    NodeKind ResourceKind,
     string ResourceName,
-    string Kind,
+    RelationshipKind Kind,
     string? Symbol = null,
-    int? Line = null);
+    int? Line = null)
+{
+    public ProjectMapResourceLink(
+        string File,
+        string ResourceId,
+        string ResourceKind,
+        string ResourceName,
+        string Kind,
+        string? Symbol = null,
+        int? Line = null)
+        : this(File, ResourceId, EnumExtensions.ParseNodeKind(ResourceKind), ResourceName, EnumExtensions.ParseRelationshipKind(Kind), Symbol, Line)
+    {
+    }
+}
 
 /// <summary>
 /// A nested child project (SubProject) contained inside a parent project.
@@ -35,8 +60,19 @@ public sealed record ProjectMapSubProject(
     string ProjectId,
     string Name,
     string Path,
-    string Kind,
-    IReadOnlyList<ProjectMapFile> Files);
+    NodeKind Kind,
+    IReadOnlyList<ProjectMapFile> Files)
+{
+    public ProjectMapSubProject(
+        string ProjectId,
+        string Name,
+        string Path,
+        string Kind,
+        IReadOnlyList<ProjectMapFile> Files)
+        : this(ProjectId, Name, Path, EnumExtensions.ParseNodeKind(Kind), Files)
+    {
+    }
+}
 
 /// <summary>
 /// An Endpoint or EntryPoint node exposed by the project (Orbit 0).
@@ -44,12 +80,26 @@ public sealed record ProjectMapSubProject(
 public sealed record ProjectMapEntryPointNode(
     string Id,
     string Name,
-    string Kind,
+    NodeKind Kind,
     string FilePath,
     int? Line = null,
-    string? SubKind = null,
+    EntryPointType? SubKind = null,
     IReadOnlyList<string>? TargetSymbols = null,
-    IReadOnlyList<string>? TargetFiles = null);
+    IReadOnlyList<string>? TargetFiles = null)
+{
+    public ProjectMapEntryPointNode(
+        string Id,
+        string Name,
+        string Kind,
+        string FilePath,
+        int? Line = null,
+        string? SubKind = null,
+        IReadOnlyList<string>? TargetSymbols = null,
+        IReadOnlyList<string>? TargetFiles = null)
+        : this(Id, Name, EnumExtensions.ParseNodeKind(Kind), FilePath, Line, string.IsNullOrWhiteSpace(SubKind) ? null : TaxonomyEnumExtensions.ParseEntryPointType(SubKind), TargetSymbols, TargetFiles)
+    {
+    }
+}
 
 /// <summary>
 /// A method/function belonging to a ProjectMap module or type.
@@ -65,12 +115,26 @@ public sealed record ProjectMapMethod(string Name, string? FilePath = null, int?
 public sealed record ProjectMapTypeNode(
     string Id,
     string Name,
-    string SubKind,
+    TypeKind SubKind,
     string FilePath,
     int? StartLine = null,
     int? LineCount = null,
     bool IsTest = false,
-    IReadOnlyList<ProjectMapMethod>? Methods = null);
+    IReadOnlyList<ProjectMapMethod>? Methods = null)
+{
+    public ProjectMapTypeNode(
+        string Id,
+        string Name,
+        string SubKind,
+        string FilePath,
+        int? StartLine = null,
+        int? LineCount = null,
+        bool IsTest = false,
+        IReadOnlyList<ProjectMapMethod>? Methods = null)
+        : this(Id, Name, TaxonomyEnumExtensions.ParseTypeKind(SubKind), FilePath, StartLine, LineCount, IsTest, Methods)
+    {
+    }
+}
 
 /// <summary>
 /// A Function/Method declaration in the project.
@@ -92,9 +156,22 @@ public sealed record ProjectMapTypeEdge(
     string FromFile,
     string ToSymbol,
     string ToFile,
-    string Kind,
+    RelationshipKind Kind,
     int? Line = null,
-    bool IsExternalCaller = false);
+    bool IsExternalCaller = false)
+{
+    public ProjectMapTypeEdge(
+        string FromSymbol,
+        string FromFile,
+        string ToSymbol,
+        string ToFile,
+        string Kind,
+        int? Line = null,
+        bool IsExternalCaller = false)
+        : this(FromSymbol, FromFile, ToSymbol, ToFile, EnumExtensions.ParseRelationshipKind(Kind), Line, IsExternalCaller)
+    {
+    }
+}
 
 /// <summary>
 /// Raw, already-scoped inputs for a single project. Produced by the view engine from existing graph nodes/edges.
@@ -142,7 +219,13 @@ public enum ProjectMapTier
     Database = 6
 }
 
-public sealed record ProjectMapEvidenceSample(string? FromSymbol, string? ToSymbol, string File, int? Line, string Kind);
+public sealed record ProjectMapEvidenceSample(string? FromSymbol, string? ToSymbol, string File, int? Line, RelationshipKind Kind)
+{
+    public ProjectMapEvidenceSample(string? FromSymbol, string? ToSymbol, string File, int? Line, string Kind)
+        : this(FromSymbol, ToSymbol, File, Line, EnumExtensions.ParseRelationshipKind(Kind))
+    {
+    }
+}
 
 public sealed class ProjectMapModule
 {
@@ -152,9 +235,10 @@ public sealed class ProjectMapModule
     /// <summary>Workspace-relative folder (or file) path backing this module.</summary>
     public required string Path { get; init; }
 
-    public string? NodeKindOverride { get; init; }
-    public string? PmType { get; init; }
-    public string? SubKind { get; init; }
+    public NodeKind? NodeKindOverride { get; init; }
+    public ProjectMapModuleType? PmType { get; init; }
+    public TypeKind? SubKind { get; init; }
+    public EntryPointType? EntrySubKind { get; init; }
     public int? StartLine { get; set; }
     public int? BfsDepth { get; set; }
     public List<ProjectMapMethod> Methods { get; } = [];
@@ -163,7 +247,7 @@ public sealed class ProjectMapModule
     public bool IsMerged { get; init; }
     public bool IsSubProject { get; init; }
     public string? SubProjectId { get; init; }
-    public string? SubProjectKind { get; init; }
+    public NodeKind? SubProjectKind { get; init; }
     public List<string> Files { get; } = [];
     public int LineCount { get; set; }
     public int EntryPointCount { get; set; }
@@ -180,7 +264,7 @@ public sealed class ProjectMapModule
 public sealed class ProjectMapResource
 {
     public required string Id { get; init; }
-    public required string Kind { get; init; }
+    public required NodeKind Kind { get; init; }
     public required string Name { get; init; }
     public ProjectMapTier Tier { get; init; } = ProjectMapTier.Resource;
 }

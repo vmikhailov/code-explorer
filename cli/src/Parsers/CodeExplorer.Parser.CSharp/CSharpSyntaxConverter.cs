@@ -87,7 +87,7 @@ public sealed class CSharpSyntaxConverter : TreeSitterSyntaxConverterBase
             "yield_statement" => new ReturnOrYieldStmtSyntax { Span = span, RawGrammarKind = rawKind, IsYield = true },
             "throw_statement" or "throw_expression" => new ThrowStmtSyntax { Span = span, RawGrammarKind = rawKind },
             "break_statement" or "continue_statement" or "goto_statement" =>
-                new BranchStmtSyntax { Span = span, RawGrammarKind = rawKind, BranchKind = rawKind },
+                new BranchStmtSyntax { Span = span, RawGrammarKind = rawKind, BranchKind = CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ParseBranchKind(rawKind) },
             "lock_statement" => new LockStmtSyntax { Span = span, RawGrammarKind = rawKind },
 
             "generic_name" or "nullable_type" or "array_type" or "pointer_type" or "tuple_type" or "predefined_type" =>
@@ -120,11 +120,12 @@ public sealed class CSharpSyntaxConverter : TreeSitterSyntaxConverterBase
                 if (fnNode is MemberAccessExprSyntax memberCallee)
                 {
                     callExpr.Receiver = memberCallee.Object;
-                    callExpr.MethodName = memberCallee.MemberName;
+                    callExpr.MethodNameSlice = memberCallee.MemberNameSlice;
+                    if (memberCallee.HasExplicitMemberName) callExpr.MethodName = memberCallee.MemberName;
                 }
                 else if (fnNode != null)
                 {
-                    callExpr.MethodName = fnNode.Text;
+                    callExpr.MethodNameSlice = new SourceSlice(fnNode.Span.StartByte, fnNode.Span.Length);
                 }
                 break;
 
@@ -139,14 +140,13 @@ public sealed class CSharpSyntaxConverter : TreeSitterSyntaxConverterBase
                 {
                     memExpr.Object = new IdentifierExprSyntax
                     {
-                        Name = objNode.Text,
                         Span = objNode.Span,
                         Document = objNode.Document,
                         Parent = memExpr,
                         RawGrammarKind = objNode.RawGrammarKind
                     };
                 }
-                if (propNode != null) memExpr.MemberName = propNode.Text;
+                if (propNode != null) memExpr.MemberNameSlice = new SourceSlice(propNode.Span.StartByte, propNode.Span.Length);
                 break;
         }
     }

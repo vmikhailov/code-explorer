@@ -332,7 +332,7 @@ public class LinqSqliteExecutionTests
     public async Task Databases_FirstOrDefaultAsync_FindsMatching()
     {
         var db = await _graph.Databases
-            .Where(d => d.DbType == "relational")
+            .Where(d => d.DbType == DatabaseType.Relational)
             .FirstOrDefaultAsync();
 
         db.Should().NotBeNull();
@@ -345,7 +345,7 @@ public class LinqSqliteExecutionTests
     public async Task ExternalServices_Where_Category()
     {
         var ext = await _graph.ExternalServices
-            .Where(e => e.Category == "Payment")
+            .Where(e => e.Category == ExternalServiceCategory.Payment)
             .ToListAsync();
 
         ext.Should().HaveCount(1);
@@ -357,7 +357,7 @@ public class LinqSqliteExecutionTests
     public async Task Apps_Where_AppType()
     {
         var apps = await _graph.Apps
-            .Where(a => a.AppType == "spa")
+            .Where(a => a.AppType == AppType.Spa)
             .ToListAsync();
 
         apps.Should().HaveCount(1);
@@ -369,7 +369,7 @@ public class LinqSqliteExecutionTests
     public async Task Workers_Where_QueueType()
     {
         var workers = await _graph.Workers
-            .Where(w => w.QueueType == "rabbitmq")
+            .Where(w => w.QueueType == BrokerType.RabbitMq)
             .ToListAsync();
 
         workers.Should().HaveCount(1);
@@ -385,7 +385,7 @@ public class LinqSqliteExecutionTests
 
         topics.Should().HaveCount(1);
         topics[0].Name.Should().Be("orders-topic");
-        topics[0].BrokerType.Should().Be("kafka");
+        topics[0].BrokerType.Should().Be(BrokerType.Kafka);
     }
 
     [Test]

@@ -439,7 +439,7 @@ public class NodeUsageDto
     public string SourceName { get; set; } = string.Empty;
 
     [JsonPropertyName("sourceKind")]
-    public string SourceKind { get; set; } = string.Empty;
+    public NodeKind SourceKind { get; set; } = NodeKind.Unspecified;
 
     [JsonPropertyName("relationship")]
     public string Relationship { get; set; } = string.Empty;
@@ -466,7 +466,7 @@ public class NodeUsagesResponseDto
     public string TargetName { get; set; } = string.Empty;
 
     [JsonPropertyName("targetKind")]
-    public string TargetKind { get; set; } = string.Empty;
+    public NodeKind TargetKind { get; set; } = NodeKind.Unspecified;
 
     [JsonPropertyName("usages")]
     public List<NodeUsageDto> Usages { get; set; } = [];
@@ -743,7 +743,7 @@ public class BoundedContextFileDto
     public string? Pattern { get; set; }
 
     [JsonPropertyName("operationType")]
-    public string? OperationType { get; set; }
+    public OperationType? OperationType { get; set; }
 
     [JsonPropertyName("capabilityTag")]
     public string? CapabilityTag { get; set; }
@@ -767,7 +767,7 @@ public class DomainDto
     public string DisplayName { get; set; } = string.Empty;
 
     [JsonPropertyName("domainType")]
-    public string DomainType { get; set; } = "Core"; // "Core" | "Supporting" | "Generic"
+    public DomainType DomainType { get; set; } = DomainType.Core; // "Core" | "Supporting" | "Generic"
 
     [JsonPropertyName("description")]
     public string? Description { get; set; }
@@ -803,7 +803,7 @@ public class BoundedContextItemDto
     public string DomainName { get; set; } = string.Empty;
 
     [JsonPropertyName("domainType")]
-    public string DomainType { get; set; } = "Core";
+    public DomainType DomainType { get; set; } = DomainType.Core;
 
     [JsonPropertyName("summary")]
     public string? Summary { get; set; }
@@ -866,7 +866,7 @@ public class BoundedContextInteractionDto
     public string Target { get; set; } = string.Empty;
 
     [JsonPropertyName("interactionType")]
-    public string InteractionType { get; set; } = "call"; // "call", "event", "database"
+    public BoundedContextInteractionType InteractionType { get; set; } = BoundedContextInteractionType.Call; // "call", "event", "database"
 
     [JsonPropertyName("label")]
     public string Label { get; set; } = "CALLS";
@@ -1497,7 +1497,7 @@ public class EdgeEvidenceResponseDto
     public string TargetId { get; set; } = string.Empty;
 
     [JsonPropertyName("edgeKind")]
-    public string EdgeKind { get; set; } = string.Empty;
+    public RelationshipKind EdgeKind { get; set; } = RelationshipKind.Unspecified;
 
     [JsonPropertyName("totalCount")]
     public int TotalCount { get; set; }
@@ -1519,7 +1519,7 @@ public class NodeEvidenceResponseDto
     public string NodeName { get; set; } = string.Empty;
 
     [JsonPropertyName("nodeKind")]
-    public string NodeKind { get; set; } = string.Empty;
+    public NodeKind NodeKind { get; set; } = NodeKind.Unspecified;
 
     [JsonPropertyName("totalCount")]
     public int TotalCount { get; set; }

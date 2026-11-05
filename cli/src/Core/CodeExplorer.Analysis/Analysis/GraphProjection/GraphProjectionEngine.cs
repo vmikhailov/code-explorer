@@ -155,15 +155,28 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
         var json = await db.ExecuteQueryAsync(typesQuery, paramsDict, ct);
         using var doc = JsonDocument.Parse(json);
 
+                const string PropId = "id";
+        const string PropName = "name";
+        const string PropSubKind = "sub_kind";
+        const string DefaultSubKind = "class";
+        const string PropPath = "path";
+        const string PropIsTest = "is_test";
+        const string PropFnId = "fn_id";
+        const string PropTypeName = "type_name";
+        const string PropImplName = "impl_name";
+        const string PropIfaceName = "iface_name";
+        const string PropRoute = "route";
+        const string PropMethod = "method";
+        const string PropKind = "kind";
         var classesByName = new Dictionary<string, GraphNodeDto>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var elem in doc.RootElement.EnumerateArray())
         {
-            var id = elem.GetStringProp("id");
-            var name = elem.GetStringProp("name");
-            var subKind = elem.GetStringProp("sub_kind", "class");
-            var path = elem.GetStringProp("path");
-            var isTest = elem.GetBoolProp("is_test");
+            var id = elem.GetStringProp(PropId);
+            var name = elem.GetStringProp(PropName);
+            var subKind = elem.GetStringProp(PropSubKind, DefaultSubKind);
+            var path = elem.GetStringProp(PropPath);
+            var isTest = elem.GetBoolProp(PropIsTest);
 
             if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(name)) continue;
             if (excludeTests && isTest) continue;
@@ -212,8 +225,8 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
             using var funcDoc = JsonDocument.Parse(funcJson);
             foreach (var elem in funcDoc.RootElement.EnumerateArray())
             {
-                var fnId = elem.GetStringProp("fn_id");
-                var typeName = elem.GetStringProp("type_name");
+                var fnId = elem.GetStringProp(PropFnId);
+                var typeName = elem.GetStringProp(PropTypeName);
                 if (!string.IsNullOrEmpty(fnId) && !string.IsNullOrEmpty(typeName))
                 {
                     var clean = typeName;
@@ -240,8 +253,8 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
             using var implDoc = JsonDocument.Parse(implJson);
             foreach (var elem in implDoc.RootElement.EnumerateArray())
             {
-                var implName = elem.GetStringProp("impl_name");
-                var ifaceName = elem.GetStringProp("iface_name");
+                var implName = elem.GetStringProp(PropImplName);
+                var ifaceName = elem.GetStringProp(PropIfaceName);
                 if (!string.IsNullOrEmpty(implName) && !string.IsNullOrEmpty(ifaceName))
                 {
                     interfaceImplementors[$"type:{ifaceName}"] = $"type:{implName}";
@@ -265,11 +278,11 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
             using var epDoc = JsonDocument.Parse(epJson);
             foreach (var elem in epDoc.RootElement.EnumerateArray())
             {
-                var id = elem.GetStringProp("id");
-                var name = elem.GetStringProp("name");
-                var route = elem.GetStringProp("route");
-                var method = elem.GetStringProp("method");
-                var path = elem.GetStringProp("path");
+                var id = elem.GetStringProp(PropId);
+                var name = elem.GetStringProp(PropName);
+                var route = elem.GetStringProp(PropRoute);
+                var method = elem.GetStringProp(PropMethod);
+                var path = elem.GetStringProp(PropPath);
 
                 if (string.IsNullOrEmpty(id)) continue;
                 var epLabel = !string.IsNullOrEmpty(route) ? $"{method} {route}".Trim() : name;
@@ -310,9 +323,9 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
             using var resDoc = JsonDocument.Parse(resJson);
             foreach (var elem in resDoc.RootElement.EnumerateArray())
             {
-                var id = elem.GetStringProp("id");
-                var kindStr = elem.GetStringProp("kind");
-                var name = elem.GetStringProp("name");
+                var id = elem.GetStringProp(PropId);
+                var kindStr = elem.GetStringProp(PropKind);
+                var name = elem.GetStringProp(PropName);
 
                 if (string.IsNullOrEmpty(id)) continue;
                 var kind = EnumExtensions.ParseNodeKind(kindStr);
@@ -346,6 +359,12 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
     private async Task<List<(string Source, string Target, string Kind, string? SourceFile, string? TargetFile, int? Line)>>
         ExtractRawComponentEdgesAsync(string? projectScope, CancellationToken ct)
     {
+                const string PropSource = "source";
+        const string PropTarget = "target";
+        const string PropKind = "kind";
+        const string PropSrcPath = "src_path";
+        const string PropTgtPath = "tgt_path";
+        const string PropLine = "line";
         var rawEdges = new List<(string Source, string Target, string Kind, string? SourceFile, string? TargetFile, int? Line)>();
 
         var scopeClause = !string.IsNullOrWhiteSpace(projectScope)
@@ -370,12 +389,12 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
             using var doc = JsonDocument.Parse(json);
             foreach (var elem in doc.RootElement.EnumerateArray())
             {
-                var src = elem.GetStringProp("source");
-                var tgt = elem.GetStringProp("target");
-                var kind = elem.GetStringProp("kind");
-                var srcFile = elem.GetStringProp("src_path");
-                var tgtFile = elem.GetStringProp("tgt_path");
-                var line = elem.GetNullableIntProp("line");
+                var src = elem.GetStringProp(PropSource);
+                var tgt = elem.GetStringProp(PropTarget);
+                var kind = elem.GetStringProp(PropKind);
+                var srcFile = elem.GetStringProp(PropSrcPath);
+                var tgtFile = elem.GetStringProp(PropTgtPath);
+                var line = elem.GetNullableIntProp(PropLine);
 
                 if (!string.IsNullOrEmpty(src) && !string.IsNullOrEmpty(tgt))
                 {
@@ -397,9 +416,9 @@ public sealed class GraphProjectionEngine(IGraphClient db) : IGraphProjectionEng
                 using var sDoc = JsonDocument.Parse(sJson);
                 foreach (var elem in sDoc.RootElement.EnumerateArray())
                 {
-                    var src = elem.GetStringProp("source");
-                    var tgt = elem.GetStringProp("target");
-                    var kind = elem.GetStringProp("kind");
+                    var src = elem.GetStringProp(PropSource);
+                    var tgt = elem.GetStringProp(PropTarget);
+                    var kind = elem.GetStringProp(PropKind);
                     if (!string.IsNullOrEmpty(src) && !string.IsNullOrEmpty(tgt))
                     {
                         rawEdges.Add((src, tgt, kind, null, null, null));

@@ -12,12 +12,14 @@ public class NestJsLibraryParser : ISemanticExtension
     public bool IsImplemented => true;
     public LibraryRole LibraryRole => LibraryRole.WebService;
 
+    private const string DecoratorEntryPointPattern = "Get|Post|Put|Delete|Patch|SubscribeMessage|Query|Mutation|Subscription|GrpcMethod|GrpcStreamMethod";
+
     private static readonly NodeSelector _decoratorEntryPointSelector = NodeSelector.New()
         .HasType(TreeSitterSyntax.TypeScript.Decorator)
         .FirstChild
         .HasType(TreeSitterSyntax.TypeScript.CallExpression)
         .GetChildForField(TreeSitterSyntax.Fields.Function)
-        .Text("Get|Post|Put|Delete|Patch|SubscribeMessage|Query|Mutation|Subscription|GrpcMethod|GrpcStreamMethod");
+        .Text(DecoratorEntryPointPattern);
 
     private static readonly NodeSelector _decoratorCallFunctionSelector = NodeSelector.New()
         .FirstChild
@@ -453,15 +455,15 @@ public class NestJsLibraryParser : ISemanticExtension
                 symbol.Protocol = "GraphQL";
                 symbol.OperationType = decName switch
                 {
-                    "Mutation" => "Mutation",
-                    "Subscription" => "Subscription",
-                    _ => "Query"
+                    "Mutation" => CodeExplorer.Cypher.Common.OperationType.Mutation,
+                    "Subscription" => CodeExplorer.Cypher.Common.OperationType.Subscription,
+                    _ => CodeExplorer.Cypher.Common.OperationType.Query
                 };
             }
             else if (decName is "GrpcMethod" or "GrpcStreamMethod")
             {
                 symbol.Protocol = "gRPC";
-                symbol.OperationType = decName == "GrpcStreamMethod" ? "ServerStreaming" : "Unary";
+                symbol.OperationType = decName == "GrpcStreamMethod" ? CodeExplorer.Cypher.Common.OperationType.ServerStreaming : CodeExplorer.Cypher.Common.OperationType.Unary;
             }
             else if (decName is "SubscribeMessage")
             {

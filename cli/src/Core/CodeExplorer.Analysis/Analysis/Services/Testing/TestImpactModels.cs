@@ -29,11 +29,24 @@ public record ChangedSymbolInfo(
     string Id,
     string Name,
     string Symbol,
-    string Kind,
+    NodeKind Kind,
     string FilePath,
     int StartLine,
     int EndLine
-);
+)
+{
+    public ChangedSymbolInfo(
+        string Id,
+        string Name,
+        string Symbol,
+        string Kind,
+        string FilePath,
+        int StartLine,
+        int EndLine)
+        : this(Id, Name, Symbol, EnumExtensions.ParseNodeKind(Kind), FilePath, StartLine, EndLine)
+    {
+    }
+}
 
 public record AffectedTestGroup(
     string GroupName,

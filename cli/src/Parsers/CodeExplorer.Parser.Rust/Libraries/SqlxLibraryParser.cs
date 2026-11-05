@@ -111,6 +111,30 @@ public class SqlxLibraryParser : ISemanticExtension
     {
         dbEngine = string.Empty;
 
+        if (node.Type is TreeSitterSyntax.Rust.UseDeclaration or TreeSitterSyntax.Rust.TypeIdentifier or TreeSitterSyntax.Rust.ScopedTypeIdentifier)
+        {
+            var span = node.TextSpan;
+            if (span.Contains("PgPool", StringComparison.OrdinalIgnoreCase) ||
+                span.Contains("sqlx::postgres", StringComparison.OrdinalIgnoreCase))
+            {
+                dbEngine = "postgres";
+                return true;
+            }
+            if (span.Contains("MySqlPool", StringComparison.OrdinalIgnoreCase) ||
+                span.Contains("sqlx::mysql", StringComparison.OrdinalIgnoreCase))
+            {
+                dbEngine = "mysql";
+                return true;
+            }
+            if (span.Contains("SqlitePool", StringComparison.OrdinalIgnoreCase) ||
+                span.Contains("sqlx::sqlite", StringComparison.OrdinalIgnoreCase))
+            {
+                dbEngine = "sqlite";
+                return true;
+            }
+            return false;
+        }
+
         if (node.Type != TreeSitterSyntax.Rust.CallExpression)
         {
             return false;

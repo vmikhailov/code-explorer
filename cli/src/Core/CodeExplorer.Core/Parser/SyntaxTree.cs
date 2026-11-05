@@ -36,6 +36,7 @@ public class SyntaxTree : IDisposable
         RawImports = rawImports;
         RawVariables = rawVariables;
         RawTypeBindings = rawTypeBindings;
+        CodeExplorer.Core.Parser.Layers.Layer3FileSignalEnricher.EnrichFileDatabaseSignals(fileNode, document?.SourceText, filePath);
     }
 
     public SyntaxTree(
@@ -87,7 +88,7 @@ public class SyntaxTree : IDisposable
     {
         filePath = filePath.Replace('\\', '/');
         relativePath = relativePath.Replace('\\', '/');
-        var sourceText = await File.ReadAllTextAsync(filePath);
+        var sourceText = await PhysicalFileStore.ConsumeFileTextAsync(filePath);
         var document = fileParser.ParseDocument(sourceText, filePath, relativePath);
 
         var fileNodeId = $"{workspaceId}:{OntologyConstants.IdPrefixes.File}:{relativePath}";

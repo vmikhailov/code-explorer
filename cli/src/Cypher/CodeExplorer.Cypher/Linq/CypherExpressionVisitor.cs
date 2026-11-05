@@ -407,7 +407,7 @@ public class CypherExpressionVisitor
         if (val is Enum e)
         {
             var paramName = NextParamName();
-            _model.Parameters[paramName] = e.ToString();
+            _model.Parameters[paramName] = Common.TaxonomyViewEnumExtensions.FormatEnumObject(e);
             return new ParameterExpression(paramName);
         }
 

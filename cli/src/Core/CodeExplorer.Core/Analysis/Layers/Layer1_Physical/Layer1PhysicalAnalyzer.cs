@@ -10,40 +10,48 @@ public class Layer1PhysicalParser
         ctx.Log("[Layer 1    ] Starting physical scan of directory topology...");
 
         // 0. Get or create Workspace ID from database (auto-incremented)
-        var wsId = await ctx.DbClient.GetOrCreateWorkspaceIdAsync(ctx.HostWorkspacePath);
+        var wsId = ctx.PersistToGraphDb && ctx.DbClient != null
+            ? await ctx.DbClient.GetOrCreateWorkspaceIdAsync(ctx.HostWorkspacePath)
+            : "ws0";
         ctx.WorkspaceId = wsId;
         ctx.CancellationToken.ThrowIfCancellationRequested();
 
-        await ctx.DbClient.SaveEmptyWorkspaceNodeAsync(wsId, ctx.HostWorkspacePath);
-        ctx.CancellationToken.ThrowIfCancellationRequested();
+        if (ctx.PersistToGraphDb && ctx.DbClient != null)
+        {
+            await ctx.DbClient.SaveEmptyWorkspaceNodeAsync(wsId, ctx.HostWorkspacePath);
+            ctx.CancellationToken.ThrowIfCancellationRequested();
+        }
 
         var normalizedHostPath = ctx.HostWorkspacePath.Replace('\\', '/').TrimEnd('/');
         var folderName = Path.GetFileName(normalizedHostPath);
         if (string.IsNullOrEmpty(folderName)) folderName = normalizedHostPath;
 
         var workspaceName = folderName;
-        try
+        if (ctx.PersistToGraphDb && ctx.DbClient != null)
         {
-            var wsNameResult = await ctx.DbClient.ExecuteQueryAsync(
-                "MATCH (w:Workspace) RETURN w.name AS name LIMIT 1");
-
-            using var doc = System.Text.Json.JsonDocument.Parse(wsNameResult);
-
-            if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array &&
-                doc.RootElement.GetArrayLength() > 0)
+            try
             {
-                var row = doc.RootElement[0];
+                var wsNameResult = await ctx.DbClient.ExecuteQueryAsync(
+                    "MATCH (w:Workspace) RETURN w.name AS name LIMIT 1");
 
-                if (row.TryGetProperty("name", out var n) && n.ValueKind == System.Text.Json.JsonValueKind.String)
+                using var doc = System.Text.Json.JsonDocument.Parse(wsNameResult);
+
+                if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array &&
+                    doc.RootElement.GetArrayLength() > 0)
                 {
-                    var customName = n.GetString();
-                    if (!string.IsNullOrWhiteSpace(customName)) workspaceName = customName;
+                    var row = doc.RootElement[0];
+
+                    if (row.TryGetProperty("name", out var n) && n.ValueKind == System.Text.Json.JsonValueKind.String)
+                    {
+                        var customName = n.GetString();
+                        if (!string.IsNullOrWhiteSpace(customName)) workspaceName = customName;
+                    }
                 }
             }
-        }
-        catch
-        {
-            // Fallback to folderName
+            catch
+            {
+                // Fallback to folderName
+            }
         }
 
         var hostPath = PathTools.NormalizeToHostPath(ctx.HostWorkspacePath);
@@ -74,6 +82,7 @@ public class Layer1PhysicalParser
         var files = new List<FileNode>();
         var folders = new List<FolderNode>();
         var gitignore = new GitIgnoreMatcher(ctx.AbsoluteWorkspacePath, ctx.FileFilter);
+        PhysicalFileStore.ClearWorkspace(ctx.AbsoluteWorkspacePath);
 
         if (!ctx.IsSubtreeScan)
         {
@@ -100,6 +109,38 @@ public class Layer1PhysicalParser
             }
 
             await ScanDirectoryAsync(ctx.ScanPath, currentParent, files, folders, gitignore, ctx);
+        }
+
+        if (!ctx.DiscoveredBinaryArtifacts.IsEmpty)
+        {
+            var hasNode = false;
+            var hasNativeAddon = false;
+            var hasDotNetDll = false;
+            foreach (var (_, _, ext) in ctx.DiscoveredBinaryArtifacts)
+            {
+                if (ext.Equals(".node", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasNode = true;
+                    hasNativeAddon = true;
+                }
+                else if (ext.Equals(".wasm", StringComparison.OrdinalIgnoreCase) ||
+                         ext.Equals(".dylib", StringComparison.OrdinalIgnoreCase) ||
+                         ext.Equals(".so", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasNativeAddon = true;
+                }
+                else if (ext.Equals(".dll", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasDotNetDll = true;
+                }
+            }
+            const string ExtHasNativeNode = "has_native_node";
+            const string ExtHasNativeAddon = "has_native_addon";
+            const string ExtHasDotNetDll = "has_dotnet_dll";
+            const string TrueVal = "true";
+            if (hasNode) workspaceNode.SetExtension(ExtHasNativeNode, TrueVal);
+            if (hasNativeAddon) workspaceNode.SetExtension(ExtHasNativeAddon, TrueVal);
+            if (hasDotNetDll) workspaceNode.SetExtension(ExtHasDotNetDll, TrueVal);
         }
 
         ctx.Log($"[Layer 1    ] Physical topology scan complete. Found {files.Count} files, {folders.Count} folders.");
@@ -167,6 +208,28 @@ public class Layer1PhysicalParser
             }
         }
 
+        var vscodeTasksPath = Path.Combine(currentDir, ".vscode", "tasks.json");
+        if (File.Exists(vscodeTasksPath))
+        {
+            try
+            {
+                var relTasks = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, vscodeTasksPath).Replace('\\', '/');
+                var absTasks = Path.GetFullPath(vscodeTasksPath).Replace('\\', '/');
+                var tasksInfo = new FileInfo(vscodeTasksPath);
+                const string TasksJsonFileName = "tasks.json";
+                var streamedTasks = await PhysicalFileStore.StreamAndAnalyzeFileAsync(absTasks, relTasks, TasksJsonFileName, tasksInfo.Length, isManifest: true, isSupportedSourceOrConfig: false, ctx.FileFilter, ctx.CancellationToken);
+                if (streamedTasks.ContentHash != null) ctx.DiscoveredManifestFiles[relTasks] = (absTasks, streamedTasks.ContentHash, tasksInfo.LastWriteTimeUtc, tasksInfo.Length);
+                // tasksHash handled by StreamAndAnalyzeFileAsync
+                // tasksText handled by StreamAndAnalyzeFileAsync
+                // SetFileText handled by StreamAndAnalyzeFileAsync
+                // DiscoveredManifestFiles handled by StreamAndAnalyzeFileAsync
+            }
+            catch
+            {
+                // Best effort
+            }
+        }
+
         var dirInfo = new DirectoryInfo(currentDir);
 
         // Recurse subdirectories
@@ -176,7 +239,10 @@ public class Layer1PhysicalParser
         }
 
         // Process files
-        foreach (var fileInfo in dirInfo.GetFiles())
+        var dirFiles = dirInfo.GetFiles();
+        PhysicalFileStore.SetDirectoryFiles(currentDir, dirFiles.Select(f => f.FullName).ToArray());
+
+        foreach (var fileInfo in dirFiles)
         {
             var file = fileInfo.FullName;
             var relativeFile = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, file).Replace('\\', '/');
@@ -186,55 +252,127 @@ public class Layer1PhysicalParser
                 continue;
             }
 
+            var ext = fileInfo.Extension;
+            if (ext.Equals(".node", StringComparison.OrdinalIgnoreCase) ||
+                ext.Equals(".wasm", StringComparison.OrdinalIgnoreCase) ||
+                ext.Equals(".dll", StringComparison.OrdinalIgnoreCase) ||
+                ext.Equals(".so", StringComparison.OrdinalIgnoreCase) ||
+                ext.Equals(".dylib", StringComparison.OrdinalIgnoreCase))
+            {
+                ctx.DiscoveredBinaryArtifacts.Add((relativeFile, file.Replace('\\', '/'), ext));
+            }
+
             if (ctx.CustomFileExclusionPredicate?.Invoke(fileInfo.Name, relativeFile) == true)
             {
                 continue;
             }
 
+            var fileName = fileInfo.Name;
+            var isManifest = ctx.FileFilter.IsManifestFile(fileName) || IsAuxiliaryMetadataFile(fileName);
+            var isSupportedSourceOrConfig = ctx.FileFilter.IsSupportedSourceOrConfigFile(fileName);
 
-            if (!ctx.FileFilter.IsSupportedSourceOrConfigFile(fileInfo.Name))
+            if (!isSupportedSourceOrConfig && !isManifest)
             {
                 continue;
             }
 
-            if (ctx.FileFilter.ShouldSkipFile(fileInfo))
+            if (isSupportedSourceOrConfig && ctx.FileFilter.ShouldSkipFileMetadata(fileInfo))
             {
-                continue;
+                if (!isManifest) continue;
+                isSupportedSourceOrConfig = false;
             }
 
             var absoluteFilePath = fileInfo.FullName.Replace('\\', '/');
             var fileId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.File}:{relativeFile}";
-            var fileName = fileInfo.Name;
             var sizeBytes = fileInfo.Length;
             int? lineCount = null;
             string? contentHash = null;
             DateTime? lastModifiedUtc = null;
             string? artifactRole = null;
+            string? decodedText = null;
+            var skipByContent = false;
             try
             {
                 lastModifiedUtc = fileInfo.LastWriteTimeUtc;
-                var bytes = await File.ReadAllBytesAsync(fileInfo.FullName, ctx.CancellationToken);
-                lineCount = CountLines(bytes);
-                if (!ctx.LightweightAstScanMode)
+                var streamed = await PhysicalFileStore.StreamAndAnalyzeFileAsync(
+                    absoluteFilePath,
+                    relativeFile,
+                    fileName,
+                    sizeBytes,
+                    isManifest,
+                    isSupportedSourceOrConfig,
+                    ctx.FileFilter,
+                    ctx.CancellationToken);
+                skipByContent = streamed.SkipByContent;
+                contentHash = streamed.ContentHash;
+                lineCount = streamed.LineCount;
+                artifactRole = streamed.ArtifactRole;
+                decodedText = streamed.DecodedText;
+                if (isManifest && contentHash != null && lastModifiedUtc.HasValue)
                 {
-                    contentHash = Incremental.HashUtility.ComputeSha256(bytes);
+                    ctx.DiscoveredManifestFiles[relativeFile] = (absoluteFilePath, contentHash, lastModifiedUtc.Value, sizeBytes);
                 }
-                artifactRole = WorkspaceFileFilter.ClassifyArtifactRole(relativeFile, fileName, bytes);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                ctx.RecordScanIssue("Layer1_Physical", "io_error", relativeFile, ex.Message, name: "FileReadError", severity: "warning", exception: ex, parentNodeId: fileId, isFileParent: true);
+                if (isSupportedSourceOrConfig)
+                {
+                    ctx.RecordScanIssue("Layer1_Physical", "io_error", relativeFile, ex.Message, name: "FileReadError", severity: "warning", exception: ex, parentNodeId: fileId, isFileParent: true);
+                }
             }
+
+            if (!isSupportedSourceOrConfig || skipByContent)
+            {
+                continue;
+            }
+
             var fileNode = new FileNode(fileId, fileName, relativeFile, absoluteFilePath, false, null, null, lineCount, sizeBytes)
             {
                 ContentHash = contentHash,
                 LastModifiedUtc = lastModifiedUtc,
-                ArtifactRole = artifactRole ?? WorkspaceFileFilter.ClassifyArtifactRole(relativeFile, fileName)
+                ArtifactRole = artifactRole ?? WorkspaceFileFilter.ClassifyArtifactRole(relativeFile, fileName),
+                PreloadedContent = decodedText
             };
 
             currentParentNode.Children.Add(fileNode);
             files.Add(fileNode);
         }
+    }
+
+    private static bool IsAuxiliaryMetadataFile(string fileName)
+    {
+        if (string.IsNullOrEmpty(fileName)) return false;
+        if (fileName.EndsWith(".nuspec", StringComparison.OrdinalIgnoreCase) ||
+            fileName.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) ||
+            fileName.EndsWith(".fsproj", StringComparison.OrdinalIgnoreCase) ||
+            fileName.EndsWith(".vbproj", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return fileName.Equals("package.json", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("tsconfig.json", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("tsconfig.base.json", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("jsconfig.json", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("project.json", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("ng-package.json", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("angular.json", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("nest-cli.json", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("wrangler.toml", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("wrangler.json", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("wrangler.jsonc", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("Directory.Build.props", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("Directory.Packages.props", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("Cargo.toml", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("pyproject.toml", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("requirements.txt", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("setup.py", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("go.mod", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("pom.xml", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("build.gradle", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("build.gradle.kts", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("settings.gradle", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("settings.gradle.kts", StringComparison.OrdinalIgnoreCase);
     }
 
     private static int CountLines(ReadOnlySpan<byte> bytes)
@@ -249,5 +387,5 @@ public class Layer1PhysicalParser
     public static bool IsSupportedFile(string fileName) => WorkspaceFileFilter.Default.IsSupportedSourceOrConfigFile(fileName);
     public static bool ShouldSkipFileName(string fileName) => WorkspaceFileFilter.Default.ShouldSkipFileName(fileName);
     public static bool ShouldSkipFile(FileInfo fileInfo) => WorkspaceFileFilter.Default.ShouldSkipFile(fileInfo);
-    public static bool IsMinifiedContent(string filePath) => WorkspaceFileFilter.IsMinifiedContent(filePath);
-}
+    public static bool IsMinifiedContent(string filePath) => WorkspaceFileFilter.IsMinifiedContent(filePath);
+}

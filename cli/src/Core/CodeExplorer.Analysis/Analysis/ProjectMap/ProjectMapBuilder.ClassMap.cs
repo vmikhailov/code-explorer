@@ -6,7 +6,7 @@ public static partial class ProjectMapBuilder
     {
         public required string Id { get; init; }
         public required string Name { get; init; }
-        public required string SubKind { get; set; }
+        public required TypeKind SubKind { get; set; }
         public required string PrimaryFile { get; set; }
         public int? StartLine { get; set; }
         public int LineCount { get; set; }
@@ -46,10 +46,10 @@ public static partial class ProjectMapBuilder
             var cleanName = StripGenericArity(t.Name);
             if (string.IsNullOrWhiteSpace(cleanName)) continue;
 
-            var subKind = (t.SubKind ?? "class").Trim().ToLowerInvariant();
+            var subKind = t.SubKind;
             if (IgnoredTypeSubKinds.Contains(subKind)) continue;
 
-            if (subKind == "interface")
+            if (subKind == TypeKind.Interface)
             {
                 interfaces.Add(cleanName);
                 continue;
@@ -158,7 +158,7 @@ public static partial class ProjectMapBuilder
                 {
                     Id = $"pm:cls:{moduleName}",
                     Name = moduleName,
-                    SubKind = "module",
+                    SubKind = TypeKind.Module,
                     PrimaryFile = fn.FilePath,
                     StartLine = fn.StartLine ?? 1,
                     LineCount = fileLineCounts.GetValueOrDefault(fn.FilePath, fn.LineCount ?? 0)
@@ -182,7 +182,7 @@ public static partial class ProjectMapBuilder
                 {
                     Id = $"pm:cls:{moduleName}",
                     Name = moduleName,
-                    SubKind = "module",
+                    SubKind = TypeKind.Module,
                     PrimaryFile = filePath,
                     StartLine = 1,
                     LineCount = fileLineCounts.GetValueOrDefault(filePath, 1)
@@ -255,8 +255,7 @@ public static partial class ProjectMapBuilder
 
         foreach (var te in input.TypeEdges)
         {
-            if (!te.Kind.Equals("IMPLEMENTS", StringComparison.OrdinalIgnoreCase) &&
-                !te.Kind.Equals("INHERITS_FROM", StringComparison.OrdinalIgnoreCase))
+            if (te.Kind is not RelationshipKind.Implements and not RelationshipKind.InheritsFrom)
             {
                 continue;
             }
@@ -279,8 +278,7 @@ public static partial class ProjectMapBuilder
 
         foreach (var se in input.SymbolEdges)
         {
-            if (!se.Kind.Equals("IMPLEMENTS", StringComparison.OrdinalIgnoreCase) &&
-                !se.Kind.Equals("INHERITS_FROM", StringComparison.OrdinalIgnoreCase))
+            if (se.Kind is not RelationshipKind.Implements and not RelationshipKind.InheritsFrom)
             {
                 continue;
             }
@@ -420,7 +418,7 @@ public static partial class ProjectMapBuilder
             c.Methods.Count > 0 ||
             c.OutgoingCallCount > 0 ||
             c.EntryPointCount > 0 ||
-            (c.SubKind == "module" && (c.ResourceLinkCount > 0 || c.IncomingCallCount > 0));
+            (c.SubKind == TypeKind.Module && (c.ResourceLinkCount > 0 || c.IncomingCallCount > 0));
 
         // Count resource links per class (forwarding ORM entity table links to behavioral classes that use them)
         foreach (var link in input.ResourceLinks)
@@ -429,7 +427,7 @@ public static partial class ProjectMapBuilder
             var owner = ResolveSourceClass(link.Symbol, link.File);
             if (owner != null && classes.TryGetValue(owner, out var c))
             {
-                if (IsBehavioralCandidate(c) || c.SubKind == "module")
+                if (IsBehavioralCandidate(c) || c.SubKind == TypeKind.Module)
                 {
                     c.ResourceLinkCount++;
                 }
@@ -515,7 +513,7 @@ public static partial class ProjectMapBuilder
 
         var byTarget = eligibleEntryPoints
             .GroupBy(ep => entryPointTargets[ep.Id].First(activeByName.ContainsKey), StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.OrderBy(ep => ep.Kind, StringComparer.OrdinalIgnoreCase).ThenBy(ep => ep.Name, StringComparer.OrdinalIgnoreCase).ToList(), StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(g => g.Key, g => g.OrderBy(ep => ep.Kind.ToCypherLabel(), StringComparer.OrdinalIgnoreCase).ThenBy(ep => ep.Name, StringComparer.OrdinalIgnoreCase).ToList(), StringComparer.OrdinalIgnoreCase);
 
         var activeEntryPoints = new List<ProjectMapEntryPointNode>();
         var maxLimit = Math.Max(MaxEntryPointNodes, byTarget.Count * 4);
@@ -540,20 +538,21 @@ public static partial class ProjectMapBuilder
         foreach (var ep in activeEntryPoints)
         {
             var epModuleId = $"pm:ep:{ep.Id}";
+            var epKind = ep.Kind == NodeKind.Unspecified ? NodeKind.EntryPoint : ep.Kind;
             var epMod = new ProjectMapModule
             {
                 Id = epModuleId,
                 Name = ep.Name,
                 Path = ep.FilePath,
-                NodeKindOverride = string.IsNullOrWhiteSpace(ep.Kind) ? "EntryPoint" : ep.Kind,
-                PmType = "entrypoint",
-                SubKind = ep.SubKind ?? ep.Kind,
+                NodeKindOverride = epKind,
+                PmType = ProjectMapModuleType.EntryPoint,
+                EntrySubKind = ep.SubKind,
                 StartLine = ep.Line,
                 BfsDepth = 0,
                 LineCount = 1,
                 EntryPointCount = 1,
                 Tier = ProjectMapTier.Ingress,
-                TierReason = $"{ep.Kind} (Orbit 0)"
+                TierReason = $"{epKind.ToCypherLabel()} (Orbit 0)"
             };
             if (!string.IsNullOrEmpty(ep.FilePath))
             {
@@ -617,8 +616,8 @@ public static partial class ProjectMapBuilder
                 Id = c.Id,
                 Name = c.Name,
                 Path = c.PrimaryFile,
-                NodeKindOverride = "Type",
-                PmType = "class",
+                NodeKindOverride = NodeKind.Type,
+                PmType = ProjectMapModuleType.Class,
                 SubKind = c.SubKind,
                 StartLine = c.StartLine,
                 BfsDepth = depth,
@@ -735,13 +734,13 @@ public static partial class ProjectMapBuilder
         var rawClassEdges = new Dictionary<(string Src, string Tgt), ProjectMapEdge>();
         var inboundReferencers = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
 
-        void AddClassEdge(string srcName, string tgtName, string kind, string fromFile, string? toFile, string? fromSym, string? toSym, int? line)
+        void AddClassEdge(string srcName, string tgtName, RelationshipKind kind, string fromFile, string? toFile, string? fromSym, string? toSym, int? line)
         {
             if (string.Equals(srcName, tgtName, StringComparison.OrdinalIgnoreCase)) return;
             var srcCand = classes[srcName];
             var tgtCand = classes[tgtName];
 
-            if (kind.Equals("USES_TYPE", StringComparison.OrdinalIgnoreCase) && srcCand.Methods.Count == 0)
+            if (kind == RelationshipKind.UsesType && srcCand.Methods.Count == 0)
             {
                 return;
             }
@@ -763,14 +762,14 @@ public static partial class ProjectMapBuilder
             {
                 edge.Samples.Add(new ProjectMapEvidenceSample(fromSym ?? srcCand.Name, toSym ?? tgtCand.Name, fromFile, line, kind));
             }
-            if (!kind.Equals("USES_TYPE", StringComparison.OrdinalIgnoreCase))
+            if (kind != RelationshipKind.UsesType)
             {
                 srcCand.OutgoingCallCount++;
                 tgtCand.IncomingCallCount++;
             }
         }
 
-        var seenRawEdges = new HashSet<(string FromFile, string? ToFile, string? FromSym, string? ToSym, string Kind, int? Line)>();
+        var seenRawEdges = new HashSet<(string FromFile, string? ToFile, string? FromSym, string? ToSym, RelationshipKind Kind, int? Line)>();
 
         foreach (var te in input.TypeEdges)
         {
@@ -783,7 +782,7 @@ public static partial class ProjectMapBuilder
                 continue;
             }
 
-            if (te.Kind.Equals("IMPLEMENTS", StringComparison.OrdinalIgnoreCase))
+            if (te.Kind == RelationshipKind.Implements)
             {
                 continue;
             }
@@ -793,7 +792,7 @@ public static partial class ProjectMapBuilder
             var src = resolveSourceClass(te.FromSymbol, te.FromFile);
             if (src == null) continue;
 
-            var isInheritance = te.Kind.Equals("INHERITS_FROM", StringComparison.OrdinalIgnoreCase);
+            var isInheritance = te.Kind == RelationshipKind.InheritsFrom;
             foreach (var tgt in resolveTargetClasses(te.ToSymbol, te.ToFile, src, !isInheritance, te.FromFile))
             {
                 AddClassEdge(src, tgt, te.Kind, te.FromFile, te.ToFile, te.FromSymbol, te.ToSymbol, te.Line);
@@ -802,7 +801,7 @@ public static partial class ProjectMapBuilder
 
         foreach (var se in input.SymbolEdges)
         {
-            if (se.Kind.Equals("IMPLEMENTS", StringComparison.OrdinalIgnoreCase))
+            if (se.Kind == RelationshipKind.Implements)
             {
                 continue;
             }
@@ -815,7 +814,7 @@ public static partial class ProjectMapBuilder
             var src = resolveSourceClass(se.FromSymbol, se.FromFile);
             if (src == null) continue;
 
-            var isInheritance = se.Kind.Equals("INHERITS_FROM", StringComparison.OrdinalIgnoreCase);
+            var isInheritance = se.Kind == RelationshipKind.InheritsFrom;
             foreach (var tgt in resolveTargetClasses(se.ToSymbol, se.ToFile, src, !isInheritance, se.FromFile))
             {
                 AddClassEdge(src, tgt, se.Kind, se.FromFile, se.ToFile, se.FromSymbol, se.ToSymbol, se.FromLine);

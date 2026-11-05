@@ -146,7 +146,7 @@ public class GitSettingsTests
             "CoreApi",
             "Backend/Services/CoreApi",
             "csharp",
-            extensions: new Dictionary<string, string>()
+            Extensions: new Dictionary<string, string>()
         );
 
         // 3. Upload via OntologyUploader

@@ -341,7 +341,7 @@ public static class RustModuleReachability
     {
         try
         {
-            return LineCommentRegex.Replace(File.ReadAllText(file), string.Empty);
+            return LineCommentRegex.Replace(PhysicalFileStore.ReadAllText(file), string.Empty);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

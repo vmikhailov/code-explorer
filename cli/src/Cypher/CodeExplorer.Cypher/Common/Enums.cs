@@ -53,6 +53,7 @@ public enum NodeKind : byte
     GitSettings = 43
 }
 
+[JsonConverter(typeof(RelationshipKindJsonConverter))]
 public enum RelationshipKind : byte
 {
     Unspecified = 0,
@@ -111,7 +112,11 @@ public enum RelationshipKind : byte
     SubdomainOf = 53,
     Handles = 54,
     InheritsFrom = 55,
-    PotentialType = 56
+    PotentialType = 56,
+    ExposesEndpoint = 57,
+    Inherits = 58,
+    AnnotatedWith = 59,
+    Uses = 60
 }
 
 /// <summary>
@@ -201,7 +206,7 @@ public static class OntologyEnumMaps
     }
 }
 
-public enum ProjectRole
+public enum ProjectRole : byte
 {
     Unspecified = 0,
     Service = 1,
@@ -213,7 +218,8 @@ public enum ProjectRole
     General = 7
 }
 
-public enum DatabaseType
+[JsonConverter(typeof(DatabaseTypeJsonConverter))]
+public enum DatabaseType : byte
 {
     Unspecified = 0,
     Relational = 1,
@@ -222,10 +228,15 @@ public enum DatabaseType
     Search = 4,
     Cache = 5,
     Vector = 6,
-    Graph = 7
+    Graph = 7,
+    Analytics = 8,
+    TimeSeries = 9,
+    Columnar = 10,
+    MultiModel = 11,
+    Unknown = 12
 }
 
-public enum NetworkProtocol
+public enum NetworkProtocol : byte
 {
     Unspecified = 0,
     Http = 1,
@@ -238,7 +249,7 @@ public enum NetworkProtocol
     Soap = 8
 }
 
-public enum ArchitectureViewType
+public enum ArchitectureViewType : byte
 {
     Unspecified = 0,
     SystemContext = 1,
@@ -290,15 +301,17 @@ public static class EnumExtensions
     public static DatabaseType ParseDatabaseType(string? dbType)
     {
         if (string.IsNullOrWhiteSpace(dbType)) return DatabaseType.Unspecified;
-        if (Enum.TryParse<DatabaseType>(dbType, ignoreCase: true, out var t))
+        var trimmed = dbType.Trim().Replace("_", "").Replace("-", "");
+        if (Enum.TryParse<DatabaseType>(trimmed, ignoreCase: true, out var t))
             return t;
-        return dbType.ToLowerInvariant() switch
+        return trimmed.ToLowerInvariant() switch
         {
-            "rdbms" or "sql" => DatabaseType.Relational,
+            "rdbms" or "sql" or "postgres" or "postgresql" or "sqlserver" or "mssql" or "mysql" or "sqlite" => DatabaseType.Relational,
             "nosql" or "mongodb" => DatabaseType.Document,
             "kv" => DatabaseType.KeyValue,
             "elasticsearch" => DatabaseType.Search,
             "redis" or "memcached" => DatabaseType.Cache,
+            "neo4j" => DatabaseType.Graph,
             _ => DatabaseType.Unspecified
         };
     }

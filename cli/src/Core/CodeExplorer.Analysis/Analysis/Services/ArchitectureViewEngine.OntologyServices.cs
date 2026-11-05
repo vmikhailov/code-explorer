@@ -26,7 +26,7 @@ public partial class ArchitectureViewEngine
         foreach (var node in Mcp.OntologyRegistry.AllNodes.OrderBy(n => n.Attribute.Order))
         {
             var attr = node.Attribute;
-            var kind = node.Kind;
+            var kind = node.Kind.ToCypherLabel();
             if (attr.IsSystemNode || Mcp.OntologyRegistry.IsSystemNode(kind))
             {
                 continue;

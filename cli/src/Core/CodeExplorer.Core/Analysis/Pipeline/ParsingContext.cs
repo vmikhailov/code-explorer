@@ -23,12 +23,10 @@ public class ParsingContext
     public Channel<Func<Task>> SharedChannel { get; }
     public bool Clear { get; }
     public bool EnableIntentAnalysis { get; set; }
+    public bool PersistToGraphDb { get; init; } = true;
     public bool LightweightAstScanMode { get; set; }
     public Func<string, string, bool>? CustomFileExclusionPredicate { get; set; }
     public Func<IReadOnlyList<FileNode>, ProjectNode, Layer2Result, IReadOnlyList<FileNode>>? CustomProjectFileFilter { get; set; }
-    public Action<Layer3Result, SemanticStructureNode, List<Relationship>, ParsingContext>? CustomLayer4Enricher { get; set; }
-    public Func<Layer4Result, ParsingContext, Task>? CustomLayer5Analyzer { get; set; }
-    public Dictionary<string, object> PipelineState { get; } = new(StringComparer.OrdinalIgnoreCase);
     public CancellationToken CancellationToken { get; }
     public string WorkspaceId { get; set; } = string.Empty;
     public ProjectsStructureNode? ProjectsStructure { get; set; }
@@ -39,6 +37,16 @@ public class ParsingContext
 
     /// <summary>Shared-parser results for files that belong to no project (workspace root files).</summary>
     public List<IProjectEnrichment> WorkspaceEnrichments { get; } = [];
+
+    /// <summary>Manifest files discovered and hashed during the Layer 1 physical scan.</summary>
+    public System.Collections.Concurrent.ConcurrentDictionary<string, (string FullPath, string ContentHash, DateTime LastModifiedUtc, long SizeBytes)> DiscoveredManifestFiles { get; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Binary and native addon artifacts (.node, .wasm, .dll, .so, .dylib) discovered during the Layer 1 physical scan.</summary>
+    public System.Collections.Concurrent.ConcurrentBag<(string RelativePath, string FullPath, string Extension)> DiscoveredBinaryArtifacts { get; } = [];
+
+    /// <summary>TypeScript path aliases (compilerOptions.paths) extracted in Layer 2.</summary>
+    public Dictionary<string, string> TsConfigPaths { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly IProgress<IndexingProgress>? _progress;
     private readonly object _progressLock = new();
@@ -258,6 +266,11 @@ public class ParsingContext
     public async Task EnqueueUploadNodesAsync(List<Node> nodes)
     {
         if (nodes.Count == 0) return;
+        if (!PersistToGraphDb)
+        {
+            RecordNodesPersisted(nodes.Count);
+            return;
+        }
 
         var copy = new List<Node>(nodes);
         await SharedChannel.Writer.WriteAsync(async () =>
@@ -277,6 +290,11 @@ public class ParsingContext
     public async Task EnqueueUploadRelationshipsAsync(List<Relationship> rels)
     {
         if (rels.Count == 0) return;
+        if (!PersistToGraphDb)
+        {
+            RecordRelationshipsPersisted(rels.Count);
+            return;
+        }
         var copy = new List<Relationship>(rels);
         await SharedChannel.Writer.WriteAsync(async () =>
         {
@@ -294,6 +312,7 @@ public class ParsingContext
 
     public async Task WaitForQueueDrainedAsync()
     {
+        if (!PersistToGraphDb) return;
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await SharedChannel.Writer.WriteAsync(() =>
         {
@@ -349,7 +368,7 @@ public class ParsingContext
         Repository = dbClient switch
         {
             IGraphRepository repo => repo,
-            null => new InMemoryGraphRepository(),
+            null => null!,
             _ => new PersistedGraphRepository(dbClient)
         };
         SharedChannel = sharedChannel;
@@ -509,7 +528,7 @@ public class ParsingContext
 
     public async Task FlushScanIssuesAsync()
     {
-        if (DbClient == null || ScanIssues.IsEmpty) return;
+        if (!PersistToGraphDb || DbClient == null || ScanIssues.IsEmpty) return;
 
         var nodesToUpload = new List<Node>();
         var relsToUpload = new List<Relationship>();

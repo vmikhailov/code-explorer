@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CodeExplorer.Core.Gates.Models;
+using YamlDotNet.Core;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -12,6 +13,7 @@ public static class GateSerializer
 {
     private static readonly IDeserializer YamlDeserializer = new DeserializerBuilder()
         .WithNamingConvention(CamelCaseNamingConvention.Instance)
+        .WithTypeConverter(new LenientGateEnumYamlConverter())
         .IgnoreUnmatchedProperties()
         .Build();
 
@@ -39,11 +41,11 @@ public static class GateSerializer
             throw new InvalidOperationException($"Gate '{raw.Id}' must contain a 'query' field.");
         }
 
-        var category = Enum.TryParse<GateCategory>(raw.Category, true, out var cat) ? cat : GateCategory.Architectural;
+        var category = raw.Category ?? GateCategory.Architectural;
         var platform = !string.IsNullOrWhiteSpace(raw.Platform) ? raw.Platform.Trim().ToLowerInvariant() : "agnostic";
-        var scope = Enum.TryParse<InvariantScope>(raw.Scope, true, out var sc) ? sc : InvariantScope.Module;
-        var dim = Enum.TryParse<InvariantDimension>(raw.Dimension, true, out var dm) ? dm : InvariantDimension.Boundaries;
-        var sev = Enum.TryParse<GateSeverity>(raw.Severity, true, out var sv) ? sv : GateSeverity.Error;
+        var scope = raw.Scope ?? InvariantScope.Module;
+        var dim = raw.Dimension ?? InvariantDimension.Boundaries;
+        var sev = raw.Severity ?? GateSeverity.Error;
         var message = raw.Message?.Trim() ?? raw.MessageTemplate?.Trim();
         var target = raw.Target?.Trim() ?? raw.TargetTemplate?.Trim();
         GateThresholdSettings? thresholds = null;
@@ -86,12 +88,12 @@ public static class GateSerializer
         var raw = new RawGateDefinition
         {
             Id = gate.Id,
-            Category = gate.Category.ToString(),
+            Category = gate.Category,
             Platform = gate.Platform,
-            Scope = gate.Scope.ToString(),
-            Dimension = gate.Dimension.ToString(),
+            Scope = gate.Scope,
+            Dimension = gate.Dimension,
             Name = gate.Name,
-            Severity = gate.Severity.ToString(),
+            Severity = gate.Severity,
             Description = gate.Description,
             Remediation = gate.Remediation,
             Message = gate.Message,
@@ -125,12 +127,12 @@ public static class GateSerializer
     private class RawGateDefinition
     {
         public string? Id { get; set; }
-        public string? Category { get; set; }
+        public GateCategory? Category { get; set; }
         public string? Platform { get; set; }
-        public string? Scope { get; set; }
-        public string? Dimension { get; set; }
+        public InvariantScope? Scope { get; set; }
+        public InvariantDimension? Dimension { get; set; }
         public string? Name { get; set; }
-        public string? Severity { get; set; }
+        public GateSeverity? Severity { get; set; }
         public string? Description { get; set; }
         public string? Remediation { get; set; }
         public string? Message { get; set; }
@@ -154,5 +156,67 @@ public static class GateSerializer
     {
         public int? Warning { get; set; }
         public int? Error { get; set; }
+    }
+
+    private sealed class LenientGateEnumYamlConverter : IYamlTypeConverter
+    {
+        public bool Accepts(Type type)
+        {
+            var t = Nullable.GetUnderlyingType(type) ?? type;
+            return t == typeof(GateCategory) || t == typeof(InvariantScope) || t == typeof(InvariantDimension) || t == typeof(GateSeverity);
+        }
+
+        public object? ReadYaml(YamlDotNet.Core.IParser parser, Type type, ObjectDeserializer rootDeserializer)
+        {
+            var scalar = parser.Consume<YamlDotNet.Core.Events.Scalar>().Value;
+            if (string.IsNullOrWhiteSpace(scalar)) return null;
+            var t = Nullable.GetUnderlyingType(type) ?? type;
+            var s = scalar.Trim().ToLowerInvariant();
+
+            if (t == typeof(GateCategory))
+            {
+                return s is "platform" or "rules" or "framework" or "runtime" or "language"
+                    ? GateCategory.Platform
+                    : GateCategory.Architectural;
+            }
+            if (t == typeof(InvariantScope))
+            {
+                return s switch
+                {
+                    "platform" or "workspace" or "system" => InvariantScope.System,
+                    "service" => InvariantScope.Service,
+                    "module" or "project" => InvariantScope.Module,
+                    "class" or "type" or "file" => InvariantScope.Class,
+                    "method" or "function" or "member" => InvariantScope.Method,
+                    _ => Enum.TryParse<InvariantScope>(scalar, true, out var sc) ? sc : InvariantScope.Module
+                };
+            }
+            if (t == typeof(InvariantDimension))
+            {
+                return s switch
+                {
+                    "contract" or "contracts" => InvariantDimension.Contract,
+                    "rules" or "rule" or "implementation" => InvariantDimension.Rules,
+                    "resources" or "resource" => InvariantDimension.Resources,
+                    "boundaries" or "boundary" or "architecture" => InvariantDimension.Boundaries,
+                    _ => Enum.TryParse<InvariantDimension>(scalar, true, out var dm) ? dm : InvariantDimension.Boundaries
+                };
+            }
+            if (t == typeof(GateSeverity))
+            {
+                return s switch
+                {
+                    "warning" or "warn" => GateSeverity.Warning,
+                    "info" or "information" => GateSeverity.Info,
+                    _ => GateSeverity.Error
+                };
+            }
+            return null;
+        }
+
+        public void WriteYaml(YamlDotNet.Core.IEmitter emitter, object? value, Type type, ObjectSerializer serializer)
+        {
+            emitter.Emit(new YamlDotNet.Core.Events.Scalar(value?.ToString() ?? string.Empty));
+        }
     }
 }

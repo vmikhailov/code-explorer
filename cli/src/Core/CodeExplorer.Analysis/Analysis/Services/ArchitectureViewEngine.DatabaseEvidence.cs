@@ -76,9 +76,9 @@ public partial class ArchitectureViewEngine
             {
                 response.TargetId = first.GetStringProp("id", nodeId);
                 response.TargetName = first.GetStringProp("name", nodeId);
-                response.TargetKind = first.GetStringProp("kind", "");
+                response.TargetKind = EnumExtensions.ParseNodeKind(first.GetStringProp("kind", ""));
                 targetName = response.TargetName;
-                targetKind = response.TargetKind;
+                targetKind = response.TargetKind.ToCypherLabel();
                 declFile = first.GetStringProp("file_path");
 
                 if (first.TryGetProperty("line", out var lp) && lp.ValueKind == JsonValueKind.Number)
@@ -90,7 +90,7 @@ public partial class ArchitectureViewEngine
         catch { }
 
         response.TargetName = targetName ?? nodeId;
-        response.TargetKind = targetKind ?? "";
+        response.TargetKind = EnumExtensions.ParseNodeKind(targetKind ?? "");
 
         // 2. Query all relationships connected to target (incoming and outgoing)
         // Exclude system/structural nodes like SemanticStructure or Workspace
@@ -154,7 +154,7 @@ public partial class ArchitectureViewEngine
                 {
                     SourceId = srcId,
                     SourceName = srcName,
-                    SourceKind = srcKind,
+                    SourceKind = EnumExtensions.ParseNodeKind(srcKind),
                     Relationship = relKind,
                     FilePath = string.IsNullOrEmpty(filePath) ? null : filePath,
                     LineStart = line,
@@ -174,7 +174,7 @@ public partial class ArchitectureViewEngine
                 {
                     SourceId = response.TargetId,
                     SourceName = Path.GetFileName(declFile),
-                    SourceKind = "Config",
+                    SourceKind = NodeKind.File,
                     Relationship = "DECLARED_IN",
                     FilePath = declFile,
                     LineStart = declLine

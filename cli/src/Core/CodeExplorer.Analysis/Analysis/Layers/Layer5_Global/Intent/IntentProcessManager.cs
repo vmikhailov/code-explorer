@@ -44,7 +44,7 @@ public static class IntentProcessManager
 
         try
         {
-            var json = File.ReadAllText(lockPath);
+            using var json = new FileStream(lockPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             lockInfo = JsonSerializer.Deserialize<IntentProcessLock>(json);
             if (lockInfo == null)
             {

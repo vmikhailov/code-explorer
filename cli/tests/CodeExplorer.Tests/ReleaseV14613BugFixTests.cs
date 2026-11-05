@@ -50,7 +50,7 @@ public class ReleaseV14613BugFixTests
         dbNode!.Extensions.Should().ContainKey("engine");
         dbNode.Extensions["engine"].Should().Be("PostgreSQL");
         dbNode.Name.Should().Be("customers");
-        dbNode.DbType.Should().Be("relational");
+        dbNode.DbType.Should().Be(DatabaseType.Relational);
     }
 
     [Test]

@@ -63,7 +63,7 @@ public class KotlinProjectParser : IProjectParser
         {
             try
             {
-                var content = File.ReadAllText(pomFile);
+                var content = PhysicalFileStore.ReadAllText(pomFile);
                 if (content.Contains("kotlin-maven-plugin", StringComparison.OrdinalIgnoreCase) ||
                     content.Contains("kotlin-stdlib", StringComparison.OrdinalIgnoreCase))
                 {
@@ -184,7 +184,7 @@ public class KotlinProjectParser : IProjectParser
             {
                 try
                 {
-                    var content = File.ReadAllText(gradleFile);
+                    var content = PhysicalFileStore.ReadAllText(gradleFile);
                     if (content.Contains("io.grpc") || content.Contains("grpc-netty") || content.Contains("grpc-protobuf"))
                     {
                         props["has_grpc"] = "true";
@@ -231,7 +231,7 @@ public class KotlinProjectParser : IProjectParser
         {
             try
             {
-                var content = File.ReadAllText(gradleFile);
+                var content = PhysicalFileStore.ReadAllText(gradleFile);
 
                 // Project dependencies: project(":subproject") or project(':subproject')
                 var projectDepMatches = Regex.Matches(content, @"project\s*\(\s*['""]:?([a-zA-Z0-9_\-.:]+)['""]\s*\)");

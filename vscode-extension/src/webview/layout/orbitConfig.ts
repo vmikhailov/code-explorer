@@ -23,13 +23,6 @@ export const DEFAULT_ORBIT_CONFIG: OrbitConfig = {
   kindTiers: {},
 };
 
-/** Project Map (C3): Orbit 0 EntryPoints/Endpoints, Orbits 1..4 Classes by BFS depth, Orbit 5 Transports/Buses/Libraries, Orbit 6 Databases/Tables. */
-export const DEFAULT_PROJECT_MAP_ORBIT_CONFIG: OrbitConfig = {
-  version: 1,
-  orbits: [[0], [1], [2], [3], [4], [5], [6]],
-  kindTiers: {},
-};
-
 const isTier = (v: unknown): v is number =>
   typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 6;
 

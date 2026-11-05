@@ -102,7 +102,7 @@ public class JavaScriptTestRunnerComponentParser : IComponentLibraryParser
                         hasTestsInFile = true;
                         var args = node.GetChildForField(TreeSitterSyntax.Fields.Arguments) ?? node.FindChildOfType(TreeSitterSyntax.Common.Arguments);
                         var testTitle = "";
-                        if (args.IsValid() && args.Children.Count > 1)
+                        if (args.IsValid() && args.Children.Count > 0)
                         {
                             var firstArg = args.Children.FirstOrDefault(c => c.IsValid() && (c.Type.Contains("string") || c.Type.Contains("template")));
                             if (firstArg.IsValid()) testTitle = firstArg.Text.Trim('"', '\'', '`');

@@ -21,7 +21,7 @@ public static class CargoManifestParser
         TomlTable? model;
         try
         {
-            var content = File.ReadAllText(fullPath);
+            var content = PhysicalFileStore.ReadAllText(fullPath);
             model = TomlSerializer.Deserialize<TomlTable>(content);
         }
         catch
@@ -200,7 +200,7 @@ public static class CargoManifestParser
             {
                 try
                 {
-                    var text = File.ReadAllText(candidateCargoToml);
+                    var text = PhysicalFileStore.ReadAllText(candidateCargoToml);
                     if (text.Contains("[workspace]"))
                     {
                         return candidateCargoToml;

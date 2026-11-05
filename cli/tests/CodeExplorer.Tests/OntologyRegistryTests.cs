@@ -1,3 +1,4 @@
+using CodeExplorer.Cypher.Common;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -85,7 +86,7 @@ public class OntologyRegistryTests
 
         foreach (var kind in expectedSystemKinds)
         {
-            var node = OntologyRegistry.AllNodes.FirstOrDefault(n => string.Equals(n.Kind, kind, StringComparison.OrdinalIgnoreCase));
+            var node = OntologyRegistry.AllNodes.FirstOrDefault(n => string.Equals(n.Kind.ToCypherLabel(), kind, StringComparison.OrdinalIgnoreCase));
             node.Should().NotBeNull($"Node '{kind}' should exist in AllNodes");
             node!.Attribute.IsSystemNode.Should().BeTrue($"Node '{kind}' should have IsSystemNode = true");
             OntologyRegistry.IsSystemNode(kind).Should().BeTrue($"IsSystemNode('{kind}') should return true");
@@ -99,7 +100,7 @@ public class OntologyRegistryTests
 
         foreach (var kind in domainKinds)
         {
-            var node = OntologyRegistry.AllNodes.FirstOrDefault(n => string.Equals(n.Kind, kind, StringComparison.OrdinalIgnoreCase));
+            var node = OntologyRegistry.AllNodes.FirstOrDefault(n => string.Equals(n.Kind.ToCypherLabel(), kind, StringComparison.OrdinalIgnoreCase));
             node.Should().NotBeNull($"Node '{kind}' should exist in AllNodes");
             node!.Attribute.IsSystemNode.Should().BeFalse($"Node '{kind}' should have IsSystemNode = false");
             OntologyRegistry.IsSystemNode(kind).Should().BeFalse($"IsSystemNode('{kind}') should return false");

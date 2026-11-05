@@ -97,6 +97,10 @@ public class PythonFileVisitor : BaseParserVisitor
             return false;
 
         var cond = node.GetChildForField("condition");
+        if (!cond.IsValid() && node.Children.Count > 0)
+        {
+            cond = node.Children[0];
+        }
         if (!cond.IsValid() && node.Children.Count > 1)
         {
             cond = node.Children[1];
@@ -110,7 +114,7 @@ public class PythonFileVisitor : BaseParserVisitor
 
     protected override void CollectCustomReferencesForSymbol(Node node, SyntacticSymbol symbolNode, SyntacticSymbol parentNode)
     {
-        if (symbolNode.Kind == OntologyConstants.NodeLabels.Function)
+        if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function)
         {
             var parent = node.Parent;
             if (parent.IsValid() && parent.Is(TreeSitterSyntax.Python.DecoratedDefinition))
@@ -128,13 +132,13 @@ public class PythonFileVisitor : BaseParserVisitor
                 }
             }
         }
-        else if (symbolNode.Kind == OntologyConstants.NodeLabels.EntryPoint && IsDjangoPath(node))
+        else if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint && IsDjangoPath(node))
         {
             var route = ExtractDjangoPathRoute(node);
             if (!string.IsNullOrEmpty(route))
             {
                 var args = node.FindChildOfType(TreeSitterSyntax.Python.ArgumentList);
-                if (args.IsValid() && args.Children.Count > 1)
+                if (args.IsValid() && args.Children.Count > 0)
                 {
                     var viewArg = args.Children.Skip(1).FirstOrDefault(c => c.IsAny(TreeSitterSyntax.Python.Identifier, TreeSitterSyntax.Python.Attribute));
                     if (viewArg.IsValid())
@@ -247,7 +251,7 @@ public class PythonFileVisitor : BaseParserVisitor
             }
 
             var rightNode = node.GetChildForField(TreeSitterSyntax.Fields.Right);
-            if (!rightNode.IsValid())
+            if (!rightNode.IsValid() && node.Children.Count >= 2 && node.Children[^1] != leftNode) { rightNode = node.Children[^1]; } else if (!rightNode.IsValid())
             {
                 var eqIdx = -1;
                 for (var i = 0; i < node.Children.Count; i++)
@@ -267,7 +271,7 @@ public class PythonFileVisitor : BaseParserVisitor
             if (leftNode.IsValid() && leftNode.Is(TreeSitterSyntax.Python.Identifier))
             {
                 var name = leftNode.Text;
-                var initializerText = rightNode.IsValid() ? rightNode.Text : "";
+                var initializerText = rightNode.IsValid() ? rightNode.GetBoundedInitializerText() : "";
 
                 var isConstant = name.All(c => !char.IsLower(c));
                 var scope = DeterminePythonScope(node);
@@ -373,7 +377,7 @@ public class PythonFileVisitor : BaseParserVisitor
 
         var args = call.FindChildOfType(TreeSitterSyntax.Python.ArgumentList);
         var routeVal = "/";
-        if (args.IsValid() && args.Children.Count > 1)
+        if (args.IsValid() && args.Children.Count > 0)
         {
             var firstArg = args.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Python.String));
             if (firstArg.IsValid())
@@ -398,7 +402,7 @@ public class PythonFileVisitor : BaseParserVisitor
     private static string? ExtractDjangoPathRoute(Node callNode)
     {
         var args = callNode.FindChildOfType(TreeSitterSyntax.Python.ArgumentList);
-        if (args.IsValid() && args.Children.Count > 1)
+        if (args.IsValid() && args.Children.Count > 0)
         {
             var firstArg = args.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Python.String));
             if (firstArg.IsValid())

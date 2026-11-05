@@ -48,7 +48,7 @@ public partial class ArchitectureViewEngine
         var response = new NodeEvidenceResponseDto
         {
             NodeId = nodeIds.FirstOrDefault() ?? string.Empty,
-            NodeKind = nodeKind ?? string.Empty
+            NodeKind = EnumExtensions.ParseNodeKind(nodeKind)
         };
 
         var warnings = new List<string>();
@@ -58,9 +58,9 @@ public partial class ArchitectureViewEngine
         if (resolvedNodes.Count > 0)
         {
             response.NodeName = resolvedNodes[0].Name;
-            if (string.IsNullOrEmpty(response.NodeKind))
+            if (response.NodeKind == NodeKind.Unspecified)
             {
-                response.NodeKind = resolvedNodes[0].Label;
+                response.NodeKind = EnumExtensions.ParseNodeKind(resolvedNodes[0].Label);
             }
         }
 

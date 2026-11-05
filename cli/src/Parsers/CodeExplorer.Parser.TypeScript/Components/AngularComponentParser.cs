@@ -44,7 +44,7 @@ public class AngularComponentParser : IComponentLibraryParser
         {
             try
             {
-                var content = File.ReadAllText(packageJsonPath);
+                var content = PhysicalFileStore.ReadAllText(packageJsonPath);
                 using var doc = System.Text.Json.JsonDocument.Parse(content);
                 if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object &&
                     doc.RootElement.TryGetProperty("ngPackage", out _))
@@ -69,7 +69,7 @@ public class AngularComponentParser : IComponentLibraryParser
             {
                 try
                 {
-                    var json = File.ReadAllText(ancestorAngularJson);
+                    var json = PhysicalFileStore.ReadAllText(ancestorAngularJson);
                     using var angDoc = System.Text.Json.JsonDocument.Parse(json);
                     if (angDoc.RootElement.TryGetProperty("projects", out var projectsObj) &&
                         projectsObj.ValueKind == System.Text.Json.JsonValueKind.Object)
@@ -136,7 +136,7 @@ public class AngularComponentParser : IComponentLibraryParser
 
         try
         {
-            var json = File.ReadAllText(manifestPath);
+            var json = PhysicalFileStore.ReadAllText(manifestPath);
             using var doc = System.Text.Json.JsonDocument.Parse(json);
             if (!doc.RootElement.TryGetProperty("projects", out var projectsObj) ||
                 projectsObj.ValueKind != System.Text.Json.JsonValueKind.Object)

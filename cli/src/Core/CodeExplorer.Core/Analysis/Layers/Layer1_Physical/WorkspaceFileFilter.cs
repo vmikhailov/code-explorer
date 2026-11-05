@@ -6,7 +6,7 @@ namespace CodeExplorer.Core.Parser;
 /// </summary>
 public class WorkspaceFileFilter
 {
-    public const long MaxSourceFileSize = 1_048_576; // 1 MB limit for AST parsing
+    public const long MaxSourceFileSize = 1_048_576 * 10; // 10 MB limit for AST parsing
 
     /// <summary>
     /// Universal developer tooling / VCS directories that are always excluded regardless of connected parsers.
@@ -156,7 +156,7 @@ public class WorkspaceFileFilter
         return false;
     }
 
-    public bool ShouldSkipFile(FileInfo fileInfo)
+    public bool ShouldSkipFileMetadata(FileInfo fileInfo)
     {
         if (ShouldSkipFileName(fileInfo.Name)) return true;
 
@@ -173,11 +173,37 @@ public class WorkspaceFileFilter
             // Ignore file access errors
         }
 
+        return false;
+    }
+
+    public bool ShouldSkipFileBytes(string fileName, ReadOnlySpan<byte> contentBytes)
+    {
+        if (IncludeDistAndMinifiedArtifacts) return false;
+
+        var ext = Path.GetExtension(fileName);
+        if (ext.Equals(".js", StringComparison.OrdinalIgnoreCase) ||
+            ext.Equals(".ts", StringComparison.OrdinalIgnoreCase) ||
+            ext.Equals(".css", StringComparison.OrdinalIgnoreCase))
+        {
+            if (IsMinifiedContentBytes(contentBytes))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public bool ShouldSkipFile(FileInfo fileInfo)
+    {
+        if (ShouldSkipFileMetadata(fileInfo)) return true;
+        if (IncludeDistAndMinifiedArtifacts) return false;
+
         foreach (var p in _projectParsers)
         {
             if (p.ShouldSkipFile(fileInfo))
             {
-                if (!IncludeDistAndMinifiedArtifacts) return true;
+                return true;
             }
         }
 
@@ -185,10 +211,34 @@ public class WorkspaceFileFilter
         {
             if (f.ShouldSkipFile(fileInfo))
             {
-                if (!IncludeDistAndMinifiedArtifacts) return true;
+                return true;
             }
         }
 
+        return false;
+    }
+
+    public static bool IsMinifiedContentBytes(ReadOnlySpan<byte> bytes)
+    {
+        if (bytes.IsEmpty) return false;
+        var limit = Math.Min(bytes.Length, 8192);
+        var lineLen = 0;
+        var newlines = 0;
+        for (var i = 0; i < limit; i++)
+        {
+            if (bytes[i] == (byte)'\n')
+            {
+                newlines++;
+                lineLen = 0;
+            }
+            else
+            {
+                lineLen++;
+                if (lineLen > 1000) return true;
+            }
+        }
+        if (lineLen > 1000) return true;
+        if (limit >= 4096 && newlines <= 3) return true;
         return false;
     }
 
@@ -248,6 +298,30 @@ public class WorkspaceFileFilter
 
     public static bool IsMinifiedContent(string filePath)
     {
+        if (PhysicalFileStore.TryGetFileText(filePath, out var cachedText))
+        {
+            if (string.IsNullOrEmpty(cachedText)) return false;
+            var limit = Math.Min(cachedText.Length, 8192);
+            var lineLen = 0;
+            var newlines = 0;
+            for (var i = 0; i < limit; i++)
+            {
+                if (cachedText[i] == '\n')
+                {
+                    newlines++;
+                    lineLen = 0;
+                }
+                else
+                {
+                    lineLen++;
+                    if (lineLen > 1000) return true;
+                }
+            }
+            if (lineLen > 1000) return true;
+            if (limit >= 4096 && newlines <= 3) return true;
+            return false;
+        }
+
         try
         {
             using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);

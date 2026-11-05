@@ -65,10 +65,22 @@ public sealed class FunctionDataflowSummary
 /// </summary>
 public static class FunctionDataflowAnalyzer
 {
+    private static readonly AsyncLocal<bool?> _enabled = new();
+
+    /// <summary>
+    /// When true (default), computes intraprocedural dataflow summaries for function declarations.
+    /// Can be disabled in lightweight AST scanning modes to avoid extra allocations and CPU overhead.
+    /// </summary>
+    public static bool Enabled
+    {
+        get => _enabled.Value ?? true;
+        set => _enabled.Value = value;
+    }
+
     public static FunctionDataflowSummary Analyze(FunctionDeclSyntax fn)
     {
         var summary = new FunctionDataflowSummary();
-        if ((fn.Span.EndByte - fn.Span.StartByte) > 64 * 1024)
+        if (!Enabled || (fn.Span.EndByte - fn.Span.StartByte) > 64 * 1024)
         {
             fn.DataflowSummary = summary;
             return summary;
@@ -216,16 +228,22 @@ public static class FunctionDataflowAnalyzer
 
         if (assign.Left is IdentifierExprSyntax id)
         {
-            varOrigins[id.Name] = origins;
+            var idSpan = id.NameSpan;
+            if (!idSpan.IsEmpty)
+            {
+                var spanLookup = varOrigins.GetAlternateLookup<ReadOnlySpan<char>>();
+                spanLookup[idSpan] = origins;
+            }
         }
         else if (assign.Left is MemberAccessExprSyntax mem)
         {
-            if (mem.Object is IdentifierExprSyntax { Name: "this" or "self" } && !string.IsNullOrEmpty(mem.MemberName))
+            if (mem.Object is IdentifierExprSyntax objId && objId.NameSpan is "this" or "self" && !mem.MemberNameSpan.IsEmpty)
             {
-                if (!summary.FieldWrites.TryGetValue(mem.MemberName, out var fw))
+                var memberName = mem.MemberName;
+                if (!summary.FieldWrites.TryGetValue(memberName, out var fw))
                 {
                     fw = [];
-                    summary.FieldWrites[mem.MemberName] = fw;
+                    summary.FieldWrites[memberName] = fw;
                 }
                 fw.AddRange(origins);
             }
@@ -248,7 +266,7 @@ public static class FunctionDataflowAnalyzer
 
     private static void RecordCall(CallExprSyntax call, Dictionary<string, List<DataflowOrigin>> varOrigins, FunctionDataflowSummary summary)
     {
-        if (string.IsNullOrEmpty(call.MethodName)) return;
+        if (call.MethodNameSpan.IsEmpty) return;
 
         var key = (call.MethodName, call.Span.StartLine + 1);
         if (!summary.CallArgFlows.TryGetValue(key, out var argMap))
@@ -279,11 +297,12 @@ public static class FunctionDataflowAnalyzer
     private static List<DataflowOrigin> ResolveExprOrigins(ExprSyntax expr, Dictionary<string, List<DataflowOrigin>> varOrigins)
     {
         var list = new List<DataflowOrigin>();
+        var spanLookup = varOrigins.GetAlternateLookup<ReadOnlySpan<char>>();
 
         switch (expr)
         {
             case IdentifierExprSyntax id:
-                if (varOrigins.TryGetValue(id.Name, out var found))
+                if (spanLookup.TryGetValue(id.NameSpan, out var found))
                 {
                     list.AddRange(found);
                 }
@@ -292,11 +311,12 @@ public static class FunctionDataflowAnalyzer
             case MemberAccessExprSyntax mem:
                 if (mem.Object is IdentifierExprSyntax objId)
                 {
-                    if (objId.Name is "this" or "self")
+                    var objSpan = objId.NameSpan;
+                    if (objSpan is "this" or "self")
                     {
                         list.Add(new DataflowOrigin(FlowSourceKind.InstanceField, $"this.{mem.MemberName}"));
                     }
-                    else if (varOrigins.TryGetValue(objId.Name, out var objOrigins))
+                    else if (spanLookup.TryGetValue(objSpan, out var objOrigins))
                     {
                         foreach (var orig in objOrigins)
                         {

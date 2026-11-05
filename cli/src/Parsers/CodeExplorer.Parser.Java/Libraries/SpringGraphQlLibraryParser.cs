@@ -69,9 +69,9 @@ public class SpringGraphQlLibraryParser : ISemanticExtension
         var annotName = GetAnnotationName(node);
         symbol.OperationType = annotName switch
         {
-            "MutationMapping" => "Mutation",
-            "SubscriptionMapping" => "Subscription",
-            _ => "Query"
+            "MutationMapping" => CodeExplorer.Cypher.Common.OperationType.Mutation,
+            "SubscriptionMapping" => CodeExplorer.Cypher.Common.OperationType.Subscription,
+            _ => CodeExplorer.Cypher.Common.OperationType.Query
         };
 
         var parentDecl = node.Parent;

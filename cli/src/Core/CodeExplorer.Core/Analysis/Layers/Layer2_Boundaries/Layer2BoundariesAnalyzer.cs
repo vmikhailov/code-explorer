@@ -84,7 +84,7 @@ public partial class Layer2ProjectParser
 
         NormalizeDependencyProjectIds(projects, dependencies);
 
-        PopulatePackageLifecycleAndEntryPoints(projects, l1Result.Files, dependencies, ctx);
+        PopulatePackageLifecycleAndEntryPoints(l1Result, projects, packages, dependencies, ctx);
 
         if (dependencies.Count > 0)
         {

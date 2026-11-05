@@ -210,7 +210,7 @@ public partial class RustParser
         var localRsFiles = filesInDirectory.Where(f => f.EndsWith(".rs", StringComparison.OrdinalIgnoreCase)).ToList();
         var allScanFiles = localRsFiles.Concat(companionBinFiles).ToList();
         var combinedSourceText = string.Join(" ", allScanFiles.Select(f => {
-            try { return File.ReadAllText(f); } catch { return ""; }
+            try { return PhysicalFileStore.ReadAllText(f); } catch { return ""; }
         }));
 
         var hasServerCode = hasCompanionServer || (hasDirectBin && (isWeb || isGrpc || combinedSourceText.Contains("axum::Router") || combinedSourceText.Contains("start_coordination_server")));
@@ -312,7 +312,7 @@ public partial class RustParser
                                 segment.Equals("target", StringComparison.OrdinalIgnoreCase) ||
                                 segment.Equals(".git", StringComparison.OrdinalIgnoreCase)))
             .ToArray();
-        var source = string.Join('\n', sourceFiles.Select(File.ReadAllText));
+        var source = string.Join('\n', sourceFiles.Select(PhysicalFileStore.ReadAllText));
         var nonEmptyLines = source.Split('\n').Count(line => !string.IsNullOrWhiteSpace(line));
 
         if (shouldMeasureSize && nonEmptyLines >= 1500)
@@ -363,7 +363,7 @@ public partial class RustParser
 
         var rsFiles = filesInDirectory.Where(f => f.EndsWith(".rs", StringComparison.OrdinalIgnoreCase)).ToList();
         var sourceText = string.Join(" ", rsFiles.Select(f => {
-            try { return File.ReadAllText(f); } catch { return ""; }
+            try { return PhysicalFileStore.ReadAllText(f); } catch { return ""; }
         }));
 
         var hasServerCode = isWeb || isGrpc || sourceText.Contains("start_coordination_server") || sourceText.Contains("axum::Router") || binName.Contains("server");

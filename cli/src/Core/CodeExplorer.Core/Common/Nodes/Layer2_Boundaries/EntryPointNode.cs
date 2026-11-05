@@ -20,10 +20,20 @@ public record EntryPointNode(
     string Id,
     [property: OntologyProperty("The name of the binary or process entry point.")] string Name,
     [property: OntologyProperty("The path of the entry point file relative to its parent container.")] string Path,
-    [property: JsonPropertyName("entry_type"), OntologyProperty("The kind of binary/process entry point (e.g. main-method, top-level, script-main, bundle-entry).")] string EntryType,
+    [property: JsonPropertyName("entry_type"), OntologyProperty("The kind of binary/process entry point (e.g. main-method, top-level, script-main, bundle-entry).")] EntryPointType EntryType,
     Dictionary<string, string>? Extensions = null
 ) : CompositeNode(Id, Extensions)
 {
+    public EntryPointNode(
+        string Id,
+        string Name,
+        string Path,
+        string EntryType,
+        Dictionary<string, string>? Extensions = null)
+        : this(Id, Name, Path, TaxonomyEnumExtensions.ParseEntryPointType(EntryType), Extensions)
+    {
+    }
+
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.EntryPoint;
 }

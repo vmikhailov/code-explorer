@@ -364,7 +364,7 @@ public static class ProjectLayerClassifier
                string.Equals(p.Extensions?.GetValueOrDefault("entity_kind"), "CliTool", StringComparison.OrdinalIgnoreCase) ||
                p.Extensions?.GetValueOrDefault("manifest_type") == "cli" ||
                p.Extensions?.GetValueOrDefault("has_cli_bin") == "true" ||
-               p.EntryPoints.Any(ep => ep.EntryType == "cli");
+               p.EntryPoints.Any(ep => ep.EntryType == CodeExplorer.Cypher.Common.EntryPointType.Cli);
     }
 
     public static bool IsWorkerOrScheduler(ProjectClassifierItem p)
@@ -409,7 +409,7 @@ public static class ProjectLayerClassifier
             }
         }
 
-        if (p.EntryPoints.Any(ep => ep.EntryType is "queue-listener" or "cron" or "worker"))
+        if (p.EntryPoints.Any(ep => ep.EntryType is CodeExplorer.Cypher.Common.EntryPointType.QueueListener or CodeExplorer.Cypher.Common.EntryPointType.Cron or CodeExplorer.Cypher.Common.EntryPointType.Worker))
         {
             return true;
         }

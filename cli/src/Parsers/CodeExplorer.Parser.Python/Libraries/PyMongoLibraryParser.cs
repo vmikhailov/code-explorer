@@ -74,7 +74,7 @@ public class PyMongoLibraryParser : ISemanticExtension
         }
         if (objNode.Is(TreeSitterSyntax.Python.Subscript))
         {
-            var sub = objNode.GetField(TreeSitterSyntax.Fields.Subscript) ?? (objNode.Children.Count >= 3 ? objNode.Children[2] : null);
+            var sub = objNode.GetField(TreeSitterSyntax.Fields.Subscript) ?? (objNode.Children.Count >= 2 ? objNode.Children[^1] : null);
             if (sub.IsValid())
             {
                 var resolved = PythonAstHelper.ResolveStringOrVariable(sub);

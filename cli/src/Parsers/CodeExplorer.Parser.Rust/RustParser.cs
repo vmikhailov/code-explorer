@@ -236,7 +236,7 @@ public partial class RustParser : IProjectParser, IFileParser
 
         var dockerfiles = Directory.GetParent(directoryPath) is { } workspaceParent
             ? Directory.EnumerateFiles(workspaceParent.FullName, "Dockerfile*", SearchOption.TopDirectoryOnly)
-                .Select(path => (Path: path, Text: File.ReadAllText(path)))
+                .Select(path => (Path: path, Text: PhysicalFileStore.ReadAllText(path)))
                 .ToArray()
             : [];
         var projects = new List<AdditionalProjectDescriptor>(manifest.BinTargets.Count);
@@ -249,7 +249,7 @@ public partial class RustParser : IProjectParser, IFileParser
                 continue;
             }
 
-            var source = File.ReadAllText(entryPointPath);
+            var source = PhysicalFileStore.ReadAllText(entryPointPath);
             var normalizedName = target.Name.Replace('_', '-');
             var dockerService = dockerfiles.Any(d =>
                 d.Text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
@@ -658,7 +658,7 @@ public partial class RustParser : IProjectParser, IFileParser
         {
             foreach (var file in files)
             {
-                var text = File.ReadAllText(file);
+                var text = PhysicalFileStore.ReadAllText(file);
                 var matches = Regex.Matches(text, @"(?:use\s+|extern\s+crate\s+)([a-zA-Z0-9_]+)");
                 foreach (Match m in matches)
                 {

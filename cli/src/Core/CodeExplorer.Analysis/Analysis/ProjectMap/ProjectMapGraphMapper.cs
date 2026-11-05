@@ -30,10 +30,8 @@ public static class ProjectMapGraphMapper
 
         foreach (var m in result.Modules)
         {
-            var nodeKind = !string.IsNullOrEmpty(m.NodeKindOverride)
-                ? EnumExtensions.ParseNodeKind(m.NodeKindOverride)
-                : defaultModuleKind;
-            var filePath = !string.IsNullOrEmpty(m.NodeKindOverride)
+            var nodeKind = m.NodeKindOverride ?? defaultModuleKind;
+            var filePath = m.NodeKindOverride.HasValue
                 ? (m.Files.FirstOrDefault() ?? m.Path)
                 : (result.Granularity == ProjectMapGranularity.File ? m.Path : null);
 
@@ -53,11 +51,11 @@ public static class ProjectMapGraphMapper
             {
                 Id = r.Id,
                 Name = r.Name,
-                Kind = EnumExtensions.ParseNodeKind(r.Kind),
+                Kind = r.Kind,
                 Properties = new Dictionary<string, string>
                 {
                     ["pm_type"] = "resource",
-                    ["resource_kind"] = r.Kind,
+                    ["resource_kind"] = r.Kind.ToCypherLabel(),
                     ["tier"] = ((int)r.Tier).ToString(CultureInfo.InvariantCulture),
                     ["tier_label"] = TierLabel(r.Tier)
                 }
@@ -91,7 +89,7 @@ public static class ProjectMapGraphMapper
     {
         var props = new Dictionary<string, string>
         {
-            ["pm_type"] = m.PmType ?? "module",
+            ["pm_type"] = m.PmType?.ToCanonicalString() ?? "module",
             ["path"] = m.Path,
             ["tier"] = ((int)m.Tier).ToString(CultureInfo.InvariantCulture),
             ["tier_label"] = TierLabel(m.Tier),
@@ -107,7 +105,10 @@ public static class ProjectMapGraphMapper
             ["files"] = JsonSerializer.Serialize(m.Files.OrderBy(f => f, StringComparer.OrdinalIgnoreCase).Take(MaxListedFiles))
         };
 
-        if (!string.IsNullOrEmpty(m.SubKind)) props["sub_kind"] = m.SubKind;
+        var subKindStr = m.SubKind?.ToCanonicalString()
+                         ?? m.EntrySubKind?.ToCanonicalString()
+                         ?? (m.PmType == ProjectMapModuleType.EntryPoint ? m.NodeKindOverride?.ToCypherLabel() : null);
+        if (!string.IsNullOrEmpty(subKindStr)) props["sub_kind"] = subKindStr;
         if (m.StartLine.HasValue) props["start_line"] = m.StartLine.Value.ToString(CultureInfo.InvariantCulture);
         if (m.BfsDepth.HasValue) props["bfs_depth"] = m.BfsDepth.Value.ToString(CultureInfo.InvariantCulture);
         if (m.Methods.Count > 0)
@@ -130,7 +131,8 @@ public static class ProjectMapGraphMapper
         {
             props["pm_type"] = "subproject";
             if (!string.IsNullOrEmpty(m.SubProjectId)) props["subproject_id"] = m.SubProjectId;
-            if (!string.IsNullOrEmpty(m.SubProjectKind)) props["subproject_kind"] = m.SubProjectKind;
+            if (m.SubProjectKind.HasValue && m.SubProjectKind.Value != NodeKind.Unspecified)
+                props["subproject_kind"] = m.SubProjectKind.Value.ToCypherLabel();
         }
         if (m.CycleGroup.HasValue) props["cycle_group"] = m.CycleGroup.Value.ToString(CultureInfo.InvariantCulture);
         return props;
@@ -150,7 +152,7 @@ public static class ProjectMapGraphMapper
                 to = s.ToSymbol,
                 file = s.File,
                 line = s.Line,
-                kind = s.Kind
+                kind = s.Kind.ToCypherType()
             })),
             ["is_circular"] = e.IsCircular ? "true" : "false",
             ["is_resource_link"] = e.IsResourceLink ? "true" : "false"

@@ -1,6 +1,6 @@
 {
   "gateId": "SIG-M-R-001",
-  "allowedViolations": 20,
+  "allowedViolations": 18,
   "entries": [
     {
       "fingerprint": "a5d81e9467416901e0131d28a725dff8e4ce2c55ca78f70a27ecc0269eec5afb",
@@ -73,24 +73,24 @@
       "reason": "Baseline snapshot captured at 2026-10-30 11:08:37"
     },
     {
-      "fingerprint": "401bad12df40624a9c24c2c64c13dd7caec5c29fa53498b6b6204d814f80e58b",
+      "fingerprint": "884252e0caa709a2c37a2849f923f03a79397df74684da0b810e52a537190ee6",
       "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
-      "line": 2086,
+      "line": 2071,
       "column": 28,
-      "symbol": "<anon_2086>",
+      "symbol": "\u003Canon_2071\u003E",
       "target": "573 lines",
-      "acknowledgedAt": "2026-11-02T10:17:44.2332605+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-02 10:17:44"
+      "acknowledgedAt": "2026-11-05T17:10:05.4885605+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-05 17:10:05"
     },
     {
-      "fingerprint": "51cebc7a990b1de93b587d3d2bbecb51f784cc08735dc48d219f93ab6cfc7cc2",
+      "fingerprint": "846992adc2c4345bac899f5ee0bf33839e6883faaf0401bb409a55ec779e0f17",
       "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
-      "line": 2662,
+      "line": 2647,
       "column": 136,
-      "symbol": "<anon_2662>",
+      "symbol": "\u003Canon_2647\u003E",
       "target": "734 lines",
-      "acknowledgedAt": "2026-11-02T10:17:44.2332605+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-02 10:17:44"
+      "acknowledgedAt": "2026-11-05T17:10:05.4885605+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-05 17:10:05"
     },
     {
       "fingerprint": "d8d20873d3659e1ead3c1f33fd781032915d99169e1463bdaaf8969933327350",
@@ -103,21 +103,11 @@
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
     },
     {
-      "fingerprint": "9e39fa271fe50b9ce4384ed709eed55ed691f2403a490b8b2650b99c630b4c5c",
-      "file": "vscode-extension/src/webview/components/InspectorSidebarView.tsx",
-      "line": 138,
-      "column": 47,
-      "symbol": "InspectorSidebarView",
-      "target": "607 lines",
-      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
       "fingerprint": "4bf440cbedee8d62664d7a85c29550810de4dfc87fbd686ebc54b10d4744d834",
       "file": "vscode-extension/src/webview/components/ProjectCardNode.tsx",
       "line": 35,
       "column": 37,
-      "symbol": "<anon_35>",
+      "symbol": "\u003Canon_35\u003E",
       "target": "1052 lines",
       "acknowledgedAt": "2026-11-02T10:17:44.2332605+00:00",
       "reason": "Baseline snapshot captured at 2026-11-02 10:17:44"
@@ -137,20 +127,20 @@
       "file": "vscode-extension/src/webview/components/ProjectFlowView.tsx",
       "line": 490,
       "column": 13,
-      "symbol": "<anon_490>",
+      "symbol": "\u003Canon_490\u003E",
       "target": "683 lines",
       "acknowledgedAt": "2026-11-02T10:17:44.2332605+00:00",
       "reason": "Baseline snapshot captured at 2026-11-02 10:17:44"
     },
     {
-      "fingerprint": "84fc1dc78f028323fdf82159f490b05a98fc5f0b5a42b3ddcc1e2f8282a444fb",
+      "fingerprint": "6988ea807292343ea1ac0b096d4d7be32fa6d5e57a9beffc4892e5146b58639c",
       "file": "vscode-extension/src/webview/components/UniversalGraphMap.tsx",
-      "line": 74,
+      "line": 320,
       "column": 68,
       "symbol": "UniversalGraphMap",
-      "target": "568 lines",
-      "acknowledgedAt": "2026-10-30T01:40:04.389482+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 01:40:04"
+      "target": "1724 lines",
+      "acknowledgedAt": "2026-11-05T17:10:05.4885605+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-05 17:10:05"
     },
     {
       "fingerprint": "11077e0c911e686bdaf2c85f006f8e9ea9040e7aa4035375245c1d899a459c9d",

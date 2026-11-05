@@ -26,7 +26,21 @@ public partial class ArchitectureViewEngine
         int FileCount,
         bool IsBuildOrchestrator = false,
         string? ExcludedSubpathsJson = null,
-        string? Kind = null);
+        NodeKind? Kind = null)
+    {
+        public ProjectMapProjectInfo(
+            string Id,
+            string Name,
+            string Path,
+            bool IsTest,
+            int FileCount,
+            bool IsBuildOrchestrator,
+            string? ExcludedSubpathsJson,
+            string? Kind)
+            : this(Id, Name, Path, IsTest, FileCount, IsBuildOrchestrator, ExcludedSubpathsJson, string.IsNullOrWhiteSpace(Kind) ? null : EnumExtensions.ParseNodeKind(Kind))
+        {
+        }
+    }
 
     public async Task<GraphDataDto> GetProjectMapViewAsync(string? projectScope, CancellationToken ct = default)
     {
@@ -105,7 +119,7 @@ public partial class ArchitectureViewEngine
     }
 
     private static bool IsRunnableProjectKind(ProjectMapProjectInfo p) =>
-        p.Kind is "Service" or "App" or "CliTool" or "Worker";
+        p.Kind is NodeKind.Service or NodeKind.App or NodeKind.CliTool or NodeKind.Worker;
 
     private async Task<List<ProjectMapProjectInfo>> LoadProjectMapProjectsAsync(CancellationToken ct)
     {

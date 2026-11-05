@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CodeExplorer.Cypher.Common;
 using Dapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
@@ -168,7 +169,7 @@ public partial class SqliteGraphClient
                     pDomain.Value = (object?)pred.Domain ?? DBNull.Value;
                     pLayer.Value = (object?)pred.Layer ?? DBNull.Value;
                     pPattern.Value = (object?)pred.Pattern ?? DBNull.Value;
-                    pOp.Value = (object?)pred.OperationType ?? DBNull.Value;
+                    pOp.Value = (object?)pred.OperationType?.ToCanonicalString() ?? DBNull.Value;
                     pCap.Value = (object?)pred.CapabilityTag ?? DBNull.Value;
                     pSummary.Value = (object?)pred.IntentSummary ?? DBNull.Value;
                     pPure.Value = pred.IsPureDomain.HasValue ? (pred.IsPureDomain.Value ? 1 : 0) : DBNull.Value;
@@ -360,7 +361,7 @@ public partial class SqliteGraphClient
             cmd.Parameters.AddWithValue("@domain", (object?)record.Domain ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@layer", (object?)record.Layer ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@pattern", (object?)record.Pattern ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@operationType", (object?)record.OperationType ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@operationType", (object?)record.OperationType?.ToCanonicalString() ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@capabilityTag", (object?)record.CapabilityTag ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@intentSummary", (object?)record.IntentSummary ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@targetEntities", JsonSerializer.Serialize(record.TargetEntities ?? []));

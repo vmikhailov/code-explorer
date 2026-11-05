@@ -228,8 +228,10 @@ public partial class Layer4SemanticParser
                 }
             }
 
-            // Find project parser(s) — fast-path via in-memory ProjectType lookup before falling back to directory scan
-            var directParser = WorkspaceIndexer.GetProjectParser(project.ProjectType);
+            var projectFiles = filesByProjectId.GetValueOrDefault(project.Id) ?? [];
+
+            // Find project parser(s) — fast-path via in-memory ProjectType lookup before falling back to in-memory file list
+            var directParser = WorkspaceIndexer.GetProjectParser(project.ProjectType.ToCanonicalString());
             List<IProjectParser> matchingParsers;
             if (directParser != null)
             {
@@ -242,7 +244,7 @@ public partial class Layer4SemanticParser
                     ? Path.GetFullPath(projectDirectory)
                     : Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, project.Path));
                 projectAbsDir = projectAbsDir.Replace('\\', '/');
-                var filesInDir = Directory.Exists(projectAbsDir) ? Directory.GetFiles(projectAbsDir) : [];
+                var filesInDir = projectFiles.Select(f => f.FullPath).ToArray();
                 matchingParsers = WorkspaceIndexer._projectParsers
                     .Where(p => p.IsProjectDirectory(projectAbsDir, filesInDir))
                     .ToList();
@@ -256,7 +258,6 @@ public partial class Layer4SemanticParser
             }
 
             // 2. Parse project-level configuration files before syntax enrichment so resources are available in registry
-            var projectFiles = filesByProjectId.GetValueOrDefault(project.Id) ?? [];
             var initialRelCount = semanticRelationships.Count;
             foreach (var pfile in projectFiles)
             {
@@ -316,7 +317,7 @@ public partial class Layer4SemanticParser
                 .OfType<EndpointNode>()
                 .Where(ep => string.Equals(ep.Protocol, "GraphQL", StringComparison.OrdinalIgnoreCase) &&
                              (ep.Extensions == null || !ep.Extensions.TryGetValue("graphql_sdl", out var isSdl) || isSdl != "true"))
-                .Select(ep => ($"{ep.OperationType ?? "Query"}:{ep.RouteTemplate.Trim('/')}"))
+                .Select(ep => ($"{ep.OperationType?.ToCanonicalString() ?? "Query"}:{ep.RouteTemplate.Trim('/')}"))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             if (codeFirstGqlFields.Count > 0)
@@ -326,7 +327,7 @@ public partial class Layer4SemanticParser
                     .Where(ep => ep.Extensions != null &&
                                  ep.Extensions.TryGetValue("graphql_sdl", out var isSdl) &&
                                  isSdl == "true" &&
-                                 codeFirstGqlFields.Contains($"{ep.OperationType ?? "Query"}:{ep.RouteTemplate.Trim('/')}"))
+                                 codeFirstGqlFields.Contains($"{ep.OperationType?.ToCanonicalString() ?? "Query"}:{ep.RouteTemplate.Trim('/')}"))
                     .Select(ep => ep.Id)
                     .ToHashSet(StringComparer.Ordinal);
 

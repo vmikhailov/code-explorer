@@ -117,8 +117,8 @@ public class KotlinParserTests
             var entryPoints = syntaxTree.FileNode.Children.OfType<EntryPointNode>().ToList();
             var endpoints = syntaxTree.FileNode.Children.OfType<EndpointNode>().ToList();
 
-            (entryPoints.Any(ep => ep.EntryType == "activity" && ep.Name.Contains("MainActivity"))).Should().BeTrue();
-            (entryPoints.Any(ep => ep.EntryType == "provider" && ep.Name.Contains("FileProvider"))).Should().BeTrue();
+            (entryPoints.Any(ep => ep.EntryType == EntryPointType.Activity && ep.Name.Contains("MainActivity"))).Should().BeTrue();
+            (entryPoints.Any(ep => ep.EntryType == EntryPointType.Provider && ep.Name.Contains("FileProvider"))).Should().BeTrue();
 
             endpoints.Count.Should().Be(1);
             var deepLinkEp = endpoints[0];
@@ -164,7 +164,7 @@ public class KotlinParserTests
             methods.Should().Contain("installApk");
 
             // MethodChannels
-            var channels = syntaxTree.FileNode.Children.OfType<EntryPointNode>().Where(ep => ep.EntryType == "channel").ToList();
+            var channels = syntaxTree.FileNode.Children.OfType<EntryPointNode>().Where(ep => ep.EntryType == EntryPointType.Channel).ToList();
             var channelNames = channels.Select(c => c.Name).ToList();
             channelNames.Should().Contain("MethodChannel hearai/apk_install");
             channelNames.Should().Contain("MethodChannel hearai/deep_link");

@@ -2,13 +2,25 @@ using System.Text.Json.Serialization;
 
 namespace CodeExplorer.Core.Mcp.Models;
 
+[method: JsonConstructor]
 public record ProjectQueryParameter(
     [property: JsonPropertyName("name")] string Name,
-    [property: JsonPropertyName("type")] string Type = "string",
+    [property: JsonPropertyName("type")] CodeExplorer.Cypher.Common.QueryParameterType Type = CodeExplorer.Cypher.Common.QueryParameterType.String,
     [property: JsonPropertyName("required")] bool Required = false,
     [property: JsonPropertyName("description")] string? Description = null,
     [property: JsonPropertyName("defaultValue")] object? DefaultValue = null
-);
+)
+{
+    public ProjectQueryParameter(
+        string Name,
+        string Type,
+        bool Required = false,
+        string? Description = null,
+        object? DefaultValue = null)
+        : this(Name, CodeExplorer.Cypher.Common.TaxonomyViewEnumExtensions.ParseQueryParameterType(Type), Required, Description, DefaultValue)
+    {
+    }
+}
 
 public record ProjectQueryMetadata
 {
