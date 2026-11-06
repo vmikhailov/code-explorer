@@ -293,6 +293,12 @@ public class GoFileVisitor : BaseParserVisitor
                         return false;
                     }
 
+                    if (methodName == "Handle" && exprArgs.Count >= 2 &&
+                        (routeVal is "GET" or "POST" or "PUT" or "DELETE" or "PATCH" or "OPTIONS" or "HEAD"))
+                    {
+                        return false;
+                    }
+
                     return true;
                 }
             }

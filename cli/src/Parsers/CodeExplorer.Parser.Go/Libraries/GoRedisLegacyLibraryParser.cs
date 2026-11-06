@@ -11,9 +11,14 @@ public class GoRedisLegacyLibraryParser : ISemanticExtension
     public bool IsImplemented => true;
     public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
+    private static readonly HashSet<string> RedisConstructorMethods = new(StringComparer.Ordinal)
+    {
+        "NewClient", "NewFailoverClient", "NewClusterClient", "NewUniversalClient", "NewRing"
+    };
+
     public string? MapNodeType(Node node, ParsingContext ctx)
     {
-        if (GoRedisLibraryParser.IsRedisCall(node, out _, out _))
+        if (GoRedisLibraryParser.IsRedisCall(node, out var method, out _) && !RedisConstructorMethods.Contains(method!))
         {
             return OntologyConstants.NodeLabels.Query;
         }
@@ -22,7 +27,7 @@ public class GoRedisLegacyLibraryParser : ISemanticExtension
 
     public string? ExtractIdentifier(Node node, ParsingContext ctx)
     {
-        if (GoRedisLibraryParser.IsRedisCall(node, out var method, out _))
+        if (GoRedisLibraryParser.IsRedisCall(node, out var method, out _) && !RedisConstructorMethods.Contains(method!))
         {
             return $"Redis: {method}";
         }
@@ -38,7 +43,7 @@ public class GoRedisLegacyLibraryParser : ISemanticExtension
                 var channel = !string.IsNullOrEmpty(target) ? "redis:" + target : "redis";
                 references.Add(new Reference(scopeSymbolId, channel, OntologyConstants.Relationships.PublishesTo));
             }
-            else if (method == "Subscribe")
+            else if (method is "Subscribe" or "PSubscribe")
             {
                 var channel = !string.IsNullOrEmpty(target) ? "redis:" + target : "redis";
                 references.Add(new Reference(scopeSymbolId, channel, OntologyConstants.Relationships.SubscribesTo));

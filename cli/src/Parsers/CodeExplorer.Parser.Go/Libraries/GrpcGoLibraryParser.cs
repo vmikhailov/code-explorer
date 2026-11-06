@@ -17,15 +17,35 @@ public class GrpcGoLibraryParser : ISemanticExtension
         "google.golang.org/grpc"
     ];
     public bool IsImplemented => true;
+    public bool IsBuiltIn => true;
     public LibraryRole LibraryRole => LibraryRole.WebService;
 
     private const string ResultFieldName = "result";
     private const string ReceiverFieldName = "receiver";
     private static readonly ConcurrentDictionary<string, Dictionary<string, string>> ReceiverToServiceMapCache = new();
+    private static readonly Regex StreamServerRegex = new(@"(?:[A-Za-z0-9_]+\.)?([A-Za-z0-9_]+)_[A-Za-z0-9_]+Server\b", RegexOptions.Compiled);
+    private static readonly Regex RequestTypeRegex = new(@"([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)(?:Request|Query)\b", RegexOptions.Compiled);
     private static readonly Regex UnimplementedServerRegex = new(@"(?:[A-Za-z0-9_]+\.)?(?:Unimplemented)?([A-Za-z0-9_]+)Server", RegexOptions.Compiled);
     private static readonly Regex RegisterServerRegex = new(@"(?:[A-Za-z0-9_]+\.)?Register([A-Za-z0-9_]+)Server", RegexOptions.Compiled);
-    private static readonly Regex ClientTypeRegex = new(@"([A-Za-z0-9_]+?)(?:Svc|Service)?Client", RegexOptions.Compiled);
-    private static readonly Regex NewClientRegex = new(@"(?:[A-Za-z0-9_]+\.)?New([A-Za-z0-9_]+?)(?:Svc|Service)?Client\b", RegexOptions.Compiled);
+    private static readonly Regex ClientTypeRegex = new(@"(?:[A-Za-z0-9_]+\.)?([A-Za-z0-9_]+?)(?:Svc|Service)?Client\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex NewClientRegex = new(@"(?:(?:[A-Za-z0-9_]+\.)*New|New)([A-Za-z0-9_]+?)(?:Svc|Service)?Client\b", RegexOptions.Compiled);
+
+    private static string CleanServiceName(string raw)
+    {
+        if (string.IsNullOrEmpty(raw)) return "Service";
+        var s = raw;
+        if (s.EndsWith("pkg", StringComparison.OrdinalIgnoreCase) && s.Length > 3)
+        {
+            s = s[..^3];
+        }
+        if (s.EndsWith("v1", StringComparison.OrdinalIgnoreCase) && s.Length > 2)
+        {
+            s = s[..^2];
+        }
+        if (string.IsNullOrEmpty(s)) return "Service";
+        var clean = char.ToUpperInvariant(s[0]) + s[1..];
+        return clean.EndsWith("Service", StringComparison.OrdinalIgnoreCase) ? clean : $"{clean}Service";
+    }
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {
@@ -97,8 +117,7 @@ public class GrpcGoLibraryParser : ISemanticExtension
             .Select(p => p.GetChildForField(TreeSitterSyntax.Fields.Type)?.Text ?? p.Text)
             .ToList();
 
-        if (paramTypes.Count < 2) return false;
-        if (!paramTypes[0].Contains("context", StringComparison.OrdinalIgnoreCase) && !paramTypes[0].Contains("Context")) return false;
+        if (paramTypes.Count == 0) return false;
 
         var resultField = node.GetChildForField(ResultFieldName);
         if (resultField.IsValid() && !resultField.Text.Contains("error")) return false;
@@ -122,6 +141,13 @@ public class GrpcGoLibraryParser : ISemanticExtension
         if (receiverTypeName.StartsWith("Unimplemented", StringComparison.OrdinalIgnoreCase)) return false;
         if (receiverTypeName.EndsWith("Client", StringComparison.OrdinalIgnoreCase)) return false;
 
+        // Look up receiver struct mapping from file AST cache
+        var root = GetFileRoot(node);
+        var rootKey = !string.IsNullOrEmpty(node.Document?.FilePath)
+            ? node.Document.FilePath
+            : ((root as SyntaxDocument)?.FilePath ?? System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(root).ToString());
+        var map = ReceiverToServiceMapCache.GetOrAdd(rootKey, _ => BuildReceiverMap(root));
+
         // Check HealthCheck special-case
         if (paramTypes.Any(p => p.Contains("HealthCheckRequest") || p.Contains("Health_WatchServer")))
         {
@@ -130,52 +156,71 @@ public class GrpcGoLibraryParser : ISemanticExtension
             return true;
         }
 
-        // Look up receiver struct mapping from file AST cache
-        var root = GetFileRoot(node);
-        var rootKey = !string.IsNullOrEmpty(node.Document?.FilePath)
-            ? node.Document.FilePath
-            : ((root as SyntaxDocument)?.FilePath ?? System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(root).ToString());
-        var map = ReceiverToServiceMapCache.GetOrAdd(rootKey, _ => BuildReceiverMap(root));
-
-        if (!string.IsNullOrEmpty(receiverTypeName) && map.TryGetValue(receiverTypeName, out var mappedService))
+        // Check streaming RPCs (server-streaming or client/bidi streaming)
+        foreach (var pt in paramTypes)
         {
-            serviceName = mappedService;
-            methodName = nameText;
-            return true;
+            var sm = StreamServerRegex.Match(pt);
+            if (sm.Success)
+            {
+                serviceName = CleanServiceName(sm.Groups[1].Value);
+                methodName = nameText;
+                return true;
+            }
+            if (pt.EndsWith("ServerStream", StringComparison.Ordinal) || pt.Contains("grpc.ServerStream"))
+            {
+                if (!string.IsNullOrEmpty(receiverTypeName) && map.TryGetValue(receiverTypeName, out var mappedSvc))
+                {
+                    serviceName = mappedSvc;
+                    methodName = nameText;
+                    return true;
+                }
+            }
         }
 
-        var isGenericReceiver = string.IsNullOrEmpty(receiverTypeName) ||
-                                receiverTypeName.Equals("GrpcServer", StringComparison.OrdinalIgnoreCase) ||
-                                receiverTypeName.Equals("Server", StringComparison.OrdinalIgnoreCase) ||
-                                receiverTypeName.Equals("server", StringComparison.OrdinalIgnoreCase) ||
-                                receiverTypeName.Equals("grpcServer", StringComparison.OrdinalIgnoreCase) ||
-                                receiverTypeName.Equals("Handler", StringComparison.OrdinalIgnoreCase);
-
-        if (paramTypes.Count >= 2 && paramTypes[1].Contains("Request"))
+        // Unary RPCs: requires at least 2 parameters, param 0 is context
+        if (paramTypes.Count >= 2 &&
+            (paramTypes[0].Contains("context", StringComparison.OrdinalIgnoreCase) || paramTypes[0].Contains("Context")))
         {
             var rawReqType = paramTypes[1].TrimStart('*', '&');
-            var reqPackage = rawReqType.Contains('.') ? rawReqType.Split('.')[0] : "";
-            var reqType = rawReqType.Contains('.') ? rawReqType.Split('.')[^1] : rawReqType;
+            var isProtoReq = rawReqType.EndsWith("Request", StringComparison.OrdinalIgnoreCase) ||
+                             rawReqType.EndsWith("Query", StringComparison.OrdinalIgnoreCase) ||
+                             rawReqType.Contains("Empty", StringComparison.OrdinalIgnoreCase);
 
-            if (reqType.EndsWith("Request", StringComparison.OrdinalIgnoreCase))
+            if (isProtoReq)
             {
-                var inferred = reqType[..^"Request".Length];
+                if (!string.IsNullOrEmpty(receiverTypeName) && map.TryGetValue(receiverTypeName, out var mappedService))
+                {
+                    serviceName = mappedService;
+                    methodName = nameText;
+                    return true;
+                }
+
+                var isGenericReceiver = string.IsNullOrEmpty(receiverTypeName) ||
+                                        receiverTypeName.Equals("GrpcServer", StringComparison.OrdinalIgnoreCase) ||
+                                        receiverTypeName.Equals("Server", StringComparison.OrdinalIgnoreCase) ||
+                                        receiverTypeName.Equals("server", StringComparison.OrdinalIgnoreCase) ||
+                                        receiverTypeName.Equals("Service", StringComparison.OrdinalIgnoreCase) ||
+                                        receiverTypeName.Equals("service", StringComparison.OrdinalIgnoreCase) ||
+                                        receiverTypeName.Equals("grpcServer", StringComparison.OrdinalIgnoreCase) ||
+                                        receiverTypeName.Equals("Handler", StringComparison.OrdinalIgnoreCase);
+
+                var reqPackage = rawReqType.Contains('.') ? rawReqType.Split('.')[0] : "";
+                var reqType = rawReqType.Contains('.') ? rawReqType.Split('.')[^1] : rawReqType;
+
                 if (!string.IsNullOrEmpty(reqPackage) && isGenericReceiver)
                 {
-                    var cleanPkg = char.ToUpperInvariant(reqPackage[0]) + reqPackage[1..];
-                    serviceName = cleanPkg.EndsWith("Service", StringComparison.OrdinalIgnoreCase) ? cleanPkg : $"{cleanPkg}Service";
+                    serviceName = CleanServiceName(reqPackage);
                 }
                 else if (!string.IsNullOrEmpty(receiverTypeName) && !isGenericReceiver)
                 {
-                    serviceName = char.ToUpperInvariant(receiverTypeName[0]) + receiverTypeName[1..];
-                    if (!serviceName.EndsWith("Service", StringComparison.OrdinalIgnoreCase))
-                    {
-                        serviceName += "Service";
-                    }
+                    serviceName = CleanServiceName(receiverTypeName);
                 }
                 else
                 {
-                    serviceName = $"{inferred}Service";
+                    var inferred = reqType;
+                    if (inferred.EndsWith("Request", StringComparison.OrdinalIgnoreCase)) inferred = inferred[..^"Request".Length];
+                    else if (inferred.EndsWith("Query", StringComparison.OrdinalIgnoreCase)) inferred = inferred[..^"Query".Length];
+                    serviceName = CleanServiceName(inferred);
                 }
                 methodName = nameText;
                 return true;
@@ -309,8 +354,7 @@ public class GrpcGoLibraryParser : ISemanticExtension
                                                 {
                                                     var raw = cMatch.Groups[1].Value;
                                                     if (raw.Contains('.')) raw = raw.Split('.')[^1];
-                                                    var clean = char.ToUpperInvariant(raw[0]) + raw[1..];
-                                                    serviceName = clean.EndsWith("Service", StringComparison.OrdinalIgnoreCase) ? clean : $"{clean}Service";
+                                                    serviceName = CleanServiceName(raw);
                                                     return true;
                                                 }
                                             }
@@ -331,6 +375,28 @@ public class GrpcGoLibraryParser : ISemanticExtension
                 curr.Is(TreeSitterSyntax.Go.MethodDeclaration) ||
                 curr.Is(TreeSitterSyntax.Go.FuncLiteral))
             {
+                // Check parameters of enclosing function/method
+                var paramsNode = curr.GetChildForField(TreeSitterSyntax.Fields.Parameters);
+                if (paramsNode.IsValid())
+                {
+                    foreach (var param in paramsNode.Children.Where(c => c.Is(TreeSitterSyntax.Go.ParameterDeclaration)))
+                    {
+                        var pName = param.GetChildForField(TreeSitterSyntax.Fields.Name);
+                        var pType = param.GetChildForField(TreeSitterSyntax.Fields.Type);
+                        var nameStr = pName.IsValid() ? pName.Text : (param.Children.Count >= 2 ? param.Children[0].Text : "");
+                        if (nameStr == varName && pType.IsValid())
+                        {
+                            var match = ClientTypeRegex.Match(pType.Text);
+                            if (match.Success)
+                            {
+                                serviceName = CleanServiceName(match.Groups[1].Value);
+                                return true;
+                            }
+                        }
+                    }
+                }
+
+                // Check local variable declarations
                 foreach (var desc in curr.Descendants())
                 {
                     if (desc.Is(TreeSitterSyntax.Go.ShortVarDeclaration) || desc.Is(TreeSitterSyntax.Go.AssignmentStatement))
@@ -346,10 +412,23 @@ public class GrpcGoLibraryParser : ISemanticExtension
                                 if (match.Success)
                                 {
                                     var raw = match.Groups[1].Value;
-                                    var clean = char.ToUpperInvariant(raw[0]) + raw[1..];
-                                    serviceName = clean.EndsWith("Service", StringComparison.OrdinalIgnoreCase) ? clean : $"{clean}Service";
+                                    serviceName = CleanServiceName(raw);
                                     return true;
                                 }
+                            }
+                        }
+                    }
+                    else if (desc.Is(TreeSitterSyntax.Go.VarSpec))
+                    {
+                        var vName = desc.GetChildForField(TreeSitterSyntax.Fields.Name);
+                        var vType = desc.GetChildForField(TreeSitterSyntax.Fields.Type);
+                        if (vName.IsValid() && vName.Text == varName && vType.IsValid())
+                        {
+                            var match = ClientTypeRegex.Match(vType.Text);
+                            if (match.Success)
+                            {
+                                serviceName = CleanServiceName(match.Groups[1].Value);
+                                return true;
                             }
                         }
                     }
@@ -375,6 +454,18 @@ public class GrpcGoLibraryParser : ISemanticExtension
     {
         var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
+        // 1. Detect package name
+        var pkgNode = root.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Go.PackageClause));
+        string? pkgName = null;
+        if (pkgNode.IsValid())
+        {
+            var pkgId = pkgNode.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Go.PackageIdentifier) || c.Is(TreeSitterSyntax.Go.Identifier));
+            if (pkgId.IsValid() && !string.IsNullOrEmpty(pkgId.Text) && pkgId.Text != "main")
+            {
+                pkgName = pkgId.Text;
+            }
+        }
+
         void Walk(Node curr)
         {
             if (curr.Is(TreeSitterSyntax.Go.TypeSpec))
@@ -383,16 +474,75 @@ public class GrpcGoLibraryParser : ISemanticExtension
                 var typeNode = curr.GetChildForField(TreeSitterSyntax.Fields.Type);
                 if (nameNode.IsValid() && typeNode.IsValid() && typeNode.Is(TreeSitterSyntax.Go.StructType))
                 {
-                    var structText = typeNode.Text;
-                    var match = UnimplementedServerRegex.Match(structText);
-                    if (match.Success)
+                    foreach (var field in typeNode.Children.Where(c => c.Is(TreeSitterSyntax.Go.FieldDeclaration)))
                     {
-                        var sName = match.Groups[1].Value;
-                        if (!sName.EndsWith("Service", StringComparison.OrdinalIgnoreCase))
+                        var fName = field.GetChildForField(TreeSitterSyntax.Fields.Name);
+                        var fType = field.GetChildForField(TreeSitterSyntax.Fields.Type);
+                        // An embedded field has no field name identifier
+                        var isEmbedded = !fName.IsValid() || string.IsNullOrEmpty(fName.Text);
+                        var typeCandidate = fType.IsValid() ? fType.Text : (isEmbedded ? field.Text : "");
+                        if (!string.IsNullOrEmpty(typeCandidate))
                         {
-                            sName += "Service";
+                            var match = UnimplementedServerRegex.Match(typeCandidate);
+                            if (match.Success)
+                            {
+                                map[nameNode.Text] = CleanServiceName(match.Groups[1].Value);
+                            }
                         }
-                        map[nameNode.Text] = sName;
+                    }
+                }
+            }
+
+            if (curr.Is(TreeSitterSyntax.Go.MethodDeclaration))
+            {
+                var receiver = curr.GetChildForField(ReceiverFieldName);
+                var receiverTypeName = "";
+                if (receiver.IsValid())
+                {
+                    var param = receiver.FindChildOfType(TreeSitterSyntax.Go.ParameterDeclaration);
+                    if (param.IsValid())
+                    {
+                        var typeNode = param.GetChildForField(TreeSitterSyntax.Fields.Type);
+                        if (typeNode.IsValid())
+                        {
+                            receiverTypeName = typeNode.Text.TrimStart('*', '&');
+                        }
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(receiverTypeName) && !map.ContainsKey(receiverTypeName))
+                {
+                    var paramsField = curr.GetChildForField(TreeSitterSyntax.Fields.Parameters);
+                    if (paramsField.IsValid())
+                    {
+                        var paramTypes = paramsField.Children
+                            .Where(c => c.Is(TreeSitterSyntax.Go.ParameterDeclaration))
+                            .Select(p => p.GetChildForField(TreeSitterSyntax.Fields.Type)?.Text ?? p.Text)
+                            .ToList();
+
+                        foreach (var pt in paramTypes)
+                        {
+                            var streamMatch = StreamServerRegex.Match(pt);
+                            if (streamMatch.Success)
+                            {
+                                map[receiverTypeName] = CleanServiceName(streamMatch.Groups[1].Value);
+                                break;
+                            }
+                        }
+
+                        if (!map.ContainsKey(receiverTypeName) && paramTypes.Count >= 2)
+                        {
+                            var rawReq = paramTypes[1].TrimStart('*', '&');
+                            var match = RequestTypeRegex.Match(rawReq);
+                            if (match.Success)
+                            {
+                                var pkg = match.Groups[1].Value;
+                                if (!string.IsNullOrEmpty(pkg))
+                                {
+                                    map[receiverTypeName] = CleanServiceName(pkg);
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -403,15 +553,12 @@ public class GrpcGoLibraryParser : ISemanticExtension
                 var regMatch = RegisterServerRegex.Match(callText);
                 if (regMatch.Success)
                 {
-                    var sName = regMatch.Groups[1].Value;
-                    if (!sName.EndsWith("Service", StringComparison.OrdinalIgnoreCase))
-                    {
-                        sName += "Service";
-                    }
+                    var sName = CleanServiceName(regMatch.Groups[1].Value);
                     var args = GoAstHelper.GetCallArguments(curr);
                     if (args.Count >= 2)
                     {
                         var handlerArg = args[1].Text.TrimStart('&', '*');
+                        if (handlerArg.Contains('.')) handlerArg = handlerArg.Split('.')[^1];
                         map[handlerArg] = sName;
                     }
                 }
@@ -424,6 +571,16 @@ public class GrpcGoLibraryParser : ISemanticExtension
         }
 
         Walk(root);
+
+        if (!string.IsNullOrEmpty(pkgName))
+        {
+            var cleanPkg = CleanServiceName(pkgName);
+            if (!map.ContainsKey("Server")) map["Server"] = cleanPkg;
+            if (!map.ContainsKey("server")) map["server"] = cleanPkg;
+            if (!map.ContainsKey("Service")) map["Service"] = cleanPkg;
+            if (!map.ContainsKey("service")) map["service"] = cleanPkg;
+        }
+
         return map;
     }
 }

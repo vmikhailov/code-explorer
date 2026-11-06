@@ -323,4 +323,129 @@ func setupRouter() {
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
+
+    [Test]
+    public async Task GrpcGateway_RoutesAndPatterns_ExtractsRestEndpointsAndCallsGrpc()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce-test-gw-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var filePath = Path.Combine(tempDir, "service.pb.gw.go");
+
+        var code = @"package service
+
+import (
+	""context""
+	""net/http""
+	""github.com/grpc-ecosystem/grpc-gateway/runtime""
+	""google.golang.org/grpc""
+)
+
+type ItemServiceClient interface{}
+
+func RegisterItemServiceHandlerClient(ctx context.Context, mux *runtime.ServeMux, client ItemServiceClient) error {
+	mux.Handle(""GET"", pattern_ItemService_GetItem_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {})
+	mux.Handle(""POST"", pattern_ItemService_CreateItem_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {})
+	return nil
+}
+
+var (
+	pattern_ItemService_GetItem_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2}, []string{""api"", ""items"", ""id""}, """", runtime.AssumeColonVerbOpt(true)))
+	pattern_ItemService_CreateItem_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{""api"", ""items""}, """", runtime.AssumeColonVerbOpt(true)))
+)
+";
+        await File.WriteAllTextAsync(filePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphRepository();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var parser = new GoParser();
+
+            using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var fileNode = syntaxTree.FileNode;
+            fileNode.Should().NotBeNull();
+
+            var endpoints = FindEndpointNodes(fileNode.Children);
+            endpoints.Should().HaveCount(2);
+
+            var getEp = endpoints.FirstOrDefault(e => e.Name == "GET:/api/items/{id}");
+            getEp.Should().NotBeNull();
+            getEp!.RouteTemplate.Should().Be("/api/items/{id}");
+            getEp.HttpMethod.Should().Be("GET");
+            getEp.Protocol.Should().Be("REST");
+
+            var postEp = endpoints.FirstOrDefault(e => e.Name == "POST:/api/items");
+            postEp.Should().NotBeNull();
+            postEp!.RouteTemplate.Should().Be("/api/items");
+            postEp.HttpMethod.Should().Be("POST");
+
+            // Verify calls to gRPC services
+            var references = fileNode.Children.SelectMany(c => c.References).ToList();
+            references.Should().Contain(r => r.TargetName == "RPC:/ItemService/GetItem" && r.Kind == "CALLS");
+            references.Should().Contain(r => r.TargetName == "RPC:/ItemService/CreateItem" && r.Kind == "CALLS");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Grpc_StreamingAndQuerySignatures_ExtractsEndpoints()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce-test-grpc-stream-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var filePath = Path.Combine(tempDir, "server.go");
+
+        var code = @"package repository
+
+import (
+	""context""
+	""google.golang.org/grpc""
+)
+
+type Service struct{}
+
+type Query struct{}
+type AppResponse struct{}
+
+type RepoService_StreamFilesServer interface {
+	grpc.ServerStream
+}
+
+func (s *Service) WatchItems(q *Query, stream RepoService_StreamFilesServer) error {
+	return nil
+}
+
+func (s *Service) GetDetails(ctx context.Context, q *Query) (*AppResponse, error) {
+	return nil, nil
+}
+";
+        await File.WriteAllTextAsync(filePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphRepository();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var parser = new GoParser();
+
+            using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var fileNode = syntaxTree.FileNode;
+            fileNode.Should().NotBeNull();
+
+            var endpoints = FindEndpointNodes(fileNode.Children);
+            endpoints.Should().HaveCount(2);
+            endpoints.Select(e => e.Name).Should().Contain(["RPC:/RepoService/WatchItems", "RPC:/RepoService/GetDetails"]);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
 }

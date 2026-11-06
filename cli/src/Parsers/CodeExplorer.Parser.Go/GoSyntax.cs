@@ -96,6 +96,8 @@ internal static class TreeSitterSyntax
         public const string ExpressionStatement = "expression_statement";
         public const string AssignmentStatement = "assignment_statement";
         public const string FuncLiteral = "func_literal";
+        public const string IntLiteral = "int_literal";
+        public const string PackageIdentifier = "package_identifier";
     }
 }
 

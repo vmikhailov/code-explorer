@@ -7,20 +7,38 @@ public class GoRedisLibraryParser : ISemanticExtension
     public SemanticExtensionType Type => SemanticExtensionType.KeyValueDb;
     public string Name => "Redis (go-redis)";
     public string Id => "go-redis";
-    public IReadOnlyList<string> SupportedPatterns => ["github.com/redis/go-redis/v9*", "github.com/redis/go-redis*"];
+    public IReadOnlyList<string> SupportedPatterns =>
+    [
+        "github.com/redis/go-redis/v9*",
+        "github.com/redis/go-redis*",
+        "github.com/go-redis/cache/v9*",
+        "github.com/go-redis/cache*"
+    ];
     public bool IsImplemented => true;
     public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
 
+    private static readonly HashSet<string> RedisConstructorMethods = new(StringComparer.Ordinal)
+    {
+        "NewClient", "NewFailoverClient", "NewClusterClient", "NewUniversalClient", "NewRing"
+    };
+
     private static readonly HashSet<string> RedisMethods = new(StringComparer.Ordinal)
     {
-        "Get", "Set", "Del", "Exists", "Incr", "Decr",
-        "HGet", "HSet", "HDel", "LPush", "RPop",
-        "Publish", "Subscribe"
+        "Get", "Set", "SetNX", "SetEX", "Del", "Delete", "Exists", "Incr", "IncrBy", "Decr", "DecrBy",
+        "Expire", "ExpireAt", "TTL", "Persist", "Type", "Rename", "RenameNX",
+        "HGet", "HSet", "HDel", "HExists", "HGetAll", "HKeys", "HVals", "HIncrBy", "HMGet", "HMSet",
+        "LPush", "RPush", "LPop", "RPop", "LRange", "LLen", "LIndex", "LRem",
+        "SAdd", "SRem", "SMembers", "SIsMember", "SCard", "SPop",
+        "ZAdd", "ZRem", "ZRange", "ZRevRange", "ZRangeByScore", "ZCard", "ZScore", "ZIncrBy",
+        "Publish", "Subscribe", "PSubscribe",
+        "Ping", "Do", "Process", "Pipeline", "TxPipeline", "Pipelined", "TxPipelined", "Watch", "Once",
+        "FlushDB", "FlushAll", "MGet", "MSet", "Keys", "Scan",
+        "NewClient", "NewFailoverClient", "NewClusterClient", "NewUniversalClient", "NewRing"
     };
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {
-        if (IsRedisCall(node, out _, out _))
+        if (IsRedisCall(node, out var method, out _) && !RedisConstructorMethods.Contains(method!))
         {
             return OntologyConstants.NodeLabels.Query;
         }
@@ -29,7 +47,7 @@ public class GoRedisLibraryParser : ISemanticExtension
 
     public string? ExtractIdentifier(Node node, ParsingContext ctx)
     {
-        if (IsRedisCall(node, out var method, out _))
+        if (IsRedisCall(node, out var method, out _) && !RedisConstructorMethods.Contains(method!))
         {
             return $"Redis: {method}";
         }
@@ -45,7 +63,7 @@ public class GoRedisLibraryParser : ISemanticExtension
                 var channel = !string.IsNullOrEmpty(target) ? "redis:" + target : "redis";
                 references.Add(new Reference(scopeSymbolId, channel, OntologyConstants.Relationships.PublishesTo));
             }
-            else if (method == "Subscribe")
+            else if (method is "Subscribe" or "PSubscribe")
             {
                 var channel = !string.IsNullOrEmpty(target) ? "redis:" + target : "redis";
                 references.Add(new Reference(scopeSymbolId, channel, OntologyConstants.Relationships.SubscribesTo));
