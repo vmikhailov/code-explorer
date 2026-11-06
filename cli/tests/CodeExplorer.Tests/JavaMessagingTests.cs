@@ -143,4 +143,49 @@ public class OrderRabbitConsumer {
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
+
+    [Test]
+    public async Task SpringKafkaStreams_ExtractsPublishAndSubscribeReferences()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce-test-kafka-streams-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var filePath = Path.Combine(tempDir, "OrderStreamProcessor.java");
+
+        var code = @"package com.example;
+
+import org.apache.kafka.streams.StreamsBuilder;
+import org.apache.kafka.streams.kstream.KStream;
+
+public class OrderStreamProcessor {
+    public KStream<String, String> process(StreamsBuilder builder) {
+        KStream<String, String> stream = builder.stream(""payment-orders"");
+        stream.to(""orders"");
+        return stream;
+    }
+}
+";
+        await File.WriteAllTextAsync(filePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphRepository();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var parser = new JavaParser();
+
+            using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var fileNode = syntaxTree.FileNode;
+            fileNode.Should().NotBeNull();
+
+            var allRefs = CollectAllReferences(fileNode.Children);
+            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "kafka:payment-orders").Should().BeTrue();
+            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName == "kafka:orders").Should().BeTrue();
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
 }

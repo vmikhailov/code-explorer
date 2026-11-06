@@ -77,4 +77,58 @@ public class PluggableConfigurationParserTests
         handled.Should().BeTrue();
         container.Children.OfType<DatabaseNode>().Any(c => c.Name.Equals("inventory_db", StringComparison.OrdinalIgnoreCase)).Should().BeTrue();
     }
+
+    [Test]
+    public void MessageBrokerDescriptor_RejectsClientSerializersAndInfraKeys()
+    {
+        var container = new ProjectNode("ws:project:order-service:", "order-service", "services/order-service", "java", "Service", false);
+        var relationships = new List<Relationship>();
+        var ctx = new ParsingContext("ws", "/workspace", new ResourceReconciliationService());
+
+        var handledSerializer = LibraryConfigurationRegistry.TryProcess(
+            "spring.kafka.producer.key-serializer",
+            "org.apache.kafka.common.serialization.LongSerializer",
+            "services/order-service/application.yml",
+            "ws:file:services/order-service/application.yml",
+            "ws",
+            container,
+            relationships,
+            ctx);
+
+        handledSerializer.Should().BeFalse();
+        container.Children.OfType<TopicNode>().Should().BeEmpty();
+
+        var handledBootstrap = LibraryConfigurationRegistry.TryProcess(
+            "spring.kafka.bootstrap-servers",
+            "broker:9092",
+            "services/order-service/application.yml",
+            "ws:file:services/order-service/application.yml",
+            "ws",
+            container,
+            relationships,
+            ctx);
+
+        container.Children.OfType<TopicNode>().Should().BeEmpty();
+    }
+
+    [Test]
+    public void MessageBrokerDescriptor_ExtractsValidTopicNames()
+    {
+        var container = new ProjectNode("ws:project:order-service:", "order-service", "services/order-service", "java", "Service", false);
+        var relationships = new List<Relationship>();
+        var ctx = new ParsingContext("ws", "/workspace", new ResourceReconciliationService());
+
+        var handledDefaultTopic = LibraryConfigurationRegistry.TryProcess(
+            "spring.kafka.template.default-topic",
+            "orders",
+            "services/order-service/application.yml",
+            "ws:file:services/order-service/application.yml",
+            "ws",
+            container,
+            relationships,
+            ctx);
+
+        handledDefaultTopic.Should().BeTrue();
+        container.Children.OfType<TopicNode>().Any(t => t.Name == "orders").Should().BeTrue();
+    }
 }

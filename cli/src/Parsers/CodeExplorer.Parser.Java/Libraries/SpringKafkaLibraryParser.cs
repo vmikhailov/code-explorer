@@ -20,8 +20,10 @@ public class SpringKafkaLibraryParser : DeclarativeSemanticExtension
                 ListenerAnnotationNames = new[] { "KafkaListener", "KafkaHandler" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase),
                 TopicArgumentKeys = new[] { "topics", "topicPattern", "value" }.ToFrozenSet(StringComparer.Ordinal),
                 FallbackTopicName = "unknown-topic",
-                PublishMethodNames = new[] { "send", "sendDefault", "execute" }.ToFrozenSet(StringComparer.Ordinal),
-                PublishReceiverSubstrings = new[] { "kafka", "producer", "template" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase)
+                PublishMethodNames = new[] { "send", "sendDefault", "execute", "to" }.ToFrozenSet(StringComparer.Ordinal),
+                PublishReceiverSubstrings = new[] { "kafka", "producer", "template", "stream", "kstream" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase),
+                SubscribeMethodNames = new[] { "stream", "table", "globalTable" }.ToFrozenSet(StringComparer.Ordinal),
+                SubscribeReceiverSubstrings = new[] { "builder", "stream", "streamsBuilder", "kstream" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase)
             }
         ];
     }

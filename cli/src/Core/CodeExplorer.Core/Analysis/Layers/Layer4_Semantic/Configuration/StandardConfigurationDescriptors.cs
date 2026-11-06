@@ -85,11 +85,11 @@ public sealed class DatabaseConfigurationDescriptor : ILibraryConfigurationDescr
 /// <summary>
 /// Standard descriptor for message brokers, queues, and topics (Kafka, RabbitMQ).
 /// </summary>
-public sealed class MessageBrokerConfigurationDescriptor : ILibraryConfigurationDescriptor
+internal sealed class MessageBrokerConfigurationDescriptor : ILibraryConfigurationDescriptor
 {
     public int Order => 1000;
 
-    private static readonly HashSet<string> IgnoredInfraKeys = new(StringComparer.OrdinalIgnoreCase)
+    internal static readonly HashSet<string> IgnoredInfraKeys = new(StringComparer.OrdinalIgnoreCase)
     {
         "host", "port", "addr", "address", "addresses", "dockerfile", "image", "enabled",
         "version", "servers", "bootstrap-servers", "bootstrapservers", "url", "uri", "user",
@@ -117,7 +117,7 @@ public sealed class MessageBrokerConfigurationDescriptor : ILibraryConfiguration
 
         if (lowerKey.Contains("rabbitmq") || lowerVal.StartsWith("amqp://") || lowerVal.StartsWith("amqps://"))
         {
-            var ch = ConfigurationParser.ExtractChannelName(value, leaf);
+            var ch = ConfigurationParser.ExtractChannelName(value, key);
             if (!string.IsNullOrEmpty(ch) && !IgnoredInfraKeys.Contains(ch) && !ch.Equals("default", StringComparison.OrdinalIgnoreCase))
             {
                 ConfigurationParser.CreateTopicNode("rabbitmq", ch, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
@@ -127,7 +127,7 @@ public sealed class MessageBrokerConfigurationDescriptor : ILibraryConfiguration
 
         if (lowerKey.Contains("kafka"))
         {
-            var ch = ConfigurationParser.ExtractChannelName(value, leaf);
+            var ch = ConfigurationParser.ExtractChannelName(value, key);
             if (!string.IsNullOrEmpty(ch) && !IgnoredInfraKeys.Contains(ch) && !ch.Equals("default", StringComparison.OrdinalIgnoreCase))
             {
                 ConfigurationParser.CreateTopicNode("kafka", ch, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);

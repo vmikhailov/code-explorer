@@ -67,6 +67,9 @@ public sealed record MessagingBrokerRule
     public bool ExtractEventTypeFromObjectCreationArg { get; init; }
     public bool PreferSecondArgWhenThreeOrMoreArgs { get; init; }
 
+    public FrozenSet<string> SubscribeMethodNames { get; init; } = FrozenSet<string>.Empty;
+    public FrozenSet<string> SubscribeReceiverSubstrings { get; init; } = FrozenSet<string>.Empty;
+
     public FrozenSet<string> CallNodeTypes { get; init; } = new[] { "method_invocation", "call_expression", "member_call_expression", "scoped_call_expression" }.ToFrozenSet();
     public FrozenSet<string> AnnotationNodeTypes { get; init; } = new[] { "annotation", "marker_annotation", "attribute", "attribute_group" }.ToFrozenSet();
 }
@@ -270,6 +273,7 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
             else if (rule.CallNodeTypes.Contains(node.Type))
             {
                 TryCollectMessagingPublishReferences(node, scopeSymbolId, references, rule);
+                TryCollectMessagingSubscribeReferences(node, scopeSymbolId, references, rule);
             }
         }
     }

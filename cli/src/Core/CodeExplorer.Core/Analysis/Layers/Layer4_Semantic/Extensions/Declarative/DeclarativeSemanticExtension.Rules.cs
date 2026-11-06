@@ -268,6 +268,43 @@ public partial class DeclarativeSemanticExtension
         }
     }
 
+    private static void TryCollectMessagingSubscribeReferences(
+        Node callNode,
+        string scopeSymbolId,
+        List<Reference> references,
+        MessagingBrokerRule rule)
+    {
+        if (rule.SubscribeMethodNames.Count == 0) return;
+
+        var methodName = GetCallMethodName(callNode);
+        if (string.IsNullOrEmpty(methodName) || !rule.SubscribeMethodNames.Contains(methodName))
+            return;
+
+        if (rule.SubscribeReceiverSubstrings.Count > 0)
+        {
+            var objNode = callNode.GetField(SyntaxFields.Object)
+                          ?? callNode.GetField(SyntaxFields.Operand)
+                          ?? callNode.GetField("scope");
+            var objText = objNode.IsValid() ? objNode.Text : "";
+            if (!rule.SubscribeReceiverSubstrings.Any(sub => objText.Contains(sub, StringComparison.OrdinalIgnoreCase)))
+            {
+                return;
+            }
+        }
+
+        var argList = FindArgumentsNode(callNode);
+        if (!argList.IsValid()) return;
+
+        var args = argList.Children.Where(c => c.Type is not "(" and not ")" and not ",").ToList();
+        if (args.Count == 0) return;
+
+        var target = CleanPublishTargetArg(args[0]);
+        if (!string.IsNullOrEmpty(target))
+        {
+            references.Add(new Reference(scopeSymbolId, $"{rule.Protocol}:{target}", OntologyConstants.Relationships.SubscribesTo));
+        }
+    }
+
     private static string? CleanPublishTargetArg(Node argNode)
     {
         if (IsStringLiteral(argNode))

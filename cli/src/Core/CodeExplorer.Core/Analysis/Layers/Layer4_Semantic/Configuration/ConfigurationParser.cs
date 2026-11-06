@@ -113,12 +113,18 @@ public static class ConfigurationParser
         else if (lower.StartsWith("amqp://") || lower.StartsWith("amqps://") || lowerName.Contains("rabbitmq"))
         {
             var ch = ExtractChannelName(connStr, name);
-            CreateTopicNode("rabbitmq", ch, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
+            if (!string.IsNullOrEmpty(ch))
+            {
+                CreateTopicNode("rabbitmq", ch, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
+            }
         }
         else if (lower.Contains(":9092") || lowerName.Contains("kafka"))
         {
             var ch = ExtractChannelName(connStr, name);
-            CreateTopicNode("kafka", ch, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
+            if (!string.IsNullOrEmpty(ch))
+            {
+                CreateTopicNode("kafka", ch, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
+            }
         }
         else if (isMySql)
         {
@@ -177,25 +183,62 @@ public static class ConfigurationParser
         return true;
     }
 
-    public static string ExtractChannelName(string connStr, string defaultName)
+    public static string? ExtractChannelName(string connStr, string defaultName)
     {
         var leaf = ExtractKeyLeaf(defaultName);
-        if (string.IsNullOrWhiteSpace(connStr)) return leaf;
-        var uriMatch = Regex.Match(connStr, @"^[a-zA-Z][a-zA-Z0-9+:.-]*://[^/]+/([^?#;\s]+)", RegexOptions.IgnoreCase);
-        if (uriMatch.Success)
+        if (!string.IsNullOrWhiteSpace(connStr))
         {
-            var ch = uriMatch.Groups[1].Value.Trim().Trim('"', '\'');
-            if (IsValidCatalogName(ch)) return ch;
+            var uriMatch = Regex.Match(connStr, @"^[a-zA-Z][a-zA-Z0-9+:.-]*://[^/]+/([^?#;\s]+)", RegexOptions.IgnoreCase);
+            if (uriMatch.Success)
+            {
+                var ch = uriMatch.Groups[1].Value.Trim().Trim('"', '\'');
+                if (IsValidCatalogName(ch)) return ch;
+            }
+
+            var lowerConn = connStr.Trim().ToLowerInvariant();
+            if (lowerConn.StartsWith("amqp://") || lowerConn.StartsWith("amqps://") || lowerConn.StartsWith("kafka://"))
+            {
+                if (IsValidCatalogName(leaf) && !MessageBrokerConfigurationDescriptor.IgnoredInfraKeys.Contains(leaf))
+                {
+                    return leaf;
+                }
+            }
         }
 
         var lowerLeaf = leaf.ToLowerInvariant();
-        if (lowerLeaf is "topic" or "queue" or "channel" or "routingkey" or "routing_key")
+        var lowerDefaultName = defaultName.ToLowerInvariant();
+
+        if (lowerLeaf is "topic" or "topics" or "queue" or "queues" or "channel" or "channels" or "routingkey" or "routing_key" or "destination" or "destinations")
+        {
+            var valTrimmed = connStr?.Trim().Trim('"', '\'') ?? "";
+            if (IsValidCatalogName(valTrimmed)) return valTrimmed;
+        }
+
+        if (lowerDefaultName.Contains(".topic.") || lowerDefaultName.Contains(".topics.") ||
+            lowerDefaultName.Contains(".queue.") || lowerDefaultName.Contains(".queues.") ||
+            lowerDefaultName.Contains(":topic:") || lowerDefaultName.Contains(":topics:") ||
+            lowerDefaultName.Contains(":queue:") || lowerDefaultName.Contains(":queues:"))
+        {
+            var valTrimmed = connStr?.Trim().Trim('"', '\'') ?? "";
+            if (IsValidCatalogName(valTrimmed) && !valTrimmed.Equals("true", StringComparison.OrdinalIgnoreCase) && !valTrimmed.Equals("false", StringComparison.OrdinalIgnoreCase))
+            {
+                return valTrimmed;
+            }
+            if (IsValidCatalogName(leaf))
+            {
+                return leaf;
+            }
+        }
+
+        if ((lowerLeaf.EndsWith("-topic") || lowerLeaf.EndsWith("_topic") ||
+             lowerLeaf.EndsWith("-queue") || lowerLeaf.EndsWith("_queue")) &&
+            !string.IsNullOrWhiteSpace(connStr))
         {
             var valTrimmed = connStr.Trim().Trim('"', '\'');
             if (IsValidCatalogName(valTrimmed)) return valTrimmed;
         }
 
-        return leaf;
+        return null;
     }
 
     private static string ExtractKeyLeaf(string key)
