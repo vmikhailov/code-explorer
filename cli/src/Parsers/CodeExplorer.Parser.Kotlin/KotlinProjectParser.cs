@@ -205,7 +205,10 @@ public class KotlinProjectParser : IProjectParser
                         isApp = true;
                     }
                 }
-                catch { }
+                catch
+                {
+                    // ignored: non-critical pom.xml read failure for spring detection
+                }
             }
 
             var pomFile = Path.Combine(directoryPath, "pom.xml");
@@ -221,7 +224,10 @@ public class KotlinProjectParser : IProjectParser
                         isApp = true;
                     }
                 }
-                catch { }
+                catch
+                {
+                    // ignored: non-critical pom.xml read failure for spring detection
+                }
             }
 
             if (isSpring)

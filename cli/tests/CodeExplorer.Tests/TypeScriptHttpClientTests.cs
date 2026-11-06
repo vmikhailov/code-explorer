@@ -237,4 +237,27 @@ export class DedalosApiClient {
         using var ws = await TestWorkspace.CreateAsync(code);
         ws.FileNode.Should().NotBeNull();
     }
+
+    [Test]
+    public async Task Test_HeyApi_OpenApiTs_ClientCall()
+    {
+        var code = """
+import { client } from './client.gen';
+
+export class LoginService {
+    public static loginAccessToken(options: any) {
+        return (options.client ?? client).post<any, any, true>({
+            responseType: 'json',
+            url: '/api/v1/login/access-token',
+            ...options
+        });
+    }
+}
+""";
+
+        using var ws = await TestWorkspace.CreateAsync(code);
+        var extServices = FindNodes<ExternalServiceNode>(ws.FileNode.Children);
+        extServices.Should().HaveCount(1);
+        extServices[0].Path.Should().Be("/api/v1/login/access-token");
+    }
 }

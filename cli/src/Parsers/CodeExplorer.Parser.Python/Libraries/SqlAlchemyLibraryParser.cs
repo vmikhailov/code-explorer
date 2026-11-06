@@ -7,6 +7,7 @@ public class SqlAlchemyLibraryParser : ISemanticExtension
     public SemanticExtensionType Type => SemanticExtensionType.RelationalDb;
     public string Name => "SQLAlchemy";
     public string Id => "sqlalchemy";
+    private const string DefaultDatabaseTarget = "database";
     public IReadOnlyList<string> SupportedPatterns => ["sqlalchemy", "sqlalchemy.*"];
     public bool IsImplemented => true;
     public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
@@ -18,6 +19,11 @@ public class SqlAlchemyLibraryParser : ISemanticExtension
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {
+        if (IsDeclarativeModel(node, out _))
+        {
+            return OntologyConstants.NodeLabels.Table;
+        }
+
         if (IsSqlAlchemyCall(node, out _, out _, out var isTable))
         {
             return isTable ? OntologyConstants.NodeLabels.Table : OntologyConstants.NodeLabels.Query;
@@ -27,6 +33,11 @@ public class SqlAlchemyLibraryParser : ISemanticExtension
 
     public string? ExtractIdentifier(Node node, ParsingContext ctx)
     {
+        if (IsDeclarativeModel(node, out var modelTable))
+        {
+            return modelTable;
+        }
+
         if (IsSqlAlchemyCall(node, out var method, out var target, out var isTable))
         {
             if (isTable && !string.IsNullOrEmpty(target))
@@ -51,6 +62,13 @@ public class SqlAlchemyLibraryParser : ISemanticExtension
 
     public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
+        if (IsDeclarativeModel(node, out var modelTable))
+        {
+            references.Add(new Reference(scopeSymbolId, modelTable, OntologyConstants.Relationships.PersistedIn));
+            references.Add(new Reference(scopeSymbolId, DefaultDatabaseTarget, OntologyConstants.Relationships.UsesDb));
+            return;
+        }
+
         if (IsSqlAlchemyCall(node, out _, out var target, out var isTable))
         {
             if (isTable && !string.IsNullOrEmpty(target))
@@ -68,8 +86,44 @@ public class SqlAlchemyLibraryParser : ISemanticExtension
                     references.Add(new Reference(scopeSymbolId, target, OntologyConstants.Relationships.UsesDb));
                 }
             }
-            references.Add(new Reference(scopeSymbolId, "database", OntologyConstants.Relationships.UsesDb));
+            references.Add(new Reference(scopeSymbolId, DefaultDatabaseTarget, OntologyConstants.Relationships.UsesDb));
         }
+    }
+
+    private static bool IsDeclarativeModel(Node node, out string tableName)
+    {
+        tableName = string.Empty;
+        if (!node.Is(TreeSitterSyntax.Python.ClassDefinition)) return false;
+
+        var body = node.FindChildOfType(TreeSitterSyntax.Python.Block);
+        if (!body.IsValid()) return false;
+
+        foreach (var stmt in body.Children)
+        {
+            var assignNode = stmt.Is(TreeSitterSyntax.Python.Assignment)
+                ? stmt
+                : stmt.FindChildOfType(TreeSitterSyntax.Python.Assignment);
+
+            if (assignNode.IsValid())
+            {
+                var left = assignNode.GetChildForField(TreeSitterSyntax.Fields.Left)
+                    ?? assignNode.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Python.Identifier));
+
+                if (left.IsValid() && left.Text == "__tablename__")
+                {
+                    var right = assignNode.GetChildForField(TreeSitterSyntax.Fields.Right)
+                        ?? assignNode.Children.LastOrDefault();
+
+                    if (right.IsValid() && right.Is(TreeSitterSyntax.Python.String))
+                    {
+                        tableName = right.Text.Trim('\'', '"');
+                        return !string.IsNullOrEmpty(tableName);
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     private static bool IsSqlAlchemyCall(Node node, out string? methodName, out string? targetInfo, out bool isTable)

@@ -16,6 +16,12 @@ public static class EndpointSemanticAnalyzer
 {
     private const string PropSchemaName = "schema_name";
     private const string PropSchema = "schema";
+    private const string PropMethod = "method";
+    private const string SchemeHttpColon = "http:";
+    private const string SchemeHttpsColon = "https:";
+    private const string SchemeWsColon = "ws:";
+    private const string SchemeGrpcColon = "grpc:";
+    private const string SchemeRpcColon = "rpc:";
 
     public static void Enrich(
         SyntaxTree syntaxTree,
@@ -173,6 +179,10 @@ public static class EndpointSemanticAnalyzer
         {
             var parentScopeId = syntactic.ParentScopeId;
             typedNode = CreateExternalServiceNode(name, node, relativePath, workspaceId, parentScopeId);
+            if (typedNode is ExternalServiceNode esNode && syntactic.Properties.TryGetValue(PropMethod, out var meth) && !string.IsNullOrEmpty(meth))
+            {
+                esNode.Method = meth;
+            }
             if (!string.IsNullOrEmpty(parentScopeId))
             {
                 var startLine = (int)node.StartPosition.Row + 1;
@@ -182,7 +192,7 @@ public static class EndpointSemanticAnalyzer
                     FilePath = relativePath,
                     Line = startLine,
                     LineEnd = endLine,
-                    Operation = "CALL",
+                    Operation = (typedNode is ExternalServiceNode es && !string.IsNullOrEmpty(es.Method)) ? es.Method : "CALL",
                     EvidenceKind = OntologyConstants.EvidenceKinds.HttpCall
                 });
                 ctx?.AddGlobalProjectDependency(calledByRel);
@@ -457,6 +467,20 @@ public static class EndpointSemanticAnalyzer
                 ? (method is "MUTATION" ? "Mutation" : (method is "SUBSCRIPTION" ? "Subscription" : "Query"))
                 : (protocol == "gRPC" ? "Unary" : null));
 
+        // Apply file/module mount prefix if discovered (e.g. sub-router mount)
+        if (protocol == "REST" &&
+            !string.IsNullOrEmpty(relativePath) &&
+            RouteDictionaryRegistry.TryGetMountPrefix(relativePath, out var mountPrefix) &&
+            !string.IsNullOrEmpty(mountPrefix))
+        {
+            var normRoute = route.Trim('/');
+            if (!normRoute.StartWithIC(mountPrefix))
+            {
+                route = CombineRoutes(mountPrefix, route);
+                name = $"{method}:{route}";
+            }
+        }
+
         // Apply project global route prefix (e.g. 'api/v1' or 'api') if discovered and not already present (REST only)
         if (protocol == "REST" &&
             !string.IsNullOrEmpty(resolvedProj) &&
@@ -647,7 +671,7 @@ public static class EndpointSemanticAnalyzer
             cleanName.Length > 256 ||
             cleanName.Contains('\n') ||
             cleanName.Contains('\r') ||
-            (!cleanName.StartWithIC("http") && (cleanName.Contains('{') || cleanName.Contains('}'))) ||
+            (!cleanName.StartWithIC("http") && !IsPathWithParameters(cleanName) && (cleanName.Contains('{') || cleanName.Contains('}'))) ||
             cleanName.Contains('<') ||
             cleanName.Contains('>') ||
             cleanName.Contains('+') ||
@@ -679,28 +703,28 @@ public static class EndpointSemanticAnalyzer
             protocol = domainOrService[..pIdx];
             domainOrService = domainOrService[(pIdx + 3)..];
         }
-        else if (domainOrService.StartWithIC("ws:"))
+        else if (domainOrService.StartWithIC(SchemeWsColon))
         {
             protocol = "ws";
             domainOrService = domainOrService[3..];
         }
-        else if (domainOrService.StartWithIC("http:"))
+        else if (domainOrService.StartWithIC(SchemeHttpColon))
         {
             protocol = "http";
             domainOrService = domainOrService[5..];
         }
-        else if (domainOrService.StartWithIC("https:"))
+        else if (domainOrService.StartWithIC(SchemeHttpsColon))
         {
             protocol = "https";
             domainOrService = domainOrService[6..];
         }
-        else if (domainOrService.StartWithIC("grpc:"))
+        else if (domainOrService.StartWithIC(SchemeGrpcColon))
         {
             hasExplicitScheme = true;
             protocol = "grpc";
             domainOrService = domainOrService[5..];
         }
-        else if (domainOrService.StartWithIC("rpc:"))
+        else if (domainOrService.StartWithIC(SchemeRpcColon))
         {
             hasExplicitScheme = true;
             protocol = "grpc";
@@ -927,6 +951,13 @@ public static class EndpointSemanticAnalyzer
         }
 
         return parts[0];
+    }
+
+    private static bool IsPathWithParameters(string path)
+    {
+        if (string.IsNullOrEmpty(path) || !path.StartsWith('/')) return false;
+        var stripped = Regex.Replace(path, @"\{[a-zA-Z0-9_]+\}", "");
+        return !stripped.Contains('{') && !stripped.Contains('}');
     }
 
     private static bool IsFileNodeScope(string scopeId) =>

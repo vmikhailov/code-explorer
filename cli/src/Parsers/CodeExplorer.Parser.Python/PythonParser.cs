@@ -51,6 +51,7 @@ public class PythonParser : IProjectParser, IFileParser
         new Libraries.PythonSqlite3LibraryParser(),
         new Libraries.RequestsPythonLibraryParser(),
         new Libraries.SqlAlchemyLibraryParser(),
+        new Libraries.SqlModelLibraryParser(),
         Libraries.PythonTestLibraryParser.Instance
     ];
 

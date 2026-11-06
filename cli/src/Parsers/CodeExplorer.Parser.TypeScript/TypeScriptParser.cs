@@ -74,13 +74,13 @@ public partial class TypeScriptParser : IProjectParser, IFileParser
     }
 
     public bool ShouldSkipFileBytes(string fileName, ReadOnlySpan<byte> contentBytes) =>
-        WorkspaceFileFilter.IsMinifiedBytes(contentBytes, maxLineLength: 1000);
+        WorkspaceFileFilter.IsMinifiedBytes(contentBytes, maxLineLength: 5000);
 
     public bool ShouldSkipFile(FileInfo fileInfo)
     {
         if (PhysicalFileStore.TryGetFileText(fileInfo.FullName, out var cachedText))
         {
-            return WorkspaceFileFilter.IsMinifiedText(cachedText, maxLineLength: 1000);
+            return WorkspaceFileFilter.IsMinifiedText(cachedText, maxLineLength: 5000);
         }
         return false;
     }

@@ -193,6 +193,32 @@ public static class PythonAstHelper
         // 1. String literal / f-string
         if (argNode.IsAny(TreeSitterSyntax.Python.String, TreeSitterSyntax.Python.FormatString, "concatenated_string", "interpolated_string"))
         {
+            if (argNode.Is(TreeSitterSyntax.Python.FormatString) || argNode.Type == "interpolated_string")
+            {
+                var sb = new System.Text.StringBuilder();
+                foreach (var child in argNode.Children)
+                {
+                    if (child.Type == "string_content" || child.Type == "escape_sequence")
+                    {
+                        sb.Append(child.Text);
+                    }
+                    else if (child.Type == "interpolation" || child.Type == "formatted_expression")
+                    {
+                        var expr = child.Children.FirstOrDefault(c => c.Type != "{" && c.Type != "}" && c.Type != "!");
+                        if (expr.IsValid())
+                        {
+                            var resolvedExpr = ResolveStringOrVariable(expr, depth + 1, visitedVars);
+                            sb.Append(resolvedExpr ?? expr.Text);
+                        }
+                    }
+                }
+                var built = sb.ToString().Trim('\'', '"');
+                if (!string.IsNullOrEmpty(built))
+                {
+                    return RouteDictionaryRegistry.NormalizeResolvedUrl(built);
+                }
+            }
+
             var text = argNode.Text.Trim('\'', '"');
             if (text.StartWithIC("f'") || text.StartWithIC("f\"") ||
                 text.StartWithIC("r'") || text.StartWithIC("r\"") ||
@@ -214,10 +240,39 @@ public static class PythonAstHelper
                 return !string.IsNullOrEmpty(rService) ? $"{rService}{cleanPath}" : cleanPath;
             }
 
+            if (ConstantRegistry.TryResolve(null, varName, out var constVal) && !string.IsNullOrEmpty(constVal))
+            {
+                return RouteDictionaryRegistry.NormalizeResolvedUrl(constVal);
+            }
+
             var val = FindVariableInitializerInScope(argNode, varName, depth + 1, visitedVars);
             if (val != null)
             {
                 return RouteDictionaryRegistry.NormalizeResolvedUrl(val);
+            }
+        }
+
+        // 2b. Attribute access: settings.API_V1_STR or config.BASE_URL
+        if (argNode.Is(TreeSitterSyntax.Python.Attribute))
+        {
+            var attr = argNode.GetField(TreeSitterSyntax.Python.Attribute) ??
+                       (argNode.Children.Count >= 2 ? argNode.Children[^1] : null);
+            if (attr.IsValid())
+            {
+                var attrName = attr.Text;
+                if (RouteDictionaryRegistry.TryResolve(attrName, out var rPath, out var rService))
+                {
+                    var cleanPath = rPath.Split('?')[0];
+                    return !string.IsNullOrEmpty(rService) ? $"{rService}{cleanPath}" : cleanPath;
+                }
+                if (ConstantRegistry.TryResolve(null, attrName, out var constVal) && !string.IsNullOrEmpty(constVal))
+                {
+                    return RouteDictionaryRegistry.NormalizeResolvedUrl(constVal);
+                }
+            }
+            if (ConstantRegistry.TryResolve(null, argNode.Text, out var fullConst) && !string.IsNullOrEmpty(fullConst))
+            {
+                return RouteDictionaryRegistry.NormalizeResolvedUrl(fullConst);
             }
         }
 

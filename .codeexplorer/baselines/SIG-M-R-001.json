@@ -1,6 +1,6 @@
 {
   "gateId": "SIG-M-R-001",
-  "allowedViolations": 18,
+  "allowedViolations": 14,
   "entries": [
     {
       "fingerprint": "a5d81e9467416901e0131d28a725dff8e4ce2c55ca78f70a27ecc0269eec5afb",
@@ -73,26 +73,6 @@
       "reason": "Baseline snapshot captured at 2026-10-30 11:08:37"
     },
     {
-      "fingerprint": "884252e0caa709a2c37a2849f923f03a79397df74684da0b810e52a537190ee6",
-      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
-      "line": 2071,
-      "column": 28,
-      "symbol": "\u003Canon_2071\u003E",
-      "target": "573 lines",
-      "acknowledgedAt": "2026-11-06T01:55:19.7676769+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:55:19"
-    },
-    {
-      "fingerprint": "846992adc2c4345bac899f5ee0bf33839e6883faaf0401bb409a55ec779e0f17",
-      "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
-      "line": 2647,
-      "column": 136,
-      "symbol": "\u003Canon_2647\u003E",
-      "target": "734 lines",
-      "acknowledgedAt": "2026-11-06T01:55:19.7676769+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:55:19"
-    },
-    {
       "fingerprint": "d8d20873d3659e1ead3c1f33fd781032915d99169e1463bdaaf8969933327350",
       "file": "vscode-extension/src/webview/components/GateEditorView.tsx",
       "line": 125,
@@ -103,16 +83,6 @@
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
     },
     {
-      "fingerprint": "4bf440cbedee8d62664d7a85c29550810de4dfc87fbd686ebc54b10d4744d834",
-      "file": "vscode-extension/src/webview/components/ProjectCardNode.tsx",
-      "line": 35,
-      "column": 37,
-      "symbol": "\u003Canon_35\u003E",
-      "target": "1052 lines",
-      "acknowledgedAt": "2026-11-06T01:55:19.7676769+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:55:19"
-    },
-    {
       "fingerprint": "3e0ccafb632e29eb8ce4a76850a252c98ab41813be0c397e6c01eb41a890c439",
       "file": "vscode-extension/src/webview/components/ProjectFlowView.tsx",
       "line": 42,
@@ -121,16 +91,6 @@
       "target": "1284 lines",
       "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "05aefec07c3974d6dd472bd16a6322a1787bec97c6fb62bb64c401657f8fd7af",
-      "file": "vscode-extension/src/webview/components/ProjectFlowView.tsx",
-      "line": 490,
-      "column": 13,
-      "symbol": "\u003Canon_490\u003E",
-      "target": "683 lines",
-      "acknowledgedAt": "2026-11-06T01:55:19.7676769+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-06 01:55:19"
     },
     {
       "fingerprint": "6988ea807292343ea1ac0b096d4d7be32fa6d5e57a9beffc4892e5146b58639c",

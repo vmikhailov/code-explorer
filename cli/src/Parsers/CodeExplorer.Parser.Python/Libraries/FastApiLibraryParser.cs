@@ -1,10 +1,14 @@
 using System.Text.RegularExpressions;
+using CodeExplorer.Core.Parser;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parser.Python.Libraries;
 
 public class FastApiLibraryParser : ISemanticExtension
 {
+    private const string ApiPrefixMatch = "api";
+    private const string VersionPrefixMatch = "v";
+
     public string Name => "FastAPI";
     public string Id => "fastapi";
     public SemanticExtensionType Type => SemanticExtensionType.Framework;
@@ -718,5 +722,111 @@ public class FastApiLibraryParser : ISemanticExtension
             return match.Groups[1].Value;
         }
         return raw.Trim('\'', '"');
+    }
+
+    public void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, ParsingContext? ctx)
+    {
+        if (!rootNode.IsValid()) return;
+        TraverseForFastApiDeclarations(rootNode, relativePath, projectName, ctx);
+    }
+
+    private static void TraverseForFastApiDeclarations(Node node, string relativePath, string? projectName, ParsingContext? ctx)
+    {
+        if (node.Is(TreeSitterSyntax.Python.Call))
+        {
+            var func = node.GetFunctionNode();
+            if (func.IsValid())
+            {
+                var funcText = func.Text;
+
+                // 1. app = FastAPI(..., openapi_url=...)
+                if (funcText is "FastAPI" || funcText.EndsWith(".FastAPI", StringComparison.Ordinal))
+                {
+                    var args = PythonAstHelper.GetCallArguments(node);
+                    foreach (var arg in args)
+                    {
+                        if (arg.Is(TreeSitterSyntax.Python.KeywordArgument))
+                        {
+                            var kwName = arg.Children.FirstOrDefault()?.Text;
+                            if (kwName is "openapi_url" or "docs_url" or "redoc_url")
+                            {
+                                var valNode = arg.Children.Skip(2).FirstOrDefault() ?? arg.Children.LastOrDefault();
+                                var resolved = PythonAstHelper.ResolveStringOrVariable(valNode);
+                                if (!string.IsNullOrEmpty(resolved))
+                                {
+                                    var slashIdx = resolved.LastIndexOf('/');
+                                    if (slashIdx > 0)
+                                    {
+                                        var candidatePrefix = resolved[..slashIdx].Trim('/');
+                                        if (!string.IsNullOrEmpty(candidatePrefix) &&
+                                            (candidatePrefix.StartWithIC(ApiPrefixMatch) || candidatePrefix.StartWithIC(VersionPrefixMatch)))
+                                        {
+                                            RouteDictionaryRegistry.RegisterGlobalPrefix(projectName, candidatePrefix);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                // 2. app.include_router(..., prefix=...)
+                else if (funcText.EndsWith("include_router", StringComparison.Ordinal))
+                {
+                    var args = PythonAstHelper.GetCallArguments(node);
+                    string? prefixVal = null;
+                    Node? routerArgNode = null;
+
+                    foreach (var arg in args)
+                    {
+                        if (arg.Is(TreeSitterSyntax.Python.KeywordArgument))
+                        {
+                            var kwName = arg.Children.FirstOrDefault()?.Text;
+                            if (kwName == "prefix")
+                            {
+                                var valNode = arg.Children.Skip(2).FirstOrDefault() ?? arg.Children.LastOrDefault();
+                                prefixVal = ExtractStringLiteral(valNode);
+                                if (string.IsNullOrEmpty(prefixVal) && valNode.IsValid())
+                                {
+                                    prefixVal = PythonAstHelper.ResolveStringOrVariable(valNode);
+                                }
+                            }
+                        }
+                        else if (routerArgNode == null)
+                        {
+                            routerArgNode = arg;
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(prefixVal))
+                    {
+                        var cleanPrefix = prefixVal.Trim('\'', '"', '`').Trim('/');
+                        if (!string.IsNullOrEmpty(cleanPrefix))
+                        {
+                            if (func.Is(TreeSitterSyntax.Python.Attribute))
+                            {
+                                var obj = func.GetField(TreeSitterSyntax.Fields.Object) ?? func.Children.FirstOrDefault();
+                                if (obj.IsValid() && (obj.Text is "app" || obj.Text.EndsWith(".app", StringComparison.Ordinal) || obj.Text.Contains("application", StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    RouteDictionaryRegistry.RegisterGlobalPrefix(projectName, cleanPrefix);
+                                }
+                            }
+
+                            if (routerArgNode.IsValid())
+                            {
+                                var rText = routerArgNode.Text;
+                                var targetMod = rText.Contains('.') ? rText[..rText.IndexOf('.')] : rText;
+                                RouteDictionaryRegistry.RegisterMountPrefix(targetMod, cleanPrefix);
+                                RouteDictionaryRegistry.RegisterMountPrefix(targetMod + ".py", cleanPrefix);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        foreach (var child in node.Children)
+        {
+            TraverseForFastApiDeclarations(child, relativePath, projectName, ctx);
+        }
     }
 }

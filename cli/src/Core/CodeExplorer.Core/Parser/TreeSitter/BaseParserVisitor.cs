@@ -609,7 +609,13 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
                     extraExternalServiceName = ExtractIdentifierUsingLibraries(node, libKind);
                 }
 
-                VisitSymbolNode(node, baseKind, baseName, depth, baseVisit, extraEntryPointName, extraExternalServiceName);
+                string? extraTableName = null;
+                if (libKind == OntologyConstants.NodeLabels.Table)
+                {
+                    extraTableName = ExtractIdentifierUsingLibraries(node, libKind);
+                }
+
+                VisitSymbolNode(node, baseKind, baseName, depth, baseVisit, extraEntryPointName, extraExternalServiceName, extraTableName);
                 return;
             }
         }
@@ -634,7 +640,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         }
     }
 
-    protected void VisitSymbolNode(Node node, string kind, string name, int depth, Action? baseVisit = null, string? extraEntryPointName = null, string? extraExternalServiceName = null)
+    protected void VisitSymbolNode(Node node, string kind, string name, int depth, Action? baseVisit = null, string? extraEntryPointName = null, string? extraExternalServiceName = null, string? extraTableName = null)
     {
         if (kind == "Variable" || kind == OntologyConstants.NodeLabels.Member)
         {
@@ -686,6 +692,17 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
                 libParser.EnrichSymbol(node, extChild, Context!);
             }
             syntacticNode.Children.Add(extChild);
+        }
+
+        if (!string.IsNullOrEmpty(extraTableName))
+        {
+            var tblChild = new SyntacticSymbol(OntologyConstants.NodeLabels.Table, extraTableName, node);
+            foreach (var libParser in LibraryParsers)
+            {
+                libParser.CollectReferences(node, "", tblChild.References, Context!);
+                libParser.EnrichSymbol(node, tblChild, Context!);
+            }
+            syntacticNode.Children.Add(tblChild);
         }
 
         if (kind == OntologyConstants.NodeLabels.Topic &&

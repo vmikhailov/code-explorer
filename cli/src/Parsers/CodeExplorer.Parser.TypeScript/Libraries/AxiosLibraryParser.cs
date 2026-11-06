@@ -53,15 +53,17 @@ public class AxiosLibraryParser : ISemanticExtension
                 return false;
             }
 
-            if (objText.Contains("axios") ||
-                objText.Contains("http") ||
-                objText.Contains("apiclient") ||
-                objText.EndsWith("client") ||
-                objText.Equals("client") ||
-                objText.Equals("this.client") ||
-                objText.Equals("api") ||
-                objText.Equals("this.api") ||
-                ((objText is "this" or "super") && IsEnclosingClassApiClient(node)))
+            var cleanObjText = objText.Trim('(', ')', ' ', '\t');
+            if (cleanObjText.Contains("axios") ||
+                cleanObjText.Contains("http") ||
+                cleanObjText.Contains("apiclient") ||
+                cleanObjText.EndsWith("client") ||
+                cleanObjText.EndsWith(".client") ||
+                cleanObjText.Equals("client") ||
+                cleanObjText.Equals("this.client") ||
+                cleanObjText.Equals("api") ||
+                cleanObjText.Equals("this.api") ||
+                ((cleanObjText is "this" or "super") && IsEnclosingClassApiClient(node)))
             {
                 var args = AstHelper.GetCallArguments(node);
                 if (args.Count > 0 && args[0].Is(TreeSitterSyntax.TypeScript.Object))
@@ -349,5 +351,24 @@ public class AxiosLibraryParser : ISemanticExtension
     public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
         // Axios calls represent external services, no custom inner references are required
+    }
+
+    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    {
+        if (!IsHttpCallNode(node)) return;
+        var func = node.GetFunctionNode();
+        if (func.IsValid() && func.Is(TreeSitterSyntax.TypeScript.MemberExpression))
+        {
+            var propNode = func.GetField(TreeSitterSyntax.Fields.Property);
+            if (propNode.IsValid())
+            {
+                var verb = propNode.Text.ToUpperInvariant();
+                if (verb is "GET" or "POST" or "PUT" or "DELETE" or "PATCH" or "HEAD" or "OPTIONS")
+                {
+                    symbol.Properties["method"] = verb;
+                    symbol.Properties["http_method"] = verb;
+                }
+            }
+        }
     }
 }

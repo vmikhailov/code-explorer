@@ -81,14 +81,17 @@ public partial class Layer5AnalysisParser
 
     private static bool IsInferredPathSegmentDomain(ExternalServiceNode extService)
     {
+        if (extService.InferredFromPath == true || extService.IsRelativePath == true)
+            return true;
+
         if (string.IsNullOrEmpty(extService.DomainOrService) || extService.DomainOrService.Contains('.'))
             return false;
 
         if (string.IsNullOrEmpty(extService.Path) || !extService.Path.StartsWith('/'))
             return false;
 
-        var firstSeg = extService.Path.TrimStart('/').Split('/', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
-        return string.Equals(firstSeg, extService.DomainOrService, StringComparison.OrdinalIgnoreCase);
+        var segs = extService.Path.TrimStart('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return segs.Any(s => string.Equals(s, extService.DomainOrService, StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool DoesProjectMatchServiceDomain(ProjectNode proj, string domainOrService)

@@ -475,6 +475,14 @@ public partial class Layer5AnalysisParser
                 var callerId = extService.Service.CallerSymbolId;
                 if (!string.IsNullOrEmpty(callerId))
                 {
+                    lateBoundRels.Add(Relationship.FromRelationship(new CallsEndpointRelationship(callerId, endpoint.Endpoint.Id)
+                    {
+                        Operation = opVerb,
+                        EvidenceKind = evKind,
+                        FilePath = extFp,
+                        Line = extLine
+                    }));
+
                     if (handlersByEndpointId.TryGetValue(endpoint.Endpoint.Id, out var handlerFnIds))
                     {
                         foreach (var handlerFnId in handlerFnIds)

@@ -284,7 +284,7 @@ public class WorkspaceFileFilter
     public static string ClassifyArtifactRole(string relativePath, string fileName, ReadOnlySpan<byte> contentBytes = default) =>
         Default.ClassifyFileArtifactRole(relativePath, fileName, contentBytes);
 
-    public static bool IsMinifiedBytes(ReadOnlySpan<byte> bytes, int maxLineLength = 500)
+    public static bool IsMinifiedBytes(ReadOnlySpan<byte> bytes, int maxLineLength = 5000)
     {
         if (bytes.IsEmpty) return false;
         var limit = Math.Min(bytes.Length, 8192);
@@ -308,7 +308,7 @@ public class WorkspaceFileFilter
         return false;
     }
 
-    public static bool IsMinifiedText(ReadOnlySpan<char> text, int maxLineLength = 1000)
+    public static bool IsMinifiedText(ReadOnlySpan<char> text, int maxLineLength = 5000)
     {
         if (text.IsEmpty) return false;
         var limit = Math.Min(text.Length, 8192);
