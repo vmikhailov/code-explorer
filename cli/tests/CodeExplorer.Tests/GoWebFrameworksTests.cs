@@ -448,4 +448,164 @@ func (s *Service) GetDetails(ctx context.Context, q *Query) (*AppResponse, error
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
+
+    [Test]
+    public async Task Fasthttp_Router_ExtractsEndpoints()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce-test-fasthttp-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var filePath = Path.Combine(tempDir, "main.go");
+
+        var code = @"package main
+
+import (
+	""github.com/buaazp/fasthttprouter""
+	""github.com/valyala/fasthttp""
+)
+
+func Index(ctx *fasthttp.RequestCtx) {}
+func GetOrder(ctx *fasthttp.RequestCtx) {}
+func CreateOrder(ctx *fasthttp.RequestCtx) {}
+
+func setupRouter() {
+	router := fasthttprouter.New()
+	router.GET(""/orders/:id"", GetOrder)
+	router.POST(""/orders"", CreateOrder)
+	router.Handle(""DELETE"", ""/orders/:id"", Index)
+}
+";
+        await File.WriteAllTextAsync(filePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphRepository();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var parser = new GoParser();
+
+            using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var fileNode = syntaxTree.FileNode;
+            fileNode.Should().NotBeNull();
+
+            var endpoints = FindEndpointNodes(fileNode.Children);
+            endpoints.Should().HaveCount(3);
+            endpoints.Select(e => e.Name).Should().Contain(["GET:/orders/:id", "POST:/orders", "DELETE:/orders/:id"]);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Dapr_DeclarativeEndpointsTable_ExtractsEndpoints()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce-test-dapr-endpoints-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var filePath = Path.Combine(tempDir, "metadata.go");
+
+        var code = @"package http
+
+import (
+	""net/http""
+	""github.com/dapr/dapr/pkg/api/http/endpoints""
+)
+
+type api struct {}
+
+func (a *api) onGetMetadata(w http.ResponseWriter, r *http.Request) {}
+func (a *api) onSetMetadata(w http.ResponseWriter, r *http.Request) {}
+
+func (a *api) Endpoints() []endpoints.Endpoint {
+	return []endpoints.Endpoint{
+		{
+			Methods: []string{http.MethodGet, http.MethodPost},
+			Route:   ""metadata"",
+			Version: 1,
+			Handler: a.onGetMetadata,
+		},
+		{
+			Methods: []string{http.MethodPut},
+			Route:   ""metadata/:key"",
+			Version: 1,
+			Handler: a.onSetMetadata,
+		},
+	}
+}
+";
+        await File.WriteAllTextAsync(filePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphRepository();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var parser = new GoParser();
+
+            using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var fileNode = syntaxTree.FileNode;
+            fileNode.Should().NotBeNull();
+
+            var endpoints = FindEndpointNodes(fileNode.Children);
+            endpoints.Should().HaveCount(3);
+            endpoints.Select(e => e.Name).Should().Contain(["GET:/v1.0/metadata", "POST:/v1.0/metadata", "PUT:/v1.0/metadata/:key"]);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Dapr_Grpc_CleanServiceNames_ExtractsNormalizedServices()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce-test-dapr-grpc-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var filePath = Path.Combine(tempDir, "server.go");
+
+        var code = @"package internal
+
+import (
+	""context""
+	""google.golang.org/grpc""
+)
+
+type InternalServer interface {
+	CallLocal(ctx context.Context, in *internalv1pb.InternalInvokeRequest) (*internalv1pb.InternalInvokeResponse, error)
+}
+
+type Server struct{}
+
+func (s *Server) CallLocal(ctx context.Context, in *internalv1pb.InternalInvokeRequest) (*internalv1pb.InternalInvokeResponse, error) {
+	return nil, nil
+}
+";
+        await File.WriteAllTextAsync(filePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphRepository();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var parser = new GoParser();
+
+            using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var fileNode = syntaxTree.FileNode;
+            fileNode.Should().NotBeNull();
+
+            var endpoints = FindEndpointNodes(fileNode.Children);
+            endpoints.Should().HaveCount(1);
+            endpoints[0].Name.Should().Be("RPC:/InternalService/CallLocal");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
 }

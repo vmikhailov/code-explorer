@@ -30,21 +30,50 @@ public class GrpcGoLibraryParser : ISemanticExtension
     private static readonly Regex ClientTypeRegex = new(@"(?:[A-Za-z0-9_]+\.)?([A-Za-z0-9_]+?)(?:Svc|Service)?Client\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex NewClientRegex = new(@"(?:(?:[A-Za-z0-9_]+\.)*New|New)([A-Za-z0-9_]+?)(?:Svc|Service)?Client\b", RegexOptions.Compiled);
 
+    private const string SuffixPkg = "pkg";
+    private const string SuffixPb = "pb";
+    private const string SuffixV1 = "v1";
+    private const string SuffixV2 = "v2";
+    private const string SuffixAlpha = "alpha";
+    private const string SuffixBeta = "beta";
+    private const string ServiceSuffix = "Service";
+    private const string ServerKey = "Server";
+    private const string ServerKeyLower = "server";
+    private const string ServiceKey = "Service";
+    private const string ServiceKeyLower = "service";
+
     private static string CleanServiceName(string raw)
     {
-        if (string.IsNullOrEmpty(raw)) return "Service";
+        if (string.IsNullOrEmpty(raw)) return ServiceSuffix;
         var s = raw;
-        if (s.EndsWith("pkg", StringComparison.OrdinalIgnoreCase) && s.Length > 3)
+        if (s.EndsWith(SuffixPkg, StringComparison.OrdinalIgnoreCase) && s.Length > 3)
         {
             s = s[..^3];
         }
-        if (s.EndsWith("v1", StringComparison.OrdinalIgnoreCase) && s.Length > 2)
+        if (s.EndsWith(SuffixPb, StringComparison.OrdinalIgnoreCase) && s.Length > 2)
         {
             s = s[..^2];
         }
-        if (string.IsNullOrEmpty(s)) return "Service";
+        if (s.EndsWith(SuffixV1, StringComparison.OrdinalIgnoreCase) && s.Length > 2)
+        {
+            s = s[..^2];
+        }
+        if (s.EndsWith(SuffixV2, StringComparison.OrdinalIgnoreCase) && s.Length > 2)
+        {
+            s = s[..^2];
+        }
+        if (s.EndsWith(SuffixAlpha, StringComparison.OrdinalIgnoreCase) && s.Length > 5)
+        {
+            s = s[..^5];
+        }
+        if (s.EndsWith(SuffixBeta, StringComparison.OrdinalIgnoreCase) && s.Length > 4)
+        {
+            s = s[..^4];
+        }
+        s = s.TrimEnd('_');
+        if (string.IsNullOrEmpty(s)) return ServiceSuffix;
         var clean = char.ToUpperInvariant(s[0]) + s[1..];
-        return clean.EndsWith("Service", StringComparison.OrdinalIgnoreCase) ? clean : $"{clean}Service";
+        return clean.EndsWith(ServiceSuffix, StringComparison.OrdinalIgnoreCase) ? clean : $"{clean}{ServiceSuffix}";
     }
 
     public string? MapNodeType(Node node, ParsingContext ctx)
@@ -575,10 +604,10 @@ public class GrpcGoLibraryParser : ISemanticExtension
         if (!string.IsNullOrEmpty(pkgName))
         {
             var cleanPkg = CleanServiceName(pkgName);
-            if (!map.ContainsKey("Server")) map["Server"] = cleanPkg;
-            if (!map.ContainsKey("server")) map["server"] = cleanPkg;
-            if (!map.ContainsKey("Service")) map["Service"] = cleanPkg;
-            if (!map.ContainsKey("service")) map["service"] = cleanPkg;
+            if (!map.ContainsKey(ServerKey)) map[ServerKey] = cleanPkg;
+            if (!map.ContainsKey(ServerKeyLower)) map[ServerKeyLower] = cleanPkg;
+            if (!map.ContainsKey(ServiceKey)) map[ServiceKey] = cleanPkg;
+            if (!map.ContainsKey(ServiceKeyLower)) map[ServiceKeyLower] = cleanPkg;
         }
 
         return map;

@@ -13,9 +13,12 @@ public class PubSubGoLibraryParser : ISemanticExtension
         "cloud.google.com/go/pubsub",
         "cloud.google.com/go/pubsub/*",
         "*pubsub*",
-        "*pub-sub*"
+        "*pub-sub*",
+        "*dapr*",
+        "github.com/dapr/go-sdk*"
     ];
     public bool IsImplemented => true;
+    public bool IsBuiltIn => true;
     public LibraryRole LibraryRole => LibraryRole.MessageBroker;
 
     public string? MapNodeType(Node node, ParsingContext ctx) => null;
@@ -23,42 +26,18 @@ public class PubSubGoLibraryParser : ISemanticExtension
 
     public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
-        // 1. WorkerDef composite literals (used in streaming ingest pipelines)
-        if (node.Type is TreeSitterSyntax.Go.CompositeLiteral)
+        // 1. Composite literals with topic fields (Topic, TopicID, TopicName, SubID, WorkerDef)
+        if (node.Type is TreeSitterSyntax.Go.CompositeLiteral or "literal_value")
         {
-            if (node.Text.Contains("WorkerDef"))
+            if (TryExtractTopicFromCompositeLiteral(node, out var topic, out var isPubLiteral, out var isSubLiteral))
             {
-                var topicMatches = Regex.Matches(node.Text, @"TopicID\s*:\s*([^\s,;\}]+)");
-                foreach (Match m in topicMatches)
+                if (isPubLiteral)
                 {
-                    var raw = m.Groups[1].Value.Trim('"', '`');
-                    if (!string.IsNullOrEmpty(raw))
-                    {
-                        var target = raw.Trim('"', '`');
-                        if (target.Contains('.'))
-                        {
-                            target = target[(target.LastIndexOf('.') + 1)..];
-                        }
-                        AddSubscribe(references, scopeSymbolId, target);
-                    }
+                    AddPublish(references, scopeSymbolId, topic);
                 }
-
-                if (topicMatches.Count == 0)
+                else
                 {
-                    var subMatches = Regex.Matches(node.Text, @"SubID\s*:\s*([^\s,;\}]+)");
-                    foreach (Match m in subMatches)
-                    {
-                        var raw = m.Groups[1].Value.Trim('"', '`');
-                        if (!string.IsNullOrEmpty(raw))
-                        {
-                            var target = raw.Trim('"', '`');
-                            if (target.Contains('.'))
-                            {
-                                target = target[(target.LastIndexOf('.') + 1)..];
-                            }
-                            AddSubscribe(references, scopeSymbolId, target);
-                        }
-                    }
+                    AddSubscribe(references, scopeSymbolId, topic);
                 }
             }
         }
@@ -173,11 +152,25 @@ public class PubSubGoLibraryParser : ISemanticExtension
         }
         // Topic Publish: topic.Publish(ctx, msg) or client.Topic(name).Publish(ctx, msg) or manager.Publish(ctx, topic, msg, ...)
         else if (funcText.EndsWith(".Publish", StringComparison.Ordinal) ||
-                 funcText.EndsWith(".PublishAsync", StringComparison.Ordinal))
+                 funcText.EndsWith(".PublishAsync", StringComparison.Ordinal) ||
+                 funcText.EndsWith(".PublishEvent", StringComparison.Ordinal) ||
+                 funcText.EndsWith(".PublishEvents", StringComparison.Ordinal) ||
+                 funcText.EndsWith(".PublishEventAlpha1", StringComparison.Ordinal) ||
+                 funcText.EndsWith(".BulkPublishEvent", StringComparison.Ordinal) ||
+                 funcText.EndsWith(".BulkPublishEventAlpha1", StringComparison.Ordinal))
         {
             string? topic = null;
 
-            if (func.Is(TreeSitterSyntax.Go.SelectorExpression))
+            foreach (var arg in args)
+            {
+                if (TryExtractTopicFromCompositeLiteral(arg, out var reqTopic, out _, out _))
+                {
+                    topic = reqTopic;
+                    break;
+                }
+            }
+
+            if (string.IsNullOrEmpty(topic) && func.Is(TreeSitterSyntax.Go.SelectorExpression))
             {
                 var operand = func.GetChildForField(TreeSitterSyntax.Fields.Operand);
                 if (operand.IsValid())
@@ -188,7 +181,11 @@ public class PubSubGoLibraryParser : ISemanticExtension
 
             if (string.IsNullOrEmpty(topic) && args.Count > 0)
             {
-                if (args.Count >= 2)
+                if (args.Count >= 3)
+                {
+                    topic = GoAstHelper.ResolveStringOrVariable(args[2]);
+                }
+                if (string.IsNullOrEmpty(topic) && args.Count >= 2)
                 {
                     topic = GoAstHelper.ResolveStringOrVariable(args[1]);
                 }
@@ -202,12 +199,34 @@ public class PubSubGoLibraryParser : ISemanticExtension
         }
         // Subscription Receive / Subscribe: sub.Receive(ctx, handler) or manager.Subscribe(ctx, to, handler, ...)
         else if (funcText.EndsWith(".Receive", StringComparison.Ordinal) ||
-                 funcText.EndsWith(".Subscribe", StringComparison.Ordinal))
+                 funcText.EndsWith(".Subscribe", StringComparison.Ordinal) ||
+                 funcText.EndsWith(".SubscribeTopic", StringComparison.Ordinal) ||
+                 funcText.EndsWith(".SubscribeTopics", StringComparison.Ordinal) ||
+                 funcText.EndsWith(".SubscribeTopicEvents", StringComparison.Ordinal) ||
+                 funcText.EndsWith(".SubscribeTopicEventsAlpha1", StringComparison.Ordinal))
         {
-            if (funcText.EndsWith(".Subscribe", StringComparison.Ordinal) && args.Count >= 2)
+            string? topic = null;
+            foreach (var arg in args)
             {
-                var to = GoAstHelper.ResolveStringOrVariable(args[1]);
-                AddSubscribe(references, scopeSymbolId, to);
+                if (TryExtractTopicFromCompositeLiteral(arg, out var reqTopic, out _, out _))
+                {
+                    topic = reqTopic;
+                    break;
+                }
+            }
+
+            if (string.IsNullOrEmpty(topic) && args.Count >= 2)
+            {
+                topic = GoAstHelper.ResolveStringOrVariable(args[1]);
+            }
+            if (string.IsNullOrEmpty(topic) && args.Count >= 1)
+            {
+                topic = GoAstHelper.ResolveStringOrVariable(args[0]);
+            }
+
+            if (!string.IsNullOrEmpty(topic))
+            {
+                AddSubscribe(references, scopeSymbolId, topic);
             }
             else if (funcText.EndsWith(".Receive", StringComparison.Ordinal))
             {
@@ -346,5 +365,171 @@ public class PubSubGoLibraryParser : ISemanticExtension
         {
             references.Add(new Reference(scopeSymbolId, "gcp:" + clean, OntologyConstants.Relationships.SubscribesTo));
         }
+    }
+
+    private const string LiteralValueNode = "literal_value";
+    private const string UnaryExpressionNode = "unary_expression";
+    private const string FieldTopic = "Topic";
+    private const string FieldTopicId = "TopicID";
+    private const string FieldTopicName = "TopicName";
+    private const string FieldSubId = "SubID";
+
+    private static bool TryExtractTopicFromCompositeLiteral(
+        Node node,
+        out string? topic,
+        out bool isPublish,
+        out bool isSubscribe)
+    {
+        topic = null;
+        isPublish = false;
+        isSubscribe = false;
+
+        var targetNode = node;
+        if (targetNode.Is(UnaryExpressionNode) && targetNode.Children.Count >= 2)
+        {
+            targetNode = targetNode.Children[1];
+        }
+
+        if (targetNode.Type is not (TreeSitterSyntax.Go.CompositeLiteral or "literal_value"))
+        {
+            return false;
+        }
+
+        var text = targetNode.Text;
+        if (!text.Contains("Topic") && !text.Contains("SubID") && !text.Contains("topic"))
+        {
+            return false;
+        }
+
+        // 1. WorkerDef special case
+        if (text.Contains("WorkerDef"))
+        {
+            var topicMatches = Regex.Matches(text, @"TopicID\s*:\s*([^\s,;\}]+)");
+            foreach (Match m in topicMatches)
+            {
+                var raw = m.Groups[1].Value.Trim('"', '`');
+                if (!string.IsNullOrEmpty(raw))
+                {
+                    topic = CleanTopicTarget(raw);
+                    isSubscribe = true;
+                    return true;
+                }
+            }
+
+            var subMatches = Regex.Matches(text, @"SubID\s*:\s*([^\s,;\}]+)");
+            foreach (Match m in subMatches)
+            {
+                var raw = m.Groups[1].Value.Trim('"', '`');
+                if (!string.IsNullOrEmpty(raw))
+                {
+                    topic = CleanTopicTarget(raw);
+                    isSubscribe = true;
+                    return true;
+                }
+            }
+        }
+
+        // 2. Generic composite literal with Topic / TopicID / TopicName
+        var keyedElements = GetKeyedElements(targetNode);
+        if (keyedElements.TryGetValue(FieldTopic, out var tNode) ||
+            keyedElements.TryGetValue(FieldTopicId, out tNode) ||
+            keyedElements.TryGetValue(FieldTopicName, out tNode) ||
+            keyedElements.TryGetValue(FieldSubId, out tNode))
+        {
+            var rawTopic = GoAstHelper.ResolveStringOrVariable(tNode);
+            if (string.IsNullOrEmpty(rawTopic))
+            {
+                var tText = tNode.Text.Trim('"', '`');
+                if (ConstantRegistry.TryResolve(null, tText, out var resolvedConst) && !string.IsNullOrEmpty(resolvedConst))
+                {
+                    rawTopic = resolvedConst;
+                }
+                else
+                {
+                    rawTopic = tText;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(rawTopic) && !WorkspaceConventions.IsPlaceholderName(rawTopic))
+            {
+                topic = CleanTopicTarget(rawTopic);
+
+                var isPub = text.Contains("Publish", StringComparison.OrdinalIgnoreCase);
+                var isSub = text.Contains("Subscribe", StringComparison.OrdinalIgnoreCase) ||
+                            text.Contains("Subscription", StringComparison.OrdinalIgnoreCase);
+
+                if (isPub && !isSub)
+                {
+                    isPublish = true;
+                }
+                else
+                {
+                    isSubscribe = true;
+                }
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string CleanTopicTarget(string target)
+    {
+        var clean = target.Trim('"', '`');
+        if (clean.Contains('.'))
+        {
+            clean = clean[(clean.LastIndexOf('.') + 1)..];
+        }
+        return clean;
+    }
+
+    private static Dictionary<string, Node> GetKeyedElements(Node node)
+    {
+        var result = new Dictionary<string, Node>(StringComparer.OrdinalIgnoreCase);
+
+        var container = node;
+        if (node.Type is TreeSitterSyntax.Go.CompositeLiteral)
+        {
+            var body = node.GetChildForField(TreeSitterSyntax.Fields.Body);
+            if (body.IsValid()) container = body;
+            else
+            {
+                var litVal = node.FindChildOfType(LiteralValueNode);
+                if (litVal.IsValid()) container = litVal;
+            }
+        }
+
+        foreach (var rawChild in container.Children)
+        {
+            var elem = rawChild;
+            if (elem.Type == "literal_element" && elem.Children.Count > 0)
+            {
+                elem = elem.Children[0];
+            }
+
+            if (elem.Type is "keyed_element" && elem.Children.Count >= 2)
+            {
+                var keyChild = elem.Children[0];
+                if (keyChild.Type == "literal_element" && keyChild.Children.Count > 0)
+                {
+                    keyChild = keyChild.Children[0];
+                }
+
+                var valChild = elem.Children[^1];
+                if (valChild.Type == "literal_element" && valChild.Children.Count > 0)
+                {
+                    valChild = valChild.Children[0];
+                }
+
+                var keyName = keyChild.Text.Trim();
+                if (!string.IsNullOrEmpty(keyName) && valChild.IsValid())
+                {
+                    result[keyName] = valChild;
+                }
+            }
+        }
+
+        return result;
     }
 }

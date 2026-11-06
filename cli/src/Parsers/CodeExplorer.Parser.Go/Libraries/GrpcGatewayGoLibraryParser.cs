@@ -20,6 +20,12 @@ public class GrpcGatewayGoLibraryParser : ISemanticExtension
     public bool IsBuiltIn => true;
     public LibraryRole LibraryRole => LibraryRole.WebService;
 
+    private static readonly char[] TrimQuotes = ['"', '`'];
+    private const string Slash = "/";
+    private const string Colon = ":";
+    private const string HandleMethod = "Handle";
+    private const string PatternPrefix = "pattern_";
+
     private static readonly Regex PatternVarRegex = new(@"\bpattern_([A-Za-z0-9]+)_([A-Za-z0-9_]+)_[0-9]+\b", RegexOptions.Compiled);
     private static readonly HashSet<string> HttpVerbs = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -86,18 +92,18 @@ public class GrpcGatewayGoLibraryParser : ISemanticExtension
         if (!func.IsValid() || !func.Is(TreeSitterSyntax.Go.SelectorExpression)) return false;
 
         var field = func.GetChildForField(TreeSitterSyntax.Fields.Field);
-        if (!field.IsValid() || field.Text != "Handle") return false;
+        if (!field.IsValid() || field.Text != HandleMethod) return false;
 
         var args = GoAstHelper.GetCallArguments(node);
         if (args.Count < 2) return false;
 
-        var firstArgVal = GoAstHelper.ResolveStringOrVariable(args[0])?.Trim('"', '`');
+        var firstArgVal = GoAstHelper.ResolveStringOrVariable(args[0])?.Trim(TrimQuotes);
         if (string.IsNullOrEmpty(firstArgVal) || !HttpVerbs.Contains(firstArgVal)) return false;
         verb = firstArgVal.ToUpperInvariant();
 
         var patternArg = args[1].Text;
         var pMatch = PatternVarRegex.Match(patternArg);
-        if (!pMatch.Success && !patternArg.StartsWith("pattern_", StringComparison.Ordinal))
+        if (!pMatch.Success && !patternArg.StartsWith(PatternPrefix, StringComparison.Ordinal))
         {
             return false;
         }
@@ -193,7 +199,7 @@ public class GrpcGatewayGoLibraryParser : ISemanticExtension
         // args[2] is []string{...} pool
         var pool = ExtractStringLiterals(args[2]);
         // args[3] optional verb
-        var verb = args.Count > 3 ? GoAstHelper.ResolveStringOrVariable(args[3])?.Trim('"', '`') : null;
+        var verb = args.Count > 3 ? GoAstHelper.ResolveStringOrVariable(args[3])?.Trim(TrimQuotes) : null;
 
         return BuildRouteFromPattern(ops, pool, verb);
     }
@@ -218,7 +224,7 @@ public class GrpcGatewayGoLibraryParser : ISemanticExtension
         {
             if (desc.IsAny(TreeSitterSyntax.Go.InterpretedStringLiteral, TreeSitterSyntax.Go.StringLiteral, TreeSitterSyntax.Go.RawStringLiteral))
             {
-                var clean = desc.Text.Trim('"', '`');
+                var clean = desc.Text.Trim(TrimQuotes);
                 result.Add(clean);
             }
         }
@@ -269,10 +275,10 @@ public class GrpcGatewayGoLibraryParser : ISemanticExtension
             segments.AddRange(pool);
         }
 
-        var route = "/" + string.Join("/", segments);
+        var route = Slash + string.Join(Slash, segments);
         if (!string.IsNullOrEmpty(verb))
         {
-            route += ":" + verb;
+            route += Colon + verb;
         }
         return route;
     }

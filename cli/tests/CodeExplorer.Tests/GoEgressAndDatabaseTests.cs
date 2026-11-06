@@ -407,6 +407,63 @@ func StartIngest(ctx context.Context) {
     }
 
     [Test]
+    public async Task Dapr_PubSub_PublishAndSubscribe_ExtractsTopics()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce-test-dapr-pubsub-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var filePath = Path.Combine(tempDir, "pubsub.go");
+
+        var code = @"package main
+
+import (
+	""context""
+	dapr ""github.com/dapr/go-sdk/client""
+)
+
+type Subscription struct {
+	PubsubName string `json:""pubsubname""`
+	Topic      string `json:""topic""`
+	Route      string `json:""route""`
+}
+
+func Run(ctx context.Context, client dapr.Client) error {
+	_ = Subscription{
+		PubsubName: ""order-pubsub"",
+		Topic:      ""orders-received"",
+		Route:      ""/orders"",
+	}
+
+	err := client.PublishEvent(ctx, ""order-pubsub"", ""orders-processed"", []byte(""data""))
+	return err
+}
+";
+        await File.WriteAllTextAsync(filePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphRepository();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var parser = new GoParser();
+
+            using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var fileNode = syntaxTree.FileNode;
+            fileNode.Should().NotBeNull();
+
+            var allRefs = fileNode.References.Concat(FindReferences(fileNode.Children)).ToList();
+
+            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName.Contains("orders-received")).Should().BeTrue();
+            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.PublishesTo && r.TargetName.Contains("orders-processed")).Should().BeTrue();
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
     public async Task Firestore_Collections_ExtractsTableAndDatabaseReferences()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "ce-test-firestore-" + Guid.NewGuid().ToString("N"));

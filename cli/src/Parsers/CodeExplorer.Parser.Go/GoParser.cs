@@ -32,6 +32,7 @@ public class GoParser : IProjectParser, IFileParser
         new Libraries.GinLibraryParser(),
         new Libraries.ChiLibraryParser(),
         new Libraries.FiberLibraryParser(),
+        new Libraries.FasthttpLibraryParser(),
         new Libraries.EchoLibraryParser(),
         new Libraries.GoRedisLegacyLibraryParser(),
         new Libraries.GoRedisLibraryParser(),

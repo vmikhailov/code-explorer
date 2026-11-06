@@ -27,7 +27,7 @@ public class GoFileVisitor : BaseParserVisitor
             return OntologyConstants.NodeLabels.ExternalService;
         }
 
-        if (IsGoEntryPoint(node))
+        if (IsGoEntryPoint(node) || IsGoEndpointLiteral(node, out _, out _, out _))
         {
             return OntologyConstants.NodeLabels.EntryPoint;
         }
@@ -52,6 +52,12 @@ public class GoFileVisitor : BaseParserVisitor
             return ExtractGoHttpClientTarget(node);
         }
 
+        if (IsGoEndpointLiteral(node, out var epMethods, out var epRoute, out _))
+        {
+            var primaryMethod = epMethods.Count > 0 ? epMethods[0] : "ANY";
+            return $"{primaryMethod}:{epRoute}";
+        }
+
         if (IsGoEntryPoint(node))
         {
             return ExtractGoEntryPointRoute(node, RelativePath);
@@ -71,21 +77,54 @@ public class GoFileVisitor : BaseParserVisitor
 
         if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint)
         {
-            var routeVal = ExtractGoEntryPointRoute(node, RelativePath);
-            if (!string.IsNullOrEmpty(routeVal))
+            if (IsGoEndpointLiteral(node, out var epMethods, out var epRoute, out var epHandler))
             {
-                var args = node.FindChildOfType(TreeSitterSyntax.Go.ArgumentList);
-                if (args.IsValid() && args.Children.Count > 0)
+                symbolNode.Protocol = "REST";
+                symbolNode.Properties["protocol"] = "REST";
+                var primaryMethod = epMethods.Count > 0 ? epMethods[0] : "ANY";
+                symbolNode.Properties["httpMethod"] = primaryMethod;
+                symbolNode.Properties["routeTemplate"] = epRoute;
+
+                if (!string.IsNullOrEmpty(epHandler))
                 {
-                    var handlerArg = args.Children.Skip(1).FirstOrDefault(c => c.IsAny(TreeSitterSyntax.Go.Identifier, TreeSitterSyntax.Go.SelectorExpression));
-                    if (handlerArg.IsValid())
+                    symbolNode.References.Add(new Reference(epHandler, epRoute.Replace(":", " "), OntologyConstants.Relationships.Implements));
+                }
+
+                for (var i = 1; i < epMethods.Count; i++)
+                {
+                    var secMethod = epMethods[i];
+                    var secSymbol = new SyntacticSymbol(CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint, $"{secMethod}:{epRoute}", node)
                     {
-                        var handlerName = handlerArg.Text;
-                        if (handlerName.Contains('.'))
+                        Protocol = "REST"
+                    };
+                    secSymbol.Properties["protocol"] = "REST";
+                    secSymbol.Properties["httpMethod"] = secMethod;
+                    secSymbol.Properties["routeTemplate"] = epRoute;
+                    if (!string.IsNullOrEmpty(epHandler))
+                    {
+                        secSymbol.References.Add(new Reference(epHandler, epRoute.Replace(":", " "), OntologyConstants.Relationships.Implements));
+                    }
+                    symbolNode.Children.Add(secSymbol);
+                }
+            }
+            else
+            {
+                var routeVal = ExtractGoEntryPointRoute(node, RelativePath);
+                if (!string.IsNullOrEmpty(routeVal))
+                {
+                    var args = node.FindChildOfType(TreeSitterSyntax.Go.ArgumentList);
+                    if (args.IsValid() && args.Children.Count > 0)
+                    {
+                        var handlerArg = args.Children.Skip(1).FirstOrDefault(c => c.IsAny(TreeSitterSyntax.Go.Identifier, TreeSitterSyntax.Go.SelectorExpression));
+                        if (handlerArg.IsValid())
                         {
-                            handlerName = handlerName.Split('.').Last();
+                            var handlerName = handlerArg.Text;
+                            if (handlerName.Contains('.'))
+                            {
+                                handlerName = handlerName.Split('.').Last();
+                            }
+                            symbolNode.References.Add(new Reference(handlerName, routeVal.Replace(":", " "), OntologyConstants.Relationships.Implements));
                         }
-                        symbolNode.References.Add(new Reference(handlerName, routeVal.Replace(":", " "), OntologyConstants.Relationships.Implements));
                     }
                 }
             }
@@ -271,7 +310,7 @@ public class GoFileVisitor : BaseParserVisitor
                     return true;
                 }
 
-                if (methodName is "HandleFunc" or "Handle" or "GET" or "POST" or "PUT" or "DELETE" or "PATCH" or "OPTIONS"
+                if (methodName is "HandleFunc" or "Handle" or "Method" or "GET" or "POST" or "PUT" or "DELETE" or "PATCH" or "OPTIONS"
                     or "Get" or "Post" or "Put" or "Delete" or "Patch" or "Options" or "Head" or "All")
                 {
                     var args = node.FindChildOfType(TreeSitterSyntax.Go.ArgumentList);
@@ -286,15 +325,18 @@ public class GoFileVisitor : BaseParserVisitor
                     }
 
                     var routeVal = GoAstHelper.ResolveStringOrVariable(firstArg);
-                    if (string.IsNullOrEmpty(routeVal) ||
-                        routeVal.StartWithIC("http://") ||
-                        routeVal.StartWithIC("https://"))
+
+                    if ((methodName is "Handle" or "Method") && exprArgs.Count >= 2 &&
+                        (routeVal is "GET" or "POST" or "PUT" or "DELETE" or "PATCH" or "OPTIONS" or "HEAD"))
                     {
-                        return false;
+                        var secondArg = exprArgs[1];
+                        var secondRoute = GoAstHelper.ResolveStringOrVariable(secondArg);
+                        return !string.IsNullOrEmpty(secondRoute) && !secondRoute.StartWithIC(HttpProtocolPrefix) && !secondRoute.StartWithIC(HttpsProtocolPrefix);
                     }
 
-                    if (methodName == "Handle" && exprArgs.Count >= 2 &&
-                        (routeVal is "GET" or "POST" or "PUT" or "DELETE" or "PATCH" or "OPTIONS" or "HEAD"))
+                    if (string.IsNullOrEmpty(routeVal) ||
+                        routeVal.StartWithIC(HttpProtocolPrefix) ||
+                        routeVal.StartWithIC(HttpsProtocolPrefix))
                     {
                         return false;
                     }
@@ -336,18 +378,36 @@ public class GoFileVisitor : BaseParserVisitor
         string? routeVal = null;
         if (args.IsValid() && args.Children.Count > 0)
         {
-            var firstArg = args.Children.FirstOrDefault(c => c.IsAny(
-                TreeSitterSyntax.Go.InterpretedStringLiteral,
-                TreeSitterSyntax.Go.StringLiteral,
-                TreeSitterSyntax.Go.RawStringLiteral,
-                TreeSitterSyntax.Go.Identifier,
-                TreeSitterSyntax.Common.BinaryExpression));
-            if (firstArg.IsValid())
+            var exprArgs = args.Children.Where(c => !c.Type.Equals("(") && !c.Type.Equals(")") && !c.Type.Equals(",")).ToList();
+            if (exprArgs.Count >= 2)
             {
-                var resolved = GoAstHelper.ResolveStringOrVariable(firstArg);
-                if (!string.IsNullOrEmpty(resolved))
+                var firstCandidate = GoAstHelper.ResolveStringOrVariable(exprArgs[0]);
+                if (firstCandidate is "GET" or "POST" or "PUT" or "DELETE" or "PATCH" or "OPTIONS" or "HEAD")
                 {
-                    routeVal = resolved.Trim('"', '`');
+                    method = firstCandidate.ToUpperInvariant();
+                    var secondVal = GoAstHelper.ResolveStringOrVariable(exprArgs[1]);
+                    if (!string.IsNullOrEmpty(secondVal))
+                    {
+                        routeVal = secondVal.Trim('"', '`');
+                    }
+                }
+            }
+
+            if (string.IsNullOrEmpty(routeVal))
+            {
+                var firstArg = args.Children.FirstOrDefault(c => c.IsAny(
+                    TreeSitterSyntax.Go.InterpretedStringLiteral,
+                    TreeSitterSyntax.Go.StringLiteral,
+                    TreeSitterSyntax.Go.RawStringLiteral,
+                    TreeSitterSyntax.Go.Identifier,
+                    TreeSitterSyntax.Common.BinaryExpression));
+                if (firstArg.IsValid())
+                {
+                    var resolved = GoAstHelper.ResolveStringOrVariable(firstArg);
+                    if (!string.IsNullOrEmpty(resolved))
+                    {
+                        routeVal = resolved.Trim('"', '`');
+                    }
                 }
             }
         }
@@ -528,5 +588,259 @@ public class GoFileVisitor : BaseParserVisitor
         }
 
         return "http:unknown-service";
+    }
+
+    private const string HttpProtocolPrefix = "http://";
+    private const string HttpsProtocolPrefix = "https://";
+    private const string MethodAny = "ANY";
+    private const string LiteralValueNode = "literal_value";
+
+    private const string FieldRoute = "Route";
+    private const string FieldPath = "Path";
+    private const string FieldMethods = "Methods";
+    private const string FieldMethod = "Method";
+    private const string FieldVersion = "Version";
+    private const string FieldHandler = "Handler";
+    private const string FieldHandlerFunc = "HandlerFunc";
+    private const string FieldSettings = "Settings";
+    private const string FieldGroup = "Group";
+
+    private static bool IsGoEndpointLiteral(Node node, out List<string> methods, out string fullRoute, out string? handlerName)
+    {
+        methods = [];
+        fullRoute = "/";
+        handlerName = null;
+
+        if (node.Type is not (TreeSitterSyntax.Go.CompositeLiteral or "literal_value"))
+        {
+            return false;
+        }
+
+        var keyedElements = GetKeyedElements(node);
+        if (keyedElements.Count == 0) return false;
+
+        if (!keyedElements.TryGetValue(FieldRoute, out var routeNode) &&
+            !keyedElements.TryGetValue(FieldPath, out routeNode))
+        {
+            return false;
+        }
+
+        var routeVal = GoAstHelper.ResolveStringOrVariable(routeNode);
+        if (string.IsNullOrWhiteSpace(routeVal))
+        {
+            routeVal = routeNode.Text.Trim('"', '`');
+            if (string.IsNullOrWhiteSpace(routeVal) || routeVal.Contains('\n') || routeVal.Length > 200)
+            {
+                return false;
+            }
+        }
+
+        var hasOtherEndpointKey = keyedElements.ContainsKey(FieldMethods) ||
+                                  keyedElements.ContainsKey(FieldMethod) ||
+                                  keyedElements.ContainsKey(FieldVersion) ||
+                                  keyedElements.ContainsKey(FieldHandler) ||
+                                  keyedElements.ContainsKey(FieldHandlerFunc) ||
+                                  keyedElements.ContainsKey(FieldSettings) ||
+                                  keyedElements.ContainsKey(FieldGroup);
+
+        if (!hasOtherEndpointKey)
+        {
+            var typeNode = node.GetChildForField(TreeSitterSyntax.Fields.Type);
+            if (typeNode.IsValid() && (typeNode.Text.EndsWith("Endpoint", StringComparison.OrdinalIgnoreCase) ||
+                                       typeNode.Text.EndsWith("Route", StringComparison.OrdinalIgnoreCase)))
+            {
+                hasOtherEndpointKey = true;
+            }
+        }
+
+        if (!hasOtherEndpointKey) return false;
+
+        if (keyedElements.TryGetValue(FieldMethods, out var methodsNode) ||
+            keyedElements.TryGetValue(FieldMethod, out methodsNode))
+        {
+            methods = ExtractMethodsFromNode(methodsNode);
+        }
+
+        if (methods.Count == 0)
+        {
+            methods.Add(MethodAny);
+        }
+
+        string? versionStr = null;
+        if (keyedElements.TryGetValue(FieldVersion, out var versionNode))
+        {
+            versionStr = GoAstHelper.ResolveStringOrVariable(versionNode);
+            if (string.IsNullOrEmpty(versionStr))
+            {
+                var vText = versionNode.Text.Trim('"', '`');
+                if (ConstantRegistry.TryResolve(null, vText, out var resolvedV) && !string.IsNullOrEmpty(resolvedV))
+                {
+                    versionStr = resolvedV;
+                }
+                else if (int.TryParse(vText, out var vInt))
+                {
+                    versionStr = $"v{vInt}.0";
+                }
+                else if (vText.Contains('.') && double.TryParse(vText, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _))
+                {
+                    versionStr = vText.StartsWith("v", StringComparison.OrdinalIgnoreCase) ? vText : $"v{vText}";
+                }
+                else
+                {
+                    var vMatch = System.Text.RegularExpressions.Regex.Match(
+                        vText,
+                        @"(?:api)?version(v\d+)(?:(alpha\d+|beta\d+))?",
+                        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    if (vMatch.Success)
+                    {
+                        var majorPart = vMatch.Groups[1].Value.ToLowerInvariant();
+                        var num = majorPart[1..];
+                        var sub = vMatch.Groups[2].Success ? "-" + vMatch.Groups[2].Value.ToLowerInvariant() : "";
+                        versionStr = $"v{num}.0{sub}";
+                    }
+                    else if (vText.StartsWith("v", StringComparison.OrdinalIgnoreCase))
+                    {
+                        versionStr = vText;
+                    }
+                }
+            }
+        }
+
+        routeVal = routeVal.Trim();
+        if (!string.IsNullOrEmpty(versionStr))
+        {
+            versionStr = versionStr.Trim('/');
+            var cleanRoute = routeVal.TrimStart('/');
+            fullRoute = $"/{versionStr}/{cleanRoute}";
+        }
+        else
+        {
+            fullRoute = routeVal.StartsWith('/') ? routeVal : $"/{routeVal}";
+        }
+
+        if (keyedElements.TryGetValue(FieldHandler, out var hNode) ||
+            keyedElements.TryGetValue(FieldHandlerFunc, out hNode))
+        {
+            handlerName = ExtractHandlerName(hNode);
+        }
+
+        return true;
+    }
+
+    private static Dictionary<string, Node> GetKeyedElements(Node node)
+    {
+        var result = new Dictionary<string, Node>(StringComparer.OrdinalIgnoreCase);
+
+        var container = node;
+        if (node.Type is TreeSitterSyntax.Go.CompositeLiteral)
+        {
+            var body = node.GetChildForField(TreeSitterSyntax.Fields.Body);
+            if (body.IsValid()) container = body;
+            else
+            {
+                var litVal = node.FindChildOfType(LiteralValueNode);
+                if (litVal.IsValid()) container = litVal;
+            }
+        }
+
+        foreach (var rawChild in container.Children)
+        {
+            var elem = rawChild;
+            if (elem.Type == "literal_element" && elem.Children.Count > 0)
+            {
+                elem = elem.Children[0];
+            }
+
+            if (elem.Type is "keyed_element" && elem.Children.Count >= 2)
+            {
+                var keyChild = elem.Children[0];
+                if (keyChild.Type == "literal_element" && keyChild.Children.Count > 0)
+                {
+                    keyChild = keyChild.Children[0];
+                }
+
+                var valChild = elem.Children[^1];
+                if (valChild.Type == "literal_element" && valChild.Children.Count > 0)
+                {
+                    valChild = valChild.Children[0];
+                }
+
+                var keyName = keyChild.Text.Trim();
+                if (!string.IsNullOrEmpty(keyName) && valChild.IsValid())
+                {
+                    result[keyName] = valChild;
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private static List<string> ExtractMethodsFromNode(Node methodsNode)
+    {
+        var methods = new List<string>();
+        if (!methodsNode.IsValid()) return methods;
+
+        if (methodsNode.Type is TreeSitterSyntax.Go.CompositeLiteral or "literal_value")
+        {
+            var elements = methodsNode.DescendantsAndSelf()
+                .Where(d => d.Type is TreeSitterSyntax.Go.SelectorExpression or TreeSitterSyntax.Go.InterpretedStringLiteral or TreeSitterSyntax.Go.Identifier or TreeSitterSyntax.Go.RawStringLiteral)
+                .ToList();
+
+            foreach (var elem in elements)
+            {
+                var text = elem.Text.Trim('"', '`');
+                var method = CleanHttpMethod(text);
+                if (!string.IsNullOrEmpty(method) && !methods.Contains(method))
+                {
+                    methods.Add(method);
+                }
+            }
+        }
+        else
+        {
+            var text = methodsNode.Text.Trim('"', '`');
+            var method = CleanHttpMethod(text);
+            if (!string.IsNullOrEmpty(method))
+            {
+                methods.Add(method);
+            }
+        }
+
+        return methods;
+    }
+
+    private static string? CleanHttpMethod(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        if (text.EndsWith("MethodGet", StringComparison.OrdinalIgnoreCase) || text.Equals("GET", StringComparison.OrdinalIgnoreCase)) return "GET";
+        if (text.EndsWith("MethodPost", StringComparison.OrdinalIgnoreCase) || text.Equals("POST", StringComparison.OrdinalIgnoreCase)) return "POST";
+        if (text.EndsWith("MethodPut", StringComparison.OrdinalIgnoreCase) || text.Equals("PUT", StringComparison.OrdinalIgnoreCase)) return "PUT";
+        if (text.EndsWith("MethodDelete", StringComparison.OrdinalIgnoreCase) || text.Equals("DELETE", StringComparison.OrdinalIgnoreCase)) return "DELETE";
+        if (text.EndsWith("MethodPatch", StringComparison.OrdinalIgnoreCase) || text.Equals("PATCH", StringComparison.OrdinalIgnoreCase)) return "PATCH";
+        if (text.EndsWith("MethodOptions", StringComparison.OrdinalIgnoreCase) || text.Equals("OPTIONS", StringComparison.OrdinalIgnoreCase)) return "OPTIONS";
+        if (text.EndsWith("MethodHead", StringComparison.OrdinalIgnoreCase) || text.Equals("HEAD", StringComparison.OrdinalIgnoreCase)) return "HEAD";
+        if (text.EndsWith("MethodConnect", StringComparison.OrdinalIgnoreCase) || text.Equals("CONNECT", StringComparison.OrdinalIgnoreCase)) return "CONNECT";
+        if (text.EndsWith("MethodTrace", StringComparison.OrdinalIgnoreCase) || text.Equals("TRACE", StringComparison.OrdinalIgnoreCase)) return "TRACE";
+        return null;
+    }
+
+    private static string? ExtractHandlerName(Node node)
+    {
+        if (node.Is(TreeSitterSyntax.Go.CallExpression))
+        {
+            var func = node.GetFunctionNode();
+            if (func.IsValid()) return ExtractHandlerName(func);
+        }
+        if (node.Is(TreeSitterSyntax.Go.SelectorExpression))
+        {
+            var f = node.GetChildForField(TreeSitterSyntax.Fields.Field);
+            return f.IsValid() ? f.Text : node.Text;
+        }
+        if (node.Is(TreeSitterSyntax.Go.Identifier))
+        {
+            return node.Text;
+        }
+        return null;
     }
 }
