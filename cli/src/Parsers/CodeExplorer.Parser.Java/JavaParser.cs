@@ -265,6 +265,9 @@ public class JavaParser : IProjectParser, IFileParser
                 {
                     props["manifest_type"] = "application";
                     props["framework_type"] = "web";
+                    props["role"] = "Service";
+                    props["primary_role"] = "Service";
+                    props["is_library"] = "false";
                 }
                 else
                 {
@@ -303,21 +306,45 @@ public class JavaParser : IProjectParser, IFileParser
             try
             {
                 var content = PhysicalFileStore.ReadAllText(pomPath);
-                var isWebService = content.Contains("spring-boot-starter-web", StringComparison.OrdinalIgnoreCase) ||
-                                  content.Contains("spring-boot-maven-plugin", StringComparison.OrdinalIgnoreCase) ||
-                                  content.Contains("io.quarkus", StringComparison.OrdinalIgnoreCase) ||
-                                  content.Contains("io.micronaut", StringComparison.OrdinalIgnoreCase) ||
-                                  content.Contains("org.eclipse.jetty", StringComparison.OrdinalIgnoreCase) ||
-                                  content.Contains("tomcat-embed", StringComparison.OrdinalIgnoreCase);
-
-                if (isWebService)
+                var isPomPackaging = Regex.IsMatch(content, @"<packaging>\s*pom\s*</packaging>", RegexOptions.IgnoreCase);
+                if (isPomPackaging)
                 {
-                    props["manifest_type"] = "application";
-                    props["framework_type"] = "web";
+                    props["is_orchestrator"] = "true";
+                    props["is_build_orchestrator"] = "true";
+                    props["manifest_type"] = "library";
+                    props["role"] = "Library";
+                    props["kind"] = "Library";
+                    props["primary_role"] = "Library";
+                    props["is_library"] = "true";
                 }
                 else
                 {
-                    props["manifest_type"] = "library";
+                    var isWebService = content.Contains("spring-boot-starter", StringComparison.OrdinalIgnoreCase) ||
+                                      content.Contains("spring-cloud-starter", StringComparison.OrdinalIgnoreCase) ||
+                                      content.Contains("spring-cloud-config-server", StringComparison.OrdinalIgnoreCase) ||
+                                      content.Contains("spring-boot-admin", StringComparison.OrdinalIgnoreCase) ||
+                                      content.Contains("spring-boot-maven-plugin", StringComparison.OrdinalIgnoreCase) ||
+                                      content.Contains("org.springframework.boot", StringComparison.OrdinalIgnoreCase) ||
+                                      content.Contains("io.quarkus", StringComparison.OrdinalIgnoreCase) ||
+                                      content.Contains("io.micronaut", StringComparison.OrdinalIgnoreCase) ||
+                                      content.Contains("org.eclipse.jetty", StringComparison.OrdinalIgnoreCase) ||
+                                      content.Contains("tomcat-embed", StringComparison.OrdinalIgnoreCase) ||
+                                      content.Contains("io.dropwizard", StringComparison.OrdinalIgnoreCase) ||
+                                      content.Contains("io.helidon", StringComparison.OrdinalIgnoreCase) ||
+                                      content.Contains("io.ktor", StringComparison.OrdinalIgnoreCase);
+
+                    if (isWebService)
+                    {
+                        props["manifest_type"] = "application";
+                        props["framework_type"] = "web";
+                        props["role"] = "Service";
+                        props["primary_role"] = "Service";
+                        props["is_library"] = "false";
+                    }
+                    else
+                    {
+                        props["manifest_type"] = "library";
+                    }
                 }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

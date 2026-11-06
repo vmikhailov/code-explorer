@@ -29,7 +29,8 @@ public class HttpClientJavaLibraryParser : DeclarativeSemanticExtension
                 {
                     "send", "sendAsync", "execute", "newCall",
                     "getForObject", "getForEntity", "postForObject", "postForEntity", "put", "delete", "exchange",
-                    "get", "post", "retrieve", "exchangeToMono", "exchangeToFlux"
+                    "get", "post", "retrieve", "exchangeToMono", "exchangeToFlux",
+                    "uri", "url"
                 }.ToFrozenSet(StringComparer.OrdinalIgnoreCase),
                 ClientAnnotationSuffixes = new[] { "FeignClient" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase)
             }

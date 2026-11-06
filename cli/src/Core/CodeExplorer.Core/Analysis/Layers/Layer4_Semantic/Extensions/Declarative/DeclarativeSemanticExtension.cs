@@ -332,21 +332,70 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
         var name = GetShortAnnotationName(node);
         if (string.IsNullOrEmpty(name)) return false;
 
-        if (rule.AnnotationToHttpMethod.TryGetValue(name, out var m)) { httpMethod = m; return true; } return false;
+        if (!rule.AnnotationToHttpMethod.TryGetValue(name, out var m)) return false;
+        httpMethod = m;
+
+        // Class/interface level annotations (e.g. @RequestMapping("/owners")) serve as route prefixes
+        // for member methods and are not standalone invokeable endpoints.
+        var targetDecl = node.Parent;
+        while (targetDecl.IsValid())
+        {
+            if (targetDecl is FunctionDeclSyntax || targetDecl.IsAny("method_declaration", "constructor_declaration", "function_declaration", "arrow_function"))
+            {
+                return true;
+            }
+            if (targetDecl is TypeDeclSyntax || targetDecl.IsAny("class_declaration", "interface_declaration", "record_declaration", "struct_declaration"))
+            {
+                return false;
+            }
+            targetDecl = targetDecl.Parent;
+        }
+
+        return true;
     }
 
     private static string ExtractAnnotationRoute(Node annotationNode, AnnotationEndpointRule rule, string httpMethod)
     {
-        var routePath = ExtractNamedOrFirstStringFromAnnotation(annotationNode, rule.PathArgumentKeys) ?? "";
-        if (string.IsNullOrEmpty(routePath))
+        var methodPath = ExtractNamedOrFirstStringFromAnnotation(annotationNode, rule.PathArgumentKeys) ?? "";
+
+        // Check if enclosing type has a controller-level route prefix annotation (e.g. @RequestMapping or @Path)
+        string? classPrefix = null;
+        var curr = annotationNode.Parent;
+        while (curr.IsValid())
         {
-            routePath = "/";
+            if (curr is TypeDeclSyntax || curr.IsAny("class_declaration", "interface_declaration", "record_declaration", "struct_declaration"))
+            {
+                var classAnnots = GetNodeAnnotations(curr, rule.AnnotationNodeTypes);
+                foreach (var ca in classAnnots)
+                {
+                    var aName = GetShortAnnotationName(ca);
+                    if (!string.IsNullOrEmpty(aName) && rule.AnnotationToHttpMethod.ContainsKey(aName))
+                    {
+                        var p = ExtractNamedOrFirstStringFromAnnotation(ca, rule.PathArgumentKeys);
+                        if (!string.IsNullOrEmpty(p))
+                        {
+                            classPrefix = p;
+                            break;
+                        }
+                    }
+                }
+                break;
+            }
+            curr = curr.Parent;
         }
-        else if (!routePath.StartsWith('/'))
-        {
-            routePath = "/" + routePath;
-        }
-        return $"{httpMethod}:{routePath}";
+
+        var fullRoute = CombineRoutes(classPrefix ?? "", methodPath);
+        return $"{httpMethod}:{fullRoute}";
+    }
+
+    private static string CombineRoutes(string prefix, string path)
+    {
+        prefix = (prefix ?? "").Trim('/');
+        path = (path ?? "").Trim('/');
+        if (string.IsNullOrEmpty(prefix) && string.IsNullOrEmpty(path)) return "/";
+        if (string.IsNullOrEmpty(prefix)) return "/" + path;
+        if (string.IsNullOrEmpty(path)) return "/" + prefix;
+        return $"/{prefix}/{path}";
     }
 
     private static void EnrichFromEnclosingDeclarations(Node annotationNode, SyntacticSymbol symbol)
@@ -625,19 +674,44 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
                     else if (child is BinaryExprSyntax)
                     {
                         var left = child.GetField(SyntaxFields.Left) ?? (child.Children.Count >= 1 ? child.Children[0] : null);
-                        if (left.IsValid() && IsStringLiteral(left))
+                        string? leftText = null;
+                        if (left.IsValid())
                         {
-                            var text = left.Text.Trim('"', '\'');
-                            if (text.Contains('/') || text.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                            if (IsStringLiteral(left))
                             {
-                                return RouteDictionaryRegistry.NormalizeResolvedUrl(text.EndsWith('/') ? text + "*" : text);
+                                leftText = left.Text.Trim('"', '\'');
+                            }
+                            else if (left is IdentifierExprSyntax or CallExprSyntax)
+                            {
+                                var varName = left.Text.TrimStart('$');
+                                if (left is CallExprSyntax)
+                                {
+                                    var callName = GetCallMethodName(left);
+                                    if (!string.IsNullOrEmpty(callName)) varName = callName;
+                                }
+                                leftText = FindVariableInitializerInEnclosingScopes(child, varName);
                             }
                         }
 
                         var right = child.GetField(SyntaxFields.Right) ?? (child.Children.Count >= 3 ? child.Children[2] : null);
+                        string? rightText = null;
                         if (right.IsValid() && IsStringLiteral(right))
                         {
-                            return RouteDictionaryRegistry.NormalizeResolvedUrl(right.Text.Trim('"', '\''));
+                            rightText = right.Text.Trim('"', '\'');
+                        }
+
+                        if (!string.IsNullOrEmpty(leftText) && !string.IsNullOrEmpty(rightText))
+                        {
+                            var combined = leftText.TrimEnd('/') + "/" + rightText.TrimStart('/');
+                            return RouteDictionaryRegistry.NormalizeResolvedUrl(combined);
+                        }
+                        if (!string.IsNullOrEmpty(leftText) && (leftText.Contains('/') || leftText.StartsWith("http", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            return RouteDictionaryRegistry.NormalizeResolvedUrl(leftText.EndsWith('/') ? leftText + "*" : leftText);
+                        }
+                        if (!string.IsNullOrEmpty(rightText))
+                        {
+                            return RouteDictionaryRegistry.NormalizeResolvedUrl(rightText);
                         }
                     }
                 }
@@ -702,6 +776,19 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
                                         if (str.IsValid()) return str.Text.Trim('"', '\'');
                                     }
                                 }
+                            }
+                        }
+                    }
+                    if (child is FunctionDeclSyntax fn)
+                    {
+                        var fnName = fn.GetChildForField(SyntaxFields.Name)?.Text ?? fn.Children.FirstOrDefault(c => c is IdentifierExprSyntax)?.Text;
+                        if (!string.IsNullOrEmpty(fnName) && fnName.Equals(varName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            var str = fn.Descendants().FirstOrDefault(d => IsStringLiteral(d) && (d.Text.Contains('/') || d.Text.Contains('-') || d.Text.Contains(':')));
+                            if (str.IsValid())
+                            {
+                                var s = str.Text.Trim('"', '\'');
+                                if (!string.IsNullOrEmpty(s)) return s.StartsWith("http", StringComparison.OrdinalIgnoreCase) || s.StartsWith("lb:", StringComparison.OrdinalIgnoreCase) ? s : $"http://{s}";
                             }
                         }
                     }

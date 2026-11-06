@@ -285,7 +285,8 @@ public static class ConfigurationIndex
 
         // Generic URL & Service Target Discovery (Phase 0.3)
         if (cleanVal.StartWithIC("http://") ||
-            cleanVal.StartWithIC("https://"))
+            cleanVal.StartWithIC("https://") ||
+            cleanVal.StartWithIC("lb://"))
         {
             InspectAndRegisterUrl(cleanKey, cleanVal, filePath, projectName);
         }

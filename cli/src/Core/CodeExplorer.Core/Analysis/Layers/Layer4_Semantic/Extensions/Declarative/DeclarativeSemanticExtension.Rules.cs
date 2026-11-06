@@ -79,7 +79,9 @@ public partial class DeclarativeSemanticExtension
     {
         if (!rule.AnnotationNodeTypes.Contains(node.Type)) return false;
         var name = GetShortAnnotationName(node);
-        return !string.IsNullOrEmpty(name) && rule.TableAnnotationNames.Contains(name);
+        if (string.IsNullOrEmpty(name) || !rule.TableAnnotationNames.Contains(name)) return false;
+        var tableName = ExtractOrmTableName(node, rule);
+        return !string.IsNullOrEmpty(tableName) && !tableName.Equals("Entity", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? ExtractOrmTableName(Node annotNode, OrmTableRule rule)

@@ -603,7 +603,13 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
                     extraEntryPointName = ExtractIdentifierUsingLibraries(node, libKind);
                 }
 
-                VisitSymbolNode(node, baseKind, baseName, depth, baseVisit, extraEntryPointName);
+                string? extraExternalServiceName = null;
+                if (libKind == OntologyConstants.NodeLabels.ExternalService)
+                {
+                    extraExternalServiceName = ExtractIdentifierUsingLibraries(node, libKind);
+                }
+
+                VisitSymbolNode(node, baseKind, baseName, depth, baseVisit, extraEntryPointName, extraExternalServiceName);
                 return;
             }
         }
@@ -628,7 +634,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         }
     }
 
-    protected void VisitSymbolNode(Node node, string kind, string name, int depth, Action? baseVisit = null, string? extraEntryPointName = null)
+    protected void VisitSymbolNode(Node node, string kind, string name, int depth, Action? baseVisit = null, string? extraEntryPointName = null, string? extraExternalServiceName = null)
     {
         if (kind == "Variable" || kind == OntologyConstants.NodeLabels.Member)
         {
@@ -669,6 +675,17 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
                 libParser.EnrichSymbol(node, epChild, Context!);
             }
             syntacticNode.Children.Add(epChild);
+        }
+
+        if (!string.IsNullOrEmpty(extraExternalServiceName) && extraExternalServiceName != name)
+        {
+            var extChild = new SyntacticSymbol(OntologyConstants.NodeLabels.ExternalService, extraExternalServiceName, node);
+            foreach (var libParser in LibraryParsers)
+            {
+                libParser.CollectReferences(node, "", extChild.References, Context!);
+                libParser.EnrichSymbol(node, extChild, Context!);
+            }
+            syntacticNode.Children.Add(extChild);
         }
 
         if (kind == OntologyConstants.NodeLabels.Topic &&
