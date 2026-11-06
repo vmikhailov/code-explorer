@@ -40,6 +40,7 @@
     <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parser.Rust\CodeExplorer.Parser.Rust.csproj" />
     <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parser.Shared\CodeExplorer.Parser.Shared.csproj" />
     <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parser.Script\CodeExplorer.Parser.Script.csproj" />
+    <ProjectReference Include="..\..\src\Parsers\CodeExplorer.Parser.Terraform\CodeExplorer.Parser.Terraform.csproj" />
   </ItemGroup>
 
   <!-- Link OntologyGen source files so tests can use the extractor/renderer directly -->

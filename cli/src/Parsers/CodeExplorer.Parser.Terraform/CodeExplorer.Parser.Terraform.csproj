@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- Pure C# HCL parser (UsesTreeSitter => false) — NO TreeSitter.DotNet dependency.
+       tree-sitter-hcl is not bundled in TreeSitter.DotNet v1.3.0 and native cross-compile
+       across 6 RIDs is rejected (breaks pure `dotnet publish`). See spec §3. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\CodeExplorer.Core\CodeExplorer.Core.csproj" />
+  </ItemGroup>
+
+</Project>
