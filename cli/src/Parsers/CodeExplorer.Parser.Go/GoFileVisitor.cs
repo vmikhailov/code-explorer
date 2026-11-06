@@ -217,21 +217,44 @@ public class GoFileVisitor : BaseParserVisitor
         {
             var operand = func.GetChildForField(TreeSitterSyntax.Fields.Operand);
             var field = func.GetChildForField(TreeSitterSyntax.Fields.Field);
-            if (operand.IsValid() && (operand.Text == "http" ||
-                                      operand.Text.Contains("client", StringComparison.OrdinalIgnoreCase) ||
-                                      operand.Text.Contains("resty", StringComparison.OrdinalIgnoreCase) ||
-                                      operand.Text.Contains(".R()")))
+            if (operand.IsValid())
             {
-                if (field.IsValid() && field.Text is not ("HandleFunc" or "Handle"))
+                var opText = operand.Text;
+                if (opText is "slog" or "zap" || opText.Contains("log", StringComparison.OrdinalIgnoreCase))
                 {
                     return false;
+                }
+
+                if (opText == "http" ||
+                    opText.Contains("client", StringComparison.OrdinalIgnoreCase) ||
+                    opText.Contains("resty", StringComparison.OrdinalIgnoreCase) ||
+                    opText.Contains(".R()"))
+                {
+                    if (field.IsValid() && field.Text is not ("HandleFunc" or "Handle"))
+                    {
+                        return false;
+                    }
                 }
             }
 
             if (field.IsValid())
             {
                 var methodName = field.Text;
-                if (methodName is "HandleFunc" or "Handle" or "GET" or "POST" or "PUT" or "DELETE" or "PATCH" or "OPTIONS" or "Any"
+                if (methodName == "Any")
+                {
+                    if (!operand.IsValid()) return false;
+                    var op = operand.Text;
+                    if (op is not ("r" or "router" or "app" or "e" or "mux" or "group" or "g" or "api" or "v1") &&
+                        !op.EndsWith("Mux", StringComparison.OrdinalIgnoreCase) &&
+                        !op.EndsWith("Router", StringComparison.OrdinalIgnoreCase) &&
+                        !op.EndsWith("Group", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return false;
+                    }
+                    return true;
+                }
+
+                if (methodName is "HandleFunc" or "Handle" or "GET" or "POST" or "PUT" or "DELETE" or "PATCH" or "OPTIONS"
                     or "Get" or "Post" or "Put" or "Delete" or "Patch" or "Options" or "Head" or "All")
                 {
                     return true;

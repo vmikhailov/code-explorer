@@ -106,7 +106,7 @@ public static class ConfigurationParser
         {
             CreateDatabaseNode("MongoDB", "document", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
         }
-        else if (lower.StartsWith("redis://") || lower.Contains("localhost:6379") || lowerName.Contains("redis"))
+        else if (lower.StartsWith("redis://") || lower.StartsWith("valkey://") || lower.Contains("localhost:6379") || lowerName.Contains("redis") || lowerName.Contains("valkey"))
         {
             CreateDatabaseNode("Redis", "cache", relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx, name, connStr);
         }
@@ -187,12 +187,20 @@ public static class ConfigurationParser
             var ch = uriMatch.Groups[1].Value.Trim().Trim('"', '\'');
             if (IsValidCatalogName(ch)) return ch;
         }
+
+        var lowerLeaf = leaf.ToLowerInvariant();
+        if (lowerLeaf is "topic" or "queue" or "channel" or "routingkey" or "routing_key")
+        {
+            var valTrimmed = connStr.Trim().Trim('"', '\'');
+            if (IsValidCatalogName(valTrimmed)) return valTrimmed;
+        }
+
         return leaf;
     }
 
     private static string ExtractKeyLeaf(string key)
     {
-        var sepIdx = Math.Max(key.LastIndexOf(':'), key.LastIndexOf('.'));
+        var sepIdx = Math.Max(key.LastIndexOf(':'), Math.Max(key.LastIndexOf('.'), key.LastIndexOf('_')));
         return sepIdx >= 0 && sepIdx < key.Length - 1 ? key[(sepIdx + 1)..] : key;
     }
 

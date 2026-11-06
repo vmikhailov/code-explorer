@@ -134,7 +134,10 @@ public partial class PostIndexAnalyzer
             var callerSource = isReverseDbRel ? rel.To : rel.From;
 
             if (!dbTarget.Contains(":db:") && !dbTarget.Contains(":database:") && !dbTarget.Contains(":res:db:"))
-                continue;
+            {
+                if (!isForwardDbRel || !IsLikelyDatabaseName(dbTarget, rel.Engine))
+                    continue;
+            }
 
             var filePath = rel.FilePath;
             if (!IsTestSource(callerSource, filePath))
@@ -353,7 +356,9 @@ public partial class PostIndexAnalyzer
                 var rawName = parts.Length > 0 ? parts[^1] : "";
                 if (string.IsNullOrWhiteSpace(rawName)) continue;
 
-                var rawType = !string.IsNullOrEmpty(rel.DbType) ? rel.DbType : "relational";
+                var rawType = !string.IsNullOrEmpty(rel.DbType)
+                    ? rel.DbType
+                    : (rawName.Equals("redis", StringComparison.OrdinalIgnoreCase) || rawName.Equals("valkey", StringComparison.OrdinalIgnoreCase) ? "cache" : "relational");
                 var rawEngine = rel.Engine;
                 var rawSchema = rel.Schema;
 

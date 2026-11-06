@@ -293,6 +293,7 @@ public partial class CSharpParser : IProjectParser, IFileParser
         new Libraries.EventBusLibraryParser(),
         new Libraries.MediatRLibraryParser(),
         new Libraries.KafkaFlowLibraryParser(),
+        new Libraries.ConfluentKafkaLibraryParser(),
         new Libraries.OrleansLibraryParser(),
         new Libraries.RestSharpLibraryParser(),
         new Libraries.RefitLibraryParser(),

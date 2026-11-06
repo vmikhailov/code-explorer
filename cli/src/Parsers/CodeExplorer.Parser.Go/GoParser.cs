@@ -45,6 +45,8 @@ public class GoParser : IProjectParser, IFileParser
         new Libraries.PgxLibraryParser(),
         new Libraries.RestyLibraryParser(),
         new Libraries.GoHttpClientLibraryParser(),
+        new Libraries.GrpcGoLibraryParser(),
+        new Libraries.SaramaKafkaLibraryParser(),
         Libraries.GoTestLibraryParser.Instance
     ];
 

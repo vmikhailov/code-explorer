@@ -286,9 +286,8 @@ public partial class Layer2ProjectParser
 
                 // Only trigger if NOT inside an already detected project
                 var isCovered = projects.Any(p =>
-                    string.IsNullOrEmpty(p.Path) ||
                     relativeProjectDir == p.Path ||
-                    relativeProjectDir.StartsWith(p.Path.TrimEnd('/') + "/"));
+                    (!string.IsNullOrEmpty(p.Path) && relativeProjectDir.StartsWith(p.Path.TrimEnd('/') + "/")));
 
                 if (isCovered) continue;
 

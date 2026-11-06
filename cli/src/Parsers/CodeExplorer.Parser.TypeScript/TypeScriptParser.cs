@@ -175,6 +175,7 @@ public partial class TypeScriptParser : IProjectParser, IFileParser
         new Libraries.PrismaLibraryParser(),
         new Libraries.DrizzleLibraryParser(),
         new Libraries.RedisLibraryParser(),
+        new Libraries.GrpcTypeScriptLibraryParser(),
         new Libraries.SequelizeLibraryParser(),
         new Libraries.Sqlite3LibraryParser(),
         new Libraries.TypeOrmLibraryParser(),

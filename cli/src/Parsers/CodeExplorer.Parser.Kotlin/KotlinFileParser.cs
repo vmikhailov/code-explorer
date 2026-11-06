@@ -9,6 +9,8 @@ namespace CodeExplorer.Parser.Kotlin;
 
 public class KotlinFileParser : IFileParser
 {
+    private static readonly Regex KafkaSubscribeRegex = new(@"subscribe\s*\(\s*(?:listOf\s*\(\s*)?(?:['""]([^'""]+)['""]|([a-zA-Z0-9_]+))", RegexOptions.Compiled | RegexOptions.Multiline);
+
     public string LanguageName => "kotlin";
 
     public bool UsesTreeSitter => false;
@@ -222,6 +224,32 @@ public class KotlinFileParser : IFileParser
                     "channel"
                 );
                 fileNode.Children.Add(channelEp);
+            }
+        }
+
+        // 7. Kafka Consumer Subscriptions: consumer.subscribe(listOf(topic)) or subscribe(listOf("orders"))
+        var kafkaMatches = KafkaSubscribeRegex.Matches(content);
+        foreach (Match km in kafkaMatches)
+        {
+            var literal = km.Groups[1].Success ? km.Groups[1].Value.Trim() : null;
+            var idVar = km.Groups[2].Success ? km.Groups[2].Value.Trim() : null;
+            var tName = literal;
+            if (string.IsNullOrEmpty(tName) && !string.IsNullOrEmpty(idVar))
+            {
+                if (stringVars.TryGetValue(idVar, out var res)) tName = res;
+                else
+                {
+                    var fallbackMatch = Regex.Match(content, $@"{idVar}\s*:[^=]+=\s*.*?\?:\s*['""]([^'""]+)['""]");
+                    if (fallbackMatch.Success) tName = fallbackMatch.Groups[1].Value;
+                    else tName = idVar;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(tName))
+            {
+                var target = $"kafka:{tName}";
+                var scopeId = primaryClassNode?.Id ?? fileNode.Id;
+                fileNode.References.Add(new Reference(scopeId, target, OntologyConstants.Relationships.SubscribesTo, 1, 1));
             }
         }
 

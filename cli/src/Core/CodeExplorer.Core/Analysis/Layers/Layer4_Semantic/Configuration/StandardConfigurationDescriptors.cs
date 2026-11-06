@@ -29,7 +29,9 @@ public sealed class DatabaseConfigurationDescriptor : ILibraryConfigurationDescr
                               lowerKey.EndsWith(":connectionstring") ||
                               lowerKey.Contains("database_url") ||
                               lowerKey.Contains("db_connection") ||
-                              lowerKey.Contains("connection_string");
+                              lowerKey.Contains("connection_string") ||
+                              lowerKey.Contains("valkey_addr") ||
+                              lowerKey.Contains("redis_addr");
 
         // 2. Recognized database URI schemes or ADO.NET connection patterns
         var isDbVal = lowerVal.StartsWith("postgres://") ||
@@ -38,6 +40,7 @@ public sealed class DatabaseConfigurationDescriptor : ILibraryConfigurationDescr
                       lowerVal.StartsWith("mongodb://") ||
                       lowerVal.StartsWith("mongodb+srv://") ||
                       lowerVal.StartsWith("redis://") ||
+                      lowerVal.StartsWith("valkey://") ||
                       lowerVal.StartsWith("jdbc:sqlserver://") ||
                       lowerVal.StartsWith("jdbc:mysql://") ||
                       lowerVal.StartsWith("mysql://") ||
@@ -86,6 +89,14 @@ public sealed class MessageBrokerConfigurationDescriptor : ILibraryConfiguration
 {
     public int Order => 1000;
 
+    private static readonly HashSet<string> IgnoredInfraKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "host", "port", "addr", "address", "addresses", "dockerfile", "image", "enabled",
+        "version", "servers", "bootstrap-servers", "bootstrapservers", "url", "uri", "user",
+        "username", "password", "ssl", "tls", "tls_verify", "group", "group_id", "groupid",
+        "heap_opts", "listeners", "advertised_listeners", "quorum_voters", "retries", "timeout"
+    };
+
     public bool TryHandle(
         string key,
         string value,
@@ -98,21 +109,30 @@ public sealed class MessageBrokerConfigurationDescriptor : ILibraryConfiguration
     {
         if (DatabaseConfigurationDescriptor.IsDockerCompose(relativePath)) return false;
 
+        var leaf = ExtractKeyLeaf(key);
+        if (IgnoredInfraKeys.Contains(leaf)) return false;
+
         var lowerKey = key.ToLowerInvariant();
         var lowerVal = value.ToLowerInvariant();
 
         if (lowerKey.Contains("rabbitmq") || lowerVal.StartsWith("amqp://") || lowerVal.StartsWith("amqps://"))
         {
-            var ch = ConfigurationParser.ExtractChannelName(value, ExtractKeyLeaf(key));
-            ConfigurationParser.CreateTopicNode("rabbitmq", ch, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
-            return true;
+            var ch = ConfigurationParser.ExtractChannelName(value, leaf);
+            if (!string.IsNullOrEmpty(ch) && !IgnoredInfraKeys.Contains(ch) && !ch.Equals("default", StringComparison.OrdinalIgnoreCase))
+            {
+                ConfigurationParser.CreateTopicNode("rabbitmq", ch, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
+                return true;
+            }
         }
 
         if (lowerKey.Contains("kafka"))
         {
-            var ch = ConfigurationParser.ExtractChannelName(value, ExtractKeyLeaf(key));
-            ConfigurationParser.CreateTopicNode("kafka", ch, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
-            return true;
+            var ch = ConfigurationParser.ExtractChannelName(value, leaf);
+            if (!string.IsNullOrEmpty(ch) && !IgnoredInfraKeys.Contains(ch) && !ch.Equals("default", StringComparison.OrdinalIgnoreCase))
+            {
+                ConfigurationParser.CreateTopicNode("kafka", ch, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx);
+                return true;
+            }
         }
 
         return false;
@@ -120,17 +140,8 @@ public sealed class MessageBrokerConfigurationDescriptor : ILibraryConfiguration
 
     private static string ExtractKeyLeaf(string key)
     {
-        var sepIdx = Math.Max(key.LastIndexOf(':'), key.LastIndexOf('.'));
+        var sepIdx = Math.Max(key.LastIndexOf(':'), Math.Max(key.LastIndexOf('.'), key.LastIndexOf('_')));
         var leaf = sepIdx >= 0 && sepIdx < key.Length - 1 ? key[(sepIdx + 1)..] : key;
-        if (leaf.Equals("host", StringComparison.OrdinalIgnoreCase) ||
-            leaf.Equals("port", StringComparison.OrdinalIgnoreCase) ||
-            leaf.Equals("addresses", StringComparison.OrdinalIgnoreCase) ||
-            leaf.Equals("bootstrap-servers", StringComparison.OrdinalIgnoreCase) ||
-            leaf.Equals("url", StringComparison.OrdinalIgnoreCase) ||
-            leaf.Equals("uri", StringComparison.OrdinalIgnoreCase))
-        {
-            return "default";
-        }
         return leaf;
     }
 }
