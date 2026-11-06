@@ -151,7 +151,8 @@ public sealed class PropertiesConfigurationParser : ISharedFileParser
     public bool CanParse(string fileName) =>
         fileName.EndsWith(".toml", StringComparison.OrdinalIgnoreCase)
             ? !ExcludedToml.Contains(fileName)
-            : fileName.StartsWith("application", StringComparison.OrdinalIgnoreCase);
+            : fileName.EndsWith(".properties", StringComparison.OrdinalIgnoreCase) &&
+              !fileName.StartsWith("gradle", StringComparison.OrdinalIgnoreCase);
 
     public IProjectEnrichment? Parse(SharedFileContext file)
     {
@@ -177,9 +178,20 @@ public sealed class YamlConfigurationParser : ISharedFileParser
     public string Name => "yaml-configuration";
     public IReadOnlyCollection<string> Extensions { get; } = [".yml", ".yaml"];
 
+    private static readonly HashSet<string> ExcludedYaml = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".travis.yml", ".travis.yaml",
+        ".gitlab-ci.yml", ".gitlab-ci.yaml",
+        "azure-pipelines.yml", "azure-pipelines.yaml",
+        "dependabot.yml", "dependabot.yaml",
+        ".codecov.yml", ".codecov.yaml",
+        ".pre-commit-config.yaml", ".pre-commit-config.yml"
+    };
+
     public bool CanParse(string fileName) =>
-        fileName.StartsWith("application", StringComparison.OrdinalIgnoreCase) ||
-        fileName.StartsWith("docker-compose", StringComparison.OrdinalIgnoreCase);
+        (fileName.EndsWith(".yml", StringComparison.OrdinalIgnoreCase) ||
+         fileName.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase)) &&
+        !ExcludedYaml.Contains(fileName);
 
     public IProjectEnrichment? Parse(SharedFileContext file)
     {

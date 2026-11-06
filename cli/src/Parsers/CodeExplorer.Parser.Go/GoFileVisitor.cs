@@ -389,7 +389,7 @@ public class GoFileVisitor : BaseParserVisitor
                     }
                 }
             }
-            if (parent.Is("expression_statement") || parent.Is(TreeSitterSyntax.Go.Block))
+            if (parent.Is(TreeSitterSyntax.Go.ExpressionStatement) || parent.Is(TreeSitterSyntax.Go.Block))
             {
                 break;
             }

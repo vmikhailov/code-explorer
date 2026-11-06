@@ -88,6 +88,7 @@ internal static class TreeSitterSyntax
         public const string TemplateString = "template_string";
         public const string String = "string";
         public const string PropertyIdentifier = "property_identifier";
+        public const string ShorthandPropertyIdentifier = "shorthand_property_identifier";
         public const string ExtendsClause = "extends_clause";
         public const string ImplementsClause = "implements_clause";
         public const string NewExpression = "new_expression";

@@ -46,7 +46,7 @@ public sealed record SqlSinkRule
 public sealed record OrmTableRule
 {
     public FrozenSet<string> TableAnnotationNames { get; init; } = new[] { "Table", "Entity" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
-    public FrozenSet<string> NameArgumentKeys { get; init; } = new[] { "name", "value" }.ToFrozenSet();
+    public FrozenSet<string> NameArgumentKeys { get; init; } = new[] { "name", "value", "collection" }.ToFrozenSet();
     public FrozenSet<string> AnnotationNodeTypes { get; init; } = new[] { "annotation", "marker_annotation", "attribute", "attribute_group" }.ToFrozenSet();
     public FrozenSet<string> ClassDeclarationNodeTypes { get; init; } = new[] { "class_declaration" }.ToFrozenSet();
 }
@@ -297,9 +297,22 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
 
                 if (isEntity)
                 {
-                    var tableAnnot = annotations.FirstOrDefault(a =>
-                        string.Equals(GetShortAnnotationName(a), "Table", StringComparison.OrdinalIgnoreCase));
-                    var tableName = tableAnnot.IsValid() ? ExtractOrmTableName(tableAnnot, rule) : symbol.Name;
+                    string? explicitName = null;
+                    foreach (var a in annotations)
+                    {
+                        var aName = GetShortAnnotationName(a);
+                        if (aName != null && rule.TableAnnotationNames.Contains(aName))
+                        {
+                            var extracted = ExtractOrmTableName(a, rule);
+                            if (!string.IsNullOrEmpty(extracted))
+                            {
+                                explicitName = extracted;
+                                break;
+                            }
+                        }
+                    }
+
+                    var tableName = explicitName ?? symbol.Name;
                     if (!string.IsNullOrEmpty(tableName))
                     {
                         symbol.References.Add(new Reference(symbol.Name, tableName, OntologyConstants.Relationships.PersistedIn));
@@ -324,6 +337,9 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
 
     #region Annotation Endpoint Helpers
 
+    private static readonly string[] FunctionNodeTypes = ["method_declaration", "constructor_declaration", "function_declaration", "arrow_function"];
+    private static readonly string[] TypeDeclNodeTypes = ["class_declaration", "interface_declaration", "record_declaration", "struct_declaration"];
+
     private static bool MatchesAnnotationEndpoint(Node node, AnnotationEndpointRule rule, out string httpMethod)
     {
         httpMethod = "GET";
@@ -340,11 +356,43 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
         var targetDecl = node.Parent;
         while (targetDecl.IsValid())
         {
-            if (targetDecl is FunctionDeclSyntax || targetDecl.IsAny("method_declaration", "constructor_declaration", "function_declaration", "arrow_function"))
+            if (targetDecl is FunctionDeclSyntax || targetDecl.IsAny(FunctionNodeTypes))
             {
+                // Check if the enclosing type has client annotations (e.g. @FeignClient) - client interfaces define outbound calls, not endpoints
+                var typeDecl = targetDecl.Parent;
+                while (typeDecl.IsValid())
+                {
+                    if (typeDecl is TypeDeclSyntax || typeDecl.IsAny(TypeDeclNodeTypes))
+                    {
+                        var typeAnnots = GetNodeAnnotations(typeDecl, rule.AnnotationNodeTypes);
+                        if (typeAnnots.Any(a =>
+                        {
+                            var aName = GetShortAnnotationName(a);
+                            return !string.IsNullOrEmpty(aName) &&
+                                   (aName.EndsWith("Client", StringComparison.OrdinalIgnoreCase) ||
+                                    aName.Equals("FeignClient", StringComparison.OrdinalIgnoreCase) ||
+                                    aName.Equals("HttpExchange", StringComparison.OrdinalIgnoreCase));
+                        }))
+                        {
+                            return false;
+                        }
+                        break;
+                    }
+                    typeDecl = typeDecl.Parent;
+                }
+
+                if (httpMethod == "ALL" || string.Equals(name, "RequestMapping", StringComparison.OrdinalIgnoreCase))
+                {
+                    var explicitMethod = ExtractHttpMethodFromAnnotation(node);
+                    if (!string.IsNullOrEmpty(explicitMethod))
+                    {
+                        httpMethod = explicitMethod;
+                    }
+                }
+
                 return true;
             }
-            if (targetDecl is TypeDeclSyntax || targetDecl.IsAny("class_declaration", "interface_declaration", "record_declaration", "struct_declaration"))
+            if (targetDecl is TypeDeclSyntax || targetDecl.IsAny(TypeDeclNodeTypes))
             {
                 return false;
             }
@@ -363,7 +411,7 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
         var curr = annotationNode.Parent;
         while (curr.IsValid())
         {
-            if (curr is TypeDeclSyntax || curr.IsAny("class_declaration", "interface_declaration", "record_declaration", "struct_declaration"))
+            if (curr is TypeDeclSyntax || curr.IsAny(TypeDeclNodeTypes))
             {
                 var classAnnots = GetNodeAnnotations(curr, rule.AnnotationNodeTypes);
                 foreach (var ca in classAnnots)
@@ -629,7 +677,24 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
                     }
                     else if (keyText is "url")
                     {
-                        return RouteDictionaryRegistry.NormalizeResolvedUrl(valText);
+                        var rawUrl = valText;
+                        if (rawUrl.StartsWith("${") && rawUrl.EndsWith('}'))
+                        {
+                            var propKey = rawUrl[2..^1].Trim();
+                            if (ConstantRegistry.TryResolve(null, propKey, out var constVal) && !string.IsNullOrEmpty(constVal))
+                            {
+                                rawUrl = constVal;
+                            }
+                            else if (ConfigurationIndex.TryGetConfig(null, propKey, out var confVal) && !string.IsNullOrEmpty(confVal))
+                            {
+                                rawUrl = confVal;
+                            }
+                        }
+                        var norm = RouteDictionaryRegistry.NormalizeResolvedUrl(rawUrl);
+                        if (!string.IsNullOrEmpty(norm) && norm != "*")
+                        {
+                            return norm;
+                        }
                     }
                 }
             }

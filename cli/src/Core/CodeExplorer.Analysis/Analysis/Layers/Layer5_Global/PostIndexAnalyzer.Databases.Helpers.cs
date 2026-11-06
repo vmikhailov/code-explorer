@@ -548,6 +548,33 @@ public partial class PostIndexAnalyzer
         // Link orphaned DDL tables (e.g. created via .sql schema files without explicit CREATE DATABASE) to canonical database
         if (canonicalNodes.Count > 0)
         {
+            // 1. Link each Table to the matching canonical Database based on path/project/name
+            foreach (var (dbId, tuple) in canonicalNodes)
+            {
+                var cName = tuple.Name;
+                var cleanDbName = cName.Contains('.') ? cName.Split('.', 2)[1] : cName;
+                var dbKey = dbId.Split(':').LastOrDefault() ?? cleanDbName;
+                if (string.IsNullOrWhiteSpace(cleanDbName) || cleanDbName.Length < 3) continue;
+
+                await db.ExecuteWriteAsync(@"
+                    INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
+                    SELECT @dbId, t.id, 'CONTAINS', '{}'
+                    FROM nodes t
+                    WHERE t.kind = 'Table'
+                      AND (
+                          instr(replace(lower(coalesce(json_extract(t.properties, '$.path'), '')), '\', '/'), '/' || lower(@cleanDbName) || '/') > 0
+                          OR instr(replace(lower(coalesce(json_extract(t.properties, '$.path'), '')), '\', '/'), '/' || lower(@cleanDbName) || '-') > 0
+                          OR instr(replace(lower(coalesce(json_extract(t.properties, '$.path'), '')), '\', '/'), '/' || lower(@cleanDbName) || '_') > 0
+                          OR instr(lower(t.id), lower(@cleanDbName)) > 0
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1 FROM edges e
+                          JOIN nodes d ON e.from_id = d.id
+                          WHERE e.to_id = t.id AND e.kind = 'CONTAINS' AND d.kind IN ('Database', 'DataSet')
+                      );",
+                    new { dbId, cleanDbName, dbKey }, cancellationToken);
+            }
+
             var primaryCanonicalId = canonicalNodes.Keys.First();
             await db.ExecuteWriteAsync(@"
                 INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
@@ -570,7 +597,8 @@ public partial class PostIndexAnalyzer
                 JOIN nodes f ON e1.from_id = f.id AND f.kind = 'File'
                 JOIN edges e2 ON e2.to_id = f.id AND e2.kind = 'CONTAINS'
                 JOIN nodes p ON e2.from_id = p.id AND p.kind = 'Project'
-                WHERE NOT EXISTS (
+                WHERE t.kind = 'Table'
+                  AND NOT EXISTS (
                     SELECT 1 FROM edges ep WHERE ep.from_id = p.id AND ep.to_id = t.id AND ep.kind = 'DEFINES'
                 );",
                 null, cancellationToken);

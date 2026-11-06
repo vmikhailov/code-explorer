@@ -35,6 +35,10 @@ public record ConfigEntry(
 /// </summary>
 public static class ConfigurationIndex
 {
+    private const string SchemeHttp = "http://";
+    private const string SchemeHttps = "https://";
+    private const string SchemeLb = "lb://";
+
     // Project -> (NormalizedKey -> Value)
     private static readonly ConcurrentDictionary<string, ConcurrentDictionary<string, string>> _projectConfigs =
         new(StringComparer.OrdinalIgnoreCase);
@@ -284,9 +288,9 @@ public static class ConfigurationIndex
         }
 
         // Generic URL & Service Target Discovery (Phase 0.3)
-        if (cleanVal.StartWithIC("http://") ||
-            cleanVal.StartWithIC("https://") ||
-            cleanVal.StartWithIC("lb://"))
+        if (cleanVal.StartWithIC(SchemeHttp) ||
+            cleanVal.StartWithIC(SchemeHttps) ||
+            cleanVal.StartWithIC(SchemeLb))
         {
             InspectAndRegisterUrl(cleanKey, cleanVal, filePath, projectName);
         }

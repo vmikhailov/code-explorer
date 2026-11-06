@@ -19,7 +19,10 @@ public class HttpClientJavaLibraryParser : DeclarativeSemanticExtension
             "org.apache.http*",
             "org.apache.hc.client5*",
             "org.springframework.cloud.openfeign*",
-            "feign*"
+            "org.springframework.cloud.spring-cloud-starter-openfeign*",
+            "org.springframework.cloud.spring-cloud-starter-feign*",
+            "*openfeign*",
+            "*feign*"
         ];
         OutboundHttpRules =
         [

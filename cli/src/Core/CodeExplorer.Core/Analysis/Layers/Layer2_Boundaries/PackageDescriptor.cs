@@ -108,11 +108,24 @@ public record PackageDescriptor(
         var aParts = a.Split(['.', '/', ':'], StringSplitOptions.RemoveEmptyEntries);
         var bParts = b.Split(['.', '/', ':'], StringSplitOptions.RemoveEmptyEntries);
 
+        if (bParts.Length == 1 && bParts[0].StartsWith('*') && bParts[0].EndsWith('*') && bParts[0].Length > 2)
+        {
+            var sub = bParts[0][1..^1];
+            return a.Contains(sub, StringComparison.OrdinalIgnoreCase);
+        }
+
         if (aParts.Length < bParts.Length) return false;
 
         for (var i = 0; i < bParts.Length; i++)
         {
             if (bParts[i] == "*") continue;
+            if (bParts[i].StartsWith('*') && bParts[i].EndsWith('*') && bParts[i].Length > 2)
+            {
+                var sub = bParts[i][1..^1];
+                if (!aParts[i].Contains(sub, StringComparison.OrdinalIgnoreCase))
+                    return false;
+                continue;
+            }
             if (bParts[i].EndsWith('*') && bParts[i].Length > 1)
             {
                 var prefix = bParts[i][..^1];

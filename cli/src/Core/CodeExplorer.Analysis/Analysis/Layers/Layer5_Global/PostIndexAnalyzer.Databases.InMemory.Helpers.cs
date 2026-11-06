@@ -423,6 +423,43 @@ public partial class PostIndexAnalyzer
         // Link orphaned DDL tables (e.g. created via .sql schema files without explicit CREATE DATABASE) to canonical database
         if (canonicalDbNodes.Count > 0)
         {
+            var rootDirName = Path.GetFileName(ctx.AbsoluteWorkspacePath.TrimEnd('/', '\\'));
+            var orderedDbs = canonicalDbNodes
+                .OrderBy(kvp =>
+                {
+                    var dbName = kvp.Value.Name ?? "";
+                    var clean = dbName.Contains('.') ? dbName.Split('.', 2)[1] : dbName;
+                    return (!string.IsNullOrEmpty(rootDirName) && clean.Equals(rootDirName, StringComparison.OrdinalIgnoreCase)) ? 1 : 0;
+                })
+                .ToList();
+
+            // 1. Link each Table to the matching canonical Database based on path/project/name
+            foreach (var (dbId, dbNode) in orderedDbs)
+            {
+                var dbName = dbNode.Name ?? "";
+                var cleanDbName = dbName.Contains('.') ? dbName.Split('.', 2)[1] : dbName;
+                var dbKey = dbId.Split(':').LastOrDefault() ?? cleanDbName;
+                if (string.IsNullOrWhiteSpace(cleanDbName) || cleanDbName.Length < 3) continue;
+
+                await ctx.DbClient.ExecuteWriteAsync(@"
+                    INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
+                    SELECT @dbId, t.id, 'CONTAINS', '{}'
+                    FROM nodes t
+                    WHERE t.kind = 'Table'
+                      AND (
+                          instr(replace(lower(coalesce(json_extract(t.properties, '$.path'), '')), '\', '/'), '/' || lower(@cleanDbName) || '/') > 0
+                          OR instr(replace(lower(coalesce(json_extract(t.properties, '$.path'), '')), '\', '/'), '/' || lower(@cleanDbName) || '-') > 0
+                          OR instr(replace(lower(coalesce(json_extract(t.properties, '$.path'), '')), '\', '/'), '/' || lower(@cleanDbName) || '_') > 0
+                          OR instr(lower(t.id), lower(@cleanDbName)) > 0
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1 FROM edges e
+                          JOIN nodes d ON e.from_id = d.id
+                          WHERE e.to_id = t.id AND e.kind = 'CONTAINS' AND d.kind IN ('Database', 'DataSet')
+                      );",
+                    new { dbId, cleanDbName, dbKey });
+            }
+
             var primaryCanonicalId = canonicalDbNodes.Keys.First();
             await ctx.DbClient.ExecuteWriteAsync(@"
                 INSERT OR IGNORE INTO edges (from_id, to_id, kind, properties)
@@ -445,7 +482,8 @@ public partial class PostIndexAnalyzer
                 JOIN nodes f ON e1.from_id = f.id AND f.kind = 'File'
                 JOIN edges e2 ON e2.to_id = f.id AND e2.kind = 'CONTAINS'
                 JOIN nodes p ON e2.from_id = p.id AND p.kind = 'Project'
-                WHERE NOT EXISTS (
+                WHERE t.kind = 'Table'
+                  AND NOT EXISTS (
                     SELECT 1 FROM edges ep WHERE ep.from_id = p.id AND ep.to_id = t.id AND ep.kind = 'DEFINES'
                 );");
         }

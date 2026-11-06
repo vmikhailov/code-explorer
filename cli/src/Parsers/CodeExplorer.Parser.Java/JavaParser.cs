@@ -17,6 +17,9 @@ public class JavaParser : IProjectParser, IFileParser
         LibraryConfigurationRegistry.Register(new Libraries.SpringFrameworkConfigurationDescriptor());
     }
 
+    private const string PomPackagingPattern = @"<packaging>\s*pom\s*</packaging>";
+    private static readonly Regex PomPackagingRegex = new(PomPackagingPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     public string LanguageName => "java";
 
     public string ProjectType => "java";
@@ -34,7 +37,8 @@ public class JavaParser : IProjectParser, IFileParser
     public bool IsConfigurationFile(string fileName)
     {
         var lower = fileName.ToLowerInvariant();
-        return lower.StartsWith("application") && (lower.EndsWith(".properties") || lower.EndsWith(".yml") || lower.EndsWith(".yaml"));
+        return (lower.EndsWith(".properties") || lower.EndsWith(".yml") || lower.EndsWith(".yaml")) &&
+               !lower.StartsWith("gradle") && !lower.StartsWith(".travis");
     }
 
     public IReadOnlyList<ILibraryConfigurationDescriptor> ConfigurationDescriptors { get; } =
@@ -50,6 +54,7 @@ public class JavaParser : IProjectParser, IFileParser
         new Libraries.HttpClientJavaLibraryParser(),
         new Libraries.JdbcTemplateLibraryParser(),
         new Libraries.JpaLibraryParser(),
+        new Libraries.SpringDataMongoLibraryParser(),
         new Libraries.SpringEventsLibraryParser(),
         new Libraries.SpringKafkaLibraryParser(),
         new Libraries.SpringMvcLibraryParser(),
@@ -306,7 +311,7 @@ public class JavaParser : IProjectParser, IFileParser
             try
             {
                 var content = PhysicalFileStore.ReadAllText(pomPath);
-                var isPomPackaging = Regex.IsMatch(content, @"<packaging>\s*pom\s*</packaging>", RegexOptions.IgnoreCase);
+                var isPomPackaging = PomPackagingRegex.IsMatch(content);
                 if (isPomPackaging)
                 {
                     props["is_orchestrator"] = "true";

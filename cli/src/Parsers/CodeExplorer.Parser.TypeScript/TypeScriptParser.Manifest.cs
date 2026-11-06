@@ -7,6 +7,8 @@ namespace CodeExplorer.Parser.TypeScript;
 
 public partial class TypeScriptParser
 {
+    private const string PropIsLibrary = "is_library";
+
     private static string? TryExtractWranglerName(string directoryPath, string[] filesInDirectory)
     {
         var folderName = Path.GetFileName(directoryPath.TrimEnd('/', '\\'));
@@ -412,7 +414,7 @@ public partial class TypeScriptParser
                     props["framework_type"] = "frontend";
                     props["is_frontend_app"] = "true";
                     props["manifest_type"] = "application";
-                    props.Remove("is_library");
+                    props.Remove(PropIsLibrary);
                 }
                 else if (hasWebFramework)
                 {
@@ -420,7 +422,7 @@ public partial class TypeScriptParser
                     if (!hasPublishConfig && !hasPublishScript)
                     {
                         props["manifest_type"] = isDedicatedWorkerName && hasWorkerDeps ? "worker" : "application";
-                        props.Remove("is_library");
+                        props.Remove(PropIsLibrary);
                     }
                     else if (!props.ContainsKey("manifest_type"))
                     {

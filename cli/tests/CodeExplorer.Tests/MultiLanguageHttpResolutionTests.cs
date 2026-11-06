@@ -306,6 +306,34 @@ public class MultiLanguageHttpResolutionTests
     }
 
     [Test]
+    public async Task Java_FeignClient_Interface_WithoutPath_ResolvesExternalService()
+    {
+        var code = """
+        package com.piggymetrics.account.client;
+
+        import com.piggymetrics.account.domain.User;
+        import org.springframework.cloud.openfeign.FeignClient;
+        import org.springframework.http.MediaType;
+        import org.springframework.web.bind.annotation.RequestMapping;
+        import org.springframework.web.bind.annotation.RequestMethod;
+
+        @FeignClient(name = "auth-service")
+        public interface AuthServiceClient {
+
+            @RequestMapping(method = RequestMethod.POST, value = "/uaa/users", consumes = MediaType.APPLICATION_JSON_UTF8_VALUE)
+            void createUser(User user);
+
+        }
+        """;
+
+        var services = await ParseAndGetExternalServicesAsync(new JavaParser(), code, "AuthServiceClient.java");
+
+        services.Should().HaveCountGreaterThan(0);
+        var svc = services.First();
+        svc.DomainOrService.Should().Be("auth-service");
+    }
+
+    [Test]
     public async Task Java_RestTemplate_VariableAssignment_ResolvesExternalService()
     {
         var code = """

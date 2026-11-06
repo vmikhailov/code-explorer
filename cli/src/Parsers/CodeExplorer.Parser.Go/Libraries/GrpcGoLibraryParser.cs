@@ -247,11 +247,11 @@ public class GrpcGoLibraryParser : ISemanticExtension
         {
             if (curr.Is(TreeSitterSyntax.Go.FunctionDeclaration) ||
                 curr.Is(TreeSitterSyntax.Go.MethodDeclaration) ||
-                curr.Is("func_literal"))
+                curr.Is(TreeSitterSyntax.Go.FuncLiteral))
             {
                 foreach (var desc in curr.Descendants())
                 {
-                    if (desc.Is(TreeSitterSyntax.Go.ShortVarDeclaration) || desc.Is("assignment_statement"))
+                    if (desc.Is(TreeSitterSyntax.Go.ShortVarDeclaration) || desc.Is(TreeSitterSyntax.Go.AssignmentStatement))
                     {
                         var left = desc.GetChildForField(TreeSitterSyntax.Fields.Left) ?? (desc.Children.Count >= 2 ? desc.Children[0] : null);
                         var right = desc.GetChildForField(TreeSitterSyntax.Fields.Right) ?? (desc.Children.Count >= 2 ? desc.Children[^1] : null);

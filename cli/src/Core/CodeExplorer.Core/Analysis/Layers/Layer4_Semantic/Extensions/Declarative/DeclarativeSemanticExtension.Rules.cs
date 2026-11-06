@@ -75,18 +75,66 @@ public partial class DeclarativeSemanticExtension
         return null;
     }
 
+    private const string NameEntity = "Entity";
+    private const string NameDocument = "Document";
+
     private static bool MatchesOrmTableAnnotation(Node node, OrmTableRule rule)
     {
         if (!rule.AnnotationNodeTypes.Contains(node.Type)) return false;
         var name = GetShortAnnotationName(node);
         if (string.IsNullOrEmpty(name) || !rule.TableAnnotationNames.Contains(name)) return false;
+
+        // If the annotation has no explicit name argument, check whether the class has another annotation that defines an explicit table name
+        var explicitName = ExtractNamedOrFirstStringFromAnnotation(node, rule.NameArgumentKeys);
+        if (string.IsNullOrEmpty(explicitName))
+        {
+            var parent = node.Parent;
+            while (parent.IsValid())
+            {
+                if (rule.ClassDeclarationNodeTypes.Contains(parent.Type))
+                {
+                    var classAnnots = GetNodeAnnotations(parent, rule.AnnotationNodeTypes);
+                    if (classAnnots.Any(a => a != node &&
+                        GetShortAnnotationName(a) is { } aName &&
+                        rule.TableAnnotationNames.Contains(aName) &&
+                        !string.IsNullOrEmpty(ExtractNamedOrFirstStringFromAnnotation(a, rule.NameArgumentKeys))))
+                    {
+                        return false;
+                    }
+                    break;
+                }
+                parent = parent.Parent;
+            }
+        }
+
         var tableName = ExtractOrmTableName(node, rule);
-        return !string.IsNullOrEmpty(tableName) && !tableName.Equals("Entity", StringComparison.OrdinalIgnoreCase);
+        return !string.IsNullOrEmpty(tableName) &&
+               !tableName.Equals(NameEntity, StringComparison.OrdinalIgnoreCase) &&
+               !tableName.Equals(NameDocument, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? ExtractOrmTableName(Node annotNode, OrmTableRule rule)
     {
-        return ExtractNamedOrFirstStringFromAnnotation(annotNode, rule.NameArgumentKeys);
+        var name = ExtractNamedOrFirstStringFromAnnotation(annotNode, rule.NameArgumentKeys);
+        if (!string.IsNullOrEmpty(name)) return name;
+
+        // If no explicit table/collection name is given in the annotation, fall back to enclosing class name
+        var parent = annotNode.Parent;
+        while (parent.IsValid())
+        {
+            if (rule.ClassDeclarationNodeTypes.Contains(parent.Type))
+            {
+                var idNode = parent.GetField(SyntaxFields.Name) ?? parent.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
+                if (idNode.IsValid() && !string.IsNullOrEmpty(idNode.Text))
+                {
+                    return idNode.Text;
+                }
+                break;
+            }
+            parent = parent.Parent;
+        }
+
+        return null;
     }
 
     #endregion
@@ -369,6 +417,50 @@ public partial class DeclarativeSemanticExtension
             var f = text.IndexOf('"');
             var l = text.LastIndexOf('"');
             if (l > f) return text[(f + 1)..l];
+        }
+        return null;
+    }
+
+    private static string? ExtractHttpMethodFromAnnotation(Node annotNode)
+    {
+        foreach (var child in annotNode.Children)
+        {
+            if (child.Type is "annotation_argument_list" or "arguments")
+            {
+                foreach (var argChild in child.Children)
+                {
+                    if (argChild.Type is "element_value_pair" or "argument")
+                    {
+                        var key = argChild.Children.FirstOrDefault(c => c is IdentifierExprSyntax) ?? argChild.GetField(SyntaxFields.Name);
+                        if (key.IsValid() && string.Equals(key.Text, "method", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var text = argChild.Text;
+                            if (text.Contains("GET", StringComparison.OrdinalIgnoreCase)) return "GET";
+                            if (text.Contains("POST", StringComparison.OrdinalIgnoreCase)) return "POST";
+                            if (text.Contains("PUT", StringComparison.OrdinalIgnoreCase)) return "PUT";
+                            if (text.Contains("DELETE", StringComparison.OrdinalIgnoreCase)) return "DELETE";
+                            if (text.Contains("PATCH", StringComparison.OrdinalIgnoreCase)) return "PATCH";
+                            if (text.Contains("HEAD", StringComparison.OrdinalIgnoreCase)) return "HEAD";
+                            if (text.Contains("OPTIONS", StringComparison.OrdinalIgnoreCase)) return "OPTIONS";
+                        }
+                    }
+                }
+            }
+            else if (child.Type == "element_value_pair")
+            {
+                var key = child.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
+                if (key.IsValid() && string.Equals(key.Text, "method", StringComparison.OrdinalIgnoreCase))
+                {
+                    var text = child.Text;
+                    if (text.Contains("GET", StringComparison.OrdinalIgnoreCase)) return "GET";
+                    if (text.Contains("POST", StringComparison.OrdinalIgnoreCase)) return "POST";
+                    if (text.Contains("PUT", StringComparison.OrdinalIgnoreCase)) return "PUT";
+                    if (text.Contains("DELETE", StringComparison.OrdinalIgnoreCase)) return "DELETE";
+                    if (text.Contains("PATCH", StringComparison.OrdinalIgnoreCase)) return "PATCH";
+                    if (text.Contains("HEAD", StringComparison.OrdinalIgnoreCase)) return "HEAD";
+                    if (text.Contains("OPTIONS", StringComparison.OrdinalIgnoreCase)) return "OPTIONS";
+                }
+            }
         }
         return null;
     }

@@ -142,7 +142,7 @@ public class GrpcTypeScriptLibraryParser : ISemanticExtension
         // Check if node is a property in an object literal passed to server.addService(serviceDef, { charge: handler })
         if (!node.Is(TreeSitterSyntax.TypeScript.Pair) &&
             !node.Is(TreeSitterSyntax.TypeScript.MethodDefinition) &&
-            !node.Is("shorthand_property_identifier") &&
+            !node.Is(TreeSitterSyntax.TypeScript.ShorthandPropertyIdentifier) &&
             !node.Is(TreeSitterSyntax.TypeScript.Identifier)) return false;
 
         var objLit = node.Parent;
@@ -191,7 +191,7 @@ public class GrpcTypeScriptLibraryParser : ISemanticExtension
             var nameNode = node.GetField(TreeSitterSyntax.Fields.Name);
             if (nameNode.IsValid()) propName = nameNode.Text;
         }
-        else if (node.Is("shorthand_property_identifier") || node.Is(TreeSitterSyntax.TypeScript.Identifier))
+        else if (node.Is(TreeSitterSyntax.TypeScript.ShorthandPropertyIdentifier) || node.Is(TreeSitterSyntax.TypeScript.Identifier))
         {
             propName = node.Text;
         }

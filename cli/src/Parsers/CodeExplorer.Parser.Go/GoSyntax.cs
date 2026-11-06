@@ -93,6 +93,9 @@ internal static class TreeSitterSyntax
         public const string Block = "block";
         public const string VariableName = "variable_name";
         public const string CompositeLiteral = "composite_literal";
+        public const string ExpressionStatement = "expression_statement";
+        public const string AssignmentStatement = "assignment_statement";
+        public const string FuncLiteral = "func_literal";
     }
 }
 
