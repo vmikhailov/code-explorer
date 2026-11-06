@@ -48,7 +48,7 @@ public sealed record SqlSinkRule
 public sealed record OrmTableRule
 {
     public FrozenSet<string> TableAnnotationNames { get; init; } = new[] { "Table", "Entity", "Document", "MongoEntity" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
-    public FrozenSet<string> NameArgumentKeys { get; init; } = new[] { "name", "value", "collection" }.ToFrozenSet();
+    public FrozenSet<string> NameArgumentKeys { get; init; } = new[] { "name", "value", "collection", "tableName" }.ToFrozenSet();
     public FrozenSet<string> AnnotationNodeTypes { get; init; } = new[] { "annotation", "marker_annotation", "attribute", "attribute_group" }.ToFrozenSet();
     public FrozenSet<string> ClassDeclarationNodeTypes { get; init; } = new[] { "class_declaration" }.ToFrozenSet();
     public FrozenSet<string> BaseClassNames { get; init; } = FrozenSet<string>.Empty;

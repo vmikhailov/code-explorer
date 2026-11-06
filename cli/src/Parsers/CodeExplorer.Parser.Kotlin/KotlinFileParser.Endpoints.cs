@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using CodeExplorer.Common;
 using CodeExplorer.Core.Common;
+using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -199,7 +200,60 @@ public partial class KotlinFileParser
                     _ => null
                 };
 
-                if (httpMethod != null && enclosingClass?.IsClient != true)
+                if (httpMethod != null && enclosingClass?.IsClient == true)
+                {
+                    var paths = ExtractRoutePathsFromAnnotation(ann.Args);
+                    if (paths.Count == 0 || (paths.Count == 1 && string.IsNullOrEmpty(paths[0])))
+                    {
+                        var siblingPathAnn = annotations.FirstOrDefault(a => a.Name.Equals("Path", StringComparison.OrdinalIgnoreCase));
+                        if (siblingPathAnn != null)
+                        {
+                            paths = ExtractRoutePathsFromAnnotation(siblingPathAnn.Args);
+                        }
+                    }
+
+                    if (paths.Count == 0 || (paths.Count == 1 && string.IsNullOrEmpty(paths[0])))
+                    {
+                        paths = ["/"];
+                    }
+
+                    foreach (var rawPath in paths)
+                    {
+                        var fullRoute = CombineRoutes(enclosingClass?.RoutePrefix, rawPath);
+                        var cleanPath = fullRoute.StartsWith('/') ? fullRoute : "/" + fullRoute;
+                        var extId = $"{workspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:{relativePath}:{funcNode.Name}:{funLine}:{funCol}";
+                        var extName = $"{httpMethod} {cleanPath}";
+
+                        var domain = enclosingClass?.Name ?? "backend";
+                        var extNode = new ExternalServiceNode(
+                            extId,
+                            extName,
+                            ProtocolHttp,
+                            domain,
+                            cleanPath
+                        )
+                        {
+                            FilePath = relativePath,
+                            StartLine = funLine,
+                            StartCol = funCol,
+                            CallerSymbolId = funcNode.Id,
+                            Url = cleanPath,
+                            Method = httpMethod,
+                            IsExternal = true
+                        };
+                        extNode.CustomProperties ??= new();
+                        extNode.CustomProperties["file_path"] = relativePath;
+                        extNode.CustomProperties["target"] = cleanPath;
+                        extNode.CustomProperties["method"] = httpMethod;
+                        extNode.CustomProperties["http_method"] = httpMethod;
+                        extNode.CustomProperties["domain_or_service"] = domain;
+                        extNode.CustomProperties["is_external"] = "true";
+                        fileNode.Children.Add(extNode);
+
+                        fileNode.References.Add(new Reference(funcNode.Id, extId, OntologyConstants.Relationships.Calls, funLine, funCol));
+                    }
+                }
+                else if (httpMethod != null && enclosingClass?.IsClient != true)
                 {
                     var paths = ExtractRoutePathsFromAnnotation(ann.Args);
                     if (paths.Count == 0 || (paths.Count == 1 && string.IsNullOrEmpty(paths[0])))
@@ -253,24 +307,81 @@ public partial class KotlinFileParser
                     if (!string.IsNullOrWhiteSpace(sqlCandidate))
                     {
                         var cleanSql = NestedSqlParser.CleanQueryText(sqlCandidate);
-                        var qId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Query}:{relativePath}:{funLine}:{funCol}";
-                        var qName = $"JPA Query: {cleanSql}";
-
-                        var queryNode = new QueryNode(qId, qName, cleanSql, relativePath, funLine, funLine)
+                        var verb = "SELECT";
+                        if (NestedSqlParser.TryParseSql(cleanSql, out var firstWord, out _) && !string.IsNullOrEmpty(firstWord))
                         {
-                            FilePath = relativePath,
-                            Line = funLine,
-                            LineEnd = funLine,
-                            Operation = "SELECT",
-                            EvidenceKind = OntologyConstants.EvidenceKinds.Query
-                        };
+                            verb = firstWord.ToUpperInvariant();
+                        }
+
+                        var qId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Query}:{relativePath}:{funLine}:{funCol}";
+                        var qName = $"SQL Query: {(cleanSql.Length > 40 ? cleanSql[..40] + "..." : cleanSql)}";
+
+                        var queryNode = NestedSqlParser.ParseNestedSql(cleanSql, qId, relativePath, null, qName, funLine, funLine) ??
+                                        new QueryNode(qId, qName, cleanSql, relativePath, funLine, funLine)
+                                        {
+                                            Verb = verb,
+                                            Operation = verb,
+                                            EvidenceKind = OntologyConstants.EvidenceKinds.Query,
+                                            FilePath = relativePath,
+                                            Line = funLine,
+                                            LineEnd = funLine
+                                        };
                         queryNode.CustomProperties ??= new();
                         queryNode.CustomProperties["file_path"] = relativePath;
                         fileNode.Children.Add(queryNode);
 
-                        fileNode.References.Add(new Reference(qId, funcNode.Id, OntologyConstants.Relationships.AccessedBy, funLine, funCol));
+                        fileNode.References.Add(new Reference(queryNode.Id, funcNode.Id, OntologyConstants.Relationships.AccessedBy, funLine, funCol));
+
+                        var relKind = verb is "INSERT" or "UPDATE" or "DELETE"
+                            ? OntologyConstants.Relationships.WritesTo
+                            : OntologyConstants.Relationships.ReadsFrom;
+
+                        var tableNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        CollectTables(queryNode, tableNames);
+                        if (tableNames.Count == 0)
+                        {
+                            ExtractTablesFromSql(cleanSql, tableNames);
+                        }
+                        foreach (var tbl in tableNames)
+                        {
+                            fileNode.References.Add(new Reference(queryNode.Id, tbl, relKind, funLine, funCol));
+                        }
                     }
                 }
+            }
+
+            var crudAnn = annotations.FirstOrDefault(a =>
+                a.Name.Equals("Insert", StringComparison.OrdinalIgnoreCase) ||
+                a.Name.Equals("Upsert", StringComparison.OrdinalIgnoreCase) ||
+                a.Name.Equals("Update", StringComparison.OrdinalIgnoreCase) ||
+                a.Name.Equals("Delete", StringComparison.OrdinalIgnoreCase));
+
+            if (crudAnn != null && !annotations.Any(a => a.Name.Equals("Query", StringComparison.OrdinalIgnoreCase)))
+            {
+                var verb = crudAnn.Name.ToUpperInvariant();
+                var sigSnippet = content.Substring(fm.Index, Math.Min(content.Length - fm.Index, fm.Length + 250));
+                var entityMatch = Regex.Match(sigSnippet, @"(?:<|:\s*)([A-Z][a-zA-Z0-9_]*Entity|[A-Z][a-zA-Z0-9_]*CrossRef|[A-Z][a-zA-Z0-9_]+)>?");
+                var targetEntity = entityMatch.Success ? entityMatch.Groups[1].Value : enclosingClass?.Name ?? "Entity";
+
+                var qId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Query}:{relativePath}:{funLine}:{funCol}";
+                var qName = $"Room {verb}: {funName}";
+                var sqlText = verb == "DELETE" ? $"DELETE FROM {targetEntity}" : $"{verb} INTO {targetEntity}";
+
+                var queryNode = new QueryNode(qId, qName, sqlText, relativePath, funLine, funLine)
+                {
+                    Verb = verb,
+                    Operation = verb,
+                    EvidenceKind = OntologyConstants.EvidenceKinds.Orm,
+                    FilePath = relativePath,
+                    Line = funLine,
+                    LineEnd = funLine
+                };
+                queryNode.CustomProperties ??= new();
+                queryNode.CustomProperties["file_path"] = relativePath;
+                fileNode.Children.Add(queryNode);
+
+                fileNode.References.Add(new Reference(queryNode.Id, funcNode.Id, OntologyConstants.Relationships.AccessedBy, funLine, funCol));
+                fileNode.References.Add(new Reference(queryNode.Id, targetEntity, OntologyConstants.Relationships.WritesTo, funLine, funCol));
             }
         }
 
@@ -722,5 +833,30 @@ public partial class KotlinFileParser
         if (args.Contains("RequestMethod.OPTIONS", StringComparison.OrdinalIgnoreCase)) return "OPTIONS";
         if (args.Contains("RequestMethod.GET", StringComparison.OrdinalIgnoreCase)) return "GET";
         return "ALL";
+    }
+
+    private static void CollectTables(IOntologyNode node, HashSet<string> tableNames)
+    {
+        if (node is TableNode tbl && !string.IsNullOrWhiteSpace(tbl.Name))
+        {
+            tableNames.Add(tbl.Name);
+        }
+        foreach (var child in node.Children)
+        {
+            CollectTables(child, tableNames);
+        }
+    }
+
+    private static void ExtractTablesFromSql(string sql, HashSet<string> tableNames)
+    {
+        var matches = Regex.Matches(sql, @"\b(?:FROM|JOIN|INTO|UPDATE|TABLE)\s+([a-zA-Z0-9_]+)", RegexOptions.IgnoreCase);
+        foreach (Match m in matches)
+        {
+            var tbl = m.Groups[1].Value.Trim();
+            if (!NestedSqlParser.IsSqlKeyword(tbl))
+            {
+                tableNames.Add(tbl);
+            }
+        }
     }
 }

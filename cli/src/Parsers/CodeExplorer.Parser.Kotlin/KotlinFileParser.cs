@@ -178,7 +178,9 @@ public partial class KotlinFileParser : IFileParser
         int CloseBraceIndex,
         string? RoutePrefix,
         bool IsGrpcService = false,
-        bool IsClient = false
+        bool IsClient = false,
+        bool IsDao = false,
+        bool IsRoomDatabase = false
     );
 
     private sealed record AnnotationInfo(string Name, string Args);
@@ -251,7 +253,7 @@ public partial class KotlinFileParser : IFileParser
         var list = new List<AnnotationInfo>();
         if (declStartIndex <= 0) return list;
 
-        var start = Math.Max(0, declStartIndex - 1000);
+        var start = Math.Max(0, declStartIndex - 4000);
         var maskedCandidate = masked[start..declStartIndex];
 
         var stopIdx = maskedCandidate.LastIndexOfAny(['}', '{', ';']);
@@ -267,27 +269,125 @@ public partial class KotlinFileParser : IFileParser
                     stopIdx = nlIdx;
                 }
             }
+            else
+            {
+                var openParen = maskedCandidate.IndexOf('(', funIdx);
+                if (openParen >= 0)
+                {
+                    var closeParen = FindMatchingParen(maskedCandidate, openParen);
+                    if (closeParen > openParen)
+                    {
+                        var nlIdx = maskedCandidate.IndexOf('\n', closeParen);
+                        if (nlIdx >= 0 && nlIdx > stopIdx)
+                        {
+                            stopIdx = nlIdx;
+                        }
+                    }
+                }
+            }
+        }
+
+        var valIdx = Math.Max(maskedCandidate.LastIndexOf("val ", StringComparison.Ordinal), maskedCandidate.LastIndexOf("var ", StringComparison.Ordinal));
+        if (valIdx > stopIdx)
+        {
+            var nlIdx = maskedCandidate.IndexOf('\n', valIdx);
+            if (nlIdx >= 0 && nlIdx > stopIdx)
+            {
+                stopIdx = nlIdx;
+            }
         }
 
         var scanStart = stopIdx >= 0 ? start + stopIdx + 1 : start;
         var textToScan = commentMasked[scanStart..declStartIndex];
 
-        var matches = AnnotationRegex.Matches(textToScan);
-        foreach (Match m in matches)
+        return ParseAnnotationsFromText(textToScan);
+    }
+
+    private static List<AnnotationInfo> ParseAnnotationsFromText(string textToScan)
+    {
+        var list = new List<AnnotationInfo>();
+        if (string.IsNullOrWhiteSpace(textToScan)) return list;
+
+        var atMatches = Regex.Matches(textToScan, @"@(?<target>[a-zA-Z0-9_]+:)?(?<name>[a-zA-Z0-9_.]+)");
+        foreach (Match m in atMatches)
         {
-            var name = m.Groups["name"].Value.Trim();
-            var args = m.Groups["args"].Success ? m.Groups["args"].Value.Trim() : string.Empty;
-            if (name.Contains('.'))
+            var rawName = m.Groups["name"].Value.Trim();
+            var shortName = rawName.Contains('.') ? rawName[(rawName.LastIndexOf('.') + 1)..] : rawName;
+            if (IsIgnoredJavadocTag(shortName)) continue;
+
+            var nextIdx = m.Index + m.Length;
+            while (nextIdx < textToScan.Length && char.IsWhiteSpace(textToScan[nextIdx]))
             {
-                name = name[(name.LastIndexOf('.') + 1)..];
+                nextIdx++;
             }
-            if (!IsIgnoredJavadocTag(name))
+
+            string args = string.Empty;
+            if (nextIdx < textToScan.Length && textToScan[nextIdx] == '(')
             {
-                list.Add(new AnnotationInfo(name, args));
+                var openParen = nextIdx;
+                var closeParen = FindMatchingParen(textToScan, openParen);
+                if (closeParen > openParen)
+                {
+                    args = textToScan.Substring(openParen + 1, closeParen - openParen - 1).Trim();
+                }
             }
+
+            list.Add(new AnnotationInfo(shortName, args));
         }
 
         return list;
+    }
+
+    private static int FindMatchingParen(string text, int openParen)
+    {
+        var depth = 0;
+        var inQuotes = false;
+        var inTripleQuotes = false;
+        var quoteChar = '\0';
+
+        for (var i = openParen; i < text.Length; i++)
+        {
+            var c = text[i];
+            if (!inQuotes && !inTripleQuotes)
+            {
+                if (i + 2 < text.Length && text[i] == '"' && text[i + 1] == '"' && text[i + 2] == '"')
+                {
+                    inTripleQuotes = true;
+                    i += 2;
+                    continue;
+                }
+                if (c is '"' or '\'')
+                {
+                    inQuotes = true;
+                    quoteChar = c;
+                    continue;
+                }
+                if (c == '(') depth++;
+                else if (c == ')')
+                {
+                    depth--;
+                    if (depth == 0) return i;
+                }
+            }
+            else if (inTripleQuotes)
+            {
+                if (i + 2 < text.Length && text[i] == '"' && text[i + 1] == '"' && text[i + 2] == '"')
+                {
+                    inTripleQuotes = false;
+                    i += 2;
+                    continue;
+                }
+            }
+            else
+            {
+                if (c == '\\') { i++; continue; }
+                if (c == quoteChar)
+                {
+                    inQuotes = false;
+                }
+            }
+        }
+        return -1;
     }
 
     private static bool IsIgnoredJavadocTag(string name) =>
@@ -381,7 +481,7 @@ public partial class KotlinFileParser : IFileParser
     {
         if (!string.IsNullOrWhiteSpace(tableArgs))
         {
-            var nameMatch = Regex.Match(tableArgs, @"\bname\s*=\s*['""]([^'""]+)['""]");
+            var nameMatch = Regex.Match(tableArgs, @"\b(?:name|value|tableName)\s*=\s*['""]([^'""]+)['""]");
             if (nameMatch.Success) return nameMatch.Groups[1].Value.Trim();
 
             var firstArg = tableArgs.Split(',')[0].Trim();
@@ -394,7 +494,7 @@ public partial class KotlinFileParser : IFileParser
 
         if (!string.IsNullOrWhiteSpace(entityArgs))
         {
-            var nameMatch = Regex.Match(entityArgs, @"\bname\s*=\s*['""]([^'""]+)['""]");
+            var nameMatch = Regex.Match(entityArgs, @"\b(?:name|value|tableName)\s*=\s*['""]([^'""]+)['""]");
             if (nameMatch.Success) return nameMatch.Groups[1].Value.Trim();
 
             var firstArg = entityArgs.Split(',')[0].Trim();
@@ -448,17 +548,20 @@ public partial class KotlinFileParser : IFileParser
     {
         if (string.IsNullOrWhiteSpace(queryAnnotationArgs)) return null;
 
-        var valueMatch = Regex.Match(queryAnnotationArgs, @"\bvalue\s*=\s*['""]([^'""]+)['""]");
+        var tripleMatch = Regex.Match(queryAnnotationArgs, @"(?:(?:value)\s*=\s*)?""\""\""([\s\S]*?)""\""\""");
+        if (tripleMatch.Success) return tripleMatch.Groups[1].Value.Trim();
+
+        var valueMatch = Regex.Match(queryAnnotationArgs, @"\bvalue\s*=\s*""((?:\\.|[^""\\])*)""");
         if (valueMatch.Success) return valueMatch.Groups[1].Value.Trim();
 
         var firstArg = queryAnnotationArgs.Split(',')[0].Trim();
         if (!firstArg.Contains('='))
         {
-            var strMatch = Regex.Match(firstArg, @"['""]([^'""]+)['""]");
+            var strMatch = Regex.Match(firstArg, @"['""]((?:\\.|[^""'\\])*)['""]");
             if (strMatch.Success) return strMatch.Groups[1].Value.Trim();
         }
 
-        var anyMatch = Regex.Match(queryAnnotationArgs, @"['""]([^'""]+)['""]");
+        var anyMatch = Regex.Match(queryAnnotationArgs, @"['""]((?:\\.|[^""'\\])*)['""]");
         return anyMatch.Success ? anyMatch.Groups[1].Value.Trim() : null;
     }
 
@@ -590,13 +693,39 @@ public partial class KotlinFileParser : IFileParser
                 semanticSymbols.Add(tblSym);
             }
 
+            var isRetrofitFile = content.Contains("retrofit", StringComparison.OrdinalIgnoreCase);
+
+            var isDao = annotations.Any(a => a.Name.Equals("Dao", StringComparison.OrdinalIgnoreCase));
+            var databaseAnn = annotations.FirstOrDefault(a => a.Name.Equals("Database", StringComparison.OrdinalIgnoreCase));
+            var isRoomDb = databaseAnn != null || (!string.IsNullOrEmpty(cleanBase) && cleanBase.Contains("RoomDatabase", StringComparison.OrdinalIgnoreCase));
+
+            if (isRoomDb)
+            {
+                var entitiesArg = databaseAnn?.Args;
+                if (!string.IsNullOrWhiteSpace(entitiesArg))
+                {
+                    var entitiesMatch = Regex.Match(entitiesArg, @"\bentities\s*=\s*(?:\[|arrayOf\s*\()([^\]\)]*)");
+                    var textToSearch = entitiesMatch.Success ? entitiesMatch.Groups[1].Value : entitiesArg;
+                    var entMatches = Regex.Matches(textToSearch, @"([A-Z][a-zA-Z0-9_]+)(?:::class|\.class)?");
+                    foreach (Match m in entMatches)
+                    {
+                        var ent = m.Groups[1].Value;
+                        if (ent != "AutoMigration" && ent != "Database" && ent != "TypeConverters")
+                        {
+                            fileNode.References.Add(new Reference(typeNode.Id, ent, OntologyConstants.Relationships.PersistedIn, startLine, startCol));
+                        }
+                    }
+                }
+            }
+
             var clientAnn = annotations.FirstOrDefault(a =>
                 a.Name.Equals("Client", StringComparison.OrdinalIgnoreCase) ||
                 a.Name.EndsWith("Client", StringComparison.OrdinalIgnoreCase));
-            var isClient = clientAnn != null && kind.Equals("interface", StringComparison.OrdinalIgnoreCase);
-            if (isClient)
+            var isClient = (clientAnn != null && kind.Equals("interface", StringComparison.OrdinalIgnoreCase)) ||
+                           (kind.Equals("interface", StringComparison.OrdinalIgnoreCase) && isRetrofitFile && !annotations.Any(a => a.Name.Contains("Controller") || a.Name.Contains("Endpoint") || a.Name.Contains("Dao")));
+            if (clientAnn != null)
             {
-                var clientPaths = ExtractRoutePathsFromAnnotation(clientAnn!.Args);
+                var clientPaths = ExtractRoutePathsFromAnnotation(clientAnn.Args);
                 var clientPath = clientPaths.FirstOrDefault(p => !string.IsNullOrEmpty(p)) ?? "/";
                 var cleanClientPath = ConfigurationIndex.ResolvePlaceholders(clientPath);
                 var extId = $"{workspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:{relativePath}:{typeNode.Name}:{startLine}";
@@ -633,7 +762,14 @@ public partial class KotlinFileParser : IFileParser
             var isGrpcService = annotations.Any(a => a.Name.Equals("GrpcService", StringComparison.OrdinalIgnoreCase)) ||
                                 (!string.IsNullOrEmpty(cleanBase) && cleanBase.Contains("ImplBase", StringComparison.OrdinalIgnoreCase));
 
-            classScopes.Add(new ClassScope(className, kind, typeNode, cm.Index, openBrace, closeBrace, routePrefix, isGrpcService, isClient));
+            var retrofitCreateMatches = Regex.Matches(content, @"\.create\s*\(\s*([A-Za-z0-9_]+)::class");
+            foreach (Match rcm in retrofitCreateMatches)
+            {
+                var ifaceName = rcm.Groups[1].Value.Trim();
+                fileNode.References.Add(new Reference(typeNode.Id, ifaceName, OntologyConstants.Relationships.Calls, startLine, startCol));
+            }
+
+            classScopes.Add(new ClassScope(className, kind, typeNode, cm.Index, openBrace, closeBrace, routePrefix, isGrpcService, isClient, isDao, isRoomDb));
         }
 
         return classScopes;
@@ -910,6 +1046,74 @@ public partial class KotlinFileParser : IFileParser
                 fileNode.Children.Add(dbNode);
                 fileNode.References.Add(new Reference(fileNode.Id, dbId, OntologyConstants.Relationships.Configures));
                 fileNode.References.Add(new Reference(fileNode.Id, dbId, OntologyConstants.Relationships.UsesDb));
+            }
+        }
+
+        // Android Room Database detection
+        if (content.Contains("RoomDatabase", StringComparison.OrdinalIgnoreCase) ||
+            content.Contains("databaseBuilder", StringComparison.OrdinalIgnoreCase) ||
+            content.Contains("androidx.room", StringComparison.OrdinalIgnoreCase) ||
+            content.Contains("@Database", StringComparison.OrdinalIgnoreCase))
+        {
+            string? dbName = null;
+            var builderMatch = Regex.Match(content, @"databaseBuilder\s*\([^,]+,[^,]+,\s*['""]([^'""]+)['""]");
+            if (builderMatch.Success)
+            {
+                dbName = builderMatch.Groups[1].Value.Trim();
+            }
+
+            if (string.IsNullOrWhiteSpace(dbName))
+            {
+                var dbClassMatch = Regex.Match(content, @"(?<![:.])\babstract\s+class\s+([A-Z][a-zA-Z0-9_]*)\s*:\s*RoomDatabase");
+                if (dbClassMatch.Success)
+                {
+                    var cls = dbClassMatch.Groups[1].Value.Trim();
+                    if (cls.EndsWith("Database", StringComparison.OrdinalIgnoreCase) && cls.Length > 8)
+                    {
+                        dbName = $"{cls[..^8].ToLowerInvariant()}-database";
+                    }
+                    else
+                    {
+                        dbName = cls;
+                    }
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(dbName) && content.Contains("@Database", StringComparison.OrdinalIgnoreCase))
+            {
+                var classMatch = Regex.Match(content, @"(?<![:.])\b(?:class|interface)\s+([A-Z][a-zA-Z0-9_]*)");
+                if (classMatch.Success)
+                {
+                    var cls = classMatch.Groups[1].Value.Trim();
+                    if (cls.EndsWith("Database", StringComparison.OrdinalIgnoreCase) && cls.Length > 8)
+                    {
+                        dbName = $"{cls[..^8].ToLowerInvariant()}-database";
+                    }
+                    else
+                    {
+                        dbName = cls;
+                    }
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(dbName))
+            {
+                var canonicalName = $"SQLite.{dbName}";
+                var dbId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Database}:relational:sqlite:{dbName.ToLowerInvariant()}";
+                if (!fileNode.Children.Any(c => c.Id == dbId))
+                {
+                    var dbNode = new DatabaseNode(dbId, canonicalName, relativePath, "relational")
+                    {
+                        Engine = "SQLite",
+                        Technology = "Room",
+                        Provider = "Room",
+                        Schema = dbName,
+                        IsOrm = true
+                    };
+                    fileNode.Children.Add(dbNode);
+                    fileNode.References.Add(new Reference(fileNode.Id, dbId, OntologyConstants.Relationships.Configures));
+                    fileNode.References.Add(new Reference(fileNode.Id, dbId, OntologyConstants.Relationships.UsesDb));
+                }
             }
         }
     }

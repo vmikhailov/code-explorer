@@ -421,4 +421,132 @@ public class KotlinParserTests
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
+
+    [Test]
+    public async Task Test_KotlinParser_RoomOrm_And_Retrofit()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "kotlin_room_tests_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var entityPath = Path.Combine(tempDir, "TopicEntity.kt");
+            var daoPath = Path.Combine(tempDir, "TopicDao.kt");
+            var dbPath = Path.Combine(tempDir, "AppDatabase.kt");
+            var retrofitPath = Path.Combine(tempDir, "NetworkApi.kt");
+
+            await File.WriteAllTextAsync(entityPath, """
+                package com.example.db
+                import androidx.room.Entity
+                import androidx.room.PrimaryKey
+
+                @Entity(tableName = "topics")
+                data class TopicEntity(
+                    @PrimaryKey val id: String,
+                    val name: String
+                )
+                """);
+
+            await File.WriteAllTextAsync(daoPath, """"
+                package com.example.db
+                import androidx.room.Dao
+                import androidx.room.Query
+                import androidx.room.Insert
+                import androidx.room.Upsert
+                import kotlinx.coroutines.flow.Flow
+
+                @Dao
+                interface TopicDao {
+                    @Query(value = """
+                        SELECT * FROM topics
+                        WHERE id = :topicId
+                    """)
+                    fun getTopic(topicId: String): Flow<TopicEntity>
+
+                    @Query("DELETE FROM topics WHERE id IN (:ids)")
+                    suspend fun deleteTopics(ids: List<String>)
+
+                    @Insert
+                    suspend fun insertTopics(entities: List<TopicEntity>)
+
+                    @Upsert
+                    suspend fun upsertTopics(entities: List<TopicEntity>)
+                }
+                """");
+
+            await File.WriteAllTextAsync(dbPath, """
+                package com.example.db
+                import androidx.room.Database
+                import androidx.room.RoomDatabase
+
+                @Database(
+                    entities = [
+                        TopicEntity::class
+                    ],
+                    version = 1
+                )
+                abstract class AppDatabase : RoomDatabase() {
+                    abstract fun topicDao(): TopicDao
+                }
+                """);
+
+            await File.WriteAllTextAsync(retrofitPath, """
+                package com.example.network
+                import retrofit2.http.GET
+                import retrofit2.http.POST
+                import retrofit2.http.Query
+
+                interface ApiClient {
+                    @GET(value = "topics")
+                    suspend fun getTopics(@Query("id") id: String?): List<String>
+
+                    @POST("topics/sync")
+                    suspend fun syncTopics(): Boolean
+                }
+                """);
+
+            var parser = new KotlinFileParser();
+
+            // 1. Verify Entity table extraction
+            var entityTree = await parser.ParseAsync(entityPath, "ws", "ws", tempDir);
+            var tables = entityTree.FileNode.Children.OfType<TableNode>().ToList();
+            tables.Should().Contain(t => t.Name == "topics");
+
+            // 2. Verify Room DAO queries and CRUD methods
+            var daoTree = await parser.ParseAsync(daoPath, "ws", "ws", tempDir);
+            var queries = daoTree.FileNode.Children.OfType<QueryNode>().ToList();
+            queries.Should().HaveCountGreaterThanOrEqualTo(4);
+            queries.Should().Contain(q => q.Operation == "SELECT" && q.QueryText.Contains("topics"));
+            queries.Should().Contain(q => q.Operation == "DELETE" && q.QueryText.Contains("topics"));
+            queries.Should().Contain(q => q.Operation == "INSERT");
+            queries.Should().Contain(q => q.Operation == "UPSERT");
+
+            // Verify READS_FROM and WRITES_TO
+            var readsFrom = daoTree.FileNode.References.Where(r => r.Kind == "READS_FROM").ToList();
+            readsFrom.Should().NotBeEmpty();
+            var writesTo = daoTree.FileNode.References.Where(r => r.Kind == "WRITES_TO").ToList();
+            writesTo.Should().NotBeEmpty();
+
+            // Verify ACCESSED_BY
+            var accessedBy = daoTree.FileNode.References.Where(r => r.Kind == "ACCESSED_BY").ToList();
+            accessedBy.Should().NotBeEmpty();
+
+            // 3. Verify Room Database detection
+            var dbTree = await parser.ParseAsync(dbPath, "ws", "ws", tempDir);
+            var dbs = dbTree.FileNode.Children.OfType<DatabaseNode>().ToList();
+            dbs.Should().Contain(d => d.Engine == "SQLite");
+
+            // 4. Verify Retrofit Client calls (ExternalService)
+            var retroTree = await parser.ParseAsync(retrofitPath, "ws", "ws", tempDir);
+            var extServices = retroTree.FileNode.Children.OfType<ExternalServiceNode>().ToList();
+            extServices.Should().HaveCount(2);
+            extServices.Should().Contain(e => e.Method == "GET" && (e.Url == "/topics" || e.Path == "/topics"));
+            extServices.Should().Contain(e => e.Method == "POST" && (e.Url == "/topics/sync" || e.Path == "/topics/sync"));
+            var retroCalls = retroTree.FileNode.References.Where(r => r.Kind == "CALLS").ToList();
+            retroCalls.Should().HaveCount(2);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
 }

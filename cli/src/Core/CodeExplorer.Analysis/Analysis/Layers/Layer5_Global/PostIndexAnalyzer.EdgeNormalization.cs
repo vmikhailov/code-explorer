@@ -553,7 +553,7 @@ public partial class PostIndexAnalyzer
                 continue;
             }
 
-            if (isExt == "true") continue;
+            if (isExt is "true" or "1") continue;
 
             // A candidate is synthesized from a relative path if explicitly flagged, starting with '/',
             // or if the candidate service name is simply the first segment of the path without an explicit network host.
