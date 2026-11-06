@@ -22,7 +22,12 @@ public class KotlinProjectParser : IProjectParser
         "build.gradle.kts", "build.gradle", "settings.gradle.kts", "settings.gradle", "pom.xml", "AndroidManifest.xml"
     ];
 
-    public bool IsConfigurationFile(string fileName) => false;
+    public bool IsConfigurationFile(string fileName)
+    {
+        var lower = fileName.ToLowerInvariant();
+        return (lower.EndsWith(".properties") || lower.EndsWith(".yml") || lower.EndsWith(".yaml") || lower.EndsWith(".json")) &&
+               !lower.StartsWith("gradle") && !lower.StartsWith(".travis");
+    }
 
     public IReadOnlyList<ILibraryConfigurationDescriptor> ConfigurationDescriptors => [];
 
@@ -177,6 +182,7 @@ public class KotlinProjectParser : IProjectParser
             props["framework"] = "Kotlin";
 
             var isApp = info.IsApplication;
+            var isSpring = false;
             var buildGradle = Path.Combine(directoryPath, "build.gradle");
             var buildGradleKts = Path.Combine(directoryPath, "build.gradle.kts");
             var gradleFile = File.Exists(buildGradleKts) ? buildGradleKts : (File.Exists(buildGradle) ? buildGradle : null);
@@ -185,7 +191,15 @@ public class KotlinProjectParser : IProjectParser
                 try
                 {
                     var content = PhysicalFileStore.ReadAllText(gradleFile);
-                    if (content.Contains("io.grpc") || content.Contains("grpc-netty") || content.Contains("grpc-protobuf"))
+                    if (content.Contains("org.springframework.boot", StringComparison.OrdinalIgnoreCase) ||
+                        content.Contains("spring-boot", StringComparison.OrdinalIgnoreCase))
+                    {
+                        isSpring = true;
+                        isApp = true;
+                    }
+                    if (content.Contains("io.grpc", StringComparison.OrdinalIgnoreCase) ||
+                        content.Contains("grpc-netty", StringComparison.OrdinalIgnoreCase) ||
+                        content.Contains("grpc-protobuf", StringComparison.OrdinalIgnoreCase))
                     {
                         props["has_grpc"] = "true";
                         isApp = true;
@@ -194,7 +208,32 @@ public class KotlinProjectParser : IProjectParser
                 catch { }
             }
 
-            if (isApp)
+            var pomFile = Path.Combine(directoryPath, "pom.xml");
+            if (File.Exists(pomFile))
+            {
+                try
+                {
+                    var content = PhysicalFileStore.ReadAllText(pomFile);
+                    if (content.Contains("spring-boot", StringComparison.OrdinalIgnoreCase) ||
+                        content.Contains("org.springframework.boot", StringComparison.OrdinalIgnoreCase))
+                    {
+                        isSpring = true;
+                        isApp = true;
+                    }
+                }
+                catch { }
+            }
+
+            if (isSpring)
+            {
+                props["framework"] = "Spring Boot";
+                props["manifest_type"] = "application";
+                props["framework_type"] = "web";
+                props["role"] = "Service";
+                props["primary_role"] = "Service";
+                props["is_library"] = "false";
+            }
+            else if (isApp)
             {
                 props["manifest_type"] = "application";
                 props["framework_type"] = "web";
