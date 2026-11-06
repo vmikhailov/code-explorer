@@ -272,7 +272,7 @@ export const DomainVisibilityPanel: React.FC<DomainVisibilityPanelProps> = (prop
           <div className="panel-settings-drawer-header">
             <span className="panel-settings-drawer-title">
               <SettingsIcon size={11} />
-              <span>Node & Edge Appearance</span>
+              <span>Node &amp; Edge Appearance</span>
             </span>
             <button
               type="button"

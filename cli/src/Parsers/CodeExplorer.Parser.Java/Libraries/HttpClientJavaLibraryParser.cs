@@ -22,7 +22,9 @@ public class HttpClientJavaLibraryParser : DeclarativeSemanticExtension
             "org.springframework.cloud.spring-cloud-starter-openfeign*",
             "org.springframework.cloud.spring-cloud-starter-feign*",
             "*openfeign*",
-            "*feign*"
+            "*feign*",
+            "org.eclipse.microprofile.rest.client*",
+            "io.quarkus.rest.client*"
         ];
         OutboundHttpRules =
         [
@@ -35,7 +37,7 @@ public class HttpClientJavaLibraryParser : DeclarativeSemanticExtension
                     "get", "post", "retrieve", "exchangeToMono", "exchangeToFlux",
                     "uri", "url"
                 }.ToFrozenSet(StringComparer.OrdinalIgnoreCase),
-                ClientAnnotationSuffixes = new[] { "FeignClient" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase)
+                ClientAnnotationSuffixes = new[] { "FeignClient", "RegisterRestClient", "RestClient" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase)
             }
         ];
     }

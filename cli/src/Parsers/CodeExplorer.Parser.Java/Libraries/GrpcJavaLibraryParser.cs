@@ -14,7 +14,8 @@ public class GrpcJavaLibraryParser : ISemanticExtension
         "io.grpc.*",
         "net.devh.boot.grpc",
         "net.devh.boot.grpc.*",
-        "io.grpc.stub"
+        "io.grpc.stub",
+        "io.quarkus.grpc*"
     ];
 
     public bool IsImplemented => true;
@@ -23,6 +24,7 @@ public class GrpcJavaLibraryParser : ISemanticExtension
     public string? MapNodeType(Node node, ParsingContext ctx)
     {
         if (IsGrpcJavaMethod(node)) return OntologyConstants.NodeLabels.EntryPoint;
+        if (HasGrpcClient(node)) return OntologyConstants.NodeLabels.ExternalService;
         return null;
     }
 
@@ -35,10 +37,24 @@ public class GrpcJavaLibraryParser : ISemanticExtension
             var serviceName = GetParentClassName(node);
             return string.IsNullOrEmpty(serviceName) ? $"RPC:{methodName}" : $"RPC:/{serviceName}/{methodName}";
         }
+        if (HasGrpcClient(node))
+        {
+            return ExtractGrpcClientService(node);
+        }
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx) { }
+    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    {
+        if (HasGrpcClient(node))
+        {
+            var target = ExtractGrpcClientService(node);
+            if (!string.IsNullOrEmpty(target))
+            {
+                references.Add(new Reference(scopeSymbolId, target, OntologyConstants.Relationships.Calls));
+            }
+        }
+    }
 
     public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
     {
@@ -139,5 +155,23 @@ public class GrpcJavaLibraryParser : ISemanticExtension
     private static bool IsJavaPrimitiveOrSystemType(string type)
     {
         return type is "int" or "long" or "String" or "boolean" or "double" or "float" or "byte" or "short" or "char" or "Integer" or "Long" or "Boolean" or "Double" or "Float" or "UUID" or "Object";
+    }
+
+    private static bool HasGrpcClient(Node node)
+    {
+        return (node.Type is "annotation" or "marker_annotation") &&
+               node.Text.Contains("GrpcClient", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? ExtractGrpcClientService(Node node)
+    {
+        var text = node.Text;
+        var first = text.IndexOf('"');
+        var last = text.LastIndexOf('"');
+        if (first >= 0 && last > first)
+        {
+            return $"grpc:{text[(first + 1)..last].Trim()}";
+        }
+        return "grpc:unknown-service";
     }
 }

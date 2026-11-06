@@ -340,7 +340,7 @@ export const C1ChordWheelView: React.FC<C1ChordWheelViewProps> = ({
       <div className="c1-chord-legend">
         <div className="legend-item">
           <span className="legend-dot app" />
-          <span>Apps & Ingress</span>
+          <span>Apps &amp; Ingress</span>
         </div>
         <div className="legend-item">
           <span className="legend-dot service" />

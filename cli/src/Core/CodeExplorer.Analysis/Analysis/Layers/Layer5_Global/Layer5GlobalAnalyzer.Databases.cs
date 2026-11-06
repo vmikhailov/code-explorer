@@ -185,14 +185,17 @@ public partial class Layer5AnalysisParser
             if (kind == OntologyConstants.NodeLabels.Function)
             {
                 functionSymbolsByFile[(normFuncFile, name)] = id;
-                if (!functionsByName.TryGetValue(name, out var fnList))
+                if (!string.Equals(name, "<module_init>", StringComparison.Ordinal))
                 {
-                    fnList = [];
-                    functionsByName[name] = fnList;
-                }
-                if (!fnList.Contains(id))
-                {
-                    fnList.Add(id);
+                    if (!functionsByName.TryGetValue(name, out var fnList))
+                    {
+                        fnList = [];
+                        functionsByName[name] = fnList;
+                    }
+                    if (!fnList.Contains(id))
+                    {
+                        fnList.Add(id);
+                    }
                 }
             }
         }
@@ -205,15 +208,18 @@ public partial class Layer5AnalysisParser
                     typeSymbols[key.Name] = id;
                     break;
                 case OntologyConstants.NodeLabels.Function:
-                    functionSymbols[key.Name] = id;
-                    if (!functionsByName.TryGetValue(key.Name, out var fnList))
+                    if (!string.Equals(key.Name, "<module_init>", StringComparison.Ordinal))
                     {
-                        fnList = [];
-                        functionsByName[key.Name] = fnList;
-                    }
-                    if (!fnList.Contains(id))
-                    {
-                        fnList.Add(id);
+                        functionSymbols[key.Name] = id;
+                        if (!functionsByName.TryGetValue(key.Name, out var fnList))
+                        {
+                            fnList = [];
+                            functionsByName[key.Name] = fnList;
+                        }
+                        if (!fnList.Contains(id))
+                        {
+                            fnList.Add(id);
+                        }
                     }
 
                     var funcFile = ExtractFilePathFromSymbolId(id);

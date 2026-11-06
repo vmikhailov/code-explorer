@@ -12,6 +12,8 @@ public sealed record AnnotationEndpointRule
     public required FrozenDictionary<string, string> AnnotationToHttpMethod { get; init; }
     public FrozenSet<string> AnnotationNodeTypes { get; init; } = new[] { "annotation", "marker_annotation", "attribute", "attribute_group", "decorator" }.ToFrozenSet();
     public FrozenSet<string> PathArgumentKeys { get; init; } = new[] { "value", "path" }.ToFrozenSet();
+    public FrozenSet<string> RoutePrefixAnnotationNames { get; init; } = new[] { "RequestMapping", "Path" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+    public FrozenSet<string> WebSocketAnnotationNames { get; init; } = new[] { "WebSocket", "ServerEndpoint" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
     public bool EnrichJavaSecurityAndSchemas { get; init; } = true;
 }
 
@@ -45,10 +47,12 @@ public sealed record SqlSinkRule
 /// </summary>
 public sealed record OrmTableRule
 {
-    public FrozenSet<string> TableAnnotationNames { get; init; } = new[] { "Table", "Entity" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+    public FrozenSet<string> TableAnnotationNames { get; init; } = new[] { "Table", "Entity", "Document", "MongoEntity" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
     public FrozenSet<string> NameArgumentKeys { get; init; } = new[] { "name", "value", "collection" }.ToFrozenSet();
     public FrozenSet<string> AnnotationNodeTypes { get; init; } = new[] { "annotation", "marker_annotation", "attribute", "attribute_group" }.ToFrozenSet();
     public FrozenSet<string> ClassDeclarationNodeTypes { get; init; } = new[] { "class_declaration" }.ToFrozenSet();
+    public FrozenSet<string> BaseClassNames { get; init; } = FrozenSet<string>.Empty;
+    public FrozenSet<string> RepositoryInterfaceNames { get; init; } = FrozenSet<string>.Empty;
 }
 
 /// <summary>
@@ -58,6 +62,8 @@ public sealed record MessagingBrokerRule
 {
     public required string Protocol { get; init; }
     public FrozenSet<string> ListenerAnnotationNames { get; init; } = FrozenSet<string>.Empty;
+    public FrozenSet<string> ProducerAnnotationNames { get; init; } = FrozenSet<string>.Empty;
+    public FrozenSet<string> ChannelAnnotationNames { get; init; } = FrozenSet<string>.Empty;
     public FrozenSet<string> MethodLevelEventAnnotations { get; init; } = FrozenSet<string>.Empty;
     public FrozenSet<string> TopicArgumentKeys { get; init; } = new[] { "topics", "topicPattern", "queues", "queuesToDeclare", "bindings", "value" }.ToFrozenSet();
     public string FallbackTopicName { get; init; } = "unknown-topic";
@@ -142,7 +148,7 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
 
         foreach (var rule in MessagingBrokerRules)
         {
-            if (MatchesMessagingListenerAnnotation(node, rule))
+            if (MatchesMessagingListenerAnnotation(node, rule) || MatchesMessagingProducerAnnotation(node, rule))
             {
                 return OntologyConstants.NodeLabels.EntryPoint;
             }
@@ -203,7 +209,7 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
 
         foreach (var rule in MessagingBrokerRules)
         {
-            if (MatchesMessagingListenerAnnotation(node, rule))
+            if (MatchesMessagingListenerAnnotation(node, rule) || MatchesMessagingProducerAnnotation(node, rule))
             {
                 var topics = ExtractMessagingTopics(node, rule);
                 var primary = topics.Count > 0 ? topics[0] : rule.FallbackTopicName;
@@ -262,6 +268,24 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
                     references.Add(new Reference(scopeSymbolId, methodName, OntologyConstants.Relationships.Triggers));
                 }
             }
+            else if (MatchesMessagingProducerAnnotation(node, rule))
+            {
+                var topics = ExtractMessagingTopics(node, rule);
+                foreach (var topic in topics)
+                {
+                    references.Add(new Reference(scopeSymbolId, $"{rule.Protocol}:{topic}", OntologyConstants.Relationships.PublishesTo));
+                }
+            }
+            else if (MatchesMessagingChannelAnnotation(node, rule))
+            {
+                var topics = ExtractMessagingTopics(node, rule);
+                var isEmitter = IsChannelEmitter(node);
+                var rel = isEmitter ? OntologyConstants.Relationships.PublishesTo : OntologyConstants.Relationships.SubscribesTo;
+                foreach (var topic in topics)
+                {
+                    references.Add(new Reference(scopeSymbolId, $"{rule.Protocol}:{topic}", rel));
+                }
+            }
             else if (MatchesMethodLevelEventListener(node, rule))
             {
                 var eventType = ExtractFirstParameterType(node);
@@ -282,9 +306,16 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
     {
         foreach (var rule in AnnotationEndpointRules)
         {
-            if (MatchesAnnotationEndpoint(node, rule, out _) && rule.EnrichJavaSecurityAndSchemas)
+            if (MatchesAnnotationEndpoint(node, rule, out var httpMethod))
             {
-                EnrichFromEnclosingDeclarations(node, symbol);
+                if (httpMethod == "WS")
+                {
+                    symbol.Protocol = "WS";
+                }
+                if (rule.EnrichJavaSecurityAndSchemas)
+                {
+                    EnrichFromEnclosingDeclarations(node, symbol);
+                }
             }
         }
 
@@ -299,7 +330,10 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
                     return name != null && rule.TableAnnotationNames.Contains(name);
                 });
 
-                if (isEntity)
+                var baseClassName = ExtractBaseClassName(node);
+                var isBaseMatch = !string.IsNullOrEmpty(baseClassName) && rule.BaseClassNames.Contains(baseClassName);
+
+                if (isEntity || isBaseMatch)
                 {
                     string? explicitName = null;
                     foreach (var a in annotations)
@@ -322,6 +356,15 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
                         symbol.References.Add(new Reference(symbol.Name, tableName, OntologyConstants.Relationships.PersistedIn));
                     }
                 }
+
+                if (rule.RepositoryInterfaceNames.Count > 0)
+                {
+                    var entityType = ExtractGenericTypeFromInterfaces(node, rule.RepositoryInterfaceNames);
+                    if (!string.IsNullOrEmpty(entityType))
+                    {
+                        symbol.References.Add(new Reference(symbol.Name, entityType, OntologyConstants.Relationships.AccessedBy));
+                    }
+                }
             }
         }
 
@@ -334,6 +377,15 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
                 foreach (var topic in topics)
                 {
                     symbol.References.Add(new Reference(symbol.Name, $"{rule.Protocol}:{topic}", OntologyConstants.Relationships.SubscribesTo));
+                }
+            }
+            else if (MatchesMessagingProducerAnnotation(node, rule))
+            {
+                symbol.Protocol = rule.Protocol;
+                var topics = ExtractMessagingTopics(node, rule);
+                foreach (var topic in topics)
+                {
+                    symbol.References.Add(new Reference(symbol.Name, $"{rule.Protocol}:{topic}", OntologyConstants.Relationships.PublishesTo));
                 }
             }
         }
@@ -352,6 +404,12 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
         var name = GetShortAnnotationName(node);
         if (string.IsNullOrEmpty(name)) return false;
 
+        if (rule.WebSocketAnnotationNames.Contains(name))
+        {
+            httpMethod = "WS";
+            return true;
+        }
+
         if (!rule.AnnotationToHttpMethod.TryGetValue(name, out var m)) return false;
         httpMethod = m;
 
@@ -362,7 +420,7 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
         {
             if (targetDecl is FunctionDeclSyntax || targetDecl.IsAny(FunctionNodeTypes))
             {
-                // Check if the enclosing type has client annotations (e.g. @FeignClient) - client interfaces define outbound calls, not endpoints
+                // Check if the enclosing type has client annotations (e.g. @FeignClient, @RegisterRestClient) - client interfaces define outbound calls, not endpoints
                 var typeDecl = targetDecl.Parent;
                 while (typeDecl.IsValid())
                 {
@@ -375,7 +433,9 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
                             return !string.IsNullOrEmpty(aName) &&
                                    (aName.EndsWith("Client", StringComparison.OrdinalIgnoreCase) ||
                                     aName.Equals("FeignClient", StringComparison.OrdinalIgnoreCase) ||
-                                    aName.Equals("HttpExchange", StringComparison.OrdinalIgnoreCase));
+                                    aName.Equals("HttpExchange", StringComparison.OrdinalIgnoreCase) ||
+                                    aName.Equals("RegisterRestClient", StringComparison.OrdinalIgnoreCase) ||
+                                    aName.Equals("RestClient", StringComparison.OrdinalIgnoreCase));
                         }))
                         {
                             return false;
@@ -383,6 +443,19 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
                         break;
                     }
                     typeDecl = typeDecl.Parent;
+                }
+
+                // If this is a route prefix annotation (@Path or @RequestMapping) on a method that also has a sibling HTTP verb (@GET, etc.), let the verb handle the endpoint
+                if (rule.RoutePrefixAnnotationNames.Contains(name))
+                {
+                    var siblingAnnots = GetNodeAnnotations(targetDecl, rule.AnnotationNodeTypes);
+                    if (siblingAnnots.Any(a => a != node &&
+                        GetShortAnnotationName(a) is { } saName &&
+                        !rule.RoutePrefixAnnotationNames.Contains(saName) &&
+                        rule.AnnotationToHttpMethod.ContainsKey(saName)))
+                    {
+                        return false;
+                    }
                 }
 
                 if (httpMethod == "ALL" || string.Equals(name, "RequestMapping", StringComparison.OrdinalIgnoreCase))
@@ -408,7 +481,43 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
 
     private static string ExtractAnnotationRoute(Node annotationNode, AnnotationEndpointRule rule, string httpMethod)
     {
-        var methodPath = ExtractNamedOrFirstStringFromAnnotation(annotationNode, rule.PathArgumentKeys) ?? "";
+        var name = GetShortAnnotationName(annotationNode);
+        if (!string.IsNullOrEmpty(name) && rule.WebSocketAnnotationNames.Contains(name))
+        {
+            var wsPath = ExtractNamedOrFirstStringFromAnnotation(annotationNode, rule.PathArgumentKeys) ?? "/";
+            return $"WS:{NormalizeRoute(wsPath)}";
+        }
+
+        var methodPath = ExtractNamedOrFirstStringFromAnnotation(annotationNode, rule.PathArgumentKeys);
+        if (string.IsNullOrEmpty(methodPath))
+        {
+            // Check enclosing method for sibling route prefix annotation (e.g. @Path)
+            var targetDecl = annotationNode.Parent;
+            while (targetDecl.IsValid() && !(targetDecl is FunctionDeclSyntax || targetDecl.IsAny(FunctionNodeTypes)))
+            {
+                if (targetDecl is TypeDeclSyntax || targetDecl.IsAny(TypeDeclNodeTypes)) break;
+                targetDecl = targetDecl.Parent;
+            }
+            if (targetDecl.IsValid() && (targetDecl is FunctionDeclSyntax || targetDecl.IsAny(FunctionNodeTypes)))
+            {
+                var siblingAnnots = GetNodeAnnotations(targetDecl, rule.AnnotationNodeTypes);
+                foreach (var sa in siblingAnnots)
+                {
+                    var saName = GetShortAnnotationName(sa);
+                    if (!string.IsNullOrEmpty(saName) && rule.RoutePrefixAnnotationNames.Contains(saName))
+                    {
+                        var sp = ExtractNamedOrFirstStringFromAnnotation(sa, rule.PathArgumentKeys);
+                        if (!string.IsNullOrEmpty(sp))
+                        {
+                            methodPath = sp;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        methodPath ??= "";
 
         // Check if enclosing type has a controller-level route prefix annotation (e.g. @RequestMapping or @Path)
         string? classPrefix = null;
@@ -421,7 +530,7 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
                 foreach (var ca in classAnnots)
                 {
                     var aName = GetShortAnnotationName(ca);
-                    if (!string.IsNullOrEmpty(aName) && rule.AnnotationToHttpMethod.ContainsKey(aName))
+                    if (!string.IsNullOrEmpty(aName) && (rule.RoutePrefixAnnotationNames.Contains(aName) || rule.AnnotationToHttpMethod.ContainsKey(aName)))
                     {
                         var p = ExtractNamedOrFirstStringFromAnnotation(ca, rule.PathArgumentKeys);
                         if (!string.IsNullOrEmpty(p))
@@ -438,6 +547,67 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
 
         var fullRoute = CombineRoutes(classPrefix ?? "", methodPath);
         return $"{httpMethod}:{fullRoute}";
+    }
+
+    private static string NormalizeRoute(string raw)
+    {
+        var trimmed = (raw ?? "").Trim();
+        if (string.IsNullOrEmpty(trimmed) || trimmed == "/") return "/";
+        return trimmed.StartsWith('/') ? trimmed : "/" + trimmed;
+    }
+
+    private static string? ExtractBaseClassName(Node node)
+    {
+        var superclass = node.Children.FirstOrDefault(c => c.Type is "superclass" or "extends_clause");
+        if (superclass.IsValid())
+        {
+            var id = superclass.Children.FirstOrDefault(c => c.Type is "type_identifier" or "identifier" or "scoped_type_identifier");
+            if (id.IsValid()) return id.Text;
+            var text = superclass.Text.Replace("extends", "").Trim();
+            var angle = text.IndexOf('<');
+            if (angle > 0) text = text[..angle];
+            return text.Trim();
+        }
+        return null;
+    }
+
+    private static string? ExtractGenericTypeFromInterfaces(Node node, FrozenSet<string> repositoryInterfaceNames)
+    {
+        var ifaces = node.Children.FirstOrDefault(c => c.Type is "interfaces" or "implements_clause" or "extends_interfaces" or "super_interfaces");
+        var text = ifaces.IsValid() ? ifaces.Text : node.Text;
+        foreach (var rName in repositoryInterfaceNames)
+        {
+            var idx = text.IndexOf(rName, StringComparison.OrdinalIgnoreCase);
+            if (idx >= 0)
+            {
+                var open = text.IndexOf('<', idx);
+                var close = open > 0 ? text.IndexOf('>', open) : -1;
+                if (open > 0 && close > open)
+                {
+                    var genericParam = text[(open + 1)..close].Trim();
+                    var comma = genericParam.IndexOf(',');
+                    if (comma > 0) genericParam = genericParam[..comma].Trim();
+                    return genericParam;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static bool IsChannelEmitter(Node node)
+    {
+        var parent = node.Parent;
+        while (parent.IsValid())
+        {
+            var text = parent.Text;
+            if (text.Contains("Emitter", StringComparison.OrdinalIgnoreCase)) return true;
+            if (parent is FunctionDeclSyntax || parent.IsAny(FunctionNodeTypes) || parent is TypeDeclSyntax || parent.IsAny(TypeDeclNodeTypes))
+            {
+                break;
+            }
+            parent = parent.Parent;
+        }
+        return false;
     }
 
     private static string CombineRoutes(string prefix, string path)
@@ -671,7 +841,7 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
                 {
                     var keyText = key.Text;
                     var valText = val.Text.Trim('"', '\'');
-                    if (keyText is "name" or "value")
+                    if (keyText is "name" or "value" or "configKey" or "serviceId")
                     {
                         nameVal = valText;
                     }
@@ -701,6 +871,11 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
                         }
                     }
                 }
+            }
+
+            if (string.IsNullOrEmpty(nameVal) && node is TypeDeclSyntax typeDecl)
+            {
+                nameVal = typeDecl.Name;
             }
 
             if (!string.IsNullOrEmpty(nameVal))

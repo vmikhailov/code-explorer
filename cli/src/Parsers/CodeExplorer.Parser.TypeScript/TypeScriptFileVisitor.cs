@@ -37,41 +37,10 @@ public class TypeScriptFileVisitor : BaseParserVisitor
         ], path =>
         {
             var callNode = path[^1];
-            var argList = callNode.GetField(TreeSitterSyntax.Fields.Arguments);
-
-            if (argList.IsValid() && argList.Children.Count > 0)
-            {
-                var firstArg = argList.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.String));
-
-                if (firstArg.IsValid())
-                {
-                    var importPath = firstArg.Text.Trim('\'', '"');
-                    var specifiers = new List<ImportSpecifier>();
-
-                    var declarator = callNode.Parent;
-                    if (declarator.IsValid() && declarator.Is(TreeSitterSyntax.TypeScript.VariableDeclarator))
-                    {
-                        var nameField = declarator.GetField(TreeSitterSyntax.Fields.Name);
-                        if (nameField.IsValid())
-                        {
-                            if (nameField.Is(TreeSitterSyntax.TypeScript.Identifier))
-                            {
-                                specifiers.Add(new ImportSpecifier(nameField.Text, "default", IsDefault: true));
-                            }
-                            else if (nameField.Type == "object_pattern")
-                            {
-                                foreach (var prop in nameField.FindChildrenOfType("shorthand_property_identifier_pattern"))
-                                {
-                                    specifiers.Add(new ImportSpecifier(prop.Text, prop.Text));
-                                }
-                            }
-                        }
-                    }
-
-                    RawImports.Add(new RawImport(importPath, "", ImportType.External, specifiers));
-                    ResolveAndInjectLibraryParser(importPath);
-                }
-            }
+            TypeScriptImportAndCallbackHelper.ExtractCommonJsRequireImport(
+                callNode,
+                RawImports,
+                ResolveAndInjectLibraryParser);
         });
     }
 
@@ -467,6 +436,12 @@ public class TypeScriptFileVisitor : BaseParserVisitor
                 if (objChild.IsValid())
                 {
                     var unwrappedObj = UnwrapExpression(objChild);
+                    var directReqCall = TypeScriptImportAndCallbackHelper.TryExtractDirectRequireMemberCall(unwrappedObj, propChild.Text);
+                    if (!string.IsNullOrEmpty(directReqCall))
+                    {
+                        return directReqCall;
+                    }
+
                     if (unwrappedObj.IsAny(TreeSitterSyntax.TypeScript.CallExpression, TreeSitterSyntax.TypeScript.NewExpression))
                     {
                         var genericType = ExtractFirstGenericTypeArgument(unwrappedObj);
@@ -583,11 +558,24 @@ public class TypeScriptFileVisitor : BaseParserVisitor
         VisitChildren(node, depth);
     }
 
-        protected override void VisitDefault(Node node, int depth)
+    protected override void VisitCallExpression(Node node, int depth)
+    {
+        base.VisitCallExpression(node, depth);
+        if (SymbolStack.Count > 0)
+        {
+            TypeScriptImportAndCallbackHelper.CollectCallbackArgumentReferences(node, SymbolStack.Peek());
+        }
+    }
+
+    protected override void VisitDefault(Node node, int depth)
     {
         if (node.Type is "jsx_opening_element" or "jsx_self_closing_element")
         {
             ExtractJsxComponentCall(node);
+        }
+        else if (node.Is(TreeSitterSyntax.TypeScript.AssignmentExpression))
+        {
+            TypeScriptImportAndCallbackHelper.CollectCommonJsExportAliases(node, RawImports);
         }
 
         base.VisitDefault(node, depth);
@@ -645,128 +633,11 @@ public class TypeScriptFileVisitor : BaseParserVisitor
         }
     }
 
-    private void CollectImport(Node node)
-    {
-        var sourceNode = node.GetField(TreeSitterSyntax.Fields.Source);
-
-        if (!sourceNode.IsValid())
-        {
-            sourceNode = node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.String));
-        }
-
-        if (sourceNode.IsValid())
-        {
-            var importPath = sourceNode.Text.Trim('\'', '"');
-            var specifiers = ExtractImportSpecifiers(node);
-            RawImports.Add(new RawImport(importPath, "", ImportType.External, specifiers));
-            ResolveAndInjectLibraryParser(importPath);
-        }
-    }
-
-    private static List<ImportSpecifier> ExtractImportSpecifiers(Node node)
-    {
-        var specifiers = new List<ImportSpecifier>();
-
-        // 1. import_clause
-        var clause = node.FindChildOfType("import_clause");
-        if (clause.IsValid())
-        {
-            foreach (var child in clause.Children)
-            {
-                if (child.Is(TreeSitterSyntax.TypeScript.Identifier))
-                {
-                    specifiers.Add(new ImportSpecifier(child.Text, "default", IsDefault: true));
-                }
-                else if (child.Is("namespace_import"))
-                {
-                    var id = child.FindChildOfType(TreeSitterSyntax.TypeScript.Identifier);
-                    if (id.IsValid())
-                    {
-                        specifiers.Add(new ImportSpecifier(id.Text, "*", IsNamespace: true));
-                    }
-                }
-                else if (child.Is("named_imports"))
-                {
-                    foreach (var spec in child.FindChildrenOfType("import_specifier"))
-                    {
-                        var nameNode = spec.GetField(TreeSitterSyntax.Fields.Name);
-                        var aliasNode = spec.GetField("alias");
-
-                        if (nameNode.IsValid())
-                        {
-                            var impName = nameNode.Text;
-                            var locName = aliasNode.IsValid() ? aliasNode.Text : impName;
-                            specifiers.Add(new ImportSpecifier(locName, impName));
-                        }
-                        else
-                        {
-                            var idents = spec.FindChildrenOfType(TreeSitterSyntax.TypeScript.Identifier).ToList();
-                            if (idents.Count == 1)
-                            {
-                                specifiers.Add(new ImportSpecifier(idents[0].Text, idents[0].Text));
-                            }
-                            else if (idents.Count >= 2)
-                            {
-                                specifiers.Add(new ImportSpecifier(idents[1].Text, idents[0].Text));
-                            }
-                        }
-                    }
-                }
-            }
-            return specifiers;
-        }
-
-        // 2. import_require_clause
-        var reqClause = node.FindChildOfType("import_require_clause");
-        if (reqClause.IsValid())
-        {
-            var id = reqClause.FindChildOfType(TreeSitterSyntax.TypeScript.Identifier);
-            if (id.IsValid())
-            {
-                specifiers.Add(new ImportSpecifier(id.Text, "default", IsDefault: true));
-            }
-            return specifiers;
-        }
-
-        // 3. export_statement with source (e.g. export { a, b as c } from './b')
-        var exportClause = node.FindChildOfType("export_clause");
-        if (exportClause.IsValid())
-        {
-            foreach (var spec in exportClause.FindChildrenOfType("export_specifier"))
-            {
-                var nameNode = spec.GetField(TreeSitterSyntax.Fields.Name);
-                var aliasNode = spec.GetField("alias");
-
-                if (nameNode.IsValid())
-                {
-                    var impName = nameNode.Text;
-                    var locName = aliasNode.IsValid() ? aliasNode.Text : impName;
-                    specifiers.Add(new ImportSpecifier(locName, impName));
-                }
-                else
-                {
-                    var idents = spec.FindChildrenOfType(TreeSitterSyntax.TypeScript.Identifier).ToList();
-                    if (idents.Count == 1)
-                    {
-                        specifiers.Add(new ImportSpecifier(idents[0].Text, idents[0].Text));
-                    }
-                    else if (idents.Count >= 2)
-                    {
-                        specifiers.Add(new ImportSpecifier(idents[1].Text, idents[0].Text));
-                    }
-                }
-            }
-            return specifiers;
-        }
-
-        // 4. export * from './b'
-        if (node is CodeExplorer.Core.Parser.Syntax.ImportDeclSyntax { IsWildcard: true } || node.Children.Any(c => c.Type == "*"))
-        {
-            specifiers.Add(new ImportSpecifier("*", "*", IsNamespace: true));
-        }
-
-        return specifiers;
-    }
+    private void CollectImport(Node node) =>
+        TypeScriptImportAndCallbackHelper.CollectImportOrExportStatement(
+            node,
+            RawImports,
+            ResolveAndInjectLibraryParser);
 
     private void CollectVariableAndTypeBindings(Node node)
     {

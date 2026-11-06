@@ -732,7 +732,7 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
             <span>🎯 Context Isolation Mode:</span>
             <strong>{contexts.find((c) => c.id === isolatedContextId)?.displayName}</strong>
             <span style={{ opacity: 0.8, fontSize: '11px' }}>
-              (Showing upstream & downstream interactions only)
+              (Showing upstream &amp; downstream interactions only)
             </span>
           </div>
           <button
@@ -863,7 +863,7 @@ export const BoundedContextMapView: React.FC<BoundedContextMapViewProps> = ({
               {/* Capabilities & CQRS Breakdown */}
               {selectedContext.capabilities.length > 0 && (
                 <div>
-                  <div className="drawer-section-title">⚡ Capabilities & CQRS</div>
+                  <div className="drawer-section-title">⚡ Capabilities &amp; CQRS</div>
                   <div className="drawer-chips-wrap">
                     {selectedContext.capabilities.map((cap, idx) => {
                       const matchedFile = selectedContext.files.find((f) => f.capabilityTag === cap);

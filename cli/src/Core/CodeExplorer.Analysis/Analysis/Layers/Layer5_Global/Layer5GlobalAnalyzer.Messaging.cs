@@ -50,19 +50,25 @@ public partial class Layer5AnalysisParser
             var isThisReceiver = cleanVar is "this" or "self" or "base" || string.IsNullOrEmpty(cleanVar) || varName is "this" or "self";
             hasExplicitReceiver = !isThisReceiver;
 
-            // Check if varName is a namespace import in callerFile (e.g. import * as text from './plural')
-            if (normCallerFile != null && imports.FileImports.TryGetValue((normCallerFile, varName), out var nsImport) && nsImport.IsNamespace)
+            // Check if varName is a namespace or default/CommonJS module import in callerFile
+            if (normCallerFile != null &&
+                imports.FileImports.TryGetValue((normCallerFile, varName), out var nsImport) &&
+                (nsImport.IsNamespace || nsImport.IsDefault))
             {
                 var nsCandidates = ResolveImportCandidateFiles(normCallerFile, nsImport.ImportPath, imports, ctx, symbols);
                 foreach (var nsCand in nsCandidates)
                 {
-                    if (symbols.FunctionSymbolsByFile.TryGetValue((nsCand, methodName), out var nsTargetId))
+                    var nsTargetId = TryResolveFunctionInCandidateFile(nsCand, methodName, symbols, imports, ctx);
+                    if (nsTargetId != null)
                     {
                         referenceRelationships.Add(CreateCallRel(refItem, nsTargetId));
                         return;
                     }
                 }
-                return;
+                if (nsImport.IsNamespace)
+                {
+                    return;
+                }
             }
 
             if (hasExplicitReceiver)
@@ -141,19 +147,26 @@ public partial class Layer5AnalysisParser
 
         var callAdded = false;
         string? targetNodeId = null;
+        var isCallbackArg = string.Equals(refItem.ArgFlow, "callback_arg", StringComparison.Ordinal);
 
         // 1. Same file
         if (normCallerFile != null && ctx.FileScopedSymbols.TryGetValue((normCallerFile, OntologyConstants.NodeLabels.Function, targetName), out var localTargetId))
         {
-            referenceRelationships.Add(CreateCallRel(refItem, localTargetId));
-            callAdded = true;
-            targetNodeId = localTargetId;
+            if (!isCallbackArg || localTargetId != refItem.ScopeSymbolId)
+            {
+                referenceRelationships.Add(CreateCallRel(refItem, localTargetId));
+                callAdded = true;
+                targetNodeId = localTargetId;
+            }
         }
         else if (normCallerFile != null && symbols.FunctionSymbolsByFile.TryGetValue((normCallerFile, targetName), out localTargetId))
         {
-            referenceRelationships.Add(CreateCallRel(refItem, localTargetId));
-            callAdded = true;
-            targetNodeId = localTargetId;
+            if (!isCallbackArg || localTargetId != refItem.ScopeSymbolId)
+            {
+                referenceRelationships.Add(CreateCallRel(refItem, localTargetId));
+                callAdded = true;
+                targetNodeId = localTargetId;
+            }
         }
         // 2. Through explicit module imports (e.g. import { pluralize } from './plural' or from '@repro/text')
         else if (normCallerFile != null && (targetNodeId = ResolveFunctionCallThroughImports(normCallerFile, targetName, symbols, imports, ctx)) != null)
@@ -161,14 +174,15 @@ public partial class Layer5AnalysisParser
             referenceRelationships.Add(CreateCallRel(refItem, targetNodeId));
             callAdded = true;
         }
-        // 3. Same project fallback (when function is defined uniquely in caller's project)
-        else if (normCallerFile != null && (targetNodeId = ResolveSameProjectFunctionFallback(normCallerFile, targetName, symbols)) != null)
+        // 3. Same project fallback (when function is defined uniquely in caller's project; skipped for callback_arg to prevent matching local variables to unrelated project functions)
+        else if (!isCallbackArg && normCallerFile != null && (targetNodeId = ResolveSameProjectFunctionFallback(normCallerFile, targetName, symbols)) != null)
         {
             referenceRelationships.Add(CreateCallRel(refItem, targetNodeId));
             callAdded = true;
         }
         // 4. Globally unambiguous function (only 1 function with this name across entire workspace, or 1 non-graphql function when paired with a .graphql operation)
-        else if (symbols.FunctionsByName.TryGetValue(targetName, out var uniqueCandidates) &&
+        else if (!isCallbackArg &&
+                 symbols.FunctionsByName.TryGetValue(targetName, out var uniqueCandidates) &&
                  (uniqueCandidates.Count == 1 ? uniqueCandidates[0] : SelectPreferredFunctionCandidate(uniqueCandidates)) is { } candidateId)
         {
             targetNodeId = candidateId;
@@ -176,7 +190,7 @@ public partial class Layer5AnalysisParser
             callAdded = true;
         }
         // 5. Procedure symbols fallback
-        else if (symbols.ProcedureSymbols.TryGetValue(targetName, out var targetProcId))
+        else if (!isCallbackArg && symbols.ProcedureSymbols.TryGetValue(targetName, out var targetProcId))
         {
             referenceRelationships.Add(Relationship.CreateWithCallSite(
                 targetProcId,
@@ -229,11 +243,11 @@ public partial class Layer5AnalysisParser
             {
                 referenceRelationships.Add(CreateCallRel(refItem, targetNodeId));
             }
-            else if (normCallerFile != null && (targetNodeId = ResolveSameProjectFunctionFallback(normCallerFile, methodName, symbols)) != null)
+            else if (!isCallbackArg && normCallerFile != null && (targetNodeId = ResolveSameProjectFunctionFallback(normCallerFile, methodName, symbols)) != null)
             {
                 referenceRelationships.Add(CreateCallRel(refItem, targetNodeId));
             }
-            else if (symbols.FunctionsByName.TryGetValue(methodName, out var fallbackCandidates))
+            else if (!isCallbackArg && symbols.FunctionsByName.TryGetValue(methodName, out var fallbackCandidates))
             {
                 foreach (var fallbackNodeId in fallbackCandidates)
                 {
@@ -301,41 +315,25 @@ public partial class Layer5AnalysisParser
             var candidates = ResolveImportCandidateFiles(normCaller, importedEntry.ImportPath, imports, ctx, symbols);
             foreach (var cand in candidates)
             {
-                if (symbols.FunctionSymbolsByFile.TryGetValue((cand, importedEntry.ImportedName), out var funcId))
+                var resolvedId = TryResolveFunctionInCandidateFile(cand, importedEntry.ImportedName, symbols, imports, ctx);
+                if (resolvedId != null)
                 {
-                    return funcId;
-                }
-                if (ctx.FileScopedSymbols.TryGetValue((cand, OntologyConstants.NodeLabels.Type, importedEntry.ImportedName), out var typeSymbolId) ||
-                    ctx.FileScopedSymbols.TryGetValue((cand, "Class", importedEntry.ImportedName), out typeSymbolId) ||
-                    ctx.FileScopedSymbols.TryGetValue((cand, "Interface", importedEntry.ImportedName), out typeSymbolId))
-                {
-                    return typeSymbolId;
+                    return resolvedId;
                 }
 
                 // If default import, try targetName as importedName or file-named function
                 if (importedEntry.IsDefault)
                 {
-                    if (symbols.FunctionSymbolsByFile.TryGetValue((cand, targetName), out var defFuncId))
+                    var defResolvedId = TryResolveFunctionInCandidateFile(cand, targetName, symbols, imports, ctx);
+                    if (defResolvedId != null)
                     {
-                        return defFuncId;
+                        return defResolvedId;
                     }
                     var candFileName = Path.GetFileNameWithoutExtension(cand);
-                    if (symbols.FunctionSymbolsByFile.TryGetValue((cand, candFileName), out var namedFuncId))
+                    var namedResolvedId = TryResolveFunctionInCandidateFile(cand, candFileName, symbols, imports, ctx);
+                    if (namedResolvedId != null)
                     {
-                        return namedFuncId;
-                    }
-                }
-
-                // Follow barrel re-exports: if cand re-exports importedEntry.ImportedName
-                if (imports.FileImports.TryGetValue((cand, importedEntry.ImportedName), out var reExportedEntry))
-                {
-                    var reCandidates = ResolveImportCandidateFiles(cand, reExportedEntry.ImportPath, imports, ctx, symbols);
-                    foreach (var reCand in reCandidates)
-                    {
-                        if (symbols.FunctionSymbolsByFile.TryGetValue((reCand, reExportedEntry.ImportedName), out var reFuncId))
-                        {
-                            return reFuncId;
-                        }
+                        return namedResolvedId;
                     }
                 }
             }
@@ -365,9 +363,77 @@ public partial class Layer5AnalysisParser
                 var candidates = ResolveImportCandidateFiles(normCaller, starPath, imports, ctx, symbols);
                 foreach (var cand in candidates)
                 {
-                    if (symbols.FunctionSymbolsByFile.TryGetValue((cand, targetName), out var funcId))
+                    var starFuncId = TryResolveFunctionInCandidateFile(cand, targetName, symbols, imports, ctx);
+                    if (starFuncId != null)
                     {
-                        return funcId;
+                        return starFuncId;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static string? TryResolveFunctionInCandidateFile(
+        string cand,
+        string exportedName,
+        SymbolLookups symbols,
+        ImportLookups imports,
+        ParsingContext ctx,
+        int depth = 0)
+    {
+        if (depth > 4 || string.IsNullOrEmpty(exportedName))
+        {
+            return null;
+        }
+
+        if (symbols.FunctionSymbolsByFile.TryGetValue((cand, exportedName), out var funcId))
+        {
+            return funcId;
+        }
+
+        if (ctx.FileScopedSymbols.TryGetValue((cand, OntologyConstants.NodeLabels.Type, exportedName), out var typeSymbolId) ||
+            ctx.FileScopedSymbols.TryGetValue((cand, "Class", exportedName), out typeSymbolId) ||
+            ctx.FileScopedSymbols.TryGetValue((cand, "Interface", exportedName), out typeSymbolId))
+        {
+            return typeSymbolId;
+        }
+
+        if (imports.FileImports.TryGetValue((cand, exportedName), out var reExportedEntry))
+        {
+            if (string.Equals(reExportedEntry.ImportPath, "__self__", StringComparison.Ordinal))
+            {
+                if (symbols.FunctionSymbolsByFile.TryGetValue((cand, reExportedEntry.ImportedName), out var aliasFuncId))
+                {
+                    return aliasFuncId;
+                }
+            }
+            else
+            {
+                var reCandidates = ResolveImportCandidateFiles(cand, reExportedEntry.ImportPath, imports, ctx, symbols);
+                foreach (var reCand in reCandidates)
+                {
+                    var reResolved = TryResolveFunctionInCandidateFile(reCand, reExportedEntry.ImportedName, symbols, imports, ctx, depth + 1);
+                    if (reResolved != null)
+                    {
+                        return reResolved;
+                    }
+                }
+            }
+        }
+
+        if (imports.StarImportsByFile.TryGetValue(cand, out var barrelStarPaths))
+        {
+            foreach (var starPath in barrelStarPaths)
+            {
+                var starCandidates = ResolveImportCandidateFiles(cand, starPath, imports, ctx, symbols);
+                foreach (var starCand in starCandidates)
+                {
+                    var starResolved = TryResolveFunctionInCandidateFile(starCand, exportedName, symbols, imports, ctx, depth + 1);
+                    if (starResolved != null)
+                    {
+                        return starResolved;
                     }
                 }
             }

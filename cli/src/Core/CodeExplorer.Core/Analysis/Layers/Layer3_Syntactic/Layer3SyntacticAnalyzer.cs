@@ -839,27 +839,32 @@ public partial class Layer3SyntacticParser
         }
 
         // 3. Emit canonical `<module_init>` FunctionNode if top-level statements/calls exist
-        if (HasTopLevelCallsOrStatements(doc) && fileNode.Children.OfType<FunctionNode>().All(f => f.Name != "<module_init>"))
+        if (HasTopLevelCallsOrStatements(doc))
         {
-            var modInitId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Function:<module_init>";
-            var modInitNode = new FunctionNode(
-                modInitId,
-                "<module_init>",
-                modInitId,
-                relativePath,
-                relativePath,
-                1,
-                Math.Max(1, fileNode.LineCount ?? 1),
-                1,
-                1,
-                isTest,
-                projectKind,
-                projectName)
+            var modInitNode = fileNode.Children.OfType<FunctionNode>().FirstOrDefault(f => f.Name == "<module_init>");
+            if (modInitNode == null)
             {
-                IsModuleInit = true,
-                Flags = SymbolFlags.IsModuleInit
-            };
-            fileNode.Children.Add(modInitNode);
+                var modInitId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:Function:<module_init>";
+                modInitNode = new FunctionNode(
+                    modInitId,
+                    "<module_init>",
+                    modInitId,
+                    relativePath,
+                    relativePath,
+                    1,
+                    Math.Max(1, fileNode.LineCount ?? 1),
+                    1,
+                    1,
+                    isTest,
+                    projectKind,
+                    projectName)
+                {
+                    IsModuleInit = true,
+                    Flags = SymbolFlags.IsModuleInit
+                };
+                fileNode.Children.Add(modInitNode);
+            }
+            PopulateModuleInitReferences(modInitNode, doc);
         }
 
         EnrichReferencesWithCallContextAndFlow(fileNode, doc);
@@ -934,7 +939,10 @@ public partial class Layer3SyntacticParser
                             }
                         }
 
-                        node.References[i] = r with { Context = context, ArgFlow = argFlow };
+                        var effectiveArgFlow = string.Equals(r.ArgFlow, "callback_arg", StringComparison.Ordinal)
+                            ? r.ArgFlow
+                            : argFlow;
+                        node.References[i] = r with { Context = context, ArgFlow = effectiveArgFlow };
                     }
                 }
             }

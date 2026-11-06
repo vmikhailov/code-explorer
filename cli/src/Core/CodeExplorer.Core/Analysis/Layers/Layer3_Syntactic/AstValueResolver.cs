@@ -330,7 +330,7 @@ public static partial class AstValueResolver
             if (!child.IsValid()) continue;
 
             var cType = child.Type;
-            if (cType is "$\"" or "@$\"" or "$@\"" or "\"" or "\"\"\"" or "`" or "f\"" or "f'" or "'" or "f" or "string_start" or "string_end" or "interpolation_start") continue;
+            if (cType is "$\"" or "@$\"" or "$@\"" or "\"" or "\"\"\"" or "`" or "f\"" or "f'" or "'" or "f" or "string_start" or "string_end" or "interpolation_start" or "interpolation_quote") continue;
 
             if (cType is "interpolation" or "template_substitution")
             {

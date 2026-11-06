@@ -5,6 +5,9 @@ namespace CodeExplorer.Parser.Go;
 
 public class GoFileVisitor : BaseParserVisitor
 {
+    private const char BackslashChar = '\\';
+    private const char SlashChar = '/';
+    private static readonly char[] QuoteSeparators = ['"', '`'];
     private readonly GoParser _parser;
 
     public GoFileVisitor(
@@ -75,8 +78,8 @@ public class GoFileVisitor : BaseParserVisitor
             var cleanName = "main";
             if (!string.IsNullOrEmpty(RelativePath))
             {
-                var cleanRel = RelativePath.Replace('\\', '/').Trim('/');
-                var dir = Path.GetDirectoryName(cleanRel)?.Replace('\\', '/').Trim('/');
+                var cleanRel = RelativePath.Replace(BackslashChar, SlashChar).Trim(SlashChar);
+                var dir = Path.GetDirectoryName(cleanRel)?.Replace(BackslashChar, SlashChar).Trim(SlashChar);
                 var dirName = Path.GetFileName(dir);
                 if (!string.IsNullOrEmpty(dirName) && !dirName.Equals("src", StringComparison.OrdinalIgnoreCase) && !dirName.Equals("cmd", StringComparison.OrdinalIgnoreCase))
                 {
@@ -900,10 +903,10 @@ public class GoFileVisitor : BaseParserVisitor
                         var args = GoAstHelper.GetCallArguments(curr);
                         if (mName == "Path" && args.Count > 0 && string.IsNullOrEmpty(route))
                         {
-                            var r = GoAstHelper.ResolveStringOrVariable(args[0])?.Trim('"', '`');
-                            if (string.IsNullOrEmpty(r) && args[0].Text.Trim('"', '`').StartsWith('/'))
+                            var r = GoAstHelper.ResolveStringOrVariable(args[0])?.Trim(QuoteSeparators);
+                            if (string.IsNullOrEmpty(r) && args[0].Text.Trim(QuoteSeparators).StartsWith(SlashChar))
                             {
-                                r = args[0].Text.Trim('"', '`');
+                                r = args[0].Text.Trim(QuoteSeparators);
                             }
                             if (!string.IsNullOrEmpty(r)) route = r;
                         }

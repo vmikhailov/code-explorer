@@ -64,9 +64,10 @@ public partial class Layer2ProjectParser
             var pkgJsonText = PhysicalFileStore.ReadAllText(pkgJsonPath);
             if (string.IsNullOrEmpty(pkgJsonText)) continue;
 
-            var relManifestPath = string.IsNullOrEmpty(project.Path)
+            var normProj = project.Path.Replace('\\', '/').Trim('/', '.');
+            var relManifestPath = string.IsNullOrEmpty(normProj)
                 ? "package.json"
-                : $"{project.Path.Trim('/')}/package.json";
+                : $"{normProj}/package.json";
 
             try
             {
@@ -211,9 +212,10 @@ public partial class Layer2ProjectParser
         clean = clean.Trim('/');
         if (string.IsNullOrEmpty(clean)) return null;
 
-        var fullRel = string.IsNullOrEmpty(projectPath)
+        var normProjPath = projectPath.Replace('\\', '/').Trim('/', '.');
+        var fullRel = string.IsNullOrEmpty(normProjPath)
             ? clean
-            : $"{projectPath.Replace('\\', '/').Trim('/')}/{clean}";
+            : $"{normProjPath}/{clean}";
 
         if (fileByRelPath.TryGetValue(fullRel, out var direct)) return direct;
         foreach (var ext in new[] { ".js", ".ts", ".mjs", ".cjs", "/index.js", "/index.ts" })

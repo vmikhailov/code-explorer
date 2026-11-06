@@ -150,6 +150,24 @@ public partial class DeclarativeSemanticExtension
         return !string.IsNullOrEmpty(name) && rule.ListenerAnnotationNames.Contains(name);
     }
 
+    private static bool MatchesMessagingProducerAnnotation(Node node, MessagingBrokerRule rule)
+    {
+        if (rule.ProducerAnnotationNames.Count == 0 || !rule.AnnotationNodeTypes.Contains(node.Type))
+            return false;
+
+        var name = GetShortAnnotationName(node);
+        return !string.IsNullOrEmpty(name) && rule.ProducerAnnotationNames.Contains(name);
+    }
+
+    private static bool MatchesMessagingChannelAnnotation(Node node, MessagingBrokerRule rule)
+    {
+        if (rule.ChannelAnnotationNames.Count == 0 || !rule.AnnotationNodeTypes.Contains(node.Type))
+            return false;
+
+        var name = GetShortAnnotationName(node);
+        return !string.IsNullOrEmpty(name) && rule.ChannelAnnotationNames.Contains(name);
+    }
+
     private static bool MatchesMethodLevelEventListener(Node node, MessagingBrokerRule rule)
     {
         if (rule.MethodLevelEventAnnotations.Count == 0 || node is not FunctionDeclSyntax)
@@ -175,16 +193,34 @@ public partial class DeclarativeSemanticExtension
                 {
                     if (argChild.Type == "element_value_pair")
                     {
-                        var keyNode = argChild.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
+                        var keyNode = argChild.Children.FirstOrDefault(c => c is IdentifierExprSyntax || c.Type == "identifier");
                         if (keyNode.IsValid() && rule.TopicArgumentKeys.Contains(keyNode.Text))
                         {
                             ExtractStringsFromSubtree(argChild, list);
+                            if (list.Count == 0)
+                            {
+                                var argValId = argChild.Children.FirstOrDefault(c => c != keyNode && (c is IdentifierExprSyntax || c.Type == "identifier"));
+                                if (argValId.IsValid())
+                                {
+                                    var resolved = ResolveConstantInScope(annotNode, argValId.Text);
+                                    list.Add(resolved ?? argValId.Text);
+                                }
+                            }
                         }
                     }
                     else if (IsStringLiteral(argChild))
                     {
                         var val = argChild.Text.Trim('"', '\'');
                         if (!string.IsNullOrEmpty(val) && !list.Contains(val)) list.Add(val);
+                    }
+                    else if (argChild is IdentifierExprSyntax || argChild.Type == "identifier")
+                    {
+                        var constName = argChild.Text;
+                        if (!string.IsNullOrEmpty(constName))
+                        {
+                            var resolved = ResolveConstantInScope(annotNode, constName);
+                            list.Add(resolved ?? constName);
+                        }
                     }
                 }
             }
@@ -207,6 +243,44 @@ public partial class DeclarativeSemanticExtension
         }
 
         return list;
+    }
+
+    private static string? ResolveConstantInScope(Node annotNode, string constName)
+    {
+        var classNode = annotNode.Parent;
+        while (classNode.IsValid() && !classNode.IsAny(TypeDeclNodeTypes))
+        {
+            classNode = classNode.Parent;
+        }
+        return classNode.IsValid() ? ResolveConstantValueInClass(classNode, constName) : null;
+    }
+
+    private const string FieldDeclarationKind = "field_declaration";
+    private const string VariableDeclaratorKind = "variable_declarator";
+    private const string IdentifierKind = "identifier";
+
+    private static string? ResolveConstantValueInClass(Node classNode, string constName)
+    {
+        var fields = new List<Node>();
+        CollectNodesByType(classNode, FieldDeclarationKind, fields);
+        foreach (var field in fields)
+        {
+            var decls = new List<Node>();
+            CollectNodesByType(field, VariableDeclaratorKind, decls);
+            foreach (var decl in decls)
+            {
+                var id = decl.Children.FirstOrDefault(c => c is IdentifierExprSyntax || c.Type == IdentifierKind);
+                if (id.IsValid() && id.Text == constName)
+                {
+                    var val = decl.Children.FirstOrDefault(IsStringLiteral);
+                    if (val.IsValid())
+                    {
+                        return val.Text.Trim('"', '\'');
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     private static void TryCollectMessagingPublishReferences(

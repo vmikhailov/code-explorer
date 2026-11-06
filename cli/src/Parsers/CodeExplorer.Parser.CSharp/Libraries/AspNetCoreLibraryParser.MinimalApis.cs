@@ -444,19 +444,6 @@ public partial class AspNetCoreLibraryParser
                     if (nameNode.IsValid() && nameNode.Text == targetVar)
                     {
                         var valueNode = decl.GetField(TreeSitterSyntax.Fields.Value);
-                        if (!valueNode.IsValid())
-                        {
-                            var eqClause = decl.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause);
-                            if (eqClause.IsValid() && eqClause.Children.Count > 0)
-                            {
-                                valueNode = eqClause.Children[^1];
-                            }
-                            else if (decl.Children.Count >= 3 && decl.Children[1].Text == "=")
-                            {
-                                valueNode = decl.Children[2];
-                            }
-                        }
-
                         if (valueNode.IsValid() && valueNode.Is(TreeSitterSyntax.CSharp.InvocationExpression))
                         {
                             var directRoute = ExtractGroupRouteFromChain(valueNode, depth + 1, visited);

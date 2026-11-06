@@ -3,6 +3,7 @@ using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
 
@@ -127,6 +128,13 @@ public partial class Layer4SemanticParser
             l3Result,
             workloadByProjectId,
             semanticStructureNode,
+            existingRelKeys,
+            semanticRelationships);
+
+        LinkEntryPointsToModuleInit(
+            l3Result,
+            allFiles,
+            allProjects,
             existingRelKeys,
             semanticRelationships);
 
@@ -263,6 +271,65 @@ public partial class Layer4SemanticParser
         foreach (var child in childrenCopy)
         {
             FindAndCollectEntryPoints(child, entryPoints, parentMap);
+        }
+    }
+
+    private static void LinkEntryPointsToModuleInit(
+        Layer3Result l3Result,
+        List<FileNode> allFiles,
+        List<ProjectNode> allProjects,
+        HashSet<(string From, string To, string Kind)> existingRelKeys,
+        List<Relationship> semanticRelationships)
+    {
+        var modInitByFileId = new Dictionary<string, FunctionNode>(StringComparer.Ordinal);
+        var modInitByFilePath = new Dictionary<string, FunctionNode>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var st in l3Result.SyntaxTrees)
+        {
+            var fn = st.FileNode;
+            if (fn == null) continue;
+            var modInit = fn.Children.OfType<FunctionNode>().FirstOrDefault(f => f.Name == "<module_init>" || f.IsModuleInit == true);
+            if (modInit == null) continue;
+            modInitByFileId[fn.Id] = modInit;
+            if (!string.IsNullOrEmpty(fn.Path))
+            {
+                modInitByFilePath[fn.Path.Replace('\\', '/').Trim('/')] = modInit;
+            }
+            if (!string.IsNullOrEmpty(fn.FullPath))
+            {
+                modInitByFilePath[fn.FullPath.Replace('\\', '/').Trim('/')] = modInit;
+            }
+        }
+
+        if (modInitByFileId.Count == 0) return;
+
+        foreach (var dep in l3Result.Prev.ProjectDependencies)
+        {
+            if (dep.Kind is OntologyConstants.Relationships.Triggers or OntologyConstants.Relationships.DeclaredIn &&
+                modInitByFileId.TryGetValue(dep.To, out var targetModInit) &&
+                dep.From.Contains($":{OntologyConstants.IdPrefixes.EntryPoint}:", StringComparison.Ordinal))
+            {
+                if (existingRelKeys.Add((dep.From, targetModInit.Id, OntologyConstants.Relationships.Triggers)))
+                {
+                    semanticRelationships.Add(new Relationship(dep.From, targetModInit.Id, OntologyConstants.Relationships.Triggers));
+                }
+            }
+        }
+
+        foreach (var proj in allProjects)
+        {
+            foreach (var ep in proj.Children.OfType<EntryPointNode>())
+            {
+                if (string.IsNullOrWhiteSpace(ep.FilePath)) continue;
+                var normPath = ep.FilePath.Replace('\\', '/').Trim('/');
+                if (modInitByFilePath.TryGetValue(normPath, out var modInit))
+                {
+                    if (existingRelKeys.Add((ep.Id, modInit.Id, OntologyConstants.Relationships.Triggers)))
+                    {
+                        semanticRelationships.Add(new Relationship(ep.Id, modInit.Id, OntologyConstants.Relationships.Triggers));
+                    }
+                }
+            }
         }
     }
 }

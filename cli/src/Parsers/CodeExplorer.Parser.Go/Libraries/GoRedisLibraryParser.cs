@@ -18,6 +18,7 @@ public class GoRedisLibraryParser : ISemanticExtension
     ];
     public bool IsImplemented => true;
     public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
+    private static readonly char[] QuoteSeparators = ['"', '`'];
 
     private static readonly HashSet<string> RedisConstructorMethods = new(StringComparer.Ordinal)
     {
@@ -100,7 +101,7 @@ public class GoRedisLibraryParser : ISemanticExtension
                 var args = GoAstHelper.GetCallArguments(node);
                 if (m == "Do" && args.Count > 0)
                 {
-                    targetInfo = GoAstHelper.ResolveStringOrVariable(args[0])?.Trim('"', '`');
+                    targetInfo = GoAstHelper.ResolveStringOrVariable(args[0])?.Trim(QuoteSeparators);
                     return true;
                 }
                 if (args.Count > 1)

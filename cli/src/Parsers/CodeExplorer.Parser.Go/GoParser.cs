@@ -9,6 +9,7 @@ namespace CodeExplorer.Parser.Go;
 [ProjectParser(Tier = ParserTier.Primary)]
 public class GoParser : IProjectParser, IFileParser
 {
+    private const string GoSearchPattern = "*.go";
     public string LanguageName => "go";
 
     public string ProjectType => "go";
@@ -492,7 +493,7 @@ public class GoParser : IProjectParser, IFileParser
 
         try
         {
-            foreach (var goFile in Directory.EnumerateFiles(dir, "*.go", SearchOption.TopDirectoryOnly))
+            foreach (var goFile in Directory.EnumerateFiles(dir, GoSearchPattern, SearchOption.TopDirectoryOnly))
             {
                 if (goFile.EndsWith("_test.go", StringComparison.OrdinalIgnoreCase)) continue;
                 var text = PhysicalFileStore.ReadAllText(goFile);
@@ -502,7 +503,11 @@ public class GoParser : IProjectParser, IFileParser
                 }
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            // Directory traversal or file reading error when inspecting main package
+            _ = ex;
+        }
 
         return null;
     }

@@ -11,25 +11,141 @@ namespace CodeExplorer.Core.Parser.Layers;
 
 public partial class Layer3SyntacticParser
 {
+    private const string CallbackArgFlow = "callback_arg";
+
     private static bool HasTopLevelCallsOrStatements(SyntaxDocument doc)
     {
         if (doc.TopLevelStatements.Count > 0) return true;
         foreach (var call in doc.AllCalls)
         {
-            var curr = call.Parent;
-            var isEnclosed = false;
-            while (curr != null)
-            {
-                if (curr is FunctionDeclSyntax or TypeDeclSyntax)
-                {
-                    isEnclosed = true;
-                    break;
-                }
-                curr = curr.Parent;
-            }
-            if (!isEnclosed) return true;
+            if (IsTopLevelModuleInitCall(call)) return true;
         }
         return false;
+    }
+
+    private static bool IsTopLevelModuleInitCall(CallExprSyntax call)
+    {
+        var curr = call.Parent;
+        while (curr != null)
+        {
+            if (curr is FunctionDeclSyntax or TypeDeclSyntax)
+            {
+                return false;
+            }
+            if (curr is LambdaExprSyntax lambda)
+            {
+                var calleeCandidate = (SyntaxNode)lambda;
+                while (calleeCandidate.Parent != null && calleeCandidate.Parent.RawGrammarKind == "parenthesized_expression")
+                {
+                    calleeCandidate = calleeCandidate.Parent;
+                }
+                if (calleeCandidate.Parent is CallExprSyntax iifeCall &&
+                    (ReferenceEquals(iifeCall.Callee, calleeCandidate) ||
+                     ReferenceEquals(iifeCall.Callee, lambda) ||
+                     iifeCall.Span.StartLine == lambda.Span.StartLine))
+                {
+                    curr = iifeCall.Parent;
+                    continue;
+                }
+                return false;
+            }
+            curr = curr.Parent;
+        }
+        return true;
+    }
+
+    internal static void PopulateModuleInitReferences(FunctionNode modInitNode, SyntaxDocument doc)
+    {
+        var seen = new HashSet<(string Target, int Line)>();
+        foreach (var call in doc.AllCalls)
+        {
+            if (!IsTopLevelModuleInitCall(call)) continue;
+            var targetName = ExtractModuleInitCallTarget(call);
+            if (string.IsNullOrWhiteSpace(targetName) ||
+                targetName is "require" or "__import__" or "import_module" or "define")
+            {
+                continue;
+            }
+
+            var line = call.Span.StartLine + 1;
+            var col = call.Span.StartColumn + 1;
+            if (seen.Add((targetName, line)))
+            {
+                modInitNode.References.Add(new Reference(
+                    modInitNode.Id,
+                    targetName,
+                    OntologyConstants.Relationships.Calls,
+                    line,
+                    col));
+            }
+
+            foreach (var arg in call.Arguments)
+            {
+                if (arg.Value is IdentifierExprSyntax idArg)
+                {
+                    var argName = !string.IsNullOrEmpty(idArg.Name) ? idArg.Name : idArg.Text.Trim();
+                    if (!string.IsNullOrEmpty(argName) &&
+                        argName is not ("true" or "false" or "null" or "undefined" or "this" or "arguments" or "window" or "document" or "global" or "globalThis" or "process" or "console" or "Math" or "JSON" or "Object" or "Array" or "String" or "Number" or "Boolean" or "Promise" or "Error"))
+                    {
+                        var argLine = idArg.Span.StartLine + 1;
+                        var argCol = idArg.Span.StartColumn + 1;
+                        if (seen.Add((argName, argLine)))
+                        {
+                            modInitNode.References.Add(new Reference(
+                                modInitNode.Id,
+                                argName,
+                                OntologyConstants.Relationships.Calls,
+                                argLine,
+                                argCol,
+                                argFlow: CallbackArgFlow));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static string? ExtractModuleInitCallTarget(CallExprSyntax call)
+    {
+        if (call.Callee is MemberAccessExprSyntax mem)
+        {
+            var prop = !string.IsNullOrEmpty(mem.MemberName) ? mem.MemberName : call.MethodName;
+            var obj = mem.Object;
+            while (obj != null && obj.RawGrammarKind == "parenthesized_expression" && obj.Children.Count > 0)
+            {
+                obj = obj.Children[0] as ExprSyntax;
+            }
+            if (obj is CallExprSyntax innerCall &&
+                innerCall.MethodName == "require" &&
+                innerCall.Arguments.Count > 0 &&
+                innerCall.Arguments[0].Value is LiteralExprSyntax { LiteralKind: LiteralSyntaxKind.String } reqLit &&
+                !string.IsNullOrWhiteSpace(reqLit.ValueText) &&
+                !string.IsNullOrWhiteSpace(prop))
+            {
+                return $"__req_{reqLit.ValueText}.{prop}";
+            }
+
+            if (obj is IdentifierExprSyntax objId)
+            {
+                var objName = !string.IsNullOrEmpty(objId.Name) ? objId.Name : objId.Text.Trim();
+                if (!string.IsNullOrEmpty(objName) && !string.IsNullOrEmpty(prop))
+                {
+                    return $"{objName}.{prop}";
+                }
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(call.MethodName))
+        {
+            return call.MethodName;
+        }
+
+        if (call.Callee is IdentifierExprSyntax calleeId)
+        {
+            return !string.IsNullOrEmpty(calleeId.Name) ? calleeId.Name : calleeId.Text.Trim();
+        }
+
+        return null;
     }
 
     private static string ExtractSyntaxFunctionName(FunctionDeclSyntax fnDecl)

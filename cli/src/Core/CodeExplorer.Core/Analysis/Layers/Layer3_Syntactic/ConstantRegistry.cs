@@ -443,12 +443,12 @@ public static class ConstantRegistry
                 ScanAndRegisterTypeScript(content, projectName);
                 break;
 
-            case ".cs":
-                ScanAndRegisterCSharp(content, projectName);
-                break;
-
             case ".go":
                 ScanAndRegisterGo(content, projectName);
+                break;
+
+            case ".cs":
+                ScanAndRegisterCSharp(content, projectName);
                 break;
         }
     }
@@ -670,52 +670,6 @@ public static class ConstantRegistry
         }
     }
 
-    public static void ScanAndRegisterCSharp(string content, string? projectName = null)
-    {
-        if (string.IsNullOrWhiteSpace(content)) return;
-
-        try
-        {
-            // 1. Static classes with const strings: class TableNames { public const string Users = "users"; }
-            var classMatches = Regex.Matches(content,
-                @"(?:public|internal|private|protected)?\s*(?:static\s+|sealed\s+|abstract\s+|partial\s+)*(?:class|record|struct)\s+([A-Za-z0-9_]+)(?:\s*:[^{]+)?\s*\{([\s\S]*?)\}",
-                RegexOptions.Multiline, RegexTimeout);
-
-            foreach (Match cm in classMatches)
-            {
-                var className = cm.Groups[1].Value.Trim();
-                var body = cm.Groups[2].Value;
-
-                var constMatches = Regex.Matches(body,
-                    @"const\s+string\s+([A-Za-z0-9_]+)\s*=\s*@?[""']([^""'\r\n]+)[""']\s*;",
-                    RegexOptions.None, RegexTimeout);
-
-                foreach (Match ctm in constMatches)
-                {
-                    var constName = ctm.Groups[1].Value.Trim();
-                    var constVal = ctm.Groups[2].Value.Trim();
-                    Register(projectName, $"{className}.{constName}", constVal);
-                }
-            }
-
-            // 2. Top-level or field const strings
-            var fieldConstMatches = Regex.Matches(content,
-                @"const\s+string\s+([A-Za-z0-9_]+)\s*=\s*@?[""']([^""'\r\n]+)[""']\s*;",
-                RegexOptions.Multiline, RegexTimeout);
-
-            foreach (Match fm in fieldConstMatches)
-            {
-                var constName = fm.Groups[1].Value.Trim();
-                var constVal = fm.Groups[2].Value.Trim();
-                Register(projectName, constName, constVal);
-            }
-        }
-        catch (RegexMatchTimeoutException)
-        {
-            // Safeguard against catastrophic backtracking
-        }
-    }
-
     public static void ScanAndRegisterGo(string content, string? projectName = null)
     {
         if (string.IsNullOrWhiteSpace(content)) return;
@@ -751,6 +705,52 @@ public static class ConstantRegistry
             {
                 var constName = sm.Groups[1].Value.Trim();
                 var constVal = sm.Groups[2].Value.Trim();
+                Register(projectName, constName, constVal);
+            }
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            // Safeguard against catastrophic backtracking
+        }
+    }
+
+    public static void ScanAndRegisterCSharp(string content, string? projectName = null)
+    {
+        if (string.IsNullOrWhiteSpace(content)) return;
+
+        try
+        {
+            // 1. Static classes with const strings: class TableNames { public const string Users = "users"; }
+            var classMatches = Regex.Matches(content,
+                @"(?:public|internal|private)?\s*(?:static\s+)?class\s+([A-Za-z0-9_]+)\s*\{([\s\S]*?)\}",
+                RegexOptions.Multiline, RegexTimeout);
+
+            foreach (Match cm in classMatches)
+            {
+                var className = cm.Groups[1].Value.Trim();
+                var body = cm.Groups[2].Value;
+
+                var constMatches = Regex.Matches(body,
+                    @"const\s+string\s+([A-Za-z0-9_]+)\s*=\s*@?[""']([^""'\r\n]+)[""']\s*;",
+                    RegexOptions.None, RegexTimeout);
+
+                foreach (Match ctm in constMatches)
+                {
+                    var constName = ctm.Groups[1].Value.Trim();
+                    var constVal = ctm.Groups[2].Value.Trim();
+                    Register(projectName, $"{className}.{constName}", constVal);
+                }
+            }
+
+            // 2. Top-level or field const strings
+            var fieldConstMatches = Regex.Matches(content,
+                @"const\s+string\s+([A-Za-z0-9_]+)\s*=\s*@?[""']([^""'\r\n]+)[""']\s*;",
+                RegexOptions.Multiline, RegexTimeout);
+
+            foreach (Match fm in fieldConstMatches)
+            {
+                var constName = fm.Groups[1].Value.Trim();
+                var constVal = fm.Groups[2].Value.Trim();
                 Register(projectName, constName, constVal);
             }
         }

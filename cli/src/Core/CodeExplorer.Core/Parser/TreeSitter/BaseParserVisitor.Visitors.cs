@@ -185,7 +185,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         var type = node.Type;
         if (type is "identifier" or "type_identifier" or "predefined_type" or "generic_name" or "qualified_name"
             or "block" or "statement_block" or "argument_list" or "parameter_list" or "type_argument_list"
-            or "equals_value_clause" or "variable_declarator" or "return_statement" or "if_statement"
+            or "variable_declarator" or "return_statement" or "if_statement"
             or "for_statement" or "foreach_statement" or "while_statement" or "binary_expression"
             or "parenthesized_expression" or "assignment_expression" or "member_access_expression"
             or "cast_expression" or "conditional_expression" or "empty_statement")

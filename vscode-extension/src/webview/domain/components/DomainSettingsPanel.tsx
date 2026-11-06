@@ -113,7 +113,7 @@ export const DomainSettingsPanel: React.FC<DomainSettingsPanelProps> = ({
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {collapsedSections['geometry'] ? <ChevronRightIcon size={12} /> : <ChevronDownIcon size={12} />}
-            <span className="visibility-section-title">Layout & Spacing</span>
+            <span className="visibility-section-title">Layout &amp; Spacing</span>
           </div>
           <span className="visibility-section-hint">Air, orbit distance, auto-recalc</span>
         </div>
@@ -330,7 +330,7 @@ export const DomainSettingsPanel: React.FC<DomainSettingsPanelProps> = ({
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {collapsedSections['appearance'] ? <ChevronRightIcon size={12} /> : <ChevronDownIcon size={12} />}
-            <span className="visibility-section-title">Appearance & Styling</span>
+            <span className="visibility-section-title">Appearance &amp; Styling</span>
           </div>
           <span className="visibility-section-hint">Node size, line curves, labels</span>
         </div>

@@ -683,7 +683,7 @@ export const GateEditorView: React.FC<GateEditorViewProps> = ({
       <div style={cardStyle}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
           <h3 style={{ fontSize: '0.98rem', fontWeight: 600, margin: 0, color: '#38bdf8' }}>
-            1. Identity & Classification
+            1. Identity &amp; Classification
           </h3>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span
@@ -827,7 +827,7 @@ export const GateEditorView: React.FC<GateEditorViewProps> = ({
       {/* Section 2: Description, Remediation & Templates */}
       <div style={cardStyle}>
         <h3 style={{ fontSize: '0.98rem', fontWeight: 600, margin: '0 0 14px', color: '#38bdf8' }}>
-          2. Description, Remediation & Templates
+          2. Description, Remediation &amp; Templates
         </h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '14px' }}>
           <div>

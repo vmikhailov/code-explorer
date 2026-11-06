@@ -215,7 +215,7 @@ const InspectorEmptyState: React.FC = () => (
   >
     <div style={{ fontSize: '28px', opacity: 0.75 }}>🪐</div>
     <div style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0' }}>
-      Graph Inspector & Settings
+      Graph Inspector &amp; Settings
     </div>
     <div style={{ fontSize: '11.5px', lineHeight: 1.5, maxWidth: '240px' }}>
       Open an Architecture Map or Project Map tab to inspect nodes, configure orbits, and adjust settings here.

@@ -339,21 +339,6 @@ public abstract class TreeSitterSyntaxConverterBase
             case VariableDeclSyntax varDecl:
                 var varInitNode = varDecl.GetChildForField(SyntaxFields.Value) ??
                                   varDecl.GetChildForField(SyntaxFields.Right);
-                if (varInitNode == null)
-                {
-                    for (int i = 0; i < varDecl.Children.Count; i++)
-                    {
-                        if (varDecl.Children[i].RawGrammarKind == "equals_value_clause")
-                        {
-                            varInitNode = varDecl.Children[i];
-                            break;
-                        }
-                    }
-                }
-                if (varInitNode is { RawGrammarKind: "equals_value_clause" } && varInitNode.Children.Count > 0)
-                {
-                    varInitNode = varInitNode.Children[^1];
-                }
                 if (varInitNode is ExprSyntax directVarInit)
                 {
                     varDecl.Initializer = directVarInit;
@@ -375,14 +360,6 @@ public abstract class TreeSitterSyntaxConverterBase
                 if (varDecl.Modifiers.HasFlag(SyntaxModifiers.Const) || varDecl.Modifiers.HasFlag(SyntaxModifiers.ReadOnly))
                 {
                     varDecl.IsConstant = true;
-                }
-                for (int i = 0; i < varDecl.Children.Count; i++)
-                {
-                    if (varDecl.Children[i].RawGrammarKind == "modifier" && varDecl.Children[i].AsSpan() is "const" or "readonly")
-                    {
-                        varDecl.IsConstant = true;
-                        varDecl.Modifiers |= SyntaxModifiers.Const;
-                    }
                 }
                 for (int i = 0; i < varDecl.Children.Count; i++)
                 {
@@ -418,14 +395,14 @@ public abstract class TreeSitterSyntaxConverterBase
                 {
                     for (int i = 0; i < memDecl.Children.Count; i++)
                     {
-                        if (memDecl.Children[i].RawGrammarKind is "equals_value_clause" or "arrow_expression_clause")
+                        if (memDecl.Children[i].RawGrammarKind == "arrow_expression_clause")
                         {
                             memInitNode = memDecl.Children[i];
                             break;
                         }
                     }
                 }
-                if (memInitNode is { RawGrammarKind: "equals_value_clause" or "arrow_expression_clause" } && memInitNode.Children.Count > 0)
+                if (memInitNode is { RawGrammarKind: "arrow_expression_clause" } && memInitNode.Children.Count > 0)
                 {
                     memInitNode = memInitNode.Children[^1];
                 }
@@ -445,16 +422,6 @@ public abstract class TreeSitterSyntaxConverterBase
                             memDecl.Initializer = exprCandidate;
                             break;
                         }
-                    }
-                }
-                for (int i = 0; i < memDecl.Children.Count; i++)
-                {
-                    if (memDecl.Children[i].RawGrammarKind == "modifier")
-                    {
-                        var modSpan = memDecl.Children[i].AsSpan();
-                        if (modSpan is "const") memDecl.Modifiers |= SyntaxModifiers.Const;
-                        else if (modSpan is "readonly") memDecl.Modifiers |= SyntaxModifiers.ReadOnly;
-                        else if (modSpan is "static") memDecl.Modifiers |= SyntaxModifiers.Static;
                     }
                 }
                 if (memDecl.Modifiers.HasFlag(SyntaxModifiers.Const) || memDecl.Modifiers.HasFlag(SyntaxModifiers.ReadOnly))
@@ -514,10 +481,6 @@ public abstract class TreeSitterSyntaxConverterBase
             return doc;
         }
 
-        var isCSharpLang = string.Equals(languageName, "c_sharp", StringComparison.OrdinalIgnoreCase) ||
-                           string.Equals(languageName, "csharp", StringComparison.OrdinalIgnoreCase) ||
-                           string.Equals(languageName, "c-sharp", StringComparison.OrdinalIgnoreCase);
-
         var nextNodeId = 2;
         var allTypes = new List<TypeDeclSyntax>();
         var allFunctions = new List<FunctionDeclSyntax>();
@@ -551,28 +514,14 @@ public abstract class TreeSitterSyntaxConverterBase
                     ? sourceText.AsSpan(span.StartByte, errLen).Trim()
                     : ReadOnlySpan<char>.Empty;
 
-                var isBenign =
-                    (parent.RawGrammarKind.StartsWith("jsx_", StringComparison.Ordinal) && rawSpan.StartsWith("&", StringComparison.Ordinal)) ||
-                    (isCSharpLang && (
-                        rawSpan.Contains("with", StringComparison.Ordinal) ||
-                        rawSpan.Contains("from", StringComparison.Ordinal) ||
-                        rawSpan.Contains("select", StringComparison.Ordinal) ||
-                        rawSpan.IndexOfAny("}>;,".AsSpan()) >= 0 ||
-                        rawSpan.Contains("Token.EqualTo", StringComparison.Ordinal) ||
-                        rawSpan.Contains("in AndExpression", StringComparison.Ordinal) ||
-                        rawSpan is "next"));
-
-                if (!isBenign)
-                {
-                    var snippet = rawSpan.ToString().Replace('\r', ' ').Replace('\n', ' ').Trim();
-                    diagnostics.Add(new SyntaxDiagnostic(
-                        CodeExplorer.Cypher.Common.SyntaxDiagnosticKind.SyntaxError,
-                        string.IsNullOrEmpty(snippet)
-                            ? $"Syntax error in {parent.RawGrammarKind}"
-                            : $"Syntax error in {parent.RawGrammarKind} near '{snippet}'",
-                        span,
-                        parent.RawGrammarKind));
-                }
+                var snippet = rawSpan.ToString().Replace('\r', ' ').Replace('\n', ' ').Trim();
+                diagnostics.Add(new SyntaxDiagnostic(
+                    CodeExplorer.Cypher.Common.SyntaxDiagnosticKind.SyntaxError,
+                    string.IsNullOrEmpty(snippet)
+                        ? $"Syntax error in {parent.RawGrammarKind}"
+                        : $"Syntax error in {parent.RawGrammarKind} near '{snippet}'",
+                    span,
+                    parent.RawGrammarKind));
             }
 
             SyntaxNode syntaxNode = CreateSyntaxNode(rawKind, span, parent.RawGrammarKind);

@@ -110,7 +110,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       >
         <div>
           <h2 style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--vscode-foreground, #fff)', margin: 0 }}>
-            ⚙️ AI & Model Settings
+            ⚙️ AI &amp; Model Settings
           </h2>
           <p style={{ margin: '4px 0 0', fontSize: '0.88rem', opacity: 0.8 }}>
             Configure LLM providers for architectural domain discovery, intent distillation, and bounded context clustering.

@@ -13,6 +13,7 @@ public class BeegoLibraryParser : ISemanticExtension
     private const string WebRoleDesc = "Beego Web";
     private const string OrmRoleName = "beego-orm";
     private const string OrmRoleDesc = "Beego ORM";
+    private static readonly char[] QuoteSeparators = ['"', '`'];
 
     public SemanticExtensionType Type => SemanticExtensionType.Framework;
     public string Name => NameBeego;
@@ -272,7 +273,7 @@ public class BeegoLibraryParser : ISemanticExtension
                         var args = GoAstHelper.GetCallArguments(curr);
                         if (args.Count > 0)
                         {
-                            var prefixVal = GoAstHelper.ResolveStringOrVariable(args[0])?.Trim('"', '`');
+                            var prefixVal = GoAstHelper.ResolveStringOrVariable(args[0])?.Trim(QuoteSeparators);
                             if (!string.IsNullOrEmpty(prefixVal))
                             {
                                 prefixes.Add(prefixVal);
@@ -303,7 +304,7 @@ public class BeegoLibraryParser : ISemanticExtension
             return result;
         }
 
-        var mapText = GoAstHelper.ResolveStringOrVariable(mappingArg)?.Trim('"', '`');
+        var mapText = GoAstHelper.ResolveStringOrVariable(mappingArg)?.Trim(QuoteSeparators);
         if (string.IsNullOrWhiteSpace(mapText))
         {
             result.Add(("ANY", controllerName));
@@ -515,14 +516,14 @@ public class BeegoLibraryParser : ISemanticExtension
         if (exprs.Count > 0)
         {
             var retExpr = exprs[0];
-            var resolved = GoAstHelper.ResolveStringOrVariable(retExpr)?.Trim('"', '`');
+            var resolved = GoAstHelper.ResolveStringOrVariable(retExpr)?.Trim(QuoteSeparators);
             if (!string.IsNullOrEmpty(resolved))
             {
                 tableName = resolved;
                 return true;
             }
 
-            var text = retExpr.Text.Trim('"', '`');
+            var text = retExpr.Text.Trim(QuoteSeparators);
             if (!string.IsNullOrEmpty(text))
             {
                 if (text.EndsWith("Table", StringComparison.OrdinalIgnoreCase))
@@ -615,7 +616,7 @@ public class BeegoLibraryParser : ISemanticExtension
         var args = GoAstHelper.GetCallArguments(node);
         if (args.Count > 0)
         {
-            var resolved = GoAstHelper.ResolveStringOrVariable(args[0])?.Trim('"', '`');
+            var resolved = GoAstHelper.ResolveStringOrVariable(args[0])?.Trim(QuoteSeparators);
             if (!string.IsNullOrEmpty(resolved))
             {
                 modelOrTable = resolved;
