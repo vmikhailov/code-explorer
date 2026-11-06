@@ -11,9 +11,9 @@ public sealed record AnnotationEndpointRule
 {
     public required FrozenDictionary<string, string> AnnotationToHttpMethod { get; init; }
     public FrozenSet<string> AnnotationNodeTypes { get; init; } = new[] { "annotation", "marker_annotation", "attribute", "attribute_group", "decorator" }.ToFrozenSet();
-    public FrozenSet<string> PathArgumentKeys { get; init; } = new[] { "value", "path" }.ToFrozenSet();
-    public FrozenSet<string> RoutePrefixAnnotationNames { get; init; } = new[] { "RequestMapping", "Path" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
-    public FrozenSet<string> WebSocketAnnotationNames { get; init; } = new[] { "WebSocket", "ServerEndpoint" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+    public FrozenSet<string> PathArgumentKeys { get; init; } = new[] { "value", "path", "uri" }.ToFrozenSet();
+    public FrozenSet<string> RoutePrefixAnnotationNames { get; init; } = new[] { "RequestMapping", "Path", "Controller" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+    public FrozenSet<string> WebSocketAnnotationNames { get; init; } = new[] { "WebSocket", "ServerEndpoint", "ServerWebSocket" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
     public bool EnrichJavaSecurityAndSchemas { get; init; } = true;
 }
 
@@ -169,7 +169,7 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
         {
             if (MatchesAnnotationEndpoint(node, rule, out var httpMethod))
             {
-                return ExtractAnnotationRoute(node, rule, httpMethod);
+                return ExtractAnnotationRoute(node, rule, httpMethod, projectName);
             }
         }
 
@@ -177,7 +177,7 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
         {
             if (MatchesOutboundHttp(node, rule))
             {
-                return ExtractOutboundHttpTarget(node, rule);
+                return ExtractOutboundHttpTarget(node, rule, projectName);
             }
         }
 
@@ -479,12 +479,13 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
         return true;
     }
 
-    private static string ExtractAnnotationRoute(Node annotationNode, AnnotationEndpointRule rule, string httpMethod)
+    private static string ExtractAnnotationRoute(Node annotationNode, AnnotationEndpointRule rule, string httpMethod, string? projectName = null)
     {
         var name = GetShortAnnotationName(annotationNode);
         if (!string.IsNullOrEmpty(name) && rule.WebSocketAnnotationNames.Contains(name))
         {
             var wsPath = ExtractNamedOrFirstStringFromAnnotation(annotationNode, rule.PathArgumentKeys) ?? "/";
+            wsPath = ConfigurationIndex.ResolvePlaceholders(wsPath, projectName);
             return $"WS:{NormalizeRoute(wsPath)}";
         }
 
@@ -546,6 +547,7 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
         }
 
         var fullRoute = CombineRoutes(classPrefix ?? "", methodPath);
+        fullRoute = ConfigurationIndex.ResolvePlaceholders(fullRoute, projectName);
         return $"{httpMethod}:{fullRoute}";
     }
 
@@ -805,7 +807,7 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
         return false;
     }
 
-    private static string ExtractOutboundHttpTarget(Node node, OutboundHttpRule rule)
+    private static string ExtractOutboundHttpTarget(Node node, OutboundHttpRule rule, string? projectName = null)
     {
         var targetNode = node;
         if (node is TypeDeclSyntax { Kind: TypeSyntaxKind.Interface })
@@ -841,7 +843,7 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
                 {
                     var keyText = key.Text;
                     var valText = val.Text.Trim('"', '\'');
-                    if (keyText is "name" or "value" or "configKey" or "serviceId")
+                    if (keyText is "name" or "value" or "configKey" or "serviceId" or "id")
                     {
                         nameVal = valText;
                     }
@@ -881,6 +883,7 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
             if (!string.IsNullOrEmpty(nameVal))
             {
                 var combined = !string.IsNullOrEmpty(pathVal) ? $"{nameVal}/{pathVal.TrimStart('/')}" : nameVal;
+                combined = ConfigurationIndex.ResolvePlaceholders(combined, projectName);
                 return RouteDictionaryRegistry.NormalizeResolvedUrl(combined);
             }
         }

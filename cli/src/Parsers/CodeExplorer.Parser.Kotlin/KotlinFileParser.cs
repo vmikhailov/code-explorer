@@ -174,7 +174,8 @@ public partial class KotlinFileParser : IFileParser
         int OpenBraceIndex,
         int CloseBraceIndex,
         string? RoutePrefix,
-        bool IsGrpcService = false
+        bool IsGrpcService = false,
+        bool IsClient = false
     );
 
     private sealed record AnnotationInfo(string Name, string Args);
@@ -298,21 +299,21 @@ public partial class KotlinFileParser : IFileParser
             return paths;
         }
 
-        var namedArrayMatch = Regex.Match(annotationArgs, @"\b(?:value|path)\s*=\s*(?:\[|listOf\s*\(|arrayOf\s*\()([^\]\)]*)");
+        var namedArrayMatch = Regex.Match(annotationArgs, @"\b(?:value|path|uri)\s*=\s*(?:\[|listOf\s*\(|arrayOf\s*\()([^\]\)]*)");
         if (namedArrayMatch.Success && !string.IsNullOrWhiteSpace(namedArrayMatch.Groups[1].Value))
         {
             var strMatches = Regex.Matches(namedArrayMatch.Groups[1].Value, @"['""]([^'""]*)['""]");
             foreach (Match sm in strMatches)
             {
-                paths.Add(sm.Groups[1].Value.Trim());
+                paths.Add(ConfigurationIndex.ResolvePlaceholders(sm.Groups[1].Value.Trim()));
             }
             if (paths.Count > 0) return paths;
         }
 
-        var namedMatch = Regex.Match(annotationArgs, @"\b(?:value|path)\s*=\s*['""]([^'""]*)['""]");
+        var namedMatch = Regex.Match(annotationArgs, @"\b(?:value|path|uri)\s*=\s*['""]([^'""]*)['""]");
         if (namedMatch.Success)
         {
-            paths.Add(namedMatch.Groups[1].Value.Trim());
+            paths.Add(ConfigurationIndex.ResolvePlaceholders(namedMatch.Groups[1].Value.Trim()));
             return paths;
         }
 
@@ -325,7 +326,7 @@ public partial class KotlinFileParser : IFileParser
                 var strMatches = Regex.Matches(positionalArrayMatch.Groups[1].Value, @"['""]([^'""]*)['""]");
                 foreach (Match sm in strMatches)
                 {
-                    paths.Add(sm.Groups[1].Value.Trim());
+                    paths.Add(ConfigurationIndex.ResolvePlaceholders(sm.Groups[1].Value.Trim()));
                 }
                 if (paths.Count > 0) return paths;
             }
@@ -333,7 +334,7 @@ public partial class KotlinFileParser : IFileParser
             var strMatch = Regex.Match(firstArg, @"['""]([^'""]*)['""]");
             if (strMatch.Success)
             {
-                paths.Add(strMatch.Groups[1].Value.Trim());
+                paths.Add(ConfigurationIndex.ResolvePlaceholders(strMatch.Groups[1].Value.Trim()));
                 return paths;
             }
         }
@@ -478,9 +479,23 @@ public partial class KotlinFileParser : IFileParser
             };
             fileNode.Children.Add(typeNode);
 
-            if (!string.IsNullOrEmpty(cleanBase) && cleanBase.Contains("PanacheRepository<", StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrEmpty(cleanBase) &&
+                (cleanBase.Contains("PanacheRepository<", StringComparison.OrdinalIgnoreCase) ||
+                 cleanBase.Contains("CrudRepository<", StringComparison.OrdinalIgnoreCase) ||
+                 cleanBase.Contains("PageableRepository<", StringComparison.OrdinalIgnoreCase) ||
+                 cleanBase.Contains("GenericRepository<", StringComparison.OrdinalIgnoreCase) ||
+                 cleanBase.Contains("JdbcRepository<", StringComparison.OrdinalIgnoreCase)))
             {
-                var idx = cleanBase.IndexOf("PanacheRepository<", StringComparison.OrdinalIgnoreCase);
+                var repoKeyword = cleanBase.Contains("PanacheRepository<", StringComparison.OrdinalIgnoreCase)
+                    ? "PanacheRepository<"
+                    : cleanBase.Contains("CrudRepository<", StringComparison.OrdinalIgnoreCase)
+                        ? "CrudRepository<"
+                        : cleanBase.Contains("PageableRepository<", StringComparison.OrdinalIgnoreCase)
+                            ? "PageableRepository<"
+                            : cleanBase.Contains("GenericRepository<", StringComparison.OrdinalIgnoreCase)
+                                ? "GenericRepository<"
+                                : "JdbcRepository<";
+                var idx = cleanBase.IndexOf(repoKeyword, StringComparison.OrdinalIgnoreCase);
                 var open = cleanBase.IndexOf('<', idx);
                 var close = open > 0 ? cleanBase.IndexOf('>', open) : -1;
                 if (open > 0 && close > open)
@@ -497,7 +512,11 @@ public partial class KotlinFileParser : IFileParser
 
             var annotations = ExtractPrecedingAnnotations(commentMasked, masked, cm.Index);
 
-            var tableAnn = annotations.FirstOrDefault(a => a.Name.Equals("Table", StringComparison.OrdinalIgnoreCase) || a.Name.Equals("Document", StringComparison.OrdinalIgnoreCase));
+            var tableAnn = annotations.FirstOrDefault(a =>
+                a.Name.Equals("Table", StringComparison.OrdinalIgnoreCase) ||
+                a.Name.Equals("Document", StringComparison.OrdinalIgnoreCase) ||
+                a.Name.Equals("MappedEntity", StringComparison.OrdinalIgnoreCase) ||
+                a.Name.Equals("NodeEntity", StringComparison.OrdinalIgnoreCase));
             var entityAnn = annotations.FirstOrDefault(a => a.Name.Equals("Entity", StringComparison.OrdinalIgnoreCase));
 
             if (tableAnn != null || entityAnn != null)
@@ -535,10 +554,40 @@ public partial class KotlinFileParser : IFileParser
                 semanticSymbols.Add(tblSym);
             }
 
+            var clientAnn = annotations.FirstOrDefault(a =>
+                a.Name.Equals("Client", StringComparison.OrdinalIgnoreCase) ||
+                a.Name.EndsWith("Client", StringComparison.OrdinalIgnoreCase));
+            var isClient = clientAnn != null && kind.Equals("interface", StringComparison.OrdinalIgnoreCase);
+            if (isClient)
+            {
+                var clientPaths = ExtractRoutePathsFromAnnotation(clientAnn!.Args);
+                var clientPath = clientPaths.FirstOrDefault(p => !string.IsNullOrEmpty(p)) ?? "/";
+                var cleanClientPath = ConfigurationIndex.ResolvePlaceholders(clientPath);
+                var extId = $"{workspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:{relativePath}:{typeNode.Name}:{startLine}";
+                var extNode = new ExternalServiceNode(
+                    extId,
+                    typeNode.Name,
+                    "http",
+                    typeNode.Name,
+                    cleanClientPath)
+                {
+                    FilePath = relativePath,
+                    StartLine = startLine,
+                    StartCol = startCol,
+                    Url = cleanClientPath
+                };
+                extNode.CustomProperties ??= new();
+                extNode.CustomProperties["file_path"] = relativePath;
+                extNode.CustomProperties["target"] = cleanClientPath;
+                fileNode.Children.Add(extNode);
+                fileNode.References.Add(new Reference(typeNode.Id, extId, OntologyConstants.Relationships.Calls, startLine, startCol));
+            }
+
             string? routePrefix = null;
             var reqMapAnn = annotations.FirstOrDefault(a =>
                 a.Name.Equals("RequestMapping", StringComparison.OrdinalIgnoreCase) ||
-                a.Name.Equals("Path", StringComparison.OrdinalIgnoreCase));
+                a.Name.Equals("Path", StringComparison.OrdinalIgnoreCase) ||
+                a.Name.Equals("Controller", StringComparison.OrdinalIgnoreCase));
             if (reqMapAnn != null)
             {
                 var prefixes = ExtractRoutePathsFromAnnotation(reqMapAnn.Args);
@@ -548,7 +597,7 @@ public partial class KotlinFileParser : IFileParser
             var isGrpcService = annotations.Any(a => a.Name.Equals("GrpcService", StringComparison.OrdinalIgnoreCase)) ||
                                 (!string.IsNullOrEmpty(cleanBase) && cleanBase.Contains("ImplBase", StringComparison.OrdinalIgnoreCase));
 
-            classScopes.Add(new ClassScope(className, kind, typeNode, cm.Index, openBrace, closeBrace, routePrefix, isGrpcService));
+            classScopes.Add(new ClassScope(className, kind, typeNode, cm.Index, openBrace, closeBrace, routePrefix, isGrpcService, isClient));
         }
 
         return classScopes;

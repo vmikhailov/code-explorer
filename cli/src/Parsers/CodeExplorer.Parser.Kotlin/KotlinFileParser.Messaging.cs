@@ -11,6 +11,8 @@ namespace CodeExplorer.Parser.Kotlin;
 public partial class KotlinFileParser
 {
     private const string ChannelType = "channel";
+    private const string AnnotationTopicPattern = @"@(?:Topic|Queue)\s*\(\s*(?:(?:value|name)\s*=\s*)?['""]([^'""]+)['""]";
+    private static readonly Regex AnnotationTopicRegex = new(AnnotationTopicPattern, RegexOptions.Compiled);
     private static readonly Regex ChannelRegex = new(@"MethodChannel\s*\(\s*[^,]+,\s*(?:['""]([^'""]+)['""]|([a-zA-Z0-9_]+))\s*\)", RegexOptions.Compiled);
 
     private static void ParseChannelsAndMessaging(
@@ -87,6 +89,21 @@ public partial class KotlinFileParser
                 var target = $"kafka:{tName}";
                 var scopeId = primaryClassNode?.Id ?? fileNode.Id;
                 fileNode.References.Add(new Reference(scopeId, target, OntologyConstants.Relationships.SubscribesTo, 1, 1));
+            }
+        }
+
+        var topicMatches = AnnotationTopicRegex.Matches(content);
+        foreach (Match tm in topicMatches)
+        {
+            var topic = tm.Groups[1].Value.Trim();
+            if (!string.IsNullOrEmpty(topic))
+            {
+                var isRabbit = content.Contains("Rabbit", StringComparison.OrdinalIgnoreCase);
+                var protocol = isRabbit ? "rabbitmq" : "kafka";
+                var isProducer = content.Contains("Client", StringComparison.OrdinalIgnoreCase) && !content.Contains("Listener", StringComparison.OrdinalIgnoreCase);
+                var relType = isProducer ? OntologyConstants.Relationships.PublishesTo : OntologyConstants.Relationships.SubscribesTo;
+                var scopeId = primaryClassNode?.Id ?? fileNode.Id;
+                fileNode.References.Add(new Reference(scopeId, $"{protocol}:{topic}", relType, 1, 1));
             }
         }
     }

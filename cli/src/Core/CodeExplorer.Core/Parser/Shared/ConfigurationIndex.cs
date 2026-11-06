@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
 
 namespace CodeExplorer.Core.Parser;
 
@@ -118,6 +119,42 @@ public static class ConfigurationIndex
 
         value = null!;
         return false;
+    }
+
+    private const string PlaceholderPattern = @"\$\{([^}:]+)(?::([^}]*))?\}";
+    private static readonly Regex PlaceholderRegex = new(PlaceholderPattern, RegexOptions.Compiled);
+
+    public static string ResolvePlaceholders(string text, string? projectName = null)
+    {
+        if (string.IsNullOrEmpty(text) || !text.Contains("${")) return text;
+
+        return PlaceholderRegex.Replace(text, match =>
+        {
+            var key = match.Groups[1].Value.Trim();
+            var defaultValue = match.Groups[2].Success ? match.Groups[2].Value : null;
+
+            if (TryGetConfig(projectName, key, out var cfgVal) && !string.IsNullOrEmpty(cfgVal))
+            {
+                return cfgVal;
+            }
+
+            if (ConstantRegistry.TryResolve(projectName, key, out var constVal) && !string.IsNullOrEmpty(constVal))
+            {
+                return constVal;
+            }
+
+            if (TryGetConfig(null, key, out var globalCfg) && !string.IsNullOrEmpty(globalCfg))
+            {
+                return globalCfg;
+            }
+
+            if (ConstantRegistry.TryResolve(null, key, out var globalConst) && !string.IsNullOrEmpty(globalConst))
+            {
+                return globalConst;
+            }
+
+            return defaultValue ?? match.Value;
+        });
     }
 
     public static IReadOnlyList<ConfigEntry> GetFileEntries(string filePath)

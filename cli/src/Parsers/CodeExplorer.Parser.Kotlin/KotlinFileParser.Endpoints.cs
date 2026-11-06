@@ -122,21 +122,22 @@ public partial class KotlinFileParser
                     continue;
                 }
 
-                var httpMethod = ann.Name switch
+                var httpMethod = ann.Name.ToUpperInvariant() switch
                 {
-                    "GetMapping" or "GET" => "GET",
-                    "PostMapping" or "POST" => "POST",
-                    "PutMapping" or "PUT" => "PUT",
-                    "DeleteMapping" or "DELETE" => "DELETE",
-                    "PatchMapping" or "PATCH" => "PATCH",
+                    "GETMAPPING" or "GET" => "GET",
+                    "POSTMAPPING" or "POST" => "POST",
+                    "PUTMAPPING" or "PUT" => "PUT",
+                    "DELETEMAPPING" or "DELETE" => "DELETE",
+                    "PATCHMAPPING" or "PATCH" => "PATCH",
                     "HEAD" => "HEAD",
                     "OPTIONS" => "OPTIONS",
-                    "Path" => "ALL",
-                    "RequestMapping" => DetermineHttpMethodFromRequestMapping(ann.Args),
+                    "PATH" => "ALL",
+                    "SERVERWEBSOCKET" => "WS",
+                    "REQUESTMAPPING" => DetermineHttpMethodFromRequestMapping(ann.Args),
                     _ => null
                 };
 
-                if (httpMethod != null)
+                if (httpMethod != null && enclosingClass?.IsClient != true)
                 {
                     var paths = ExtractRoutePathsFromAnnotation(ann.Args);
                     if (paths.Count == 0 || (paths.Count == 1 && string.IsNullOrEmpty(paths[0])))

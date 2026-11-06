@@ -54,6 +54,7 @@ public class JavaParser : IProjectParser, IFileParser
         new Libraries.HttpClientJavaLibraryParser(),
         new Libraries.JdbcTemplateLibraryParser(),
         new Libraries.JpaLibraryParser(),
+        new Libraries.MicronautLibraryParser(),
         new Libraries.QuarkusJaxRsLibraryParser(),
         new Libraries.QuarkusMessagingLibraryParser(),
         new Libraries.PanacheOrmLibraryParser(),
