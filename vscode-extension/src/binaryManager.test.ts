@@ -33,23 +33,23 @@ test('resolveTargetAsset: correctly resolves platform archives, binary names, an
   assert.equal(winArm.archiveName, 'ce-win-arm64.zip');
   assert.equal(winArm.binName, 'ce.exe');
   assert.equal(winArm.format, 'zip');
-  assert.equal(winArm.hasNativeBinary, false);
-  assert.equal(isNativeBinarySupported('win32', 'arm64'), false);
+  assert.equal(winArm.hasNativeBinary, true);
+  assert.equal(isNativeBinarySupported('win32', 'arm64'), true);
 
   // Linux
   const linux64 = resolveTargetAsset('linux', 'x64');
   assert.equal(linux64.archiveName, 'ce-linux-x64.tar.gz');
   assert.equal(linux64.binName, 'ce');
   assert.equal(linux64.format, 'tar.gz');
-  assert.equal(linux64.hasNativeBinary, false);
-  assert.equal(isNativeBinarySupported('linux', 'x64'), false);
+  assert.equal(linux64.hasNativeBinary, true);
+  assert.equal(isNativeBinarySupported('linux', 'x64'), true);
 
   const linuxArm = resolveTargetAsset('linux', 'arm64');
   assert.equal(linuxArm.archiveName, 'ce-linux-arm64.tar.gz');
   assert.equal(linuxArm.binName, 'ce');
   assert.equal(linuxArm.format, 'tar.gz');
-  assert.equal(linuxArm.hasNativeBinary, false);
-  assert.equal(isNativeBinarySupported('linux', 'arm64'), false);
+  assert.equal(linuxArm.hasNativeBinary, true);
+  assert.equal(isNativeBinarySupported('linux', 'arm64'), true);
 
   // macOS
   const osxArm = resolveTargetAsset('darwin', 'arm64');
@@ -63,8 +63,8 @@ test('resolveTargetAsset: correctly resolves platform archives, binary names, an
   assert.equal(osx64.archiveName, 'ce-osx-x64.tar.gz');
   assert.equal(osx64.binName, 'ce');
   assert.equal(osx64.format, 'tar.gz');
-  assert.equal(osx64.hasNativeBinary, false);
-  assert.equal(isNativeBinarySupported('darwin', 'x64'), false);
+  assert.equal(osx64.hasNativeBinary, true);
+  assert.equal(isNativeBinarySupported('darwin', 'x64'), true);
 });
 
 

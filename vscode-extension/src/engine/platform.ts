@@ -5,14 +5,15 @@ import { ArchiveFormat, TargetInfo } from './types';
 
 /**
  * Checks whether native self-contained single-file binaries are built and published for the platform.
- * Only win-x64 and osx-arm64 have native self-contained binaries; others use the universal dotnet tool.
+ * Native single-file binaries are published for win-x64, win-arm64, osx-arm64, osx-x64, linux-x64, and linux-arm64.
  */
 export function isNativeBinarySupported(
   platform: NodeJS.Platform = process.platform,
   arch: string = process.arch
 ): boolean {
-  if (platform === 'win32' && arch === 'x64') return true;
-  if (platform === 'darwin' && arch === 'arm64') return true;
+  if (platform === 'win32' && (arch === 'x64' || arch === 'arm64')) return true;
+  if (platform === 'darwin' && (arch === 'arm64' || arch === 'x64')) return true;
+  if (platform === 'linux' && (arch === 'x64' || arch === 'arm64')) return true;
   return false;
 }
 
@@ -32,7 +33,7 @@ export function resolveTargetAsset(
         archiveName: 'ce-win-arm64.zip',
         binName: 'ce.exe',
         format: 'zip',
-        hasNativeBinary: false,
+        hasNativeBinary: true,
       };
     }
     return {
@@ -65,7 +66,7 @@ export function resolveTargetAsset(
       archiveName: 'ce-osx-x64.tar.gz',
       binName: 'ce',
       format: 'tar.gz',
-      hasNativeBinary: false,
+      hasNativeBinary: true,
     };
   }
 
@@ -78,7 +79,7 @@ export function resolveTargetAsset(
         archiveName: 'ce-linux-arm64.tar.gz',
         binName: 'ce',
         format: 'tar.gz',
-        hasNativeBinary: false,
+        hasNativeBinary: true,
       };
     }
     return {
@@ -88,7 +89,7 @@ export function resolveTargetAsset(
       archiveName: 'ce-linux-x64.tar.gz',
       binName: 'ce',
       format: 'tar.gz',
-      hasNativeBinary: false,
+      hasNativeBinary: true,
     };
   }
 

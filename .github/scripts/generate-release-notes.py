@@ -50,11 +50,10 @@ dotnet tool update -g codeexplorer.cli
 Available on the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=vmikhailov.code-explorer-vscode) and [Open VSX Registry](https://open-vsx.org/extension/vmikhailov/code-explorer-vscode).
 
 **Standalone Native Binaries (Self-Contained):**
-Pre-compiled single-file binaries are attached below for:
-- **macOS:** Apple Silicon (`osx-arm64`)
-- **Windows:** x64 (`win-x64`)
-
-*(All other platforms — Linux x64/ARM64, macOS Intel, Windows ARM64 — run portably via the universal .NET global tool: `dotnet tool install -g codeexplorer.cli`)*
+Pre-compiled self-contained single-file binaries are attached below for:
+- **macOS:** Apple Silicon (`osx-arm64`), Intel (`osx-x64`)
+- **Linux:** x64 (`linux-x64`), ARM64 (`linux-arm64`)
+- **Windows:** x64 (`win-x64`), ARM64 (`win-arm64`)
 """
 
 
