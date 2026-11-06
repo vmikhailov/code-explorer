@@ -23,7 +23,7 @@ namespace CodeExplorer.Parser.Terraform;
 /// processed-project set guards against repeats). The edge source is the file node that contains
 /// the reference; the target is the resolved declaration node.
 /// </summary>
-public sealed class TerraformSyntaxEnricher : ISyntaxEnricher
+public sealed class TerraformSyntaxEnricher
 {
     private readonly TerraformParser _parser;
 
@@ -108,7 +108,7 @@ public sealed class TerraformSyntaxEnricher : ISyntaxEnricher
         // Configuration linkage: a .tfvars assignment or a Terragrunt `inputs` key links to the
         // target variable declaration — same module directory for tfvars, the wrapped module (via
         // the unit's `terraform { source }`) for `inputs`. No edge when the target variable is not
-        // in the workspace. Modeled as a tagged DEPENDS_ON (ref=configures); see DESIGN_DECISIONS.md (D1).
+        // in the workspace. Modeled as a tagged DEPENDS_ON (ref=configures).
         foreach (var (relPath, file) in projectFiles)
         {
             if (file.Configures.Count == 0) continue;

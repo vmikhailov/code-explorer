@@ -222,6 +222,18 @@ public interface IProjectParser
     Task<ProjectDependencyInfo> ParseDependenciesAsync(string projectDirectory);
 
     /// <summary>
+    /// Runs project-scoped semantic enrichment after all of a project's files have been parsed,
+    /// with every parsed <see cref="SyntaxTree"/> in the project available at once. Lets a parser
+    /// resolve cross-file references within the project and emit relationships/semantic nodes via
+    /// <paramref name="ctx"/>. Default is a no-op; parsers that only need per-file or Layer-2
+    /// behavior do not implement it.
+    /// </summary>
+    Task EnrichProjectAsync(
+        Common.Nodes.Layer2_Boundaries.ProjectNode project,
+        IReadOnlyList<SyntaxTree> projectTrees,
+        ParsingContext ctx) => Task.CompletedTask;
+
+    /// <summary>
     /// Extracts project-level manifest metadata and properties (e.g., manifest_type, has_cli_bin, framework_type, sdk, output_type, is_packable).
     /// </summary>
     Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory) => [];

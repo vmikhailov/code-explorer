@@ -4,7 +4,6 @@ using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Parser.Terraform.Hcl;
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
-using TreeSitter;
 
 // Auto-discovered by WorkspaceIndexer.AutoRegisterParsers via reflection.
 [assembly: ParserAssembly]
@@ -61,7 +60,7 @@ public class TerraformParser : IProjectParser, IFileParser
 
     // HCL is parsed in ParseAsync, never via a tree-sitter visitor.
     public BaseParserVisitor CreateVisitor(
-        Node rootNode,
+        CodeExplorer.Core.Parser.Syntax.SyntaxNode rootNode,
         List<ISemanticExtension> activeExtensions,
         string relativePath,
         string absoluteWorkspacePath,
@@ -71,9 +70,13 @@ public class TerraformParser : IProjectParser, IFileParser
 
     public bool UsesTreeSitter => false;
 
-    // Provider cache, local state, and serverless build dirs are never descended into.
-    // Directory exclusion is owned by core WorkspaceFileFilter; nothing reads this member.
-    public IReadOnlyCollection<string> ExcludedFolders => [];
+    // Terraform/Terragrunt provider cache, local state, and serverless build directories are
+    // never descended into.
+    public IReadOnlyCollection<string> ExcludedFolders => [".terraform", ".terragrunt-cache", ".serverless"];
+
+    // terragrunt.hcl marks a Terragrunt unit directory as a project boundary. (.terraform.lock.hcl
+    // is excluded from parsing by IsLockFile, not treated as a manifest.)
+    public IReadOnlyCollection<string> ManifestFileNames => ["terragrunt.hcl"];
 
     public bool CanParse(string fileExtension) =>
         fileExtension.Equals(".tf", StringComparison.OrdinalIgnoreCase)
@@ -429,10 +432,14 @@ public class TerraformParser : IProjectParser, IFileParser
     public Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
         => Task.FromResult<ProducedPackageInfo?>(null);
 
-    // The Layer 4 enricher resolves the references collected in ParseAsync into DEPENDS_ON edges,
-    // scoped to the module directory.
-    public ISyntaxEnricher GetSyntaxEnricher(SyntaxTree syntaxTree)
-        => new TerraformSyntaxEnricher(this);
+    // Project-scoped Layer 4 enrichment: resolves the references collected in ParseAsync into
+    // DEPENDS_ON edges and maps cloud resources to semantic nodes, scoped to the module directory.
+    // Runs once per project after all its files are parsed; reads this parser's per-directory cache.
+    public Task EnrichProjectAsync(
+        CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode project,
+        IReadOnlyList<SyntaxTree> projectTrees,
+        ParsingContext ctx)
+        => new TerraformSyntaxEnricher(this).EnrichAsync(project, ctx);
 
     // Lexes and parses the HCL file, emits TypeNode/MemberNode declarations into the FileNode with
     // workspace-scoped URN IDs, and stashes the declared symbols + harvested references for the
