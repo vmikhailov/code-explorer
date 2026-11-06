@@ -12,7 +12,9 @@ public class GoRedisLibraryParser : ISemanticExtension
         "github.com/redis/go-redis/v9*",
         "github.com/redis/go-redis*",
         "github.com/go-redis/cache/v9*",
-        "github.com/go-redis/cache*"
+        "github.com/go-redis/cache*",
+        "github.com/gomodule/redigo*",
+        "github.com/garyburd/redigo*"
     ];
     public bool IsImplemented => true;
     public LibraryRole LibraryRole => LibraryRole.OrmOrDatabase;
@@ -47,8 +49,12 @@ public class GoRedisLibraryParser : ISemanticExtension
 
     public string? ExtractIdentifier(Node node, ParsingContext ctx)
     {
-        if (IsRedisCall(node, out var method, out _) && !RedisConstructorMethods.Contains(method!))
+        if (IsRedisCall(node, out var method, out var target) && !RedisConstructorMethods.Contains(method!))
         {
+            if (method == "Do" && !string.IsNullOrEmpty(target))
+            {
+                return $"Redis: {target}";
+            }
             return $"Redis: {method}";
         }
         return null;
@@ -92,6 +98,11 @@ public class GoRedisLibraryParser : ISemanticExtension
             {
                 methodName = m;
                 var args = GoAstHelper.GetCallArguments(node);
+                if (m == "Do" && args.Count > 0)
+                {
+                    targetInfo = GoAstHelper.ResolveStringOrVariable(args[0])?.Trim('"', '`');
+                    return true;
+                }
                 if (args.Count > 1)
                 {
                     targetInfo = GoAstHelper.ResolveStringOrVariable(args[1]);

@@ -52,6 +52,7 @@ public class GoParser : IProjectParser, IFileParser
         new Libraries.GrpcGoLibraryParser(),
         new Libraries.GrpcGatewayGoLibraryParser(),
         new Libraries.SaramaKafkaLibraryParser(),
+        new Libraries.BeegoLibraryParser(),
         Libraries.GoTestLibraryParser.Instance
     ];
 
@@ -203,7 +204,9 @@ public class GoParser : IProjectParser, IFileParser
                 if (content.Contains("github.com/gin-gonic/gin") ||
                     content.Contains("github.com/labstack/echo") ||
                     content.Contains("github.com/gofiber/fiber") ||
-                    content.Contains("github.com/go-chi/chi"))
+                    content.Contains("github.com/go-chi/chi") ||
+                    content.Contains("github.com/beego/beego") ||
+                    content.Contains("github.com/astaxie/beego"))
                 {
                     hasWeb = true;
                 }
@@ -431,6 +434,112 @@ public class GoParser : IProjectParser, IFileParser
             // Ignore
         }
         return string.Empty;
+    }
+
+    public IReadOnlyList<AdditionalProjectDescriptor> GetAdditionalProjects(string directoryPath, string[] filesInDirectory)
+    {
+        var goModPath = Path.Combine(directoryPath, "go.mod");
+        if (!File.Exists(goModPath)) return [];
+
+        var results = new List<AdditionalProjectDescriptor>();
+        var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var cmdDir = Path.Combine(directoryPath, "cmd");
+        if (Directory.Exists(cmdDir))
+        {
+            foreach (var sub in Directory.EnumerateDirectories(cmdDir))
+            {
+                var entryPoint = FindMainGoFile(sub);
+                if (entryPoint != null)
+                {
+                    var name = Path.GetFileName(sub);
+                    if (seenNames.Add(name))
+                    {
+                        var props = BuildAdditionalProjectProperties(name, sub, entryPoint);
+                        results.Add(new AdditionalProjectDescriptor(name, entryPoint, props));
+                    }
+                }
+            }
+        }
+
+        foreach (var sub in Directory.EnumerateDirectories(directoryPath))
+        {
+            var dirName = Path.GetFileName(sub).ToLowerInvariant();
+            if (dirName is "cmd" or "vendor" or ".git" or ".codeexplorer" or "tests" or "test" or "testing" or "common" or "lib" or "pkg" or "portal" or "scripts" or "docs")
+            {
+                continue;
+            }
+
+            var entryPoint = FindMainGoFile(sub);
+            if (entryPoint != null)
+            {
+                var name = Path.GetFileName(sub);
+                if (seenNames.Add(name))
+                {
+                    var props = BuildAdditionalProjectProperties(name, sub, entryPoint);
+                    results.Add(new AdditionalProjectDescriptor(name, entryPoint, props));
+                }
+            }
+        }
+
+        return results;
+    }
+
+    private static string? FindMainGoFile(string dir)
+    {
+        var mainGo = Path.Combine(dir, "main.go");
+        if (File.Exists(mainGo)) return mainGo;
+
+        try
+        {
+            foreach (var goFile in Directory.EnumerateFiles(dir, "*.go", SearchOption.TopDirectoryOnly))
+            {
+                if (goFile.EndsWith("_test.go", StringComparison.OrdinalIgnoreCase)) continue;
+                var text = PhysicalFileStore.ReadAllText(goFile);
+                if (text.Contains("package main") && text.Contains("func main()"))
+                {
+                    return goFile;
+                }
+            }
+        }
+        catch { }
+
+        return null;
+    }
+
+    private static Dictionary<string, string> BuildAdditionalProjectProperties(string name, string dir, string entryPoint)
+    {
+        var props = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var lower = name.ToLowerInvariant();
+
+        var isWorker = lower.Contains("worker") || lower.Contains("consumer") || lower.Contains("job") || lower.Contains("queue");
+        var isCliTool = lower.Contains("cli") || lower.Contains("tool") || lower.Contains("migrat") || lower.Contains("gen") || lower.Contains("patch") || lower.Contains("swagger");
+
+        if (isCliTool && !lower.Contains("server") && !lower.Contains("service"))
+        {
+            props["role"] = "CliTool";
+            props["primary_role"] = "CliTool";
+            props["kind"] = "CliTool";
+            props["manifest_type"] = "cli";
+        }
+        else if (isWorker)
+        {
+            props["role"] = "Worker";
+            props["primary_role"] = "Worker";
+            props["kind"] = "Service";
+            props["manifest_type"] = "worker";
+            props["framework_type"] = "worker";
+        }
+        else
+        {
+            props["role"] = "Service";
+            props["primary_role"] = "Service";
+            props["kind"] = "Service";
+            props["manifest_type"] = "application";
+            props["framework_type"] = "web";
+        }
+
+        return props;
     }
 
 }

@@ -31,6 +31,7 @@ internal static class TreeSitterSyntax
         public const string Subscript = "subscript";
         public const string ModuleName = "module_name";
         public const string Tag = "tag";
+        public const string Receiver = "receiver";
     }
 
     public static class Common
@@ -98,6 +99,10 @@ internal static class TreeSitterSyntax
         public const string FuncLiteral = "func_literal";
         public const string IntLiteral = "int_literal";
         public const string PackageIdentifier = "package_identifier";
+        public const string TypeIdentifier = "type_identifier";
+        public const string UnaryExpression = "unary_expression";
+        public const string ReturnStatement = "return_statement";
+        public const string PointerType = "pointer_type";
     }
 }
 

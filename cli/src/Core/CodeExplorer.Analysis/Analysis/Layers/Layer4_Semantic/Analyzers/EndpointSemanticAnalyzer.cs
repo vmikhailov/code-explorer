@@ -567,9 +567,10 @@ public static class EndpointSemanticAnalyzer
             cleanName = name[(idx + 1)..];
         }
 
-        if (cleanName == "__main__" && !string.IsNullOrEmpty(relativePath))
+        if ((cleanName == "__main__" || (entryType == "main-method" && cleanName == "main")) && !string.IsNullOrEmpty(relativePath))
         {
-            var fn = Path.GetFileName(relativePath);
+            var dir = Path.GetFileName(Path.GetDirectoryName(relativePath.Replace('\\', '/')));
+            var fn = (!string.IsNullOrEmpty(dir) && dir != "src" && dir != "cmd") ? dir : Path.GetFileName(relativePath);
             if (!string.IsNullOrEmpty(fn)) cleanName = fn;
         }
 

@@ -72,7 +72,26 @@ public class GoFileVisitor : BaseParserVisitor
             symbolNode.Name == "main" &&
             !WorkspaceConventions.IsTestFilePath(RelativePath))
         {
-            symbolNode.Children.Add(new SyntacticSymbol(CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint, "main-method:main", node) { Text = node.Text });
+            var cleanName = "main";
+            if (!string.IsNullOrEmpty(RelativePath))
+            {
+                var cleanRel = RelativePath.Replace('\\', '/').Trim('/');
+                var dir = Path.GetDirectoryName(cleanRel)?.Replace('\\', '/').Trim('/');
+                var dirName = Path.GetFileName(dir);
+                if (!string.IsNullOrEmpty(dirName) && !dirName.Equals("src", StringComparison.OrdinalIgnoreCase) && !dirName.Equals("cmd", StringComparison.OrdinalIgnoreCase))
+                {
+                    cleanName = dirName;
+                }
+                else
+                {
+                    var fn = Path.GetFileNameWithoutExtension(cleanRel);
+                    if (!string.IsNullOrEmpty(fn) && !fn.Equals("main", StringComparison.OrdinalIgnoreCase))
+                    {
+                        cleanName = fn;
+                    }
+                }
+            }
+            symbolNode.Children.Add(new SyntacticSymbol(CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint, $"main-method:{cleanName}", node) { Text = node.Text });
         }
 
         if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint)
@@ -115,15 +134,24 @@ public class GoFileVisitor : BaseParserVisitor
                     var args = node.FindChildOfType(TreeSitterSyntax.Go.ArgumentList);
                     if (args.IsValid() && args.Children.Count > 0)
                     {
-                        var handlerArg = args.Children.Skip(1).FirstOrDefault(c => c.IsAny(TreeSitterSyntax.Go.Identifier, TreeSitterSyntax.Go.SelectorExpression));
+                        var nonStringArgs = args.Children.Where(c => !c.Type.Equals("(") && !c.Type.Equals(")") && !c.Type.Equals(",") &&
+                            !c.IsAny(TreeSitterSyntax.Go.InterpretedStringLiteral, TreeSitterSyntax.Go.RawStringLiteral, TreeSitterSyntax.Go.StringLiteral)).ToList();
+                        var handlerArg = nonStringArgs.Count > 1 ? nonStringArgs[1] : nonStringArgs.FirstOrDefault();
                         if (handlerArg.IsValid())
                         {
                             var handlerName = handlerArg.Text;
+                            if (handlerName.Contains('('))
+                            {
+                                handlerName = handlerName[..handlerName.IndexOf('(')].Trim();
+                            }
                             if (handlerName.Contains('.'))
                             {
                                 handlerName = handlerName.Split('.').Last();
                             }
-                            symbolNode.References.Add(new Reference(handlerName, routeVal.Replace(":", " "), OntologyConstants.Relationships.Implements));
+                            if (!string.IsNullOrEmpty(handlerName) && !handlerName.StartsWith('/'))
+                            {
+                                symbolNode.References.Add(new Reference(handlerName, routeVal.Replace(":", " "), OntologyConstants.Relationships.Implements));
+                            }
                         }
                     }
                 }
@@ -169,6 +197,11 @@ public class GoFileVisitor : BaseParserVisitor
             {
                 var name = identifiers[i].Text;
                 var initializerText = i < values.Count ? values[i].GetBoundedInitializerText() : "";
+
+                if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(initializerText) && initializerText.StartsWith('/'))
+                {
+                    RouteDictionaryRegistry.Register(name, initializerText, null);
+                }
 
                 RawVariables.Add(new RawVariable(
                     name,
@@ -310,6 +343,14 @@ public class GoFileVisitor : BaseParserVisitor
                     return true;
                 }
 
+                if (methodName is "Handler" or "HandlerFunc")
+                {
+                    if (operand.IsValid() && TryExtractChainedRoute(operand, out _, out _))
+                    {
+                        return true;
+                    }
+                }
+
                 if (methodName is "HandleFunc" or "Handle" or "Method" or "GET" or "POST" or "PUT" or "DELETE" or "PATCH" or "OPTIONS"
                     or "Get" or "Post" or "Put" or "Delete" or "Patch" or "Options" or "Head" or "All")
                 {
@@ -358,6 +399,21 @@ public class GoFileVisitor : BaseParserVisitor
         if (func.Is(TreeSitterSyntax.Go.SelectorExpression))
         {
             var field = func.GetChildForField(TreeSitterSyntax.Fields.Field);
+            var operand = func.GetChildForField(TreeSitterSyntax.Fields.Operand);
+
+            if (field.IsValid() && operand.IsValid() && (field.Text is "Handler" or "HandlerFunc"))
+            {
+                if (TryExtractChainedRoute(operand, out var cRoute, out var cMethod))
+                {
+                    cRoute = GoAstHelper.CombineRoutes(prefix, cRoute);
+                    if (RouteDictionaryRegistry.TryGetMountPrefix(relativePath, out var mountPrefix))
+                    {
+                        cRoute = GoAstHelper.CombineRoutes(mountPrefix, cRoute);
+                    }
+                    return $"{cMethod}:{cRoute}";
+                }
+            }
+
             if (field.IsValid())
             {
                 var methodName = field.Text;
@@ -367,7 +423,6 @@ public class GoFileVisitor : BaseParserVisitor
                 }
             }
 
-            var operand = func.GetChildForField(TreeSitterSyntax.Fields.Operand);
             if (operand.IsValid())
             {
                 prefix = GoAstHelper.ResolveRoutePrefix(callNode, operand);
@@ -823,6 +878,49 @@ public class GoFileVisitor : BaseParserVisitor
         if (text.EndsWith("MethodConnect", StringComparison.OrdinalIgnoreCase) || text.Equals("CONNECT", StringComparison.OrdinalIgnoreCase)) return "CONNECT";
         if (text.EndsWith("MethodTrace", StringComparison.OrdinalIgnoreCase) || text.Equals("TRACE", StringComparison.OrdinalIgnoreCase)) return "TRACE";
         return null;
+    }
+
+    private static bool TryExtractChainedRoute(Node receiverNode, out string route, out string method)
+    {
+        route = string.Empty;
+        method = "GET";
+
+        var curr = receiverNode;
+        while (curr.IsValid())
+        {
+            if (curr.Is(TreeSitterSyntax.Go.CallExpression))
+            {
+                var fn = curr.GetFunctionNode();
+                if (fn.IsValid() && fn.Is(TreeSitterSyntax.Go.SelectorExpression))
+                {
+                    var field = fn.GetChildForField(TreeSitterSyntax.Fields.Field);
+                    if (field.IsValid())
+                    {
+                        var mName = field.Text;
+                        var args = GoAstHelper.GetCallArguments(curr);
+                        if (mName == "Path" && args.Count > 0 && string.IsNullOrEmpty(route))
+                        {
+                            var r = GoAstHelper.ResolveStringOrVariable(args[0])?.Trim('"', '`');
+                            if (string.IsNullOrEmpty(r) && args[0].Text.Trim('"', '`').StartsWith('/'))
+                            {
+                                r = args[0].Text.Trim('"', '`');
+                            }
+                            if (!string.IsNullOrEmpty(r)) route = r;
+                        }
+                        else if (mName is "Method" or "Methods" && args.Count > 0)
+                        {
+                            var m = CleanHttpMethod(args[0].Text);
+                            if (!string.IsNullOrEmpty(m)) method = m;
+                        }
+                    }
+                    curr = fn.GetChildForField(TreeSitterSyntax.Fields.Operand);
+                    continue;
+                }
+            }
+            break;
+        }
+
+        return !string.IsNullOrEmpty(route);
     }
 
     private static string? ExtractHandlerName(Node node)
