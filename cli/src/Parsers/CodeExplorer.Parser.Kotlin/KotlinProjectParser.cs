@@ -183,6 +183,7 @@ public class KotlinProjectParser : IProjectParser
 
             var isApp = info.IsApplication;
             var isSpring = false;
+            var isKtor = false;
             var buildGradle = Path.Combine(directoryPath, "build.gradle");
             var buildGradleKts = Path.Combine(directoryPath, "build.gradle.kts");
             var gradleFile = File.Exists(buildGradleKts) ? buildGradleKts : (File.Exists(buildGradle) ? buildGradle : null);
@@ -195,6 +196,13 @@ public class KotlinProjectParser : IProjectParser
                         content.Contains("spring-boot", StringComparison.OrdinalIgnoreCase))
                     {
                         isSpring = true;
+                        isApp = true;
+                    }
+                    if (content.Contains("io.ktor", StringComparison.OrdinalIgnoreCase) ||
+                        content.Contains("ktor-server", StringComparison.OrdinalIgnoreCase) ||
+                        content.Contains("plugins.ktor", StringComparison.OrdinalIgnoreCase))
+                    {
+                        isKtor = true;
                         isApp = true;
                     }
                     if (content.Contains("io.grpc", StringComparison.OrdinalIgnoreCase) ||
@@ -233,6 +241,15 @@ public class KotlinProjectParser : IProjectParser
             if (isSpring)
             {
                 props["framework"] = "Spring Boot";
+                props["manifest_type"] = "application";
+                props["framework_type"] = "web";
+                props["role"] = "Service";
+                props["primary_role"] = "Service";
+                props["is_library"] = "false";
+            }
+            else if (isKtor)
+            {
+                props["framework"] = "Ktor";
                 props["manifest_type"] = "application";
                 props["framework_type"] = "web";
                 props["role"] = "Service";
@@ -290,6 +307,22 @@ public class KotlinProjectParser : IProjectParser
                     }
                 }
 
+                // Type-safe project accessors: implementation(projects.core)
+                var typeSafeProjMatches = Regex.Matches(content, @"\bprojects\.([a-zA-Z0-9_]+)\b");
+                foreach (Match match in typeSafeProjMatches)
+                {
+                    var subName = match.Groups[1].Value;
+                    var subDir = Path.GetFullPath(Path.Combine(projectDirectory, subName)).Replace('\\', '/');
+                    if (!Directory.Exists(subDir))
+                    {
+                        subDir = Path.GetFullPath(Path.Combine(projectDirectory, "..", subName)).Replace('\\', '/');
+                    }
+                    if (Directory.Exists(subDir))
+                    {
+                        localProjects.Add(subDir);
+                    }
+                }
+
                 // External dependencies:
                 // implementation("group:artifact:version") or implementation 'group:artifact:version' or coreLibraryDesugaring("...")
                 var depMatches = Regex.Matches(content, @"(?:implementation|api|compileOnly|runtimeOnly|testImplementation|coreLibraryDesugaring)\s*[\('""\s]+([a-zA-Z0-9_.\-]+):([a-zA-Z0-9_.\-]+)(?::([a-zA-Z0-9_.\-]+))?['""\)]");
@@ -299,6 +332,21 @@ public class KotlinProjectParser : IProjectParser
                     var a = match.Groups[2].Value;
                     var v = match.Groups[3].Success ? match.Groups[3].Value : "unknown";
                     externalPackages.Add(new ProducedPackageInfo($"{g}:{a}", v, "gradle"));
+                }
+
+                // Gradle Version Catalog: libs.xyz
+                var catalog = FindAndParseVersionCatalog(projectDirectory);
+                if (catalog != null && catalog.Count > 0)
+                {
+                    var libRefMatches = Regex.Matches(content, @"\blibs\.([a-zA-Z0-9_.]+)");
+                    foreach (Match match in libRefMatches)
+                    {
+                        var libKey = match.Groups[1].Value;
+                        if (catalog.TryGetValue(libKey, out var pkg))
+                        {
+                            externalPackages.Add(pkg);
+                        }
+                    }
                 }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -322,5 +370,134 @@ public class KotlinProjectParser : IProjectParser
         {
             return false;
         }
+    }
+
+    private static Dictionary<string, ProducedPackageInfo>? FindAndParseVersionCatalog(string projectDirectory)
+    {
+        var dir = new DirectoryInfo(projectDirectory);
+        while (dir != null)
+        {
+            var tomlFile = Path.Combine(dir.FullName, "gradle", "libs.versions.toml");
+            if (File.Exists(tomlFile))
+            {
+                return ParseVersionCatalog(tomlFile);
+            }
+            dir = dir.Parent;
+        }
+        return null;
+    }
+
+    private static Dictionary<string, ProducedPackageInfo> ParseVersionCatalog(string tomlPath)
+    {
+        var result = new Dictionary<string, ProducedPackageInfo>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            var lines = PhysicalFileStore.ReadAllText(tomlPath).Split('\n');
+            var versions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var section = "";
+
+            foreach (var rawLine in lines)
+            {
+                var line = rawLine.Trim();
+                if (string.IsNullOrEmpty(line) || line.StartsWith('#')) continue;
+
+                if (line.StartsWith('[') && line.EndsWith(']'))
+                {
+                    section = line.Trim('[', ']').Trim().ToLowerInvariant();
+                    continue;
+                }
+
+                if (section == "versions")
+                {
+                    var eqIdx = line.IndexOf('=');
+                    if (eqIdx > 0)
+                    {
+                        var key = line[..eqIdx].Trim();
+                        var val = line[(eqIdx + 1)..].Trim().Trim('"', '\'');
+                        versions[key] = val;
+                        versions[key.Replace('-', '.')] = val;
+                        versions[key.Replace('_', '.')] = val;
+                    }
+                }
+                else if (section == "libraries")
+                {
+                    var eqIdx = line.IndexOf('=');
+                    if (eqIdx > 0)
+                    {
+                        var alias = line[..eqIdx].Trim();
+                        var val = line[(eqIdx + 1)..].Trim();
+
+                        string? group = null;
+                        string? artifact = null;
+                        string? ver = null;
+
+                        var modMatch = Regex.Match(val, @"module\s*=\s*['""]([^'""]+)['""]");
+                        if (modMatch.Success)
+                        {
+                            var parts = modMatch.Groups[1].Value.Split(':');
+                            if (parts.Length >= 2)
+                            {
+                                group = parts[0];
+                                artifact = parts[1];
+                                if (parts.Length > 2) ver = parts[2];
+                            }
+                        }
+                        else
+                        {
+                            var gMatch = Regex.Match(val, @"group\s*=\s*['""]([^'""]+)['""]");
+                            var nMatch = Regex.Match(val, @"name\s*=\s*['""]([^'""]+)['""]");
+                            if (gMatch.Success && nMatch.Success)
+                            {
+                                group = gMatch.Groups[1].Value;
+                                artifact = nMatch.Groups[1].Value;
+                            }
+                            else
+                            {
+                                var strMatch = Regex.Match(val, @"^['""]([^'""]+)['""]");
+                                if (strMatch.Success)
+                                {
+                                    var parts = strMatch.Groups[1].Value.Split(':');
+                                    if (parts.Length >= 2)
+                                    {
+                                        group = parts[0];
+                                        artifact = parts[1];
+                                        if (parts.Length > 2) ver = parts[2];
+                                    }
+                                }
+                            }
+                        }
+
+                        if (string.IsNullOrEmpty(ver))
+                        {
+                            var verRefMatch = Regex.Match(val, @"version\.ref\s*=\s*['""]([^'""]+)['""]");
+                            if (verRefMatch.Success && versions.TryGetValue(verRefMatch.Groups[1].Value, out var resolvedVer))
+                            {
+                                ver = resolvedVer;
+                            }
+                            else
+                            {
+                                var verMatch = Regex.Match(val, @"version\s*=\s*['""]([^'""]+)['""]");
+                                if (verMatch.Success)
+                                {
+                                    ver = verMatch.Groups[1].Value;
+                                }
+                            }
+                        }
+
+                        if (!string.IsNullOrEmpty(group) && !string.IsNullOrEmpty(artifact))
+                        {
+                            var pkgInfo = new ProducedPackageInfo($"{group}:{artifact}", ver ?? "unknown", "gradle");
+                            result[alias] = pkgInfo;
+                            result[alias.Replace('-', '.')] = pkgInfo;
+                            result[alias.Replace('_', '.')] = pkgInfo;
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+        return result;
     }
 }

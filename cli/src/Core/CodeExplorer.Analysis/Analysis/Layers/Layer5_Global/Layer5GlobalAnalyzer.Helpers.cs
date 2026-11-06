@@ -30,6 +30,8 @@ public partial class Layer5AnalysisParser
         foreach (var seg in segs)
         {
             if (AllowedApiPrefixSegments.Contains(seg)) continue;
+            if (seg.Length > 2 && seg.StartsWith('{') && seg.EndsWith('}')) continue;
+            if (seg.Length == 4 && int.TryParse(seg, out var yr) && yr is >= 1990 and <= 2100) continue;
             if (!string.IsNullOrEmpty(serviceDomain))
             {
                 var cleanDomain = CleanServiceDomain(serviceDomain);
@@ -336,6 +338,8 @@ public partial class Layer5AnalysisParser
             {
                 var seg = longerParts[i];
                 if (AllowedApiPrefixSegments.Contains(seg)) continue;
+                if (seg.Length > 2 && seg.StartsWith('{') && seg.EndsWith('}')) continue;
+                if (seg.Length == 4 && int.TryParse(seg, out var yr) && yr is >= 1990 and <= 2100) continue;
                 if (!string.IsNullOrEmpty(serviceDomain))
                 {
                     var cleanDomain = CleanServiceDomain(serviceDomain);

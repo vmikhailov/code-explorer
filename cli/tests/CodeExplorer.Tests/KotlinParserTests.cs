@@ -260,4 +260,165 @@ public class KotlinParserTests
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
+
+    [Test]
+    public async Task Test_KotlinParser_ParsesKtorRoutingAndExposedOrmAndHttpClient()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "kotlin_ktor_test_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var routesCode = """
+                package org.jetbrains.kotlinconf.backend.routes
+
+                import io.ktor.server.routing.*
+                import io.ktor.server.response.*
+                import io.ktor.http.*
+
+                fun Route.votingRoutes() {
+                    route("vote") {
+                        get {
+                            call.respond("ok")
+                        }
+                        post {
+                            call.respond("voted")
+                        }
+                        get("all") {
+                            call.respond("all-votes")
+                        }
+                    }
+                    route("feedback") {
+                        post {
+                            call.respond("feedback")
+                        }
+                    }
+                }
+
+                fun Application.mainModule() {
+                    routing {
+                        get("/healthz") {
+                            call.respond(HttpStatusCode.OK)
+                        }
+                        staticResources("/admin", "admin")
+                        votingRoutes()
+                    }
+                }
+                """;
+
+            var exposedCode = """
+                package org.jetbrains.kotlinconf.backend.schema
+
+                import org.jetbrains.exposed.v1.core.Table
+                import org.jetbrains.exposed.v1.core.Column
+                import org.jetbrains.exposed.v1.jdbc.selectAll
+                import org.jetbrains.exposed.v1.jdbc.insert
+                import org.jetbrains.exposed.v1.jdbc.update
+                import org.jetbrains.exposed.v1.jdbc.deleteWhere
+                import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
+
+                internal object Users : Table("users") {
+                    val userId: Column<String> = varchar("uuid", 50)
+                }
+
+                internal object Votes : Table() {
+                    val userId: Column<String> = varchar("uuid", 50)
+                }
+
+                internal class Repository {
+                    suspend fun getUser(id: String) = suspendTransaction {
+                        Users.selectAll()
+                    }
+
+                    suspend fun saveUser(id: String) = suspendTransaction {
+                        Users.insert { it[userId] = id }
+                    }
+
+                    suspend fun removeVote(id: String) = suspendTransaction {
+                        Votes.deleteWhere { Votes.userId eq id }
+                    }
+
+                    fun runRaw() {
+                        exec("SELECT COUNT(*) FROM Users")
+                    }
+                }
+                """;
+
+            var clientCode = """
+                package org.jetbrains.kotlinconf.network
+
+                import io.ktor.client.HttpClient
+                import io.ktor.client.request.get
+                import io.ktor.client.request.post
+
+                class YearlyApi(private val client: HttpClient) {
+                    suspend fun getConference() {
+                        client.get { apiUrl("conference") }
+                    }
+
+                    suspend fun submitVote() {
+                        client.post { apiUrl("vote") }
+                    }
+
+                    suspend fun fetchExternal(url: String) {
+                        client.get("https://sessionize.com/api/v2/view")
+                    }
+                }
+                """;
+
+            var routesPath = Path.Combine(tempDir, "Routes.kt");
+            var exposedPath = Path.Combine(tempDir, "Schema.kt");
+            var clientPath = Path.Combine(tempDir, "Client.kt");
+
+            File.WriteAllText(routesPath, routesCode);
+            File.WriteAllText(exposedPath, exposedCode);
+            File.WriteAllText(clientPath, clientCode);
+
+            var parser = new KotlinFileParser();
+
+            // 1. Verify Ktor Routing
+            var routesTree = await parser.ParseAsync(routesPath, "ws", "ws", tempDir);
+            var endpoints = routesTree.FileNode.Children.OfType<EndpointNode>().ToList();
+            endpoints.Should().NotBeEmpty();
+
+            // Check /vote routes
+            endpoints.Should().Contain(e => e.RouteTemplate == "/vote" && e.HttpMethod == "GET");
+            endpoints.Should().Contain(e => e.RouteTemplate == "/vote" && e.HttpMethod == "POST");
+            endpoints.Should().Contain(e => e.RouteTemplate == "/vote/all" && e.HttpMethod == "GET");
+            endpoints.Should().Contain(e => e.RouteTemplate == "/feedback" && e.HttpMethod == "POST");
+            endpoints.Should().Contain(e => e.RouteTemplate == "/healthz" && e.HttpMethod == "GET");
+            endpoints.Should().Contain(e => e.RouteTemplate == "/admin" && e.HttpMethod == "GET");
+
+            // Verify EXPOSED_BY reference
+            var exposedByRels = routesTree.FileNode.References.Where(r => r.Kind == "EXPOSED_BY").ToList();
+            exposedByRels.Should().NotBeEmpty();
+
+            // 2. Verify Exposed ORM Table definitions and operations
+            var exposedTree = await parser.ParseAsync(exposedPath, "ws", "ws", tempDir);
+            var tables = exposedTree.FileNode.Children.OfType<TableNode>().ToList();
+            tables.Should().Contain(t => t.Name == "users");
+            tables.Should().Contain(t => t.Name == "Votes");
+
+            var queries = exposedTree.FileNode.Children.OfType<QueryNode>().ToList();
+            queries.Should().Contain(q => q.Operation == "SELECT" && q.Name.Contains("Users"));
+            queries.Should().Contain(q => q.Operation == "INSERT" && q.Name.Contains("Users"));
+            queries.Should().Contain(q => q.Operation == "DELETE" && q.Name.Contains("Votes"));
+            queries.Should().Contain(q => q.Name.Contains("SQL Query"));
+
+            // 3. Verify Ktor HTTP Client calls
+            var clientTree = await parser.ParseAsync(clientPath, "ws", "ws", tempDir);
+            var extServices = clientTree.FileNode.Children.OfType<ExternalServiceNode>().ToList();
+            extServices.Should().NotBeEmpty();
+            extServices.Should().Contain(e => (e.Url == "/conference" || e.Path == "/conference") && e.Method == "GET");
+            extServices.Should().Contain(e => (e.Url == "/vote" || e.Path == "/vote") && e.Method == "POST");
+            extServices.Should().Contain(e => (e.Url != null && e.Url.Contains("sessionize.com")) || e.DomainOrService == "sessionize.com");
+
+            var callRels = clientTree.FileNode.References.Where(r => r.Kind == "CALLS").ToList();
+            callRels.Should().NotBeEmpty();
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
 }

@@ -144,6 +144,9 @@ public partial class KotlinFileParser : IFileParser
         // 7. Flutter MethodChannels & Kafka Subscriptions
         ParseChannelsAndMessaging(content, fileNode, stringVars, workspaceId, relativePath, classScopes);
 
+        // 8. Relational database configuration detection (e.g. PostgreSQL driver)
+        DetectDatabaseConfiguration(content, fileNode, workspaceId, relativePath);
+
         var doc = SyntaxDocument.Create(content, LanguageName, filePath, relativePath);
         doc.PackageOrNamespace = packageName;
 
@@ -412,6 +415,35 @@ public partial class KotlinFileParser : IFileParser
         return schemaMatch.Success ? schemaMatch.Groups[1].Value.Trim() : null;
     }
 
+    private static bool IsExposedTable(string? cleanBase)
+    {
+        if (string.IsNullOrEmpty(cleanBase)) return false;
+        var b = cleanBase.Trim();
+        return b.Equals("Table", StringComparison.Ordinal) ||
+               b.Equals("IntIdTable", StringComparison.Ordinal) ||
+               b.Equals("LongIdTable", StringComparison.Ordinal) ||
+               b.Equals("UUIDTable", StringComparison.Ordinal) ||
+               b.Equals("CompositeIdTable", StringComparison.Ordinal) ||
+               b.StartsWith("IdTable", StringComparison.Ordinal) ||
+               b.EndsWith(".Table", StringComparison.Ordinal) ||
+               b.EndsWith(".IntIdTable", StringComparison.Ordinal) ||
+               b.EndsWith(".LongIdTable", StringComparison.Ordinal) ||
+               b.EndsWith(".UUIDTable", StringComparison.Ordinal);
+    }
+
+    private static string ExtractExposedTableName(string? superPart, string fallbackClassName)
+    {
+        if (!string.IsNullOrWhiteSpace(superPart))
+        {
+            var match = Regex.Match(superPart, @"(?:Table|IdTable)\s*\(\s*['""]([^'""]+)['""]");
+            if (match.Success)
+            {
+                return match.Groups[1].Value.Trim();
+            }
+        }
+        return fallbackClassName;
+    }
+
     private static string? ExtractQuerySql(string queryAnnotationArgs)
     {
         if (string.IsNullOrWhiteSpace(queryAnnotationArgs)) return null;
@@ -451,10 +483,11 @@ public partial class KotlinFileParser : IFileParser
             var (openBrace, closeBrace) = FindClassBodyRange(masked, cm.Index, cm.Length);
 
             string? cleanBase = null;
+            string? superPart = null;
             if (openBrace >= 0 && openBrace > cm.Index + cm.Length)
             {
-                var headerSuffix = masked[(cm.Index + cm.Length)..openBrace];
-                var superPart = ExtractSuperPart(headerSuffix);
+                var headerSuffix = commentMasked[(cm.Index + cm.Length)..openBrace];
+                superPart = ExtractSuperPart(headerSuffix);
                 if (!string.IsNullOrEmpty(superPart))
                 {
                     cleanBase = Regex.Replace(superPart, @"\(.*?\)", string.Empty).Trim();
@@ -518,11 +551,14 @@ public partial class KotlinFileParser : IFileParser
                 a.Name.Equals("MappedEntity", StringComparison.OrdinalIgnoreCase) ||
                 a.Name.Equals("NodeEntity", StringComparison.OrdinalIgnoreCase));
             var entityAnn = annotations.FirstOrDefault(a => a.Name.Equals("Entity", StringComparison.OrdinalIgnoreCase));
+            var isExposed = IsExposedTable(cleanBase);
 
-            if (tableAnn != null || entityAnn != null)
+            if (tableAnn != null || entityAnn != null || isExposed)
             {
-                var tableName = ExtractTableName(tableAnn?.Args, entityAnn?.Args, className);
-                var schema = ExtractTableSchema(tableAnn?.Args);
+                var tableName = isExposed
+                    ? ExtractExposedTableName(superPart, className)
+                    : ExtractTableName(tableAnn?.Args, entityAnn?.Args, className);
+                var schema = isExposed ? null : ExtractTableSchema(tableAnn?.Args);
                 var tableId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Table}:{tableName.ToLowerInvariant()}";
 
                 var tableNode = new TableNode(tableId, tableName, relativePath)
@@ -850,5 +886,31 @@ public partial class KotlinFileParser : IFileParser
         }
 
         return new string(chars);
+    }
+
+    private static void DetectDatabaseConfiguration(
+        string content,
+        FileNode fileNode,
+        string workspaceId,
+        string relativePath)
+    {
+        if (content.Contains("org.postgresql.Driver", StringComparison.OrdinalIgnoreCase) ||
+            content.Contains("jdbc:postgresql:", StringComparison.OrdinalIgnoreCase))
+        {
+            var dbId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Database}:relational:postgresql";
+            if (!fileNode.Children.Any(c => c.Id == dbId))
+            {
+                var dbNode = new DatabaseNode(dbId, "PostgreSQL", relativePath, "relational")
+                {
+                    Engine = "PostgreSQL",
+                    Technology = "PostgreSQL",
+                    Provider = "PostgreSQL",
+                    IsOrm = true
+                };
+                fileNode.Children.Add(dbNode);
+                fileNode.References.Add(new Reference(fileNode.Id, dbId, OntologyConstants.Relationships.Configures));
+                fileNode.References.Add(new Reference(fileNode.Id, dbId, OntologyConstants.Relationships.UsesDb));
+            }
+        }
     }
 }
