@@ -1,4 +1,6 @@
 using System.Text.Json;
+using CodeExplorer.Core.Common.Nodes;
+using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
 
 namespace CodeExplorer.Core.Parser.Layers;
@@ -153,7 +155,7 @@ public partial class Layer5AnalysisParser
         Dictionary<string, List<IndexedBinding>> GlobalBindingsLookup,
         Dictionary<string, string> ConstantLookup);
 
-    private static SymbolLookups BuildSymbolLookups(ParsingContext ctx)
+    private static SymbolLookups BuildSymbolLookups(ParsingContext ctx, Layer4Result? l4Result = null)
     {
         var typeSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
         var functionSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -268,6 +270,11 @@ public partial class Layer5AnalysisParser
             }
         }
 
+        if (l4Result != null)
+        {
+            CollectTableSymbols(l4Result.SemanticStructure, tableSymbols);
+        }
+
         return new SymbolLookups(
             typeSymbols,
             functionSymbols,
@@ -279,6 +286,18 @@ public partial class Layer5AnalysisParser
             tableSymbols,
             endpointSymbols,
             entryPointSymbols);
+    }
+
+    private static void CollectTableSymbols(IOntologyNode node, Dictionary<string, string> tableSymbols)
+    {
+        if (node is TableNode tbl && !string.IsNullOrEmpty(tbl.Name) && !tableSymbols.ContainsKey(tbl.Name))
+        {
+            tableSymbols[tbl.Name] = tbl.Id;
+        }
+        foreach (var child in node.Children)
+        {
+            CollectTableSymbols(child, tableSymbols);
+        }
     }
 
     private static void ResolveInheritanceReferences(
@@ -742,6 +761,111 @@ public partial class Layer5AnalysisParser
                     refItem.Column,
                     refItem.Context,
                     refItem.ArgFlow));
+            }
+        }
+    }
+
+    private static void ResolveAccessedByOrImplementedByReference(
+        Reference refItem,
+        ParsingContext ctx,
+        SymbolLookups symbols,
+        List<Relationship> referenceRelationships)
+    {
+        var targetName = refItem.TargetName;
+        if (string.IsNullOrEmpty(targetName)) return;
+
+        var isImpl = refItem.Kind == OntologyConstants.Relationships.ImplementedBy;
+
+        // 1. Direct type match (e.g. interface / class name)
+        if (symbols.TypeSymbols.TryGetValue(targetName, out var directTypeId) && refItem.ScopeSymbolId != directTypeId)
+        {
+            var rel = isImpl
+                ? Relationship.FromRelationship(new ImplementedByRelationship(refItem.ScopeSymbolId, directTypeId))
+                : Relationship.FromRelationship(new AccessedByRelationship(refItem.ScopeSymbolId, directTypeId));
+            referenceRelationships.Add(rel);
+            return;
+        }
+
+        // 2. Qualified method or type: namespace.Type.Method or Type.Method
+        if (targetName.Contains('.'))
+        {
+            var lastDot = targetName.LastIndexOf('.');
+            var methodOrMember = targetName[(lastDot + 1)..];
+            var qualifier = targetName[..lastDot];
+            var shortTypeName = qualifier.Contains('.') ? qualifier[(qualifier.LastIndexOf('.') + 1)..] : qualifier;
+
+            // Check method in shortTypeName.Method
+            var typeMethodKey = $"{shortTypeName}.{methodOrMember}";
+            if (symbols.FunctionSymbols.TryGetValue(typeMethodKey, out var fnId) && refItem.ScopeSymbolId != fnId)
+            {
+                var rel = isImpl
+                    ? Relationship.FromRelationship(new ImplementedByRelationship(refItem.ScopeSymbolId, fnId))
+                    : Relationship.FromRelationship(new AccessedByRelationship(refItem.ScopeSymbolId, fnId));
+                referenceRelationships.Add(rel);
+            }
+            else if (symbols.FunctionsByName.TryGetValue(methodOrMember, out var candidateFns))
+            {
+                var matched = candidateFns.FirstOrDefault(id => id.Contains(shortTypeName, StringComparison.OrdinalIgnoreCase))
+                              ?? (candidateFns.Count == 1 ? candidateFns[0] : null);
+                if (matched != null && refItem.ScopeSymbolId != matched)
+                {
+                    var rel = isImpl
+                        ? Relationship.FromRelationship(new ImplementedByRelationship(refItem.ScopeSymbolId, matched))
+                        : Relationship.FromRelationship(new AccessedByRelationship(refItem.ScopeSymbolId, matched));
+                    referenceRelationships.Add(rel);
+                }
+            }
+
+            // Also link to the Type itself if type exists
+            if (symbols.TypeSymbols.TryGetValue(shortTypeName, out var typeId) && refItem.ScopeSymbolId != typeId)
+            {
+                var rel = isImpl
+                    ? Relationship.FromRelationship(new ImplementedByRelationship(refItem.ScopeSymbolId, typeId))
+                    : Relationship.FromRelationship(new AccessedByRelationship(refItem.ScopeSymbolId, typeId));
+                referenceRelationships.Add(rel);
+            }
+            return;
+        }
+
+        // 3. Fallback: single identifier (function name)
+        if (symbols.FunctionsByName.TryGetValue(targetName, out var singleFns) && singleFns.Count == 1 && refItem.ScopeSymbolId != singleFns[0])
+        {
+            var rel = isImpl
+                ? Relationship.FromRelationship(new ImplementedByRelationship(refItem.ScopeSymbolId, singleFns[0]))
+                : Relationship.FromRelationship(new AccessedByRelationship(refItem.ScopeSymbolId, singleFns[0]));
+            referenceRelationships.Add(rel);
+        }
+    }
+
+    private static void ResolveReadsOrWritesReference(
+        Reference refItem,
+        SymbolLookups symbols,
+        List<Relationship> referenceRelationships)
+    {
+        var targetName = refItem.TargetName;
+        if (string.IsNullOrEmpty(targetName)) return;
+
+        if (symbols.TableSymbols.TryGetValue(targetName, out var tableId) && refItem.ScopeSymbolId != tableId)
+        {
+            var isWrite = refItem.Kind == OntologyConstants.Relationships.WritesTo;
+            var rel = isWrite
+                ? Relationship.FromRelationship(new WritesToRelationship(refItem.ScopeSymbolId, tableId))
+                : Relationship.FromRelationship(new ReadsFromRelationship(refItem.ScopeSymbolId, tableId));
+            referenceRelationships.Add(rel);
+            return;
+        }
+
+        if (targetName.Contains('.'))
+        {
+            var dotIdx = targetName.LastIndexOf('.');
+            var shortTableName = targetName[(dotIdx + 1)..];
+            if (symbols.TableSymbols.TryGetValue(shortTableName, out var shortTableId) && refItem.ScopeSymbolId != shortTableId)
+            {
+                var isWrite = refItem.Kind == OntologyConstants.Relationships.WritesTo;
+                var rel = isWrite
+                    ? Relationship.FromRelationship(new WritesToRelationship(refItem.ScopeSymbolId, shortTableId))
+                    : Relationship.FromRelationship(new ReadsFromRelationship(refItem.ScopeSymbolId, shortTableId));
+                referenceRelationships.Add(rel);
             }
         }
     }

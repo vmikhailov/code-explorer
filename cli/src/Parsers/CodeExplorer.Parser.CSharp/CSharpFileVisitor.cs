@@ -219,9 +219,7 @@ public class CSharpFileVisitor : BaseParserVisitor
     }
 
     private static bool IsInterpolatedStringExpression(Node node) =>
-        node.IsAny(TreeSitterSyntax.CSharp.InterpolatedStringExpression,
-                   TreeSitterSyntax.CSharp.InterpolatedVerbatimStringExpression,
-                   TreeSitterSyntax.CSharp.InterpolatedRawStringExpression);
+        node.Is(TreeSitterSyntax.CSharp.InterpolatedStringExpression);
 
     private static bool IsInsideInterpolatedString(Node node) =>
         node.Parent.IsValid() && IsInterpolatedStringExpression(node.Parent);
@@ -233,7 +231,7 @@ public class CSharpFileVisitor : BaseParserVisitor
             var sb = new System.Text.StringBuilder();
             foreach (var child in node.Children)
             {
-                if (child.Type == TreeSitterSyntax.CSharp.InterpolatedStringText)
+                if (child.Type == TreeSitterSyntax.CSharp.StringContent)
                 {
                     sb.Append(child.Text);
                 }
@@ -315,19 +313,8 @@ public class CSharpFileVisitor : BaseParserVisitor
 
                         if (typeName == "var")
                         {
-                            var valueNode = declarator.GetField(TreeSitterSyntax.Fields.Value) ?? declarator
-                                .FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause)?.Children
-                                .LastOrDefault();
-
-                            if (!valueNode.IsValid())
-                            {
-                                valueNode = declarator.FindChildOfType(TreeSitterSyntax.CSharp.ObjectCreationExpression);
-                            }
-
-                            if (!valueNode.IsValid() && declarator.Children.Count >= 3 && declarator.Children[1].Text == "=")
-                            {
-                                valueNode = declarator.Children[2];
-                            }
+                            var valueNode = declarator.GetField(TreeSitterSyntax.Fields.Value)
+                                            ?? declarator.FindChildOfType(TreeSitterSyntax.CSharp.ObjectCreationExpression);
 
                             if (valueNode.IsValid() && valueNode.Is(TreeSitterSyntax.CSharp.ObjectCreationExpression))
                             {
@@ -373,7 +360,10 @@ public class CSharpFileVisitor : BaseParserVisitor
             if (parent.IsValid() && parent.Is(TreeSitterSyntax.CSharp.ParameterList))
             {
                 var recordNode = parent.Parent;
-                if (recordNode.IsValid() && recordNode.IsAny(TreeSitterSyntax.CSharp.RecordDeclaration, TreeSitterSyntax.CSharp.RecordStructDeclaration))
+                if (recordNode.IsValid() && recordNode.IsAny(
+                    TreeSitterSyntax.CSharp.RecordDeclaration,
+                    TreeSitterSyntax.CSharp.ClassDeclaration,
+                    TreeSitterSyntax.CSharp.StructDeclaration))
                 {
                     var scope = DetermineCSharpScope(recordNode);
                     RawVariables.Add(new RawVariable(
@@ -527,14 +517,6 @@ public class CSharpFileVisitor : BaseParserVisitor
         if (!string.IsNullOrEmpty(name))
         {
             var valueNode = node.GetField(TreeSitterSyntax.Fields.Value);
-            if (!valueNode.IsValid())
-            {
-                var eqClause = node.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause);
-                if (eqClause.IsValid() && eqClause.Children.Count > 0)
-                {
-                    valueNode = eqClause.Children[^1];
-                }
-            }
             var initializerText = valueNode.IsValid() ? valueNode.GetBoundedInitializerText() : "";
             var isConstant = IsCSharpConstant(node);
             var scope = DetermineCSharpScope(node);
@@ -604,15 +586,9 @@ public class CSharpFileVisitor : BaseParserVisitor
         var curr = node;
         while (curr.IsValid())
         {
-            if (curr is CodeExplorer.Core.Parser.Syntax.VariableDeclSyntax { IsConstant: true } || (curr is CodeExplorer.Core.Parser.Syntax.DeclarationSyntax d && (d.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Const) || d.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.ReadOnly)))) return true;
-            if (curr.IsAny(TreeSitterSyntax.CSharp.FieldDeclaration, TreeSitterSyntax.CSharp.LocalDeclarationStatement))
-            {
-                foreach (var child in curr.Children)
-                {
-                    if (child.IsAny(TreeSitterSyntax.CSharp.Const, TreeSitterSyntax.CSharp.Readonly) || child.Text is "const" or "readonly")
-                        return true;
-                }
-            }
+            if (curr is CodeExplorer.Core.Parser.Syntax.VariableDeclSyntax { IsConstant: true } ||
+                (curr is CodeExplorer.Core.Parser.Syntax.DeclarationSyntax d && (d.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Const) || d.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.ReadOnly))))
+                return true;
             curr = curr.Parent;
         }
         return false;

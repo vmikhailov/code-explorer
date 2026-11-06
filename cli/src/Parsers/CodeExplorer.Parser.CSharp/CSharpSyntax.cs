@@ -70,7 +70,6 @@ internal static class TreeSitterSyntax
         public const string InterfaceDeclaration = "interface_declaration";
         public const string StructDeclaration = "struct_declaration";
         public const string RecordDeclaration = "record_declaration";
-        public const string RecordStructDeclaration = "record_struct_declaration";
         public const string EnumDeclaration = "enum_declaration";
         public const string MethodDeclaration = "method_declaration";
         public const string ConstructorDeclaration = "constructor_declaration";
@@ -88,11 +87,8 @@ internal static class TreeSitterSyntax
         public const string MemberAccessExpression = "member_access_expression";
         public const string ObjectCreationExpression = "object_creation_expression";
         public const string InterpolatedStringExpression = "interpolated_string_expression";
-        public const string InterpolatedVerbatimStringExpression = "interpolated_verbatim_string_expression";
-        public const string InterpolatedRawStringExpression = "interpolated_raw_string_expression";
         public const string StringLiteral = "string_literal";
         public const string VerbatimStringLiteral = "verbatim_string_literal";
-        public const string EqualsValueClause = "equals_value_clause";
         public const string ArrowExpressionClause = "arrow_expression_clause";
         public const string UsingStatement = "using_statement";
         public const string UsingDirective = "using_directive";
@@ -117,7 +113,10 @@ internal static class TreeSitterSyntax
         public const string EnumMemberDeclaration = "enum_member_declaration";
         public const string Modifier = "modifier";
         public const string Interpolation = "interpolation";
-        public const string InterpolatedStringText = "interpolated_string_text";
+        public const string StringContent = "string_content";
+        public const string CollectionExpression = "collection_expression";
+        public const string SpreadElement = "spread_element";
+        public const string ExpressionElement = "expression_element";
         public const string ElementAccessExpression = "element_access_expression";
         public const string BracketedArgumentList = "bracketed_argument_list";
         public const string PredefinedType = "predefined_type";

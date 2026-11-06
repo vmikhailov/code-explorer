@@ -24,7 +24,7 @@ public partial class HttpClientLibraryParser
         var sb = new System.Text.StringBuilder();
         foreach (var child in node.Children)
         {
-            if (child.Type == TreeSitterSyntax.CSharp.InterpolatedStringText || child.Type == "string_content")
+            if (child.Type == TreeSitterSyntax.CSharp.StringContent)
             {
                 sb.Append(child.Text);
             }
@@ -140,7 +140,6 @@ public partial class HttpClientLibraryParser
                 TreeSitterSyntax.CSharp.ClassDeclaration,
                 TreeSitterSyntax.CSharp.StructDeclaration,
                 TreeSitterSyntax.CSharp.RecordDeclaration,
-                TreeSitterSyntax.CSharp.RecordStructDeclaration,
                 TreeSitterSyntax.CSharp.CompilationUnit))
             {
                 var uri = FindUriInScope(current, varName, depth + 1, visited);
@@ -158,8 +157,7 @@ public partial class HttpClientLibraryParser
         if (scopeNode.IsAny(
             TreeSitterSyntax.CSharp.ClassDeclaration,
             TreeSitterSyntax.CSharp.StructDeclaration,
-            TreeSitterSyntax.CSharp.RecordDeclaration,
-            TreeSitterSyntax.CSharp.RecordStructDeclaration))
+            TreeSitterSyntax.CSharp.RecordDeclaration))
         {
             var body = scopeNode.FindChildOfType(TreeSitterSyntax.CSharp.DeclarationList);
             if (body.IsValid())
@@ -193,27 +191,6 @@ public partial class HttpClientLibraryParser
                         var valueNode = decl.GetField(TreeSitterSyntax.Fields.Value);
                         if (valueNode.IsValid())
                         {
-                            if (valueNode.Is(TreeSitterSyntax.CSharp.EqualsValueClause))
-                            {
-                                valueNode = valueNode.GetField(TreeSitterSyntax.Fields.Value)
-                                            ?? (valueNode.Children.Count > 1 ? valueNode.Children[1] : valueNode);
-                            }
-                        }
-                        else
-                        {
-                            var eqClause = decl.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause);
-                            if (eqClause.IsValid() && eqClause.Children.Count > 0)
-                            {
-                                valueNode = eqClause.Children[^1];
-                            }
-                            else if (decl.Children.Count >= 3 && decl.Children[1].Text == "=")
-                            {
-                                valueNode = decl.Children[2];
-                            }
-                        }
-
-                        if (valueNode.IsValid())
-                        {
                             var uri = ExtractUriFromExpression(valueNode, scopeNode, depth + 1, visited);
                             if (!string.IsNullOrEmpty(uri)) return uri;
                         }
@@ -232,10 +209,10 @@ public partial class HttpClientLibraryParser
                         var uri = ExtractUriFromExpression(arrow.Children[^1], scopeNode, depth + 1, visited);
                         if (!string.IsNullOrEmpty(uri)) return uri;
                     }
-                    var eq = child.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause);
-                    if (eq.IsValid() && eq.Children.Count > 0)
+                    var valNode = child.GetField(TreeSitterSyntax.Fields.Value);
+                    if (valNode.IsValid())
                     {
-                        var uri = ExtractUriFromExpression(eq.Children[^1], scopeNode, depth + 1, visited);
+                        var uri = ExtractUriFromExpression(valNode, scopeNode, depth + 1, visited);
                         if (!string.IsNullOrEmpty(uri)) return uri;
                     }
                 }
@@ -268,10 +245,7 @@ public partial class HttpClientLibraryParser
     {
         if (!expr.IsValid() || depth > 8) return null;
 
-        if (expr.IsAny(
-            TreeSitterSyntax.CSharp.InterpolatedStringExpression,
-            TreeSitterSyntax.CSharp.InterpolatedVerbatimStringExpression,
-            TreeSitterSyntax.CSharp.InterpolatedRawStringExpression))
+        if (expr.Is(TreeSitterSyntax.CSharp.InterpolatedStringExpression))
         {
             return ExtractInterpolatedStringUri(expr, scopeNode, depth + 1, visited);
         }
@@ -599,22 +573,6 @@ public partial class HttpClientLibraryParser
                             if (nameNode.IsValid() && nameNode.Text == varName)
                             {
                                 var valueNode = decl.GetField(TreeSitterSyntax.Fields.Value);
-                                if (valueNode.IsValid())
-                                {
-                                    if (valueNode.Is(TreeSitterSyntax.CSharp.EqualsValueClause))
-                                    {
-                                        valueNode = valueNode.GetField(TreeSitterSyntax.Fields.Value)
-                                                    ?? (valueNode.Children.Count > 1 ? valueNode.Children[1] : valueNode);
-                                    }
-                                }
-                                else
-                                {
-                                    var eqClause = decl.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause);
-                                    if (eqClause.IsValid() && eqClause.Children.Count > 0)
-                                    {
-                                        valueNode = eqClause.Children[^1];
-                                    }
-                                }
                                 if (valueNode.IsValid()) return valueNode;
                             }
                         }

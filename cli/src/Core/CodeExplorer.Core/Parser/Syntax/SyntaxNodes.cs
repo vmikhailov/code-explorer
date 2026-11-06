@@ -297,7 +297,7 @@ public abstract class SyntaxNode
             SyntaxFields.Value when this is VariableDeclSyntax { Initializer: { } varInit } => varInit,
             SyntaxFields.Value when this is MemberDeclSyntax { Initializer: { } memInit } => memInit,
             SyntaxFields.Value when this is ArgumentSyntax { Value: { } argVal } => argVal,
-            SyntaxFields.Value when RawGrammarKind is "equals_value_clause" or "arrow_expression_clause" && Children.Count > 0 => Children[^1],
+            SyntaxFields.Value when RawGrammarKind == "arrow_expression_clause" && Children.Count > 0 => Children[^1],
             SyntaxFields.Right when this is AssignmentExprSyntax { Right: { } assignRight } => assignRight,
             SyntaxFields.Left when this is AssignmentExprSyntax { Left: { } assignLeft } => assignLeft,
             SyntaxFields.Right when this is BinaryExprSyntax { Right: { } binRight } => binRight,

@@ -357,16 +357,18 @@ public class WorkspaceFileFilter
     public bool IsSupportedSourceOrConfigFile(string fileName)
     {
         var ext = Path.GetExtension(fileName).ToLowerInvariant();
-        var hasParser = _fileParsers.Any(p => p.CanParse(ext) || p.CanParseFile(fileName));
-        var isConfigFile = ConfigurationIndex.IsConfigurationFile(fileName) ||
-                           _projectParsers.Any(p => p.IsConfigurationFile(fileName));
+        var baseName = Path.GetFileName(fileName);
+        var hasParser = _fileParsers.Any(p => p.CanParse(ext) || p.CanParseFile(fileName) || p.CanParseFile(baseName));
+        var isConfigFile = ConfigurationIndex.IsConfigurationFile(baseName) ||
+                           _projectParsers.Any(p => p.IsConfigurationFile(baseName));
 
         return hasParser || isConfigFile;
     }
 
     public bool IsSupportedFileType(string fileName)
     {
-        return IsSupportedSourceOrConfigFile(fileName) || IsManifestFile(fileName);
+        var baseName = Path.GetFileName(fileName);
+        return IsSupportedSourceOrConfigFile(fileName) || IsManifestFile(baseName);
     }
 
     public bool IsCandidateSourceFile(string fullPath)
@@ -383,7 +385,7 @@ public class WorkspaceFileFilter
         if (ShouldSkipFileName(fileName))
             return false;
 
-        return IsSupportedFileType(fileName);
+        return IsSupportedFileType(fullPath) || IsSupportedFileType(fileName);
     }
 
     public List<string> EnumerateCandidateFiles(

@@ -43,7 +43,17 @@ public static class JavaDeclarationExtractor
                     if (memNameNode.IsValid())
                     {
                         var memName = memNameNode.Text;
-                        register($"{enumName}.{memName}", null, memName);
+                        var strLiterals = child.FindDescendantsOfType(TreeSitterSyntax.Java.StringLiteral).ToList();
+                        if (strLiterals.Count > 0)
+                        {
+                            var val = strLiterals.Count >= 2 ? strLiterals[1].Text.Trim('"', '\'') : strLiterals[0].Text.Trim('"', '\'');
+                            register($"{enumName}.{memName}", null, val);
+                            register(memName, null, val);
+                        }
+                        else
+                        {
+                            register($"{enumName}.{memName}", null, memName);
+                        }
                     }
                 }
             }

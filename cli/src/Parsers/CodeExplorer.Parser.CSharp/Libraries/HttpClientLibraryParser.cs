@@ -219,10 +219,7 @@ public partial class HttpClientLibraryParser : ISemanticExtension
         if (valNode.IsValid())
         {
             // If argument is an interpolated string ($"...")
-            if (valNode.IsAny(
-                    TreeSitterSyntax.CSharp.InterpolatedStringExpression,
-                    TreeSitterSyntax.CSharp.InterpolatedVerbatimStringExpression,
-                    TreeSitterSyntax.CSharp.InterpolatedRawStringExpression) ||
+            if (valNode.Is(TreeSitterSyntax.CSharp.InterpolatedStringExpression) ||
                 valNode.Text.StartsWith('$') || valNode.Text.StartsWith("@$") || valNode.Text.StartsWith("$@"))
             {
                 var interpUri = ExtractInterpolatedStringUri(valNode, node, 0);

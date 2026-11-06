@@ -150,13 +150,7 @@ public partial class CSharpParser : IProjectParser, IFileParser
         string sourceText,
         ParsingContext? ctx)
     {
-        if (project != null &&
-            ctx is { LightweightAstScanMode: false } &&
-            sourceText.Length <= 1024 * 1024 &&
-            sourceText.Contains("const string", StringComparison.Ordinal))
-        {
-            ConstantRegistry.ScanAndRegisterCSharp(sourceText, project.Name);
-        }
+
 
         if (sourceText.Contains("DbContext", StringComparison.Ordinal))
         {
@@ -776,14 +770,6 @@ public partial class CSharpParser : IProjectParser, IFileParser
             if (!string.IsNullOrEmpty(name))
             {
                 var valueNode = node.GetField(TreeSitterSyntax.Fields.Value);
-                if (!valueNode.IsValid())
-                {
-                    var eqClause = node.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause);
-                    if (eqClause.IsValid() && eqClause.Children.Count > 0)
-                    {
-                        valueNode = eqClause.Children[^1];
-                    }
-                }
                 var initializerText = valueNode.IsValid() ? valueNode.GetBoundedInitializerText() : "";
                 var isConstant = IsCSharpConstant(node);
                 var scope = DetermineCSharpScope(node);
@@ -842,7 +828,10 @@ public partial class CSharpParser : IProjectParser, IFileParser
             if (parent.IsValid() && parent.Is(TreeSitterSyntax.CSharp.ParameterList))
             {
                 var recordNode = parent.Parent;
-                if (recordNode.IsValid() && recordNode.IsAny(TreeSitterSyntax.CSharp.RecordDeclaration, TreeSitterSyntax.CSharp.RecordStructDeclaration))
+                if (recordNode.IsValid() && recordNode.IsAny(
+                    TreeSitterSyntax.CSharp.RecordDeclaration,
+                    TreeSitterSyntax.CSharp.ClassDeclaration,
+                    TreeSitterSyntax.CSharp.StructDeclaration))
                 {
                     var name = node.GetField(TreeSitterSyntax.Fields.Name)?.Text
                         ?? node.FindChildOfType(TreeSitterSyntax.Common.Identifier)?.Text;
@@ -875,15 +864,9 @@ public partial class CSharpParser : IProjectParser, IFileParser
         var curr = node;
         while (curr.IsValid())
         {
-            if (curr is VariableDeclSyntax { IsConstant: true } || (curr is DeclarationSyntax d && (d.Modifiers.HasFlag(SyntaxModifiers.Const) || d.Modifiers.HasFlag(SyntaxModifiers.ReadOnly)))) return true;
-            if (curr.IsAny(TreeSitterSyntax.CSharp.FieldDeclaration, TreeSitterSyntax.CSharp.LocalDeclarationStatement))
-            {
-                foreach (var child in curr.Children)
-                {
-                    if (child.IsAny(TreeSitterSyntax.CSharp.Const, TreeSitterSyntax.CSharp.Readonly) || child.Text is "const" or "readonly")
-                        return true;
-                }
-            }
+            if (curr is VariableDeclSyntax { IsConstant: true } ||
+                (curr is DeclarationSyntax d && (d.Modifiers.HasFlag(SyntaxModifiers.Const) || d.Modifiers.HasFlag(SyntaxModifiers.ReadOnly))))
+                return true;
             curr = curr.Parent;
         }
         return false;

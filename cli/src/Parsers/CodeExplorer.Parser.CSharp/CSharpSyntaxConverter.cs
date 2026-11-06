@@ -19,13 +19,13 @@ public sealed class CSharpSyntaxConverter : TreeSitterSyntaxConverterBase
             "class_declaration" => new TypeDeclSyntax { Span = span, RawGrammarKind = rawKind, Kind = TypeSyntaxKind.Class },
             "interface_declaration" => new TypeDeclSyntax { Span = span, RawGrammarKind = rawKind, Kind = TypeSyntaxKind.Interface },
             "struct_declaration" => new TypeDeclSyntax { Span = span, RawGrammarKind = rawKind, Kind = TypeSyntaxKind.Struct },
-            "record_declaration" or "record_struct_declaration" => new TypeDeclSyntax { Span = span, RawGrammarKind = rawKind, Kind = TypeSyntaxKind.Record },
+            "record_declaration" => new TypeDeclSyntax { Span = span, RawGrammarKind = rawKind, Kind = TypeSyntaxKind.Record },
             "enum_declaration" => new TypeDeclSyntax { Span = span, RawGrammarKind = rawKind, Kind = TypeSyntaxKind.Enum },
             "delegate_declaration" => new TypeDeclSyntax { Span = span, RawGrammarKind = rawKind, Kind = TypeSyntaxKind.TypeAlias },
 
             "method_declaration" => new FunctionDeclSyntax { Span = span, RawGrammarKind = rawKind, Kind = FunctionSyntaxKind.Method },
             "local_function_statement" => new FunctionDeclSyntax { Span = span, RawGrammarKind = rawKind, Kind = FunctionSyntaxKind.Function },
-            "constructor_declaration" or "primary_constructor" => new FunctionDeclSyntax { Span = span, RawGrammarKind = rawKind, Kind = FunctionSyntaxKind.Constructor },
+            "constructor_declaration" => new FunctionDeclSyntax { Span = span, RawGrammarKind = rawKind, Kind = FunctionSyntaxKind.Constructor },
             "destructor_declaration" => new FunctionDeclSyntax { Span = span, RawGrammarKind = rawKind, Kind = FunctionSyntaxKind.Destructor },
             "accessor_declaration" => new FunctionDeclSyntax { Span = span, RawGrammarKind = rawKind, Kind = FunctionSyntaxKind.Accessor },
             "operator_declaration" or "conversion_operator_declaration" => new FunctionDeclSyntax { Span = span, RawGrammarKind = rawKind, Kind = FunctionSyntaxKind.Operator },
@@ -46,9 +46,10 @@ public sealed class CSharpSyntaxConverter : TreeSitterSyntaxConverterBase
             "object_creation_expression" or "implicit_object_creation_expression" =>
                 new CallExprSyntax { Span = span, RawGrammarKind = rawKind, CallKind = CallSyntaxKind.Constructor },
 
-            "argument" or "attribute_argument" => new ArgumentSyntax { Span = span, RawGrammarKind = rawKind },
+            "argument" or "attribute_argument" or "expression_element" or "spread_element" =>
+                new ArgumentSyntax { Span = span, RawGrammarKind = rawKind },
 
-            "interpolated_string_expression" or "interpolated_verbatim_string_expression" or "interpolated_raw_string_expression" =>
+            "interpolated_string_expression" =>
                 new InterpolatedStringExprSyntax { Span = span, RawGrammarKind = rawKind },
 
             "string_literal" => new LiteralExprSyntax { Span = span, RawGrammarKind = rawKind, LiteralKind = LiteralSyntaxKind.String },
@@ -66,7 +67,7 @@ public sealed class CSharpSyntaxConverter : TreeSitterSyntaxConverterBase
             "member_access_expression" or "qualified_name" => new MemberAccessExprSyntax { Span = span, RawGrammarKind = rawKind },
             "element_access_expression" => new IndexExprSyntax { Span = span, RawGrammarKind = rawKind },
             "binary_expression" or "is_expression" or "as_expression" => new BinaryExprSyntax { Span = span, RawGrammarKind = rawKind },
-            "prefix_unary_expression" or "postfix_unary_expression" or "typeof_expression" or "sizeof_expression" or "nameof_expression" =>
+            "prefix_unary_expression" or "postfix_unary_expression" or "typeof_expression" or "sizeof_expression" =>
                 new UnaryExprSyntax { Span = span, RawGrammarKind = rawKind },
             "assignment_expression" => new AssignmentExprSyntax { Span = span, RawGrammarKind = rawKind },
             "conditional_expression" => new ConditionalExprSyntax { Span = span, RawGrammarKind = rawKind },
@@ -77,7 +78,7 @@ public sealed class CSharpSyntaxConverter : TreeSitterSyntaxConverterBase
                 new BlockStmtSyntax { Span = span, RawGrammarKind = rawKind, IsUnsafe = rawKind == "unsafe_statement" },
             "if_statement" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.If },
             "switch_statement" or "switch_expression" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Switch },
-            "for_statement" or "for_each_statement" or "while_statement" or "do_statement" =>
+            "for_statement" or "foreach_statement" or "while_statement" or "do_statement" =>
                 new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Loop },
             "try_statement" => new ControlFlowStmtSyntax { Span = span, RawGrammarKind = rawKind, Kind = ControlFlowKind.Try },
             "catch_clause" => new CatchClauseSyntax { Span = span, RawGrammarKind = rawKind },

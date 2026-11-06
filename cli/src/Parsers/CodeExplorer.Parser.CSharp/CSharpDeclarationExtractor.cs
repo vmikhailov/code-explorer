@@ -45,8 +45,7 @@ public static class CSharpDeclarationExtractor
                     if (memNameNode.IsValid())
                     {
                         var memName = memNameNode.Text;
-                        var eq = child.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause);
-                        Node? valNode = eq.IsValid() && eq.Children.Count > 0 ? eq.Children[^1] : null;
+                        var valNode = child.GetChildForField(TreeSitterSyntax.Fields.Value);
 
                         var keyWithScope = $"{enumName}.{memName}";
                         register(keyWithScope, valNode, valNode == null ? memName : null);
@@ -56,7 +55,7 @@ public static class CSharpDeclarationExtractor
             return;
         }
 
-        if (type is TreeSitterSyntax.CSharp.FieldDeclaration)
+        if (type is TreeSitterSyntax.CSharp.FieldDeclaration or TreeSitterSyntax.CSharp.LocalDeclarationStatement)
         {
             if (HasAnyModifier(node, "const", "readonly", "static"))
             {
@@ -70,19 +69,6 @@ public static class CSharpDeclarationExtractor
                     {
                         var name = nameNode.Text;
                         var valNode = decl.GetChildForField(TreeSitterSyntax.Fields.Value);
-                        if (!valNode.IsValid())
-                        {
-                            var eq = decl.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause);
-                            if (eq.IsValid())
-                            {
-                                valNode = eq.GetChildForField(TreeSitterSyntax.Fields.Value) ??
-                                          eq.Children.LastOrDefault(c => c.IsValid() && c.Type != "=");
-                            }
-                            else
-                            {
-                                valNode = decl.Children.LastOrDefault(c => c.IsValid() && c.Type != "=" && c.Type != TreeSitterSyntax.Common.Identifier);
-                            }
-                        }
 
                         if (!string.IsNullOrEmpty(currentScope))
                         {
@@ -128,16 +114,11 @@ public static class CSharpDeclarationExtractor
 
     private static bool HasAnyModifier(Node node, params string[] modifiers)
     {
-        if (node is CodeExplorer.Core.Parser.Syntax.DeclarationSyntax decl && ((modifiers.Contains("const") && decl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Const)) || (modifiers.Contains("readonly") && decl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.ReadOnly)) || (modifiers.Contains("static") && decl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Static)))) return true;
-        for (int i = 0; i < node.Children.Count; i++)
+        if (node is CodeExplorer.Core.Parser.Syntax.DeclarationSyntax decl)
         {
-            var c = node.Children[i];
-            if (modifiers.Contains(c.Type)) return true;
-            var span = c.AsSpan();
-            for (int m = 0; m < modifiers.Length; m++)
-            {
-                if (span.Equals(modifiers[m], StringComparison.Ordinal)) return true;
-            }
+            if (modifiers.Contains("const") && decl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Const)) return true;
+            if (modifiers.Contains("readonly") && decl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.ReadOnly)) return true;
+            if (modifiers.Contains("static") && decl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Static)) return true;
         }
         return false;
     }

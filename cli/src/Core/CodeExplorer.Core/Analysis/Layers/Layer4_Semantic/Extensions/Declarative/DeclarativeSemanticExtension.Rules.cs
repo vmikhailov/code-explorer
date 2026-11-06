@@ -122,9 +122,13 @@ public partial class DeclarativeSemanticExtension
         var parent = annotNode.Parent;
         while (parent.IsValid())
         {
+            if (parent is TypeDeclSyntax tds && !string.IsNullOrEmpty(tds.Name))
+            {
+                return tds.Name;
+            }
             if (rule.ClassDeclarationNodeTypes.Contains(parent.Type))
             {
-                var idNode = parent.GetField(SyntaxFields.Name) ?? parent.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
+                var idNode = parent.GetField(SyntaxFields.Name) ?? parent.Children.FirstOrDefault(c => c is IdentifierExprSyntax || c.Type == "identifier");
                 if (idNode.IsValid() && !string.IsNullOrEmpty(idNode.Text))
                 {
                     return idNode.Text;
@@ -402,8 +406,44 @@ public partial class DeclarativeSemanticExtension
         if (argNode is IdentifierExprSyntax or MemberAccessExprSyntax)
         {
             var text = argNode.Text.Trim('"', '\'');
-            if (text.Contains('.')) text = text[(text.LastIndexOf('.') + 1)..];
+            if (ConstantRegistry.TryResolve(null, text, out var directResolved) && !string.IsNullOrEmpty(directResolved))
+            {
+                return directResolved;
+            }
+            if (text.Contains('.'))
+            {
+                var lastPart = text[(text.LastIndexOf('.') + 1)..];
+                if (ConstantRegistry.TryResolve(null, lastPart, out var lastResolved) && !string.IsNullOrEmpty(lastResolved))
+                {
+                    return lastResolved;
+                }
+                return lastPart;
+            }
             return text;
+        }
+
+        if (argNode is CallExprSyntax or { Type: "method_invocation" or "call_expression" })
+        {
+            var receiver = argNode.GetField(SyntaxFields.Object)
+                           ?? argNode.Children.FirstOrDefault(c => c is MemberAccessExprSyntax or IdentifierExprSyntax or CallExprSyntax || c.Type is "field_access" or "identifier" or "method_invocation");
+            if (receiver.IsValid())
+            {
+                var receiverText = receiver.Text.Trim('"', '\'');
+                if (ConstantRegistry.TryResolve(null, receiverText, out var resolved) && !string.IsNullOrEmpty(resolved))
+                {
+                    return resolved;
+                }
+                if (receiverText.Contains('.'))
+                {
+                    var lastPart = receiverText[(receiverText.LastIndexOf('.') + 1)..];
+                    if (ConstantRegistry.TryResolve(null, lastPart, out var memResolved) && !string.IsNullOrEmpty(memResolved))
+                    {
+                        return memResolved;
+                    }
+                    return lastPart;
+                }
+                return receiverText;
+            }
         }
 
         return null;

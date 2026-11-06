@@ -205,14 +205,15 @@ public class EfCoreLibraryParser : ISemanticExtension
                             if (constName == null || string.Equals(nameNode.Text, constName, StringComparison.OrdinalIgnoreCase) ||
                                 nameNode.Text.Contains("Schema", StringComparison.OrdinalIgnoreCase))
                             {
-                                var eqClause = declarator.FindChildOfType(TreeSitterSyntax.CSharp.EqualsValueClause);
-                                if (eqClause.IsValid())
+                                var valNode = declarator.GetField(TreeSitterSyntax.Fields.Value);
+                                if (valNode.IsValid() && valNode.Type.Contains("string", StringComparison.Ordinal))
                                 {
-                                    var str = eqClause.Children.FirstOrDefault(c => c.Type.Contains("string"));
-                                    if (str.IsValid())
-                                    {
-                                        return str.Text.Trim('"');
-                                    }
+                                    return valNode.Text.Trim('"');
+                                }
+                                var str = declarator.Children.FirstOrDefault(c => c.Type.Contains("string", StringComparison.Ordinal));
+                                if (str.IsValid())
+                                {
+                                    return str.Text.Trim('"');
                                 }
                             }
                         }

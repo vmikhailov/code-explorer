@@ -1,0 +1,19 @@
+<Project>
+  <Target Name="OverrideTreeSitterCSharpNativeOnBuild" AfterTargets="CopyFilesToOutputDirectory" Condition="Exists('$(MSBuildThisFileDirectory)src\Parsers\CodeExplorer.Parser.Shared\runtimes') and (Exists('$(OutDir)runtimes') or Exists('$(OutDir)TreeSitter.dll'))">
+    <ItemGroup>
+      <_UpdatedTreeSitterCSharpRuntimes Include="$(MSBuildThisFileDirectory)src\Parsers\CodeExplorer.Parser.Shared\runtimes\**\*.*" Condition="'$(RuntimeIdentifier)' == ''" />
+      <_UpdatedTreeSitterCSharpRid Include="$(MSBuildThisFileDirectory)src\Parsers\CodeExplorer.Parser.Shared\runtimes\$(RuntimeIdentifier)\native\*.*" Condition="'$(RuntimeIdentifier)' != '' and Exists('$(MSBuildThisFileDirectory)src\Parsers\CodeExplorer.Parser.Shared\runtimes\$(RuntimeIdentifier)\native')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_UpdatedTreeSitterCSharpRuntimes)" DestinationFiles="@(_UpdatedTreeSitterCSharpRuntimes->'$(OutDir)runtimes\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(_UpdatedTreeSitterCSharpRuntimes)' != ''" />
+    <Copy SourceFiles="@(_UpdatedTreeSitterCSharpRid)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="'@(_UpdatedTreeSitterCSharpRid)' != ''" />
+  </Target>
+
+  <Target Name="OverrideTreeSitterCSharpNativeOnPublish" AfterTargets="CopyFilesToPublishDirectory;ComputeResolvedFilesToPublishList" Condition="Exists('$(MSBuildThisFileDirectory)src\Parsers\CodeExplorer.Parser.Shared\runtimes') and Exists('$(PublishDir)')">
+    <ItemGroup>
+      <_PublishTreeSitterCSharpRuntimes Include="$(MSBuildThisFileDirectory)src\Parsers\CodeExplorer.Parser.Shared\runtimes\**\*.*" Condition="'$(RuntimeIdentifier)' == ''" />
+      <_PublishTreeSitterCSharpRid Include="$(MSBuildThisFileDirectory)src\Parsers\CodeExplorer.Parser.Shared\runtimes\$(RuntimeIdentifier)\native\*.*" Condition="'$(RuntimeIdentifier)' != '' and Exists('$(MSBuildThisFileDirectory)src\Parsers\CodeExplorer.Parser.Shared\runtimes\$(RuntimeIdentifier)\native')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_PublishTreeSitterCSharpRuntimes)" DestinationFiles="@(_PublishTreeSitterCSharpRuntimes->'$(PublishDir)runtimes\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Condition="'@(_PublishTreeSitterCSharpRuntimes)' != ''" />
+    <Copy SourceFiles="@(_PublishTreeSitterCSharpRid)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" Condition="'@(_PublishTreeSitterCSharpRid)' != ''" />
+  </Target>
+</Project>

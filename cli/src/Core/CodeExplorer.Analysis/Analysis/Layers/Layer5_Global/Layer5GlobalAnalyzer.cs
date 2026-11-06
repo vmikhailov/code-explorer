@@ -105,7 +105,7 @@ public partial class Layer5AnalysisParser
 
         await PreloadTargetedSymbolsAsync(ctx, interfaceToImplementors);
 
-        var symbols = BuildSymbolLookups(ctx);
+        var symbols = BuildSymbolLookups(ctx, _currentL4Result);
         ResolveInheritanceReferences(ctx, symbols, referenceRelationships, inheritanceRels, interfaceToImplementors);
         var bindings = BuildBindingLookups(ctx);
         var imports = BuildImportLookups(ctx, _currentL4Result);
@@ -161,6 +161,14 @@ public partial class Layer5AnalysisParser
                         break;
                     case OntologyConstants.Relationships.UsesType:
                         ResolveUsesTypeReference(refItem, symbols, referenceRelationships);
+                        break;
+                    case OntologyConstants.Relationships.AccessedBy:
+                    case OntologyConstants.Relationships.ImplementedBy:
+                        ResolveAccessedByOrImplementedByReference(refItem, ctx, symbols, referenceRelationships);
+                        break;
+                    case OntologyConstants.Relationships.ReadsFrom:
+                    case OntologyConstants.Relationships.WritesTo:
+                        ResolveReadsOrWritesReference(refItem, symbols, referenceRelationships);
                         break;
                 }
             }

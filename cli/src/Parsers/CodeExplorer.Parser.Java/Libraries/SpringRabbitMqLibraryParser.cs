@@ -11,7 +11,15 @@ public class SpringRabbitMqLibraryParser : DeclarativeSemanticExtension
         Type = SemanticExtensionType.Queue;
         PackageDescriptorTypeOverride = SemanticExtensionType.Library;
         LibraryRole = LibraryRole.MessageBroker;
-        SupportedPatterns = ["org.springframework.amqp.*", "com.rabbitmq.*"];
+        SupportedPatterns =
+        [
+            "org.springframework.amqp.*",
+            "com.rabbitmq.*",
+            "org.springframework.boot.spring-boot-starter-amqp*",
+            "*spring-boot-starter-amqp*",
+            "*spring-rabbit*",
+            "*amqp*"
+        ];
         MessagingBrokerRules =
         [
             new MessagingBrokerRule
