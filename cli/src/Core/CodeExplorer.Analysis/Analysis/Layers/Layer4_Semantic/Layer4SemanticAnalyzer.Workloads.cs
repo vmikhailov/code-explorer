@@ -339,6 +339,10 @@ public partial class Layer4SemanticParser
                 await ResourceSemanticAnalyzer.EnrichAsync(syntaxTree, project, targetFileParser, ctx, workloadNode);
             }
 
+            // Project-scoped enrichment: lets a parser resolve cross-file references across all of
+            // the project's syntax trees at once (default no-op for parsers that don't need it).
+            await projectParser.EnrichProjectAsync(project, projectTrees, ctx);
+
             // Collect semantic nodes parsed from files
             var projectSemanticNodes = new List<IOntologyNode>();
             foreach (var syntaxTree in projectTrees)

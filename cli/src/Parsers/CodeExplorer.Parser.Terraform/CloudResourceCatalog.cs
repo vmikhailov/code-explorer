@@ -24,13 +24,13 @@ public static class CloudResourceCatalog
         ["aws_db_instance"] = new(SemanticKind.Database, "relational"),
         ["aws_rds_cluster"] = new(SemanticKind.Database, "relational"),
         ["aws_rds_cluster_instance"] = new(SemanticKind.Database, "relational"),
-        ["azurerm_mssql_server"] = new(SemanticKind.Database, "sqlserver"),
-        ["azurerm_postgresql_server"] = new(SemanticKind.Database, "postgres"),
+        ["azurerm_mssql_server"] = new(SemanticKind.Database, "relational"),
+        ["azurerm_postgresql_server"] = new(SemanticKind.Database, "relational"),
         ["google_sql_database_instance"] = new(SemanticKind.Database, "relational"),
-        ["aws_dynamodb_table"] = new(SemanticKind.Database, "dynamodb"),
-        ["aws_elasticache_cluster"] = new(SemanticKind.Database, "redis"),  // engine-blind: a memcached cluster is still typed redis (KNOWN_ISSUES F4)
-        ["aws_memorydb_cluster"] = new(SemanticKind.Database, "redis"),
-        ["aws_docdb_cluster"] = new(SemanticKind.Database, "mongodb"),
+        ["aws_dynamodb_table"] = new(SemanticKind.Database, "keyvalue"),
+        ["aws_elasticache_cluster"] = new(SemanticKind.Database, "cache"),  // engine-blind: a memcached cluster is still typed cache
+        ["aws_memorydb_cluster"] = new(SemanticKind.Database, "cache"),
+        ["aws_docdb_cluster"] = new(SemanticKind.Database, "document"),
 
         // Topics / queues / streams (SubType = broker_type)
         ["aws_msk_cluster"] = new(SemanticKind.Topic, "kafka"),

@@ -38,7 +38,7 @@ public class TerraformParserTests
         try
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
             var semantic = new SemanticStructureNode("ws:semantic", "semantic", string.Empty);
             var ctx = new ParsingContext(tempDir, tempDir, client, channel)
             {
@@ -298,7 +298,7 @@ public class TerraformParserTests
                 "terraform {\n  source = \"../../modules/app\"\n}\n\ninputs = {\n  env    = \"demo\"\n  region = \"us-east-1\"\n}\n");
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
             var ctx = new ParsingContext(tempDir, tempDir, client, channel)
             {
                 SemanticStructure = new SemanticStructureNode("ws:semantic", "semantic", string.Empty)
@@ -408,7 +408,7 @@ public class TerraformParserTests
                 """);
 
             WorkspaceIndexer.AutoRegisterParsers();
-            await using var client = new InMemoryGraphClient();
+            await using var client = new InMemoryGraphRepository();
             var indexer = new WorkspaceIndexer(client);
             await indexer.IndexAsync(root, clear: false);
 

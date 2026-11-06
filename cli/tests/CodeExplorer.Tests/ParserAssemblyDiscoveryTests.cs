@@ -20,6 +20,7 @@ public class ParserAssemblyDiscoveryTests
         "CodeExplorer.Parser.Script",
         "CodeExplorer.Parser.Shared",
         "CodeExplorer.Parser.SQL",
+        "CodeExplorer.Parser.Terraform",
         "CodeExplorer.Parser.TypeScript"
     ];
 
