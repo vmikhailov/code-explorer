@@ -256,4 +256,71 @@ func setupEcho() {
         var echoEndpoints = FindEndpointNodes(echoTree.FileNode!.Children);
         echoEndpoints.Select(e => e.Name).Should().Contain(["GET:/", "GET:/api/v1/items"]);
     }
+
+    [Test]
+    public async Task Chi_RoutesAndGroups_ExtractsEndpointsAndHandlers()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce-test-chi-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var filePath = Path.Combine(tempDir, "main.go");
+
+        var code = @"package main
+
+import (
+	""net/http""
+	""github.com/go-chi/chi/v5""
+)
+
+func getWorkouts(w http.ResponseWriter, r *http.Request) {}
+func createWorkout(w http.ResponseWriter, r *http.Request) {}
+func cancelWorkout(w http.ResponseWriter, r *http.Request) {}
+
+func setupRouter() {
+	r := chi.NewRouter()
+	r.Get(""/workouts"", getWorkouts)
+
+	r.Route(""/api/v1"", func(r chi.Router) {
+		r.Post(""/workouts"", createWorkout)
+		r.Delete(""/workouts/{id}"", cancelWorkout)
+	})
+}
+";
+        await File.WriteAllTextAsync(filePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphRepository();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var parser = new GoParser();
+
+            using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var fileNode = syntaxTree.FileNode;
+            fileNode.Should().NotBeNull();
+
+            var endpoints = FindEndpointNodes(fileNode.Children);
+            endpoints.Should().HaveCount(3);
+
+            var rootGet = endpoints.FirstOrDefault(e => e.Name == "GET:/workouts");
+            rootGet.Should().NotBeNull();
+            rootGet!.RouteTemplate.Should().Be("/workouts");
+            rootGet.HttpMethod.Should().Be("GET");
+
+            var v1Post = endpoints.FirstOrDefault(e => e.Name == "POST:/api/v1/workouts");
+            v1Post.Should().NotBeNull();
+            v1Post!.RouteTemplate.Should().Be("/api/v1/workouts");
+            v1Post.HttpMethod.Should().Be("POST");
+
+            var v1Delete = endpoints.FirstOrDefault(e => e.Name == "DELETE:/api/v1/workouts/*");
+            v1Delete.Should().NotBeNull();
+            v1Delete!.RouteTemplate.Should().Be("/api/v1/workouts/*");
+            v1Delete.HttpMethod.Should().Be("DELETE");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
 }

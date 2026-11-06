@@ -64,7 +64,14 @@ public static class ProjectEntityClassifierRegistry
         // Test project top priority: test projects must NEVER be classified as runnable service/app workloads
         var normName = (projectName ?? "").Trim().ToLowerInvariant();
         var normRelPath = "/" + (relativeProjectDir ?? "").Replace('\\', '/').Trim('/') + "/";
-        var isTestProject = (extensions != null && (
+        var isOrchestratorRoot = (string.IsNullOrEmpty(relativeProjectDir) || relativeProjectDir == ".") &&
+                                 filesInDirectory.Any(f => Path.GetFileName(f) is "docker-compose.yml" or "docker-compose.yaml" or "go.work");
+        if (isOrchestratorRoot && extensions is Dictionary<string, string> rootExt)
+        {
+            rootExt["is_orchestrator"] = "true";
+        }
+
+        var isTestProject = !isOrchestratorRoot && ((extensions != null && (
                                 extensions.GetValueOrDefault("is_test_project") == "true" ||
                                 extensions.GetValueOrDefault("manifest_type") == "test" ||
                                 string.Equals(extensions.GetValueOrDefault("role"), "Test", StringComparison.OrdinalIgnoreCase) ||
@@ -75,7 +82,7 @@ public static class ProjectEntityClassifierRegistry
                             normRelPath.Contains("/test/") || normRelPath.Contains("/tests/") ||
                             normRelPath.Contains("/spec/") || normRelPath.Contains("/specs/") ||
                             normRelPath.Contains("/__tests__/") || normRelPath.Contains("/e2e/") ||
-                            normRelPath.Contains("/qa/");
+                            normRelPath.Contains("/qa/"));
 
         if (isTestProject)
         {
@@ -190,7 +197,7 @@ public static class ProjectEntityClassifierRegistry
 
         if (componentProfile.Capabilities != Parser.Components.ComponentCapabilities.None)
         {
-            if (componentProfile.PrimaryRole == Parser.LibraryRole.TestFramework) return ProjectClassification.Test;
+            if (componentProfile.PrimaryRole == Parser.LibraryRole.TestFramework && !isOrchestratorRoot) return ProjectClassification.Test;
             if (componentProfile.PrimaryRole == Parser.LibraryRole.CliFramework) return ProjectClassification.CliApp;
             if (componentProfile.PrimaryRole == Parser.LibraryRole.FrontendFramework)
             {

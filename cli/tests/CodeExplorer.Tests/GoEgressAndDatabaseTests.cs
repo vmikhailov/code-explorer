@@ -10,6 +10,20 @@ namespace CodeExplorer.Tests;
 
 public class GoEgressAndDatabaseTests
 {
+    private static List<EndpointNode> FindEndpointNodes(IEnumerable<IOntologyNode> nodes)
+    {
+        var result = new List<EndpointNode>();
+        foreach (var node in nodes)
+        {
+            if (node is EndpointNode ep)
+            {
+                result.Add(ep);
+            }
+            result.AddRange(FindEndpointNodes(node.Children));
+        }
+        return result;
+    }
+
     private static List<ExternalServiceNode> FindExternalServiceNodes(IEnumerable<IOntologyNode> nodes)
     {
         var result = new List<ExternalServiceNode>();
@@ -385,6 +399,114 @@ func StartIngest(ctx context.Context) {
             allRefs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "gcp:IMPRESSION_TOPIC").Should().BeTrue();
             allRefs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "gcp:CONVERSION_TOPIC").Should().BeTrue();
             allRefs.Any(r => r.Kind == OntologyConstants.Relationships.SubscribesTo && r.TargetName == "gcp:TYPE_CPV1").Should().BeTrue();
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Firestore_Collections_ExtractsTableAndDatabaseReferences()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce-test-firestore-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var filePath = Path.Combine(tempDir, "main.go");
+
+        var code = @"package main
+
+import (
+	""context""
+	""cloud.google.com/go/firestore""
+)
+
+func getTrainerHours(ctx context.Context, client *firestore.Client) {
+	_ = client.Collection(""trainer-hours"")
+	_ = client.Collection(""trainings"")
+}
+";
+        await File.WriteAllTextAsync(filePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphRepository();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var parser = new GoParser();
+
+            using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var fileNode = syntaxTree.FileNode;
+            fileNode.Should().NotBeNull();
+
+            var allRefs = fileNode.References.Concat(FindReferences(fileNode.Children)).ToList();
+            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.UsesDb && r.TargetName == "firestore").Should().BeTrue();
+            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.UsesDb && r.TargetName == "trainer-hours").Should().BeTrue();
+            allRefs.Any(r => r.Kind == OntologyConstants.Relationships.UsesDb && r.TargetName == "trainings").Should().BeTrue();
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task Grpc_ServerAndClientCalls_ExtractsEndpointsAndCallEdges()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce-test-grpc-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var filePath = Path.Combine(tempDir, "main.go");
+
+        var code = @"package main
+
+import (
+	""context""
+	""google.golang.org/grpc""
+)
+
+type TrainerServiceClient interface {
+	ScheduleTraining(ctx context.Context, in *UpdateHourRequest) (*Empty, error)
+}
+
+type UpdateHourRequest struct {}
+type Empty struct {}
+
+type TrainerGrpc struct {
+	client TrainerServiceClient
+}
+
+func (s TrainerGrpc) Schedule(ctx context.Context) error {
+	_, err := s.client.ScheduleTraining(ctx, &UpdateHourRequest{})
+	return err
+}
+
+type GrpcServer struct {}
+
+func (g GrpcServer) ScheduleTraining(ctx context.Context, req *UpdateHourRequest) (*Empty, error) {
+	return &Empty{}, nil
+}
+";
+        await File.WriteAllTextAsync(filePath, code);
+
+        try
+        {
+            var channel = Channel.CreateUnbounded<Func<Task>>();
+            await using var client = new InMemoryGraphRepository();
+            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var parser = new GoParser();
+
+            using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+
+            var fileNode = syntaxTree.FileNode;
+            fileNode.Should().NotBeNull();
+
+            var endpoints = FindEndpointNodes(fileNode.Children);
+            endpoints.Any(e => e.Name.Contains("ScheduleTraining")).Should().BeTrue();
+
+            var extServices = FindExternalServiceNodes(fileNode.Children);
+            extServices.Any(es => es.DomainOrService.Contains("trainer", StringComparison.OrdinalIgnoreCase) && es.Path.Contains("ScheduleTraining")).Should().BeTrue();
         }
         finally
         {

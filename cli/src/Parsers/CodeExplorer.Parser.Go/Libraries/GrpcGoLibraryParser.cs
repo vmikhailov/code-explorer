@@ -120,6 +120,7 @@ public class GrpcGoLibraryParser : ISemanticExtension
         }
 
         if (receiverTypeName.StartsWith("Unimplemented", StringComparison.OrdinalIgnoreCase)) return false;
+        if (receiverTypeName.EndsWith("Client", StringComparison.OrdinalIgnoreCase)) return false;
 
         // Check HealthCheck special-case
         if (paramTypes.Any(p => p.Contains("HealthCheckRequest") || p.Contains("Health_WatchServer")))
@@ -143,14 +144,28 @@ public class GrpcGoLibraryParser : ISemanticExtension
             return true;
         }
 
+        var isGenericReceiver = string.IsNullOrEmpty(receiverTypeName) ||
+                                receiverTypeName.Equals("GrpcServer", StringComparison.OrdinalIgnoreCase) ||
+                                receiverTypeName.Equals("Server", StringComparison.OrdinalIgnoreCase) ||
+                                receiverTypeName.Equals("server", StringComparison.OrdinalIgnoreCase) ||
+                                receiverTypeName.Equals("grpcServer", StringComparison.OrdinalIgnoreCase) ||
+                                receiverTypeName.Equals("Handler", StringComparison.OrdinalIgnoreCase);
+
         if (paramTypes.Count >= 2 && paramTypes[1].Contains("Request"))
         {
-            var reqType = paramTypes[1].TrimStart('*', '&');
-            if (reqType.Contains('.')) reqType = reqType.Split('.')[^1];
+            var rawReqType = paramTypes[1].TrimStart('*', '&');
+            var reqPackage = rawReqType.Contains('.') ? rawReqType.Split('.')[0] : "";
+            var reqType = rawReqType.Contains('.') ? rawReqType.Split('.')[^1] : rawReqType;
+
             if (reqType.EndsWith("Request", StringComparison.OrdinalIgnoreCase))
             {
                 var inferred = reqType[..^"Request".Length];
-                if (!string.IsNullOrEmpty(receiverTypeName))
+                if (!string.IsNullOrEmpty(reqPackage) && isGenericReceiver)
+                {
+                    var cleanPkg = char.ToUpperInvariant(reqPackage[0]) + reqPackage[1..];
+                    serviceName = cleanPkg.EndsWith("Service", StringComparison.OrdinalIgnoreCase) ? cleanPkg : $"{cleanPkg}Service";
+                }
+                else if (!string.IsNullOrEmpty(receiverTypeName) && !isGenericReceiver)
                 {
                     serviceName = char.ToUpperInvariant(receiverTypeName[0]) + receiverTypeName[1..];
                     if (!serviceName.EndsWith("Service", StringComparison.OrdinalIgnoreCase))
@@ -241,6 +256,73 @@ public class GrpcGoLibraryParser : ISemanticExtension
     {
         serviceName = "";
         if (string.IsNullOrWhiteSpace(varName)) return false;
+
+        if (varName.Contains('.'))
+        {
+            var parts = varName.Split('.');
+            var fieldName = parts[^1];
+
+            var encMethod = node.Parent;
+            while (encMethod.IsValid() && !encMethod.Is(TreeSitterSyntax.Go.MethodDeclaration))
+            {
+                encMethod = encMethod.Parent;
+            }
+
+            if (encMethod.IsValid())
+            {
+                var receiverNode = encMethod.GetChildForField(ReceiverFieldName);
+                if (receiverNode.IsValid())
+                {
+                    var param = receiverNode.FindChildOfType(TreeSitterSyntax.Go.ParameterDeclaration);
+                    var typeNode = param.IsValid() ? param.GetChildForField(TreeSitterSyntax.Fields.Type) : default;
+                    var structTypeName = typeNode.IsValid() ? typeNode.Text.TrimStart('*', '&') : "";
+
+                    if (!string.IsNullOrEmpty(structTypeName))
+                    {
+                        var rootNode = GetFileRoot(node);
+                        foreach (var desc in rootNode.Descendants())
+                        {
+                            if (desc.Is(TreeSitterSyntax.Go.TypeSpec))
+                            {
+                                var nameNode = desc.GetChildForField(TreeSitterSyntax.Fields.Name);
+                                if (nameNode.IsValid() && nameNode.Text == structTypeName)
+                                {
+                                    var structType = desc.GetChildForField(TreeSitterSyntax.Fields.Type);
+                                    if (structType.IsValid() && structType.Is(TreeSitterSyntax.Go.StructType))
+                                    {
+                                        foreach (var fieldDecl in structType.Descendants().Where(d => d.Is(TreeSitterSyntax.Go.FieldDeclaration)))
+                                        {
+                                            var fName = fieldDecl.GetChildForField(TreeSitterSyntax.Fields.Name);
+                                            var fChild = fieldDecl.Children.FirstOrDefault(c => c.Type is "field_identifier" or "identifier" || c.Is(TreeSitterSyntax.Go.Identifier));
+                                            var nameText = fName.IsValid() ? fName.Text : (fChild.IsValid() ? fChild.Text : "");
+                                            if (string.IsNullOrEmpty(nameText) && fieldDecl.Text.TrimStart().StartsWith(fieldName))
+                                            {
+                                                nameText = fieldName;
+                                            }
+
+                                            if (nameText == fieldName)
+                                            {
+                                                var fType = fieldDecl.GetChildForField(TreeSitterSyntax.Fields.Type);
+                                                var fTypeText = fType.IsValid() ? fType.Text : fieldDecl.Text;
+                                                var cMatch = ClientTypeRegex.Match(fTypeText);
+                                                if (cMatch.Success)
+                                                {
+                                                    var raw = cMatch.Groups[1].Value;
+                                                    if (raw.Contains('.')) raw = raw.Split('.')[^1];
+                                                    var clean = char.ToUpperInvariant(raw[0]) + raw[1..];
+                                                    serviceName = clean.EndsWith("Service", StringComparison.OrdinalIgnoreCase) ? clean : $"{clean}Service";
+                                                    return true;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         var curr = node.Parent;
         while (curr.IsValid())

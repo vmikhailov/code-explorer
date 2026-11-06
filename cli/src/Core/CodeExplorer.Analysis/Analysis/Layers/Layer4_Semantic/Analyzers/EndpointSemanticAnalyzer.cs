@@ -670,7 +670,8 @@ public static class EndpointSemanticAnalyzer
                                 domainOrService.StartWithIC("https:") ||
                                 domainOrService.StartWithIC("ws:") ||
                                 domainOrService.StartWithIC("wss:") ||
-                                domainOrService.StartWithIC("grpc:");
+                                domainOrService.StartWithIC("grpc:") ||
+                                domainOrService.StartWithIC("rpc:");
 
         if (domainOrService.Contains("://"))
         {
@@ -693,11 +694,23 @@ public static class EndpointSemanticAnalyzer
             protocol = "https";
             domainOrService = domainOrService[6..];
         }
+        else if (domainOrService.StartWithIC("grpc:"))
+        {
+            hasExplicitScheme = true;
+            protocol = "grpc";
+            domainOrService = domainOrService[5..];
+        }
+        else if (domainOrService.StartWithIC("rpc:"))
+        {
+            hasExplicitScheme = true;
+            protocol = "grpc";
+            domainOrService = domainOrService[4..];
+        }
         else if (domainOrService.Contains(':'))
         {
             var idx = domainOrService.IndexOf(':');
             var candidateProto = domainOrService[..idx].ToLowerInvariant();
-            if (candidateProto is "http" or "https" or "ws" or "wss" or "grpc")
+            if (candidateProto is "http" or "https" or "ws" or "wss" or "grpc" or "rpc")
             {
                 hasExplicitScheme = true;
                 protocol = candidateProto;
@@ -708,7 +721,14 @@ public static class EndpointSemanticAnalyzer
         var hadExplicitPath = domainOrService.Contains('/');
         var path = "/";
         var slashIdx = domainOrService.IndexOf('/');
-        if (slashIdx > 0)
+        if (protocol == "grpc")
+        {
+            var grpcSegments = domainOrService.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+            domainOrService = grpcSegments.Length > 0 ? grpcSegments[0] : domainOrService.Trim('/');
+            path = grpcSegments.Length > 1 ? "/" + string.Join('/', grpcSegments.Skip(1)) : "/" + domainOrService;
+            slashIdx = -1;
+        }
+        else if (slashIdx > 0)
         {
             var firstSegment = domainOrService[..slashIdx].ToLowerInvariant();
             if (firstSegment is "api" or "rest" or "v1" or "v2" or "v3" or "v4" or "v5" or "graphql")

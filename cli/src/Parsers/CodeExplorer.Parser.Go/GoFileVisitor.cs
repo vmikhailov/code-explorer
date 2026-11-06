@@ -225,6 +225,23 @@ public class GoFileVisitor : BaseParserVisitor
                     return false;
                 }
 
+                if (opText.Contains("header", StringComparison.OrdinalIgnoreCase) ||
+                    opText.Contains("query", StringComparison.OrdinalIgnoreCase) ||
+                    opText.Contains("cookie", StringComparison.OrdinalIgnoreCase) ||
+                    opText.Contains("context", StringComparison.OrdinalIgnoreCase) ||
+                    opText.Contains("firestore", StringComparison.OrdinalIgnoreCase) ||
+                    opText.Contains("bulkWriter", StringComparison.OrdinalIgnoreCase) ||
+                    opText.Contains("doc", StringComparison.OrdinalIgnoreCase) ||
+                    opText.Contains("ref", StringComparison.OrdinalIgnoreCase) ||
+                    opText.Contains("repo", StringComparison.OrdinalIgnoreCase) ||
+                    opText.Contains("repository", StringComparison.OrdinalIgnoreCase) ||
+                    opText.Contains("store", StringComparison.OrdinalIgnoreCase) ||
+                    opText.Contains("cache", StringComparison.OrdinalIgnoreCase) ||
+                    opText.Contains("db", StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
                 if (opText == "http" ||
                     opText.Contains("client", StringComparison.OrdinalIgnoreCase) ||
                     opText.Contains("resty", StringComparison.OrdinalIgnoreCase) ||
@@ -257,6 +274,25 @@ public class GoFileVisitor : BaseParserVisitor
                 if (methodName is "HandleFunc" or "Handle" or "GET" or "POST" or "PUT" or "DELETE" or "PATCH" or "OPTIONS"
                     or "Get" or "Post" or "Put" or "Delete" or "Patch" or "Options" or "Head" or "All")
                 {
+                    var args = node.FindChildOfType(TreeSitterSyntax.Go.ArgumentList);
+                    if (!args.IsValid()) return false;
+                    var exprArgs = args.Children.Where(c => !c.Type.Equals("(") && !c.Type.Equals(")") && !c.Type.Equals(",")).ToList();
+                    if (exprArgs.Count < 2) return false;
+
+                    var firstArg = exprArgs[0];
+                    if (firstArg.Text is "ctx" || firstArg.Text.Contains("context", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return false;
+                    }
+
+                    var routeVal = GoAstHelper.ResolveStringOrVariable(firstArg);
+                    if (string.IsNullOrEmpty(routeVal) ||
+                        routeVal.StartWithIC("http://") ||
+                        routeVal.StartWithIC("https://"))
+                    {
+                        return false;
+                    }
+
                     return true;
                 }
             }
@@ -291,7 +327,7 @@ public class GoFileVisitor : BaseParserVisitor
         }
 
         var args = callNode.FindChildOfType(TreeSitterSyntax.Go.ArgumentList);
-        var routeVal = "/";
+        string? routeVal = null;
         if (args.IsValid() && args.Children.Count > 0)
         {
             var firstArg = args.Children.FirstOrDefault(c => c.IsAny(
@@ -309,6 +345,8 @@ public class GoFileVisitor : BaseParserVisitor
                 }
             }
         }
+
+        if (string.IsNullOrEmpty(routeVal)) return null;
 
         // Check if chained with .Methods(...) in gorilla/mux
         // e.g. r.HandleFunc(...).Methods(http.MethodGet, http.MethodHead)

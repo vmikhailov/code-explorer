@@ -163,25 +163,27 @@ public static class GoAstHelper
         // 4. Binary expression: host + "/api/v1/..."
         if (argNode.Type is TreeSitterSyntax.Common.BinaryExpression)
         {
+            var left = argNode.GetField(TreeSitterSyntax.Fields.Left) ??
+                       (argNode.Children.Count > 0 ? argNode.Children[0] : null);
             var right = argNode.GetField(TreeSitterSyntax.Fields.Right) ??
                         (argNode.Children.Count >= 2 ? argNode.Children[^1] : null);
 
-            if (right.IsValid())
-            {
-                var rightResolved = ResolveStringOrVariable(right, depth + 1, visitedVars);
+            var leftResolved = left.IsValid() ? ResolveStringOrVariable(left, depth + 1, visitedVars) : null;
+            var rightResolved = right.IsValid() ? ResolveStringOrVariable(right, depth + 1, visitedVars) : null;
 
-                if (!string.IsNullOrEmpty(rightResolved))
-                {
-                    return rightResolved;
-                }
+            if (!string.IsNullOrEmpty(leftResolved) && !string.IsNullOrEmpty(rightResolved))
+            {
+                return CombineRoutes(leftResolved, rightResolved);
             }
 
-            var left = argNode.GetField(TreeSitterSyntax.Fields.Left) ??
-                       (argNode.Children.Count > 0 ? argNode.Children[0] : null);
-
-            if (left.IsValid())
+            if (!string.IsNullOrEmpty(rightResolved))
             {
-                return ResolveStringOrVariable(left, depth + 1, visitedVars);
+                return rightResolved;
+            }
+
+            if (!string.IsNullOrEmpty(leftResolved))
+            {
+                return leftResolved;
             }
         }
 
@@ -368,6 +370,47 @@ public static class GoAstHelper
         if (!receiverNode.IsValid()) return "";
 
         var prefixes = new List<string>();
+
+        // Check if callNode is inside an enclosing func_literal passed to .Route("/prefix", func(r) {})
+        var enc = callNode.Parent;
+        while (enc.IsValid())
+        {
+            if (enc.Is(TreeSitterSyntax.Go.FuncLiteral))
+            {
+                var argList = enc.Parent;
+                if (argList.IsValid() && argList.Is(TreeSitterSyntax.Go.ArgumentList))
+                {
+                    var outerCall = argList.Parent;
+                    if (outerCall.IsValid() && outerCall.Is(TreeSitterSyntax.Go.CallExpression))
+                    {
+                        var oFunc = outerCall.GetFunctionNode();
+                        if (oFunc.IsValid() && oFunc.Is(TreeSitterSyntax.Go.SelectorExpression))
+                        {
+                            var fld = oFunc.GetChildForField(TreeSitterSyntax.Fields.Field);
+                            if (fld.IsValid() && (fld.Text == "Route" || fld.Text == "Mount" || fld.Text == "Group"))
+                            {
+                                var oArgs = outerCall.FindChildOfType(TreeSitterSyntax.Go.ArgumentList);
+                                if (oArgs.IsValid() && oArgs.Children.Count > 0)
+                                {
+                                    var firstArg = oArgs.Children.FirstOrDefault(c =>
+                                        c.IsAny(TreeSitterSyntax.Go.InterpretedStringLiteral,
+                                                TreeSitterSyntax.Go.RawStringLiteral,
+                                                TreeSitterSyntax.Go.StringLiteral,
+                                                TreeSitterSyntax.Go.Identifier));
+                                    var pStr = ResolveStringOrVariable(firstArg);
+                                    if (!string.IsNullOrEmpty(pStr) && (pStr.StartsWith('/') || pStr.Contains('/')))
+                                    {
+                                        prefixes.Insert(0, pStr.Trim('"', '`'));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            enc = enc.Parent;
+        }
+
         var currReceiver = receiverNode;
         var visited = new HashSet<string>(StringComparer.Ordinal);
 
@@ -389,7 +432,7 @@ public static class GoAstHelper
                 break;
 
             var methodField = func.GetChildForField(TreeSitterSyntax.Fields.Field);
-            if (!methodField.IsValid() || methodField.Text != "Group")
+            if (!methodField.IsValid() || (methodField.Text != "Group" && methodField.Text != "Route" && methodField.Text != "Mount"))
                 break;
 
             var args = initCall.FindChildOfType(TreeSitterSyntax.Go.ArgumentList);

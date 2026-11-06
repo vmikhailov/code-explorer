@@ -53,9 +53,33 @@ public class GoHttpClientLibraryParser : ISemanticExtension
                 {
                     return methodName is "Get" or "Post" or "Head" or "PostForm" or "NewRequest" or "NewRequestWithContext";
                 }
-                if (objName.Contains("client", StringComparison.OrdinalIgnoreCase) ||
-                    objName.Contains("req", StringComparison.OrdinalIgnoreCase) ||
-                    objName is "r" or "c")
+
+                if (objName.Contains("header", StringComparison.OrdinalIgnoreCase) ||
+                    objName.Contains("query", StringComparison.OrdinalIgnoreCase) ||
+                    objName.Contains("cookie", StringComparison.OrdinalIgnoreCase) ||
+                    objName.Contains("context", StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                var args = GoAstHelper.GetCallArguments(node);
+                if (args.Count >= 2 && methodName is "Get" or "Post" or "Put" or "Delete" or "Patch")
+                {
+                    var lastArg = args[^1];
+                    if (lastArg.Is(TreeSitterSyntax.Go.FuncLiteral) ||
+                        lastArg.Text.Contains("Handler", StringComparison.OrdinalIgnoreCase) ||
+                        lastArg.Text.Contains("Func", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return false;
+                    }
+                }
+
+                var isClientObj = objName.EndsWith("Client", StringComparison.OrdinalIgnoreCase) ||
+                                  objName.EndsWith("client", StringComparison.OrdinalIgnoreCase) ||
+                                  objName.Contains("httpClient", StringComparison.OrdinalIgnoreCase) ||
+                                  objName is "client" or "cli" or "hc";
+
+                if (isClientObj)
                 {
                     return methodName is "Get" or "Post" or "Put" or "Delete" or "Patch" or "Head" or "PostForm" or "Do";
                 }

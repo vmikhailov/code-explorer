@@ -30,6 +30,7 @@ public class GoParser : IProjectParser, IFileParser
         new Libraries.ClickHouseGoLibraryParser(),
         new Libraries.ElasticsearchGoLibraryParser(),
         new Libraries.GinLibraryParser(),
+        new Libraries.ChiLibraryParser(),
         new Libraries.FiberLibraryParser(),
         new Libraries.EchoLibraryParser(),
         new Libraries.GoRedisLegacyLibraryParser(),
@@ -40,6 +41,7 @@ public class GoParser : IProjectParser, IFileParser
         new Libraries.GoSqlLibraryParser(),
         new Libraries.LibPqLibraryParser(),
         new Libraries.MongoGoLibraryParser(),
+        new Libraries.FirestoreGoLibraryParser(),
         new Libraries.PubSubGoLibraryParser(),
         new Libraries.RabbitMqGoLibraryParser(),
         new Libraries.PgxLibraryParser(),
@@ -189,7 +191,8 @@ public class GoParser : IProjectParser, IFileParser
                 }
                 if (content.Contains("github.com/gin-gonic/gin") ||
                     content.Contains("github.com/labstack/echo") ||
-                    content.Contains("github.com/gofiber/fiber"))
+                    content.Contains("github.com/gofiber/fiber") ||
+                    content.Contains("github.com/go-chi/chi"))
                 {
                     hasWeb = true;
                 }
