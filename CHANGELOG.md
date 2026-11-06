@@ -5,6 +5,34 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.72.0] - 2026-11-06
+
+### Added
+- **Multi-Ecosystem Architecture Coverage (Go, Java, Kotlin)**:
+  - **Go Frameworks & Transport Protocols**:
+    - Added `GrpcGatewayGoLibraryParser` extracting REST routes (`/api/v1/...`) and HTTP methods from gRPC-Gateway protobuf-generated Go files.
+    - Added `FasthttpLibraryParser` supporting high-performance Fasthttp routers and routing tables (`[]endpoints.Endpoint{ Route: ..., Methods: ... }`).
+    - Added `BeegoLibraryParser` supporting Beego v1/v2 route hierarchies (`NewNamespace`, `NSRouter`, `AutoRouter`) and Beego ORM models (`orm.RegisterModel`, `QueryTable`).
+    - Extended `GrpcGoLibraryParser` with strict disambiguation between business RPC services and infrastructure metrics interfaces.
+    - Extended `GoRedisLibraryParser` with Redigo pool and legacy client command extractions.
+  - **Java Frameworks & RPC Protocols**:
+    - Added `PanacheOrmLibraryParser` supporting Quarkus Panache Active Record and Repository patterns, linking entities to database tables.
+    - Added `QuarkusJaxRsLibraryParser` and `OpenApiFileParser` extracting RESTEasy Reactive endpoints and OpenAPI specifications.
+    - Added `QuarkusMessagingLibraryParser` for SmallRye Reactive Messaging / Kafka channels (`fights`, `team-stats`).
+    - Added `MyBatisXmlMapperParser` parsing MyBatis XML mappers, binding `<select>`, `<insert>`, `<update>`, `<delete>` SQL queries to DAO interfaces by `namespace` + `id`, and normalizing token parameters (`#{...}`, `${...}`).
+    - Added `DubboLibraryParser` and `DubboXmlParser` extracting Apache Dubbo RPC providers and `@DubboReference` consumers across `dubbo://` and `tri://` (Triple / gRPC), with Layer 5 contract late-binding (`CALLS_ENDPOINT`).
+    - Added `SpringDataRedisLibraryParser` and `SpringDataElasticsearchLibraryParser`.
+    - Added placeholder configuration resolution in `ConfigurationIndex.ResolvePlaceholders` (e.g. `${offers.api.version}`) and declarative HTTP client detection (`@Client` -> `ExternalService`).
+  - **Kotlin Frameworks & Multiplatform Support**:
+    - Added Ktor Server routing DSL parser resolving nested route hierarchies (`routing { route(...) { get(...) { } } }`).
+    - Added JetBrains Exposed ORM support (`Table`, `IntIdTable`, `LongIdTable`, `UUIDTable`, query operations `selectAll`, `insert`, `deleteWhere`).
+    - Added Android Room ORM support: canonical `@Entity(tableName = "...")` resolution, `@Dao` multiline triple-quoted SQL queries (`"""..."""`), and CRUD annotations (`@Insert`, `@Update`, `@Delete`, `@Upsert`).
+    - Added Retrofit client interface extraction (`@GET`, `@POST`, etc.) emitting `ExternalServiceNode` with `CALLS` / `SERVICE_CALL`, eliminating false server endpoints.
+    - Unified `SpringFrameworkConfigurationDescriptor` in `CodeExplorer.Parser.Shared` across Java and Kotlin.
+    - Added Kotlin MyBatis SQL annotations (`@Select`, `@Insert`, `@Update`, `@Delete`, `@SelectProvider`) and Spring Data `CrudRepository` / `JpaRepository` derived query method linking to entity tables.
+    - Added relational database detection and consolidation for H2 (`jdbc:h2:...`) and MySQL (`jdbc:mysql:...`).
+
+---
 ## [1.71.0] - 2026-11-06
 
 ### Added
