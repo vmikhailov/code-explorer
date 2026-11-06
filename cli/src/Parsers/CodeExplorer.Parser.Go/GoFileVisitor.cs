@@ -54,7 +54,7 @@ public class GoFileVisitor : BaseParserVisitor
 
         if (IsGoEntryPoint(node))
         {
-            return ExtractGoEntryPointRoute(node);
+            return ExtractGoEntryPointRoute(node, RelativePath);
         }
 
         return base.ExtractIdentifier(node);
@@ -71,7 +71,7 @@ public class GoFileVisitor : BaseParserVisitor
 
         if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint)
         {
-            var routeVal = ExtractGoEntryPointRoute(node);
+            var routeVal = ExtractGoEntryPointRoute(node, RelativePath);
             if (!string.IsNullOrEmpty(routeVal))
             {
                 var args = node.FindChildOfType(TreeSitterSyntax.Go.ArgumentList);
@@ -300,7 +300,7 @@ public class GoFileVisitor : BaseParserVisitor
         return false;
     }
 
-    private static string? ExtractGoEntryPointRoute(Node callNode)
+    private static string? ExtractGoEntryPointRoute(Node callNode, string? relativePath = null)
     {
         var func = callNode.GetFunctionNode();
         if (!func.IsValid()) return null;
@@ -386,6 +386,22 @@ public class GoFileVisitor : BaseParserVisitor
         }
 
         routeVal = GoAstHelper.CombineRoutes(prefix, routeVal);
+
+        if (!routeVal.StartsWith("/v", StringComparison.OrdinalIgnoreCase))
+        {
+            if (RouteDictionaryRegistry.TryGetMountPrefix(relativePath, out var mountPrefix))
+            {
+                routeVal = GoAstHelper.CombineRoutes(mountPrefix, routeVal);
+            }
+            else if (!string.IsNullOrEmpty(relativePath))
+            {
+                var vPathMatch = System.Text.RegularExpressions.Regex.Match(relativePath.Replace('\\', '/'), @"/(v\d+)/");
+                if (vPathMatch.Success)
+                {
+                    routeVal = GoAstHelper.CombineRoutes("/" + vPathMatch.Groups[1].Value, routeVal);
+                }
+            }
+        }
 
         return $"{method}:{routeVal}";
     }

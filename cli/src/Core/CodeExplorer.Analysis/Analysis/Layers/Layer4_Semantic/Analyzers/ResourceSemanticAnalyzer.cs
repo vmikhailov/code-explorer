@@ -587,7 +587,7 @@ public partial class ResourceSemanticAnalyzer
                         }
                     }
             }
-            else if (parser.Type is SemanticExtensionType.ApiClient or SemanticExtensionType.HttpClient)
+            else if (parser.Type is SemanticExtensionType.ApiClient or SemanticExtensionType.HttpClient or SemanticExtensionType.Queue)
             {
                 var apiId = $"{projectNode.Id}api:{parser.Id}";
                 var semanticNodeForApi = ctx.SemanticStructure;

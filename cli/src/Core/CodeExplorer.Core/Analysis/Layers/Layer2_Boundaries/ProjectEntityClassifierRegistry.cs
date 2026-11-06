@@ -64,8 +64,16 @@ public static class ProjectEntityClassifierRegistry
         // Test project top priority: test projects must NEVER be classified as runnable service/app workloads
         var normName = (projectName ?? "").Trim().ToLowerInvariant();
         var normRelPath = "/" + (relativeProjectDir ?? "").Replace('\\', '/').Trim('/') + "/";
-        var isOrchestratorRoot = (string.IsNullOrEmpty(relativeProjectDir) || relativeProjectDir == ".") &&
-                                 filesInDirectory.Any(f => Path.GetFileName(f) is "docker-compose.yml" or "docker-compose.yaml" or "go.work");
+        var hasExplicitWorkload = extensions != null && (
+            extensions.GetValueOrDefault("manifest_type") is "application" or "worker" or "cli" or "service" ||
+            extensions.GetValueOrDefault("framework_type") is "web" or "worker" ||
+            extensions.GetValueOrDefault("has_grpc") == "true" ||
+            extensions.GetValueOrDefault("role") is "Service" or "Worker" or "CliTool");
+
+        var isOrchestratorRoot = !hasExplicitWorkload &&
+                                 (string.IsNullOrEmpty(relativeProjectDir) || relativeProjectDir == ".") &&
+                                 filesInDirectory.Any(f => Path.GetFileName(f) is "docker-compose.yml" or "docker-compose.yaml" or "go.work") &&
+                                 !filesInDirectory.Any(f => Path.GetFileName(f) is "main.go" or "app.go");
         if (isOrchestratorRoot && extensions is Dictionary<string, string> rootExt)
         {
             rootExt["is_orchestrator"] = "true";

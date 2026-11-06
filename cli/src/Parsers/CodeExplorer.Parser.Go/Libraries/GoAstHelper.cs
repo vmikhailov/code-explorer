@@ -83,6 +83,7 @@ public static class GoAstHelper
                     (Regex.IsMatch(fieldText, @"^[A-Z0-9_]{3,}$") ||
                      fieldText.EndsWith("Topic", StringComparison.OrdinalIgnoreCase) ||
                      fieldText.EndsWith("Queue", StringComparison.OrdinalIgnoreCase) ||
+                     fieldText.EndsWith("Exchange", StringComparison.OrdinalIgnoreCase) ||
                      fieldText.EndsWith("Subscription", StringComparison.OrdinalIgnoreCase) ||
                      fieldText.EndsWith("TopicID", StringComparison.OrdinalIgnoreCase) ||
                      fieldText.EndsWith("SubID", StringComparison.OrdinalIgnoreCase)))
@@ -462,6 +463,20 @@ public static class GoAstHelper
             }
         }
 
+        if (currReceiver.IsAny(TreeSitterSyntax.Go.Identifier, TreeSitterSyntax.Go.VariableName))
+        {
+            var endVar = currReceiver.Text;
+            var vMatch = Regex.Match(endVar, @"^(?:api)?[vV](\d+)(?:Group|Router)?$");
+            if (vMatch.Success)
+            {
+                var vPrefix = "/v" + vMatch.Groups[1].Value;
+                if (!prefixes.Contains(vPrefix, StringComparer.OrdinalIgnoreCase))
+                {
+                    prefixes.Insert(0, vPrefix);
+                }
+            }
+        }
+
         if (prefixes.Count == 0) return "";
 
         var combined = "";
@@ -492,5 +507,38 @@ public static class GoAstHelper
 
         var combined = prefix + path;
         return combined.StartsWith('/') ? combined : "/" + combined;
+    }
+
+    public static bool TryGetIndexAssignment(Node node, out string operandText, out string indexText)
+    {
+        operandText = string.Empty;
+        indexText = string.Empty;
+
+        var targetNode = node;
+        if (node.Is(TreeSitterSyntax.Go.AssignmentStatement))
+        {
+            var left = node.Children.FirstOrDefault();
+            if (!left.IsValid()) return false;
+            targetNode = left;
+        }
+
+        if (targetNode.Is(TreeSitterSyntax.Common.IndexExpression) || targetNode.Type == "index_expression")
+        {
+            var operand = targetNode.GetChildForField(TreeSitterSyntax.Fields.Operand);
+            var index = targetNode.GetChildForField(TreeSitterSyntax.Fields.Index);
+
+            if (operand.IsValid() && index.IsValid())
+            {
+                operandText = operand.Text;
+                var resolved = ResolveStringOrVariable(index);
+                if (!string.IsNullOrEmpty(resolved))
+                {
+                    indexText = resolved.Trim('"', '`');
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

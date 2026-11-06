@@ -391,6 +391,33 @@ public static class RouteDictionaryRegistry
                     }
                 }
             }
+
+            // 3. ServiceUrls / ServiceUrl patterns in structs or config: ServiceUrls: []string{"translate.google.com"} or ServiceUrl: "api.foo.com"
+            var serviceUrlsMatches = Regex.Matches(content, @"(?:ServiceUrls|ServiceUrl|BaseUrls|BaseUrl)\s*[:=]\s*(?:\[\]string\s*\{\s*)?['""]([^'""]+)['""]", RegexOptions.Multiline, RegexTimeout);
+            foreach (Match sm in serviceUrlsMatches)
+            {
+                var sVal = sm.Groups[1].Value.Trim();
+                if (sVal.Contains('.') && !sVal.Contains(' '))
+                {
+                    if (sVal.StartWithIC("http://") || sVal.StartWithIC("https://"))
+                    {
+                        try
+                        {
+                            var uri = new Uri(sVal);
+                            sVal = uri.Host;
+                        }
+                        catch
+                        {
+                            sVal = sVal.Replace("http://", "").Replace("https://", "").Trim('/');
+                        }
+                    }
+                    var normSVal = WorkspaceConventions.NormalizeServiceName(sVal);
+                    if (string.IsNullOrEmpty(normSVal)) normSVal = sVal;
+                    _serviceDomains["translator"] = normSVal;
+                    _serviceDomains["webapi"] = normSVal;
+                    _serviceDomains[normSVal] = normSVal;
+                }
+            }
         }
         catch (RegexMatchTimeoutException)
         {

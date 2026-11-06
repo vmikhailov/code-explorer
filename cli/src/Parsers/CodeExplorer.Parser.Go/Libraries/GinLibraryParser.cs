@@ -32,6 +32,7 @@ public class GinLibraryParser : ISemanticExtension
     {
         if (IsGinRouteCall(node, out var httpMethod, out var fullRoute, out _))
         {
+            fullRoute = ApplyMountPrefix(fullRoute, relativePath);
             return $"{httpMethod}:{fullRoute}";
         }
         return null;
@@ -41,8 +42,29 @@ public class GinLibraryParser : ISemanticExtension
     {
         if (IsGinRouteCall(node, out _, out var fullRoute, out var handlerName) && !string.IsNullOrEmpty(handlerName))
         {
+            fullRoute = ApplyMountPrefix(fullRoute, null);
             references.Add(new Reference(handlerName, fullRoute.Replace(":", " "), OntologyConstants.Relationships.Implements));
         }
+    }
+
+    private static string ApplyMountPrefix(string route, string? relativePath)
+    {
+        if (!route.StartsWith("/v", StringComparison.OrdinalIgnoreCase))
+        {
+            if (RouteDictionaryRegistry.TryGetMountPrefix(relativePath, out var mountPrefix))
+            {
+                return GoAstHelper.CombineRoutes(mountPrefix, route);
+            }
+            if (!string.IsNullOrEmpty(relativePath))
+            {
+                var vPathMatch = System.Text.RegularExpressions.Regex.Match(relativePath.Replace('\\', '/'), @"/(v\d+)/");
+                if (vPathMatch.Success)
+                {
+                    return GoAstHelper.CombineRoutes("/" + vPathMatch.Groups[1].Value, route);
+                }
+            }
+        }
+        return route;
     }
 
     public static bool IsGinRouteCall(Node node, out string httpMethod, out string fullRoute, out string? handlerName)

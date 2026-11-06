@@ -22,6 +22,18 @@ public class RabbitMqGoLibraryParser : ISemanticExtension
 
     public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
     {
+        // 0. Dispatcher index assignment: routes["v1.task.create"] = r.createTask()
+        if (GoAstHelper.TryGetIndexAssignment(node, out var operandText, out var indexKey))
+        {
+            if (operandText.Contains("route", StringComparison.OrdinalIgnoreCase) ||
+                operandText.Contains("handler", StringComparison.OrdinalIgnoreCase) ||
+                operandText.Contains("sub", StringComparison.OrdinalIgnoreCase))
+            {
+                references.Add(new Reference(scopeSymbolId, "rabbitmq:" + indexKey, OntologyConstants.Relationships.SubscribesTo));
+                return;
+            }
+        }
+
         if (!node.Is(TreeSitterSyntax.Go.CallExpression)) return;
 
         var func = node.GetFunctionNode();
@@ -87,7 +99,46 @@ public class RabbitMqGoLibraryParser : ISemanticExtension
                 }
             }
         }
-        // 4. messaging manager: Subscribe(ctx, to, onMessage, ...)
+        // 4. ExchangeDeclare: ch.ExchangeDeclare(name, type, ...)
+        else if (funcText.EndsWith(".ExchangeDeclare", StringComparison.Ordinal) ||
+                 funcText.EndsWith(".ExchangeDeclarePassive", StringComparison.Ordinal))
+        {
+            if (args.Count > 0)
+            {
+                var exchange = GoAstHelper.ResolveStringOrVariable(args[0]);
+                if (!string.IsNullOrEmpty(exchange))
+                {
+                    references.Add(new Reference(scopeSymbolId, "rabbitmq:" + exchange, OntologyConstants.Relationships.SubscribesTo));
+                }
+            }
+        }
+        // 5. QueueBind: ch.QueueBind(queue, key, exchange, ...)
+        else if (funcText.EndsWith(".QueueBind", StringComparison.Ordinal))
+        {
+            if (args.Count >= 3)
+            {
+                var exchange = GoAstHelper.ResolveStringOrVariable(args[2]);
+                var queue = GoAstHelper.ResolveStringOrVariable(args[0]);
+                var target = !string.IsNullOrEmpty(exchange) ? exchange : queue;
+                if (!string.IsNullOrEmpty(target))
+                {
+                    references.Add(new Reference(scopeSymbolId, "rabbitmq:" + target, OntologyConstants.Relationships.SubscribesTo));
+                }
+            }
+        }
+        // 6. RemoteCall client: client.RemoteCall(handler, request, response)
+        else if (funcText.EndsWith(".RemoteCall", StringComparison.Ordinal))
+        {
+            if (args.Count > 0)
+            {
+                var handler = GoAstHelper.ResolveStringOrVariable(args[0]);
+                if (!string.IsNullOrEmpty(handler))
+                {
+                    references.Add(new Reference(scopeSymbolId, "rabbitmq:" + handler, OntologyConstants.Relationships.PublishesTo));
+                }
+            }
+        }
+        // 7. messaging manager: Subscribe(ctx, to, onMessage, ...)
         else if (funcText.EndsWith(".Subscribe", StringComparison.Ordinal))
         {
             if (args.Count >= 2)
@@ -99,7 +150,7 @@ public class RabbitMqGoLibraryParser : ISemanticExtension
                 }
             }
         }
-        // 5. Helper function: consumeRabbit(ctx, channel, queue, handler)
+        // 8. Helper function: consumeRabbit(ctx, channel, queue, handler)
         else if (funcText.Contains("consumeRabbit", StringComparison.OrdinalIgnoreCase))
         {
             if (args.Count >= 3)

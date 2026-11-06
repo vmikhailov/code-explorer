@@ -44,6 +44,7 @@ public class GoParser : IProjectParser, IFileParser
         new Libraries.FirestoreGoLibraryParser(),
         new Libraries.PubSubGoLibraryParser(),
         new Libraries.RabbitMqGoLibraryParser(),
+        new Libraries.NatsGoLibraryParser(),
         new Libraries.PgxLibraryParser(),
         new Libraries.RestyLibraryParser(),
         new Libraries.GoHttpClientLibraryParser(),
@@ -160,6 +161,14 @@ public class GoParser : IProjectParser, IFileParser
         var goFiles = filesInDirectory.Where(f => f.EndsWith(".go", StringComparison.OrdinalIgnoreCase)).ToList();
         var hasNonTestGo = goFiles.Any(f => !f.EndsWith("_test.go", StringComparison.OrdinalIgnoreCase));
         var hasMainGo = goFiles.Any(f => Path.GetFileName(f).Equals("main.go", StringComparison.OrdinalIgnoreCase));
+        if (!hasMainGo)
+        {
+            var cmdDir = Path.Combine(directoryPath, "cmd");
+            if (Directory.Exists(cmdDir))
+            {
+                hasMainGo = Directory.EnumerateFiles(cmdDir, "main.go", SearchOption.AllDirectories).Any();
+            }
+        }
 
         if (isTestDir || (goFiles.Count > 0 && !hasNonTestGo))
         {
@@ -209,33 +218,45 @@ public class GoParser : IProjectParser, IFileParser
         {
             props["manifest_type"] = "worker";
             props["framework_type"] = "worker";
+            props["role"] = "Worker";
+            props["primary_role"] = "Worker";
         }
         else if (hasMainGo)
         {
             if (isInternalTool)
             {
                 props["manifest_type"] = "tool";
+                props["role"] = "CliTool";
+                props["primary_role"] = "CliTool";
             }
             else if (hasGrpc || hasWeb)
             {
                 props["manifest_type"] = "application";
                 props["framework_type"] = "web";
+                props["role"] = "Service";
+                props["primary_role"] = "Service";
             }
             else if (hasCobraOrCli || normPath.EndsWith("/cmd/") || normPath.EndsWith("/cli/") || dirName.EndsWith("-cli") || dirName.EndsWith("_cli") || dirName == "cli")
             {
                 props["manifest_type"] = "cli";
                 props["has_cli_bin"] = "true";
+                props["role"] = "CliTool";
+                props["primary_role"] = "CliTool";
             }
             else
             {
                 props["manifest_type"] = "application";
                 props["framework_type"] = "web";
+                props["role"] = "Service";
+                props["primary_role"] = "Service";
             }
         }
         else if (hasGrpc || hasWeb)
         {
             props["manifest_type"] = "application";
             props["framework_type"] = "web";
+            props["role"] = "Service";
+            props["primary_role"] = "Service";
         }
 
         return props;

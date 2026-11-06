@@ -7,9 +7,12 @@ public class GoHttpClientLibraryParser : ISemanticExtension
     public SemanticExtensionType Type => SemanticExtensionType.ApiClient;
     public string Name => "Go HTTP Client";
     public string Id => "net-http";
-    public IReadOnlyList<string> SupportedPatterns => ["net/http*"];
+    public IReadOnlyList<string> SupportedPatterns => ["net/http*", "*googletrans*", "*translator*"];
     public bool IsImplemented => true;
     public LibraryRole LibraryRole => LibraryRole.General;
+
+    private const string DefaultGoogleTranslateUrl = "https://translate.google.com";
+    private const string UnknownServiceTarget = "http:unknown-service";
 
     public string? MapNodeType(Node node, ParsingContext ctx)
     {
@@ -77,11 +80,11 @@ public class GoHttpClientLibraryParser : ISemanticExtension
                 var isClientObj = objName.EndsWith("Client", StringComparison.OrdinalIgnoreCase) ||
                                   objName.EndsWith("client", StringComparison.OrdinalIgnoreCase) ||
                                   objName.Contains("httpClient", StringComparison.OrdinalIgnoreCase) ||
-                                  objName is "client" or "cli" or "hc";
+                                  objName is "client" or "cli" or "hc" or "trans" or "translator" or "webapi";
 
                 if (isClientObj)
                 {
-                    return methodName is "Get" or "Post" or "Put" or "Delete" or "Patch" or "Head" or "PostForm" or "Do";
+                    return methodName is "Get" or "Post" or "Put" or "Delete" or "Patch" or "Head" or "PostForm" or "Do" or "Translate";
                 }
             }
         }
@@ -92,10 +95,22 @@ public class GoHttpClientLibraryParser : ISemanticExtension
     {
         var func = node.GetFunctionNode();
         var methodName = "";
+        var operandName = "";
         if (func.IsValid() && func.Is(TreeSitterSyntax.Go.SelectorExpression))
         {
             var field = func.GetChildForField(TreeSitterSyntax.Fields.Field);
             if (field.IsValid()) methodName = field.Text;
+            var operand = func.GetChildForField(TreeSitterSyntax.Fields.Operand);
+            if (operand.IsValid()) operandName = operand.Text;
+        }
+
+        if (operandName is "trans" or "translator" || methodName.Equals("Translate", StringComparison.OrdinalIgnoreCase))
+        {
+            if (RouteDictionaryRegistry.TryResolve("translator", out var rPath, out var rSvc))
+            {
+                return !string.IsNullOrEmpty(rSvc) ? $"{rSvc}{rPath}" : rPath;
+            }
+            return DefaultGoogleTranslateUrl;
         }
 
         var args = GoAstHelper.GetCallArguments(node);
@@ -127,6 +142,6 @@ public class GoHttpClientLibraryParser : ISemanticExtension
             }
         }
 
-        return "http:unknown-service";
+        return UnknownServiceTarget;
     }
 }
